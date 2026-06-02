@@ -1,0 +1,256 @@
+{
+  "manifest_version": 3,
+  "name": "Steam Buff",
+  "version": "0.7.5",
+  "description": "Steam 客户端增强小工具重构版，别名G胖的微笑，当前小工具仍处于前期开发阶段，很多功能仍在开发完善，部分功能还未从老的扩展中移植过来。",
+  "author": "顾青离",
+  "homepage_url": "https://www.sucaijun.com/25.html",
+  "icons": {
+    "16": "images/icon.png",
+    "32": "images/icon.png",
+    "48": "images/icon.png",
+    "128": "images/icon.png"
+  },
+  "permissions": [
+    "scripting",
+    "tabs",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "extension/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "ai/config.js",
+        "translate/boot.js"
+      ],
+      "run_at": "document_end",
+      "all_frames": true,
+      "match_about_blank": true
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "ai/config.js",
+        "shared/config.js",
+        "extension/runtime/logger.js",
+        "settings/catalog.js",
+        "settings/membership.js",
+        "settings/storage.js",
+        "settings/settings-backup.js",
+        "settings/pages/registry.js",
+        "settings/pages/about.js",
+        "settings/pages/account/style.js",
+        "settings/pages/account/state.js",
+        "settings/pages/account/api.js",
+        "settings/pages/account/auth.js",
+        "settings/pages/account/device-login.js",
+        "settings/pages/account/center.js",
+        "settings/pages/account/view.js",
+        "settings/pages/account/actions.js",
+        "settings/pages/account.js",
+        "settings/startup-animation.js",
+        "settings/ui/html.js",
+        "settings/ui/assets.js",
+        "settings/ui/styles.js",
+        "settings/ui/dialogs.js",
+        "settings/ui/toast.js",
+        "settings/ui/fields.js",
+        "settings/ui/feature-row.js",
+        "settings/panels/review-filter.js",
+        "settings/panels/search-suggestions.js",
+        "settings/panels/see.js",
+        "settings/panels/ai.js",
+        "settings/panels/translate.js",
+        "settings/menu/dependencies.js",
+        "settings/menu/panels.js",
+        "settings/menu/shell.js",
+        "settings/menu/controller.js",
+        "settings/menu/events.js",
+        "settings/floating-menu.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://steamloopback.host/*"
+      ],
+      "js": [
+        "extension/runtime/guard.js",
+        "extension/runtime/injector.js",
+        "extension/runtime/logger.js",
+        "shared/config.js",
+        "extension/content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true
+    },
+    {
+      "matches": [
+        "https://steamcommunity.com/*"
+      ],
+      "js": [
+        "extension/runtime/injector.js",
+        "extension/runtime/logger.js",
+        "shared/config.js",
+        "extension/content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://store.steampowered.com/*"
+      ],
+      "js": [
+        "store/features/age-gate-skip.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://store.steampowered.com/*"
+      ],
+      "js": [
+        "store/runtime/config.js",
+        "store/runtime/context.js",
+        "store/runtime/cache.js",
+        "store/runtime/assets.js",
+        "store/runtime/format.js",
+        "store/runtime/dom.js",
+        "extension/runtime/logger.js",
+        "store/runtime/feature-registry.js",
+        "store/runtime/settings-gate.js",
+        "store/runtime/url-watch.js",
+        "store/runtime/purchase-recover.js",
+        "shared/config.js",
+        "shared/auth-client.js",
+        "store/api/request.js",
+        "store/api/subscription-info.js",
+        "store/features/price-history.js",
+        "store/features/wishlist-price-history-core.js",
+        "store/features/wishlist-price-history.js",
+        "store/features/steampy-deals.js",
+        "store/features/audio-check.js",
+        "store/features/family-sharing.js",
+        "store/features/drm-warning.js",
+        "store/features/subscription-info.js",
+        "store/features/dlc-bridge.js",
+        "store/features/dlc-scan.js",
+        "store/features/dlc-checkboxes.js",
+        "store/features/cart-select.js",
+        "store/features/review-filter-core.js",
+        "store/features/review-filter.js",
+        "store/features/search-suggestions.js",
+        "store/features/title-custom-name.js",
+        "store/features/game-notes.js",
+        "store/features/purchase-history-classifier.user.js",
+        "store/features/purchase-history-classifier.js",
+        "store/features/features.js",
+        "store/main.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://steamcommunity.com/app/*/reviews*"
+      ],
+      "js": [
+        "extension/runtime/logger.js",
+        "store/features/review-filter-core.js",
+        "store/features/review-filter.js",
+        "store/features/review-filter-community.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://checkout.steampowered.com/*"
+      ],
+      "js": [
+        "extension/runtime/logger.js",
+        "store/features/cart-select-checkout.js"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "shared/config.js",
+        "extension/runtime/logger.js",
+        "steam/shared/constants.js",
+        "steam/runtime/paths.js",
+        "steam/runtime/steam-context.js",
+        "steam/runtime/feature-registry.js",
+        "steam/features/*.js",
+        "steam/features/*/*.js",
+        "steam/main.js",
+        "vendor/pinyin-pro/*.js",
+        "images/tip.svg"
+      ],
+      "matches": [
+        "https://steamloopback.host/*"
+      ]
+    },
+    {
+      "resources": [
+        "images/*",
+        "store/page/*.js"
+      ],
+      "matches": [
+        "https://store.steampowered.com/*"
+      ]
+    },
+    {
+      "resources": [
+        "community/runtime/*.js",
+        "extension/runtime/logger.js",
+        "community/domain/*.js",
+        "community/ui/*.js",
+        "community/features/*/*.js",
+        "community/main.js",
+        "store/page/review-filter-layout.js"
+      ],
+      "matches": [
+        "https://steamcommunity.com/*"
+      ]
+    },
+    {
+      "resources": [
+        "images/trans.svg",
+        "images/close.svg"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    },
+    {
+      "resources": [
+        "images/icon.png",
+        "images/Settings.svg",
+        "images/TOP.svg",
+        "images/commentFilter.svg",
+        "images/tip.svg"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ]
+}

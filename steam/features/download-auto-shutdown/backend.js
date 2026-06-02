@@ -1,0 +1,446 @@
+/*
+ * @Author        : 顾青离
+ * @Url           : sucaijun.com
+ * @Email         : Ricky@LiHai.La
+ * @Project       : Steam Buff
+ * @Description   : Steam 客户端增强小工具
+ * @File          : 下载完成自动关机后台逻辑
+ * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+ * @Remind        : 二次开发请保留原版权信息，谢谢。
+ */
+(() => {
+  "use strict";
+
+  const ID = "download-auto-shutdown";
+  const CH = "__steam_download_auto_shutdown_Ricky";
+  const DOWN = "/library/downloads";
+  const POLL_MS = 30000;
+  const IDLE_MS = 30000;
+  const BIG_WAIT_MS = 10000;
+  const BIG_STEP_MS = 250;
+  const FAIL_MS = 120000;
+  const ST = Object.freeze({
+    READY: "backend-ready",
+    OFF: "disabled-by-user",
+    NO_WORK: "waiting-for-downloads",
+    ARMED: "monitoring-ready",
+    WAIT: "waiting-downloads",
+    PAUSED: "waiting-paused-download",
+    SHUT: "shutdown-started",
+    FAIL: "shutdown-failed",
+  });
+
+  const root = window.SteamBuff.state = window.SteamBuff.state || {};
+  const s = root[ID] = root[ID] || {};
+
+  function now() {
+    return Date.now();
+  }
+
+  function post(ch, msg) {
+    try {
+      ch?.postMessage({
+        script: ID,
+        time: now(),
+        ...msg,
+      });
+    } catch {
+    }
+  }
+
+  function log(level, event, message, meta = {}) {
+    try {
+      const entry = {
+        domain: "steam",
+        feature: ID,
+        event,
+        message,
+        meta,
+      };
+      if (level === "error") {
+        window.STLogger?.error?.(entry);
+      } else if (level === "warn") {
+        window.STLogger?.warn?.(entry);
+      } else {
+        window.STLogger?.info?.(entry);
+      }
+    } catch {
+    }
+  }
+
+  function chan() {
+    if (s.ch) {
+      return s.ch;
+    }
+    if (typeof BroadcastChannel !== "function") {
+      return null;
+    }
+    s.ch = new BroadcastChannel(CH);
+    return s.ch;
+  }
+
+  // 关机能力只存在于 Steam 客户端后台上下文；缺任何对象都不能启动监控，避免误报已就绪。
+  function ready() {
+    return typeof window.SteamClient?.System?.ShutdownPC === "function" &&
+      typeof window.SteamClient?.URL?.ExecuteSteamURL === "function" &&
+      !!window.SteamUIStore &&
+      !!window.downloadsStore;
+  }
+
+  function arr(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
+  function num(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function queued(item) {
+    return num(item?.queue_index) >= 0;
+  }
+
+  function active(item) {
+    return !!item?.active || queued(item);
+  }
+
+  function done(item) {
+    return item?.completed === true || num(item?.completed_time) > 0;
+  }
+
+  function doneKey(item) {
+    return `${num(item?.appid)}:${num(item?.completed_time)}`;
+  }
+
+  // downloadsStore 字段会随 Steam 版本变化，快照同时看当前任务、队列和已完成记录来判断下载状态。
+  async function snap() {
+    const ds = window.downloadsStore;
+    const ov = ds?.CurrentViewingDownloadOverview || ds?.LocalDownloadOverview || {};
+    const list = arr(ds?.AllTransfers);
+    const queue = arr(ds?.QueuedTransfers);
+    const later = arr(ds?.ScheduledTransfers);
+    const act = list.filter(active);
+    const finished = list.filter(done);
+    const keys = finished.map(doneKey);
+    const actN = act.filter((item) => item?.active).length;
+    const queueN = Math.max(queue.length, act.filter(queued).length);
+
+    const upd = String(ov.update_state || "");
+    const ovWork = !!(
+      upd &&
+      upd !== "None" &&
+      (
+        num(ov.update_appid) > 0 ||
+        num(ov.update_network_bytes_per_second) > 0 ||
+        num(ov.update_disc_bytes_per_second) > 0 ||
+        num(ov.update_start_time) > 0 ||
+        ov.paused === true
+      )
+    );
+
+    const work = ovWork || actN > 0 || queueN > 0;
+    return {
+      work,
+      actN,
+      queueN,
+      laterN: later.length,
+      doneN: finished.length,
+      keys,
+      upd: upd || "None",
+      appid: num(ov.update_appid),
+      paused: ov.paused === true,
+      net: num(ov.update_network_bytes_per_second),
+      disk: num(ov.update_disc_bytes_per_second),
+      pct: num(ov.overall_percent_complete),
+      source: "downloadsStore",
+    };
+  }
+
+  function pub(api, extra = {}) {
+    const ch = chan();
+    const reason = extra.reason;
+    const route = api.ctx?.route?.() || "";
+    if (reason) {
+      s.reason = reason;
+    }
+    post(ch, {
+      type: "backend-status",
+      on: !!s.on,
+      mon: !!s.mon,
+      seen: !!s.seen,
+      shut: !!s.shut,
+      error: s.err || "",
+      snap: s.snap || null,
+      route,
+      show: route === DOWN,
+      ...extra,
+      reason,
+    });
+  }
+
+  function hasNewDone(shot) {
+    const old = new Set(arr(s.keysOn));
+    return arr(shot?.keys).some((key) => key && !old.has(key));
+  }
+
+  function clearFail() {
+    if (s.failT) {
+      window.clearTimeout(s.failT);
+      s.failT = 0;
+    }
+  }
+
+  function clearTimers() {
+    clearFail();
+  }
+
+  async function setOn(api, on, rid) {
+    clearTimers();
+    s.on = !!on;
+    s.mon = false;
+    s.seen = false;
+    s.shut = false;
+    s.err = "";
+    s.keysOn = [];
+    s.idleAt = 0;
+
+    if (!on) {
+      pub(api, { rid, reason: ST.OFF });
+      log("info", "download-auto-shutdown-toggle-success", "下载完成自动关机已关闭", {
+        enabled: false,
+        reason: ST.OFF,
+      });
+      return;
+    }
+
+    const shot = await snap();
+    s.snap = shot;
+    s.keysOn = shot.keys || [];
+    if (!shot.work) {
+      s.mon = false;
+      s.seen = false;
+      pub(api, { rid, reason: ST.NO_WORK });
+      log("info", "download-auto-shutdown-toggle-success", "下载完成自动关机已开启但当前无下载任务", {
+        enabled: true,
+        reason: ST.NO_WORK,
+        workCount: 0,
+      });
+      return;
+    }
+
+    s.mon = true;
+    s.seen = true;
+    pub(api, { rid, reason: ST.ARMED });
+    log("info", "download-auto-shutdown-toggle-success", "下载完成自动关机已开启并开始监控", {
+      enabled: true,
+      reason: ST.ARMED,
+      workCount: (Number(shot.actN) || 0) + (Number(shot.queueN) || 0),
+    });
+  }
+
+  function fail(api, error) {
+    clearTimers();
+    s.shut = false;
+    s.err = String(error?.message || error || "未知错误").replace(/^Error:\s*/, "");
+    pub(api, { reason: ST.FAIL, error: s.err });
+    log("error", "download-auto-shutdown-failed", "下载完成自动关机失败", {
+      reason: ST.FAIL,
+      error: s.err,
+    });
+  }
+
+  function delay(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  function steamWin() {
+    const store = window.SteamUIStore?.WindowStore;
+    const inst = store?.GamepadUIMainWindowInstance || store?.MainWindowInstance;
+    return inst?.BrowserWindow?.SteamClient?.Window || window.SteamClient?.Window;
+  }
+
+  function showSteam() {
+    const win = steamWin();
+    try {
+      win?.ShowWindow?.();
+    } catch {
+    }
+    try {
+      win?.BringToFront?.();
+    } catch {
+    }
+    try {
+      win?.SetKeyFocus?.(true);
+    } catch {
+    }
+  }
+
+  // Steam 的 ShutdownPC 需要在大屏模式下更稳定，先拉起大屏并持续聚焦主窗口。
+  async function bigPicture() {
+    showSteam();
+    if (window.SteamUIStore?.IsGamepadUIWindowActive?.()) {
+      return true;
+    }
+    await window.SteamClient.URL.ExecuteSteamURL("steam://open/bigpicture");
+    const end = now() + BIG_WAIT_MS;
+    while (now() < end) {
+      await delay(BIG_STEP_MS);
+      showSteam();
+      if (window.SteamUIStore?.IsGamepadUIWindowActive?.()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async function poweroff(api) {
+    try {
+      if (!await bigPicture()) {
+        throw new Error("Steam 大屏幕模式未能在 10 秒内启动。");
+      }
+      window.SteamClient.System.ShutdownPC();
+      log("info", "download-auto-shutdown-success", "下载完成自动关机请求已发送", {
+        reason: ST.SHUT,
+      });
+      return true;
+    } catch (error) {
+      fail(api, error);
+      return false;
+    }
+  }
+
+  async function shutdown(api) {
+    if (s.shut) {
+      return;
+    }
+    s.shut = true;
+    s.on = false;
+    s.mon = false;
+    s.err = "";
+    pub(api, { reason: ST.SHUT });
+    log("warn", "download-auto-shutdown-start", "下载完成自动关机已触发", {
+      reason: ST.SHUT,
+    });
+
+    clearTimers();
+    s.failT = window.setTimeout(() => {
+      if (!s.shut) {
+        return;
+      }
+      fail(api, new Error("已请求 Steam 大屏关机，但 Windows 在 120 秒内没有关机。"));
+    }, FAIL_MS);
+
+    await poweroff(api);
+  }
+
+  // 只有“本次开启后见过下载任务并稳定空闲”才触发关机，避免打开开关时无任务也直接关机。
+  async function poll(api) {
+    if (!s.on) {
+      return;
+    }
+
+    const shot = await snap();
+    s.snap = shot;
+
+    if (shot.work) {
+      s.idleAt = 0;
+      s.seen = true;
+      s.mon = true;
+      pub(api, { reason: shot.paused ? ST.PAUSED : ST.WAIT });
+      return;
+    }
+
+    if (!s.seen) {
+      if (hasNewDone(shot)) {
+        s.seen = true;
+      } else {
+        s.mon = false;
+        s.idleAt = 0;
+        pub(api, { reason: ST.NO_WORK });
+        return;
+      }
+    }
+
+    if (!s.idleAt) {
+      s.idleAt = now();
+      s.mon = true;
+      pub(api, { reason: ST.WAIT });
+      return;
+    }
+
+    if (now() - s.idleAt < IDLE_MS) {
+      s.mon = true;
+      pub(api, { reason: ST.WAIT });
+      return;
+    }
+
+    await shutdown(api);
+  }
+
+  function start(api) {
+    if (s.bOn) {
+      return { started: false, reason: "already-started" };
+    }
+    if (!ready()) {
+      return { started: false, reason: "backend-capability-unavailable" };
+    }
+
+    const ch = chan();
+    if (!ch) {
+      return { started: false, reason: "broadcast-channel-unavailable" };
+    }
+
+    s.bOn = true;
+    s.on = false;
+    s.mon = false;
+    s.seen = false;
+    s.shut = false;
+    s.idleAt = 0;
+    s.err = "";
+    clearTimers();
+    s.pollT = window.setInterval(() => {
+      poll(api).catch(() => {});
+    }, POLL_MS);
+
+    s.stop = () => {
+      if (s.pollT) {
+        window.clearInterval(s.pollT);
+        s.pollT = 0;
+      }
+      clearTimers();
+      if (s.onMsg) {
+        ch.removeEventListener("message", s.onMsg);
+        s.onMsg = null;
+      }
+      if (s.ch && typeof s.ch.close === "function") {
+        s.ch.close();
+        s.ch = null;
+      }
+      s.bOn = false;
+    };
+
+    s.onMsg = (event) => {
+      const data = event.data || {};
+      if (data.script !== ID) {
+        return;
+      }
+
+      if (data.type === "frontend-hello") {
+        pub(api, { reason: s.reason || ST.READY });
+        return;
+      }
+      if (data.type === "set-enabled") {
+        const on = data.on;
+        const rid = data.rid;
+        setOn(api, !!on, rid)
+          .catch(() => {});
+      }
+    };
+    ch.addEventListener("message", s.onMsg);
+
+    pub(api, { reason: ST.READY });
+    return { started: true, stop: s.stop };
+  }
+
+  window.SteamBuff.reg.addEntry(ID, "backend.js", start);
+})();

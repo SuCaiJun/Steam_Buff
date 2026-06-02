@@ -1,0 +1,295 @@
+/*
+ * @Author        : 顾青离
+ * @Url           : sucaijun.com
+ * @Email         : Ricky@LiHai.La
+ * @Project       : Steam Buff
+ * @Description   : Steam 客户端增强小工具
+ * @File          : 设置面板|分类渲染与页面外壳
+ * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+ * @Remind        : 二次开发请保留原版权信息，谢谢。
+ */
+((root) => {
+  "use strict";
+
+  function fallback(value, name) {
+    if (typeof value === "function") {
+      return value;
+    }
+    return root.STSettingsHtml?.[name] || ((text) => String(text ?? ""));
+  }
+
+  function noop() {}
+
+  function create(options = {}) {
+    const api = options.api || root.STSettings || {};
+    const storage = options.storage || api.storage || {};
+    const deps = options.deps || {};
+    const panels = options.panels || {};
+    const getActiveCat = typeof options.getActiveCat === "function" ? options.getActiveCat : () => "account";
+    const setActiveCat = typeof options.setActiveCat === "function" ? options.setActiveCat : noop;
+    const getStates = typeof options.getStates === "function" ? options.getStates : () => ({});
+    const esc = fallback(options.esc, "esc");
+    const escAttr = fallback(options.escAttr, "escAttr");
+    const dialog = typeof options.dialog === "function" ? options.dialog : () => Promise.resolve("");
+    const assets = options.assets || {};
+    const ctxCache = new WeakMap();
+
+    function pageApi() {
+      return root.STSettingsPages || null;
+    }
+
+    function allCategories() {
+      const cats = api.catalog?.list?.() || [];
+      const pages = pageApi()?.categories?.() || [];
+      const before = pages.filter(page => Number(page.order) < 0);
+      const after = pages.filter(page => Number(page.order) >= 0);
+      return [...before, ...cats, ...after];
+    }
+
+    function pageList() {
+      return pageApi()?.list?.() || [];
+    }
+
+    function pageById(id) {
+      return pageApi()?.get?.(id) || null;
+    }
+
+    function pageStyles() {
+      return pageApi()?.styles?.() || "";
+    }
+
+    function settingsCss() {
+      return root.STSettingsStyles?.css?.(pageStyles()) || pageStyles();
+    }
+
+    function refreshCat(shadow, id) {
+      if (shadow && getActiveCat() === id) {
+        render(shadow);
+      }
+    }
+
+    function pageCtx(shadow) {
+      if (shadow && ctxCache.has(shadow)) {
+        return ctxCache.get(shadow);
+      }
+      const ctx = {
+        storage,
+        esc,
+        parseJson: options.parseJson || (() => ({})),
+        version: options.version || (() => ""),
+        homepage: options.homepage || (() => ""),
+        deviceName: options.deviceName || (() => "Steam Buff"),
+        timeText: options.timeText || (() => "暂无"),
+        dialog,
+        refresh: (id) => refreshCat(shadow, id),
+      };
+      if (shadow) {
+        ctxCache.set(shadow, ctx);
+      }
+      return ctx;
+    }
+
+    function runPage(fn, shadow, ctx) {
+      try {
+        Promise.resolve(fn(shadow, ctx)).catch(() => {});
+      } catch {
+      }
+    }
+
+    function callPageOpen(shadow, id = getActiveCat()) {
+      const page = pageById(id);
+      if (typeof page?.onOpen === "function") {
+        runPage(page.onOpen, shadow, pageCtx(shadow));
+      }
+    }
+
+    function callPanelOpen(shadow) {
+      const ctx = pageCtx(shadow);
+      for (const page of pageList()) {
+        if (typeof page.onPanelOpen === "function") {
+          runPage(page.onPanelOpen, shadow, ctx);
+        }
+      }
+      callPageOpen(shadow);
+    }
+
+    async function loadPages() {
+      await pageApi()?.load?.(pageCtx(null));
+    }
+
+    function showCat(cat) {
+      const states = getStates() || {};
+      if (cat.id === "translate") {
+        return states.translate !== false;
+      }
+      if (cat.id === "ai") {
+        return states.ai !== false;
+      }
+      if (cat.id === "review-filter") {
+        return states["review-filter"] !== false;
+      }
+      if (cat.id === "see") {
+        return states["market-tools"] !== false;
+      }
+      return true;
+    }
+
+    function navHtml(categories) {
+      const activeCat = getActiveCat();
+      return categories.filter(showCat).map((cat) => `
+        <button class="nav-item${cat.id === activeCat ? " active" : ""}" type="button" data-cat="${escAttr(cat.id)}" role="tab" aria-selected="${cat.id === activeCat ? "true" : "false"}">
+          <span>${esc(cat.name)}</span>
+        </button>
+      `).join("");
+    }
+
+    function contentHtml(categories) {
+      const visible = categories.filter(showCat);
+      const activeCat = getActiveCat();
+      const cat = visible.find((item) => item.id === activeCat) || visible[0] || categories[0];
+      if (!cat) {
+        return "";
+      }
+      const page = pageById(cat.id);
+      const items = cat.items || [];
+      const body = page
+        ? (page.html?.(pageCtx(null)) || "")
+        : cat.kind === "see"
+          ? panels.see().html(cat)
+        : cat.kind === "search-suggestion"
+          ? panels.searchSuggestion().html(cat)
+        : cat.kind === "translate"
+          ? panels.translate().html(cat)
+        : cat.kind === "review-filter"
+          ? panels.review().html(cat)
+        : cat.kind === "ai"
+          ? panels.ai().html(cat)
+        : cat.id === "smart-search"
+          ? `<div class="feature-list">${items.map((item) => deps.itemHtml(cat, item)).join("")}</div>${panels.searchSuggestion().html(cat)}`
+        : `<div class="feature-list">${items.map((item) => deps.itemHtml(cat, item)).join("")}</div>`;
+      const header = page?.hideHeader ? "" : `
+          <h2 class="page-title">${esc(cat.name)}</h2>
+          <p class="desc page-subtitle">${esc(cat.desc || "")}</p>
+      `;
+      return `
+        <div class="content-swap" data-active="${escAttr(cat.id)}">
+          ${header}
+          ${body}
+        </div>
+      `;
+    }
+
+    function render(shadow) {
+      const categories = allCategories();
+      const nav = shadow.querySelector(".nav");
+      const body = shadow.querySelector(".body");
+      if (!categories.length || !nav || !body) {
+        return;
+      }
+
+      const visible = categories.filter(showCat);
+      if (!visible.some((cat) => cat.id === getActiveCat())) {
+        setActiveCat(visible[0]?.id || categories[0].id);
+      }
+
+      nav.innerHTML = navHtml(categories);
+      body.innerHTML = contentHtml(categories);
+    }
+
+    function syncModuleNav(shadow) {
+      const nav = shadow.querySelector(".nav");
+      if (!nav) {
+        return false;
+      }
+
+      const categories = allCategories();
+      const visible = categories.filter(showCat);
+      if (!categories.some(cat => ["translate", "ai", "review-filter", "see"].includes(cat.id))) {
+        return false;
+      }
+
+      if (!visible.some(cat => cat.id === getActiveCat())) {
+        render(shadow);
+        return true;
+      }
+
+      nav.innerHTML = navHtml(categories);
+      return true;
+    }
+
+    function template() {
+      return `
+        <style>${settingsCss()}</style>
+
+        <div class="rail">
+          <div class="item">
+            <button class="round" type="button" title="设置" aria-label="设置" aria-expanded="false">
+              <span class="content">
+                <img alt="" src="${escAttr(assets.iconUrl?.() || "")}">
+              </span>
+            </button>
+          </div>
+          <div class="item">
+            <button class="comment-filter" type="button" title="查看已过滤评论" aria-label="查看已过滤评论" hidden>
+              <span class="content">
+                <img alt="" src="${escAttr(assets.commentFilterUrl?.() || "")}">
+              </span>
+              <span class="comment-filter-count" hidden>0</span>
+            </button>
+          </div>
+          <div class="item">
+            <button class="top" type="button" title="回到顶部" aria-label="回到顶部" hidden>
+              <span class="content">
+                <img alt="" src="${escAttr(assets.topUrl?.() || "")}">
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <section class="overlay" hidden aria-label="扩展设置">
+          <div class="panel" role="dialog" aria-modal="true" aria-label="扩展设置">
+            <header class="head">
+              <div class="title">
+                <img class="logo" alt="" src="${escAttr(assets.appIconUrl?.() || "")}">
+                <span>扩展设置</span>
+              </div>
+              <button class="close" type="button" aria-label="关闭">&times;</button>
+            </header>
+            <div class="main">
+              <aside class="side">
+                <nav class="nav" aria-label="设置分类" role="tablist"></nav>
+              </aside>
+              <section class="body" aria-live="polite"></section>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    return Object.freeze({
+      allCategories,
+      pageCtx,
+      pageList,
+      pageById,
+      loadPages,
+      callPageOpen,
+      callPanelOpen,
+      navHtml,
+      contentHtml,
+      render,
+      syncModuleNav,
+      settingsCss,
+      showCat,
+      template,
+      getActiveCat,
+      setActiveCat,
+    });
+  }
+
+  const api = Object.freeze({ create });
+  root.STSettingsMenuShell = api;
+
+  if (typeof module === "object" && module.exports) {
+    module.exports = api;
+  }
+})(typeof globalThis !== "undefined" ? globalThis : window);
