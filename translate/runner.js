@@ -23,8 +23,6 @@
   const EDGE_SERVICE = "client.edge";
   const PUBLIC_SERVICE = "translate.service";
   const SELECTION_FOLLOW = "follow";
-  const DEFAULT_TRANSLATE_HOST = "https://api.translate.zvo.cn/";
-  const DEFAULT_TRANSLATE_PATH = "translate.json";
   const SELECTION_SERVICES = Object.freeze(new Set([
     SELECTION_FOLLOW,
     EDGE_SERVICE,
@@ -1595,11 +1593,6 @@
     };
   }
 
-  function edgeFrom(from) {
-    // Edge 划词翻译已不接受 from=auto，传空值才能触发接口自动识别。
-    return String(from || "") === "auto" ? "" : from;
-  }
-
   function resultText(data) {
     if (data?.result !== 1) {
       throw new Error(data?.info || "划词翻译失败");
@@ -1607,47 +1600,19 @@
     return String(data.text?.[0] || "");
   }
 
-  function publicUrl(trans) {
-    const hosts = trans.request?.api?.host;
-    const list = Array.isArray(hosts)
-      ? hosts
-      : (typeof hosts === "string" ? [hosts] : []);
-    const host = list.find((item) => /^https?:\/\//i.test(item) && !/steam-buff\.ai/i.test(item))
-      || DEFAULT_TRANSLATE_HOST;
-    return `${host.replace(/\/?$/, "/")}${DEFAULT_TRANSLATE_PATH}`;
-  }
-
-  function postSel(trans, text, from, to) {
-    return new Promise((resolve, reject) => {
-      const path = trans.request?.api?.translate;
-      if (!path) {
-        reject(new Error("翻译接口未配置"));
-        return;
-      }
-      trans.request.post(path, selData(text, from, to), (data) => {
-        try {
-          resolve(resultText(data));
-        } catch (error) {
-          reject(error);
-        }
-      }, (xhr) => {
-        reject(new Error(`划词翻译请求失败${xhr?.status ? `：${xhr.status}` : ""}`));
-      });
-    });
-  }
-
-  function cachedSel(trans, text, from, to) {
+  function nativeSel(trans, text) {
     return new Promise((resolve, reject) => {
       const fn = trans.request?.translateText;
       if (typeof fn !== "function") {
-        postSel(trans, text, from, to).then(resolve, reject);
+        reject(new Error("translate.js 翻译接口未加载"));
         return;
       }
       if (!trans.request?.api?.translate) {
         reject(new Error("翻译接口未配置"));
         return;
       }
-      fn.call(trans.request, { from, to, texts: [text] }, (data) => {
+      // 非 AI 划词复用 translate.js 自己的语言和服务路由，Steam Buff 只保留按钮/弹窗外壳。
+      fn.call(trans.request, { texts: [text] }, (data) => {
         try {
           resolve(resultText(data));
         } catch (error) {
@@ -1656,44 +1621,6 @@
       }, (xhr) => {
         reject(new Error(`划词翻译请求失败${xhr?.status ? `：${xhr.status}` : ""}`));
       });
-    });
-  }
-
-  function edgeSel(trans, text, from, to) {
-    return new Promise((resolve, reject) => {
-      const fn = trans.service?.edge?.translate;
-      if (typeof fn !== "function") {
-        reject(new Error("微软翻译接口未加载"));
-        return;
-      }
-      fn.call(trans.service.edge, trans.request?.api?.translate || DEFAULT_TRANSLATE_PATH, selData(text, edgeFrom(from), to), (data) => {
-        try {
-          resolve(resultText(data));
-        } catch (error) {
-          reject(error);
-        }
-      }, (xhr) => {
-        reject(new Error(`划词翻译请求失败${xhr?.status ? `：${xhr.status}` : ""}`));
-      });
-    });
-  }
-
-  function publicSel(trans, text, from, to) {
-    return new Promise((resolve, reject) => {
-      const fn = trans.request?.send;
-      if (typeof fn !== "function") {
-        reject(new Error("公共翻译接口未加载"));
-        return;
-      }
-      fn.call(trans.request, publicUrl(trans), selData(text, from, to), selData(text, from, to), (data) => {
-        try {
-          resolve(resultText(data));
-        } catch (error) {
-          reject(error);
-        }
-      }, "post", true, { "content-type": "application/x-www-form-urlencoded" }, (xhr) => {
-        reject(new Error(`划词翻译请求失败${xhr?.status ? `：${xhr.status}` : ""}`));
-      }, true);
     });
   }
 
@@ -1707,17 +1634,11 @@
 
   function reqSel(trans, text, from, to, conf) {
     const service = effectiveSelService(trans, conf);
-    // 划词翻译独立指定服务时，不改全局网页翻译通道，避免影响正在翻译的页面任务。
-    if (service === EDGE_SERVICE) {
-      return edgeSel(trans, text, from, to);
-    }
-    if (service === PUBLIC_SERVICE) {
-      return publicSel(trans, text, from, to);
-    }
+    // AI 走 Steam Buff 适配器；非 AI 只借用 translate.js 的请求决策，保留 Steam Buff 划词 UI。
     if (service === AI_SERVICE) {
       return aiSel(text, from, to, conf);
     }
-    return cachedSel(trans, text, from, to);
+    return nativeSel(trans, text);
   }
 
   function transSel(trans, text, conf) {

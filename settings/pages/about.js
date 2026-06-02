@@ -672,6 +672,10 @@
       font-weight: 650;
     }
 
+    .about-donor-chip .amount {
+      color: #f1b14c;
+    }
+
     .about-donor-chip .msg {
       color: #8b9aa8;
       font-style: italic;
@@ -1725,9 +1729,12 @@
     if (!item || typeof item !== "object") {
       return null;
     }
+    const amount = Number(item.amount);
     const name = cleanDonationText(item.name || item.display_name || item.source_user_name, "匿名支持者") || "匿名支持者";
     return {
       name,
+      amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
+      currency: cleanDonationText(item.currency, "¥") || "¥",
       avatar: cleanDonationText(item.avatar || item.avatar_url || ""),
       message: cleanDonationText(item.message || item.remark || ""),
       createdAt: cleanDonationText(item.created_at || item.paid_at || item.createdAt || ""),
@@ -2107,13 +2114,21 @@
     return name.length > 24 ? `${name.slice(0, 24)}...` : name;
   }
 
+  function donorAmount(item) {
+    const currency = item.currency || "¥";
+    const amount = Number(item.amount);
+    return Number.isFinite(amount) && amount > 0 ? `${currency}${amount}` : "";
+  }
+
   function donorChip(ctx, item) {
+    const amount = donorAmount(item);
     const message = String(item.message || "").trim();
     const title = ["感谢支持 Steam Buff", item.createdAt || ""].filter(Boolean).join(" · ");
     return `
       <span class="about-donor-chip" title="${ctx.esc(title)}">
         ${item.avatar ? `<img alt="" src="${ctx.esc(item.avatar)}" loading="lazy">` : "<span>❤</span>"}
         <b>${ctx.esc(donorName(item.name))}</b>
+        ${amount ? `<span class="amount">${ctx.esc(amount)}</span>` : ""}
         ${message ? `<span class="msg">"${ctx.esc(message.slice(0, 18))}"</span>` : ""}
       </span>
     `;
