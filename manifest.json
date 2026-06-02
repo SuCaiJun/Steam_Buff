@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Steam Buff",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "Steam 客户端增强小工具重构版，别名G胖的微笑，当前小工具仍处于前期开发阶段，很多功能仍在开发完善，部分功能还未从老的扩展中移植过来。",
   "author": "顾青离",
   "homepage_url": "https://www.sucaijun.com/25.html",

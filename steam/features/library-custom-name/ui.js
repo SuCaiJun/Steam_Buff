@@ -428,6 +428,14 @@
         color: #c7d5e0;
         font-family: Motiva Sans, Arial, Helvetica, sans-serif;
       }
+      #${ONE},
+      #${MODAL},
+      #${PROGRESS},
+      #${ONE} *,
+      #${MODAL} *,
+      #${PROGRESS} * {
+        -webkit-app-region: no-drag !important;
+      }
       #${ONE}[hidden] {
         display: none;
       }
@@ -485,7 +493,7 @@
       #${MODAL} {
         position: fixed;
         inset: 0;
-        z-index: 2147483645;
+        z-index: 2147483647;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -500,7 +508,7 @@
       #${PROGRESS} {
         position: fixed;
         inset: 0;
-        z-index: 2147483646;
+        z-index: 2147483647;
         display: flex;
         align-items: center;
         justify-content: center;
