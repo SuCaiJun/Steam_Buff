@@ -29,6 +29,7 @@
   const BACKEND_PAGE_SIZE = 1000;
   const APP_SCAN_YIELD = 2000;
   const CLOUD_UPLOAD_MAX = 100;
+  const CLOUD_UPLOAD_DELAY_MS = 5000;
   const CLOUD_TIP_TEXT = "将本次手动修改的自定义排序名称同步到素材君社区，帮助更多玩家获得更准确的名称建议。";
   const CLOUD_CANCEL_TEXT = "云端共享可以帮助更多玩家获得更准确的自定义名称建议。本次保存将只写入本地 Steam 库，不再同步到素材君社区，确认关闭吗？";
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
@@ -64,6 +65,7 @@
     busy: false,
     saving: false,
     paused: false,
+    cancelled: false,
     waitCmd: "",
     // 本地加载和云端获取可能跨多次异步请求，关闭弹窗后用序号让旧结果失效，避免回头重绘。
     previewSeq: 0,
@@ -115,6 +117,7 @@
       cloudFail: 0,
       cloudSkipped: 0,
       cloudPending: 0,
+      cloudBatches: 0,
     };
   }
 
@@ -197,6 +200,8 @@
       cloudOk: batch.stats.cloudOk,
       cloudFail: batch.stats.cloudFail,
       cloudSkipped: batch.stats.cloudSkipped,
+      cloudPending: batch.stats.cloudPending,
+      cloudBatches: batch.stats.cloudBatches,
     };
   }
 
@@ -218,6 +223,10 @@
         window.setTimeout(resolve, 0);
       }
     });
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
   function chan() {
@@ -1513,20 +1522,17 @@
     batch.stats.cloudFail = 0;
     batch.stats.cloudSkipped = 0;
     batch.stats.cloudPending = 0;
+    batch.stats.cloudBatches = 0;
   }
 
   function cloudPayload(row) {
-    if (!batch.uploadCloud || !row || row.cloudSource !== "api") {
-      return null;
-    }
-    // 只有用户编辑过正文才同步云端，API 原样名和自动助记符不作为社区贡献。
-    const touched = row.cloudTouched === true;
-    if (!touched) {
+    if (!batch.uploadCloud || !row || !row.checked || row.cloudTouched !== true) {
       return null;
     }
     const custom = stripCloudName(row.want);
     const api = stripCloudName(row.apiName);
-    if (!custom || custom === api || !text(row.official)) {
+    // 只同步用户真正填写或改写的正文；API 原样名和自动助记符不作为社区贡献。
+    if (!custom || (api && custom === api) || !text(row.official)) {
       return null;
     }
     return {
@@ -1563,65 +1569,152 @@
     return { ok: size, fail: 0 };
   }
 
+  async function waitCloudResume() {
+    while (batch.paused && !batch.cancelled) {
+      if (batch.cloudFinishing && !batch.saving) {
+        batch.message = "云端上传已暂停";
+        renderProgressSoon();
+      }
+      await sleep(200);
+    }
+  }
+
+  async function waitCloudDelay() {
+    let left = CLOUD_UPLOAD_DELAY_MS;
+    while (left > 0 && !batch.cancelled) {
+      await waitCloudResume();
+      const step = Math.min(250, left);
+      const started = now();
+      await sleep(step);
+      if (!batch.paused) {
+        left -= Math.max(0, now() - started);
+      }
+    }
+  }
+
+  function prepareCloudUploads(rows) {
+    resetCloudUpload();
+    if (!batch.uploadCloud) {
+      return;
+    }
+    const list = Array.isArray(rows) ? rows : [];
+    let skipped = 0;
+    for (const row of list) {
+      const item = cloudPayload(row);
+      if (item) {
+        batch.cloudQueue.push(item);
+      } else {
+        skipped += 1;
+      }
+    }
+    batch.stats.cloudPending = batch.cloudQueue.length;
+    batch.stats.cloudSkipped = skipped;
+    log("info", "library-custom-name-cloud-upload-queue", "库自定义名称云端上传队列已生成", {
+      candidates: list.length,
+      queued: batch.cloudQueue.length,
+      skipped,
+      batchSize: CLOUD_UPLOAD_MAX,
+      delayMs: CLOUD_UPLOAD_DELAY_MS,
+    });
+  }
+
   function flushCloudUploads() {
     if (batch.cloudFlush) {
       return batch.cloudFlush;
     }
     batch.cloudFlush = (async () => {
+      const startedAt = now();
+      log("info", "library-custom-name-cloud-upload-start", "开始上传库自定义名称到素材君云端", {
+        queued: batch.cloudQueue.length,
+        batchSize: CLOUD_UPLOAD_MAX,
+        delayMs: CLOUD_UPLOAD_DELAY_MS,
+      });
       try {
-        while (batch.cloudQueue.length) {
+        while (batch.cloudQueue.length && !batch.cancelled) {
+          await waitCloudResume();
+          if (batch.cancelled) {
+            break;
+          }
           const chunk = batch.cloudQueue.splice(0, CLOUD_UPLOAD_MAX);
           batch.stats.cloudPending = Math.max(0, batch.stats.cloudPending - chunk.length);
+          batch.stats.cloudBatches += 1;
           try {
             const res = await feedback({ items: chunk });
             const count = countCloudResult(res, chunk.length);
             batch.stats.cloudOk += count.ok;
             batch.stats.cloudFail += count.fail;
-          } catch {
+            if (count.fail > 0) {
+              log("warn", "library-custom-name-cloud-upload-batch-failed", "库自定义名称云端上传批次存在失败项", {
+                size: chunk.length,
+                ok: count.ok,
+                fail: count.fail,
+                pending: batch.stats.cloudPending,
+              });
+            }
+          } catch (error) {
             batch.stats.cloudFail += chunk.length;
+            log("warn", "library-custom-name-cloud-upload-batch-failed", "库自定义名称云端上传批次失败", {
+              size: chunk.length,
+              pending: batch.stats.cloudPending,
+              error: error?.message || String(error),
+            });
           }
           renderProgressSoon();
-          await yieldUI();
+          if (batch.cloudQueue.length && !batch.cancelled) {
+            await waitCloudDelay();
+          }
         }
       } finally {
+        const cancelled = !!batch.cancelled;
+        const dropped = batch.cloudQueue.splice(0).length;
+        if (dropped) {
+          batch.stats.cloudPending = 0;
+        }
+        log(cancelled || batch.stats.cloudFail > 0 ? "warn" : "info", cancelled ? "library-custom-name-cloud-upload-cancelled" : "library-custom-name-cloud-upload-success", cancelled ? "库自定义名称云端上传已取消" : "库自定义名称云端上传完成", {
+          ...statsMeta(),
+          dropped,
+          durationMs: now() - startedAt,
+        });
         batch.cloudFlush = null;
+        batch.cloudFinishing = false;
+        if (!batch.saving) {
+          batch.summary = true;
+          batch.message = cancelled ? "保存队列已取消" : "保存队列已完成";
+          renderVisibleRows();
+          renderProgressSoon(true);
+        } else {
+          renderProgressSoon();
+        }
       }
     })();
     return batch.cloudFlush;
   }
 
-  function queueCloudUpload(row) {
-    if (!batch.uploadCloud || !row || row.cloudQueued) {
-      return;
-    }
-    row.cloudQueued = true;
-    const item = cloudPayload(row);
-    if (!item) {
-      batch.stats.cloudSkipped += 1;
-      return;
-    }
-    batch.cloudQueue.push(item);
-    batch.stats.cloudPending += 1;
-    flushCloudUploads().catch(() => {});
-  }
-
-  function finishCloudUploads() {
-    if (batch.cloudFinishing) {
+  function startCloudUploads() {
+    if (!batch.uploadCloud || !batch.cloudQueue.length) {
       return;
     }
     batch.cloudFinishing = true;
-    Promise.resolve(batch.cloudFlush).then(() => {
-      if (batch.cloudQueue.length) {
-        return flushCloudUploads();
-      }
-      return null;
-    }).catch(() => {}).finally(() => {
+    batch.message = "正在逐条写入 Steam，云端上传同步进行";
+    flushCloudUploads().catch(() => {});
+  }
+
+  function cancelCloudUploads(reason) {
+    const active = batch.cloudFinishing || batch.cloudFlush || batch.cloudQueue.length || batch.stats.cloudPending > 0;
+    const dropped = batch.cloudQueue.splice(0).length;
+    if (dropped) {
+      batch.stats.cloudPending = 0;
+    }
+    if (!batch.cloudFlush) {
       batch.cloudFinishing = false;
-      batch.summary = true;
-      batch.saving = false;
-      batch.message = "保存队列已完成";
-      renderVisibleRows();
-      renderProgressSoon(true);
+    }
+    if (!active && !dropped) {
+      return;
+    }
+    log("info", "library-custom-name-cloud-upload-cancel", "库自定义名称云端上传队列已取消", {
+      reason: reason || "cancel",
+      dropped,
+      ...statsMeta(),
     });
   }
 
@@ -1983,7 +2076,7 @@
     if (!batch.uploadCloud) {
       return `${local}，云端上传已关闭`;
     }
-    return `${local}，云端成功:${st.cloudOk}，云端失败:${st.cloudFail}，云端跳过:${st.cloudSkipped}，待传:${st.cloudPending}`;
+    return `${local}，云端成功:${st.cloudOk}，云端失败:${st.cloudFail}，云端跳过:${st.cloudSkipped}，待传:${st.cloudPending}，批次:${st.cloudBatches}`;
   }
 
   function progressPct() {
@@ -2017,7 +2110,7 @@
           </div>
           <div class="st-lcn-progress-line">${esc(progressLine())}</div>
           <div class="st-lcn-progress-actions">
-            ${summary || cloud
+            ${summary
               ? `<button class="st-lcn-btn" type="button" data-lcn-progress="hide">关闭</button>`
               : `
                 <button class="st-lcn-btn" type="button" data-lcn-progress="cancel">关闭</button>
@@ -2234,13 +2327,17 @@
 
   function cancelSave() {
     logCommandStart("cancel");
+    const hadSaving = !!batch.saving;
     batch.cancelled = true;
     batch.saving = false;
     batch.paused = false;
     batch.waitCmd = "";
     batch.message = "保存队列已取消";
+    cancelCloudUploads("save-cancel");
     closeProgress();
-    backend("cancel").catch(() => {});
+    if (hadSaving) {
+      backend("cancel").catch(() => {});
+    }
   }
 
   function askStop() {
@@ -2252,20 +2349,20 @@
   }
 
   async function closeBatchAsk() {
-    if (batch.saving && !batch.cancelled && !(await askStop())) {
+    if ((batch.saving || batch.cloudFinishing) && !batch.cancelled && !(await askStop())) {
       return;
     }
-    if (batch.saving && !batch.cancelled) {
+    if ((batch.saving || batch.cloudFinishing) && !batch.cancelled) {
       cancelSave();
     }
     closeBatch();
   }
 
   async function closeProgressAsk() {
-    if (batch.saving && !batch.cancelled && !(await askStop())) {
+    if ((batch.saving || batch.cloudFinishing) && !batch.cancelled && !(await askStop())) {
       return;
     }
-    if (batch.saving && !batch.cancelled) {
+    if ((batch.saving || batch.cloudFinishing) && !batch.cancelled) {
       cancelSave();
       return;
     }
@@ -2451,7 +2548,7 @@
           row.want = on ? core.rebuildMnemonic(base) : base;
           row.manual = text(row.want) !== text(row.apiName);
           row.mnemonicTouched = true;
-          row.cloudTouched = row.cloudSource === "api" && row.manual;
+          row.cloudTouched = false;
           row.state = "";
           row.error = "";
         });
@@ -2498,6 +2595,7 @@
   async function save() {
     refreshCounts();
     const items = [];
+    const saveRows = [];
     let chosen = 0;
     for (const row of batch.rows) {
       if (!row.checked) {
@@ -2506,6 +2604,7 @@
       chosen += 1;
       if (text(row.want)) {
         items.push({ appid: row.appid, name: row.want });
+        saveRows.push(row);
       }
     }
     const skipped = Math.max(0, chosen - items.length);
@@ -2544,7 +2643,7 @@
       processed: 0,
       skipped,
     };
-    resetCloudUpload();
+    prepareCloudUploads(saveRows);
     batch.message = `正在启动保存队列，预计写入 ${items.length} 项，跳过 ${skipped} 项`;
     renderModal();
     openProgress(false);
@@ -2552,14 +2651,23 @@
       count: items.length,
       skipped,
       uploadCloud: !!batch.uploadCloud,
+      cloudQueueCount: batch.stats.cloudPending,
+      cloudSkipped: batch.stats.cloudSkipped,
     });
     try {
       await backend("save-queue", { items, skipped });
-      batch.message = "正在逐条写入 Steam";
+      if (batch.cancelled) {
+        return;
+      }
+      startCloudUploads();
+      if (!batch.cloudFinishing) {
+        batch.message = "正在逐条写入 Steam";
+      }
     } catch (error) {
       batch.saving = false;
       batch.summary = true;
       batch.message = error?.message || String(error);
+      cancelCloudUploads("save-start-failed");
       log("error", "library-custom-name-save-failed", "库自定义名称保存队列启动失败", {
         count: items.length,
         skipped,
@@ -2577,16 +2685,28 @@
         return;
       }
       logCommandStart(action);
+      if (!batch.saving && batch.cloudFinishing) {
+        batch.paused = action === "pause";
+        batch.message = batch.paused ? "云端上传已暂停" : "云端上传继续执行";
+        renderProgress();
+        return;
+      }
       batch.waitCmd = action;
       batch.message = action === "pause" ? "正在暂停保存队列" : "正在继续保存队列";
       renderProgress();
     } else if (action === "cancel") {
       logCommandStart(action);
+      const hadSaving = !!batch.saving;
       batch.cancelled = true;
       batch.saving = false;
       batch.paused = false;
       batch.waitCmd = "";
       batch.message = "保存队列已取消";
+      cancelCloudUploads("command-cancel");
+      if (!hadSaving) {
+        renderProgress();
+        return;
+      }
     }
     try {
       await backend(action);
@@ -2618,7 +2738,7 @@
     const done = data.type === "save-done";
     batch.saving = !done && data.running !== false;
     batch.paused = !!data.paused;
-    batch.summary = done && !batch.uploadCloud ? true : batch.summary;
+    batch.summary = done && (!batch.uploadCloud || !batch.cloudFinishing) ? true : batch.summary;
     if (done) {
       const hasError = !!data.error || batch.stats.failed > 0 || batch.stats.uploadFail > 0;
       log(hasError ? "warn" : "info", hasError ? "library-custom-name-save-failed" : "library-custom-name-save-success", hasError ? "库自定义名称保存完成但存在失败项" : "库自定义名称保存完成", {
@@ -2628,34 +2748,30 @@
       });
     }
     batch.message = done
-      ? (batch.uploadCloud ? "本地写入完成，正在等待云端上传完成" : "保存队列已完成")
+      ? (batch.cloudFinishing ? "本地写入完成，正在等待云端上传完成" : "保存队列已完成")
       : data.action === "pause"
         ? "保存队列已暂停"
         : data.action === "resume"
           ? "保存队列继续执行"
-          : "正在逐条写入 Steam";
+          : batch.cloudFinishing
+            ? "正在逐条写入 Steam，云端上传同步进行"
+            : "正在逐条写入 Steam";
 
     const item = data.item || {};
     const row = batch.rowMap.get(Number(item.appid));
     if (row) {
       row.state = item.status || row.state;
       row.error = item.error || "";
-      if (item.status === "success") {
-        queueCloudUpload(row);
-      }
       refreshProgressRow(row);
     }
     if (done) {
       renderVisibleRows();
-      if (batch.uploadCloud) {
-        finishCloudUploads();
-      }
     } else {
       refreshSaveState();
     }
     if (!batch.progressClosed) {
       openProgress(batch.summary, false);
-      renderProgressSoon(done && !batch.uploadCloud);
+      renderProgressSoon(done && !batch.cloudFinishing);
     }
   }
 
@@ -2794,7 +2910,7 @@
       row.checked = !!text(row.want);
       row.manual = text(row.want) !== text(row.apiName);
       row.cloudTouched = true;
-      row.cloudQueued = false;
+      row.mnemonicTouched = false;
       row.state = "";
       row.error = "";
     });
