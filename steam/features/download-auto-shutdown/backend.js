@@ -88,6 +88,15 @@
       !!window.downloadsStore;
   }
 
+  function routeSources(api) {
+    const sources = api?.ctx?.routeSources?.() || {};
+    return {
+      tempNav: String(sources.tempNav || "").slice(0, 160),
+      mainWindowUrlRequested: String(sources.mainWindowUrlRequested || "").slice(0, 220),
+      mainWindowUrl: String(sources.mainWindowUrl || "").slice(0, 220),
+    };
+  }
+
   function readyMeta() {
     return {
       hasShutdownPC: typeof window.SteamClient?.System?.ShutdownPC === "function",
@@ -172,6 +181,7 @@
     const ch = chan();
     const reason = extra.reason;
     const route = api.ctx?.route?.() || "";
+    const show = api.ctx?.isDown?.() === true || route === DOWN;
     if (reason) {
       s.reason = reason;
     }
@@ -184,7 +194,8 @@
       error: s.err || "",
       snap: s.snap || null,
       route,
-      show: route === DOWN,
+      routeSources: routeSources(api),
+      show,
       ...extra,
       reason,
     });
@@ -217,6 +228,8 @@
     log("info", "download-auto-shutdown-frontend-hello", "下载完成自动关机后端收到前端状态请求", {
       reason: s.reason || ST.READY,
       route: api.ctx?.route?.() || "",
+      isDown: api.ctx?.isDown?.() === true,
+      routeSources: routeSources(api),
     });
   }
 

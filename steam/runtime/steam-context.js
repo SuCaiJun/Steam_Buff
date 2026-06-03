@@ -37,9 +37,54 @@
     }
   }
 
-  // Steam 内部路由不总反映在 location 上，库页面以 tempNavStore 为准。
+  function cleanRoute(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return "";
+    }
+    const tries = [raw];
+    try {
+      const decoded = decodeURIComponent(raw);
+      if (decoded && decoded !== raw) {
+        tries.push(decoded);
+      }
+    } catch {
+    }
+    for (const item of tries) {
+      const text = item.replace(/\\/g, "/");
+      const match = text.match(/\/library\/(home|collections|downloads)(?=$|[/?#&:,\s"'<>)])/i);
+      if (match) {
+        return `/library/${match[1].toLowerCase()}`;
+      }
+    }
+    return "";
+  }
+
+  function browserManager() {
+    return window.MainWindowBrowserManager ||
+      window.SteamUIStore?.MainWindowBrowserManager ||
+      window.SteamUIStore?.WindowStore?.MainWindowBrowserManager ||
+      null;
+  }
+
+  function routeSources() {
+    const mgr = browserManager();
+    return {
+      tempNav: window.tempNavStore?.m_locationPathname || "",
+      mainWindowUrlRequested: mgr?.m_URLRequested || "",
+      mainWindowUrl: mgr?.m_URL || "",
+      href: window.location?.href || "",
+    };
+  }
+
+  // Steam 内部路由不总反映在 location 上，下载页在部分客户端只写入 MainWindowBrowserManager 的 data URL。
   function route() {
-    return window.tempNavStore?.m_locationPathname || "";
+    const sources = routeSources();
+    return cleanRoute(sources.tempNav) ||
+      cleanRoute(sources.mainWindowUrlRequested) ||
+      cleanRoute(sources.mainWindowUrl) ||
+      cleanRoute(sources.href) ||
+      "";
   }
 
   function isDown() {
@@ -101,6 +146,7 @@
     isUi,
     isMainUi,
     route,
+    routeSources,
     isDown,
     targets,
     contexts,

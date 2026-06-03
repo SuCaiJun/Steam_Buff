@@ -149,6 +149,39 @@
     }
   }
 
+  function logSel(level, event, message, meta = {}) {
+    const entry = {
+      level,
+      feature: "translate-selection",
+      event,
+      message,
+      meta,
+    };
+    try {
+      const logger = globalThis.STLogger;
+      if (logger?.ready) {
+        const fn = logger[level] || logger.info || logger.append;
+        fn?.(entry);
+        return;
+      }
+    } catch {
+    }
+    try {
+      chrome.runtime?.sendMessage?.({
+        type: "LOG_APPEND",
+        entry: {
+          time: Date.now(),
+          domain: "translate",
+          page: String(location.href || ""),
+          ...entry,
+        },
+      }, () => {
+        void chrome.runtime?.lastError;
+      });
+    } catch {
+    }
+  }
+
   function ensureStyle(id, text) {
     let style = document.getElementById(id);
     if (!style) {
@@ -1601,7 +1634,7 @@
     return String(data.text?.[0] || "");
   }
 
-  function nativeSel(trans, text) {
+  function nativeSel(trans, text, from, to) {
     return new Promise((resolve, reject) => {
       const fn = trans.request?.translateText;
       if (typeof fn !== "function") {
@@ -1612,8 +1645,8 @@
         reject(new Error("翻译接口未配置"));
         return;
       }
-      // 非 AI 划词复用 translate.js 自己的语言和服务路由，Steam Buff 只保留按钮/弹窗外壳。
-      fn.call(trans.request, { texts: [text] }, (data) => {
+      // 非 AI 划词复用 translate.js 请求路由，但必须显式传入划词目标语言，避免未整页翻译时原样返回。
+      fn.call(trans.request, { from, to, texts: [text] }, (data) => {
         try {
           resolve(resultText(data));
         } catch (error) {
@@ -1639,7 +1672,7 @@
     if (service === AI_SERVICE) {
       return aiSel(text, from, to, conf);
     }
-    return nativeSel(trans, text);
+    return nativeSel(trans, text, from, to);
   }
 
   function transSel(trans, text, conf) {
@@ -1762,17 +1795,42 @@
       return;
     }
     const seq = ++selSeq;
+    const from = "auto";
+    const to = langTo(ctx.trans, ctx.conf);
+    const service = effectiveSelService(ctx.trans, ctx.conf);
     hideSelAction();
     showSelTip("正在翻译...", ctx.point, "loading", ctx.conf);
+    logSel("info", "selection-request-start", "[Steam Buff] 划词翻译开始", {
+      service,
+      from,
+      to,
+      trigger: ctx.trigger,
+      action: ctx.action,
+      textLength: ctx.text.length,
+      selectedLength: ctx.selected?.length || 0,
+      hasOriginal: !!ctx.original,
+    });
     transSel(ctx.trans, ctx.text, ctx.conf)
       .then((value) => {
         if (seq === selSeq) {
           showSelTip(value || "无翻译结果", ctx.point, "", ctx.conf);
+          logSel("info", "selection-request-success", "[Steam Buff] 划词翻译完成", {
+            service,
+            from,
+            to,
+            resultLength: String(value || "").length,
+          });
         }
       })
       .catch((error) => {
         if (seq === selSeq) {
           showSelTip(error?.message || "划词翻译失败", ctx.point, "error", ctx.conf);
+          logSel("error", "selection-request-failed", "[Steam Buff] 划词翻译失败", {
+            service,
+            from,
+            to,
+            reason: error?.message || String(error || ""),
+          });
         }
       });
   }

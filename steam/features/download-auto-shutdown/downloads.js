@@ -96,9 +96,19 @@
     };
   }
 
+  function routeSources() {
+    const sources = window.SteamBuff?.ctx?.routeSources?.() || {};
+    return {
+      tempNav: String(sources.tempNav || "").slice(0, 160),
+      mainWindowUrlRequested: String(sources.mainWindowUrlRequested || "").slice(0, 220),
+      mainWindowUrl: String(sources.mainWindowUrl || "").slice(0, 220),
+    };
+  }
+
   function pageMeta(extra = {}) {
     return {
       route: window.SteamBuff?.ctx?.route?.() || window.tempNavStore?.m_locationPathname || "",
+      routeSources: routeSources(),
       title: document.title || "",
       innerWidth: Math.round(window.innerWidth || 0),
       innerHeight: Math.round(window.innerHeight || 0),
@@ -373,8 +383,8 @@
     document.getElementById(TOAST)?.remove();
   }
 
-  function isView() {
-    return !!s.st?.show;
+  function isView(api) {
+    return api?.ctx?.isDown?.() === true || !!s.st?.show;
   }
 
   function render(api, ch) {
@@ -388,7 +398,7 @@
       );
       return null;
     }
-    const show = isView();
+    const show = isView(api);
     let el = document.getElementById(ROOT);
     if (show && !el) {
       el = make(api, ch);
@@ -406,6 +416,7 @@
             status: el.dataset.status || "",
             backendReason: s.st?.reason || "",
             backendShow: !!s.st?.show,
+            frontendIsDown: api.ctx?.isDown?.() === true,
             rect: rectMeta(el),
           }
         );
@@ -420,6 +431,7 @@
           hasBackendStatus: !!s.st,
           backendReason: s.st?.reason || "",
           backendShow: !!s.st?.show,
+          frontendIsDown: api.ctx?.isDown?.() === true,
         }
       );
     }
