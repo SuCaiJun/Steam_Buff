@@ -15,6 +15,7 @@
   const SEL_KEY = "st.store.cartSelect.selection";
   const ENABLE_KEY = "st.settings.cart-select.enabled";
   const RESTORE_TTL_MS = 30 * 60 * 1000;
+  const STEAM_API_HOST = globalThis.STConfig?.vendors?.steamApi?.host || "";
   let restored = false;
   let restoring = false;
   let btn = null;
@@ -219,9 +220,10 @@
   }
 
   function tokenFromPage() {
+    if (!STEAM_API_HOST) return "";
     const entry = performance.getEntriesByType("resource")
       .map(item => item.name || "")
-      .find(url => url.includes("api.steampowered.com/") && url.includes("access_token="));
+      .find(url => url.includes(`${STEAM_API_HOST}/`) && url.includes("access_token="));
     if (!entry) return "";
 
     try {
@@ -255,11 +257,12 @@
 
     if (items.length === 0) return true;
 
-    const input = encodeURIComponent(JSON.stringify({
+    const input = JSON.stringify({
       user_country: country,
       items,
-    }));
-    const url = `https://api.steampowered.com/IAccountCartService/AddItemsToCart/v1/?access_token=${encodeURIComponent(token)}&origin=${encodeURIComponent("https://store.steampowered.com")}&input_json=${input}`;
+    });
+    const url = globalThis.STConfig?.vendors?.steamApi?.cartAddItems?.(token, input) || "";
+    if (!url) return false;
     const res = await storeFetch(url);
     if (!res.success) return false;
 

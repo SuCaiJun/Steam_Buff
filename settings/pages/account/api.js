@@ -13,8 +13,8 @@
 
   const CFG = root.STConfig || { hosts: {}, urls: {} };
   const urls = Object.freeze({
-    siteHost: CFG.hosts?.site || "www.sucaijun.com",
-    siteApex: CFG.hosts?.siteApex || "sucaijun.com",
+    siteHost: CFG.hosts?.site || "",
+    siteApex: CFG.hosts?.siteApex || "",
     steamBuffBase: CFG.urls?.steamBuffBase || "",
     loginAuthBase: CFG.urls?.loginAuthBase || "",
     device: CFG.urls?.device || "",

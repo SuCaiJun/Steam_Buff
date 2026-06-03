@@ -811,6 +811,7 @@
         // 只在库存、市场、交易报价页加载社区经济增强；关闭开关时释放标记，后续页面变化可重新判断。
         return inj.inject([
           "extension/runtime/logger.js",
+          "shared/config.js",
           "community/runtime/base.js",
           "community/runtime/settings.js",
           "community/runtime/dom.js",

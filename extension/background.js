@@ -18,8 +18,8 @@
 
   const CFG = globalThis.STConfig;
   const STORE_HOSTS = Object.freeze(new Set([
-    "store.steampowered.com",
-    "api.steampowered.com",
+    CFG.vendors.steamStore.host,
+    CFG.vendors.steamApi.host,
     CFG.vendors.augmentedSteam.host,
     CFG.vendors.steampy.host,
     ...CFG.hosts.storeProxy,

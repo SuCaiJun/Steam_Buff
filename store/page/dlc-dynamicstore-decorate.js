@@ -12,6 +12,7 @@
     const script = document.currentScript;
     const eventName = script?.dataset.event || 'STStoreDLCDecorateDone';
     const id = script?.dataset.id || '';
+    const userdataBase = script?.dataset.userdataBase || '';
 
     function done(ok) {
         window.dispatchEvent(new CustomEvent(eventName, {
@@ -51,10 +52,12 @@
         const account = window.g_AccountID || 0;
         if (!account || !window.GDynamicStore) return;
 
-        let url = `https://store.steampowered.com/dynamicstore/userdata/?id=${account}&cc=${countryCode()}`;
+        const base = String(userdataBase || '').trim();
+        if (!base) return;
+        let url = `${base}?id=${encodeURIComponent(String(account))}&cc=${encodeURIComponent(countryCode())}`;
         const version = parseInt(versionParam(), 10);
         if (Number.isFinite(version) && version > 0) {
-            url += `&v=${version}`;
+            url += `&v=${encodeURIComponent(String(version))}`;
         }
 
         const response = await fetch(url, {

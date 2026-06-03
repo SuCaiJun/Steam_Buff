@@ -14,6 +14,7 @@
   const REQ_EVT = "STStoreCartSelectRequest";
   const RES_EVT = "STStoreCartSelectResponse";
   const ROW_SEL = "[data-st-cart-line-id]";
+  const STEAM_API_HOST = document.currentScript?.dataset.steamApiHost || "";
 
   function reactKey(node) {
     return Object.keys(node || {}).find(key => key.startsWith("__reactFiber"));
@@ -91,9 +92,10 @@
   }
 
   function token() {
+    if (!STEAM_API_HOST) return "";
     const entry = performance.getEntriesByType("resource")
       .map(item => item.name || "")
-      .find(url => url.includes("api.steampowered.com/") && url.includes("access_token="));
+      .find(url => url.includes(`${STEAM_API_HOST}/`) && url.includes("access_token="));
     if (!entry) return "";
 
     try {

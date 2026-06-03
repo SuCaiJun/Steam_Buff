@@ -149,6 +149,7 @@
     pageReady = new Promise(resolve => {
       const script = document.createElement("script");
       script.src = chrome.runtime.getURL(scriptPath);
+      script.dataset.steamApiHost = window.STConfig?.vendors?.steamApi?.host || "";
       script.onload = () => {
         script.remove();
         log("info", "cart-page-script-inject-success", "购物车页面脚本注入完成", {

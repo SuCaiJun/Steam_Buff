@@ -184,6 +184,7 @@
       ],
       "js": [
         "extension/runtime/logger.js",
+        "shared/config.js",
         "store/features/cart-select-checkout.js"
       ],
       "run_at": "document_end"
@@ -219,6 +220,7 @@
     },
     {
       "resources": [
+        "shared/config.js",
         "community/runtime/*.js",
         "extension/runtime/logger.js",
         "community/domain/*.js",

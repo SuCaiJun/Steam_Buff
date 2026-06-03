@@ -23,6 +23,8 @@
   const API_QUERY = root.STConfig.steamBuff("/search/suggestions");
   const API_CLICK = root.STConfig.steamBuff("/search/suggestions/click");
   const AUTH_REFRESH = root.STConfig.loginAuth("/auth/refresh");
+  const STEAM_STORE = root.STConfig.vendors?.steamStore;
+  const STEAM_SHARED_CDN = root.STConfig.vendors?.steamSharedCdn;
   const DEBOUNCE_MS = 250;
   const CACHE_MS = 45 * 1000;
   const STYLE_ID = "st-search-suggestions-style";
@@ -341,7 +343,7 @@
     const sourceLabel = esc(item.source_label || item.source || "");
     const appid = Number(item.appid) || 0;
     const capsule = appid > 0
-      ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/capsule_sm_120.jpg`
+      ? STEAM_SHARED_CDN?.appCapsule?.(appid) || ""
       : "";
     const img = capsule || FALLBACK_IMG;
     const fallbackAttr = FALLBACK_IMG ? ` data-st-search-fallback="${esc(FALLBACK_IMG)}"` : "";
@@ -355,7 +357,7 @@
       ? `<div class="st-search-suggestion-sub">${subParts.join("&nbsp;·&nbsp;")}</div>`
       : "";
     return `
-      <a class="st-search-suggestion-item match" href="${esc(item.url || core.appUrl(appid) || "#")}" data-idx="${Number(item._idx) || 0}" data-source="${esc(item.source)}">
+      <a class="st-search-suggestion-item match" href="${esc(item.url || appUrl(appid) || "#")}" data-idx="${Number(item._idx) || 0}" data-source="${esc(item.source)}">
         ${thumb}
         <div class="st-search-suggestion-body">
           <div class="st-search-suggestion-title">${title}</div>
@@ -408,7 +410,7 @@
           return;
         }
         event.preventDefault();
-        const url = item.url || core.appUrl(item.appid);
+        const url = item.url || appUrl(item.appid);
         let moved = false;
         const go = () => {
           if (moved) return;
@@ -629,6 +631,10 @@
     });
   }
 
+  function appUrl(appid) {
+    return STEAM_STORE?.app?.(appid) || core.appUrl(appid, STEAM_STORE?.origin || "");
+  }
+
   function refresh() {
     loadOptions().then(() => {
       scan();
@@ -786,9 +792,10 @@
     ].join("|");
   }
 
-  function appUrl(appid) {
+  function appUrl(appid, origin = "") {
     const id = Number(appid) || 0;
-    return id > 0 ? `https://store.steampowered.com/app/${id}/` : "";
+    const base = String(origin || "").replace(/\/+$/, "");
+    return id > 0 && base ? `${base}/app/${id}/` : "";
   }
 
   return {

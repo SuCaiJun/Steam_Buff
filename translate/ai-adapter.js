@@ -13,8 +13,9 @@
 
   const ai = globalThis.STAI;
   const cache = globalThis.STAITranslateCache;
+  const CFG = globalThis.STConfig || {};
   const SERVICE = "steam-buff.ai";
-  const AI_PROXY_URL = "https://steam-buff.ai.sucaijun.com/";
+  const AI_PROXY_URL = CFG.urls?.aiTranslateProxy || "";
   const PATH = "__steam_buff_ai_translate__";
   const PROMPT_VERSION = "2026-05-19";
   const SHORT_CACHE_LIMIT = 80;
@@ -392,7 +393,7 @@
     }
 
     const next = ai?.normalize?.(conf.ai);
-    if (!next?.enabled || !next.host || !next.model) {
+    if (!AI_PROXY_URL || !next?.enabled || !next.host || !next.model) {
       console.error("[Steam Buff] AI 翻译配置不完整");
       if (trans.request?.api) {
         trans.request.api.translate = "";

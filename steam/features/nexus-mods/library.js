@@ -168,7 +168,11 @@
     }
 
     try {
-      const res = await fetch(`https://store.steampowered.com/api/appdetails?appids=${appid}&filters=basic&l=english`, {
+      const url = window.STConfig?.vendors?.steamStore?.appDetails?.(appid, "basic", "english") || "";
+      if (!url) {
+        return local;
+      }
+      const res = await fetch(url, {
         credentials: "omit",
       });
       const json = await res.json();

@@ -3,6 +3,7 @@
 
   const api = window.STCommunity;
   if (!api || api.sellConfirm) return;
+  const CFG = window.STConfig || {};
 
   function label(item) {
     return item?.name || item?.description?.name || api.items.name(item) || "Unknown Item";
@@ -26,7 +27,7 @@
     const raw = item?.icon_url || item?.description?.icon_url || "";
     if (!raw) return "";
     if (/^https?:\/\//i.test(raw)) return raw;
-    return `https://community.fastly.steamstatic.com/economy/image/${raw}/64fx64f`;
+    return CFG.vendors?.steamCommunityCdn?.economyImage?.(raw, "64fx64f") || "";
   }
 
   function choose(items, opt = {}) {

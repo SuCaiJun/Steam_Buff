@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : 共享服务端点配置
+ * @File          : 共享端点与外链配置
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
@@ -23,6 +23,14 @@
     steampy: "steampy.com",
     steamDb: "steamdb.info",
     augmentedSteam: "api.augmentedsteam.com",
+    steamStore: "store.steampowered.com",
+    steamApi: "api.steampowered.com",
+    steamCommunity: "steamcommunity.com",
+    steamCommunityCdn: "community.fastly.steamstatic.com",
+    steamSharedCdn: "shared.akamai.steamstatic.com",
+    github: "github.com",
+    keylol: "keylol.com",
+    aiProxy: "steam-buff.ai.sucaijun.com",
   });
 
   function pathOf(path = "") {
@@ -49,6 +57,14 @@
     subscriptionInfo: origin(HOSTS.subscriptionInfo),
     steampy: origin(HOSTS.steampy),
     steamDb: origin(HOSTS.steamDb),
+    steamStore: origin(HOSTS.steamStore),
+    steamApi: origin(HOSTS.steamApi),
+    steamCommunity: origin(HOSTS.steamCommunity),
+    steamCommunityCdn: origin(HOSTS.steamCommunityCdn),
+    steamSharedCdn: origin(HOSTS.steamSharedCdn),
+    github: origin(HOSTS.github),
+    keylol: origin(HOSTS.keylol),
+    aiProxy: origin(HOSTS.aiProxy),
   });
   const STEAM_BUFF_BASE = join(ORIGINS.site, "/wp-json/steam-buff/v1");
   const SUPPORTER_BASE = join(ORIGINS.site, "/wp-json/supporter/v1");
@@ -60,6 +76,18 @@
 
   function encoded(value) {
     return encodeURIComponent(String(value ?? ""));
+  }
+
+  function dynamicStoreUserdata(account, cc = "CN", version = "") {
+    const params = [
+      `id=${encoded(account)}`,
+      `cc=${encoded(cc || "CN")}`,
+    ];
+    const ver = Number.parseInt(version, 10);
+    if (Number.isFinite(ver) && ver > 0) {
+      params.push(`v=${encoded(ver)}`);
+    }
+    return `${join(ORIGINS.steamStore, "/dynamicstore/userdata/")}?${params.join("&")}`;
   }
 
   function isSteamClientPage() {
@@ -88,13 +116,28 @@
     updateLatest: join(STEAM_BUFF_BASE, "/update-logs/latest"),
     updateLogs: join(STEAM_BUFF_BASE, "/update-logs/latest"),
     updateLog: (version) => join(STEAM_BUFF_BASE, `/update-logs/${encoded(version)}`),
+    homepage: join(ORIGINS.site, "/25.html"),
     updatePage: join(ORIGINS.site, "/25.html"),
     device: join(ORIGINS.site, "/login-auth/device"),
     account: join(ORIGINS.site, "/user/data"),
     donate: join(ORIGINS.site, "/supporter/golink/"),
     feedback: join(ORIGINS.site, "/forum/468.html"),
     vip: join(ORIGINS.site, "/user/vip/"),
+    aiTranslateProxy: join(ORIGINS.aiProxy, "/"),
     subscriptionInfoGameData: join(ORIGINS.subscriptionInfo, "/SubscriptionInfo/ajax/gamedata.php"),
+  });
+
+  const links = Object.freeze({
+    openSourceLibs: Object.freeze([
+      { name: "Augmented Steam", url: join(ORIGINS.github, "/IsThereAnyDeal/AugmentedSteam") },
+      { name: "Steam Economy Enhancer", url: join(ORIGINS.github, "/Nuklon/Steam-Economy-Enhancer") },
+      { name: "Steam 消费历史分类器", url: join(ORIGINS.keylol, "/t1035599-1-1") },
+      { name: "SteamDB Extension", url: join(ORIGINS.github, "/SteamDatabase/BrowserExtension") },
+      { name: "SubscriptionInfo", url: join(ORIGINS.github, "/alike03/SubscriptionInfo") },
+      { name: "pinyin-pro", url: join(ORIGINS.github, "/zh-lx/pinyin-pro") },
+      { name: "qrcode-generator", url: join(ORIGINS.github, "/kazuhikoarase/qrcode-generator") },
+      { name: "xnx3 translate.js", url: join(ORIGINS.github, "/xnx3/translate") },
+    ]),
   });
 
   const vendors = Object.freeze({
@@ -119,6 +162,33 @@
       prices: (protocol = PROTOCOL) => `${origin(HOSTS.augmentedSteam, protocol)}/prices/v2`,
       app: (appId, protocol = PROTOCOL) => `${origin(HOSTS.augmentedSteam, protocol)}/app/${encoded(appId)}/v2`,
     }),
+    steamStore: Object.freeze({
+      host: HOSTS.steamStore,
+      origin: ORIGINS.steamStore,
+      app: (appId) => join(ORIGINS.steamStore, `/app/${encoded(appId)}/`),
+      appDetails: (appId, filters = "basic", lang = "english") => `${join(ORIGINS.steamStore, "/api/appdetails")}?appids=${encoded(appId)}&filters=${encoded(filters)}&l=${encoded(lang)}`,
+      dynamicStoreUserdata,
+      dynamicStoreUserdataBase: join(ORIGINS.steamStore, "/dynamicstore/userdata/"),
+    }),
+    steamApi: Object.freeze({
+      host: HOSTS.steamApi,
+      origin: ORIGINS.steamApi,
+      cartAddItems: (token, inputJson, storeOrigin = ORIGINS.steamStore) => `${join(ORIGINS.steamApi, "/IAccountCartService/AddItemsToCart/v1/")}?access_token=${encoded(token)}&origin=${encoded(storeOrigin)}&input_json=${encoded(inputJson)}`,
+    }),
+    steamCommunity: Object.freeze({
+      host: HOSTS.steamCommunity,
+      origin: ORIGINS.steamCommunity,
+    }),
+    steamCommunityCdn: Object.freeze({
+      host: HOSTS.steamCommunityCdn,
+      origin: ORIGINS.steamCommunityCdn,
+      economyImage: (raw, size = "64fx64f") => join(ORIGINS.steamCommunityCdn, `/economy/image/${String(raw || "").replace(/^\/+/, "")}/${encoded(size)}`),
+    }),
+    steamSharedCdn: Object.freeze({
+      host: HOSTS.steamSharedCdn,
+      origin: ORIGINS.steamSharedCdn,
+      appCapsule: (appId) => join(ORIGINS.steamSharedCdn, `/store_item_assets/steam/apps/${encoded(appId)}/capsule_sm_120.jpg`),
+    }),
   });
 
   const hosts = Object.freeze({
@@ -135,6 +205,8 @@
     hosts,
     urls,
     vendors,
+    links,
+    externalLinks: links,
     origin,
     toSteamExternalUrl,
     site: (path = "") => join(ORIGINS.site, path),

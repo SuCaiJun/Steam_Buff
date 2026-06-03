@@ -18,7 +18,7 @@
   const CFG = root.STConfig || {};
   const CACHE_KEY = "steam_buff_update_check_cache";
   const MUTE_KEY = "steam_buff_update_prompt_mute";
-  const UPDATE_PAGE = CFG.urls?.updatePage || root.chrome?.runtime?.getManifest?.()?.homepage_url || "https://www.sucaijun.com/25.html";
+  const UPDATE_PAGE = CFG.urls?.updatePage || CFG.urls?.homepage || root.chrome?.runtime?.getManifest?.()?.homepage_url || "";
 
   function pad(value) {
     return String(Math.max(0, Number(value) || 0)).padStart(2, "0");

@@ -15,6 +15,7 @@
   if (!api) return;
 
   const DECORATE_EVT = 'STStoreDLCDecorateDone';
+  const USERDATA_BASE = window.STConfig?.vendors?.steamStore?.dynamicStoreUserdataBase || "";
 
   function logInjectFailed(scriptPath, reason, meta = {}) {
     try {
@@ -126,6 +127,7 @@
       script.src = chrome.runtime.getURL(scriptPath);
       script.dataset.event = DECORATE_EVT;
       script.dataset.id = id;
+      script.dataset.userdataBase = USERDATA_BASE;
       script.onerror = () => {
         logInjectFailed(scriptPath, "load-error");
         finish(false);

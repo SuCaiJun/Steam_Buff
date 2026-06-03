@@ -24,16 +24,7 @@
   const FEEDBACK_URL = CFG.urls.feedback;
   const DONATIONS_API = CFG.supporter("/donations?limit=100");
   const DONATION_CACHE_MS = 60 * 60 * 1000;
-  const OPEN_SOURCE_LIBS = Object.freeze([
-    { name: "Augmented Steam", url: "https://github.com/IsThereAnyDeal/AugmentedSteam" },
-    { name: "Steam Economy Enhancer", url: "https://github.com/Nuklon/Steam-Economy-Enhancer" },
-    { name: "Steam 消费历史分类器", url: "https://keylol.com/t1035599-1-1" },
-    { name: "SteamDB Extension", url: "https://github.com/SteamDatabase/BrowserExtension" },
-    { name: "SubscriptionInfo", url: "https://github.com/alike03/SubscriptionInfo" },
-    { name: "pinyin-pro", url: "https://github.com/zh-lx/pinyin-pro" },
-    { name: "qrcode-generator", url: "https://github.com/kazuhikoarase/qrcode-generator" },
-    { name: "xnx3 translate.js", url: "https://github.com/xnx3/translate" },
-  ]);
+  const OPEN_SOURCE_LIBS = Object.freeze(Array.from(CFG.links?.openSourceLibs || CFG.externalLinks?.openSourceLibs || []));
   const STYLE = `
     .about-link:focus-visible,
     .about-check:focus-visible,
