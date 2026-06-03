@@ -418,7 +418,7 @@
         z-index: 2147483646;
         flex: none;
         align-self: auto;
-        justify-content: flex-start;
+        justify-content: center;
         width: max-content;
         max-width: min(360px, calc(100vw - 24px));
         margin: 0;
@@ -429,6 +429,10 @@
       }
       #${BAR}[hidden] {
         display: none;
+      }
+      #${BAR},
+      #${BAR} * {
+        -webkit-app-region: no-drag !important;
       }
       #${BAR} .st-lcn-btn,
       #${ONE} .st-lcn-btn,
@@ -1070,28 +1074,98 @@
     return best || input?.parentElement || row;
   }
 
-  // Steam 属性页在不同 CEF/缩放下会切换单列、双列和小弹窗布局，按钮必须独立成行，避免压缩输入框。
-  function barHost(input) {
-    const row = fieldRow(input);
-    const control = rowControl(row, input);
-    if (row?.parentElement) {
-      return { box: row.parentElement, originalBox: control, row, mode: "field-row-after" };
+  function clampRect(rect) {
+    const width = Math.round(window.innerWidth || document.documentElement?.clientWidth || 0);
+    const height = Math.round(window.innerHeight || document.documentElement?.clientHeight || 0);
+    if (!rect || width <= 0 || height <= 0) {
+      return null;
     }
-    return control ? { box: null, originalBox: control, row, mode: "fixed-preferred" } : null;
+    const out = {
+      left: Math.max(0, Math.min(width, rect.left)),
+      top: Math.max(0, Math.min(height, rect.top)),
+      right: Math.max(0, Math.min(width, rect.right)),
+      bottom: Math.max(0, Math.min(height, rect.bottom)),
+    };
+    out.width = out.right - out.left;
+    out.height = out.bottom - out.top;
+    return out.width > 160 && out.height > 80 ? out : null;
+  }
+
+  // 三个按钮只悬浮在属性面板底部，不插入 Steam 字段 DOM，避免 React/flex 布局把输入框挤窄。
+  function fixedArea(input) {
+    const rect = input?.getBoundingClientRect?.();
+    if (!rect) {
+      return null;
+    }
+    const minWidth = Math.max(320, rect.width + 120);
+    const minHeight = Math.max(220, rect.height * 8);
+    let cur = input?.parentElement || null;
+    const candidates = [];
+    for (let i = 0; cur && i < 12; i += 1, cur = cur.parentElement) {
+      if (cur === document.body || cur === document.documentElement) {
+        break;
+      }
+      const areaRect = clampRect(cur.getBoundingClientRect?.());
+      if (!areaRect || areaRect.width < minWidth || areaRect.height < minHeight) {
+        continue;
+      }
+      candidates.push({
+        el: cur,
+        rect: areaRect,
+        mode: "fixed-area-bottom",
+        clipped: isClipped(cur),
+      });
+    }
+
+    // 右侧内容区通常从侧栏之后开始；优先选择这个稳定区域，避免滚动时在小卡片和外层容器间横跳。
+    const pool = candidates.filter(item => item.rect.left >= 120);
+    const list = pool.length ? pool : candidates;
+    const best = list
+      .map(item => ({
+        ...item,
+        score: item.rect.width * item.rect.height + (item.clipped ? 100000000 : 0),
+      }))
+      .sort((a, b) => b.score - a.score)[0] || null;
+    if (best) {
+      return { el: best.el, rect: best.rect, mode: best.mode };
+    }
+    const viewport = clampRect({
+      left: 0,
+      top: 0,
+      right: window.innerWidth || document.documentElement?.clientWidth || 0,
+      bottom: window.innerHeight || document.documentElement?.clientHeight || 0,
+    });
+    return viewport ? { el: document.body, rect: viewport, mode: "fixed-viewport-bottom" } : null;
+  }
+
+  function barHost(input) {
+    const area = fixedArea(input);
+    return area ? { box: document.body, originalBox: area.el, row: null, mode: area.mode } : null;
   }
 
   function fixedBar(input, bar) {
-    const rect = input?.getBoundingClientRect?.();
-    if (!rect || !bar) {
-      return false;
+    const area = fixedArea(input);
+    if (!area?.rect || !bar) {
+      return null;
     }
-    const left = Math.max(12, Math.min(Math.round(rect.left), Math.round(window.innerWidth || 0) - 372));
-    const top = Math.max(12, Math.min(Math.round(rect.bottom + 8), Math.round(window.innerHeight || 0) - 48));
     document.body?.appendChild(bar);
     bar.classList.add(BAR_FIXED);
+    bar.hidden = false;
+    bar.style.visibility = "hidden";
+    const barWidth = Math.max(220, Math.ceil(bar.offsetWidth || 0));
+    const barHeight = Math.max(38, Math.ceil(bar.offsetHeight || 0));
+    const pad = 12;
+    const leftMin = area.rect.left + pad;
+    const leftMax = Math.max(leftMin, area.rect.right - barWidth - pad);
+    const topMin = area.rect.top + pad;
+    const topMax = Math.max(topMin, area.rect.bottom - barHeight - pad);
+    const desiredLeft = area.rect.left + (area.rect.width - barWidth) / 2;
+    const left = Math.round(Math.min(Math.max(leftMin, desiredLeft), leftMax));
+    const top = Math.round(Math.min(Math.max(topMin, area.rect.bottom - barHeight - pad), topMax));
     bar.style.left = `${left}px`;
     bar.style.top = `${top}px`;
-    return true;
+    bar.style.visibility = "";
+    return area;
   }
 
   function clearFixed(bar) {
@@ -1101,6 +1175,7 @@
     bar.classList.remove(BAR_FIXED);
     bar.style.left = "";
     bar.style.top = "";
+    bar.style.visibility = "";
   }
 
   function apiRows(data) {
@@ -1988,23 +2063,19 @@
     clearFixed(bar);
     bar.hidden = false;
 
-    const box = host?.box || null;
-    const originalBox = host?.originalBox || box || null;
-    if (!box || !host?.row) {
-      if (fixedBar(input, bar)) {
-        return { ok: true, bar, box: bar.parentElement, originalBox, row: host?.row || null, mode: "fixed-fallback" };
-      }
-      clearBars(null);
-      return { ok: false, reason: "host-missing" };
+    const area = fixedBar(input, bar);
+    if (area) {
+      return {
+        ok: true,
+        bar,
+        box: bar.parentElement,
+        originalBox: area.el || host?.originalBox || null,
+        row: null,
+        mode: area.mode || host?.mode || "fixed-area-bottom",
+      };
     }
-
-    if (bar.parentElement !== box || bar.previousElementSibling !== host.row) {
-      box.insertBefore(bar, host.row.nextSibling);
-    }
-    if (!visibleInViewport(bar) && fixedBar(input, bar)) {
-      return { ok: true, bar, box: bar.parentElement, originalBox, row: host.row, mode: "fixed-fallback" };
-    }
-    return { ok: true, bar, box, originalBox, row: host.row, mode: host.mode || "unknown" };
+    clearBars(null);
+    return { ok: false, reason: "host-missing" };
   }
 
   // tick 是低频驻留扫描，负责在 Steam 切换库详情或 React 重挂输入框后补回三个按钮。
