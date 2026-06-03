@@ -14,11 +14,13 @@
   const ID = "library-custom-name";
   const CH = "__steam_library_custom_name_Ricky";
   const RT = "__SteamBuffLibraryCustomNameBackend";
+  const SORT_TITLE_RT = "__SteamBuffLibrarySortTitle";
   const ORIG = "__RickyStOriginalName";
   const WAIT_MS = 666;
   const WRITE_TIMEOUT_MS = 10000;
   const SCAN_YIELD = 2000;
   const PAGE_MAX = 1000;
+  const PROGRESS_LOG_EVERY = 50;
 
   function now() {
     return Date.now();
@@ -84,14 +86,84 @@
   }
 
   function statsMeta(q) {
+    const processed = q?.stats?.processed || 0;
+    const avg = processed > 0 ? Math.round((q?.writeMsTotal || 0) / processed) : 0;
     return {
       total: q?.stats?.total || 0,
       processed: q?.stats?.processed || 0,
       success: q?.stats?.success || 0,
       failed: q?.stats?.failed || 0,
       skipped: q?.stats?.skipped || 0,
+      intervalMs: WAIT_MS,
+      writeAvgMs: avg,
+      writeMaxMs: Math.round(q?.writeMsMax || 0),
+      sortTitleBulk: q?.sortTitleBulk?.enabled === true,
+      sortTitleBulkReason: q?.sortTitleBulk?.reason || "",
       durationMs: now() - (q?.startedAt || now()),
     };
+  }
+
+  function beginSortTitleBulk(q) {
+    try {
+      const api = window[SORT_TITLE_RT];
+      if (typeof api?.beginCustomNameBulk !== "function") {
+        q.sortTitleBulk = { enabled: false, reason: "unavailable" };
+        return q.sortTitleBulk;
+      }
+      q.sortTitleBulk = api.beginCustomNameBulk({
+        source: ID,
+        seq: q.seq,
+        total: q.stats.total,
+        count: q.items.length,
+        skipped: q.stats.skipped,
+        intervalMs: WAIT_MS,
+      }) || { enabled: false, reason: "empty-result" };
+    } catch (error) {
+      q.sortTitleBulk = { enabled: false, reason: "failed", error: error?.message || String(error) };
+      log("warn", "library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列启用排序标题批量抑制失败", {
+        error: q.sortTitleBulk.error,
+      });
+    }
+    return q.sortTitleBulk;
+  }
+
+  function endSortTitleBulk(q, reason) {
+    if (!q?.sortTitleBulk?.enabled) {
+      return null;
+    }
+    try {
+      const api = window[SORT_TITLE_RT];
+      if (typeof api?.endCustomNameBulk !== "function") {
+        return null;
+      }
+      return api.endCustomNameBulk({
+        source: ID,
+        seq: q.seq,
+        reason,
+        ...statsMeta(q),
+      });
+    } catch (error) {
+      log("warn", "library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列结束排序标题批量抑制失败", {
+        ...statsMeta(q),
+        error: error?.message || String(error),
+      });
+      return null;
+    }
+  }
+
+  function recordWriteMs(q, ms) {
+    const cost = Math.max(0, Number(ms) || 0);
+    q.writeMsTotal += cost;
+    q.writeMsMax = Math.max(q.writeMsMax, cost);
+  }
+
+  function logProgress(q) {
+    const processed = q?.stats?.processed || 0;
+    if (!processed || processed % PROGRESS_LOG_EVERY !== 0 || processed === q.progressLogged) {
+      return;
+    }
+    q.progressLogged = processed;
+    log("info", "library-custom-name-save-queue-progress", "库自定义名称保存队列进度", statsMeta(q));
   }
 
   function appidFromRoute() {
@@ -298,18 +370,22 @@
     if (q.stats.skipped > 0) {
       post(rt.ch, { type: "save-progress", ...stat(q, {}) });
     }
+    let doneReason = "done";
     for (q.index = 0; q.index < q.items.length; q.index += 1) {
       while (q.paused && !q.cancelled) {
         await sleep(200);
       }
       if (q.cancelled) {
+        doneReason = "cancelled";
         break;
       }
 
       const item = q.items[q.index] || {};
       let result;
+      const writeStarted = now();
       try {
         result = await writeOne(item);
+        recordWriteMs(q, now() - writeStarted);
         if (result.status === "skipped") {
           q.stats.skipped += 1;
         } else {
@@ -321,11 +397,13 @@
           status: "failed",
           error: error?.message || String(error),
         };
+        recordWriteMs(q, now() - writeStarted);
         q.stats.failed += 1;
         q.stats.uploadFail += 1;
       }
 
       q.stats.processed += 1;
+      logProgress(q);
       post(rt.ch, {
         type: "save-progress",
         ...stat(q, {
@@ -338,6 +416,7 @@
       });
 
       if (q.cancelled) {
+        doneReason = "cancelled";
         break;
       }
       if (q.index < q.items.length - 1) {
@@ -346,6 +425,7 @@
     }
 
     q.running = false;
+    endSortTitleBulk(q, doneReason);
     if (q.cancelled) {
       q.cancelled = false;
     }
@@ -378,16 +458,25 @@
       cancelled: false,
       running: true,
       startedAt: now(),
+      writeMsTotal: 0,
+      writeMsMax: 0,
+      progressLogged: 0,
+      sortTitleBulk: { enabled: false, reason: "not-started" },
     };
     rt.q = q;
+    beginSortTitleBulk(q);
     log("info", "library-custom-name-save-queue-start", "开始执行库自定义名称保存队列", {
       total: q.stats.total,
       count: list.length,
       skipped: skip,
+      intervalMs: WAIT_MS,
+      sortTitleBulk: q.sortTitleBulk?.enabled === true,
+      sortTitleBulkReason: q.sortTitleBulk?.reason || "",
     });
     post(rt.ch, { type: "save-result", rid, ok: true, stats: { ...q.stats } });
     runQueue(rt, q).catch((error) => {
       q.running = false;
+      endSortTitleBulk(q, "error");
       log("error", "library-custom-name-save-queue-failed", "库自定义名称保存队列异常", {
         ...statsMeta(q),
         error: error?.message || String(error),

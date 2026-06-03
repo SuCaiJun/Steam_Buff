@@ -1711,7 +1711,7 @@
     box.hidden = false;
     box.innerHTML = `
       <div class="st-lcn-one-panel" role="dialog" aria-modal="true">
-        <div class="st-lcn-one-head"><h3>反馈</h3></div>
+        <div class="st-lcn-one-head"><h3>上传素材君云端</h3></div>
         <div class="st-lcn-one-body">
           <div class="st-lcn-form">
             <label>APPID<input type="text" value="${attr(app.appid)}" disabled></label>
@@ -1814,7 +1814,7 @@
     const app = cur?.app || {};
     const appid = Number(app.appid) || currentAppid();
     if (!appid) {
-      oneResult("反馈失败", "未识别当前游戏 AppID");
+      oneResult("上传云端失败", "未识别当前游戏 AppID");
       return;
     }
     s.feedback = {
@@ -1835,7 +1835,7 @@
       oneResult("提交失败", "未识别 Steam 原名");
       return;
     }
-    oneBox("反馈", "正在提交...", false);
+    oneBox("上云", "正在提交...", false);
     const res = await feedback({
       appid: Number(app.appid),
       steam_name: app.official_name,
@@ -1853,7 +1853,7 @@
     bar.innerHTML = `
       <button class="st-lcn-btn" type="button" data-lcn-one>获取</button>
       <button class="st-lcn-btn" type="button" data-lcn-batch>批量</button>
-      <button class="st-lcn-btn" type="button" data-lcn-feedback>反馈</button>
+      <button class="st-lcn-btn" type="button" data-lcn-feedback>上云</button>
     `;
 
     return bar;
@@ -1874,7 +1874,7 @@
       return;
     }
     if (feedBtn) {
-      openFeedback().catch((error) => oneResult("反馈失败", error?.message || String(error)));
+      openFeedback().catch((error) => oneResult("上传云端失败", error?.message || String(error)));
       return;
     }
     openBatch();

@@ -187,6 +187,54 @@
     return repl ? commit(store, [repl]) : 0;
   }
 
+  // 库自定义名称批量保存会连续调用 SetCustomSortAs；这里先收集变化，结束后统一刷新库 UI。
+  function bulkOn(rt = window[RT]) {
+    return !!rt?.bulk?.active;
+  }
+
+  function recordBulk(rt, appid, sortAs, force) {
+    const bulk = rt?.bulk;
+    const id = Number(appid);
+    if (!bulk?.active || !Number.isFinite(id) || id <= 0) {
+      return false;
+    }
+    const name = typeof sortAs === "string" ? sortAs : "";
+    const prev = bulk.map.get(id);
+    if (force || name || prev === undefined) {
+      bulk.map.set(id, name);
+    }
+    bulk.changed += 1;
+    return true;
+  }
+
+  function flushBulkMap(store, items) {
+    const repls = [];
+    for (const [appid, sortAs] of items || []) {
+      const app = typeof store?.GetAppOverviewByAppID === "function" ? store.GetAppOverviewByAppID(appid) : null;
+      if (!app) {
+        continue;
+      }
+      setCust(app, sortAs);
+      const repl = build(store, app);
+      if (repl) {
+        repls.push(repl);
+      }
+    }
+    return commit(store, repls);
+  }
+
+  function flushBulkState(state, reason) {
+    const entries = Array.from(state?.map || []);
+    const changed = flushBulkMap(window.appStore, entries);
+    log("info", "library-sort-title-bulk-flush", "库排序标题批量刷新完成", {
+      reason,
+      queued: entries.length,
+      changed,
+      durationMs: Date.now() - (state?.startedAt || Date.now()),
+    });
+    return { queued: entries.length, changed };
+  }
+
   function setCust(app, sortAs) {
     if (!app || typeof app !== "object") {
       return false;
@@ -319,6 +367,10 @@
 
         const ret = await orig.call(this, appid, sortAs, ...rest);
         if (ret !== false) {
+          const rt = window[RT];
+          if (recordBulk(rt, appid, sortAs, true)) {
+            return ret;
+          }
           sync();
           window.setTimeout(sync, AFTER_SAVE_RECHECK_MS);
         }
@@ -331,8 +383,14 @@
     return patch(store, "OnAppOverviewChange", O_FLAG, (orig) => {
       return function changeHook(...args) {
         const apps = Array.isArray(args[0]) ? args[0] : [];
-        const changed = apps.length ? applyList(apps) : 0;
         const rt = window[RT];
+        if (apps.length && bulkOn(rt)) {
+          for (const app of apps) {
+            recordBulk(rt, app?.appid, app?.custom_sort_as_display);
+          }
+          return undefined;
+        }
+        const changed = apps.length ? applyList(apps) : 0;
         if (changed && rt) {
           rt.warmUntil = Date.now() + WARM_BUMP_MS;
         }
@@ -342,6 +400,68 @@
         return ret;
       };
     });
+  }
+
+  function beginCustomNameBulk(data = {}) {
+    const rt = window[RT];
+    if (!rt) {
+      return { enabled: false, reason: "runtime-missing" };
+    }
+    if (!rt.customOk || !rt.changeOk) {
+      return { enabled: false, reason: "hook-not-ready", customOk: !!rt.customOk, changeOk: !!rt.changeOk };
+    }
+    if (rt.bulk?.active) {
+      rt.bulk.depth += 1;
+      rt.bulk.total += Math.max(0, Number(data.total) || 0);
+      return { enabled: true, reason: "nested", depth: rt.bulk.depth };
+    }
+    rt.bulk = {
+      active: true,
+      depth: 1,
+      source: String(data.source || ""),
+      seq: Number(data.seq) || 0,
+      total: Math.max(0, Number(data.total) || 0),
+      intervalMs: Math.max(0, Number(data.intervalMs) || 0),
+      startedAt: Date.now(),
+      changed: 0,
+      map: new Map(),
+    };
+    log("info", "library-sort-title-bulk-start", "库排序标题进入批量刷新抑制", {
+      source: rt.bulk.source,
+      seq: rt.bulk.seq,
+      total: rt.bulk.total,
+      intervalMs: rt.bulk.intervalMs,
+      customOk: !!rt.customOk,
+      changeOk: !!rt.changeOk,
+    });
+    return { enabled: true, reason: "", depth: 1, customOk: !!rt.customOk, changeOk: !!rt.changeOk };
+  }
+
+  function endCustomNameBulk(data = {}) {
+    const rt = window[RT];
+    const state = rt?.bulk;
+    if (!state?.active) {
+      return { enabled: false, reason: "bulk-missing" };
+    }
+    state.depth -= 1;
+    if (state.depth > 0) {
+      return { enabled: true, reason: "nested", depth: state.depth };
+    }
+    state.active = false;
+    rt.bulk = null;
+    const reason = String(data.reason || "done");
+    const result = flushBulkState(state, reason);
+    const delayed = Array.from(state.map || []);
+    window.setTimeout(() => {
+      const changed = flushBulkMap(window.appStore, delayed);
+      log("info", "library-sort-title-bulk-flush", "库排序标题批量延迟复查完成", {
+        reason: "delayed",
+        queued: delayed.length,
+        changed,
+        durationMs: Date.now() - (state.startedAt || Date.now()),
+      });
+    }, AFTER_SAVE_RECHECK_MS);
+    return { enabled: true, reason, ...result };
   }
 
   function setMs(rt, ms, run) {
@@ -448,6 +568,8 @@
       loggedStart: false,
       loggedSuccess: false,
       loggedFailed: false,
+      beginCustomNameBulk,
+      endCustomNameBulk,
       run,
       schedule,
       stop() {
