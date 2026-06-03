@@ -46,7 +46,6 @@ ai/                 AI 配置、缓存和适配
 community/          Steam 社区、库存、市场、交易报价增强
 extension/          后台脚本、内容脚本和注入守卫
 images/             扩展图片资源
-third-party-licenses/ 第三方来源、许可证和授权记录
 settings/           设置中心、设置面板和用户中心
 shared/             全局配置、域名、认证客户端等共享能力
 steam/              Steam 客户端内置页面增强
@@ -77,7 +76,7 @@ node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console
 
 详细来源、许可证和授权记录见：
 
-- `third-party-licenses/*/SOURCE.md`
+- 工作区 `docs/third-party-licenses/*/SOURCE.md`
 - `vendor/*/LICENSE`
 
 本项目不是 Valve、Steam、SteamDB、Augmented Steam、SteamPY 或其他第三方服务的官方产品，也不代表上述主体的立场或授权。
@@ -92,7 +91,7 @@ Steam Buff 的页面增强逻辑运行在用户浏览器本地。部分功能会
 
 本项目采用 **GPL-3.0-or-later** 协议发布。
 
-项目中包含或参考了 Augmented Steam 等 GPL-3.0-or-later 项目的实现和资源，整体分发遵守 GPL-3.0-or-later 的相同许可证要求。第三方组件仍保留各自原始许可证，详见 `third-party-licenses/` 和 `vendor/` 下的许可证文件。
+项目中包含或参考了 Augmented Steam 等 GPL-3.0-or-later 项目的实现和资源，整体分发遵守 GPL-3.0-or-later 的相同许可证要求。第三方组件仍保留各自原始许可证，随包本地库详见 `vendor/` 下的许可证文件，完整来源记录由工作区 `docs/third-party-licenses/` 统一维护。
 
 ## 免责声明
 
