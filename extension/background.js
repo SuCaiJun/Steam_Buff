@@ -11,12 +11,12 @@
 (() => {
   "use strict";
 
-  const HOST = "steamloopback.host";
   importScripts(chrome.runtime.getURL("shared/config.js"));
   importScripts(chrome.runtime.getURL("extension/background-logger.js"));
   importScripts(chrome.runtime.getURL("extension/background-update.js"));
 
   const CFG = globalThis.STConfig;
+  const MATCH = CFG.matchers;
   const STORE_HOSTS = Object.freeze(new Set([
     CFG.vendors.steamStore.host,
     CFG.vendors.steamApi.host,
@@ -31,10 +31,10 @@
     "x-requested-with",
   ]));
   const FILES = Object.freeze([
+    "shared/config.js",
     "extension/runtime/guard.js",
     "extension/runtime/injector.js",
     "extension/runtime/logger.js",
-    "shared/config.js",
     "extension/content.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
@@ -113,7 +113,7 @@
 
   function isSteam(url) {
     try {
-      return new URL(url).hostname === HOST;
+      return MATCH.isSteamLoopbackHost(new URL(url).hostname);
     } catch {
       return false;
     }

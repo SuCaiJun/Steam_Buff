@@ -13,6 +13,7 @@
 
   const MARK = "steamBuffTranslateRunner";
   const GLOBAL_MARK = "steamBuffTranslateRunnerLoaded";
+  const MATCH = globalThis.STConfig?.matchers;
   const DELAYS = Object.freeze([500, 2000]);
   const STYLE_ID = "steam-buff-translate-style";
   const PROGRESS_TEXT_STYLE_ID = "translatejs-text-element-hidden";
@@ -653,10 +654,10 @@
   }
 
   function steamTitlePage() {
-    if (location.hostname === "store.steampowered.com") {
+    if (MATCH?.isSteamStoreHost?.(location.hostname)) {
       return /^\/app\/\d+(?:\/|$)/.test(location.pathname);
     }
-    if (location.hostname !== "steamcommunity.com") {
+    if (!MATCH?.isSteamCommunityHost?.(location.hostname)) {
       return false;
     }
     return /^\/(?:app|workshop)\/\d+(?:\/|$)/.test(location.pathname)

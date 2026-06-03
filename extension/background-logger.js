@@ -362,9 +362,8 @@
   function domainFromUrl(url) {
     try {
       const host = new URL(String(url)).hostname;
-      if (host === "store.steampowered.com" || host === "checkout.steampowered.com") return "store";
-      if (host === "steamcommunity.com") return "community";
-      if (host === "steamloopback.host") return "steam";
+      const domain = root.STConfig?.matchers?.logDomainForHost?.(host) || "";
+      if (domain && domain !== "web") return domain;
       return host || "";
     } catch {
       return "";

@@ -23,7 +23,11 @@
     steampy: "steampy.com",
     steamDb: "steamdb.info",
     augmentedSteam: "api.augmentedsteam.com",
+    steamLoopback: "steamloopback.host",
+    steamPowered: "steampowered.com",
     steamStore: "store.steampowered.com",
+    steamCheckout: "checkout.steampowered.com",
+    steamHelp: "help.steampowered.com",
     steamApi: "api.steampowered.com",
     steamCommunity: "steamcommunity.com",
     steamCommunityCdn: "community.fastly.steamstatic.com",
@@ -90,10 +94,58 @@
     return `${join(ORIGINS.steamStore, "/dynamicstore/userdata/")}?${params.join("&")}`;
   }
 
+  function host(value) {
+    const raw = value === undefined || value === null
+      ? root.location?.hostname
+      : (typeof value === "object" && value.hostname !== undefined ? value.hostname : value);
+    const text = String(raw || "").trim().toLowerCase();
+    if (!text) return "";
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) {
+      try {
+        return new URL(text).hostname.toLowerCase();
+      } catch {
+      }
+    }
+    const name = text.split("/")[0];
+    return name.includes(":") && !name.startsWith("[") ? name.split(":")[0] : name;
+  }
+
+  function isHost(value, target) {
+    const name = host(value);
+    const base = host(target);
+    return !!name && !!base && name === base;
+  }
+
+  function isSubHost(value, suffix) {
+    const name = host(value);
+    const base = host(suffix);
+    return !!name && !!base && (name === base || name.endsWith(`.${base}`));
+  }
+
+  const matchers = Object.freeze({
+    host,
+    isHost,
+    isSubHost,
+    isSteamLoopbackHost: (value) => isHost(value, HOSTS.steamLoopback),
+    isSteamStoreHost: (value) => isHost(value, HOSTS.steamStore),
+    isSteamCheckoutHost: (value) => isHost(value, HOSTS.steamCheckout),
+    isSteamHelpHost: (value) => isHost(value, HOSTS.steamHelp),
+    isSteamCommunityHost: (value) => isHost(value, HOSTS.steamCommunity),
+    isSteamCommunityLikeHost: (value) => isSubHost(value, HOSTS.steamCommunity),
+    isSteamPoweredLikeHost: (value) => isSubHost(value, HOSTS.steamPowered),
+    isTrustedNameHost: (value) => isHost(value, HOSTS.steamLoopback) || isHost(value, HOSTS.steamStore),
+    isSteamTranslateHost: (value) => isSubHost(value, HOSTS.steamCommunity) || isSubHost(value, HOSTS.steamPowered),
+    logDomainForHost(value) {
+      if (isHost(value, HOSTS.steamStore) || isHost(value, HOSTS.steamCheckout)) return "store";
+      if (isSubHost(value, HOSTS.steamCommunity)) return "community";
+      if (isHost(value, HOSTS.steamLoopback)) return "steam";
+      return "web";
+    },
+  });
+
   function isSteamClientPage() {
     try {
-      const host = String(root.location?.hostname || "").toLowerCase();
-      if (host === "steamloopback.host") return true;
+      if (matchers.isSteamLoopbackHost(root.location?.hostname)) return true;
       if (root.SteamClient || root.SharedJSContext || root.document?.title === "SharedJSContext") return true;
       return /Valve\s+Steam|Steam\s+Client|SteamClient|SteamTenfoot|ValveSteam/i.test(String(root.navigator?.userAgent || ""));
     } catch {
@@ -206,6 +258,7 @@
     urls,
     vendors,
     links,
+    matchers,
     externalLinks: links,
     origin,
     toSteamExternalUrl,

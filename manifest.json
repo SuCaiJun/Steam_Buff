@@ -30,6 +30,7 @@
       ],
       "js": [
         "ai/config.js",
+        "shared/config.js",
         "translate/boot.js"
       ],
       "run_at": "document_end",
@@ -90,10 +91,10 @@
         "https://steamloopback.host/*"
       ],
       "js": [
+        "shared/config.js",
         "extension/runtime/guard.js",
         "extension/runtime/injector.js",
         "extension/runtime/logger.js",
-        "shared/config.js",
         "extension/content.js"
       ],
       "run_at": "document_start",
@@ -172,6 +173,7 @@
       ],
       "js": [
         "extension/runtime/logger.js",
+        "shared/config.js",
         "store/features/review-filter-core.js",
         "store/features/review-filter.js",
         "store/features/review-filter-community.js"

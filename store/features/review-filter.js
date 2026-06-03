@@ -27,6 +27,7 @@
   const UPDATE_EVT = "STReviewFilterUpdate";
   const LAYOUT_EVT = "STReviewFilterNativeLayout";
   const LAYOUT_MS = 80;
+  const MATCH = globalThis.STConfig?.matchers;
 
   let config = null;
   let observer = null;
@@ -241,7 +242,8 @@
   }
 
   function logDomain() {
-    return location.hostname === "steamcommunity.com" ? "community" : "store";
+    const domain = MATCH?.logDomainForHost?.(location.hostname) || "";
+    return domain && domain !== "web" ? domain : "store";
   }
 
   function logLayoutInjectFailed(reason, error) {

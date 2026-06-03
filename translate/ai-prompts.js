@@ -21,12 +21,7 @@
   }
 
   function steamHost(host) {
-    const name = clean(host).toLowerCase();
-    return name === "store.steampowered.com"
-      || name === "steamcommunity.com"
-      || name === "help.steampowered.com"
-      || name.endsWith(".steamcommunity.com")
-      || name.endsWith(".steampowered.com");
+    return globalThis.STConfig?.matchers?.isSteamTranslateHost?.(clean(host)) === true;
   }
 
   function meta(title) {

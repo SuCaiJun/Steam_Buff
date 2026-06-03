@@ -16,6 +16,7 @@
 
   const VERSION = "2.1.13";
   const HISTORY_PATH = "/account/history";
+  const MATCH = globalThis.STConfig?.matchers;
   let started = false;
 
   function log(level, event, message, meta = {}) {
@@ -39,7 +40,7 @@
   }
 
   function isHistoryPath(pathname = location.pathname) {
-    return location.hostname === "store.steampowered.com"
+    return MATCH?.isSteamStoreHost?.(location.hostname) === true
       && (pathname === HISTORY_PATH || pathname.startsWith(`${HISTORY_PATH}/`));
   }
 

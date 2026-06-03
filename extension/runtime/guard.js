@@ -15,7 +15,7 @@
     return;
   }
 
-  const HOST = "steamloopback.host";
+  const MATCH = globalThis.STConfig?.matchers;
   const MARK = "steamBuffInjected";
 
   function root() {
@@ -23,7 +23,7 @@
   }
 
   function ok() {
-    return location.hostname === HOST;
+    return MATCH?.isSteamLoopbackHost?.(location.hostname) === true;
   }
 
   // lock 只防止同一页面重复注入；失败时 content.js 会调用 fail 释放标记再等待下一轮重试。

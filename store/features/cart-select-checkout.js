@@ -16,6 +16,7 @@
   const ENABLE_KEY = "st.settings.cart-select.enabled";
   const RESTORE_TTL_MS = 30 * 60 * 1000;
   const STEAM_API_HOST = globalThis.STConfig?.vendors?.steamApi?.host || "";
+  const MATCH = globalThis.STConfig?.matchers;
   let restored = false;
   let restoring = false;
   let btn = null;
@@ -163,7 +164,7 @@
   }
 
   function donePage() {
-    if (location.hostname !== "checkout.steampowered.com") return false;
+    if (!MATCH?.isSteamCheckoutHost?.(location.hostname)) return false;
     if (/receipt|thank|complete/i.test(location.pathname)) return true;
 
     const text = (document.body?.innerText || "").replace(/\s+/g, " ").slice(0, 5000);
@@ -173,7 +174,7 @@
   }
 
   function errorPage() {
-    if (location.hostname !== "checkout.steampowered.com") return false;
+    if (!MATCH?.isSteamCheckoutHost?.(location.hostname)) return false;
 
     const text = (document.body?.innerText || "").replace(/\s+/g, " ").slice(0, 5000);
     return /购买尚未完成|请稍候几分钟，然后重试|反复遇到此错误|purchase has not been completed|try again in a few minutes/i.test(text);

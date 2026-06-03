@@ -17,6 +17,7 @@
   const TRANS_PREFIX = `${PREFIX}translate.`;
   const AI_PREFIX = `${PREFIX}ai.`;
   const AI_SERVICE = "steam-buff.ai";
+  const MATCH = globalThis.STConfig?.matchers;
   const DEF = Object.freeze({
     scope: "steam",
     page: true,
@@ -110,10 +111,7 @@
   }
 
   function steam(host) {
-    return host === "steamcommunity.com"
-      || host.endsWith(".steamcommunity.com")
-      || host === "steampowered.com"
-      || host.endsWith(".steampowered.com");
+    return MATCH?.isSteamTranslateHost?.(host) === true;
   }
 
   function html() {
@@ -124,7 +122,7 @@
   function allowed(conf) {
     const protocol = location.protocol;
     const host = location.hostname;
-    if (host === "steamloopback.host") {
+    if (MATCH?.isSteamLoopbackHost?.(host)) {
       return false;
     }
     if (protocol !== "http:" && protocol !== "https:") {

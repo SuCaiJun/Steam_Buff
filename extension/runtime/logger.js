@@ -32,9 +32,8 @@
   function domain() {
     try {
       const host = location.hostname;
-      if (host === "store.steampowered.com" || host === "checkout.steampowered.com") return "store";
-      if (host === "steamcommunity.com") return "community";
-      if (host === "steamloopback.host") return "steam";
+      const mapped = root.STConfig?.matchers?.logDomainForHost?.(host) || "";
+      if (mapped && mapped !== "web") return mapped;
       return host ? "settings" : "extension";
     } catch {
       return "extension";

@@ -21,9 +21,11 @@
   const COMMUNITY_MARK = "steamBuffCommunityInjected";
   const SETTINGS_ATTR = "steamBuffSettings";
   const NAME_ID = "library-custom-name";
-  const AUTH_REFRESH = globalThis.STConfig.loginAuth("/auth/refresh");
-  const API_GET = globalThis.STConfig.steamBuff("/get");
-  const API_SUBMIT = globalThis.STConfig.steamBuff("/submit");
+  const CFG = globalThis.STConfig;
+  const MATCH = CFG.matchers;
+  const AUTH_REFRESH = CFG.loginAuth("/auth/refresh");
+  const API_GET = CFG.steamBuff("/get");
+  const API_SUBMIT = CFG.steamBuff("/submit");
   const NAME_REQ_ATTR = "data-steam-buff-name-request";
   const NAME_RES_ATTR = "data-steam-buff-name-response";
   const SETTINGS_PREFIX = "st.settings.";
@@ -68,7 +70,7 @@
   }
 
   function steamRuntimeLogTarget() {
-    if (location.hostname !== "steamloopback.host") {
+    if (!MATCH.isSteamLoopbackHost(location.hostname)) {
       return false;
     }
     const title = document.title || "";
@@ -151,7 +153,7 @@
   }
 
   function isCommunityPage() {
-    if (location.hostname !== "steamcommunity.com") {
+    if (!MATCH.isSteamCommunityHost(location.hostname)) {
       return false;
     }
 
@@ -270,8 +272,7 @@
   }
 
   function trustedNamePage() {
-    return location.hostname === "steamloopback.host" ||
-      location.hostname === "store.steampowered.com";
+    return MATCH.isTrustedNameHost(location.hostname);
   }
 
   function postName(data) {
@@ -733,7 +734,7 @@
         const hit = ALL_SETTING_IDS.some(id => Object.hasOwn(changes, settingKey(id)));
         if (hit) {
           settingsCache = null;
-          if (location.hostname === "steamloopback.host") {
+          if (MATCH.isSteamLoopbackHost(location.hostname)) {
             writeSteamSettings().catch(() => {});
           }
         }
@@ -863,7 +864,7 @@
     }
 
     // steamloopback.host 会先出现内容脚本但 guard/injector 未 ready 的窗口，必须 retry 到依赖完整。
-    if (location.hostname === "steamloopback.host" && !readySteamDeps()) {
+    if (MATCH.isSteamLoopbackHost(location.hostname) && !readySteamDeps()) {
       steamRuntimeLogOnce("steam-runtime-deps-waiting", {
         level: "info",
         domain: "steam",

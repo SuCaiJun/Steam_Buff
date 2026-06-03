@@ -21,6 +21,7 @@
   const RESTORE_TTL_MS = 30 * 60 * 1000;
   const SCAN_MS = 700;
   const EMPTY_SCAN_RETRY_MAX = 12;
+  const MATCH = globalThis.STConfig?.matchers;
 
   let started = false;
   let busy = false;
@@ -34,7 +35,7 @@
   let restoring = false;
 
   function onCartPage() {
-    return location.hostname === "store.steampowered.com" && /^\/cart\/?$/.test(location.pathname);
+    return MATCH?.isSteamStoreHost?.(location.hostname) === true && /^\/cart\/?$/.test(location.pathname);
   }
 
   function log(level, event, message, meta = {}) {
