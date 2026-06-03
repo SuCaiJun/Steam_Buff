@@ -404,7 +404,11 @@
         align-items: center;
         justify-content: flex-end;
         flex-wrap: nowrap;
+        flex: 0 0 100%;
+        align-self: stretch;
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         box-sizing: border-box;
         margin: 10px 0 0;
         padding: 0;
@@ -412,6 +416,8 @@
       #${BAR}.${BAR_FIXED} {
         position: fixed;
         z-index: 2147483646;
+        flex: none;
+        align-self: auto;
         justify-content: flex-start;
         width: max-content;
         max-width: min(360px, calc(100vw - 24px));
@@ -1064,23 +1070,14 @@
     return best || input?.parentElement || row;
   }
 
-  // Steam 属性页在不同 CEF/缩放下会切换单列、双列和小弹窗布局，优先挂到字段整行的右侧控制列。
+  // Steam 属性页在不同 CEF/缩放下会切换单列、双列和小弹窗布局，按钮必须独立成行，避免压缩输入框。
   function barHost(input) {
     const row = fieldRow(input);
     const control = rowControl(row, input);
-    if (control) {
-      return { box: control, row, mode: row ? "field-row" : "control" };
+    if (row?.parentElement) {
+      return { box: row.parentElement, originalBox: control, row, mode: "field-row-after" };
     }
-    const inputRect = input?.getBoundingClientRect?.();
-    let cur = input?.parentElement || null;
-    for (let i = 0; cur && i < 6; i += 1, cur = cur.parentElement) {
-      const rect = cur.getBoundingClientRect();
-      const style = window.getComputedStyle?.(cur);
-      if (rect.width >= inputRect.width && rect.width <= inputRect.width + 90 && style?.display !== "flex") {
-        return { box: cur, row: null, mode: "legacy-width" };
-      }
-    }
-    return input?.parentElement ? { box: input.parentElement, row: null, mode: "input-parent" } : null;
+    return control ? { box: null, originalBox: control, row, mode: "fixed-preferred" } : null;
   }
 
   function fixedBar(input, bar) {
@@ -1983,26 +1980,31 @@
 
   function insertBar(input) {
     const host = barHost(input);
-    const box = host?.box || null;
-    if (!box) {
-      clearBars(null);
-      return { ok: false, reason: "host-missing" };
-    }
-
     let bar = document.getElementById(BAR);
     clearBars(bar);
     if (!bar) {
       bar = makeBar();
     }
     clearFixed(bar);
-    if (bar.parentElement !== box || box.lastElementChild !== bar) {
-      box.appendChild(bar);
-    }
     bar.hidden = false;
-    if (!visibleInViewport(bar) && fixedBar(input, bar)) {
-      return { ok: true, bar, box: bar.parentElement, originalBox: box, row: host.row, mode: "fixed-fallback" };
+
+    const box = host?.box || null;
+    const originalBox = host?.originalBox || box || null;
+    if (!box || !host?.row) {
+      if (fixedBar(input, bar)) {
+        return { ok: true, bar, box: bar.parentElement, originalBox, row: host?.row || null, mode: "fixed-fallback" };
+      }
+      clearBars(null);
+      return { ok: false, reason: "host-missing" };
     }
-    return { ok: true, bar, box, originalBox: box, row: host.row, mode: host.mode || "unknown" };
+
+    if (bar.parentElement !== box || bar.previousElementSibling !== host.row) {
+      box.insertBefore(bar, host.row.nextSibling);
+    }
+    if (!visibleInViewport(bar) && fixedBar(input, bar)) {
+      return { ok: true, bar, box: bar.parentElement, originalBox, row: host.row, mode: "fixed-fallback" };
+    }
+    return { ok: true, bar, box, originalBox, row: host.row, mode: host.mode || "unknown" };
   }
 
   // tick 是低频驻留扫描，负责在 Steam 切换库详情或 React 重挂输入框后补回三个按钮。
