@@ -14,6 +14,7 @@
   const HOST = "steamloopback.host";
   importScripts(chrome.runtime.getURL("shared/config.js"));
   importScripts(chrome.runtime.getURL("extension/background-logger.js"));
+  importScripts(chrome.runtime.getURL("extension/background-update.js"));
 
   const CFG = globalThis.STConfig;
   const STORE_HOSTS = Object.freeze(new Set([
@@ -492,6 +493,7 @@
   }
 
   const ROUTES = Object.freeze({
+    UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
     STORE_FETCH: storeFetch,
     TRANSLATE_INJECT: translateInject,
     AI_CHAT_COMPLETIONS: aiChat,

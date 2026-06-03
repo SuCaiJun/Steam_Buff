@@ -1346,6 +1346,9 @@
   }
 
   async function request(ctx) {
+    if (globalThis.STUpdateChecker?.check) {
+      return globalThis.STUpdateChecker.check({ manual: true });
+    }
     const latest = parseLatest(await fetchApi(UPDATE_LATEST_API, "官网最新版本"));
     const current = ctx.version() || "未知版本";
     const remote = verText(latest.version);
@@ -2045,17 +2048,21 @@
       : next.latest || { version: "", desc: "无更新日志" };
     if (next.hasNew) {
       showLogDialog(shadow, ctx, {
-        title: "发现新版本",
+        title: "Steam Buff 发现新版本",
         meta: `当前版本：${verLabel(next.current)}\n最新版本：${verLabel(latest.version || next.remote)}`,
         label: "新版日志",
         item: latest,
         actions: [
+          { id: "mute", label: "今天不再提醒" },
           { id: "open", label: "打开官网下载", primary: true },
-          { id: "later", label: "稍后" },
         ],
       }).then((action) => {
         if (action === "open") {
-          openExternal(next.link || ctx.homepage() || UPDATE_PAGE);
+          if (!globalThis.STUpdateChecker?.openDownload?.(next.link || ctx.homepage() || UPDATE_PAGE, { version: verText(next.remote || latest.version) })) {
+            openExternal(next.link || ctx.homepage() || UPDATE_PAGE);
+          }
+        } else if (action === "mute") {
+          globalThis.STUpdateChecker?.muteToday?.(next.remote || latest.version);
         }
       });
       return;
@@ -2081,20 +2088,11 @@
     }
 
     busy = true;
-    const startedAt = Date.now();
-    log("info", "update-check-start", "开始检查更新", { manual: !!manual });
     ctx.refresh("about");
     try {
       const next = await request(ctx);
       info = next;
       busy = false;
-      log("info", "update-check-success", "检查更新成功", {
-        manual: !!manual,
-        current: next.current,
-        remote: next.remote || next.latest?.version || "",
-        hasNew: !!next.hasNew,
-        durationMs: Date.now() - startedAt,
-      });
       ctx.refresh("about");
       if (next.hasNew && (!prompted || prompted !== next.remote || manual)) {
         prompted = next.remote || next.latest?.version || "";
@@ -2104,11 +2102,6 @@
       show(shadow, ctx, next, manual);
     } catch (error) {
       busy = false;
-      log("error", "update-check-failed", "检查更新失败", {
-        manual: !!manual,
-        error: error?.message || String(error),
-        durationMs: Date.now() - startedAt,
-      });
       ctx.refresh("about");
       if (manual) {
         ctx.dialog(shadow, { title: "检查更新失败", message: error?.message || String(error) });
@@ -2422,8 +2415,33 @@
     return false;
   }
 
+  async function loadCachedUpdate(ctx) {
+    const current = ctx.version() || "未知版本";
+    try {
+      const cached = await globalThis.STUpdateChecker?.cached?.();
+      info = cached || {
+        current,
+        remote: "",
+        latest: null,
+        link: home(ctx),
+        hasNew: false,
+        checkedAt: 0,
+      };
+    } catch {
+      info = {
+        current,
+        remote: "",
+        latest: null,
+        link: home(ctx),
+        hasNew: false,
+        checkedAt: 0,
+      };
+    }
+    ctx.refresh("about");
+  }
+
   function onPanelOpen(shadow, ctx) {
-    check(shadow, ctx, false);
+    loadCachedUpdate(ctx);
     refreshLogStats(ctx);
     loadDonors(ctx);
   }
