@@ -30,9 +30,9 @@
   const LEVELS = Object.freeze(new Set(["debug", "info", "warn", "error", "fatal", "network"]));
   const QUERY_ALLOW = Object.freeze(new Set(["appid", "appids", "subid", "bundleid", "id", "cc"]));
   const SENSITIVE = /^(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|body|requestbody|responsebody|responsetext|requestdata|data|headers)$/i;
+  const SETTINGS_SENSITIVE = /^(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|secret|apikey|api_key|key)$/i;
   const SENSITIVE_WORD = /(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|bearer)\s*[:=]?\s*[^,\s;]*/gi;
   const BJ_OFFSET_MS = 8 * 60 * 60 * 1000;
-  const SUMMARY_LIMIT = 8;
 
   // chrome.storage.local 没有原子更新能力，所有读改写和清空必须串行。
   let storageQueue = Promise.resolve();
@@ -116,11 +116,6 @@
       || status >= 400;
   }
 
-  function isFailedRequest(item) {
-    const level = String(item?.level || "");
-    return level === "network" && isFailure(item);
-  }
-
   function pickLog(item) {
     if (!item || typeof item !== "object") {
       return null;
@@ -145,26 +140,6 @@
       out.meta = trimMeta(item.meta);
     }
     return out;
-  }
-
-  function lastItems(logs, filter) {
-    return (logs || [])
-      .filter(filter)
-      .slice(-SUMMARY_LIMIT)
-      .map(pickLog)
-      .filter(Boolean);
-  }
-
-  function failedEventCounts(logs) {
-    const map = new Map();
-    for (const item of logs || []) {
-      if (!isFailure(item)) {
-        continue;
-      }
-      const event = String(item?.event || "unknown");
-      map.set(event, (map.get(event) || 0) + 1);
-    }
-    return Object.fromEntries(Array.from(map.entries()).sort((a, b) => b[1] - a[1]));
   }
 
   function browserInfo(ua) {
@@ -311,6 +286,50 @@
     }
     const text = redactText(JSON.stringify(clean || {}), POLICY.metaMax);
     return { truncated: true, text };
+  }
+
+  function sanitizeSettings(value, depth = 0) {
+    if (value === null || value === undefined) {
+      return value;
+    }
+    if (typeof value === "string") {
+      return redactText(value, 180);
+    }
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (depth >= 4) {
+      return "[已截断]";
+    }
+    if (Array.isArray(value)) {
+      return value.slice(0, 120).map(item => sanitizeSettings(item, depth + 1));
+    }
+    if (typeof value === "object") {
+      const out = {};
+      for (const [key, item] of Object.entries(value)) {
+        if (SETTINGS_SENSITIVE.test(key)) {
+          out[`has${key.slice(0, 1).toUpperCase()}${key.slice(1)}`] = !!item;
+          continue;
+        }
+        out[redactText(key, 80)] = sanitizeSettings(item, depth + 1);
+      }
+      return out;
+    }
+    return redactText(String(value), 180);
+  }
+
+  function cleanSettings(settings = {}) {
+    const clean = sanitizeSettings(settings);
+    if (bytes(JSON.stringify(clean || {})) <= 64 * 1024) {
+      return clean || {};
+    }
+    return {
+      truncated: true,
+      text: redactText(JSON.stringify(clean || {}), 64 * 1024),
+    };
   }
 
   function cleanError(error) {
@@ -592,19 +611,12 @@
 
   function summaryFromLogs(logs) {
     const counts = levelCounts(logs);
-    const bgErrors = (logs || []).filter(item => item?.domain === "background" && isFailure(item));
-    const lastBg = bgErrors.length ? pickLog(bgErrors[bgErrors.length - 1]) : null;
     return {
       count: Array.isArray(logs) ? logs.length : 0,
       sizeBytes: sizeOf(logs),
       firstTime: logs?.length ? bjTime(itemTs(logs[0])) : "",
       lastTime: logs?.length ? bjTime(itemTs(logs[logs.length - 1])) : "",
       levelCounts: counts,
-      recentWarnings: lastItems(logs, item => String(item?.level || "") === "warn"),
-      recentErrors: lastItems(logs, item => String(item?.level || "") === "error"),
-      recentFailedRequests: lastItems(logs, isFailedRequest),
-      failedEventCounts: failedEventCounts(logs),
-      lastBackgroundError: lastBg,
     };
   }
 
@@ -625,6 +637,7 @@
       exportedAt: bjTime(exportTs),
       exportTs,
       env: cleanEnv(envInput),
+      settings: cleanSettings(input?.settings && typeof input.settings === "object" ? input.settings : {}),
       summary: summaryFromLogs(logs),
       logs: exportedLogs,
     };

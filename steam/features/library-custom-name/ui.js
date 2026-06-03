@@ -15,12 +15,14 @@
   const CH = "__steam_library_custom_name_Ricky";
   const STYLE = "__RickyLibraryCustomNameStyle";
   const BAR = "__RickyLibraryCustomNameBar";
+  const BAR_FIXED = "st-lcn-bar-fixed";
   const ONE = "__RickyLibraryCustomNameOne";
   const MODAL = "__RickyLibraryCustomNameModal";
   const PROGRESS = "__RickyLibraryCustomNameProgress";
   const REQ_ATTR = "data-steam-buff-name-request";
   const RES_ATTR = "data-steam-buff-name-response";
   const LOOP_MS = 1200;
+  const MOUNT_LOG_MS = 60000;
   const RESP_MS = 12000;
   const QUERY_MAX = 100;
   const BATCH_PAGE_SIZE = 120;
@@ -30,6 +32,7 @@
   const CLOUD_TIP_TEXT = "将本次手动修改的自定义排序名称同步到素材君社区，帮助更多玩家获得更准确的名称建议。";
   const CLOUD_CANCEL_TEXT = "云端共享可以帮助更多玩家获得更准确的自定义名称建议。本次保存将只写入本地 Steam 库，不再同步到素材君社区，确认关闭吗？";
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
+  const SORT_LABEL_RE = /自定义排序名称|自訂排序名稱|自定義排序名稱|Custom Sort|カスタムソート|カスタム並び替え|사용자 지정 정렬|사용자 정의 정렬/i;
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
 
@@ -133,6 +136,55 @@
       }
     } catch {
     }
+  }
+
+  function rectMeta(el) {
+    const rect = el?.getBoundingClientRect?.();
+    if (!rect) {
+      return null;
+    }
+    return {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      visible: rect.width > 0 && rect.height > 0,
+    };
+  }
+
+  function nodeMeta(el) {
+    if (!el) {
+      return null;
+    }
+    return {
+      tag: el.tagName || "",
+      id: el.id || "",
+      className: String(el.className || "").slice(0, 180),
+      rect: rectMeta(el),
+    };
+  }
+
+  function pageMeta(extra = {}) {
+    return {
+      route: window.SteamBuff?.ctx?.route?.() || window.tempNavStore?.m_locationPathname || "",
+      title: document.title || "",
+      innerWidth: Math.round(window.innerWidth || 0),
+      innerHeight: Math.round(window.innerHeight || 0),
+      devicePixelRatio: Number(window.devicePixelRatio) || 1,
+      ...extra,
+    };
+  }
+
+  function logMountState(key, level, event, message, meta = {}) {
+    const at = now();
+    const repeatMs = Number(meta.repeatMs) || 0;
+    if (s.mountLogKey === key && (!repeatMs || at - (s.mountLogAt || 0) < repeatMs)) {
+      return;
+    }
+    s.mountLogKey = key;
+    s.mountLogAt = at;
+    const { repeatMs: _repeatMs, ...cleanMeta } = meta;
+    log(level, event, message, pageMeta(cleanMeta));
   }
 
   function statsMeta() {
@@ -347,6 +399,18 @@
         box-sizing: border-box;
         margin: 10px 0 0;
         padding: 0;
+      }
+      #${BAR}.${BAR_FIXED} {
+        position: fixed;
+        z-index: 2147483646;
+        justify-content: flex-start;
+        width: max-content;
+        max-width: min(360px, calc(100vw - 24px));
+        margin: 0;
+        padding: 4px;
+        border-radius: 3px;
+        background: rgba(15, 24, 34, .92);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
       }
       #${BAR}[hidden] {
         display: none;
@@ -856,6 +920,27 @@
     return !!r && r.width > 30 && r.height > 12;
   }
 
+  function visibleInViewport(el) {
+    const rect = el?.getBoundingClientRect?.();
+    if (!rect || rect.width <= 30 || rect.height <= 12) {
+      return false;
+    }
+    if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) {
+      return false;
+    }
+    let cur = el.parentElement;
+    while (cur && cur !== document.body && cur !== document.documentElement) {
+      if (isClipped(cur)) {
+        const clip = cur.getBoundingClientRect();
+        if (rect.right <= clip.left || rect.left >= clip.right || rect.bottom <= clip.top || rect.top >= clip.bottom) {
+          return false;
+        }
+      }
+      cur = cur.parentElement;
+    }
+    return true;
+  }
+
   function nearText(el) {
     let cur = el;
     let out = "";
@@ -868,12 +953,41 @@
     return out.replace(/\s+/g, " ").trim();
   }
 
-  function sortInput() {
-    const inputs = Array.from(document.querySelectorAll("input[type='text'], input:not([type])"))
+  function textInputs() {
+    return Array.from(document.querySelectorAll("input[type='text'], input:not([type])"))
       .filter(visible);
-    return inputs.find(input => /自定义排序名称|Custom Sort/i.test(nearText(input)))
+  }
+
+  function inputMeta(input) {
+    return {
+      placeholder: String(input?.placeholder || "").slice(0, 80),
+      ariaLabel: String(input?.getAttribute?.("aria-label") || "").slice(0, 80),
+      rect: rectMeta(input),
+      nearText: nearText(input).slice(0, 220),
+      parent: nodeMeta(input?.parentElement || null),
+    };
+  }
+
+  function inputSamples(inputs) {
+    return inputs.slice(0, 5).map(inputMeta);
+  }
+
+  function sortInput(inputs = textInputs()) {
+    return inputs.find(input => SORT_LABEL_RE.test(nearText(input)))
       || inputs.find(input => /排序|sort/i.test(input.placeholder || input.getAttribute("aria-label") || ""))
       || null;
+  }
+
+  function customPageHint(inputs = []) {
+    if (inputs.some(input => SORT_LABEL_RE.test(nearText(input)))) {
+      return true;
+    }
+    const body = String(document.body?.textContent || "").replace(/\s+/g, " ").slice(0, 12000);
+    if (SORT_LABEL_RE.test(body)) {
+      return true;
+    }
+    return /自定义|Custom|自訂|自定義|カスタム|사용자/i.test(body) &&
+      /宽幅封面图片|徽标|標誌|背景|Logo|Wide capsule|カプセル|캡슐/i.test(body);
   }
 
   function setNative(input, value) {
@@ -888,18 +1002,99 @@
     input.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  // Steam 库排序输入框由 React 动态挂载，不能固定插入点，只能沿输入框附近容器寻找稳定承载区。
+  function isClipped(el) {
+    const style = window.getComputedStyle?.(el);
+    if (!style) {
+      return false;
+    }
+    return /hidden|clip|scroll|auto/i.test(`${style.overflow} ${style.overflowX} ${style.overflowY}`);
+  }
+
+  function isRowCandidate(input, el) {
+    if (!el || el === document.body || el === document.documentElement) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    const inputRect = input?.getBoundingClientRect?.();
+    if (!rect || !inputRect || rect.width < inputRect.width || rect.height < inputRect.height) {
+      return false;
+    }
+    const text = String(el.textContent || "").replace(/\s+/g, " ").trim();
+    if (!SORT_LABEL_RE.test(text)) {
+      return false;
+    }
+    return rect.width <= Math.max(inputRect.width + 720, inputRect.width * 4) &&
+      rect.height <= Math.max(inputRect.height + 260, inputRect.height * 8);
+  }
+
+  function fieldRow(input) {
+    let cur = input?.parentElement || null;
+    let best = null;
+    for (let i = 0; cur && i < 9; i += 1, cur = cur.parentElement) {
+      if (isRowCandidate(input, cur)) {
+        best = cur;
+      }
+    }
+    return best;
+  }
+
+  function rowControl(row, input) {
+    if (!row) {
+      return null;
+    }
+    let cur = input?.parentElement || null;
+    let best = null;
+    while (cur && cur !== row) {
+      const rect = cur.getBoundingClientRect();
+      const inputRect = input?.getBoundingClientRect?.();
+      if (rect?.width >= inputRect?.width && !isClipped(cur)) {
+        best = cur;
+      }
+      cur = cur.parentElement;
+    }
+    return best || input?.parentElement || row;
+  }
+
+  // Steam 属性页在不同 CEF/缩放下会切换单列、双列和小弹窗布局，优先挂到字段整行的右侧控制列。
   function barHost(input) {
+    const row = fieldRow(input);
+    const control = rowControl(row, input);
+    if (control) {
+      return { box: control, row, mode: row ? "field-row" : "control" };
+    }
     const inputRect = input?.getBoundingClientRect?.();
     let cur = input?.parentElement || null;
     for (let i = 0; cur && i < 6; i += 1, cur = cur.parentElement) {
       const rect = cur.getBoundingClientRect();
       const style = window.getComputedStyle?.(cur);
       if (rect.width >= inputRect.width && rect.width <= inputRect.width + 90 && style?.display !== "flex") {
-        return cur;
+        return { box: cur, row: null, mode: "legacy-width" };
       }
     }
-    return input?.parentElement || null;
+    return input?.parentElement ? { box: input.parentElement, row: null, mode: "input-parent" } : null;
+  }
+
+  function fixedBar(input, bar) {
+    const rect = input?.getBoundingClientRect?.();
+    if (!rect || !bar) {
+      return false;
+    }
+    const left = Math.max(12, Math.min(Math.round(rect.left), Math.round(window.innerWidth || 0) - 372));
+    const top = Math.max(12, Math.min(Math.round(rect.bottom + 8), Math.round(window.innerHeight || 0) - 48));
+    document.body?.appendChild(bar);
+    bar.classList.add(BAR_FIXED);
+    bar.style.left = `${left}px`;
+    bar.style.top = `${top}px`;
+    return true;
+  }
+
+  function clearFixed(bar) {
+    if (!bar) {
+      return;
+    }
+    bar.classList.remove(BAR_FIXED);
+    bar.style.left = "";
+    bar.style.top = "";
   }
 
   function apiRows(data) {
@@ -1694,10 +1889,11 @@
   }
 
   function insertBar(input) {
-    const box = barHost(input);
+    const host = barHost(input);
+    const box = host?.box || null;
     if (!box) {
       clearBars(null);
-      return false;
+      return { ok: false, reason: "host-missing" };
     }
 
     let bar = document.getElementById(BAR);
@@ -1705,22 +1901,80 @@
     if (!bar) {
       bar = makeBar();
     }
+    clearFixed(bar);
     if (bar.parentElement !== box || box.lastElementChild !== bar) {
       box.appendChild(bar);
     }
     bar.hidden = false;
-    return true;
+    if (!visibleInViewport(bar) && fixedBar(input, bar)) {
+      return { ok: true, bar, box: bar.parentElement, originalBox: box, row: host.row, mode: "fixed-fallback" };
+    }
+    return { ok: true, bar, box, originalBox: box, row: host.row, mode: host.mode || "unknown" };
   }
 
   // tick 是低频驻留扫描，负责在 Steam 切换库详情或 React 重挂输入框后补回三个按钮。
   function tick() {
     css();
-    const input = sortInput();
-    if (!input) {
+    const inputs = textInputs();
+    const input = sortInput(inputs);
+    const active = !!input || customPageHint(inputs);
+    if (!active) {
       clearBars(null);
       return;
     }
-    insertBar(input);
+
+    logMountState(
+      `ui-start:${document.title}`,
+      "info",
+      "library-custom-name-ui-start",
+      "库自定义名称界面入口已进入目标页"
+    );
+    if (!input) {
+      clearBars(null);
+      logMountState(
+        `input-missing:${document.title}:${inputs.length}`,
+        "info",
+        "library-custom-name-mount-input-missing",
+        "库自定义名称按钮未找到自定义排序名称输入框",
+        {
+          inputCount: inputs.length,
+          inputSamples: inputSamples(inputs),
+        }
+      );
+      return;
+    }
+
+    const result = insertBar(input);
+    if (!result.ok) {
+      logMountState(
+        `host-missing:${document.title}:${inputs.length}`,
+        "warn",
+        "library-custom-name-mount-host-missing",
+        "库自定义名称按钮未找到可挂载容器",
+        {
+          inputCount: inputs.length,
+          input: inputMeta(input),
+        }
+      );
+      return;
+    }
+
+    const visibleBar = visibleInViewport(result.bar) && !result.bar.hidden;
+    logMountState(
+      `mounted:${document.title}:${visibleBar}:${result.mode}:${result.box?.className || ""}`,
+      visibleBar ? "info" : "warn",
+      visibleBar ? "library-custom-name-mount-success" : "library-custom-name-mount-invisible",
+      visibleBar ? "库自定义名称按钮挂载完成" : "库自定义名称按钮已挂载但当前不可见",
+      {
+        inputCount: inputs.length,
+        mode: result.mode || "",
+        input: inputMeta(input),
+        host: nodeMeta(result.box),
+        originalHost: nodeMeta(result.originalBox),
+        row: nodeMeta(result.row),
+        bar: nodeMeta(result.bar),
+      }
+    );
   }
 
   function progressLine() {

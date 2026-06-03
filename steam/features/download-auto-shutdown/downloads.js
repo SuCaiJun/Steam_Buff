@@ -21,6 +21,7 @@
   const RESP_MS = 8000;
   const RETRY_MS = 1000;
   const TOAST_MS = 4200;
+  const MOUNT_LOG_MS = 60000;
   const ST = Object.freeze({
     READY: "backend-ready",
     OFF: "disabled-by-user",
@@ -59,6 +60,63 @@
     }
     s.ch = new BroadcastChannel(CH);
     return s.ch;
+  }
+
+  function log(level, event, message, meta = {}) {
+    try {
+      const entry = {
+        domain: "steam",
+        feature: ID,
+        event,
+        message,
+        meta,
+      };
+      if (level === "error") {
+        window.STLogger?.error?.(entry);
+      } else if (level === "warn") {
+        window.STLogger?.warn?.(entry);
+      } else {
+        window.STLogger?.info?.(entry);
+      }
+    } catch {
+    }
+  }
+
+  function rectMeta(el) {
+    const rect = el?.getBoundingClientRect?.();
+    if (!rect) {
+      return null;
+    }
+    return {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      visible: rect.width > 0 && rect.height > 0,
+    };
+  }
+
+  function pageMeta(extra = {}) {
+    return {
+      route: window.SteamBuff?.ctx?.route?.() || window.tempNavStore?.m_locationPathname || "",
+      title: document.title || "",
+      innerWidth: Math.round(window.innerWidth || 0),
+      innerHeight: Math.round(window.innerHeight || 0),
+      devicePixelRatio: Number(window.devicePixelRatio) || 1,
+      ...extra,
+    };
+  }
+
+  function logMountState(key, level, event, message, meta = {}) {
+    const at = now();
+    const repeatMs = Number(meta.repeatMs) || 0;
+    if (s.mountLogKey === key && (!repeatMs || at - (s.mountLogAt || 0) < repeatMs)) {
+      return;
+    }
+    s.mountLogKey = key;
+    s.mountLogAt = at;
+    const { repeatMs: _repeatMs, ...cleanMeta } = meta;
+    log(level, event, message, pageMeta(cleanMeta));
   }
 
   function css() {
@@ -293,6 +351,16 @@
     });
 
     document.body.appendChild(el);
+    logMountState(
+      `mount-created:${window.SteamBuff?.ctx?.route?.() || ""}`,
+      "info",
+      "download-auto-shutdown-mount-success",
+      "下载完成自动关机按钮已挂载",
+      {
+        rect: rectMeta(el),
+        status: el.dataset.status || "",
+      }
+    );
     return el;
   }
 
@@ -312,6 +380,12 @@
   function render(api, ch) {
     if (!main(api)) {
       cleanup();
+      logMountState(
+        "mount-skipped:not-main-ui",
+        "info",
+        "download-auto-shutdown-mount-skipped",
+        "下载完成自动关机按钮跳过非主界面"
+      );
       return null;
     }
     const show = isView();
@@ -322,7 +396,34 @@
     }
     if (el) {
       el.hidden = !show;
+      if (show || s.lastShow) {
+        logMountState(
+          `mount-state:${show}:${el.dataset.status || ""}:${window.SteamBuff?.ctx?.route?.() || ""}`,
+          "info",
+          show ? "download-auto-shutdown-mount-visible" : "download-auto-shutdown-mount-hidden",
+          show ? "下载完成自动关机按钮当前可见" : "下载完成自动关机按钮按路由隐藏",
+          {
+            status: el.dataset.status || "",
+            backendReason: s.st?.reason || "",
+            backendShow: !!s.st?.show,
+            rect: rectMeta(el),
+          }
+        );
+      }
+    } else if (show) {
+      logMountState(
+        `mount-waiting:${window.SteamBuff?.ctx?.route?.() || ""}:${!!s.st}`,
+        "info",
+        "download-auto-shutdown-mount-waiting",
+        "下载完成自动关机按钮等待后台状态",
+        {
+          hasBackendStatus: !!s.st,
+          backendReason: s.st?.reason || "",
+          backendShow: !!s.st?.show,
+        }
+      );
     }
+    s.lastShow = show;
     return el;
   }
 
@@ -360,6 +461,16 @@
           error: "后台 8 秒内没有响应，请检查下载关机后端是否已注入。",
         });
       }
+      logMountState(
+        `frontend-timeout:${s.rid}`,
+        "error",
+        "download-auto-shutdown-frontend-timeout",
+        "下载完成自动关机前端等待后台响应超时",
+        {
+          rid: s.rid,
+          elapsedMs: now() - s.sentAt,
+        }
+      );
       s.rid = "";
       s.sentAt = 0;
       s.want = false;
@@ -372,19 +483,43 @@
     }
     if (!main(api)) {
       cleanup();
+      logMountState(
+        "ui-start-skipped:not-main-ui",
+        "info",
+        "download-auto-shutdown-ui-start-skipped",
+        "下载完成自动关机界面入口跳过非主界面"
+      );
       return { started: false, reason: "not-main-ui" };
     }
     if (typeof document === "undefined" || !document.body) {
+      logMountState(
+        "ui-start-skipped:body-unavailable",
+        "warn",
+        "download-auto-shutdown-ui-start-skipped",
+        "下载完成自动关机界面入口等待 document.body"
+      );
       return { started: false, reason: "document-body-unavailable" };
     }
 
     const ch = chan();
     if (!ch) {
+      logMountState(
+        "ui-start-skipped:broadcast-channel-unavailable",
+        "warn",
+        "download-auto-shutdown-ui-start-skipped",
+        "下载完成自动关机界面入口缺少 BroadcastChannel"
+      );
       return { started: false, reason: "broadcast-channel-unavailable" };
     }
 
     s.fOn = true;
     s.st = null;
+    logMountState(
+      "ui-start",
+      "info",
+      "download-auto-shutdown-ui-start",
+      "下载完成自动关机界面入口已启动"
+    );
     s.stop = () => {
       if (s.syncI) {
         window.clearInterval(s.syncI);

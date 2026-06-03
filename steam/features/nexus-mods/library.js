@@ -16,6 +16,7 @@
   const STYLE = "__RickyNexusModsStyle";
   const ORIG = "__RickyStOriginalName";
   const LOOP_MS = 1500;
+  const MOUNT_LOG_MS = 60000;
   const NAV_RE = /指南|Guides|创意工坊|Workshop|讨论区|Discussions|社区中心|Community Hub/;
   const WORKSHOP_RE = /创意工坊|Workshop/;
 
@@ -40,6 +41,56 @@
       }
     } catch {
     }
+  }
+
+  function rectMeta(el) {
+    const rect = el?.getBoundingClientRect?.();
+    if (!rect) {
+      return null;
+    }
+    return {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      visible: rect.width > 0 && rect.height > 0,
+    };
+  }
+
+  function nodeMeta(el) {
+    if (!el) {
+      return null;
+    }
+    return {
+      tag: el.tagName || "",
+      id: el.id || "",
+      className: String(el.className || "").slice(0, 180),
+      rect: rectMeta(el),
+      text: text(el).slice(0, 180),
+    };
+  }
+
+  function pageMeta(extra = {}) {
+    return {
+      route: window.SteamBuff?.ctx?.route?.() || "",
+      title: document.title || "",
+      innerWidth: Math.round(window.innerWidth || 0),
+      innerHeight: Math.round(window.innerHeight || 0),
+      devicePixelRatio: Number(window.devicePixelRatio) || 1,
+      ...extra,
+    };
+  }
+
+  function logMountState(key, level, event, message, meta = {}) {
+    const at = Date.now();
+    const repeatMs = Number(meta.repeatMs) || 0;
+    if (s.mountLogKey === key && (!repeatMs || at - (s.mountLogAt || 0) < repeatMs)) {
+      return;
+    }
+    s.mountLogKey = key;
+    s.mountLogAt = at;
+    const { repeatMs: _repeatMs, ...cleanMeta } = meta;
+    log(level, event, message, pageMeta(cleanMeta));
   }
 
   function css() {
@@ -289,26 +340,105 @@
   }
 
   function insert(root) {
-    if (!root || root.querySelector(`#${BTN}`) || !appName()) {
+    if (!root) {
+      return false;
+    }
+    const exists = root.querySelector(`#${BTN}`);
+    if (exists) {
+      const rect = rectMeta(exists);
+      const visible = !!rect?.visible;
+      logMountState(
+        `mount-existing:${appidFromRoute()}:${visible}`,
+        visible ? "info" : "warn",
+        visible ? "nexus-mods-mount-success" : "nexus-mods-mount-invisible",
+        visible ? "Nexus Mods 按钮已存在且可见" : "Nexus Mods 按钮已存在但当前不可见",
+        {
+          appid: appidFromRoute(),
+          nav: nodeMeta(root),
+          button: nodeMeta(exists),
+        }
+      );
+      return true;
+    }
+    const name = appName();
+    if (!name) {
+      logMountState(
+        `mount-skipped:no-app-name:${appidFromRoute()}`,
+        "info",
+        "nexus-mods-mount-skipped",
+        "Nexus Mods 按钮未识别当前游戏名称",
+        {
+          appid: appidFromRoute(),
+          nav: nodeMeta(root),
+        }
+      );
       return false;
     }
 
     const tabs = items(root);
     const ref = tabs.find((item) => WORKSHOP_RE.test(text(item))) || tabs[tabs.length - 1];
     if (!ref) {
+      logMountState(
+        `mount-skipped:no-ref:${appidFromRoute()}`,
+        "warn",
+        "nexus-mods-mount-skipped",
+        "Nexus Mods 按钮未找到插入参照项",
+        {
+          appid: appidFromRoute(),
+          nav: nodeMeta(root),
+          tabCount: tabs.length,
+        }
+      );
       return false;
     }
 
     const btn = linkLike(ref);
     ref.insertAdjacentElement("afterend", btn);
+    const rect = rectMeta(btn);
+    const visible = !!rect?.visible;
+    logMountState(
+      `mount:${appidFromRoute()}:${visible}`,
+      visible ? "info" : "warn",
+      visible ? "nexus-mods-mount-success" : "nexus-mods-mount-invisible",
+      visible ? "Nexus Mods 按钮挂载完成" : "Nexus Mods 按钮已挂载但当前不可见",
+      {
+        appid: appidFromRoute(),
+        nav: nodeMeta(root),
+        ref: nodeMeta(ref),
+        button: nodeMeta(btn),
+        nameLength: name.length,
+      }
+    );
     return true;
   }
 
   function tick() {
     css();
 
+    const appid = appidFromRoute();
+    if (!appid) {
+      return;
+    }
+    logMountState(
+      `ui-start:${appid}`,
+      "info",
+      "nexus-mods-ui-start",
+      "Nexus Mods 库页面入口已进入游戏详情页",
+      { appid }
+    );
+
     const root = nav();
     if (!root) {
+      logMountState(
+        `mount-skipped:no-nav:${appid}`,
+        "info",
+        "nexus-mods-mount-skipped",
+        "Nexus Mods 按钮未找到库详情导航栏",
+        {
+          appid,
+          navCandidateCount: document.querySelectorAll("div, nav").length,
+        }
+      );
       return;
     }
 

@@ -1430,6 +1430,99 @@
     };
   }
 
+  function featureSnapshot(states = {}) {
+    const catalog = globalThis.STSettings?.catalog || {};
+    const list = [];
+    for (const cat of catalog.list?.() || []) {
+      for (const item of cat.items || []) {
+        if (!item?.id) {
+          continue;
+        }
+        list.push({
+          id: item.id,
+          name: String(item.name || item.id),
+          category: String(cat.name || cat.id || ""),
+          area: String(item.area || ""),
+          enabled: states[item.id] !== false,
+        });
+      }
+    }
+    return list;
+  }
+
+  function compactConfig(values = {}, keys = []) {
+    const out = {};
+    for (const key of keys) {
+      const value = values?.[key];
+      if (typeof value === "boolean") {
+        out[key] = value;
+      } else if (typeof value === "number") {
+        out[key] = Number.isFinite(value) ? value : null;
+      } else if (value !== undefined && value !== null) {
+        out[key] = String(value).slice(0, 120);
+      }
+    }
+    return out;
+  }
+
+  function readSettings(job) {
+    try {
+      return typeof job === "function" ? Promise.resolve(job()).catch(() => ({})) : Promise.resolve({});
+    } catch {
+      return Promise.resolve({});
+    }
+  }
+
+  async function settingsSnapshot() {
+    const storage = globalThis.STSettings?.storage || {};
+    const [features, translate, ai, reviewFilter, searchSuggestions, see, membership] = await Promise.all([
+      readSettings(storage.getAll),
+      readSettings(storage.getTranslate),
+      readSettings(storage.getAi),
+      readSettings(storage.getReviewFilter),
+      readSettings(storage.getSearchSuggestions),
+      readSettings(storage.getSee),
+      readSettings(storage.getMembership),
+    ]);
+    return {
+      features: featureSnapshot(features),
+      translate: compactConfig(translate, [
+        "scope",
+        "page",
+        "selection",
+        "selectionTrigger",
+        "selectionService",
+        "local",
+        "to",
+        "service",
+        "aiConcurrency",
+        "force",
+      ]),
+      ai: {
+        enabled: ai?.enabled === true,
+        host: ai?.host ? String(ai.host).slice(0, 120) : "",
+        model: ai?.model ? String(ai.model).slice(0, 120) : "",
+        keyMode: ai?.keyMode ? String(ai.keyMode).slice(0, 40) : "",
+        hasKey: !!ai?.key,
+        hasKeyName: !!ai?.keyName,
+      },
+      reviewFilter: {
+        ruleCount: Array.isArray(reviewFilter?.rules) ? reviewFilter.rules.length : 0,
+        hasKeywords: !!String(reviewFilter?.keywords || "").trim(),
+        hasPatterns: !!String(reviewFilter?.patterns || "").trim(),
+      },
+      searchSuggestions: compactConfig(searchSuggestions, ["limit", "nativeMode"]),
+      see: compactConfig(see, Object.keys(see || {}).slice(0, 20)),
+      membership: membership ? {
+        active: membership.active === true,
+        level: String(membership.level || ""),
+        badge: String(membership.badge || ""),
+        expire: String(membership.expire || ""),
+        features: membership.features || {},
+      } : null,
+    };
+  }
+
   function fmtSize(bytes) {
     const size = Number(bytes) || 0;
     if (size >= 1024 * 1024) {
@@ -1786,7 +1879,10 @@
     const startedAt = Date.now();
     log("info", "diag-log-export-start", "开始导出诊断日志");
     try {
-      const response = await sendLogMessage("LOG_EXPORT", { env: logEnv().env });
+      const response = await sendLogMessage("LOG_EXPORT", {
+        env: logEnv().env,
+        settings: await settingsSnapshot(),
+      });
       downloadText(response.filename, response.data);
       logStats = response.stats || logStats;
       log("info", "diag-log-export-success", "诊断日志导出成功", {

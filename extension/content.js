@@ -61,9 +61,34 @@
     return {
       host: location.hostname,
       path: location.pathname,
+      title: document.title || "",
       topFrame: window.top === window,
       ...extra,
     };
+  }
+
+  function steamRuntimeLogTarget() {
+    if (location.hostname !== "steamloopback.host") {
+      return false;
+    }
+    const title = document.title || "";
+    if (title === "SharedJSContext" || title === "Steam") {
+      return true;
+    }
+    try {
+      const url = new URL(location.href);
+      return url.searchParams.get("browserType") === "4" ||
+        url.searchParams.get("IN_STEAMUI_SHARED_CONTEXT") === "true";
+    } catch {
+      return false;
+    }
+  }
+
+  function steamRuntimeLogOnce(key, entry) {
+    if (!steamRuntimeLogTarget()) {
+      return;
+    }
+    logOnce(key, entry);
   }
 
   function logOnce(key, entry) {
@@ -838,7 +863,7 @@
 
     // steamloopback.host 会先出现内容脚本但 guard/injector 未 ready 的窗口，必须 retry 到依赖完整。
     if (location.hostname === "steamloopback.host" && !readySteamDeps()) {
-      logOnce("steam-runtime-deps-waiting", {
+      steamRuntimeLogOnce("steam-runtime-deps-waiting", {
         level: "info",
         domain: "steam",
         feature: "steam-runtime",
@@ -853,7 +878,7 @@
     const gd = globalThis.STGuard;
     // guard.ok() 失败通常表示页面仍是 about:blank 或非目标 frame，继续 retry 才能覆盖后续 ready 的 Steam CEF。
     if (!gd?.ok()) {
-      logOnce("steam-runtime-inject-skipped-guard", {
+      steamRuntimeLogOnce("steam-runtime-inject-skipped-guard", {
         level: "info",
         domain: "steam",
         feature: "steam-runtime",
@@ -869,7 +894,7 @@
     watchNameReq();
 
     if (!gd.lock()) {
-      logOnce("steam-runtime-inject-skipped-lock", {
+      steamRuntimeLogOnce("steam-runtime-inject-skipped-lock", {
         level: "info",
         domain: "steam",
         feature: "steam-runtime",
@@ -882,7 +907,7 @@
 
     writeSteamSettings()
       .then(() => {
-        logOnce("steam-runtime-inject-start", {
+        steamRuntimeLogOnce("steam-runtime-inject-start", {
           level: "info",
           domain: "steam",
           feature: "steam-runtime",
@@ -902,7 +927,7 @@
         ]);
       })
       .then(() => {
-        logOnce("steam-runtime-inject-success", {
+        steamRuntimeLogOnce("steam-runtime-inject-success", {
           level: "info",
           domain: "steam",
           feature: "steam-runtime",

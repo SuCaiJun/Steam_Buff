@@ -19,6 +19,7 @@
   const BIG_WAIT_MS = 10000;
   const BIG_STEP_MS = 250;
   const FAIL_MS = 120000;
+  const HELLO_LOG_MS = 60000;
   const ST = Object.freeze({
     READY: "backend-ready",
     OFF: "disabled-by-user",
@@ -85,6 +86,17 @@
       typeof window.SteamClient?.URL?.ExecuteSteamURL === "function" &&
       !!window.SteamUIStore &&
       !!window.downloadsStore;
+  }
+
+  function readyMeta() {
+    return {
+      hasShutdownPC: typeof window.SteamClient?.System?.ShutdownPC === "function",
+      hasExecuteSteamURL: typeof window.SteamClient?.URL?.ExecuteSteamURL === "function",
+      hasSteamUIStore: !!window.SteamUIStore,
+      hasDownloadsStore: !!window.downloadsStore,
+      title: document.title || "",
+      route: window.SteamBuff?.ctx?.route?.() || "",
+    };
   }
 
   function arr(value) {
@@ -192,6 +204,20 @@
 
   function clearTimers() {
     clearFail();
+  }
+
+  function logHello(api) {
+    const at = now();
+    const key = `${s.reason || ST.READY}:${api.ctx?.route?.() || ""}`;
+    if (s.helloLogKey === key && at - (s.helloLogAt || 0) < HELLO_LOG_MS) {
+      return;
+    }
+    s.helloLogKey = key;
+    s.helloLogAt = at;
+    log("info", "download-auto-shutdown-frontend-hello", "下载完成自动关机后端收到前端状态请求", {
+      reason: s.reason || ST.READY,
+      route: api.ctx?.route?.() || "",
+    });
   }
 
   async function setOn(api, on, rid) {
@@ -382,11 +408,13 @@
       return { started: false, reason: "already-started" };
     }
     if (!ready()) {
+      log("warn", "download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端能力不可用", readyMeta());
       return { started: false, reason: "backend-capability-unavailable" };
     }
 
     const ch = chan();
     if (!ch) {
+      log("warn", "download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端缺少 BroadcastChannel", readyMeta());
       return { started: false, reason: "broadcast-channel-unavailable" };
     }
 
@@ -426,6 +454,7 @@
       }
 
       if (data.type === "frontend-hello") {
+        logHello(api);
         pub(api, { reason: s.reason || ST.READY });
         return;
       }
@@ -439,6 +468,7 @@
     ch.addEventListener("message", s.onMsg);
 
     pub(api, { reason: ST.READY });
+    log("info", "download-auto-shutdown-backend-ready", "下载完成自动关机后端已就绪", readyMeta());
     return { started: true, stop: s.stop };
   }
 
