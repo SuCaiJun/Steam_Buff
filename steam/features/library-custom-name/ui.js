@@ -57,6 +57,7 @@
     rows: [],
     rowMap: new Map(),
     page: 1,
+    selectedCount: 0,
     writeCount: 0,
     cloudQueue: [],
     cloudFlush: null,
@@ -873,6 +874,16 @@
         display: flex;
         gap: 6px;
       }
+      #${MODAL} .st-lcn-selectbar {
+        display: flex;
+        justify-content: flex-start;
+        margin-top: 8px;
+      }
+      #${MODAL} .st-lcn-select-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
       #${MODAL} .st-lcn-table-wrap {
         position: relative;
         z-index: 1;
@@ -1318,10 +1329,21 @@
     if (batch.policy === "hide") {
       return !hasCustom(row);
     }
+    if (batch.policy === "current-custom") {
+      return hasCustom(row);
+    }
     if (batch.policy === "rebuild-mnemonic") {
       return hasCustom(row);
     }
     return true;
+  }
+
+  function isCurrentCustomPolicy() {
+    return batch.policy === "current-custom";
+  }
+
+  function hasStoredState(old) {
+    return !!old && Object.prototype.hasOwnProperty.call(old, "checked");
   }
 
   function makeRow(app, old) {
@@ -1330,17 +1352,22 @@
     const cloud = batch.cloudMap.get(appid) || "";
     const manual = !!old?.manual;
     const cloudTouched = !!old?.cloudTouched;
+    const stored = hasStoredState(old);
     let want = manual ? text(old.want) : "";
     let checked = !!old?.checked;
     let source = old?.cloudSource || "";
 
-    if (!manual && batch.policy === "rebuild-mnemonic") {
+    if (!manual && isCurrentCustomPolicy()) {
+      want = custom;
+      checked = stored ? !!old.checked : false;
+      source = "local";
+    } else if (!manual && batch.policy === "rebuild-mnemonic") {
       want = custom;
       checked = false;
       source = "local";
     } else if (!manual && cloud) {
       want = cloud;
-      checked = !(batch.policy === "skip" && hasCustom(app));
+      checked = (stored ? !!old.checked : true) && !(batch.policy === "skip" && hasCustom(app));
       source = "api";
     } else if (!manual) {
       want = "";
@@ -1479,11 +1506,25 @@
   }
 
   function canWrite(row) {
-    return !!row.checked && !!text(row.want);
+    if (!row.checked || !text(row.want)) {
+      return false;
+    }
+    if (isCurrentCustomPolicy() && row.cloudSource === "local" && row.manual !== true) {
+      return false;
+    }
+    return true;
   }
 
   function isRebuildMnemonicPolicy() {
     return batch.policy === "rebuild-mnemonic";
+  }
+
+  function selectedRows() {
+    return batch.rows.filter(row => row.checked);
+  }
+
+  function canQueryCloud() {
+    return !isRebuildMnemonicPolicy() && batch.selectedCount > 0;
   }
 
   function totalPages() {
@@ -1521,16 +1562,21 @@
 
   function refreshCounts() {
     let write = 0;
+    let selected = 0;
     const map = new Map();
     for (let i = 0; i < batch.rows.length; i += 1) {
       const row = batch.rows[i];
       row.index = i;
       map.set(Number(row.appid), row);
+      if (row.checked) {
+        selected += 1;
+      }
       if (canWrite(row)) {
         write += 1;
       }
     }
     batch.rowMap = map;
+    batch.selectedCount = selected;
     batch.writeCount = write;
     clampPage();
     refreshSkip();
@@ -1540,6 +1586,7 @@
     batch.rows = [];
     batch.rowMap = new Map();
     batch.page = 1;
+    batch.selectedCount = 0;
     batch.writeCount = 0;
     refreshSkip();
   }
@@ -1563,6 +1610,9 @@
       row.index = batch.rows.length;
       batch.rows.push(row);
       batch.rowMap.set(Number(row.appid), row);
+      if (row.checked) {
+        batch.selectedCount += 1;
+      }
       if (canWrite(row)) {
         batch.writeCount += 1;
       }
@@ -1572,9 +1622,14 @@
   }
 
   function updateRowWrite(row, apply) {
+    const beforeSelected = !!row.checked;
     const before = canWrite(row);
     apply();
+    const afterSelected = !!row.checked;
     const after = canWrite(row);
+    if (beforeSelected !== afterSelected) {
+      batch.selectedCount += afterSelected ? 1 : -1;
+    }
     if (before !== after) {
       batch.writeCount += after ? 1 : -1;
       refreshSkip();
@@ -1583,7 +1638,7 @@
 
   function previewMessage() {
     const skipped = Math.max(0, batch.rows.length - batch.writeCount);
-    return `加载完成，写入 ${batch.writeCount} 项，跳过 ${skipped} 项`;
+    return `加载完成，已选 ${batch.selectedCount} 项，写入 ${batch.writeCount} 项，跳过 ${skipped} 项`;
   }
 
   function resetCloudUpload() {
@@ -1598,7 +1653,7 @@
   }
 
   function cloudPayload(row) {
-    if (!batch.uploadCloud || !row || !row.checked || row.cloudTouched !== true) {
+    if (!batch.uploadCloud || !row || !row.checked || row.cloudTouched !== true || row.manual !== true) {
       return null;
     }
     const custom = stripCloudName(row.want);
@@ -2203,12 +2258,19 @@
     const range = visibleRange();
     return `
       <div class="st-lcn-pagebar" data-lcn-pagebar>
-        <span>显示 ${range.from}-${range.to} / ${batch.rows.length}，第 ${batch.page} / ${pages} 页</span>
+        <span>显示 ${range.from}-${range.to} / ${batch.rows.length}，第 ${batch.page} / ${pages} 页，已选 <span data-lcn-selected-count>${batch.selectedCount}</span> 项</span>
         <div class="st-lcn-page-actions">
           <button class="st-lcn-inline-btn" type="button" data-lcn-page="first" ${batch.page <= 1 || batch.busy ? "disabled" : ""}>首页</button>
           <button class="st-lcn-inline-btn" type="button" data-lcn-page="prev" ${batch.page <= 1 || batch.busy ? "disabled" : ""}>上一页</button>
           <button class="st-lcn-inline-btn" type="button" data-lcn-page="next" ${batch.page >= pages || batch.busy ? "disabled" : ""}>下一页</button>
           <button class="st-lcn-inline-btn" type="button" data-lcn-page="last" ${batch.page >= pages || batch.busy ? "disabled" : ""}>末页</button>
+        </div>
+      </div>
+      <div class="st-lcn-selectbar">
+        <div class="st-lcn-select-actions">
+          <button class="st-lcn-inline-btn" type="button" data-lcn-select="all" ${batch.busy || batch.saving ? "disabled" : ""}>全选</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-select="invert" ${batch.busy || batch.saving ? "disabled" : ""}>反选</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-select="none" ${batch.busy || batch.saving ? "disabled" : ""}>取消全选</button>
         </div>
       </div>
       <div class="st-lcn-table-wrap">
@@ -2241,6 +2303,7 @@
   function modalHtml() {
     const write = batch.writeCount;
     const locked = batch.busy || batch.saving;
+    const queryDisabled = locked || !canQueryCloud();
     const mnemonicDisabled = locked || isRebuildMnemonicPolicy();
     const mnemonicChecked = batch.mnemonic && !isRebuildMnemonicPolicy();
     const tip = CLOUD_TIP_TEXT;
@@ -2254,10 +2317,11 @@
           <div class="st-lcn-note">读取 Steam 客户端库列表，获取云端名称后逐条写入自定义排序名称。</div>
           <div class="st-lcn-controls">
             <fieldset>
-              <legend>覆盖策略</legend>
+              <legend>模式</legend>
               <label><input type="radio" name="st-lcn-policy" value="cover" ${batch.policy === "cover" ? "checked" : ""} ${locked ? "disabled" : ""}>全部覆盖</label>
               <label><input type="radio" name="st-lcn-policy" value="hide" ${batch.policy === "hide" ? "checked" : ""} ${locked ? "disabled" : ""}>隐藏已有</label>
               <label><input type="radio" name="st-lcn-policy" value="skip" ${batch.policy === "skip" ? "checked" : ""} ${locked ? "disabled" : ""}>跳过已有</label>
+              <label><input type="radio" name="st-lcn-policy" value="current-custom" ${isCurrentCustomPolicy() ? "checked" : ""} ${locked ? "disabled" : ""}>当前自定义写入待写</label>
               <label><input type="radio" name="st-lcn-policy" value="rebuild-mnemonic" ${isRebuildMnemonicPolicy() ? "checked" : ""} ${locked ? "disabled" : ""}>重建助记符</label>
             </fieldset>
             <fieldset>
@@ -2269,7 +2333,7 @@
             </fieldset>
           </div>
           <div class="st-lcn-actions">
-            <button class="st-lcn-btn" type="button" data-lcn-action="query" ${locked || isRebuildMnemonicPolicy() ? "disabled" : ""}>获取云端名称</button>
+            <button class="st-lcn-btn" type="button" data-lcn-action="query" title="只获取已勾选游戏的云端名称" ${queryDisabled ? "disabled" : ""}>获取云端名称</button>
             <button class="st-lcn-btn primary" type="button" data-lcn-action="save" ${locked || !write ? "disabled" : ""}>保存修改</button>
             <label class="st-lcn-action-option"><input type="checkbox" data-lcn-upload-cloud ${batch.uploadCloud ? "checked" : ""} ${locked ? "disabled" : ""}>上传云端</label>
             <span class="st-lcn-tip" tabindex="0" aria-label="${attr(tip)}" title="${attr(tip)}">
@@ -2305,10 +2369,37 @@
   }
 
   function refreshSaveState() {
-    const saveBtn = document.querySelector(`#${MODAL} [data-lcn-action='save']`);
+    const modal = document.getElementById(MODAL);
+    if (!modal) {
+      return;
+    }
+    const queryBtn = modal.querySelector("[data-lcn-action='query']");
+    if (queryBtn) {
+      queryBtn.disabled = batch.busy || batch.saving || !canQueryCloud();
+    }
+    const saveBtn = modal.querySelector("[data-lcn-action='save']");
     if (saveBtn) {
       saveBtn.disabled = batch.busy || batch.saving || !batch.writeCount;
     }
+  }
+
+  function setSelection(mode) {
+    if (batch.busy || batch.saving || !batch.rows.length) {
+      return;
+    }
+    for (const row of batch.rows) {
+      if (mode === "all") {
+        row.checked = true;
+      } else if (mode === "none") {
+        row.checked = false;
+      } else if (mode === "invert") {
+        row.checked = !row.checked;
+      }
+      keepRowState(row);
+    }
+    refreshCounts();
+    batch.message = previewMessage();
+    renderVisibleRows();
   }
 
   function rowVisible(row) {
@@ -2448,13 +2539,14 @@
     if (!modal) {
       return;
     }
-    const saveBtn = modal.querySelector("[data-lcn-action='save']");
-    if (saveBtn) {
-      saveBtn.disabled = batch.busy || batch.saving || !batch.writeCount;
-    }
+    refreshSaveState();
     if (!batch.busy && !batch.saving && batch.rows.length) {
       batch.message = previewMessage();
       refreshMessage();
+    }
+    const selected = modal.querySelector("[data-lcn-selected-count]");
+    if (selected) {
+      selected.textContent = String(batch.selectedCount);
     }
     const tr = modal.querySelector(`tr[data-appid="${row.appid}"]`);
     const check = tr?.querySelector("[data-lcn-check]");
@@ -2520,8 +2612,14 @@
         return;
       }
     }
+    const targets = selectedRows().filter(row => Number(row.appid) > 0);
+    if (!targets.length) {
+      batch.message = "请先勾选需要获取云端名称的游戏";
+      renderModal();
+      return;
+    }
     if (hasDirtyRows()) {
-      const ok = await oneConfirm("当前待写入数据已调整，重新获取云端名称将刷新未手动锁定的待写入数据，是否继续？", {
+      const ok = await oneConfirm("当前待写入数据已调整，重新获取云端名称将只刷新已勾选且未手动锁定的待写入数据，是否继续？", {
         title: "确认获取云端名称",
         cancel: "否",
         confirm: "是",
@@ -2537,11 +2635,11 @@
     renderModal();
     log("info", "library-custom-name-preview-start", "开始获取库自定义名称云端名称", {
       policy: batch.policy,
-      count: batch.rows.length,
+      selected: batch.selectedCount,
+      count: targets.length,
     });
     try {
       ensureOn();
-      const targets = batch.rows.filter(row => Number(row.appid) > 0);
       const total = targets.length;
       for (let offset = 0; offset < total; offset += BACKEND_PAGE_SIZE) {
         const part = targets.slice(offset, offset + BACKEND_PAGE_SIZE);
@@ -2675,7 +2773,7 @@
         continue;
       }
       chosen += 1;
-      if (text(row.want)) {
+      if (canWrite(row)) {
         items.push({ appid: row.appid, name: row.want });
         saveRows.push(row);
       }
@@ -2872,6 +2970,12 @@
       renderVisibleRows();
       return;
     }
+    const select = event.target.closest("[data-lcn-select]")?.dataset?.lcnSelect;
+    if (select) {
+      event.preventDefault();
+      setSelection(select);
+      return;
+    }
     const action = event.target.closest("[data-lcn-action]")?.dataset?.lcnAction;
     if (action === "query") {
       fetchCloudNames();
@@ -2904,7 +3008,7 @@
   async function onModalChange(event) {
     const policy = event.target.closest("input[name='st-lcn-policy']");
     if (policy) {
-      batch.policy = ["cover", "hide", "skip", "rebuild-mnemonic"].includes(policy.value) ? policy.value : "hide";
+      batch.policy = ["cover", "hide", "skip", "current-custom", "rebuild-mnemonic"].includes(policy.value) ? policy.value : "hide";
       if (isRebuildMnemonicPolicy()) {
         batch.mnemonic = false;
       }
@@ -2981,7 +3085,8 @@
     updateRowWrite(row, () => {
       row.want = input.value;
       row.checked = !!text(row.want);
-      row.manual = text(row.want) !== text(row.apiName);
+      const base = isCurrentCustomPolicy() || row.cloudSource === "local" ? text(row.custom) : text(row.apiName);
+      row.manual = text(row.want) !== base;
       row.cloudTouched = true;
       row.mnemonicTouched = false;
       row.state = "";
