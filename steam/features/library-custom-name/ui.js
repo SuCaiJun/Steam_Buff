@@ -391,6 +391,83 @@
     return urlMatch ? Number(urlMatch[1]) || 0 : 0;
   }
 
+  function appidValue(value) {
+    const id = Number(value);
+    return Number.isFinite(id) && id > 0 ? id : 0;
+  }
+
+  function scanReactAppid(value, seen, depth) {
+    if (!value || depth > 6 || (typeof value !== "object" && typeof value !== "function")) {
+      return 0;
+    }
+    if (seen.has(value)) {
+      return 0;
+    }
+    seen.add(value);
+    let keys = [];
+    try {
+      keys = Object.keys(value).slice(0, 100);
+    } catch {
+      return 0;
+    }
+    for (const key of keys) {
+      let next;
+      try {
+        next = value[key];
+      } catch {
+        continue;
+      }
+      if (/^(appid|appID|unAppID)$/i.test(key)) {
+        const id = appidValue(next);
+        if (id) {
+          return id;
+        }
+      }
+      const found = scanReactAppid(next, seen, depth + 1);
+      if (found) {
+        return found;
+      }
+    }
+    return 0;
+  }
+
+  function reactAppid(input) {
+    const nodes = [];
+    let cur = input || null;
+    for (let i = 0; cur && i < 10; i += 1, cur = cur.parentElement) {
+      nodes.push(cur);
+    }
+    if (document.body) {
+      // Steam 属性窗口的 AppID 挂在 React props 上，主库路由切换后仍以这里为准。
+      nodes.push(document.body);
+      nodes.push(...Array.from(document.body.querySelectorAll("main, section, div")).slice(0, 300));
+    }
+    const seen = new WeakSet();
+    for (const node of nodes) {
+      if (!node) {
+        continue;
+      }
+      for (const key of Object.keys(node)) {
+        if (!/^__react/.test(key)) {
+          continue;
+        }
+        const id = scanReactAppid(node[key], seen, 0);
+        if (id) {
+          return id;
+        }
+      }
+    }
+    return 0;
+  }
+
+  function oneContext(input = sortInput()) {
+    const appid = reactAppid(input) || currentAppid();
+    return {
+      appid,
+      title: text(document.title),
+    };
+  }
+
   function css() {
     let style = document.getElementById(STYLE);
     if (style) {
@@ -1994,12 +2071,13 @@
 
     try {
       ensureOn();
+      const ctx = oneContext(input);
       let cur = null;
       try {
-        cur = await backend("current-app");
+        cur = await backend("current-app", ctx);
       } catch {
       }
-      const appid = Number(cur?.app?.appid) || currentAppid();
+      const appid = Number(cur?.app?.appid) || Number(ctx.appid) || currentAppid();
       if (!appid) {
         throw new Error("未识别当前游戏 AppID");
       }
@@ -2026,13 +2104,14 @@
 
   async function openFeedback() {
     const input = sortInput();
+    const ctx = oneContext(input);
     let cur = null;
     try {
-      cur = await backend("current-app");
+      cur = await backend("current-app", ctx);
     } catch {
     }
     const app = cur?.app || {};
-    const appid = Number(app.appid) || currentAppid();
+    const appid = Number(app.appid) || Number(ctx.appid) || currentAppid();
     if (!appid) {
       oneResult("上传云端失败", "未识别当前游戏 AppID");
       return;

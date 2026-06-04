@@ -190,6 +190,28 @@
     return null;
   }
 
+  function appByTitle(title) {
+    const name = text(title);
+    if (!name) {
+      return null;
+    }
+    try {
+      for (const app of appValues()) {
+        if (text(app?.display_name) === name) {
+          return app;
+        }
+      }
+    } catch {
+    }
+    return null;
+  }
+
+  function currentApp(data) {
+    return appById(data?.appid) ||
+      appByTitle(data?.title) ||
+      appById(appidFromRoute());
+  }
+
   function appType(app) {
     const type = Number(app?.app_type);
     if (Number.isFinite(type)) {
@@ -534,7 +556,7 @@
         const rid = text(data.rid);
 
         if (data.type === "current-app") {
-          const app = appById(appidFromRoute());
+          const app = currentApp(data);
           post(ch, { type: "current-app-result", rid, ok: !!app, app: app ? row(app) : null });
           return;
         }
