@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : 后台更新检查与每日缓存
+ * @File          : 后台更新检查与定时缓存
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
@@ -17,6 +17,7 @@
 
   const CFG = root.STConfig;
   const CACHE_KEY = "steam_buff_update_check_cache";
+  const AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
   function appendLog(entry, sender) {
     const job = root.STBackgroundLogger?.append?.(entry, sender);
@@ -168,6 +169,12 @@
     return data[CACHE_KEY] || null;
   }
 
+  function cacheFresh(cache, now = Date.now()) {
+    const checkedAt = Number(cache?.checkedAt || cache?.result?.checkedAt) || 0;
+    const age = Math.max(0, (Number(now) || Date.now()) - checkedAt);
+    return checkedAt > 0 && age < AUTO_CHECK_INTERVAL_MS;
+  }
+
   async function writeCache(result) {
     const box = {
       date: todayKey(result.checkedAt),
@@ -207,9 +214,9 @@
 
   async function autoCheck() {
     const cache = await readCache();
-    if (cache?.date === todayKey() && cache.result && verText(cache.result.current) === verText(version())) {
+    if (cacheFresh(cache) && cache.result && verText(cache.result.current) === verText(version())) {
       const result = { ...cache.result, fromCache: true };
-      log("info", "update-auto-check-skipped", "今日已检查更新，使用缓存结果", {
+      log("info", "update-auto-check-skipped", "6小时内已检查更新，使用缓存结果", {
         remote: result.remote || result.latest?.version || "",
         hasNew: !!result.hasNew,
         checkedAt: Number(cache.checkedAt) || 0,
@@ -254,7 +261,9 @@
   root.STBackgroundUpdate = Object.freeze({
     ready: true,
     CACHE_KEY,
+    AUTO_CHECK_INTERVAL_MS,
     todayKey,
+    cacheFresh,
     updateCheck,
   });
 })(typeof globalThis !== "undefined" ? globalThis : self);
