@@ -34,12 +34,29 @@
           return search?.(key || item?.name || "") || "";
         };
 
+    function tr(key, fallback, params) {
+      return globalThis.STI18n?.text?.(key, fallback, params) || String(fallback ?? key ?? "");
+    }
+
+    function itemName(item) {
+      return tr(item?.nameKey, item?.name || "");
+    }
+
+    function itemDesc(item) {
+      return tr(item?.descKey, item?.desc || "");
+    }
+
+    function itemBadge(item) {
+      return tr(item?.badgeKey, item?.badge || "");
+    }
+
     function switchHtml(item) {
       const checked = item.disabled === true ? false : state(item.id) !== false;
       const enabled = available(item);
-      const tip = enabled ? item.name : lockText(item);
+      const name = itemName(item);
+      const tip = enabled ? name : lockText(item);
       return `
-        <button class="switch" type="button" role="switch" aria-checked="${checked ? "true" : "false"}" data-feature="${escAttr(item.id)}" aria-label="${escAttr(item.name)}" title="${escAttr(tip)}" ${enabled ? "" : "disabled"}>
+        <button class="switch" type="button" role="switch" aria-checked="${checked ? "true" : "false"}" data-feature="${escAttr(item.id)}" aria-label="${escAttr(name)}" title="${escAttr(tip)}" ${enabled ? "" : "disabled"}>
           <span class="knob"></span>
         </button>
       `;
@@ -68,7 +85,7 @@
 
     function helpKey(value, item) {
       if (value === true) {
-        return String(item?.name || item?.id || "").trim();
+        return String(itemName(item) || item?.id || "").trim();
       }
       return String(value || "").trim();
     }
@@ -99,7 +116,7 @@
       if (!meta.key && !meta.url) return "";
       const href = String(meta.url || helpUrl(item, meta.key) || "").trim();
       if (!href) return "";
-      const label = `查看教程：${meta.key || item?.name || "教程"}`;
+      const label = `查看教程：${meta.key || itemName(item) || "教程"}`;
       return `
         <a class="feature-tutorial" href="${escAttr(href)}" target="_blank" rel="noreferrer noopener" title="${escAttr(label)}" aria-label="${escAttr(label)}">
           ${tutorialIcon()}
@@ -111,16 +128,17 @@
       const enabled = available(item);
       const tip = enabled ? "" : lockText(item);
       const badgeClass = item.member === true ? "feature-badge member" : "feature-badge";
+      const badge = item.badge ? itemBadge(item) : "";
       return `
         <article class="feature toggle-row${enabled ? "" : " disabled"}"${tip ? ` title="${escAttr(tip)}"` : ""}>
           <div class="feature-main row-info">
             <div class="feature-title row-name">
-              <span>${esc(item.name)}</span>
-              ${item.badge ? `<span class="${badgeClass}">${esc(item.badge)}</span>` : ""}
+              <span>${esc(itemName(item))}</span>
+              ${badge ? `<span class="${badgeClass}">${esc(badge)}</span>` : ""}
               ${helpLinkHtml(item)}
               ${enabled ? "" : `<span class="feature-lock">${esc(tip)}</span>`}
             </div>
-            <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(item.desc)}</span></div>
+            <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(itemDesc(item))}</span></div>
           </div>
           ${switchHtml(item)}
         </article>
@@ -132,8 +150,8 @@
         <article class="feature master-toggle">
           <div class="icon-pad">${masterIcon(kind)}</div>
           <div class="feature-main row-info">
-            <div class="feature-title row-name"><span>${esc(item.name)}</span>${helpLinkHtml(item)}</div>
-            <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(item.desc)}</span></div>
+            <div class="feature-title row-name"><span>${esc(itemName(item))}</span>${helpLinkHtml(item)}</div>
+            <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(itemDesc(item))}</span></div>
           </div>
           ${switchHtml(item)}
         </article>

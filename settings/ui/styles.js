@@ -1558,6 +1558,15 @@
           overflow: hidden;
         }
 
+        .settings-card-note {
+          border-top: 1px solid rgba(255, 255, 255, .04);
+          padding: 11px 22px 13px;
+          color: #8f98a0;
+          background: rgba(0, 0, 0, .08);
+          font-size: 12px;
+          line-height: 1.5;
+        }
+
         .section-header {
           display: flex;
           align-items: center;

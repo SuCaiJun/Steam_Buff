@@ -1,0 +1,187 @@
+{
+  "extName": {
+    "message": "Steam Buff"
+  },
+  "extDescription": {
+    "message": "Steam 用戶端增強小工具重構版，別名 G 胖的微笑，目前小工具仍處於前期開發階段，許多功能仍在開發完善，部分功能尚未從舊版擴充功能移植過來。"
+  },
+  "locale_zh_CN": {
+    "message": "簡體中文"
+  },
+  "locale_en": {
+    "message": "English"
+  },
+  "locale_zh_TW": {
+    "message": "繁體中文"
+  },
+  "settings_shell_settingsButton": {
+    "message": "設定"
+  },
+  "settings_shell_filteredReviewsButton": {
+    "message": "查看已過濾評論"
+  },
+  "settings_shell_topButton": {
+    "message": "回到頂部"
+  },
+  "settings_shell_title": {
+    "message": "擴充功能設定"
+  },
+  "settings_shell_close": {
+    "message": "關閉"
+  },
+  "settings_shell_navLabel": {
+    "message": "設定分類"
+  },
+  "settings_uiLocale_title": {
+    "message": "介面語言"
+  },
+  "settings_uiLocale_desc": {
+    "message": "選擇 Steam Buff 擴充功能介面使用的語言。診斷日誌仍保持中文，便於排查。"
+  },
+  "settings_uiLocale_label": {
+    "message": "顯示語言"
+  },
+  "settings_category_extension_settings_name": {
+    "message": "擴充功能設定"
+  },
+  "settings_category_extension_settings_desc": {
+    "message": "設定中心顯示效果和模組入口控制。"
+  },
+  "settings_category_reminders_name": {
+    "message": "提醒檢查"
+  },
+  "settings_category_reminders_desc": {
+    "message": "遊戲可用性、語言、第三方元件和訂閱提醒。"
+  },
+  "settings_category_prices_name": {
+    "message": "價格功能"
+  },
+  "settings_category_prices_desc": {
+    "message": "價格歷史、趨勢和促銷提醒。"
+  },
+  "settings_category_wishlist_name": {
+    "message": "願望清單"
+  },
+  "settings_category_wishlist_desc": {
+    "message": "Steam 願望清單展示和價格輔助。"
+  },
+  "settings_category_data_name": {
+    "message": "資料展示"
+  },
+  "settings_category_data_desc": {
+    "message": "評價、線上人數、遊玩時間和媒體評分。"
+  },
+  "settings_category_smart_search_name": {
+    "message": "智慧搜尋"
+  },
+  "settings_category_smart_search_desc": {
+    "message": "Steam 搜尋框中文名稱匹配和結果展示增強。"
+  },
+  "settings_category_enhancements_name": {
+    "message": "增強功能"
+  },
+  "settings_category_enhancements_desc": {
+    "message": "購買、庫存和市場增強。"
+  },
+  "settings_category_review_filter_name": {
+    "message": "評論過濾"
+  },
+  "settings_category_review_filter_desc": {
+    "message": "按關鍵詞、正則、遊戲時間和使用者資料過濾 Steam 商店評論。"
+  },
+  "settings_category_translate_name": {
+    "message": "翻譯"
+  },
+  "settings_category_translate_desc": {
+    "message": "網頁翻譯設定，基於 translate.js 實現。"
+  },
+  "settings_category_ai_name": {
+    "message": "AI 服務"
+  },
+  "settings_category_ai_desc": {
+    "message": "大型模型閘道、模型和金鑰設定。"
+  },
+  "settings_category_client_name": {
+    "message": "用戶端增強"
+  },
+  "settings_category_client_desc": {
+    "message": "Steam 用戶端收藏庫和下載頁增強，此頁面功能開啟或關閉後需要重新啟動 Steam 用戶端。"
+  },
+  "settings_category_see_name": {
+    "message": "庫存增強"
+  },
+  "settings_category_see_desc": {
+    "message": "庫存增強功能由 Steam Economy Enhancer 開源擴充功能提供，我在整合這份程式碼時做了一些優化調整。"
+  },
+  "settings_feature_settings_startup_animation_name": {
+    "message": "設定中心啟動動畫"
+  },
+  "settings_feature_settings_startup_animation_desc": {
+    "message": "開啟後，設定中心首次開啟時播放 Logo 啟動動畫"
+  },
+  "settings_feature_search_suggestions_name": {
+    "message": "搜尋聯想詞"
+  },
+  "settings_feature_search_suggestions_desc": {
+    "message": "控制智慧搜尋分類和 Steam 商店搜尋聯想執行階段"
+  },
+  "settings_feature_search_suggestions_badge": {
+    "message": "贊助者"
+  },
+  "settings_feature_search_suggestions_lock": {
+    "message": "贊助者可用，開通後會按目前儲存狀態恢復"
+  },
+  "settings_feature_translate_name": {
+    "message": "翻譯模組"
+  },
+  "settings_feature_translate_desc": {
+    "message": "控制翻譯設定分類和網頁翻譯執行階段"
+  },
+  "settings_feature_ai_name": {
+    "message": "AI 模組"
+  },
+  "settings_feature_ai_desc": {
+    "message": "控制 AI 設定分類和 AI 服務設定是否啟用"
+  },
+  "settings_feature_market_tools_name": {
+    "message": "庫存增強模組"
+  },
+  "settings_feature_market_tools_desc": {
+    "message": "控制庫存增強設定分類和社群庫存、市場、交易報價增強"
+  },
+  "settings_feature_review_filter_name": {
+    "message": "評論過濾模組"
+  },
+  "settings_feature_review_filter_desc": {
+    "message": "控制評論過濾設定分類和 Steam 商店評論過濾"
+  },
+  "settings_lock_depOr": {
+    "message": " 或 "
+  },
+  "settings_lock_depAnd": {
+    "message": " 和 "
+  },
+  "settings_lock_parentSwitch": {
+    "message": "上級開關"
+  },
+  "settings_lock_disabled": {
+    "message": "暫不可用"
+  },
+  "settings_lock_depRequired": {
+    "message": "需開啟 $names$",
+    "placeholders": {
+      "names": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_page_account_name": {
+    "message": "使用者中心"
+  },
+  "settings_page_account_desc": {
+    "message": "帳號、身份標識與功能用量。"
+  },
+  "settings_page_about_name": {
+    "message": "關於"
+  }
+}

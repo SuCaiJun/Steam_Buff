@@ -25,6 +25,7 @@
   const REVIEW_FILTER_PREFIX = `${PREFIX}reviewFilter.`;
   const SEARCH_SUGGESTION_PREFIX = `${PREFIX}searchSuggestions.`;
   const AI_PREFIX = `${PREFIX}ai.`;
+  const UI_LOCALE_KEY = globalThis.STI18n?.STORAGE_KEY || api.catalog?.UI_LOCALE_KEY || "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
   const AI_SERVICE = "steam-buff.ai";
@@ -138,6 +139,10 @@
     };
   }
 
+  function normalizeLocale(value) {
+    return globalThis.STI18n?.normalizeLocale?.(value) || (String(value || "") === "en" ? "en" : String(value || "") === "zh_TW" ? "zh_TW" : "zh_CN");
+  }
+
   function area() {
     return chrome.storage.local;
   }
@@ -224,6 +229,27 @@
       enabled: value,
     });
     return ok;
+  }
+
+  async function getUiLocale() {
+    const rt = await get([UI_LOCALE_KEY]);
+    return normalizeLocale(rt[UI_LOCALE_KEY]);
+  }
+
+  async function setUiLocale(value) {
+    const locale = normalizeLocale(value);
+    let ok = true;
+    try {
+      if (globalThis.STI18n?.setLocale) {
+        await globalThis.STI18n.setLocale(locale);
+      } else {
+        ok = await put({ [UI_LOCALE_KEY]: locale });
+      }
+    } catch {
+      ok = false;
+    }
+    logSave("ui-locale", ok !== false, { locale });
+    return ok !== false ? locale : null;
   }
 
   async function getAuth() {
@@ -545,9 +571,12 @@
 
   api.storage = Object.freeze({
     key,
+    UI_LOCALE_KEY,
     getAll,
     setAll,
     set,
+    getUiLocale,
+    setUiLocale,
     getAuth,
     setAuth,
     clearAuth,

@@ -20,6 +20,7 @@
   const LOG_EVENT = "STEAM_BUFF_LOG_EVENT";
   const COMMUNITY_MARK = "steamBuffCommunityInjected";
   const SETTINGS_ATTR = "steamBuffSettings";
+  const LOCALE_ATTR = "steamBuffUiLocale";
   const NAME_ID = "library-custom-name";
   const CFG = globalThis.STConfig;
   const MATCH = CFG.matchers;
@@ -30,6 +31,7 @@
   const NAME_RES_ATTR = "data-steam-buff-name-response";
   const SETTINGS_PREFIX = "st.settings.";
   const SETTINGS_SUFFIX = ".enabled";
+  const UI_LOCALE_KEY = "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
   const STEAM_SETTING_IDS = Object.freeze([
     "library-sort-title",
@@ -201,6 +203,10 @@
 
   function settingKey(id) {
     return `${SETTINGS_PREFIX}${id}${SETTINGS_SUFFIX}`;
+  }
+
+  function normalizeLocale(value) {
+    return globalThis.STI18n?.normalizeLocale?.(value) || (String(value || "") === "en" ? "en" : String(value || "") === "zh_TW" ? "zh_TW" : "zh_CN");
   }
 
   function storageGet(keys) {
@@ -718,6 +724,20 @@
     } catch {
       el.dataset[SETTINGS_ATTR] = "{}";
     }
+    await writeUiLocale();
+  }
+
+  async function writeUiLocale() {
+    const el = root();
+    if (!el) {
+      return;
+    }
+    let locale = globalThis.STI18n?.locale?.();
+    if (!locale) {
+      const rt = await storageGet([UI_LOCALE_KEY]);
+      locale = rt[UI_LOCALE_KEY];
+    }
+    el.dataset[LOCALE_ATTR] = normalizeLocale(locale);
   }
 
   function watchSettingsChanges() {
@@ -731,12 +751,16 @@
         if (area !== "local") {
           return;
         }
+        const localeHit = Object.hasOwn(changes || {}, UI_LOCALE_KEY);
         const hit = ALL_SETTING_IDS.some(id => Object.hasOwn(changes, settingKey(id)));
         if (hit) {
           settingsCache = null;
           if (MATCH.isSteamLoopbackHost(location.hostname)) {
             writeSteamSettings().catch(() => {});
           }
+        }
+        if (localeHit) {
+          writeUiLocale().catch(() => {});
         }
       });
     } catch {
@@ -810,9 +834,11 @@
           meta: pageMeta(),
         });
         // 只在库存、市场、交易报价页加载社区经济增强；关闭开关时释放标记，后续页面变化可重新判断。
+        writeUiLocale().catch(() => {});
         return inj.inject([
           "extension/runtime/logger.js",
           "shared/config.js",
+          "shared/i18n.js",
           "community/runtime/base.js",
           "community/runtime/settings.js",
           "community/runtime/dom.js",
@@ -920,6 +946,7 @@
         return inj.inject([
           "extension/runtime/logger.js",
           "shared/config.js",
+          "shared/i18n.js",
           "steam/shared/constants.js",
           "steam/runtime/paths.js",
           "steam/runtime/steam-context.js",

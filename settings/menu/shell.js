@@ -34,6 +34,20 @@
     const assets = options.assets || {};
     const ctxCache = new WeakMap();
 
+    function tr(key, fallback, params) {
+      return root.STI18n?.text?.(key, fallback, params) || String(fallback ?? key ?? "");
+    }
+
+    function catName(cat) {
+      const key = cat?.nameKey || (cat?.kind === "page" && cat?.id ? `settings.page.${cat.id}.name` : "");
+      return tr(key, cat?.name || "");
+    }
+
+    function catDesc(cat) {
+      const key = cat?.descKey || (cat?.kind === "page" && cat?.id ? `settings.page.${cat.id}.desc` : "");
+      return tr(key, cat?.desc || "");
+    }
+
     function pageApi() {
       return root.STSettingsPages || null;
     }
@@ -138,7 +152,7 @@
       const activeCat = getActiveCat();
       return categories.filter(showCat).map((cat) => `
         <button class="nav-item${cat.id === activeCat ? " active" : ""}" type="button" data-cat="${escAttr(cat.id)}" role="tab" aria-selected="${cat.id === activeCat ? "true" : "false"}">
-          <span>${esc(cat.name)}</span>
+          <span>${esc(catName(cat))}</span>
         </button>
       `).join("");
     }
@@ -156,6 +170,7 @@
       }
       const page = pageById(cat.id);
       const items = cat.items || [];
+      const localeHtml = cat.id === "extension-settings" ? uiLocaleHtml() : "";
       const body = page
         ? (page.html?.(pageCtx(null)) || "")
         : cat.kind === "see"
@@ -172,14 +187,46 @@
           ? `<div class="feature-list">${items.map((item) => deps.itemHtml(cat, item)).join("")}</div>${panels.searchSuggestion().html(cat)}`
         : `<div class="feature-list">${items.map((item) => deps.itemHtml(cat, item)).join("")}</div>`;
       const header = page?.hideHeader ? "" : `
-          <h2 class="page-title"><span>${esc(cat.name)}</span>${titleHelpHtml(cat)}</h2>
-          <p class="desc page-subtitle">${esc(cat.desc || "")}</p>
+          <h2 class="page-title"><span>${esc(catName(cat))}</span>${titleHelpHtml(cat)}</h2>
+          <p class="desc page-subtitle">${esc(catDesc(cat))}</p>
       `;
       return `
         <div class="content-swap" data-active="${escAttr(cat.id)}">
           ${header}
+          ${localeHtml}
           ${body}
         </div>
+      `;
+    }
+
+    function uiLocaleHtml() {
+      const i18n = root.STI18n;
+      const locale = i18n?.locale?.() || "zh_CN";
+      const options = (i18n?.locales?.() || [
+        { value: "zh_CN", label: "简体中文" },
+        { value: "en", label: "English" },
+        { value: "zh_TW", label: "繁體中文" },
+      ]).map((item) => `
+        <option value="${escAttr(item.value || item.id)}" ${String(item.value || item.id) === String(locale) ? "selected" : ""}>${esc(item.label)}</option>
+      `).join("");
+      return `
+        <section class="settings-card section-card ui-locale-card">
+          <div class="section-header">
+            <div class="dot"></div>
+            <div class="title">${esc(tr("settings.uiLocale.title", "界面语言"))}</div>
+          </div>
+          <div class="settings-grid">
+            <div class="settings-row form-row">
+              <span class="settings-label label">${esc(tr("settings.uiLocale.label", "显示语言"))}</span>
+              <span class="settings-value control">
+                <select class="settings-control" data-ui-locale aria-label="${escAttr(tr("settings.uiLocale.label", "显示语言"))}">
+                  ${options}
+                </select>
+              </span>
+            </div>
+          </div>
+          <div class="settings-card-note">${esc(tr("settings.uiLocale.desc", "选择 Steam Buff 扩展界面使用的语言。诊断日志仍保持中文，便于排查。"))}</div>
+        </section>
       `;
     }
 
@@ -191,6 +238,7 @@
         return;
       }
 
+      syncChromeText(shadow);
       const visible = categories.filter(showCat);
       if (!visible.some((cat) => cat.id === getActiveCat())) {
         setActiveCat(visible[0]?.id || categories[0].id);
@@ -198,6 +246,36 @@
 
       nav.innerHTML = navHtml(categories);
       body.innerHTML = contentHtml(categories);
+    }
+
+    function syncChromeText(shadow) {
+      const settings = tr("settings.shell.settingsButton", "设置");
+      const filtered = tr("settings.shell.filteredReviewsButton", "查看已过滤评论");
+      const top = tr("settings.shell.topButton", "回到顶部");
+      const title = tr("settings.shell.title", "扩展设置");
+      const close = tr("settings.shell.close", "关闭");
+      const nav = tr("settings.shell.navLabel", "设置分类");
+      const round = shadow.querySelector(".round");
+      const review = shadow.querySelector(".comment-filter");
+      const topBtn = shadow.querySelector(".top");
+      const overlay = shadow.querySelector(".overlay");
+      const panel = shadow.querySelector(".panel");
+      const titleText = shadow.querySelector(".head .title span");
+      const closeBtn = shadow.querySelector(".close");
+      const navEl = shadow.querySelector(".nav");
+      round?.setAttribute("title", settings);
+      round?.setAttribute("aria-label", settings);
+      review?.setAttribute("title", filtered);
+      review?.setAttribute("aria-label", filtered);
+      topBtn?.setAttribute("title", top);
+      topBtn?.setAttribute("aria-label", top);
+      overlay?.setAttribute("aria-label", title);
+      panel?.setAttribute("aria-label", title);
+      if (titleText) {
+        titleText.textContent = title;
+      }
+      closeBtn?.setAttribute("aria-label", close);
+      navEl?.setAttribute("aria-label", nav);
     }
 
     function syncModuleNav(shadow) {
@@ -222,19 +300,25 @@
     }
 
     function template() {
+      const settings = tr("settings.shell.settingsButton", "设置");
+      const filtered = tr("settings.shell.filteredReviewsButton", "查看已过滤评论");
+      const top = tr("settings.shell.topButton", "回到顶部");
+      const title = tr("settings.shell.title", "扩展设置");
+      const close = tr("settings.shell.close", "关闭");
+      const nav = tr("settings.shell.navLabel", "设置分类");
       return `
         <style>${settingsCss()}</style>
 
         <div class="rail">
           <div class="item">
-            <button class="round" type="button" title="设置" aria-label="设置" aria-expanded="false">
+            <button class="round" type="button" title="${escAttr(settings)}" aria-label="${escAttr(settings)}" aria-expanded="false">
               <span class="content">
                 <img alt="" src="${escAttr(assets.iconUrl?.() || "")}">
               </span>
             </button>
           </div>
           <div class="item">
-            <button class="comment-filter" type="button" title="查看已过滤评论" aria-label="查看已过滤评论" hidden>
+            <button class="comment-filter" type="button" title="${escAttr(filtered)}" aria-label="${escAttr(filtered)}" hidden>
               <span class="content">
                 <img alt="" src="${escAttr(assets.commentFilterUrl?.() || "")}">
               </span>
@@ -242,7 +326,7 @@
             </button>
           </div>
           <div class="item">
-            <button class="top" type="button" title="回到顶部" aria-label="回到顶部" hidden>
+            <button class="top" type="button" title="${escAttr(top)}" aria-label="${escAttr(top)}" hidden>
               <span class="content">
                 <img alt="" src="${escAttr(assets.topUrl?.() || "")}">
               </span>
@@ -250,18 +334,18 @@
           </div>
         </div>
 
-        <section class="overlay" hidden aria-label="扩展设置">
-          <div class="panel" role="dialog" aria-modal="true" aria-label="扩展设置">
+        <section class="overlay" hidden aria-label="${escAttr(title)}">
+          <div class="panel" role="dialog" aria-modal="true" aria-label="${escAttr(title)}">
             <header class="head">
               <div class="title">
                 <img class="logo" alt="" src="${escAttr(assets.appIconUrl?.() || "")}">
-                <span>扩展设置</span>
+                <span>${esc(title)}</span>
               </div>
-              <button class="close" type="button" aria-label="关闭">&times;</button>
+              <button class="close" type="button" aria-label="${escAttr(close)}">&times;</button>
             </header>
             <div class="main">
               <aside class="side">
-                <nav class="nav" aria-label="设置分类" role="tablist"></nav>
+                <nav class="nav" aria-label="${escAttr(nav)}" role="tablist"></nav>
               </aside>
               <section class="body" aria-live="polite"></section>
             </div>
@@ -281,6 +365,7 @@
       navHtml,
       contentHtml,
       render,
+      syncChromeText,
       syncModuleNav,
       settingsCss,
       showCat,

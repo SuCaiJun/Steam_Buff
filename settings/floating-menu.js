@@ -274,6 +274,7 @@
     }
 
     document.documentElement.dataset[MARK] = "1";
+    await globalThis.STI18n?.ready?.();
     await loadState();
     createDeps();
     createPanels();

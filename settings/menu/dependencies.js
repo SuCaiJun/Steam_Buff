@@ -64,6 +64,14 @@
     const masterIcon = typeof options.masterIcon === "function" ? options.masterIcon : defaultMasterIcon;
     let rows = null;
 
+    function tr(key, fallback, params) {
+      return root.STI18n?.text?.(key, fallback, params) || String(fallback ?? key ?? "");
+    }
+
+    function itemName(item) {
+      return tr(item?.nameKey, item?.name || "");
+    }
+
     function state(id) {
       return (getStates() || {})[id];
     }
@@ -106,18 +114,18 @@
 
     function depNames(item) {
       const dep = dependency(item);
-      const sep = dep.mode === "any" ? " 或 " : " 和 ";
-      return dep.ids.map(id => (catalog.featureById?.(id) || {}).name || "上级开关").join(sep);
+      const sep = dep.mode === "any" ? tr("settings.lock.depOr", " 或 ") : tr("settings.lock.depAnd", " 和 ");
+      return dep.ids.map(id => itemName(catalog.featureById?.(id) || {}) || tr("settings.lock.parentSwitch", "上级开关")).join(sep);
     }
 
     function lockText(item) {
       if (item?.disabled === true) {
-        return item.lock || "暂不可用";
+        return tr(item.lockKey, item.lock || tr("settings.lock.disabled", "暂不可用"));
       }
       if (membershipGate.canUse?.(item, memberState()) === false) {
-        return membershipGate.lockText?.(item, memberState()) || item.lock || "赞助者身份可用";
+        return tr(item.lockKey, membershipGate.lockText?.(item, memberState()) || item.lock || "赞助者身份可用");
       }
-      return item.lock || `需开启 ${depNames(item)}`;
+      return tr(item.lockKey, item.lock || tr("settings.lock.depRequired", "需开启 $names$", { names: depNames(item) }));
     }
 
     function depAvailable(id) {
@@ -191,7 +199,7 @@
         sw.setAttribute("title", tip);
       } else {
         row.removeAttribute("title");
-        sw.setAttribute("title", item.name || "");
+        sw.setAttribute("title", itemName(item));
       }
       sw.disabled = !enabled;
       sw.setAttribute("aria-checked", checked ? "true" : "false");

@@ -17,6 +17,8 @@
     return;
   }
 
+  const UI_LOCALE_KEY = "SETTING_UI_LOCALE";
+
   const SEE_KEYS = Object.freeze({
     minNormal: "SETTING_MIN_NORMAL_PRICE",
     maxNormal: "SETTING_MAX_NORMAL_PRICE",
@@ -816,12 +818,39 @@
     },
   ]);
 
+  function withI18n(item, prefix) {
+    if (!item || !item.id) {
+      return item;
+    }
+    const out = {
+      ...item,
+      nameKey: item.nameKey || `${prefix}.${item.id}.name`,
+      descKey: item.descKey || `${prefix}.${item.id}.desc`,
+    };
+    if (item.badge && !item.badgeKey) {
+      out.badgeKey = `${prefix}.${item.id}.badge`;
+    }
+    if (item.lock && !item.lockKey) {
+      out.lockKey = `${prefix}.${item.id}.lock`;
+    }
+    return out;
+  }
+
+  function localizeCatalog(cat) {
+    return Object.freeze({
+      ...withI18n(cat, "settings.category"),
+      items: Object.freeze((cat.items || []).map(item => withI18n(item, "settings.feature"))),
+    });
+  }
+
+  const localizedCategories = Object.freeze(categories.map(localizeCatalog));
+
   function list() {
-    return categories;
+    return localizedCategories;
   }
 
   function featureItems() {
-    return categories.flatMap(cat => cat.items);
+    return localizedCategories.flatMap(cat => cat.items);
   }
 
   function featureById(id) {
@@ -911,6 +940,7 @@
   }
 
   api.catalog = Object.freeze({
+    UI_LOCALE_KEY,
     list,
     featureItems,
     featureById,

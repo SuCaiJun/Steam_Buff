@@ -175,6 +175,16 @@
     });
 
     shadow.addEventListener("change", (event) => {
+      const locale = event.target.closest("[data-ui-locale]");
+      if (locale) {
+        api.storage?.setUiLocale?.(locale.value)?.then?.((next) => {
+          if (next) {
+            shell.render(shadow);
+          }
+        });
+        return;
+      }
+
       const toggled = event.target.closest(".switch-input");
       if (toggled) {
         const wrap = toggled.closest(".form-switch");

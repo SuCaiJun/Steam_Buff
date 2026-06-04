@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Steam Buff",
+  "name": "__MSG_extName__",
   "version": "0.7.8",
-  "description": "Steam 客户端增强小工具重构版，别名G胖的微笑，当前小工具仍处于前期开发阶段，很多功能仍在开发完善，部分功能还未从老的扩展中移植过来。",
+  "description": "__MSG_extDescription__",
+  "default_locale": "zh_CN",
   "author": "顾青离",
   "homepage_url": "https://www.sucaijun.com/25.html",
   "icons": {
@@ -31,6 +32,7 @@
       "js": [
         "ai/config.js",
         "shared/config.js",
+        "shared/i18n.js",
         "translate/boot.js"
       ],
       "run_at": "document_end",
@@ -46,6 +48,7 @@
         "ai/config.js",
         "shared/config.js",
         "extension/runtime/logger.js",
+        "shared/i18n.js",
         "settings/catalog.js",
         "settings/membership.js",
         "settings/storage.js",
@@ -92,6 +95,7 @@
       ],
       "js": [
         "shared/config.js",
+        "shared/i18n.js",
         "extension/runtime/guard.js",
         "extension/runtime/injector.js",
         "extension/runtime/logger.js",
@@ -109,6 +113,7 @@
         "extension/runtime/injector.js",
         "extension/runtime/logger.js",
         "shared/config.js",
+        "shared/i18n.js",
         "extension/content.js"
       ],
       "run_at": "document_start",
@@ -140,6 +145,7 @@
         "store/runtime/url-watch.js",
         "store/runtime/purchase-recover.js",
         "shared/config.js",
+        "shared/i18n.js",
         "shared/auth-client.js",
         "store/api/request.js",
         "store/api/subscription-info.js",
@@ -174,6 +180,7 @@
       "js": [
         "extension/runtime/logger.js",
         "shared/config.js",
+        "shared/i18n.js",
         "store/features/review-filter-core.js",
         "store/features/review-filter.js",
         "store/features/review-filter-community.js"
@@ -187,6 +194,7 @@
       "js": [
         "extension/runtime/logger.js",
         "shared/config.js",
+        "shared/i18n.js",
         "store/features/cart-select-checkout.js"
       ],
       "run_at": "document_end"
@@ -196,6 +204,8 @@
     {
       "resources": [
         "shared/config.js",
+        "shared/i18n.js",
+        "_locales/*/messages.json",
         "extension/runtime/logger.js",
         "steam/shared/constants.js",
         "steam/runtime/paths.js",
@@ -214,7 +224,8 @@
     {
       "resources": [
         "images/*",
-        "store/page/*.js"
+        "store/page/*.js",
+        "_locales/*/messages.json"
       ],
       "matches": [
         "https://store.steampowered.com/*"
@@ -223,6 +234,8 @@
     {
       "resources": [
         "shared/config.js",
+        "shared/i18n.js",
+        "_locales/*/messages.json",
         "community/runtime/*.js",
         "extension/runtime/logger.js",
         "community/domain/*.js",
@@ -238,7 +251,8 @@
     {
       "resources": [
         "images/trans.svg",
-        "images/close.svg"
+        "images/close.svg",
+        "_locales/*/messages.json"
       ],
       "matches": [
         "http://*/*",

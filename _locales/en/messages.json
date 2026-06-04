@@ -1,0 +1,187 @@
+{
+  "extName": {
+    "message": "Steam Buff"
+  },
+  "extDescription": {
+    "message": "A Steam client enhancement toolkit, also known as Gaben's Smile. This tool is still in early development, with many features still being improved or migrated from the classic extension."
+  },
+  "locale_zh_CN": {
+    "message": "Simplified Chinese"
+  },
+  "locale_en": {
+    "message": "English"
+  },
+  "locale_zh_TW": {
+    "message": "Traditional Chinese"
+  },
+  "settings_shell_settingsButton": {
+    "message": "Settings"
+  },
+  "settings_shell_filteredReviewsButton": {
+    "message": "View Filtered Reviews"
+  },
+  "settings_shell_topButton": {
+    "message": "Back to Top"
+  },
+  "settings_shell_title": {
+    "message": "Extension Settings"
+  },
+  "settings_shell_close": {
+    "message": "Close"
+  },
+  "settings_shell_navLabel": {
+    "message": "Setting Categories"
+  },
+  "settings_uiLocale_title": {
+    "message": "Interface Language"
+  },
+  "settings_uiLocale_desc": {
+    "message": "Choose the language used by the Steam Buff extension UI. Diagnostic logs stay in Chinese for troubleshooting."
+  },
+  "settings_uiLocale_label": {
+    "message": "Display Language"
+  },
+  "settings_category_extension_settings_name": {
+    "message": "Extension Settings"
+  },
+  "settings_category_extension_settings_desc": {
+    "message": "Control the settings center display and module entry points."
+  },
+  "settings_category_reminders_name": {
+    "message": "Reminder Checks"
+  },
+  "settings_category_reminders_desc": {
+    "message": "Game availability, languages, third-party components, and subscription reminders."
+  },
+  "settings_category_prices_name": {
+    "message": "Price Features"
+  },
+  "settings_category_prices_desc": {
+    "message": "Price history, trends, and sale reminders."
+  },
+  "settings_category_wishlist_name": {
+    "message": "Wishlist"
+  },
+  "settings_category_wishlist_desc": {
+    "message": "Steam wishlist display and price helpers."
+  },
+  "settings_category_data_name": {
+    "message": "Data Display"
+  },
+  "settings_category_data_desc": {
+    "message": "Reviews, online players, playtime, and media scores."
+  },
+  "settings_category_smart_search_name": {
+    "message": "Smart Search"
+  },
+  "settings_category_smart_search_desc": {
+    "message": "Enhance Steam search with Chinese names and result matching."
+  },
+  "settings_category_enhancements_name": {
+    "message": "Enhancements"
+  },
+  "settings_category_enhancements_desc": {
+    "message": "Purchase, inventory, and market enhancements."
+  },
+  "settings_category_review_filter_name": {
+    "message": "Review Filter"
+  },
+  "settings_category_review_filter_desc": {
+    "message": "Filter Steam store reviews by keywords, regex, playtime, and profile data."
+  },
+  "settings_category_translate_name": {
+    "message": "Translation"
+  },
+  "settings_category_translate_desc": {
+    "message": "Webpage translation settings powered by translate.js."
+  },
+  "settings_category_ai_name": {
+    "message": "AI Service"
+  },
+  "settings_category_ai_desc": {
+    "message": "Model gateway, model, and API key configuration."
+  },
+  "settings_category_client_name": {
+    "message": "Client Enhancements"
+  },
+  "settings_category_client_desc": {
+    "message": "Steam client library and download page enhancements. Restart Steam after enabling or disabling features on this page."
+  },
+  "settings_category_see_name": {
+    "message": "Inventory Enhancements"
+  },
+  "settings_category_see_desc": {
+    "message": "Inventory enhancements are integrated from the open-source Steam Economy Enhancer extension with some local adjustments."
+  },
+  "settings_feature_settings_startup_animation_name": {
+    "message": "Settings Startup Animation"
+  },
+  "settings_feature_settings_startup_animation_desc": {
+    "message": "Play the logo startup animation the first time the settings center opens."
+  },
+  "settings_feature_search_suggestions_name": {
+    "message": "Search Suggestions"
+  },
+  "settings_feature_search_suggestions_desc": {
+    "message": "Control smart search categories and the Steam store search suggestion runtime."
+  },
+  "settings_feature_search_suggestions_badge": {
+    "message": "Sponsor"
+  },
+  "settings_feature_search_suggestions_lock": {
+    "message": "Available to sponsors. Your saved state is restored after activation."
+  },
+  "settings_feature_translate_name": {
+    "message": "Translation Module"
+  },
+  "settings_feature_translate_desc": {
+    "message": "Control the translation settings category and webpage translation runtime."
+  },
+  "settings_feature_ai_name": {
+    "message": "AI Module"
+  },
+  "settings_feature_ai_desc": {
+    "message": "Control whether the AI settings category and AI service configuration are enabled."
+  },
+  "settings_feature_market_tools_name": {
+    "message": "Inventory Module"
+  },
+  "settings_feature_market_tools_desc": {
+    "message": "Control inventory settings and community inventory, market, and trade offer enhancements."
+  },
+  "settings_feature_review_filter_name": {
+    "message": "Review Filter Module"
+  },
+  "settings_feature_review_filter_desc": {
+    "message": "Control the review filter category and Steam store review filtering."
+  },
+  "settings_lock_depOr": {
+    "message": " or "
+  },
+  "settings_lock_depAnd": {
+    "message": " and "
+  },
+  "settings_lock_parentSwitch": {
+    "message": "parent switch"
+  },
+  "settings_lock_disabled": {
+    "message": "Currently unavailable"
+  },
+  "settings_lock_depRequired": {
+    "message": "Requires $names$",
+    "placeholders": {
+      "names": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_page_account_name": {
+    "message": "User Center"
+  },
+  "settings_page_account_desc": {
+    "message": "Account, identity, and feature usage."
+  },
+  "settings_page_about_name": {
+    "message": "About"
+  }
+}
