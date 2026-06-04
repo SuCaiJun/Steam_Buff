@@ -87,6 +87,20 @@
     return globalThis.STSettingsAssets?.tipIcon?.() || fallbackAsset("tip.svg");
   }
 
+  function tutorialUrl(item, keyword) {
+    const key = String(keyword || item?.name || "").trim();
+    if (!key) {
+      return "";
+    }
+    const fn = globalThis.STConfig?.urls?.tutorialSearch;
+    const href = typeof fn === "function" ? fn(key) : "";
+    if (!href) {
+      return "";
+    }
+    const external = globalThis.STConfig?.toSteamExternalUrl;
+    return typeof external === "function" ? external(href) : href;
+  }
+
   function version() {
     try {
       return chrome.runtime.getManifest().version || "";
@@ -179,6 +193,7 @@
       esc,
       escAttr,
       tipIconUrl,
+      tutorialUrl,
     });
   }
 

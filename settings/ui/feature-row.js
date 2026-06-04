@@ -27,6 +27,9 @@
     const state = typeof options.state === "function" ? options.state : () => true;
     const tipIconUrl = typeof options.tipIconUrl === "function" ? options.tipIconUrl : () => "";
     const masterIcon = typeof options.masterIcon === "function" ? options.masterIcon : () => "";
+    const tutorialUrl = typeof options.tutorialUrl === "function"
+      ? options.tutorialUrl
+      : (item, keyword) => globalThis.STConfig?.urls?.tutorialSearch?.(keyword || item?.name || "") || "";
 
     function switchHtml(item) {
       const checked = item.disabled === true ? false : state(item.id) !== false;
@@ -50,6 +53,42 @@
       `;
     }
 
+    function tutorialIcon() {
+      return `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4"/>
+          <circle cx="12" cy="17.5" r="0.6" fill="currentColor" stroke="none"/>
+        </svg>
+      `;
+    }
+
+    function tutorialKeyword(item) {
+      const raw = item?.tutorialKeyword ?? item?.tutorial?.keyword ?? item?.tutorial;
+      if (raw === true) {
+        return String(item?.name || item?.id || "").trim();
+      }
+      return String(raw || "").trim();
+    }
+
+    function tutorialLinkHtml(item) {
+      const keyword = tutorialKeyword(item);
+      if (!keyword) return "";
+      const custom = typeof item?.tutorialUrl === "function"
+        ? item.tutorialUrl(keyword, item)
+        : typeof item?.tutorial?.url === "function"
+          ? item.tutorial.url(keyword, item)
+          : item?.tutorialUrl ?? item?.tutorial?.url;
+      const href = String(custom || tutorialUrl(item, keyword) || "").trim();
+      if (!href) return "";
+      const label = `查看教程：${keyword}`;
+      return `
+        <a class="feature-tutorial" href="${escAttr(href)}" target="_blank" rel="noreferrer noopener" title="${escAttr(label)}" aria-label="${escAttr(label)}">
+          ${tutorialIcon()}
+        </a>
+      `;
+    }
+
     function itemHtml(cat, item) {
       const enabled = available(item);
       const tip = enabled ? "" : lockText(item);
@@ -60,6 +99,7 @@
             <div class="feature-title row-name">
               <span>${esc(item.name)}</span>
               ${item.badge ? `<span class="${badgeClass}">${esc(item.badge)}</span>` : ""}
+              ${tutorialLinkHtml(item)}
               ${enabled ? "" : `<span class="feature-lock">${esc(tip)}</span>`}
             </div>
             <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(item.desc)}</span></div>
@@ -74,7 +114,7 @@
         <article class="feature master-toggle">
           <div class="icon-pad">${masterIcon(kind)}</div>
           <div class="feature-main row-info">
-            <div class="feature-title row-name"><span>${esc(item.name)}</span></div>
+            <div class="feature-title row-name"><span>${esc(item.name)}</span>${tutorialLinkHtml(item)}</div>
             <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(item.desc)}</span></div>
           </div>
           ${switchHtml(item)}
@@ -82,7 +122,7 @@
       `;
     }
 
-    return Object.freeze({ itemHtml, masterItemHtml, sourceTipHtml, switchHtml });
+    return Object.freeze({ itemHtml, masterItemHtml, sourceTipHtml, switchHtml, tutorialLinkHtml });
   }
 
   const api = Object.freeze({ create });

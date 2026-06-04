@@ -82,6 +82,10 @@
     return encodeURIComponent(String(value ?? ""));
   }
 
+  function tutorialSearch(keyword) {
+    return `${ORIGINS.site}/?s=${encoded(keyword)}&type=forum&trem=plate_562`;
+  }
+
   function dynamicStoreUserdata(account, cc = "CN", version = "") {
     const params = [
       `id=${encoded(account)}`,
@@ -175,6 +179,7 @@
     donate: join(ORIGINS.site, "/supporter/golink/"),
     feedback: join(ORIGINS.site, "/forum/468.html"),
     vip: join(ORIGINS.site, "/user/vip/"),
+    tutorialSearch,
     aiTranslateProxy: join(ORIGINS.aiProxy, "/"),
     subscriptionInfoGameData: join(ORIGINS.subscriptionInfo, "/SubscriptionInfo/ajax/gamedata.php"),
   });

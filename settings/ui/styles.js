@@ -1383,6 +1383,39 @@
           background: rgba(245, 194, 74, .08);
         }
 
+        .feature-tutorial {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex: 0 0 22px;
+          width: 22px;
+          height: 22px;
+          border: 1px solid rgba(102, 192, 244, .34);
+          border-radius: 50%;
+          color: #66c0f4;
+          background: rgba(26, 159, 255, .08);
+          text-decoration: none;
+          outline: none;
+          cursor: pointer;
+          transition: border-color .16s ease, color .16s ease, background .16s ease, transform .16s ease;
+        }
+
+        .feature-tutorial svg {
+          display: block;
+          width: 18px;
+          height: 18px;
+          flex: 0 0 18px;
+          pointer-events: none;
+        }
+
+        .feature-tutorial:hover,
+        .feature-tutorial:focus-visible {
+          border-color: rgba(102, 192, 244, .72);
+          color: #9dd7ff;
+          background: rgba(26, 159, 255, .16);
+          transform: translateY(-1px);
+        }
+
         .switch {
           position: relative;
           top: auto;

@@ -60,6 +60,7 @@
     const esc = fallback(options.esc, "esc");
     const escAttr = fallback(options.escAttr, "escAttr");
     const tipIconUrl = typeof options.tipIconUrl === "function" ? options.tipIconUrl : () => "";
+    const tutorialUrl = typeof options.tutorialUrl === "function" ? options.tutorialUrl : () => "";
     const masterIcon = typeof options.masterIcon === "function" ? options.masterIcon : defaultMasterIcon;
     let rows = null;
 
@@ -139,6 +140,7 @@
           lockText,
           state,
           masterIcon,
+          tutorialUrl,
         }) || {};
       }
       return rows;
