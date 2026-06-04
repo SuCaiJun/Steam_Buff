@@ -1627,6 +1627,43 @@
     };
   }
 
+  function edgeFrom(from) {
+    return String(from || "") === "auto" ? "" : from;
+  }
+
+  function edgeCode(trans, lang) {
+    if (!lang) {
+      return "";
+    }
+    if (lang === "romance") {
+      return "fr";
+    }
+    const map = trans.service?.edge?.language?.getMap?.();
+    return map?.[lang] || lang;
+  }
+
+  function edgeUrl(trans, from, to) {
+    const api = trans.service?.edge?.api?.translate;
+    if (!api) {
+      throw new Error("微软翻译接口未配置");
+    }
+    const src = edgeFrom(from);
+    const target = edgeCode(trans, to);
+    if (!target) {
+      throw new Error("微软翻译目标语言无效");
+    }
+    return api
+      .replace("{from}", encodeURIComponent(src ? edgeCode(trans, src) : ""))
+      .replace("{to}", encodeURIComponent(target));
+  }
+
+  function edgeText(data) {
+    if (!Array.isArray(data)) {
+      throw new Error("微软翻译响应格式异常");
+    }
+    return String(data[0]?.translations?.[0]?.text || "");
+  }
+
   function resultText(data) {
     if (data?.result !== 1) {
       throw new Error(data?.info || "划词翻译失败");
@@ -1658,6 +1695,38 @@
     });
   }
 
+  function edgeSel(trans, text, from, to) {
+    return new Promise((resolve, reject) => {
+      let url = "";
+      try {
+        url = edgeUrl(trans, from, to);
+      } catch (error) {
+        reject(error);
+        return;
+      }
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", url, true);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState !== 4) {
+          return;
+        }
+        if (xhr.status !== 200) {
+          reject(new Error(`划词翻译请求失败${xhr.status ? `：${xhr.status}` : ""}`));
+          return;
+        }
+        try {
+          resolve(edgeText(JSON.parse(xhr.responseText || "[]")));
+        } catch (error) {
+          reject(error);
+        }
+      };
+      xhr.onerror = () => reject(new Error("划词翻译请求失败"));
+      xhr.send(JSON.stringify([text]));
+    });
+  }
+
   function aiSel(text, from, to, conf) {
     const fn = globalThis.STTranslateAI?.translate;
     if (typeof fn !== "function") {
@@ -1668,7 +1737,10 @@
 
   function reqSel(trans, text, from, to, conf) {
     const service = effectiveSelService(trans, conf);
-    // AI 走 Steam Buff 适配器；非 AI 只借用 translate.js 的请求决策，保留 Steam Buff 划词 UI。
+    // Edge 的自动识别协议不同，划词请求直连 JSON 端点以避免 from=auto 触发 400。
+    if (service === EDGE_SERVICE) {
+      return edgeSel(trans, text, from, to);
+    }
     if (service === AI_SERVICE) {
       return aiSel(text, from, to, conf);
     }
