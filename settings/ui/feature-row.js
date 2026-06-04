@@ -27,9 +27,12 @@
     const state = typeof options.state === "function" ? options.state : () => true;
     const tipIconUrl = typeof options.tipIconUrl === "function" ? options.tipIconUrl : () => "";
     const masterIcon = typeof options.masterIcon === "function" ? options.masterIcon : () => "";
-    const tutorialUrl = typeof options.tutorialUrl === "function"
-      ? options.tutorialUrl
-      : (item, keyword) => globalThis.STConfig?.urls?.tutorialSearch?.(keyword || item?.name || "") || "";
+    const helpUrl = typeof options.helpUrl === "function"
+      ? options.helpUrl
+      : (item, key) => {
+          const search = globalThis.STConfig?.urls?.helpSearch;
+          return search?.(key || item?.name || "") || "";
+        };
 
     function switchHtml(item) {
       const checked = item.disabled === true ? false : state(item.id) !== false;
@@ -63,25 +66,40 @@
       `;
     }
 
-    function tutorialKeyword(item) {
-      const raw = item?.tutorialKeyword ?? item?.tutorial?.keyword ?? item?.tutorial;
-      if (raw === true) {
+    function helpKey(value, item) {
+      if (value === true) {
         return String(item?.name || item?.id || "").trim();
       }
-      return String(raw || "").trim();
+      return String(value || "").trim();
     }
 
-    function tutorialLinkHtml(item) {
-      const keyword = tutorialKeyword(item);
-      if (!keyword) return "";
-      const custom = typeof item?.tutorialUrl === "function"
-        ? item.tutorialUrl(keyword, item)
-        : typeof item?.tutorial?.url === "function"
-          ? item.tutorial.url(keyword, item)
-          : item?.tutorialUrl ?? item?.tutorial?.url;
-      const href = String(custom || tutorialUrl(item, keyword) || "").trim();
+    function customUrl(value, key, item) {
+      if (typeof value === "function") {
+        return value(key, item);
+      }
+      return value;
+    }
+
+    function helpMeta(item) {
+      const help = item?.help;
+      const helpObj = help && typeof help === "object" ? help : null;
+      const raw = helpObj
+        ? helpObj.key
+        : help;
+      const key = helpKey(raw, item);
+      const url = customUrl(helpObj?.url, key, item);
+      return Object.freeze({
+        key: key || (url ? helpKey(true, item) : ""),
+        url: String(url || "").trim(),
+      });
+    }
+
+    function helpLinkHtml(item) {
+      const meta = helpMeta(item);
+      if (!meta.key && !meta.url) return "";
+      const href = String(meta.url || helpUrl(item, meta.key) || "").trim();
       if (!href) return "";
-      const label = `查看教程：${keyword}`;
+      const label = `查看教程：${meta.key || item?.name || "教程"}`;
       return `
         <a class="feature-tutorial" href="${escAttr(href)}" target="_blank" rel="noreferrer noopener" title="${escAttr(label)}" aria-label="${escAttr(label)}">
           ${tutorialIcon()}
@@ -99,7 +117,7 @@
             <div class="feature-title row-name">
               <span>${esc(item.name)}</span>
               ${item.badge ? `<span class="${badgeClass}">${esc(item.badge)}</span>` : ""}
-              ${tutorialLinkHtml(item)}
+              ${helpLinkHtml(item)}
               ${enabled ? "" : `<span class="feature-lock">${esc(tip)}</span>`}
             </div>
             <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(item.desc)}</span></div>
@@ -114,7 +132,7 @@
         <article class="feature master-toggle">
           <div class="icon-pad">${masterIcon(kind)}</div>
           <div class="feature-main row-info">
-            <div class="feature-title row-name"><span>${esc(item.name)}</span>${tutorialLinkHtml(item)}</div>
+            <div class="feature-title row-name"><span>${esc(item.name)}</span>${helpLinkHtml(item)}</div>
             <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(item.desc)}</span></div>
           </div>
           ${switchHtml(item)}
@@ -122,7 +140,7 @@
       `;
     }
 
-    return Object.freeze({ itemHtml, masterItemHtml, sourceTipHtml, switchHtml, tutorialLinkHtml });
+    return Object.freeze({ itemHtml, masterItemHtml, sourceTipHtml, switchHtml, helpLinkHtml });
   }
 
   const api = Object.freeze({ create });

@@ -143,6 +143,10 @@
       `).join("");
     }
 
+    function titleHelpHtml(cat) {
+      return deps.helpLinkHtml?.(cat) || "";
+    }
+
     function contentHtml(categories) {
       const visible = categories.filter(showCat);
       const activeCat = getActiveCat();
@@ -168,7 +172,7 @@
           ? `<div class="feature-list">${items.map((item) => deps.itemHtml(cat, item)).join("")}</div>${panels.searchSuggestion().html(cat)}`
         : `<div class="feature-list">${items.map((item) => deps.itemHtml(cat, item)).join("")}</div>`;
       const header = page?.hideHeader ? "" : `
-          <h2 class="page-title">${esc(cat.name)}</h2>
+          <h2 class="page-title"><span>${esc(cat.name)}</span>${titleHelpHtml(cat)}</h2>
           <p class="desc page-subtitle">${esc(cat.desc || "")}</p>
       `;
       return `

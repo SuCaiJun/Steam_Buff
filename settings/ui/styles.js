@@ -1269,6 +1269,17 @@
           line-height: 1.5;
         }
 
+        .page-title {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .page-title > span {
+          min-width: 0;
+        }
+
         .feature-list {
           display: flex;
           flex-direction: column;

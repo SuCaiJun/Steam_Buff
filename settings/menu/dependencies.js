@@ -60,7 +60,7 @@
     const esc = fallback(options.esc, "esc");
     const escAttr = fallback(options.escAttr, "escAttr");
     const tipIconUrl = typeof options.tipIconUrl === "function" ? options.tipIconUrl : () => "";
-    const tutorialUrl = typeof options.tutorialUrl === "function" ? options.tutorialUrl : () => "";
+    const helpUrl = typeof options.helpUrl === "function" ? options.helpUrl : () => "";
     const masterIcon = typeof options.masterIcon === "function" ? options.masterIcon : defaultMasterIcon;
     let rows = null;
 
@@ -140,7 +140,7 @@
           lockText,
           state,
           masterIcon,
-          tutorialUrl,
+          helpUrl,
         }) || {};
       }
       return rows;
@@ -160,6 +160,10 @@
 
     function masterItemHtml(item, kind) {
       return featureRows().masterItemHtml?.(item, kind) || "";
+    }
+
+    function helpLinkHtml(item) {
+      return featureRows().helpLinkHtml?.(item) || "";
     }
 
     function featureSwitch(shadow, id) {
@@ -218,6 +222,7 @@
       masterItemHtml,
       sourceTipHtml,
       switchHtml,
+      helpLinkHtml,
       updateFeature,
     });
   }

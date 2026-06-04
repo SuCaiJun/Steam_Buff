@@ -87,13 +87,13 @@
     return globalThis.STSettingsAssets?.tipIcon?.() || fallbackAsset("tip.svg");
   }
 
-  function tutorialUrl(item, keyword) {
-    const key = String(keyword || item?.name || "").trim();
-    if (!key) {
+  function helpUrl(item, key) {
+    const keyword = String(key || item?.name || "").trim();
+    if (!keyword) {
       return "";
     }
-    const fn = globalThis.STConfig?.urls?.tutorialSearch;
-    const href = typeof fn === "function" ? fn(key) : "";
+    const fn = globalThis.STConfig?.urls?.helpSearch;
+    const href = typeof fn === "function" ? fn(keyword) : "";
     if (!href) {
       return "";
     }
@@ -193,7 +193,7 @@
       esc,
       escAttr,
       tipIconUrl,
-      tutorialUrl,
+      helpUrl,
     });
   }
 
