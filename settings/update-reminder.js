@@ -117,7 +117,12 @@
       overflow: auto;
       overflow-wrap: anywhere;
     }
-    .body h3 {
+    .body h1,
+    .body h2,
+    .body h3,
+    .body h4,
+    .body h5,
+    .body h6 {
       margin: 0 0 8px;
       color: #fff;
       font-size: 15px;
@@ -143,6 +148,10 @@
     .body b {
       color: #fff;
       font-weight: 700;
+    }
+    .body em,
+    .body i {
+      color: #e6e8eb;
     }
     .body code {
       border-radius: 4px;

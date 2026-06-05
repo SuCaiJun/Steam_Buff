@@ -220,49 +220,13 @@
     return typeof CFG.steamBuff === "function" ? CFG.steamBuff(`/update-logs/${encodeURIComponent(value)}`) : "";
   }
 
-  function nodeText(node) {
-    const text = cleanText(node?.textContent || "");
-    return text ? esc(text) : "";
-  }
-
-  function safeNode(node) {
-    if (!node) {
-      return "";
-    }
-    if (node.nodeType === Node.TEXT_NODE) {
-      return esc(node.textContent || "");
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) {
-      return "";
-    }
-    const tag = String(node.tagName || "").toLowerCase();
-    if (tag === "script" || tag === "style" || tag === "button") {
-      return "";
-    }
-    if (tag === "br") {
-      return "<br>";
-    }
-    const inner = Array.from(node.childNodes || []).map(safeNode).join("");
-    if (/^h[1-6]$/.test(tag)) {
-      return `<h3>${inner || nodeText(node)}</h3>`;
-    }
-    if (["p", "ul", "ol", "li", "strong", "b", "em", "i", "code"].includes(tag)) {
-      return `<${tag}>${inner || nodeText(node)}</${tag}>`;
-    }
-    return inner;
-  }
-
   function htmlFromContent(value) {
     const raw = String(value || "").trim();
     if (!raw) {
       return "";
     }
-    try {
-      const doc = new DOMParser().parseFromString(raw, "text/html");
-      return Array.from(doc.body?.childNodes || []).map(safeNode).join("").trim();
-    } catch {
-      return esc(cleanText(raw));
-    }
+    const html = root.STUpdateLogRenderer?.contentHtml?.(raw);
+    return html || esc(cleanText(raw));
   }
 
   function latestHtml(latest) {
@@ -281,12 +245,13 @@
     }
     const versionText = verText(row.version) || String(row.version || "").trim();
     const content = String(row.content || "");
+    const contentText = root.STUpdateLogRenderer?.contentText?.(content) || content.replace(/<[^>]+>/g, " ");
     return {
       version: versionText,
       title: cleanText(row.title || ""),
       summary: cleanText(row.summary || ""),
       content,
-      desc: cleanText(row.summary || row.title || content.replace(/<[^>]+>/g, " ")),
+      desc: cleanText(row.summary || row.title || contentText),
       releaseDate: cleanText(row.release_date || ""),
       publishedAt: cleanText(row.published_at || ""),
       updatedAt: cleanText(row.updated_at || ""),

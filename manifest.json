@@ -52,6 +52,7 @@
         "settings/catalog.js",
         "settings/membership.js",
         "settings/storage.js",
+        "settings/update-log-renderer.js",
         "settings/update-checker.js",
         "settings/settings-backup.js",
         "settings/pages/registry.js",

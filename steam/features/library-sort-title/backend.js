@@ -116,6 +116,11 @@
     return text || name;
   }
 
+  function display(app, cust, orig) {
+    const source = cust || app?.[ORIG] || orig || app?.display_name || "";
+    return view(source);
+  }
+
   function same(app, cust) {
     return !!cust && (app?.display_name === cust || app?.display_name === view(cust));
   }
@@ -142,7 +147,8 @@
       saveOrig(app, orig);
     }
 
-    const next = cust ? view(cust) : app[ORIG] || orig || app.display_name;
+    /* 统一展示出口：Steam 有时会把完整自定义名直接塞进 display_name，fallback 也必须隐藏助记符。 */
+    const next = display(app, cust, orig);
     if (next && app.display_name !== next) {
       app.display_name = next;
       return true;

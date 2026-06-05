@@ -31,8 +31,8 @@
   const SEARCH_DEBOUNCE_MS = 180;
   const SEARCH_SCAN_YIELD = 5000;
   const IMPORT_SCAN_YIELD = 1000;
-  const CLOUD_UPLOAD_MAX = 100;
-  const CLOUD_UPLOAD_DELAY_MS = 5000;
+  const CLOUD_UPLOAD_MAX = 2000;
+  const CLOUD_UPLOAD_DELAY_MS = 0;
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
   const STEAM_CUSTOM_LIMIT_TIP = "该限制为 Steam 设置自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功！";
@@ -2264,14 +2264,42 @@
     }
   }
 
+  function steamBatchWaiting() {
+    const b = batch.steamBatch || {};
+    return b.waiting === true;
+  }
+
+  function steamBatchStarted() {
+    return Number(batch.steamBatch?.index) > 0;
+  }
+
+  async function waitCloudSteamWindow() {
+    while (!batch.cancelled) {
+      await waitCloudResume();
+      if (batch.cancelled) {
+        return;
+      }
+      if (!batch.saving || (steamBatchStarted() && !steamBatchWaiting())) {
+        return;
+      }
+      if (batch.cloudFinishing) {
+        batch.message = steamBatchStarted()
+          ? `等待 Steam 第 ${batch.steamBatch?.index || 1} 批同步窗口结束，素材君云端上传已暂停`
+          : "等待 Steam 写入批次开始，素材君云端上传准备中";
+        renderProgressSoon();
+      }
+      await sleep(200);
+    }
+  }
+
   async function waitCloudDelay() {
     let left = CLOUD_UPLOAD_DELAY_MS;
     while (left > 0 && !batch.cancelled) {
-      await waitCloudResume();
+      await waitCloudSteamWindow();
       const step = Math.min(250, left);
       const started = now();
       await sleep(step);
-      if (!batch.paused) {
+      if (!batch.paused && !steamBatchWaiting()) {
         left -= Math.max(0, now() - started);
       }
     }
@@ -2316,7 +2344,7 @@
       });
       try {
         while (batch.cloudQueue.length && !batch.cancelled) {
-          await waitCloudResume();
+          await waitCloudSteamWindow();
           if (batch.cancelled) {
             break;
           }
