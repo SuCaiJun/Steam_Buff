@@ -951,6 +951,8 @@
         bottom: calc(100% + 8px);
         z-index: 2;
         width: 250px;
+        max-width: min(280px, calc(100vw - 32px));
+        box-sizing: border-box;
         padding: 8px 10px;
         border: 1px solid rgba(102, 192, 244, .2);
         border-radius: 3px;
@@ -959,17 +961,29 @@
         box-shadow: 0 12px 28px rgba(0, 0, 0, .42);
         font-size: 12px;
         line-height: 1.5;
+        text-align: left;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
         transform: translateX(-50%) translateY(4px);
         opacity: 0;
         pointer-events: none;
         transition: opacity .12s ease, transform .12s ease;
       }
+      #${BAR} .st-lcn-tip-popover {
+        left: auto;
+        right: 0;
+        transform: translateY(4px);
+      }
       #${MODAL} .st-lcn-tip:hover .st-lcn-tip-popover,
-      #${MODAL} .st-lcn-tip:focus .st-lcn-tip-popover,
+      #${MODAL} .st-lcn-tip:focus .st-lcn-tip-popover {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
       #${BAR} .st-lcn-tip:hover .st-lcn-tip-popover,
       #${BAR} .st-lcn-tip:focus .st-lcn-tip-popover {
         opacity: 1;
-        transform: translateX(-50%) translateY(0);
+        transform: translateY(0);
       }
       #${MODAL} .st-lcn-msg {
         min-height: 18px;
@@ -1316,7 +1330,6 @@
     document.body?.appendChild(bar);
     bar.classList.add(BAR_FIXED);
     bar.hidden = false;
-    bar.style.visibility = "hidden";
     const barWidth = Math.max(220, Math.ceil(bar.offsetWidth || 0));
     const barHeight = Math.max(38, Math.ceil(bar.offsetHeight || 0));
     const pad = 12;
@@ -1329,7 +1342,6 @@
     const top = Math.round(Math.min(Math.max(topMin, area.rect.bottom - barHeight - pad), topMax));
     bar.style.left = `${left}px`;
     bar.style.top = `${top}px`;
-    bar.style.visibility = "";
     return area;
   }
 
@@ -2629,12 +2641,12 @@
       appid,
       official_name: text(app.official_name),
     };
-    feedbackBox(s.feedback, text(input?.value) || text(app.current_custom_name));
+    feedbackBox(s.feedback, stripCloudName(text(input?.value) || text(app.current_custom_name)));
   }
 
   async function submitFeedback() {
     const app = s.feedback || {};
-    const name = text(document.querySelector(`#${ONE} [data-lcn-feedback-name]`)?.value);
+    const name = stripCloudName(document.querySelector(`#${ONE} [data-lcn-feedback-name]`)?.value);
     if (!Number(app.appid)) {
       oneResult("提交失败", "未识别当前游戏 AppID");
       return;
@@ -2710,7 +2722,6 @@
     if (!bar) {
       bar = makeBar();
     }
-    clearFixed(bar);
     bar.hidden = false;
 
     const area = fixedBar(input, bar);
