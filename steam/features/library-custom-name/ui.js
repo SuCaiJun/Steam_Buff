@@ -67,6 +67,7 @@
     searchRows: [],
     searchSeq: 0,
     searchTimer: 0,
+    searchComposing: false,
     searchScanned: 0,
     searching: false,
     page: 1,
@@ -1327,7 +1328,12 @@
     if (!area?.rect || !bar) {
       return null;
     }
-    document.body?.appendChild(bar);
+    if (barTooltipActive(bar) && bar.parentElement === document.body && bar.style.left && bar.style.top) {
+      return area;
+    }
+    if (bar.parentElement !== document.body) {
+      document.body?.appendChild(bar);
+    }
     bar.classList.add(BAR_FIXED);
     bar.hidden = false;
     const barWidth = Math.max(220, Math.ceil(bar.offsetWidth || 0));
@@ -1340,9 +1346,30 @@
     const desiredLeft = area.rect.left + (area.rect.width - barWidth) / 2;
     const left = Math.round(Math.min(Math.max(leftMin, desiredLeft), leftMax));
     const top = Math.round(Math.min(Math.max(topMin, area.rect.bottom - barHeight - pad), topMax));
-    bar.style.left = `${left}px`;
-    bar.style.top = `${top}px`;
+    const nextLeft = `${left}px`;
+    const nextTop = `${top}px`;
+    if (bar.style.left !== nextLeft) {
+      bar.style.left = nextLeft;
+    }
+    if (bar.style.top !== nextTop) {
+      bar.style.top = nextTop;
+    }
     return area;
+  }
+
+  function barTooltipActive(bar) {
+    if (!bar) {
+      return false;
+    }
+    const active = document.activeElement;
+    if (active?.closest?.(`#${BAR} .st-lcn-tip`)) {
+      return true;
+    }
+    try {
+      return !!bar.querySelector(".st-lcn-tip:hover, .st-lcn-tip:focus, .st-lcn-tip:focus-within");
+    } catch {
+      return false;
+    }
   }
 
   function clearFixed(bar) {
@@ -2033,6 +2060,7 @@
   }
 
   function setSearchQuery(value) {
+    batch.searchComposing = false;
     batch.searchQuery = String(value || "");
     batch.searchNeedle = searchText(batch.searchQuery);
     batch.searchSeq += 1;
@@ -2722,7 +2750,9 @@
     if (!bar) {
       bar = makeBar();
     }
-    bar.hidden = false;
+    if (bar.hidden) {
+      bar.hidden = false;
+    }
 
     const area = fixedBar(input, bar);
     if (area) {
@@ -2976,6 +3006,10 @@
     const modal = document.getElementById(MODAL);
     if (modal) {
       const active = document.activeElement;
+      if (batch.searchComposing && active?.matches?.("[data-lcn-search]")) {
+        batch.searchQuery = String(active.value || "");
+        return;
+      }
       const keepSearch = active?.matches?.("[data-lcn-search]");
       const searchStart = keepSearch ? active.selectionStart : 0;
       const searchEnd = keepSearch ? active.selectionEnd : 0;
@@ -3069,6 +3103,28 @@
 
   function bindModalControls(modal) {
     modal.querySelector("[data-lcn-close]")?.addEventListener("click", onModalCloseClick);
+  }
+
+  function onModalCompositionStart(event) {
+    const search = event.target.closest("[data-lcn-search]");
+    if (!search) {
+      return;
+    }
+    /* IME 组合输入期间不能触发搜索重绘，否则 Steam CEF 会打断中文候选词上屏。 */
+    batch.searchComposing = true;
+    batch.searchQuery = String(search.value || "");
+    batch.searchSeq += 1;
+    clearSearchTimer();
+    batch.searching = false;
+  }
+
+  function onModalCompositionEnd(event) {
+    const search = event.target.closest("[data-lcn-search]");
+    if (!search) {
+      return;
+    }
+    batch.searchComposing = false;
+    setSearchQuery(search.value);
   }
 
   function renderProgress() {
@@ -3203,6 +3259,8 @@
       modal.addEventListener("click", onModalClick);
       modal.addEventListener("change", onModalChange);
       modal.addEventListener("input", onModalInput);
+      modal.addEventListener("compositionstart", onModalCompositionStart);
+      modal.addEventListener("compositionend", onModalCompositionEnd);
       document.body.appendChild(modal);
     }
     modal.hidden = false;
@@ -3225,6 +3283,7 @@
     if (wasLoadingLocal) {
       clearLocalRows();
     }
+    batch.searchComposing = false;
     backend("cancel-preview").catch(() => {});
     const modal = document.getElementById(MODAL);
     if (modal) {
@@ -3743,6 +3802,10 @@
   function onModalInput(event) {
     const search = event.target.closest("[data-lcn-search]");
     if (search) {
+      batch.searchQuery = String(search.value || "");
+      if (event.isComposing || batch.searchComposing) {
+        return;
+      }
       setSearchQuery(search.value);
       return;
     }
