@@ -34,6 +34,8 @@
   const CLOUD_UPLOAD_MAX = 100;
   const CLOUD_UPLOAD_DELAY_MS = 5000;
   const STEAM_CUSTOM_LIMIT = 10000;
+  const STEAM_CUSTOM_BYTES = 3145728;
+  const STEAM_CUSTOM_LIMIT_TIP = "该限制为 Steam 设置自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功！";
   const CLOUD_TIP_TEXT = "将本次手动修改的自定义排序名称同步到素材君云端（Steam Buff 云端），帮助更多玩家获得更准确的名称建议。";
   const CLOUD_CANCEL_TEXT = "素材君云端共享可以帮助更多玩家获得更准确的自定义名称建议。本次保存将只写入本地 Steam 库，不再同步到素材君云端，确认关闭吗？";
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
@@ -70,6 +72,9 @@
     page: 1,
     selectedCount: 0,
     writeCount: 0,
+    storageCapacity: emptyCapacity(),
+    capacitySeq: 0,
+    capacityTimer: 0,
     cloudQueue: [],
     cloudFlush: null,
     cloudFinishing: false,
@@ -1442,6 +1447,12 @@
     });
   }
 
+  function storageCapacity(items) {
+    return backend("storage-capacity", {
+      items: Array.isArray(items) ? items : [],
+    });
+  }
+
   async function collectAppids(apps, seq) {
     const ids = [];
     for (let i = 0; i < apps.length; i += 1) {
@@ -1732,6 +1743,109 @@
     };
   }
 
+  function emptyCapacity() {
+    return {
+      ok: false,
+      count: 0,
+      pendingCount: 0,
+      currentBytes: 0,
+      pendingBytes: 0,
+      projectedBytes: 0,
+      limit: STEAM_CUSTOM_LIMIT,
+      limitBytes: STEAM_CUSTOM_BYTES,
+      reason: "",
+    };
+  }
+
+  function capacityItems() {
+    const items = [];
+    for (const row of batch.rows) {
+      if (canWrite(row)) {
+        items.push({ appid: row.appid, name: row.want });
+      }
+    }
+    return items;
+  }
+
+  function normalizeCapacity(data) {
+    const base = emptyCapacity();
+    return {
+      ...base,
+      ...data,
+      ok: data?.ok === true,
+      count: Math.max(0, Number(data?.count) || 0),
+      pendingCount: Math.max(0, Number(data?.pendingCount) || 0),
+      currentBytes: Math.max(0, Number(data?.currentBytes) || 0),
+      pendingBytes: Math.max(0, Number(data?.pendingBytes) || 0),
+      projectedBytes: Math.max(0, Number(data?.projectedBytes) || 0),
+      limit: Math.max(1, Number(data?.limit) || STEAM_CUSTOM_LIMIT),
+      limitBytes: Math.max(1, Number(data?.limitBytes) || STEAM_CUSTOM_BYTES),
+      reason: text(data?.reason),
+    };
+  }
+
+  function formatMb(bytes, fixed = true) {
+    const mb = Math.max(0, Number(bytes) || 0) / 1048576;
+    if (!fixed && Math.abs(mb - Math.round(mb)) < 0.0001) {
+      return String(Math.round(mb));
+    }
+    return mb.toFixed(4);
+  }
+
+  function customLimitLine() {
+    const meta = customLimitMeta(batch.writeCount);
+    const current = batch.storageCapacity?.ok ? batch.storageCapacity.count : meta.current;
+    return `${meta.pending}/${current}/${meta.limit}`;
+  }
+
+  function capacityLine() {
+    const cap = batch.storageCapacity || emptyCapacity();
+    return `${formatMb(cap.pendingBytes)}/${formatMb(cap.currentBytes)}/${formatMb(cap.limitBytes, false)}MB`;
+  }
+
+  function storageLimitTipHtml(label) {
+    const tip = STEAM_CUSTOM_LIMIT_TIP;
+    return `<span class="st-lcn-tip st-lcn-limit-tip" tabindex="0" aria-label="${attr(tip)}"><span class="st-lcn-tip-text">${esc(label)}</span><span class="st-lcn-tip-mark" aria-hidden="true">?</span><span class="st-lcn-tip-popover" role="tooltip">${esc(tip)}</span></span>`;
+  }
+
+  function previewMessageHtml() {
+    const skipped = Math.max(0, batch.rows.length - batch.writeCount);
+    const search = searchActive() ? `，搜索 ${activeRows().length}/${batch.rows.length}` : "";
+    return `加载完成${search}，已选 ${batch.selectedCount} 项，待写入 ${batch.writeCount} 项，跳过 ${skipped} 项，${storageLimitTipHtml("上限")} ${esc(customLimitLine())} 项，${storageLimitTipHtml("容量")} ${esc(capacityLine())}`;
+  }
+
+  function messageHtml() {
+    if (batch.message === previewMessage()) {
+      return previewMessageHtml();
+    }
+    return esc(batch.message);
+  }
+
+  function refreshStorageCapacitySoon(delay = 180) {
+    if (batch.capacityTimer) {
+      window.clearTimeout(batch.capacityTimer);
+    }
+    const seq = batch.capacitySeq + 1;
+    batch.capacitySeq = seq;
+    batch.capacityTimer = window.setTimeout(() => {
+      batch.capacityTimer = 0;
+      refreshStorageCapacity(seq).catch(() => {});
+    }, Math.max(0, delay));
+  }
+
+  async function refreshStorageCapacity(seq = batch.capacitySeq + 1) {
+    batch.capacitySeq = seq;
+    const data = await storageCapacity(capacityItems());
+    if (seq !== batch.capacitySeq) {
+      return;
+    }
+    batch.storageCapacity = normalizeCapacity(data);
+    if (!batch.busy && !batch.saving && batch.rows.length) {
+      batch.message = previewMessage();
+      refreshMessage();
+    }
+  }
+
   function refreshSkip() {
     batch.stats = {
       ...batch.stats,
@@ -1762,6 +1876,7 @@
     batch.writeCount = write;
     clampPage();
     refreshSkip();
+    refreshStorageCapacitySoon();
   }
 
   function clearRows() {
@@ -1783,6 +1898,7 @@
     batch.searchQuery = "";
     batch.searchNeedle = "";
     batch.searchSeq += 1;
+    batch.storageCapacity = emptyCapacity();
     resetSearchState();
     clearRows();
   }
@@ -1814,6 +1930,7 @@
     }
     clampPage();
     refreshSkip();
+    refreshStorageCapacitySoon();
     if (searchActive()) {
       batch.searchSeq += 1;
       scheduleSearch(false);
@@ -2042,19 +2159,22 @@
       batch.writeCount += after ? 1 : -1;
       refreshSkip();
     }
+    refreshStorageCapacitySoon();
   }
 
   function previewMessage() {
     const skipped = Math.max(0, batch.rows.length - batch.writeCount);
     const search = searchActive() ? `，搜索 ${activeRows().length}/${batch.rows.length}` : "";
-    return `加载完成${search}，已选 ${batch.selectedCount} 项，写入 ${batch.writeCount} 项，跳过 ${skipped} 项`;
+    return `加载完成${search}，已选 ${batch.selectedCount} 项，待写入 ${batch.writeCount} 项，跳过 ${skipped} 项，上限 ${customLimitLine()} 项，容量 ${capacityLine()}`;
   }
 
   function customLimitMeta(pending) {
-    let current = 0;
-    for (const row of batch.localRows) {
-      if (hasCustom(row)) {
-        current += 1;
+    let current = batch.storageCapacity?.ok ? Number(batch.storageCapacity.count) || 0 : 0;
+    if (!batch.storageCapacity?.ok) {
+      for (const row of batch.localRows) {
+        if (hasCustom(row)) {
+          current += 1;
+        }
       }
     }
     const count = Math.max(0, Number(pending) || 0);
@@ -2806,7 +2926,7 @@
             </label>
             <label class="st-lcn-action-option"><input type="checkbox" data-lcn-mnemonic ${mnemonicChecked ? "checked" : ""} ${mnemonicDisabled ? "disabled" : ""}>生成助记符</label>
           </div>
-          <div class="st-lcn-msg">${esc(batch.message)}</div>
+          <div class="st-lcn-msg">${messageHtml()}</div>
           ${rowsHtml()}
         </div>
       </div>
@@ -2842,7 +2962,7 @@
   function refreshMessage() {
     const msg = document.querySelector(`#${MODAL} .st-lcn-msg`);
     if (msg) {
-      msg.textContent = batch.message;
+      msg.innerHTML = messageHtml();
     }
   }
 
@@ -3644,6 +3764,10 @@
       if (batch.progressTimer) {
         window.clearTimeout(batch.progressTimer);
         batch.progressTimer = 0;
+      }
+      if (batch.capacityTimer) {
+        window.clearTimeout(batch.capacityTimer);
+        batch.capacityTimer = 0;
       }
       if (s.oneResolve) {
         s.oneResolve(false);

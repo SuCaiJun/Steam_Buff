@@ -22,6 +22,8 @@
   const BATCH_MAX = 2000;
   const BATCH_WRITE_MS = 2000;
   const BATCH_WAIT_MS = 5000;
+  const STEAM_CUSTOM_LIMIT = 10000;
+  const STEAM_CUSTOM_BYTES = 3145728;
   const WRITE_TIMEOUT_MS = 10000;
   const SCAN_YIELD = 2000;
   const PAGE_MAX = 1000;
@@ -516,6 +518,129 @@
     };
   }
 
+  function storageState() {
+    const state = window.cloudStorageInternalState;
+    const cloud = window.appStore?.m_cloudStorage;
+    const ns = Number(cloud?.m_eNamespace) || STEAM_CUSTOM_NS;
+    const storage = state?.m_mapStorage?.get?.(ns);
+    if (!state || !cloud) {
+      return fastFail("runtime-unavailable");
+    }
+    if (!storage || typeof storage.get !== "function" || typeof storage.has !== "function" || typeof storage.entries !== "function") {
+      return fastFail("storage-map-unavailable");
+    }
+    return {
+      ok: true,
+      ns,
+      storage,
+    };
+  }
+
+  function byteLength(value) {
+    const str = String(value ?? "");
+    try {
+      if (typeof TextEncoder === "function") {
+        return new TextEncoder().encode(str).length;
+      }
+    } catch {
+    }
+    try {
+      return unescape(encodeURIComponent(str)).length;
+    } catch {
+      return str.length;
+    }
+  }
+
+  function entryPlain(entry, key, value) {
+    const out = {};
+    if (entry && typeof entry === "object") {
+      for (const prop of Object.keys(entry)) {
+        out[prop] = entry[prop];
+      }
+    }
+    out.key = text(out.key) || key;
+    out.value = value;
+    if (!Object.prototype.hasOwnProperty.call(out, "timestamp")) {
+      out.timestamp = Math.floor(now() / 1000);
+    }
+    if (Object.prototype.hasOwnProperty.call(out, "is_deleted")) {
+      delete out.is_deleted;
+    }
+    return out;
+  }
+
+  function storagePairs(storage, replacements = null) {
+    const pairs = [];
+    for (const [rawKey, entry] of storage.entries()) {
+      const key = String(rawKey);
+      pairs.push([key, replacements?.has(key) ? replacements.get(key) : entry]);
+    }
+    if (replacements) {
+      for (const [key, entry] of replacements.entries()) {
+        if (!storage.has(key)) {
+          pairs.push([key, entry]);
+        }
+      }
+    }
+    return pairs;
+  }
+
+  function storageBytes(storage, replacements = null) {
+    try {
+      return byteLength(JSON.stringify(storagePairs(storage, replacements)));
+    } catch {
+      return 0;
+    }
+  }
+
+  function capacitySnapshot(items) {
+    const rt = storageState();
+    if (!rt.ok) {
+      return {
+        ok: false,
+        reason: rt.reason || "unavailable",
+        count: 0,
+        pendingCount: 0,
+        currentBytes: 0,
+        pendingBytes: 0,
+        projectedBytes: 0,
+        limit: STEAM_CUSTOM_LIMIT,
+        limitBytes: STEAM_CUSTOM_BYTES,
+      };
+    }
+
+    /* 容量只读估算：复用快速写入的 entry value 结构，不触发写盘或云同步。 */
+    const replacements = new Map();
+    let pendingCount = 0;
+    for (const item of Array.isArray(items) ? items : []) {
+      const appid = Number(item?.appid);
+      const name = text(item?.name);
+      if (!Number.isFinite(appid) || appid <= 0 || !name) {
+        continue;
+      }
+      const key = String(appid);
+      const entry = replacements.get(key) || rt.storage.get(key);
+      const value = parseValue(entry);
+      value.sa = name;
+      replacements.set(key, entryPlain(entry, key, JSON.stringify(value)));
+      pendingCount += 1;
+    }
+
+    const currentBytes = storageBytes(rt.storage);
+    const projectedBytes = storageBytes(rt.storage, replacements);
+    return {
+      ok: true,
+      ns: rt.ns,
+      count: rt.storage.size || 0,
+      pendingCount,
+      currentBytes,
+      pendingBytes: Math.max(0, projectedBytes - currentBytes),
+      projectedBytes,
+      limit: STEAM_CUSTOM_LIMIT,
+      limitBytes: STEAM_CUSTOM_BYTES,
+    };
+  }
+
   function entryCtor(storage, prepared) {
     for (const item of prepared) {
       if (typeof item.entry?.constructor === "function") {
@@ -615,7 +740,7 @@
       const key = String(appid);
       const entry = rt.storage.get(key);
       if (!entry) {
-        if (projectedSize >= 10000) {
+        if (projectedSize >= STEAM_CUSTOM_LIMIT) {
           results.push(resultItem(item, "failed", "Steam namespace 3 自定义名称数量已达到 10000"));
           continue;
         }
@@ -989,6 +1114,10 @@
         }
         if (data.type === "cancel-preview") {
           cancelPreview(rt, rid);
+          return;
+        }
+        if (data.type === "storage-capacity") {
+          post(ch, { type: "storage-capacity-result", rid, ...capacitySnapshot(data.items) });
           return;
         }
         if (data.type === "save-queue") {
