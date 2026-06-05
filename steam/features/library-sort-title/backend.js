@@ -213,6 +213,25 @@
     return true;
   }
 
+  function recordCustomNameBulk(items = []) {
+    const rt = window[RT];
+    const list = Array.isArray(items) ? items : [];
+    let recorded = 0;
+    for (const item of list) {
+      const sortAs = typeof item?.sortAs === "string" ? item.sortAs : item?.name;
+      if (recordBulk(rt, item?.appid, sortAs, true)) {
+        recorded += 1;
+      }
+    }
+    if (recorded) {
+      log("info", "library-sort-title-bulk-record", "库排序标题已记录快速批量写入变化", {
+        count: list.length,
+        recorded,
+      });
+    }
+    return { enabled: !!rt?.bulk?.active, count: list.length, recorded };
+  }
+
   function flushBulkMap(store, items) {
     const repls = [];
     for (const [appid, sortAs] of items || []) {
@@ -575,6 +594,7 @@
       loggedSuccess: false,
       loggedFailed: false,
       beginCustomNameBulk,
+      recordCustomNameBulk,
       endCustomNameBulk,
       run,
       schedule,

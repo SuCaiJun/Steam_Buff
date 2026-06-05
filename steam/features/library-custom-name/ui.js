@@ -103,10 +103,6 @@
       .replace(/'/g, "&#39;");
   }
 
-  function assetUrl(path) {
-    return window.SteamBuff?.path?.url ? window.SteamBuff.path.url(path) : path;
-  }
-
   function emptyStats() {
     return {
       total: 0,
@@ -883,25 +879,53 @@
         margin-top: 12px;
       }
       #${MODAL} .st-lcn-action-option {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
         min-height: 30px;
         margin-left: 2px;
       }
+      #${BAR} .st-lcn-tip,
       #${MODAL} .st-lcn-tip {
         position: relative;
         display: inline-flex;
         align-items: center;
-        margin-left: -6px;
-      }
-      #${MODAL} .st-lcn-tip-icon {
-        width: 15px;
-        height: 15px;
-        opacity: .68;
+        gap: 3px;
         cursor: help;
       }
-      #${MODAL} .st-lcn-tip:hover .st-lcn-tip-icon,
-      #${MODAL} .st-lcn-tip:focus .st-lcn-tip-icon {
-        opacity: .95;
+      #${BAR} .st-lcn-tip {
+        cursor: pointer;
       }
+      #${BAR} .st-lcn-btn .st-lcn-tip {
+        pointer-events: auto;
+      }
+      #${BAR} .st-lcn-tip-mark,
+      #${MODAL} .st-lcn-tip-mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 14px;
+        height: 14px;
+        border: 1px solid rgba(102, 192, 244, .75);
+        border-radius: 50%;
+        color: #66c0f4;
+        background: rgba(102, 192, 244, .12);
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+      }
+      #${MODAL} .st-lcn-tip-text {
+        cursor: help;
+      }
+      #${BAR} .st-lcn-tip:hover .st-lcn-tip-mark,
+      #${BAR} .st-lcn-tip:focus .st-lcn-tip-mark,
+      #${MODAL} .st-lcn-tip:hover .st-lcn-tip-mark,
+      #${MODAL} .st-lcn-tip:focus .st-lcn-tip-mark {
+        color: #fff;
+        border-color: rgba(102, 192, 244, .95);
+        background: rgba(102, 192, 244, .28);
+      }
+      #${BAR} .st-lcn-tip-popover,
       #${MODAL} .st-lcn-tip-popover {
         position: absolute;
         left: 50%;
@@ -922,7 +946,9 @@
         transition: opacity .12s ease, transform .12s ease;
       }
       #${MODAL} .st-lcn-tip:hover .st-lcn-tip-popover,
-      #${MODAL} .st-lcn-tip:focus .st-lcn-tip-popover {
+      #${MODAL} .st-lcn-tip:focus .st-lcn-tip-popover,
+      #${BAR} .st-lcn-tip:hover .st-lcn-tip-popover,
+      #${BAR} .st-lcn-tip:focus .st-lcn-tip-popover {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
       }
@@ -2165,7 +2191,7 @@
       oneResult("提交失败", "未识别 Steam 原名");
       return;
     }
-    oneBox("上云", "正在提交...", false);
+    oneBox("上传云端", "正在提交...", false);
     const res = await feedback({
       appid: Number(app.appid),
       steam_name: app.official_name,
@@ -2180,10 +2206,17 @@
     const bar = document.createElement("div");
     bar.id = BAR;
     bar.addEventListener("click", onBarClick);
+    const tip = CLOUD_TIP_TEXT;
     bar.innerHTML = `
       <button class="st-lcn-btn" type="button" data-lcn-one>获取</button>
       <button class="st-lcn-btn" type="button" data-lcn-batch>批量</button>
-      <button class="st-lcn-btn" type="button" data-lcn-feedback>上云</button>
+      <button class="st-lcn-btn" type="button" data-lcn-feedback aria-label="上传云端">
+        <span class="st-lcn-tip" tabindex="0" aria-label="${attr(tip)}">
+          <span class="st-lcn-tip-text">上传云端</span>
+          <span class="st-lcn-tip-mark" aria-hidden="true">?</span>
+          <span class="st-lcn-tip-popover" role="tooltip">${esc(tip)}</span>
+        </span>
+      </button>
     `;
 
     return bar;
@@ -2310,13 +2343,8 @@
 
   function progressLine() {
     const st = batch.stats;
-    const local = `总:${st.total}，处理:${st.processed}，跳过:${st.skipped}，失败:${st.failed}`;
-    const b = batch.steamBatch;
-    const steam = b?.index ? `，Steam批次:${b.index} ${b.written}/${b.max}${b.waiting ? "，等待同步" : ""}` : "";
-    if (!batch.uploadCloud) {
-      return `${local}${steam}，素材君云端上传已关闭`;
-    }
-    return `${local}${steam}，素材君云端成功:${st.cloudOk}，素材君云端失败:${st.cloudFail}，素材君云端跳过:${st.cloudSkipped}，待传:${st.cloudPending}，批次:${st.cloudBatches}`;
+    const synced = batch.uploadCloud ? st.cloudOk : 0;
+    return `总计:${st.total}，处理:${st.processed}，跳过:${st.skipped}，失败:${st.failed}，同步:${synced}`;
   }
 
   function progressPct() {
@@ -2447,11 +2475,14 @@
           <div class="st-lcn-actions">
             <button class="st-lcn-btn" type="button" data-lcn-action="query" title="只获取已勾选游戏的云端名称" ${queryDisabled ? "disabled" : ""}>获取云端名称</button>
             <button class="st-lcn-btn primary" type="button" data-lcn-action="save" ${locked || !write ? "disabled" : ""}>保存修改</button>
-            <label class="st-lcn-action-option"><input type="checkbox" data-lcn-upload-cloud ${batch.uploadCloud ? "checked" : ""} ${locked ? "disabled" : ""}>上传素材君云端</label>
-            <span class="st-lcn-tip" tabindex="0" aria-label="${attr(tip)}" title="${attr(tip)}">
-              <img class="st-lcn-tip-icon" src="${attr(assetUrl("images/tip.svg"))}" alt="">
-              <span class="st-lcn-tip-popover" role="tooltip">${esc(tip)}</span>
-            </span>
+            <label class="st-lcn-action-option">
+              <input type="checkbox" data-lcn-upload-cloud ${batch.uploadCloud ? "checked" : ""} ${locked ? "disabled" : ""}>
+              <span class="st-lcn-tip" tabindex="0" aria-label="${attr(tip)}">
+                <span class="st-lcn-tip-text">上传云端</span>
+                <span class="st-lcn-tip-mark" aria-hidden="true">?</span>
+                <span class="st-lcn-tip-popover" role="tooltip">${esc(tip)}</span>
+              </span>
+            </label>
             <label class="st-lcn-action-option"><input type="checkbox" data-lcn-mnemonic ${mnemonicChecked ? "checked" : ""} ${mnemonicDisabled ? "disabled" : ""}>生成助记符</label>
           </div>
           <div class="st-lcn-msg">${esc(batch.message)}</div>

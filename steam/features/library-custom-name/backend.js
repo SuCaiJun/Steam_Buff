@@ -170,6 +170,72 @@
     }
   }
 
+  function recordSortTitleBulk(q, items, results) {
+    if (!q?.sortTitleBulk?.enabled) {
+      return null;
+    }
+    try {
+      const api = window[SORT_TITLE_RT];
+      if (typeof api?.recordCustomNameBulk !== "function") {
+        return null;
+      }
+      const ok = new Set((Array.isArray(results) ? results : [])
+        .filter(item => item?.status === "success")
+        .map(item => Number(item.appid))
+        .filter(appid => Number.isFinite(appid) && appid > 0));
+      const changes = (Array.isArray(items) ? items : [])
+        .filter(item => ok.has(Number(item?.appid)))
+        .map(item => ({ appid: Number(item.appid), name: text(item.name) }))
+        .filter(item => item.appid > 0 && item.name);
+      if (!changes.length) {
+        return null;
+      }
+      return api.recordCustomNameBulk(changes);
+    } catch (error) {
+      log("warn", "library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列记录排序标题刷新失败", {
+        error: error?.message || String(error),
+      });
+    }
+    return null;
+  }
+
+  function syncFastAppOverview(items, results) {
+    const ok = new Set((Array.isArray(results) ? results : [])
+      .filter(item => item?.status === "success")
+      .map(item => Number(item?.appid))
+      .filter(appid => Number.isFinite(appid) && appid > 0));
+    let synced = 0;
+    for (const item of Array.isArray(items) ? items : []) {
+      const appid = Number(item?.appid);
+      const name = text(item?.name);
+      if (!ok.has(appid) || !name) {
+        continue;
+      }
+      const app = appById(appid);
+      if (!app) {
+        continue;
+      }
+      try {
+        if (!app.original_sort_as && typeof app.sort_as === "string") {
+          app.original_sort_as = app.sort_as;
+        }
+        app.custom_sort_as_display = name;
+        app.sort_as = name.toLocaleLowerCase();
+        if (Object.prototype.hasOwnProperty.call(app, "has_custom_sort_as")) {
+          app.has_custom_sort_as = true;
+        }
+        synced += 1;
+      } catch {
+      }
+    }
+    if (synced) {
+      log("info", "library-custom-name-save-queue-fast-sync", "库自定义名称快速写入已同步 AppOverview", {
+        synced,
+      });
+    }
+    return synced;
+  }
+
   function recordWriteMs(q, ms) {
     const cost = Math.max(0, Number(ms) || 0);
     q.writeMsTotal += cost;
@@ -717,6 +783,8 @@
     q.fast.success += 1;
     q.fast.reason = result.reason || "fast";
     recordBatchWriteMs(q, result.writeMs || (now() - started));
+    syncFastAppOverview(items, results);
+    recordSortTitleBulk(q, items, results);
     for (const item of results) {
       applyResult(q, item);
     }
