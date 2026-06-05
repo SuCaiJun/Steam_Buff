@@ -27,6 +27,8 @@
   const SCHEDULE_DEBOUNCE_MS = 1000;
   // 只隐藏开头连续 [标签]，保留写入 Steam 的完整排序名，避免搜索/排序关键词丢失。
   const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
+  // 末尾或夹在名称里的 [#...] 助记符只用于排序/搜索，库列表显示时隐藏。
+  const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Z0-9]{2,32})\]\s*/g;
   // SetCustomSortAs 返回后，可能Steam还会通过云存档延迟替换 app overview 对象。
   // 这里需要异步稳定后再确认一次，避免刚同步的显示名被后续替换覆盖。
   const AFTER_SAVE_RECHECK_MS = 1000;
@@ -106,7 +108,11 @@
     if (typeof name !== "string") {
       return "";
     }
-    const text = name.replace(TAG_RE, "");
+    const text = name
+      .replace(MNEMONIC_TAG_RE, " ")
+      .replace(/\s{2,}/g, " ")
+      .replace(TAG_RE, "")
+      .trim();
     return text || name;
   }
 

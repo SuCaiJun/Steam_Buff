@@ -19,6 +19,7 @@
   const CACHE_KEY = "steam_buff_update_check_cache";
   const MUTE_KEY = "steam_buff_update_prompt_mute";
   const UPDATE_PAGE = CFG.urls?.updatePage || CFG.urls?.homepage || root.chrome?.runtime?.getManifest?.()?.homepage_url || "";
+  const detailCache = new Map();
 
   function pad(value) {
     return String(Math.max(0, Number(value) || 0)).padStart(2, "0");
@@ -196,6 +197,29 @@
       .trim();
   }
 
+  function parseJson(text) {
+    try {
+      return JSON.parse(text || "{}");
+    } catch {
+      throw new Error("官网接口返回解析失败");
+    }
+  }
+
+  function apiData(payload) {
+    return payload && typeof payload === "object" ? payload.data : null;
+  }
+
+  function updateDetailUrl(versionValue) {
+    const value = verText(versionValue) || String(versionValue || "").trim();
+    if (!value) {
+      return "";
+    }
+    if (typeof CFG.urls?.updateLog === "function") {
+      return CFG.urls.updateLog(value);
+    }
+    return typeof CFG.steamBuff === "function" ? CFG.steamBuff(`/update-logs/${encodeURIComponent(value)}`) : "";
+  }
+
   function nodeText(node) {
     const text = cleanText(node?.textContent || "");
     return text ? esc(text) : "";
@@ -250,6 +274,105 @@
     return esc(text || "无更新日志");
   }
 
+  function normalizeDetail(payload) {
+    const row = apiData(payload);
+    if (!row || typeof row !== "object") {
+      throw new Error("官网更新日志详情格式异常");
+    }
+    const versionText = verText(row.version) || String(row.version || "").trim();
+    const content = String(row.content || "");
+    return {
+      version: versionText,
+      title: cleanText(row.title || ""),
+      summary: cleanText(row.summary || ""),
+      content,
+      desc: cleanText(row.summary || row.title || content.replace(/<[^>]+>/g, " ")),
+      releaseDate: cleanText(row.release_date || ""),
+      publishedAt: cleanText(row.published_at || ""),
+      updatedAt: cleanText(row.updated_at || ""),
+    };
+  }
+
+  function fetchJson(url, label) {
+    return new Promise((resolve, reject) => {
+      try {
+        root.chrome.runtime.sendMessage({
+          type: "STORE_FETCH",
+          url,
+          method: "GET",
+          headers: { Accept: "application/json" },
+          allowHttpError: true,
+        }, (response) => {
+          const error = root.chrome?.runtime?.lastError;
+          if (error) {
+            reject(new Error(error.message || "后台请求失败"));
+            return;
+          }
+          if (!response?.success) {
+            reject(new Error(response?.error || `${label}请求失败`));
+            return;
+          }
+          if (response.ok === false) {
+            reject(new Error(`${label}返回状态码 ${response.status || 0}`));
+            return;
+          }
+          try {
+            const payload = parseJson(response.data);
+            if (payload?.code && Number(payload.code) !== 200) {
+              reject(new Error(payload.message || `${label}请求失败`));
+              return;
+            }
+            resolve(payload);
+          } catch (parseError) {
+            reject(parseError);
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  async function detail(versionValue) {
+    const versionText = verText(versionValue);
+    if (!versionText) {
+      return null;
+    }
+    if (detailCache.has(versionText)) {
+      return detailCache.get(versionText);
+    }
+    const url = updateDetailUrl(versionText);
+    if (!url) {
+      return null;
+    }
+    const startedAt = Date.now();
+    try {
+      const item = normalizeDetail(await fetchJson(url, "官网更新日志详情"));
+      detailCache.set(versionText, item);
+      log("info", "update-log-detail-success", "更新日志详情读取成功", {
+        version: versionText,
+        durationMs: Date.now() - startedAt,
+      });
+      return item;
+    } catch (error) {
+      log("warn", "update-log-detail-failed", "更新日志详情读取失败", {
+        version: versionText,
+        error: error?.message || String(error),
+        durationMs: Date.now() - startedAt,
+      });
+      return null;
+    }
+  }
+
+  async function withDetail(latest) {
+    const versionText = verText(latest?.version);
+    if (!versionText) {
+      return latest || {};
+    }
+    const item = await detail(versionText);
+    return item ? { ...(latest || {}), ...item } : (latest || {});
+  }
+
   root.STUpdateChecker = Object.freeze({
     CACHE_KEY,
     MUTE_KEY,
@@ -266,6 +389,8 @@
     openDownload,
     externalUrl,
     latestHtml,
+    detail,
+    withDetail,
     esc,
     cleanText,
   });

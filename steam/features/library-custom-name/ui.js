@@ -30,8 +30,9 @@
   const APP_SCAN_YIELD = 2000;
   const CLOUD_UPLOAD_MAX = 100;
   const CLOUD_UPLOAD_DELAY_MS = 5000;
-  const CLOUD_TIP_TEXT = "将本次手动修改的自定义排序名称同步到素材君社区，帮助更多玩家获得更准确的名称建议。";
-  const CLOUD_CANCEL_TEXT = "云端共享可以帮助更多玩家获得更准确的自定义名称建议。本次保存将只写入本地 Steam 库，不再同步到素材君社区，确认关闭吗？";
+  const STEAM_CUSTOM_LIMIT = 10000;
+  const CLOUD_TIP_TEXT = "将本次手动修改的自定义排序名称同步到素材君云端（Steam Buff 云端），帮助更多玩家获得更准确的名称建议。";
+  const CLOUD_CANCEL_TEXT = "素材君云端共享可以帮助更多玩家获得更准确的自定义名称建议。本次保存将只写入本地 Steam 库，不再同步到素材君云端，确认关闭吗？";
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
   const SORT_LABEL_RE = /自定义排序名称|自訂排序名稱|自定義排序名稱|Custom Sort|カスタムソート|カスタム並び替え|사용자 지정 정렬|사용자 정의 정렬/i;
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
@@ -68,6 +69,7 @@
     paused: false,
     cancelled: false,
     waitCmd: "",
+    steamBatch: null,
     // 本地加载和云端获取可能跨多次异步请求，关闭弹窗后用序号让旧结果失效，避免回头重绘。
     previewSeq: 0,
     summary: false,
@@ -1718,6 +1720,35 @@
     return `加载完成，已选 ${batch.selectedCount} 项，写入 ${batch.writeCount} 项，跳过 ${skipped} 项`;
   }
 
+  function customLimitMeta(pending) {
+    let current = 0;
+    for (const row of batch.localRows) {
+      if (hasCustom(row)) {
+        current += 1;
+      }
+    }
+    const count = Math.max(0, Number(pending) || 0);
+    return {
+      current,
+      pending: count,
+      projected: current + count,
+      limit: STEAM_CUSTOM_LIMIT,
+    };
+  }
+
+  async function confirmSteamLimit(pending) {
+    const meta = customLimitMeta(pending);
+    if (meta.projected <= meta.limit) {
+      return true;
+    }
+    log("warn", "library-custom-name-save-limit-warning", "库自定义名称保存可能超过 Steam 云端存储数量限制", meta);
+    return oneConfirm(`当前自定义名称数量超过1万，无法存储到 Steam 云端，是否继续？当前已有 ${meta.current} 项，本次待写入 ${meta.pending} 项，合计 ${meta.projected} 项。`, {
+      title: "Steam 云端存储风险",
+      cancel: "取消",
+      confirm: "继续保存",
+    });
+  }
+
   function resetCloudUpload() {
     batch.cloudQueue = [];
     batch.cloudFlush = null;
@@ -1776,7 +1807,7 @@
   async function waitCloudResume() {
     while (batch.paused && !batch.cancelled) {
       if (batch.cloudFinishing && !batch.saving) {
-        batch.message = "云端上传已暂停";
+        batch.message = "素材君云端上传已暂停";
         renderProgressSoon();
       }
       await sleep(200);
@@ -1813,7 +1844,7 @@
     }
     batch.stats.cloudPending = batch.cloudQueue.length;
     batch.stats.cloudSkipped = skipped;
-    log("info", "library-custom-name-cloud-upload-queue", "库自定义名称云端上传队列已生成", {
+    log("info", "library-custom-name-cloud-upload-queue", "库自定义名称素材君云端上传队列已生成", {
       candidates: list.length,
       queued: batch.cloudQueue.length,
       skipped,
@@ -1848,7 +1879,7 @@
             batch.stats.cloudOk += count.ok;
             batch.stats.cloudFail += count.fail;
             if (count.fail > 0) {
-              log("warn", "library-custom-name-cloud-upload-batch-failed", "库自定义名称云端上传批次存在失败项", {
+              log("warn", "library-custom-name-cloud-upload-batch-failed", "库自定义名称素材君云端上传批次存在失败项", {
                 size: chunk.length,
                 ok: count.ok,
                 fail: count.fail,
@@ -1857,7 +1888,7 @@
             }
           } catch (error) {
             batch.stats.cloudFail += chunk.length;
-            log("warn", "library-custom-name-cloud-upload-batch-failed", "库自定义名称云端上传批次失败", {
+            log("warn", "library-custom-name-cloud-upload-batch-failed", "库自定义名称素材君云端上传批次失败", {
               size: chunk.length,
               pending: batch.stats.cloudPending,
               error: error?.message || String(error),
@@ -1874,7 +1905,7 @@
         if (dropped) {
           batch.stats.cloudPending = 0;
         }
-        log(cancelled || batch.stats.cloudFail > 0 ? "warn" : "info", cancelled ? "library-custom-name-cloud-upload-cancelled" : "library-custom-name-cloud-upload-success", cancelled ? "库自定义名称云端上传已取消" : "库自定义名称云端上传完成", {
+        log(cancelled || batch.stats.cloudFail > 0 ? "warn" : "info", cancelled ? "library-custom-name-cloud-upload-cancelled" : "library-custom-name-cloud-upload-success", cancelled ? "库自定义名称素材君云端上传已取消" : "库自定义名称素材君云端上传完成", {
           ...statsMeta(),
           dropped,
           durationMs: now() - startedAt,
@@ -1899,7 +1930,7 @@
       return;
     }
     batch.cloudFinishing = true;
-    batch.message = "正在逐条写入 Steam，云端上传同步进行";
+    batch.message = "正在写入 Steam，素材君云端上传同步进行";
     flushCloudUploads().catch(() => {});
   }
 
@@ -1915,7 +1946,7 @@
     if (!active && !dropped) {
       return;
     }
-    log("info", "library-custom-name-cloud-upload-cancel", "库自定义名称云端上传队列已取消", {
+    log("info", "library-custom-name-cloud-upload-cancel", "库自定义名称素材君云端上传队列已取消", {
       reason: reason || "cancel",
       dropped,
       ...statsMeta(),
@@ -2113,7 +2144,7 @@
     const app = cur?.app || {};
     const appid = Number(app.appid) || Number(ctx.appid) || currentAppid();
     if (!appid) {
-      oneResult("上传云端失败", "未识别当前游戏 AppID");
+      oneResult("上传素材君云端失败", "未识别当前游戏 AppID");
       return;
     }
     s.feedback = {
@@ -2173,7 +2204,7 @@
       return;
     }
     if (feedBtn) {
-      openFeedback().catch((error) => oneResult("上传云端失败", error?.message || String(error)));
+      openFeedback().catch((error) => oneResult("上传素材君云端失败", error?.message || String(error)));
       return;
     }
     openBatch();
@@ -2280,10 +2311,12 @@
   function progressLine() {
     const st = batch.stats;
     const local = `总:${st.total}，处理:${st.processed}，跳过:${st.skipped}，失败:${st.failed}`;
+    const b = batch.steamBatch;
+    const steam = b?.index ? `，Steam批次:${b.index} ${b.written}/${b.max}${b.waiting ? "，等待同步" : ""}` : "";
     if (!batch.uploadCloud) {
-      return `${local}，云端上传已关闭`;
+      return `${local}${steam}，素材君云端上传已关闭`;
     }
-    return `${local}，云端成功:${st.cloudOk}，云端失败:${st.cloudFail}，云端跳过:${st.cloudSkipped}，待传:${st.cloudPending}，批次:${st.cloudBatches}`;
+    return `${local}${steam}，素材君云端成功:${st.cloudOk}，素材君云端失败:${st.cloudFail}，素材君云端跳过:${st.cloudSkipped}，待传:${st.cloudPending}，批次:${st.cloudBatches}`;
   }
 
   function progressPct() {
@@ -2308,7 +2341,7 @@
     return `
       <div class="st-lcn-progress-panel">
         <div class="st-lcn-progress-head">
-          <h3>${summary ? "修改结果" : cloud ? "云端上传" : "保存进度"}</h3>
+          <h3>${summary ? "修改结果" : cloud ? "素材君云端上传" : "保存进度"}</h3>
         </div>
         <div class="st-lcn-progress-body">
           <div class="st-lcn-progress-msg">${esc(summary ? "修改完成" : batch.message)}</div>
@@ -2414,7 +2447,7 @@
           <div class="st-lcn-actions">
             <button class="st-lcn-btn" type="button" data-lcn-action="query" title="只获取已勾选游戏的云端名称" ${queryDisabled ? "disabled" : ""}>获取云端名称</button>
             <button class="st-lcn-btn primary" type="button" data-lcn-action="save" ${locked || !write ? "disabled" : ""}>保存修改</button>
-            <label class="st-lcn-action-option"><input type="checkbox" data-lcn-upload-cloud ${batch.uploadCloud ? "checked" : ""} ${locked ? "disabled" : ""}>上传云端</label>
+            <label class="st-lcn-action-option"><input type="checkbox" data-lcn-upload-cloud ${batch.uploadCloud ? "checked" : ""} ${locked ? "disabled" : ""}>上传素材君云端</label>
             <span class="st-lcn-tip" tabindex="0" aria-label="${attr(tip)}" title="${attr(tip)}">
               <img class="st-lcn-tip-icon" src="${attr(assetUrl("images/tip.svg"))}" alt="">
               <span class="st-lcn-tip-popover" role="tooltip">${esc(tip)}</span>
@@ -2880,10 +2913,16 @@
       });
       return;
     }
+    if (!(await confirmSteamLimit(items.length))) {
+      batch.message = previewMessage();
+      renderModal();
+      return;
+    }
     batch.saving = true;
     batch.saveStartedAt = now();
     batch.paused = false;
     batch.waitCmd = "";
+    batch.steamBatch = null;
     batch.summary = false;
     batch.cancelled = false;
     batch.progressClosed = false;
@@ -2937,7 +2976,7 @@
       logCommandStart(action);
       if (!batch.saving && batch.cloudFinishing) {
         batch.paused = action === "pause";
-        batch.message = batch.paused ? "云端上传已暂停" : "云端上传继续执行";
+        batch.message = batch.paused ? "素材君云端上传已暂停" : "素材君云端上传继续执行";
         renderProgress();
         return;
       }
@@ -2982,6 +3021,9 @@
     if (data.stats) {
       batch.stats = { ...batch.stats, ...data.stats };
     }
+    if (data.batch) {
+      batch.steamBatch = data.batch;
+    }
     if (data.action === "pause" || data.action === "resume" || data.type === "save-done") {
       batch.waitCmd = "";
     }
@@ -2997,22 +3039,29 @@
         error: data.error || "",
       });
     }
+    const b = data.batch || batch.steamBatch || {};
     batch.message = done
-      ? (batch.cloudFinishing ? "本地写入完成，正在等待云端上传完成" : "保存队列已完成")
+      ? (data.error || (batch.cloudFinishing ? "Steam 写入完成，正在等待素材君云端上传完成" : "保存队列已完成"))
       : data.action === "pause"
         ? "保存队列已暂停"
         : data.action === "resume"
           ? "保存队列继续执行"
-          : batch.cloudFinishing
-            ? "正在逐条写入 Steam，云端上传同步进行"
-            : "正在逐条写入 Steam";
+          : data.batchAction === "wait" || b.waiting
+            ? `第 ${b.index || 1} 批写入完成，等待 Steam 云同步 ${Math.ceil((Number(b.waitMs) || 0) / 1000)} 秒`
+            : b.index
+              ? `正在写入 Steam 第 ${b.index} 批 ${b.written || 0}/${b.max || 2000}${batch.cloudFinishing ? "，素材君云端上传同步进行" : ""}`
+              : batch.cloudFinishing
+                ? "正在写入 Steam，素材君云端上传同步进行"
+                : "正在写入 Steam";
 
-    const item = data.item || {};
-    const row = batch.rowMap.get(Number(item.appid));
-    if (row) {
-      row.state = item.status || row.state;
-      row.error = item.error || "";
-      refreshProgressRow(row);
+    const items = Array.isArray(data.items) ? data.items : (data.item ? [data.item] : []);
+    for (const item of items) {
+      const row = batch.rowMap.get(Number(item.appid));
+      if (row) {
+        row.state = item.status || row.state;
+        row.error = item.error || "";
+        refreshProgressRow(row);
+      }
     }
     if (done) {
       renderVisibleRows();
@@ -3104,7 +3153,7 @@
     if (upload) {
       if (!upload.checked) {
         const ok = await oneConfirm(CLOUD_CANCEL_TEXT, {
-          title: "确认关闭云端上传",
+          title: "确认关闭素材君云端上传",
           cancel: "继续上传",
           confirm: "确认关闭",
         });

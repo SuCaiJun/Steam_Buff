@@ -16,7 +16,12 @@
   const RT = "__SteamBuffLibraryCustomNameBackend";
   const SORT_TITLE_RT = "__SteamBuffLibrarySortTitle";
   const ORIG = "__RickyStOriginalName";
-  const WAIT_MS = 666;
+  const STEAM_CUSTOM_NS = 3;
+  const STEAM_OK = 1;
+  const FAST_UNAVAILABLE_TIP = "Steam 客户端已经改版，请到素材君社区反馈该问题。";
+  const BATCH_MAX = 2000;
+  const BATCH_WRITE_MS = 2000;
+  const BATCH_WAIT_MS = 5000;
   const WRITE_TIMEOUT_MS = 10000;
   const SCAN_YIELD = 2000;
   const PAGE_MAX = 1000;
@@ -94,7 +99,18 @@
       success: q?.stats?.success || 0,
       failed: q?.stats?.failed || 0,
       skipped: q?.stats?.skipped || 0,
-      intervalMs: WAIT_MS,
+      intervalMs: 0,
+      batchMax: BATCH_MAX,
+      batchWriteMs: BATCH_WRITE_MS,
+      batchWaitMs: BATCH_WAIT_MS,
+      batchIndex: q?.batchIndex || 0,
+      batchWritten: q?.batchWritten || 0,
+      batchElapsedMs: q?.batchStartedAt ? Math.max(0, now() - q.batchStartedAt) : 0,
+      batchWaiting: q?.batchWaiting === true,
+      fastBatch: q?.fast?.enabled === true,
+      fastBatchReason: q?.fast?.reason || "",
+      fastBatchSuccess: q?.fast?.success || 0,
+      fastBatchBlocked: q?.fast?.blocked || 0,
       writeAvgMs: avg,
       writeMaxMs: Math.round(q?.writeMsMax || 0),
       sortTitleBulk: q?.sortTitleBulk?.enabled === true,
@@ -116,7 +132,10 @@
         total: q.stats.total,
         count: q.items.length,
         skipped: q.stats.skipped,
-        intervalMs: WAIT_MS,
+        intervalMs: 0,
+        batchMax: BATCH_MAX,
+        batchWriteMs: BATCH_WRITE_MS,
+        batchWaitMs: BATCH_WAIT_MS,
       }) || { enabled: false, reason: "empty-result" };
     } catch (error) {
       q.sortTitleBulk = { enabled: false, reason: "failed", error: error?.message || String(error) };
@@ -152,6 +171,12 @@
   }
 
   function recordWriteMs(q, ms) {
+    const cost = Math.max(0, Number(ms) || 0);
+    q.writeMsTotal += cost;
+    q.writeMsMax = Math.max(q.writeMsMax, cost);
+  }
+
+  function recordBatchWriteMs(q, ms) {
     const cost = Math.max(0, Number(ms) || 0);
     q.writeMsTotal += cost;
     q.writeMsMax = Math.max(q.writeMsMax, cost);
@@ -355,11 +380,20 @@
       index: q.index,
       paused: q.paused,
       running: q.running,
+      batch: {
+        index: q.batchIndex || 0,
+        written: q.batchWritten || 0,
+        max: BATCH_MAX,
+        writeMs: BATCH_WRITE_MS,
+        waitMs: BATCH_WAIT_MS,
+        elapsedMs: q.batchStartedAt ? Math.max(0, now() - q.batchStartedAt) : 0,
+        waiting: q.batchWaiting === true,
+      },
       ...more,
     };
   }
 
-  // 真实写入只走 Steam 原生 SetCustomSortAs，云端 API 只负责提供候选名。
+  // 单游戏保存仍走 Steam 原生接口；批量保存只走 CloudStorage 快路径。
   async function writeOne(item) {
     const appid = Number(item?.appid);
     const name = text(item?.name);
@@ -378,6 +412,239 @@
     return { status: "success" };
   }
 
+  function fastFail(reason, error = "") {
+    return {
+      ok: false,
+      reason,
+      error,
+    };
+  }
+
+  function fastState() {
+    const store = window.appStore;
+    const state = window.cloudStorageInternalState;
+    const cloud = store?.m_cloudStorage;
+    const ns = Number(cloud?.m_eNamespace) || STEAM_CUSTOM_NS;
+    const storage = state?.m_mapStorage?.get?.(ns);
+    const callbacks = state?.m_mapChangeCallbacks?.get?.(ns);
+    if (!store || !state || !cloud) {
+      return fastFail("runtime-unavailable");
+    }
+    if (!storage || typeof storage.get !== "function" || typeof storage.set !== "function") {
+      return fastFail("storage-map-unavailable");
+    }
+    if (typeof state.GetDirtyKeysForNamespace !== "function" || typeof state.WriteNamespaceToDisk !== "function" || typeof state.ScheduleUpload !== "function") {
+      return fastFail("cloud-method-unavailable");
+    }
+    if (typeof callbacks?.Dispatch !== "function") {
+      return fastFail("change-callback-unavailable");
+    }
+    return {
+      ok: true,
+      store,
+      state,
+      ns,
+      storage,
+      callbacks,
+      dirty: state.GetDirtyKeysForNamespace(ns),
+    };
+  }
+
+  function entryCtor(storage, prepared) {
+    for (const item of prepared) {
+      if (typeof item.entry?.constructor === "function") {
+        return item.entry.constructor;
+      }
+    }
+    for (const item of storage.values()) {
+      if (typeof item?.constructor === "function") {
+        return item.constructor;
+      }
+    }
+    return null;
+  }
+
+  function parseValue(entry) {
+    try {
+      const obj = JSON.parse(entry?.value || "{}");
+      return obj && typeof obj === "object" && !Array.isArray(obj) ? obj : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function sameName(entry, name) {
+    try {
+      return parseValue(entry).sa === name;
+    } catch {
+      return false;
+    }
+  }
+
+  function canFastWriteApp(app) {
+    if (!app) {
+      return false;
+    }
+    try {
+      if (typeof app.BIsShortcut === "function" && app.BIsShortcut()) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+    return true;
+  }
+
+  function resultItem(item, status, error = "") {
+    return {
+      appid: Number(item?.appid) || 0,
+      status,
+      error,
+    };
+  }
+
+  function fastErrorMessage(result) {
+    const reason = text(result?.reason);
+    const detail = text(result?.error);
+    return detail ? `${FAST_UNAVAILABLE_TIP} (${reason}: ${detail})` : `${FAST_UNAVAILABLE_TIP}${reason ? ` (${reason})` : ""}`;
+  }
+
+  function restoreFast(storage, dirty, backups) {
+    for (const backup of backups) {
+      if (backup.hadEntry) {
+        storage.set(backup.key, backup.entry);
+      } else {
+        storage.delete(backup.key);
+      }
+      if (backup.hadDirty) {
+        dirty.add(backup.key);
+      } else {
+        dirty.delete(backup.key);
+      }
+    }
+  }
+
+  async function writeFastBatch(items) {
+    const rt = fastState();
+    if (!rt.ok) {
+      return rt;
+    }
+
+    const prepared = [];
+    const results = [];
+    let projectedSize = rt.storage.size;
+    for (const item of items) {
+      const appid = Number(item?.appid);
+      const name = text(item?.name);
+      if (!Number.isFinite(appid) || appid <= 0 || !name) {
+        results.push(resultItem(item, "skipped", "写入名称为空"));
+        continue;
+      }
+
+      const app = appById(appid);
+      if (!canFastWriteApp(app)) {
+        return fastFail("shortcut-or-app-unavailable");
+      }
+
+      const key = String(appid);
+      const entry = rt.storage.get(key);
+      if (!entry) {
+        if (projectedSize >= 10000) {
+          results.push(resultItem(item, "failed", "Steam namespace 3 自定义名称数量已达到 10000"));
+          continue;
+        }
+        projectedSize += 1;
+      }
+      if (entry && sameName(entry, name)) {
+        results.push(resultItem(item, "success"));
+        continue;
+      }
+
+      const value = parseValue(entry);
+      value.sa = name;
+      prepared.push({
+        item,
+        appid,
+        key,
+        entry,
+        value: JSON.stringify(value),
+      });
+    }
+
+    if (!prepared.length) {
+      return {
+        ok: true,
+        reason: "unchanged",
+        results,
+        changed: 0,
+        writeMs: 0,
+        scheduleMs: 0,
+      };
+    }
+
+    const Entry = entryCtor(rt.storage, prepared);
+    if (typeof Entry !== "function") {
+      return fastFail("entry-constructor-unavailable");
+    }
+
+    const backups = prepared.map((item) => ({
+      key: item.key,
+      hadEntry: rt.storage.has(item.key),
+      entry: rt.storage.get(item.key),
+      hadDirty: rt.dirty.has(item.key),
+    }));
+    const changedKeys = [];
+    const timestamp = typeof rt.state.GetCurrentTimestamp === "function" ? rt.state.GetCurrentTimestamp() : Math.floor(now() / 1000);
+    try {
+      for (const item of prepared) {
+        rt.storage.set(item.key, new Entry(item.key, timestamp, false, item.value));
+        rt.dirty.add(item.key);
+        changedKeys.push(item.key);
+      }
+
+      const writeStarted = now();
+      const writeResult = await withTimeout(rt.state.WriteNamespaceToDisk(rt.ns, true), WRITE_TIMEOUT_MS, "Steam CloudStorage 批量写盘超时");
+      const writeMs = now() - writeStarted;
+      if (writeResult !== STEAM_OK) {
+        restoreFast(rt.storage, rt.dirty, backups);
+        return fastFail("write-namespace-failed", `Steam CloudStorage 写盘失败: ${writeResult}`);
+      }
+
+      const scheduleStarted = now();
+      try {
+        rt.callbacks.Dispatch(rt.ns, changedKeys);
+      } catch (error) {
+        log("warn", "library-custom-name-save-queue-fast-callback-failed", "库自定义名称快速写入已落盘但刷新回调失败", {
+          changed: changedKeys.length,
+          error: error?.message || String(error),
+        });
+      }
+      try {
+        rt.state.ScheduleUpload();
+      } catch (error) {
+        log("warn", "library-custom-name-save-queue-fast-upload-failed", "库自定义名称快速写入已落盘但上传调度失败", {
+          changed: changedKeys.length,
+          error: error?.message || String(error),
+        });
+      }
+      const scheduleMs = now() - scheduleStarted;
+      for (const item of prepared) {
+        results.push(resultItem(item.item, "success"));
+      }
+      return {
+        ok: true,
+        reason: "fast",
+        results,
+        changed: changedKeys.length,
+        writeMs,
+        scheduleMs,
+      };
+    } catch (error) {
+      restoreFast(rt.storage, rt.dirty, backups);
+      return fastFail("fast-write-failed", error?.message || String(error));
+    }
+  }
+
   async function saveOne(rt, rid, item) {
     try {
       const result = await writeOne(item);
@@ -387,13 +654,100 @@
     }
   }
 
-  // 保存队列必须串行执行，给 Steam 客户端留出同步时间，暂停/取消也只在两项之间生效。
+  function startBatch(rt, q) {
+    q.batchIndex += 1;
+    q.batchWritten = 0;
+    q.batchStartedAt = now();
+    q.batchWaiting = false;
+    log("info", "library-custom-name-save-queue-batch-start", "库自定义名称保存队列批次开始", statsMeta(q));
+    post(rt.ch, { type: "save-progress", ...stat(q, { batchAction: "start" }) });
+  }
+
+  function batchExpired(q) {
+    if (!q.batchStartedAt) {
+      return false;
+    }
+    return q.batchWritten >= BATCH_MAX || now() - q.batchStartedAt >= BATCH_WRITE_MS;
+  }
+
+  async function waitNextBatch(rt, q) {
+    q.batchWaiting = true;
+    log("info", "library-custom-name-save-queue-batch-wait", "库自定义名称保存队列等待 Steam 云同步窗口", statsMeta(q));
+    post(rt.ch, { type: "save-progress", ...stat(q, { batchAction: "wait" }) });
+    await waitQueue(q, BATCH_WAIT_MS);
+    q.batchWaiting = false;
+  }
+
+  function applyResult(q, result) {
+    if (result.status === "skipped") {
+      q.stats.skipped += 1;
+    } else if (result.status === "failed") {
+      q.stats.failed += 1;
+      q.stats.uploadFail += 1;
+    } else {
+      q.stats.success += 1;
+      q.stats.uploadOk += 1;
+    }
+    q.stats.processed += 1;
+    q.batchWritten += 1;
+  }
+
+  async function processFastBatch(rt, q) {
+    const items = q.items.slice(q.index, Math.min(q.items.length, q.index + BATCH_MAX));
+    if (!items.length) {
+      return false;
+    }
+    const started = now();
+    const result = await writeFastBatch(items);
+    if (!result.ok) {
+      q.fast.blocked += 1;
+      q.fast.reason = result.reason || "unknown";
+      const message = fastErrorMessage(result);
+      log("error", "library-custom-name-save-queue-fast-unavailable", "库自定义名称快速写入不可用，保存队列已中止", {
+        ...statsMeta(q),
+        reason: q.fast.reason,
+        error: result.error || "",
+        count: items.length,
+      });
+      throw new Error(message);
+    }
+
+    const results = Array.isArray(result.results) ? result.results : [];
+    q.fast.enabled = true;
+    q.fast.success += 1;
+    q.fast.reason = result.reason || "fast";
+    recordBatchWriteMs(q, result.writeMs || (now() - started));
+    for (const item of results) {
+      applyResult(q, item);
+    }
+    q.index += items.length;
+    log("info", "library-custom-name-save-queue-fast-batch", "库自定义名称快速批量写入完成", {
+      ...statsMeta(q),
+      count: items.length,
+      changed: result.changed || 0,
+      writeMs: Math.round(result.writeMs || 0),
+      scheduleMs: Math.round(result.scheduleMs || 0),
+      reason: result.reason || "",
+    });
+    logProgress(q);
+    post(rt.ch, {
+      type: "save-progress",
+      ...stat(q, {
+        batchAction: "fast",
+        items: results,
+      }),
+    });
+    return true;
+  }
+
+  // 保存队列保持串行写入，但按 Steam CloudStorage 的 dirty key 合并节奏分批执行。
   async function runQueue(rt, q) {
     if (q.stats.skipped > 0) {
       post(rt.ch, { type: "save-progress", ...stat(q, {}) });
     }
     let doneReason = "done";
-    for (q.index = 0; q.index < q.items.length; q.index += 1) {
+    startBatch(rt, q);
+    while (q.index < q.items.length) {
       while (q.paused && !q.cancelled) {
         await sleep(200);
       }
@@ -401,48 +755,28 @@
         doneReason = "cancelled";
         break;
       }
-
-      const item = q.items[q.index] || {};
-      let result;
-      const writeStarted = now();
-      try {
-        result = await writeOne(item);
-        recordWriteMs(q, now() - writeStarted);
-        if (result.status === "skipped") {
-          q.stats.skipped += 1;
-        } else {
-          q.stats.success += 1;
-          q.stats.uploadOk += 1;
+      if (q.batchWritten > 0 && batchExpired(q)) {
+        await waitNextBatch(rt, q);
+        if (q.cancelled) {
+          doneReason = "cancelled";
+          break;
         }
-      } catch (error) {
-        result = {
-          status: "failed",
-          error: error?.message || String(error),
-        };
-        recordWriteMs(q, now() - writeStarted);
-        q.stats.failed += 1;
-        q.stats.uploadFail += 1;
+        startBatch(rt, q);
       }
 
-      q.stats.processed += 1;
-      logProgress(q);
-      post(rt.ch, {
-        type: "save-progress",
-        ...stat(q, {
-          item: {
-            appid: Number(item.appid) || 0,
-            status: result.status,
-            error: result.error || "",
-          },
-        }),
-      });
+      await processFastBatch(rt, q);
 
       if (q.cancelled) {
         doneReason = "cancelled";
         break;
       }
-      if (q.index < q.items.length - 1) {
-        await waitQueue(q, WAIT_MS);
+      if (q.index < q.items.length - 1 && batchExpired(q)) {
+        await waitNextBatch(rt, q);
+        if (q.cancelled) {
+          doneReason = "cancelled";
+          break;
+        }
+        startBatch(rt, q);
       }
     }
 
@@ -483,6 +817,16 @@
       writeMsTotal: 0,
       writeMsMax: 0,
       progressLogged: 0,
+      batchIndex: 0,
+      batchWritten: 0,
+      batchStartedAt: 0,
+      batchWaiting: false,
+      fast: {
+        enabled: false,
+        reason: "",
+        success: 0,
+        blocked: 0,
+      },
       sortTitleBulk: { enabled: false, reason: "not-started" },
     };
     rt.q = q;
@@ -491,7 +835,10 @@
       total: q.stats.total,
       count: list.length,
       skipped: skip,
-      intervalMs: WAIT_MS,
+      intervalMs: 0,
+      batchMax: BATCH_MAX,
+      batchWriteMs: BATCH_WRITE_MS,
+      batchWaitMs: BATCH_WAIT_MS,
       sortTitleBulk: q.sortTitleBulk?.enabled === true,
       sortTitleBulkReason: q.sortTitleBulk?.reason || "",
     });

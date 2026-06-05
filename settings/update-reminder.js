@@ -300,6 +300,10 @@
     if (!info?.hasNew || await api.isMuted(info)) {
       return;
     }
+    info = {
+      ...info,
+      latest: typeof api.withDetail === "function" ? await api.withDetail(info.latest || {}) : (info.latest || {}),
+    };
     await ready();
     if (document.getElementById(ROOT)) {
       return;
