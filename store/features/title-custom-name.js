@@ -31,20 +31,22 @@
   const NOTE_MAX = 2000;
   const NAME_BATCH_SIZE = 80;
   const STYLE_ID = "st-title-custom-name-style";
+  const STYLE_VERSION = "wishlist-label-v2";
   const HOST_ID = "st-title-custom-name";
   const MODAL_ID = "st-title-custom-name-modal";
   const TOAST_ID = "st-title-custom-name-toast";
   const TITLE_SEL = ".apphub_AppName, .apphub_AppName_responsive, h1";
-  const WISHLIST_LIST_SEL = ".PU7fdVEQB8s-.Panel, #wishlist_ctn, #wishlist_list";
-  const WISHLIST_ROW_SEL = "[data-index], .wishlist_row";
   const RETRY_MS = 300;
   const RETRY_MAX = 30;
 
   const { text, shouldShowName } = core;
+  const wishlistDom = api.wishlistDom;
   let state = null;
   let observer = null;
   let wishlistObserver = null;
   let wishlistTimer = 0;
+  let renderingWishlist = false;
+  let pendingWishlistRender = false;
   let started = false;
   let tries = 0;
   let refreshSeq = 0;
@@ -135,9 +137,14 @@
   }
 
   function addStyle() {
-    if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
+    let style = document.getElementById(STYLE_ID);
+    if (style?.dataset.version === STYLE_VERSION) return;
+    if (!style) {
+      style = document.createElement("style");
+      style.id = STYLE_ID;
+      document.head.appendChild(style);
+    }
+    style.dataset.version = STYLE_VERSION;
     style.textContent = `
       #${HOST_ID},
       .st-title-custom-name-wishlist {
@@ -156,10 +163,22 @@
         line-height: 1;
         font-weight: 400;
       }
+      #${HOST_ID}[data-label]::before,
+      .st-title-custom-name-wishlist[data-label]::before {
+        content: attr(data-label);
+        color: rgba(199, 213, 224, .78);
+        line-height: 1;
+        font-weight: 400;
+      }
+      #${HOST_ID}[data-label]::before {
+        font-size: 20px;
+      }
       .st-title-custom-name-wishlist {
         margin-left: 7px;
         vertical-align: 1px;
+        flex-wrap: nowrap;
       }
+      .st-title-custom-name-wishlist[data-label]::before,
       .st-title-custom-name-wishlist .st-title-custom-name-label {
         color: rgba(199, 213, 224, .78);
         font-size: 14px;
@@ -521,7 +540,6 @@
         font-size: 13px;
       }
     `;
-    document.head.appendChild(style);
   }
 
   function ensureHost(title) {
@@ -547,15 +565,17 @@
   }
 
   function renderNameHost(host, appid, item, steamTitle, mode) {
-    const label = shouldShowName(item, steamTitle)
-      ? `<span class="st-title-custom-name-label">[${esc(item.name)}]</span>`
-      : "";
+    const visibleName = shouldShowName(item, steamTitle) ? text(item?.name) : "";
+    const label = visibleName ? `[${visibleName}]` : "";
     const key = JSON.stringify([appid, text(item?.name), text(item?.name_source), steamTitle, mode]);
-    if (host._stTitleCustomNameKey === key && host.querySelector(".st-title-custom-name-btn")) {
+    const labelReady = (host.dataset.label || "") === label;
+    if (host._stTitleCustomNameKey === key && host.querySelector(".st-title-custom-name-btn") && labelReady) {
       return;
     }
     host._stTitleCustomNameKey = key;
-    host.innerHTML = `${label}<button class="st-title-custom-name-btn" type="button">编辑</button>`;
+    if (label) host.dataset.label = label;
+    else delete host.dataset.label;
+    host.innerHTML = `<button class="st-title-custom-name-btn" type="button">编辑</button>`;
     host.querySelector("button")?.addEventListener("click", event => {
       event.preventDefault();
       event.stopPropagation();
@@ -1015,67 +1035,45 @@
     }
   }
 
-  function appidFromHref(value) {
-    const match = String(value || "").match(/\/app\/(\d+)/);
-    return match ? Number(match[1]) || 0 : 0;
+  function wishlistRows() {
+    return wishlistDom?.rows?.(document) || [];
   }
 
   function rowAppid(row) {
-    const link = row?.querySelector?.("a[href*='/app/']");
-    return appidFromHref(link?.href || link?.getAttribute?.("href") || "");
-  }
-
-  function wishlistTitleCandidates(row) {
-    if (!row?.querySelectorAll) return [];
-    return Array.from(row.querySelectorAll(".pOyXxbQoV38-, .title, .contenthub_featured_item_title, a[href*='/app/']"));
-  }
-
-  function wishlistTitleText(node) {
-    const own = Array.from(node?.childNodes || [])
-      .filter(child => child.nodeType === 3)
-      .map(child => child.textContent || "")
-      .join(" ");
-    return text(own) || text(node?.getAttribute?.("title") || node?.textContent || "");
-  }
-
-  function isWishlistTextTitle(node) {
-    return node instanceof HTMLElement
-      && wishlistTitleText(node)
-      && !node.querySelector?.("img");
+    return wishlistDom?.rowAppid?.(row) || 0;
   }
 
   function wishlistTitleNode(row) {
-    const candidates = wishlistTitleCandidates(row);
-    return candidates.find(isWishlistTextTitle)
-      || candidates.find(node => node instanceof HTMLElement && wishlistTitleText(node))
-      || null;
+    return wishlistDom?.titleNode?.(row) || null;
   }
 
   function wishlistTitleHost(row) {
-    const title = wishlistTitleNode(row);
-    return title?.parentElement || null;
+    return wishlistDom?.titleHost?.(row) || null;
   }
 
   function steamTitleFromRow(row) {
     const title = wishlistTitleNode(row);
-    return text(title?.textContent || title?.getAttribute?.("title") || "");
+    return wishlistDom?.titleText?.(title) || text(title?.textContent || title?.getAttribute?.("title") || "");
   }
 
   function ensureWishlistHost(row) {
     const title = wishlistTitleNode(row);
-    if (!title) return null;
-    let host = title.querySelector(":scope > .st-title-custom-name-wishlist")
+    const parent = wishlistTitleHost(row);
+    if (!title || !parent) return null;
+    let host = parent.querySelector(":scope > .st-title-custom-name-wishlist")
       || row.querySelector(".st-title-custom-name-wishlist");
     if (!host) {
       host = document.createElement("span");
       host.className = "st-title-custom-name-wishlist";
     }
-    title.appendChild(host);
+    if (host.previousElementSibling !== title || host.parentElement !== parent) {
+      title.insertAdjacentElement("afterend", host);
+    }
     return host;
   }
 
   function renderWishlistName(appid) {
-    document.querySelectorAll(WISHLIST_ROW_SEL).forEach(row => {
+    wishlistRows().forEach(row => {
       if (rowAppid(row) !== Number(appid)) return;
       const host = ensureWishlistHost(row);
       if (!host) return;
@@ -1085,22 +1083,36 @@
 
   async function renderWishlistRows() {
     if (!isWishlistPath()) return false;
-    const seq = refreshSeq;
-    addStyle();
-    const rows = Array.from(document.querySelectorAll(WISHLIST_ROW_SEL));
-    const appids = [];
-    for (const row of rows) {
-      const appid = rowAppid(row);
-      if (!appid) continue;
-      appids.push(appid);
-      const host = ensureWishlistHost(row);
-      if (!host) continue;
-      renderNameHost(host, appid, nameCache.get(appid) || null, steamTitleFromRow(row), "wishlist");
+    if (renderingWishlist) {
+      pendingWishlistRender = true;
+      return false;
     }
-    await batchFetchWishlistNames(appids);
-    if (seq !== refreshSeq || !started || !api.settings?.on?.(FEATURE_ID)) return false;
-    appids.forEach(renderWishlistName);
-    return true;
+    renderingWishlist = true;
+    pendingWishlistRender = false;
+    const seq = refreshSeq;
+    try {
+      addStyle();
+      const rows = wishlistRows();
+      const appids = [];
+      for (const row of rows) {
+        const appid = rowAppid(row);
+        if (!appid) continue;
+        appids.push(appid);
+        const host = ensureWishlistHost(row);
+        if (!host) continue;
+        renderNameHost(host, appid, nameCache.get(appid) || null, steamTitleFromRow(row), "wishlist");
+      }
+      await batchFetchWishlistNames(appids);
+      if (seq !== refreshSeq || !started || !api.settings?.on?.(FEATURE_ID)) return false;
+      appids.forEach(renderWishlistName);
+      return true;
+    } finally {
+      renderingWishlist = false;
+      if (pendingWishlistRender && started && api.settings?.on?.(FEATURE_ID)) {
+        pendingWishlistRender = false;
+        scheduleWishlistRender();
+      }
+    }
   }
 
   function scheduleWishlistRender() {
@@ -1112,7 +1124,7 @@
 
   function startWishlist() {
     if (!isWishlistPath()) return false;
-    const container = document.querySelector(WISHLIST_LIST_SEL) || document.body;
+    const container = wishlistDom?.listContainer?.() || document.body;
     renderWishlistRows().catch(() => {});
     if (!wishlistObserver) {
       wishlistObserver = new MutationObserver(() => scheduleWishlistRender());

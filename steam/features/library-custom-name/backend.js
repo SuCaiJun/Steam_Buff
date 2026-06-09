@@ -18,7 +18,6 @@
   const ORIG = "__RickyStOriginalName";
   const STEAM_CUSTOM_NS = 3;
   const STEAM_OK = 1;
-  const FAST_UNAVAILABLE_TIP = "Steam 客户端已经改版，请到素材君社区反馈该问题。";
   const BATCH_MAX = 2000;
   const BATCH_WRITE_MS = 2000;
   const BATCH_WAIT_MS = 5000;
@@ -113,6 +112,9 @@
       fastBatchReason: q?.fast?.reason || "",
       fastBatchSuccess: q?.fast?.success || 0,
       fastBatchBlocked: q?.fast?.blocked || 0,
+      fastBatchBootstrap: q?.fast?.bootstrap || 0,
+      fastBatchFallback: q?.fast?.fallback || 0,
+      fastBatchFallbackPrompting: q?.fast?.fallbackPrompting === true,
       writeAvgMs: avg,
       writeMaxMs: Math.round(q?.writeMsMax || 0),
       sortTitleBulk: q?.sortTitleBulk?.enabled === true,
@@ -188,7 +190,7 @@
       const changes = (Array.isArray(items) ? items : [])
         .filter(item => ok.has(Number(item?.appid)))
         .map(item => ({ appid: Number(item.appid), name: text(item.name) }))
-        .filter(item => item.appid > 0 && item.name);
+        .filter(item => item.appid > 0);
       if (!changes.length) {
         return null;
       }
@@ -210,7 +212,8 @@
     for (const item of Array.isArray(items) ? items : []) {
       const appid = Number(item?.appid);
       const name = text(item?.name);
-      if (!ok.has(appid) || !name) {
+      const clear = item?.mode === "clear";
+      if (!ok.has(appid) || (!name && !clear)) {
         continue;
       }
       const app = appById(appid);
@@ -218,13 +221,25 @@
         continue;
       }
       try {
-        if (!app.original_sort_as && typeof app.sort_as === "string") {
-          app.original_sort_as = app.sort_as;
+        if (clear) {
+          app.custom_sort_as_display = "";
+          if (typeof app.original_sort_as === "string" && app.original_sort_as) {
+            app.sort_as = app.original_sort_as;
+          } else if (typeof app[ORIG] === "string" && app[ORIG]) {
+            app.sort_as = app[ORIG].toLocaleLowerCase();
+          } else if (typeof app.display_name === "string" && app.display_name) {
+            app.sort_as = app.display_name.toLocaleLowerCase();
+          }
+          app.original_sort_as = undefined;
+        } else {
+          if (!app.original_sort_as && typeof app.sort_as === "string") {
+            app.original_sort_as = app.sort_as;
+          }
+          app.custom_sort_as_display = name;
+          app.sort_as = name.toLocaleLowerCase();
         }
-        app.custom_sort_as_display = name;
-        app.sort_as = name.toLocaleLowerCase();
         if (Object.prototype.hasOwnProperty.call(app, "has_custom_sort_as")) {
-          app.has_custom_sort_as = true;
+          app.has_custom_sort_as = !clear;
         }
         synced += 1;
       } catch {
@@ -466,6 +481,9 @@
     const appid = Number(item?.appid);
     const name = text(item?.name);
     const store = window.appStore;
+    if (item?.mode === "clear") {
+      return { status: "failed", error: "清空自定义排序名称需要 Steam CloudStorage 快速写入支持" };
+    }
     if (!Number.isFinite(appid) || appid <= 0 || !name) {
       return { status: "skipped", error: "写入名称为空" };
     }
@@ -510,6 +528,7 @@
     return {
       ok: true,
       store,
+      cloud,
       state,
       ns,
       storage,
@@ -569,15 +588,25 @@
     return out;
   }
 
+  function entryDeleted(entry, key) {
+    const out = entryPlain(entry, key, "");
+    out.is_deleted = true;
+    out.value = "";
+    return out;
+  }
+
   function storagePairs(storage, replacements = null) {
     const pairs = [];
     for (const [rawKey, entry] of storage.entries()) {
       const key = String(rawKey);
+      if (replacements?.has(key) && !replacements.get(key)) {
+        continue;
+      }
       pairs.push([key, replacements?.has(key) ? replacements.get(key) : entry]);
     }
     if (replacements) {
       for (const [key, entry] of replacements.entries()) {
-        if (!storage.has(key)) {
+        if (entry && !storage.has(key)) {
           pairs.push([key, entry]);
         }
       }
@@ -615,14 +644,20 @@
     for (const item of Array.isArray(items) ? items : []) {
       const appid = Number(item?.appid);
       const name = text(item?.name);
-      if (!Number.isFinite(appid) || appid <= 0 || !name) {
+      const clear = item?.mode === "clear";
+      if (!Number.isFinite(appid) || appid <= 0 || (!name && !clear)) {
         continue;
       }
       const key = String(appid);
-      const entry = replacements.get(key) || rt.storage.get(key);
+      const entry = replacements.has(key) ? replacements.get(key) : rt.storage.get(key);
       const value = parseValue(entry);
-      value.sa = name;
-      replacements.set(key, entryPlain(entry, key, JSON.stringify(value)));
+      if (clear) {
+        delete value.sa;
+        replacements.set(key, Object.keys(value).length ? entryPlain(entry, key, JSON.stringify(value)) : entryDeleted(entry, key));
+      } else {
+        value.sa = name;
+        replacements.set(key, entryPlain(entry, key, JSON.stringify(value)));
+      }
       pendingCount += 1;
     }
 
@@ -643,16 +678,90 @@
 
   function entryCtor(storage, prepared) {
     for (const item of prepared) {
-      if (typeof item.entry?.constructor === "function") {
-        return item.entry.constructor;
+      const Entry = item.entry?.constructor;
+      if (isEntryCtor(Entry)) {
+        return Entry;
       }
     }
     for (const item of storage.values()) {
-      if (typeof item?.constructor === "function") {
-        return item.constructor;
+      const Entry = item?.constructor;
+      if (isEntryCtor(Entry)) {
+        return Entry;
       }
     }
     return null;
+  }
+
+  /* StorageEntry 冷启动：Steam 未暴露构造器，只能校验已有实例或由官方写入入口引导创建。 */
+  function isEntryCtor(Entry) {
+    if (typeof Entry !== "function" || Entry === Object) {
+      return false;
+    }
+    try {
+      const key = "__steam_buff_entry_probe__";
+      const value = "{}";
+      const sample = new Entry(key, Math.floor(now() / 1000), false, value);
+      return !!sample &&
+        sample.key === key &&
+        sample.value === value &&
+        typeof sample.timestamp === "number" &&
+        typeof sample.ToProto === "function";
+    } catch {
+    }
+    return false;
+  }
+
+  /* 首条官方引导：namespace 3 为空时先写本批第一条，剩余项目继续复用批量一次写盘。 */
+  async function bootstrapEntryCtor(rt, prepared) {
+    const seedIndex = Array.isArray(prepared) ? prepared.findIndex(item => !item?.deleteEntry) : -1;
+    const seed = seedIndex >= 0 ? prepared[seedIndex] : null;
+    if (!seed) {
+      return fastFail("entry-bootstrap-empty");
+    }
+
+    const started = now();
+    try {
+      if (typeof rt.cloud?.StoreObject === "function") {
+        await withTimeout(
+          rt.cloud.StoreObject(seed.key, parseValue({ value: seed.value })),
+          WRITE_TIMEOUT_MS,
+          "Steam CloudStorage Entry 引导写入超时",
+        );
+      } else if (typeof rt.state?.Upsert === "function") {
+        const ret = await withTimeout(
+          rt.state.Upsert(rt.ns, seed.key, seed.value),
+          WRITE_TIMEOUT_MS,
+          "Steam CloudStorage Entry 引导写入超时",
+        );
+        if (ret !== STEAM_OK) {
+          return fastFail("entry-bootstrap-failed", `Steam CloudStorage Entry 引导写入失败: ${ret}`);
+        }
+      } else {
+        return fastFail("entry-bootstrap-unavailable");
+      }
+
+      const entry = rt.storage.get(seed.key);
+      const Entry = entry?.constructor;
+      if (!isEntryCtor(Entry)) {
+        return fastFail("entry-bootstrap-no-constructor");
+      }
+
+      const writeMs = now() - started;
+      log("info", "library-custom-name-save-queue-fast-bootstrap", "库自定义名称快速写入已引导 Steam StorageEntry", {
+        appid: seed.appid,
+        writeMs,
+      });
+      return {
+        ok: true,
+        Entry,
+        item: seed.item,
+        seedIndex,
+        changed: 1,
+        writeMs,
+      };
+    } catch (error) {
+      return fastFail("entry-bootstrap-failed", error?.message || String(error));
+    }
   }
 
   function parseValue(entry) {
@@ -689,15 +798,10 @@
   function resultItem(item, status, error = "") {
     return {
       appid: Number(item?.appid) || 0,
+      mode: item?.mode === "clear" ? "clear" : "save",
       status,
       error,
     };
-  }
-
-  function fastErrorMessage(result) {
-    const reason = text(result?.reason);
-    const detail = text(result?.error);
-    return detail ? `${FAST_UNAVAILABLE_TIP} (${reason}: ${detail})` : `${FAST_UNAVAILABLE_TIP}${reason ? ` (${reason})` : ""}`;
   }
 
   function restoreFast(storage, dirty, backups) {
@@ -727,7 +831,8 @@
     for (const item of items) {
       const appid = Number(item?.appid);
       const name = text(item?.name);
-      if (!Number.isFinite(appid) || appid <= 0 || !name) {
+      const clear = item?.mode === "clear";
+      if (!Number.isFinite(appid) || appid <= 0 || (!name && !clear)) {
         results.push(resultItem(item, "skipped", "写入名称为空"));
         continue;
       }
@@ -739,6 +844,27 @@
 
       const key = String(appid);
       const entry = rt.storage.get(key);
+      if (clear) {
+        if (!entry) {
+          results.push(resultItem(item, "success"));
+          continue;
+        }
+        const value = parseValue(entry);
+        if (!Object.prototype.hasOwnProperty.call(value, "sa")) {
+          results.push(resultItem(item, "success"));
+          continue;
+        }
+        delete value.sa;
+        prepared.push({
+          item,
+          appid,
+          key,
+          entry,
+          deleteEntry: Object.keys(value).length === 0,
+          value: JSON.stringify(value),
+        });
+        continue;
+      }
       if (!entry) {
         if (projectedSize >= STEAM_CUSTOM_LIMIT) {
           results.push(resultItem(item, "failed", "Steam namespace 3 自定义名称数量已达到 10000"));
@@ -773,9 +899,30 @@
       };
     }
 
-    const Entry = entryCtor(rt.storage, prepared);
-    if (typeof Entry !== "function") {
-      return fastFail("entry-constructor-unavailable");
+    let bootstrap = null;
+    let Entry = entryCtor(rt.storage, prepared);
+    if (!isEntryCtor(Entry)) {
+      bootstrap = await bootstrapEntryCtor(rt, prepared);
+      if (!bootstrap.ok) {
+        return bootstrap.reason === "entry-bootstrap-empty"
+          ? fastFail("entry-constructor-unavailable")
+          : bootstrap;
+      }
+      Entry = bootstrap.Entry;
+      prepared.splice(bootstrap.seedIndex, 1);
+      results.push(resultItem(bootstrap.item, "success"));
+    }
+
+    if (!prepared.length) {
+      return {
+        ok: true,
+        reason: bootstrap ? "bootstrap" : "unchanged",
+        results,
+        changed: bootstrap?.changed || 0,
+        writeMs: bootstrap?.writeMs || 0,
+        scheduleMs: 0,
+        bootstrapped: !!bootstrap,
+      };
     }
 
     const backups = prepared.map((item) => ({
@@ -788,7 +935,11 @@
     const timestamp = typeof rt.state.GetCurrentTimestamp === "function" ? rt.state.GetCurrentTimestamp() : Math.floor(now() / 1000);
     try {
       for (const item of prepared) {
-        rt.storage.set(item.key, new Entry(item.key, timestamp, false, item.value));
+        if (item.deleteEntry) {
+          rt.storage.set(item.key, new Entry(item.key, timestamp, true, ""));
+        } else {
+          rt.storage.set(item.key, new Entry(item.key, timestamp, false, item.value));
+        }
         rt.dirty.add(item.key);
         changedKeys.push(item.key);
       }
@@ -824,11 +975,12 @@
       }
       return {
         ok: true,
-        reason: "fast",
+        reason: bootstrap ? "bootstrap-fast" : "fast",
         results,
-        changed: changedKeys.length,
-        writeMs,
+        changed: changedKeys.length + (bootstrap?.changed || 0),
+        writeMs: writeMs + (bootstrap?.writeMs || 0),
         scheduleMs,
+        bootstrapped: !!bootstrap,
       };
     } catch (error) {
       restoreFast(rt.storage, rt.dirty, backups);
@@ -883,7 +1035,95 @@
     q.batchWritten += 1;
   }
 
+  /* 快路径降级兜底：内部结构不可用时保留 SetCustomSortAs，避免整批 0 写入。 */
+  async function processOne(rt, q, item) {
+    let result;
+    const writeStarted = now();
+    try {
+      result = await writeOne(item);
+      recordWriteMs(q, now() - writeStarted);
+      result = resultItem(item, result.status, result.error || "");
+    } catch (error) {
+      recordWriteMs(q, now() - writeStarted);
+      result = resultItem(item, "failed", error?.message || String(error));
+    }
+
+    applyResult(q, result);
+    logProgress(q);
+    post(rt.ch, {
+      type: "save-progress",
+      ...stat(q, {
+        item: result,
+      }),
+    });
+  }
+
+  function disableFastForFallback(q) {
+    if (q.fast.reason === "shortcut-or-app-unavailable") {
+      q.fast.disabledBatch = q.batchIndex;
+    } else {
+      q.fast.disabledAll = true;
+    }
+  }
+
+  /* 旧版写入极慢，只有 UI 明确确认后才退回 SetCustomSortAs，避免用户误触后长时间卡队列。 */
+  async function waitFastFallbackConfirm(rt, q, result, items) {
+    q.fast.fallback += 1;
+    q.fast.reason = result.reason || "unknown";
+    q.fast.error = result.error || "";
+    if (q.fast.lastReason !== q.fast.reason) {
+      q.fast.lastReason = q.fast.reason;
+      log("warn", "library-custom-name-save-queue-fast-fallback", "库自定义名称快速写入不可用，等待确认是否使用 Steam 原生单条写入", {
+        ...statsMeta(q),
+        reason: q.fast.reason,
+        error: q.fast.error,
+        count: items.length,
+      });
+    }
+    if (q.fast.fallbackAccepted) {
+      return true;
+    }
+
+    q.fast.fallbackPrompting = true;
+    q.fast.fallbackDecision = "";
+    q.fast.fallbackPromptSeq = (q.fast.fallbackPromptSeq || 0) + 1;
+    post(rt.ch, {
+      type: "save-progress",
+      ...stat(q, {
+        batchAction: "fallback-prompt",
+        fallbackPrompt: true,
+        fallbackPromptSeq: q.fast.fallbackPromptSeq,
+        fallbackReason: q.fast.reason,
+        fallbackError: q.fast.error,
+      }),
+    });
+
+    while (q.fast.fallbackPrompting && !q.cancelled) {
+      await sleep(200);
+    }
+    if (q.cancelled || q.fast.fallbackDecision !== "confirm") {
+      q.cancelled = true;
+      log("info", "library-custom-name-save-queue-fast-fallback-declined", "用户已取消库自定义名称旧版慢速写入回退", {
+        ...statsMeta(q),
+        reason: q.fast.reason,
+        error: q.fast.error,
+      });
+      return false;
+    }
+
+    q.fast.fallbackAccepted = true;
+    log("warn", "library-custom-name-save-queue-fast-fallback-confirmed", "用户已确认库自定义名称旧版慢速写入回退", {
+      ...statsMeta(q),
+      reason: q.fast.reason,
+      error: q.fast.error,
+    });
+    return true;
+  }
+
   async function processFastBatch(rt, q) {
+    if (q.fast.disabledAll || q.fast.disabledBatch === q.batchIndex) {
+      return false;
+    }
     const items = q.items.slice(q.index, Math.min(q.items.length, q.index + BATCH_MAX));
     if (!items.length) {
       return false;
@@ -891,20 +1131,17 @@
     const started = now();
     const result = await writeFastBatch(items);
     if (!result.ok) {
-      q.fast.blocked += 1;
-      q.fast.reason = result.reason || "unknown";
-      const message = fastErrorMessage(result);
-      log("error", "library-custom-name-save-queue-fast-unavailable", "库自定义名称快速写入不可用，保存队列已中止", {
-        ...statsMeta(q),
-        reason: q.fast.reason,
-        error: result.error || "",
-        count: items.length,
-      });
-      throw new Error(message);
+      const accepted = await waitFastFallbackConfirm(rt, q, result, items);
+      if (!accepted) {
+        return "cancelled";
+      }
+      disableFastForFallback(q);
+      return false;
     }
 
     const results = Array.isArray(result.results) ? result.results : [];
     q.fast.enabled = true;
+    q.fast.bootstrap += result.bootstrapped ? 1 : 0;
     q.fast.success += 1;
     q.fast.reason = result.reason || "fast";
     recordBatchWriteMs(q, result.writeMs || (now() - started));
@@ -957,7 +1194,16 @@
         startBatch(rt, q);
       }
 
-      await processFastBatch(rt, q);
+      const fast = await processFastBatch(rt, q);
+      if (fast === "cancelled") {
+        doneReason = "cancelled";
+        break;
+      }
+      if (!fast) {
+        const item = q.items[q.index] || {};
+        await processOne(rt, q, item);
+        q.index += 1;
+      }
 
       if (q.cancelled) {
         doneReason = "cancelled";
@@ -1017,8 +1263,18 @@
       fast: {
         enabled: false,
         reason: "",
+        lastReason: "",
+        disabledAll: false,
+        disabledBatch: 0,
         success: 0,
         blocked: 0,
+        bootstrap: 0,
+        fallback: 0,
+        fallbackAccepted: false,
+        fallbackPrompting: false,
+        fallbackDecision: "",
+        fallbackPromptSeq: 0,
+        error: "",
       },
       sortTitleBulk: { enabled: false, reason: "not-started" },
     };
@@ -1053,7 +1309,7 @@
     });
   }
 
-  // UI 的暂停/继续/取消通过 BroadcastChannel 到后台队列，执行结果再回传进度弹窗。
+  // UI 的暂停/继续/取消和旧版回退确认通过 BroadcastChannel 到后台队列，执行结果再回传进度弹窗。
   function command(rt, rid, action) {
     const q = rt.q;
     if (!q?.running) {
@@ -1068,6 +1324,19 @@
       rt.queueSeq += 1;
       q.cancelled = true;
       q.paused = false;
+      if (q.fast) {
+        q.fast.fallbackPrompting = false;
+        q.fast.fallbackDecision = "cancel";
+      }
+    } else if (action === "fallback-confirm") {
+      q.fast.fallbackDecision = "confirm";
+      q.fast.fallbackPrompting = false;
+    } else if (action === "fallback-cancel") {
+      rt.queueSeq += 1;
+      q.cancelled = true;
+      q.paused = false;
+      q.fast.fallbackDecision = "cancel";
+      q.fast.fallbackPrompting = false;
     }
     post(rt.ch, { type: "cmd-result", rid, ok: true, action, stats: { ...q.stats } });
     post(rt.ch, { type: "save-progress", ...stat(q, { action }) });
@@ -1128,7 +1397,7 @@
           saveOne(rt, rid, { appid: data.appid, name: data.name });
           return;
         }
-        if (data.type === "pause" || data.type === "resume" || data.type === "cancel") {
+        if (data.type === "pause" || data.type === "resume" || data.type === "cancel" || data.type === "fallback-confirm" || data.type === "fallback-cancel") {
           command(rt, rid, data.type);
         }
       },

@@ -29,11 +29,10 @@
   const SAVE_URL = root.STConfig.steamBuff("/wishlist-notes");
   const AUTH_REFRESH = root.STConfig.loginAuth("/auth/refresh");
   const TITLE_SEL = ".apphub_AppName, .apphub_AppName_responsive, h1";
-  const WISHLIST_LIST_SEL = ".PU7fdVEQB8s-.Panel, #wishlist_ctn, #wishlist_list";
-  const WISHLIST_ROW_SEL = "[data-index], .wishlist_row";
   const DETAIL_RETRY_LIMIT = 20;
   const DETAIL_RETRY_MS = 250;
 
+  const wishlistDom = api.wishlistDom;
   let detailTimer = 0;
   let detailRetries = 0;
   let wishlistObserver = null;
@@ -68,11 +67,6 @@
     return String(value ?? "").replace(/\s+/g, " ").trim();
   }
 
-  function appidFromHref(value) {
-    const match = String(value || "").match(/\/app\/(\d+)/);
-    return match ? Number(match[1]) || 0 : 0;
-  }
-
   function pageInfo() {
     const info = api.ctx?.pageInfo?.();
     const appid = Number(info?.appId) || 0;
@@ -88,30 +82,12 @@
       .find(el => el instanceof HTMLElement && el.offsetParent !== null && text(el));
   }
 
-  function wishlistTitleCandidates(row) {
-    if (!row?.querySelectorAll) return [];
-    return Array.from(row.querySelectorAll(".pOyXxbQoV38-, .title, .contenthub_featured_item_title, a[href*='/app/']"));
-  }
-
   function wishlistTitleText(node) {
-    const own = Array.from(node?.childNodes || [])
-      .filter(child => child.nodeType === 3)
-      .map(child => child.textContent || "")
-      .join(" ");
-    return text(own) || text(node?.getAttribute?.("title") || node?.textContent || "");
-  }
-
-  function isWishlistTextTitle(node) {
-    return node instanceof HTMLElement
-      && wishlistTitleText(node)
-      && !node.querySelector?.("img");
+    return wishlistDom?.titleText?.(node) || text(node?.getAttribute?.("title") || node?.textContent || "");
   }
 
   function wishlistTitleNode(row) {
-    const candidates = wishlistTitleCandidates(row);
-    return candidates.find(isWishlistTextTitle)
-      || candidates.find(node => node instanceof HTMLElement && wishlistTitleText(node))
-      || null;
+    return wishlistDom?.titleNode?.(row) || null;
   }
 
   function steamNameForApp(appid, source) {
@@ -398,12 +374,11 @@
   }
 
   function rowAppid(row) {
-    const link = row?.querySelector?.("a[href*='/app/']");
-    return appidFromHref(link?.href || link?.getAttribute?.("href") || "");
+    return wishlistDom?.rowAppid?.(row) || 0;
   }
 
   function wishlistTitleHost(row) {
-    return wishlistTitleNode(row)?.parentElement || null;
+    return wishlistDom?.titleHost?.(row) || null;
   }
 
   function wishlistGrid(row) {
@@ -443,7 +418,7 @@
   function renderWishlistRows() {
     if (renderingWishlist) return;
     renderingWishlist = true;
-    const rows = Array.from(document.querySelectorAll(WISHLIST_ROW_SEL));
+    const rows = wishlistDom?.rows?.(document) || [];
     const appids = [];
     try {
       for (const row of rows) {
@@ -469,7 +444,7 @@
   function startWishlist() {
     if (!isWishlistPath()) return false;
     addStyle();
-    const container = document.querySelector(WISHLIST_LIST_SEL) || document.body;
+    const container = wishlistDom?.listContainer?.() || document.body;
     renderWishlistRows();
     if (!wishlistObserver) {
       wishlistObserver = new MutationObserver(() => scheduleWishlistRender());
