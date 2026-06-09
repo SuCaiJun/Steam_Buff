@@ -20,7 +20,7 @@
   const MB = 1024 * 1024;
   const POLICY = Object.freeze({
     version: 1,
-    maxEntries: 3000,
+    maxEntries: null,
     targetBytes: Math.floor(4.5 * MB),
     hardBytes: 5 * MB,
     maxAgeMs: 7 * 24 * 60 * 60 * 1000,
@@ -509,9 +509,11 @@
 
   function compact(logs, limit = POLICY.targetBytes) {
     const now = Date.now();
-    const fresh = (logs || [])
-      .filter(item => now - (itemTs(item) || now) <= POLICY.maxAgeMs)
-      .slice(-POLICY.maxEntries);
+    let fresh = (logs || [])
+      .filter(item => now - (itemTs(item) || now) <= POLICY.maxAgeMs);
+    if (Number.isFinite(POLICY.maxEntries) && POLICY.maxEntries > 0) {
+      fresh = fresh.slice(-POLICY.maxEntries);
+    }
     while (fresh.length > 1 && sizeOf(fresh) > POLICY.hardBytes) {
       fresh.shift();
     }

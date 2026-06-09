@@ -1609,14 +1609,7 @@
   }
 
   function effectiveSelService(trans, conf) {
-    const service = selService(conf);
-    if (service !== SELECTION_FOLLOW) {
-      return service;
-    }
-    const follow = String(conf?.service || trans?.service?.name || EDGE_SERVICE);
-    return SELECTION_SERVICES.has(follow) && follow !== SELECTION_FOLLOW
-      ? follow
-      : EDGE_SERVICE;
+    return createTextTranslator(trans, conf).serviceFor(selService(conf));
   }
 
   function selData(text, from, to) {
@@ -1735,8 +1728,7 @@
     return fn(conf, selData(text, from, to)).then(resultText);
   }
 
-  function reqSel(trans, text, from, to, conf) {
-    const service = effectiveSelService(trans, conf);
+  function reqText(trans, text, from, to, conf, service) {
     // Edge 的自动识别协议不同，划词请求直连 JSON 端点以避免 from=auto 触发 400。
     if (service === EDGE_SERVICE) {
       return edgeSel(trans, text, from, to);
@@ -1747,27 +1739,66 @@
     return nativeSel(trans, text, from, to);
   }
 
-  function transSel(trans, text, conf) {
-    const from = "auto";
-    const to = langTo(trans, conf);
-    const service = effectiveSelService(trans, conf);
-    const key = `${service}\n${from}\n${to}\n${text}`;
-    if (selCache.has(key)) {
-      return Promise.resolve(selCache.get(key));
-    }
-    if (selPending.has(key)) {
-      return selPending.get(key);
+  function createTextTranslator(trans, conf) {
+    const defaultService = selService(conf);
+    const defaultTo = langTo(trans, conf);
+
+    function serviceFor(preferred) {
+      const service = String(preferred || defaultService || SELECTION_FOLLOW);
+      if (service !== SELECTION_FOLLOW && SELECTION_SERVICES.has(service)) {
+        return service;
+      }
+      const follow = String(conf?.service || trans?.service?.name || EDGE_SERVICE);
+      return SELECTION_SERVICES.has(follow) && follow !== SELECTION_FOLLOW
+        ? follow
+        : EDGE_SERVICE;
     }
 
-    const req = reqSel(trans, text, from, to, conf);
-    const task = req.then((value) => {
-      rememberSel(key, value);
-      return value;
-    }).finally(() => {
-      selPending.delete(key);
+    function translateText(text, options = {}) {
+      const from = String(options.from || "auto");
+      const to = String(options.to || defaultTo || "chinese_simplified");
+      const service = serviceFor(options.service);
+      const key = `${service}\n${from}\n${to}\n${text}`;
+      if (selCache.has(key)) {
+        return Promise.resolve(selCache.get(key));
+      }
+      if (selPending.has(key)) {
+        return selPending.get(key);
+      }
+
+      const req = reqText(trans, text, from, to, conf, service);
+      const task = req.then((value) => {
+        rememberSel(key, value);
+        return value;
+      }).finally(() => {
+        selPending.delete(key);
+      });
+      selPending.set(key, task);
+      return task;
+    }
+
+    return Object.freeze({
+      serviceFor,
+      translateText,
     });
-    selPending.set(key, task);
-    return task;
+  }
+
+  function textTranslator(trans, conf) {
+    return createTextTranslator(trans, conf);
+  }
+
+  globalThis.STTranslateText = Object.freeze({
+    createTextTranslator,
+    serviceFor(trans, conf, preferred) {
+      return createTextTranslator(trans, conf).serviceFor(preferred);
+    },
+    translateText(trans, conf, text, options = {}) {
+      return createTextTranslator(trans, conf).translateText(text, options);
+    },
+  });
+
+  function transSel(trans, text, conf) {
+    return textTranslator(trans, conf).translateText(text);
   }
 
   function selTrigger(conf) {

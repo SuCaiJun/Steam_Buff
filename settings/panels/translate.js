@@ -46,7 +46,7 @@
     function input(field) {
       if (field.type === "select") {
         const ai = getAiConfig() || {};
-        const aiOff = (field.key === "service" || field.key === "selectionService") && ai.enabled !== true;
+        const aiOff = (field.key === "service" || field.key === "selectionService" || field.key === "newsPopupService") && ai.enabled !== true;
         const value = String(conf[field.key] ?? "");
         return fieldInput({
           field,
@@ -174,13 +174,19 @@
         "selectionClose",
         "selectionService",
       ]);
-      const base = fields.filter((field) => !selectionKeys.has(field.key));
+      const newsKeys = new Set([
+        "newsPopup",
+        "newsPopupService",
+      ]);
+      const base = fields.filter((field) => !selectionKeys.has(field.key) && !newsKeys.has(field.key));
       const selection = fields.filter((field) => selectionKeys.has(field.key));
+      const news = fields.filter((field) => newsKeys.has(field.key));
       return `
         ${cat.items.map((item) => options.masterItemHtml?.(item, "translate") || "").join("")}
         <div class="translate-form">
           ${section("翻译范围", base)}
           ${section("划词翻译", selection)}
+          ${section("Steam 新闻弹窗翻译", news)}
           <div class="translate-actions form-footer">
             <button class="translate-save btn btn-blue" type="button">保存设置</button>
           </div>

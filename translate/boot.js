@@ -26,6 +26,8 @@
     selectionAction: "click",
     selectionClose: "auto",
     selectionService: "follow",
+    newsPopup: true,
+    newsPopupService: "follow",
     local: "chinese_simplified",
     to: "chinese_simplified",
     service: "client.edge",

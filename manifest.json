@@ -216,7 +216,8 @@
         "steam/features/*/*.js",
         "steam/main.js",
         "vendor/pinyin-pro/*.js",
-        "images/tip.svg"
+        "images/tip.svg",
+        "images/translate.svg"
       ],
       "matches": [
         "https://steamloopback.host/*"

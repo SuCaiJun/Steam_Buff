@@ -18,10 +18,15 @@
   globalThis[RUN_MARK] = true;
 
   const LOG_EVENT = "STEAM_BUFF_LOG_EVENT";
+  const NEWS_TRANSLATE_CONFIG_REQ = "STEAM_BUFF_NEWS_TRANSLATE_CONFIG_REQUEST";
+  const NEWS_TRANSLATE_CONFIG_RES = "STEAM_BUFF_NEWS_TRANSLATE_CONFIG_RESPONSE";
+  const NEWS_TRANSLATE_TEXT_REQ = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_REQUEST";
+  const NEWS_TRANSLATE_TEXT_RES = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_RESPONSE";
   const COMMUNITY_MARK = "steamBuffCommunityInjected";
   const SETTINGS_ATTR = "steamBuffSettings";
   const LOCALE_ATTR = "steamBuffUiLocale";
   const NAME_ID = "library-custom-name";
+  const NEWS_TRANSLATE_ID = "steam-news-translate";
   const CFG = globalThis.STConfig;
   const MATCH = CFG.matchers;
   const AUTH_REFRESH = CFG.loginAuth("/auth/refresh");
@@ -31,13 +36,18 @@
   const NAME_RES_ATTR = "data-steam-buff-name-response";
   const SETTINGS_PREFIX = "st.settings.";
   const SETTINGS_SUFFIX = ".enabled";
+  const TRANS_PREFIX = `${SETTINGS_PREFIX}translate.`;
+  const AI_PREFIX = `${SETTINGS_PREFIX}ai.`;
   const UI_LOCALE_KEY = "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
+  const AI_SERVICE = "steam-buff.ai";
+  const NEWS_TEXT_MAX = 20000;
   const STEAM_SETTING_IDS = Object.freeze([
     "library-sort-title",
     NAME_ID,
     "download-auto-shutdown",
     "nexus-mods",
+    NEWS_TRANSLATE_ID,
   ]);
   const COMMUNITY_SETTING_IDS = Object.freeze([
     "market-tools",
@@ -46,10 +56,39 @@
   const SEEN_NAME_MAX = 200;
   const BOOT_MS = 250;
   const BOOT_MAX = 480;
+  const TRANSLATE_DEFAULTS = Object.freeze({
+    page: true,
+    selection: true,
+    selectionTrigger: "direct",
+    selectionAction: "click",
+    selectionClose: "auto",
+    selectionService: "follow",
+    newsPopup: true,
+    newsPopupService: "follow",
+    local: "chinese_simplified",
+    to: "chinese_simplified",
+    service: "client.edge",
+    aiConcurrency: 3,
+    aiPerformance: true,
+    force: false,
+    select: false,
+    style: "dashedLine",
+    hover: true,
+  });
+  const AI_DEFAULTS = Object.freeze({
+    enabled: false,
+    host: "",
+    model: "",
+    key: "",
+    keyMode: "none",
+    keyName: "",
+    temperature: "",
+  });
   let settingsCache = null;
   let watchSettings = false;
   let watchNames = false;
   let watchLogs = false;
+  let watchNewsTranslate = false;
   let bootTries = 0;
   const seenNameReqs = new Map();
   const seenLogs = new Set();
@@ -205,6 +244,14 @@
     return `${SETTINGS_PREFIX}${id}${SETTINGS_SUFFIX}`;
   }
 
+  function transKey(id) {
+    return `${TRANS_PREFIX}${id}`;
+  }
+
+  function aiKey(id) {
+    return `${AI_PREFIX}${id}`;
+  }
+
   function normalizeLocale(value) {
     return globalThis.STI18n?.normalizeLocale?.(value) || (String(value || "") === "en" ? "en" : String(value || "") === "zh_TW" ? "zh_TW" : "zh_CN");
   }
@@ -275,6 +322,222 @@
   async function nameAllowed() {
     const nameOn = await enabled(NAME_ID);
     return { enabled: nameOn, nameOn };
+  }
+
+  function normalizeAi(values = {}) {
+    const src = values && typeof values === "object" ? values : {};
+    const out = {
+      enabled: src.enabled === true || src.enabled === "true",
+      host: String(src.host || "").trim(),
+      model: String(src.model || "").trim(),
+      key: String(src.key || "").trim(),
+      keyMode: String(src.keyMode || AI_DEFAULTS.keyMode).trim() || AI_DEFAULTS.keyMode,
+      keyName: String(src.keyName || "").trim(),
+      temperature: String(src.temperature || "").trim(),
+    };
+    if (out.host && !out.host.endsWith("/")) {
+      out.host = `${out.host}/`;
+    }
+    return out;
+  }
+
+  async function loadTranslateConfig() {
+    const transIds = Object.keys(TRANSLATE_DEFAULTS);
+    const aiDefs = globalThis.STAI?.defaults?.() || AI_DEFAULTS;
+    const aiIds = Object.keys(aiDefs);
+    const rt = await storageGet([
+      settingKey("translate"),
+      ...transIds.map(transKey),
+      ...aiIds.map(aiKey),
+    ]);
+    const out = {
+      enabled: rt[settingKey("translate")] === true,
+      ai: {},
+    };
+
+    for (const id of transIds) {
+      const def = TRANSLATE_DEFAULTS[id];
+      const value = rt[transKey(id)];
+      if (typeof def === "boolean") {
+        out[id] = typeof value === "boolean" ? value : def;
+      } else if (typeof def === "number") {
+        const num = Number(value);
+        out[id] = Number.isFinite(num) ? num : def;
+      } else {
+        out[id] = typeof value === "string" && (id !== "local" || value.trim())
+          ? value
+          : def;
+      }
+    }
+
+    for (const id of aiIds) {
+      const def = aiDefs[id];
+      const value = rt[aiKey(id)];
+      out.ai[id] = typeof def === "boolean"
+        ? (typeof value === "boolean" ? value : def)
+        : (typeof value === "string" ? value : def);
+    }
+    out.ai = globalThis.STAI?.normalize?.(out.ai) || normalizeAi(out.ai);
+    if (out.service === AI_SERVICE) {
+      out.select = false;
+    }
+
+    return out;
+  }
+
+  function newsTranslateOn(featureOn, conf) {
+    return featureOn !== false && conf?.enabled === true && conf.newsPopup !== false;
+  }
+
+  function safeRid(value) {
+    return String(value || "").slice(0, 80);
+  }
+
+  function postNews(type, data = {}) {
+    try {
+      window.postMessage({
+        type,
+        source: "steam-buff-content",
+        ...data,
+      }, "*");
+    } catch {
+    }
+  }
+
+  function newsTranslatePublicConfig(featureOn, conf) {
+    const enabledNow = newsTranslateOn(featureOn, conf);
+    return {
+      enabled: enabledNow,
+      featureEnabled: featureOn !== false,
+      translateEnabled: conf?.enabled === true,
+      newsPopup: conf?.newsPopup !== false,
+      service: String(conf?.newsPopupService || "follow"),
+      to: String(conf?.to || "chinese_simplified"),
+    };
+  }
+
+  async function postNewsConfig(rid = "") {
+    const featureOn = await enabled(NEWS_TRANSLATE_ID);
+    const conf = await loadTranslateConfig();
+    postNews(NEWS_TRANSLATE_CONFIG_RES, {
+      rid: safeRid(rid),
+      config: newsTranslatePublicConfig(featureOn, conf),
+    });
+  }
+
+  function injectTranslate(conf) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage({
+          type: "TRANSLATE_INJECT",
+          cfg: conf,
+        }, (response) => {
+          const err = chrome.runtime.lastError;
+          if (err) {
+            resolve({ success: false, error: err.message || "翻译注入请求失败" });
+            return;
+          }
+          resolve(response || { success: false, error: "翻译注入无响应" });
+        });
+      } catch (error) {
+        resolve({ success: false, error: error?.message || String(error) });
+      }
+    });
+  }
+
+  async function ensureNewsTranslator(conf) {
+    const rtConf = {
+      ...conf,
+      page: false,
+      selection: false,
+      selectionService: conf.newsPopupService || "follow",
+    };
+    globalThis.STEAM_BUFF_TRANSLATE_CONFIG = rtConf;
+    const injected = await injectTranslate(rtConf);
+    if (!injected?.success) {
+      throw new Error(injected?.error || "翻译运行时注入失败");
+    }
+    if (!globalThis.translate || !globalThis.STTranslateText?.translateText) {
+      throw new Error("翻译文本 helper 未就绪");
+    }
+    return rtConf;
+  }
+
+  async function handleNewsTextRequest(data) {
+    const rid = safeRid(data?.rid);
+    const startedAt = Date.now();
+    const text = String(data?.text || "").replace(/\s+\n/g, "\n").trim();
+    if (!text) {
+      postNews(NEWS_TRANSLATE_TEXT_RES, { rid, ok: false, error: "没有可翻译内容" });
+      return;
+    }
+    if (text.length > NEWS_TEXT_MAX) {
+      postNews(NEWS_TRANSLATE_TEXT_RES, { rid, ok: false, error: "新闻文本过长，请缩短后重试" });
+      return;
+    }
+
+    const featureOn = await enabled(NEWS_TRANSLATE_ID);
+    const conf = await loadTranslateConfig();
+    if (!newsTranslateOn(featureOn, conf)) {
+      postNews(NEWS_TRANSLATE_TEXT_RES, { rid, ok: false, error: "Steam 新闻弹窗翻译未启用" });
+      return;
+    }
+
+    try {
+      const rtConf = await ensureNewsTranslator(conf);
+      const service = String(conf.newsPopupService || "follow");
+      const result = await globalThis.STTranslateText.translateText(globalThis.translate, rtConf, text, {
+        from: "auto",
+        to: conf.to || "chinese_simplified",
+        service,
+      });
+      postNews(NEWS_TRANSLATE_TEXT_RES, {
+        rid,
+        ok: true,
+        text: String(result || ""),
+        meta: {
+          service: globalThis.STTranslateText.serviceFor?.(globalThis.translate, rtConf, service) || service,
+          durationMs: Date.now() - startedAt,
+          length: text.length,
+        },
+      });
+    } catch (error) {
+      postNews(NEWS_TRANSLATE_TEXT_RES, {
+        rid,
+        ok: false,
+        error: error?.message || String(error || "翻译失败"),
+      });
+    }
+  }
+
+  /* Steam 新闻翻译桥接 */
+  function watchNewsTranslateBridge() {
+    if (watchNewsTranslate || !MATCH.isSteamLoopbackHost(location.hostname)) {
+      return;
+    }
+    watchNewsTranslate = true;
+    window.addEventListener("message", (event) => {
+      if (event.source !== window) {
+        return;
+      }
+      const data = event.data || {};
+      if (data.source === "steam-buff-content") {
+        return;
+      }
+      if (data.type === NEWS_TRANSLATE_CONFIG_REQ) {
+        postNewsConfig(data.rid).catch(() => {});
+        return;
+      }
+      if (data.type === NEWS_TRANSLATE_TEXT_REQ) {
+        handleNewsTextRequest(data).catch((error) => {
+          postNews(NEWS_TRANSLATE_TEXT_RES, {
+            rid: safeRid(data.rid),
+            ok: false,
+            error: error?.message || String(error || "翻译失败"),
+          });
+        });
+      }
+    });
   }
 
   function trustedNamePage() {
@@ -752,12 +1015,17 @@
           return;
         }
         const localeHit = Object.hasOwn(changes || {}, UI_LOCALE_KEY);
+        const keys = Object.keys(changes || {});
         const hit = ALL_SETTING_IDS.some(id => Object.hasOwn(changes, settingKey(id)));
+        const newsHit = keys.some((item) => item === settingKey(NEWS_TRANSLATE_ID) || item === settingKey("translate") || item.startsWith(TRANS_PREFIX) || item.startsWith(AI_PREFIX));
         if (hit) {
           settingsCache = null;
           if (MATCH.isSteamLoopbackHost(location.hostname)) {
             writeSteamSettings().catch(() => {});
           }
+        }
+        if (newsHit && MATCH.isSteamLoopbackHost(location.hostname)) {
+          postNewsConfig("").catch(() => {});
         }
         if (localeHit) {
           writeUiLocale().catch(() => {});
@@ -769,6 +1037,7 @@
 
   function run() {
     watchPageLog();
+    watchNewsTranslateBridge();
     watchSettingsChanges();
     logOnce("content-script-start", {
       level: "info",

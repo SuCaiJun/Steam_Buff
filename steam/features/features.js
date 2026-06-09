@@ -73,6 +73,18 @@
         return context === "ui" && api.ctx?.settingOn?.("nexus-mods") !== false;
       },
     },
+    {
+      id: "steam-news-translate",
+      name: "Steam 新闻弹窗翻译",
+      entries: {
+        ui: "ui.js",
+      },
+      shouldRun(api, context) {
+        return context === "ui" &&
+          api.ctx?.isMainUi?.() &&
+          api.ctx?.settingOn?.("steam-news-translate") !== false;
+      },
+    },
   ];
 
   features.forEach((item) => {
