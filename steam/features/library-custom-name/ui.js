@@ -27,6 +27,7 @@
   const QUERY_MAX = 100;
   const BATCH_PAGE_SIZE = 120;
   const BACKEND_PAGE_SIZE = 1000;
+  const BACKEND_PAGE_RETRY = 1;
   const APP_SCAN_YIELD = 2000;
   const SEARCH_DEBOUNCE_MS = 180;
   const SEARCH_SCAN_YIELD = 5000;
@@ -125,6 +126,98 @@
     return esc(value)
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function tipHtml(label, tip, extraClass = "") {
+    const cls = extraClass ? `st-lcn-tip ${extraClass}` : "st-lcn-tip";
+    return `<span class="${cls}" tabindex="0" role="button" aria-label="${attr(tip)}" aria-expanded="false"><span class="st-lcn-tip-text">${esc(label)}</span><span class="st-lcn-tip-mark" data-lcn-tip-toggle aria-hidden="true">?</span><span class="st-lcn-tip-popover" role="tooltip">${esc(tip)}</span></span>`;
+  }
+
+  /* CEF 点击态提示 */
+  function setTipOpen(tip, open) {
+    if (!tip) {
+      return;
+    }
+    tip.classList.toggle("is-open", !!open);
+    tip.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function closeTips(scope = document, keep = null) {
+    let blurActive = false;
+    try {
+      const active = document.activeElement;
+      (scope || document).querySelectorAll?.(".st-lcn-tip.is-open").forEach((tip) => {
+        if (tip !== keep) {
+          if (active === tip || active?.closest?.(".st-lcn-tip") === tip) {
+            blurActive = true;
+          }
+          setTipOpen(tip, false);
+        }
+      });
+    } catch {
+    }
+    if (blurActive) {
+      try {
+        document.activeElement?.blur?.();
+      } catch {
+      }
+    }
+  }
+
+  function toggleTip(tip) {
+    const open = !tip.classList.contains("is-open");
+    closeTips(document, tip);
+    setTipOpen(tip, open);
+    if (open) {
+      try {
+        tip.focus({ preventScroll: true });
+      } catch {
+        tip.focus?.();
+      }
+    }
+  }
+
+  function onTipClick(event) {
+    const tip = event.target?.closest?.(".st-lcn-tip");
+    if (!tip || (!tip.classList.contains("st-lcn-limit-tip") && !event.target?.closest?.("[data-lcn-tip-toggle]"))) {
+      return false;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    toggleTip(tip);
+    return true;
+  }
+
+  function onTipKeydown(event) {
+    const tip = event.target?.closest?.(".st-lcn-tip");
+    if (!tip) {
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeTips(document);
+      tip.blur?.();
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleTip(tip);
+    }
+  }
+
+  function onDocumentClick(event) {
+    if (event.target?.closest?.(`#${BAR} .st-lcn-tip, #${MODAL} .st-lcn-tip`)) {
+      return;
+    }
+    closeTips(document);
+  }
+
+  function onDocumentKeydown(event) {
+    if (event.key === "Escape") {
+      closeTips(document);
+    }
   }
 
   function emptyStats() {
@@ -240,10 +333,19 @@
 
   function yieldUI() {
     return new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) {
+          return;
+        }
+        done = true;
+        resolve();
+      };
       if (typeof window.requestAnimationFrame === "function") {
-        window.requestAnimationFrame(() => resolve());
+        window.requestAnimationFrame(finish);
+        window.setTimeout(finish, 50);
       } else {
-        window.setTimeout(resolve, 0);
+        window.setTimeout(finish, 0);
       }
     });
   }
@@ -264,7 +366,27 @@
     return s.ch;
   }
 
-  function backend(type, data) {
+  function backendTimeoutError() {
+    const error = new Error("Steam 客户端后端没有响应");
+    error.code = "steam-backend-timeout";
+    return error;
+  }
+
+  function isBackendTimeout(error) {
+    return error?.code === "steam-backend-timeout" || error?.message === "Steam 客户端后端没有响应";
+  }
+
+  function resetBackendChannel() {
+    const ch = s.ch;
+    s.ch = null;
+    try {
+      ch?.removeEventListener?.("message", onBackend);
+      ch?.close?.();
+    } catch {
+    }
+  }
+
+  function backendOnce(type, data) {
     const ch = chan();
     if (!ch) {
       return Promise.reject(new Error("通信通道不可用"));
@@ -273,7 +395,7 @@
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
         pend.delete(id);
-        reject(new Error("Steam 客户端后端没有响应"));
+        reject(backendTimeoutError());
       }, RESP_MS);
       pend.set(id, { resolve, reject, timer });
       ch.postMessage({
@@ -284,6 +406,23 @@
         ...data,
       });
     });
+  }
+
+  async function backend(type, data, opt = {}) {
+    const retry = Math.max(0, Number(opt.retry) || 0);
+    for (let attempt = 0; attempt <= retry; attempt += 1) {
+      try {
+        return await backendOnce(type, data);
+      } catch (error) {
+        if (attempt >= retry || !isBackendTimeout(error)) {
+          throw error;
+        }
+        /* BroadcastChannel 偶发丢响应时只恢复只读请求，避免保存类命令被重复执行。 */
+        resetBackendChannel();
+        await sleep(0);
+      }
+    }
+    throw backendTimeoutError();
   }
 
   function onBackend(event) {
@@ -492,9 +631,10 @@
 
   function css() {
     let style = document.getElementById(STYLE);
-    if (style) {
+    if (style?.textContent?.includes(".st-lcn-tip.is-open")) {
       return;
     }
+    style?.remove?.();
     style = document.createElement("style");
     style.id = STYLE;
     style.textContent = `
@@ -956,8 +1096,12 @@
       }
       #${BAR} .st-lcn-tip:hover .st-lcn-tip-mark,
       #${BAR} .st-lcn-tip:focus .st-lcn-tip-mark,
+      #${BAR} .st-lcn-tip:focus-within .st-lcn-tip-mark,
+      #${BAR} .st-lcn-tip.is-open .st-lcn-tip-mark,
       #${MODAL} .st-lcn-tip:hover .st-lcn-tip-mark,
-      #${MODAL} .st-lcn-tip:focus .st-lcn-tip-mark {
+      #${MODAL} .st-lcn-tip:focus .st-lcn-tip-mark,
+      #${MODAL} .st-lcn-tip:focus-within .st-lcn-tip-mark,
+      #${MODAL} .st-lcn-tip.is-open .st-lcn-tip-mark {
         color: #fff;
         border-color: rgba(102, 192, 244, .95);
         background: rgba(102, 192, 244, .28);
@@ -994,12 +1138,16 @@
         transform: translateY(4px);
       }
       #${MODAL} .st-lcn-tip:hover .st-lcn-tip-popover,
-      #${MODAL} .st-lcn-tip:focus .st-lcn-tip-popover {
+      #${MODAL} .st-lcn-tip:focus .st-lcn-tip-popover,
+      #${MODAL} .st-lcn-tip:focus-within .st-lcn-tip-popover,
+      #${MODAL} .st-lcn-tip.is-open .st-lcn-tip-popover {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
       }
       #${BAR} .st-lcn-tip:hover .st-lcn-tip-popover,
-      #${BAR} .st-lcn-tip:focus .st-lcn-tip-popover {
+      #${BAR} .st-lcn-tip:focus .st-lcn-tip-popover,
+      #${BAR} .st-lcn-tip:focus-within .st-lcn-tip-popover,
+      #${BAR} .st-lcn-tip.is-open .st-lcn-tip-popover {
         opacity: 1;
         transform: translateY(0);
       }
@@ -1383,7 +1531,7 @@
       return true;
     }
     try {
-      return !!bar.querySelector(".st-lcn-tip:hover, .st-lcn-tip:focus, .st-lcn-tip:focus-within");
+      return !!bar.querySelector(".st-lcn-tip:hover, .st-lcn-tip:focus, .st-lcn-tip:focus-within, .st-lcn-tip.is-open");
     } catch {
       return false;
     }
@@ -1500,6 +1648,8 @@
       sid,
       offset,
       limit: BACKEND_PAGE_SIZE,
+    }, {
+      retry: BACKEND_PAGE_RETRY,
     });
   }
 
@@ -1904,7 +2054,7 @@
 
   function storageLimitTipHtml(label) {
     const tip = STEAM_CUSTOM_LIMIT_TIP;
-    return `<span class="st-lcn-tip st-lcn-limit-tip" tabindex="0" aria-label="${attr(tip)}"><span class="st-lcn-tip-text">${esc(label)}</span><span class="st-lcn-tip-mark" aria-hidden="true">?</span><span class="st-lcn-tip-popover" role="tooltip">${esc(tip)}</span></span>`;
+    return tipHtml(label, tip, "st-lcn-limit-tip");
   }
 
   function previewMessageHtml() {
@@ -2760,16 +2910,13 @@
     const bar = document.createElement("div");
     bar.id = BAR;
     bar.addEventListener("click", onBarClick);
+    bar.addEventListener("keydown", onTipKeydown);
     const tip = CLOUD_TIP_TEXT;
     bar.innerHTML = `
       <button class="st-lcn-btn" type="button" data-lcn-one>获取云端名称</button>
       <button class="st-lcn-btn" type="button" data-lcn-batch>批量修改名称</button>
       <button class="st-lcn-btn" type="button" data-lcn-feedback aria-label="名称上传云端">
-        <span class="st-lcn-tip" tabindex="0" aria-label="${attr(tip)}">
-          <span class="st-lcn-tip-text">名称上传云端</span>
-          <span class="st-lcn-tip-mark" aria-hidden="true">?</span>
-          <span class="st-lcn-tip-popover" role="tooltip">${esc(tip)}</span>
-        </span>
+        ${tipHtml("名称上传云端", tip)}
       </button>
     `;
 
@@ -2777,6 +2924,10 @@
   }
 
   function onBarClick(event) {
+    if (onTipClick(event)) {
+      return;
+    }
+    closeTips(event.currentTarget);
     const one = event.target.closest?.("[data-lcn-one]");
     const batchBtn = event.target.closest?.("[data-lcn-batch]");
     const feedBtn = event.target.closest?.("[data-lcn-feedback]");
@@ -3049,11 +3200,7 @@
             <button class="st-lcn-btn" type="button" data-lcn-action="clear-selected" ${locked || !batch.selectedCount ? "disabled" : ""}>清空已选名称</button>
             <label class="st-lcn-action-option">
               <input type="checkbox" data-lcn-upload-cloud ${batch.uploadCloud ? "checked" : ""} ${locked ? "disabled" : ""}>
-              <span class="st-lcn-tip" tabindex="0" aria-label="${attr(tip)}">
-                <span class="st-lcn-tip-text">名称上传云端</span>
-                <span class="st-lcn-tip-mark" aria-hidden="true">?</span>
-                <span class="st-lcn-tip-popover" role="tooltip">${esc(tip)}</span>
-              </span>
+              ${tipHtml("名称上传云端", tip)}
             </label>
             <label class="st-lcn-action-option"><input type="checkbox" data-lcn-mnemonic ${mnemonicChecked ? "checked" : ""} ${mnemonicDisabled ? "disabled" : ""}>生成助记符</label>
           </div>
@@ -3332,6 +3479,7 @@
       modal = document.createElement("section");
       modal.id = MODAL;
       modal.addEventListener("click", onModalClick);
+      modal.addEventListener("keydown", onTipKeydown);
       modal.addEventListener("change", onModalChange);
       modal.addEventListener("input", onModalInput);
       modal.addEventListener("compositionstart", onModalCompositionStart);
@@ -3861,6 +4009,10 @@
   }
 
   function onModalClick(event) {
+    if (onTipClick(event)) {
+      return;
+    }
+    closeTips(event.currentTarget);
     if (event.target.id === MODAL) {
       return;
     }
@@ -4051,6 +4203,8 @@
       attributeFilter: [RES_ATTR],
     });
     onQuery();
+    document.addEventListener("click", onDocumentClick, true);
+    document.addEventListener("keydown", onDocumentKeydown);
     tick();
     s.timer = window.setInterval(tick, LOOP_MS);
     s.stop = () => {
@@ -4074,6 +4228,8 @@
         window.clearTimeout(batch.capacityTimer);
         batch.capacityTimer = 0;
       }
+      document.removeEventListener("click", onDocumentClick, true);
+      document.removeEventListener("keydown", onDocumentKeydown);
       if (s.oneResolve) {
         s.oneResolve(false);
         s.oneResolve = null;
