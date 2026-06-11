@@ -457,7 +457,15 @@
     s.started = true;
     tick();
     s.timer = window.setInterval(tick, LOOP_MS);
-    return { started: true };
+    s.stop = () => {
+      if (s.timer) {
+        window.clearInterval(s.timer);
+        s.timer = 0;
+      }
+      document.getElementById(BTN)?.remove();
+      s.started = false;
+    };
+    return { started: true, stop: s.stop };
   }
 
   window.SteamBuff.reg.addEntry(ID, "library.js", start);

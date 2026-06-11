@@ -1991,7 +1991,7 @@ ${iconColorCSS('.shc-regioncd-row-icon', [['blue','blue','blue'],['cyan','cyan',
         if (!currentSpan || currentSpan.dataset.breadcrumbAdded) return;
         currentSpan.dataset.breadcrumbAdded = 'true';
         const sep = document.createElement('span'); sep.className = 'breadcrumb_separator'; sep.textContent = '>';
-        const link = document.createElement('a'); link.href = 'https://store.steampowered.com/account/licenses/'; link.target = '_blank'; link.textContent = t('breadcrumbLicenses'); link.dataset.panel = '{"noFocusRing":true}';
+        const link = document.createElement('a'); link.href = 'https://store.steampowered.com/account/licenses/'; link.textContent = t('breadcrumbLicenses'); link.dataset.panel = '{"noFocusRing":true}';
         const parent = currentSpan.parentElement; parent.appendChild(sep); parent.appendChild(link);
     }
 
@@ -2026,7 +2026,7 @@ ${iconColorCSS('.shc-regioncd-row-icon', [['blue','blue','blue'],['cyan','cyan',
         if (tableEl) {
             const rowClickHandler = e => {
                 const row = e.target.closest('tr.wallet_table_row'); if (!row) return;
-                const m = row.getAttribute('onclick')?.match(/location\.href='([^']+)'/); if (m) { e.preventDefault(); e.stopPropagation(); window.open(m[1], '_blank'); }
+                const m = row.getAttribute('onclick')?.match(/location\.href='([^']+)'/); if (m) { e.preventDefault(); e.stopPropagation(); location.href = m[1]; }
             };
             tableEl.addEventListener('click', rowClickHandler, true); state.disposers.push(() => tableEl.removeEventListener('click', rowClickHandler, true));
         }

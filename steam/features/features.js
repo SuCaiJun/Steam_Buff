@@ -33,7 +33,10 @@
         if (api.ctx?.settingOn?.("library-custom-name") === false) {
           return false;
         }
-        return context === "backend" || context === "ui";
+        if (context === "backend") {
+          return true;
+        }
+        return context === "ui" && api.ctx?.hasCustomSortUi?.() === true;
       },
     },
     {
@@ -50,7 +53,7 @@
         if (context === "backend") {
           return true;
         }
-        return context === "downloads";
+        return context === "downloads" && api.ctx?.isDown?.() === true;
       },
     },
     {
@@ -70,7 +73,10 @@
         ui: "library.js",
       },
       shouldRun(api, context) {
-        return context === "ui" && api.ctx?.settingOn?.("nexus-mods") !== false;
+        return context === "ui" &&
+          api.ctx?.isMainUi?.() === true &&
+          api.ctx?.settingOn?.("nexus-mods") !== false &&
+          (api.ctx?.targets?.() || []).includes("app");
       },
     },
     {

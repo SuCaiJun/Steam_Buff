@@ -24,6 +24,8 @@
   const LOOP_MS = 1200;
   const MOUNT_LOG_MS = 60000;
   const RESP_MS = 12000;
+  const SAVE_STATUS_MS = 3000;
+  const SAVE_STATUS_MAX_MISSES = 3;
   const QUERY_MAX = 100;
   const BATCH_PAGE_SIZE = 120;
   const BACKEND_PAGE_SIZE = 1000;
@@ -82,6 +84,7 @@
     cloudQueue: [],
     cloudFlush: null,
     cloudFinishing: false,
+    saveUploadCloud: true,
     stats: emptyStats(),
     busy: false,
     saving: false,
@@ -91,6 +94,10 @@
     fallbackPrompting: false,
     fallbackPromptSeq: 0,
     steamBatch: null,
+    saveAction: "save",
+    saveRid: "",
+    saveWatchTimer: 0,
+    saveStatusMisses: 0,
     // 本地加载和云端获取可能跨多次异步请求，关闭弹窗后用序号让旧结果失效，避免回头重绘。
     previewSeq: 0,
     summary: false,
@@ -106,6 +113,14 @@
 
   function rid() {
     return `${now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function bringDialogToFront(el) {
+    if (el && document.body) {
+      /* Steam CEF 同 z-index 弹窗按 DOM 顺序覆盖，复用旧节点时必须重新挂到末尾。 */
+      document.body.appendChild(el);
+    }
+    return el;
   }
 
   function text(value) {
@@ -423,6 +438,69 @@
       }
     }
     throw backendTimeoutError();
+  }
+
+  function clearSaveWatch() {
+    if (batch.saveWatchTimer) {
+      window.clearTimeout(batch.saveWatchTimer);
+      batch.saveWatchTimer = 0;
+    }
+  }
+
+  function scheduleSaveWatch(delay = SAVE_STATUS_MS) {
+    clearSaveWatch();
+    if (!batch.saving || batch.cancelled || !batch.saveRid) {
+      return;
+    }
+    batch.saveWatchTimer = window.setTimeout(() => {
+      batch.saveWatchTimer = 0;
+      pollSaveStatus().catch(() => {});
+    }, Math.max(0, delay));
+  }
+
+  async function pollSaveStatus() {
+    if (!batch.saving || batch.cancelled || !batch.saveRid) {
+      return;
+    }
+    try {
+      const data = await backend("save-status", { queueRid: batch.saveRid }, { retry: 1 });
+      batch.saveStatusMisses = 0;
+      const queueRid = text(data.queueRid || data.rid);
+      if (data.done || data.running === false) {
+        applyProgress({
+          ...data,
+          rid: queueRid,
+          type: "save-done",
+          running: false,
+        });
+        return;
+      }
+      applyProgress({
+        ...data,
+        rid: queueRid,
+        type: "save-progress",
+      });
+    } catch (error) {
+      batch.saveStatusMisses += 1;
+      if (batch.saveStatusMisses >= SAVE_STATUS_MAX_MISSES) {
+        clearSaveWatch();
+        batch.saving = false;
+        batch.paused = false;
+        batch.waitCmd = "";
+        batch.summary = true;
+        batch.message = "Steam 保存队列状态没有响应，请重新打开批量窗口确认结果";
+        log("warn", "library-custom-name-save-status-timeout", "库自定义名称保存队列状态查询超时", {
+          rid: batch.saveRid || "",
+          misses: batch.saveStatusMisses,
+          error: error?.message || String(error),
+          ...statsMeta(),
+        });
+        renderModal();
+        renderProgressSoon(true);
+        return;
+      }
+    }
+    scheduleSaveWatch();
   }
 
   function onBackend(event) {
@@ -2461,7 +2539,7 @@
   }
 
   function cloudPayload(row) {
-    if (!batch.uploadCloud || !row || !row.checked || row.cloudTouched !== true || row.manual !== true) {
+    if (!batch.saveUploadCloud || !row || !row.checked || row.cloudTouched !== true || row.manual !== true) {
       return null;
     }
     const custom = stripCloudName(row.want);
@@ -2557,7 +2635,7 @@
 
   function prepareCloudUploads(rows) {
     resetCloudUpload();
-    if (!batch.uploadCloud) {
+    if (!batch.saveUploadCloud) {
       return;
     }
     const list = Array.isArray(rows) ? rows : [];
@@ -2654,7 +2732,7 @@
   }
 
   function startCloudUploads() {
-    if (!batch.uploadCloud || !batch.cloudQueue.length) {
+    if (!batch.saveUploadCloud || !batch.cloudQueue.length) {
       return;
     }
     batch.cloudFinishing = true;
@@ -2699,6 +2777,7 @@
       box.addEventListener("click", onOneClick);
       document.body.appendChild(box);
     }
+    bringDialogToFront(box);
     box.hidden = false;
     box.innerHTML = `
       <div class="st-lcn-one-panel" role="dialog" aria-modal="true">
@@ -2718,6 +2797,7 @@
       box.addEventListener("click", onOneClick);
       document.body.appendChild(box);
     }
+    bringDialogToFront(box);
     box.hidden = false;
     const title = opt.title || "确认覆盖";
     const cancel = opt.cancel || "取消";
@@ -2766,6 +2846,7 @@
       box.addEventListener("click", onOneClick);
       document.body.appendChild(box);
     }
+    bringDialogToFront(box);
     box.hidden = false;
     box.innerHTML = `
       <div class="st-lcn-one-panel" role="dialog" aria-modal="true">
@@ -3049,7 +3130,10 @@
 
   function progressLine() {
     const st = batch.stats;
-    const synced = batch.uploadCloud ? st.cloudOk : 0;
+    if (batch.saveAction === "clear") {
+      return `总计:${st.total}，已清空:${st.success}，跳过:${st.skipped}，失败:${st.failed}`;
+    }
+    const synced = batch.saveUploadCloud ? st.cloudOk : 0;
     return `总计:${st.total}，处理:${st.processed}，跳过:${st.skipped}，失败:${st.failed}，同步:${synced}`;
   }
 
@@ -3066,6 +3150,9 @@
     const pct = progressPct();
     const cloud = batch.cloudFinishing && !batch.saving;
     const summary = batch.summary || (!batch.saving && !batch.cloudFinishing);
+    const clear = batch.saveAction === "clear";
+    const title = summary ? (clear ? "清空结果" : "修改结果") : cloud ? "素材君云端上传" : clear ? "清空进度" : "保存进度";
+    const doneMessage = clear ? "清空完成" : "修改完成";
     const paused = !!batch.paused;
     const action = paused ? "resume" : "pause";
     const cls = paused ? "success" : "danger";
@@ -3075,11 +3162,11 @@
     return `
       <div class="st-lcn-progress-panel">
         <div class="st-lcn-progress-head">
-          <h3>${summary ? "修改结果" : cloud ? "素材君云端上传" : "保存进度"}</h3>
+          <h3>${title}</h3>
         </div>
         <div class="st-lcn-progress-body">
-          <div class="st-lcn-progress-msg">${esc(summary ? "修改完成" : batch.message)}</div>
-          <div class="st-lcn-progress-bar" aria-label="保存进度">
+          <div class="st-lcn-progress-msg">${esc(summary ? doneMessage : batch.message)}</div>
+          <div class="st-lcn-progress-bar" aria-label="${clear ? "清空进度" : "保存进度"}">
             <div class="st-lcn-progress-fill" style="--st-lcn-progress:${esc(pct)}%"></div>
           </div>
           <div class="st-lcn-progress-line">${esc(progressLine())}</div>
@@ -3385,6 +3472,7 @@
       modal.addEventListener("click", onProgressClick);
       document.body.appendChild(modal);
     }
+    bringDialogToFront(modal);
     batch.summary = !!summary;
     modal.hidden = false;
     if (render) {
@@ -3407,6 +3495,7 @@
   function cancelSave() {
     logCommandStart("cancel");
     const hadSaving = !!batch.saving;
+    clearSaveWatch();
     batch.cancelled = true;
     batch.saving = false;
     batch.paused = false;
@@ -3486,6 +3575,7 @@
       modal.addEventListener("compositionend", onModalCompositionEnd);
       document.body.appendChild(modal);
     }
+    bringDialogToFront(modal);
     modal.hidden = false;
     renderModal();
     if (!batch.localRows.length && !batch.busy) {
@@ -3622,6 +3712,8 @@
     const core = await ensureMnemonic();
     batch.mnemonic = !!on;
     batch.busy = true;
+    batch.saveAction = "mnemonic";
+    batch.saveUploadCloud = false;
     batch.summary = false;
     batch.progressClosed = false;
     batch.stats = {
@@ -3718,8 +3810,14 @@
       renderModal();
       return;
     }
+    const saveUploadCloud = uploadCloud && !!batch.uploadCloud;
+    clearSaveWatch();
     batch.saving = true;
+    batch.saveAction = action;
+    batch.saveUploadCloud = saveUploadCloud;
     batch.saveStartedAt = now();
+    batch.saveRid = "";
+    batch.saveStatusMisses = 0;
     batch.paused = false;
     batch.waitCmd = "";
     batch.fallbackPrompting = false;
@@ -3734,10 +3832,10 @@
       processed: 0,
       skipped,
     };
-    if (uploadCloud) {
+    if (saveUploadCloud) {
       prepareCloudUploads(rows);
     } else {
-      resetCloudUploads();
+      resetCloudUpload();
     }
     batch.message = startMessage;
     renderModal();
@@ -3746,22 +3844,26 @@
       count: items.length,
       skipped,
       action,
-      uploadCloud: uploadCloud && !!batch.uploadCloud,
+      uploadCloud: saveUploadCloud,
       cloudQueueCount: batch.stats.cloudPending,
       cloudSkipped: batch.stats.cloudSkipped,
     });
     try {
-      await backend("save-queue", { items, skipped });
+      const started = await backend("save-queue", { items, skipped });
+      batch.saveRid = text(started.rid || started.queueRid || batch.saveRid);
+      batch.saveStatusMisses = 0;
+      scheduleSaveWatch();
       if (batch.cancelled) {
         return;
       }
-      if (uploadCloud) {
+      if (saveUploadCloud) {
         startCloudUploads();
       }
       if (!batch.cloudFinishing) {
         batch.message = progressMessage;
       }
     } catch (error) {
+      clearSaveWatch();
       batch.saving = false;
       batch.summary = true;
       batch.message = error?.message || String(error);
@@ -3813,7 +3915,7 @@
       title: "确认清空已选名称",
       cancel: "否",
       confirm: "是",
-      note: "该操作会把对应 Steam 属性中的自定义排序名称改为空白。",
+      note: "该操作会把对应 Steam 属性中的自定义排序名称改为空。",
       dangerNote: true,
     });
     if (!ok) {
@@ -3827,7 +3929,7 @@
       uploadCloud: false,
       emptyMessage: "没有可清空的条目",
       startMessage: `正在启动清空队列，预计清空 ${data.items.length} 项，跳过 ${data.skipped} 项`,
-      progressMessage: "正在逐条清空 Steam 自定义排序名称",
+      progressMessage: "正在批量清空 Steam 自定义排序名称",
     });
   }
 
@@ -3849,6 +3951,7 @@
     } else if (action === "cancel") {
       logCommandStart(action);
       const hadSaving = !!batch.saving;
+      clearSaveWatch();
       batch.cancelled = true;
       batch.saving = false;
       batch.paused = false;
@@ -3920,6 +4023,7 @@
     }
 
     logCommandStart("fallback-cancel");
+    clearSaveWatch();
     batch.cancelled = true;
     batch.saving = false;
     batch.paused = false;
@@ -3939,6 +4043,9 @@
     if (batch.cancelled) {
       return;
     }
+    if (data.rid) {
+      batch.saveRid = text(data.rid);
+    }
     if (data.stats) {
       batch.stats = { ...batch.stats, ...data.stats };
     }
@@ -3951,8 +4058,9 @@
     const done = data.type === "save-done";
     batch.saving = !done && data.running !== false;
     batch.paused = !!data.paused;
-    batch.summary = done && (!batch.uploadCloud || !batch.cloudFinishing) ? true : batch.summary;
+    batch.summary = done && (!batch.saveUploadCloud || !batch.cloudFinishing) ? true : batch.summary;
     if (done) {
+      clearSaveWatch();
       const hasError = !!data.error || batch.stats.failed > 0 || batch.stats.uploadFail > 0;
       log(hasError ? "warn" : "info", hasError ? "library-custom-name-save-failed" : "library-custom-name-save-success", hasError ? "库自定义名称保存完成但存在失败项" : "库自定义名称保存完成", {
         ...statsMeta(),
@@ -3961,21 +4069,22 @@
       });
     }
     const b = data.batch || batch.steamBatch || {};
+    const clear = batch.saveAction === "clear";
     batch.message = done
-      ? (data.error || (batch.cloudFinishing ? "Steam 写入完成，正在等待素材君云端上传完成" : "保存队列已完成"))
+      ? (data.error || (batch.cloudFinishing ? "Steam 写入完成，正在等待素材君云端上传完成" : clear ? "清空队列已完成" : "保存队列已完成"))
       : data.action === "pause"
-        ? "保存队列已暂停"
+        ? (clear ? "清空队列已暂停" : "保存队列已暂停")
         : data.action === "resume"
-          ? "保存队列继续执行"
+          ? (clear ? "清空队列继续执行" : "保存队列继续执行")
           : data.fallbackPrompt
             ? "快速写入失败，等待选择旧版写入方法"
             : data.batchAction === "wait" || b.waiting
-              ? `第 ${b.index || 1} 批写入完成，等待 Steam 云同步 ${Math.ceil((Number(b.waitMs) || 0) / 1000)} 秒`
+              ? `第 ${b.index || 1} 批${clear ? "清空" : "写入"}完成，等待 Steam 云同步 ${Math.ceil((Number(b.waitMs) || 0) / 1000)} 秒`
               : b.index
-                ? `正在写入 Steam 第 ${b.index} 批 ${b.written || 0}/${b.max || 2000}${batch.cloudFinishing ? "，素材君云端上传同步进行" : ""}`
+                ? `正在${clear ? "清空" : "写入"} Steam 第 ${b.index} 批 ${b.written || 0}/${b.max || 500}${batch.cloudFinishing ? "，素材君云端上传同步进行" : ""}`
                 : batch.cloudFinishing
                   ? "正在写入 Steam，素材君云端上传同步进行"
-                  : "正在写入 Steam";
+                  : clear ? "正在清空 Steam 自定义排序名称" : "正在写入 Steam";
 
     const items = Array.isArray(data.items) ? data.items : (data.item ? [data.item] : []);
     for (const item of items) {
@@ -3991,7 +4100,10 @@
           row.cloudTouched = false;
           row.mnemonicTouched = false;
           keepRowState(row);
+          /* 清空成功后要刷新列表计数，但不能让预览 skipped 覆盖保存队列统计。 */
+          const queueStats = { ...batch.stats };
           refreshCounts();
+          batch.stats = queueStats;
         }
         refreshProgressRow(row);
       }
@@ -4004,6 +4116,9 @@
     if (!batch.progressClosed) {
       openProgress(batch.summary, false);
       renderProgressSoon(done && !batch.cloudFinishing);
+    }
+    if (!done) {
+      scheduleSaveWatch();
     }
     answerFastFallback(data).catch(() => {});
   }
@@ -4224,6 +4339,7 @@
         window.clearTimeout(batch.progressTimer);
         batch.progressTimer = 0;
       }
+      clearSaveWatch();
       if (batch.capacityTimer) {
         window.clearTimeout(batch.capacityTimer);
         batch.capacityTimer = 0;

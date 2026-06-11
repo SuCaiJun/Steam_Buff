@@ -12,10 +12,11 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  if (globalThis[RUN_MARK]) {
+  const RUN_VERSION = "steam-runtime-scope-20260611";
+  if (globalThis[RUN_MARK] === RUN_VERSION) {
     return;
   }
-  globalThis[RUN_MARK] = true;
+  globalThis[RUN_MARK] = RUN_VERSION;
 
   const LOG_EVENT = "STEAM_BUFF_LOG_EVENT";
   const NEWS_TRANSLATE_CONFIG_REQ = "STEAM_BUFF_NEWS_TRANSLATE_CONFIG_REQUEST";

@@ -38,6 +38,7 @@
     "extension/content.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
+  const CONTENT_MARK_VERSION = "steam-runtime-scope-20260611";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const SHARED_CONFIG = "shared/config.js";
   const TRANS_LIB = "vendor/xnx3-translate/translate.js";
@@ -147,8 +148,8 @@
     try {
       const frames = await execScript({
         target: { tabId, allFrames: true },
-        func: (mark) => globalThis[mark] === true,
-        args: [CONTENT_MARK],
+        func: (mark, version) => globalThis[mark] === version,
+        args: [CONTENT_MARK, CONTENT_MARK_VERSION],
       });
       return frames.length > 0 && frames.every(frame => frame?.result === true);
     } catch {

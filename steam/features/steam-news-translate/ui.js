@@ -854,6 +854,42 @@
     }
   }
 
+  function observeTarget() {
+    return document.getElementById("popup_target") || document.body || document.documentElement;
+  }
+
+  function observeOptions(target) {
+    if (target?.id === "popup_target") {
+      return {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class", "style", "hidden", "aria-hidden"],
+      };
+    }
+    return {
+      childList: true,
+      subtree: true,
+    };
+  }
+
+  function attachObserver(rt) {
+    const target = observeTarget();
+    if (!target) {
+      return;
+    }
+    rt.observer?.disconnect?.();
+    rt.observerTarget = target;
+    rt.observer = new MutationObserver(() => {
+      const latest = observeTarget();
+      if (latest && latest !== rt.observerTarget && latest.id === "popup_target") {
+        attachObserver(rt);
+      }
+      scheduleScan(rt);
+    });
+    rt.observer.observe(target, observeOptions(target));
+  }
+
   function start(api) {
     if (!api.ctx?.isMainUi?.()) {
       return { started: false, reason: "not-main-ui" };
@@ -875,6 +911,7 @@
       translated: new WeakMap(),
       activeCard: null,
       observer: null,
+      observerTarget: null,
       stop() {
         rt.stopped = true;
         window.clearTimeout(rt.scanTimer);
@@ -894,13 +931,8 @@
 
     window.addEventListener("message", rt.onMessage);
     window.addEventListener("scroll", rt.onScroll, true);
-    rt.observer = new MutationObserver(() => scheduleScan(rt));
-    rt.observer.observe(document.body || document.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["class", "style", "hidden", "aria-hidden"],
-    });
+    /* 只在弹窗根节点启用属性监听；根节点尚未出现时只临时监听子节点变化。 */
+    attachObserver(rt);
     rt.refreshTimer = window.setInterval(() => refreshConfig(rt).catch(() => {}), CONFIG_REFRESH_MS);
     refreshConfig(rt).catch(() => {});
     return { started: true, stop: rt.stop };

@@ -18,15 +18,16 @@
   const ORIG = "__RickyStOriginalName";
   const STEAM_CUSTOM_NS = 3;
   const STEAM_OK = 1;
-  const BATCH_MAX = 2000;
+  const BATCH_MAX = 500;
   const BATCH_WRITE_MS = 2000;
-  const BATCH_WAIT_MS = 5000;
+  const BATCH_WAIT_MS = 30000;
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
   const WRITE_TIMEOUT_MS = 10000;
   const SCAN_YIELD = 2000;
   const PAGE_MAX = 1000;
   const PROGRESS_LOG_EVERY = 50;
+  const SAVE_DONE_KEEP_MS = 120000;
 
   function now() {
     return Date.now();
@@ -476,6 +477,63 @@
     };
   }
 
+  function doneStat(q, more = {}) {
+    return {
+      ...stat(q, {
+        done: true,
+        finishedAt: now(),
+        ...more,
+      }),
+      running: false,
+    };
+  }
+
+  function rememberDone(rt, q, more = {}) {
+    const done = doneStat(q, more);
+    rt.lastDone = done;
+    return done;
+  }
+
+  function saveStatus(rt, rid, data) {
+    const queueRid = text(data?.queueRid);
+    const q = rt.q;
+    if (q?.running && (!queueRid || q.rid === queueRid)) {
+      const current = stat(q, {});
+      post(rt.ch, {
+        type: "save-status-result",
+        ...current,
+        queueRid: current.rid,
+        rid,
+        ok: true,
+        done: false,
+      });
+      return;
+    }
+
+    const done = rt.lastDone;
+    if (done && (!queueRid || done.rid === queueRid) && now() - Number(done.finishedAt || 0) <= SAVE_DONE_KEEP_MS) {
+      post(rt.ch, {
+        type: "save-status-result",
+        ...done,
+        queueRid: done.rid,
+        rid,
+        ok: true,
+      });
+      return;
+    }
+
+    post(rt.ch, {
+      type: "save-status-result",
+      rid,
+      ok: true,
+      done: true,
+      running: false,
+      queueRid,
+      stats: stats(0, 0),
+      error: "保存队列状态已失效，请重新打开批量窗口确认结果",
+    });
+  }
+
   // 单游戏保存仍走 Steam 原生接口；批量保存只走 CloudStorage 快路径。
   async function writeOne(item) {
     const appid = Number(item?.appid);
@@ -804,6 +862,15 @@
     };
   }
 
+  function clearBatch(items) {
+    return Array.isArray(items) && items.length > 0 && items.every(item => item?.mode === "clear");
+  }
+
+  function clearFastUnavailableResults(items, result) {
+    const error = result?.error || "清空自定义排序名称需要 Steam CloudStorage 快速写入支持";
+    return (Array.isArray(items) ? items : []).map(item => resultItem(item, "failed", error));
+  }
+
   function restoreFast(storage, dirty, backups) {
     for (const backup of backups) {
       if (backup.hadEntry) {
@@ -936,7 +1003,7 @@
     try {
       for (const item of prepared) {
         if (item.deleteEntry) {
-          rt.storage.set(item.key, new Entry(item.key, timestamp, true, ""));
+          rt.storage.set(item.key, new Entry(item.key, timestamp, true, null));
         } else {
           rt.storage.set(item.key, new Entry(item.key, timestamp, false, item.value));
         }
@@ -1131,6 +1198,31 @@
     const started = now();
     const result = await writeFastBatch(items);
     if (!result.ok) {
+      if (clearBatch(items)) {
+        const results = clearFastUnavailableResults(items, result);
+        q.fast.blocked += 1;
+        q.fast.reason = result.reason || "fast-unavailable";
+        q.fast.error = result.error || "";
+        recordBatchWriteMs(q, now() - started);
+        for (const item of results) {
+          applyResult(q, item);
+        }
+        q.index += items.length;
+        log("warn", "library-custom-name-save-queue-fast-unavailable", "库自定义名称清空需要 CloudStorage 快速写入，已拒绝旧版逐条清空", {
+          ...statsMeta(q),
+          count: items.length,
+          reason: q.fast.reason,
+          error: q.fast.error,
+        });
+        post(rt.ch, {
+          type: "save-progress",
+          ...stat(q, {
+            batchAction: "fast-unavailable",
+            items: results,
+          }),
+        });
+        return true;
+      }
       const accepted = await waitFastFallbackConfirm(rt, q, result, items);
       if (!accepted) {
         return "cancelled";
@@ -1225,7 +1317,7 @@
       q.cancelled = false;
     }
     log(q.stats.failed > 0 ? "warn" : "info", q.stats.failed > 0 ? "library-custom-name-save-queue-failed" : "library-custom-name-save-queue-success", q.stats.failed > 0 ? "库自定义名称保存队列完成但存在失败项" : "库自定义名称保存队列完成", statsMeta(q));
-    post(rt.ch, { type: "save-done", ...stat(q, {}) });
+    post(rt.ch, { type: "save-done", ...rememberDone(rt, q) });
     if (rt.q === q && rt.queueSeq === q.seq) {
       rt.q = null;
     }
@@ -1278,6 +1370,7 @@
       },
       sortTitleBulk: { enabled: false, reason: "not-started" },
     };
+    rt.lastDone = null;
     rt.q = q;
     beginSortTitleBulk(q);
     log("info", "library-custom-name-save-queue-start", "开始执行库自定义名称保存队列", {
@@ -1301,7 +1394,7 @@
       });
       post(rt.ch, {
         type: "save-done",
-        ...stat(q, { error: error?.message || String(error) }),
+        ...rememberDone(rt, q, { error: error?.message || String(error) }),
       });
       if (rt.q === q && rt.queueSeq === q.seq) {
         rt.q = null;
@@ -1357,6 +1450,7 @@
       preview: null,
       previewToken: "",
       queueSeq: 0,
+      lastDone: null,
       onMsg(event) {
         const data = event.data || {};
         if (data.script !== ID || data.side !== "ui") {
@@ -1391,6 +1485,10 @@
         }
         if (data.type === "save-queue") {
           saveQueue(rt, rid, data.items, data.skipped);
+          return;
+        }
+        if (data.type === "save-status") {
+          saveStatus(rt, rid, data);
           return;
         }
         if (data.type === "save-one") {

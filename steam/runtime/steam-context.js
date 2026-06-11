@@ -12,6 +12,10 @@
   "use strict";
 
   const api = window.SteamBuff = window.SteamBuff || {};
+  const SORT_LABEL_RE = /自定义排序名称|自訂排序名稱|自定義排序名稱|Custom Sort|カスタムソート|カスタム並び替え|사용자 지정 정렬|사용자 정의 정렬/i;
+  const SORT_UI_CACHE_MS = 1200;
+  let sortUiCacheAt = 0;
+  let sortUiCacheValue = false;
 
   /* Steam 客户端上下文识别 */
   function isShared() {
@@ -37,6 +41,64 @@
     }
   }
 
+  function visible(el) {
+    if (!el || !el.isConnected || el.nodeType !== 1) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) {
+      return false;
+    }
+    const style = window.getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity || 1) !== 0;
+  }
+
+  function nearText(el) {
+    let cur = el;
+    let out = "";
+    for (let i = 0; cur && i < 6; i += 1, cur = cur.parentElement) {
+      if (cur === document.body || cur === document.documentElement) {
+        break;
+      }
+      out += ` ${cur.textContent || ""}`;
+    }
+    return out.replace(/\s+/g, " ").trim();
+  }
+
+  function detectCustomSortUi() {
+    if (!isUi()) {
+      return false;
+    }
+    const inputs = Array.from(document.querySelectorAll("input[type='text'], input:not([type])"))
+      .filter(visible);
+    if (!inputs.length) {
+      return false;
+    }
+    if (inputs.some(input => SORT_LABEL_RE.test(nearText(input)))) {
+      return true;
+    }
+    if (inputs.some(input => /排序|sort/i.test(input.placeholder || input.getAttribute("aria-label") || ""))) {
+      return true;
+    }
+    const body = String(document.body?.textContent || "").replace(/\s+/g, " ").slice(0, 12000);
+    if (SORT_LABEL_RE.test(body)) {
+      return true;
+    }
+    return /自定义|Custom|自訂|自定義|カスタム|사용자/i.test(body) &&
+      /宽幅封面图片|徽标|標誌|背景|Logo|Wide capsule|カプセル|캡슐/i.test(body);
+  }
+
+  /* 非主窗口收窄：只让真实库属性弹窗进入 ui 上下文，避免菜单/好友列表常驻扫描。 */
+  function hasCustomSortUi() {
+    const at = Date.now();
+    if (sortUiCacheAt && at - sortUiCacheAt < SORT_UI_CACHE_MS) {
+      return sortUiCacheValue;
+    }
+    sortUiCacheAt = at;
+    sortUiCacheValue = detectCustomSortUi();
+    return sortUiCacheValue;
+  }
+
   function cleanRoute(value) {
     const raw = String(value || "").trim();
     if (!raw) {
@@ -52,6 +114,10 @@
     }
     for (const item of tries) {
       const text = item.replace(/\\/g, "/");
+      const appMatch = text.match(/\/library\/app\/(\d+)(?=$|[/?#&:,\s"'<>)])/i);
+      if (appMatch) {
+        return `/library/app/${appMatch[1]}`;
+      }
       const match = text.match(/\/library\/(home|collections|downloads)(?=$|[/?#&:,\s"'<>)])/i);
       if (match) {
         return `/library/${match[1].toLowerCase()}`;
@@ -92,7 +158,8 @@
   }
 
   function targets() {
-    switch (route()) {
+    const current = route();
+    switch (current) {
       case "/library/home":
         return ["home"];
       case "/library/collections":
@@ -100,6 +167,9 @@
       case "/library/downloads":
         return ["downloads"];
       default:
+        if (/^\/library\/app\/\d+$/.test(current)) {
+          return ["app"];
+        }
         return isDown() ? ["downloads"] : [];
     }
   }
@@ -109,7 +179,7 @@
     if (isShared()) {
       out.push("backend");
     }
-    if (isUi()) {
+    if (isMainUi() || hasCustomSortUi()) {
       out.push("ui");
     }
     if (isMainUi()) {
@@ -145,6 +215,7 @@
     isShared,
     isUi,
     isMainUi,
+    hasCustomSortUi,
     route,
     routeSources,
     isDown,

@@ -17,7 +17,7 @@
   const STYLE = "__Rickydownload-auto-shutdown-style";
   const ROOT = "__Rickydownload-auto-shutdown-root";
   const TOAST = "__Rickydownload-auto-shutdown-toast";
-  const SYNC_MS = 1500;
+  const SYNC_MS = 5000;
   const RESP_MS = 8000;
   const RETRY_MS = 1000;
   const TOAST_MS = 4200;
@@ -441,6 +441,11 @@
 
   function sync(api, ch) {
     if (!main(api)) {
+      cleanup();
+      return;
+    }
+    const show = isView(api);
+    if (!show && !s.rid) {
       cleanup();
       return;
     }

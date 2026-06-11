@@ -11,12 +11,13 @@
 (() => {
   "use strict";
 
-  if (globalThis.STGuard?.ready) {
-    return;
-  }
-
   const MATCH = globalThis.STConfig?.matchers;
   const MARK = "steamBuffInjected";
+  const MARK_VALUE = "steam-runtime-scope-20260611";
+
+  if (globalThis.STGuard?.ready && globalThis.STGuard.version === MARK_VALUE) {
+    return;
+  }
 
   function root() {
     return document.documentElement || document.head;
@@ -32,22 +33,23 @@
     if (!el) {
       return false;
     }
-    if (el.dataset[MARK] === "1") {
+    if (el.dataset[MARK] === MARK_VALUE) {
       return false;
     }
-    el.dataset[MARK] = "1";
+    el.dataset[MARK] = MARK_VALUE;
     return true;
   }
 
   function fail() {
     const el = root();
-    if (el) {
+    if (el && el.dataset[MARK] === MARK_VALUE) {
       el.dataset[MARK] = "";
     }
   }
 
   globalThis.STGuard = {
     ready: true,
+    version: MARK_VALUE,
     ok,
     lock,
     fail,

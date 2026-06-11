@@ -13,7 +13,9 @@
 
   const api = window.SteamBuff;
   const reg = api?.reg;
+  const RUNTIME_VERSION = "steam-runtime-scope-20260611";
   const BOOT_MS = 500;
+  const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;
   const LOOP_MS = 5000;
 
@@ -21,7 +23,11 @@
     return;
   }
 
-  if (api.runtime?.started) {
+  if (api.runtime?.started && api.runtime.version !== RUNTIME_VERSION) {
+    stopPreviousRuntime();
+  }
+
+  if (api.runtime?.started && api.runtime.version === RUNTIME_VERSION) {
     return;
   }
 
@@ -68,9 +74,98 @@
     return (api.ctx?.contexts?.() || []).length > 0;
   }
 
+  function clearTimer(value) {
+    if (!value) {
+      return;
+    }
+    try {
+      window.clearTimeout(value);
+      window.clearInterval(value);
+    } catch {
+    }
+  }
+
+  function clearKnownTimers(state) {
+    if (!state || typeof state !== "object") {
+      return;
+    }
+    [
+      "timer",
+      "syncI",
+      "pollT",
+      "toastT",
+      "delay",
+      "failT",
+      "searchTimer",
+      "capacityTimer",
+      "progressTimer",
+    ].forEach((key) => {
+      clearTimer(state[key]);
+      if (key in state) {
+        state[key] = 0;
+      }
+    });
+  }
+
+  function stopState(id) {
+    const state = api.state?.[id];
+    if (!state || typeof state !== "object") {
+      return;
+    }
+    if (typeof state.stop === "function") {
+      try {
+        state.stop();
+      } catch {
+      }
+    }
+    clearKnownTimers(state);
+    state.started = false;
+    state.fOn = false;
+  }
+
+  function cleanupLegacyDom() {
+    [
+      "__RickyLibraryCustomNameBar",
+      "__RickyLibraryCustomNameOne",
+      "__RickyLibraryCustomNameModal",
+      "__RickyLibraryCustomNameProgress",
+      "__Rickydownload-auto-shutdown-root",
+      "__Rickydownload-auto-shutdown-toast",
+      "__RickyNexusModsButton",
+    ].forEach((id) => document.getElementById(id)?.remove());
+  }
+
+  function stopPreviousRuntime() {
+    clearTimer(api.runtime?.timer);
+    if (api.ctx?.isShared?.() !== true) {
+      stopState("library-custom-name");
+      stopState("download-auto-shutdown");
+      stopState("nexus-mods");
+      try {
+        window.__SteamBuffNewsTranslate?.stop?.();
+      } catch {
+      }
+      cleanupLegacyDom();
+    }
+    api.runtime.started = false;
+    api.runtime.status = "restarting";
+    api.runtime.version = RUNTIME_VERSION;
+  }
+
+  function waitDelay(bootUntil) {
+    if (Date.now() >= bootUntil) {
+      return LOOP_MS;
+    }
+    if (api.ctx?.isUi?.() && !api.ctx?.isMainUi?.()) {
+      return UI_WAIT_MS;
+    }
+    return BOOT_MS;
+  }
+
   async function start() {
     api.runtime = {
       started: true,
+      version: RUNTIME_VERSION,
       startedAt: Date.now(),
       results: [],
       status: "starting",
@@ -100,7 +195,7 @@
             durationMs: Date.now() - api.runtime.startedAt,
           });
         }
-        later(Date.now() < bootUntil ? BOOT_MS : LOOP_MS);
+        later(waitDelay(bootUntil));
         return;
       }
 
