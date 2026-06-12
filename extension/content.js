@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-runtime-scope-20260612-scheduler";
+  const RUN_VERSION = "steam-runtime-scope-20260612-performance-monitor";
   const ALLOWED_PAGES = Object.freeze([
     "steamloopback.host",
     "store.steampowered.com",
@@ -1118,6 +1118,9 @@
   }
 
   function run() {
+    if (window.STPerformanceMonitor) {
+      STPerformanceMonitor.start();
+    }
     watchPageLog();
     watchNewsTranslateBridge();
     watchSettingsChanges();
@@ -1190,6 +1193,7 @@
           "extension/runtime/logger.js",
           "shared/config.js",
           "shared/i18n.js",
+          "shared/performance-monitor.js",
           "shared/observer-utils.js",
           "community/runtime/base.js",
           "community/runtime/settings.js",
@@ -1299,6 +1303,7 @@
           "extension/runtime/logger.js",
           "shared/config.js",
           "shared/i18n.js",
+          "shared/performance-monitor.js",
           "shared/scheduler.js",
           "shared/observer-utils.js",
           "shared/page-context.js",

@@ -30,6 +30,7 @@
         "<all_urls>"
       ],
       "js": [
+        "shared/performance-monitor.js",
         "shared/scheduler.js",
         "shared/observer-utils.js",
         "shared/page-context.js"
@@ -110,6 +111,7 @@
       "js": [
         "shared/config.js",
         "shared/i18n.js",
+        "shared/performance-monitor.js",
         "extension/runtime/guard.js",
         "extension/runtime/injector.js",
         "extension/runtime/logger.js",
@@ -128,6 +130,7 @@
         "extension/runtime/logger.js",
         "shared/config.js",
         "shared/i18n.js",
+        "shared/performance-monitor.js",
         "extension/content.js"
       ],
       "run_at": "document_start",
@@ -220,6 +223,7 @@
       "resources": [
         "shared/config.js",
         "shared/i18n.js",
+        "shared/performance-monitor.js",
         "shared/scheduler.js",
         "shared/observer-utils.js",
         "shared/page-context.js",
@@ -254,6 +258,7 @@
       "resources": [
         "shared/config.js",
         "shared/i18n.js",
+        "shared/performance-monitor.js",
         "shared/observer-utils.js",
         "_locales/*/messages.json",
         "community/runtime/*.js",

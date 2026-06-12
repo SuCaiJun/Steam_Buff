@@ -13,7 +13,7 @@
 
   const MIN_TICK_MS = 1000;
   const DEFAULT_TASK_MS = 10000;
-  const SCHEDULER_VERSION = "20260612-task-intervals";
+  const SCHEDULER_VERSION = "20260612-performance-monitor";
 
   const existing = window.STScheduler;
   if (existing?.version === SCHEDULER_VERSION && typeof existing.register === 'function') {
@@ -53,6 +53,7 @@
       });
 
       console.log('[Steam Buff][Scheduler] Task registered:', name, { intervalMs });
+      window.STPerformanceMonitor?.recordTimer?.(name);
       this.start();
     }
 

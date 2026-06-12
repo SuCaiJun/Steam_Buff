@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2026-06-12";
+  const VERSION = "2026-06-12-performance-monitor";
 
   if (window.STObserverUtils?.version === VERSION) {
     return;
@@ -19,6 +19,11 @@
 
   function wrapDisconnect(observer, cleanup) {
     const disconnect = observer.disconnect.bind(observer);
+    const observe = observer.observe.bind(observer);
+    observer.observe = (target, options) => {
+      window.STPerformanceMonitor?.recordObserver?.(target);
+      return observe(target, options);
+    };
     observer.disconnect = () => {
       cleanup();
       disconnect();

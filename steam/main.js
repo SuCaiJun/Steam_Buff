@@ -13,7 +13,7 @@
 
   const api = window.SteamBuff;
   const reg = api?.reg;
-  const RUNTIME_VERSION = "steam-runtime-scope-20260612-scheduler";
+  const RUNTIME_VERSION = "steam-runtime-scope-20260612-performance-monitor";
   const BOOT_MS = 500;
   const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;
