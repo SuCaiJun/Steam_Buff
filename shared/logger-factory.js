@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const LOGGER_FACTORY_VERSION = '2026-06-12-infrastructure';
+  const LOGGER_FACTORY_VERSION = '2026-06-12-steam-domain-format';
   const LogLevel = Object.freeze({
     INFO: 'info',
     WARN: 'warn',
@@ -111,7 +111,7 @@
   function print(entry) {
     const consoleFn = console[entry.level] || console.log;
     const prefix = `[Steam Buff][${entry.domain}:${entry.feature}]`;
-    consoleFn(`${prefix} ${entry.event}：${entry.message}`, entry.meta);
+    consoleFn(`${prefix} ${entry.level} ${entry.event}: ${entry.message}`, entry.meta);
   }
 
   function log(level, domain, feature, event, message, meta = {}) {

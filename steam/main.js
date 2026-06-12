@@ -13,6 +13,7 @@
 
   const api = window.SteamBuff;
   const reg = api?.reg;
+  const log = window.STLoggerFactory.createLogger('steam', 'main');
   const RUNTIME_VERSION = "steam-runtime-scope-20260612-performance-monitor";
   const BOOT_MS = 500;
   const UI_WAIT_MS = 1500;
@@ -29,26 +30,6 @@
 
   if (api.runtime?.started && api.runtime.version === RUNTIME_VERSION) {
     return;
-  }
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "steam",
-        feature: "steam-runtime",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
   }
 
   function summary(results) {
@@ -203,7 +184,7 @@
       waitingLogged: false,
       readyLogged: false,
     };
-    log("info", "runtime-start", "Steam 客户端运行时开始启动", {
+    log.info("runtime-start", "Steam 客户端运行时开始启动", {
       route: api.ctx?.route?.() || "",
     });
 
@@ -220,7 +201,7 @@
         // 首次启动时 Steam 可能长时间不暴露 SharedJSContext/UI，不能永久放弃，只在启动窗口后降频等待。
         if (!api.runtime.waitingLogged) {
           api.runtime.waitingLogged = true;
-          log("info", "runtime-waiting", "Steam 客户端运行时等待上下文就绪", {
+          log.info("runtime-waiting", "Steam 客户端运行时等待上下文就绪", {
             route: api.ctx?.route?.() || "",
             durationMs: Date.now() - api.runtime.startedAt,
           });
@@ -236,7 +217,7 @@
       }
       if (!api.runtime.readyLogged) {
         api.runtime.readyLogged = true;
-        log("info", "runtime-ready", "Steam 客户端运行时已就绪", {
+        log.info("runtime-ready", "Steam 客户端运行时已就绪", {
           route: api.ctx?.route?.() || "",
           contexts: api.ctx?.contexts?.() || [],
           ...summary(results),

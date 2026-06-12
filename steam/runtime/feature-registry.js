@@ -12,6 +12,7 @@
   "use strict";
 
   const api = window.SteamBuff = window.SteamBuff || {};
+  const log = window.STLoggerFactory.createLogger('steam', 'feature-registry');
 
   /**
    * @typedef {Object} FeatureDef
@@ -152,12 +153,10 @@
         await this.loadEntry(feature, entry);
         const start = this.state.entries[feature.id]?.[entry];
         if (typeof start !== "function") {
-          globalThis.STLogger?.error?.({
-            domain: "steam",
-            feature: feature.id,
-            event: "feature-start-failed",
-            message: "Steam 客户端功能入口不可调用",
-            meta: { context, entry },
+          log.error("feature-start-failed", "Steam 客户端功能入口不可调用", {
+            featureId: feature.id,
+            context,
+            entry,
           });
           return { id: feature.id, context, entry, status: "failed", reason: "entry-not-callable" };
         }
@@ -168,13 +167,11 @@
         }
         return { id: feature.id, context, entry, status: "started", result };
       } catch (error) {
-        globalThis.STLogger?.error?.({
-          domain: "steam",
-          feature: feature.id,
-          event: "feature-start-failed",
-          message: "Steam 客户端功能启动失败",
+        log.error("feature-start-failed", "Steam 客户端功能启动失败", {
+          featureId: feature.id,
+          context,
+          entry,
           error,
-          meta: { context, entry },
         });
         return { id: feature.id, context, entry, status: "failed", error: String(error) };
       } finally {
@@ -214,22 +211,13 @@
         return;
       }
       this.state.lastSummaryKey = key;
-      try {
-        globalThis.STLogger?.info?.({
-          domain: "steam",
-          feature: "feature-registry",
-          event: "features-start-summary",
-          message: "Steam 客户端功能启动摘要",
-          meta: {
-            total,
-            started,
-            skipped,
-            failed,
-            contexts,
-          },
-        });
-      } catch {
-      }
+      log.info("features-start-summary", "Steam 客户端功能启动摘要", {
+        total,
+        started,
+        skipped,
+        failed,
+        contexts,
+      });
     }
 
     list() {

@@ -50,25 +50,7 @@
     }
   }
 
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "steam",
-        feature: ID,
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
+  const log = window.STLoggerFactory.createLogger("steam", ID);
 
   function chan() {
     if (s.ch) {
@@ -226,7 +208,7 @@
     }
     s.helloLogKey = key;
     s.helloLogAt = at;
-    log("info", "download-auto-shutdown-frontend-hello", "下载完成自动关机后端收到前端状态请求", {
+    log.info("download-auto-shutdown-frontend-hello", "下载完成自动关机后端收到前端状态请求", {
       reason: s.reason || ST.READY,
       route: api.ctx?.route?.() || "",
       isDown: api.ctx?.isDown?.() === true,
@@ -246,7 +228,7 @@
 
     if (!on) {
       pub(api, { rid, reason: ST.OFF });
-      log("info", "download-auto-shutdown-toggle-success", "下载完成自动关机已关闭", {
+      log.info("download-auto-shutdown-toggle-success", "下载完成自动关机已关闭", {
         enabled: false,
         reason: ST.OFF,
       });
@@ -260,7 +242,7 @@
       s.mon = false;
       s.seen = false;
       pub(api, { rid, reason: ST.NO_WORK });
-      log("info", "download-auto-shutdown-toggle-success", "下载完成自动关机已开启但当前无下载任务", {
+      log.info("download-auto-shutdown-toggle-success", "下载完成自动关机已开启但当前无下载任务", {
         enabled: true,
         reason: ST.NO_WORK,
         workCount: 0,
@@ -271,7 +253,7 @@
     s.mon = true;
     s.seen = true;
     pub(api, { rid, reason: ST.ARMED });
-    log("info", "download-auto-shutdown-toggle-success", "下载完成自动关机已开启并开始监控", {
+    log.info("download-auto-shutdown-toggle-success", "下载完成自动关机已开启并开始监控", {
       enabled: true,
       reason: ST.ARMED,
       workCount: (Number(shot.actN) || 0) + (Number(shot.queueN) || 0),
@@ -283,7 +265,7 @@
     s.shut = false;
     s.err = String(error?.message || error || "未知错误").replace(/^Error:\s*/, "");
     pub(api, { reason: ST.FAIL, error: s.err });
-    log("error", "download-auto-shutdown-failed", "下载完成自动关机失败", {
+    log.error("download-auto-shutdown-failed", "下载完成自动关机失败", {
       reason: ST.FAIL,
       error: s.err,
     });
@@ -339,7 +321,7 @@
         throw new Error("Steam 大屏幕模式未能在 10 秒内启动。");
       }
       window.SteamClient.System.ShutdownPC();
-      log("info", "download-auto-shutdown-success", "下载完成自动关机请求已发送", {
+      log.info("download-auto-shutdown-success", "下载完成自动关机请求已发送", {
         reason: ST.SHUT,
       });
       return true;
@@ -358,7 +340,7 @@
     s.mon = false;
     s.err = "";
     pub(api, { reason: ST.SHUT });
-    log("warn", "download-auto-shutdown-start", "下载完成自动关机已触发", {
+    log.warn("download-auto-shutdown-start", "下载完成自动关机已触发", {
       reason: ST.SHUT,
     });
 
@@ -422,13 +404,13 @@
       return { started: false, reason: "already-started" };
     }
     if (!ready()) {
-      log("warn", "download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端能力不可用", readyMeta());
+      log.warn("download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端能力不可用", readyMeta());
       return { started: false, reason: "backend-capability-unavailable" };
     }
 
     const ch = chan();
     if (!ch) {
-      log("warn", "download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端缺少 BroadcastChannel", readyMeta());
+      log.warn("download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端缺少 BroadcastChannel", readyMeta());
       return { started: false, reason: "broadcast-channel-unavailable" };
     }
 
@@ -441,7 +423,7 @@
     s.err = "";
     clearTimers();
     if (!window.STScheduler?.register) {
-      log("warn", "download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端缺少统一调度器", readyMeta());
+      log.warn("download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端缺少统一调度器", readyMeta());
       return { started: false, reason: "scheduler-unavailable" };
     }
     // 下载监控迁移到统一调度器，避免 Steam 多页面各自持有独立巡检。
@@ -490,7 +472,7 @@
     ch.addEventListener("message", s.onMsg);
 
     pub(api, { reason: ST.READY });
-    log("info", "download-auto-shutdown-backend-ready", "下载完成自动关机后端已就绪", readyMeta());
+    log.info("download-auto-shutdown-backend-ready", "下载完成自动关机后端已就绪", readyMeta());
     return { started: true, stop: s.stop };
   }
 

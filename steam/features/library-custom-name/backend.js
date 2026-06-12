@@ -72,24 +72,11 @@
     }
   }
 
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "steam",
-        feature: ID,
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
+  const log = window.STLoggerFactory.createLogger("steam", ID);
+
+  function logByLevel(level, event, message, meta = {}) {
+    const method = level === "error" ? "error" : level === "warn" ? "warn" : "info";
+    log[method](event, message, meta);
   }
 
   function statsMeta(q) {
@@ -144,7 +131,7 @@
       }) || { enabled: false, reason: "empty-result" };
     } catch (error) {
       q.sortTitleBulk = { enabled: false, reason: "failed", error: error?.message || String(error) };
-      log("warn", "library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列启用排序标题批量抑制失败", {
+      log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列启用排序标题批量抑制失败", {
         error: q.sortTitleBulk.error,
       });
     }
@@ -167,7 +154,7 @@
         ...statsMeta(q),
       });
     } catch (error) {
-      log("warn", "library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列结束排序标题批量抑制失败", {
+      log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列结束排序标题批量抑制失败", {
         ...statsMeta(q),
         error: error?.message || String(error),
       });
@@ -197,7 +184,7 @@
       }
       return api.recordCustomNameBulk(changes);
     } catch (error) {
-      log("warn", "library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列记录排序标题刷新失败", {
+      log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列记录排序标题刷新失败", {
         error: error?.message || String(error),
       });
     }
@@ -247,7 +234,7 @@
       }
     }
     if (synced) {
-      log("info", "library-custom-name-save-queue-fast-sync", "库自定义名称快速写入已同步 AppOverview", {
+      log.info("library-custom-name-save-queue-fast-sync", "库自定义名称快速写入已同步 AppOverview", {
         synced,
       });
     }
@@ -272,7 +259,7 @@
       return;
     }
     q.progressLogged = processed;
-    log("info", "library-custom-name-save-queue-progress", "库自定义名称保存队列进度", statsMeta(q));
+    log.info("library-custom-name-save-queue-progress", "库自定义名称保存队列进度", statsMeta(q));
   }
 
   function appidFromRoute() {
@@ -805,7 +792,7 @@
       }
 
       const writeMs = now() - started;
-      log("info", "library-custom-name-save-queue-fast-bootstrap", "库自定义名称快速写入已引导 Steam StorageEntry", {
+      log.info("library-custom-name-save-queue-fast-bootstrap", "库自定义名称快速写入已引导 Steam StorageEntry", {
         appid: seed.appid,
         writeMs,
       });
@@ -1023,7 +1010,7 @@
       try {
         rt.callbacks.Dispatch(rt.ns, changedKeys);
       } catch (error) {
-        log("warn", "library-custom-name-save-queue-fast-callback-failed", "库自定义名称快速写入已落盘但刷新回调失败", {
+        log.warn("library-custom-name-save-queue-fast-callback-failed", "库自定义名称快速写入已落盘但刷新回调失败", {
           changed: changedKeys.length,
           error: error?.message || String(error),
         });
@@ -1031,7 +1018,7 @@
       try {
         rt.state.ScheduleUpload();
       } catch (error) {
-        log("warn", "library-custom-name-save-queue-fast-upload-failed", "库自定义名称快速写入已落盘但上传调度失败", {
+        log.warn("library-custom-name-save-queue-fast-upload-failed", "库自定义名称快速写入已落盘但上传调度失败", {
           changed: changedKeys.length,
           error: error?.message || String(error),
         });
@@ -1069,7 +1056,7 @@
     q.batchWritten = 0;
     q.batchStartedAt = now();
     q.batchWaiting = false;
-    log("info", "library-custom-name-save-queue-batch-start", "库自定义名称保存队列批次开始", statsMeta(q));
+    log.info("library-custom-name-save-queue-batch-start", "库自定义名称保存队列批次开始", statsMeta(q));
     post(rt.ch, { type: "save-progress", ...stat(q, { batchAction: "start" }) });
   }
 
@@ -1082,7 +1069,7 @@
 
   async function waitNextBatch(rt, q) {
     q.batchWaiting = true;
-    log("info", "library-custom-name-save-queue-batch-wait", "库自定义名称保存队列等待 Steam 云同步窗口", statsMeta(q));
+    log.info("library-custom-name-save-queue-batch-wait", "库自定义名称保存队列等待 Steam 云同步窗口", statsMeta(q));
     post(rt.ch, { type: "save-progress", ...stat(q, { batchAction: "wait" }) });
     await waitQueue(q, BATCH_WAIT_MS);
     q.batchWaiting = false;
@@ -1140,7 +1127,7 @@
     q.fast.error = result.error || "";
     if (q.fast.lastReason !== q.fast.reason) {
       q.fast.lastReason = q.fast.reason;
-      log("warn", "library-custom-name-save-queue-fast-fallback", "库自定义名称快速写入不可用，等待确认是否使用 Steam 原生单条写入", {
+      log.warn("library-custom-name-save-queue-fast-fallback", "库自定义名称快速写入不可用，等待确认是否使用 Steam 原生单条写入", {
         ...statsMeta(q),
         reason: q.fast.reason,
         error: q.fast.error,
@@ -1170,7 +1157,7 @@
     }
     if (q.cancelled || q.fast.fallbackDecision !== "confirm") {
       q.cancelled = true;
-      log("info", "library-custom-name-save-queue-fast-fallback-declined", "用户已取消库自定义名称旧版慢速写入回退", {
+      log.info("library-custom-name-save-queue-fast-fallback-declined", "用户已取消库自定义名称旧版慢速写入回退", {
         ...statsMeta(q),
         reason: q.fast.reason,
         error: q.fast.error,
@@ -1179,7 +1166,7 @@
     }
 
     q.fast.fallbackAccepted = true;
-    log("warn", "library-custom-name-save-queue-fast-fallback-confirmed", "用户已确认库自定义名称旧版慢速写入回退", {
+    log.warn("library-custom-name-save-queue-fast-fallback-confirmed", "用户已确认库自定义名称旧版慢速写入回退", {
       ...statsMeta(q),
       reason: q.fast.reason,
       error: q.fast.error,
@@ -1208,7 +1195,7 @@
           applyResult(q, item);
         }
         q.index += items.length;
-        log("warn", "library-custom-name-save-queue-fast-unavailable", "库自定义名称清空需要 CloudStorage 快速写入，已拒绝旧版逐条清空", {
+        log.warn("library-custom-name-save-queue-fast-unavailable", "库自定义名称清空需要 CloudStorage 快速写入，已拒绝旧版逐条清空", {
           ...statsMeta(q),
           count: items.length,
           reason: q.fast.reason,
@@ -1243,7 +1230,7 @@
       applyResult(q, item);
     }
     q.index += items.length;
-    log("info", "library-custom-name-save-queue-fast-batch", "库自定义名称快速批量写入完成", {
+    log.info("library-custom-name-save-queue-fast-batch", "库自定义名称快速批量写入完成", {
       ...statsMeta(q),
       count: items.length,
       changed: result.changed || 0,
@@ -1316,7 +1303,7 @@
     if (q.cancelled) {
       q.cancelled = false;
     }
-    log(q.stats.failed > 0 ? "warn" : "info", q.stats.failed > 0 ? "library-custom-name-save-queue-failed" : "library-custom-name-save-queue-success", q.stats.failed > 0 ? "库自定义名称保存队列完成但存在失败项" : "库自定义名称保存队列完成", statsMeta(q));
+    logByLevel(q.stats.failed > 0 ? "warn" : "info", q.stats.failed > 0 ? "library-custom-name-save-queue-failed" : "library-custom-name-save-queue-success", q.stats.failed > 0 ? "库自定义名称保存队列完成但存在失败项" : "库自定义名称保存队列完成", statsMeta(q));
     post(rt.ch, { type: "save-done", ...rememberDone(rt, q) });
     if (rt.q === q && rt.queueSeq === q.seq) {
       rt.q = null;
@@ -1326,7 +1313,7 @@
   // 同一时间只允许一个保存队列，避免并发写入导致 Steam AppOverview 状态互相覆盖。
   function saveQueue(rt, rid, items, skipped) {
     if (rt.q?.running) {
-      log("warn", "library-custom-name-save-queue-failed", "库自定义名称保存队列已在执行", {
+      log.warn("library-custom-name-save-queue-failed", "库自定义名称保存队列已在执行", {
         reason: "already-running",
       });
       post(rt.ch, { type: "save-result", rid, ok: false, error: "已有保存队列正在执行" });
@@ -1373,7 +1360,7 @@
     rt.lastDone = null;
     rt.q = q;
     beginSortTitleBulk(q);
-    log("info", "library-custom-name-save-queue-start", "开始执行库自定义名称保存队列", {
+    log.info("library-custom-name-save-queue-start", "开始执行库自定义名称保存队列", {
       total: q.stats.total,
       count: list.length,
       skipped: skip,
@@ -1388,7 +1375,7 @@
     runQueue(rt, q).catch((error) => {
       q.running = false;
       endSortTitleBulk(q, "error");
-      log("error", "library-custom-name-save-queue-failed", "库自定义名称保存队列异常", {
+      log.error("library-custom-name-save-queue-failed", "库自定义名称保存队列异常", {
         ...statsMeta(q),
         error: error?.message || String(error),
       });

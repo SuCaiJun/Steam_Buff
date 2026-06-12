@@ -234,6 +234,7 @@
         "shared/page-context.js",
         "_locales/*/messages.json",
         "extension/runtime/logger.js",
+        "shared/logger-factory.js",
         "steam/shared/constants.js",
         "steam/runtime/paths.js",
         "steam/runtime/steam-context.js",

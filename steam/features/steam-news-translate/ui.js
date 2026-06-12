@@ -75,27 +75,13 @@
   ];
   const mounted = new WeakMap();
 
-  function log(level, event, message, meta = {}, error = null) {
-    try {
-      const entry = {
-        domain: "steam",
-        feature: ID,
-        event,
-        message,
-        meta,
-      };
-      if (error) {
-        entry.error = error;
-      }
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
+  const log = window.STLoggerFactory.createLogger("steam", ID);
+
+  function logError(event, message, meta = {}, error = null) {
+    log.error(event, message, {
+      ...meta,
+      error: error || null,
+    });
   }
 
   function ensureStyle() {
@@ -648,7 +634,7 @@
     }
 
     setButton(button, "loading", "正在翻译...");
-    log("info", "news-popup-translate-start", "[Steam Buff] 新闻弹窗翻译开始", {
+    log.info("news-popup-translate-start", "[Steam Buff] 新闻弹窗翻译开始", {
       textLength: data.length,
     });
 
@@ -666,7 +652,7 @@
       trimCache(rt.cache);
       renderTranslation(rt, card, data, text);
       setButton(button, "done");
-      log("info", "news-popup-translate-success", "[Steam Buff] 新闻弹窗翻译完成", {
+      log.info("news-popup-translate-success", "[Steam Buff] 新闻弹窗翻译完成", {
         textLength: data.length,
         resultLength: text.length,
         durationMs: response.meta?.durationMs || 0,
@@ -676,7 +662,7 @@
       if (card.isConnected) {
         setButton(button, "error", error?.message || "翻译失败");
       }
-      log("error", "news-popup-translate-failed", "[Steam Buff] 新闻弹窗翻译失败", {
+      logError("news-popup-translate-failed", "[Steam Buff] 新闻弹窗翻译失败", {
         textLength: data.length,
       }, error);
     }
@@ -772,7 +758,7 @@
     mounted.set(card, { button, target });
     rt.cards.add(card);
     rt.activeCard = card;
-    log("info", "news-popup-button-mounted", "[Steam Buff] 新闻弹窗翻译按钮已挂载", {
+    log.info("news-popup-button-mounted", "[Steam Buff] 新闻弹窗翻译按钮已挂载", {
       textLength: data.length,
     });
     return true;
@@ -832,7 +818,7 @@
     if (!activeCard) {
       if (!rt.skipLogged && Date.now() - rt.startedAt > 2500) {
         rt.skipLogged = true;
-        log("info", "news-popup-dom-skip", "[Steam Buff] 未识别到可翻译的新闻弹窗", {});
+        log.info("news-popup-dom-skip", "[Steam Buff] 未识别到可翻译的新闻弹窗", {});
       }
       return;
     }
@@ -901,7 +887,7 @@
       return { started: false, reason: "already-started", stop: window[RT].stop };
     }
     if (!window.STScheduler?.register) {
-      log("warn", "news-popup-config-scheduler-missing", "[Steam Buff] 新闻翻译缺少统一调度器", {});
+      log.warn("news-popup-config-scheduler-missing", "[Steam Buff] 新闻翻译缺少统一调度器", {});
       return { started: false, reason: "scheduler-unavailable" };
     }
 

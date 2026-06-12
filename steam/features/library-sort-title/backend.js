@@ -35,25 +35,7 @@
   const AFTER_SAVE_RECHECK_MS = 1000;
   const EVENTS = Object.freeze(["focus", "pageshow"]);
 
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "steam",
-        feature: ID,
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
+  const log = window.STLoggerFactory.createLogger("steam", ID);
 
   function names() {
     if (!window[ORIGS]) {
@@ -231,7 +213,7 @@
       }
     }
     if (recorded) {
-      log("info", "library-sort-title-bulk-record", "库排序标题已记录快速批量写入变化", {
+      log.info("library-sort-title-bulk-record", "库排序标题已记录快速批量写入变化", {
         count: list.length,
         recorded,
       });
@@ -258,7 +240,7 @@
   function flushBulkState(state, reason) {
     const entries = Array.from(state?.map || []);
     const changed = flushBulkMap(window.appStore, entries);
-    log("info", "library-sort-title-bulk-flush", "库排序标题批量刷新完成", {
+    log.info("library-sort-title-bulk-flush", "库排序标题批量刷新完成", {
       reason,
       queued: entries.length,
       changed,
@@ -458,7 +440,7 @@
       changed: 0,
       map: new Map(),
     };
-    log("info", "library-sort-title-bulk-start", "库排序标题进入批量刷新抑制", {
+    log.info("library-sort-title-bulk-start", "库排序标题进入批量刷新抑制", {
       source: rt.bulk.source,
       seq: rt.bulk.seq,
       total: rt.bulk.total,
@@ -486,7 +468,7 @@
     const delayed = Array.from(state.map || []);
     window.setTimeout(() => {
       const changed = flushBulkMap(window.appStore, delayed);
-      log("info", "library-sort-title-bulk-flush", "库排序标题批量延迟复查完成", {
+      log.info("library-sort-title-bulk-flush", "库排序标题批量延迟复查完成", {
         reason: "delayed",
         queued: delayed.length,
         changed,
@@ -511,7 +493,7 @@
       return { started: false, reason: "already-started", stop: old.stop };
     }
     if (!window.STScheduler?.register) {
-      log("warn", "library-sort-title-sync-failed", "库排序标题同步缺少统一调度器");
+      log.warn("library-sort-title-sync-failed", "库排序标题同步缺少统一调度器");
       return { started: false, reason: "scheduler-unavailable" };
     }
 
@@ -527,7 +509,7 @@
       }
       if (!rt.loggedStart) {
         rt.loggedStart = true;
-        log("info", "library-sort-title-sync-start", "开始同步库排序标题显示", {
+        log.info("library-sort-title-sync-start", "开始同步库排序标题显示", {
           appCount: apps.length,
         });
       }
@@ -546,7 +528,7 @@
       }
       if (!rt.loggedSuccess && rt.sortOk && rt.customOk && rt.changeOk) {
         rt.loggedSuccess = true;
-        log("info", "library-sort-title-sync-success", "库排序标题同步已就绪", {
+        log.info("library-sort-title-sync-success", "库排序标题同步已就绪", {
           appCount: apps.length,
           changed,
           sortOk: rt.sortOk,
@@ -555,7 +537,7 @@
         });
       } else if (!rt.loggedFailed && (!rt.sortOk || !rt.customOk || !rt.changeOk) && Date.now() - rt.startedAt > WARM_TTL) {
         rt.loggedFailed = true;
-        log("warn", "library-sort-title-sync-failed", "库排序标题同步 hook 未完全就绪", {
+        log.warn("library-sort-title-sync-failed", "库排序标题同步 hook 未完全就绪", {
           appCount: apps.length,
           sortOk: rt.sortOk,
           customOk: rt.customOk,

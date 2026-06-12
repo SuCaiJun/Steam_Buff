@@ -24,24 +24,11 @@
   const rootState = window.SteamBuff.state = window.SteamBuff.state || {};
   const s = rootState[ID] = rootState[ID] || {};
 
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "steam",
-        feature: ID,
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
+  const log = window.STLoggerFactory.createLogger("steam", ID);
+
+  function logByLevel(level, event, message, meta = {}) {
+    const method = level === "error" ? "error" : level === "warn" ? "warn" : "info";
+    log[method](event, message, meta);
   }
 
   function rectMeta(el) {
@@ -91,7 +78,7 @@
     s.mountLogKey = key;
     s.mountLogAt = at;
     const { repeatMs: _repeatMs, ...cleanMeta } = meta;
-    log(level, event, message, pageMeta(cleanMeta));
+    logByLevel(level, event, message, pageMeta(cleanMeta));
   }
 
   function css() {
@@ -252,7 +239,7 @@
       a.classList.add("st-nexus-mods-busy");
       const appid = appidFromRoute();
       const startedAt = Date.now();
-      log("info", "nexus-mods-open-start", "开始打开 Nexus Mods 搜索", {
+      log.info("nexus-mods-open-start", "开始打开 Nexus Mods 搜索", {
         appid,
       });
       try {
@@ -260,20 +247,20 @@
         const link = url(name);
         if (link) {
           const ok = open(link);
-          log(ok ? "info" : "warn", ok ? "nexus-mods-open-success" : "nexus-mods-open-failed", ok ? "Nexus Mods 搜索已打开" : "Nexus Mods 搜索打开失败", {
+          logByLevel(ok ? "info" : "warn", ok ? "nexus-mods-open-success" : "nexus-mods-open-failed", ok ? "Nexus Mods 搜索已打开" : "Nexus Mods 搜索打开失败", {
             appid,
             nameLength: name.length,
             durationMs: Date.now() - startedAt,
           });
         } else {
-          log("warn", "nexus-mods-open-failed", "Nexus Mods 搜索链接为空", {
+          log.warn("nexus-mods-open-failed", "Nexus Mods 搜索链接为空", {
             appid,
             reason: "empty-link",
             durationMs: Date.now() - startedAt,
           });
         }
       } catch (error) {
-        log("error", "nexus-mods-open-failed", "Nexus Mods 搜索打开异常", {
+        log.error("nexus-mods-open-failed", "Nexus Mods 搜索打开异常", {
           appid,
           durationMs: Date.now() - startedAt,
           error: error?.message || String(error),

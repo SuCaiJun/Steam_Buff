@@ -63,24 +63,11 @@
     return s.ch;
   }
 
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "steam",
-        feature: ID,
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
+  const log = window.STLoggerFactory.createLogger("steam", ID);
+
+  function logByLevel(level, event, message, meta = {}) {
+    const method = level === "error" ? "error" : level === "warn" ? "warn" : "info";
+    log[method](event, message, meta);
   }
 
   function rectMeta(el) {
@@ -127,7 +114,7 @@
     s.mountLogKey = key;
     s.mountLogAt = at;
     const { repeatMs: _repeatMs, ...cleanMeta } = meta;
-    log(level, event, message, pageMeta(cleanMeta));
+    logByLevel(level, event, message, pageMeta(cleanMeta));
   }
 
   function css() {
