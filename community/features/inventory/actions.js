@@ -23,25 +23,7 @@
   let boosterQ;
   let saleBatch = null;
 
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "community",
-        feature: "inventory-actions",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
+  const log = window.STLoggerFactory.createLogger('community', 'inventory-actions');
 
   function finishSaleBatch() {
     if (!saleBatch) return;
@@ -53,7 +35,8 @@
       skipped: saleBatch.skipped,
       durationMs: Date.now() - saleBatch.startedAt,
     };
-    log(saleBatch.failed > 0 ? "warn" : "info", saleBatch.failed > 0 ? "inventory-sell-failed" : "inventory-sell-success", saleBatch.failed > 0 ? "库存批量出售完成但存在失败项" : "库存批量出售完成", meta);
+    const method = saleBatch.failed > 0 ? 'warn' : 'info';
+    log[method](saleBatch.failed > 0 ? "inventory-sell-failed" : "inventory-sell-success", saleBatch.failed > 0 ? "库存批量出售完成但存在失败项" : "库存批量出售完成", meta);
     saleBatch = null;
   }
 
@@ -240,7 +223,7 @@
     initQueues();
     if (!items.length) {
       api.logger.log("这些物品无法被上架至市场...");
-      log("warn", "inventory-sell-failed", "库存批量出售没有可上架物品", {
+      log.warn("inventory-sell-failed", "库存批量出售没有可上架物品", {
         total: 0,
         reason: "empty",
       });
@@ -263,7 +246,7 @@
       }
       api.spinner.show(`正在处理 ${n} 个物品`);
     } else if (saleBatch) {
-      log("warn", "inventory-sell-failed", "库存批量出售没有新入队物品", {
+      log.warn("inventory-sell-failed", "库存批量出售没有新入队物品", {
         total: saleBatch.total,
         queued: 0,
         reason: "all-queued",
@@ -283,7 +266,7 @@
       skipped: 0,
       startedAt: Date.now(),
     };
-    log("info", "inventory-sell-start", "开始库存批量出售", {
+    log.info("inventory-sell-start", "开始库存批量出售", {
       total: items.length,
       selected: picked.length,
     });
@@ -380,7 +363,7 @@
     await api.items.loadAllInv();
     api.spinner.hide();
     const candidates = selectedItems(api.items.canGoo);
-    log("info", "inventory-goo-start", "开始库存批量分解宝石", {
+    log.info("inventory-goo-start", "开始库存批量分解宝石", {
       action: "selected",
       count: candidates.length,
     });
@@ -408,7 +391,7 @@
           candidates.push(item);
         }
       }
-      log("info", "inventory-goo-start", "开始库存重复物品分解宝石", {
+      log.info("inventory-goo-start", "开始库存重复物品分解宝石", {
         action: "duplicate",
         count: candidates.length,
       });
@@ -429,7 +412,7 @@
   async function allBoosters() {
     withInv("正在加载库存物品", (items) => {
       const candidates = items.filter((item) => api.items.canOpenBooster(item));
-      log("info", "inventory-booster-open-start", "开始批量拆补充包", {
+      log.info("inventory-booster-open-start", "开始批量拆补充包", {
         action: "all",
         count: candidates.length,
       });
@@ -454,7 +437,7 @@
     await api.items.loadAllInv();
     api.spinner.hide();
     const candidates = selectedItems(api.items.canOpenBooster);
-    log("info", "inventory-booster-open-start", "开始拆选中的补充包", {
+    log.info("inventory-booster-open-start", "开始拆选中的补充包", {
       action: "selected",
       count: candidates.length,
     });

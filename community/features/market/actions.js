@@ -18,25 +18,7 @@
   let removeBatch = null;
   let relistBatch = null;
 
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "community",
-        feature: "market-actions",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
+  const log = window.STLoggerFactory.createLogger('community', 'market-actions');
 
   function startBatch(kind, total, context) {
     const batch = {
@@ -48,10 +30,10 @@
     };
     if (kind === "remove") {
       removeBatch = batch;
-      log("info", "market-remove-listing-start", "开始批量下架市场挂单", { total, context });
+      log.info("market-remove-listing-start", "开始批量下架市场挂单", { total, context });
     } else {
       relistBatch = batch;
-      log("info", "market-relist-start", "开始批量重挂市场挂单", { total, context });
+      log.info("market-relist-start", "开始批量重挂市场挂单", { total, context });
     }
   }
 
@@ -75,7 +57,8 @@
     const message = kind === "remove"
       ? (failed ? "市场挂单批量下架完成但存在失败项" : "市场挂单批量下架完成")
       : (failed ? "市场挂单批量重挂完成但存在失败项" : "市场挂单批量重挂完成");
-    log(failed ? "warn" : "info", event, message, {
+    const method = failed ? 'warn' : 'info';
+    log[method](event, message, {
       total: batch.total,
       success: batch.success,
       failed: batch.failed,
@@ -171,7 +154,7 @@
         if (data.assets && typeof api.W.MergeWithAssetArray === "function") api.W.MergeWithAssetArray(data.assets);
       }
     } catch (error) {
-      log("warn", "market-listing-page-load-failed", "市场挂单分页加载失败", {
+      log.warn("market-listing-page-load-failed", "市场挂单分页加载失败", {
         start: Number(start) || 0,
         count: 100,
         path: location.pathname,
@@ -201,7 +184,7 @@
       if (content) content.style.background = api.color.err;
       markBatch("remove", false);
       if (!removeBatch) {
-        log("error", "market-remove-listing-failed", "市场挂单下架失败", {
+        log.error("market-remove-listing-failed", "市场挂单下架失败", {
           listingId: String(id || ""),
           buyOrder: buy,
           error: error?.message || String(error),
@@ -294,7 +277,7 @@
       if (content) content.style.background = api.color.err;
       markBatch("relist", false);
       if (!relistBatch) {
-        log("error", "market-relist-failed", "市场挂单重挂失败", {
+        log.error("market-relist-failed", "市场挂单重挂失败", {
           listingId: String(item.id || ""),
           appid: Number(item.appid) || 0,
           error: error?.message || String(error),

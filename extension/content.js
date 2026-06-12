@@ -1191,6 +1191,7 @@
         writeUiLocale().catch(() => {});
         return inj.inject([
           "extension/runtime/logger.js",
+          "shared/logger-factory.js",
           "shared/config.js",
           "shared/i18n.js",
           "shared/performance-monitor.js",

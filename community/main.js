@@ -15,25 +15,7 @@
   if (!api || api.started) return;
   api.started = true;
 
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "community",
-        feature: "community-runtime",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
+  const log = window.STLoggerFactory.createLogger('community', 'main');
 
   function pageType() {
     if (api.page === api.pages.INV) return "inventory";
@@ -44,7 +26,7 @@
   }
 
   const startedAt = Date.now();
-  log("info", "runtime-start", "Steam 社区运行时开始启动", {
+  log.info("runtime-start", "Steam 社区运行时开始启动", {
     pageType: pageType(),
     path: location.pathname,
     logged: !!api.logged,
@@ -59,7 +41,7 @@
     };
 
     if (!api.logged) {
-      log("info", "runtime-skipped", "Steam 社区运行时因未登录跳过", {
+      log.info("runtime-skipped", "Steam 社区运行时因未登录跳过", {
         ...meta,
         reason: "not-logged",
       });
@@ -68,23 +50,23 @@
 
     if (api.page === api.pages.INV) {
       api.inventoryView.init();
-      log("info", "runtime-ready", "Steam 社区库存运行时已就绪", meta);
+      log.info("runtime-ready", "Steam 社区库存运行时已就绪", meta);
       return;
     }
 
     if (api.page === api.pages.MARKET || api.page === api.pages.LISTING) {
       api.marketView.init();
-      log("info", "runtime-ready", "Steam 社区市场运行时已就绪", meta);
+      log.info("runtime-ready", "Steam 社区市场运行时已就绪", meta);
       return;
     }
 
     if (api.page === api.pages.TRADE) {
       api.tradeView.init();
-      log("info", "runtime-ready", "Steam 社区交易报价运行时已就绪", meta);
+      log.info("runtime-ready", "Steam 社区交易报价运行时已就绪", meta);
       return;
     }
 
-    log("info", "runtime-skipped", "Steam 社区运行时跳过非目标页面", {
+    log.info("runtime-skipped", "Steam 社区运行时跳过非目标页面", {
       ...meta,
       reason: "unsupported-page",
     });

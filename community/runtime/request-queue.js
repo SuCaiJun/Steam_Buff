@@ -15,6 +15,7 @@
   if (!api || api.net) return;
 
   const STOP_WAIT_MS = 5 * 60 * 1000;
+  const log = window.STLoggerFactory.createLogger('community', 'request-queue');
 
   const req = {
     q: [],
@@ -23,27 +24,6 @@
     stopUntil: 0,
     errors: 0,
   };
-
-  function log(level, event, message, data = {}) {
-    try {
-      const entry = {
-        domain: "community",
-        feature: "request-queue",
-        event,
-        message,
-        url: data.url,
-        method: data.method,
-        status: data.status,
-        error: data.error,
-      };
-      if (level === "warn") {
-        globalThis.STLogger?.warn?.(entry);
-        return;
-      }
-      globalThis.STLogger?.error?.(entry);
-    } catch {
-    }
-  }
 
   /* Steam 请求限速队列 */
   function addParams(url, data) {
@@ -86,7 +66,7 @@
     }
 
     if (req.stopped) {
-      log("warn", "request-paused", "社区请求队列暂停中", {
+      log.warn("request-paused", "社区请求队列暂停中", {
         url: job.url,
         method: job.opt.method || "GET",
         status: 0,
@@ -138,7 +118,7 @@
     } catch (error) {
       failed = true;
       delay = 5000;
-      log("error", "request-failed", "社区请求失败", {
+      log.error("request-failed", "社区请求失败", {
         url: job.url,
         method: job.opt.method || "GET",
         status,
@@ -157,7 +137,7 @@
           req.stopped = true;
           req.stopUntil = Date.now() + STOP_WAIT_MS;
           req.errors = 0;
-          log("warn", "request-paused", "社区请求连续失败，已临时暂停队列", {
+          log.warn("request-paused", "社区请求连续失败，已临时暂停队列", {
             url: job.url,
             method: job.opt.method || "GET",
             status,

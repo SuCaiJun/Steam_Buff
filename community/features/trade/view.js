@@ -6,25 +6,7 @@
 
   let lastSum = 0;
 
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "community",
-        feature: "trade-view",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
+  const log = window.STLoggerFactory.createLogger('community', 'trade-view');
 
   function tradeItems() {
     const arr = [];
@@ -101,7 +83,7 @@
       const startedAt = Date.now();
       const holders = api.dom.qa(".inventory_ctn .inventory_page .itemHolder")
         .filter((holder) => api.dom.visible(holder) && api.dom.visible(holder.closest(".inventory_ctn")) && api.dom.visible(holder.closest(".inventory_page")));
-      log("info", "trade-select-page-start", "开始选中交易页当前页物品", {
+      log.info("trade-select-page-start", "开始选中交易页当前页物品", {
         count: holders.length,
         path: location.pathname,
       });
@@ -114,14 +96,14 @@
           moved += 1;
           await api.dom.sleep(250);
         }
-        log("info", "trade-select-page-success", "交易页当前页物品选中完成", {
+        log.info("trade-select-page-success", "交易页当前页物品选中完成", {
           count: holders.length,
           moved,
           durationMs: Date.now() - startedAt,
           path: location.pathname,
         });
       } catch (error) {
-        log("error", "trade-select-page-failed", "交易页当前页物品选中失败", {
+        log.error("trade-select-page-failed", "交易页当前页物品选中失败", {
           count: holders.length,
           moved,
           durationMs: Date.now() - startedAt,
