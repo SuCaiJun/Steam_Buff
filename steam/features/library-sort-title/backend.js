@@ -12,6 +12,7 @@
   "use strict";
 
   const ID = "library-sort-title";
+  const SCHEDULER_TASK = "library-sort-title-backend";
   const RT = "__SteamBuffLibrarySortTitle";
   const ORIG = "__RickyStOriginalName";
   const ORIGS = "__RickyStOriginalNames";
@@ -495,20 +496,23 @@
     return { enabled: true, reason, ...result };
   }
 
-  function setMs(rt, ms, run) {
+  function setMs(rt, ms) {
     if (rt.ms === ms) {
       return;
     }
-    window.clearInterval(rt.timer);
     rt.ms = ms;
-    rt.timer = window.setInterval(run, ms);
+    window.STScheduler?.reschedule?.(SCHEDULER_TASK, { intervalMs: ms });
   }
 
   // 客户端启动初期 appStore 分批就绪，启动阶段短轮询，hook 齐全后降到低频巡检。
   function start(api) {
     const old = window[RT];
-    if (old?.timer) {
+    if (old?.scheduled) {
       return { started: false, reason: "already-started", stop: old.stop };
+    }
+    if (!window.STScheduler?.register) {
+      log("warn", "library-sort-title-sync-failed", "库排序标题同步缺少统一调度器");
+      return { started: false, reason: "scheduler-unavailable" };
     }
 
     const run = () => {
@@ -518,7 +522,7 @@
       }
       const apps = api.ctx?.apps();
       if (!apps?.length) {
-        setMs(rt, BOOT_MS, run);
+        setMs(rt, BOOT_MS);
         return;
       }
       if (!rt.loggedStart) {
@@ -564,7 +568,7 @@
       const nextMs = rt.sortOk && rt.customOk
         ? (warm ? WARM_MS : SYNC_MS)
         : BOOT_MS;
-      setMs(rt, nextMs, run);
+      setMs(rt, nextMs);
     };
 
     const schedule = () => {
@@ -588,7 +592,7 @@
     };
 
     const rt = {
-      timer: window.setInterval(run, SYNC_MS),
+      scheduled: true,
       ms: SYNC_MS,
       delay: 0,
       sortOk: false,
@@ -605,10 +609,8 @@
       run,
       schedule,
       stop() {
-        if (rt.timer) {
-          window.clearInterval(rt.timer);
-          rt.timer = 0;
-        }
+        window.STScheduler?.unregister?.(SCHEDULER_TASK);
+        rt.scheduled = false;
         if (rt.delay) {
           window.clearTimeout(rt.delay);
           rt.delay = 0;
@@ -623,6 +625,8 @@
       },
     };
     window[RT] = rt;
+    // 库排序标题巡检迁移到统一调度器，保留启动短轮询、温热期和稳定期的原动态间隔。
+    window.STScheduler.register(SCHEDULER_TASK, run, null, { intervalMs: SYNC_MS });
 
     for (const event of EVENTS) {
       window.addEventListener(event, schedule);

@@ -14,7 +14,10 @@
   const RESTORE_KEY = "st.store.cartSelect.restore";
   const SEL_KEY = "st.store.cartSelect.selection";
   const ENABLE_KEY = "st.settings.cart-select.enabled";
+  const SCHEDULER_TASK = "cart-select-checkout-restore";
   const RESTORE_TTL_MS = 30 * 60 * 1000;
+  const RESTORE_RETRY_MS = 2500;
+  const RESTORE_MAX_TRIES = 12;
   const STEAM_API_HOST = globalThis.STConfig?.vendors?.steamApi?.host || "";
   const MATCH = globalThis.STConfig?.matchers;
   let restored = false;
@@ -359,14 +362,22 @@
 
   function start() {
     run().catch(() => {});
+    if (!globalThis.STScheduler?.register) {
+      logOnce("scheduler-unavailable", "warn", "checkout-cart-restore-skipped", "结算页购物车恢复缺少统一调度器", {
+        reason: "scheduler-unavailable",
+        path: location.pathname,
+      });
+      return;
+    }
     let tries = 0;
-    const timer = setInterval(() => {
+    // 恢复入口补挂载迁移到统一调度器，保持原短轮询窗口并在完成后主动注销。
+    globalThis.STScheduler.register(SCHEDULER_TASK, () => {
       tries++;
       run().catch(() => {});
-      if (tries >= 12 || (resultPage() && btn?.isConnected)) {
-        clearInterval(timer);
+      if (tries >= RESTORE_MAX_TRIES || (resultPage() && btn?.isConnected)) {
+        globalThis.STScheduler?.unregister?.(SCHEDULER_TASK);
       }
-    }, 2500);
+    }, null, { intervalMs: RESTORE_RETRY_MS });
   }
 
   if (document.readyState === "loading") {

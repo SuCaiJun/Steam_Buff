@@ -219,6 +219,8 @@
       "resources": [
         "shared/config.js",
         "shared/i18n.js",
+        "shared/scheduler.js",
+        "shared/page-context.js",
         "_locales/*/messages.json",
         "extension/runtime/logger.js",
         "steam/shared/constants.js",

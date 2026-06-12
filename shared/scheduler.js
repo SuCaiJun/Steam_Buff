@@ -11,29 +11,48 @@
 (() => {
   "use strict";
 
+  const MIN_TICK_MS = 1000;
+  const DEFAULT_TASK_MS = 10000;
+  const SCHEDULER_VERSION = "20260612-task-intervals";
+
+  const existing = window.STScheduler;
+  if (existing?.version === SCHEDULER_VERSION && typeof existing.register === 'function') {
+    return;
+  }
+  if (existing && typeof existing.stop === 'function') {
+    existing.stop();
+  }
+
   class Scheduler {
     constructor() {
+      this.version = SCHEDULER_VERSION;
       this.tasks = new Map();
       this.timerId = null;
-      this.interval = 10000; // 10 秒
+      this.interval = MIN_TICK_MS; // 底层只保留一个轻量心跳，任务自身仍可保持原巡检间隔。
+      this.defaultTaskInterval = DEFAULT_TASK_MS;
       this.running = false;
     }
 
-    register(name, callback, condition = null) {
+    register(name, callback, condition = null, options = {}) {
       if (!name || typeof callback !== 'function') {
         console.error('[Steam Buff][Scheduler] Invalid task:', name);
         return;
       }
 
+      const normalized = this.normalizeArgs(condition, options);
+      const intervalMs = this.normalizeInterval(normalized.options.intervalMs);
+      const now = Date.now();
       this.tasks.set(name, {
         callback,
-        condition,
+        condition: normalized.condition,
+        intervalMs,
         status: 'active',
         lastRun: null,
+        nextRunAt: now + intervalMs,
         errorCount: 0,
       });
 
-      console.log('[Steam Buff][Scheduler] Task registered:', name);
+      console.log('[Steam Buff][Scheduler] Task registered:', name, { intervalMs });
       this.start();
     }
 
@@ -63,6 +82,20 @@
       }
     }
 
+    reschedule(name, options = {}) {
+      const task = this.tasks.get(name);
+      if (!task) {
+        return false;
+      }
+      const intervalMs = this.normalizeInterval(
+        typeof options === 'number' ? options : options.intervalMs
+      );
+      task.intervalMs = intervalMs;
+      task.nextRunAt = Date.now() + intervalMs;
+      console.log('[Steam Buff][Scheduler] Task rescheduled:', name, { intervalMs });
+      return true;
+    }
+
     start() {
       if (this.timerId) return;
 
@@ -84,9 +117,14 @@
     }
 
     tick() {
+      const now = Date.now();
       for (const [name, task] of this.tasks) {
         // 跳过暂停的任务
         if (task.status !== 'active') {
+          continue;
+        }
+
+        if (now < task.nextRunAt) {
           continue;
         }
 
@@ -94,10 +132,12 @@
         if (task.condition) {
           try {
             if (!task.condition()) {
+              task.nextRunAt = now + task.intervalMs;
               continue;
             }
           } catch (err) {
             console.error(`[Steam Buff][Scheduler] Condition check failed for ${name}:`, err);
+            task.nextRunAt = now + task.intervalMs;
             continue;
           }
         }
@@ -105,10 +145,12 @@
         // 执行任务
         try {
           task.callback();
-          task.lastRun = Date.now();
+          task.lastRun = now;
+          task.nextRunAt = now + task.intervalMs;
           task.errorCount = 0;
         } catch (err) {
           task.errorCount++;
+          task.nextRunAt = now + task.intervalMs;
           console.error(`[Steam Buff][Scheduler] Task ${name} failed (${task.errorCount} times):`, err);
 
           // 连续失败 3 次，自动暂停
@@ -120,12 +162,35 @@
       }
     }
 
+    normalizeArgs(condition, options) {
+      if (condition && typeof condition === 'object' && typeof condition !== 'function') {
+        return {
+          condition: null,
+          options: condition,
+        };
+      }
+      return {
+        condition,
+        options: options || {},
+      };
+    }
+
+    normalizeInterval(value) {
+      const intervalMs = Number(value);
+      if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+        return this.defaultTaskInterval;
+      }
+      return Math.max(MIN_TICK_MS, Math.floor(intervalMs));
+    }
+
     getTasks() {
       const result = {};
       for (const [name, task] of this.tasks) {
         result[name] = {
           status: task.status,
           lastRun: task.lastRun,
+          nextRunAt: task.nextRunAt,
+          intervalMs: task.intervalMs,
           errorCount: task.errorCount,
         };
       }

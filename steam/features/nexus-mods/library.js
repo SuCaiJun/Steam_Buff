@@ -12,6 +12,7 @@
   "use strict";
 
   const ID = "nexus-mods";
+  const SCHEDULER_TASK = "nexus-mods-library";
   const BTN = "__RickyNexusModsButton";
   const STYLE = "__RickyNexusModsStyle";
   const ORIG = "__RickyStOriginalName";
@@ -453,15 +454,23 @@
     if (s.started) {
       return { started: false, reason: "already-started" };
     }
+    if (!window.STScheduler?.register) {
+      logMountState(
+        "ui-start-skipped:scheduler-unavailable",
+        "warn",
+        "nexus-mods-mount-skipped",
+        "Nexus Mods 库页面入口缺少统一调度器"
+      );
+      return { started: false, reason: "scheduler-unavailable" };
+    }
 
     s.started = true;
     tick();
-    s.timer = window.setInterval(tick, LOOP_MS);
+    // Nexus Mods 按钮补挂载迁移到统一调度器，保留原库详情巡检节奏。
+    window.STScheduler.register(SCHEDULER_TASK, tick, () => s.started === true, { intervalMs: LOOP_MS });
     s.stop = () => {
-      if (s.timer) {
-        window.clearInterval(s.timer);
-        s.timer = 0;
-      }
+      window.STScheduler?.unregister?.(SCHEDULER_TASK);
+      s.timer = 0;
       document.getElementById(BTN)?.remove();
       s.started = false;
     };

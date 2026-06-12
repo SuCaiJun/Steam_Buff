@@ -38,7 +38,7 @@
     "extension/content.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-runtime-scope-20260611";
+  const CONTENT_MARK_VERSION = "steam-runtime-scope-20260612-scheduler";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const SHARED_CONFIG = "shared/config.js";
   const TRANS_LIB = "vendor/xnx3-translate/translate.js";

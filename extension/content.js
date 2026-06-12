@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-runtime-scope-20260611";
+  const RUN_VERSION = "steam-runtime-scope-20260612-scheduler";
   const ALLOWED_PAGES = Object.freeze([
     "steamloopback.host",
     "store.steampowered.com",
@@ -1297,6 +1297,8 @@
           "extension/runtime/logger.js",
           "shared/config.js",
           "shared/i18n.js",
+          "shared/scheduler.js",
+          "shared/page-context.js",
           "steam/shared/constants.js",
           "steam/runtime/paths.js",
           "steam/runtime/steam-context.js",

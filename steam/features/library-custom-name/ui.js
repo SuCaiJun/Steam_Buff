@@ -21,7 +21,7 @@
   const PROGRESS = "__RickyLibraryCustomNameProgress";
   const REQ_ATTR = "data-steam-buff-name-request";
   const RES_ATTR = "data-steam-buff-name-response";
-  const LOOP_MS = 1200;
+  const SCHEDULER_TASK = "library-custom-name-ui";
   const MOUNT_LOG_MS = 60000;
   const RESP_MS = 12000;
   const SAVE_STATUS_MS = 3000;
@@ -4303,6 +4303,26 @@
     refreshLive(row);
   }
 
+  function shouldRunScheduledTick() {
+    if (window.STPageContext?.isPage?.("steam-library")) {
+      return true;
+    }
+    return window.SteamBuff?.ctx?.hasCustomSortUi?.() === true;
+  }
+
+  function registerScheduledTick() {
+    if (!window.STScheduler?.register) {
+      log("warn", "library-custom-name-scheduler-missing", "库自定义名称统一调度器不可用");
+      return;
+    }
+    // 迁移到统一调度器：保留立即 tick，后续巡检只在库页或真实自定义排序名称弹窗运行。
+    window.STScheduler.register(SCHEDULER_TASK, () => tick(), shouldRunScheduledTick);
+  }
+
+  function unregisterScheduledTick() {
+    window.STScheduler?.unregister?.(SCHEDULER_TASK);
+  }
+
   function start() {
     if (s.started) {
       return { started: false, reason: "already-started" };
@@ -4321,16 +4341,13 @@
     document.addEventListener("click", onDocumentClick, true);
     document.addEventListener("keydown", onDocumentKeydown);
     tick();
-    s.timer = window.setInterval(tick, LOOP_MS);
+    registerScheduledTick();
     s.stop = () => {
       if (s.resObs) {
         s.resObs.disconnect();
         s.resObs = null;
       }
-      if (s.timer) {
-        window.clearInterval(s.timer);
-        s.timer = 0;
-      }
+      unregisterScheduledTick();
       if (s.ch && typeof s.ch.close === "function") {
         s.ch.close();
         s.ch = null;

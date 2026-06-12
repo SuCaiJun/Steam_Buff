@@ -12,6 +12,8 @@
   "use strict";
 
   const api = window.STStore = window.STStore || {};
+  const CACHE_CLEANUP_TASK = "store-cache-cleanup";
+  const CACHE_CLEANUP_MS = 5 * 60 * 1000;
 
 function trySave(storageKey, cache) {
     try {
@@ -182,11 +184,22 @@ class CacheManager {
 
 const apiCache = new CacheManager();
 
-if (typeof setInterval !== 'undefined') {
-    setInterval(() => {
+function registerCleanupTask() {
+    if (!window.STScheduler?.register) {
+        return;
+    }
+    // 缓存过期清理迁移到统一调度器，保留原 5 分钟清理节奏。
+    window.STScheduler.register(
+        CACHE_CLEANUP_TASK,
+        () => {
         apiCache.clearExpired();
-    }, 5 * 60 * 1000);
+        },
+        null,
+        { intervalMs: CACHE_CLEANUP_MS }
+    );
 }
+
+registerCleanupTask();
 
   api.CacheManager = CacheManager;
   api.cache = apiCache;

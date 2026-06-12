@@ -13,6 +13,7 @@
 
   const ID = "steam-news-translate";
   const RT = "__SteamBuffNewsTranslate";
+  const SCHEDULER_TASK = "steam-news-translate-config";
   const STYLE_ID = "steam-buff-news-translate-style";
   const BUTTON_CLASS = "steam-buff-news-translate-button";
   const ICON_CLASS = "steam-buff-news-translate-icon";
@@ -897,6 +898,10 @@
     if (window[RT]) {
       return { started: false, reason: "already-started", stop: window[RT].stop };
     }
+    if (!window.STScheduler?.register) {
+      log("warn", "news-popup-config-scheduler-missing", "[Steam Buff] 新闻翻译缺少统一调度器", {});
+      return { started: false, reason: "scheduler-unavailable" };
+    }
 
     ensureStyle();
     const rt = {
@@ -915,7 +920,8 @@
       stop() {
         rt.stopped = true;
         window.clearTimeout(rt.scanTimer);
-        window.clearInterval(rt.refreshTimer);
+        window.STScheduler?.unregister?.(SCHEDULER_TASK);
+        rt.refreshTimer = 0;
         rt.observer?.disconnect?.();
         window.removeEventListener("message", rt.onMessage);
         window.removeEventListener("scroll", rt.onScroll, true);
@@ -933,7 +939,13 @@
     window.addEventListener("scroll", rt.onScroll, true);
     /* 只在弹窗根节点启用属性监听；根节点尚未出现时只临时监听子节点变化。 */
     attachObserver(rt);
-    rt.refreshTimer = window.setInterval(() => refreshConfig(rt).catch(() => {}), CONFIG_REFRESH_MS);
+    // 配置刷新迁移到统一调度器，避免新闻弹窗功能持有独立巡检。
+    window.STScheduler.register(
+      SCHEDULER_TASK,
+      () => refreshConfig(rt).catch(() => {}),
+      () => !rt.stopped,
+      { intervalMs: CONFIG_REFRESH_MS }
+    );
     refreshConfig(rt).catch(() => {});
     return { started: true, stop: rt.stop };
   }

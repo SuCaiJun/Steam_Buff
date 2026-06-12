@@ -12,6 +12,7 @@
   "use strict";
 
   const ID = "download-auto-shutdown";
+  const SCHEDULER_TASK = "download-auto-shutdown-frontend";
   const LOG_PREFIX = "[Steam Buff]";
   const CH = "__steam_download_auto_shutdown_Ricky";
   const STYLE = "__Rickydownload-auto-shutdown-style";
@@ -537,11 +538,19 @@
       "download-auto-shutdown-ui-start",
       "下载完成自动关机界面入口已启动"
     );
+    if (!window.STScheduler?.register) {
+      logMountState(
+        "ui-start-skipped:scheduler-unavailable",
+        "warn",
+        "download-auto-shutdown-ui-start-skipped",
+        "下载完成自动关机界面入口缺少统一调度器"
+      );
+      s.fOn = false;
+      return { started: false, reason: "scheduler-unavailable" };
+    }
     s.stop = () => {
-      if (s.syncI) {
-        window.clearInterval(s.syncI);
-        s.syncI = 0;
-      }
+      window.STScheduler?.unregister?.(SCHEDULER_TASK);
+      s.syncI = 0;
       if (s.ch && typeof s.ch.close === "function") {
         s.ch.close();
         s.ch = null;
@@ -568,9 +577,15 @@
       }
     });
 
-    s.syncI = window.setInterval(() => {
-      sync(api, ch);
-    }, SYNC_MS);
+    // 前端 hello 同步迁移到统一调度器，保持原 5 秒节奏并减少独立巡检。
+    window.STScheduler.register(
+      SCHEDULER_TASK,
+      () => {
+        sync(api, ch);
+      },
+      () => s.fOn === true,
+      { intervalMs: SYNC_MS }
+    );
 
     sync(api, ch);
     return { started: true };

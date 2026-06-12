@@ -12,6 +12,7 @@
   "use strict";
 
   const ID = "download-auto-shutdown";
+  const SCHEDULER_TASK = "download-auto-shutdown-backend";
   const CH = "__steam_download_auto_shutdown_Ricky";
   const DOWN = "/library/downloads";
   const POLL_MS = 30000;
@@ -439,15 +440,23 @@
     s.idleAt = 0;
     s.err = "";
     clearTimers();
-    s.pollT = window.setInterval(() => {
-      poll(api).catch(() => {});
-    }, POLL_MS);
+    if (!window.STScheduler?.register) {
+      log("warn", "download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端缺少统一调度器", readyMeta());
+      return { started: false, reason: "scheduler-unavailable" };
+    }
+    // 下载监控迁移到统一调度器，避免 Steam 多页面各自持有独立巡检。
+    window.STScheduler.register(
+      SCHEDULER_TASK,
+      () => {
+        poll(api).catch(() => {});
+      },
+      () => s.bOn === true,
+      { intervalMs: POLL_MS }
+    );
 
     s.stop = () => {
-      if (s.pollT) {
-        window.clearInterval(s.pollT);
-        s.pollT = 0;
-      }
+      window.STScheduler?.unregister?.(SCHEDULER_TASK);
+      s.pollT = 0;
       clearTimers();
       if (s.onMsg) {
         ch.removeEventListener("message", s.onMsg);
