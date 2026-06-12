@@ -38,6 +38,7 @@
   let scanTimer = null;
   let stylesReady = false;
   let obsReady = false;
+  let observer = null;
 
   function noTranslate(el) {
     if (!el) return el;
@@ -300,11 +301,27 @@
     }, 500);
   }
 
+  function observerTarget() {
+    return document.querySelector("#search_resultsRows")
+      || document.querySelector("#wishlist_ctn")
+      || document.querySelector("#wishlist_list")
+      || document.querySelector(".PU7fdVEQB8s-.Panel")
+      || document.querySelector("#StoreTemplate")
+      || document.querySelector(".SaleSectionContainer")
+      || document.querySelector(".tab_content_ctn")
+      || document.getElementById("responsive_page_template_content")
+      || null;
+  }
+
   function setupObserver() {
-    if (obsReady || !document.documentElement) return;
+    if (obsReady || observer) return;
+    const target = observerTarget();
+    if (!target) return;
     obsReady = true;
-    const observer = new MutationObserver(scheduleScan);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    observer = window.STObserverUtils?.createDebouncedObserver?.(scheduleScan, 250)
+      || new MutationObserver(scheduleScan);
+    // 只监听商品列表或商店内容容器；列表卡片由 React 深层替换，保留 subtree。
+    observer.observe(target, { childList: true, subtree: true });
     window.addEventListener("pageshow", scheduleScan);
     document.addEventListener("scroll", scheduleScan, { passive: true });
   }

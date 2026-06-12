@@ -27,6 +27,7 @@
   let busy = false;
   let pageReady = null;
   let scanTimer = null;
+  let observer = null;
   let restorePromptTimer = null;
   let emptyScanRetries = 0;
   let state = {};
@@ -1007,16 +1008,42 @@
     }, true);
   }
 
+  function commonElement(nodes) {
+    const items = nodes.filter(Boolean);
+    if (items.length < 2) return null;
+    let current = items[0];
+    while (current && current !== document.body) {
+      if (items.every(item => current.contains(item))) {
+        return current;
+      }
+      current = current.parentElement;
+    }
+    return null;
+  }
+
   function observeTarget() {
-    // 不使用 [class*=cart]，避免命中顶部导航购物车按钮后漏掉主购物车 React 渲染。
-    return document.body || document.documentElement;
+    const content = document.getElementById("responsive_page_template_content");
+    const anchors = [
+      cartTitle(),
+      emptyCartBox(),
+      removeAllButton(),
+      checkoutButtons()[0],
+      document.querySelector("[data-st-cart-line-id]"),
+      document.getElementById("st_cart_restore_panel"),
+    ];
+    const shared = commonElement(anchors);
+    // 只监听购物车主体内容；顶部导航购物车按钮和全局弹窗变化不应触发购物车扫描。
+    return (shared && shared !== document.body ? shared : content) || null;
   }
 
   function observe() {
+    if (observer) return;
     const target = observeTarget();
     if (!target) return;
-    const obs = new MutationObserver(scheduleScan);
-    obs.observe(target, { childList: true, subtree: true });
+    observer = window.STObserverUtils?.createDebouncedObserver?.(scheduleScan, 120)
+      || new MutationObserver(scheduleScan);
+    // 只监听购物车主体内容容器；购物车行和恢复提示会在该范围内深层替换。
+    observer.observe(target, { childList: true, subtree: true });
   }
 
   function addStyles() {

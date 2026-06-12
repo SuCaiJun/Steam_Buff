@@ -155,11 +155,13 @@
       if (api.settings.yes(api.settings.keys.invLabels)) api.invPrices.set(api.items.invItems());
       const controls = api.dom.q("#inventory_pagecontrols");
       if (controls && !controls.__stSeePriceObs) {
-        // 库存翻页只替换物品列表，不刷新脚本；翻页控件变化后需要重新补价格标签。
-        const obs = new MutationObserver(() => {
+        const updateLabels = () => {
           if (api.settings.yes(api.settings.keys.invLabels)) api.invPrices.set(api.items.invItems());
-        });
-        obs.observe(controls, { childList: true, subtree: true });
+        };
+        const obs = window.STObserverUtils?.createDebouncedObserver?.(updateLabels, 120)
+          || new MutationObserver(updateLabels);
+        // 库存翻页控件直接子节点变化代表列表页切换，不需要深度监听。
+        obs.observe(controls, { childList: true, subtree: false });
         controls.__stSeePriceObs = obs;
       }
     });

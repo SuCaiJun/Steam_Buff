@@ -467,8 +467,8 @@
     return document.querySelector("#app_reviews_hash")
       || document.getElementById(COMMUNITY_ROOT_ID)
       || document.querySelector(".apphub_Cards")
-      || document.body
-      || document.documentElement;
+      || document.getElementById("responsive_page_template_content")
+      || null;
   }
 
   function setupObserver() {
@@ -480,11 +480,14 @@
       return;
     }
 
-    observer = new MutationObserver((mutations) => {
+    const callback = (mutations) => {
       if (mutations.some(item => item.addedNodes?.length)) {
         schedule();
       }
-    });
+    };
+    observer = window.STObserverUtils?.createDebouncedObserver?.(callback, 120)
+      || new MutationObserver(callback);
+    // 只监听评测列表或商店主内容容器；评测区懒加载时会深层挂载，必须保留 subtree。
     observer.observe(target, { childList: true, subtree: true });
     window.addEventListener("pageshow", schedule);
     document.addEventListener("scroll", schedule, { passive: true });

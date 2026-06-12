@@ -300,11 +300,19 @@
         return state.cachedTBody || (state.cachedTBody = document.querySelector('table.wallet_history_table tbody'));
     };
 
+    const waitRoot = () => document.querySelector('.wallet_history_table')?.parentElement
+        || document.querySelector('#main_content')
+        || document.querySelector('.page_content')
+        || null;
+
     const waitFor = (sel, ms = 10000) => new Promise((res, rej) => {
         const el = document.querySelector(sel); if (el) return res(el);
         let done = false;
+        const target = waitRoot();
+        if (!target) { setTimeout(() => rej(new Error('timeout')), ms); return; }
         const obs = new MutationObserver(() => { const e = document.querySelector(sel); if (e) { done = true; obs.disconnect(); clearTimeout(t); res(e); } });
-        obs.observe(document.body, { childList: true, subtree: true });
+        // 只监听消费历史主内容区域，等待钱包历史表格行挂载。
+        obs.observe(target, { childList: true, subtree: true });
         const t = setTimeout(() => { if (!done) { obs.disconnect(); rej(new Error('timeout')); } }, ms);
     });
 
@@ -729,6 +737,7 @@
         if (!parent || parent.dataset.loadMoreObs) return;
         parent.dataset.loadMoreObs = 'true';
         const obs = new MutationObserver(() => interceptLoadMore());
+        // 只监听表格父级，等待 Steam 的“加载更多”按钮插入或替换。
         obs.observe(parent, { childList: true, subtree: true });
         state.disposers.push(() => obs.disconnect());
     }
@@ -742,7 +751,8 @@
                 clearTimeout(settleTimer);
                 settleTimer = setTimeout(done, SETTLE_MS);
             });
-            obs.observe(tb, { childList: true, subtree: true });
+            // 加载更多只会追加/替换 tbody 下的交易行，不需要深度监听。
+            obs.observe(tb, { childList: true, subtree: false });
             safetyTimer = setTimeout(done, SAFETY_TIMEOUT);
         });
     }

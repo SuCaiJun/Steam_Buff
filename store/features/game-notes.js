@@ -444,10 +444,13 @@
   function startWishlist() {
     if (!isWishlistPath()) return false;
     addStyle();
-    const container = wishlistDom?.listContainer?.() || document.body;
+    const container = wishlistDom?.listContainer?.();
+    if (!container) return false;
     renderWishlistRows();
     if (!wishlistObserver) {
-      wishlistObserver = new MutationObserver(() => scheduleWishlistRender());
+      wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(), 120)
+        || new MutationObserver(() => scheduleWishlistRender());
+      // 只监听愿望单真实列表容器；虚拟列表会深层替换行节点，保留 subtree。
       wishlistObserver.observe(container, { childList: true, subtree: true });
     }
     return true;

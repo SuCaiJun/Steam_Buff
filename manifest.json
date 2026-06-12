@@ -31,6 +31,7 @@
       ],
       "js": [
         "shared/scheduler.js",
+        "shared/observer-utils.js",
         "shared/page-context.js"
       ],
       "run_at": "document_start",
@@ -220,6 +221,7 @@
         "shared/config.js",
         "shared/i18n.js",
         "shared/scheduler.js",
+        "shared/observer-utils.js",
         "shared/page-context.js",
         "_locales/*/messages.json",
         "extension/runtime/logger.js",
@@ -252,6 +254,7 @@
       "resources": [
         "shared/config.js",
         "shared/i18n.js",
+        "shared/observer-utils.js",
         "_locales/*/messages.json",
         "community/runtime/*.js",
         "extension/runtime/logger.js",

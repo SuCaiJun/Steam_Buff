@@ -139,12 +139,16 @@
     if (api.settings.yes(api.settings.keys.tradeLabels)) {
       api.invPrices.set(tradeItems());
       const controls = api.dom.q("#inventory_pagecontrols");
-      if (controls) {
-        new MutationObserver(() => api.invPrices.set(tradeItems())).observe(controls, { childList: true, subtree: true });
+      if (controls && !controls.__stTradeLabelsObs) {
+        const observer = window.STObserverUtils?.createDebouncedObserver?.(() => api.invPrices.set(tradeItems()), 120)
+          || new MutationObserver(() => api.invPrices.set(tradeItems()));
+        // 交易库存翻页控件直接子节点变化代表列表页切换，不需要深度监听。
+        observer.observe(controls, { childList: true, subtree: false });
+        controls.__stTradeLabelsObs = observer;
       }
       const tradeBox = api.dom.q(".trade_right");
-      if (tradeBox) {
-        new MutationObserver(() => {
+      if (tradeBox && !tradeBox.__stTradeSummaryObs) {
+        const updateTradeSummary = () => {
           if (!allLoaded()) return;
           const st = api.W.g_rgCurrentTradeStatus;
           const sum = st.me.assets.length + st.them.assets.length;
@@ -167,7 +171,12 @@
           their.innerHTML = sumAssets(st.them.assets, api.W.UserThem);
           api.dom.q("div.offerheader:nth-child(1) > div:nth-child(3)")?.appendChild(your);
           api.dom.q("div.offerheader:nth-child(3) > div:nth-child(3)")?.appendChild(their);
-        }).observe(tradeBox, { childList: true, subtree: true });
+        };
+        const observer = window.STObserverUtils?.createDebouncedObserver?.(updateTradeSummary, 120)
+          || new MutationObserver(updateTradeSummary);
+        // 交易物品槽位在报价区域内部增删，必须保留 subtree。
+        observer.observe(tradeBox, { childList: true, subtree: true });
+        tradeBox.__stTradeSummaryObs = observer;
       }
     }
 

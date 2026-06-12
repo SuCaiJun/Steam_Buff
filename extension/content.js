@@ -1035,6 +1035,7 @@
           }
         }
       });
+      // 只监听 documentElement 上的请求属性，用于隔离上下文桥接，不观察 DOM 子树。
       obs.observe(el, {
         attributes: true,
         attributeFilter: [NAME_REQ_ATTR],
@@ -1189,6 +1190,7 @@
           "extension/runtime/logger.js",
           "shared/config.js",
           "shared/i18n.js",
+          "shared/observer-utils.js",
           "community/runtime/base.js",
           "community/runtime/settings.js",
           "community/runtime/dom.js",
@@ -1298,6 +1300,7 @@
           "shared/config.js",
           "shared/i18n.js",
           "shared/scheduler.js",
+          "shared/observer-utils.js",
           "shared/page-context.js",
           "steam/shared/constants.js",
           "steam/runtime/paths.js",

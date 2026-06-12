@@ -4333,6 +4333,7 @@
         onQuery(item);
       }
     });
+    // 只监听 documentElement 上的响应属性，用于隔离上下文桥接，不观察 DOM 子树。
     s.resObs.observe(document.documentElement, {
       attributes: true,
       attributeFilter: [RES_ATTR],

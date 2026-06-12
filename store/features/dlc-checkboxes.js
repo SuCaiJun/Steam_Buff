@@ -147,7 +147,9 @@ function observeWishlistChanges(dlcSection) {
         });
     });
 
+    // 只监听 DLC 列表容器内行 class 变化，用于同步愿望单标签状态。
     observer.observe(gameDlcBlocks, {
+        attributes: true,
         subtree: true,
         attributeFilter: ["class"]
     });

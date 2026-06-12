@@ -856,7 +856,7 @@
   }
 
   function observeTarget() {
-    return document.getElementById("popup_target") || document.body || document.documentElement;
+    return document.getElementById("popup_target") || null;
   }
 
   function observeOptions(target) {
@@ -881,13 +881,15 @@
     }
     rt.observer?.disconnect?.();
     rt.observerTarget = target;
-    rt.observer = new MutationObserver(() => {
+    const onMutation = () => {
       const latest = observeTarget();
       if (latest && latest !== rt.observerTarget && latest.id === "popup_target") {
         attachObserver(rt);
       }
       scheduleScan(rt);
-    });
+    };
+    rt.observer = window.STObserverUtils?.createDebouncedObserver?.(onMutation, 80)
+      || new MutationObserver(onMutation);
     rt.observer.observe(target, observeOptions(target));
   }
 
@@ -937,7 +939,7 @@
 
     window.addEventListener("message", rt.onMessage);
     window.addEventListener("scroll", rt.onScroll, true);
-    /* 只在弹窗根节点启用属性监听；根节点尚未出现时只临时监听子节点变化。 */
+    /* 只在弹窗根节点启用属性监听；根节点尚未出现时依靠调度扫描等待。 */
     attachObserver(rt);
     // 配置刷新迁移到统一调度器，避免新闻弹窗功能持有独立巡检。
     window.STScheduler.register(

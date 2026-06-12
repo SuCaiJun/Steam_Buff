@@ -612,8 +612,7 @@
       || document.getElementById("store_header")
       || document.getElementById("global_header")
       || document.getElementById("responsive_page_template_content")
-      || document.body
-      || document.documentElement;
+      || null;
   }
 
   function observe() {
@@ -624,7 +623,9 @@
     if (!target) {
       return;
     }
-    observer = new MutationObserver(scheduleScan);
+    observer = root.STObserverUtils?.createDebouncedObserver?.(scheduleScan, 120)
+      || new MutationObserver(scheduleScan);
+    // 只监听搜索表单/商店头部或主内容容器，避免全页商品流变化触发联想扫描。
     observer.observe(target, {
       childList: true,
       subtree: true,

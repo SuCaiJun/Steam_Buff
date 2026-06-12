@@ -124,7 +124,7 @@
   }
 
   function listContainer() {
-    return document.querySelector(LIST_SEL) || document.body;
+    return document.querySelector(LIST_SEL) || null;
   }
 
   return {

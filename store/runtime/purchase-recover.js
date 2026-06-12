@@ -108,6 +108,7 @@
   }
 
   function schedRecover(reason = "unknown") {
+    startObserver();
     if (recoverTimer) {
       clearTimeout(recoverTimer);
     }
@@ -119,6 +120,44 @@
     }, delay);
   }
 
+  function observerTarget() {
+    const pageInfo = api.ctx?.pageInfo?.();
+    if (!pageInfo || pageInfo.type !== "app") return null;
+    return document.querySelector("#game_area_purchase")?.parentElement
+      || document.getElementById("responsive_page_template_content")
+      || document.querySelector(".blockbg")
+      || null;
+  }
+
+  function startObserver() {
+    const existing = window.__stStoreRecoverObs;
+    if (existing?.__stTarget?.isConnected) return;
+    existing?.disconnect?.();
+
+    const target = observerTarget();
+    if (!target) {
+      window.__stStoreRecoverObs = null;
+      return;
+    }
+
+    window.__stStoreRecoverObs = window.STObserverUtils?.createDebouncedObserver?.(() => {
+      if (needRecover()) {
+        schedRecover("mutation");
+      }
+    }, 200) || new MutationObserver(() => {
+      if (needRecover()) {
+        schedRecover("mutation");
+      }
+    });
+    window.__stStoreRecoverObs.__stTarget = target;
+
+    // 只监听 App 页购买区父容器/主内容区域，覆盖 Steam React 深层重建购买模块。
+    window.__stStoreRecoverObs.observe(target, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
   function setupRecover() {
     if (window.__stStoreRecoverSetup) return;
     window.__stStoreRecoverSetup = true;
@@ -128,21 +167,6 @@
       schedRecover("pageshow");
     });
     api.urlWatch?.watch?.();
-
-    const startObserver = () => {
-      if (window.__stStoreRecoverObs || !document.documentElement) return;
-
-      window.__stStoreRecoverObs = new MutationObserver(() => {
-        if (needRecover()) {
-          schedRecover("mutation");
-        }
-      });
-
-      window.__stStoreRecoverObs.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-      });
-    };
 
     if (document.documentElement) {
       startObserver();

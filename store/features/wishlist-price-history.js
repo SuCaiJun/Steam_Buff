@@ -1323,9 +1323,10 @@
     boundScroller?.addEventListener("scroll", handleViewportChange, { passive: true });
     window.addEventListener("resize", handleViewportChange);
     document.addEventListener("keydown", handleKeyDown);
-    observer = new MutationObserver(() => {
+    observer = window.STObserverUtils?.createDebouncedObserver?.(() => {
       syncRows();
-    });
+    }, 120) || new MutationObserver(() => syncRows());
+    // 只监听愿望单真实列表容器；React 虚拟列表会深层替换行节点，保留 subtree。
     observer.observe(container, { childList: true, subtree: true });
   }
 

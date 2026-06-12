@@ -146,6 +146,21 @@
         return false;
     }
 
+    function ageCheckObserverTarget() {
+        return document.querySelector("#agecheck_form")
+            || document.querySelector(".agegate_birthday_selector")
+            || document.getElementById("responsive_page_template_content")
+            || document.querySelector(".page_content")
+            || null;
+    }
+
+    function contentWarningObserverTarget() {
+        return document.querySelector(".contentcheck_desc_ctn")
+            || document.getElementById("responsive_page_template_content")
+            || document.querySelector(".page_content")
+            || null;
+    }
+
     function skipAgeCheckPage() {
         if (!isAgeCheckPage()) return false;
 
@@ -179,18 +194,28 @@
             }, 800);
         }
 
-        trySubmit();
-
-        if (!handled && document.documentElement) {
-            observer = new MutationObserver(trySubmit);
-            observer.observe(document.documentElement, {
+        function startObserver() {
+            if (handled || observer) return;
+            const target = ageCheckObserverTarget();
+            if (!target) return;
+            observer = window.STObserverUtils?.createDebouncedObserver?.(trySubmit, 80)
+                || new MutationObserver(trySubmit);
+            // 只监听年龄验证表单或商店主内容区域，等待下拉框/提交按钮挂载。
+            observer.observe(target, {
                 childList: true,
                 subtree: true
             });
         }
 
+        trySubmit();
+
         if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", trySubmit, { once: true });
+            document.addEventListener("DOMContentLoaded", () => {
+                trySubmit();
+                startObserver();
+            }, { once: true });
+        } else {
+            startObserver();
         }
 
         setTimeout(() => {
@@ -234,15 +259,25 @@
             }
         }
 
-        if (document.documentElement) {
-            observer = new MutationObserver(tryClick);
-            observer.observe(document.documentElement, {
+        function startObserver() {
+            if (stopped || observer) return;
+            const target = contentWarningObserverTarget();
+            if (!target) return;
+            observer = window.STObserverUtils?.createDebouncedObserver?.(tryClick, 80)
+                || new MutationObserver(tryClick);
+            // 只监听内容警告区域或商店主内容区域，等待继续按钮挂载。
+            observer.observe(target, {
                 childList: true,
                 subtree: true
             });
         }
 
         tryClick();
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", startObserver, { once: true });
+        } else {
+            startObserver();
+        }
         setTimeout(stop, 10000);
     }
 

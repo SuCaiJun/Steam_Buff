@@ -1236,6 +1236,40 @@
     return conf.service === AI_SERVICE && conf.aiPerformance !== false;
   }
 
+  function area(el) {
+    const rect = el.getBoundingClientRect?.();
+    return Math.max(0, rect?.width || 0) * Math.max(0, rect?.height || 0);
+  }
+
+  function mutationRoot(body) {
+    const selectors = [
+      "main",
+      "article",
+      "[role='main']",
+      "#app",
+      "#root",
+      "#content",
+      "#main",
+      "#page",
+      "#container",
+      "#responsive_page_template_content",
+      "#StoreTemplate",
+      ".page_content",
+      ".content",
+      ".main",
+    ];
+    const preferred = selectors
+      .map(selector => document.querySelector(selector))
+      .find(el => el && body.contains(el) && visible(el));
+    if (preferred) {
+      return preferred;
+    }
+
+    return Array.from(body.children || [])
+      .filter(el => visible(el) && !runtimeUi(el))
+      .sort((left, right) => area(right) - area(left))[0] || null;
+  }
+
   function installViewportScheduler(trans) {
     if (trans.steamBuffViewportScheduler === true) {
       return;
@@ -1283,16 +1317,22 @@
         }, { root: null, rootMargin: VIEW_ROOT_MARGIN, threshold: 0 });
       }
 
-      state.mo = new MutationObserver((items) => {
+      const observeRoot = mutationRoot(body);
+      const onMutation = (items) => {
         handleMutations(state, items);
-      });
-      state.mo.observe(body, {
-        childList: true,
-        subtree: true,
-        characterData: true,
-        attributes: true,
-        attributeFilter: VISIBILITY_ATTRS,
-      });
+      };
+      if (observeRoot) {
+        state.mo = window.STObserverUtils?.createDebouncedObserver?.(onMutation, 80)
+          || new MutationObserver(onMutation);
+        // 持续监听只挂在页面语义主容器或 body 下最大的内容根节点，避免长期观察整个 body。
+        state.mo.observe(observeRoot, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+          attributes: true,
+          attributeFilter: VISIBILITY_ATTRS,
+        });
+      }
 
       queueTree(state, body, false);
       const promote = () => scheduleViewportPromote(state);

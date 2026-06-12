@@ -41,6 +41,7 @@
   const CONTENT_MARK_VERSION = "steam-runtime-scope-20260612-scheduler";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const SHARED_CONFIG = "shared/config.js";
+  const OBSERVER_UTILS = "shared/observer-utils.js";
   const TRANS_LIB = "vendor/xnx3-translate/translate.js";
   const AI_CONFIG = "ai/config.js";
   const AI_CACHE = "ai/cache.js";
@@ -459,8 +460,8 @@
         target,
         world: "ISOLATED",
         files: state.lib === true
-          ? [SHARED_CONFIG, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER]
-          : [TRANS_LIB, SHARED_CONFIG, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER],
+          ? [SHARED_CONFIG, OBSERVER_UTILS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER]
+          : [TRANS_LIB, SHARED_CONFIG, OBSERVER_UTILS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER],
       });
       sendResponse({ success: true });
     } catch (error) {

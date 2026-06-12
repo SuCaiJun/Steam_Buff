@@ -1124,10 +1124,13 @@
 
   function startWishlist() {
     if (!isWishlistPath()) return false;
-    const container = wishlistDom?.listContainer?.() || document.body;
+    const container = wishlistDom?.listContainer?.();
+    if (!container) return false;
     renderWishlistRows().catch(() => {});
     if (!wishlistObserver) {
-      wishlistObserver = new MutationObserver(() => scheduleWishlistRender());
+      wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(), 120)
+        || new MutationObserver(() => scheduleWishlistRender());
+      // 只监听愿望单真实列表容器；虚拟列表会深层替换行节点，保留 subtree。
       wishlistObserver.observe(container, { childList: true, subtree: true });
     }
     return true;
@@ -1166,16 +1169,27 @@
     renderTitle();
   }
 
+  function observeTarget() {
+    return document.getElementById("responsive_page_template_content")
+      || document.getElementById("game_highlights")
+      || document.querySelector(".apphub_AppName")?.parentElement
+      || null;
+  }
+
   function observe() {
-    if (observer || !document.documentElement) return;
-    // Steam 商店页内部跳转会替换标题节点但不刷新脚本，观察 DOM 后重新绑定标题增强。
-    observer = new MutationObserver(() => {
+    if (observer) return;
+    const target = observeTarget();
+    if (!target) return;
+    const callback = () => {
       const info = pageInfo();
       if (info && (!state || state.appid !== info.appid || !document.getElementById(HOST_ID))) {
         refresh().catch(() => {});
       }
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    };
+    observer = root.STObserverUtils?.createDebouncedObserver?.(callback, 150)
+      || new MutationObserver(callback);
+    // 只监听商店主内容容器；Steam 内部跳转会深层替换标题节点，保留 subtree。
+    observer.observe(target, { childList: true, subtree: true });
   }
 
   function start() {
