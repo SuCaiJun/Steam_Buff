@@ -65,16 +65,7 @@
     loginMessage: "请先在设置中登录",
     expiredMessage: "登录已过期，请重新登录",
   });
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = { domain: "store", feature: "title-custom-name", event, message, meta };
-      if (level === "error") root.STLogger?.error?.(entry);
-      else if (level === "warn") root.STLogger?.warn?.(entry);
-      else root.STLogger?.info?.(entry);
-    } catch {
-    }
-  }
+  const log = root.STLoggerFactory.createLogger("store", "title-custom-name");
 
   async function authedPost(url, body) {
     if (!authClient) throw new Error("请先在设置中登录");
@@ -866,18 +857,18 @@
       updateCount(modal);
       setMsg(clear ? "备注已删除" : "备注已保存");
       toast(clear ? "备注已删除" : "备注已保存");
-      log("info", "title-custom-name-note-save-success", "游戏备注保存完成", {
+      log.info("title-custom-name-note-save-success", "游戏备注保存完成", {
         appid: ctx.appid,
         noteLength: note.length,
         durationMs: Date.now() - startedAt,
         status: clear ? "deleted" : "saved",
       });
     } catch (error) {
-      log("error", "title-custom-name-note-save-failed", "游戏备注保存失败", {
+      log.error("title-custom-name-note-save-failed", error, {
         appid: ctx.appid,
         noteLength: note.length,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
       throw error;
     }
@@ -900,18 +891,18 @@
       } else {
         await authedDelete(ALIAS_SAVE, { appid: ctx.appid });
       }
-      log("info", "title-custom-name-alias-save-success", "游戏别名保存完成", {
+      log.info("title-custom-name-alias-save-success", "游戏别名保存完成", {
         appid: ctx.appid,
         aliasLength: alias.length,
         durationMs: Date.now() - startedAt,
         status: alias ? "saved" : "deleted",
       });
     } catch (error) {
-      log("error", "title-custom-name-alias-save-failed", "游戏别名保存失败", {
+      log.error("title-custom-name-alias-save-failed", error, {
         appid: ctx.appid,
         aliasLength: alias.length,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
       throw error;
     }
@@ -926,7 +917,7 @@
     const alias = String(aliasInput?.value || "").trim();
     setMsg("正在保存基础信息...");
     const startedAt = Date.now();
-    log("info", "title-custom-name-submit-start", "开始提交商店标题中文名", {
+    log.info("title-custom-name-submit-start", "开始提交商店标题中文名", {
       appid: ctx.appid,
       customNameLength: custom.length,
       steamNameLength: ctx.steamTitle.length,
@@ -957,15 +948,15 @@
       renderWishlistName(ctx.appid);
       setMsg("基础信息已保存");
       toast("基础信息已保存");
-      log("info", "title-custom-name-submit-success", "商店标题中文名提交完成", {
+      log.info("title-custom-name-submit-success", "商店标题中文名提交完成", {
         appid: ctx.appid,
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
-      log("error", "title-custom-name-submit-failed", "商店标题中文名提交失败", {
+      log.error("title-custom-name-submit-failed", error, {
         appid: ctx.appid,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
       throw error;
     }
@@ -973,21 +964,21 @@
 
   async function loadName(appid) {
     const startedAt = Date.now();
-    log("info", "title-custom-name-load-start", "开始读取商店标题中文名", { appid });
+    log.info("title-custom-name-load-start", "开始读取商店标题中文名", { appid });
     try {
       const body = await authedPost(API_GET, { appid });
       const data = body?.data || null;
-      log("info", "title-custom-name-load-success", "商店标题中文名读取完成", {
+      log.info("title-custom-name-load-success", "商店标题中文名读取完成", {
         appid,
         hasName: !!data?.name,
         durationMs: Date.now() - startedAt,
       });
       return data;
     } catch (error) {
-      log("error", "title-custom-name-load-failed", "商店标题中文名读取失败", {
+      log.error("title-custom-name-load-failed", error, {
         appid,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
       throw error;
     }
@@ -1019,15 +1010,15 @@
         for (const appid of part) {
           if (!found.has(appid)) nameCache.set(appid, null);
         }
-        log("info", "title-custom-name-wishlist-load-success", "愿望单中文译名批量读取完成", {
+        log.info("title-custom-name-wishlist-load-success", "愿望单中文译名批量读取完成", {
           count: part.length,
           durationMs: Date.now() - startedAt,
         });
       } catch (error) {
-        log("warn", "title-custom-name-wishlist-load-failed", "愿望单中文译名批量读取失败", {
+        log.warn("title-custom-name-wishlist-load-failed", "愿望单中文译名批量读取失败", {
           count: part.length,
           durationMs: Date.now() - startedAt,
-          error: error?.message || String(error),
+          error,
         });
       } finally {
         part.forEach(id => namePending.delete(id));

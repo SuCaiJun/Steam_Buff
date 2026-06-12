@@ -20,35 +20,17 @@
   const RESTORE_MAX_TRIES = 12;
   const STEAM_API_HOST = globalThis.STConfig?.vendors?.steamApi?.host || "";
   const MATCH = globalThis.STConfig?.matchers;
+  const log = window.STLoggerFactory.createLogger("store", "cart-select-checkout");
   let restored = false;
   let restoring = false;
   let btn = null;
   const seenLogs = new Set();
 
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "store",
-        feature: "cart-select-checkout",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        globalThis.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        globalThis.STLogger?.warn?.(entry);
-      } else {
-        globalThis.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
-
   function logOnce(key, level, event, message, meta = {}) {
     if (seenLogs.has(key)) return;
     seenLogs.add(key);
-    log(level, event, message, meta);
+    const method = log[level] || log.info;
+    method(event, message, meta);
   }
 
   function batchMeta(batches, extra = {}) {
@@ -288,20 +270,20 @@
     restoring = true;
     setBtn("正在恢复暂存购物车数据...", "busy");
     const startedAt = Date.now();
-    log("info", "checkout-cart-restore-start", "开始恢复结算页暂存购物车数据", batchMeta(batches));
+    log.info("checkout-cart-restore-start", "开始恢复结算页暂存购物车数据", batchMeta(batches));
 
     try {
       const ok = await restore(batches);
       if (ok) {
         restored = true;
         setBtn("已恢复暂存购物车数据", "done");
-        log("info", "checkout-cart-restore-success", "结算页暂存购物车数据恢复完成", batchMeta(batches, {
+        log.info("checkout-cart-restore-success", "结算页暂存购物车数据恢复完成", batchMeta(batches, {
           durationMs: Date.now() - startedAt,
         }));
       } else {
         await put({ [RESTORE_KEY]: batches });
         setBtn("恢复失败，重试", "bad");
-        log("warn", "checkout-cart-restore-failed", "结算页暂存购物车数据恢复失败", batchMeta(batches, {
+        log.warn("checkout-cart-restore-failed", "结算页暂存购物车数据恢复失败", batchMeta(batches, {
           durationMs: Date.now() - startedAt,
           reason: "restore-returned-false",
         }));
@@ -310,9 +292,9 @@
     } catch (error) {
       await put({ [RESTORE_KEY]: batches });
       setBtn("恢复失败，重试", "bad");
-      log("error", "checkout-cart-restore-failed", "结算页暂存购物车数据恢复异常", batchMeta(batches, {
+      log.error("checkout-cart-restore-failed", error, batchMeta(batches, {
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       }));
       throw error;
     } finally {

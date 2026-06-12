@@ -22,6 +22,7 @@
   const SCAN_MS = 700;
   const EMPTY_SCAN_RETRY_MAX = 12;
   const MATCH = globalThis.STConfig?.matchers;
+  const log = window.STLoggerFactory.createLogger("store", "cart-select");
 
   let started = false;
   let busy = false;
@@ -37,26 +38,6 @@
 
   function onCartPage() {
     return MATCH?.isSteamStoreHost?.(location.hostname) === true && /^\/cart\/?$/.test(location.pathname);
-  }
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "store",
-        feature: "cart-select",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        globalThis.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        globalThis.STLogger?.warn?.(entry);
-      } else {
-        globalThis.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
   }
 
   function box() {
@@ -144,7 +125,7 @@
     if (pageReady) return pageReady;
 
     const scriptPath = "store/page/cart-select-inject.js";
-    log("info", "cart-page-script-inject-start", "开始注入购物车页面脚本", {
+    log.info("cart-page-script-inject-start", "开始注入购物车页面脚本", {
       scriptPath,
       path: location.pathname,
     });
@@ -154,7 +135,7 @@
       script.dataset.steamApiHost = window.STConfig?.vendors?.steamApi?.host || "";
       script.onload = () => {
         script.remove();
-        log("info", "cart-page-script-inject-success", "购物车页面脚本注入完成", {
+        log.info("cart-page-script-inject-success", "购物车页面脚本注入完成", {
           scriptPath,
           path: location.pathname,
         });
@@ -163,7 +144,7 @@
       script.onerror = () => {
         script.remove();
         pageReady = null;
-        log("error", "cart-page-script-inject-failed", "购物车页面脚本注入失败", {
+        log.error("cart-page-script-inject-failed", "购物车页面脚本注入失败", {
           scriptPath,
           path: location.pathname,
           reason: "load-error",
@@ -823,7 +804,7 @@
     if (restoring) return;
     restoring = true;
     const startedAt = Date.now();
-    log("info", "cart-select-restore-start", "开始恢复暂存购物车数据");
+    log.info("cart-select-restore-start", "开始恢复暂存购物车数据");
 
     try {
       const rt = await loadState();
@@ -831,7 +812,7 @@
       if (batches.length === 0) {
         await remove([RESTORE_KEY]);
         setRestorePanel("");
-        log("info", "cart-select-restore-success", "没有需要恢复的暂存购物车数据", {
+        log.info("cart-select-restore-success", "没有需要恢复的暂存购物车数据", {
           count: 0,
           durationMs: Date.now() - startedAt,
         });
@@ -844,7 +825,7 @@
         await clearSelection(allKeys);
         await remove([RESTORE_KEY]);
         setRestorePanel("");
-        log("info", "cart-select-restore-success", "暂存购物车数据已无需恢复", {
+        log.info("cart-select-restore-success", "暂存购物车数据已无需恢复", {
           batchCount: batches.length,
           count: 0,
           durationMs: Date.now() - startedAt,
@@ -863,7 +844,7 @@
         await remove([RESTORE_KEY]);
         setRestorePanel("");
         toast("已恢复上次未支付项目");
-        log("info", "cart-select-restore-success", "暂存购物车数据恢复完成", {
+        log.info("cart-select-restore-success", "暂存购物车数据恢复完成", {
           batchCount: batches.length,
           count: need.length,
           durationMs: Date.now() - startedAt,
@@ -873,7 +854,7 @@
         await put({ [RESTORE_KEY]: batches });
         setRestorePanel(`还有 ${stillMissing.length} 件暂存购物车数据未恢复`, "bad");
         toast("部分暂存购物车数据未恢复，请稍后重试", true);
-        log("warn", "cart-select-restore-failed", "暂存购物车数据部分恢复失败", {
+        log.warn("cart-select-restore-failed", "暂存购物车数据部分恢复失败", {
           batchCount: batches.length,
           count: need.length,
           missingCount: stillMissing.length,
@@ -881,9 +862,9 @@
         });
       }
     } catch (error) {
-      log("error", "cart-select-restore-failed", "暂存购物车数据恢复异常", {
+      log.error("cart-select-restore-failed", error, {
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
       throw error;
     } finally {
@@ -900,7 +881,7 @@
       await scan();
       const sel = selectedItems();
       const skip = skippedItems();
-      log("info", "cart-select-checkout-start", "开始处理购物车选择支付", {
+      log.info("cart-select-checkout-start", "开始处理购物车选择支付", {
         totalCount: items.length,
         selectedCount: sel.length,
         skippedCount: skip.length,
@@ -908,7 +889,7 @@
 
       if (items.length === 0 || sel.length === 0) {
         toast("请至少选择 1 件本次支付项目", true);
-        log("warn", "cart-select-checkout-failed", "购物车选择支付缺少选中项目", {
+        log.warn("cart-select-checkout-failed", "购物车选择支付缺少选中项目", {
           totalCount: items.length,
           selectedCount: sel.length,
           skippedCount: skip.length,
@@ -920,7 +901,7 @@
 
       if (skip.length === 0) {
         btn.dataset.stCartSelectPass = "1";
-        log("info", "cart-select-checkout-success", "购物车选择支付直接进入支付页", {
+        log.info("cart-select-checkout-success", "购物车选择支付直接进入支付页", {
           totalCount: items.length,
           selectedCount: sel.length,
           skippedCount: 0,
@@ -938,7 +919,7 @@
         await scan();
         await showRestorePrompt();
         toast("临时调整购物车失败，已保留暂存数据，请手动恢复", true);
-        log("warn", "cart-select-checkout-failed", "购物车选择支付临时移除失败", {
+        log.warn("cart-select-checkout-failed", "购物车选择支付临时移除失败", {
           totalCount: items.length,
           selectedCount: sel.length,
           skippedCount: skip.length,
@@ -950,7 +931,7 @@
       btn.dataset.stCartSelectPass = "1";
       const next = checkoutButtons()[0] || btn;
       next.dataset.stCartSelectPass = "1";
-      log("info", "cart-select-checkout-success", "购物车选择支付处理完成", {
+      log.info("cart-select-checkout-success", "购物车选择支付处理完成", {
         totalCount: items.length,
         selectedCount: sel.length,
         skippedCount: skip.length,
@@ -959,9 +940,9 @@
       });
       next.click();
     } catch (error) {
-      log("error", "cart-select-checkout-failed", "购物车选择支付处理异常", {
+      log.error("cart-select-checkout-failed", error, {
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
       throw error;
     } finally {

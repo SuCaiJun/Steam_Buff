@@ -14,6 +14,7 @@
   const api = window.STStore;
   if (!api) return;
   const STEAM_DB = globalThis.STConfig.vendors.steamDb;
+  const log = window.STLoggerFactory.createLogger('store', 'price-history');
 
   const MODULE_CLASSES = api.dom.MODULE_CLASSES;
   const hasHiddenAncestor = api.dom.hasHiddenAncestor;
@@ -22,26 +23,6 @@
   const formatPrice = api.format.formatPrice;
   const formatDate = api.format.formatDate;
   const calculateDaysDiff = api.format.calculateDaysDiff;
-
-function log(level, event, message, meta = {}) {
-    try {
-        const entry = {
-            domain: "store",
-            feature: "price-history",
-            event,
-            message,
-            meta,
-        };
-        if (level === "error") {
-            globalThis.STLogger?.error?.(entry);
-        } else if (level === "warn") {
-            globalThis.STLogger?.warn?.(entry);
-        } else {
-            globalThis.STLogger?.info?.(entry);
-        }
-    } catch {
-    }
-}
 
 function normalizeSteamText(value) {
     return String(value || '').replace(/\s+/g, ' ').trim();
@@ -350,7 +331,7 @@ function addPriceHistoryTag(appId, type, subIds, bundleids, cc, protocol) {
     if (type === "app"
         && typeof skipPrice === "function"
         && skipPrice()) {
-        log("info", "price-history-query-skipped", "免费游戏跳过价格历史查询", {
+        log.info("price-history-query-skipped", "免费游戏跳过价格历史查询", {
             appid: appId,
             type,
             reason: "free-only",
@@ -390,7 +371,7 @@ function addPriceHistoryTag(appId, type, subIds, bundleids, cc, protocol) {
         }
     });
 
-    log("info", "price-history-query-start", "开始查询价格历史", {
+    log.info("price-history-query-start", "开始查询价格历史", {
         appid: appId,
         type,
         subidCount: subIds.length,
@@ -461,7 +442,7 @@ function addPriceHistoryTag(appId, type, subIds, bundleids, cc, protocol) {
                 }
             }
         }
-        log("info", "price-history-query-success", "价格历史查询完成", {
+        log.info("price-history-query-success", "价格历史查询完成", {
             appid: appId,
             type,
             count: appInfos.length,
@@ -473,11 +454,10 @@ function addPriceHistoryTag(appId, type, subIds, bundleids, cc, protocol) {
                 setMessage(lowestPriceNodes[id], `价格查询失败：${err?.message || err}`, "请检查网络或刷新页面");
             }
         }
-        log("error", "price-history-query-failed", "价格历史查询失败", {
+        log.error("price-history-query-failed", err, {
             appid: appId,
             type,
             durationMs: Date.now() - startedAt,
-            error: err?.message || String(err),
         });
     });
 

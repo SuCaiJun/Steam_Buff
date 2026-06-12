@@ -52,16 +52,7 @@
     loginMessage: "请先在设置中登录",
     expiredMessage: "登录已过期，请重新登录",
   });
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = { domain: "store", feature: FEATURE_ID, event, message, meta };
-      if (level === "error") root.STLogger?.error?.(entry);
-      else if (level === "warn") root.STLogger?.warn?.(entry);
-      else root.STLogger?.info?.(entry);
-    } catch {
-    }
-  }
+  const log = root.STLoggerFactory.createLogger("store", FEATURE_ID);
 
   function text(value) {
     return String(value ?? "").replace(/\s+/g, " ").trim();
@@ -265,16 +256,16 @@
         for (const appid of part) {
           if (!found.has(appid)) cache.set(appid, { note: "", steamName: "", updatedAt: "" });
         }
-        log("info", "game-notes-query-success", "游戏备注查询完成", {
+        log.info("game-notes-query-success", "游戏备注查询完成", {
           count: part.length,
           durationMs: Date.now() - startedAt,
         });
       } catch (error) {
-        log("warn", "game-notes-query-failed", "游戏备注查询失败", {
+        log.warn("game-notes-query-failed", "游戏备注查询失败", {
           count: part.length,
           durationMs: Date.now() - startedAt,
           status: error?.status || 0,
-          error: error?.message || String(error),
+          error,
         });
       } finally {
         part.forEach(id => pending.delete(id));
@@ -468,7 +459,7 @@
       updatedAt: String(body.data?.updated_at || ""),
     });
     updateVisible(Number(appid));
-    log("info", "game-notes-save-success", "游戏备注保存完成", {
+    log.info("game-notes-save-success", "游戏备注保存完成", {
       appid: Number(appid),
       noteLength: noteText.length,
       durationMs: Date.now() - startedAt,

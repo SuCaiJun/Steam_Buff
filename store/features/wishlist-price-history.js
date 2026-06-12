@@ -37,6 +37,7 @@
     cdk: "steampy-cdk-price",
     proxy: "steampy-proxy-price",
   });
+  const log = window.STLoggerFactory.createLogger("store", FEATURE_ID);
 
   let started = false;
   let observer = null;
@@ -59,26 +60,6 @@
   let cardHover = false;
   let panelHover = false;
   let detachTimer = 0;
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "store",
-        feature: FEATURE_ID,
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        globalThis.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        globalThis.STLogger?.warn?.(entry);
-      } else {
-        globalThis.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
 
   function text(value) {
     return String(value ?? "").replace(/\s+/g, " ").trim();
@@ -844,10 +825,10 @@
       for (const appid of apps) {
         steamCache.set(appid, null);
       }
-      log("warn", "wishlist-price-steam-chunk-failed", "愿望单 Steam 批量价格请求失败", {
+      log.warn("wishlist-price-steam-chunk-failed", "愿望单 Steam 批量价格请求失败", {
         count: apps.length,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
     });
     steamPromises.set(key, request);
@@ -873,11 +854,11 @@
       steamCache.set(appid, info);
       return info;
     }).catch((error) => {
-      log("warn", "wishlist-price-steam-package-failed", "愿望单 Steam 包价格请求失败", {
+      log.warn("wishlist-price-steam-package-failed", "愿望单 Steam 包价格请求失败", {
         appid,
         packageCount: packages.length,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
       return steamCache.get(appid) || null;
     });
@@ -935,10 +916,10 @@
       return ids;
     }).catch((error) => {
       packageCache.set(appid, []);
-      log("warn", "wishlist-price-package-load-failed", "愿望单购买包信息加载失败", {
+      log.warn("wishlist-price-package-load-failed", "愿望单购买包信息加载失败", {
         appid,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
       return [];
     });
@@ -958,10 +939,10 @@
       url,
       parseJSON: true,
     }).then(data => (data?.success && data?.result ? data : null)).catch((error) => {
-      log("warn", "wishlist-price-steampy-failed", "愿望单 SteamPY 价格请求失败", {
+      log.warn("wishlist-price-steampy-failed", "愿望单 SteamPY 价格请求失败", {
         appid,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
       return null;
     });
@@ -1195,7 +1176,7 @@
     const query = !steamCache.has(appid) || (pyEnabled() && !pyCache.has(appid));
     const startedAt = Date.now();
     if (query) {
-      log("info", "wishlist-price-query-start", "开始查询愿望单价格", {
+      log.info("wishlist-price-query-start", "开始查询愿望单价格", {
         appid,
         steampy: pyEnabled(),
       });
@@ -1215,7 +1196,7 @@
       await swapPanelContent(panel, () => renderSummary(panel, summary));
       positionPanel();
       if (query) {
-        log("info", "wishlist-price-query-success", "愿望单价格查询完成", {
+        log.info("wishlist-price-query-success", "愿望单价格查询完成", {
           appid,
           steamStatus: steamResult.status,
           steampyStatus: pyResult.status,
@@ -1228,10 +1209,10 @@
         positionPanel();
       }
       if (query) {
-        log("error", "wishlist-price-query-failed", "愿望单价格查询失败", {
+        log.error("wishlist-price-query-failed", error, {
           appid,
           durationMs: Date.now() - startedAt,
-          error: error?.message || String(error),
+          error,
         });
       }
     }

@@ -247,21 +247,13 @@
   }
 
   function logLayoutInjectFailed(reason, error) {
-    try {
-      window.STLogger?.error?.({
-        domain: logDomain(),
-        feature: "review-filter",
-        event: "review-filter-layout-inject-failed",
-        message: "评测区布局脚本注入失败",
-        error,
-        meta: {
-          scriptPath: LAYOUT_SCRIPT,
-          reason,
-          path: location.pathname,
-        },
-      });
-    } catch {
-    }
+    const log = window.STLoggerFactory.createLogger(logDomain(), "review-filter");
+    log.error("review-filter-layout-inject-failed", error || "评测区布局脚本注入失败", {
+      scriptPath: LAYOUT_SCRIPT,
+      reason,
+      path: location.pathname,
+      error,
+    });
   }
 
   // 评测区布局函数在页面主上下文里，内容脚本只能注入桥接脚本后用事件触发重排。

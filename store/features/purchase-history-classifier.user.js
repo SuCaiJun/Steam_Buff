@@ -18,6 +18,7 @@
 
     function run(options = {}) {
         const GM_info = options.GM_info || { script: { version: '2.1.13' } };
+        const log = globalThis.STLoggerFactory.createLogger('store', 'purchase-history-classifier');
 
     // ==================== 配置常量 ====================
     const CATEGORIES = [
@@ -42,26 +43,6 @@
     const SEP_BEFORE = new Set(['convert', 'market_buy']);
     const MARKET_CATS = new Set(['market_buy', 'market_sell']);
     const CD_DAYS = 90;
-
-    function log(level, event, message, meta = {}) {
-        try {
-            const entry = {
-                domain: 'store',
-                feature: 'purchase-history-classifier',
-                event,
-                message,
-                meta,
-            };
-            if (level === 'error') {
-                globalThis.STLogger?.error?.(entry);
-            } else if (level === 'warn') {
-                globalThis.STLogger?.warn?.(entry);
-            } else {
-                globalThis.STLogger?.info?.(entry);
-            }
-        } catch {
-        }
-    }
 
     const CURRENCIES = [
         { id: 'HKD', label: '港币', match: /HK\$\s*[\d,. ]+/, symbol: 'HK$' },
@@ -569,7 +550,10 @@
             }
             applyViewFilters(allRows, makeViewStats());
         } catch (err) {
-            console.error('[Steam Buff] 消费历史分类器 processAll 失败:', err);
+            log.error('purchase-history-classifier-process-failed', err, {
+                rowCount: getDataRows().length,
+                error: err,
+            });
             showToast(t('analyzeFail').replace('{msg}', err.message), 'error');
         } finally {
             state.isProcessing = false;
@@ -808,11 +792,11 @@
 
     function doExport(format) {
         const startedAt = Date.now();
-        log('info', 'purchase-history-classifier-export-start', '开始导出消费历史分类结果', {
+        log.info('purchase-history-classifier-export-start', '开始导出消费历史分类结果', {
             format,
         });
         try {
-            const data = getExportData(); if (!data.length) { log('warn', 'purchase-history-classifier-export-failed', '消费历史分类结果没有可导出数据', { format, count: 0, reason: 'empty', durationMs: Date.now() - startedAt }); showToast(t('exportNoData'), 'error'); return; }
+            const data = getExportData(); if (!data.length) { log.warn('purchase-history-classifier-export-failed', '消费历史分类结果没有可导出数据', { format, count: 0, reason: 'empty', durationMs: Date.now() - startedAt }); showToast(t('exportNoData'), 'error'); return; }
             const now = new Date();
             const ts = `${fmtDate(now)}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
             if (format === 'csv') {
@@ -830,18 +814,17 @@
                 downloadBlob(new Blob([JSON.stringify(clean, null, 2)], { type: 'application/json;charset=utf-8;' }), `steam-history-${ts}.json`);
             }
             showToast(t('exportSuccess'), 'success');
-            log('info', 'purchase-history-classifier-export-success', '消费历史分类结果导出完成', {
+            log.info('purchase-history-classifier-export-success', '消费历史分类结果导出完成', {
                 format,
                 count: data.length,
                 durationMs: Date.now() - startedAt,
             });
         } catch (err) {
-            log('error', 'purchase-history-classifier-export-failed', '消费历史分类结果导出失败', {
+            log.error('purchase-history-classifier-export-failed', err, {
                 format,
                 durationMs: Date.now() - startedAt,
-                error: err?.message || String(err),
+                error: err,
             });
-            console.error(`[Steam Buff] 消费历史分类结果导出失败: ${format}`, err);
             showToast(t('exportFail') + ': ' + err.message, 'error');
         }
     }
@@ -907,7 +890,7 @@
         const { modal, chartEl } = state[key];
         let h;
         try { h = modalHeader(prefix, iconSvg, title) + buildFn(); }
-        catch (err) { console.error(`[Steam Buff] 消费历史分类器 ${prefix} 分析失败:`, err); h = modalHeader(prefix, iconSvg, title) + `<div style="text-align:center;padding:20px;color:#ef4444">${escapeHtml(t('analyzeFail')).replace('{msg}', escapeHtml(err.message))}</div>`; }
+        catch (err) { log.error('purchase-history-classifier-modal-failed', err, { prefix, error: err }); h = modalHeader(prefix, iconSvg, title) + `<div style="text-align:center;padding:20px;color:#ef4444">${escapeHtml(t('analyzeFail')).replace('{msg}', escapeHtml(err.message))}</div>`; }
         chartEl.innerHTML = h;
         if (postRender) postRender(chartEl);
         modal.classList.add('visible');
@@ -1192,7 +1175,7 @@
 
     function showRegionCD() {
         renderModal('regionCdRefs', 'regioncd', ICONS.mExchange, t('regionCdTitle'), () => {
-            let h; try { h = RegionCD.analyze(); } catch (err) { console.error('[Steam Buff] 消费历史分类器 RegionCD 分析失败:', err); h = `<div style="text-align:center;padding:20px;color:#ef4444">${escapeHtml(t('analyzeFail')).replace('{msg}', escapeHtml(err.message))}</div>`; }
+            let h; try { h = RegionCD.analyze(); } catch (err) { log.error('purchase-history-classifier-regioncd-failed', err, { prefix: 'regioncd', error: err }); h = `<div style="text-align:center;padding:20px;color:#ef4444">${escapeHtml(t('analyzeFail')).replace('{msg}', escapeHtml(err.message))}</div>`; }
             h += modalNote('regioncd', t('cdNote').replace('{days}', CD_DAYS));
             return h;
         }, chartEl => {
@@ -2017,7 +2000,12 @@ ${iconColorCSS('.shc-regioncd-row-icon', [['blue','blue','blue'],['cyan','cyan',
     async function init() {
         if (_initialized) return; _initialized = true;
         currentLang = detectLanguage();
-        console.log(`[Steam Buff] 消费历史分类器版本: ${GM_info.script.version} | 语言: ${currentLang} | 货币: ${primaryCurrency.id} (${primaryCurrency.label})`);
+        log.info('purchase-history-classifier-init-start', '消费历史分类器开始初始化', {
+            version: GM_info.script.version,
+            lang: currentLang,
+            currency: primaryCurrency.id,
+            currencyLabel: primaryCurrency.label,
+        });
         injectStyles(); updatePageTitle(); addBreadcrumbLink();
 
         const KEY_ACTIONS = {
@@ -2041,7 +2029,7 @@ ${iconColorCSS('.shc-regioncd-row-icon', [['blue','blue','blue'],['cyan','cyan',
             tableEl.addEventListener('click', rowClickHandler, true); state.disposers.push(() => tableEl.removeEventListener('click', rowClickHandler, true));
         }
 
-        try { await waitFor('table.wallet_history_table tbody tr'); buildUI(); } catch (e) { console.warn('[Steam Buff] 消费历史分类器初始化失败:', e.message); }
+        try { await waitFor('table.wallet_history_table tbody tr'); buildUI(); } catch (e) { log.warn('purchase-history-classifier-init-failed', e, { selector: 'table.wallet_history_table tbody tr', error: e }); }
     }
 
         document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', init, { once: true }) : init();

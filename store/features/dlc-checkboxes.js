@@ -19,26 +19,7 @@
   const CLAIM_EVT = 'STStoreFreeDLCClaim';
   const dlcBridge = api.features.dlcBridge;
   const scan = api.features.dlcScan;
-
-function log(level, event, message, meta = {}) {
-    try {
-        const entry = {
-            domain: "store",
-            feature: "dlc-checkboxes",
-            event,
-            message,
-            meta,
-        };
-        if (level === "error") {
-            globalThis.STLogger?.error?.(entry);
-        } else if (level === "warn") {
-            globalThis.STLogger?.warn?.(entry);
-        } else {
-            globalThis.STLogger?.info?.(entry);
-        }
-    } catch {
-    }
-}
+  const log = window.STLoggerFactory.createLogger("store", "dlc-checkboxes");
 
 function addDLCCheckboxes() {
     const dlcSection = document.querySelector(".game_area_dlc_section");
@@ -610,7 +591,7 @@ function claimFreeDLCsBatch(freeDLCs) {
     const batchId = `free_dlc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const startedAt = Date.now();
 
-    log("info", "dlc-free-claim-start", "开始批量领取免费 DLC", {
+    log.info("dlc-free-claim-start", "开始批量领取免费 DLC", {
         count: Array.isArray(freeDLCs) ? freeDLCs.length : 0,
     });
     
@@ -697,7 +678,7 @@ function claimFreeDLCsBatch(freeDLCs) {
             cleanup(document.getElementById(batchId));
             markClaimed(detail.results);
             renderFinished();
-            log(failCount > 0 ? "warn" : "info", "dlc-free-claim-success", "批量领取免费 DLC 完成", {
+            log[failCount > 0 ? "warn" : "info"]("dlc-free-claim-success", "批量领取免费 DLC 完成", {
                 count: freeDLCs.length,
                 successCount,
                 failCount,
@@ -717,7 +698,7 @@ function claimFreeDLCsBatch(freeDLCs) {
                 message: detail.message || '执行失败'
             });
             renderFinished();
-            log("error", "dlc-free-claim-failed", "批量领取免费 DLC 失败", {
+            log.error("dlc-free-claim-failed", detail.message || "执行失败", {
                 count: freeDLCs.length,
                 successCount,
                 failCount,
@@ -739,12 +720,12 @@ function claimFreeDLCsBatch(freeDLCs) {
                 message: error.message || '脚本注入失败'
             });
             renderFinished();
-            log("error", "dlc-free-claim-failed", "批量领取免费 DLC 注入失败", {
+            log.error("dlc-free-claim-failed", error, {
                 count: freeDLCs.length,
                 successCount,
                 failCount,
                 durationMs: Date.now() - startedAt,
-                error: error?.message || String(error),
+                error,
             });
         });
 }
@@ -849,22 +830,22 @@ function addSelectedDLCToCart(dlcSection) {
     }
 
     const startedAt = Date.now();
-    log("info", "dlc-cart-add-start", "开始将已选 DLC 加入购物车", {
+    log.info("dlc-cart-add-start", "开始将已选 DLC 加入购物车", {
         count: subids.length,
     });
     try {
         dlcBridge.addToCart(subids);
         markCarted(subids);
         updateCartButton(dlcSection);
-        log("info", "dlc-cart-add-success", "已选 DLC 已加入购物车", {
+        log.info("dlc-cart-add-success", "已选 DLC 已加入购物车", {
             count: subids.length,
             durationMs: Date.now() - startedAt,
         });
     } catch (error) {
-        log("error", "dlc-cart-add-failed", "已选 DLC 加入购物车失败", {
+        log.error("dlc-cart-add-failed", error, {
             count: subids.length,
             durationMs: Date.now() - startedAt,
-            error: error?.message || String(error),
+            error,
         });
         throw error;
     }

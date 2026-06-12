@@ -17,27 +17,8 @@
   const VERSION = "2.1.13";
   const HISTORY_PATH = "/account/history";
   const MATCH = globalThis.STConfig?.matchers;
+  const log = window.STLoggerFactory.createLogger("store", "purchase-history-classifier");
   let started = false;
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "store",
-        feature: "purchase-history-classifier",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        globalThis.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        globalThis.STLogger?.warn?.(entry);
-      } else {
-        globalThis.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
 
   function isHistoryPath(pathname = location.pathname) {
     return MATCH?.isSteamStoreHost?.(location.hostname) === true
@@ -46,7 +27,7 @@
 
   function start() {
     if (started || !isHistoryPath()) {
-      log("info", "purchase-history-classifier-skipped", "消费历史分类器跳过启动", {
+      log.info("purchase-history-classifier-skipped", "消费历史分类器跳过启动", {
         reason: started ? "already-started" : "not-history-path",
         path: location.pathname,
       });
@@ -54,14 +35,14 @@
     }
     const run = globalThis.STPurchaseHistoryClassifierUserScript?.run;
     if (typeof run !== "function") {
-      log("warn", "purchase-history-classifier-skipped", "消费历史分类器脚本不可用", {
+      log.warn("purchase-history-classifier-skipped", "消费历史分类器脚本不可用", {
         reason: "userscript-missing",
       });
       return false;
     }
 
     started = true;
-    log("info", "purchase-history-classifier-start", "开始启动消费历史分类器", {
+    log.info("purchase-history-classifier-start", "开始启动消费历史分类器", {
       version: VERSION,
     });
     try {
@@ -73,14 +54,14 @@
           },
         },
       });
-      log("info", "purchase-history-classifier-success", "消费历史分类器启动完成", {
+      log.info("purchase-history-classifier-success", "消费历史分类器启动完成", {
         version: VERSION,
       });
     } catch (error) {
       started = false;
-      log("error", "purchase-history-classifier-failed", "消费历史分类器启动失败", {
+      log.error("purchase-history-classifier-failed", error, {
         version: VERSION,
-        error: error?.message || String(error),
+        error,
       });
       throw error;
     }

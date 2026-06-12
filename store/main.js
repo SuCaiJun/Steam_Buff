@@ -11,28 +11,9 @@
 (() => {
   "use strict";
 
+  const log = window.STLoggerFactory.createLogger('store', 'main');
   const api = window.STStore;
   if (!api?.reg) return;
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "store",
-        feature: "store-runtime",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        window.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        window.STLogger?.warn?.(entry);
-      } else {
-        window.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
 
   function pageType() {
     const path = location.pathname || "";
@@ -61,21 +42,20 @@
     pageType: pageType(),
     path: location.pathname,
   };
-  log("info", "runtime-start", "Steam 商店页运行时开始启动", meta);
+  log.info("runtime-start", "Steam 商店页运行时开始启动", meta);
 
   api.reg.start()
     .then((results) => {
-      log("info", "runtime-ready", "Steam 商店页运行时已就绪", {
+      log.info("runtime-ready", "Steam 商店页运行时已就绪", {
         ...meta,
         ...summary(results),
         durationMs: Date.now() - startedAt,
       });
     })
     .catch((error) => {
-      log("error", "runtime-failed", "Steam 商店页运行时启动失败", {
+      log.error("runtime-failed", error, {
         ...meta,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
       });
     });
 })();

@@ -60,26 +60,7 @@
     storage: storage(),
     refreshUrl: AUTH_REFRESH,
   });
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "store",
-        feature: "search-suggestions",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        root.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        root.STLogger?.warn?.(entry);
-      } else {
-        root.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
+  const log = root.STLoggerFactory.createLogger("store", "search-suggestions");
 
   async function loadOptions() {
     const next = core.normalizeOptions(await storage()?.getSearchSuggestions?.());
@@ -95,7 +76,7 @@
       return [];
     }
     const startedAt = Date.now();
-    log("info", "search-suggestions-query-start", "开始查询搜索联想词", {
+    log.info("search-suggestions-query-start", "开始查询搜索联想词", {
       keywordLength: String(keyword || "").length,
       sources,
       modes,
@@ -104,7 +85,7 @@
     try {
       const { body, code } = await authClient.authedPost(API_QUERY, { keyword, limit: options.limit, sources, modes: modes });
       if (code === 401 || code === 403) {
-        log("warn", "search-suggestions-query-failed", "搜索联想词查询未授权", {
+        log.warn("search-suggestions-query-failed", "搜索联想词查询未授权", {
           keywordLength: String(keyword || "").length,
           status: code,
           durationMs: Date.now() - startedAt,
@@ -112,7 +93,7 @@
         return [];
       }
       if (code < 200 || code >= 300) {
-        log("warn", "search-suggestions-query-failed", "搜索联想词查询失败", {
+        log.warn("search-suggestions-query-failed", "搜索联想词查询失败", {
           keywordLength: String(keyword || "").length,
           status: code,
           durationMs: Date.now() - startedAt,
@@ -120,17 +101,17 @@
         return [];
       }
       const items = Array.isArray(body?.data) ? core.mergeByApp(body.data, options.limit) : [];
-      log("info", "search-suggestions-query-success", "搜索联想词查询完成", {
+      log.info("search-suggestions-query-success", "搜索联想词查询完成", {
         keywordLength: String(keyword || "").length,
         count: items.length,
         durationMs: Date.now() - startedAt,
       });
       return items;
     } catch (error) {
-      log("error", "search-suggestions-query-failed", "搜索联想词查询异常", {
+      log.error("search-suggestions-query-failed", error, {
         keywordLength: String(keyword || "").length,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
       return [];
     }
@@ -143,7 +124,7 @@
     if (!authClient) {
       return false;
     }
-    log("info", "search-suggestion-click-start", "开始上报搜索联想点击", {
+    log.info("search-suggestion-click-start", "开始上报搜索联想点击", {
       appid: Number(item.appid) || 0,
       source: item.source || "",
       keywordLength: String(keyword || "").length,
@@ -153,7 +134,7 @@
       appid: item.appid,
       source: item.source,
     });
-    log("info", "search-suggestion-click-success", "搜索联想点击已上报", {
+    log.info("search-suggestion-click-success", "搜索联想点击已上报", {
       appid: Number(item.appid) || 0,
       source: item.source || "",
       keywordLength: String(keyword || "").length,

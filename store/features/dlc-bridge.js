@@ -16,23 +16,15 @@
 
   const DECORATE_EVT = 'STStoreDLCDecorateDone';
   const USERDATA_BASE = window.STConfig?.vendors?.steamStore?.dynamicStoreUserdataBase || "";
+  const log = window.STLoggerFactory.createLogger("store", "dlc-bridge");
 
   function logInjectFailed(scriptPath, reason, meta = {}) {
-    try {
-      window.STLogger?.error?.({
-        domain: "store",
-        feature: "dlc-bridge",
-        event: "dlc-page-script-inject-failed",
-        message: "DLC 页面脚本注入失败",
-        meta: {
-          scriptPath,
-          reason,
-          path: location.pathname,
-          ...meta,
-        },
-      });
-    } catch {
-    }
+    log.error("dlc-page-script-inject-failed", "DLC 页面脚本注入失败", {
+      scriptPath,
+      reason,
+      path: location.pathname,
+      ...meta,
+    });
   }
 
   function claimBatch(freeDLCs, batchId) {
@@ -58,7 +50,7 @@
       } catch (error) {
         logInjectFailed(scriptPath, "exception", {
           count: Array.isArray(freeDLCs) ? freeDLCs.length : 0,
-          error: error?.message || String(error),
+          error,
         });
         reject(error);
       }

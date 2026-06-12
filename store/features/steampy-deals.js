@@ -29,27 +29,8 @@
     cdk: "steampy-cdk-price",
     proxy: "steampy-proxy-price",
   });
+  const log = window.STLoggerFactory.createLogger("store", "steampy-deals");
   let resizeHooked = false;
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "store",
-        feature: "steampy-deals",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        globalThis.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        globalThis.STLogger?.warn?.(entry);
-      } else {
-        globalThis.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
 
   function cleanText(value) {
     return String(value || "").trim();
@@ -347,7 +328,7 @@
     if (cached) return Promise.resolve(cached);
 
     const startedAt = Date.now();
-    log("info", "steampy-price-query-start", "开始查询 SteamPY 价格", {
+    log.info("steampy-price-query-start", "开始查询 SteamPY 价格", {
       appid: appId,
       [payload.type]: payload.id,
     });
@@ -359,7 +340,7 @@
       parseJSON: true,
     }).then(data => {
       apiCache.set(cacheKey, data);
-      log("info", "steampy-price-query-success", "SteamPY 价格查询完成", {
+      log.info("steampy-price-query-success", "SteamPY 价格查询完成", {
         appid: appId,
         [payload.type]: payload.id,
         status: data?.success === false ? "empty" : "ok",
@@ -367,11 +348,11 @@
       });
       return data;
     }).catch((error) => {
-      log("error", "steampy-price-query-failed", "SteamPY 价格查询失败", {
+      log.error("steampy-price-query-failed", error, {
         appid: appId,
         [payload.type]: payload.id,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
       return null;
     });
