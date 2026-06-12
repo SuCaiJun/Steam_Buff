@@ -30,6 +30,11 @@
         "<all_urls>"
       ],
       "js": [
+        "shared/styles/theme.js",
+        "shared/logger-factory.js",
+        "shared/errors.js",
+        "shared/utils/dom.js",
+        "shared/utils/format.js",
         "shared/performance-monitor.js",
         "shared/scheduler.js",
         "shared/observer-utils.js",
