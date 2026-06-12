@@ -30,6 +30,18 @@
         "<all_urls>"
       ],
       "js": [
+        "shared/scheduler.js",
+        "shared/page-context.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
         "ai/config.js",
         "shared/config.js",
         "shared/i18n.js",

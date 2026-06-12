@@ -13,10 +13,90 @@
 
   const RUN_MARK = "steamBuffContentStarted";
   const RUN_VERSION = "steam-runtime-scope-20260611";
+  const ALLOWED_PAGES = Object.freeze([
+    "steamloopback.host",
+    "store.steampowered.com",
+    "steamcommunity.com",
+  ]);
+  const EXCLUDED_PAGES = Object.freeze([
+    "about:blank",
+    "chrome-extension://",
+    "devtools://",
+    "steamloopback.host/html/notificationtoasts",
+    "steamloopback.host/html/friendsui",
+  ]);
+  const ALLOWED_STEAM_TITLES = Object.freeze(["Steam", "SharedJSContext"]);
+  const EXCLUDED_STEAM_TITLES = Object.freeze([
+    "Profile Supernav",
+    "Community Supernav",
+    "Library Supernav",
+    "Store Supernav",
+    "Account Menu",
+    "Notifications Menu",
+    "Help Root Menu",
+    "Games Root Menu",
+    "Friends Root Menu",
+    "View Root Menu",
+    "Steam Root Menu",
+    "Menu",
+    "好友列表",
+  ]);
+
+  function isAllowedSteamAboutBlank(url) {
+    if (!url.startsWith("about:blank")) {
+      return false;
+    }
+    try {
+      const query = url.slice("about:blank".length).replace(/^\?/, "");
+      const params = new URLSearchParams(query);
+      return params.get("browserType") === "4";
+    } catch {
+      return false;
+    }
+  }
+
+  function isSteamClientPageAllowed() {
+    const title = document.title || "";
+    if (ALLOWED_STEAM_TITLES.includes(title)) {
+      return true;
+    }
+    if (EXCLUDED_STEAM_TITLES.includes(title) || /(?:Root Menu|Supernav)$/u.test(title)) {
+      return false;
+    }
+    return !title;
+  }
+
+  function shouldInject() {
+    const url = location.href;
+
+    if (isAllowedSteamAboutBlank(url)) {
+      return window === window.top && document.documentElement;
+    }
+
+    if (EXCLUDED_PAGES.some(exclude => url.startsWith(exclude) || url.includes(exclude))) {
+      return false;
+    }
+
+    if (!ALLOWED_PAGES.some(allowed => url.includes(allowed))) {
+      return false;
+    }
+
+    if (url.includes("steamloopback.host")) {
+      return window === window.top && document.documentElement && isSteamClientPageAllowed();
+    }
+
+    return true;
+  }
+
   if (globalThis[RUN_MARK] === RUN_VERSION) {
     return;
   }
+  // 被排除页面也标记为已处理，避免后台补注入反复命中 Steam CEF 菜单页。
   globalThis[RUN_MARK] = RUN_VERSION;
+  if (!shouldInject()) {
+    console.log(`[Steam Buff] Excluded: ${location.href}`);
+    return;
+  }
 
   const LOG_EVENT = "STEAM_BUFF_LOG_EVENT";
   const NEWS_TRANSLATE_CONFIG_REQ = "STEAM_BUFF_NEWS_TRANSLATE_CONFIG_REQUEST";

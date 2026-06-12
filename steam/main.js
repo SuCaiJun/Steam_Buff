@@ -17,7 +17,7 @@
   const BOOT_MS = 500;
   const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;
-  const LOOP_MS = 5000;
+  const LOOP_MS = 10000;
 
   if (!api || !reg) {
     return;
@@ -72,6 +72,32 @@
 
   function hasCtx() {
     return (api.ctx?.contexts?.() || []).length > 0;
+  }
+
+  function isSteamMainWindow() {
+    // 只允许 Steam 主窗口、SharedJSContext 和真实业务弹窗启动 runtime，避免好友列表/菜单页空巡检。
+    if (window !== window.top || !document.documentElement || location.href.includes("about:blank")) {
+      return false;
+    }
+    if (api.ctx?.isShared?.() || api.ctx?.isMainUi?.() || api.ctx?.hasCustomSortUi?.()) {
+      return true;
+    }
+    const title = document.title || "";
+    return ![
+      "Profile Supernav",
+      "Community Supernav",
+      "Library Supernav",
+      "Store Supernav",
+      "Account Menu",
+      "Notifications Menu",
+      "Help Root Menu",
+      "Games Root Menu",
+      "Friends Root Menu",
+      "View Root Menu",
+      "Steam Root Menu",
+      "Menu",
+      "好友列表",
+    ].includes(title) && !/(?:Root Menu|Supernav)$/u.test(title);
   }
 
   function clearTimer(value) {
@@ -163,6 +189,10 @@
   }
 
   async function start() {
+    if (!isSteamMainWindow()) {
+      return;
+    }
+
     api.runtime = {
       started: true,
       version: RUNTIME_VERSION,
