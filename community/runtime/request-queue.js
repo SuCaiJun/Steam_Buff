@@ -47,6 +47,10 @@
     return body.toString();
   }
 
+  function safeLogUrl(url) {
+    return window.STLoggerFactory?.safeLogUrl?.(url) || String(url || "");
+  }
+
   function request(url, opt = {}) {
     return new Promise((resolve, reject) => {
       req.q.push({ url, opt, resolve, reject });
@@ -67,7 +71,7 @@
 
     if (req.stopped) {
       log.warn("request-paused", "社区请求队列暂停中", {
-        url: job.url,
+        url: safeLogUrl(job.url),
         method: job.opt.method || "GET",
         status: 0,
       });
@@ -119,7 +123,7 @@
       failed = true;
       delay = 5000;
       log.error("request-failed", "社区请求失败", {
-        url: job.url,
+        url: safeLogUrl(job.url),
         method: job.opt.method || "GET",
         status,
         error,
@@ -138,7 +142,7 @@
           req.stopUntil = Date.now() + STOP_WAIT_MS;
           req.errors = 0;
           log.warn("request-paused", "社区请求连续失败，已临时暂停队列", {
-            url: job.url,
+            url: safeLogUrl(job.url),
             method: job.opt.method || "GET",
             status,
           });

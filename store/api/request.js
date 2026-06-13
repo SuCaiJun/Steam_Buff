@@ -17,6 +17,10 @@
 
   const apiCache = api.cache;
 
+  function safeLogUrl(url) {
+    return globalThis.STLoggerFactory?.safeLogUrl?.(url) || String(url || "");
+  }
+
   function logNetwork(config, event, message, error, status, startedAt) {
     try {
       globalThis.STLogger?.network?.({
@@ -24,7 +28,7 @@
         event,
         message,
         method: config.method || "GET",
-        url: config.url,
+        url: safeLogUrl(config.url),
         status: Number(status) || 0,
         durationMs: Date.now() - startedAt,
         error,

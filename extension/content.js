@@ -1192,9 +1192,9 @@
         return inj.inject([
           "extension/runtime/logger.js",
           "shared/logger-factory.js",
-          "shared/styles/theme.js",
           "shared/config.js",
           "shared/i18n.js",
+          "shared/styles/theme.js",
           "shared/utils/dom.js",
           "shared/performance-monitor.js",
           "shared/observer-utils.js",
@@ -1306,9 +1306,9 @@
         return inj.inject([
           "extension/runtime/logger.js",
           "shared/logger-factory.js",
-          "shared/styles/theme.js",
           "shared/config.js",
           "shared/i18n.js",
+          "shared/styles/theme.js",
           "shared/utils/dom.js",
           "shared/performance-monitor.js",
           "shared/scheduler.js",

@@ -676,6 +676,7 @@
   root.STBackgroundLogger = Object.freeze({
     ready: true,
     policy: POLICY,
+    safeLogUrl: safeUrl,
     normalize,
     append,
     exportLogs,

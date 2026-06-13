@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const LOGGER_FACTORY_VERSION = '2026-06-12-steam-domain-format';
+  const LOGGER_FACTORY_VERSION = '2026-06-13-safe-url-meta';
   const LogLevel = Object.freeze({
     INFO: 'info',
     WARN: 'warn',
@@ -29,6 +29,8 @@
     'secret',
     'key',
   ];
+  const QUERY_ALLOW = new Set(['appid', 'appids', 'subid', 'bundleid', 'id', 'cc', 'start', 'count']);
+  const SENSITIVE_TEXT = /(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|bearer)\s*[:=]?\s*[^,\s;&]*/gi;
 
   if (root.STLoggerFactory?.version === LOGGER_FACTORY_VERSION) {
     return;
@@ -44,21 +46,80 @@
     return SENSITIVE_KEYS.some((item) => text.includes(item));
   }
 
+  function isUrlKey(key) {
+    return /(?:^|_)(url|href|link|page)(?:$|_)/i.test(String(key || ''));
+  }
+
+  function redactText(value, max = 1000) {
+    const raw = String(value ?? '');
+    if (SENSITIVE_TEXT.test(raw)) {
+      SENSITIVE_TEXT.lastIndex = 0;
+      return '[REDACTED]';
+    }
+    SENSITIVE_TEXT.lastIndex = 0;
+    const text = raw.replace(SENSITIVE_TEXT, '[REDACTED]');
+    return text.length > max ? `${text.slice(0, max)}...[TRUNCATED]` : text;
+  }
+
+  function safePathname(url) {
+    const parts = url.pathname.split('/');
+    return parts.map((part, index) => {
+      if (!part) {
+        return part;
+      }
+      if (parts[index - 2] === 'app' && /^\d+$/.test(parts[index - 1])) {
+        return '[name]';
+      }
+      if (parts[index - 2] === 'listings' && /^\d+$/.test(parts[index - 1])) {
+        return '[item]';
+      }
+      return part;
+    }).join('/');
+  }
+
+  function safeLogUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+      return '';
+    }
+    try {
+      const absolute = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw);
+      const base = root.location?.origin || 'https://steamcommunity.com';
+      const url = new URL(raw, base);
+      const path = safePathname(url);
+      const out = absolute ? new URL(`${url.origin}${path}`) : new URL(path || '/', base);
+      for (const key of QUERY_ALLOW) {
+        for (const item of url.searchParams.getAll(key)) {
+          out.searchParams.append(key, redactText(item, 120));
+        }
+      }
+      return absolute ? out.toString() : `${out.pathname}${out.search}`;
+    } catch {
+      return redactText(raw, 300);
+    }
+  }
+
   function errorToPlain(error) {
     return {
-      name: error.name || 'Error',
-      message: error.message || String(error),
-      code: error.code || '',
-      stack: error.stack || '',
+      name: redactText(error.name || 'Error', 120),
+      message: redactText(error.message || String(error)),
+      code: redactText(error.code || '', 120),
+      stack: redactText(error.stack || ''),
     };
   }
 
-  function sanitizeValue(value, depth = 0, seen = new WeakSet()) {
+  function sanitizeValue(value, depth = 0, seen = new WeakSet(), key = '') {
     if (value instanceof Error) {
       return errorToPlain(value);
     }
     if (value === null || value === undefined || typeof value !== 'object') {
-      return typeof value === 'function' ? `[Function ${value.name || 'anonymous'}]` : value;
+      if (typeof value === 'function') {
+        return `[Function ${value.name || 'anonymous'}]`;
+      }
+      if (typeof value === 'string') {
+        return isUrlKey(key) ? safeLogUrl(value) : redactText(value);
+      }
+      return value;
     }
     if (depth >= 6) {
       return '[MaxDepth]';
@@ -69,12 +130,12 @@
 
     seen.add(value);
     if (Array.isArray(value)) {
-      return value.map((item) => sanitizeValue(item, depth + 1, seen));
+      return value.map((item) => sanitizeValue(item, depth + 1, seen, key));
     }
 
     const output = {};
     Object.entries(value).forEach(([key, item]) => {
-      output[key] = isSensitiveKey(key) ? '[REDACTED]' : sanitizeValue(item, depth + 1, seen);
+      output[key] = isSensitiveKey(key) ? '[REDACTED]' : sanitizeValue(item, depth + 1, seen, key);
     });
     return output;
   }
@@ -152,5 +213,6 @@
     version: LOGGER_FACTORY_VERSION,
     LogLevel,
     createLogger,
+    safeLogUrl,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

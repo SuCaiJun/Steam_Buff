@@ -87,11 +87,34 @@
   }
 
   function logNetwork(entry) {
+    const url = entry?.url
+      ? (globalThis.STBackgroundLogger?.safeLogUrl?.(entry.url) || safeLogUrl(entry.url))
+      : "";
     appendLog({
       level: "network",
       domain: "background",
       ...entry,
+      ...(url ? { url } : {}),
     });
+  }
+
+  function safeLogUrl(value) {
+    if (!value) {
+      return "";
+    }
+    try {
+      const url = new URL(String(value));
+      const out = new URL(`${url.origin}${url.pathname}`);
+      for (const key of ["appid", "appids", "subid", "bundleid", "id", "cc", "start", "count"]) {
+        const values = url.searchParams.getAll(key);
+        for (const item of values) {
+          out.searchParams.append(key, String(item || "").slice(0, 120));
+        }
+      }
+      return out.toString();
+    } catch {
+      return String(value).replace(/([?&](?:access_token|refresh_token|token|sessionid|password|key)=)[^&#\s]*/gi, "$1[REDACTED]").slice(0, 300);
+    }
   }
 
   function globalErrorMeta() {

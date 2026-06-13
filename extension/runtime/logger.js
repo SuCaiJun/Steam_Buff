@@ -19,11 +19,35 @@
   const FALLBACK_KEY = "steam_buff_diag_fallback_logs";
   const FALLBACK_MAX = 120;
   const FALLBACK_TAG = "storage-fallback";
+  const QUERY_ALLOW = Object.freeze(new Set(["appid", "appids", "subid", "bundleid", "id", "cc", "start", "count"]));
   let globalBound = false;
+
+  function safeUrl(value) {
+    if (!value) {
+      return "";
+    }
+    if (typeof root.STLoggerFactory?.safeLogUrl === "function") {
+      return root.STLoggerFactory.safeLogUrl(value);
+    }
+    try {
+      const url = new URL(String(value), location.origin);
+      const out = new URL(`${url.origin}${url.pathname}`);
+      for (const key of QUERY_ALLOW) {
+        for (const item of url.searchParams.getAll(key)) {
+          out.searchParams.append(key, String(item || "").slice(0, 120));
+        }
+      }
+      return out.toString();
+    } catch {
+      return String(value)
+        .replace(/([?&](?:access_token|refresh_token|token|sessionid|password|key)=)[^&#\s]*/gi, "$1[REDACTED]")
+        .slice(0, 300);
+    }
+  }
 
   function page() {
     try {
-      return location.href;
+      return safeUrl(location.href);
     } catch {
       return "";
     }
@@ -97,11 +121,18 @@
   }
 
   function append(input = {}) {
+    const clean = { ...(input || {}) };
+    if (clean.url) {
+      clean.url = safeUrl(clean.url);
+    }
+    if (clean.page) {
+      clean.page = safeUrl(clean.page);
+    }
     const entry = {
       time: Date.now(),
       domain: domain(),
       page: page(),
-      ...(input || {}),
+      ...clean,
     };
     send(entry);
   }

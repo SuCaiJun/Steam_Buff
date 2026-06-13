@@ -188,14 +188,6 @@
       .trim();
   }
 
-  function parseJson(text) {
-    try {
-      return JSON.parse(text || "{}");
-    } catch {
-      throw new Error("官网接口返回解析失败");
-    }
-  }
-
   function apiData(payload) {
     return payload && typeof payload === "object" ? payload.data : null;
   }
@@ -250,43 +242,7 @@
   }
 
   function fetchJson(url, label) {
-    return new Promise((resolve, reject) => {
-      try {
-        root.chrome.runtime.sendMessage({
-          type: "STORE_FETCH",
-          url,
-          method: "GET",
-          headers: { Accept: "application/json" },
-          allowHttpError: true,
-        }, (response) => {
-          const error = root.chrome?.runtime?.lastError;
-          if (error) {
-            reject(new Error(error.message || "后台请求失败"));
-            return;
-          }
-          if (!response?.success) {
-            reject(new Error(response?.error || `${label}请求失败`));
-            return;
-          }
-          if (response.ok === false) {
-            reject(new Error(`${label}返回状态码 ${response.status || 0}`));
-            return;
-          }
-          try {
-            const payload = parseJson(response.data);
-            if (payload?.code && Number(payload.code) !== 200) {
-              reject(new Error(payload.message || `${label}请求失败`));
-              return;
-            }
-            resolve(payload);
-          } catch (parseError) {
-            reject(parseError);
-          }
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
+    return root.STSettingsApiRequest.getJson(url, { label });
   }
 
   async function detail(versionValue) {

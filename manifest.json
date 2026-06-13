@@ -72,6 +72,7 @@
         "settings/catalog.js",
         "settings/membership.js",
         "settings/storage.js",
+        "settings/api/request.js",
         "settings/update-log-renderer.js",
         "settings/update-checker.js",
         "settings/settings-backup.js",
@@ -121,6 +122,7 @@
         "extension/runtime/guard.js",
         "extension/runtime/injector.js",
         "extension/runtime/logger.js",
+        "shared/logger-factory.js",
         "extension/content.js"
       ],
       "run_at": "document_start",
@@ -134,6 +136,7 @@
       "js": [
         "extension/runtime/injector.js",
         "extension/runtime/logger.js",
+        "shared/logger-factory.js",
         "shared/config.js",
         "shared/i18n.js",
         "shared/performance-monitor.js",
@@ -164,6 +167,7 @@
         "store/runtime/dom.js",
         "store/runtime/styles.js",
         "extension/runtime/logger.js",
+        "shared/logger-factory.js",
         "store/runtime/feature-registry.js",
         "store/runtime/settings-gate.js",
         "store/runtime/url-watch.js",
@@ -204,6 +208,7 @@
       ],
       "js": [
         "extension/runtime/logger.js",
+        "shared/logger-factory.js",
         "shared/config.js",
         "shared/i18n.js",
         "store/features/review-filter-core.js",
@@ -218,6 +223,7 @@
       ],
       "js": [
         "extension/runtime/logger.js",
+        "shared/logger-factory.js",
         "shared/config.js",
         "shared/i18n.js",
         "store/features/cart-select-checkout.js"
@@ -237,9 +243,9 @@
         "_locales/*/messages.json",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
+        "steam/shared/constants.js",
         "shared/styles/theme.js",
         "shared/utils/dom.js",
-        "steam/shared/constants.js",
         "steam/runtime/paths.js",
         "steam/runtime/steam-context.js",
         "steam/runtime/styles.js",
@@ -272,6 +278,7 @@
         "shared/performance-monitor.js",
         "shared/observer-utils.js",
         "_locales/*/messages.json",
+        "shared/logger-factory.js",
         "community/runtime/*.js",
         "extension/runtime/logger.js",
         "community/domain/*.js",

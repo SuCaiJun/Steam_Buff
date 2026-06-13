@@ -989,14 +989,6 @@
     return 0;
   }
 
-  function parseApiJson(text) {
-    try {
-      return JSON.parse(text || "{}");
-    } catch {
-      throw new Error("官网接口返回解析失败");
-    }
-  }
-
   function apiData(payload) {
     return payload && typeof payload === "object" ? payload.data : null;
   }
@@ -1066,44 +1058,7 @@
   }
 
   function fetchApi(url, label) {
-    return new Promise((resolve, reject) => {
-      try {
-        chrome.runtime.sendMessage({
-          type: "STORE_FETCH",
-          url,
-          method: "GET",
-          headers: { Accept: "application/json" },
-          allowHttpError: true,
-        }, (response) => {
-          const err = chrome.runtime.lastError;
-          if (err) {
-            reject(new Error(err.message || "后台请求失败"));
-            return;
-          }
-          if (!response?.success) {
-            reject(new Error(response?.error || `${label}请求失败`));
-            return;
-          }
-          if (response.ok === false) {
-            reject(new Error(`${label}返回状态码 ${response.status || 0}`));
-            return;
-          }
-
-          try {
-            const payload = parseApiJson(response.data);
-            if (payload?.code && Number(payload.code) !== 200) {
-              reject(new Error(payload.message || `${label}请求失败`));
-              return;
-            }
-            resolve(payload);
-          } catch (error) {
-            reject(error);
-          }
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
+    return globalThis.STSettingsApiRequest.getJson(url, { label });
   }
 
   function mergeDetail(item, detail) {
@@ -1629,20 +1584,8 @@
   }
 
   function parseDonationResponse(text) {
-    const data = JSON.parse(text || "[]");
-    if (Array.isArray(data)) {
-      return data;
-    }
-    if (Array.isArray(data?.data)) {
-      return data.data;
-    }
-    if (Array.isArray(data?.items)) {
-      return data.items;
-    }
-    if (Array.isArray(data?.list)) {
-      return data.list;
-    }
-    return [];
+    const data = globalThis.STSettingsApiRequest.parseJson(text, "支持者列表返回解析失败");
+    return globalThis.STSettingsApiRequest.listFromPayload(data);
   }
 
   function cleanDonationText(value, fallback = "") {
@@ -1667,25 +1610,11 @@
   }
 
   async function fetchDonations(url) {
-    const response = await new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({
-        type: "STORE_FETCH",
-        url,
-        method: "GET",
-        headers: { Accept: "application/json" },
-        allowHttpError: true,
-      }, (rt) => {
-        const err = chrome.runtime.lastError;
-        if (err) {
-          reject(new Error(err.message || "后台请求失败"));
-          return;
-        }
-        if (!rt?.success || rt.ok === false) {
-          reject(new Error(rt?.error || "支持者列表请求失败"));
-          return;
-        }
-        resolve(rt);
-      });
+    const response = await globalThis.STSettingsApiRequest.request({
+      url,
+      method: "GET",
+      label: "支持者列表",
+      headers: { Accept: "application/json" },
     });
     return parseDonationResponse(response.data);
   }
