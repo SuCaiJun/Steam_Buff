@@ -15,6 +15,10 @@
   if (!api) return;
   const STEAM_DB = globalThis.STConfig.vendors.steamDb;
   const log = window.STLoggerFactory.createLogger('store', 'price-history');
+  const THEME = window.STTheme;
+  const { applyStyles } = api.styles;
+  const colors = THEME.colors;
+  const spacing = THEME.spacing;
 
   const MODULE_CLASSES = api.dom.MODULE_CLASSES;
   const hasHiddenAncestor = api.dom.hasHiddenAncestor;
@@ -131,21 +135,25 @@ function appendBreak(parent) {
     parent.appendChild(document.createElement("br"));
 }
 
-function appendSpan(parent, text, className = "", style = "") {
+function appendSpan(parent, text, className = "", styles = null) {
     const span = document.createElement("span");
     if (className) span.className = className;
-    if (style) span.setAttribute("style", style);
+    if (styles) applyStyles(span, styles);
     span.textContent = String(text ?? "");
     parent.appendChild(span);
     return span;
 }
 
-function appendLink(parent, text, url, style = "color:#66c0f4; text-decoration:underline;") {
+function appendLink(parent, text, url, styles = null) {
     const link = document.createElement("a");
     link.href = safeUrl(url);
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    if (style) link.setAttribute("style", style);
+    applyStyles(link, {
+        color: colors.steamBlue,
+        textDecoration: "underline",
+        ...(styles || {}),
+    });
     link.textContent = String(text ?? "");
     parent.appendChild(link);
     return link;
@@ -261,7 +269,9 @@ function appendPriceCompare(parent, currentPrice, lowestPrice, currentPriceInfo,
     if (currentPrice <= lowestPrice) {
         if (currentPriceInfo.cut > lowestPriceInfo.cut) {
             appendText(parent, " ，比历史最低");
-            appendSpan(parent, `便宜${currencySymbol}${Math.abs(priceDiff)}元(-${currentPriceInfo.cut - lowestPriceInfo.cut}%)`, "", "color: #BEEE11;");
+            appendSpan(parent, `便宜${currencySymbol}${Math.abs(priceDiff)}元(-${currentPriceInfo.cut - lowestPriceInfo.cut}%)`, "", {
+                color: colors.success,
+            });
         } else {
             appendText(parent, " ，与历史最低折扣持平");
         }
@@ -269,7 +279,9 @@ function appendPriceCompare(parent, currentPrice, lowestPrice, currentPriceInfo,
     }
 
     appendText(parent, " ，比历史最低");
-    appendSpan(parent, `贵${currencySymbol}${priceDiff}元(+${Math.abs(cutDiff)}%)`, "", "color: #FF6666;");
+    appendSpan(parent, `贵${currencySymbol}${priceDiff}元(+${Math.abs(cutDiff)}%)`, "", {
+        color: colors.danger,
+    });
 }
 
 function renderLowestInfo(node, app, currentPriceInfo, lowestPriceInfo) {
@@ -283,14 +295,18 @@ function renderLowestInfo(node, app, currentPriceInfo, lowestPriceInfo) {
     const currencySymbol = getCurrencySymbol(currentPriceInfo.price.currency);
 
     appendText(node, "历史最低折扣在 ");
-    appendSpan(node, formattedDate, "", "text-decoration:underline;");
+    appendSpan(node, formattedDate, "", {
+        textDecoration: "underline",
+    });
     appendText(node, `${daysText} 为 `);
     appendDiscount(node, lowestPriceInfo.cut);
     appendText(node, ` ${formatPrice(lowestPrice, lowestPriceInfo.price.currency)}`);
 
     appendBreak(node);
     if (currentPrice <= lowestPrice) {
-        appendSpan(node, "当前为历史最低折扣", "game_purchase_discount_countdown", "color: #FF6666;");
+        appendSpan(node, "当前为历史最低折扣", "game_purchase_discount_countdown", {
+            color: colors.danger,
+        });
     } else if (currentPriceInfo.cut === 0) {
         appendSpan(node, "当前为原价");
     } else {
@@ -311,7 +327,7 @@ function renderLowestInfo(node, app, currentPriceInfo, lowestPriceInfo) {
     appendBreak(node);
     appendBreak(node);
     appendText(node, "在");
-    appendLink(node, `steamdb(${app.Id})`, steamDbUrl(app), "color:#66c0f4;");
+    appendLink(node, `steamdb(${app.Id})`, steamDbUrl(app));
     appendText(node, "查看详情");
 
     if (app.Info.bundled && app.Info.bundled > 0) {
@@ -365,7 +381,9 @@ function addPriceHistoryTag(appId, type, subIds, bundleids, cc, protocol) {
             const lowestInfo = document.createElement("div");
             lowestInfo.className = "game_lowest_price";
             lowestInfo.innerText = "正在读取历史最低价格...";
-            lowestInfo.style.margin = "8px 0";
+            applyStyles(lowestInfo, {
+                margin: `${spacing.sm} 0`,
+            });
             gameWrapper.append(lowestInfo);
             lowestPriceNodes[subId] = lowestInfo;
         }
