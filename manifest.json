@@ -162,6 +162,7 @@
         "store/runtime/assets.js",
         "store/runtime/format.js",
         "store/runtime/dom.js",
+        "store/runtime/styles.js",
         "extension/runtime/logger.js",
         "store/runtime/feature-registry.js",
         "store/runtime/settings-gate.js",
