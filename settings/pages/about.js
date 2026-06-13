@@ -941,26 +941,7 @@
   let donors = null;
   let donorsLoadedAt = 0;
   let logDetails = new Map();
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "settings",
-        feature: "about",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        globalThis.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        globalThis.STLogger?.warn?.(entry);
-      } else {
-        globalThis.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
+  const log = globalThis.STLoggerFactory.createLogger("settings", "about");
 
   function escLogHtml(text) {
     return String(text || "")
@@ -1182,7 +1163,7 @@
       ctx.refresh("about");
       return mergeDetail(item, detail);
     } catch (error) {
-      log("warn", "update-log-detail-failed", "更新日志详情读取失败", {
+      log.warn("update-log-detail-failed", "更新日志详情读取失败", {
         version,
         error: error?.message || String(error),
         durationMs: Date.now() - startedAt,
@@ -1541,7 +1522,8 @@
   }
 
   function logSettingsBackup(level, event, message, meta = {}) {
-    log(level, event, message, {
+    const method = level === "error" ? "error" : level === "warn" ? "warn" : "info";
+    log[method](event, message, {
       imported: Number(meta.imported) || 0,
       defaulted: Number(meta.defaulted) || 0,
       skipped: Number(meta.skipped) || 0,
@@ -1570,7 +1552,7 @@
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
-      log("error", "settings-export-failed", "设置备份导出失败", {
+      log.error("settings-export-failed", "设置备份导出失败", {
         error: error?.message || String(error),
         durationMs: Date.now() - startedAt,
       });
@@ -1627,7 +1609,7 @@
         }
       });
     } catch (error) {
-      log("error", "settings-import-failed", "设置备份导入失败", {
+      log.error("settings-import-failed", "设置备份导入失败", {
         error: error?.message || String(error),
         durationMs: Date.now() - startedAt,
       });
@@ -1726,7 +1708,7 @@
 
   async function exportDiagLog(shadow, ctx) {
     const startedAt = Date.now();
-    log("info", "diag-log-export-start", "开始导出诊断日志");
+    log.info("diag-log-export-start", "开始导出诊断日志");
     try {
       const response = await sendLogMessage("LOG_EXPORT", {
         env: logEnv().env,
@@ -1734,14 +1716,14 @@
       });
       downloadText(response.filename, response.data);
       logStats = response.stats || logStats;
-      log("info", "diag-log-export-success", "诊断日志导出成功", {
+      log.info("diag-log-export-success", "诊断日志导出成功", {
         count: Number(logStats?.count) || 0,
         sizeBytes: Number(logStats?.sizeBytes) || 0,
         durationMs: Date.now() - startedAt,
       });
       ctx.refresh("about");
     } catch (error) {
-      log("error", "diag-log-export-failed", "诊断日志导出失败", {
+      log.error("diag-log-export-failed", "诊断日志导出失败", {
         error: error?.message || String(error),
         durationMs: Date.now() - startedAt,
       });
@@ -1759,20 +1741,20 @@
       ],
     });
     if (action !== "clear") {
-      log("info", "diag-log-clear-skipped", "用户取消清空诊断日志");
+      log.info("diag-log-clear-skipped", "用户取消清空诊断日志");
       return;
     }
     const startedAt = Date.now();
-    log("warn", "diag-log-clear-start", "开始清空诊断日志");
+    log.warn("diag-log-clear-start", "开始清空诊断日志");
     try {
       const response = await sendLogMessage("LOG_CLEAR");
       logStats = response.stats || null;
-      log("warn", "diag-log-clear-success", "诊断日志清空成功", {
+      log.warn("diag-log-clear-success", "诊断日志清空成功", {
         durationMs: Date.now() - startedAt,
       });
       ctx.refresh("about");
     } catch (error) {
-      log("error", "diag-log-clear-failed", "诊断日志清空失败", {
+      log.error("diag-log-clear-failed", "诊断日志清空失败", {
         error: error?.message || String(error),
         durationMs: Date.now() - startedAt,
       });

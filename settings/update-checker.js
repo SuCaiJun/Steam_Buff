@@ -20,6 +20,7 @@
   const MUTE_KEY = "steam_buff_update_prompt_mute";
   const UPDATE_PAGE = CFG.urls?.updatePage || CFG.urls?.homepage || root.chrome?.runtime?.getManifest?.()?.homepage_url || "";
   const detailCache = new Map();
+  const log = root.STLoggerFactory.createLogger("settings", "update-reminder");
 
   function pad(value) {
     return String(Math.max(0, Number(value) || 0)).padStart(2, "0");
@@ -58,16 +59,6 @@
       return root.chrome?.runtime?.getManifest?.()?.version || "";
     } catch {
       return "";
-    }
-  }
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = { domain: "settings", feature: "update-reminder", event, message, meta };
-      if (level === "error") root.STLogger?.error?.(entry);
-      else if (level === "warn") root.STLogger?.warn?.(entry);
-      else root.STLogger?.info?.(entry);
-    } catch {
     }
   }
 
@@ -139,7 +130,7 @@
         ts: Date.now(),
       },
     });
-    log(ok ? "info" : "warn", "update-prompt-mute-today", ok ? "用户选择今天不再提醒更新" : "今天不再提醒状态保存失败", {
+    log[ok ? "info" : "warn"]("update-prompt-mute-today", ok ? "用户选择今天不再提醒更新" : "今天不再提醒状态保存失败", {
       version: versionText,
     });
     return ok;
@@ -168,7 +159,7 @@
     if (!target) {
       return false;
     }
-    log("info", "update-prompt-open-download", "用户打开官网下载新版", meta);
+    log.info("update-prompt-open-download", "用户打开官网下载新版", meta);
     const link = document.createElement("a");
     link.href = target;
     link.rel = "noreferrer noopener";
@@ -314,13 +305,13 @@
     try {
       const item = normalizeDetail(await fetchJson(url, "官网更新日志详情"));
       detailCache.set(versionText, item);
-      log("info", "update-log-detail-success", "更新日志详情读取成功", {
+      log.info("update-log-detail-success", "更新日志详情读取成功", {
         version: versionText,
         durationMs: Date.now() - startedAt,
       });
       return item;
     } catch (error) {
-      log("warn", "update-log-detail-failed", "更新日志详情读取失败", {
+      log.warn("update-log-detail-failed", "更新日志详情读取失败", {
         version: versionText,
         error: error?.message || String(error),
         durationMs: Date.now() - startedAt,

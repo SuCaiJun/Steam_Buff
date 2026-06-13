@@ -67,6 +67,7 @@
         "ai/config.js",
         "shared/config.js",
         "extension/runtime/logger.js",
+        "shared/logger-factory.js",
         "shared/i18n.js",
         "settings/catalog.js",
         "settings/membership.js",

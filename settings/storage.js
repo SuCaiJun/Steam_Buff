@@ -29,29 +29,10 @@
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
   const AI_SERVICE = "steam-buff.ai";
-
-  function log(level, event, message, meta = {}) {
-    try {
-      const entry = {
-        domain: "settings",
-        feature: "settings-storage",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        globalThis.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        globalThis.STLogger?.warn?.(entry);
-      } else {
-        globalThis.STLogger?.info?.(entry);
-      }
-    } catch {
-    }
-  }
+  const log = globalThis.STLoggerFactory.createLogger("settings", "settings-storage");
 
   function logSave(kind, ok, meta = {}) {
-    log(ok ? "info" : "warn", ok ? "setting-save-success" : "setting-save-failed", ok ? "设置保存成功" : "设置保存失败", {
+    log[ok ? "info" : "warn"](ok ? "setting-save-success" : "setting-save-failed", ok ? "设置保存成功" : "设置保存失败", {
       kind,
       ...meta,
     });
@@ -224,7 +205,7 @@
   async function set(id, enabled) {
     const value = Boolean(enabled);
     const ok = await put({ [key(id)]: value });
-    log(ok ? "info" : "warn", ok ? "setting-toggle-success" : "setting-save-failed", ok ? "设置开关已保存" : "设置开关保存失败", {
+    log[ok ? "info" : "warn"](ok ? "setting-toggle-success" : "setting-save-failed", ok ? "设置开关已保存" : "设置开关保存失败", {
       featureId: id,
       enabled: value,
     });
@@ -293,7 +274,7 @@
     const next = normalizeMembership(value, { access_token: "__snapshot__" });
     const ok = await put({ [MEMBERSHIP_KEY]: next });
     const visible = normalizeMembership(next, rt[AUTH_KEY]);
-    log(ok ? "info" : "warn", ok ? "membership-save-success" : "membership-save-failed", ok ? "会员状态已同步" : "会员状态同步失败", {
+    log[ok ? "info" : "warn"](ok ? "membership-save-success" : "membership-save-failed", ok ? "会员状态已同步" : "会员状态同步失败", {
       active: visible.active,
       features: visible.features,
     });

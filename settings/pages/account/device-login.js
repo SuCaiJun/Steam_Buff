@@ -11,6 +11,8 @@
 ((root) => {
   "use strict";
 
+  const log = root.STLoggerFactory.createLogger("settings", "account");
+
   function create(options = {}) {
     const rt = options.state;
     const api = options.api || root.STSettingsAccountApi;
@@ -32,26 +34,6 @@
       if (rt.copyTimer) {
         window.clearTimeout(rt.copyTimer);
         rt.copyTimer = 0;
-      }
-    }
-
-    function log(level, event, message, meta = {}) {
-      try {
-        const entry = {
-          domain: "settings",
-          feature: "account",
-          event,
-          message,
-          meta,
-        };
-        if (level === "error") {
-          globalThis.STLogger?.error?.(entry);
-        } else if (level === "warn") {
-          globalThis.STLogger?.warn?.(entry);
-        } else {
-          globalThis.STLogger?.info?.(entry);
-        }
-      } catch {
       }
     }
 
@@ -83,7 +65,7 @@
       rt.msg = "正在获取验证码";
       rt.copyMsg = "";
       clearCopyTimer();
-      log("info", "device-login-start", "开始设备码登录");
+      log.info("device-login-start", "开始设备码登录");
       refresh(ctx);
       try {
         const res = await api.request("/auth/device/start", { device_name: ctx.deviceName() }, "", ctx, "POST", api.urls.loginAuthBase);
@@ -100,7 +82,7 @@
         };
         rt.busy = false;
         rt.msg = "等待浏览器授权";
-        log("info", "device-login-code-success", "设备码获取成功", {
+        log.info("device-login-code-success", "设备码获取成功", {
           interval: Number(rt.device.interval) || 0,
           durationMs: Date.now() - startedAt,
         });
@@ -110,7 +92,7 @@
         rt.busy = false;
         rt.msg = error?.message || String(error);
         rt.loadError = "数据加载失败，点击重试";
-        log("error", "device-login-failed", "设备码登录启动失败", {
+        log.error("device-login-failed", "设备码登录启动失败", {
           error: error?.message || String(error),
           durationMs: Date.now() - startedAt,
         });
@@ -129,7 +111,7 @@
         rt.copyMsg = "";
         clearCopyTimer();
         rt.device = null;
-        log("warn", "device-login-failed", "设备码已过期", {
+        log.warn("device-login-failed", "设备码已过期", {
           durationMs: Date.now() - startedAt,
         });
         refresh(ctx);
@@ -150,7 +132,7 @@
         rt.copyMsg = "";
         clearCopyTimer();
         rt.device = null;
-        log("error", "device-login-failed", "设备码登录失败", {
+        log.error("device-login-failed", "设备码登录失败", {
           status: code,
           reason: res.body?.message || "登录失败",
           durationMs: Date.now() - startedAt,
@@ -166,7 +148,7 @@
       rt.copyMsg = "";
       clearCopyTimer();
       rt.device = null;
-      log("info", "device-login-success", "设备码登录成功", {
+      log.info("device-login-success", "设备码登录成功", {
         durationMs: Date.now() - startedAt,
       });
       refresh(ctx);

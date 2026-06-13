@@ -12,6 +12,7 @@
   "use strict";
 
   const AI_SERVICE = "steam-buff.ai";
+  const log = root.STLoggerFactory.createLogger("settings", "ai");
 
   function fallback(value, name) {
     if (typeof value === "function") {
@@ -128,26 +129,6 @@
       ];
     }
 
-    function log(level, event, message, meta = {}) {
-      try {
-        const entry = {
-          domain: "settings",
-          feature: "ai",
-          event,
-          message,
-          meta,
-        };
-        if (level === "error") {
-          root.STLogger?.error?.(entry);
-        } else if (level === "warn") {
-          root.STLogger?.warn?.(entry);
-        } else {
-          root.STLogger?.info?.(entry);
-        }
-      } catch {
-      }
-    }
-
     function testAi(shadow, button) {
       const next = read(shadow);
       const testConf = normalize({ ...conf, ...next });
@@ -166,7 +147,7 @@
         button.textContent = "测试中";
       }
       const started = performance.now();
-      log("info", "ai-test-start", "开始测试 AI 连接", { enabled: testConf.enabled === true });
+      log.info("ai-test-start", "开始测试 AI 连接", { enabled: testConf.enabled === true });
       try {
         chrome.runtime.sendMessage({
           type: "AI_CHAT_COMPLETIONS",
@@ -180,7 +161,7 @@
           }
           const err = chrome.runtime.lastError;
           if (err) {
-            log("error", "ai-test-failed", "AI 连接测试失败", {
+            log.error("ai-test-failed", "AI 连接测试失败", {
               durationMs: Math.round(performance.now() - started),
               error: err.message || String(err),
             });
@@ -188,7 +169,7 @@
             return;
           }
           if (!response?.success) {
-            log("error", "ai-test-failed", "AI 连接测试失败", {
+            log.error("ai-test-failed", "AI 连接测试失败", {
               durationMs: Math.round(performance.now() - started),
               status: Number(response?.status) || 0,
               error: response?.error || "未知错误",
@@ -196,7 +177,7 @@
             dialog(shadow, { title: "AI 测试失败", message: `${response?.error || "未知错误"}\n用时 ${used} 秒` });
             return;
           }
-          log("info", "ai-test-success", "AI 连接测试成功", {
+          log.info("ai-test-success", "AI 连接测试成功", {
             durationMs: Math.round(performance.now() - started),
           });
           dialog(shadow, { title: "AI 测试成功", message: `${response.text || "已收到响应"}\n用时 ${used} 秒` });
@@ -207,7 +188,7 @@
           button.textContent = oldText;
         }
         const used = ((performance.now() - started) / 1000).toFixed(1);
-        log("error", "ai-test-failed", "AI 连接测试异常", {
+        log.error("ai-test-failed", "AI 连接测试异常", {
           durationMs: Math.round(performance.now() - started),
           error: error?.message || String(error),
         });
@@ -267,32 +248,32 @@
       conf = nextConf;
       onConfigChange(conf);
       const startedAt = Date.now();
-      log("info", "ai-config-save-start", "开始保存 AI 配置", { enabled: nextConf.enabled === true });
+      log.info("ai-config-save-start", "开始保存 AI 配置", { enabled: nextConf.enabled === true });
       try {
         const job = storage.setAi?.(next);
         if (job?.then) {
           job.then((ok) => {
-            log(ok === false ? "warn" : "info", ok === false ? "ai-config-save-failed" : "ai-config-save-success", ok === false ? "AI 配置保存失败" : "AI 配置保存成功", {
+            log[ok === false ? "warn" : "info"](ok === false ? "ai-config-save-failed" : "ai-config-save-success", ok === false ? "AI 配置保存失败" : "AI 配置保存成功", {
               enabled: nextConf.enabled === true,
               durationMs: Date.now() - startedAt,
             });
             savePrompt(shadow);
           }).catch((error) => {
-            log("error", "ai-config-save-failed", "AI 配置保存失败", {
+            log.error("ai-config-save-failed", "AI 配置保存失败", {
               error: error?.message || String(error),
               durationMs: Date.now() - startedAt,
             });
             savePrompt(shadow);
           });
         } else {
-          log("info", "ai-config-save-success", "AI 配置保存成功", {
+          log.info("ai-config-save-success", "AI 配置保存成功", {
             enabled: nextConf.enabled === true,
             durationMs: Date.now() - startedAt,
           });
           savePrompt(shadow);
         }
       } catch (error) {
-        log("error", "ai-config-save-failed", "AI 配置保存异常", {
+        log.error("ai-config-save-failed", "AI 配置保存异常", {
           error: error?.message || String(error),
           durationMs: Date.now() - startedAt,
         });
