@@ -3,6 +3,7 @@
 
   const api = window.STCommunity;
   if (!api || api.quickSell) return;
+  const styles = api.styles;
 
   async function show(item) {
     if (!api.settings.yes(api.settings.keys.quickSell)) return;
@@ -80,7 +81,7 @@
 
     const custom = document.createElement("div");
     custom.id = "sell_button";
-    custom.style.display = "flex";
+    styles?.applyStyles?.(custom, { display: "flex" });
     custom.innerHTML = `
       <input id="quick_sell_input" class="st-see-price-input" type="number" value="${Number(orders.data.lowest_sell_order || 0) / 100}" step="0.01" />&nbsp;
       <a class="item_market_action_button item_market_action_button_green quick_sell_custom">

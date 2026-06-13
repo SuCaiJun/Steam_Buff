@@ -5,6 +5,7 @@
   if (!api || api.tradeView) return;
 
   let lastSum = 0;
+  const styles = api.styles;
 
   const log = window.STLoggerFactory.createLogger('community', 'trade-view');
 
@@ -76,9 +77,12 @@
     box.className = "trade_offer_buttons";
     box.innerHTML = `
       <a class="item_market_action_button item_market_action_button_green select_all">
-        <span class="item_market_action_button_contents" style="text-transform:none">选中页面中全部物品</span>
+        <span class="item_market_action_button_contents">选中页面中全部物品</span>
       </a>
     `;
+    styles?.applyStyles?.(api.dom.q(".item_market_action_button_contents", box), {
+      textTransform: "none",
+    });
     box.addEventListener("click", async () => {
       const startedAt = Date.now();
       const holders = api.dom.qa(".inventory_ctn .inventory_page .itemHolder")

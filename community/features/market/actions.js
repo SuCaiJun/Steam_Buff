@@ -17,8 +17,13 @@
   const st = api.marketState;
   let removeBatch = null;
   let relistBatch = null;
+  const styles = api.styles;
 
   const log = window.STLoggerFactory.createLogger('community', 'market-actions');
+
+  function setStatusBackground(element, color) {
+    styles?.applyStyles?.(element, { background: color });
+  }
 
   function startBatch(kind, total, context) {
     const batch = {
@@ -83,7 +88,7 @@
     const price = api.dom.priceInt(api.dom.q(".market_listing_price", row)?.textContent || "");
     if (price <= api.settings.num(api.settings.keys.minCheck) * 100 || row.classList.contains("removing")) {
       if (myPrice) {
-        myPrice.style.background = api.color.skip;
+        setStatusBackground(myPrice, api.color.skip);
         myPrice.title = "这个价格未检查。";
       }
       row.classList.add("not_checked");
@@ -124,14 +129,14 @@
     if (myPrice) myPrice.title = `最好的价格是 ${api.currency.fmt(best)}。`;
 
     if (best < price) {
-      if (myPrice) myPrice.style.background = api.color.high;
+      if (myPrice) setStatusBackground(myPrice, api.color.high);
       row.classList.add("overpriced");
       if (api.settings.yes(api.settings.keys.autoRelist)) queueRelist(listing.id);
     } else if (best > price) {
-      if (myPrice) myPrice.style.background = api.color.cheap;
+      if (myPrice) setStatusBackground(myPrice, api.color.cheap);
       row.classList.add("underpriced");
     } else {
-      if (myPrice) myPrice.style.background = api.color.fair;
+      if (myPrice) setStatusBackground(myPrice, api.color.fair);
       row.classList.add("fair");
     }
     st.incVal();
@@ -176,12 +181,12 @@
     try {
       await api.market.remove(id, buy);
       const content = api.dom.q(".actual_content", row);
-      if (content) content.style.background = api.color.ok;
+      if (content) setStatusBackground(content, api.color.ok);
       setTimeout(() => row.remove(), 3000);
       markBatch("remove", true);
     } catch (error) {
       const content = api.dom.q(".actual_content", row);
-      if (content) content.style.background = api.color.err;
+      if (content) setStatusBackground(content, api.color.err);
       markBatch("remove", false);
       if (!removeBatch) {
         log.error("market-remove-listing-failed", "市场挂单下架失败", {
@@ -252,7 +257,7 @@
     const content = api.dom.q(".actual_content", row);
     try {
       await api.market.remove(item.id, false);
-      if (content) content.style.background = api.color.wait;
+      if (content) setStatusBackground(content, api.color.wait);
       await api.dom.sleep(api.dom.rand(1500, 2500));
       const link = api.dom.q(".market_listing_item_name_link", row)?.href || "";
       const raw = link.slice(link.lastIndexOf("/") + 1);
@@ -270,11 +275,11 @@
       if (!assetid) throw new Error("未找到返回库存的物品");
       st.state.relisted.push(assetid);
       await api.market.sell(Object.assign({}, item, { assetid }), item.price);
-      if (content) content.style.background = api.color.ok;
+      if (content) setStatusBackground(content, api.color.ok);
       setTimeout(() => row.remove(), 3000);
       markBatch("relist", true);
     } catch (error) {
-      if (content) content.style.background = api.color.err;
+      if (content) setStatusBackground(content, api.color.err);
       markBatch("relist", false);
       if (!relistBatch) {
         log.error("market-relist-failed", "市场挂单重挂失败", {

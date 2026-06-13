@@ -15,6 +15,7 @@
   const RT = "__SteamBuffPopupGuard";
   const MARK = "steamBuffPopupBypass";
   const WAIT_MS = 150;
+  const styles = window.SteamBuff?.styles;
 
   function emptyFull(el) {
     if (!el || el.id || el.children.length || String(el.textContent || "").trim()) {
@@ -44,7 +45,7 @@
 
     // Steam 偶尔会留下透明全屏菜单遮罩；只在用户点过遮罩后兜底放行。
     el.dataset[MARK] = "1";
-    el.style.pointerEvents = "none";
+    styles?.applyStyles?.(el, { pointerEvents: "none" });
   }
 
   function onPointer(event) {

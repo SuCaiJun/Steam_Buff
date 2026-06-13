@@ -5,6 +5,11 @@
   if (!api || api.marketView) return;
 
   const st = api.marketState;
+  const styles = api.styles;
+
+  function setDisplay(element, visible) {
+    styles?.applyStyles?.(element, { display: visible ? "" : "none" });
+  }
 
   function fill() {
     for (const table of api.dom.qa(".market_home_listing_table")) {
@@ -62,12 +67,14 @@
       const rows = api.dom.q("#tabContentsMyActiveMarketListingsRows");
       if (rows) {
         rows.textContent = "";
-        rows.style.display = "none";
+        setDisplay(rows, false);
       }
       const paging = api.dom.q("#tabContentsMyActiveMarketListings_ctn");
-      if (paging) paging.style.display = "none";
+      if (paging) {
+        setDisplay(paging, false);
+      }
       api.dom.qa(".market_pagesize_options").forEach((it) => {
-        it.style.display = "none";
+        setDisplay(it, false);
       });
       api.spinner.show("正在加载市场列表");
       for (let start = 0; start < total; start += 100) {
@@ -171,7 +178,9 @@
       api.marketDom.addChecks();
       api.spinner.hide();
       const rows = api.dom.q("#tabContentsMyActiveMarketListingsRows");
-      if (rows) rows.style.display = "";
+      if (rows) {
+        setDisplay(rows, true);
+      }
       fill();
     };
 
@@ -189,11 +198,12 @@
           <a class="item_market_action_button item_market_action_button_green select_five_from_page market_listing_button"><span class="item_market_action_button_contents">选择 5 个</span></a>
           <a class="item_market_action_button item_market_action_button_green select_twentyfive_from_page market_listing_button"><span class="item_market_action_button_contents">选择 25 个</span></a>
           <a class="item_market_action_button item_market_action_button_green remove_selected market_listing_button"><span class="item_market_action_button_contents">下架选中物品</span></a>
-          <a class="item_market_action_button item_market_action_button_green relist_selected market_listing_button" style="margin-left:auto"><span class="item_market_action_button_contents">重新上架选中物品</span></a>
+          <a class="item_market_action_button item_market_action_button_green relist_selected market_listing_button"><span class="item_market_action_button_contents">重新上架选中物品</span></a>
           <a class="item_market_action_button item_market_action_button_green relist_overpriced market_listing_button"><span class="item_market_action_button_contents">重新上架高价物品</span></a>
           <a class="item_market_action_button item_market_action_button_green select_overpriced market_listing_button"><span class="item_market_action_button_contents">选中高价物品</span></a>
         </div>
       `);
+      styles?.applyStyles?.(api.dom.q(".relist_selected", first), { marginLeft: "auto" });
     }
     for (const head of api.dom.qa(".my_market_header").slice(1)) {
       if (api.dom.q(".market_listing_buttons", head)) continue;

@@ -5,6 +5,7 @@
   if (!api || api.marketDom) return;
 
   const st = api.marketState;
+  const styles = api.styles;
 
   function addChecks(root = document) {
     for (const row of api.dom.qa(".market_listing_row", root)) {
@@ -31,7 +32,9 @@
       input.addEventListener("input", () => {
         const needle = input.value.trim().toLowerCase();
         for (const row of st.rowsIn(group)) {
-          row.style.display = !needle || row.textContent.toLowerCase().includes(needle) ? "" : "none";
+          styles?.applyStyles?.(row, {
+            display: !needle || row.textContent.toLowerCase().includes(needle) ? "" : "none",
+          });
         }
         updateSelectAll();
       });

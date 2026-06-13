@@ -13,6 +13,12 @@
 
   const api = window.STCommunity;
   if (!api || api.inventoryView) return;
+  const THEME = window.STTheme || {};
+  const styles = api.styles;
+
+  function setDisplay(element, visible) {
+    styles?.applyStyles?.(element, { display: visible ? "" : "none" });
+  }
 
   function updateButtons() {
     const marketable = api.invActions.selectedItems((it) => it.marketable);
@@ -25,19 +31,19 @@
     const boost = api.dom.q(".unpack_selected_booster_packs");
 
     if (sell) {
-      sell.style.display = marketable.length ? "" : "none";
+      setDisplay(sell, marketable.length);
       api.dom.q("span", sell).textContent = `出售 ${marketable.length} 个物品`;
     }
     if (manual) {
-      manual.style.display = marketable.length && api.invActions.manualOk(marketable) ? "" : "none";
+      setDisplay(manual, marketable.length && api.invActions.manualOk(marketable));
       api.dom.q("span", manual).textContent = `手动出售 ${marketable.length} 个物品`;
     }
     if (goo) {
-      goo.style.display = gemmable.length ? "" : "none";
+      setDisplay(goo, gemmable.length);
       api.dom.q("span", goo).textContent = `分解 ${gemmable.length} 个物品为宝石`;
     }
     if (boost) {
-      boost.style.display = boosters.length ? "" : "none";
+      setDisplay(boost, boosters.length);
       api.dom.q("span", boost).textContent = `拆开 ${boosters.length} 个补充包`;
     }
   }
@@ -100,11 +106,15 @@
 
     const logo = api.dom.q("#inventory_logos");
     if (logo) {
-      logo.style.height = "auto";
-      logo.style.maxHeight = "unset";
+      styles?.applyStyles?.(logo, {
+        height: "auto",
+        maxHeight: "unset",
+      });
     }
     const appLogo = api.dom.q("#inventory_applogo");
-    if (appLogo) appLogo.style.display = "none";
+    if (appLogo) {
+      setDisplay(appLogo, false);
+    }
     api.logger.attach(appLogo);
 
     if (own) {
@@ -114,22 +124,26 @@
       wrap.innerHTML = `
         <a class="btn_green_white_innerfade btn_medium_wide sell_all"><span>出售所有物品</span></a>
         <a class="btn_green_white_innerfade btn_medium_wide sell_all_duplicates"><span>出售所有重复物品</span></a>
-        <a class="btn_green_white_innerfade btn_medium_wide sell_selected" style="display:none"><span>出售所选物品</span></a>
-        <a class="btn_green_white_innerfade btn_medium_wide sell_manual" style="display:none"><span>手动出售物品</span></a>
+        <a class="btn_green_white_innerfade btn_medium_wide sell_selected"><span>出售所选物品</span></a>
+        <a class="btn_green_white_innerfade btn_medium_wide sell_manual"><span>手动出售物品</span></a>
       `;
       if (showMisc) {
         wrap.insertAdjacentHTML("beforeend", `
           <a class="btn_green_white_innerfade btn_medium_wide sell_all_cards"><span>出售所有卡牌</span></a>
           <div class="see_inventory_buttons">
-            <a class="btn_darkblue_white_innerfade btn_medium_wide turn_into_gems" style="display:none"><span>将选中物品分解为宝石</span></a>
+            <a class="btn_darkblue_white_innerfade btn_medium_wide turn_into_gems"><span>将选中物品分解为宝石</span></a>
             <a class="btn_darkblue_white_innerfade btn_medium_wide unpack_all_booster_packs"><span>拆开所有补充包</span></a>
-            <a class="btn_darkblue_white_innerfade btn_medium_wide unpack_selected_booster_packs" style="display:none"><span>拆开选中的补充包</span></a>
+            <a class="btn_darkblue_white_innerfade btn_medium_wide unpack_selected_booster_packs"><span>拆开选中的补充包</span></a>
             <a class="btn_darkblue_white_innerfade btn_medium_wide gem_all_duplicates"><span>将所有重复物品分解为宝石</span></a>
           </div>
         `);
       } else if (tf2) {
         wrap.insertAdjacentHTML("beforeend", '<a class="btn_green_white_innerfade btn_medium_wide sell_all_crates"><span>出售所有箱子</span></a>');
       }
+      setDisplay(api.dom.q(".sell_selected", wrap), false);
+      setDisplay(api.dom.q(".sell_manual", wrap), false);
+      setDisplay(api.dom.q(".turn_into_gems", wrap), false);
+      setDisplay(api.dom.q(".unpack_selected_booster_packs", wrap), false);
       appLogo?.after(wrap);
       api.dom.q(".sell_all", wrap)?.addEventListener("click", api.invActions.sellAll);
       api.dom.q(".sell_selected", wrap)?.addEventListener("click", api.invActions.sellSelected);
@@ -146,7 +160,7 @@
     const reload = document.createElement("a");
     reload.id = "inventory_reload_button";
     reload.className = "btn_darkblue_white_innerfade btn_medium_wide reload_inventory";
-    reload.style.marginRight = "12px";
+    styles?.applyStyles?.(reload, { marginRight: THEME.spacing?.md });
     reload.innerHTML = "<span>重新加载库存</span>";
     reload.addEventListener("click", () => location.reload());
     api.dom.q(".inventory_rightnav")?.prepend(reload);

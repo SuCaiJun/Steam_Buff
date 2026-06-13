@@ -74,8 +74,48 @@
     "section",
   ];
   const mounted = new WeakMap();
+  const THEME = window.STTheme || {};
+  const styles = window.SteamBuff?.styles;
 
   const log = window.STLoggerFactory.createLogger("steam", ID);
+
+  function alphaColor(color, alpha) {
+    const value = String(color || "");
+    const match = value.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+    if (!match) {
+      return value || "transparent";
+    }
+    const raw = match[1].length === 3
+      ? match[1].split("").map((it) => `${it}${it}`).join("")
+      : match[1];
+    const r = parseInt(raw.slice(0, 2), 16);
+    const g = parseInt(raw.slice(2, 4), 16);
+    const b = parseInt(raw.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function styleVars() {
+    const colors = THEME.colors || {};
+    const spacing = THEME.spacing || {};
+    const radius = THEME.radius || {};
+    const transitions = THEME.transitions || {};
+    return {
+      "--st-news-button-border": colors.borderHover,
+      "--st-news-button-border-hover": colors.textDisabled,
+      "--st-news-button-color": colors.textMuted,
+      "--st-news-button-bg": colors.bgCardHover,
+      "--st-news-button-bg-hover": colors.bgCard,
+      "--st-news-button-shadow": `0 3px 32px ${colors.black}`,
+      "--st-news-button-padding": `calc(${spacing.sm} - 1px)`,
+      "--st-news-button-margin-bottom": spacing.sm,
+      "--st-news-button-radius": radius.sm,
+      "--st-news-button-transition": transitions.fast,
+      "--st-news-done-border": alphaColor(colors.steamBlue, 0.85),
+      "--st-news-done-bg": alphaColor(colors.steamBlue, 0.18),
+      "--st-news-error-border": alphaColor(colors.danger, 0.9),
+      "--st-news-error-bg": alphaColor(colors.danger, 0.18),
+    };
+  }
 
   function logError(event, message, meta = {}, error = null) {
     log.error(event, message, {
@@ -91,6 +131,7 @@
       style.id = STYLE_ID;
       (document.head || document.documentElement).appendChild(style);
     }
+    styles?.applyStyles?.(document.documentElement, styleVars());
     style.textContent = `
       .${BUTTON_CLASS} {
         box-sizing: border-box !important;
@@ -99,11 +140,11 @@
         min-width: 48px !important;
         min-height: 48px !important;
         display: block !important;
-        border: 1px solid rgb(99, 99, 109) !important;
-        border-radius: 4px !important;
-        color: rgb(150, 150, 150) !important;
-        background: rgb(68, 68, 75) !important;
-        box-shadow: rgb(0, 0, 0) 0px 3px 32px 0px !important;
+        border: 1px solid var(--st-news-button-border) !important;
+        border-radius: var(--st-news-button-radius) !important;
+        color: var(--st-news-button-color) !important;
+        background: var(--st-news-button-bg) !important;
+        box-shadow: var(--st-news-button-shadow) !important;
         cursor: pointer !important;
         position: static !important;
         text-indent: 0 !important;
@@ -111,9 +152,9 @@
         opacity: 1 !important;
         visibility: visible !important;
         pointer-events: auto !important;
-        padding: 7px !important;
-        margin: 0 0 8px !important;
-        transition: border-color 120ms ease, background 120ms ease, opacity 120ms ease;
+        padding: var(--st-news-button-padding) !important;
+        margin: 0 0 var(--st-news-button-margin-bottom) !important;
+        transition: border-color var(--st-news-button-transition), background var(--st-news-button-transition), opacity var(--st-news-button-transition);
       }
 
       .${ICON_CLASS} {
@@ -130,8 +171,8 @@
       }
 
       .${BUTTON_CLASS}:hover {
-        border-color: rgb(126, 126, 137) !important;
-        background: rgb(78, 78, 87) !important;
+        border-color: var(--st-news-button-border-hover) !important;
+        background: var(--st-news-button-bg-hover) !important;
       }
 
       .${BUTTON_CLASS}:hover .${ICON_CLASS} {
@@ -148,13 +189,13 @@
       }
 
       .${BUTTON_CLASS}[data-state="done"] {
-        border-color: rgba(102, 192, 244, .85) !important;
-        background: rgb(54, 76, 89) !important;
+        border-color: var(--st-news-done-border) !important;
+        background: var(--st-news-done-bg) !important;
       }
 
       .${BUTTON_CLASS}[data-state="error"] {
-        border-color: rgba(216, 89, 89, .9) !important;
-        background: rgb(86, 58, 62) !important;
+        border-color: var(--st-news-error-border) !important;
+        background: var(--st-news-error-bg) !important;
       }
 
       .${TRANSLATED_CLASS} {
