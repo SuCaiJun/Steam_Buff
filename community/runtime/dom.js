@@ -13,13 +13,37 @@
 
   const api = window.STCommunity;
   if (!api || api.dom) return;
+  const domUtils = window.STDomUtils || {};
+  const fallbackDocument = window.document || null;
 
-  function q(sel, root = document) {
-    return root.querySelector(sel);
+  function scopeOrDocument(root) {
+    return root || fallbackDocument;
   }
 
-  function qa(sel, root = document) {
-    return Array.from(root.querySelectorAll(sel));
+  function fallbackQuery(sel, root) {
+    const scope = scopeOrDocument(root);
+    try {
+      return scope?.querySelector?.(sel) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function fallbackQueryAll(sel, root) {
+    const scope = scopeOrDocument(root);
+    try {
+      return Array.from(scope?.querySelectorAll?.(sel) || []);
+    } catch {
+      return [];
+    }
+  }
+
+  function q(sel, root = fallbackDocument) {
+    return domUtils.query?.(sel, root) || fallbackQuery(sel, root);
+  }
+
+  function qa(sel, root = fallbackDocument) {
+    return domUtils.queryAll?.(sel, root) || fallbackQueryAll(sel, root);
   }
 
   function sleep(ms) {
@@ -28,6 +52,113 @@
 
   function visible(el) {
     return Boolean(el && el.offsetParent !== null && getComputedStyle(el).display !== "none");
+  }
+
+  function createElement(tagName = "div", options = {}, children = []) {
+    if (typeof domUtils.createElement === "function") {
+      try {
+        return domUtils.createElement(tagName, options, children);
+      } catch {
+      }
+    }
+    const doc = fallbackDocument;
+    if (!doc?.createElement) return null;
+    const el = doc.createElement(tagName);
+    const config = typeof options === "string" ? { className: options } : (options || {});
+    if (config.id) el.id = String(config.id);
+    if (config.className) el.className = String(config.className);
+    if (config.text !== undefined) el.textContent = String(config.text);
+    Object.entries(config.attributes || {}).forEach(([name, value]) => {
+      if (value !== null && value !== undefined && value !== false) {
+        el.setAttribute(name, value === true ? name : String(value));
+      }
+    });
+    Object.entries(config.dataset || {}).forEach(([name, value]) => {
+      if (value !== null && value !== undefined) {
+        el.dataset[name] = String(value);
+      }
+    });
+    Object.entries(config.on || {}).forEach(([type, handler]) => on(el, type, handler));
+    appendChildren(el, children);
+    return el;
+  }
+
+  function appendChildren(parent, children = []) {
+    if (typeof domUtils.appendChildren === "function") {
+      try {
+        return domUtils.appendChildren(parent, children);
+      } catch {
+      }
+    }
+    if (!parent?.appendChild) return parent;
+    const list = Array.isArray(children) ? children.flat(Infinity) : [children];
+    list.forEach((child) => {
+      if (child === null || child === undefined || child === false) return;
+      const doc = parent.ownerDocument || fallbackDocument;
+      if (!doc?.createTextNode) return;
+      parent.appendChild(child?.nodeType ? child : doc.createTextNode(String(child)));
+    });
+    return parent;
+  }
+
+  function on(element, type, handler, options) {
+    if (typeof domUtils.on === "function") {
+      try {
+        return domUtils.on(element, type, handler, options);
+      } catch {
+      }
+    }
+    if (!element?.addEventListener || !type || typeof handler !== "function") {
+      return () => {};
+    }
+    element.addEventListener(type, handler, options);
+    return () => element.removeEventListener(type, handler, options);
+  }
+
+  function empty(element) {
+    if (typeof domUtils.empty === "function") {
+      try {
+        return domUtils.empty(element);
+      } catch {
+      }
+    }
+    if (!element) return element;
+    while (element.firstChild) {
+      element.removeChild(element.firstChild);
+    }
+    return element;
+  }
+
+  function remove(element) {
+    if (typeof domUtils.remove === "function") {
+      try {
+        return domUtils.remove(element);
+      } catch {
+      }
+    }
+    if (element?.remove) {
+      element.remove();
+      return true;
+    }
+    if (element?.parentNode) {
+      element.parentNode.removeChild(element);
+      return true;
+    }
+    return false;
+  }
+
+  function closest(element, selector) {
+    if (typeof domUtils.closest === "function") {
+      try {
+        return domUtils.closest(element, selector);
+      } catch {
+      }
+    }
+    try {
+      return element?.closest?.(selector) || null;
+    } catch {
+      return null;
+    }
   }
 
   function addSettingsLink(openSettings) {
@@ -82,6 +213,12 @@
     qa,
     sleep,
     visible,
+    createElement,
+    appendChildren,
+    on,
+    empty,
+    remove,
+    closest,
     addSettingsLink,
     digits,
     pad,

@@ -12,10 +12,12 @@
       if (api.dom.q(".market_listing_select", row)) continue;
       const cancel = api.dom.q(".market_listing_cancel_button", row);
       if (!cancel) continue;
-      const box = document.createElement("div");
-      box.className = "market_listing_select";
-      box.innerHTML = '<input type="checkbox" class="market_select_item"/>';
-      api.dom.q(".market_select_item", box).addEventListener("change", updateSelectAll);
+      const input = api.dom.createElement("input", {
+        className: "market_select_item",
+        attributes: { type: "checkbox" },
+        on: { change: updateSelectAll },
+      });
+      const box = api.dom.createElement("div", "market_listing_select", input);
       cancel.appendChild(box);
     }
   }
@@ -25,11 +27,14 @@
     group.dataset.stSeeTable = "1";
     const header = api.dom.q(".market_listing_table_header", group);
     if (header && !api.dom.q(".st-see-market-search", header)) {
-      const input = document.createElement("input");
-      input.className = "search st-see-market-search";
-      input.id = "market_name_search";
-      input.placeholder = "搜索...";
-      input.addEventListener("input", () => {
+      const input = api.dom.createElement("input", {
+        className: "search st-see-market-search",
+        attributes: {
+          id: "market_name_search",
+          placeholder: "搜索...",
+        },
+      });
+      api.dom.on(input, "input", () => {
         const needle = input.value.trim().toLowerCase();
         for (const row of st.rowsIn(group)) {
           styles?.applyStyles?.(row, {
