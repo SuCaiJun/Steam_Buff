@@ -13,7 +13,7 @@
 
   const MATCH = globalThis.STConfig?.matchers;
   const MARK = "steamBuffInjected";
-  const MARK_VALUE = "steam-runtime-scope-20260612-performance-monitor";
+  const MARK_VALUE = "steam-runtime-scope-20260614-cef-performance";
 
   if (globalThis.STGuard?.ready && globalThis.STGuard.version === MARK_VALUE) {
     return;

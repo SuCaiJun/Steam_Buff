@@ -30,25 +30,6 @@
         "<all_urls>"
       ],
       "js": [
-        "shared/styles/theme.js",
-        "shared/logger-factory.js",
-        "shared/errors.js",
-        "shared/utils/dom.js",
-        "shared/utils/format.js",
-        "shared/performance-monitor.js",
-        "shared/scheduler.js",
-        "shared/observer-utils.js",
-        "shared/page-context.js"
-      ],
-      "run_at": "document_start",
-      "all_frames": true,
-      "match_about_blank": true
-    },
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
         "ai/config.js",
         "shared/config.js",
         "shared/i18n.js",
@@ -56,7 +37,10 @@
       ],
       "run_at": "document_end",
       "all_frames": true,
-      "match_about_blank": true
+      "match_about_blank": true,
+      "exclude_matches": [
+        "https://steamloopback.host/*"
+      ]
     },
     {
       "matches": [
@@ -109,7 +93,10 @@
         "settings/floating-menu.js"
       ],
       "run_at": "document_start",
-      "all_frames": false
+      "all_frames": false,
+      "exclude_matches": [
+        "https://steamloopback.host/*"
+      ]
     },
     {
       "matches": [
@@ -150,6 +137,12 @@
         "https://store.steampowered.com/*"
       ],
       "js": [
+        "shared/styles/theme.js",
+        "shared/logger-factory.js",
+        "shared/errors.js",
+        "shared/utils/dom.js",
+        "shared/utils/format.js",
+        "shared/observer-utils.js",
         "store/features/age-gate-skip.js"
       ],
       "run_at": "document_start"
@@ -159,6 +152,13 @@
         "https://store.steampowered.com/*"
       ],
       "js": [
+        "shared/styles/theme.js",
+        "shared/errors.js",
+        "shared/utils/dom.js",
+        "shared/utils/format.js",
+        "shared/performance-monitor.js",
+        "shared/scheduler.js",
+        "shared/observer-utils.js",
         "store/runtime/config.js",
         "store/runtime/context.js",
         "store/runtime/cache.js",
@@ -207,6 +207,7 @@
         "https://steamcommunity.com/app/*/reviews*"
       ],
       "js": [
+        "shared/observer-utils.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "shared/config.js",
@@ -222,6 +223,7 @@
         "https://checkout.steampowered.com/*"
       ],
       "js": [
+        "shared/scheduler.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "shared/config.js",
@@ -248,6 +250,7 @@
         "shared/utils/dom.js",
         "steam/runtime/paths.js",
         "steam/runtime/steam-context.js",
+        "steam/runtime/cleanup-stale.js",
         "steam/runtime/styles.js",
         "steam/runtime/feature-registry.js",
         "steam/features/*.js",

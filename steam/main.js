@@ -14,7 +14,7 @@
   const api = window.SteamBuff;
   const reg = api?.reg;
   const log = window.STLoggerFactory.createLogger('steam', 'main');
-  const RUNTIME_VERSION = "steam-runtime-scope-20260612-performance-monitor";
+  const RUNTIME_VERSION = "steam-runtime-scope-20260614-cef-performance";
   const BOOT_MS = 500;
   const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;

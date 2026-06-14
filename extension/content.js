@@ -12,7 +12,12 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-runtime-scope-20260612-performance-monitor";
+  const RUN_VERSION = "steam-runtime-scope-20260614-cef-performance";
+  const RUN_PENDING = `${RUN_VERSION}:pending`;
+  const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
+  const STEAM_TITLE_WAIT_MS = 100;
+  const STEAM_TITLE_WAIT_MAX = 80;
+  const STEAM_TITLE_WAIT_TRIES = "__steamBuffTitleWaitTries";
   const ALLOWED_PAGES = Object.freeze([
     "steamloopback.host",
     "store.steampowered.com",
@@ -63,7 +68,7 @@
     if (EXCLUDED_STEAM_TITLES.includes(title) || /(?:Root Menu|Supernav)$/u.test(title)) {
       return false;
     }
-    return !title;
+    return false;
   }
 
   function shouldInject() {
@@ -88,14 +93,22 @@
     return true;
   }
 
-  if (globalThis[RUN_MARK] === RUN_VERSION) {
-    return;
+  function shouldCleanupExcludedSteamRuntime() {
+    const title = document.title || "";
+    return location.hostname === "steamloopback.host" ||
+      ALLOWED_STEAM_TITLES.includes(title) ||
+      EXCLUDED_STEAM_TITLES.includes(title) ||
+      /(?:Root Menu|Supernav)$/u.test(title);
   }
-  // 被排除页面也标记为已处理，避免后台补注入反复命中 Steam CEF 菜单页。
-  globalThis[RUN_MARK] = RUN_VERSION;
-  if (!shouldInject()) {
-    console.log(`[Steam Buff] Excluded: ${location.href}`);
-    return;
+
+  function cleanupExcludedSteamRuntime() {
+    if (!shouldCleanupExcludedSteamRuntime()) {
+      return;
+    }
+    try {
+      globalThis.STInject?.inject?.([EXCLUDED_STEAM_CLEANUP_SCRIPT]).catch(() => {});
+    } catch {
+    }
   }
 
   const LOG_EVENT = "STEAM_BUFF_LOG_EVENT";
@@ -1348,5 +1361,43 @@
       });
   }
 
-  run();
+  function shouldWaitSteamTitle() {
+    return location.hostname === "steamloopback.host" &&
+      window === window.top &&
+      document.documentElement &&
+      !document.title &&
+      !isAllowedSteamAboutBlank(location.href);
+  }
+
+  function boot() {
+    if (globalThis[RUN_MARK] === RUN_VERSION || globalThis[RUN_MARK] === RUN_PENDING) {
+      return;
+    }
+
+    if (shouldWaitSteamTitle()) {
+      const tries = Number(globalThis[STEAM_TITLE_WAIT_TRIES]) || 0;
+      if (tries < STEAM_TITLE_WAIT_MAX) {
+        globalThis[RUN_MARK] = RUN_PENDING;
+        globalThis[STEAM_TITLE_WAIT_TRIES] = tries + 1;
+        window.setTimeout(() => {
+          if (globalThis[RUN_MARK] === RUN_PENDING) {
+            globalThis[RUN_MARK] = "";
+          }
+          boot();
+        }, STEAM_TITLE_WAIT_MS);
+        return;
+      }
+    }
+
+    // 被排除页面也标记为已处理，避免后台补注入反复命中 Steam CEF 菜单页。
+    globalThis[RUN_MARK] = RUN_VERSION;
+    if (!shouldInject()) {
+      cleanupExcludedSteamRuntime();
+      return;
+    }
+
+    run();
+  }
+
+  boot();
 })();

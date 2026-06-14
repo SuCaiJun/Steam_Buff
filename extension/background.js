@@ -39,7 +39,7 @@
     "extension/content.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-runtime-scope-20260612-performance-monitor";
+  const CONTENT_MARK_VERSION = "steam-runtime-scope-20260614-cef-performance";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const SHARED_CONFIG = "shared/config.js";
   const OBSERVER_UTILS = "shared/observer-utils.js";

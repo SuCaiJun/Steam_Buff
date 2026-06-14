@@ -170,7 +170,7 @@
   }
 
   function print(entry) {
-    const consoleFn = console[entry.level] || console.log;
+    const consoleFn = console[entry.level] || console.warn;
     const prefix = `[Steam Buff][${entry.domain}:${entry.feature}]`;
     consoleFn(`${prefix} ${entry.level} ${entry.event}: ${entry.message}`, entry.meta);
   }

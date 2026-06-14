@@ -49,7 +49,6 @@
     recordInject(url) {
       this.measure(() => {
         this.metrics.injectCount += 1;
-        console.log(`[Steam Buff][PerformanceMonitor] 第 ${this.metrics.injectCount} 次注入：`, url);
       });
     }
 
@@ -58,7 +57,6 @@
         const key = String(name || 'unknown');
         this.timerNames.add(key);
         this.metrics.timerCount = this.getTimerCount();
-        console.log('[Steam Buff][PerformanceMonitor] 定时任务已注册：', key);
       });
     }
 
@@ -67,7 +65,6 @@
         const label = this.describeTarget(target);
         this.observerTargets.push(label);
         this.metrics.observerCount += 1;
-        console.log('[Steam Buff][PerformanceMonitor] Observer 已创建：', label);
       });
     }
 
@@ -111,7 +108,6 @@
       };
 
       console.table(summary);
-      console.log('[Steam Buff][PerformanceMonitor] 性能报告详情：', report);
       return report;
     }
 

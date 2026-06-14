@@ -52,15 +52,12 @@
         errorCount: 0,
       });
 
-      console.log('[Steam Buff][Scheduler] Task registered:', name, { intervalMs });
       window.STPerformanceMonitor?.recordTimer?.(name);
       this.start();
     }
 
     unregister(name) {
-      if (this.tasks.delete(name)) {
-        console.log('[Steam Buff][Scheduler] Task unregistered:', name);
-      }
+      this.tasks.delete(name);
 
       if (this.tasks.size === 0) {
         this.stop();
@@ -71,7 +68,6 @@
       const task = this.tasks.get(name);
       if (task) {
         task.status = 'paused';
-        console.log('[Steam Buff][Scheduler] Task paused:', name);
       }
     }
 
@@ -79,7 +75,6 @@
       const task = this.tasks.get(name);
       if (task) {
         task.status = 'active';
-        console.log('[Steam Buff][Scheduler] Task resumed:', name);
       }
     }
 
@@ -93,7 +88,6 @@
       );
       task.intervalMs = intervalMs;
       task.nextRunAt = Date.now() + intervalMs;
-      console.log('[Steam Buff][Scheduler] Task rescheduled:', name, { intervalMs });
       return true;
     }
 
@@ -104,8 +98,6 @@
       this.timerId = setInterval(() => {
         this.tick();
       }, this.interval);
-
-      console.log('[Steam Buff][Scheduler] Started, interval:', this.interval);
     }
 
     stop() {
@@ -113,7 +105,6 @@
         clearInterval(this.timerId);
         this.timerId = null;
         this.running = false;
-        console.log('[Steam Buff][Scheduler] Stopped');
       }
     }
 
