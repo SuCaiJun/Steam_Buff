@@ -12,6 +12,7 @@
   "use strict";
 
   const MARK = "steamBuffTranslateBoot";
+  const runtime = globalThis.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
   const PREFIX = "st.settings.";
   const SUFFIX = ".enabled";
   const TRANS_PREFIX = `${PREFIX}translate.`;
@@ -37,6 +38,19 @@
     select: false,
     style: "dashedLine",
     hover: true,
+  });
+
+  runtime?.registerAdapter?.({
+    id: "translate",
+    domain: "translate",
+    publicApi: "window.translate",
+    registry: "translate/boot.js",
+    loadStrategy: "background-on-demand-inject",
+    legacy: true,
+    meta: {
+      entry: "translate/boot.js",
+      migration: "P3 只登记 page/selection/newsPopup mode，vendor 隔离留给 P19。",
+    },
   });
 
   function ancestorHost() {
@@ -169,13 +183,46 @@
 
     const conf = await cfg();
     if (!conf.enabled || (!conf.page && !conf.selection) || !allowed(conf)) {
+      runtime?.markFeature?.({
+        domain: "translate",
+        id: "translate-runtime",
+        status: "skipped",
+        reason: "disabled-or-out-of-scope",
+        meta: {
+          scope: conf.scope,
+          page: conf.page === true,
+          selection: conf.selection === true,
+        },
+      });
       return;
     }
 
+    runtime?.activateAdapter?.("translate", {
+      scope: conf.scope,
+      page: conf.page === true,
+      selection: conf.selection === true,
+      newsPopup: conf.newsPopup !== false,
+    });
+    runtime?.markFeature?.({
+      domain: "translate",
+      id: "translate-runtime",
+      status: "loading",
+      meta: {
+        modes: [
+          conf.page === true ? "page" : "",
+          conf.selection === true ? "selection" : "",
+          conf.newsPopup !== false ? "newsPopup" : "",
+        ].filter(Boolean),
+      },
+    });
     inject(conf);
   }
 
   run().catch((error) => {
+    runtime?.markError?.("translate-boot-failed", error, {
+      host: location.hostname,
+      path: location.pathname,
+    });
     console.error("[Steam Buff] 翻译启动失败", error);
   });
 })();

@@ -14,7 +14,8 @@
   const api = window.SteamBuff;
   const reg = api?.reg;
   const log = window.STLoggerFactory.createLogger('steam', 'main');
-  const RUNTIME_VERSION = "steam-runtime-scope-20260614-cef-performance";
+  const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
+  const RUNTIME_VERSION = "steam-runtime-scope-20260614-p3-runtime-kernel";
   const BOOT_MS = 500;
   const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;
@@ -23,6 +24,8 @@
   if (!api || !reg) {
     return;
   }
+
+  api.runtimeKernel = runtime || null;
 
   if (api.runtime?.started && api.runtime.version !== RUNTIME_VERSION) {
     stopPreviousRuntime();
@@ -39,6 +42,14 @@
       started: list.filter(item => item.status === "started").length,
       skipped: list.filter(item => item.status === "skipped").length,
       failed: list.filter(item => item.status === "failed").length,
+    };
+  }
+
+  function runtimeMeta() {
+    return {
+      route: api.ctx?.route?.() || "",
+      contexts: api.ctx?.contexts?.() || [],
+      targets: api.ctx?.targets?.() || [],
     };
   }
 
@@ -143,6 +154,7 @@
   }
 
   function stopPreviousRuntime() {
+    runtime?.disposeByOwnerPrefix?.("steam:");
     clearTimer(api.runtime?.timer);
     if (api.ctx?.isShared?.() !== true) {
       stopState("library-custom-name");
@@ -157,6 +169,7 @@
     api.runtime.started = false;
     api.runtime.status = "restarting";
     api.runtime.version = RUNTIME_VERSION;
+    runtime?.deactivateAdapter?.("steam", "runtime-restarting");
   }
 
   function waitDelay(bootUntil) {
@@ -174,6 +187,7 @@
       return;
     }
 
+    runtime?.activateAdapter?.("steam", runtimeMeta());
     api.runtime = {
       started: true,
       version: RUNTIME_VERSION,
@@ -191,9 +205,11 @@
     const bootUntil = Date.now() + BOOT_WAIT_MS;
 
     const later = (delay) => {
+      runtime?.disposeOwner?.("steam:main-loop");
       api.runtime.timer = window.setTimeout(() => {
         tick().catch(() => {});
       }, delay);
+      runtime?.timer?.("steam:main-loop", "runtime-poll", api.runtime.timer);
     };
 
     const tick = async () => {
@@ -211,6 +227,7 @@
       }
 
       const results = await run();
+      runtime?.activateAdapter?.("steam", runtimeMeta());
       if (!api.runtime.loop) {
         api.runtime.loop = true;
         api.runtime.status = "running";

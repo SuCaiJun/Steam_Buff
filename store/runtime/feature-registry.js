@@ -12,32 +12,74 @@
   "use strict";
 
   const api = window.STStore = window.STStore || {};
+  const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
+
+  runtime?.registerAdapter?.({
+    id: "store",
+    domain: "store",
+    publicApi: "window.STStore",
+    registry: "window.STStore.reg",
+    loadStrategy: "manifest-legacy",
+    legacy: true,
+    meta: {
+      entry: "store/runtime/feature-registry.js",
+      migration: "P3 保留 manifest 预加载，后续 P5/P8 迁移到按需 feature chunk。",
+    },
+  });
 
   class FeatureRegistry {
     constructor() {
-      this.items = [];
-      this.started = false;
+      this.state = {
+        items: [],
+        started: false,
+      };
     }
 
     add(feature) {
       if (!feature?.id || typeof feature.start !== "function") {
         throw new Error("无效的商店功能配置");
       }
-      if (this.items.some((item) => item.id === feature.id)) return;
-      this.items.push(feature);
+      if (this.state.items.some((item) => item.id === feature.id)) return;
+      this.state.items.push(feature);
+      runtime?.registerFeature?.({
+        domain: "store",
+        id: feature.id,
+        settingsKey: feature.settingsKey || feature.id,
+        loadStrategy: feature.loadStrategy || "manifest-legacy",
+        dispose: typeof feature.stop === "function",
+        meta: {
+          legacy: true,
+        },
+      });
     }
 
     async start() {
-      if (this.started) return [];
-      this.started = true;
+      if (this.state.started) return [];
+      this.state.started = true;
       const results = [];
-      for (const feature of this.items) {
+      for (const feature of this.state.items) {
         try {
           if (typeof feature.shouldRun === "function" && !feature.shouldRun(api)) {
+            runtime?.markFeature?.({
+              domain: "store",
+              id: feature.id,
+              status: "skipped",
+              reason: "should-run-false",
+              meta: { path: location.pathname },
+            });
             results.push({ id: feature.id, status: "skipped" });
             continue;
           }
           const result = await feature.start(api);
+          runtime?.markFeature?.({
+            domain: "store",
+            id: feature.id,
+            status: "started",
+            meta: {
+              path: location.pathname,
+              hasStop: typeof feature.stop === "function",
+            },
+          });
           results.push({ id: feature.id, status: "started", result });
         } catch (error) {
           globalThis.STLogger?.error?.({
@@ -46,6 +88,13 @@
             event: "feature-start-failed",
             message: "商店页功能启动失败",
             error,
+          });
+          runtime?.markFeature?.({
+            domain: "store",
+            id: feature.id,
+            status: "failed",
+            error,
+            meta: { path: location.pathname },
           });
           results.push({ id: feature.id, status: "failed", error: String(error) });
         }
@@ -76,5 +125,5 @@
   }
 
   api.features = api.features || {};
-  api.reg = new FeatureRegistry();
+  api.reg = Object.freeze(new FeatureRegistry());
 })();

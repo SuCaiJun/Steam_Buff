@@ -15,6 +15,12 @@
     {
       id: "library-sort-title",
       name: "库标题排序名",
+      settingsKey: "library-sort-title",
+      loadStrategy: "on-demand-entry",
+      modes: ["backend"],
+      pageScope: ["SharedJSContext"],
+      dependencies: ["shared/scheduler.js"],
+      cost: "background-sync",
       entries: {
         backend: "backend.js",
       },
@@ -25,6 +31,12 @@
     {
       id: "library-custom-name",
       name: "库名称填充",
+      settingsKey: "library-custom-name",
+      loadStrategy: "on-demand-entry",
+      modes: ["backend", "ui"],
+      pageScope: ["SharedJSContext", "custom-sort-dialog"],
+      dependencies: ["shared/scheduler.js", "BroadcastChannel"],
+      cost: "large-library",
       entries: {
         backend: "backend.js",
         ui: "ui.js",
@@ -42,6 +54,12 @@
     {
       id: "download-auto-shutdown",
       name: "下载完成后自动关机",
+      settingsKey: "download-auto-shutdown",
+      loadStrategy: "on-demand-entry",
+      modes: ["backend", "downloads"],
+      pageScope: ["SharedJSContext", "/library/downloads"],
+      dependencies: ["shared/scheduler.js", "BroadcastChannel"],
+      cost: "polling",
       entries: {
         backend: "backend.js",
         downloads: "downloads.js",
@@ -59,6 +77,12 @@
     {
       id: "popup-guard",
       name: "Steam 弹窗遮罩兼容",
+      settingsKey: "popup-guard",
+      loadStrategy: "on-demand-entry",
+      modes: ["ui"],
+      pageScope: ["main-ui"],
+      dependencies: [],
+      cost: "event-listener",
       entries: {
         ui: "ui.js",
       },
@@ -69,6 +93,12 @@
     {
       id: "nexus-mods",
       name: "Nexus Mods 跳转",
+      settingsKey: "nexus-mods",
+      loadStrategy: "on-demand-entry",
+      modes: ["ui"],
+      pageScope: ["/library/app/:appid"],
+      dependencies: ["shared/scheduler.js"],
+      cost: "dom-scan",
       entries: {
         ui: "library.js",
       },
@@ -82,6 +112,12 @@
     {
       id: "steam-news-translate",
       name: "Steam 新闻弹窗翻译",
+      settingsKey: "steam-news-translate",
+      loadStrategy: "on-demand-entry",
+      modes: ["ui"],
+      pageScope: ["main-ui"],
+      dependencies: ["shared/observer-utils.js", "shared/scheduler.js", "TRANSLATE_INJECT"],
+      cost: "observer",
       entries: {
         ui: "ui.js",
       },

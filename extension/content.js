@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-runtime-scope-20260614-cef-performance";
+  const RUN_VERSION = "steam-runtime-scope-20260614-p3-runtime-kernel";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const STEAM_TITLE_WAIT_MS = 100;
@@ -1211,6 +1211,7 @@
           "shared/utils/dom.js",
           "shared/performance-monitor.js",
           "shared/observer-utils.js",
+          "shared/runtime/kernel.js",
           "community/runtime/base.js",
           "community/runtime/settings.js",
           "community/runtime/dom.js",
@@ -1327,6 +1328,7 @@
           "shared/scheduler.js",
           "shared/observer-utils.js",
           "shared/page-context.js",
+          "shared/runtime/kernel.js",
           "steam/shared/constants.js",
           "steam/runtime/paths.js",
           "steam/runtime/steam-context.js",

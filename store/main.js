@@ -14,6 +14,7 @@
   const log = window.STLoggerFactory.createLogger('store', 'main');
   const api = window.STStore;
   if (!api?.reg) return;
+  const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
 
   function pageType() {
     const path = location.pathname || "";
@@ -42,10 +43,15 @@
     pageType: pageType(),
     path: location.pathname,
   };
+  runtime?.activateAdapter?.("store", meta);
   log.info("runtime-start", "Steam 商店页运行时开始启动", meta);
 
   api.reg.start()
     .then((results) => {
+      runtime?.activateAdapter?.("store", {
+        ...meta,
+        ...summary(results),
+      });
       log.info("runtime-ready", "Steam 商店页运行时已就绪", {
         ...meta,
         ...summary(results),
@@ -53,6 +59,7 @@
       });
     })
     .catch((error) => {
+      runtime?.markError?.("store-runtime-failed", error, meta);
       log.error("runtime-failed", error, {
         ...meta,
         durationMs: Date.now() - startedAt,

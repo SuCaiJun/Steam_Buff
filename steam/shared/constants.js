@@ -16,4 +16,9 @@
   api.cfg = Object.freeze({
     appName: "Steam Buff",
   });
+
+  api.domain = Object.freeze({
+    id: "steam",
+    publicApi: "window.SteamBuff",
+  });
 })();

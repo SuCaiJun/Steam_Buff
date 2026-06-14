@@ -8,6 +8,7 @@
 
   const api = window.STCommunity = window.STCommunity || {};
   if (api.baseReady) return;
+  const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
 
   const W = window;
   const PAGE_MARKET = 0;
@@ -62,6 +63,19 @@
   }
 
   api.baseReady = true;
+  runtime?.registerAdapter?.({
+    id: "community",
+    domain: "community",
+    publicApi: "window.STCommunity",
+    registry: "community/main.js",
+    loadStrategy: "content-script-domain-inject",
+    legacy: true,
+    meta: {
+      page,
+      entry: "community/runtime/base.js",
+      migration: "P3 保留社区整域动态注入，后续批次拆分库存/市场/交易 feature entry。",
+    },
+  });
   api.W = W;
   api.page = page;
   api.pages = Object.freeze({

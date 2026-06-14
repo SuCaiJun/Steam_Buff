@@ -77,6 +77,7 @@
       const uptime = Date.now() - this.metrics.startTime;
       const schedulerTasks = window.STScheduler?.getTasks?.() || {};
       const activeFeatures = window.STPageContext?.getActiveFeatures?.() || [];
+      const runtimeDiagnostics = window.STRuntime?.current?.()?.diagnostics?.() || null;
       const report = {
         ...this.metrics,
         timerCount: this.getTimerCount(),
@@ -90,6 +91,17 @@
         schedulerRunning: window.STScheduler?.running === true,
         schedulerTaskCount: Object.keys(schedulerTasks).length,
         schedulerTasks,
+        runtime: runtimeDiagnostics ? {
+          id: runtimeDiagnostics.id,
+          version: runtimeDiagnostics.version,
+          status: runtimeDiagnostics.status,
+          adapterCount: runtimeDiagnostics.adapters.length,
+          featureCount: runtimeDiagnostics.features.length,
+          resourceCount: runtimeDiagnostics.resources.length,
+          adapters: runtimeDiagnostics.adapters,
+          features: runtimeDiagnostics.features,
+          resources: runtimeDiagnostics.resources,
+        } : null,
       };
 
       return report;

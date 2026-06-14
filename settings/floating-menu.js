@@ -12,6 +12,7 @@
   "use strict";
 
   const api = globalThis.STSettings = globalThis.STSettings || {};
+  const runtime = globalThis.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
   const MARK = "steamBuffSettingsUi";
   const ROOT_ID = "st-settings-root";
   const RAIL_MIN_TOP = 24;
@@ -50,6 +51,19 @@
   function targetPage() {
     return location.protocol === "http:" || location.protocol === "https:";
   }
+
+  runtime?.registerAdapter?.({
+    id: "settings",
+    domain: "settings",
+    publicApi: "window.STSettings",
+    registry: "settings/catalog.js",
+    loadStrategy: "manifest-legacy",
+    legacy: true,
+    meta: {
+      entry: "settings/floating-menu.js",
+      migration: "P3 保留设置浮窗 content script，后续按打开动作加载面板。",
+    },
+  });
 
   function ready(fn) {
     if (document.readyState === "loading") {
@@ -274,6 +288,10 @@
     }
 
     document.documentElement.dataset[MARK] = "1";
+    runtime?.activateAdapter?.("settings", {
+      path: location.pathname,
+      topFrame: topFrame(),
+    });
     await globalThis.STI18n?.ready?.();
     await loadState();
     createDeps();
@@ -327,6 +345,15 @@
         openCatDataset: OPEN_CAT,
         openAckDataset: OPEN_ACK,
         reviewUpdateEvent: REVIEW_UPDATE_EVT,
+      },
+    });
+    runtime?.markFeature?.({
+      domain: "settings",
+      id: "floating-menu",
+      status: "started",
+      meta: {
+        activeCat,
+        path: location.pathname,
       },
     });
   }

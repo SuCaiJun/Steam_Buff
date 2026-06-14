@@ -64,6 +64,7 @@
 
   function cleanupInfrastructure() {
     try {
+      window.STRuntime?.current?.()?.disposeByOwnerPrefix?.("steam:");
       window.STScheduler?.stop?.();
     } catch {
     }

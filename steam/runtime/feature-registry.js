@@ -13,6 +13,18 @@
 
   const api = window.SteamBuff = window.SteamBuff || {};
   const log = window.STLoggerFactory.createLogger('steam', 'feature-registry');
+  const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
+
+  runtime?.registerAdapter?.({
+    id: "steam",
+    domain: "steam",
+    publicApi: "window.SteamBuff",
+    registry: "window.SteamBuff.reg",
+    loadStrategy: "runtime-feature-entry",
+    meta: {
+      entry: "steam/runtime/feature-registry.js",
+    },
+  });
 
   /**
    * @typedef {Object} FeatureDef
@@ -47,6 +59,24 @@
         return;
       }
       this.state.features.push(feature);
+      runtime?.registerFeature?.({
+        domain: "steam",
+        id: feature.id,
+        settingsKey: feature.settingsKey || feature.id,
+        loadStrategy: feature.loadStrategy || "on-demand-entry",
+        modes: this.toList(feature.modes).length
+          ? this.toList(feature.modes)
+          : Object.keys(feature.entries || (feature.entry ? { default: feature.entry } : {})),
+        pageScope: this.toList(feature.pageScope).length
+          ? this.toList(feature.pageScope)
+          : this.toList(feature.activeOn),
+        dependencies: this.toList(feature.dependencies),
+        cost: feature.cost || "normal",
+        dispose: true,
+        meta: {
+          entryCount: Object.keys(feature.entries || (feature.entry ? { default: feature.entry } : {})).length,
+        },
+      });
     }
 
     addEntry(id, entry, start) {
@@ -138,17 +168,52 @@
 
       const key = `${feature.id}:${context}:${entry}`;
       if (this.state.started.has(key)) {
+        runtime?.markFeature?.({
+          domain: "steam",
+          id: feature.id,
+          mode: context,
+          entry,
+          status: "skipped",
+          reason: "already-started",
+        });
         return { id: feature.id, context, entry, status: "skipped", reason: "already-started" };
       }
       if (this.state.starting.has(key)) {
+        runtime?.markFeature?.({
+          domain: "steam",
+          id: feature.id,
+          mode: context,
+          entry,
+          status: "skipped",
+          reason: "already-starting",
+        });
         return { id: feature.id, context, entry, status: "skipped", reason: "already-starting" };
       }
       if (!this.shouldStart(feature, context)) {
+        runtime?.markFeature?.({
+          domain: "steam",
+          id: feature.id,
+          mode: context,
+          entry,
+          status: "skipped",
+          reason: "context-mismatch",
+          meta: {
+            contexts: this.api.ctx?.contexts?.() || [],
+            targets: this.api.ctx?.targets?.() || [],
+          },
+        });
         return { id: feature.id, context, entry, status: "skipped", reason: "context-mismatch" };
       }
 
       // starting/started 防止 5 秒巡检和路由变化重复启动同一个上下文入口。
       this.state.starting.add(key);
+      runtime?.markFeature?.({
+        domain: "steam",
+        id: feature.id,
+        mode: context,
+        entry,
+        status: "loading",
+      });
       try {
         await this.loadEntry(feature, entry);
         const start = this.state.entries[feature.id]?.[entry];
@@ -158,19 +223,62 @@
             context,
             entry,
           });
+          runtime?.markFeature?.({
+            domain: "steam",
+            id: feature.id,
+            mode: context,
+            entry,
+            status: "failed",
+            reason: "entry-not-callable",
+          });
           return { id: feature.id, context, entry, status: "failed", reason: "entry-not-callable" };
         }
 
         const result = start(this.api, feature, context);
-        if (!result || result.started !== false || result.reason === "already-started") {
+        const started = !result || result.started !== false || result.reason === "already-started";
+        runtime?.markFeature?.({
+          domain: "steam",
+          id: feature.id,
+          mode: context,
+          entry,
+          status: started ? "started" : "skipped",
+          reason: result?.reason || "",
+          meta: {
+            hasStop: typeof result?.stop === "function",
+          },
+        });
+        if (result?.started !== false && typeof result?.stop === "function") {
+          runtime?.registerResource?.({
+            owner: `steam:${feature.id}:${context}`,
+            key: `${entry}:lifecycle`,
+            type: "feature-lifecycle",
+            dispose: result.stop,
+          });
+        }
+        if (started) {
           this.state.started.add(key);
         }
-        return { id: feature.id, context, entry, status: "started", result };
+        return {
+          id: feature.id,
+          context,
+          entry,
+          status: started ? "started" : "skipped",
+          reason: result?.reason || "",
+          result,
+        };
       } catch (error) {
         log.error("feature-start-failed", "Steam 客户端功能启动失败", {
           featureId: feature.id,
           context,
           entry,
+          error,
+        });
+        runtime?.markFeature?.({
+          domain: "steam",
+          id: feature.id,
+          mode: context,
+          entry,
+          status: "failed",
           error,
         });
         return { id: feature.id, context, entry, status: "failed", error: String(error) };
@@ -225,5 +333,5 @@
     }
   }
 
-  api.reg = new FeatureRegistry(api);
+  api.reg = Object.freeze(new FeatureRegistry(api));
 })();
