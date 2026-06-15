@@ -67,7 +67,7 @@ manifest.json       扩展入口、权限和脚本加载顺序
 
 ```powershell
 node --check path\to\file.js
-node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('manifest ok')"
+node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); process.stdout.write('manifest ok\n')"
 ```
 
 ## 第三方内容

@@ -168,6 +168,7 @@
     "shared/config.js",
     "extension/runtime/logger.js",
     "shared/logger-factory.js",
+    "shared/error-boundary.js",
     "shared/i18n.js",
     "shared/runtime/kernel.js",
     "settings/catalog.js",
@@ -229,6 +230,7 @@
     "store/runtime/styles.js",
     "extension/runtime/logger.js",
     "shared/logger-factory.js",
+    "shared/error-boundary.js",
     "store/runtime/feature-registry.js",
     "store/runtime/settings-gate.js",
     "store/runtime/url-watch.js",
@@ -1568,6 +1570,7 @@
           "extension/runtime/logger.js",
           "shared/logger-factory.js",
           "shared/config.js",
+          "shared/error-boundary.js",
           "shared/i18n.js",
           "shared/styles/theme.js",
           "shared/utils/dom.js",
@@ -1610,7 +1613,6 @@
         });
       }).catch((error) => {
         failCommunity();
-        console.error("[Steam Buff] 注入 Steam 社区经济增强失败", error);
         log({
           level: "error",
           domain: "community",
@@ -1683,6 +1685,7 @@
           "extension/runtime/logger.js",
           "shared/logger-factory.js",
           "shared/config.js",
+          "shared/error-boundary.js",
           "shared/i18n.js",
           "shared/styles/theme.js",
           "shared/utils/dom.js",
@@ -1712,7 +1715,6 @@
       })
       .catch((error) => {
         gd.fail();
-        console.error("[Steam Buff] 注入 Steam 运行时失败", error);
         log({
           level: "error",
           domain: "steam",

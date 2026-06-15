@@ -9,13 +9,13 @@
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
 (() => {
-  'use strict';
+  "use strict";
 
-  const MONITOR_VERSION = '2026-06-12';
+  const MONITOR_VERSION = "2026-06-15-p6-summary";
   const CPU_PRECISION = 1000;
 
   const existing = window.STPerformanceMonitor;
-  if (existing?.version === MONITOR_VERSION && typeof existing.printReport === 'function') {
+  if (existing?.version === MONITOR_VERSION && typeof existing.printReport === "function") {
     return;
   }
 
@@ -24,7 +24,6 @@
       this.version = MONITOR_VERSION;
       this.started = false;
       this.timerNames = new Set();
-      this.observerTargets = [];
       this.monitorCostMs = 0;
       this.metrics = {
         injectCount: 0,
@@ -36,17 +35,17 @@
     }
 
     start() {
-      // start() 只记录注入，不启动任何额外定时器，避免监控器本身污染性能指标。
+      // start() 只记录注入摘要，不启动任何额外定时器，避免监控器本身污染性能指标。
       if (this.started) {
         return this.getReport();
       }
 
       this.started = true;
-      this.recordInject(location.href);
+      this.recordInject();
       return this.getReport();
     }
 
-    recordInject(url) {
+    recordInject() {
       this.measure(() => {
         this.metrics.injectCount += 1;
       });
@@ -54,16 +53,14 @@
 
     recordTimer(name) {
       this.measure(() => {
-        const key = String(name || 'unknown');
+        const key = String(name || "unknown");
         this.timerNames.add(key);
         this.metrics.timerCount = this.getTimerCount();
       });
     }
 
-    recordObserver(target) {
+    recordObserver() {
       this.measure(() => {
-        const label = this.describeTarget(target);
-        this.observerTargets.push(label);
         this.metrics.observerCount += 1;
       });
     }
@@ -73,24 +70,22 @@
       this.metrics.activeFeatures = Number.isFinite(value) ? Math.max(0, value) : 0;
     }
 
-    getReport() {
+    getSummary() {
       const uptime = Date.now() - this.metrics.startTime;
       const schedulerTasks = window.STScheduler?.getTasks?.() || {};
       const activeFeatures = window.STPageContext?.getActiveFeatures?.() || [];
       const runtimeDiagnostics = window.STRuntime?.current?.()?.diagnostics?.() || null;
-      const report = {
-        ...this.metrics,
+      return {
+        injectCount: this.metrics.injectCount,
         timerCount: this.getTimerCount(),
         observerCount: this.metrics.observerCount,
-        observerTargets: this.observerTargets.slice(),
-        activeFeatures,
         activeFeatureCount: activeFeatures.length,
+        startTime: this.metrics.startTime,
         uptimeMs: uptime,
         uptimeMin: Math.floor(uptime / 60000),
         cpuUsage: this.getCpuUsage(uptime),
         schedulerRunning: window.STScheduler?.running === true,
         schedulerTaskCount: Object.keys(schedulerTasks).length,
-        schedulerTasks,
         runtime: runtimeDiagnostics ? {
           id: runtimeDiagnostics.id,
           version: runtimeDiagnostics.version,
@@ -98,17 +93,27 @@
           adapterCount: runtimeDiagnostics.adapters.length,
           featureCount: runtimeDiagnostics.features.length,
           resourceCount: runtimeDiagnostics.resources.length,
-          adapters: runtimeDiagnostics.adapters,
-          features: runtimeDiagnostics.features,
-          resources: runtimeDiagnostics.resources,
+          errorCount: runtimeDiagnostics.errors.length,
         } : null,
       };
+    }
 
-      return report;
+    getReport() {
+      return this.getSummary();
+    }
+
+    getDetails() {
+      const schedulerTasks = window.STScheduler?.getTasks?.() || {};
+      return {
+        ...this.getSummary(),
+        activeFeatures: window.STPageContext?.getActiveFeatures?.() || [],
+        schedulerTasks,
+        runtimeDetails: window.STRuntime?.current?.()?.diagnostics?.() || null,
+      };
     }
 
     printReport() {
-      const report = this.getReport();
+      const report = this.getSummary();
       const summary = {
         injectCount: report.injectCount,
         timerCount: report.timerCount,
@@ -133,7 +138,7 @@
 
     getCpuUsage(uptime) {
       if (!uptime) {
-        return '0.000%';
+        return "0.000%";
       }
       // 刚启动时 uptime 可能只有几毫秒，至少用 1 秒窗口估算，避免瞬时百分比误导判断。
       const effectiveUptime = Math.max(1000, uptime);
@@ -148,24 +153,6 @@
       } finally {
         this.monitorCostMs += performance.now() - startedAt;
       }
-    }
-
-    describeTarget(target) {
-      if (!target) {
-        return 'unknown';
-      }
-      if (target === document.documentElement) {
-        return 'documentElement';
-      }
-      if (target === document.body) {
-        return 'body';
-      }
-      const tagName = String(target.tagName || target.nodeName || 'node').toLowerCase();
-      const id = target.id ? `#${target.id}` : '';
-      const className = typeof target.className === 'string'
-        ? `.${target.className.trim().split(/\s+/u).filter(Boolean).slice(0, 3).join('.')}`
-        : '';
-      return `${tagName}${id}${className}`;
     }
   }
 

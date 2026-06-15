@@ -11,9 +11,13 @@
 (function() {
     try {
         window.GDynamicStore?.InvalidateCache?.();
-    } catch (error) {}
+    } catch (error) {
+      void error;
+    }
 
     try {
         window.StoreItemCache?.ResetCache?.();
-    } catch (error) {}
+    } catch (error) {
+      void error;
+    }
 })();

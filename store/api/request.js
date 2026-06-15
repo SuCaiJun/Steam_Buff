@@ -74,6 +74,18 @@
           try {
             resolve(JSON.parse(response.data));
           } catch (error) {
+            globalThis.STErrorBoundary?.capture?.(error, {
+              domain: "store",
+              feature: config.messageType || "store-request",
+              phase: "data-parse",
+              event: "api-response-parse-failed",
+              message: "商店页响应解析失败",
+              userMessage: "数据解析失败，请稍后重试",
+              meta: {
+                status: Number(response.status) || 0,
+                url: safeLogUrl(config.url),
+              },
+            });
             logNetwork(config, "request-failed", "商店页响应解析失败", error, response.status, startedAt);
             reject(error);
           }

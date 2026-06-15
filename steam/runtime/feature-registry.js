@@ -258,11 +258,22 @@
         await this.loadEntry(feature, entry);
         const start = this.state.entries[feature.id]?.[entry];
         if (typeof start !== "function") {
-          log.error("feature-start-failed", "Steam 客户端功能入口不可调用", {
-            featureId: feature.id,
-            context,
-            entry,
+          const captured = window.STErrorBoundary?.capture?.(new Error("Steam 客户端功能入口不可调用"), {
+            domain: "steam",
+            feature: feature.id,
+            phase: "feature-mount",
+            event: "feature-start-failed",
+            message: "Steam 客户端功能入口不可调用",
+            userMessage: "Steam 客户端功能暂时不可用，其他功能已继续加载",
+            meta: { context, entry },
           });
+          if (!captured) {
+            log.error("feature-start-failed", "Steam 客户端功能入口不可调用", {
+              featureId: feature.id,
+              context,
+              entry,
+            });
+          }
           runtime?.markFeature?.({
             domain: "steam",
             id: feature.id,
@@ -308,12 +319,23 @@
           result,
         };
       } catch (error) {
-        log.error("feature-start-failed", "Steam 客户端功能启动失败", {
-          featureId: feature.id,
-          context,
-          entry,
-          error,
+        const captured = window.STErrorBoundary?.capture?.(error, {
+          domain: "steam",
+          feature: feature.id,
+          phase: "feature-mount",
+          event: "feature-start-failed",
+          message: "Steam 客户端功能启动失败",
+          userMessage: "Steam 客户端功能启动失败，其他功能已继续运行",
+          meta: { context, entry },
         });
+        if (!captured) {
+          log.error("feature-start-failed", "Steam 客户端功能启动失败", {
+            featureId: feature.id,
+            context,
+            entry,
+            error,
+          });
+        }
         runtime?.markFeature?.({
           domain: "steam",
           id: feature.id,

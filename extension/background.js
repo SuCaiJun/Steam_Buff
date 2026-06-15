@@ -43,6 +43,7 @@
     "extension/runtime/injector.js",
     "extension/runtime/logger.js",
     "shared/logger-factory.js",
+    "shared/error-boundary.js",
     "shared/runtime/kernel.js",
     "extension/content.js",
   ]);

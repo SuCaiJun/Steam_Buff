@@ -198,8 +198,8 @@
             }
         }
 
-        try { window.GDynamicStore?.InvalidateCache?.(); } catch (error) {}
-        try { window.StoreItemCache?.ResetCache?.(); } catch (error) {}
+        try { window.GDynamicStore?.InvalidateCache?.(); } catch (error) { void error; }
+        try { window.StoreItemCache?.ResetCache?.(); } catch (error) { void error; }
         emit({ type: 'done', batchId, total: items.length, results });
     }
 

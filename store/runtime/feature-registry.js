@@ -13,6 +13,7 @@
 
   const api = window.STStore = window.STStore || {};
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
+  const log = window.STLoggerFactory.createLogger("store", "feature-registry");
 
   runtime?.registerAdapter?.({
     id: "store",
@@ -81,13 +82,26 @@
           });
           results.push({ id: feature.id, status: "started", result });
         } catch (error) {
-          globalThis.STLogger?.error?.({
+          const captured = globalThis.STErrorBoundary?.capture?.(error, {
             domain: "store",
             feature: feature.id,
+            phase: "feature-mount",
             event: "feature-start-failed",
             message: "商店页功能启动失败",
-            error,
+            userMessage: "商店增强功能启动失败，其他功能已继续加载",
+            meta: {
+              path: location.pathname,
+            },
           });
+          if (!captured) {
+            globalThis.STLogger?.error?.({
+              domain: "store",
+              feature: feature.id,
+              event: "feature-start-failed",
+              message: "商店页功能启动失败",
+              error,
+            });
+          }
           runtime?.markFeature?.({
             domain: "store",
             id: feature.id,
@@ -105,18 +119,12 @@
     logSummary(results) {
       const list = Array.isArray(results) ? results : [];
       try {
-        globalThis.STLogger?.info?.({
-          domain: "store",
-          feature: "feature-registry",
-          event: "features-start-summary",
-          message: "商店页功能启动摘要",
-          meta: {
-            total: list.length,
-            started: list.filter(item => item.status === "started").length,
-            skipped: list.filter(item => item.status === "skipped").length,
-            failed: list.filter(item => item.status === "failed").length,
-            path: location.pathname,
-          },
+        log.info("features-start-summary", "商店页功能启动摘要", {
+          total: list.length,
+          started: list.filter(item => item.status === "started").length,
+          skipped: list.filter(item => item.status === "skipped").length,
+          failed: list.filter(item => item.status === "failed").length,
+          path: location.pathname,
         });
       } catch {
       }

@@ -87,7 +87,9 @@
 
         try {
             await refreshUserData();
-        } catch (error) {}
+        } catch (error) {
+          void error;
+        }
 
         // Steam 的 DLC 在库/愿望单角标由主上下文的 GDynamicStore 异步补齐。
         window.GDynamicStore.DecorateDynamicItems(window.$J(section), true);
@@ -99,7 +101,9 @@
             try {
                 const section = document.querySelector('.game_area_dlc_section');
                 window.GDynamicStore?.DecorateDynamicItems?.(window.$J(section), true);
-            } catch (error) {}
+            } catch (error) {
+              void error;
+            }
             done(false);
         });
     } catch (error) {

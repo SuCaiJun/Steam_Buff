@@ -18,7 +18,15 @@
   function parseJson(text, message = "官网接口返回解析失败") {
     try {
       return JSON.parse(text || "{}");
-    } catch {
+    } catch (error) {
+      root.STErrorBoundary?.capture?.(error, {
+        domain: "settings",
+        feature: "api-request",
+        phase: "data-parse",
+        event: "api-response-parse-failed",
+        message: "设置中心接口返回解析失败",
+        userMessage: "数据解析失败，请稍后重试",
+      });
       throw new Error(message);
     }
   }

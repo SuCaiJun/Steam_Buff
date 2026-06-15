@@ -26,12 +26,22 @@
     maxAgeMs: 7 * 24 * 60 * 60 * 1000,
     messageMax: 1000,
     metaMax: 4 * 1024,
+    quietEvents: [
+      "content-script-start",
+      "runtime-deps-waiting",
+      "runtime-start",
+      "runtime-ready",
+      "runtime-waiting",
+      "runtime-skipped",
+      "features-start-summary",
+    ],
   });
   const LEVELS = Object.freeze(new Set(["debug", "info", "warn", "error", "fatal", "network"]));
   const QUERY_ALLOW = Object.freeze(new Set(["appid", "appids", "subid", "bundleid", "id", "cc"]));
   const SENSITIVE = /^(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|body|requestbody|responsebody|responsetext|requestdata|data|headers)$/i;
   const SETTINGS_SENSITIVE = /^(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|secret|apikey|api_key|key)$/i;
   const SENSITIVE_WORD = /(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|bearer)\s*[:=]?\s*[^,\s;]*/gi;
+  const QUIET_INFO_EVENT = /^(?:content-script-start|runtime-deps-waiting|runtime-(?:start|ready|waiting|skipped)|features-start-summary|.+-runtime-inject-(?:start|success|skipped)|.+-page-script-inject-(?:start|success))$/u;
   const BJ_OFFSET_MS = 8 * 60 * 60 * 1000;
 
   // chrome.storage.local 没有原子更新能力，所有读改写和清空必须串行。
@@ -542,6 +552,13 @@
     };
   }
 
+  function shouldStore(item) {
+    if (!item || item.meta?.diagnostic === true) {
+      return true;
+    }
+    return !(item.level === "info" && QUIET_INFO_EVENT.test(String(item.event || "")));
+  }
+
   function enqueueStorage(job) {
     const task = storageQueue
       .catch(() => null)
@@ -553,9 +570,14 @@
   async function appendNow(input, sender = null) {
     const box = await getBox();
     const fallback = await getFallbackLogs().catch(() => []);
+    const entry = normalize(input, sender);
+    const merged = mergeLogs(Array.isArray(box.logs) ? box.logs : [], fallback);
+    if (!shouldStore(entry)) {
+      return statsFrom(compact(merged));
+    }
     const logs = compact([
-      ...mergeLogs(Array.isArray(box.logs) ? box.logs : [], fallback),
-      normalize(input, sender),
+      ...merged,
+      entry,
     ]);
     const next = {
       version: POLICY.version,

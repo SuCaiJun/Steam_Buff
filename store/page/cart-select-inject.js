@@ -109,7 +109,9 @@
     try {
       const config = JSON.parse(document.documentElement.dataset.config || "{}");
       if (config.COUNTRY) return String(config.COUNTRY).toUpperCase();
-    } catch (error) {}
+    } catch (error) {
+      void error;
+    }
 
     const match = document.cookie.match(/steamCountry=([a-zA-Z]{2})/);
     return match ? match[1].toUpperCase() : "CN";

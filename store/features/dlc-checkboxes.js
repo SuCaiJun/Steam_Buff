@@ -376,7 +376,9 @@ function clearApiCache() {
         }
 
         localStorage.removeItem('steam_helper_api_cache');
-    } catch (error) {}
+    } catch (error) {
+      void error;
+    }
 }
 
 async function refreshDLCPageCache(button) {

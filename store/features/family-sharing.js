@@ -77,7 +77,7 @@ function addFamilySharingNotice(appId, protocol) {
                 placeholderElement.parentNode.replaceChild(familySharingContainer, placeholderElement);
             }
         }
-    }).catch(function() {});
+    }).catch(() => null);
 }
 
   api.features.familySharing = Object.freeze({

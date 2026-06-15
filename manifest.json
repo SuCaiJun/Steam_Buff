@@ -73,6 +73,7 @@
         "extension/runtime/injector.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
+        "shared/error-boundary.js",
         "shared/runtime/kernel.js",
         "extension/content.js"
       ],
@@ -94,6 +95,7 @@
         "extension/runtime/injector.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
+        "shared/error-boundary.js",
         "extension/content.js"
       ],
       "run_at": "document_start",
@@ -109,6 +111,7 @@
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "shared/config.js",
+        "shared/error-boundary.js",
         "shared/i18n.js",
         "shared/performance-monitor.js",
         "extension/content.js"
@@ -122,6 +125,7 @@
       "js": [
         "shared/styles/theme.js",
         "shared/logger-factory.js",
+        "shared/error-boundary.js",
         "shared/errors.js",
         "shared/utils/dom.js",
         "shared/utils/format.js",
@@ -139,6 +143,7 @@
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "shared/config.js",
+        "shared/error-boundary.js",
         "shared/i18n.js",
         "store/features/review-filter-core.js",
         "store/features/review-filter.js",
@@ -155,6 +160,7 @@
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "shared/config.js",
+        "shared/error-boundary.js",
         "shared/i18n.js",
         "store/features/cart-select-checkout.js"
       ],
@@ -175,6 +181,7 @@
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "steam/shared/constants.js",
+        "shared/error-boundary.js",
         "shared/styles/theme.js",
         "shared/utils/dom.js",
         "steam/runtime/paths.js",
@@ -214,6 +221,7 @@
         "shared/runtime/kernel.js",
         "_locales/*/messages.json",
         "shared/logger-factory.js",
+        "shared/error-boundary.js",
         "community/runtime/*.js",
         "extension/runtime/logger.js",
         "community/domain/*.js",
