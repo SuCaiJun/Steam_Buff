@@ -33,7 +33,8 @@
         durationMs: Date.now() - startedAt,
         error,
       });
-    } catch {
+    } catch (logError) {
+      void logError;
     }
   }
 

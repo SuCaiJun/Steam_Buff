@@ -75,6 +75,10 @@
       const schedulerTasks = window.STScheduler?.getTasks?.() || {};
       const activeFeatures = window.STPageContext?.getActiveFeatures?.() || [];
       const runtimeDiagnostics = window.STRuntime?.current?.()?.diagnostics?.() || null;
+      const runtimeAdapters = Array.isArray(runtimeDiagnostics?.adapters) ? runtimeDiagnostics.adapters : [];
+      const runtimeFeatures = Array.isArray(runtimeDiagnostics?.features) ? runtimeDiagnostics.features : [];
+      const runtimeResources = Array.isArray(runtimeDiagnostics?.resources) ? runtimeDiagnostics.resources : [];
+      const runtimeErrors = Array.isArray(runtimeDiagnostics?.errors) ? runtimeDiagnostics.errors : [];
       return {
         injectCount: this.metrics.injectCount,
         timerCount: this.getTimerCount(),
@@ -90,10 +94,10 @@
           id: runtimeDiagnostics.id,
           version: runtimeDiagnostics.version,
           status: runtimeDiagnostics.status,
-          adapterCount: runtimeDiagnostics.adapters.length,
-          featureCount: runtimeDiagnostics.features.length,
-          resourceCount: runtimeDiagnostics.resources.length,
-          errorCount: runtimeDiagnostics.errors.length,
+          adapterCount: runtimeAdapters.length,
+          featureCount: runtimeFeatures.length,
+          resourceCount: runtimeResources.length,
+          errorCount: runtimeErrors.length,
         } : null,
       };
     }

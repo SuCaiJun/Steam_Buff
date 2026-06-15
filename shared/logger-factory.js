@@ -65,7 +65,16 @@
   }
 
   function toSet(value) {
-    return new Set(Array.isArray(value) ? value.map(item => String(item || "").trim()).filter(Boolean) : []);
+    const list = Array.isArray(value) ? value : (value ? [value] : []);
+    return new Set(list.map(item => String(item || "").trim()).filter(Boolean));
+  }
+
+  function mergeSet(...values) {
+    const merged = new Set();
+    values.forEach((value) => {
+      toSet(value).forEach((item) => merged.add(item));
+    });
+    return merged;
   }
 
   function normalizeLevel(value, fallback = "info") {
@@ -83,8 +92,8 @@
       console: raw.console === true,
       background: raw.background !== false,
       exposeDebug: raw.exposeDebug === true || raw.debug === true,
-      domains: toSet(raw.domains),
-      features: toSet(raw.features),
+      domains: mergeSet(raw.domains, raw.domain),
+      features: mergeSet(raw.features, raw.feature),
       levels: toSet(raw.levels),
       minLevel,
       sampleEvery: Number.isFinite(sampleEvery) && sampleEvery > 1
@@ -371,9 +380,21 @@
    * @returns {Object} 当前诊断配置快照。
    */
   function configureDiagnostics(options = {}) {
-    diagnostics = normalizeDiagnostics({
+    const rawOptions = options && typeof options === "object" ? options : {};
+    const nextOptions = {
       ...diagnosticSnapshot(),
-      ...(options || {}),
+      ...rawOptions,
+    };
+    if (Object.prototype.hasOwnProperty.call(rawOptions, "domain")
+      && !Object.prototype.hasOwnProperty.call(rawOptions, "domains")) {
+      nextOptions.domains = rawOptions.domain;
+    }
+    if (Object.prototype.hasOwnProperty.call(rawOptions, "feature")
+      && !Object.prototype.hasOwnProperty.call(rawOptions, "features")) {
+      nextOptions.features = rawOptions.feature;
+    }
+    diagnostics = normalizeDiagnostics({
+      ...nextOptions,
     });
     refreshDebugApi();
     return diagnosticSnapshot();

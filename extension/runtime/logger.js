@@ -84,7 +84,8 @@
           void chrome.runtime?.lastError;
         });
       });
-    } catch {
+    } catch (error) {
+      void error;
     }
   }
 
@@ -112,11 +113,13 @@
         });
         return;
       }
-    } catch {
+    } catch (error) {
+      void error;
     }
     try {
       root.postMessage({ type: EVENT, entry }, "*");
-    } catch {
+    } catch (error) {
+      void error;
     }
   }
 
