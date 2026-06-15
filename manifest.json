@@ -12,14 +12,34 @@
     "48": "images/icon.png",
     "128": "images/icon.png"
   },
+  "action": {
+    "default_title": "__MSG_extName__",
+    "default_icon": {
+      "16": "images/icon.png",
+      "32": "images/icon.png",
+      "48": "images/icon.png",
+      "128": "images/icon.png"
+    }
+  },
   "permissions": [
     "scripting",
     "tabs",
     "storage",
-    "alarms"
+    "alarms",
+    "activeTab"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "https://steamloopback.host/*",
+    "https://store.steampowered.com/*",
+    "https://checkout.steampowered.com/*",
+    "https://steamcommunity.com/*",
+    "https://api.steampowered.com/*",
+    "https://api.augmentedsteam.com/*",
+    "https://steampy.com/*",
+    "https://www.sucaijun.com/*",
+    "https://api.sucaijun.com/*",
+    "https://aligueler.com/*",
+    "https://steam-buff.ai.sucaijun.com/*"
   ],
   "background": {
     "service_worker": "extension/background.js"
@@ -49,55 +69,17 @@
         "https://*/*"
       ],
       "js": [
-        "ai/config.js",
         "shared/config.js",
+        "extension/runtime/injector.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
-        "shared/i18n.js",
         "shared/runtime/kernel.js",
-        "settings/catalog.js",
-        "settings/membership.js",
-        "settings/storage.js",
-        "settings/api/request.js",
-        "settings/update-log-renderer.js",
-        "settings/update-checker.js",
-        "settings/settings-backup.js",
-        "settings/pages/registry.js",
-        "settings/pages/about.js",
-        "settings/update-reminder.js",
-        "settings/pages/account/style.js",
-        "settings/pages/account/state.js",
-        "settings/pages/account/api.js",
-        "settings/pages/account/auth.js",
-        "settings/pages/account/device-login.js",
-        "settings/pages/account/center.js",
-        "settings/pages/account/view.js",
-        "settings/pages/account/actions.js",
-        "settings/pages/account.js",
-        "settings/startup-animation.js",
-        "settings/ui/html.js",
-        "settings/ui/assets.js",
-        "settings/ui/styles.js",
-        "settings/ui/dialogs.js",
-        "settings/ui/toast.js",
-        "settings/ui/fields.js",
-        "settings/ui/feature-row.js",
-        "settings/panels/review-filter.js",
-        "settings/panels/search-suggestions.js",
-        "settings/panels/see.js",
-        "settings/panels/ai.js",
-        "settings/panels/translate.js",
-        "settings/menu/dependencies.js",
-        "settings/menu/panels.js",
-        "settings/menu/shell.js",
-        "settings/menu/controller.js",
-        "settings/menu/events.js",
-        "settings/floating-menu.js"
+        "extension/content.js"
       ],
-      "run_at": "document_start",
-      "all_frames": false,
+      "run_at": "document_end",
       "exclude_matches": [
-        "https://steamloopback.host/*"
+        "https://steamloopback.host/*",
+        "https://steamcommunity.com/*"
       ]
     },
     {
@@ -131,8 +113,7 @@
         "shared/performance-monitor.js",
         "extension/content.js"
       ],
-      "run_at": "document_start",
-      "all_frames": false
+      "run_at": "document_end"
     },
     {
       "matches": [
@@ -148,62 +129,6 @@
         "store/features/age-gate-skip.js"
       ],
       "run_at": "document_start"
-    },
-    {
-      "matches": [
-        "https://store.steampowered.com/*"
-      ],
-      "js": [
-        "shared/styles/theme.js",
-        "shared/errors.js",
-        "shared/utils/dom.js",
-        "shared/utils/format.js",
-        "shared/performance-monitor.js",
-        "shared/scheduler.js",
-        "shared/observer-utils.js",
-        "shared/runtime/kernel.js",
-        "store/runtime/config.js",
-        "store/runtime/context.js",
-        "store/runtime/cache.js",
-        "store/runtime/assets.js",
-        "store/runtime/format.js",
-        "store/runtime/dom.js",
-        "store/runtime/styles.js",
-        "extension/runtime/logger.js",
-        "shared/logger-factory.js",
-        "store/runtime/feature-registry.js",
-        "store/runtime/settings-gate.js",
-        "store/runtime/url-watch.js",
-        "store/runtime/purchase-recover.js",
-        "shared/config.js",
-        "shared/i18n.js",
-        "shared/auth-client.js",
-        "store/api/request.js",
-        "store/api/subscription-info.js",
-        "store/features/price-history.js",
-        "store/features/wishlist-price-history-core.js",
-        "store/features/wishlist-price-history.js",
-        "store/features/steampy-deals.js",
-        "store/features/audio-check.js",
-        "store/features/family-sharing.js",
-        "store/features/drm-warning.js",
-        "store/features/subscription-info.js",
-        "store/features/dlc-bridge.js",
-        "store/features/dlc-scan.js",
-        "store/features/dlc-checkboxes.js",
-        "store/features/cart-select.js",
-        "store/features/review-filter-core.js",
-        "store/features/review-filter.js",
-        "store/features/search-suggestions.js",
-        "store/features/wishlist-dom.js",
-        "store/features/title-custom-name.js",
-        "store/features/game-notes.js",
-        "store/features/purchase-history-classifier.user.js",
-        "store/features/purchase-history-classifier.js",
-        "store/features/features.js",
-        "store/main.js"
-      ],
-      "run_at": "document_end"
     },
     {
       "matches": [
@@ -283,6 +208,8 @@
         "shared/config.js",
         "shared/i18n.js",
         "shared/performance-monitor.js",
+        "shared/styles/theme.js",
+        "shared/utils/dom.js",
         "shared/observer-utils.js",
         "shared/runtime/kernel.js",
         "_locales/*/messages.json",

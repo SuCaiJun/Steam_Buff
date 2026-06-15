@@ -15,6 +15,11 @@
   const RUN_VERSION = "steam-runtime-scope-20260614-p3-runtime-kernel";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
+  const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
+  const SETTINGS_LOAD_MARK = "__steamBuffSettingsChunk";
+  const SETTINGS_LOAD_PENDING = `${SETTINGS_LOAD_MARK}:pending`;
+  const STORE_LOAD_MARK = "__steamBuffStoreChunk";
+  const STORE_LOAD_PENDING = `${STORE_LOAD_MARK}:pending`;
   const STEAM_TITLE_WAIT_MS = 100;
   const STEAM_TITLE_WAIT_MAX = 80;
   const STEAM_TITLE_WAIT_TRIES = "__steamBuffTitleWaitTries";
@@ -22,6 +27,10 @@
     "steamloopback.host",
     "store.steampowered.com",
     "steamcommunity.com",
+  ]);
+  const LIGHT_BOOT_PAGES = Object.freeze([
+    "http:",
+    "https:",
   ]);
   const EXCLUDED_PAGES = Object.freeze([
     "about:blank",
@@ -93,6 +102,13 @@
     return true;
   }
 
+  function shouldLightBoot() {
+    return window === window.top &&
+      document.documentElement &&
+      LIGHT_BOOT_PAGES.includes(location.protocol) &&
+      !MATCH.isSteamLoopbackHost(location.hostname);
+  }
+
   function shouldCleanupExcludedSteamRuntime() {
     const title = document.title || "";
     return location.hostname === "steamloopback.host" ||
@@ -147,6 +163,141 @@
     "market-tools",
   ]);
   const ALL_SETTING_IDS = Object.freeze([...STEAM_SETTING_IDS, ...COMMUNITY_SETTING_IDS]);
+  const SETTINGS_SHARED_SCRIPTS = Object.freeze([
+    "ai/config.js",
+    "shared/config.js",
+    "extension/runtime/logger.js",
+    "shared/logger-factory.js",
+    "shared/i18n.js",
+    "shared/runtime/kernel.js",
+    "settings/catalog.js",
+    "settings/membership.js",
+    "settings/storage.js",
+  ]);
+  const SETTINGS_UI_SCRIPTS = Object.freeze([
+    "settings/api/request.js",
+    "settings/update-log-renderer.js",
+    "settings/update-checker.js",
+    "settings/settings-backup.js",
+    "settings/pages/registry.js",
+    "settings/pages/about.js",
+    "settings/update-reminder.js",
+    "settings/pages/account/style.js",
+    "settings/pages/account/state.js",
+    "settings/pages/account/api.js",
+    "settings/pages/account/auth.js",
+    "settings/pages/account/device-login.js",
+    "settings/pages/account/center.js",
+    "settings/pages/account/view.js",
+    "settings/pages/account/actions.js",
+    "settings/pages/account.js",
+    "settings/startup-animation.js",
+    "settings/ui/html.js",
+    "settings/ui/assets.js",
+    "settings/ui/styles.js",
+    "settings/ui/dialogs.js",
+    "settings/ui/toast.js",
+    "settings/ui/fields.js",
+    "settings/ui/feature-row.js",
+    "settings/panels/review-filter.js",
+    "settings/panels/search-suggestions.js",
+    "settings/panels/see.js",
+    "settings/panels/ai.js",
+    "settings/panels/translate.js",
+    "settings/menu/dependencies.js",
+    "settings/menu/panels.js",
+    "settings/menu/shell.js",
+    "settings/menu/controller.js",
+    "settings/menu/events.js",
+    "settings/floating-menu.js",
+  ]);
+  const STORE_BASE_SCRIPTS = Object.freeze([
+    "shared/styles/theme.js",
+    "shared/errors.js",
+    "shared/utils/dom.js",
+    "shared/utils/format.js",
+    "shared/performance-monitor.js",
+    "shared/scheduler.js",
+    "shared/observer-utils.js",
+    "shared/runtime/kernel.js",
+    "store/runtime/config.js",
+    "store/runtime/context.js",
+    "store/runtime/cache.js",
+    "store/runtime/assets.js",
+    "store/runtime/format.js",
+    "store/runtime/dom.js",
+    "store/runtime/styles.js",
+    "extension/runtime/logger.js",
+    "shared/logger-factory.js",
+    "store/runtime/feature-registry.js",
+    "store/runtime/settings-gate.js",
+    "store/runtime/url-watch.js",
+    "store/runtime/purchase-recover.js",
+    "shared/config.js",
+    "shared/i18n.js",
+    "shared/auth-client.js",
+    "settings/catalog.js",
+    "settings/membership.js",
+    "settings/storage.js",
+    "settings/ui/html.js",
+    "settings/ui/styles.js",
+    "settings/ui/dialogs.js",
+    "settings/ui/toast.js",
+    "store/api/request.js",
+  ]);
+  const STORE_FEATURE_CHUNKS = Object.freeze({
+    details: Object.freeze([
+      "store/api/subscription-info.js",
+      "store/features/price-history.js",
+      "store/features/steampy-deals.js",
+      "store/features/audio-check.js",
+      "store/features/family-sharing.js",
+      "store/features/drm-warning.js",
+      "store/features/subscription-info.js",
+      "store/features/dlc-bridge.js",
+      "store/features/dlc-scan.js",
+      "store/features/dlc-checkboxes.js",
+      "store/features/cart-select.js",
+      "store/features/review-filter-core.js",
+      "store/features/review-filter.js",
+      "store/features/search-suggestions.js",
+      "store/features/wishlist-dom.js",
+      "store/features/title-custom-name.js",
+      "store/features/game-notes.js",
+    ]),
+    wishlist: Object.freeze([
+      "store/features/wishlist-price-history-core.js",
+      "store/features/wishlist-price-history.js",
+      "store/features/review-filter-core.js",
+      "store/features/search-suggestions.js",
+      "store/features/wishlist-dom.js",
+      "store/features/title-custom-name.js",
+      "store/features/game-notes.js",
+    ]),
+    search: Object.freeze([
+      "store/api/subscription-info.js",
+      "store/features/review-filter-core.js",
+      "store/features/search-suggestions.js",
+      "store/features/subscription-info.js",
+      "store/features/game-notes.js",
+    ]),
+    cart: Object.freeze([
+      "store/features/cart-select.js",
+    ]),
+    history: Object.freeze([
+      "store/features/purchase-history-classifier.user.js",
+      "store/features/purchase-history-classifier.js",
+    ]),
+    other: Object.freeze([
+      "store/features/review-filter-core.js",
+      "store/features/search-suggestions.js",
+      "store/features/game-notes.js",
+    ]),
+  });
+  const STORE_START_SCRIPTS = Object.freeze([
+    "store/features/features.js",
+    "store/main.js",
+  ]);
   const SEEN_NAME_MAX = 200;
   const BOOT_MS = 250;
   const BOOT_MAX = 480;
@@ -275,6 +426,216 @@
       typeof globalThis.STGuard.ok === "function" &&
       typeof globalThis.STGuard.lock === "function" &&
       typeof globalThis.STInject?.inject === "function";
+  }
+
+  function uniquePaths(paths) {
+    return Array.from(new Set((paths || []).filter(Boolean)));
+  }
+
+  function settingsReady() {
+    return !!globalThis.STSettings?.catalog &&
+      !!globalThis.STSettings?.storage &&
+      !!globalThis.STSettingsMembership;
+  }
+
+  function injectPaths(paths) {
+    const inj = globalThis.STInject;
+    if (!inj?.inject) {
+      return Promise.reject(new Error("动态注入器未就绪"));
+    }
+    return inj.inject(uniquePaths(paths));
+  }
+
+  function injectContentFiles(paths) {
+    const files = uniquePaths(paths);
+    if (!files.length) {
+      return Promise.resolve({ success: true });
+    }
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.runtime.sendMessage({
+          type: "CONTENT_FILES_INJECT",
+          files,
+        }, (response) => {
+          const err = chrome.runtime.lastError;
+          if (err) {
+            reject(new Error(err.message || "内容脚本按需注入请求失败"));
+            return;
+          }
+          if (!response?.success) {
+            reject(new Error(response?.error || "内容脚本按需注入失败"));
+            return;
+          }
+          resolve(response);
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  function activateLightRuntime(domain, meta = {}) {
+    try {
+      const rt = globalThis.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
+      rt?.registerAdapter?.({
+        id: domain,
+        domain,
+        publicApi: domain === "settings" ? "window.STSettings" : "window.STStore",
+        registry: "extension/content.js",
+        loadStrategy: "content-script-light-boot",
+        meta: {
+          entry: "extension/content.js",
+          ...meta,
+        },
+      });
+    } catch {
+    }
+  }
+
+  async function ensureSettingsShared() {
+    if (settingsReady()) {
+      return true;
+    }
+    await injectContentFiles(SETTINGS_SHARED_SCRIPTS);
+    return settingsReady();
+  }
+
+  async function loadSettingsUi(reason = "manual-open") {
+    if (globalThis[SETTINGS_LOAD_MARK] === "ready") {
+      return true;
+    }
+    if (globalThis[SETTINGS_LOAD_MARK] === SETTINGS_LOAD_PENDING) {
+      return false;
+    }
+    globalThis[SETTINGS_LOAD_MARK] = SETTINGS_LOAD_PENDING;
+    try {
+      await ensureSettingsShared();
+      await injectContentFiles(SETTINGS_UI_SCRIPTS);
+      globalThis[SETTINGS_LOAD_MARK] = "ready";
+      activateLightRuntime("settings", {
+        reason,
+        loadStrategy: "runtime-on-open",
+      });
+      return true;
+    } catch (error) {
+      globalThis[SETTINGS_LOAD_MARK] = "";
+      log({
+        level: "error",
+        domain: "settings",
+        feature: "settings-loader",
+        event: "settings-runtime-inject-failed",
+        message: "设置中心按需加载失败",
+        error,
+        meta: pageMeta({ reason }),
+      });
+      throw error;
+    }
+  }
+
+  function openSettings(category = "") {
+    loadSettingsUi("manual-open")
+      .then(() => {
+        const el = root();
+        if (!el) {
+          return;
+        }
+        if (category) {
+          el.dataset.steamBuffOpenCat = String(category);
+        }
+        el.dispatchEvent(new CustomEvent("STSettingsOpen"));
+      })
+      .catch(() => {});
+  }
+
+  function bindSettingsOpenMessage() {
+    try {
+      chrome.runtime.onMessage.addListener((request) => {
+        if (request?.type !== SETTINGS_OPEN_MESSAGE) {
+          return false;
+        }
+        openSettings(request.category || "");
+        return false;
+      });
+    } catch {
+    }
+  }
+
+  function runLightBoot() {
+    if (!shouldLightBoot()) {
+      return;
+    }
+    watchPageLog();
+    bindSettingsOpenMessage();
+    activateLightRuntime("settings", {
+      loadStrategy: "content-script-light-boot",
+    });
+    if (MATCH.isSteamStoreHost(location.hostname)) {
+      loadStoreRuntime().catch(() => {});
+    }
+  }
+
+  function storePageType() {
+    const path = location.pathname || "";
+    if (/^\/(app|sub|bundle)\//i.test(path)) return "details";
+    if (/^\/agecheck\/(app|sub|bundle)\//i.test(path)) return "age";
+    if (/^\/wishlist(?:\/|$)/i.test(path)) return "wishlist";
+    if (/^\/search(?:\/|$)/i.test(path)) return "search";
+    if (/^\/cart\/?$/i.test(path)) return "cart";
+    if (/^\/account\/history/i.test(path)) return "history";
+    return "other";
+  }
+
+  function storeFeaturePaths(type) {
+    if (type === "age") {
+      return [];
+    }
+    return STORE_FEATURE_CHUNKS[type] || STORE_FEATURE_CHUNKS.other;
+  }
+
+  async function loadStoreRuntime() {
+    if (!MATCH.isSteamStoreHost(location.hostname)) {
+      return false;
+    }
+    if (globalThis[STORE_LOAD_MARK] === "ready" || globalThis[STORE_LOAD_MARK] === STORE_LOAD_PENDING) {
+      return true;
+    }
+    globalThis[STORE_LOAD_MARK] = STORE_LOAD_PENDING;
+    const type = storePageType();
+    try {
+      const featurePaths = storeFeaturePaths(type);
+      if (!featurePaths.length) {
+        globalThis[STORE_LOAD_MARK] = "ready";
+        activateLightRuntime("store", {
+          pageType: type,
+          reason: "no-store-feature",
+        });
+        return true;
+      }
+      await injectContentFiles([
+        ...STORE_BASE_SCRIPTS,
+        ...featurePaths,
+        ...STORE_START_SCRIPTS,
+      ]);
+      globalThis[STORE_LOAD_MARK] = "ready";
+      activateLightRuntime("store", {
+        pageType: type,
+        featureScriptCount: featurePaths.length,
+        loadStrategy: "runtime-page-chunk",
+      });
+      return true;
+    } catch (error) {
+      globalThis[STORE_LOAD_MARK] = "";
+      log({
+        level: "error",
+        domain: "store",
+        feature: "store-loader",
+        event: "store-runtime-inject-failed",
+        message: "商店页运行时按需加载失败",
+        error,
+        meta: pageMeta({ pageType: type }),
+      });
+      throw error;
+    }
   }
 
   // Steam CEF 常先进入 about:blank 或脚本半就绪状态；依赖未齐时必须继续排队重试，不能直接终止注入链路。
@@ -1135,6 +1496,7 @@
       STPerformanceMonitor.start();
     }
     watchPageLog();
+    bindSettingsOpenMessage();
     watchNewsTranslateBridge();
     watchSettingsChanges();
     logOnce("content-script-start", {
@@ -1394,7 +1756,13 @@
     // 被排除页面也标记为已处理，避免后台补注入反复命中 Steam CEF 菜单页。
     globalThis[RUN_MARK] = RUN_VERSION;
     if (!shouldInject()) {
+      runLightBoot();
       cleanupExcludedSteamRuntime();
+      return;
+    }
+
+    if (!MATCH.isSteamLoopbackHost(location.hostname) && !isCommunityPage()) {
+      runLightBoot();
       return;
     }
 

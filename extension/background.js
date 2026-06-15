@@ -38,8 +38,17 @@
     "extension/runtime/logger.js",
     "extension/content.js",
   ]);
+  const WEB_BOOT_FILES = Object.freeze([
+    "shared/config.js",
+    "extension/runtime/injector.js",
+    "extension/runtime/logger.js",
+    "shared/logger-factory.js",
+    "shared/runtime/kernel.js",
+    "extension/content.js",
+  ]);
   const CONTENT_MARK = "steamBuffContentStarted";
   const CONTENT_MARK_VERSION = "steam-runtime-scope-20260614-p3-runtime-kernel";
+  const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const SHARED_CONFIG = "shared/config.js";
   const OBSERVER_UTILS = "shared/observer-utils.js";
@@ -229,6 +238,34 @@
         globalThis.setTimeout(injectAll, delay);
       }
     }
+  }
+
+  function openSettings(tab) {
+    const tabId = tab?.id;
+    if (typeof tabId !== "number") {
+      return;
+    }
+    const sendOpen = () => {
+      chrome.tabs.sendMessage(tabId, { type: SETTINGS_OPEN_MESSAGE }, () => {
+        const err = chrome.runtime.lastError;
+        if (err) {
+          logError("settings", "settings-open-message-failed", "设置中心打开消息发送失败", err.message || err, { tabId });
+        }
+      });
+    };
+    chrome.scripting.executeScript(
+      {
+        target: { tabId, allFrames: false },
+        files: WEB_BOOT_FILES,
+      },
+      () => {
+        const err = chrome.runtime.lastError;
+        if (err) {
+          logError("settings", "settings-open-boot-failed", "设置中心轻入口补注入失败", err.message || err, { tabId });
+        }
+        sendOpen();
+      },
+    );
   }
 
   // 后台代理是跨域访问边界，只允许业务需要的少量请求头，避免调用方透传浏览器敏感头。
@@ -434,6 +471,15 @@
     return { tabId, frameIds: [frameId] };
   }
 
+  function senderTarget(sender) {
+    const tabId = sender?.tab?.id;
+    const frameId = sender?.frameId;
+    if (typeof tabId !== "number" || typeof frameId !== "number") {
+      return null;
+    }
+    return { tabId, frameIds: [frameId] };
+  }
+
   // Chrome executeScript 没有 Promise 形态，统一包一层便于异步路由保持 sendResponse 通道。
   function execScript(options) {
     return new Promise((resolve, reject) => {
@@ -496,6 +542,32 @@
     }
   }
 
+  async function injectContentFiles(request, sender, sendResponse) {
+    const target = senderTarget(sender);
+    const files = Array.isArray(request.files)
+      ? request.files.filter(item => typeof item === "string" && item.trim()).map(item => item.trim())
+      : [];
+    if (!target || !files.length) {
+      sendResponse({ success: false, error: "无法定位注入目标或脚本列表为空" });
+      return;
+    }
+
+    try {
+      await execScript({
+        target,
+        world: "ISOLATED",
+        files,
+      });
+      sendResponse({ success: true });
+    } catch (error) {
+      logError("injection", "content-files-inject-failed", "内容脚本文件按需注入失败", error, {
+        count: files.length,
+        firstFile: files[0] || "",
+      });
+      sendResponse({ success: false, error: error?.message || String(error) });
+    }
+  }
+
   function cacheGet(request, sender, sendResponse) {
     const store = globalThis.STAITranslateCache;
     if (!store?.getMany) {
@@ -522,6 +594,7 @@
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
     STORE_FETCH: storeFetch,
     TRANSLATE_INJECT: translateInject,
+    CONTENT_FILES_INJECT: injectContentFiles,
     AI_CHAT_COMPLETIONS: aiChat,
     AI_TRANSLATE_CACHE_GET: cacheGet,
     AI_TRANSLATE_CACHE_SET: cacheSet,
@@ -559,6 +632,7 @@
 
   chrome.runtime.onInstalled.addListener(injectSoon);
   chrome.runtime.onStartup.addListener(injectSoon);
+  chrome.action?.onClicked?.addListener(openSettings);
   bindGlobalLoggers();
   injectSoon();
 })();

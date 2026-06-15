@@ -19,11 +19,10 @@
     domain: "store",
     publicApi: "window.STStore",
     registry: "window.STStore.reg",
-    loadStrategy: "manifest-legacy",
-    legacy: true,
+    loadStrategy: "runtime-page-chunk",
     meta: {
       entry: "store/runtime/feature-registry.js",
-      migration: "P3 保留 manifest 预加载，后续 P5/P8 迁移到按需 feature chunk。",
+      migration: "P5 由 content.js 根据商店页面类型注入必要 feature chunk。",
     },
   });
 
@@ -45,10 +44,10 @@
         domain: "store",
         id: feature.id,
         settingsKey: feature.settingsKey || feature.id,
-        loadStrategy: feature.loadStrategy || "manifest-legacy",
+        loadStrategy: feature.loadStrategy || "runtime-page-chunk",
         dispose: typeof feature.stop === "function",
         meta: {
-          legacy: true,
+          loadedBy: "content.js",
         },
       });
     }

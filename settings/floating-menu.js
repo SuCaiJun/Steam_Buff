@@ -57,11 +57,10 @@
     domain: "settings",
     publicApi: "window.STSettings",
     registry: "settings/catalog.js",
-    loadStrategy: "manifest-legacy",
-    legacy: true,
+    loadStrategy: "runtime-on-open",
     meta: {
       entry: "settings/floating-menu.js",
-      migration: "P3 保留设置浮窗 content script，后续按打开动作加载面板。",
+      migration: "P5 由普通网页轻入口在用户打开设置时按需加载完整面板。",
     },
   });
 
