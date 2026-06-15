@@ -190,6 +190,12 @@
   }
 
   function clearFail() {
+    if (s.failHandle) {
+      const handle = s.failHandle;
+      s.failHandle = null;
+      handle.dispose();
+      return;
+    }
     if (s.failT) {
       window.clearTimeout(s.failT);
       s.failT = 0;
@@ -346,11 +352,26 @@
 
     clearTimers();
     s.failT = window.setTimeout(() => {
+      const handle = s.failHandle;
+      s.failHandle = null;
+      s.failT = 0;
+      handle?.dispose?.();
       if (!s.shut) {
         return;
       }
       fail(api, new Error("已请求 Steam 大屏关机，但 Windows 在 120 秒内没有关机。"));
     }, FAIL_MS);
+    s.failHandle = s.scope?.resource?.({
+      key: "shutdown-fail-timeout",
+      type: "timer",
+      dispose() {
+        if (s.failT) {
+          window.clearTimeout(s.failT);
+          s.failT = 0;
+        }
+        s.failHandle = null;
+      },
+    }) || null;
 
     await poweroff(api);
   }
@@ -399,7 +420,7 @@
     await shutdown(api);
   }
 
-  function start(api) {
+  function start(api, _feature, _context, scope) {
     if (s.bOn) {
       return { started: false, reason: "already-started" };
     }
@@ -414,7 +435,6 @@
       return { started: false, reason: "broadcast-channel-unavailable" };
     }
 
-    s.bOn = true;
     s.on = false;
     s.mon = false;
     s.seen = false;
@@ -424,8 +444,14 @@
     clearTimers();
     if (!window.STScheduler?.register) {
       log.warn("download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端缺少统一调度器", readyMeta());
+      if (s.ch === ch && typeof ch.close === "function") {
+        ch.close();
+        s.ch = null;
+      }
       return { started: false, reason: "scheduler-unavailable" };
     }
+    s.bOn = true;
+    s.scope = scope || null;
     // 下载监控迁移到统一调度器，避免 Steam 多页面各自持有独立巡检。
     window.STScheduler.register(
       SCHEDULER_TASK,
@@ -435,6 +461,7 @@
       () => s.bOn === true,
       { intervalMs: POLL_MS }
     );
+    scope?.schedulerTask?.("backend-poll", SCHEDULER_TASK);
 
     s.stop = () => {
       window.STScheduler?.unregister?.(SCHEDULER_TASK);
@@ -449,6 +476,7 @@
         s.ch = null;
       }
       s.bOn = false;
+      s.scope = null;
     };
 
     s.onMsg = (event) => {
@@ -469,7 +497,7 @@
           .catch(() => {});
       }
     };
-    ch.addEventListener("message", s.onMsg);
+    scope?.listener?.("backend-channel-message", ch, "message", s.onMsg);
 
     pub(api, { reason: ST.READY });
     log.info("download-auto-shutdown-backend-ready", "下载完成自动关机后端已就绪", readyMeta());

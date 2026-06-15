@@ -266,7 +266,29 @@
           error: error?.message || String(error),
         });
       } finally {
-        window.setTimeout(() => a.classList.remove("st-nexus-mods-busy"), 1000);
+        if (s.busyHandle) {
+          const handle = s.busyHandle;
+          s.busyHandle = null;
+          handle.dispose();
+        }
+        s.busyTimer = window.setTimeout(() => {
+          const handle = s.busyHandle;
+          s.busyHandle = null;
+          s.busyTimer = 0;
+          handle?.dispose?.();
+          a.classList.remove("st-nexus-mods-busy");
+        }, 1000);
+        s.busyHandle = s.scope?.resource?.({
+          key: "busy-reset",
+          type: "timer",
+          dispose() {
+            if (s.busyTimer) {
+              window.clearTimeout(s.busyTimer);
+              s.busyTimer = 0;
+            }
+            s.busyHandle = null;
+          },
+        }) || null;
       }
     });
     return a;
@@ -437,7 +459,7 @@
     insert(root);
   }
 
-  function start() {
+  function start(_api, _feature, _context, scope) {
     if (s.started) {
       return { started: false, reason: "already-started" };
     }
@@ -452,14 +474,25 @@
     }
 
     s.started = true;
+    s.scope = scope || null;
     tick();
     // Nexus Mods 按钮补挂载迁移到统一调度器，保留原库详情巡检节奏。
     window.STScheduler.register(SCHEDULER_TASK, tick, () => s.started === true, { intervalMs: LOOP_MS });
+    scope?.schedulerTask?.("library-mount", SCHEDULER_TASK);
     s.stop = () => {
       window.STScheduler?.unregister?.(SCHEDULER_TASK);
       s.timer = 0;
+      if (s.busyHandle) {
+        const handle = s.busyHandle;
+        s.busyHandle = null;
+        handle.dispose();
+      } else if (s.busyTimer) {
+        window.clearTimeout(s.busyTimer);
+        s.busyTimer = 0;
+      }
       document.getElementById(BTN)?.remove();
       s.started = false;
+      s.scope = null;
     };
     return { started: true, stop: s.stop };
   }

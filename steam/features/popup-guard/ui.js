@@ -16,6 +16,7 @@
   const MARK = "steamBuffPopupBypass";
   const WAIT_MS = 150;
   const styles = window.SteamBuff?.styles;
+  let seq = 0;
 
   function emptyFull(el) {
     if (!el || el.id || el.children.length || String(el.textContent || "").trim()) {
@@ -54,10 +55,17 @@
       return;
     }
 
-    window.setTimeout(() => release(el), WAIT_MS);
+    const rt = window[RT];
+    const key = `release-${seq += 1}`;
+    let handle = null;
+    const timer = window.setTimeout(() => {
+      handle?.dispose?.();
+      release(el);
+    }, WAIT_MS);
+    handle = rt?.scope?.timer?.(key, timer);
   }
 
-  function start(api) {
+  function start(api, _feature, _context, scope) {
     if (!api.ctx?.isMainUi?.()) {
       return { started: false, reason: "not-main-ui" };
     }
@@ -66,6 +74,7 @@
     }
 
     const rt = {
+      scope: scope || null,
       stop() {
         document.removeEventListener("pointerdown", onPointer, true);
         document.removeEventListener("mousedown", onPointer, true);
@@ -76,8 +85,8 @@
     };
 
     window[RT] = rt;
-    document.addEventListener("pointerdown", onPointer, true);
-    document.addEventListener("mousedown", onPointer, true);
+    scope?.listener?.("document-pointerdown", document, "pointerdown", onPointer, true);
+    scope?.listener?.("document-mousedown", document, "mousedown", onPointer, true);
     return { started: true, stop: rt.stop };
   }
 

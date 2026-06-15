@@ -315,6 +315,7 @@
     }
 
     listener(owner, key, target, type, handler, options) {
+      this.resources.dispose(`${text(owner)}:listener:${text(key)}`);
       target?.addEventListener?.(type, handler, options);
       return this.registerResource({
         owner,

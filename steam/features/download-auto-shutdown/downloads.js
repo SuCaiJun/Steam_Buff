@@ -283,12 +283,32 @@
     el.dataset.kind = kind;
     el.classList.add("sdas-show");
 
-    if (s.toastT) {
+    if (s.toastHandle) {
+      const handle = s.toastHandle;
+      s.toastHandle = null;
+      handle.dispose();
+    } else if (s.toastT) {
       window.clearTimeout(s.toastT);
+      s.toastT = 0;
     }
     s.toastT = window.setTimeout(() => {
+      const handle = s.toastHandle;
+      s.toastHandle = null;
+      s.toastT = 0;
+      handle?.dispose?.();
       el.classList.remove("sdas-show");
     }, TOAST_MS);
+    s.toastHandle = s.scope?.resource?.({
+      key: "toast-hide",
+      type: "timer",
+      dispose() {
+        if (s.toastT) {
+          window.clearTimeout(s.toastT);
+          s.toastT = 0;
+        }
+        s.toastHandle = null;
+      },
+    }) || null;
   }
 
   function on(st) {
@@ -527,7 +547,7 @@
     }
   }
 
-  function start(api) {
+  function start(api, _feature, _context, scope) {
     if (s.fOn) {
       return { started: false, reason: "already-started" };
     }
@@ -580,17 +600,31 @@
       s.fOn = false;
       return { started: false, reason: "scheduler-unavailable" };
     }
+    s.scope = scope || null;
     s.stop = () => {
       window.STScheduler?.unregister?.(SCHEDULER_TASK);
       s.syncI = 0;
+      if (s.toastHandle) {
+        const handle = s.toastHandle;
+        s.toastHandle = null;
+        handle.dispose();
+      } else if (s.toastT) {
+        window.clearTimeout(s.toastT);
+        s.toastT = 0;
+      }
+      if (s.onMsg) {
+        ch.removeEventListener("message", s.onMsg);
+        s.onMsg = null;
+      }
       if (s.ch && typeof s.ch.close === "function") {
         s.ch.close();
         s.ch = null;
       }
       s.fOn = false;
+      s.scope = null;
     };
 
-    ch.addEventListener("message", (event) => {
+    s.onMsg = (event) => {
       const data = event.data || {};
       if (data.script !== ID || data.type !== "backend-status") {
         return;
@@ -607,7 +641,8 @@
       if (el) {
         paint(el, data);
       }
-    });
+    };
+    scope?.listener?.("frontend-channel-message", ch, "message", s.onMsg);
 
     // 前端 hello 同步迁移到统一调度器，保持原 5 秒节奏并减少独立巡检。
     window.STScheduler.register(
@@ -618,6 +653,7 @@
       () => s.fOn === true,
       { intervalMs: SYNC_MS }
     );
+    scope?.schedulerTask?.("frontend-sync", SCHEDULER_TASK);
 
     sync(api, ch);
     return { started: true };

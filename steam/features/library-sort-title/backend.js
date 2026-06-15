@@ -487,7 +487,7 @@
   }
 
   // 客户端启动初期 appStore 分批就绪，启动阶段短轮询，hook 齐全后降到低频巡检。
-  function start(api) {
+  function start(api, _feature, _context, scope) {
     const old = window[RT];
     if (old?.scheduled) {
       return { started: false, reason: "already-started", stop: old.stop };
@@ -562,9 +562,23 @@
         return;
       }
       rt.delay = window.setTimeout(() => {
+        const handle = rt.delayHandle;
+        rt.delayHandle = null;
         rt.delay = 0;
+        handle?.dispose?.();
         run();
       }, SCHEDULE_DEBOUNCE_MS);
+      rt.delayHandle = scope?.resource?.({
+        key: "schedule-delay",
+        type: "timer",
+        dispose() {
+          if (rt.delay) {
+            window.clearTimeout(rt.delay);
+            rt.delay = 0;
+          }
+          rt.delayHandle = null;
+        },
+      }) || null;
     };
 
     const onVisible = () => {
@@ -577,6 +591,7 @@
       scheduled: true,
       ms: SYNC_MS,
       delay: 0,
+      delayHandle: null,
       sortOk: false,
       customOk: false,
       changeOk: false,
@@ -593,7 +608,11 @@
       stop() {
         window.STScheduler?.unregister?.(SCHEDULER_TASK);
         rt.scheduled = false;
-        if (rt.delay) {
+        if (rt.delayHandle) {
+          const handle = rt.delayHandle;
+          rt.delayHandle = null;
+          handle.dispose();
+        } else if (rt.delay) {
           window.clearTimeout(rt.delay);
           rt.delay = 0;
         }
@@ -609,11 +628,12 @@
     window[RT] = rt;
     // 库排序标题巡检迁移到统一调度器，保留启动短轮询、温热期和稳定期的原动态间隔。
     window.STScheduler.register(SCHEDULER_TASK, run, null, { intervalMs: SYNC_MS });
+    scope?.schedulerTask?.("backend-sync", SCHEDULER_TASK);
 
     for (const event of EVENTS) {
-      window.addEventListener(event, schedule);
+      scope?.listener?.(`window-${event}`, window, event, schedule);
     }
-    document.addEventListener("visibilitychange", onVisible);
+    scope?.listener?.("document-visibilitychange", document, "visibilitychange", onVisible);
     run();
     return { started: true, stop: rt.stop };
   }

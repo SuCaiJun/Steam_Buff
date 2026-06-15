@@ -121,6 +121,46 @@
       return `steam/features/${feature.id}/${entry}`;
     }
 
+    createResourceScope(feature, context) {
+      const owner = `steam:${feature.id}:${context}`;
+      const rt = runtime;
+      return Object.freeze({
+        owner,
+        timer(key, timerId) {
+          return rt?.timer?.(owner, key, timerId) || null;
+        },
+        schedulerTask(key, taskName) {
+          return rt?.schedulerTask?.(owner, key, taskName) || null;
+        },
+        observer(key, observer) {
+          return rt?.observer?.(owner, key, observer) || null;
+        },
+        listener(key, target, type, handler, options) {
+          if (rt?.listener) {
+            return rt.listener(owner, key, target, type, handler, options);
+          }
+          target?.addEventListener?.(type, handler, options);
+          return Object.freeze({
+            owner,
+            key,
+            type: "listener",
+            dispose() {
+              target?.removeEventListener?.(type, handler, options);
+            },
+          });
+        },
+        style(key, element) {
+          return rt?.style?.(owner, key, element) || null;
+        },
+        resource(input = {}) {
+          return rt?.registerResource?.({
+            ...input,
+            owner,
+          }) || null;
+        },
+      });
+    }
+
     // Steam 客户端页面脚本加载顺序敏感，动态 script 使用同步顺序并用 loaded/loading 去重。
     loadScript(path) {
       const url = this.api.path.url(path);
@@ -234,7 +274,8 @@
           return { id: feature.id, context, entry, status: "failed", reason: "entry-not-callable" };
         }
 
-        const result = start(this.api, feature, context);
+        const scope = this.createResourceScope(feature, context);
+        const result = start(this.api, feature, context, scope);
         const started = !result || result.started !== false || result.reason === "already-started";
         runtime?.markFeature?.({
           domain: "steam",

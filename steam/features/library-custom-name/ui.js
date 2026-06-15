@@ -450,7 +450,10 @@
       return null;
     }
     s.ch = new BroadcastChannel(CH);
-    s.ch.addEventListener("message", onBackend);
+    s.channelHandle = s.scope?.listener?.("backend-channel-message", s.ch, "message", onBackend) || null;
+    if (!s.channelHandle) {
+      s.ch.addEventListener("message", onBackend);
+    }
     return s.ch;
   }
 
@@ -468,9 +471,28 @@
     const ch = s.ch;
     s.ch = null;
     try {
-      ch?.removeEventListener?.("message", onBackend);
+      if (s.channelHandle) {
+        const handle = s.channelHandle;
+        s.channelHandle = null;
+        handle.dispose();
+      } else {
+        ch?.removeEventListener?.("message", onBackend);
+      }
       ch?.close?.();
     } catch {
+    }
+  }
+
+  function clearRuntimeTimer(container, timerKey, handleKey) {
+    const handle = container[handleKey];
+    if (handle) {
+      container[handleKey] = null;
+      handle.dispose();
+      return;
+    }
+    if (container[timerKey]) {
+      window.clearTimeout(container[timerKey]);
+      container[timerKey] = 0;
     }
   }
 
@@ -514,10 +536,7 @@
   }
 
   function clearSaveWatch() {
-    if (batch.saveWatchTimer) {
-      window.clearTimeout(batch.saveWatchTimer);
-      batch.saveWatchTimer = 0;
-    }
+    clearRuntimeTimer(batch, "saveWatchTimer", "saveWatchHandle");
   }
 
   function scheduleSaveWatch(delay = SAVE_STATUS_MS) {
@@ -526,9 +545,23 @@
       return;
     }
     batch.saveWatchTimer = window.setTimeout(() => {
+      const handle = batch.saveWatchHandle;
+      batch.saveWatchHandle = null;
       batch.saveWatchTimer = 0;
+      handle?.dispose?.();
       pollSaveStatus().catch(() => {});
     }, Math.max(0, delay));
+    batch.saveWatchHandle = s.scope?.resource?.({
+      key: "save-watch",
+      type: "timer",
+      dispose() {
+        if (batch.saveWatchTimer) {
+          window.clearTimeout(batch.saveWatchTimer);
+          batch.saveWatchTimer = 0;
+        }
+        batch.saveWatchHandle = null;
+      },
+    }) || null;
   }
 
   async function pollSaveStatus() {
@@ -2223,15 +2256,27 @@
   }
 
   function refreshStorageCapacitySoon(delay = 180) {
-    if (batch.capacityTimer) {
-      window.clearTimeout(batch.capacityTimer);
-    }
+    clearRuntimeTimer(batch, "capacityTimer", "capacityHandle");
     const seq = batch.capacitySeq + 1;
     batch.capacitySeq = seq;
     batch.capacityTimer = window.setTimeout(() => {
+      const handle = batch.capacityHandle;
+      batch.capacityHandle = null;
       batch.capacityTimer = 0;
+      handle?.dispose?.();
       refreshStorageCapacity(seq).catch(() => {});
     }, Math.max(0, delay));
+    batch.capacityHandle = s.scope?.resource?.({
+      key: "capacity-refresh",
+      type: "timer",
+      dispose() {
+        if (batch.capacityTimer) {
+          window.clearTimeout(batch.capacityTimer);
+          batch.capacityTimer = 0;
+        }
+        batch.capacityHandle = null;
+      },
+    }) || null;
   }
 
   async function refreshStorageCapacity(seq = batch.capacitySeq + 1) {
@@ -2339,10 +2384,7 @@
   }
 
   function clearSearchTimer() {
-    if (batch.searchTimer) {
-      window.clearTimeout(batch.searchTimer);
-      batch.searchTimer = 0;
-    }
+    clearRuntimeTimer(batch, "searchTimer", "searchHandle");
   }
 
   function resetSearchState() {
@@ -2413,9 +2455,23 @@
     });
     if (debounce) {
       batch.searchTimer = window.setTimeout(() => {
+        const handle = batch.searchHandle;
+        batch.searchHandle = null;
         batch.searchTimer = 0;
+        handle?.dispose?.();
         start();
       }, SEARCH_DEBOUNCE_MS);
+      batch.searchHandle = s.scope?.resource?.({
+        key: "search-debounce",
+        type: "timer",
+        dispose() {
+          if (batch.searchTimer) {
+            window.clearTimeout(batch.searchTimer);
+            batch.searchTimer = 0;
+          }
+          batch.searchHandle = null;
+        },
+      }) || null;
     } else {
       start();
     }
@@ -3519,10 +3575,7 @@
 
   function renderProgressSoon(force) {
     if (force) {
-      if (batch.progressTimer) {
-        window.clearTimeout(batch.progressTimer);
-        batch.progressTimer = 0;
-      }
+      clearRuntimeTimer(batch, "progressTimer", "progressHandle");
       renderProgress();
       return;
     }
@@ -3532,9 +3585,23 @@
     }
     if (!batch.progressTimer) {
       batch.progressTimer = window.setTimeout(() => {
+        const handle = batch.progressHandle;
+        batch.progressHandle = null;
         batch.progressTimer = 0;
+        handle?.dispose?.();
         renderProgress();
       }, 250);
+      batch.progressHandle = s.scope?.resource?.({
+        key: "progress-render",
+        type: "timer",
+        dispose() {
+          if (batch.progressTimer) {
+            window.clearTimeout(batch.progressTimer);
+            batch.progressTimer = 0;
+          }
+          batch.progressHandle = null;
+        },
+      }) || null;
     }
   }
 
@@ -3560,10 +3627,7 @@
     if (modal) {
       modal.hidden = true;
     }
-    if (batch.progressTimer) {
-      window.clearTimeout(batch.progressTimer);
-      batch.progressTimer = 0;
-    }
+    clearRuntimeTimer(batch, "progressTimer", "progressHandle");
   }
 
   function cancelSave() {
@@ -4391,17 +4455,19 @@
     }
     // 迁移到统一调度器：保留立即 tick，后续巡检只在库页或真实自定义排序名称弹窗运行。
     window.STScheduler.register(SCHEDULER_TASK, () => tick(), shouldRunScheduledTick);
+    s.scope?.schedulerTask?.("ui-mount", SCHEDULER_TASK);
   }
 
   function unregisterScheduledTick() {
     window.STScheduler?.unregister?.(SCHEDULER_TASK);
   }
 
-  function start() {
+  function start(_api, _feature, _context, scope) {
     if (s.started) {
       return { started: false, reason: "already-started" };
     }
     s.started = true;
+    s.scope = scope || null;
     s.resObs = new MutationObserver((items) => {
       for (const item of items) {
         onQuery(item);
@@ -4412,9 +4478,10 @@
       attributes: true,
       attributeFilter: [RES_ATTR],
     });
+    scope?.observer?.("response-attribute", s.resObs);
     onQuery();
-    document.addEventListener("click", onDocumentClick, true);
-    document.addEventListener("keydown", onDocumentKeydown);
+    scope?.listener?.("document-click", document, "click", onDocumentClick, true);
+    scope?.listener?.("document-keydown", document, "keydown", onDocumentKeydown);
     tick();
     registerScheduledTick();
     s.stop = () => {
@@ -4424,18 +4491,20 @@
       }
       unregisterScheduledTick();
       if (s.ch && typeof s.ch.close === "function") {
+        if (s.channelHandle) {
+          const handle = s.channelHandle;
+          s.channelHandle = null;
+          handle.dispose();
+        } else {
+          s.ch.removeEventListener?.("message", onBackend);
+        }
         s.ch.close();
         s.ch = null;
       }
-      if (batch.progressTimer) {
-        window.clearTimeout(batch.progressTimer);
-        batch.progressTimer = 0;
-      }
+      clearRuntimeTimer(batch, "progressTimer", "progressHandle");
       clearSaveWatch();
-      if (batch.capacityTimer) {
-        window.clearTimeout(batch.capacityTimer);
-        batch.capacityTimer = 0;
-      }
+      clearRuntimeTimer(batch, "capacityTimer", "capacityHandle");
+      clearSearchTimer();
       document.removeEventListener("click", onDocumentClick, true);
       document.removeEventListener("keydown", onDocumentKeydown);
       if (s.oneResolve) {
@@ -4448,6 +4517,7 @@
       document.getElementById(MODAL)?.remove();
       document.getElementById(PROGRESS)?.remove();
       s.started = false;
+      s.scope = null;
     };
     return { started: true, stop: s.stop };
   }

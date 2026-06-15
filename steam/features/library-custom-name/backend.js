@@ -1422,7 +1422,7 @@
     post(rt.ch, { type: "save-progress", ...stat(q, { action }) });
   }
 
-  function start() {
+  function start(_api, _feature, _context, scope) {
     if (window[RT]) {
       return { started: false, reason: "already-started" };
     }
@@ -1498,7 +1498,7 @@
     };
 
     window[RT] = rt;
-    ch.addEventListener("message", rt.onMsg);
+    scope?.listener?.("backend-channel-message", ch, "message", rt.onMsg);
     return { started: true, stop: rt.stop };
   }
 

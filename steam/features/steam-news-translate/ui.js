@@ -869,7 +869,23 @@
     if (rt.stopped || rt.scanTimer) {
       return;
     }
-    rt.scanTimer = window.setTimeout(() => scan(rt), delay);
+    rt.scanTimer = window.setTimeout(() => {
+      const handle = rt.scanHandle;
+      rt.scanHandle = null;
+      handle?.dispose?.();
+      scan(rt);
+    }, delay);
+    rt.scanHandle = rt.scope?.resource?.({
+      key: "scan-delay",
+      type: "timer",
+      dispose() {
+        if (rt.scanTimer) {
+          window.clearTimeout(rt.scanTimer);
+          rt.scanTimer = 0;
+        }
+        rt.scanHandle = null;
+      },
+    }) || null;
   }
 
   function onBridgeConfig(rt, event) {
@@ -918,9 +934,10 @@
     rt.observer = window.STObserverUtils?.createDebouncedObserver?.(onMutation, 80)
       || new MutationObserver(onMutation);
     rt.observer.observe(target, observeOptions(target));
+    rt.scope?.observer?.("popup-target", rt.observer);
   }
 
-  function start(api) {
+  function start(api, _feature, _context, scope) {
     if (!api.ctx?.isMainUi?.()) {
       return { started: false, reason: "not-main-ui" };
     }
@@ -935,8 +952,10 @@
     ensureStyle();
     const rt = {
       startedAt: Date.now(),
+      scope: scope || null,
       stopped: false,
       scanTimer: 0,
+      scanHandle: null,
       refreshTimer: 0,
       skipLogged: false,
       config: { enabled: false },
@@ -948,7 +967,14 @@
       observerTarget: null,
       stop() {
         rt.stopped = true;
-        window.clearTimeout(rt.scanTimer);
+        if (rt.scanHandle) {
+          const handle = rt.scanHandle;
+          rt.scanHandle = null;
+          handle.dispose();
+        } else {
+          window.clearTimeout(rt.scanTimer);
+          rt.scanTimer = 0;
+        }
         window.STScheduler?.unregister?.(SCHEDULER_TASK);
         rt.refreshTimer = 0;
         rt.observer?.disconnect?.();
@@ -964,8 +990,8 @@
     rt.onScroll = () => scheduleScan(rt, 80);
     window[RT] = rt;
 
-    window.addEventListener("message", rt.onMessage);
-    window.addEventListener("scroll", rt.onScroll, true);
+    scope?.listener?.("bridge-config-message", window, "message", rt.onMessage);
+    scope?.listener?.("window-scroll", window, "scroll", rt.onScroll, true);
     /* 只在弹窗根节点启用属性监听；根节点尚未出现时依靠调度扫描等待。 */
     attachObserver(rt);
     // 配置刷新迁移到统一调度器，避免新闻弹窗功能持有独立巡检。
@@ -975,6 +1001,7 @@
       () => !rt.stopped,
       { intervalMs: CONFIG_REFRESH_MS }
     );
+    scope?.schedulerTask?.("config-refresh", SCHEDULER_TASK);
     refreshConfig(rt).catch(() => {});
     return { started: true, stop: rt.stop };
   }
