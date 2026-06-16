@@ -38,12 +38,14 @@
     proxy: "steampy-proxy-price",
   });
   const log = window.STLoggerFactory.createLogger("store", FEATURE_ID);
+  const DataIndex = api.dataIndex || window.STDataIndex;
 
   let started = false;
   let observer = null;
   let rows = [];
   let chunks = [];
   let chunkByApp = new Map();
+  let rowDiff = null;
   let boundContainer = null;
   let boundScroller = null;
   const steamCache = new Map();
@@ -777,13 +779,25 @@
   }
 
   function syncRows() {
-    rows = findRows();
+    const nextRows = findRows();
+    rowDiff = DataIndex?.diffRows?.(rows, nextRows, {
+      keyOf: appIdFromRow,
+      signatureOf: row => `${appIdFromRow(row)}:${row?.isConnected ? 1 : 0}`,
+    }) || null;
+    rows = nextRows;
     const ids = rows.map(appIdFromRow).filter(Boolean);
-    chunks = api.features.wishlistPriceHistoryCore?.chunkIds?.(ids, BATCH_SIZE) || [];
-    chunkByApp = new Map();
-    chunks.forEach((chunk, index) => {
-      chunk.forEach(appid => chunkByApp.set(appid, index));
-    });
+    chunks = DataIndex?.chunk?.(DataIndex?.uniqueBy?.(ids) || ids, BATCH_SIZE)
+      || api.features.wishlistPriceHistoryCore?.chunkIds?.(ids, BATCH_SIZE)
+      || [];
+    chunkByApp = DataIndex?.indexBy?.(
+      chunks.flatMap((chunk, index) => chunk.map(appid => ({ appid, index }))),
+      "appid"
+    ) || new Map();
+    if (!DataIndex?.indexBy) {
+      chunks.forEach((chunk, index) => {
+        chunk.forEach(appid => chunkByApp.set(appid, { appid, index }));
+      });
+    }
     if (currentRow && !rowVisible(currentRow)) {
       detachPanel();
     } else {
@@ -868,11 +882,12 @@
 
   async function loadSteam(appid) {
     if (!chunkByApp.has(appid)) syncRows();
-    let index = chunkByApp.get(appid);
-    if (index == null) {
+    let item = chunkByApp.get(appid);
+    let index = Number(item?.index);
+    if (!Number.isFinite(index)) {
       chunks.push([appid]);
       index = chunks.length - 1;
-      chunkByApp.set(appid, index);
+      chunkByApp.set(appid, { appid, index });
     }
     if (!steamCache.has(appid)) {
       await loadSteamChunk(chunks[index]);

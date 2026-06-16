@@ -158,55 +158,91 @@
   // 用户批量操作共用这个任务队列，单任务失败只记录结果，不阻断后续物品处理。
   class Queue {
     constructor(worker) {
-      this.worker = worker;
-      this.items = [];
-      this.busy = false;
-      this.paused = false;
       this.drain = null;
+      this.queue = api.batchQueue?.createQueue?.({
+        batchSize: 1,
+        worker,
+        onDrain: () => {
+          if (this.drain) this.drain();
+        },
+      });
+      this.fallback = {
+        worker,
+        items: [],
+        busy: false,
+        paused: false,
+      };
     }
 
     push(item) {
-      this.items.push(item);
+      if (this.queue) {
+        this.queue.enqueue(item);
+        this.queue.run();
+        return;
+      }
+      this.fallback.items.push(item);
       this.run();
     }
 
     unshift(item) {
-      this.items.unshift(item);
+      if (this.queue) {
+        this.queue.unshift(item);
+        this.queue.run();
+        return;
+      }
+      this.fallback.items.unshift(item);
       this.run();
     }
 
     kill() {
-      this.items = [];
+      if (this.queue) {
+        this.queue.clear();
+        this.queue.cancel();
+        return;
+      }
+      this.fallback.items = [];
     }
 
     length() {
-      return this.items.length + (this.busy ? 1 : 0);
+      return this.queue?.length?.() ?? (this.fallback.items.length + (this.fallback.busy ? 1 : 0));
     }
 
     pause() {
-      this.paused = true;
+      if (this.queue) {
+        this.queue.pause();
+        return;
+      }
+      this.fallback.paused = true;
     }
 
     resume() {
-      this.paused = false;
+      if (this.queue) {
+        this.queue.resume();
+        return;
+      }
+      this.fallback.paused = false;
       this.run();
     }
 
     async run() {
-      if (this.busy || this.paused) return;
-      const item = this.items.shift();
+      if (this.queue) {
+        await this.queue.run();
+        return;
+      }
+      if (this.fallback.busy || this.fallback.paused) return;
+      const item = this.fallback.items.shift();
       if (!item) {
         if (this.drain) this.drain();
         return;
       }
 
-      this.busy = true;
+      this.fallback.busy = true;
       try {
-        await this.worker(item);
+        await this.fallback.worker(item);
       } catch {
         // 单个任务失败不阻断后续队列。
       } finally {
-        this.busy = false;
+        this.fallback.busy = false;
         this.run();
       }
     }

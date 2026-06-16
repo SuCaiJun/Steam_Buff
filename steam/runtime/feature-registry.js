@@ -15,6 +15,10 @@
   const log = window.STLoggerFactory.createLogger('steam', 'feature-registry');
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
 
+  api.dataIndex = window.STDataIndex;
+  api.batchQueue = window.STBatchQueue;
+  api.virtualList = window.STVirtualList;
+
   runtime?.registerAdapter?.({
     id: "steam",
     domain: "steam",

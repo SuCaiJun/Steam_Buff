@@ -54,6 +54,8 @@
   const qpend = new Map();
   const THEME = window.STTheme || {};
   const styles = window.SteamBuff?.styles;
+  const DATA_INDEX = window.SteamBuff?.dataIndex || window.STDataIndex;
+  const VIRTUAL_LIST = window.SteamBuff?.virtualList || window.STVirtualList;
   const batch = {
     policy: "hide",
     types: {
@@ -72,12 +74,14 @@
     searchQuery: "",
     searchNeedle: "",
     searchRows: [],
+    searchIndex: null,
     searchSeq: 0,
     searchTimer: 0,
     searchComposing: false,
     searchScanned: 0,
     searching: false,
     page: 1,
+    pager: VIRTUAL_LIST?.createPager?.({ pageSize: BATCH_PAGE_SIZE }) || null,
     selectedCount: 0,
     writeCount: 0,
     storageCapacity: emptyCapacity(),
@@ -2107,6 +2111,13 @@
     return searchActive() ? batch.searchRows : batch.rows;
   }
 
+  function pager() {
+    if (!batch.pager && VIRTUAL_LIST?.createPager) {
+      batch.pager = VIRTUAL_LIST.createPager({ pageSize: BATCH_PAGE_SIZE });
+    }
+    return batch.pager;
+  }
+
   function rowMatchesSearch(row, needle = batch.searchNeedle) {
     if (!needle) {
       return true;
@@ -2129,21 +2140,27 @@
   }
 
   function totalPages() {
-    return Math.max(1, Math.ceil(activeRows().length / BATCH_PAGE_SIZE));
+    return pager()?.pageInfo(activeRows()).totalPages || Math.max(1, Math.ceil(activeRows().length / BATCH_PAGE_SIZE));
   }
 
   function clampPage() {
-    batch.page = Math.min(Math.max(1, Number(batch.page) || 1), totalPages());
+    batch.page = pager()?.setPage(batch.page) || Math.min(Math.max(1, Number(batch.page) || 1), totalPages());
+    batch.page = totalPages() ? Math.min(batch.page, totalPages()) : 1;
+    pager()?.setPage(batch.page);
   }
 
   function visibleRows() {
     clampPage();
     const rows = activeRows();
     const start = (batch.page - 1) * BATCH_PAGE_SIZE;
-    return rows.slice(start, start + BATCH_PAGE_SIZE);
+    return pager()?.visible(rows) || rows.slice(start, start + BATCH_PAGE_SIZE);
   }
 
   function visibleRange() {
+    const info = pager()?.pageInfo(activeRows());
+    if (info) {
+      return { from: info.from, to: info.to };
+    }
     const rows = activeRows();
     if (!rows.length) {
       return { from: 0, to: 0 };
@@ -2318,6 +2335,7 @@
       }
     }
     batch.rowMap = map;
+    batch.searchIndex = { rows: batch.rows, byKey: map, total: batch.rows.length };
     batch.selectedCount = selected;
     batch.writeCount = write;
     clampPage();
@@ -2329,6 +2347,7 @@
     batch.rows = [];
     batch.rowMap = new Map();
     batch.searchRows = [];
+    batch.searchIndex = null;
     batch.searchScanned = 0;
     batch.searching = false;
     batch.page = 1;
@@ -2352,8 +2371,10 @@
   function setRows(rows) {
     batch.rows = Array.isArray(rows) ? rows : [];
     batch.page = 1;
+    pager()?.setPage(1);
     refreshCounts();
     if (searchActive()) {
+      batch.searchIndex = null;
       batch.searchSeq += 1;
       scheduleSearch(false);
     }
@@ -2374,6 +2395,7 @@
         batch.writeCount += 1;
       }
     }
+    batch.searchIndex = null;
     clampPage();
     refreshSkip();
     refreshStorageCapacitySoon();
@@ -2412,19 +2434,46 @@
     }
     const matched = [];
     batch.searching = true;
-    for (let i = 0; i < rows.length; i += 1) {
-      if (seq !== batch.searchSeq || needle !== batch.searchNeedle) {
+    const signal = {
+      get aborted() {
+        return seq !== batch.searchSeq || needle !== batch.searchNeedle;
+      },
+    };
+    const scan = DATA_INDEX?.scanChunks;
+    if (typeof scan === "function") {
+      const result = await scan(rows, {
+        chunkSize: SEARCH_SCAN_YIELD,
+        signal,
+        yieldFn: yieldUI,
+        onItem(row) {
+          if (rowMatchesSearch(row, needle)) {
+            row.viewIndex = matched.length;
+            matched.push(row);
+          }
+        },
+        onChunk(_chunk, meta) {
+          setSearchRows(matched, meta.processed, !meta.done);
+          renderVisibleRows();
+        },
+      });
+      if (result.cancelled) {
         return;
       }
-      const row = rows[i];
-      if (rowMatchesSearch(row, needle)) {
-        row.viewIndex = matched.length;
-        matched.push(row);
-      }
-      if (i > 0 && i % SEARCH_SCAN_YIELD === 0) {
-        setSearchRows(matched, i, true);
-        renderVisibleRows();
-        await yieldUI();
+    } else {
+      for (let i = 0; i < rows.length; i += 1) {
+        if (seq !== batch.searchSeq || needle !== batch.searchNeedle) {
+          return;
+        }
+        const row = rows[i];
+        if (rowMatchesSearch(row, needle)) {
+          row.viewIndex = matched.length;
+          matched.push(row);
+        }
+        if (i > 0 && i % SEARCH_SCAN_YIELD === 0) {
+          setSearchRows(matched, i, true);
+          renderVisibleRows();
+          await yieldUI();
+        }
       }
     }
     if (seq !== batch.searchSeq || needle !== batch.searchNeedle) {

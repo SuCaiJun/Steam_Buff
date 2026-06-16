@@ -77,6 +77,9 @@
     },
   });
   api.W = W;
+  api.dataIndex = window.STDataIndex;
+  api.batchQueue = window.STBatchQueue;
+  api.virtualList = window.STVirtualList;
   api.page = page;
   api.pages = Object.freeze({
     MARKET: PAGE_MARKET,

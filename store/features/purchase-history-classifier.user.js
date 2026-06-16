@@ -32,6 +32,7 @@
     ];
     const ALL_TYPE = { id: 'all', color: '#66c0f4', label: '全部' };
     const PAGE_SIZE = 30;
+    const VIEW_SCAN_CHUNK = 1000;
     const DEBOUNCE_MS = 200;
     const SETTLE_MS = 300;
     const SAFETY_TIMEOUT = 5000;
@@ -43,6 +44,8 @@
     const SEP_BEFORE = new Set(['convert', 'market_buy']);
     const MARKET_CATS = new Set(['market_buy', 'market_sell']);
     const CD_DAYS = 90;
+    const DataIndex = globalThis.STStore?.dataIndex || globalThis.STDataIndex;
+    const VirtualList = globalThis.STStore?.virtualList || globalThis.STVirtualList;
 
     const CURRENCIES = [
         { id: 'HKD', label: '港币', match: /HK\$\s*[\d,. ]+/, symbol: 'HK$' },
@@ -462,7 +465,7 @@
 
     const state = {
         disposers: [], observers: { table: null }, timers: { debounce: null, search: null },
-        isProcessing: false, cachedTBody: null, cachedDataRows: null,
+        isProcessing: false, cachedTBody: null, cachedDataRows: null, viewSeq: 0, pager: VirtualList?.createPager?.({ pageSize: PAGE_SIZE }) || null,
         counts: makeAmountMap(), amounts: makeAmountMap(),
         amountsByCurrency: new Map(), amountsByPayment: new Map(),
         countsByCurrency: new Map(), countsByPayment: new Map(),
@@ -476,45 +479,78 @@
     };
 
     // ==================== 核心处理 ====================
-    function applyViewFilters(allRows, vs) {
-        const tb = getTBody(), visRows = [], needAccum = !!state.searchQuery;
-        for (const row of allRows) {
-            row.classList.remove('page-visible');
-            if (!row.dataset.category) { row.classList.remove('search-match'); continue; }
-            const matchSearch = !state.searchQuery || (row.dataset.itemText || '').includes(state.searchQuery);
-            row.classList.toggle('search-match', matchSearch);
-            if (!matchSearch) continue;
-            if (state.currentFilter !== 'all' && row.dataset.category !== state.currentFilter) continue;
-            if (state.subFilter) {
-                const sf = state.subFilter;
-                if (sf.category !== 'total' && row.dataset.category !== sf.category) continue;
-                if (sf.type === 'payment') {
-                    const pm = row.dataset.payment;
-                    if (pm !== sf.key && pm !== 'mixed') continue;
-                    if (pm === 'mixed') { try { if (!JSON.parse(row.dataset.paymentParts || '[]').some(p => p.pm === sf.key)) continue; } catch { continue; } }
-                    if (sf.currencyKey && row.dataset.currency !== sf.currencyKey) continue;
-                } else if (sf.type === 'currency' && row.dataset.currency !== sf.key) continue;
-            }
-            visRows.push(row); if (needAccum) accumulateRow(row, vs);
+    function rowPassesView(row) {
+        if (!row.dataset.category) return false;
+        const matchSearch = !state.searchQuery || (row.dataset.itemText || '').includes(state.searchQuery);
+        row.classList.toggle('search-match', matchSearch);
+        if (!matchSearch) return false;
+        if (state.currentFilter !== 'all' && row.dataset.category !== state.currentFilter) return false;
+        if (state.subFilter) {
+            const sf = state.subFilter;
+            if (sf.category !== 'total' && row.dataset.category !== sf.category) return false;
+            if (sf.type === 'payment') {
+                const pm = row.dataset.payment;
+                if (pm !== sf.key && pm !== 'mixed') return false;
+                if (pm === 'mixed') { try { if (!JSON.parse(row.dataset.paymentParts || '[]').some(p => p.pm === sf.key)) return false; } catch { return false; } }
+                if (sf.currencyKey && row.dataset.currency !== sf.currencyKey) return false;
+            } else if (sf.type === 'currency' && row.dataset.currency !== sf.key) return false;
         }
+        return true;
+    }
+
+    function yieldUI() {
+        return new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    async function applyViewFilters(allRows, vs, seq = ++state.viewSeq) {
+        const tb = getTBody(), visRows = [], needAccum = !!state.searchQuery;
+        const signal = { get aborted() { return seq !== state.viewSeq; } };
+        const onItem = row => {
+            row.classList.remove('page-visible');
+            if (!row.dataset.category) { row.classList.remove('search-match'); return; }
+            if (!rowPassesView(row)) return;
+            visRows.push(row); if (needAccum) accumulateRow(row, vs);
+        };
+        if (typeof DataIndex?.scanChunks === 'function') {
+            const result = await DataIndex.scanChunks(allRows, { chunkSize: VIEW_SCAN_CHUNK, signal, yieldFn: yieldUI, onItem });
+            if (result.cancelled) return;
+        } else {
+            for (let i = 0; i < allRows.length; i++) {
+                if (signal.aborted) return;
+                onItem(allRows[i]);
+                if (i > 0 && i % VIEW_SCAN_CHUNK === 0) await yieldUI();
+            }
+        }
+        if (signal.aborted) return;
         tb?.classList.toggle('search-filtered', state.searchQuery);
         refreshStats(visRows, vs);
         if (state.showAllMode) {
             tb?.classList.toggle('paginated', !!state.subFilter);
             tb?.classList.toggle('show-all', !state.subFilter);
-            for (const r of visRows) r.classList.add('page-visible');
+            if (VirtualList?.applyVisibility) VirtualList.applyVisibility(visRows, { start: 0, end: visRows.length });
+            else for (const r of visRows) r.classList.add('page-visible');
             state.totalPages = 1;
         } else {
             tb?.classList.add('paginated'); tb?.classList.remove('show-all');
-            state.totalPages = Math.max(1, Math.ceil(visRows.length / PAGE_SIZE));
-            state.currentPage = Math.min(Math.max(1, state.currentPage), state.totalPages);
-            const start = (state.currentPage - 1) * PAGE_SIZE;
-            for (let i = start; i < Math.min(start + PAGE_SIZE, visRows.length); i++) visRows[i].classList.add('page-visible');
+            const page = state.pager || VirtualList?.createPager?.({ pageSize: PAGE_SIZE });
+            if (page) {
+                state.pager = page;
+                page.setPage(state.currentPage);
+                const info = page.pageInfo(visRows);
+                state.totalPages = info.totalPages;
+                state.currentPage = info.page;
+                VirtualList?.applyVisibility?.(visRows, info) || visRows.slice(info.start, info.end).forEach(r => r.classList.add('page-visible'));
+            } else {
+                state.totalPages = Math.max(1, Math.ceil(visRows.length / PAGE_SIZE));
+                state.currentPage = Math.min(Math.max(1, state.currentPage), state.totalPages);
+                const start = (state.currentPage - 1) * PAGE_SIZE;
+                for (let i = start; i < Math.min(start + PAGE_SIZE, visRows.length); i++) visRows[i].classList.add('page-visible');
+            }
         }
         updatePagerUI();
     }
 
-    function processAll() {
+    async function processAll() {
         if (state.isProcessing) return; state.isProcessing = true;
         invalidateDataRowsCache();
         try {
@@ -548,7 +584,7 @@
                 }
                 accumulateRow(row, gvs);
             }
-            applyViewFilters(allRows, makeViewStats());
+            await applyViewFilters(allRows, makeViewStats());
         } catch (err) {
             log.error('purchase-history-classifier-process-failed', err, {
                 rowCount: getDataRows().length,
@@ -560,7 +596,7 @@
         }
     }
 
-    const debouncedProcess = () => { clearTimeout(state.timers.debounce); state.timers.debounce = setTimeout(processAll, DEBOUNCE_MS); };
+    const debouncedProcess = () => { clearTimeout(state.timers.debounce); state.timers.debounce = setTimeout(() => processAll().catch(() => {}), DEBOUNCE_MS); };
 
     function accumulateRow(row, vs) {
         const cat = row.dataset.category; if (!cat) return;
@@ -676,7 +712,7 @@
         state.currentFilter = type; state.subFilter = null; state.currentPage = 1; applyView();
     }
 
-    function applyView() { if (getTBody()) applyViewFilters(getDataRows(), makeViewStats()); }
+    function applyView() { if (getTBody()) applyViewFilters(getDataRows(), makeViewStats()).catch(error => log.error('purchase-history-classifier-view-failed', error, { error })); }
 
     function updatePagerUI() {
         if (!state.prevBtnEl) return;
@@ -713,7 +749,7 @@
         if (!btn || btn.dataset.intercepted) return;
         btn.dataset.intercepted = 'true';
         styleLoadMoreBtn(btn);
-        btn.addEventListener('click', () => { waitForDataStable().then(() => { processAll(); setTimeout(autoClickLoadMore, DEBOUNCE_MS); }); });
+        btn.addEventListener('click', () => { waitForDataStable().then(() => { processAll().catch(() => {}); setTimeout(autoClickLoadMore, DEBOUNCE_MS); }); });
     }
 
     function startLoadMoreObserver() {
@@ -1551,7 +1587,7 @@
         skipAutoDetect = true;
         _currencyTextCache.clear();
         for (const row of getDataRows()) clearRowCache(row);
-        processAll();
+        processAll().catch(() => {});
         const hintEl = document.querySelector('.shc-primary-currency-hint');
         if (hintEl) hintEl.innerHTML = primaryCurHintHtml();
     }
@@ -1942,7 +1978,7 @@ ${iconColorCSS('.shc-regioncd-row-icon', [['blue','blue','blue'],['cyan','cyan',
         document.addEventListener('click', state.secCollapseHandler);
         state.disposers.push(() => { container.remove(); resizeObs.disconnect(); document.documentElement.style.removeProperty('--filter-h'); document.documentElement.style.removeProperty('--header-r1-h'); state.searchInputEl?.remove(); document.removeEventListener('click', state.secCollapseHandler); });
 
-        processAll(); startTableObserver(); interceptLoadMore(); startLoadMoreObserver();
+        processAll().catch(() => {}); startTableObserver(); interceptLoadMore(); startLoadMoreObserver();
     }
 
     // ==================== UI 辅助 ====================
