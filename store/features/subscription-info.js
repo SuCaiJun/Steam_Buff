@@ -20,6 +20,8 @@
   const fetchGames = api.subs?.fetchGames;
   const fetchGame = api.subs?.fetchGame;
 
+  const OWNER = "store:subscription-info";
+  const STYLE_ID = "st-subscription-info-style";
   const SHOW_STATUS = Object.freeze(new Set(["active", "leaving"]));
   const ROW_CLASSES = Object.freeze([
     "tab_item",
@@ -39,6 +41,16 @@
   let stylesReady = false;
   let obsReady = false;
   let observer = null;
+  const disposers = new Set();
+
+  function track(dispose) {
+    const wrapped = () => {
+      if (!disposers.delete(wrapped)) return;
+      dispose();
+    };
+    disposers.add(wrapped);
+    return wrapped;
+  }
 
   function noTranslate(el) {
     if (!el) return el;
@@ -295,10 +307,29 @@
 
   function scheduleScan() {
     if (scanTimer) return;
+    let disposeTimer = null;
+    let timerResource = null;
     scanTimer = setTimeout(() => {
-      scanTimer = null;
+      if (timerResource) {
+        timerResource.dispose();
+      } else {
+        disposeTimer?.();
+      }
       scanLists();
     }, 500);
+    const timerId = scanTimer;
+    disposeTimer = track(() => {
+      if (scanTimer === timerId) {
+        scanTimer = null;
+      }
+      clearTimeout(timerId);
+    });
+    timerResource = window.STRuntime?.current?.()?.registerResource?.({
+      owner: OWNER,
+      key: "scan-timer",
+      type: "timer",
+      dispose: disposeTimer,
+    });
   }
 
   function observerTarget() {
@@ -322,14 +353,39 @@
       || new MutationObserver(scheduleScan);
     // 只监听商品列表或商店内容容器；列表卡片由 React 深层替换，保留 subtree。
     observer.observe(target, { childList: true, subtree: true });
+    const disposeObserver = track(() => observer?.disconnect?.());
+    window.STRuntime?.current?.()?.registerResource?.({
+      owner: OWNER,
+      key: "list-observer",
+      type: "observer",
+      dispose: disposeObserver,
+    });
     window.addEventListener("pageshow", scheduleScan);
+    const disposePageShow = track(() => window.removeEventListener("pageshow", scheduleScan));
+    window.STRuntime?.current?.()?.registerResource?.({
+      owner: OWNER,
+      key: "pageshow",
+      type: "listener",
+      meta: { event: "pageshow" },
+      dispose: disposePageShow,
+    });
     document.addEventListener("scroll", scheduleScan, { passive: true });
+    const disposeScroll = track(() => document.removeEventListener("scroll", scheduleScan, { passive: true }));
+    window.STRuntime?.current?.()?.registerResource?.({
+      owner: OWNER,
+      key: "scroll",
+      type: "listener",
+      meta: { event: "scroll" },
+      dispose: disposeScroll,
+    });
   }
 
   function addStyles() {
     if (stylesReady) return;
     stylesReady = true;
+    if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement("style");
+    style.id = STYLE_ID;
     style.textContent = `
       .${MODULE_CLASSES.SUBSCRIPTION} {
         margin: 10px 0;
@@ -393,6 +449,16 @@
       }
     `;
     document.head.appendChild(style);
+    const disposeStyle = track(() => {
+      style.remove();
+      stylesReady = false;
+    });
+    window.STRuntime?.current?.()?.registerResource?.({
+      owner: OWNER,
+      key: "style",
+      type: "style",
+      dispose: disposeStyle,
+    });
   }
 
   function startLists() {
@@ -401,8 +467,24 @@
     scheduleScan();
   }
 
+  function stop() {
+    if (scanTimer) {
+      clearTimeout(scanTimer);
+      scanTimer = null;
+    }
+    observer?.disconnect?.();
+    observer = null;
+    obsReady = false;
+    document.querySelectorAll(`.${MODULE_CLASSES.SUBSCRIPTION}, .st_subscription_badges`).forEach(node => node.remove());
+    document.getElementById(STYLE_ID)?.remove();
+    stylesReady = false;
+    window.STRuntime?.current?.()?.disposeOwner?.(OWNER);
+    Array.from(disposers).forEach(dispose => dispose());
+  }
+
   api.features.subscriptionInfo = Object.freeze({
     addDetail,
     startLists,
+    stop,
   });
 })();

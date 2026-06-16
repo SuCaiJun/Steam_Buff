@@ -14,6 +14,8 @@
   const api = window.STStore = window.STStore || {};
   const CACHE_CLEANUP_TASK = "store-cache-cleanup";
   const CACHE_CLEANUP_MS = 5 * 60 * 1000;
+  const CACHE_MAX_ENTRIES = 300;
+  const CACHE_MAX_STORAGE_BYTES = 1024 * 1024;
 
 function trySave(storageKey, cache) {
     try {
@@ -53,10 +55,42 @@ function pruneOverflow(cache) {
     return true;
 }
 
+function cacheStorageBytes(cache) {
+    try {
+        return JSON.stringify(cache).length;
+    } catch {
+        return Object.entries(cache).reduce((sum, [key, value]) => sum + entrySize(key, value), 0);
+    }
+}
+
+function pruneCapacity(cache, maxEntries = CACHE_MAX_ENTRIES, maxBytes = CACHE_MAX_STORAGE_BYTES) {
+    let removed = 0;
+    let entries = Object.entries(cache);
+    if (!entries.length) return removed;
+
+    entries.sort((left, right) => entryTime(left[1]) - entryTime(right[1]));
+    while (entries.length > maxEntries) {
+        const [key] = entries.shift();
+        delete cache[key];
+        removed++;
+    }
+
+    while (entries.length > 0 && cacheStorageBytes(cache) > maxBytes) {
+        const [key] = entries.shift();
+        if (Object.hasOwn(cache, key)) {
+            delete cache[key];
+            removed++;
+        }
+    }
+    return removed;
+}
+
 class CacheManager {
     constructor() {
         this.storageKey = 'steam_helper_api_cache';
         this.defaultTTL = 30 * 60 * 1000;
+        this.maxEntries = CACHE_MAX_ENTRIES;
+        this.maxStorageBytes = CACHE_MAX_STORAGE_BYTES;
         this.cache = this._loadCache();
     }
 
@@ -65,7 +99,10 @@ class CacheManager {
             const data = localStorage.getItem(this.storageKey);
             if (data) {
                 const cache = JSON.parse(data);
-                return cache;
+                if (cache && typeof cache === "object" && !Array.isArray(cache)) {
+                    pruneCapacity(cache, this.maxEntries, this.maxStorageBytes);
+                    return cache;
+                }
             }
         } catch (e) {
         }
@@ -73,6 +110,8 @@ class CacheManager {
     }
 
     _saveCache() {
+        this.clearExpired(false);
+        pruneCapacity(this.cache, this.maxEntries, this.maxStorageBytes);
         if (trySave(this.storageKey, this.cache)) return;
 
         // 存储写满时先清过期项，再按旧项/大项逐步淘汰，避免把全部缓存清空。
@@ -177,7 +216,12 @@ class CacheManager {
         return {
             total: Object.keys(this.cache).length,
             active: active,
-            expired: expired
+            expired: expired,
+            defaultTTL: this.defaultTTL,
+            maxEntries: this.maxEntries,
+            maxStorageBytes: this.maxStorageBytes,
+            cleanupIntervalMs: CACHE_CLEANUP_MS,
+            storageBytes: cacheStorageBytes(this.cache)
         };
     }
 }

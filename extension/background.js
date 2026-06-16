@@ -45,8 +45,8 @@
     "extension/runtime/logger.js",
     "shared/logger-factory.js",
     "shared/error-boundary.js",
-    "shared/page-context.js",
     "shared/runtime/kernel.js",
+    "shared/page-context.js",
     "extension/content.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";

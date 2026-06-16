@@ -24,6 +24,7 @@
 
   const ROOT_CLASS = "st_steampy_deals";
   const STYLE_ID = "st-steampy-deals-style";
+  const OWNER = "store:steampy-deals";
   const NARROW_WIDTH = 720;
   const FEATURES = Object.freeze({
     cdk: "steampy-cdk-price",
@@ -31,6 +32,18 @@
   });
   const log = window.STLoggerFactory.createLogger("store", "steampy-deals");
   let resizeHooked = false;
+  let nextResourceId = 0;
+  const disposers = new Set();
+  const panelResources = new WeakMap();
+
+  function track(dispose) {
+    const wrapped = () => {
+      if (!disposers.delete(wrapped)) return;
+      dispose();
+    };
+    disposers.add(wrapped);
+    return wrapped;
+  }
 
   function cleanText(value) {
     return String(value || "").trim();
@@ -94,8 +107,14 @@
         return;
       }
 
+      disposePanel(node);
       node.remove();
     });
+  }
+
+  function disposePanel(root) {
+    panelResources.get(root)?.();
+    panelResources.delete(root);
   }
 
   function hasPanel(section, appId) {
@@ -216,6 +235,13 @@
       }
     `;
     document.head.appendChild(style);
+    const disposeStyle = track(() => style.remove());
+    window.STRuntime?.current?.()?.registerResource?.({
+      owner: OWNER,
+      key: "style",
+      type: "style",
+      dispose: disposeStyle,
+    });
   }
 
   function parsePrice(text) {
@@ -403,12 +429,36 @@
       if (!section) return;
       const observer = new ResizeObserver(() => compact(root));
       observer.observe(section);
+      const key = `resize:${root.dataset.steamPyResourceId || root.dataset.steamAppId || "app"}`;
+      const disposeObserver = track(() => observer.disconnect());
+      const handle = window.STRuntime?.current?.()?.registerResource?.({
+        owner: OWNER,
+        key,
+        type: "observer",
+        dispose: disposeObserver,
+      });
+      panelResources.set(root, () => {
+        if (handle) {
+          handle.dispose();
+        } else {
+          disposeObserver();
+        }
+      });
       return;
     }
     if (resizeHooked) return;
     resizeHooked = true;
-    window.addEventListener("resize", () => {
+    const onResize = () => {
       document.querySelectorAll(`.${ROOT_CLASS}`).forEach(compact);
+    };
+    window.addEventListener("resize", onResize);
+    const disposeResize = track(() => window.removeEventListener("resize", onResize));
+    window.STRuntime?.current?.()?.registerResource?.({
+      owner: OWNER,
+      key: "window-resize",
+      type: "listener",
+      meta: { event: "resize" },
+      dispose: disposeResize,
     });
   }
 
@@ -416,6 +466,7 @@
     const root = document.createElement("div");
     root.className = ROOT_CLASS;
     root.dataset.steamAppId = appId;
+    root.dataset.steamPyResourceId = String(++nextResourceId);
     root.appendChild(createLoadingRow());
 
     const base = basePrice(section);
@@ -485,8 +536,20 @@
     return sections.length === 0 || sections.every(section => hasPanel(section, id));
   }
 
+  function stop() {
+    document.querySelectorAll(`.${ROOT_CLASS}`).forEach(node => {
+      disposePanel(node);
+      node.remove();
+    });
+    document.getElementById(STYLE_ID)?.remove();
+    window.STRuntime?.current?.()?.disposeOwner?.(OWNER);
+    Array.from(disposers).forEach(dispose => dispose());
+    resizeHooked = false;
+  }
+
   api.features.steamPyDeals = Object.freeze({
     add,
     has,
+    stop,
   });
 })();
