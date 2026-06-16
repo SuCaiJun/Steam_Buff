@@ -15,7 +15,7 @@
   const reg = api?.reg;
   const log = window.STLoggerFactory.createLogger('steam', 'main');
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
-  const RUNTIME_VERSION = "steam-runtime-scope-20260614-p3-runtime-kernel";
+  const RUNTIME_VERSION = "steam-runtime-scope-20260616-p7-page-context";
   const BOOT_MS = 500;
   const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;
@@ -68,7 +68,7 @@
 
   function isSteamMainWindow() {
     // 只允许 Steam 主窗口、SharedJSContext 和真实业务弹窗启动 runtime，避免好友列表/菜单页空巡检。
-    if (window !== window.top || !document.documentElement || location.href.includes("about:blank")) {
+    if (window.STPageContext?.shouldInject?.() !== true) {
       return false;
     }
     if (api.ctx?.isShared?.() || api.ctx?.isMainUi?.() || api.ctx?.hasCustomSortUi?.()) {

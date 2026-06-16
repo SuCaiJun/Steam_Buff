@@ -53,9 +53,11 @@
       ]);
       settings = nextSettings || {};
       membership = nextMembership || { active: false, features: {} };
+      globalThis.STPageContext?.setSettingsSnapshot?.(settings);
     } catch {
       settings = {};
       membership = { active: false, features: {} };
+      globalThis.STPageContext?.setSettingsSnapshot?.(settings);
     }
   }
 
@@ -89,61 +91,35 @@
     ));
   }
 
-  function refreshEnabledFeatures(reason = "settings") {
+  function refreshActiveFeatureSet(reason = "settings") {
     const startedAt = Date.now();
-    const meta = { reason, path: location.pathname };
-    log("info", "settings-refresh-start", "商店页设置刷新开始", meta);
+    const context = globalThis.STPageContext?.snapshot?.() || {};
+    const meta = { reason, path: context.path || location.pathname, pageType: context.pageType || "" };
+    log("info", "settings-refresh-start", "商店页设置快照刷新开始", meta);
     try {
-      let started = 0;
-      let stopped = 0;
-      if (on("search-suggestions")) {
-        api.features.searchSuggestions?.start?.();
-        api.features.searchSuggestions?.scan?.();
-        started += 1;
-      } else {
-        api.features.searchSuggestions?.stop?.();
-        stopped += 1;
-      }
-      if (on("store-title-custom-name")) {
-        api.features.titleCustomName?.start?.();
-        api.features.titleCustomName?.refresh?.();
-        started += 1;
-      } else {
-        api.features.titleCustomName?.stop?.();
-        stopped += 1;
-      }
-      if (on("game-notes")) {
-        api.features.gameNotes?.start?.();
-        api.features.gameNotes?.refresh?.();
-        started += 1;
-      } else {
-        api.features.gameNotes?.stop?.();
-        stopped += 1;
-      }
-      if (on("review-filter")) {
-        api.features.reviewFilter?.start?.();
-        started += 1;
-      }
-      if (on("wishlist-price-history")) {
-        api.features.wishlistPriceHistory?.start?.();
-        started += 1;
-      } else {
-        api.features.wishlistPriceHistory?.stop?.();
-        stopped += 1;
-      }
-      if (on("purchase-history-classifier")) {
-        api.features.purchaseHistoryClassifier?.start?.();
-        started += 1;
-      }
-      api.purchaseRecover?.schedule?.(reason);
-      log("info", "settings-refresh-success", "商店页设置刷新完成", {
+      const gate = globalThis.STPageContext?.canRunFeature?.({
+        domain: "store",
+        id: "store-enhancements",
+        settingsKey: "store-enhancements",
+        settingsSnapshot: settings,
+        settingOn: on,
+      }) || { allowed: true, reason: "" };
+      const runtime = globalThis.STRuntime?.current?.();
+      runtime?.markFeature?.({
+        domain: "store",
+        id: "store-enhancements",
+        status: gate.allowed ? "started" : "disabled",
+        reason: gate.reason || "",
+        meta,
+      });
+      log("info", "settings-refresh-success", "商店页设置快照刷新完成", {
         ...meta,
-        started,
-        stopped,
+        active: gate.allowed === true,
+        skippedReason: gate.reason || "",
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
-      log("error", "settings-refresh-failed", "商店页设置刷新失败", {
+      log("error", "settings-refresh-failed", "商店页设置快照刷新失败", {
         ...meta,
         durationMs: Date.now() - startedAt,
         error: error?.message || String(error),
@@ -158,10 +134,7 @@
       chrome.storage.onChanged.addListener((changes, area) => {
         if (!settingsChanged(changes, area)) return;
         load().then(() => {
-          window.dispatchEvent(new CustomEvent("STStoreSettingsChanged", {
-            detail: api.settings.all(),
-          }));
-          refreshEnabledFeatures("settings");
+          refreshActiveFeatureSet("settings");
         }).catch(() => {});
       });
     } catch {
@@ -178,6 +151,6 @@
   api.settingsGate = Object.freeze({
     load,
     watch,
-    refresh: refreshEnabledFeatures,
+    refresh: refreshActiveFeatureSet,
   });
 })();

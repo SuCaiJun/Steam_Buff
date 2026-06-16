@@ -258,11 +258,94 @@
     ]),
   });
 
+  const pages = Object.freeze({
+    protocols: Object.freeze({
+      lightBoot: Object.freeze(["http:", "https:"]),
+    }),
+    allowedHosts: Object.freeze([
+      HOSTS.steamLoopback,
+      HOSTS.steamStore,
+      HOSTS.steamCommunity,
+    ]),
+    excludedUrlParts: Object.freeze([
+      "about:blank",
+      "chrome-extension://",
+      "devtools://",
+      `${HOSTS.steamLoopback}/html/notificationtoasts`,
+      `${HOSTS.steamLoopback}/html/friendsui`,
+    ]),
+    steam: Object.freeze({
+      host: HOSTS.steamLoopback,
+      allowedTitles: Object.freeze(["Steam", "SharedJSContext"]),
+      excludedTitles: Object.freeze([
+        "Profile Supernav",
+        "Community Supernav",
+        "Library Supernav",
+        "Store Supernav",
+        "Account Menu",
+        "Notifications Menu",
+        "Help Root Menu",
+        "Games Root Menu",
+        "Friends Root Menu",
+        "View Root Menu",
+        "Steam Root Menu",
+        "Menu",
+        "好友列表",
+      ]),
+      contexts: Object.freeze({
+        backend: "SharedJSContext",
+        main: "Steam",
+        ui: "main-ui",
+        downloads: "/library/downloads",
+        customSortDialog: "custom-sort-dialog",
+      }),
+    }),
+    store: Object.freeze({
+      host: HOSTS.steamStore,
+      checkoutHost: HOSTS.steamCheckout,
+      pageTypes: Object.freeze({
+        details: Object.freeze(["/app/:appid", "/sub/:subid", "/bundle/:bundleid"]),
+        age: Object.freeze(["/agecheck/app/:appid", "/agecheck/sub/:subid", "/agecheck/bundle/:bundleid"]),
+        wishlist: Object.freeze(["/wishlist"]),
+        search: Object.freeze(["/search"]),
+        cart: Object.freeze(["/cart"]),
+        history: Object.freeze(["/account/history"]),
+        other: Object.freeze(["/"]),
+      }),
+    }),
+    community: Object.freeze({
+      host: HOSTS.steamCommunity,
+      targetPages: Object.freeze([
+        "community-inventory",
+        "community-market",
+        "community-listing",
+        "community-trade",
+      ]),
+      pageTypes: Object.freeze({
+        inventory: Object.freeze(["/id/:name/inventory", "/profiles/:id/inventory"]),
+        market: Object.freeze(["/market"]),
+        listing: Object.freeze(["/market/listings/:appid/:item"]),
+        trade: Object.freeze(["/tradeoffer"]),
+        review: Object.freeze(["/app/:appid/reviews"]),
+      }),
+    }),
+    translate: Object.freeze({
+      hostPatterns: Object.freeze([HOSTS.steamCommunity, HOSTS.steamPowered]),
+      steamOnly: true,
+      browserType: "4",
+    }),
+    settings: Object.freeze({
+      webProtocols: Object.freeze(["http:", "https:"]),
+      topFrameOnly: true,
+    }),
+  });
+
   root.STConfig = Object.freeze({
     hosts,
     urls,
     vendors,
     links,
+    pages,
     matchers,
     externalLinks: links,
     origin,

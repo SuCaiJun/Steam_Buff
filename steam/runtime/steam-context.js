@@ -201,8 +201,11 @@
   function settings() {
     const raw = document.documentElement?.dataset?.steamBuffSettings || "{}";
     try {
-      return JSON.parse(raw) || {};
+      const next = JSON.parse(raw) || {};
+      window.STPageContext?.setSettingsSnapshot?.(next);
+      return next;
     } catch {
+      window.STPageContext?.setSettingsSnapshot?.({});
       return {};
     }
   }

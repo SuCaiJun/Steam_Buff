@@ -17,15 +17,7 @@
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
 
   function pageType() {
-    const path = location.pathname || "";
-    if (/^\/app\//i.test(path)) return "app";
-    if (/^\/sub\//i.test(path)) return "sub";
-    if (/^\/bundle\//i.test(path)) return "bundle";
-    if (/^\/wishlist\//i.test(path)) return "wishlist";
-    if (/^\/search\//i.test(path)) return "search";
-    if (/^\/cart\/?$/i.test(path)) return "cart";
-    if (/^\/account\/history/i.test(path)) return "account-history";
-    return "other";
+    return window.STPageContext?.snapshot?.().pageType || "other";
   }
 
   function summary(results) {

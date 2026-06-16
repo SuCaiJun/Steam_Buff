@@ -46,11 +46,33 @@
         id: feature.id,
         settingsKey: feature.settingsKey || feature.id,
         loadStrategy: feature.loadStrategy || "runtime-page-chunk",
+        modes: this.toList(feature.modes),
+        pageScope: this.toList(feature.pageScope),
+        dependencies: this.toList(feature.dependencies),
+        cost: feature.cost || "startup-light",
         dispose: typeof feature.stop === "function",
         meta: {
           loadedBy: "content.js",
         },
       });
+    }
+
+    toList(value) {
+      return Array.isArray(value) ? value : [];
+    }
+
+    canRun(feature) {
+      return window.STPageContext?.canRunFeature?.({
+        domain: "store",
+        id: feature.id,
+        settingsKey: feature.settingsKey || feature.id,
+        pageScope: this.toList(feature.pageScope),
+        modes: this.toList(feature.modes),
+        dependencies: this.toList(feature.dependencies),
+        cost: feature.cost || "startup-light",
+        settingsSnapshot: api.settings?.all?.() || {},
+        settingOn: id => api.settings?.on?.(id),
+      }) || { allowed: true, reason: "" };
     }
 
     async start() {
@@ -59,15 +81,31 @@
       const results = [];
       for (const feature of this.state.items) {
         try {
+          const gate = this.canRun(feature);
+          if (!gate.allowed) {
+            runtime?.markFeature?.({
+              domain: "store",
+              id: feature.id,
+              status: "skipped",
+              reason: gate.reason || "can-run-false",
+              meta: {
+                path: window.STPageContext?.snapshot?.().path || location.pathname,
+                page: gate.page || "",
+                pageType: gate.pageType || "",
+              },
+            });
+            results.push({ id: feature.id, status: "skipped", reason: gate.reason || "can-run-false" });
+            continue;
+          }
           if (typeof feature.shouldRun === "function" && !feature.shouldRun(api)) {
             runtime?.markFeature?.({
               domain: "store",
               id: feature.id,
               status: "skipped",
               reason: "should-run-false",
-              meta: { path: location.pathname },
+              meta: { path: window.STPageContext?.snapshot?.().path || location.pathname },
             });
-            results.push({ id: feature.id, status: "skipped" });
+            results.push({ id: feature.id, status: "skipped", reason: "should-run-false" });
             continue;
           }
           const result = await feature.start(api);

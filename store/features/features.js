@@ -346,6 +346,21 @@ async function init() {
 
 api.reg.add({
     id: "store-enhancements",
+    settingsKey: "store-enhancements",
+    loadStrategy: "runtime-page-chunk",
+    modes: ["details", "wishlist", "search", "cart", "history", "other"],
+    pageScope: [
+        "store-app",
+        "store-sub",
+        "store-bundle",
+        "store-wishlist",
+        "store-search",
+        "store-cart",
+        "store-account-history",
+        "store-other",
+    ],
+    dependencies: ["store/runtime/settings-gate.js", "store/runtime/context.js"],
+    cost: "dom-scan",
     start() {
         waitForDOMReady(() => {
             init().catch(() => {});

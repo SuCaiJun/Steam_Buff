@@ -13,7 +13,7 @@
 
   const MATCH = globalThis.STConfig?.matchers;
   const MARK = "steamBuffInjected";
-  const MARK_VALUE = "steam-runtime-scope-20260614-p3-runtime-kernel";
+  const MARK_VALUE = "steam-runtime-scope-20260616-p7-page-context";
 
   if (globalThis.STGuard?.ready && globalThis.STGuard.version === MARK_VALUE) {
     return;

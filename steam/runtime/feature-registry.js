@@ -93,18 +93,39 @@
     }
 
     shouldStart(feature, context) {
-      const activeOn = this.toList(feature.activeOn);
-      if (activeOn.length) {
-        const targets = this.api.ctx?.targets?.() || [];
-        const active = activeOn.some((target) => targets.includes(target));
-        if (!active) {
-          return false;
-        }
+      return this.canStart(feature, context).allowed;
+    }
+
+    canStart(feature, context) {
+      const targets = this.api.ctx?.targets?.() || [];
+      const settingsSnapshot = this.api.ctx?.settings?.() || {};
+      const gate = window.STPageContext?.canRunFeature?.({
+        domain: "steam",
+        id: feature.id,
+        mode: context,
+        settingsKey: feature.settingsKey || feature.id,
+        pageScope: this.toList(feature.pageScope).length
+          ? this.toList(feature.pageScope)
+          : this.toList(feature.activeOn),
+        settingsSnapshot,
+        settingOn: id => this.api.ctx?.settingOn?.(id),
+        route: this.api.ctx?.route?.() || "",
+        pageTokens: targets,
+      }) || { allowed: true, reason: "" };
+      if (!gate.allowed) {
+        return gate;
       }
       if (typeof feature.shouldRun !== "function") {
-        return true;
+        return gate;
       }
-      return feature.shouldRun(this.api, context);
+      if (!feature.shouldRun(this.api, context)) {
+        return {
+          ...gate,
+          allowed: false,
+          reason: "should-run-false",
+        };
+      }
+      return gate;
     }
 
     entryName(feature, context) {
@@ -229,20 +250,23 @@
         });
         return { id: feature.id, context, entry, status: "skipped", reason: "already-starting" };
       }
-      if (!this.shouldStart(feature, context)) {
+      const gate = this.canStart(feature, context);
+      if (!gate.allowed) {
         runtime?.markFeature?.({
           domain: "steam",
           id: feature.id,
           mode: context,
           entry,
           status: "skipped",
-          reason: "context-mismatch",
+          reason: gate.reason || "context-mismatch",
           meta: {
             contexts: this.api.ctx?.contexts?.() || [],
             targets: this.api.ctx?.targets?.() || [],
+            page: gate.page || "",
+            pageType: gate.pageType || "",
           },
         });
-        return { id: feature.id, context, entry, status: "skipped", reason: "context-mismatch" };
+        return { id: feature.id, context, entry, status: "skipped", reason: gate.reason || "context-mismatch" };
       }
 
       // starting/started 防止 5 秒巡检和路由变化重复启动同一个上下文入口。

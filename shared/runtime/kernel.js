@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2026-06-14-p3-runtime-kernel";
+  const VERSION = "2026-06-16-p7-page-context";
   const GLOBAL_KEY = "__SteamBuffRuntimeKernel";
   const DEFAULT_ID = "steam-buff-runtime";
 
@@ -271,6 +271,7 @@
         },
       });
       this.features.set(key, next);
+      this.updatePageContextFeature(next);
       this.updateFeatureMetric();
       return next;
     }
@@ -378,6 +379,7 @@
         status: this.status,
         uptimeMs: now() - this.createdAt,
         context: this.contextSnapshot(),
+        activeFeatureSet: safeCall(() => window.STPageContext?.activeFeatureSet?.()) || null,
         adapters: Array.from(this.adapters.values()),
         features: Array.from(this.features.values()),
         resources: this.resources.list(),
@@ -411,12 +413,38 @@
     }
 
     contextSnapshot() {
-      return {
+      const shared = safeCall(() => window.STPageContext?.snapshot?.()) || null;
+      return shared || {
         host: location.hostname,
         path: location.pathname,
         title: document.title || "",
         topFrame: window.top === window,
       };
+    }
+
+    updatePageContextFeature(feature) {
+      const id = feature.mode || feature.entry
+        ? `${feature.domain}:${feature.id}:${feature.mode || feature.entry}`
+        : `${feature.domain}:${feature.id}`;
+      if (feature.status === "started") {
+        window.STPageContext?.markFeatureActive?.(id, {
+          domain: feature.domain,
+          featureId: feature.id,
+          mode: feature.mode || "",
+          entry: feature.entry || "",
+          reason: feature.reason || "",
+        });
+        return;
+      }
+      if (["skipped", "failed", "disabled", "inactive"].includes(feature.status)) {
+        window.STPageContext?.markFeatureInactive?.(id, feature.reason || feature.status, {
+          domain: feature.domain,
+          featureId: feature.id,
+          mode: feature.mode || "",
+          entry: feature.entry || "",
+          error: feature.error || "",
+        });
+      }
     }
 
     updateFeatureMetric() {

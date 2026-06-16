@@ -49,7 +49,7 @@
   }
 
   function targetPage() {
-    return location.protocol === "http:" || location.protocol === "https:";
+    return globalThis.STPageContext?.settingsPage?.() === "settings-web";
   }
 
   runtime?.registerAdapter?.({

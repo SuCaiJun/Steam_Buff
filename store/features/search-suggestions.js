@@ -640,7 +640,6 @@
     addStyle();
     refresh();
     observe();
-    window.addEventListener("STStoreSettingsChanged", refresh);
     return true;
   }
 
@@ -652,7 +651,6 @@
     observer?.disconnect?.();
     observer = null;
     scanPending = false;
-    window.removeEventListener("STStoreSettingsChanged", refresh);
     clearAll();
     return true;
   }

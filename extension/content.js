@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-runtime-scope-20260614-p3-runtime-kernel";
+  const RUN_VERSION = "steam-runtime-scope-20260616-p7-page-context";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -23,98 +23,17 @@
   const STEAM_TITLE_WAIT_MS = 100;
   const STEAM_TITLE_WAIT_MAX = 80;
   const STEAM_TITLE_WAIT_TRIES = "__steamBuffTitleWaitTries";
-  const ALLOWED_PAGES = Object.freeze([
-    "steamloopback.host",
-    "store.steampowered.com",
-    "steamcommunity.com",
-  ]);
-  const LIGHT_BOOT_PAGES = Object.freeze([
-    "http:",
-    "https:",
-  ]);
-  const EXCLUDED_PAGES = Object.freeze([
-    "about:blank",
-    "chrome-extension://",
-    "devtools://",
-    "steamloopback.host/html/notificationtoasts",
-    "steamloopback.host/html/friendsui",
-  ]);
-  const ALLOWED_STEAM_TITLES = Object.freeze(["Steam", "SharedJSContext"]);
-  const EXCLUDED_STEAM_TITLES = Object.freeze([
-    "Profile Supernav",
-    "Community Supernav",
-    "Library Supernav",
-    "Store Supernav",
-    "Account Menu",
-    "Notifications Menu",
-    "Help Root Menu",
-    "Games Root Menu",
-    "Friends Root Menu",
-    "View Root Menu",
-    "Steam Root Menu",
-    "Menu",
-    "好友列表",
-  ]);
-
-  function isAllowedSteamAboutBlank(url) {
-    if (!url.startsWith("about:blank")) {
-      return false;
-    }
-    try {
-      const query = url.slice("about:blank".length).replace(/^\?/, "");
-      const params = new URLSearchParams(query);
-      return params.get("browserType") === "4";
-    } catch {
-      return false;
-    }
-  }
-
-  function isSteamClientPageAllowed() {
-    const title = document.title || "";
-    if (ALLOWED_STEAM_TITLES.includes(title)) {
-      return true;
-    }
-    if (EXCLUDED_STEAM_TITLES.includes(title) || /(?:Root Menu|Supernav)$/u.test(title)) {
-      return false;
-    }
-    return false;
-  }
 
   function shouldInject() {
-    const url = location.href;
-
-    if (isAllowedSteamAboutBlank(url)) {
-      return window === window.top && document.documentElement;
-    }
-
-    if (EXCLUDED_PAGES.some(exclude => url.startsWith(exclude) || url.includes(exclude))) {
-      return false;
-    }
-
-    if (!ALLOWED_PAGES.some(allowed => url.includes(allowed))) {
-      return false;
-    }
-
-    if (url.includes("steamloopback.host")) {
-      return window === window.top && document.documentElement && isSteamClientPageAllowed();
-    }
-
-    return true;
+    return globalThis.STPageContext?.shouldInject?.() === true;
   }
 
   function shouldLightBoot() {
-    return window === window.top &&
-      document.documentElement &&
-      LIGHT_BOOT_PAGES.includes(location.protocol) &&
-      !MATCH.isSteamLoopbackHost(location.hostname);
+    return globalThis.STPageContext?.shouldLightBoot?.() === true;
   }
 
   function shouldCleanupExcludedSteamRuntime() {
-    const title = document.title || "";
-    return location.hostname === "steamloopback.host" ||
-      ALLOWED_STEAM_TITLES.includes(title) ||
-      EXCLUDED_STEAM_TITLES.includes(title) ||
-      /(?:Root Menu|Supernav)$/u.test(title);
+    return globalThis.STPageContext?.isSteamCleanupTarget?.() === true;
   }
 
   function cleanupExcludedSteamRuntime() {
@@ -170,6 +89,7 @@
     "shared/logger-factory.js",
     "shared/error-boundary.js",
     "shared/i18n.js",
+    "shared/page-context.js",
     "shared/runtime/kernel.js",
     "settings/catalog.js",
     "settings/membership.js",
@@ -220,6 +140,7 @@
     "shared/performance-monitor.js",
     "shared/scheduler.js",
     "shared/observer-utils.js",
+    "shared/page-context.js",
     "shared/runtime/kernel.js",
     "store/runtime/config.js",
     "store/runtime/context.js",
@@ -348,30 +269,28 @@
   }
 
   function pageMeta(extra = {}) {
+    const ctx = globalThis.STPageContext?.snapshot?.() || {};
     return {
-      host: location.hostname,
-      path: location.pathname,
-      title: document.title || "",
-      topFrame: window.top === window,
+      host: ctx.host || location.hostname,
+      path: ctx.path || location.pathname,
+      title: ctx.title || document.title || "",
+      topFrame: ctx.topFrame ?? (window.top === window),
+      page: ctx.page || "",
+      pageType: ctx.pageType || "",
       ...extra,
     };
   }
 
   function steamRuntimeLogTarget() {
-    if (!MATCH.isSteamLoopbackHost(location.hostname)) {
+    const ctx = globalThis.STPageContext?.snapshot?.() || {};
+    if (ctx.domain !== "steam") {
       return false;
     }
-    const title = document.title || "";
-    if (title === "SharedJSContext" || title === "Steam") {
+    if (ctx.title === "SharedJSContext" || ctx.title === "Steam") {
       return true;
     }
-    try {
-      const url = new URL(location.href);
-      return url.searchParams.get("browserType") === "4" ||
-        url.searchParams.get("IN_STEAMUI_SHARED_CONTEXT") === "true";
-    } catch {
-      return false;
-    }
+    return ctx.steam?.aboutMain === true ||
+      String(ctx.href || "").includes("IN_STEAMUI_SHARED_CONTEXT=true");
   }
 
   function steamRuntimeLogOnce(key, entry) {
@@ -478,6 +397,8 @@
 
   function activateLightRuntime(domain, meta = {}) {
     try {
+      const actions = globalThis.STPageContext?.getUserActions?.() || [];
+      globalThis.STPageContext?.setUserActions?.([...actions, "settings-open"]);
       const rt = globalThis.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
       rt?.registerAdapter?.({
         id: domain,
@@ -571,20 +492,13 @@
     activateLightRuntime("settings", {
       loadStrategy: "content-script-light-boot",
     });
-    if (MATCH.isSteamStoreHost(location.hostname)) {
+    if (globalThis.STPageContext?.snapshot?.().domain === "store") {
       loadStoreRuntime().catch(() => {});
     }
   }
 
   function storePageType() {
-    const path = location.pathname || "";
-    if (/^\/(app|sub|bundle)\//i.test(path)) return "details";
-    if (/^\/agecheck\/(app|sub|bundle)\//i.test(path)) return "age";
-    if (/^\/wishlist(?:\/|$)/i.test(path)) return "wishlist";
-    if (/^\/search(?:\/|$)/i.test(path)) return "search";
-    if (/^\/cart\/?$/i.test(path)) return "cart";
-    if (/^\/account\/history/i.test(path)) return "history";
-    return "other";
+    return globalThis.STPageContext?.storePageType?.() || "other";
   }
 
   function storeFeaturePaths(type) {
@@ -595,7 +509,8 @@
   }
 
   async function loadStoreRuntime() {
-    if (!MATCH.isSteamStoreHost(location.hostname)) {
+    const ctx = globalThis.STPageContext?.snapshot?.() || {};
+    if (ctx.domain !== "store") {
       return false;
     }
     if (globalThis[STORE_LOAD_MARK] === "ready" || globalThis[STORE_LOAD_MARK] === STORE_LOAD_PENDING) {
@@ -651,14 +566,7 @@
   }
 
   function isCommunityPage() {
-    if (!MATCH.isSteamCommunityHost(location.hostname)) {
-      return false;
-    }
-
-    return /^\/id\/[^/]+\/inventory\/?/i.test(location.pathname) ||
-      /^\/profiles\/[^/]+\/inventory\/?/i.test(location.pathname) ||
-      /^\/market(?:\/|$)/i.test(location.pathname) ||
-      /^\/tradeoffer(?:\/|$)/i.test(location.pathname);
+    return globalThis.STPageContext?.isCommunityTargetPage?.() === true;
   }
 
   function lockCommunity() {
@@ -969,7 +877,7 @@
 
   /* Steam 新闻翻译桥接 */
   function watchNewsTranslateBridge() {
-    if (watchNewsTranslate || !MATCH.isSteamLoopbackHost(location.hostname)) {
+    if (watchNewsTranslate || globalThis.STPageContext?.snapshot?.().domain !== "steam") {
       return;
     }
     watchNewsTranslate = true;
@@ -998,7 +906,8 @@
   }
 
   function trustedNamePage() {
-    return MATCH.isTrustedNameHost(location.hostname);
+    const ctx = globalThis.STPageContext?.snapshot?.() || {};
+    return ctx.domain === "steam" || ctx.domain === "store";
   }
 
   function postName(data) {
@@ -1478,11 +1387,11 @@
         const newsHit = keys.some((item) => item === settingKey(NEWS_TRANSLATE_ID) || item === settingKey("translate") || item.startsWith(TRANS_PREFIX) || item.startsWith(AI_PREFIX));
         if (hit) {
           settingsCache = null;
-          if (MATCH.isSteamLoopbackHost(location.hostname)) {
+          if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
             writeSteamSettings().catch(() => {});
           }
         }
-        if (newsHit && MATCH.isSteamLoopbackHost(location.hostname)) {
+        if (newsHit && globalThis.STPageContext?.snapshot?.().domain === "steam") {
           postNewsConfig("").catch(() => {});
         }
         if (localeHit) {
@@ -1576,6 +1485,7 @@
           "shared/utils/dom.js",
           "shared/performance-monitor.js",
           "shared/observer-utils.js",
+          "shared/page-context.js",
           "shared/runtime/kernel.js",
           "community/runtime/base.js",
           "community/runtime/settings.js",
@@ -1628,7 +1538,7 @@
     }
 
     // steamloopback.host 会先出现内容脚本但 guard/injector 未 ready 的窗口，必须 retry 到依赖完整。
-    if (MATCH.isSteamLoopbackHost(location.hostname) && !readySteamDeps()) {
+    if (globalThis.STPageContext?.snapshot?.().domain === "steam" && !readySteamDeps()) {
       steamRuntimeLogOnce("steam-runtime-deps-waiting", {
         level: "info",
         domain: "steam",
@@ -1728,11 +1638,7 @@
   }
 
   function shouldWaitSteamTitle() {
-    return location.hostname === "steamloopback.host" &&
-      window === window.top &&
-      document.documentElement &&
-      !document.title &&
-      !isAllowedSteamAboutBlank(location.href);
+    return globalThis.STPageContext?.shouldWaitSteamTitle?.() === true;
   }
 
   function boot() {
@@ -1763,7 +1669,7 @@
       return;
     }
 
-    if (!MATCH.isSteamLoopbackHost(location.hostname) && !isCommunityPage()) {
+    if (globalThis.STPageContext?.snapshot?.().domain !== "steam" && !isCommunityPage()) {
       runLightBoot();
       return;
     }

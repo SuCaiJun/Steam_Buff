@@ -15,15 +15,15 @@
   const PAGE_LISTING = 1;
   const PAGE_TRADE = 2;
   const PAGE_INV = 3;
-  const href = location.href;
-
-  const page = href.includes(".com/market")
-    ? href.includes("market/listings")
-      ? PAGE_LISTING
-      : PAGE_MARKET
-    : href.includes(".com/tradeoffer")
-      ? PAGE_TRADE
-      : PAGE_INV;
+  const snapshot = window.STPageContext?.snapshot?.() || {};
+  const pageType = snapshot.pageType || "";
+  const page = pageType === "listing"
+    ? PAGE_LISTING
+    : pageType === "market"
+      ? PAGE_MARKET
+      : pageType === "trade"
+        ? PAGE_TRADE
+        : PAGE_INV;
 
   function onReady(fn) {
     if (document.readyState === "loading") {

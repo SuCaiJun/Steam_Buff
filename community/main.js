@@ -19,11 +19,7 @@
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
 
   function pageType() {
-    if (api.page === api.pages.INV) return "inventory";
-    if (api.page === api.pages.MARKET) return "market";
-    if (api.page === api.pages.LISTING) return "listing";
-    if (api.page === api.pages.TRADE) return "trade";
-    return "unsupported";
+    return window.STPageContext?.snapshot?.().pageType || "community-other";
   }
 
   const startedAt = Date.now();

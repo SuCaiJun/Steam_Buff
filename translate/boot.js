@@ -53,17 +53,6 @@
     },
   });
 
-  function ancestorHost() {
-    try {
-      if (window.parent && window.parent !== window) {
-        return window.parent.location.hostname || "";
-      }
-      return window.top?.location?.hostname || "";
-    } catch {
-      return "";
-    }
-  }
-
   function key(id) {
     return `${PREFIX}${id}${SUFFIX}`;
   }
@@ -126,32 +115,8 @@
     return out;
   }
 
-  function steam(host) {
-    return MATCH?.isSteamTranslateHost?.(host) === true;
-  }
-
-  function html() {
-    const type = String(document.contentType || "").toLowerCase();
-    return !type || type.includes("html");
-  }
-
   function allowed(conf) {
-    const protocol = location.protocol;
-    const host = location.hostname;
-    if (MATCH?.isSteamLoopbackHost?.(host)) {
-      return false;
-    }
-    if (protocol !== "http:" && protocol !== "https:") {
-      const parentHost = ancestorHost();
-      if (!parentHost || location.href !== "about:blank") {
-        return false;
-      }
-      return conf.scope === "global" ? true : steam(parentHost);
-    }
-    if (!html()) {
-      return false;
-    }
-    return conf.scope === "global" ? true : steam(host);
+    return globalThis.STPageContext?.translateAllowed?.(conf).allowed === true;
   }
 
   function inject(conf) {

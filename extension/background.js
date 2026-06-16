@@ -33,6 +33,7 @@
   const FILES = Object.freeze([
     "shared/config.js",
     "shared/performance-monitor.js",
+    "shared/page-context.js",
     "extension/runtime/guard.js",
     "extension/runtime/injector.js",
     "extension/runtime/logger.js",
@@ -44,11 +45,12 @@
     "extension/runtime/logger.js",
     "shared/logger-factory.js",
     "shared/error-boundary.js",
+    "shared/page-context.js",
     "shared/runtime/kernel.js",
     "extension/content.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-runtime-scope-20260614-p3-runtime-kernel";
+  const CONTENT_MARK_VERSION = "steam-runtime-scope-20260616-p7-page-context";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const SHARED_CONFIG = "shared/config.js";
