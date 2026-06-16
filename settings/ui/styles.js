@@ -11,15 +11,27 @@
 (() => {
   "use strict";
 
+  function themeVariablesCss() {
+    const variables = globalThis.STTheme?.cssVariables;
+    if (!variables || typeof variables !== "object") {
+      return "";
+    }
+
+    const body = Object.entries(variables)
+      .map(([name, value]) => `          ${name}: ${String(value)};`)
+      .join("\n");
+    return `        :host {\n${body}\n        }\n`;
+  }
+
   const BASE_CSS = `
         :host {
           all: initial;
           color-scheme: dark;
-          font-family: "Motiva Sans", Arial, Helvetica, sans-serif;
+          font-family: var(--st-font-family-base, "Motiva Sans", Arial, Helvetica, sans-serif);
           position: fixed;
           inset: 0;
           pointer-events: none;
-          z-index: 2147483646;
+          z-index: var(--st-z-index-overlay, 2147483646);
         }
 
         * {
@@ -65,23 +77,23 @@
         .round {
           width: 42px;
           height: 36px;
-          border: 1px solid rgba(255, 255, 255, .1);
+          border: 1px solid var(--st-color-border-hover, rgba(255, 255, 255, .1));
           border-right: 0;
           border-radius: 18px 0 0 18px;
           padding: 0 8px 0 6px;
           display: flex;
           align-items: center;
           justify-content: flex-start;
-          background: rgba(13, 20, 29, .72);
-          box-shadow: 0 4px 14px rgba(0, 0, 0, .32);
+          background: var(--st-color-surface-control, rgba(13, 20, 29, .72));
+          box-shadow: var(--st-shadow-control, 0 4px 14px rgba(0, 0, 0, .32));
           opacity: .7;
           cursor: pointer;
           pointer-events: auto;
-          transition: background-color .16s ease, border-color .16s ease, opacity .16s ease;
+          transition: background-color var(--st-motion-fast, .16s ease), border-color var(--st-motion-fast, .16s ease), opacity var(--st-motion-fast, .16s ease);
         }
 
         .rail.left .round {
-          border-right: 1px solid rgba(255, 255, 255, .1);
+          border-right: 1px solid var(--st-color-border-hover, rgba(255, 255, 255, .1));
           border-left: 0;
           border-radius: 0 18px 18px 0;
           padding: 0 6px 0 8px;
@@ -92,7 +104,7 @@
         .rail.left.dragging .round {
           width: 36px;
           height: 36px;
-          border: 1px solid rgba(255, 255, 255, .1);
+          border: 1px solid var(--st-color-border-hover, rgba(255, 255, 255, .1));
           border-radius: 18px;
           padding: 0;
           justify-content: center;
@@ -103,17 +115,17 @@
           width: 28px;
           height: 28px;
           margin-right: 8px;
-          border: 1px solid rgba(255, 255, 255, .14);
+          border: 1px solid var(--st-color-border-hover, rgba(255, 255, 255, .14));
           border-radius: 50%;
           padding: 0;
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(13, 20, 29, .82);
-          box-shadow: 0 4px 14px rgba(0, 0, 0, .32);
+          background: var(--st-color-surface-control-strong, rgba(13, 20, 29, .82));
+          box-shadow: var(--st-shadow-control, 0 4px 14px rgba(0, 0, 0, .32));
           cursor: pointer;
           pointer-events: auto;
-          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+          transition: background-color var(--st-motion-fast, .16s ease), border-color var(--st-motion-fast, .16s ease), transform var(--st-motion-fast, .16s ease);
         }
 
         .comment-filter {
@@ -157,14 +169,14 @@
         .round:hover,
         .round[aria-expanded="true"] {
           opacity: 1;
-          background: rgba(38, 86, 108, .82);
-          border-color: rgba(102, 192, 244, .55);
+          background: var(--st-color-surface-control-hover, rgba(38, 86, 108, .82));
+          border-color: var(--st-color-border-primary-strong, rgba(102, 192, 244, .55));
         }
 
         .top:hover,
         .comment-filter:hover {
-          background: rgba(38, 86, 108, .82);
-          border-color: rgba(102, 192, 244, .55);
+          background: var(--st-color-surface-control-hover, rgba(38, 86, 108, .82));
+          border-color: var(--st-color-border-primary-strong, rgba(102, 192, 244, .55));
           transform: translateX(-1px);
         }
 
@@ -175,7 +187,7 @@
         .nav-item:focus-visible,
         .switch:focus-visible,
         .dialog-btn:focus-visible {
-          outline: 2px solid #66c0f4;
+          outline: 2px solid var(--st-color-steam-blue, #66c0f4);
           outline-offset: 2px;
         }
 
@@ -217,14 +229,14 @@
           right: -7px;
           min-width: 16px;
           height: 16px;
-          border: 1px solid rgba(102, 192, 244, .38);
+          border: 1px solid var(--st-color-border-primary, rgba(102, 192, 244, .38));
           border-radius: 8px;
           padding: 0 4px;
-          color: #d7edf9;
-          background: #1b4f74;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, .34);
-          font-size: 10px;
-          font-weight: 600;
+          color: var(--st-color-badge-blue-text, #d7edf9);
+          background: var(--st-color-badge-blue-bg, #1b4f74);
+          box-shadow: var(--st-shadow-control-badge, 0 2px 8px rgba(0, 0, 0, .34));
+          font-size: var(--st-font-size-tiny, 10px);
+          font-weight: var(--st-font-weight-semibold, 600);
           line-height: 14px;
           text-align: center;
         }
@@ -240,7 +252,7 @@
           align-items: center;
           justify-content: center;
           padding: 24px;
-          background: rgba(0, 0, 0, .6);
+          background: var(--st-color-overlay, rgba(0, 0, 0, .6));
           opacity: 0;
           pointer-events: none;
           transition: opacity .15s ease;
@@ -269,34 +281,34 @@
           display: grid;
           grid-template-rows: 48px minmax(0, 1fr);
           overflow: hidden;
-          color: #c7d5e0;
-          background: #1b2838;
-          border: 1px solid rgba(255, 255, 255, .12);
-          box-shadow: 0 18px 54px rgba(0, 0, 0, .55);
+          color: var(--st-color-text-secondary, #c7d5e0);
+          background: var(--st-color-bg-body, #1b2838);
+          border: 1px solid var(--st-color-border-hover, rgba(255, 255, 255, .12));
+          box-shadow: var(--st-shadow-panel, 0 18px 54px rgba(0, 0, 0, .55));
           opacity: 0;
           transform: scale(.95);
-          transition: opacity .15s ease, transform .15s ease;
+          transition: opacity var(--st-motion-fast, .15s ease), transform var(--st-motion-fast, .15s ease);
         }
 
         .overlay.open .panel {
           opacity: 1;
           transform: scale(1);
           transition-duration: .2s;
-          transition-timing-function: cubic-bezier(.25, .46, .45, .94);
+          transition-timing-function: var(--st-motion-entrance, cubic-bezier(.25, .46, .45, .94));
         }
 
         .settings-dialog-layer {
           position: absolute;
-          z-index: 20;
+          z-index: var(--st-z-index-dropdown, 20);
           inset: 0;
           display: flex;
           align-items: flex-start;
           justify-content: center;
           padding: 74px 20px 20px;
-          background: rgba(7, 11, 16, .46);
+          background: var(--st-color-overlay-soft, rgba(7, 11, 16, .46));
           opacity: 0;
           pointer-events: none;
-          transition: opacity .14s ease;
+          transition: opacity var(--st-motion-fast, .14s ease);
         }
 
         .settings-dialog-layer.show {
@@ -310,14 +322,14 @@
 
         .settings-dialog {
           width: min(420px, calc(100% - 24px));
-          border: 1px solid rgba(102, 192, 244, .34);
-          border-radius: 4px;
+          border: 1px solid var(--st-color-border-primary, rgba(102, 192, 244, .34));
+          border-radius: var(--st-radius-sm, 4px);
           padding: 16px;
-          color: #c7d5e0;
-          background: #16202d;
-          box-shadow: 0 16px 42px rgba(0, 0, 0, .48);
+          color: var(--st-color-text-secondary, #c7d5e0);
+          background: var(--st-color-bg-input-focus, #16202d);
+          box-shadow: var(--st-shadow-dialog, 0 16px 42px rgba(0, 0, 0, .48));
           transform: translateY(-8px);
-          transition: transform .14s ease;
+          transition: transform var(--st-motion-fast, .14s ease);
         }
 
         .settings-dialog-layer.show .settings-dialog {
@@ -326,17 +338,17 @@
 
         .settings-dialog-title {
           margin: 0 0 8px;
-          color: #fff;
-          font-size: 15px;
-          font-weight: 600;
+          color: var(--st-color-white, #fff);
+          font-size: var(--st-font-size-dialog-title, 15px);
+          font-weight: var(--st-font-weight-semibold, 600);
           line-height: 1.35;
           letter-spacing: 0;
         }
 
         .settings-dialog-message {
           min-height: 24px;
-          color: #acb8c3;
-          font-size: 13px;
+          color: var(--st-color-text-hint, #acb8c3);
+          font-size: var(--st-font-size-body-small, 13px);
           line-height: 1.55;
           white-space: pre-wrap;
           overflow-wrap: anywhere;
@@ -691,14 +703,14 @@
           min-height: 82px;
           padding: 16px 78px 16px 16px;
           border: 1px solid transparent;
-          border-radius: 4px;
-          background: rgba(0, 0, 0, .2);
-          transition: background-color .2s ease, border-color .2s ease;
+          border-radius: var(--st-radius-sm, 4px);
+          background: var(--st-color-surface-inset, rgba(0, 0, 0, .2));
+          transition: background-color var(--st-motion-normal, .2s ease), border-color var(--st-motion-normal, .2s ease);
         }
 
         .feature:hover {
-          border-color: rgba(102, 192, 244, .2);
-          background: rgba(0, 0, 0, .3);
+          border-color: var(--st-color-border-primary, rgba(102, 192, 244, .2));
+          background: var(--st-color-surface-inset-hover, rgba(0, 0, 0, .3));
         }
 
         .feature.disabled {
@@ -716,7 +728,7 @@
         }
 
         .feature.disabled:hover {
-          border-color: rgba(255, 91, 91, .45);
+          border-color: var(--st-color-danger-border, rgba(255, 91, 91, .45));
           background-color: rgba(0, 0, 0, .42);
         }
 
@@ -862,12 +874,12 @@
           top: 16px;
           width: 48px;
           height: 26px;
-          border: 1px solid rgba(255, 255, 255, .15);
-          border-radius: 13px;
+          border: 1px solid var(--st-color-border-hover, rgba(255, 255, 255, .15));
+          border-radius: var(--st-radius-switch-large, 13px);
           padding: 1px;
-          background: rgba(0, 0, 0, .5);
+          background: var(--st-color-overlay, rgba(0, 0, 0, .5));
           cursor: pointer;
-          transition: background .25s cubic-bezier(.4, 0, .2, 1), border-color .25s cubic-bezier(.4, 0, .2, 1);
+          transition: background var(--st-motion-switch, .25s cubic-bezier(.4, 0, .2, 1)), border-color var(--st-motion-switch, .25s cubic-bezier(.4, 0, .2, 1));
         }
 
         .switch .knob {
@@ -875,9 +887,9 @@
           height: 22px;
           display: block;
           border-radius: 50%;
-          background: #5c7e10;
+          background: var(--st-color-success, #5c7e10);
           transform: translateX(0);
-          transition: transform .25s cubic-bezier(.4, 0, .2, 1), background-color .25s cubic-bezier(.4, 0, .2, 1);
+          transition: transform var(--st-motion-switch, .25s cubic-bezier(.4, 0, .2, 1)), background-color var(--st-motion-switch, .25s cubic-bezier(.4, 0, .2, 1));
         }
 
         .switch:hover .knob {
@@ -885,13 +897,13 @@
         }
 
         .switch[aria-checked="true"] {
-          border-color: rgba(102, 192, 244, .5);
-          background: linear-gradient(90deg, #06bfff 0%, #2d89ff 100%);
+          border-color: var(--st-color-border-primary-strong, rgba(102, 192, 244, .5));
+          background: var(--st-gradient-primary-horizontal, linear-gradient(90deg, #06bfff 0%, #2d89ff 100%));
           box-shadow: inset 0 1px 3px rgba(0, 0, 0, .2);
         }
 
         .switch[aria-checked="true"] .knob {
-          background: #fff;
+          background: var(--st-color-white, #fff);
           transform: translateX(22px);
         }
 
@@ -907,13 +919,13 @@
 
         .switch:disabled .knob,
         .switch:disabled:hover .knob {
-          background: #4c5560;
+          background: var(--st-color-text-disabled, #4c5560);
           transform: translateX(0);
         }
 
         .switch:disabled[aria-checked="true"] .knob,
         .switch:disabled[aria-checked="true"]:hover .knob {
-          background: #4c5560;
+          background: var(--st-color-text-disabled, #4c5560);
           transform: translateX(22px);
         }
 
@@ -1130,7 +1142,7 @@
 
         /* 设置面板按用户中心设计稿统一外观 */
         :host {
-          font-family: "Motiva Sans", "PingFang SC", "Microsoft YaHei", Arial, Helvetica, sans-serif;
+          font-family: var(--st-font-family-base, "Motiva Sans", "PingFang SC", "Microsoft YaHei", Arial, Helvetica, sans-serif);
           -webkit-font-smoothing: antialiased;
         }
 
@@ -1150,16 +1162,16 @@
           grid-template-rows: 52px minmax(0, 1fr);
           border: 0;
           border-radius: 8px;
-          color: #e6e8eb;
-          background: #1b2838;
-          box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+          color: var(--st-color-text-primary, #e6e8eb);
+          background: var(--st-color-bg-body, #1b2838);
+          box-shadow: var(--st-shadow-panel-large, 0 24px 60px rgba(0, 0, 0, .5));
         }
 
         .head {
           height: 52px;
           padding: 0 20px;
           border-bottom: 1px solid rgba(0, 0, 0, .3);
-          background: linear-gradient(180deg, #2a3f5a 0%, #1f2d3d 100%);
+          background: var(--st-gradient-settings-header, linear-gradient(180deg, #2a3f5a 0%, #1f2d3d 100%));
         }
 
         .title {
@@ -1433,14 +1445,14 @@
           right: auto;
           width: 42px;
           height: 22px;
-          border: 1px solid rgba(255, 255, 255, .06);
-          border-radius: 11px;
+          border: 1px solid var(--st-color-border-normal, rgba(255, 255, 255, .06));
+          border-radius: var(--st-radius-switch, 11px);
           padding: 0;
           flex: 0 0 auto;
-          background: rgba(255, 255, 255, .08);
+          background: var(--st-color-surface-subtle, rgba(255, 255, 255, .08));
           box-shadow: none;
           cursor: pointer;
-          transition: background .2s ease, border-color .2s ease, box-shadow .2s ease;
+          transition: background var(--st-motion-normal, .2s ease), border-color var(--st-motion-normal, .2s ease), box-shadow var(--st-motion-normal, .2s ease);
         }
 
         .switch .knob {
@@ -1450,10 +1462,10 @@
           width: 16px;
           height: 16px;
           border-radius: 50%;
-          background: #c7d0d6;
+          background: var(--st-color-text-secondary, #c7d0d6);
           box-shadow: 0 2px 4px rgba(0, 0, 0, .3);
           transform: translateX(0);
-          transition: transform .25s cubic-bezier(.4, 0, .2, 1), background-color .25s cubic-bezier(.4, 0, .2, 1);
+          transition: transform var(--st-motion-switch, .25s cubic-bezier(.4, 0, .2, 1)), background-color var(--st-motion-switch, .25s cubic-bezier(.4, 0, .2, 1));
         }
 
         .switch:hover .knob {
@@ -1463,13 +1475,13 @@
         .switch[aria-checked="true"],
         .switch.form-switch.checked {
           border-color: transparent;
-          background: linear-gradient(135deg, #1a9fff 0%, #0078d4 100%);
-          box-shadow: 0 0 12px rgba(26, 159, 255, .3);
+          background: var(--st-gradient-switch-on, linear-gradient(135deg, #1a9fff 0%, #0078d4 100%));
+          box-shadow: var(--st-shadow-switch-checked, 0 0 12px rgba(26, 159, 255, .3));
         }
 
         .switch[aria-checked="true"] .knob,
         .switch.form-switch input:checked + .knob {
-          background: #fff;
+          background: var(--st-color-white, #fff);
           transform: translateX(20px);
         }
 
@@ -1485,7 +1497,7 @@
 
         .switch:disabled .knob,
         .switch:disabled:hover .knob {
-          background: #5a6470;
+          background: var(--st-color-text-disabled, #5a6470);
         }
 
         .switch.form-switch {
@@ -1663,7 +1675,7 @@
           width: min(280px, 100%);
           height: 34px;
           border: 1px solid rgba(255, 255, 255, .08);
-          border-radius: 5px;
+          border-radius: var(--st-radius-md, 5px);
           padding: 0 12px;
           color: #e6e8eb;
           background: #1a2632;
@@ -1988,25 +2000,25 @@
           align-items: center;
           justify-content: center;
           gap: 6px;
-          font-size: 13px;
-          font-weight: 500;
+          font-size: var(--st-font-size-body-small, 13px);
+          font-weight: var(--st-font-weight-medium, 500);
           font-family: inherit;
           line-height: 30px;
           cursor: pointer;
-          transition: filter .15s ease, background-color .15s ease, border-color .15s ease;
+          transition: filter var(--st-motion-fast, .15s ease), background-color var(--st-motion-fast, .15s ease), border-color var(--st-motion-fast, .15s ease);
         }
 
         .btn-secondary,
         .dialog-btn {
-          border: 1px solid rgba(255, 255, 255, .08);
-          color: #e6e8eb;
-          background: rgba(255, 255, 255, .05);
+          border: 1px solid var(--st-color-border-normal, rgba(255, 255, 255, .08));
+          color: var(--st-color-text-primary, #e6e8eb);
+          background: var(--st-color-surface-subtle, rgba(255, 255, 255, .05));
         }
 
         .btn-secondary:hover,
         .dialog-btn:hover {
-          border-color: rgba(255, 255, 255, .16);
-          background: rgba(255, 255, 255, .1);
+          border-color: var(--st-color-border-hover, rgba(255, 255, 255, .16));
+          background: var(--st-color-surface-subtle-hover, rgba(255, 255, 255, .1));
         }
 
         .btn-blue,
@@ -2014,9 +2026,9 @@
         .translate-save,
         .settings-save {
           border-color: transparent;
-          color: #fff;
-          background: linear-gradient(180deg, #1a9fff 0%, #0078d4 100%);
-          box-shadow: 0 2px 6px rgba(26, 159, 255, .25);
+          color: var(--st-color-white, #fff);
+          background: var(--st-gradient-primary-vertical, linear-gradient(180deg, #1a9fff 0%, #0078d4 100%));
+          box-shadow: var(--st-shadow-button-primary, 0 2px 6px rgba(26, 159, 255, .25));
         }
 
         .btn-blue:hover,
@@ -2024,23 +2036,23 @@
         .translate-save:hover,
         .settings-save:hover {
           filter: brightness(1.1);
-          background: linear-gradient(180deg, #1a9fff 0%, #0078d4 100%);
+          background: var(--st-gradient-primary-vertical, linear-gradient(180deg, #1a9fff 0%, #0078d4 100%));
         }
 
         .settings-dialog {
-          border-color: rgba(255, 255, 255, .06);
-          border-radius: 8px;
-          color: #e6e8eb;
-          background: #22303f;
-          box-shadow: 0 16px 42px rgba(0, 0, 0, .48);
+          border-color: var(--st-color-border-light, rgba(255, 255, 255, .06));
+          border-radius: var(--st-radius-lg, 8px);
+          color: var(--st-color-text-primary, #e6e8eb);
+          background: var(--st-color-bg-card, #22303f);
+          box-shadow: var(--st-shadow-dialog, 0 16px 42px rgba(0, 0, 0, .48));
         }
 
         .settings-dialog-title {
-          color: #fff;
+          color: var(--st-color-white, #fff);
         }
 
         .settings-dialog-message {
-          color: #8f98a0;
+          color: var(--st-color-text-muted, #8f98a0);
         }
 
         @media (max-width: 720px) {
@@ -2110,7 +2122,7 @@
 `;
 
   function css(extra = "") {
-    return `${BASE_CSS}\n${String(extra || "")}`;
+    return `${themeVariablesCss()}${BASE_CSS}\n${String(extra || "")}`;
   }
 
   const api = Object.freeze({ css });
