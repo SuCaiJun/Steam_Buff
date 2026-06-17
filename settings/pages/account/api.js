@@ -28,42 +28,33 @@
   }
 
   function request(path, data, token = "", ctx, method = "POST", base = urls.steamBuffBase) {
-    return new Promise((resolve, reject) => {
-      try {
-        const headers = {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        };
-        if (token) {
-          headers.Authorization = `Bearer ${token}`;
-        }
-        chrome.runtime.sendMessage({
-          type: "STORE_FETCH",
-          url: url(path, base),
-          method,
-          headers,
-          data: data || {},
-          allowHttpError: true,
-        }, (response) => {
-          const err = chrome.runtime.lastError;
-          if (err) {
-            reject(new Error(err.message || "后台请求失败"));
-            return;
-          }
-          if (!response?.success) {
-            reject(new Error(response?.error || "后台请求失败"));
-            return;
-          }
-          resolve({
-            status: response.status || 0,
-            ok: response.ok !== false,
-            body: ctx.parseJson(response.data),
-          });
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const requestApi = root.STSettingsApiRequest;
+    if (!requestApi?.request) {
+      return Promise.reject(new Error("设置中心请求封装未初始化"));
+    }
+    return requestApi.request({
+      url: url(path, base),
+      method,
+      headers,
+      data: data || {},
+      allowHttpError: true,
+      label: "用户中心接口",
+      timeoutMs: 12_000,
+      validateResponse(response) {
+        return typeof response?.data === "string";
+      },
+    }).then((response) => ({
+      status: response.status || 0,
+      ok: response.ok !== false,
+      body: ctx.parseJson(response.data),
+    }));
   }
 
   function okCode(res) {

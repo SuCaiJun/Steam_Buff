@@ -354,6 +354,11 @@
       headers: { Accept: "application/json" },
       url: payload.url,
       parseJSON: true,
+      timeoutMs: 10 * 1000,
+      retries: 1,
+      validate(data) {
+        return !!data && typeof data === "object";
+      },
     }).then(data => {
       apiCache.set(cacheKey, data);
       log.info("steampy-price-query-success", "SteamPY 价格查询完成", {

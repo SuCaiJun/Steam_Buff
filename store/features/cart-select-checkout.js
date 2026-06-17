@@ -18,6 +18,7 @@
   const RESTORE_TTL_MS = 30 * 60 * 1000;
   const RESTORE_RETRY_MS = 2500;
   const RESTORE_MAX_TRIES = 12;
+  const REQUEST_TIMEOUT_MS = 12 * 1000;
   const STEAM_API_HOST = globalThis.STConfig?.vendors?.steamApi?.host || "";
   const MATCH = globalThis.STConfig?.matchers;
   const log = window.STLoggerFactory.createLogger("store", "cart-select-checkout");
@@ -74,13 +75,28 @@
     });
   }
 
-  function storeFetch(url) {
+  function storeFetch(url, options = {}) {
     return new Promise(resolve => {
+      let done = false;
+      let timer = 0;
+      const finish = (response) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(response || { success: false, error: "请求失败" });
+      };
+      timer = setTimeout(() => {
+        finish({ success: false, error: "请求超时", status: 0, ok: false });
+      }, Number(options.timeoutMs) || REQUEST_TIMEOUT_MS);
       chrome.runtime.sendMessage({
         type: "STORE_FETCH",
         url,
-        method: "GET"
-      }, response => resolve(response || { success: false, error: "请求失败" }));
+        method: options.method || "GET",
+        headers: options.headers || {},
+        body: options.body,
+        data: options.data,
+        timeoutMs: options.timeoutMs || REQUEST_TIMEOUT_MS,
+      }, response => finish(response));
     });
   }
 
@@ -245,9 +261,15 @@
       user_country: country,
       items,
     });
-    const url = globalThis.STConfig?.vendors?.steamApi?.cartAddItems?.(token, input) || "";
+    const apiCfg = globalThis.STConfig?.vendors?.steamApi;
+    const url = apiCfg?.cartAddItems?.() || "";
+    const body = apiCfg?.cartAddItemsBody?.(token, input) || "";
     if (!url) return false;
-    const res = await storeFetch(url);
+    const res = await storeFetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+      body,
+    });
     if (!res.success) return false;
 
     try {

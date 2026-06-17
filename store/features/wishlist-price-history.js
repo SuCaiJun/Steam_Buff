@@ -15,6 +15,7 @@
   if (!api) return;
 
   const STEAMPY = globalThis.STConfig.vendors.steampy;
+  const STEAM_STORE = globalThis.STConfig.vendors.steamStore;
   const toExternalUrl = typeof globalThis.STConfig.toSteamExternalUrl === "function"
     ? globalThis.STConfig.toSteamExternalUrl
     : (url) => String(url || "");
@@ -905,10 +906,7 @@
   }
 
   function packageUrl(appid) {
-    const url = new URL("/api/appdetails", location.origin);
-    url.searchParams.set("appids", String(appid));
-    url.searchParams.set("filters", APPDETAILS_FILTERS);
-    return url.href;
+    return STEAM_STORE.appDetails(appid, APPDETAILS_FILTERS, "english");
   }
 
   // 愿望单行只有 appid，历史价格和 SteamPY 都需要真实 packageid；先从 Steam appdetails 解析默认购买包。
@@ -922,6 +920,11 @@
       headers: { Accept: "application/json" },
       url: packageUrl(appid),
       parseJSON: true,
+      timeoutMs: 10 * 1000,
+      retries: 1,
+      validate(data) {
+        return !!data && typeof data === "object";
+      },
     }).then(data => {
       const ids = api.features.wishlistPriceHistoryCore?.packageIdsFromAppDetails?.(data, appid) || [];
       packageCache.set(appid, ids);
@@ -950,6 +953,11 @@
       headers: { Accept: "application/json" },
       url,
       parseJSON: true,
+      timeoutMs: 10 * 1000,
+      retries: 1,
+      validate(data) {
+        return !!data && typeof data === "object";
+      },
     }).then(data => (data?.success && data?.result ? data : null)).catch((error) => {
       log.warn("wishlist-price-steampy-failed", "愿望单 SteamPY 价格请求失败", {
         appid,

@@ -18,6 +18,7 @@
   const CFG = root.STConfig;
   const CACHE_KEY = "steam_buff_update_check_cache";
   const AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+  const UPDATE_FETCH_TIMEOUT_MS = 10 * 1000;
 
   function appendLog(entry, sender) {
     const job = root.STBackgroundLogger?.append?.(entry, sender);
@@ -116,8 +117,39 @@
   }
 
   function httpError(status, text) {
-    const body = String(text || "").trim().slice(0, 240);
-    return body ? `HTTP状态码错误: ${status} ${body}` : `HTTP状态码错误: ${status}`;
+    void text;
+    return `HTTP状态码错误: ${status}`;
+  }
+
+  function timeoutError(timeoutMs) {
+    const error = new Error(`请求超时（${Math.round(timeoutMs)}ms）`);
+    error.name = "TimeoutError";
+    return error;
+  }
+
+  async function fetchWithTimeout(url, init, timeoutMs = UPDATE_FETCH_TIMEOUT_MS) {
+    const timeout = Number(timeoutMs) || 0;
+    if (timeout <= 0) {
+      return fetch(url, init);
+    }
+    if (typeof AbortController === "function") {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(timeoutError(timeout)), timeout);
+      try {
+        return await fetch(url, { ...init, signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    let timer = 0;
+    return Promise.race([
+      fetch(url, init),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(timeoutError(timeout)), timeout);
+      }),
+    ]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
   }
 
   function cleanText(value) {
@@ -186,12 +218,12 @@
   }
 
   async function fetchLatest(manual) {
-    const response = await fetch(CFG.urls.updateLatest, {
+    const response = await fetchWithTimeout(CFG.urls.updateLatest, {
       method: "GET",
       headers: { Accept: "application/json" },
       cache: "no-cache",
       credentials: "omit",
-    });
+    }, UPDATE_FETCH_TIMEOUT_MS);
     const text = await response.text();
     if (!response.ok) {
       throw new Error(httpError(response.status, text));

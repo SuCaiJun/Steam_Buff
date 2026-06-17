@@ -13,6 +13,20 @@
 
   const api = window.STCommunity;
   if (!api || api.market) return;
+  const COMMUNITY = window.STConfig?.vendors?.steamCommunity || {};
+  const COMMUNITY_ORIGIN = COMMUNITY.origin || window.STConfig?.urls?.steamCommunityOrigin || location.origin;
+
+  function communityUrl(path) {
+    return new URL(String(path || ""), COMMUNITY_ORIGIN).toString();
+  }
+
+  function marketUrl(path) {
+    return communityUrl(`/market/${String(path || "").replace(/^\/+/, "")}`);
+  }
+
+  function validSuccessObject(data) {
+    return !!data && typeof data === "object";
+  }
 
   function calcSend(received, fee, wallet) {
     if (!wallet || !wallet.wallet_fee) return { amount: received };
@@ -70,6 +84,14 @@
       if (!this.invBase.endsWith("/")) this.invBase += "/";
     }
 
+    inventoryUrl(appid, contextid) {
+      return new URL(`${String(appid || "").replace(/^\/+/, "")}/${String(contextid || "").replace(/^\/+/, "")}/`, this.invUrl).toString();
+    }
+
+    inventoryActionUrl(path) {
+      return new URL(String(path || "").replace(/^\/+/, ""), this.invBase).toString();
+    }
+
     feeOf(item) {
       if (item?.market_fee != null) return item.market_fee;
       if (item?.description?.market_fee != null) return item.description.market_fee;
@@ -89,9 +111,10 @@
     }
 
     sell(item, price) {
-      return api.net.request(`${location.origin}/market/sellitem/`, {
+      return api.net.request(marketUrl("sellitem/"), {
         method: "POST",
         responseType: "json",
+        validate: validSuccessObject,
         data: {
           sessionid: api.storage.cookie("sessionid"),
           appid: item.appid,
@@ -105,11 +128,12 @@
 
     remove(id, buyOrder) {
       const url = buyOrder
-        ? `${location.origin}/market/cancelbuyorder/`
-        : `${location.origin}/market/removelisting/${id}`;
+        ? marketUrl("cancelbuyorder/")
+        : marketUrl(`removelisting/${id}`);
       return api.net.request(url, {
         method: "POST",
         responseType: "json",
+        validate: validSuccessObject,
         data: Object.assign(
           { sessionid: api.storage.cookie("sessionid") },
           buyOrder ? { buy_orderid: id } : {},
@@ -128,9 +152,12 @@
         if (saved != null) return { err: api.errors.OK, data: saved, cached: true };
       }
       try {
-        const data = await api.net.request(`${location.origin}/market/pricehistory/`, {
+        const data = await api.net.request(marketUrl("pricehistory/"), {
           method: "GET",
           responseType: "json",
+          validate(value) {
+            return !!value && typeof value === "object" && Array.isArray(value.prices);
+          },
           data: { appid: item.appid, market_hash_name: name },
         });
         if (!data || !data.success || !data.prices) return { err: api.errors.DATA };
@@ -150,8 +177,11 @@
       if (saved != null) return { err: api.errors.OK, data: saved };
 
       try {
-        const html = await api.net.request(`${location.origin}/market/listings/${item.appid}/${encodeURIComponent(name)}`, {
+        const html = await api.net.request(marketUrl(`listings/${item.appid}/${encodeURIComponent(name)}`), {
           method: "GET",
+          validate(value) {
+            return typeof value === "string";
+          },
         });
         const match = /Market_LoadOrderSpread\(\s*(\d+)\s*\);/.exec(html || "");
         if (!match) return { err: api.errors.DATA };
@@ -174,9 +204,10 @@
       const id = await this.nameId(item);
       if (id.err) return { err: api.errors.FAIL };
       try {
-        const data = await api.net.request(`${location.origin}/market/itemordershistogram`, {
+        const data = await api.net.request(marketUrl("itemordershistogram"), {
           method: "GET",
           responseType: "json",
+          validate: validSuccessObject,
           data: {
             country: api.country,
             language: "schinese",
@@ -199,9 +230,10 @@
           const appid = parts[2].trim();
           const itemType = parts[3].trim();
           const border = parts[4].split(" ")[0].trim();
-          const data = await api.net.request(`${location.origin}/auction/ajaxgetgoovalueforitemtype`, {
+          const data = await api.net.request(communityUrl("/auction/ajaxgetgoovalueforitemtype"), {
             method: "GET",
             responseType: "json",
+            validate: validSuccessObject,
             data: { appid, item_type: itemType, border_color: border },
           });
           return { err: api.errors.OK, data };
@@ -214,9 +246,10 @@
 
     async grind(item) {
       try {
-        const data = await api.net.request(`${this.invBase}ajaxgrindintogoo/`, {
+        const data = await api.net.request(this.inventoryActionUrl("ajaxgrindintogoo/"), {
           method: "POST",
           responseType: "json",
+          validate: validSuccessObject,
           data: {
             sessionid: api.storage.cookie("sessionid"),
             appid: item.market_fee_app,
@@ -233,9 +266,10 @@
 
     async unpack(item) {
       try {
-        const data = await api.net.request(`${this.invBase}ajaxunpackbooster/`, {
+        const data = await api.net.request(this.inventoryActionUrl("ajaxunpackbooster/"), {
           method: "POST",
           responseType: "json",
+          validate: validSuccessObject,
           data: {
             sessionid: api.storage.cookie("sessionid"),
             appid: item.market_fee_app,

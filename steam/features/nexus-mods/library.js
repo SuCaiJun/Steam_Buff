@@ -18,6 +18,8 @@
   const ORIG = "__RickyStOriginalName";
   const LOOP_MS = 1500;
   const MOUNT_LOG_MS = 60000;
+  const REQUEST_TIMEOUT_MS = 10 * 1000;
+  const REQUEST_RETRY_MS = 500;
   const NAV_RE = /指南|Guides|创意工坊|Workshop|讨论区|Discussions|社区中心|Community Hub/;
   const WORKSHOP_RE = /创意工坊|Workshop/;
 
@@ -138,6 +140,74 @@
     return /[^\x20-\x7e]/.test(text);
   }
 
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+  }
+
+  function timeoutError(timeoutMs) {
+    const error = new Error(`请求超时（${Math.round(timeoutMs)}ms）`);
+    error.name = "TimeoutError";
+    return error;
+  }
+
+  async function fetchWithTimeout(url, options = {}) {
+    const timeoutMs = Number(options.timeoutMs) || REQUEST_TIMEOUT_MS;
+    const { timeoutMs: _timeoutMs, ...fetchOptions } = options;
+    void _timeoutMs;
+    if (typeof AbortController === "function") {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(timeoutError(timeoutMs)), timeoutMs);
+      try {
+        return await fetch(url, {
+          credentials: "omit",
+          ...fetchOptions,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    let timer = 0;
+    return Promise.race([
+      fetch(url, { credentials: "omit", ...fetchOptions }),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(timeoutError(timeoutMs)), timeoutMs);
+      }),
+    ]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
+  function validAppDetails(data, appid) {
+    const row = data?.[appid];
+    return !!row && typeof row === "object" && (row.success === false || typeof row.data === "object");
+  }
+
+  async function fetchAppDetailsName(url, appid) {
+    let lastError = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const res = await fetchWithTimeout(url);
+        if (!res.ok) {
+          throw new Error(`HTTP状态码错误: ${res.status}`);
+        }
+        const json = await res.json();
+        if (!validAppDetails(json, appid)) {
+          throw new Error("Steam 应用详情格式异常");
+        }
+        const name = json?.[appid]?.data?.name;
+        return typeof name === "string" ? name.trim() : "";
+      } catch (error) {
+        lastError = error;
+        if (attempt === 0) {
+          await sleep(REQUEST_RETRY_MS);
+          continue;
+        }
+      }
+    }
+    throw lastError || new Error("Steam 应用详情请求失败");
+  }
+
   async function steamName() {
     const appid = appidFromRoute();
     const local = appName();
@@ -158,12 +228,7 @@
       if (!url) {
         return local;
       }
-      const res = await fetch(url, {
-        credentials: "omit",
-      });
-      const json = await res.json();
-      const name = json?.[appid]?.data?.name;
-      const clean = typeof name === "string" ? name.trim() : "";
+      const clean = await fetchAppDetailsName(url, appid);
       s.names.set(appid, clean);
       return clean || local;
     } catch {

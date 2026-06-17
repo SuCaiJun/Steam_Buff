@@ -53,6 +53,8 @@
   const CONTENT_MARK_VERSION = "steam-runtime-scope-20260616-p7-page-context";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
+  const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
+  const AI_FETCH_TIMEOUT_MS = 20 * 1000;
   const SHARED_CONFIG = "shared/config.js";
   const OBSERVER_UTILS = "shared/observer-utils.js";
   const TRANS_LIB = "vendor/xnx3-translate/translate.js";
@@ -297,6 +299,42 @@
     return undefined;
   }
 
+  function normalizeTimeout(value, fallback) {
+    const next = Number(value ?? fallback);
+    return Number.isFinite(next) && next > 0 ? next : 0;
+  }
+
+  function timeoutError(timeoutMs) {
+    const error = new Error(`请求超时（${Math.round(timeoutMs)}ms）`);
+    error.name = "TimeoutError";
+    return error;
+  }
+
+  async function fetchWithTimeout(url, init, timeoutMs) {
+    const timeout = normalizeTimeout(timeoutMs, 0);
+    if (timeout <= 0) {
+      return fetch(url, init);
+    }
+    if (typeof AbortController === "function") {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(timeoutError(timeout)), timeout);
+      try {
+        return await fetch(url, { ...init, signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    let timer = 0;
+    return Promise.race([
+      fetch(url, init),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(timeoutError(timeout)), timeout);
+      }),
+    ]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
   /* 商店页跨域代理 */
   async function storeFetch(request, sender, sendResponse) {
     const startedAt = Date.now();
@@ -345,7 +383,7 @@
     }
 
     try {
-      const response = await fetch(url.toString(), init);
+      const response = await fetchWithTimeout(url.toString(), init, request.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
       const data = await response.text();
       if (!response.ok && !request.allowHttpError) {
         const msg = httpError(response.status, data);
@@ -404,8 +442,8 @@
   }
 
   function httpError(status, text) {
-    const body = String(text || "").trim().slice(0, 240);
-    return body ? `HTTP状态码错误: ${status} ${body}` : `HTTP状态码错误: ${status}`;
+    void text;
+    return `HTTP状态码错误: ${status}`;
   }
 
   function aiChat(request, sender, sendResponse) {
@@ -436,13 +474,13 @@
       return;
     }
 
-    fetch(url.toString(), {
+    fetchWithTimeout(url.toString(), {
       method: "POST",
       headers: next.headers,
       body: JSON.stringify(next.body),
       cache: "no-cache",
       credentials: "omit",
-    })
+    }, request.timeoutMs ?? AI_FETCH_TIMEOUT_MS)
       .then((response) => response.text().then((text) => {
         if (!response.ok) {
           throw new Error(httpError(response.status, text));

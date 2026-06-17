@@ -166,6 +166,9 @@
   const urls = Object.freeze({
     siteOrigin: ORIGINS.site,
     apiOrigin: ORIGINS.api,
+    steamStoreOrigin: ORIGINS.steamStore,
+    steamCommunityOrigin: ORIGINS.steamCommunity,
+    steamApiOrigin: ORIGINS.steamApi,
     steamBuffBase: STEAM_BUFF_BASE,
     supporterBase: SUPPORTER_BASE,
     loginAuthBase: LOGIN_AUTH_BASE,
@@ -230,7 +233,8 @@
     steamApi: Object.freeze({
       host: HOSTS.steamApi,
       origin: ORIGINS.steamApi,
-      cartAddItems: (token, inputJson, storeOrigin = ORIGINS.steamStore) => `${join(ORIGINS.steamApi, "/IAccountCartService/AddItemsToCart/v1/")}?access_token=${encoded(token)}&origin=${encoded(storeOrigin)}&input_json=${encoded(inputJson)}`,
+      cartAddItems: () => join(ORIGINS.steamApi, "/IAccountCartService/AddItemsToCart/v1/"),
+      cartAddItemsBody: (token, inputJson, storeOrigin = ORIGINS.steamStore) => `access_token=${encoded(token)}&origin=${encoded(storeOrigin)}&input_json=${encoded(inputJson)}`,
     }),
     steamCommunity: Object.freeze({
       host: HOSTS.steamCommunity,

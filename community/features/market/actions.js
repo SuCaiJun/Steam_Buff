@@ -18,8 +18,23 @@
   let removeBatch = null;
   let relistBatch = null;
   const styles = api.styles;
+  const COMMUNITY_ORIGIN = window.STConfig?.vendors?.steamCommunity?.origin
+    || window.STConfig?.urls?.steamCommunityOrigin
+    || location.origin;
 
   const log = window.STLoggerFactory.createLogger('community', 'market-actions');
+
+  function communityUrl(path) {
+    return new URL(String(path || ""), COMMUNITY_ORIGIN).toString();
+  }
+
+  function marketUrl(path) {
+    return communityUrl(`/market/${String(path || "").replace(/^\/+/, "")}`);
+  }
+
+  function validObject(data) {
+    return !!data && typeof data === "object";
+  }
 
   function setStatusBackground(element, color) {
     styles?.applyStyles?.(element, { background: color });
@@ -146,9 +161,10 @@
   // Steam 我的挂单分页偶发失败时保持已加载行可操作，不能让整个检查队列中断。
   async function loadMarket(start) {
     try {
-      const data = await api.net.request(`${location.origin}/market/mylistings`, {
+      const data = await api.net.request(marketUrl("mylistings"), {
         method: "GET",
         responseType: "json",
+        validate: validObject,
         data: { count: 100, start },
       });
       if (data?.success) {
@@ -237,13 +253,18 @@
   // 下架后物品会回到库存，优先走 Steam 原生 RequestFullInventory，缺失时再用同源请求兜底。
   function invReload(appid, contextid) {
     return new Promise((resolve) => {
+      const url = api.market.inventoryUrl(appid, contextid);
       if (typeof api.W.RequestFullInventory === "function") {
-        api.W.RequestFullInventory(`${api.market.invUrl}${appid}/${contextid}/`, {}, null, null, (transport) => {
+        api.W.RequestFullInventory(url, {}, null, null, (transport) => {
           resolve(transport?.responseJSON || null);
         });
         return;
       }
-      api.net.request(`${api.market.invUrl}${appid}/${contextid}/`, { method: "GET", responseType: "json" })
+      api.net.request(url, {
+        method: "GET",
+        responseType: "json",
+        validate: validObject,
+      })
         .then(resolve)
         .catch(() => resolve(null));
     });

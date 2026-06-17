@@ -89,6 +89,11 @@
         data: JSON.stringify(data),
         parseJSON: true,
         requestData: data,
+        timeoutMs: 10 * 1000,
+        retries: 1,
+        validate(value) {
+          return Array.isArray(value);
+        },
       }));
 
       const found = new Set();

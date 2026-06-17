@@ -15,6 +15,8 @@
   if (!api || api.net) return;
 
   const STOP_WAIT_MS = 5 * 60 * 1000;
+  const REQUEST_TIMEOUT_MS = 12 * 1000;
+  const RETRY_DELAY_MS = 500;
   const log = window.STLoggerFactory.createLogger('community', 'request-queue');
 
   const req = {
@@ -51,9 +53,78 @@
     return window.STLoggerFactory?.safeLogUrl?.(url) || String(url || "");
   }
 
+  function isRetryableStatus(status) {
+    const code = Number(status) || 0;
+    return code === 429 || code >= 500;
+  }
+
+  function isRetryableError(error) {
+    const status = Number(error?.statusCode) || Number(error?.status) || 0;
+    if (isRetryableStatus(status)) {
+      return true;
+    }
+    const message = String(error?.message || error || "");
+    return /timeout|network|fetch|aborted?/i.test(message);
+  }
+
+  function validateData(data, opt, res) {
+    if (typeof opt.validate !== "function") {
+      return;
+    }
+    let ok = false;
+    try {
+      ok = !!opt.validate(data, res);
+    } catch (error) {
+      const err = new Error(opt.validateMessage || "社区响应格式异常");
+      err.name = "ValidationError";
+      err.statusCode = Number(res?.status) || 0;
+      err.cause = error;
+      throw err;
+    }
+    if (!ok) {
+      const err = new Error(opt.validateMessage || "社区响应格式异常");
+      err.name = "ValidationError";
+      err.statusCode = Number(res?.status) || 0;
+      throw err;
+    }
+  }
+
+  function timeoutError(url, timeoutMs) {
+    const error = new Error(`请求超时（${Math.round(timeoutMs)}ms）`);
+    error.name = "TimeoutError";
+    error.statusCode = 0;
+    error.url = safeLogUrl(url);
+    return error;
+  }
+
+  async function fetchWithTimeout(url, init, timeoutMs) {
+    const timeout = Number(timeoutMs) || 0;
+    if (timeout <= 0) {
+      return fetch(url, init);
+    }
+    if (typeof AbortController === "function") {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(timeoutError(url, timeout)), timeout);
+      try {
+        return await fetch(url, { ...init, signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    let timer = 0;
+    return Promise.race([
+      fetch(url, init),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(timeoutError(url, timeout)), timeout);
+      }),
+    ]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
   function request(url, opt = {}) {
     return new Promise((resolve, reject) => {
-      req.q.push({ url, opt, resolve, reject });
+      req.q.push({ url, opt, resolve, reject, attempt: 0 });
       pump();
     });
   }
@@ -100,13 +171,13 @@
         }
       }
 
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         method,
         headers,
         body,
         credentials: "include",
         cache: "no-cache",
-      });
+      }, job.opt.timeoutMs ?? REQUEST_TIMEOUT_MS);
       status = res.status;
 
       if (!res.ok) {
@@ -118,10 +189,24 @@
 
       const type = job.opt.responseType || "text";
       const data = type === "json" ? await res.json() : await res.text();
+      validateData(data, job.opt, res);
       job.resolve(data);
     } catch (error) {
       failed = true;
       delay = 5000;
+      status = Number(error?.statusCode) || Number(error?.status) || status;
+      if (job.attempt < 1 && isRetryableError(error)) {
+        job.attempt += 1;
+        req.q.unshift(job);
+        delay = RETRY_DELAY_MS;
+        log.warn("request-retry", "社区请求失败，准备重试", {
+          url: safeLogUrl(job.url),
+          method: job.opt.method || "GET",
+          status,
+          error,
+        });
+        return;
+      }
       log.error("request-failed", "社区请求失败", {
         url: safeLogUrl(job.url),
         method: job.opt.method || "GET",

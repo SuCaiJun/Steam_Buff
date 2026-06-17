@@ -11,6 +11,8 @@
 ((root) => {
   "use strict";
 
+  const DEFAULT_TIMEOUT_MS = 12 * 1000;
+
   function parseJson(text) {
     try {
       return JSON.parse(text || "{}");
@@ -50,28 +52,59 @@
     });
   }
 
-  function fetchBg(request) {
+  function timeoutError(timeoutMs) {
+    const error = new Error(`请求超时（${Math.round(timeoutMs)}ms）`);
+    error.name = "TimeoutError";
+    return error;
+  }
+
+  function validateResponse(response) {
+    return !!response && typeof response === "object" && typeof response.success === "boolean";
+  }
+
+  function fetchBg(request = {}) {
     return new Promise((resolve, reject) => {
+      const timeoutMs = Number(request.timeoutMs) || DEFAULT_TIMEOUT_MS;
+      let done = false;
+      let timer = 0;
+      const finish = (fn, value) => {
+        if (done) {
+          return;
+        }
+        done = true;
+        if (timer) {
+          clearTimeout(timer);
+        }
+        fn(value);
+      };
+      if (timeoutMs > 0) {
+        timer = setTimeout(() => finish(reject, timeoutError(timeoutMs)), timeoutMs);
+      }
       try {
         chrome.runtime.sendMessage({
           type: "STORE_FETCH",
+          timeoutMs,
           ...request,
         }, (response) => {
           const err = chrome.runtime.lastError;
           if (err) {
-            reject(new Error(err.message || "后台请求失败"));
+            finish(reject, new Error(err.message || "后台请求失败"));
+            return;
+          }
+          if (!validateResponse(response)) {
+            finish(reject, new Error("后台响应格式异常"));
             return;
           }
           if (!response?.success) {
             const error = new Error(response?.error || "后台请求失败");
             error.status = Number(response?.status) || 0;
-            reject(error);
+            finish(reject, error);
             return;
           }
-          resolve(response);
+          finish(resolve, response);
         });
       } catch (error) {
-        reject(error);
+        finish(reject, error);
       }
     });
   }
@@ -116,6 +149,7 @@
           refresh_token: auth.refresh_token,
         },
         allowHttpError: true,
+        timeoutMs: DEFAULT_TIMEOUT_MS,
       });
       const body = parseJson(response.data);
       const code = Number(body?.code) || response.status || 0;
@@ -148,6 +182,7 @@
         },
         data: body,
         allowHttpError: true,
+        timeoutMs: DEFAULT_TIMEOUT_MS,
       });
     }
 
@@ -202,6 +237,7 @@
     cleanAuth,
     expired,
     nextAuth,
+    validateResponse,
     fetchBg,
     createClient,
   });
