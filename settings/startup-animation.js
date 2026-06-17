@@ -65,7 +65,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        color: #1a9fff;
+        color: var(--st-color-primary);
         font-size: 120px;
         font-weight: 700;
         line-height: 1;
