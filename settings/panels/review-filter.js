@@ -220,36 +220,85 @@
       }) || "";
     }
 
-    function ruleFiltersHtml() {
-      return `
-      <div class="review-rule-tabs" role="tablist" aria-label="评论过滤规则类型">
-        ${reviewRuleTypes().map(type => `
-          <button class="review-rule-tab${activeRuleType === type.value ? " active" : ""}" type="button" data-review-rule-filter="${escAttr(type.value)}" aria-selected="${activeRuleType === type.value ? "true" : "false"}">${esc(type.label)}</button>
-        `).join("")}
-      </div>
-    `;
+    function clearNode(node) {
+      if (!node) return;
+      if (typeof node.replaceChildren === "function") {
+        node.replaceChildren();
+        return;
+      }
+      while (node.firstChild) {
+        node.removeChild(node.firstChild);
+      }
     }
 
-    function ruleRowsHtml(rules) {
-      if (!rules.length) {
-        return `<div class="review-rule-empty">暂无屏蔽规则</div>`;
+    function el(tag, className = "", text = "") {
+      const node = document.createElement(tag);
+      if (className) {
+        node.className = className;
       }
-      return rules.map((rule) => `
-      <article class="review-rule-row${rule.enabled ? "" : " disabled"}" data-review-rule-id="${escAttr(rule.id)}">
-        <div class="review-rule-main">
-          <div class="review-rule-meta">
-            <span class="review-rule-type">${esc(reviewRuleLabel(rule.type))}</span>
-            <span class="review-rule-state">${rule.enabled ? "启用" : "停用"}</span>
-          </div>
-          <pre class="review-rule-preview">${esc(rule.value)}</pre>
-        </div>
-        <div class="review-rule-actions">
-          <button class="btn btn-secondary review-rule-toggle" type="button">${rule.enabled ? "停用" : "启用"}</button>
-          <button class="btn btn-secondary review-rule-edit" type="button">编辑</button>
-          <button class="btn btn-secondary review-rule-delete" type="button">删除</button>
-        </div>
-      </article>
-    `).join("");
+      if (text !== "") {
+        node.textContent = String(text);
+      }
+      return node;
+    }
+
+    function button(className, text) {
+      const node = el("button", className, text);
+      node.type = "button";
+      return node;
+    }
+
+    function setTrustedTemplate(element, html, reason) {
+      const utils = globalThis.STDomUtils;
+      utils.setTrustedHTML(element, utils.trustedHTML(html, reason));
+    }
+
+    function ruleFiltersHtml() {
+      return '<div class="review-rule-tabs" role="tablist" aria-label="评论过滤规则类型"></div>';
+    }
+
+    function renderRuleTabs(tabs) {
+      if (!tabs) return;
+      clearNode(tabs);
+      reviewRuleTypes().forEach((type) => {
+        const active = activeRuleType === type.value;
+        const tab = button(`review-rule-tab${active ? " active" : ""}`, type.label);
+        tab.dataset.reviewRuleFilter = type.value;
+        tab.setAttribute("aria-selected", active ? "true" : "false");
+        tabs.appendChild(tab);
+      });
+    }
+
+    function createRuleRow(rule) {
+      const row = el("article", `review-rule-row${rule.enabled ? "" : " disabled"}`);
+      row.dataset.reviewRuleId = String(rule.id || "");
+
+      const main = el("div", "review-rule-main");
+      const meta = el("div", "review-rule-meta");
+      meta.appendChild(el("span", "review-rule-type", reviewRuleLabel(rule.type)));
+      meta.appendChild(el("span", "review-rule-state", rule.enabled ? "启用" : "停用"));
+      const preview = el("pre", "review-rule-preview", rule.value);
+      main.appendChild(meta);
+      main.appendChild(preview);
+
+      const actions = el("div", "review-rule-actions");
+      actions.appendChild(button("btn btn-secondary review-rule-toggle", rule.enabled ? "停用" : "启用"));
+      actions.appendChild(button("btn btn-secondary review-rule-edit", "编辑"));
+      actions.appendChild(button("btn btn-secondary review-rule-delete", "删除"));
+
+      row.appendChild(main);
+      row.appendChild(actions);
+      return row;
+    }
+
+    function renderRuleRows(target, rules) {
+      if (!target) return;
+      clearNode(target);
+      if (!rules.length) {
+        target.appendChild(el("div", "review-rule-empty", "暂无屏蔽规则"));
+        return;
+      }
+      rules.forEach(rule => target.appendChild(createRuleRow(rule)));
     }
 
     function currentRules() {
@@ -259,38 +308,31 @@
         : rules.filter(rule => rule.type === activeRuleType);
     }
 
-    function ruleListHtml(all = false) {
+    function renderRuleList(target, all = false) {
+      if (!target) return;
       const win = reviewRuleWindow(currentRules(), all);
-      return `
-      ${ruleRowsHtml(win.items)}
-      ${win.limited ? `
-        <div class="review-rule-more">
-          <button class="btn btn-secondary review-rule-more-btn" type="button">查看更多（共 ${esc(win.total)} 条）</button>
-        </div>
-      ` : ""}
-    `;
+      renderRuleRows(target, win.items);
+      if (win.limited) {
+        const more = el("div", "review-rule-more");
+        more.appendChild(button("btn btn-secondary review-rule-more-btn", `查看更多（共 ${win.total} 条）`));
+        target.appendChild(more);
+      }
     }
 
     function syncRuleList(shadow) {
       const list = shadow.querySelector(".review-rule-list");
       const tabs = shadow.querySelector(".review-rule-tabs");
-      if (list) {
-        list.innerHTML = ruleListHtml();
-      }
+      renderRuleList(list);
       const dialogList = shadow.querySelector(".review-rule-full-list");
       const dialogCount = shadow.querySelector(".review-rule-full-count");
       if (dialogList) {
         const rules = currentRules();
-        dialogList.innerHTML = ruleRowsHtml(rules);
+        renderRuleRows(dialogList, rules);
         if (dialogCount) {
           dialogCount.textContent = String(rules.length);
         }
       }
-      if (tabs) {
-        tabs.innerHTML = reviewRuleTypes().map(type => `
-        <button class="review-rule-tab${activeRuleType === type.value ? " active" : ""}" type="button" data-review-rule-filter="${escAttr(type.value)}" aria-selected="${activeRuleType === type.value ? "true" : "false"}">${esc(type.label)}</button>
-      `).join("");
-      }
+      renderRuleTabs(tabs);
     }
 
     function openRuleList(shadow) {
@@ -304,19 +346,24 @@
       const layer = document.createElement("div");
       layer.className = "settings-dialog-layer";
       layer.tabIndex = -1;
-      layer.innerHTML = `
+      setTrustedTemplate(layer, `
       <div class="settings-dialog review-rule-full-dialog" role="dialog" aria-modal="true" aria-label="屏蔽规则列表">
         <div class="filtered-review-head">
           <div>
             <div class="settings-dialog-title">屏蔽规则列表</div>
-            <div class="filtered-review-subtitle">当前分类共有 <span class="review-rule-full-count">${esc(rules.length)}</span> 条规则</div>
+            <div class="filtered-review-subtitle">当前分类共有 <span class="review-rule-full-count"></span> 条规则</div>
           </div>
           <button class="dialog-btn review-rule-full-close" type="button" data-dialog-action="close">关闭</button>
         </div>
-        <div class="review-rule-full-list">${ruleRowsHtml(rules)}</div>
+        <div class="review-rule-full-list"></div>
       </div>
-    `;
+    `, "settings-review-filter-rule-list-template");
       panel.appendChild(layer);
+      renderRuleRows(layer.querySelector(".review-rule-full-list"), rules);
+      const count = layer.querySelector(".review-rule-full-count");
+      if (count) {
+        count.textContent = String(rules.length);
+      }
 
       const close = () => {
         layer.classList.remove("show");
@@ -400,21 +447,21 @@
       const layer = document.createElement("div");
       layer.className = "settings-dialog-layer";
       layer.tabIndex = -1;
-      layer.innerHTML = `
+      setTrustedTemplate(layer, `
       <div class="settings-dialog review-rule-dialog" role="dialog" aria-modal="true" aria-label="编辑屏蔽规则">
         <div class="settings-dialog-title">编辑屏蔽规则</div>
         <div class="review-rule-dialog-body">
           <label class="review-rule-dialog-label">
             <span>类型</span>
             <select class="settings-control review-rule-dialog-type">
-              <option value="keyword" ${rule.type === "keyword" ? "selected" : ""}>关键词</option>
-              <option value="regex" ${rule.type === "regex" ? "selected" : ""}>正则</option>
-              <option value="nickname" ${rule.type === "nickname" ? "selected" : ""}>昵称</option>
+              <option value="keyword">关键词</option>
+              <option value="regex">正则</option>
+              <option value="nickname">昵称</option>
             </select>
           </label>
           <label class="review-rule-dialog-label">
             <span>内容</span>
-            <textarea class="settings-control review-rule-dialog-value">${esc(rule.value)}</textarea>
+            <textarea class="settings-control review-rule-dialog-value"></textarea>
           </label>
           <div class="review-rule-dialog-error" hidden></div>
         </div>
@@ -423,8 +470,16 @@
           <button class="dialog-btn primary" type="button" data-dialog-action="save">保存</button>
         </div>
       </div>
-    `;
+    `, "settings-review-filter-rule-editor-template");
       panel.appendChild(layer);
+      const typeInput = layer.querySelector(".review-rule-dialog-type");
+      if (typeInput) {
+        typeInput.value = rule.type || "keyword";
+      }
+      const textarea = layer.querySelector(".review-rule-dialog-value");
+      if (textarea) {
+        textarea.value = String(rule.value || "");
+      }
 
       const close = () => {
         layer.classList.remove("show");
@@ -503,26 +558,33 @@
       return next;
     }
 
-    function filteredRowsHtml() {
-      if (!hiddenReviews.length) {
-        return `<div class="filtered-review-empty">当前页面暂无被过滤的评论</div>`;
+    function createFilteredRow(item) {
+      const body = reviewPreviewParts(item.reviewText, item.authorText);
+      const row = el("article", `filtered-review-row${body.more ? " collapsed" : ""}`);
+      row.dataset.filteredReviewId = String(item.id || "");
+
+      const main = el("div", "filtered-review-main");
+      const meta = el("div", "filtered-review-meta");
+      meta.appendChild(el("span", "filtered-review-user", item.nickname || "未知用户"));
+      meta.appendChild(el("span", "filtered-review-reason", reviewReasonBadge(item)));
+      meta.appendChild(el("span", "filtered-review-time", item.playtimeText || ""));
+      main.appendChild(meta);
+      main.appendChild(el("pre", "filtered-review-text", body.text));
+      if (body.more) {
+        main.appendChild(button("filtered-review-more", "更多"));
       }
-      return hiddenReviews.map((item) => {
-        const body = reviewPreviewParts(item.reviewText, item.authorText);
-        return `
-      <article class="filtered-review-row${body.more ? " collapsed" : ""}" data-filtered-review-id="${escAttr(item.id)}">
-        <div class="filtered-review-main">
-          <div class="filtered-review-meta">
-            <span class="filtered-review-user">${esc(item.nickname || "未知用户")}</span>
-            <span class="filtered-review-reason">${esc(reviewReasonBadge(item))}</span>
-            <span class="filtered-review-time">${esc(item.playtimeText || "")}</span>
-          </div>
-          <pre class="filtered-review-text">${esc(body.text)}</pre>
-          ${body.more ? `<button class="filtered-review-more" type="button">更多</button>` : ""}
-        </div>
-      </article>
-    `;
-      }).join("");
+      row.appendChild(main);
+      return row;
+    }
+
+    function renderFilteredRows(target) {
+      if (!target) return;
+      clearNode(target);
+      if (!hiddenReviews.length) {
+        target.appendChild(el("div", "filtered-review-empty", "当前页面暂无被过滤的评论"));
+        return;
+      }
+      hiddenReviews.forEach(item => target.appendChild(createFilteredRow(item)));
     }
 
     function updateButton(shadow) {
@@ -544,9 +606,7 @@
     function syncFilteredDialog(shadow) {
       const list = shadow.querySelector(".filtered-review-list");
       const count = shadow.querySelector(".filtered-review-count");
-      if (list) {
-        list.innerHTML = filteredRowsHtml();
-      }
+      renderFilteredRows(list);
       if (count) {
         count.textContent = String(hiddenReviews.length);
       }
@@ -565,19 +625,24 @@
       const layer = document.createElement("div");
       layer.className = "settings-dialog-layer";
       layer.tabIndex = -1;
-      layer.innerHTML = `
+      setTrustedTemplate(layer, `
       <div class="settings-dialog filtered-review-dialog" role="dialog" aria-modal="true" aria-label="已过滤评论">
         <div class="filtered-review-head">
           <div>
             <div class="settings-dialog-title">已过滤评论</div>
-            <div class="filtered-review-subtitle">当前页面已隐藏 <span class="filtered-review-count">${esc(hiddenReviews.length)}</span> 条评论</div>
+            <div class="filtered-review-subtitle">当前页面已隐藏 <span class="filtered-review-count"></span> 条评论</div>
           </div>
           <button class="dialog-btn filtered-review-close" type="button" data-dialog-action="close">关闭</button>
         </div>
-        <div class="filtered-review-list">${filteredRowsHtml()}</div>
+        <div class="filtered-review-list"></div>
       </div>
-    `;
+    `, "settings-review-filter-filtered-reviews-template");
       root.appendChild(layer);
+      renderFilteredRows(layer.querySelector(".filtered-review-list"));
+      const count = layer.querySelector(".filtered-review-count");
+      if (count) {
+        count.textContent = String(hiddenReviews.length);
+      }
 
       const close = () => {
         layer.classList.remove("show");
@@ -650,9 +715,7 @@
           <div class="review-rule-toolbar">
             ${ruleFiltersHtml()}
           </div>
-          <div class="review-rule-list">
-            ${ruleListHtml()}
-          </div>
+          <div class="review-rule-list"></div>
         </section>
         <section class="settings-card section-card">
           <div class="section-header">
@@ -744,6 +807,7 @@
       handleKeydown,
       html,
       openFilteredReviews,
+      renderDynamicLists: syncRuleList,
       setConfig,
       setHiddenReviews,
       syncFilteredDialog,

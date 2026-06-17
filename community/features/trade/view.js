@@ -38,7 +38,7 @@
     return true;
   }
 
-  function sumAssets(assets, user) {
+  function appendAssetsSummary(target, assets, user) {
     const map = {};
     let total = 0;
     for (const asset of assets) {
@@ -60,14 +60,17 @@
       map[text] = (map[text] || 0) + 1;
     }
     const rows = Object.entries(map).sort((a, b) => b[1] - a[1]);
-    let html = `<strong>唯一物品数：${rows.length}，价值 ${api.currency.fmt(total)}<br><br></strong>`;
+    const head = document.createElement("strong");
+    head.textContent = `唯一物品数：${rows.length}，价值 ${api.currency.fmt(total)}`;
+    target.append(head, document.createElement("br"), document.createElement("br"));
     let n = 0;
     for (const [name, count] of rows) {
-      html += `${count}x ${name}<br>`;
+      target.append(document.createTextNode(`${count}x ${name}`), document.createElement("br"));
       n += count;
     }
-    html += `<br><strong>物品总数：${n}</strong><br>`;
-    return html;
+    const foot = document.createElement("strong");
+    foot.textContent = `物品总数：${n}`;
+    target.append(document.createElement("br"), foot, document.createElement("br"));
   }
 
   function appendSelectPageButton() {
@@ -75,12 +78,14 @@
     if (!controls || api.dom.q(".trade_offer_buttons", controls)) return;
     const box = document.createElement("div");
     box.className = "trade_offer_buttons";
-    box.innerHTML = `
-      <a class="item_market_action_button item_market_action_button_green select_all">
-        <span class="item_market_action_button_contents">选中页面中全部物品</span>
-      </a>
-    `;
-    styles?.applyStyles?.(api.dom.q(".item_market_action_button_contents", box), {
+    const link = document.createElement("a");
+    link.className = "item_market_action_button item_market_action_button_green select_all";
+    const text = document.createElement("span");
+    text.className = "item_market_action_button_contents";
+    text.textContent = "选中页面中全部物品";
+    link.appendChild(text);
+    box.appendChild(link);
+    styles?.applyStyles?.(text, {
       textTransform: "none",
     });
     box.addEventListener("click", async () => {
@@ -150,11 +155,11 @@
           const your = document.createElement("div");
           your.className = "trade_offer_sum";
           your.id = "trade_offer_your_sum";
-          your.innerHTML = sumAssets(st.me.assets, api.W.UserYou);
+          appendAssetsSummary(your, st.me.assets, api.W.UserYou);
           const their = document.createElement("div");
           their.className = "trade_offer_sum";
           their.id = "trade_offer_their_sum";
-          their.innerHTML = sumAssets(st.them.assets, api.W.UserThem);
+          appendAssetsSummary(their, st.them.assets, api.W.UserThem);
           api.dom.q("div.offerheader:nth-child(1) > div:nth-child(3)")?.appendChild(your);
           api.dom.q("div.offerheader:nth-child(3) > div:nth-child(3)")?.appendChild(their);
         };

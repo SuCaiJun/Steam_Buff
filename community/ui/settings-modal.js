@@ -14,16 +14,61 @@
   const api = window.STCommunity;
   if (!api || api.settingsUi) return;
 
-  function row(label, input) {
-    return `<div class="st-see-row"><label>${label}</label>${input}</div>`;
+  function row(labelText, input) {
+    const item = document.createElement("div");
+    item.className = "st-see-row";
+    const label = document.createElement("label");
+    label.textContent = labelText;
+    item.append(label, input);
+    return item;
   }
 
-  function numInput(id) {
-    return `<input type="number" step="0.01" id="${id}" value="${api.settings.val(id)}">`;
+  function numInput(id, options = {}) {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.step = options.step || "0.01";
+    input.id = id;
+    input.value = String(api.settings.val(id) ?? "");
+    if (options.min !== undefined) {
+      input.min = String(options.min);
+    }
+    return input;
   }
 
   function checkInput(id) {
-    return `<input type="checkbox" id="${id}" ${api.settings.yes(id) ? "checked" : ""}>`;
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.id = id;
+    input.checked = api.settings.yes(id);
+    return input;
+  }
+
+  function algoSelect(keys) {
+    const select = document.createElement("select");
+    select.id = keys.algo;
+    [
+      ["1", "历史均价 和 最低售价 之间的最大值"],
+      ["2", "最低售价"],
+      ["3", "当前 最高买入价 或 最低售价"],
+    ].forEach(([value, text]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = text;
+      option.selected = api.settings.num(keys.algo) === Number(value);
+      select.appendChild(option);
+    });
+    return select;
+  }
+
+  function inlineInputs(...inputs) {
+    const wrap = document.createElement("span");
+    inputs.forEach((input, index) => {
+      if (index > 0) {
+        wrap.appendChild(document.createTextNode(" "));
+      }
+      wrap.appendChild(input);
+    });
+    return wrap;
   }
 
   function open() {
@@ -48,34 +93,39 @@
     api.dom.q("#see_settings_backdrop")?.remove();
     const back = document.createElement("div");
     back.id = "see_settings_backdrop";
-    back.innerHTML = `
-      <div id="see_settings_modal">
-        <h2>Steam Economy Enhancer</h2>
-        ${row("基准价格计算方式：", `
-          <select id="${keys.algo}">
-            <option value="1" ${api.settings.num(keys.algo) === 1 ? "selected" : ""}>历史均价 和 最低售价 之间的最大值</option>
-            <option value="2" ${api.settings.num(keys.algo) === 2 ? "selected" : ""}>最低售价</option>
-            <option value="3" ${api.settings.num(keys.algo) === 3 ? "selected" : ""}>当前 最高买入价 或 最低售价</option>
-          </select>
-        `)}
-        ${row("计算多少小时内的历史均价：", `<input type="number" min="0" step="2" id="${keys.historyHours}" value="${api.settings.val(keys.historyHours)}">`)}
-        ${row("价格补正（可为负数）：", numInput(keys.offset))}
-        ${row("当前最低售价较少时使用第二低售价：", checkInput(keys.skipLowQ))}
-        ${row("不检查指定价格及以下的市场列表：", numInput(keys.minCheck))}
-        ${row("不列出指定价格及以下的市场列表：", numInput(keys.minList))}
-        ${row("在库存中显示价格标签：", checkInput(keys.invLabels))}
-        ${row("在交易报价中显示价格标签：", checkInput(keys.tradeLabels))}
-        ${row("显示快速出售信息及按钮：", checkInput(keys.quickSell))}
-        ${row("普通卡牌最低 / 最高售价：", `${numInput(keys.minNormal)} ${numInput(keys.maxNormal)}`)}
-        ${row("闪亮卡牌最低 / 最高售价：", `${numInput(keys.minFoil)} ${numInput(keys.maxFoil)}`)}
-        ${row("其他物品最低 / 最高售价：", `${numInput(keys.minMisc)} ${numInput(keys.maxMisc)}`)}
-        ${row("自动重新上架定价高于市场的物品：", checkInput(keys.autoRelist))}
-        <div class="st-see-actions">
-          <button type="button" id="st_see_cancel">取消</button>
-          <button type="button" id="st_see_save">保存并刷新</button>
-        </div>
-      </div>
-    `;
+    const modal = document.createElement("div");
+    modal.id = "see_settings_modal";
+    const title = document.createElement("h2");
+    title.textContent = "Steam Economy Enhancer";
+    modal.append(
+      title,
+      row("基准价格计算方式：", algoSelect(keys)),
+      row("计算多少小时内的历史均价：", numInput(keys.historyHours, { min: 0, step: 2 })),
+      row("价格补正（可为负数）：", numInput(keys.offset)),
+      row("当前最低售价较少时使用第二低售价：", checkInput(keys.skipLowQ)),
+      row("不检查指定价格及以下的市场列表：", numInput(keys.minCheck)),
+      row("不列出指定价格及以下的市场列表：", numInput(keys.minList)),
+      row("在库存中显示价格标签：", checkInput(keys.invLabels)),
+      row("在交易报价中显示价格标签：", checkInput(keys.tradeLabels)),
+      row("显示快速出售信息及按钮：", checkInput(keys.quickSell)),
+      row("普通卡牌最低 / 最高售价：", inlineInputs(numInput(keys.minNormal), numInput(keys.maxNormal))),
+      row("闪亮卡牌最低 / 最高售价：", inlineInputs(numInput(keys.minFoil), numInput(keys.maxFoil))),
+      row("其他物品最低 / 最高售价：", inlineInputs(numInput(keys.minMisc), numInput(keys.maxMisc))),
+      row("自动重新上架定价高于市场的物品：", checkInput(keys.autoRelist)),
+    );
+    const actions = document.createElement("div");
+    actions.className = "st-see-actions";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.id = "st_see_cancel";
+    cancel.textContent = "取消";
+    const save = document.createElement("button");
+    save.type = "button";
+    save.id = "st_see_save";
+    save.textContent = "保存并刷新";
+    actions.append(cancel, save);
+    modal.appendChild(actions);
+    back.appendChild(modal);
     document.body.appendChild(back);
     api.dom.q("#st_see_cancel", back).addEventListener("click", () => back.remove());
     api.dom.q("#st_see_save", back).addEventListener("click", () => {

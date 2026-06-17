@@ -309,6 +309,19 @@
     img.src = fallback;
   }
 
+  function safeUrl(value, fallback = "") {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return fallback;
+    }
+    try {
+      const url = new URL(raw, location.origin);
+      return ["http:", "https:", "chrome-extension:"].includes(url.protocol) ? url.href : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
   function bindThumbFallbacks(layer) {
     for (const img of layer.querySelectorAll(".st-search-suggestion-img[data-st-search-fallback]")) {
       img.addEventListener("error", () => fallbackThumb(img), { once: true });
@@ -318,34 +331,61 @@
     }
   }
 
-  function itemHtml(item) {
-    const title = esc(item.label);
-    const steamName = esc(item.steam_name || "");
-    const sourceLabel = esc(item.source_label || item.source || "");
-    const appid = Number(item.appid) || 0;
+  function createSuggestionThumb(item, appid) {
     const capsule = appid > 0
       ? STEAM_SHARED_CDN?.appCapsule?.(appid) || ""
       : "";
-    const img = capsule || FALLBACK_IMG;
-    const fallbackAttr = FALLBACK_IMG ? ` data-st-search-fallback="${esc(FALLBACK_IMG)}"` : "";
-    const thumb = img
-      ? `<img class="st-search-suggestion-img" src="${esc(img)}"${fallbackAttr} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=this.dataset.stSearchFallback||this.src;"/>`
-      : `<span class="st-search-suggestion-img st-search-suggestion-img-empty"></span>`;
+    const imgUrl = safeUrl(capsule || FALLBACK_IMG);
+    if (!imgUrl) {
+      const empty = document.createElement("span");
+      empty.className = "st-search-suggestion-img st-search-suggestion-img-empty";
+      return empty;
+    }
+    const img = document.createElement("img");
+    img.className = "st-search-suggestion-img";
+    img.src = imgUrl;
+    img.alt = "";
+    img.loading = "lazy";
+    img.referrerPolicy = "no-referrer";
+    const fallback = safeUrl(FALLBACK_IMG);
+    if (fallback) {
+      img.dataset.stSearchFallback = fallback;
+      img.addEventListener("error", () => fallbackThumb(img), { once: true });
+    }
+    return img;
+  }
+
+  function createSuggestionItem(item, index) {
+    const appid = Number(item?.appid) || 0;
+    const link = document.createElement("a");
+    link.className = "st-search-suggestion-item match";
+    link.href = safeUrl(item?.url || appUrl(appid), "#");
+    link.dataset.idx = String(index);
+    link.dataset.source = String(item?.source || "");
+
+    const body = document.createElement("div");
+    body.className = "st-search-suggestion-body";
+
+    const title = document.createElement("div");
+    title.className = "st-search-suggestion-title";
+    title.textContent = String(item?.label || "");
+    body.appendChild(title);
+
     const subParts = [];
+    const sourceLabel = String(item?.source_label || item?.source || "");
+    const steamName = String(item?.steam_name || "");
     if (sourceLabel) subParts.push(sourceLabel);
     if (steamName) subParts.push(steamName);
-    const sub = subParts.length
-      ? `<div class="st-search-suggestion-sub">${subParts.join("&nbsp;·&nbsp;")}</div>`
-      : "";
-    return `
-      <a class="st-search-suggestion-item match" href="${esc(item.url || appUrl(appid) || "#")}" data-idx="${Number(item._idx) || 0}" data-source="${esc(item.source)}">
-        ${thumb}
-        <div class="st-search-suggestion-body">
-          <div class="st-search-suggestion-title">${title}</div>
-          ${sub}
-        </div>
-      </a>
-    `;
+    if (subParts.length) {
+      const sub = document.createElement("div");
+      sub.className = "st-search-suggestion-sub";
+      sub.textContent = subParts.join(" · ");
+      body.appendChild(sub);
+    }
+
+    link.appendChild(createSuggestionThumb(item, appid));
+    link.appendChild(body);
+    return link;
   }
 
   function render(input, keyword, items, tries = 0) {
@@ -361,12 +401,15 @@
       return;
     }
     layer.dataset.keyword = keyword;
-    layer.innerHTML = `
-      <div class="st-search-suggestion-head">Steam Buff 中文名称匹配</div>
-      <div class="st-search-suggestion-list">
-        ${items.map(itemHtml).join("")}
-      </div>
-    `;
+    const head = document.createElement("div");
+    head.className = "st-search-suggestion-head";
+    head.textContent = "Steam Buff 中文名称匹配";
+    const list = document.createElement("div");
+    list.className = "st-search-suggestion-list";
+    items.forEach((item, index) => {
+      list.appendChild(createSuggestionItem(item, index));
+    });
+    layer.replaceChildren(head, list);
     applyNativeResults(input);
     bindThumbFallbacks(layer);
     bindClicks(layer, input, keyword, items);
@@ -391,7 +434,7 @@
           return;
         }
         event.preventDefault();
-        const url = item.url || appUrl(item.appid);
+        const url = safeUrl(item.url || appUrl(item.appid));
         let moved = false;
         const go = () => {
           if (moved) return;

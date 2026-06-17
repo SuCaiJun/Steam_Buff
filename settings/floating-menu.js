@@ -307,7 +307,8 @@
     const host = document.createElement("div");
     host.id = ROOT_ID;
     const shadow = host.attachShadow({ mode: "open" });
-    shadow.innerHTML = shell.template();
+    const dom = globalThis.STDomUtils;
+    dom.setTrustedHTML(shadow, dom.trustedHTML(shell.template(), "settings-floating-shell-template"));
 
     api.startupAnimation?.install?.(shadow, { iconUrl: appIconUrl() });
 

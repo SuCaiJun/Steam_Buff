@@ -372,14 +372,17 @@
     const el = document.createElement("div");
     el.id = ROOT;
     el.dataset.status = "off";
-    el.innerHTML = `
-      <label class="sdas-toggle">
-        <input type="checkbox" aria-label="下载完成后自动关机">
-        <span class="sdas-label">下载完成后关机</span>
-      </label>
-    `;
+    const toggle = document.createElement("label");
+    toggle.className = "sdas-toggle";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.setAttribute("aria-label", "下载完成后自动关机");
+    const label = document.createElement("span");
+    label.className = "sdas-label";
+    label.textContent = "下载完成后关机";
+    toggle.append(input, label);
+    el.appendChild(toggle);
 
-    const input = el.querySelector("input");
     input.addEventListener("change", () => {
       const rid = `${now()}-${Math.random().toString(16).slice(2)}`;
       s.rid = rid;

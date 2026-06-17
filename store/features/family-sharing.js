@@ -68,10 +68,13 @@ function addFamilySharingNotice(appId, protocol) {
             familySharingContainer.className = MODULE_CLASSES.FAMILY_SHARING;
             familySharingContainer.style.marginBottom = "8px";
             familySharingContainer.dataset.steamAppId = appIdText;
-            familySharingContainer.innerHTML = `
-                <div class="es_family_sharing_warning_title">共享检查</div>
-                <div class="es_family_sharing_warning_text">此游戏不支持家庭共享功能</div>
-            `;
+            const title = document.createElement("div");
+            title.className = "es_family_sharing_warning_title";
+            title.textContent = "共享检查";
+            const text = document.createElement("div");
+            text.className = "es_family_sharing_warning_text";
+            text.textContent = "此游戏不支持家庭共享功能";
+            familySharingContainer.append(title, text);
             
             if (placeholderElement.parentNode) {
                 placeholderElement.parentNode.replaceChild(familySharingContainer, placeholderElement);

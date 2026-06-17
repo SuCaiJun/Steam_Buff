@@ -41,6 +41,7 @@
 
   const { text, shouldShowName } = core;
   const wishlistDom = api.wishlistDom;
+  const dom = root.STDomUtils || {};
   let state = null;
   let observer = null;
   let wishlistObserver = null;
@@ -558,8 +559,12 @@
     host._stTitleCustomNameKey = key;
     if (label) host.dataset.label = label;
     else delete host.dataset.label;
-    host.innerHTML = `<button class="st-title-custom-name-btn" type="button">编辑</button>`;
-    host.querySelector("button")?.addEventListener("click", event => {
+    const button = document.createElement("button");
+    button.className = "st-title-custom-name-btn";
+    button.type = "button";
+    button.textContent = "编辑";
+    host.replaceChildren(button);
+    button.addEventListener("click", event => {
       event.preventDefault();
       event.stopPropagation();
       openModal({
@@ -569,6 +574,10 @@
         mode,
       });
     });
+  }
+
+  function setTrustedTemplate(element, html, reason) {
+    dom.setTrustedHTML(element, dom.trustedHTML(html, reason));
   }
 
   function setMsg(message) {
@@ -675,7 +684,7 @@
       <label>
         <span class="st-title-custom-name-field">${esc(field.label)}</span>
         <span class="st-title-custom-name-control">
-          <input type="text" value="${attr(field.value)}" ${field.readonly ? "disabled" : ""} ${field.placeholder ? `placeholder="${attr(field.placeholder)}"` : ""} ${common}>
+          <input type="text" ${field.readonly ? "disabled" : ""} ${field.placeholder ? `placeholder="${attr(field.placeholder)}"` : ""} ${common}>
           ${field.desc ? `<span class="st-title-custom-name-desc">${esc(field.desc)}</span>` : ""}
         </span>
       </label>
@@ -721,6 +730,21 @@
     `;
   }
 
+  function populateModalValues(modal, ctx, currentName, currentAlias = "") {
+    const values = {
+      appid: String(ctx.appid || ""),
+      steamName: ctx.steamTitle || "",
+      customName: currentName || "",
+      alias: currentAlias || "",
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      const input = modal.querySelector(`[data-title-custom-name-field="${id}"]`);
+      if (input) {
+        input.value = String(value || "");
+      }
+    });
+  }
+
   async function openModal(ctx = null) {
     const source = ctx || state;
     if (!source?.appid) return;
@@ -752,7 +776,8 @@
     modal.dataset.mode = source.mode || "detail";
     modal.dataset.loadSeq = `${Date.now()}-${Math.random()}`;
     const loadSeq = modal.dataset.loadSeq;
-    modal.innerHTML = modalTemplate({ ...source, steamTitle }, current, "");
+    setTrustedTemplate(modal, modalTemplate({ ...source, steamTitle }, current, ""), "title-custom-name-modal-static-template");
+    populateModalValues(modal, { ...source, steamTitle }, current, "");
     modal.hidden = false;
     setTab(modal, "base");
     modal.querySelector("[data-title-custom-name-input]")?.focus?.();

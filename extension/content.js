@@ -90,6 +90,7 @@
     "shared/error-boundary.js",
     "shared/i18n.js",
     "shared/styles/theme.js",
+    "shared/utils/dom.js",
     "shared/page-context.js",
     "shared/runtime/kernel.js",
     "settings/catalog.js",

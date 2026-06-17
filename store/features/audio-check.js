@@ -60,19 +60,19 @@ function addAudioCheck() {
     audioContainer.className = MODULE_CLASSES.AUDIO_CHECK;
     audioContainer.dataset.steamAppId = appId;
 
+    const title = document.createElement("div");
+    title.className = "es_audio_check_title";
+    title.textContent = "配音检查";
+    const text = document.createElement("div");
+    text.className = "es_audio_check_text";
     if (hasChineseAudio) {
         audioContainer.classList.add('supported');
-        audioContainer.innerHTML = `
-            <div class="es_audio_check_title">配音检查</div>
-            <div class="es_audio_check_text">👍👍👍此游戏支持简体中文配音👍👍👍</div>
-        `;
+        text.textContent = "👍👍👍此游戏支持简体中文配音👍👍👍";
     } else {
         audioContainer.classList.add('not-supported');
-        audioContainer.innerHTML = `
-            <div class="es_audio_check_title">配音检查</div>
-            <div class="es_audio_check_text">此游戏不支持简体中文配音</div>
-        `;
+        text.textContent = "此游戏不支持简体中文配音";
     }
+    audioContainer.append(title, text);
 
     if (!insertModule(audioContainer, MODULE_CLASSES.AUDIO_CHECK, false, true)) {
     }

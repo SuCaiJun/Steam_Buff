@@ -222,6 +222,14 @@
       .replace(/'/g, "&#39;");
   }
 
+  function trustedHtml(html, reason) {
+    return window.STDomUtils.trustedHTML(html, reason);
+  }
+
+  function setTrustedTemplate(element, html, reason) {
+    window.STDomUtils.setTrustedHTML(element, trustedHtml(html, reason));
+  }
+
   function tipHtml(label, tip, extraClass = "") {
     const cls = extraClass ? `st-lcn-tip ${extraClass}` : "st-lcn-tip";
     return `<span class="${cls}" tabindex="0" role="button" aria-label="${attr(tip)}" aria-expanded="false"><span class="st-lcn-tip-text">${esc(label)}</span><span class="st-lcn-tip-mark" data-lcn-tip-toggle aria-hidden="true">?</span><span class="st-lcn-tip-popover" role="tooltip">${esc(tip)}</span></span>`;
@@ -2944,13 +2952,13 @@
     }
     bringDialogToFront(box);
     box.hidden = false;
-    box.innerHTML = `
+    setTrustedTemplate(box, `
       <div class="st-lcn-one-panel" role="dialog" aria-modal="true">
         <div class="st-lcn-one-head"><h3>${esc(title)}</h3></div>
         <div class="st-lcn-one-body"><div class="st-lcn-one-message">${esc(message)}</div></div>
         ${done ? `<div class="st-lcn-one-actions"><button class="st-lcn-btn primary" type="button" data-lcn-one="ok">确认</button></div>` : ""}
       </div>
-    `;
+    `, "library-custom-name-one-dialog-template");
   }
 
   function oneConfirm(message, opt = {}) {
@@ -2974,7 +2982,7 @@
         s.oneResolve(false);
       }
       s.oneResolve = resolve;
-      box.innerHTML = `
+      setTrustedTemplate(box, `
         <div class="st-lcn-one-panel" role="dialog" aria-modal="true">
           <div class="st-lcn-one-head"><h3>${esc(title)}</h3></div>
           <div class="st-lcn-one-body"><div class="st-lcn-one-message">${esc(message)}${note ? `<div class="st-lcn-one-note${noteClass}">${esc(note)}</div>` : ""}</div></div>
@@ -2983,7 +2991,7 @@
             <button class="st-lcn-btn primary" type="button" data-lcn-one="confirm">${esc(confirm)}</button>
           </div>
         </div>
-      `;
+      `, "library-custom-name-confirm-dialog-template");
     });
   }
 
@@ -3013,7 +3021,7 @@
     }
     bringDialogToFront(box);
     box.hidden = false;
-    box.innerHTML = `
+    setTrustedTemplate(box, `
       <div class="st-lcn-one-panel" role="dialog" aria-modal="true">
         <div class="st-lcn-one-head"><h3>名称上传云端</h3></div>
         <div class="st-lcn-one-body">
@@ -3028,7 +3036,7 @@
           <button class="st-lcn-btn primary" type="button" data-lcn-one="feedback-submit">提交</button>
         </div>
       </div>
-    `;
+    `, "library-custom-name-feedback-dialog-template");
   }
 
   function onOneClick(event) {
@@ -3158,13 +3166,13 @@
     bar.addEventListener("click", onBarClick);
     bar.addEventListener("keydown", onTipKeydown);
     const tip = CLOUD_TIP_TEXT;
-    bar.innerHTML = `
+    setTrustedTemplate(bar, `
       <button class="st-lcn-btn" type="button" data-lcn-one>获取云端名称</button>
       <button class="st-lcn-btn" type="button" data-lcn-batch>批量修改名称</button>
       <button class="st-lcn-btn" type="button" data-lcn-feedback aria-label="名称上传云端">
         ${tipHtml("名称上传云端", tip)}
       </button>
-    `;
+    `, "library-custom-name-toolbar-template");
 
     return bar;
   }
@@ -3474,7 +3482,7 @@
       const keepSearch = active?.matches?.("[data-lcn-search]");
       const searchStart = keepSearch ? active.selectionStart : 0;
       const searchEnd = keepSearch ? active.selectionEnd : 0;
-      modal.innerHTML = modalHtml();
+      setTrustedTemplate(modal, modalHtml(), "library-custom-name-batch-modal-template");
       bindModalControls(modal);
       if (keepSearch) {
         const next = modal.querySelector("[data-lcn-search]");
@@ -3496,7 +3504,7 @@
   function refreshMessage() {
     const msg = document.querySelector(`#${MODAL} .st-lcn-msg`);
     if (msg) {
-      msg.innerHTML = messageHtml();
+      setTrustedTemplate(msg, messageHtml(), "library-custom-name-status-message-template");
     }
   }
 
@@ -3603,7 +3611,7 @@
   function renderProgress() {
     const modal = document.getElementById(PROGRESS);
     if (modal) {
-      modal.innerHTML = progressHtml();
+      setTrustedTemplate(modal, progressHtml(), "library-custom-name-progress-template");
       batch.progressRenderAt = now();
     }
   }

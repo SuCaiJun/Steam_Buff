@@ -11,8 +11,9 @@
 ((root) => {
   'use strict';
 
-  const DOM_UTILS_VERSION = '2026-06-12-infrastructure';
+  const DOM_UTILS_VERSION = '2026-06-17-dom-safety';
   const TAG_NAME_RE = /^[a-z][a-z0-9-]*$/i;
+  const TRUSTED_HTML = Symbol('SteamBuffTrustedHTML');
 
   if (root.STDomUtils?.version === DOM_UTILS_VERSION) {
     return;
@@ -129,6 +130,37 @@
     return parent;
   }
 
+  function trustedHTML(html, reason) {
+    const note = String(reason || '').trim();
+    if (!note) {
+      throw new Error('[Steam Buff] 可信 HTML 必须登记原因');
+    }
+    return Object.freeze({
+      [TRUSTED_HTML]: true,
+      html: String(html ?? ''),
+      reason: note,
+    });
+  }
+
+  function isTrustedHTML(value) {
+    return !!value && typeof value === 'object' && value[TRUSTED_HTML] === true;
+  }
+
+  function setTrustedHTML(element, value) {
+    if (!element) return element;
+    if (!isTrustedHTML(value)) {
+      throw new Error('[Steam Buff] HTML 写入必须通过 trustedHTML() 登记');
+    }
+    // ⚠️ HTML 只允许来自静态模板或已白名单清洗后的富文本，外部文本必须走 textContent。
+    element.innerHTML = value.html;
+    if (element.dataset) {
+      element.dataset.stTrustedHtmlReason = value.reason;
+    } else if (element.setAttribute) {
+      element.setAttribute('data-st-trusted-html-reason', value.reason);
+    }
+    return element;
+  }
+
   function createElement(tagName = 'div', options = {}, children = []) {
     const doc = getDocument();
     const safeTag = TAG_NAME_RE.test(String(tagName || '')) ? String(tagName) : 'div';
@@ -140,7 +172,14 @@
     if (config.classList) addClass(element, config.classList);
     if (config.text !== undefined) element.textContent = String(config.text);
     if (config.textContent !== undefined) element.textContent = String(config.textContent);
-    if (config.html !== undefined) element.innerHTML = String(config.html);
+    if (config.html !== undefined) {
+      if (isTrustedHTML(config.html)) {
+        setTrustedHTML(element, config.html);
+      } else {
+        element.textContent = String(config.html);
+      }
+    }
+    if (config.trustedHTML !== undefined) setTrustedHTML(element, config.trustedHTML);
     setAttributes(element, config.attributes);
     setDataset(element, config.dataset);
     setStyles(element, config.style);
@@ -224,6 +263,9 @@
     queryAll,
     createElement,
     appendChildren,
+    trustedHTML,
+    isTrustedHTML,
+    setTrustedHTML,
     addClass,
     removeClass,
     toggleClass,

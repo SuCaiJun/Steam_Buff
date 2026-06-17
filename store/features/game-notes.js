@@ -33,6 +33,7 @@
   const DETAIL_RETRY_MS = 250;
 
   const wishlistDom = api.wishlistDom;
+  const dom = root.STDomUtils || {};
   let detailTimer = 0;
   let detailRetries = 0;
   let wishlistObserver = null;
@@ -298,7 +299,10 @@
     const body = document.createElement("span");
     body.className = "st-game-notes-body";
     const value = String(note || "");
-    if (value) body.innerHTML = core.renderBBCode(value).html;
+    if (value) {
+      const rendered = core.renderBBCode(value).html;
+      dom.setTrustedHTML(body, dom.trustedHTML(rendered, "game-notes-bbcode-sanitized"));
+    }
     else {
       body.textContent = "暂无备注";
       body.classList.add("st-game-notes-empty");

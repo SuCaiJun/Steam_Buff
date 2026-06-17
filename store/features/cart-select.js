@@ -507,16 +507,23 @@
     if (!box) {
       box = document.createElement("div");
       box.id = "st_cart_select_side_summary";
-      box.innerHTML = `
-        <div class="st_cart_select_side_row">
-          <span>所选总额</span>
-          <strong data-st-cart-side-total></strong>
-        </div>
-        <div class="st_cart_select_side_row">
-          <span>购买数量</span>
-          <strong data-st-cart-side-count></strong>
-        </div>
-      `;
+      const totalRow = document.createElement("div");
+      totalRow.className = "st_cart_select_side_row";
+      const totalLabel = document.createElement("span");
+      totalLabel.textContent = "所选总额";
+      const totalValue = document.createElement("strong");
+      totalValue.dataset.stCartSideTotal = "";
+      totalRow.append(totalLabel, totalValue);
+
+      const countRow = document.createElement("div");
+      countRow.className = "st_cart_select_side_row";
+      const countLabel = document.createElement("span");
+      countLabel.textContent = "购买数量";
+      const countValue = document.createElement("strong");
+      countValue.dataset.stCartSideCount = "";
+      countRow.append(countLabel, countValue);
+
+      box.append(totalRow, countRow);
     }
 
     const { el, pos } = anchor;
@@ -625,13 +632,16 @@
     if (!panel) {
       panel = document.createElement("div");
       panel.id = "st_cart_restore_panel";
-      panel.innerHTML = `
-        <span class="st_cart_restore_text"></span>
-        <button type="button" class="st_cart_restore_btn">恢复暂存购物车数据</button>
-      `;
-      panel.querySelector("button").addEventListener("click", () => {
+      const text = document.createElement("span");
+      text.className = "st_cart_restore_text";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "st_cart_restore_btn";
+      btn.textContent = "恢复暂存购物车数据";
+      btn.addEventListener("click", () => {
         manualRestoreMissing().catch(() => setRestorePanel("恢复失败，请重试", "bad"));
       });
+      panel.append(text, btn);
     }
 
     const target = restorePanelTarget();

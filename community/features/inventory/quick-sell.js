@@ -50,10 +50,23 @@
     const target = link.parentElement?.nextElementSibling || owner;
     const group = document.createElement("div");
     group.id = "listings_group";
-    group.innerHTML = `
-      <div><div id="listings_sell">出售</div>${orders.data.sell_order_table || ""}</div>
-      <div><div id="listings_buy">购买</div>${orders.data.buy_order_table || ""}</div>
-    `;
+    const sell = document.createElement("div");
+    const sellTitle = document.createElement("div");
+    sellTitle.id = "listings_sell";
+    sellTitle.textContent = "出售";
+    sell.appendChild(sellTitle);
+    const sellTable = document.createElement("template");
+    const buyTable = document.createElement("template");
+    window.STDomUtils.setTrustedHTML(sellTable, window.STDomUtils.trustedHTML(orders.data.sell_order_table || "", "steam-market-histogram-sell-table"));
+    window.STDomUtils.setTrustedHTML(buyTable, window.STDomUtils.trustedHTML(orders.data.buy_order_table || "", "steam-market-histogram-buy-table"));
+    sell.appendChild(sellTable.content.cloneNode(true));
+    const buy = document.createElement("div");
+    const buyTitle = document.createElement("div");
+    buyTitle.id = "listings_buy";
+    buyTitle.textContent = "购买";
+    buy.appendChild(buyTitle);
+    buy.appendChild(buyTable.content.cloneNode(true));
+    group.append(sell, buy);
     target.appendChild(group);
 
     let prices = [];
@@ -71,7 +84,10 @@
       const btn = document.createElement("a");
       btn.className = "item_market_action_button item_market_action_button_green quick_sell";
       btn.dataset.price = String(price);
-      btn.innerHTML = `<span class="item_market_action_button_contents">${api.currency.fmt(price)}</span>`;
+      const content = document.createElement("span");
+      content.className = "item_market_action_button_contents";
+      content.textContent = api.currency.fmt(price);
+      btn.appendChild(content);
       btn.addEventListener("click", () => {
         api.invActions.sellFixedPrice(item, api.market.beforeFees(price, item));
       });
@@ -82,13 +98,20 @@
     const custom = document.createElement("div");
     custom.id = "sell_button";
     styles?.applyStyles?.(custom, { display: "flex" });
-    custom.innerHTML = `
-      <input id="quick_sell_input" class="st-see-price-input" type="number" value="${Number(orders.data.lowest_sell_order || 0) / 100}" step="0.01" />&nbsp;
-      <a class="item_market_action_button item_market_action_button_green quick_sell_custom">
-        <span class="item_market_action_button_contents">➜ 出售</span>
-      </a>
-    `;
-    api.dom.q(".quick_sell_custom", custom).addEventListener("click", () => {
+    const input = document.createElement("input");
+    input.id = "quick_sell_input";
+    input.className = "st-see-price-input";
+    input.type = "number";
+    input.value = String(Number(orders.data.lowest_sell_order || 0) / 100);
+    input.step = "0.01";
+    const customButton = document.createElement("a");
+    customButton.className = "item_market_action_button item_market_action_button_green quick_sell_custom";
+    const customText = document.createElement("span");
+    customText.className = "item_market_action_button_contents";
+    customText.textContent = "➜ 出售";
+    customButton.appendChild(customText);
+    custom.append(input, document.createTextNode("\u00a0"), customButton);
+    customButton.addEventListener("click", () => {
       const price = Number(api.dom.q("#quick_sell_input", custom).value || 0) * 100;
       api.invActions.sellFixedPrice(item, api.market.beforeFees(price, item));
     });

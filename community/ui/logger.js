@@ -46,12 +46,16 @@
     box.textContent = "";
     if (totalBuyer > 0) {
       const row = document.createElement("div");
-      row.innerHTML = `<strong>累计上架物品总价为 ${api.currency.fmt(totalBuyer)}，你将会获得 ${api.currency.fmt(totalSeller)}。</strong>`;
+      const strong = document.createElement("strong");
+      strong.textContent = `累计上架物品总价为 ${api.currency.fmt(totalBuyer)}，你将会获得 ${api.currency.fmt(totalSeller)}。`;
+      row.appendChild(strong);
       box.appendChild(row);
     }
     if (totalGoo > 0) {
       const row = document.createElement("div");
-      row.innerHTML = `<strong>总共分解：${totalGoo}</strong>`;
+      const strong = document.createElement("strong");
+      strong.textContent = `总共分解：${totalGoo}`;
+      row.appendChild(strong);
       box.appendChild(row);
     }
   }

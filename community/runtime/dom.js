@@ -166,7 +166,9 @@
     if (!menu && document.body) {
       const wrap = document.createElement("div");
       wrap.id = "global_actions";
-      wrap.innerHTML = '<div id="global_action_menu"></div>';
+      const menuNode = document.createElement("div");
+      menuNode.id = "global_action_menu";
+      wrap.appendChild(menuNode);
       document.body.appendChild(wrap);
       menu = q("#global_action_menu");
     }
@@ -174,8 +176,14 @@
 
     const span = document.createElement("span");
     span.id = "see_settings";
-    span.innerHTML = '<a href="javascript:void(0)">⬖ SEE 设置</a>';
-    span.addEventListener("click", openSettings);
+    const link = document.createElement("a");
+    link.href = "#";
+    link.textContent = "⬖ SEE 设置";
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      openSettings(event);
+    });
+    span.appendChild(link);
     menu.prepend(span);
   }
 

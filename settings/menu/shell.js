@@ -230,6 +230,15 @@
       `;
     }
 
+    function setTrustedTemplate(element, html, reason) {
+      const dom = root.STDomUtils;
+      dom.setTrustedHTML(element, dom.trustedHTML(html, reason));
+    }
+
+    function afterRender(shadow) {
+      panels.review?.().renderDynamicLists?.(shadow);
+    }
+
     function render(shadow) {
       const categories = allCategories();
       const nav = shadow.querySelector(".nav");
@@ -244,8 +253,9 @@
         setActiveCat(visible[0]?.id || categories[0].id);
       }
 
-      nav.innerHTML = navHtml(categories);
-      body.innerHTML = contentHtml(categories);
+      setTrustedTemplate(nav, navHtml(categories), "settings-shell-nav-template");
+      setTrustedTemplate(body, contentHtml(categories), "settings-shell-content-template");
+      afterRender(shadow);
     }
 
     function syncChromeText(shadow) {
@@ -295,7 +305,7 @@
         return true;
       }
 
-      nav.innerHTML = navHtml(categories);
+      setTrustedTemplate(nav, navHtml(categories), "settings-shell-nav-template");
       return true;
     }
 

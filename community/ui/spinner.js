@@ -30,11 +30,20 @@
     hide();
     const wrap = document.createElement("div");
     wrap.id = id;
-    wrap.innerHTML = `
-      <div class="spinner"><div class="rect1"></div><div class="rect2"></div><div class="rect3"></div><div class="rect4"></div><div class="rect5"></div></div>
-      ${text ? `<div class="st-see-spin-text"></div>` : ""}
-    `;
-    if (text) api.dom.q(".st-see-spin-text", wrap).textContent = text;
+    const spinner = document.createElement("div");
+    spinner.className = "spinner";
+    ["rect1", "rect2", "rect3", "rect4", "rect5"].forEach((name) => {
+      const rect = document.createElement("div");
+      rect.className = name;
+      spinner.appendChild(rect);
+    });
+    wrap.appendChild(spinner);
+    if (text) {
+      const label = document.createElement("div");
+      label.className = "st-see-spin-text";
+      label.textContent = text;
+      wrap.appendChild(label);
+    }
     box.appendChild(wrap);
   }
 

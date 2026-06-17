@@ -161,10 +161,13 @@ function addDRMWarnings() {
         drmContainer.className = MODULE_CLASSES.DRM_WARNING;
         drmContainer.style.marginBottom = "8px";
         drmContainer.dataset.steamAppId = appIdText;
-        drmContainer.innerHTML = `
-            <div class="es_drm_warning_title">第三方检查</div>
-            <div class="es_drm_warning_text">${drmString}</div>
-        `;
+        const title = document.createElement("div");
+        title.className = "es_drm_warning_title";
+        title.textContent = "第三方检查";
+        const text = document.createElement("div");
+        text.className = "es_drm_warning_text";
+        text.textContent = drmString;
+        drmContainer.append(title, text);
         
         if (!insertModule(drmContainer, MODULE_CLASSES.DRM_WARNING, false, false)) {
         }

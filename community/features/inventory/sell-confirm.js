@@ -30,6 +30,14 @@
     return CFG.vendors?.steamCommunityCdn?.economyImage?.(raw, "64fx64f") || "";
   }
 
+  function button(className, text) {
+    const node = document.createElement("button");
+    node.type = "button";
+    node.className = className;
+    node.textContent = text;
+    return node;
+  }
+
   function choose(items, opt = {}) {
     const list = items.filter(Boolean);
     if (!list.length) return Promise.resolve([]);
@@ -39,30 +47,42 @@
     return new Promise((resolve) => {
       const back = document.createElement("div");
       back.id = "st_sell_confirm_backdrop";
-      back.innerHTML = `
-        <div class="st-sell-confirm" role="dialog" aria-modal="true">
-          <div class="st-sell-confirm-head">
-            <div>
-              <h2>${opt.title || "确认出售物品"}</h2>
-              <div class="st-sell-confirm-sub">取消勾选不想出售的物品。</div>
-            </div>
-            <div class="st-sell-confirm-count"></div>
-          </div>
-          <div class="st-sell-confirm-tools">
-            <button type="button" class="st-sell-check-all">全选</button>
-            <button type="button" class="st-sell-check-none">全部取消</button>
-          </div>
-          <div class="st-sell-confirm-list"></div>
-          <div class="st-sell-confirm-actions">
-            <button type="button" class="st-sell-cancel">取消</button>
-            <button type="button" class="st-sell-ok">${opt.okText || "确认出售"}</button>
-          </div>
-        </div>
-      `;
+      const modal = document.createElement("div");
+      modal.className = "st-sell-confirm";
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-modal", "true");
 
-      const listEl = api.dom.q(".st-sell-confirm-list", back);
-      const countEl = api.dom.q(".st-sell-confirm-count", back);
-      const ok = api.dom.q(".st-sell-ok", back);
+      const head = document.createElement("div");
+      head.className = "st-sell-confirm-head";
+      const titleWrap = document.createElement("div");
+      const title = document.createElement("h2");
+      title.textContent = opt.title || "确认出售物品";
+      const subTitle = document.createElement("div");
+      subTitle.className = "st-sell-confirm-sub";
+      subTitle.textContent = "取消勾选不想出售的物品。";
+      titleWrap.append(title, subTitle);
+      const count = document.createElement("div");
+      count.className = "st-sell-confirm-count";
+      head.append(titleWrap, count);
+
+      const tools = document.createElement("div");
+      tools.className = "st-sell-confirm-tools";
+      tools.append(
+        button("st-sell-check-all", "全选"),
+        button("st-sell-check-none", "全部取消"),
+      );
+
+      const listEl = document.createElement("div");
+      listEl.className = "st-sell-confirm-list";
+      const actions = document.createElement("div");
+      actions.className = "st-sell-confirm-actions";
+      const cancel = button("st-sell-cancel", "取消");
+      const ok = button("st-sell-ok", opt.okText || "确认出售");
+      actions.append(cancel, ok);
+      modal.append(head, tools, listEl, actions);
+      back.appendChild(modal);
+
+      const countEl = count;
       const rows = [];
 
       function selected() {
@@ -148,7 +168,7 @@
         });
         update();
       });
-      api.dom.q(".st-sell-cancel", back).addEventListener("click", () => close(null));
+      cancel.addEventListener("click", () => close(null));
       ok.addEventListener("click", () => close(selected()));
       document.addEventListener("keydown", onKey);
       document.body.appendChild(back);

@@ -11,6 +11,33 @@
     styles?.applyStyles?.(element, { display: visible ? "" : "none" });
   }
 
+  function appendTextSpan(parent, id, text) {
+    if (!parent) return null;
+    const span = document.createElement("span");
+    span.id = id;
+    span.textContent = text;
+    parent.appendChild(span);
+    return span;
+  }
+
+  function createActionButton(className, text) {
+    const link = document.createElement("a");
+    link.className = `item_market_action_button item_market_action_button_green ${className} market_listing_button`;
+    const span = document.createElement("span");
+    span.className = "item_market_action_button_contents";
+    span.textContent = text;
+    link.appendChild(span);
+    return link;
+  }
+
+  function appendButtonGroup(head, buttons) {
+    const group = document.createElement("div");
+    group.className = "market_listing_buttons";
+    buttons.forEach(([className, text]) => group.appendChild(createActionButton(className, text)));
+    head.appendChild(group);
+    return group;
+  }
+
   function fill() {
     for (const table of api.dom.qa(".market_home_listing_table")) {
       if (!api.dom.q(".my_market_header", table)) continue;
@@ -46,14 +73,12 @@
     api.dom.q("#my_market_sell_listings_total_price")?.remove();
     api.dom.q("#my_market_buy_listings_total_amount")?.remove();
     api.dom.q("#my_market_buy_listings_total_price")?.remove();
-    api.dom.q("#my_market_selllistings_number")?.insertAdjacentHTML(
-      "beforeend",
-      `<span id="my_market_sell_listings_total_amount"> [${sellAmount}]</span><span id="my_market_sell_listings_total_price">, ${api.currency.fmt(sellBuyer)} ➤ ${api.currency.fmt(sellSeller)}</span>`,
-    );
-    api.dom.q("#my_market_buylistings_number")?.insertAdjacentHTML(
-      "beforeend",
-      `<span id="my_market_buy_listings_total_amount"> [${buyAmount}]</span><span id="my_market_buy_listings_total_price">, ${api.currency.fmt(buyPrice)}</span>`,
-    );
+    const sellTarget = api.dom.q("#my_market_selllistings_number");
+    appendTextSpan(sellTarget, "my_market_sell_listings_total_amount", ` [${sellAmount}]`);
+    appendTextSpan(sellTarget, "my_market_sell_listings_total_price", `, ${api.currency.fmt(sellBuyer)} ➤ ${api.currency.fmt(sellSeller)}`);
+    const buyTarget = api.dom.q("#my_market_buylistings_number");
+    appendTextSpan(buyTarget, "my_market_buy_listings_total_amount", ` [${buyAmount}]`);
+    appendTextSpan(buyTarget, "my_market_buy_listings_total_price", `, ${api.currency.fmt(buyPrice)}`);
   }
 
   function process() {
@@ -186,33 +211,34 @@
 
     const header = api.dom.q(".market_header_text");
     if (header && !api.dom.q("#see_market_progress")) {
-      header.insertAdjacentHTML("beforeend", '<progress id="see_market_progress" value="0" max="0" hidden></progress>');
+      const progress = document.createElement("progress");
+      progress.id = "see_market_progress";
+      progress.value = 0;
+      progress.max = 0;
+      progress.hidden = true;
+      header.appendChild(progress);
     }
     st.state.progress = api.dom.q("#see_market_progress");
 
     const first = api.dom.q(".my_market_header");
     if (first && !api.dom.q(".market_listing_buttons", first)) {
-      first.insertAdjacentHTML("beforeend", `
-        <div class="market_listing_buttons">
-          <a class="item_market_action_button item_market_action_button_green select_all market_listing_button"><span class="item_market_action_button_contents">选中全部物品</span></a>
-          <a class="item_market_action_button item_market_action_button_green select_five_from_page market_listing_button"><span class="item_market_action_button_contents">选择 5 个</span></a>
-          <a class="item_market_action_button item_market_action_button_green select_twentyfive_from_page market_listing_button"><span class="item_market_action_button_contents">选择 25 个</span></a>
-          <a class="item_market_action_button item_market_action_button_green remove_selected market_listing_button"><span class="item_market_action_button_contents">下架选中物品</span></a>
-          <a class="item_market_action_button item_market_action_button_green relist_selected market_listing_button"><span class="item_market_action_button_contents">重新上架选中物品</span></a>
-          <a class="item_market_action_button item_market_action_button_green relist_overpriced market_listing_button"><span class="item_market_action_button_contents">重新上架高价物品</span></a>
-          <a class="item_market_action_button item_market_action_button_green select_overpriced market_listing_button"><span class="item_market_action_button_contents">选中高价物品</span></a>
-        </div>
-      `);
+      appendButtonGroup(first, [
+        ["select_all", "选中全部物品"],
+        ["select_five_from_page", "选择 5 个"],
+        ["select_twentyfive_from_page", "选择 25 个"],
+        ["remove_selected", "下架选中物品"],
+        ["relist_selected", "重新上架选中物品"],
+        ["relist_overpriced", "重新上架高价物品"],
+        ["select_overpriced", "选中高价物品"],
+      ]);
       styles?.applyStyles?.(api.dom.q(".relist_selected", first), { marginLeft: "auto" });
     }
     for (const head of api.dom.qa(".my_market_header").slice(1)) {
       if (api.dom.q(".market_listing_buttons", head)) continue;
-      head.insertAdjacentHTML("beforeend", `
-        <div class="market_listing_buttons">
-          <a class="item_market_action_button item_market_action_button_green select_all market_listing_button"><span class="item_market_action_button_contents">选中全部物品</span></a>
-          <a class="item_market_action_button item_market_action_button_green remove_selected market_listing_button"><span class="item_market_action_button_contents">删除选中物品</span></a>
-        </div>
-      `);
+      appendButtonGroup(head, [
+        ["select_all", "选中全部物品"],
+        ["remove_selected", "删除选中物品"],
+      ]);
     }
 
     bindButtons();

@@ -181,6 +181,7 @@
         "shared/config.js",
         "shared/i18n.js",
         "shared/performance-monitor.js",
+        "shared/utils/dom.js",
         "shared/scheduler.js",
         "shared/observer-utils.js",
         "shared/data-index.js",

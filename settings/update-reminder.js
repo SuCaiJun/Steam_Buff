@@ -250,7 +250,8 @@
     const current = api.verLabel(info.current);
 
     host.id = ROOT;
-    shadow.innerHTML = `
+    const logHtml = api.latestHtml(latest);
+    const template = `
       <style>${STYLE}</style>
       <div class="layer" role="presentation">
         <section class="dialog" role="dialog" aria-modal="true" aria-label="Steam Buff 发现新版本">
@@ -262,7 +263,7 @@
             <div class="meta">当前版本：${api.esc(current)}
 最新版本：${api.esc(remote)}</div>
             <div class="label">新版日志</div>
-            <div class="body">${api.latestHtml(latest)}</div>
+            <div class="body"></div>
             <div class="actions">
               <button class="action" type="button" data-action="mute">今天不再提醒</button>
               <button class="action primary" type="button" data-action="open">打开官网下载</button>
@@ -271,6 +272,9 @@
         </section>
       </div>
     `;
+    const dom = root.STDomUtils;
+    dom.setTrustedHTML(shadow, dom.trustedHTML(template, "update-reminder-static-template"));
+    dom.setTrustedHTML(shadow.querySelector(".body"), dom.trustedHTML(logHtml, "update-reminder-log-sanitized-renderer"));
     shadow.addEventListener("click", (event) => {
       const action = event.target?.closest?.("[data-action]")?.dataset?.action || "";
       if (action === "close") {

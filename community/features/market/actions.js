@@ -154,7 +154,8 @@
       if (data?.success) {
         const box = api.dom.q("#tabContentsMyActiveMarketListingsRows");
         const tmp = document.createElement("template");
-        tmp.innerHTML = data.results_html || "";
+        const html = data.results_html || "";
+        window.STDomUtils.setTrustedHTML(tmp, window.STDomUtils.trustedHTML(html, "steam-market-mylistings-results-html"));
         for (const row of api.dom.qa(".market_listing_row", tmp.content)) box?.appendChild(row);
         if (data.assets && typeof api.W.MergeWithAssetArray === "function") api.W.MergeWithAssetArray(data.assets);
       }

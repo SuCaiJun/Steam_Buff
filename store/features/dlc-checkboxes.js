@@ -143,16 +143,16 @@ function addSelectionPanel(dlcSection, options = {}) {
 
     const actions = [];
     if (hasCartableDLC) {
-        actions.push('<div class="es_dlc_option" id="unowned_dlc_check">选择尚未拥有的DLC</div>');
-        actions.push('<div class="es_dlc_option" id="wl_dlc_check">选择愿望单中的DLC</div>');
+        actions.push({ id: "unowned_dlc_check", label: "选择尚未拥有的DLC" });
+        actions.push({ id: "wl_dlc_check", label: "选择愿望单中的DLC" });
     }
     if (hasClaimableFreeDLC) {
-        actions.push('<div class="es_dlc_option" id="free_dlc_claim">一键领取所有免费DLC</div>');
+        actions.push({ id: "free_dlc_claim", label: "一键领取所有免费DLC" });
     }
     if (hasCartableDLC) {
-        actions.push('<div class="es_dlc_option" id="no_dlc_check">全部取消选择</div>');
+        actions.push({ id: "no_dlc_check", label: "全部取消选择" });
     }
-    actions.push('<div class="es_dlc_option es_dlc_refresh_option" id="refresh_dlc_cache">刷新DLC状态</div>');
+    actions.push({ id: "refresh_dlc_cache", label: "刷新DLC状态", className: "es_dlc_refresh_option" });
     if (actions.length === 0) return;
 
     const insertAfter = dlcSection.querySelector(".gradientbg")
@@ -162,7 +162,13 @@ function addSelectionPanel(dlcSection, options = {}) {
 
     const panel = document.createElement("div");
     panel.id = "es_dlc_option_panel";
-    panel.innerHTML = actions.join('');
+    actions.forEach((action) => {
+        const item = document.createElement("div");
+        item.id = action.id;
+        item.className = `es_dlc_option${action.className ? ` ${action.className}` : ""}`;
+        item.textContent = action.label;
+        panel.appendChild(item);
+    });
 
     insertAfter.insertAdjacentElement("afterend", panel);
 
@@ -700,32 +706,40 @@ function claimFreeDLCsBatch(freeDLCs) {
         });
 }
 
-function escapeHTML(value) {
-    const div = document.createElement('div');
-    div.textContent = String(value || '');
-    return div.innerHTML;
-}
-
 function addCartButton(dlcSection) {
-    const cartButtonHTML = `
-        <div class="game_purchase_action game_purchase_action_bg" id="es_selected_btn" style="display: none;">
-            <div class="game_purchase_price price" id="es_dlc_total_price"></div>
-            <div class="btn_addtocart">
-                <a class="btn_green_steamui btn_medium" id="es_add_to_cart_btn">
-                    <span>将选择的DLC加入购物车</span>
-                </a>
-            </div>
-        </div>
-    `;
+    const cartButton = document.createElement("div");
+    cartButton.className = "game_purchase_action game_purchase_action_bg";
+    cartButton.id = "es_selected_btn";
+    cartButton.style.display = "none";
+
+    const price = document.createElement("div");
+    price.className = "game_purchase_price price";
+    price.id = "es_dlc_total_price";
+
+    const action = document.createElement("div");
+    action.className = "btn_addtocart";
+
+    const link = document.createElement("a");
+    link.className = "btn_green_steamui btn_medium";
+    link.id = "es_add_to_cart_btn";
+
+    const label = document.createElement("span");
+    label.textContent = "将选择的DLC加入购物车";
+
+    link.appendChild(label);
+    action.appendChild(link);
+    cartButton.append(price, action);
 
     const expandedNode = dlcSection.querySelector("#game_area_dlc_expanded");
     if (expandedNode) {
-        expandedNode.insertAdjacentHTML("afterend", cartButtonHTML);
-        expandedNode.insertAdjacentHTML("afterend", '<div style="clear: both;"></div>');
+        const clear = document.createElement("div");
+        clear.style.clear = "both";
+        expandedNode.insertAdjacentElement("afterend", clear);
+        clear.insertAdjacentElement("afterend", cartButton);
     } else {
         const gameDlcBlocks = dlcSection.querySelector(".gameDlcBlocks");
         if (gameDlcBlocks) {
-            gameDlcBlocks.insertAdjacentHTML("afterend", cartButtonHTML);
+            gameDlcBlocks.insertAdjacentElement("afterend", cartButton);
         }
     }
 

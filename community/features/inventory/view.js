@@ -48,6 +48,15 @@
     }
   }
 
+  function actionLink(className, text) {
+    const link = document.createElement("a");
+    link.className = className;
+    const span = document.createElement("span");
+    span.textContent = text;
+    link.appendChild(span);
+    return link;
+  }
+
   // Steam 库存原生选择没有批量动作状态，这里监听点击并补齐 Shift/Ctrl 多选。
   function bindSelection() {
     const box = api.dom.q("#inventories");
@@ -121,24 +130,25 @@
       const wrap = document.createElement("div");
       wrap.id = "inventory_sell_buttons";
       wrap.className = "see_inventory_buttons";
-      wrap.innerHTML = `
-        <a class="btn_green_white_innerfade btn_medium_wide sell_all"><span>出售所有物品</span></a>
-        <a class="btn_green_white_innerfade btn_medium_wide sell_all_duplicates"><span>出售所有重复物品</span></a>
-        <a class="btn_green_white_innerfade btn_medium_wide sell_selected"><span>出售所选物品</span></a>
-        <a class="btn_green_white_innerfade btn_medium_wide sell_manual"><span>手动出售物品</span></a>
-      `;
+      wrap.append(
+        actionLink("btn_green_white_innerfade btn_medium_wide sell_all", "出售所有物品"),
+        actionLink("btn_green_white_innerfade btn_medium_wide sell_all_duplicates", "出售所有重复物品"),
+        actionLink("btn_green_white_innerfade btn_medium_wide sell_selected", "出售所选物品"),
+        actionLink("btn_green_white_innerfade btn_medium_wide sell_manual", "手动出售物品")
+      );
       if (showMisc) {
-        wrap.insertAdjacentHTML("beforeend", `
-          <a class="btn_green_white_innerfade btn_medium_wide sell_all_cards"><span>出售所有卡牌</span></a>
-          <div class="see_inventory_buttons">
-            <a class="btn_darkblue_white_innerfade btn_medium_wide turn_into_gems"><span>将选中物品分解为宝石</span></a>
-            <a class="btn_darkblue_white_innerfade btn_medium_wide unpack_all_booster_packs"><span>拆开所有补充包</span></a>
-            <a class="btn_darkblue_white_innerfade btn_medium_wide unpack_selected_booster_packs"><span>拆开选中的补充包</span></a>
-            <a class="btn_darkblue_white_innerfade btn_medium_wide gem_all_duplicates"><span>将所有重复物品分解为宝石</span></a>
-          </div>
-        `);
+        wrap.appendChild(actionLink("btn_green_white_innerfade btn_medium_wide sell_all_cards", "出售所有卡牌"));
+        const misc = document.createElement("div");
+        misc.className = "see_inventory_buttons";
+        misc.append(
+          actionLink("btn_darkblue_white_innerfade btn_medium_wide turn_into_gems", "将选中物品分解为宝石"),
+          actionLink("btn_darkblue_white_innerfade btn_medium_wide unpack_all_booster_packs", "拆开所有补充包"),
+          actionLink("btn_darkblue_white_innerfade btn_medium_wide unpack_selected_booster_packs", "拆开选中的补充包"),
+          actionLink("btn_darkblue_white_innerfade btn_medium_wide gem_all_duplicates", "将所有重复物品分解为宝石")
+        );
+        wrap.appendChild(misc);
       } else if (tf2) {
-        wrap.insertAdjacentHTML("beforeend", '<a class="btn_green_white_innerfade btn_medium_wide sell_all_crates"><span>出售所有箱子</span></a>');
+        wrap.appendChild(actionLink("btn_green_white_innerfade btn_medium_wide sell_all_crates", "出售所有箱子"));
       }
       setDisplay(api.dom.q(".sell_selected", wrap), false);
       setDisplay(api.dom.q(".sell_manual", wrap), false);
@@ -161,7 +171,8 @@
     reload.id = "inventory_reload_button";
     reload.className = "btn_darkblue_white_innerfade btn_medium_wide reload_inventory";
     styles?.applyStyles?.(reload, { marginRight: THEME.spacing?.md });
-    reload.innerHTML = "<span>重新加载库存</span>";
+    reload.appendChild(document.createElement("span"));
+    api.dom.q("span", reload).textContent = "重新加载库存";
     reload.addEventListener("click", () => location.reload());
     api.dom.q(".inventory_rightnav")?.prepend(reload);
 

@@ -30,7 +30,13 @@ const TooltipManager = {
 
     show(content, target, options = {}) {
         if (!this.el) this.init();
-        this.el.innerHTML = content;
+        if (window.STDomUtils?.isTrustedHTML?.(content)) {
+            window.STDomUtils.setTrustedHTML(this.el, content);
+        } else if (content && typeof content === 'object' && typeof content.nodeType === 'number') {
+            this.el.replaceChildren(content);
+        } else {
+            this.el.textContent = String(content ?? '');
+        }
         this.el.style.display = 'block';
         
         const { position = 'mouse', offset = 15 } = options;

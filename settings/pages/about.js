@@ -1722,10 +1722,12 @@
     closeBtn.textContent = "×";
     content.className = "about-log-content";
     logBox.className = "about-log-dialog-body";
-    logBox.innerHTML = logDialogHtml(ctx, options.item || {
+    const logHtml = logDialogHtml(ctx, options.item || {
       desc: options.log,
       html: options.logHtml,
     });
+    const dom = globalThis.STDomUtils;
+    dom.setTrustedHTML(logBox, dom.trustedHTML(logHtml, "about-update-log-sanitized-renderer"));
 
     head.append(title, closeBtn);
     if (options.meta) {
