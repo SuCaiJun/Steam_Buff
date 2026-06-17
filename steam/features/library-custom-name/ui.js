@@ -113,19 +113,8 @@
     message: "等待查询",
   };
 
-  function alphaColor(color, alpha) {
-    const value = String(color || "");
-    const match = value.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
-    if (!match) {
-      return value || "transparent";
-    }
-    const raw = match[1].length === 3
-      ? match[1].split("").map((it) => `${it}${it}`).join("")
-      : match[1];
-    const r = parseInt(raw.slice(0, 2), 16);
-    const g = parseInt(raw.slice(2, 4), 16);
-    const b = parseInt(raw.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  function cssVar(name) {
+    return `var(${name})`;
   }
 
   function lcnStyleVars() {
@@ -143,57 +132,57 @@
       "--st-lcn-bg-soft": colors.bgInputFocus,
       "--st-lcn-bg-dark": colors.bgInput,
       "--st-lcn-bg-black": colors.black,
-      "--st-lcn-bar-bg": alphaColor(colors.bgInput, 0.92),
-      "--st-lcn-bar-shadow": `0 8px 24px ${alphaColor(colors.black, 0.28)}`,
-      "--st-lcn-btn-border": alphaColor(colors.steamBlue, 0.55),
-      "--st-lcn-btn-bg": alphaColor(colors.steamBlue, 0.28),
-      "--st-lcn-btn-hover-bg": alphaColor(colors.steamBlue, 0.36),
-      "--st-lcn-primary-gradient": `linear-gradient(90deg, ${colors.primary} 0%, ${colors.primaryDark} 100%)`,
-      "--st-lcn-primary-border": alphaColor(colors.steamBlue, 0.65),
-      "--st-lcn-danger-border": alphaColor(colors.danger, 0.55),
-      "--st-lcn-danger-bg": alphaColor(colors.danger, 0.78),
-      "--st-lcn-danger-bg-hover": alphaColor(colors.danger, 0.9),
-      "--st-lcn-success-border": alphaColor(colors.success, 0.55),
-      "--st-lcn-success-bg": alphaColor(colors.success, 0.86),
-      "--st-lcn-success-bg-hover": alphaColor(colors.success, 0.96),
-      "--st-lcn-spinner-border": alphaColor(colors.white, 0.35),
-      "--st-lcn-disabled-bg": alphaColor(colors.black, 0.35),
+      "--st-lcn-bar-bg": cssVar("--st-color-surface-control-strong"),
+      "--st-lcn-bar-shadow": cssVar("--st-shadow-panel-soft"),
+      "--st-lcn-btn-border": cssVar("--st-color-steam-blue-alpha-55"),
+      "--st-lcn-btn-bg": cssVar("--st-color-steam-blue-alpha-28"),
+      "--st-lcn-btn-hover-bg": cssVar("--st-color-steam-blue-alpha-36"),
+      "--st-lcn-primary-gradient": cssVar("--st-gradient-primary-horizontal"),
+      "--st-lcn-primary-border": cssVar("--st-color-steam-blue-alpha-55"),
+      "--st-lcn-danger-border": cssVar("--st-color-alert-danger-alpha-45"),
+      "--st-lcn-danger-bg": cssVar("--st-color-danger-alpha-72"),
+      "--st-lcn-danger-bg-hover": cssVar("--st-color-danger-soft-alpha-72"),
+      "--st-lcn-success-border": cssVar("--st-color-success-bright-alpha-55"),
+      "--st-lcn-success-bg": cssVar("--st-color-success-bright-alpha-50"),
+      "--st-lcn-success-bg-hover": colors.success,
+      "--st-lcn-spinner-border": cssVar("--st-color-white-alpha-35"),
+      "--st-lcn-disabled-bg": cssVar("--st-color-black-alpha-35"),
       "--st-lcn-disabled-border": colors.borderNormal,
-      "--st-lcn-overlay": alphaColor(colors.black, 0.58),
-      "--st-lcn-overlay-strong": alphaColor(colors.black, 0.62),
-      "--st-lcn-panel-border": alphaColor(colors.steamBlue, 0.2),
-      "--st-lcn-panel-border-soft": alphaColor(colors.steamBlue, 0.18),
-      "--st-lcn-panel-shadow": `0 18px 54px ${alphaColor(colors.black, 0.55)}`,
-      "--st-lcn-divider": alphaColor(colors.white, 0.1),
-      "--st-lcn-divider-soft": alphaColor(colors.white, 0.07),
-      "--st-lcn-input-border": alphaColor(colors.white, 0.12),
-      "--st-lcn-input-border-strong": alphaColor(colors.white, 0.14),
-      "--st-lcn-input-bg": alphaColor(colors.black, 0.32),
-      "--st-lcn-input-bg-disabled": alphaColor(colors.black, 0.2),
-      "--st-lcn-progress-bg": alphaColor(colors.black, 0.35),
-      "--st-lcn-check-border": alphaColor(colors.textSecondary, 0.65),
-      "--st-lcn-check-bg": alphaColor(colors.black, 0.22),
+      "--st-lcn-overlay": cssVar("--st-color-black-alpha-58"),
+      "--st-lcn-overlay-strong": cssVar("--st-color-black-alpha-60"),
+      "--st-lcn-panel-border": cssVar("--st-color-steam-blue-alpha-20"),
+      "--st-lcn-panel-border-soft": cssVar("--st-color-steam-blue-alpha-18"),
+      "--st-lcn-panel-shadow": cssVar("--st-shadow-panel"),
+      "--st-lcn-divider": cssVar("--st-color-white-alpha-10"),
+      "--st-lcn-divider-soft": cssVar("--st-color-white-alpha-06"),
+      "--st-lcn-input-border": cssVar("--st-color-white-alpha-12"),
+      "--st-lcn-input-border-strong": cssVar("--st-color-white-alpha-14"),
+      "--st-lcn-input-bg": cssVar("--st-color-black-alpha-32"),
+      "--st-lcn-input-bg-disabled": cssVar("--st-color-black-alpha-20"),
+      "--st-lcn-progress-bg": cssVar("--st-color-black-alpha-35"),
+      "--st-lcn-check-border": cssVar("--st-color-steam-blue-alpha-55"),
+      "--st-lcn-check-bg": cssVar("--st-color-black-alpha-22"),
       "--st-lcn-check-disabled-border": colors.textDisabled,
       "--st-lcn-check-disabled-checked-border": colors.textSecondary,
-      "--st-lcn-check-disabled-bg": alphaColor(colors.white, 0.08),
-      "--st-lcn-check-checked-bg": alphaColor(colors.steamBlue, 0.16),
-      "--st-lcn-check-disabled-checked-bg": alphaColor(colors.white, 0.12),
+      "--st-lcn-check-disabled-bg": cssVar("--st-color-white-alpha-08"),
+      "--st-lcn-check-checked-bg": cssVar("--st-color-steam-blue-alpha-16"),
+      "--st-lcn-check-disabled-checked-bg": cssVar("--st-color-white-alpha-12"),
       "--st-lcn-check-mark-dark": colors.bgInput,
-      "--st-lcn-inline-border": alphaColor(colors.steamBlue, 0.35),
-      "--st-lcn-inline-bg": alphaColor(colors.steamBlue, 0.08),
-      "--st-lcn-inline-bg-hover": alphaColor(colors.steamBlue, 0.16),
-      "--st-lcn-tip-border": alphaColor(colors.steamBlue, 0.75),
-      "--st-lcn-tip-border-hover": alphaColor(colors.steamBlue, 0.95),
-      "--st-lcn-tip-bg": alphaColor(colors.steamBlue, 0.12),
-      "--st-lcn-tip-bg-hover": alphaColor(colors.steamBlue, 0.28),
-      "--st-lcn-popover-shadow": `0 12px 28px ${alphaColor(colors.black, 0.42)}`,
-      "--st-lcn-search-bg": alphaColor(colors.black, 0.88),
-      "--st-lcn-search-border": alphaColor(colors.steamBlue, 0.28),
-      "--st-lcn-search-focus": alphaColor(colors.steamBlue, 0.78),
-      "--st-lcn-search-shadow": `0 0 0 1px ${alphaColor(colors.steamBlue, 0.2)}`,
-      "--st-lcn-empty-border": alphaColor(colors.white, 0.12),
-      "--st-lcn-row-ok": alphaColor(colors.success, 0.08),
-      "--st-lcn-row-fail": alphaColor(colors.danger, 0.09),
+      "--st-lcn-inline-border": cssVar("--st-color-steam-blue-alpha-34"),
+      "--st-lcn-inline-bg": cssVar("--st-color-steam-blue-alpha-08"),
+      "--st-lcn-inline-bg-hover": cssVar("--st-color-steam-blue-alpha-16"),
+      "--st-lcn-tip-border": cssVar("--st-color-steam-blue-alpha-72"),
+      "--st-lcn-tip-border-hover": cssVar("--st-color-steam-blue-alpha-72"),
+      "--st-lcn-tip-bg": cssVar("--st-color-steam-blue-alpha-12"),
+      "--st-lcn-tip-bg-hover": cssVar("--st-color-steam-blue-alpha-28"),
+      "--st-lcn-popover-shadow": cssVar("--st-shadow-panel-menu"),
+      "--st-lcn-search-bg": cssVar("--st-color-body-alpha-88"),
+      "--st-lcn-search-border": cssVar("--st-color-steam-blue-alpha-28"),
+      "--st-lcn-search-focus": cssVar("--st-color-steam-blue-alpha-72"),
+      "--st-lcn-search-shadow": cssVar("--st-shadow-focus-ring"),
+      "--st-lcn-empty-border": cssVar("--st-color-white-alpha-12"),
+      "--st-lcn-row-ok": cssVar("--st-color-success-alpha-12"),
+      "--st-lcn-row-fail": cssVar("--st-color-danger-alpha-12"),
     };
   }
 
@@ -818,15 +807,13 @@
   }
 
   function css() {
-    let style = document.getElementById(STYLE);
-    if (style?.textContent?.includes(".st-lcn-tip.is-open")) {
+    const current = document.getElementById(STYLE);
+    if (current?.textContent?.includes(".st-lcn-tip.is-open")) {
       return;
     }
-    style?.remove?.();
-    style = document.createElement("style");
-    style.id = STYLE;
+    current?.remove?.();
     styles?.applyStyles?.(document.documentElement, lcnStyleVars());
-    style.textContent = `
+    styles?.ensureStyle?.(STYLE, `
       #${BAR} {
         display: flex;
         gap: 8px;
@@ -1464,8 +1451,7 @@
       #${MODAL} tr.fail td {
         background: var(--st-lcn-row-fail);
       }
-    `;
-    document.head.appendChild(style);
+    `);
   }
 
   function visible(el) {

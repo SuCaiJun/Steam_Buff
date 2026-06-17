@@ -108,6 +108,34 @@
     return appendContent(element, content);
   }
 
+  /**
+   * 注入或更新样式节点，避免各功能重复维护 style 创建逻辑。
+   * @param {string} id - 样式节点 ID。
+   * @param {string} cssText - 样式文本。
+   * @param {HTMLElement} target - 样式挂载目标。
+   * @returns {HTMLStyleElement|null} 样式节点。
+   */
+  function ensureStyle(id, cssText = '', target = null) {
+    const doc = root.document || document;
+    if (!id || !doc?.createElement) {
+      return null;
+    }
+
+    let style = doc.getElementById?.(id) || null;
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = String(id);
+      const host = target || doc.head || doc.documentElement;
+      host?.appendChild?.(style);
+    }
+
+    const nextText = String(cssText || '');
+    if (style.textContent !== nextText) {
+      style.textContent = nextText;
+    }
+    return style;
+  }
+
   const templates = deepFreeze({
     moduleContainer: {
       margin: `${spacing.sm} 0`,
@@ -244,6 +272,7 @@
     applyStyles,
     appendContent,
     createStyledElement,
+    ensureStyle,
     templates,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

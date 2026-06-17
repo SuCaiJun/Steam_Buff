@@ -24,6 +24,7 @@
   const rootState = window.SteamBuff.state = window.SteamBuff.state || {};
   const s = rootState[ID] = rootState[ID] || {};
 
+  const styles = window.SteamBuff?.styles;
   const log = window.STLoggerFactory.createLogger("steam", ID);
 
   function logByLevel(level, event, message, meta = {}) {
@@ -86,9 +87,7 @@
       return;
     }
 
-    const style = document.createElement("style");
-    style.id = STYLE;
-    style.textContent = `
+    styles?.ensureStyle?.(STYLE, `
       #${BTN} {
         min-width: 96px;
       }
@@ -96,8 +95,7 @@
         opacity: 0.72;
         pointer-events: none;
       }
-    `;
-    document.head.appendChild(style);
+    `);
   }
 
   function appidFromRoute() {

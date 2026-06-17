@@ -79,19 +79,8 @@
 
   const log = window.STLoggerFactory.createLogger("steam", ID);
 
-  function alphaColor(color, alpha) {
-    const value = String(color || "");
-    const match = value.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
-    if (!match) {
-      return value || "transparent";
-    }
-    const raw = match[1].length === 3
-      ? match[1].split("").map((it) => `${it}${it}`).join("")
-      : match[1];
-    const r = parseInt(raw.slice(0, 2), 16);
-    const g = parseInt(raw.slice(2, 4), 16);
-    const b = parseInt(raw.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  function cssVar(name) {
+    return `var(${name})`;
   }
 
   function styleVars() {
@@ -105,15 +94,15 @@
       "--st-news-button-color": colors.textMuted,
       "--st-news-button-bg": colors.bgCardHover,
       "--st-news-button-bg-hover": colors.bgCard,
-      "--st-news-button-shadow": `0 3px 32px ${colors.black}`,
+      "--st-news-button-shadow": cssVar("--st-shadow-panel-menu"),
       "--st-news-button-padding": `calc(${spacing.sm} - 1px)`,
       "--st-news-button-margin-bottom": spacing.sm,
       "--st-news-button-radius": radius.sm,
       "--st-news-button-transition": transitions.fast,
-      "--st-news-done-border": alphaColor(colors.steamBlue, 0.85),
-      "--st-news-done-bg": alphaColor(colors.steamBlue, 0.18),
-      "--st-news-error-border": alphaColor(colors.danger, 0.9),
-      "--st-news-error-bg": alphaColor(colors.danger, 0.18),
+      "--st-news-done-border": cssVar("--st-color-steam-blue-alpha-72"),
+      "--st-news-done-bg": cssVar("--st-color-steam-blue-alpha-18"),
+      "--st-news-error-border": cssVar("--st-color-alert-danger-alpha-45"),
+      "--st-news-error-bg": cssVar("--st-color-alert-danger-alpha-12"),
     };
   }
 
@@ -125,14 +114,8 @@
   }
 
   function ensureStyle() {
-    let style = document.getElementById(STYLE_ID);
-    if (!style) {
-      style = document.createElement("style");
-      style.id = STYLE_ID;
-      (document.head || document.documentElement).appendChild(style);
-    }
     styles?.applyStyles?.(document.documentElement, styleVars());
-    style.textContent = `
+    styles?.ensureStyle?.(STYLE_ID, `
       .${BUTTON_CLASS} {
         box-sizing: border-box !important;
         width: 48px !important;
@@ -205,7 +188,7 @@
       .${TRANSLATED_BODY_CLASS} {
         white-space: pre-wrap;
       }
-    `;
+    `);
   }
 
   function visible(el) {

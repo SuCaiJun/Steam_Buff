@@ -39,19 +39,8 @@
   const rootState = window.SteamBuff.state = window.SteamBuff.state || {};
   const s = rootState[ID] = rootState[ID] || {};
 
-  function alphaColor(color, alpha) {
-    const value = String(color || "");
-    const match = value.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
-    if (!match) {
-      return value || "transparent";
-    }
-    const raw = match[1].length === 3
-      ? match[1].split("").map((it) => `${it}${it}`).join("")
-      : match[1];
-    const r = parseInt(raw.slice(0, 2), 16);
-    const g = parseInt(raw.slice(2, 4), 16);
-    const b = parseInt(raw.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  function cssVar(name) {
+    return `var(${name})`;
   }
 
   function styleVars() {
@@ -60,18 +49,18 @@
     const typography = THEME.typography || {};
     return {
       "--st-sdas-font": typography.fontFamily,
-      "--st-sdas-text": colors.textPrimary,
-      "--st-sdas-primary": colors.primary,
-      "--st-sdas-border": alphaColor(colors.textSecondary, 0.5),
-      "--st-sdas-border-hover": alphaColor(colors.steamBlue, 0.9),
-      "--st-sdas-bg": alphaColor(colors.bgInput, 0.92),
-      "--st-sdas-bg-hover": alphaColor(colors.bgCard, 0.96),
-      "--st-sdas-toast-border": alphaColor(colors.steamBlue, 0.6),
-      "--st-sdas-toast-bg": alphaColor(colors.bgInput, 0.98),
-      "--st-sdas-shadow": `0 1px 4px ${alphaColor(colors.black, 0.25)}`,
-      "--st-sdas-toast-shadow": `0 4px 18px ${alphaColor(colors.black, 0.36)}`,
-      "--st-sdas-warning": alphaColor(colors.warning, 0.75),
-      "--st-sdas-danger": alphaColor(colors.danger, 0.8),
+      "--st-sdas-text": cssVar("--st-color-text-primary"),
+      "--st-sdas-primary": cssVar("--st-color-primary"),
+      "--st-sdas-border": cssVar("--st-color-border-normal"),
+      "--st-sdas-border-hover": cssVar("--st-color-steam-blue-alpha-72"),
+      "--st-sdas-bg": cssVar("--st-color-surface-control-strong"),
+      "--st-sdas-bg-hover": cssVar("--st-color-bg-card"),
+      "--st-sdas-toast-border": cssVar("--st-color-steam-blue-alpha-45"),
+      "--st-sdas-toast-bg": cssVar("--st-color-surface-control-strong"),
+      "--st-sdas-shadow": cssVar("--st-shadow-control"),
+      "--st-sdas-toast-shadow": cssVar("--st-shadow-panel"),
+      "--st-sdas-warning": cssVar("--st-color-warning"),
+      "--st-sdas-danger": cssVar("--st-color-danger"),
       "--st-sdas-gap": spacing.sm,
       "--st-sdas-toggle-pad-x": `calc(${spacing.sm} + ${spacing.xxs})`,
       "--st-sdas-toast-pad-y": `calc(${spacing.sm} + ${spacing.xxs})`,
@@ -166,10 +155,7 @@
       return;
     }
     styles?.applyStyles?.(document.documentElement, styleVars());
-
-    const style = document.createElement("style");
-    style.id = STYLE;
-    style.textContent = `
+    styles?.ensureStyle?.(STYLE, `
       #${ROOT} {
         position: fixed;
         top: 99px;
@@ -266,8 +252,7 @@
           right: 24px;
         }
       }
-    `;
-    document.head.appendChild(style);
+    `);
   }
 
   function toast(msg, kind = "info") {

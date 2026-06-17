@@ -18,6 +18,7 @@
     applyStyles: components.applyStyles,
     appendContent: components.appendContent,
     createStyledElement: components.createStyledElement,
+    ensureStyle: components.ensureStyle,
     templates: components.templates,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
