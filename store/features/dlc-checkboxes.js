@@ -249,32 +249,32 @@ function removeDLCDialog(id) {
     }
 }
 
+function appendDLCText(parent, className, value) {
+    const el = document.createElement('div');
+    if (className) {
+        el.className = className;
+    }
+    el.textContent = String(value || '');
+    parent.appendChild(el);
+    return el;
+}
+
 function showDLCNotice(title, detail = '', bad = false, timeout = 3200) {
     removeDLCDialog('es_dlc_notice');
 
     const notice = document.createElement('div');
     notice.id = 'es_dlc_notice';
-    notice.style.cssText = [
-        'position:fixed',
-        'top:18%',
-        'left:50%',
-        'transform:translateX(-50%)',
-        'z-index:10000',
-        'max-width:540px',
-        'padding:16px 22px',
-        'border-radius:6px',
-        'border:1px solid ' + (bad ? '#ff6b6b' : '#67c1f5'),
-        'background:rgba(0,0,0,0.92)',
-        'color:#c7d5e0',
-        'box-shadow:0 6px 24px rgba(0,0,0,0.42)',
-        'text-align:left',
-        'pointer-events:none'
-    ].join(';');
-
-    notice.innerHTML = `
-        <div style="font-size:15px;line-height:1.5;color:${bad ? '#ffb3b3' : '#67c1f5'};">${escapeHTML(title)}</div>
-        ${detail ? `<div style="margin-top:8px;font-size:13px;line-height:1.6;white-space:pre-line;color:${bad ? '#ffd6d6' : '#c7d5e0'};">${escapeHTML(detail)}</div>` : ''}
-    `;
+    notice.className = bad ? 'es_dlc_notice es_dlc_notice_bad' : 'es_dlc_notice';
+    const titleEl = appendDLCText(notice, 'es_dlc_notice_title', title);
+    if (bad) {
+        titleEl.classList.add('is-bad');
+    }
+    if (detail) {
+        const detailEl = appendDLCText(notice, 'es_dlc_notice_detail', detail);
+        if (bad) {
+            detailEl.classList.add('is-bad');
+        }
+    }
     document.body.appendChild(notice);
 
     if (timeout > 0) {
@@ -292,47 +292,27 @@ function showDLCConfirm(title, detail = '') {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.id = 'es_dlc_confirm';
-        overlay.style.cssText = [
-            'position:fixed',
-            'inset:0',
-            'z-index:10001',
-            'display:flex',
-            'align-items:center',
-            'justify-content:center',
-            'padding:20px',
-            'background:rgba(0,0,0,0.46)'
-        ].join(';');
+        overlay.className = 'es_dlc_confirm_overlay';
 
         const panel = document.createElement('div');
-        panel.style.cssText = [
-            'width:min(460px,calc(100vw - 40px))',
-            'padding:20px 22px',
-            'border-radius:6px',
-            'border:1px solid #417a9b',
-            'background:#1b2838',
-            'box-shadow:0 16px 40px rgba(0,0,0,0.5)',
-            'color:#c7d5e0',
-            'font-size:14px',
-            'line-height:1.6'
-        ].join(';');
-
-        panel.innerHTML = `
-            <div style="font-size:16px;color:#67c1f5;font-weight:bold;">${escapeHTML(title)}</div>
-            ${detail ? `<div style="margin-top:10px;white-space:pre-line;">${escapeHTML(detail)}</div>` : ''}
-        `;
+        panel.className = 'es_dlc_confirm_panel';
+        appendDLCText(panel, 'es_dlc_confirm_title', title);
+        if (detail) {
+            appendDLCText(panel, 'es_dlc_confirm_detail', detail);
+        }
 
         const footer = document.createElement('div');
-        footer.style.cssText = 'margin-top:18px;display:flex;justify-content:flex-end;gap:10px;';
+        footer.className = 'es_dlc_confirm_footer';
 
         const cancel = document.createElement('button');
         cancel.type = 'button';
+        cancel.className = 'es_dlc_confirm_btn';
         cancel.textContent = '取消';
-        cancel.style.cssText = 'padding:6px 16px;border:1px solid #5a6f84;border-radius:3px;background:#2a475e;color:#fff;cursor:pointer;';
 
         const okBtn = document.createElement('button');
         okBtn.type = 'button';
+        okBtn.className = 'es_dlc_confirm_btn es_dlc_confirm_btn_primary';
         okBtn.textContent = '领取';
-        okBtn.style.cssText = 'padding:6px 16px;border:1px solid #67c1f5;border-radius:3px;background:#67c1f5;color:#fff;cursor:pointer;';
 
         const close = (value) => {
             document.removeEventListener('keydown', onKeyDown);
@@ -509,7 +489,7 @@ async function resolveFreeDLCSubids(freeUrls, loadingDiv) {
     for (let i = 0; i < freeUrls.length; i++) {
         const { url, name } = freeUrls[i];
         if (loadingDiv) {
-            loadingDiv.querySelector('div:last-child').textContent = `${i + 1} / ${freeUrls.length}`;
+            loadingDiv.querySelector('.es_free_dlc_count').textContent = `${i + 1} / ${freeUrls.length}`;
         }
 
         try {
@@ -569,8 +549,9 @@ async function claimAllFreeDLC(dlcSection) {
     }
     
     const loadingDiv = document.createElement('div');
-    loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.9);color:white;padding:30px 50px;border-radius:10px;z-index:10000;font-size:16px;text-align:center;';
-    loadingDiv.innerHTML = `<div>正在获取免费DLC信息...</div><div style="margin-top:10px;font-size:14px;color:#aaa;">0 / ${freeUrls.length}</div>`;
+    loadingDiv.className = 'es_free_dlc_overlay';
+    appendDLCText(loadingDiv, '', '正在获取免费DLC信息...');
+    const countEl = appendDLCText(loadingDiv, 'es_free_dlc_count', `0 / ${freeUrls.length}`);
     document.body.appendChild(loadingDiv);
     
     const freeDLCs = await resolveFreeDLCSubids(freeUrls, loadingDiv);
@@ -599,50 +580,37 @@ function claimFreeDLCsBatch(freeDLCs) {
     
     const statusDiv = document.createElement('div');
     statusDiv.id = 'es_free_dlc_status';
-    statusDiv.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: rgba(0, 0, 0, 0.9);
-        color: white;
-        padding: 20px 40px;
-        border-radius: 8px;
-        z-index: 10000;
-        text-align: center;
-        font-size: 16px;
-    `;
+    statusDiv.className = 'es_free_dlc_overlay';
     document.body.appendChild(statusDiv);
     
     function updateStatus(currentName = '') {
-        statusDiv.innerHTML = `
-            <div>正在领取免费DLC...</div>
-            <div style="margin-top: 10px; font-size: 24px;">${currentIndex} / ${freeDLCs.length}</div>
-            ${currentName ? `<div style="margin-top: 8px; font-size: 13px; color: #c7d5e0; max-width: 360px;">${escapeHTML(currentName)}</div>` : ''}
-            <div style="margin-top: 10px; font-size: 14px; color: #90ee90;">成功: ${successCount}</div>
-            <div style="font-size: 14px; color: #ff6b6b;">失败: ${failCount}</div>
-        `;
+        statusDiv.replaceChildren();
+        appendDLCText(statusDiv, '', '正在领取免费DLC...');
+        appendDLCText(statusDiv, 'es_free_dlc_progress', `${currentIndex} / ${freeDLCs.length}`);
+        if (currentName) {
+            appendDLCText(statusDiv, 'es_free_dlc_current', currentName);
+        }
+        appendDLCText(statusDiv, 'es_free_dlc_success', `成功: ${successCount}`);
+        appendDLCText(statusDiv, 'es_free_dlc_error', `失败: ${failCount}`);
     }
 
     function renderFinished() {
-        const failedHtml = failedItems.length > 0
-            ? `<div style="margin-top: 10px; color: #ffb3b3; font-size: 12px; max-width: 420px;">失败项：${escapeHTML(failedItems.slice(0, 5).map(item => `${item.name}（${item.message}）`).join('；'))}${failedItems.length > 5 ? '；...' : ''}</div>`
-            : '';
-
-        statusDiv.innerHTML = `
-            <div style="color: #90ee90; font-size: 20px; margin-bottom: 15px;">✔ 领取完成！</div>
-            <div>成功: ${successCount}</div>
-            <div>失败: ${failCount}</div>
-            ${failedHtml}
-            <div style="margin-top: 10px; color: #ff6b6b; font-size: 14px; max-width: 420px; line-height: 1.5;">${escapeHTML(cacheNotice())}</div>
-            <div style="margin-top: 15px;">
-                <button class="es_free_dlc_close" type="button"
-                        style="padding: 8px 20px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 4px;">
-                    关闭
-                </button>
-            </div>
-        `;
-        statusDiv.querySelector(".es_free_dlc_close")?.addEventListener("click", () => statusDiv.remove());
+        statusDiv.replaceChildren();
+        appendDLCText(statusDiv, 'es_free_dlc_done', '领取完成！');
+        appendDLCText(statusDiv, '', `成功: ${successCount}`);
+        appendDLCText(statusDiv, '', `失败: ${failCount}`);
+        if (failedItems.length > 0) {
+            const failedText = `失败项：${failedItems.slice(0, 5).map(item => `${item.name}（${item.message}）`).join('；')}${failedItems.length > 5 ? '；...' : ''}`;
+            appendDLCText(statusDiv, 'es_free_dlc_failed_items', failedText);
+        }
+        appendDLCText(statusDiv, 'es_free_dlc_cache_notice', cacheNotice());
+        const footer = appendDLCText(statusDiv, 'es_free_dlc_footer', '');
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'es_free_dlc_close';
+        closeBtn.type = 'button';
+        closeBtn.textContent = '关闭';
+        closeBtn.addEventListener("click", () => statusDiv.remove());
+        footer.appendChild(closeBtn);
     }
 
     function cleanup(script) {
@@ -854,13 +822,15 @@ function addSelectedDLCToCart(dlcSection) {
 }
 
 function addDLCCheckboxesStyles() {
-    const style = document.createElement('style');
-    style.id = 'es_dlc_checkboxes_style';
-    style.textContent = `
+    if (document.getElementById('es_dlc_checkboxes_style')) {
+        return;
+    }
+
+    window.STStore?.styles?.ensureStyle?.('es_dlc_checkboxes_style', `
 
         #es_dlc_option_panel {
-            background-color: rgba(0, 0, 0, 0.2);
-            border-bottom: 1px solid black;
+            background-color: var(--st-color-surface-inset);
+            border-bottom: 1px solid var(--st-color-black);
             height: 28px;
             padding-left: 15px;
         }
@@ -869,8 +839,8 @@ function addDLCCheckboxesStyles() {
             display: inline-block;
             line-height: 19px;
             padding: 0 7px;
-            color: #67c1f5;
-            background-color: rgba(103, 193, 245, 0.2);
+            color: var(--st-color-steam-blue);
+            background-color: var(--st-color-primary-surface-hover);
             margin-right: 2px;
             border-radius: 2px;
             cursor: pointer;
@@ -881,8 +851,8 @@ function addDLCCheckboxesStyles() {
 
         .es_dlc_option:hover {
             text-decoration: none;
-            color: #ffffff;
-            background: linear-gradient(135deg, #67c1f5 0%, #417a9b 100%);
+            color: var(--st-color-white);
+            background: var(--st-gradient-primary-horizontal);
         }
 
         .es_dlc_option_disabled {
@@ -891,13 +861,13 @@ function addDLCCheckboxesStyles() {
         }
 
         .es_dlc_refresh_option {
-            color: #ffd66b;
-            background-color: rgba(255, 214, 107, 0.16);
+            color: var(--st-color-gold);
+            background-color: var(--st-color-member-surface);
         }
 
         .es_dlc_refresh_option:hover {
-            background: linear-gradient(135deg, #dba43a 0%, #8f6b24 100%);
-            color: #ffffff;
+            background: var(--st-color-warning);
+            color: var(--st-color-white);
         }
 
         .game_area_dlc_row:hover .ds_flag {
@@ -929,18 +899,18 @@ function addDLCCheckboxesStyles() {
             padding: 0 10px;
             cursor: pointer;
             position: relative;
-            z-index: 10;
+            z-index: var(--st-z-index-sticky);
         }
 
         label.es_dlc_label > input {
             appearance: none;
             -webkit-appearance: none;
             -moz-appearance: none;
-            background-color: #545454;
+            background-color: var(--st-color-surface-disabled);
             width: 16px;
             height: 16px;
             border-radius: 4px;
-            border: 1px solid #343434;
+            border: 1px solid var(--st-color-border-normal);
             outline: none;
             cursor: pointer;
             position: relative;
@@ -948,17 +918,17 @@ function addDLCCheckboxesStyles() {
         }
 
         label.es_dlc_label > input:hover {
-            background-color: #656565;
+            background-color: var(--st-color-surface-subtle-hover);
         }
 
         label.es_dlc_label > input:checked {
-            background-color: #5c7e10;
-            border-color: #8bc53f;
+            background-color: var(--st-color-success);
+            border-color: var(--st-color-success);
         }
 
         label.es_dlc_label > input:checked::after {
             content: "✔";
-            color: #8bc53f;
+            color: var(--st-color-success);
             font-size: 12px;
             position: absolute;
             top: 50%;
@@ -968,13 +938,13 @@ function addDLCCheckboxesStyles() {
         }
 
         .game_area_dlc_row.es_dlc_checked {
-            background: linear-gradient(90deg, rgba(255, 155, 34, 0.15) 0%, rgba(255, 155, 34, 0.05) 100%);
-            border-left: 3px solid rgb(255, 155, 34);
+            background: var(--st-gradient-settings-feature-active);
+            border-left: 3px solid var(--st-color-warning);
             transition: all 0.2s ease;
         }
 
         .game_area_dlc_row.es_dlc_checked .game_area_dlc_name {
-            color: rgb(255, 155, 34);
+            color: var(--st-color-warning);
         }
 
         .game_area_dlc_row.es_dlc_in_cart,
@@ -1005,11 +975,174 @@ function addDLCCheckboxesStyles() {
         #gameAreaDLCSection #dlc_purchase_action {
             float: right;
         }
-    `;
-    
-    if (!document.getElementById('es_dlc_checkboxes_style')) {
-        document.head.appendChild(style);
-    }
+
+        .es_dlc_notice {
+            position: fixed;
+            top: 18%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: var(--st-z-index-dialog);
+            max-width: 540px;
+            padding: 16px 22px;
+            border-radius: 6px;
+            border: 1px solid var(--st-color-steam-blue);
+            background: var(--st-color-overlay-strong);
+            color: var(--st-color-text-secondary);
+            box-shadow: var(--st-shadow-dialog);
+            text-align: left;
+            pointer-events: none;
+        }
+
+        .es_dlc_notice_bad {
+            border-color: var(--st-color-danger);
+        }
+
+        .es_dlc_notice_title {
+            color: var(--st-color-steam-blue);
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .es_dlc_notice_title.is-bad,
+        .es_dlc_notice_detail.is-bad {
+            color: var(--st-color-danger-text);
+        }
+
+        .es_dlc_notice_detail {
+            margin-top: 8px;
+            color: var(--st-color-text-secondary);
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-line;
+        }
+
+        .es_dlc_confirm_overlay {
+            position: fixed;
+            inset: 0;
+            z-index: var(--st-z-index-dialog);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: var(--st-color-overlay);
+        }
+
+        .es_dlc_confirm_panel {
+            width: min(460px, calc(100vw - 40px));
+            padding: 20px 22px;
+            border: 1px solid var(--st-color-surface-control-hover);
+            border-radius: 6px;
+            color: var(--st-color-text-secondary);
+            background: var(--st-color-bg-body);
+            box-shadow: var(--st-shadow-dialog);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .es_dlc_confirm_title {
+            color: var(--st-color-steam-blue);
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .es_dlc_confirm_detail {
+            margin-top: 10px;
+            white-space: pre-line;
+        }
+
+        .es_dlc_confirm_footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .es_dlc_confirm_btn,
+        .es_free_dlc_close {
+            border: 1px solid var(--st-color-border-primary);
+            border-radius: 3px;
+            padding: 6px 16px;
+            color: var(--st-color-white);
+            background: var(--st-color-surface-control-hover);
+            cursor: pointer;
+        }
+
+        .es_dlc_confirm_btn_primary {
+            border-color: var(--st-color-steam-blue);
+            background: var(--st-color-steam-blue);
+        }
+
+        .es_free_dlc_overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            z-index: var(--st-z-index-dialog);
+            transform: translate(-50%, -50%);
+            border-radius: 8px;
+            padding: 20px 40px;
+            color: var(--st-color-white);
+            background: var(--st-color-overlay-strong);
+            text-align: center;
+            font-size: 16px;
+        }
+
+        .es_free_dlc_count,
+        .es_free_dlc_current {
+            margin-top: 8px;
+            color: var(--st-color-text-secondary);
+            font-size: 13px;
+        }
+
+        .es_free_dlc_count,
+        .es_free_dlc_progress {
+            margin-top: 10px;
+            font-size: 24px;
+        }
+
+        .es_free_dlc_success,
+        .es_free_dlc_done {
+            margin-top: 10px;
+            color: var(--st-color-success);
+        }
+
+        .es_free_dlc_done {
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .es_free_dlc_error,
+        .es_free_dlc_cache_notice {
+            color: var(--st-color-danger);
+            font-size: 14px;
+        }
+
+        .es_free_dlc_current {
+            max-width: 360px;
+        }
+
+        .es_free_dlc_failed_items {
+            max-width: 420px;
+            margin-top: 10px;
+            color: var(--st-color-danger-text);
+            font-size: 12px;
+        }
+
+        .es_free_dlc_cache_notice {
+            max-width: 420px;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+
+        .es_free_dlc_footer {
+            margin-top: 15px;
+        }
+
+        .es_free_dlc_close {
+            border: none;
+            padding: 8px 20px;
+            background: var(--st-color-success);
+        }
+    `);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

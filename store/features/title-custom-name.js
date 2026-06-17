@@ -128,15 +128,7 @@
   }
 
   function addStyle() {
-    let style = document.getElementById(STYLE_ID);
-    if (style?.dataset.version === STYLE_VERSION) return;
-    if (!style) {
-      style = document.createElement("style");
-      style.id = STYLE_ID;
-      document.head.appendChild(style);
-    }
-    style.dataset.version = STYLE_VERSION;
-    style.textContent = `
+    api.styles?.ensureStyle?.(STYLE_ID, `
       #${HOST_ID},
       .st-title-custom-name-wishlist {
         display: inline-flex;
@@ -149,7 +141,7 @@
         vertical-align: 3px;
       }
       #${HOST_ID} .st-title-custom-name-label {
-        color: rgba(199, 213, 224, .78);
+        color: var(--st-color-text-secondary);
         font-size: 20px;
         line-height: 1;
         font-weight: 400;
@@ -157,7 +149,7 @@
       #${HOST_ID}[data-label]::before,
       .st-title-custom-name-wishlist[data-label]::before {
         content: attr(data-label);
-        color: rgba(199, 213, 224, .78);
+        color: var(--st-color-text-secondary);
         line-height: 1;
         font-weight: 400;
       }
@@ -171,17 +163,17 @@
       }
       .st-title-custom-name-wishlist[data-label]::before,
       .st-title-custom-name-wishlist .st-title-custom-name-label {
-        color: rgba(199, 213, 224, .78);
+        color: var(--st-color-text-secondary);
         font-size: 14px;
         line-height: 1;
       }
       .st-title-custom-name-btn {
         height: 22px;
-        border: 1px solid rgba(102, 192, 244, .28);
+        border: 1px solid var(--st-color-border-primary);
         border-radius: 2px;
         padding: 0 8px;
-        color: rgba(199, 213, 224, .76);
-        background: rgba(103, 193, 245, .08);
+        color: var(--st-color-text-secondary);
+        background: var(--st-color-primary-surface);
         cursor: pointer;
         font-size: 12px;
         line-height: 20px;
@@ -194,20 +186,20 @@
         line-height: 18px;
       }
       .st-title-custom-name-btn:hover {
-        color: #fff;
-        border-color: rgba(102, 192, 244, .55);
-        background: rgba(103, 193, 245, .16);
+        color: var(--st-color-white);
+        border-color: var(--st-color-border-primary-strong);
+        background: var(--st-color-primary-surface-hover);
       }
       #${MODAL_ID} {
         position: fixed;
         inset: 0;
-        z-index: 2147483647;
+        z-index: var(--st-z-index-max);
         display: flex;
         align-items: center;
         justify-content: center;
         padding: 40px;
-        background: rgba(6, 12, 18, .64);
-        color: #e6e8eb;
+        background: var(--st-color-overlay);
+        color: var(--st-color-text-primary);
         font-family: Motiva Sans, Arial, Helvetica, sans-serif;
       }
       #${MODAL_ID}[hidden] {
@@ -222,8 +214,8 @@
         grid-template-rows: 52px minmax(0, 1fr) auto;
         border: 0;
         border-radius: 8px;
-        background: #1b2838;
-        box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+        background: var(--st-color-bg-body);
+        box-shadow: var(--st-shadow-panel-large);
         overflow: hidden;
       }
       #${MODAL_ID} .st-title-custom-name-head {
@@ -232,13 +224,13 @@
         gap: 18px;
         min-width: 0;
         padding: 0 18px 0 22px;
-        border-bottom: 1px solid rgba(0, 0, 0, .3);
-        background: linear-gradient(180deg, #2a3f5a 0%, #1f2d3d 100%);
+        border-bottom: 1px solid var(--st-color-surface-inset-hover);
+        background: var(--st-gradient-settings-header);
       }
       #${MODAL_ID} h3 {
         flex: 0 0 auto;
         margin: 0;
-        color: #fff;
+        color: var(--st-color-white);
         font-size: 14px;
         font-weight: 600;
         letter-spacing: 0;
@@ -255,14 +247,14 @@
         border: 0;
         border-bottom: 2px solid transparent;
         padding: 0 12px;
-        color: #9fb5c8;
+        color: var(--st-color-text-muted);
         background: transparent;
         font-size: 13px;
         font-weight: 500;
       }
       #${MODAL_ID} .st-title-custom-name-tabs button.active {
-        color: #fff;
-        border-bottom-color: #1a9fff;
+        color: var(--st-color-white);
+        border-bottom-color: var(--st-color-primary);
       }
       #${MODAL_ID} .st-title-custom-name-close {
         width: 28px;
@@ -272,20 +264,20 @@
         border: 0;
         border-radius: 4px;
         padding: 0;
-        color: #8f98a0;
+        color: var(--st-color-text-muted);
         background: transparent;
         font-size: 18px;
         line-height: 28px;
       }
       #${MODAL_ID} .st-title-custom-name-close:hover {
-        color: #e6e8eb;
-        background: rgba(255, 255, 255, .06);
+        color: var(--st-color-text-primary);
+        background: var(--st-color-border-light);
       }
       #${MODAL_ID} .st-title-custom-name-body {
         min-height: 0;
         overflow: auto;
         padding: 22px;
-        background: #1f2d3d;
+        background: var(--st-color-bg-child);
       }
       #${MODAL_ID} [data-title-custom-name-panel][hidden] {
         display: none;
@@ -294,9 +286,9 @@
         min-height: 0;
       }
       #${MODAL_ID} .st-title-custom-name-card {
-        border: 1px solid rgba(255, 255, 255, .08);
+        border: 1px solid var(--st-color-border-normal);
         border-radius: 8px;
-        background: #22303f;
+        background: var(--st-color-bg-card);
         overflow: hidden;
       }
       #${MODAL_ID} label {
@@ -306,9 +298,9 @@
         justify-content: space-between;
         gap: 18px;
         margin: 0;
-        border-bottom: 1px solid rgba(255, 255, 255, .06);
+        border-bottom: 1px solid var(--st-color-border-light);
         padding: 14px 22px;
-        color: #c7d0d6;
+        color: var(--st-color-text-secondary);
         font-size: 13px;
       }
       #${MODAL_ID} label:last-child {
@@ -316,7 +308,7 @@
       }
       #${MODAL_ID} .st-title-custom-name-field {
         flex: 0 0 120px;
-        color: #c7d0d6;
+        color: var(--st-color-text-secondary);
         line-height: 1.4;
       }
       #${MODAL_ID} .st-title-custom-name-control {
@@ -331,10 +323,10 @@
       #${MODAL_ID} textarea {
         box-sizing: border-box;
         width: 100%;
-        border: 1px solid rgba(255, 255, 255, .08);
+        border: 1px solid var(--st-color-border-normal);
         border-radius: 5px;
-        background: #16212c;
-        color: #e6e8eb;
+        background: var(--st-color-bg-input-focus);
+        color: var(--st-color-text-primary);
         padding: 0 12px;
         outline: none;
         font-size: 13px;
@@ -345,7 +337,7 @@
       }
       #${MODAL_ID} input:focus,
       #${MODAL_ID} textarea:focus {
-        border-color: #1a9fff;
+        border-color: var(--st-color-primary);
       }
       #${MODAL_ID} textarea {
         width: 100%;
@@ -366,22 +358,22 @@
         border: 0;
         padding: 0;
         background: transparent;
-        color: rgba(199, 213, 224, .58);
+        color: var(--st-color-text-muted);
         font-size: 12px;
         line-height: 20px;
       }
       #${MODAL_ID} .st-title-custom-name-clear-note:hover {
-        color: rgba(199, 236, 255, .86);
+        color: var(--st-color-badge-blue-text);
       }
       #${MODAL_ID} input:disabled {
-        color: #8f98a0;
-        background: rgba(26, 38, 50, .68);
+        color: var(--st-color-text-muted);
+        background: var(--st-color-surface-control);
       }
       #${MODAL_ID} .st-title-custom-name-count {
         flex: 1;
         min-width: 0;
         text-align: right;
-        color: #8f98a0;
+        color: var(--st-color-text-muted);
         font-size: 12px;
       }
       #${MODAL_ID} .st-title-custom-name-note-meta {
@@ -419,7 +411,7 @@
         width: 40px;
         height: 22px;
         border-radius: 11px;
-        background: rgba(255, 255, 255, .12);
+        background: var(--st-color-border-hover);
         transition: background-color .15s ease;
       }
       #${MODAL_ID} .st-title-custom-name-switch span::after {
@@ -430,24 +422,24 @@
         width: 18px;
         height: 18px;
         border-radius: 50%;
-        background: #fff;
+        background: var(--st-color-white);
         transition: transform .15s ease;
       }
       #${MODAL_ID} .st-title-custom-name-switch input:checked + span {
-        background: #1a9fff;
+        background: var(--st-color-primary);
       }
       #${MODAL_ID} .st-title-custom-name-switch input:checked + span::after {
         transform: translateX(18px);
       }
       #${MODAL_ID} .st-title-custom-name-desc {
-        color: #8f98a0;
+        color: var(--st-color-text-muted);
         font-size: 12px;
         line-height: 1.4;
       }
       #${MODAL_ID} .st-title-custom-name-msg {
         min-height: 20px;
         padding: 8px 22px 0;
-        color: #8f98a0;
+        color: var(--st-color-text-muted);
         font-size: 12px;
       }
       #${MODAL_ID} .st-title-custom-name-actions {
@@ -456,18 +448,18 @@
         align-items: center;
         gap: 10px;
         min-height: 61px;
-        border-top: 1px solid rgba(255, 255, 255, .04);
+        border-top: 1px solid var(--st-color-border-light);
         padding: 14px 22px;
-        background: rgba(0, 0, 0, .12);
+        background: var(--st-color-bg-drawer);
       }
       #${MODAL_ID} button {
         min-width: 0;
         height: 32px;
-        border: 1px solid rgba(255, 255, 255, .08);
+        border: 1px solid var(--st-color-border-normal);
         border-radius: 5px;
         padding: 0 18px;
-        color: #e6e8eb;
-        background: rgba(255, 255, 255, .05);
+        color: var(--st-color-text-primary);
+        background: var(--st-color-surface-subtle);
         cursor: pointer;
         font-size: 13px;
         font-weight: 500;
@@ -476,17 +468,17 @@
       }
       #${MODAL_ID} button.primary {
         border-color: transparent;
-        color: #fff;
-        background: linear-gradient(180deg, #1a9fff 0%, #0078d4 100%);
-        box-shadow: 0 2px 6px rgba(26, 159, 255, .25);
+        color: var(--st-color-white);
+        background: var(--st-gradient-primary-vertical);
+        box-shadow: var(--st-shadow-button-primary);
       }
       #${MODAL_ID} button:hover {
-        border-color: rgba(255, 255, 255, .16);
-        background: rgba(255, 255, 255, .1);
+        border-color: var(--st-color-border-hover);
+        background: var(--st-color-surface-subtle-hover);
       }
       #${MODAL_ID} button.primary:hover {
         filter: brightness(1.1);
-        background: linear-gradient(180deg, #1a9fff 0%, #0078d4 100%);
+        background: var(--st-gradient-primary-vertical);
       }
       @media (max-width: 720px) {
         #${MODAL_ID} {
@@ -521,16 +513,16 @@
         position: fixed;
         right: 24px;
         top: 84px;
-        z-index: 2147483647;
+        z-index: var(--st-z-index-max);
         max-width: 360px;
         padding: 10px 12px;
-        border: 1px solid rgba(102, 192, 244, .4);
-        background: rgba(26, 35, 46, .98);
-        color: #dfe3ea;
-        box-shadow: 0 4px 18px rgba(0, 0, 0, .36);
+        border: 1px solid var(--st-color-border-primary-strong);
+        background: var(--st-color-surface-control-strong);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-tooltip);
         font-size: 13px;
       }
-    `;
+    `, { version: STYLE_VERSION });
   }
 
   function ensureHost(title) {
@@ -1184,7 +1176,13 @@
   }
 
   function start() {
-    if (started || !api.settings?.on?.(FEATURE_ID)) return false;
+    if (!api.settings?.on?.(FEATURE_ID)) return false;
+    if (started) {
+      observe();
+      refresh().catch(() => {});
+      startWishlist();
+      return true;
+    }
     started = true;
     observe();
     refresh().catch(() => {});

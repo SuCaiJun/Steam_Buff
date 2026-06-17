@@ -18,6 +18,38 @@
   const SETTINGS_SUFFIX = ".enabled";
   const SEARCH_SUGGESTION_PREFIX = `${SETTINGS_PREFIX}searchSuggestions.`;
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
+  const REFRESHABLE_FEATURES = Object.freeze([
+    {
+      id: "wishlist-price-history",
+      module: "wishlistPriceHistory",
+      start(api) {
+        return api.features.wishlistPriceHistory?.start?.();
+      },
+      stop(api) {
+        return api.features.wishlistPriceHistory?.stop?.();
+      },
+    },
+    {
+      id: "store-title-custom-name",
+      module: "titleCustomName",
+      start(api) {
+        return api.features.titleCustomName?.start?.();
+      },
+      stop(api) {
+        return api.features.titleCustomName?.stop?.();
+      },
+    },
+    {
+      id: "game-notes",
+      module: "gameNotes",
+      start(api) {
+        return api.features.gameNotes?.start?.();
+      },
+      stop(api) {
+        return api.features.gameNotes?.stop?.();
+      },
+    },
+  ]);
 
   let settings = {};
   let membership = { active: false, features: {} };
@@ -91,6 +123,36 @@
     ));
   }
 
+  function refreshFeature(feature, meta) {
+    const mod = api.features?.[feature.module];
+    if (!mod) {
+      return { id: feature.id, status: "missing" };
+    }
+    if (on(feature.id)) {
+      const result = feature.start(api);
+      return { id: feature.id, status: result === false ? "skipped" : "started" };
+    }
+    feature.stop(api);
+    return { id: feature.id, status: "stopped" };
+  }
+
+  function refreshFeatureLifecycles(meta) {
+    const results = [];
+    for (const feature of REFRESHABLE_FEATURES) {
+      try {
+        results.push(refreshFeature(feature, meta));
+      } catch (error) {
+        results.push({ id: feature.id, status: "failed", error: error?.message || String(error) });
+        log("error", "settings-refresh-feature-failed", "商店页功能生命周期刷新失败", {
+          ...meta,
+          feature: feature.id,
+          error: error?.message || String(error),
+        });
+      }
+    }
+    return results;
+  }
+
   function refreshActiveFeatureSet(reason = "settings") {
     const startedAt = Date.now();
     const context = globalThis.STPageContext?.snapshot?.() || {};
@@ -112,10 +174,12 @@
         reason: gate.reason || "",
         meta,
       });
+      const refreshed = refreshFeatureLifecycles(meta);
       log("info", "settings-refresh-success", "商店页设置快照刷新完成", {
         ...meta,
         active: gate.allowed === true,
         skippedReason: gate.reason || "",
+        refreshed,
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {

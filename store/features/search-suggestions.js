@@ -501,12 +501,10 @@
     if (document.getElementById(STYLE_ID)) {
       return;
     }
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
+    api.styles?.ensureStyle?.(STYLE_ID, `
       .${HOST_CLASS} {
         margin-top: 1px;
-        border-top: 1px solid rgba(58, 75, 95, .55);
+        border-top: 1px solid var(--st-color-border-primary);
         background: transparent;
         box-sizing: border-box;
         width: 100%;
@@ -514,12 +512,12 @@
       .${HOST_CLASS}.page-mode {
         margin: 8px 0 12px;
         max-width: 640px;
-        border: 1px solid rgba(58, 75, 95, .55);
-        background: rgba(15, 24, 36, .96);
+        border: 1px solid var(--st-color-border-primary);
+        background: var(--st-color-surface-control-strong);
       }
       .st-search-suggestion-head {
         padding: 4px 12px 2px;
-        color: #56707f;
+        color: var(--st-color-text-muted);
         font-size: 11px;
         line-height: 14px;
       }
@@ -534,14 +532,14 @@
         gap: 10px;
         width: 100%;
         padding: 4px 12px;
-        color: #c5c3c0;
+        color: var(--st-color-text-secondary);
         text-decoration: none;
         min-width: 0;
       }
       .${HOST_CLASS} .st-search-suggestion-item:hover,
       .${HOST_CLASS} .st-search-suggestion-item:focus {
-        background: #417a9b;
-        color: #fff;
+        background: var(--st-color-surface-control-hover);
+        color: var(--st-color-white);
         text-decoration: none;
         outline: none;
       }
@@ -550,7 +548,7 @@
         width: 120px;
         height: 45px;
         object-fit: cover;
-        background: #1b2838;
+        background: var(--st-color-bg-body);
       }
       .st-search-suggestion-img-empty {
         display: inline-block;
@@ -577,14 +575,13 @@
         white-space: nowrap;
         font-size: 12px;
         line-height: 15px;
-        color: #8f98a0;
+        color: var(--st-color-text-muted);
       }
       .st-search-suggestion-item:hover .st-search-suggestion-sub,
       .st-search-suggestion-item:focus .st-search-suggestion-sub {
-        color: #cfe1ee;
+        color: var(--st-color-badge-blue-text);
       }
-    `;
-    document.head.appendChild(style);
+    `);
   }
 
   function observerTarget(input) {

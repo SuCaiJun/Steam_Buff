@@ -57,14 +57,11 @@
     if (document.getElementById(STYLE_ID)) {
       return;
     }
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
+    api.styles?.ensureStyle?.(STYLE_ID, `
       [data-st-review-filter-hidden="1"] {
         display: none !important;
       }
-    `;
-    document.head.appendChild(style);
+    `);
   }
 
   function isReviewCard(el) {

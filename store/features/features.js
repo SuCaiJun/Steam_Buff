@@ -175,52 +175,51 @@ function recover(reason) {
 }
 
 function initStyles() {
-    const style = document.createElement('style');
-    style.textContent = `
+    api.styles?.ensureStyle?.('st-store-common-feature-style', `
 
         .es_achievement_bar {
             margin: 10px 0;
             padding: 10px;
-            background-color: rgba(0, 0, 0, 0.3);
+            background-color: var(--st-color-surface-inset-hover);
             border-radius: 3px;
         }
         .es_achievement_bar .es_achievement_progress {
             width: 100%;
             height: 8px;
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: var(--st-color-surface-subtle-hover);
             border-radius: 4px;
             overflow: hidden;
             margin-top: 5px;
         }
         .es_achievement_bar .es_achievement_progress_fill {
             height: 100%;
-            background-color: #66c0f4;
+            background-color: var(--st-color-steam-blue);
             border-radius: 4px;
         }
 
         .es_drm_warning {
             margin: 10px 0;
             padding: 10px;
-            background-color: rgba(255, 100, 100, 0.2);
-            border-left: 3px solid #ff6464;
+            background-color: var(--st-color-danger-surface);
+            border-left: 3px solid var(--st-color-danger);
             border-radius: 3px;
         }
         .es_drm_warning_title {
             font-weight: bold;
-            color: #ff6464;
+            color: var(--st-color-danger);
             margin-bottom: 5px;
         }
 
         .es_family_sharing_warning {
             margin: 10px 0;
             padding: 10px;
-            background-color: rgba(255, 165, 0, 0.2);
-            border-left: 3px solid #ffa500;
+            background-color: var(--st-color-member-surface);
+            border-left: 3px solid var(--st-color-warning);
             border-radius: 3px;
         }
         .es_family_sharing_warning_title {
             font-weight: bold;
-            color: #ffa500;
+            color: var(--st-color-warning);
             margin-bottom: 5px;
         }
 
@@ -230,25 +229,24 @@ function initStyles() {
             border-radius: 3px;
         }
         .es_audio_check.supported {
-            background-color: rgba(92, 184, 92, 0.2);
-            border-left: 3px solid #5cb85c;
+            background-color: var(--st-color-success-surface, var(--st-color-primary-surface));
+            border-left: 3px solid var(--st-color-success);
         }
         .es_audio_check.supported .es_audio_check_title {
             font-weight: bold;
-            color: #5cb85c;
+            color: var(--st-color-success);
             margin-bottom: 5px;
         }
         .es_audio_check.not-supported {
-            background-color: rgba(163, 51, 200, 0.20);
-            border-left: 3px solid #a333c8;
+            background-color: var(--st-color-member-surface);
+            border-left: 3px solid var(--st-color-gold);
         }
         .es_audio_check.not-supported .es_audio_check_title {
             font-weight: bold;
-            color: #a333c8;
+            color: var(--st-color-gold);
             margin-bottom: 5px;
         }
-    `;
-    document.head.appendChild(style);
+    `);
     
     if (on("dlc-tools")) {
         addDLCCheckboxesStyles();

@@ -126,14 +126,12 @@
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) return;
 
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
+    api.styles?.ensureStyle?.(STYLE_ID, `
       .${ROOT_CLASS} {
         position: absolute;
         right: 16px;
         bottom: 28px;
-        z-index: 7;
+        z-index: var(--st-z-index-sticky);
         display: flex;
         flex-direction: column;
         align-items: stretch;
@@ -172,7 +170,7 @@
         padding: 0;
         border: 0;
         background: transparent;
-        color: #c7d5e0;
+        color: var(--st-color-text-secondary);
         font-size: 12px;
         line-height: 15px;
         text-decoration: none;
@@ -180,7 +178,7 @@
         cursor: pointer;
       }
       .${ROOT_CLASS}_row:hover {
-        color: #fff;
+        color: var(--st-color-white);
         text-decoration: none;
       }
       .${ROOT_CLASS}_label,
@@ -197,23 +195,23 @@
         gap: 4px;
       }
       .${ROOT_CLASS}_name {
-        color: #fff;
+        color: var(--st-color-white);
         font-weight: 700;
       }
       .${ROOT_CLASS}_cut {
-        color: #BEEE11;
+        color: var(--st-color-success);
         font-weight: 700;
       }
       .${ROOT_CLASS}_cut:empty {
         display: none;
       }
       .${ROOT_CLASS}_price {
-        color: #BEEE11;
+        color: var(--st-color-success);
         font-weight: 700;
         text-decoration: underline;
       }
       .${ROOT_CLASS}_empty {
-        color: rgba(199, 213, 224, 0.7);
+        color: var(--st-color-text-muted);
         font-size: 12px;
       }
       @media (max-width: 860px) {
@@ -233,15 +231,7 @@
           width: auto;
         }
       }
-    `;
-    document.head.appendChild(style);
-    const disposeStyle = track(() => style.remove());
-    window.STRuntime?.current?.()?.registerResource?.({
-      owner: OWNER,
-      key: "style",
-      type: "style",
-      dispose: disposeStyle,
-    });
+    `, { owner: OWNER, key: "style" });
   }
 
   function parsePrice(text) {
@@ -541,7 +531,6 @@
       disposePanel(node);
       node.remove();
     });
-    document.getElementById(STYLE_ID)?.remove();
     window.STRuntime?.current?.()?.disposeOwner?.(OWNER);
     Array.from(disposers).forEach(dispose => dispose());
     resizeHooked = false;

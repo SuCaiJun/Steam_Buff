@@ -384,27 +384,25 @@
     if (stylesReady) return;
     stylesReady = true;
     if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
+    api.styles?.ensureStyle?.(STYLE_ID, `
       .${MODULE_CLASSES.SUBSCRIPTION} {
         margin: 10px 0;
         padding: 10px;
-        background-color: rgba(74, 144, 226, 0.20);
-        border-left: 3px solid #66c0f4;
+        background-color: var(--st-color-primary-surface);
+        border-left: 3px solid var(--st-color-steam-blue);
         border-radius: 3px;
-        color: #c7d5e0;
+        color: var(--st-color-text-secondary);
       }
       .${MODULE_CLASSES.SUBSCRIPTION} .st_subscription_title {
         font-weight: bold;
-        color: #66c0f4;
+        color: var(--st-color-steam-blue);
         margin-bottom: 5px;
       }
       .${MODULE_CLASSES.SUBSCRIPTION} .st_subscription_line {
         line-height: 1.55;
       }
       .${MODULE_CLASSES.SUBSCRIPTION} .st_subscription_platform {
-        color: #66c0f4;
+        color: var(--st-color-steam-blue);
         font-weight: bold;
         text-decoration: none;
       }
@@ -417,7 +415,7 @@
       .st_subscription_badges {
         position: absolute;
         left: 8px;
-        z-index: 20;
+        z-index: var(--st-z-index-dropdown);
         display: flex;
         gap: 4px;
         pointer-events: none;
@@ -432,33 +430,22 @@
         display: inline-block;
         padding: 2px 5px;
         border-radius: 2px;
-        background: rgba(16, 124, 15, 0.95);
-        color: #fff;
+        background: var(--st-color-success);
+        color: var(--st-color-white);
         font-size: 10px;
         line-height: 14px;
         font-weight: 700;
-        box-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
+        box-shadow: var(--st-shadow-control-badge);
         white-space: nowrap;
       }
       .st_subscription_ubiplus {
-        background: rgba(66, 142, 224, 0.95);
+        background: var(--st-color-primary);
       }
       .st_subscription_eaplay,
       .st_subscription_eaplaypro {
-        background: rgba(255, 71, 71, 0.95);
+        background: var(--st-color-danger);
       }
-    `;
-    document.head.appendChild(style);
-    const disposeStyle = track(() => {
-      style.remove();
-      stylesReady = false;
-    });
-    window.STRuntime?.current?.()?.registerResource?.({
-      owner: OWNER,
-      key: "style",
-      type: "style",
-      dispose: disposeStyle,
-    });
+    `, { owner: OWNER, key: "style" });
   }
 
   function startLists() {
@@ -476,7 +463,7 @@
     observer = null;
     obsReady = false;
     document.querySelectorAll(`.${MODULE_CLASSES.SUBSCRIPTION}, .st_subscription_badges`).forEach(node => node.remove());
-    document.getElementById(STYLE_ID)?.remove();
+    api.styles?.removeStyle?.(STYLE_ID);
     stylesReady = false;
     window.STRuntime?.current?.()?.disposeOwner?.(OWNER);
     Array.from(disposers).forEach(dispose => dispose());

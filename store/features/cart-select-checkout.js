@@ -101,10 +101,7 @@
   }
 
   function addStyles() {
-    if (document.getElementById("st_cart_restore_checkout_style")) return;
-    const style = document.createElement("style");
-    style.id = "st_cart_restore_checkout_style";
-    style.textContent = `
+    window.STStore?.styles?.ensureStyle?.("st_cart_restore_checkout_style", `
       #st_cart_restore_checkout {
         float: left;
         margin-top: 14px;
@@ -117,10 +114,9 @@
       }
 
       #st_cart_restore_checkout.st_cart_restore_bad {
-        background: linear-gradient(to bottom, #7f302b 5%, #5c211e 95%);
+        background: var(--st-color-danger);
       }
-    `;
-    document.head.appendChild(style);
+    `);
   }
 
   function ensureButton() {
@@ -134,7 +130,9 @@
       btn.href = "#";
       btn.id = "st_cart_restore_checkout";
       btn.className = "btnv6_blue_hoverfade btn_medium";
-      btn.innerHTML = "<span>恢复暂存购物车数据</span>";
+      const label = document.createElement("span");
+      label.textContent = "恢复暂存购物车数据";
+      btn.appendChild(label);
       btn.addEventListener("click", event => {
         event.preventDefault();
         manualRestore().catch(() => setBtn("恢复失败，重试", "bad"));

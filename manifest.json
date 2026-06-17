@@ -160,12 +160,16 @@
         "https://checkout.steampowered.com/*"
       ],
       "js": [
+        "shared/styles/theme.js",
+        "shared/utils/dom.js",
+        "shared/styles/components.js",
         "shared/scheduler.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "shared/config.js",
         "shared/error-boundary.js",
         "shared/i18n.js",
+        "store/runtime/styles.js",
         "store/features/cart-select-checkout.js"
       ],
       "run_at": "document_end"

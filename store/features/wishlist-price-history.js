@@ -146,16 +146,14 @@
     );
     if (document.getElementById(STYLE_ID)) return;
 
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
+    api.styles?.ensureStyle?.(STYLE_ID, `
       .st-wishlist-price-history-active {
-        outline: 1px solid rgba(102, 192, 244, 0.35);
+        outline: 1px solid var(--st-color-border-primary);
         outline-offset: -1px;
       }
       .st-wishlist-price-history-panel {
         position: fixed;
-        z-index: 2147483000;
+        z-index: var(--st-z-index-dialog);
         display: flex;
         flex-direction: column;
         pointer-events: auto;
@@ -163,12 +161,12 @@
         min-width: 0;
         padding: 10px 14px 12px;
         height: auto !important;
-        border: 1px solid rgba(102, 192, 244, 0.12);
+        border: 1px solid var(--st-color-primary-surface);
         border-radius: 4px;
-        background: linear-gradient(180deg, rgba(28, 43, 57, 0.97), rgba(19, 31, 43, 0.97));
-        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(102, 192, 244, 0.08);
+        background: var(--st-color-surface-control-strong);
+        box-shadow: var(--st-shadow-dialog);
         font-size: 12px;
-        color: #dce7f0;
+        color: var(--st-color-text-primary);
         line-height: 1.5;
         box-sizing: border-box;
       }
@@ -179,14 +177,14 @@
         right: 0;
         bottom: 0;
         height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(102, 192, 244, 0.16), transparent);
+        background: var(--st-gradient-primary-horizontal);
         pointer-events: none;
         border-radius: 0 0 4px 4px;
       }
       .st-wishlist-price-history-panel.is-anchor-above {
         animation: st-wphp-enter-above 190ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
         transform-origin: bottom center;
-        border-bottom-color: rgba(102, 192, 244, 0.10);
+        border-bottom-color: var(--st-color-border-light);
         border-bottom-left-radius: 1px;
         border-bottom-right-radius: 1px;
       }
@@ -227,25 +225,25 @@
       .st-wishlist-price-history-panel.is-lowest .st-wphp-status {
         position: relative;
         overflow: hidden;
-        background: rgba(164, 208, 7, 0.14);
-        color: #a4d007;
+        background: var(--st-color-success-surface, var(--st-color-primary-surface));
+        color: var(--st-color-success);
       }
       .st-wishlist-price-history-panel.is-lowest .st-wphp-status::after {
         content: "";
         position: absolute;
         inset: 0;
-        background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.18) 50%, transparent 70%);
+        background: var(--st-gradient-primary-horizontal);
         transform: translateX(-100%);
         animation: st-wphp-shine 900ms cubic-bezier(0.2, 0.8, 0.2, 1) 240ms 1;
         pointer-events: none;
       }
       .st-wishlist-price-history-panel.is-higher .st-wphp-status {
-        background: rgba(241, 177, 76, 0.16);
-        color: #f1b14c;
+        background: var(--st-color-warning-surface, var(--st-color-member-surface));
+        color: var(--st-color-warning);
       }
       .st-wishlist-price-history-panel.is-muted .st-wphp-status {
-        background: rgba(102, 192, 244, 0.12);
-        color: #a9b8c6;
+        background: var(--st-color-primary-surface);
+        color: var(--st-color-text-muted);
       }
       .st-wphp-status__icon {
         flex: 0 0 14px;
@@ -298,30 +296,30 @@
         text-decoration: none;
       }
       .st-wphp-row:hover {
-        background-color: rgba(102, 192, 244, 0.06);
+        background-color: var(--st-color-primary-surface);
       }
       .st-wishlist-price-history-panel a {
         color: inherit;
         text-decoration: none;
       }
       .st-wishlist-price-history-panel a:hover {
-        color: #66c0f4;
+        color: var(--st-color-steam-blue);
       }
       .st-wphp-row__name {
         min-width: 0;
-        color: #dce7f0;
+        color: var(--st-color-text-primary);
       }
       .st-wphp-row__name a {
         color: inherit;
         text-decoration: none;
       }
       .st-wphp-row__name a:hover {
-        color: #66c0f4;
+        color: var(--st-color-steam-blue);
       }
       .st-wphp-row__sub {
         display: block;
         margin-top: 1px;
-        color: #9fb0bf;
+        color: var(--st-color-text-muted);
         font-size: 11px;
         line-height: 13px;
       }
@@ -329,8 +327,8 @@
         justify-self: end;
         padding: 1px 6px;
         border-radius: 2px;
-        background: rgba(164, 208, 7, 0.08);
-        color: #a4d007;
+        background: var(--st-color-success-surface, var(--st-color-primary-surface));
+        color: var(--st-color-success);
         font-size: 11px;
         font-weight: 700;
         line-height: 14px;
@@ -341,14 +339,14 @@
       .st-wphp-row__price {
         justify-self: end;
         text-align: right;
-        color: #e7eef3;
+        color: var(--st-color-text-primary);
         font-weight: 700;
         font-size: 13px;
         font-variant-numeric: tabular-nums;
       }
       .st-wphp-empty {
         padding: 6px 8px;
-        color: #a9b8c6;
+        color: var(--st-color-text-muted);
         font-size: 12px;
       }
       .st-wphp-list.is-loading .st-wphp-empty {
@@ -368,7 +366,7 @@
         gap: 10px;
         min-height: 110px;
         padding: 10px 14px;
-        border-left: 1px solid rgba(255, 255, 255, 0.10);
+        border-left: 1px solid var(--st-color-border-normal);
         box-sizing: border-box;
       }
       .st-wphp-chart__skeleton {
@@ -384,7 +382,7 @@
         max-width: 22px;
         height: var(--h, 50%);
         border-radius: 2px 2px 0 0;
-        background: linear-gradient(180deg, rgba(102, 192, 244, 0.52), rgba(102, 192, 244, 0.36));
+        background: var(--st-gradient-primary-vertical);
         transform-origin: bottom;
         animation:
           st-wphp-bar-grow 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both,
@@ -480,12 +478,12 @@
         gap: 2px;
       }
       .st-wphp-chart__title {
-        color: #66c0f4;
+        color: var(--st-color-steam-blue);
         font-size: 12px;
         font-weight: 600;
       }
       .st-wphp-chart__sub {
-        color: #9fb0bf;
+        color: var(--st-color-text-muted);
         font-size: 11px;
       }
       @keyframes st-wphp-enter-above {
@@ -609,7 +607,7 @@
         }
         .st-wphp-chart {
           border-left: 0;
-          border-top: 1px solid rgba(255, 255, 255, 0.10);
+          border-top: 1px solid var(--st-color-border-normal);
           min-height: 84px;
           padding-top: 12px;
         }
@@ -620,8 +618,7 @@
           white-space: normal;
         }
       }
-    `;
-    document.head.appendChild(style);
+    `);
   }
 
   function appIdFromRow(row) {

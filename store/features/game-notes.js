@@ -94,12 +94,10 @@
 
   function addStyle() {
     if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
+    api.styles?.ensureStyle?.(STYLE_ID, `
       .st-game-notes {
         box-sizing: border-box;
-        color: rgba(199, 213, 224, .86);
+        color: var(--st-color-text-secondary);
         font-family: Motiva Sans, Arial, Helvetica, sans-serif;
         font-size: 16px;
         line-height: 22px;
@@ -148,50 +146,49 @@
         overflow: visible;
       }
       .st-game-notes-empty {
-        color: rgba(199, 213, 224, .5);
+        color: var(--st-color-text-disabled);
       }
       .st-game-notes-more {
         display: none;
         flex: 0 0 auto;
         border: 0;
         padding: 0;
-        color: rgba(102, 192, 244, .68);
+        color: var(--st-color-steam-blue);
         background: transparent;
         cursor: pointer;
         font: inherit;
         white-space: nowrap;
       }
       .st-game-notes-more:hover {
-        color: rgba(199, 236, 255, .9);
+        color: var(--st-color-badge-blue-text);
       }
       .st-game-notes h1,
       .st-game-notes h2,
       .st-game-notes h3 {
         margin: 3px 0;
-        color: #fff;
+        color: var(--st-color-white);
         line-height: 1.2;
       }
       .st-game-notes blockquote,
       .st-game-notes pre {
         margin: 4px 0;
         padding: 6px 8px;
-        background: rgba(0, 0, 0, .24);
-        border-left: 2px solid rgba(102, 192, 244, .35);
+        background: var(--st-color-surface-inset);
+        border-left: 2px solid var(--st-color-border-primary);
       }
       .st-game-notes table {
         border-collapse: collapse;
       }
       .st-game-notes th,
       .st-game-notes td {
-        border: 1px solid rgba(255, 255, 255, .18);
+        border: 1px solid var(--st-color-border-hover);
         padding: 2px 5px;
       }
       .st-game-notes img {
         max-width: 120px;
         max-height: 80px;
       }
-    `;
-    document.head.appendChild(style);
+    `);
   }
 
   async function authedPost(url, body) {

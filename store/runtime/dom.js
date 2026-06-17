@@ -20,22 +20,11 @@ const TooltipManager = {
         if (this.el) return;
         this.el = document.createElement('div');
         this.el.id = 'st-global-tooltip';
-        this.el.style.cssText = `
-            position: fixed;
-            background: rgba(0, 0, 0, 0.9);
-            border: 1px solid #66c0f4;
-            padding: 10px;
-            border-radius: 4px;
-            pointer-events: none;
-            z-index: 1000001;
-            font-size: 12px;
-            color: #fff;
-            display: none;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            max-width: 300px;
-            line-height: 1.5;
-            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
-        `;
+        api.styles?.applyStyles?.(this.el, api.styles.templates.tooltip);
+        api.styles?.applyStyles?.(this.el, {
+            display: 'none',
+            fontFamily: 'var(--st-font-family-base)',
+        });
         document.body.appendChild(this.el);
     },
 
@@ -224,8 +213,11 @@ function createModuleContainer(moduleClass, title, loadingText = '正在加载..
     loadingContainer.className = "block underlined_links";
     const loadingContent = document.createElement("div");
     loadingContent.className = "block_content";
-    loadingContent.style.padding = "10px";
-    loadingContent.innerHTML = `<div style="color: #66c0f4; text-align: center;">${loadingText}</div>`;
+    api.styles?.applyStyles?.(loadingContent, { padding: '10px' });
+    const loadingTextEl = document.createElement("div");
+    api.styles?.applyStyles?.(loadingTextEl, api.styles.templates.loadingText);
+    loadingTextEl.textContent = loadingText;
+    loadingContent.appendChild(loadingTextEl);
     loadingContainer.appendChild(loadingContent);
     container.appendChild(loadingContainer);
     
@@ -240,7 +232,15 @@ function showError(container, loadingContainer, errorText = '加载失败') {
         loadingContainer.remove();
         const errorContent = document.createElement("div");
         errorContent.className = "block underlined_links";
-        errorContent.innerHTML = `<div class="block_content" style="padding: 10px; color: #8f98a0; text-align: center;">${errorText}</div>`;
+        const block = document.createElement("div");
+        block.className = "block_content";
+        api.styles?.applyStyles?.(block, {
+            padding: '10px',
+            color: 'var(--st-color-text-muted)',
+            textAlign: 'center',
+        });
+        block.textContent = errorText;
+        errorContent.appendChild(block);
         container.appendChild(errorContent);
     } catch (error) {
     }
