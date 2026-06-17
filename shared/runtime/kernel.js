@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2026-06-16-p7-page-context";
+  const VERSION = "2026-06-18-p18-message-storage";
   const GLOBAL_KEY = "__SteamBuffRuntimeKernel";
   const DEFAULT_ID = "steam-buff-runtime";
 
@@ -385,6 +385,8 @@
         resources: this.resources.list(),
         schedulerTaskCount: Object.keys(schedulerTasks).length,
         schedulerTasks,
+        messageBus: safeCall(() => window.STMessageBus?.diagnostics?.()) || null,
+        settingsBus: safeCall(() => window.STSettingsBus?.diagnostics?.()) || null,
         performance: perf ? {
           injectCount: perf.injectCount,
           timerCount: perf.timerCount,

@@ -88,6 +88,22 @@
       timer = setTimeout(() => {
         finish({ success: false, error: "请求超时", status: 0, ok: false });
       }, Number(options.timeoutMs) || REQUEST_TIMEOUT_MS);
+      if (globalThis.STMessageBus?.send) {
+        globalThis.STMessageBus.send({
+          type: "STORE_FETCH",
+          url,
+          method: options.method || "GET",
+          headers: options.headers || {},
+          body: options.body,
+          data: options.data,
+          timeoutMs: options.timeoutMs || REQUEST_TIMEOUT_MS,
+        }, {
+          timeoutMs: options.timeoutMs || REQUEST_TIMEOUT_MS,
+        }).then(response => finish(response)).catch(error => {
+          finish({ success: false, error: error?.message || "请求失败", status: 0, ok: false });
+        });
+        return;
+      }
       chrome.runtime.sendMessage({
         type: "STORE_FETCH",
         url,

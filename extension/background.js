@@ -37,6 +37,8 @@
     "extension/runtime/guard.js",
     "extension/runtime/injector.js",
     "extension/runtime/logger.js",
+    "shared/settings-bus.js",
+    "shared/runtime/message-bus.js",
     "extension/content.js",
   ]);
   const WEB_BOOT_FILES = Object.freeze([
@@ -47,10 +49,12 @@
     "shared/error-boundary.js",
     "shared/runtime/kernel.js",
     "shared/page-context.js",
+    "shared/runtime/message-bus.js",
+    "shared/settings-bus.js",
     "extension/content.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-runtime-scope-20260616-p7-page-context";
+  const CONTENT_MARK_VERSION = "steam-runtime-scope-20260618-p18-message-storage";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
@@ -631,6 +635,20 @@
       .catch((error) => sendResponse({ success: false, error: error?.message || String(error) }));
   }
 
+  const ROUTE_POLICY = Object.freeze({
+    UPDATE_CHECK: "设置中心更新检查",
+    STORE_FETCH: "允许列表内跨域请求代理",
+    TRANSLATE_INJECT: "翻译 runner 按需注入",
+    CONTENT_FILES_INJECT: "当前 frame 内容脚本按需注入",
+    AI_CHAT_COMPLETIONS: "AI 网关连接测试与翻译代理",
+    AI_TRANSLATE_CACHE_GET: "AI 翻译缓存读取",
+    AI_TRANSLATE_CACHE_SET: "AI 翻译缓存写入",
+    LOG_APPEND: "诊断日志追加",
+    LOG_EXPORT: "诊断日志导出",
+    LOG_CLEAR: "诊断日志清空",
+    LOG_STATS: "诊断日志状态",
+  });
+
   const ROUTES = Object.freeze({
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
     STORE_FETCH: storeFetch,
@@ -661,9 +679,14 @@
     },
   });
 
+  function messageRoute(request) {
+    const type = String(request?.type || "").slice(0, 80);
+    return Object.hasOwn(ROUTES, type) ? ROUTES[type] : null;
+  }
+
   // 所有异步路由必须 return true，让 Chrome 保持 sendResponse 通道。
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    const route = ROUTES[request?.type];
+    const route = messageRoute(request);
     if (route) {
       route(request, sender, sendResponse);
       return true;

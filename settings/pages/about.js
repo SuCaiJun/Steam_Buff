@@ -1156,6 +1156,18 @@
   function sendLogMessage(type, payload = {}) {
     return new Promise((resolve, reject) => {
       try {
+        if (globalThis.STMessageBus?.send) {
+          globalThis.STMessageBus.send({ type, ...(payload || {}) }, {
+            timeoutMs: type === "LOG_EXPORT" ? 12_000 : 8_000,
+          }).then((response) => {
+            if (!response?.success) {
+              reject(new Error(response?.error || "日志请求失败"));
+              return;
+            }
+            resolve(response);
+          }).catch(reject);
+          return;
+        }
         chrome.runtime.sendMessage({ type, ...(payload || {}) }, (response) => {
           const err = chrome.runtime.lastError;
           if (err) {

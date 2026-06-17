@@ -81,6 +81,30 @@
         timer = setTimeout(() => finish(reject, timeoutError(timeoutMs)), timeoutMs);
       }
       try {
+        if (root.STMessageBus?.send) {
+          root.STMessageBus.send({
+            type: "STORE_FETCH",
+            timeoutMs,
+            ...request,
+          }, {
+            timeoutMs,
+          }).then((response) => {
+            if (!validateResponse(response)) {
+              finish(reject, new Error("后台响应格式异常"));
+              return;
+            }
+            if (!response?.success) {
+              const error = new Error(response?.error || "后台请求失败");
+              error.status = Number(response?.status) || 0;
+              finish(reject, error);
+              return;
+            }
+            finish(resolve, response);
+          }).catch((error) => {
+            finish(reject, error);
+          });
+          return;
+        }
         chrome.runtime.sendMessage({
           type: "STORE_FETCH",
           timeoutMs,

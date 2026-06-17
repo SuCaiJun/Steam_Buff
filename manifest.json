@@ -77,6 +77,8 @@
         "shared/error-boundary.js",
         "shared/page-context.js",
         "shared/runtime/kernel.js",
+        "shared/runtime/message-bus.js",
+        "shared/settings-bus.js",
         "extension/content.js"
       ],
       "run_at": "document_end",
@@ -99,6 +101,8 @@
         "shared/logger-factory.js",
         "shared/error-boundary.js",
         "shared/page-context.js",
+        "shared/settings-bus.js",
+        "shared/runtime/message-bus.js",
         "extension/content.js"
       ],
       "run_at": "document_start",
@@ -118,6 +122,8 @@
         "shared/i18n.js",
         "shared/performance-monitor.js",
         "shared/page-context.js",
+        "shared/settings-bus.js",
+        "shared/runtime/message-bus.js",
         "extension/content.js"
       ],
       "run_at": "document_end"
@@ -166,6 +172,7 @@
         "shared/scheduler.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
+        "shared/runtime/message-bus.js",
         "shared/config.js",
         "shared/error-boundary.js",
         "shared/i18n.js",

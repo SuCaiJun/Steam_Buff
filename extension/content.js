@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-runtime-scope-20260616-p7-page-context";
+  const RUN_VERSION = "steam-runtime-scope-20260618-p18-message-storage";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -93,6 +93,8 @@
     "shared/utils/dom.js",
     "shared/page-context.js",
     "shared/runtime/kernel.js",
+    "shared/runtime/message-bus.js",
+    "shared/settings-bus.js",
     "settings/catalog.js",
     "settings/membership.js",
     "settings/storage.js",
@@ -158,6 +160,8 @@
     "extension/runtime/logger.js",
     "shared/logger-factory.js",
     "shared/error-boundary.js",
+    "shared/runtime/message-bus.js",
+    "shared/settings-bus.js",
     "store/runtime/feature-registry.js",
     "store/runtime/settings-gate.js",
     "store/runtime/url-watch.js",
@@ -378,6 +382,16 @@
     if (!files.length) {
       return Promise.resolve({ success: true });
     }
+    if (globalThis.STMessageBus?.request) {
+      return globalThis.STMessageBus.request({
+        type: "CONTENT_FILES_INJECT",
+        files,
+      }, {
+        timeoutMs: 12_000,
+        dedupeKey: `CONTENT_FILES_INJECT:${files.join("|")}`,
+        expectSuccess: true,
+      });
+    }
     return new Promise((resolve, reject) => {
       try {
         chrome.runtime.sendMessage({
@@ -478,6 +492,16 @@
 
   function bindSettingsOpenMessage() {
     try {
+      if (globalThis.STMessageBus?.listen) {
+        globalThis.STMessageBus.listen(SETTINGS_OPEN_MESSAGE, (request) => {
+          openSettings(request.category || "");
+          return false;
+        }, {
+          owner: "extension:content",
+          key: "settings-open",
+        });
+        return;
+      }
       chrome.runtime.onMessage.addListener((request) => {
         if (request?.type !== SETTINGS_OPEN_MESSAGE) {
           return false;
@@ -628,6 +652,12 @@
   }
 
   function storageGet(keys) {
+    if (globalThis.STSettingsBus?.rawGet) {
+      return globalThis.STSettingsBus.rawGet(keys, {
+        owner: "extension:content",
+        reason: "content-read",
+      });
+    }
     return new Promise((resolve) => {
       try {
         chrome.storage.local.get(keys, (rt) => {
@@ -644,6 +674,12 @@
   }
 
   function storageSet(data) {
+    if (globalThis.STSettingsBus?.rawSet) {
+      return globalThis.STSettingsBus.rawSet(data, {
+        owner: "extension:content",
+        reason: "content-write",
+      });
+    }
     return new Promise((resolve) => {
       try {
         chrome.storage.local.set(data, () => {
@@ -656,6 +692,12 @@
   }
 
   function storageRemove(keys) {
+    if (globalThis.STSettingsBus?.rawRemove) {
+      return globalThis.STSettingsBus.rawRemove(keys, {
+        owner: "extension:content",
+        reason: "content-remove",
+      });
+    }
     return new Promise((resolve) => {
       try {
         chrome.storage.local.remove(keys, () => {
@@ -675,6 +717,17 @@
     const out = {};
     for (const id of ALL_SETTING_IDS) {
       out[id] = true;
+    }
+    if (globalThis.STSettingsBus?.loadSettingsSnapshot) {
+      settingsCache = await globalThis.STSettingsBus.loadSettingsSnapshot({
+        owner: "extension:content",
+        ids: ALL_SETTING_IDS,
+        defaults: out,
+        force,
+        ttlMs: 30_000,
+        reason: "content-settings-load",
+      });
+      return settingsCache;
     }
     const rt = await storageGet(ALL_SETTING_IDS.map(settingKey));
     for (const id of ALL_SETTING_IDS) {
@@ -799,6 +852,19 @@
   function injectTranslate(conf) {
     return new Promise((resolve) => {
       try {
+        if (globalThis.STMessageBus?.send) {
+          globalThis.STMessageBus.send({
+            type: "TRANSLATE_INJECT",
+            cfg: conf,
+          }, {
+            timeoutMs: 12_000,
+          }).then((response) => {
+            resolve(response || { success: false, error: "翻译注入请求失败" });
+          }).catch((error) => {
+            resolve({ success: false, error: error?.message || "翻译注入请求失败" });
+          });
+          return;
+        }
         chrome.runtime.sendMessage({
           type: "TRANSLATE_INJECT",
           cfg: conf,
@@ -957,6 +1023,21 @@
   function fetchBg(request) {
     return new Promise((resolve, reject) => {
       try {
+        if (globalThis.STMessageBus?.send) {
+          globalThis.STMessageBus.send({
+            type: "STORE_FETCH",
+            ...request,
+          }, {
+            timeoutMs: request.timeoutMs || 12_000,
+          }).then((response) => {
+            if (!response?.success) {
+              reject(new Error(response?.error || "后台请求失败"));
+              return;
+            }
+            resolve(response);
+          }).catch(reject);
+          return;
+        }
         chrome.runtime.sendMessage({
           type: "STORE_FETCH",
           ...request,
@@ -1383,6 +1464,32 @@
     watchSettings = true;
 
     try {
+      if (globalThis.STSettingsBus?.subscribe) {
+        globalThis.STSettingsBus.subscribe((event) => {
+          const keys = event.changedKeys || [];
+          const localeHit = keys.includes(UI_LOCALE_KEY);
+          const hit = ALL_SETTING_IDS.some(id => keys.includes(settingKey(id)));
+          const newsHit = keys.some((item) => item === settingKey(NEWS_TRANSLATE_ID) || item === settingKey("translate") || item.startsWith(TRANS_PREFIX) || item.startsWith(AI_PREFIX));
+          if (hit) {
+            settingsCache = null;
+            if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
+              writeSteamSettings().catch(() => {});
+            }
+          }
+          if (newsHit && globalThis.STPageContext?.snapshot?.().domain === "steam") {
+            postNewsConfig("").catch(() => {});
+          }
+          if (localeHit) {
+            writeUiLocale().catch(() => {});
+          }
+        }, {
+          owner: "extension:content",
+          key: "settings-watch",
+          prefixes: [SETTINGS_PREFIX, TRANS_PREFIX, AI_PREFIX],
+          keys: [UI_LOCALE_KEY],
+        });
+        return;
+      }
       chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== "local") {
           return;

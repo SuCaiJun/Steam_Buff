@@ -93,6 +93,20 @@
       }
 
       try {
+        if (root.STMessageBus?.send) {
+          root.STMessageBus.send({
+            type: "STORE_FETCH",
+            ...payload,
+          }, {
+            timeoutMs,
+          }).then((response) => {
+            finish(resolve, response || null);
+          }).catch((error) => {
+            error.name = error.name || "RequestError";
+            finish(reject, error);
+          });
+          return;
+        }
         root.chrome.runtime.sendMessage({
           type: "STORE_FETCH",
           ...payload,

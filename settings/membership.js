@@ -123,6 +123,17 @@
     const read = typeof options.getMembership === "function"
       ? options.getMembership
       : () => storage.getMembership?.();
+    if (root.STSettingsBus?.subscribe) {
+      return root.STSettingsBus.subscribe(() => {
+        Promise.resolve(read()).then((next) => {
+          onChange(next || empty());
+        }).catch(() => {});
+      }, {
+        owner: options.owner || "settings:membership",
+        key: options.key || "membership-watch",
+        keys: [KEY],
+      });
+    }
     const listener = (changes, area) => {
       if (!isChange(changes, area)) {
         return;

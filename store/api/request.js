@@ -190,6 +190,26 @@
       }
 
       try {
+        if (globalThis.STMessageBus?.send) {
+          globalThis.STMessageBus.send({
+            type: "STORE_FETCH",
+            url: config.url,
+            method: config.method || "GET",
+            headers: config.headers || {},
+            body: config.data,
+            data: config.requestData,
+            allowHttpError: !!config.allowHttpError,
+            timeoutMs,
+          }, {
+            timeoutMs,
+          }).then((response) => {
+            finish(resolve, response || null);
+          }).catch((error) => {
+            error.name = error.name || "RequestError";
+            finish(reject, error);
+          });
+          return;
+        }
         chrome.runtime.sendMessage({
           type: "STORE_FETCH",
           url: config.url,

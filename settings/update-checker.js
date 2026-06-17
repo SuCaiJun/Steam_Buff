@@ -89,6 +89,18 @@
   function send(message) {
     return new Promise((resolve, reject) => {
       try {
+        if (root.STMessageBus?.send) {
+          root.STMessageBus.send(message, {
+            timeoutMs: message?.type === "UPDATE_CHECK" ? 10_000 : 12_000,
+          }).then((response) => {
+            if (!response?.success) {
+              reject(new Error(response?.error || "更新检查失败"));
+              return;
+            }
+            resolve(response);
+          }).catch(reject);
+          return;
+        }
         root.chrome.runtime.sendMessage(message, (response) => {
           const error = root.chrome?.runtime?.lastError;
           if (error) {

@@ -129,6 +129,12 @@
   }
 
   function get(keys) {
+    if (globalThis.STSettingsBus?.rawGet) {
+      return globalThis.STSettingsBus.rawGet(keys, {
+        owner: "settings:storage",
+        reason: "settings-storage-read",
+      });
+    }
     const box = area();
     if (!box) {
       return Promise.resolve({});
@@ -150,6 +156,12 @@
   }
 
   function put(data) {
+    if (globalThis.STSettingsBus?.rawSet) {
+      return globalThis.STSettingsBus.rawSet(data, {
+        owner: "settings:storage",
+        reason: "settings-storage-write",
+      });
+    }
     const box = area();
     if (!box) {
       return Promise.resolve(false);
@@ -169,6 +181,15 @@
   async function getAll() {
     const defs = defaults();
     const ids = Object.keys(defs);
+    if (globalThis.STSettingsBus?.loadSettingsSnapshot) {
+      return globalThis.STSettingsBus.loadSettingsSnapshot({
+        owner: "settings:storage",
+        ids,
+        defaults: defs,
+        force: false,
+        reason: "settings-storage-get-all",
+      });
+    }
     const keys = ids.map(key);
     const rt = await get(keys);
     const out = {};
@@ -248,6 +269,12 @@
   }
 
   function clearAuth() {
+    if (globalThis.STSettingsBus?.rawRemove) {
+      return globalThis.STSettingsBus.rawRemove([AUTH_KEY, MEMBERSHIP_KEY], {
+        owner: "settings:storage",
+        reason: "auth-clear",
+      });
+    }
     const box = area();
     if (!box) {
       return Promise.resolve(false);

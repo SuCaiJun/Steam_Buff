@@ -195,6 +195,24 @@
     if (watchingSettings) return;
     watchingSettings = true;
     try {
+      if (globalThis.STSettingsBus?.subscribe) {
+        globalThis.STSettingsBus.subscribe((event) => {
+          const changes = {};
+          for (const key of event.changedKeys || []) {
+            changes[key] = true;
+          }
+          if (!settingsChanged(changes, "local")) return;
+          load().then(() => {
+            refreshActiveFeatureSet(event.reason || "settings");
+          }).catch(() => {});
+        }, {
+          owner: "store:settings-gate",
+          key: "settings-watch",
+          prefixes: [SETTINGS_PREFIX, SEARCH_SUGGESTION_PREFIX],
+          keys: [globalThis.STSettings?.storage?.MEMBERSHIP_KEY || MEMBERSHIP_KEY],
+        });
+        return;
+      }
       chrome.storage.onChanged.addListener((changes, area) => {
         if (!settingsChanged(changes, area)) return;
         load().then(() => {

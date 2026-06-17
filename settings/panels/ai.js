@@ -129,6 +129,32 @@
       ];
     }
 
+    function sendAiTest(testConf) {
+      if (globalThis.STMessageBus?.send) {
+        return globalThis.STMessageBus.send({
+          type: "AI_CHAT_COMPLETIONS",
+          ai: testConf,
+          messages: aiTestMessages(),
+        }, {
+          timeoutMs: 20_000,
+        });
+      }
+      return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          type: "AI_CHAT_COMPLETIONS",
+          ai: testConf,
+          messages: aiTestMessages(),
+        }, (response) => {
+          const err = chrome.runtime.lastError;
+          if (err) {
+            reject(new Error(err.message || String(err)));
+            return;
+          }
+          resolve(response || null);
+        });
+      });
+    }
+
     function testAi(shadow, button) {
       const next = read(shadow);
       const testConf = normalize({ ...conf, ...next });
@@ -149,24 +175,11 @@
       const started = performance.now();
       log.info("ai-test-start", "开始测试 AI 连接", { enabled: testConf.enabled === true });
       try {
-        chrome.runtime.sendMessage({
-          type: "AI_CHAT_COMPLETIONS",
-          ai: testConf,
-          messages: aiTestMessages(),
-        }, (response) => {
+        sendAiTest(testConf).then((response) => {
           const used = ((performance.now() - started) / 1000).toFixed(1);
           if (button) {
             button.disabled = false;
             button.textContent = oldText;
-          }
-          const err = chrome.runtime.lastError;
-          if (err) {
-            log.error("ai-test-failed", "AI 连接测试失败", {
-              durationMs: Math.round(performance.now() - started),
-              error: err.message || String(err),
-            });
-            dialog(shadow, { title: "AI 测试失败", message: `${err.message || String(err)}\n用时 ${used} 秒` });
-            return;
           }
           if (!response?.success) {
             log.error("ai-test-failed", "AI 连接测试失败", {
@@ -181,6 +194,17 @@
             durationMs: Math.round(performance.now() - started),
           });
           dialog(shadow, { title: "AI 测试成功", message: `${response.text || "已收到响应"}\n用时 ${used} 秒` });
+        }).catch((error) => {
+          const used = ((performance.now() - started) / 1000).toFixed(1);
+          if (button) {
+            button.disabled = false;
+            button.textContent = oldText;
+          }
+          log.error("ai-test-failed", "AI 连接测试异常", {
+            durationMs: Math.round(performance.now() - started),
+            error: error?.message || String(error),
+          });
+          dialog(shadow, { title: "AI 测试失败", message: `${error?.message || String(error)}\n用时 ${used} 秒` });
         });
       } catch (error) {
         if (button) {
