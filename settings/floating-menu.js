@@ -300,6 +300,23 @@
     });
   }
 
+  function consumePendingOpen(shadow) {
+    const data = document.documentElement?.dataset || {};
+    if (!data.steamBuffOpenRequested) {
+      return;
+    }
+    delete data.steamBuffOpenRequested;
+    const cat = data.steamBuffOpenCat || activeCat;
+    const filteredReviews = data.steamBuffOpenFilteredReviews === "1";
+    delete data.steamBuffOpenFilteredReviews;
+
+    if (filteredReviews) {
+      panels?.review?.().openFilteredReviews?.(shadow);
+      return;
+    }
+    api.openCat?.(cat);
+  }
+
   /**
    * 生成设置浮窗生命周期日志使用的基础元数据。
    * @param {object} extra - 附加的非敏感上下文。
@@ -341,6 +358,8 @@
     }
 
     document.documentElement.dataset[MARK] = "1";
+    const railDetail = globalThis.STSettingsFloatingRail?.latestReviewDetail?.() || null;
+    globalThis.STSettingsFloatingRail?.dispose?.({ keepHost: true });
     runtime?.activateAdapter?.("settings", {
       path: location.pathname,
       topFrame: topFrame(),
@@ -358,15 +377,17 @@
       railSide = pos.side;
     }
 
-    const host = document.createElement("div");
+    const host = document.getElementById(ROOT_ID) || document.createElement("div");
     host.id = ROOT_ID;
-    const shadow = host.attachShadow({ mode: "open" });
+    const shadow = host.shadowRoot || host.attachShadow({ mode: "open" });
     const dom = globalThis.STDomUtils;
     dom.setTrustedHTML(shadow, dom.trustedHTML(shell.template(), "settings-floating-shell-template"));
 
     api.startupAnimation?.install?.(shadow, { iconUrl: appIconUrl() });
 
-    document.body.appendChild(host);
+    if (!host.isConnected) {
+      document.body.appendChild(host);
+    }
     runtime?.registerResource?.({
       owner: "settings:floating-menu:panel",
       key: "shadow-root",
@@ -396,6 +417,9 @@
     }
 
     shell.render(shadow);
+    if (railDetail?.items?.length) {
+      panels.review().setHiddenReviews(railDetail.items);
+    }
     watchMembership(shadow);
     globalThis.STSettingsMenuEvents.bind({
       api,
@@ -422,6 +446,7 @@
         reviewUpdateEvent: REVIEW_UPDATE_EVT,
       },
     });
+    consumePendingOpen(shadow);
     runtime?.markFeature?.({
       domain: "settings",
       id: "floating-menu",

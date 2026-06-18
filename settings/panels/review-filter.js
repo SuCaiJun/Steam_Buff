@@ -588,9 +588,9 @@
         return;
       }
 
-      const wasOpen = root.classList.contains("open") && !root.hidden;
       root.hidden = false;
-      root.classList.toggle("dialog-only", !wasOpen);
+      root.classList.remove("open");
+      root.classList.add("dialog-only");
       root.querySelector(".settings-dialog-layer")?.remove();
       const layer = document.createElement("div");
       layer.className = "settings-dialog-layer";
@@ -618,9 +618,9 @@
         layer.classList.remove("show");
         window.setTimeout(() => {
           layer.remove();
-          if (!root.classList.contains("open") && !root.querySelector(".settings-dialog-layer")) {
+          if (!root.querySelector(".settings-dialog-layer")) {
             root.classList.remove("dialog-only");
-            root.hidden = true;
+            root.hidden = !root.classList.contains("open");
           }
         }, 120);
       };

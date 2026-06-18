@@ -180,7 +180,8 @@
 
       panel.classList.remove("open");
       window.setTimeout(() => {
-        if (!panel.classList.contains("open") && !panel.classList.contains("dialog-only") && !panel.querySelector(".settings-dialog-layer")) {
+        if (!panel.classList.contains("open") && !panel.querySelector(".settings-dialog-layer")) {
+          panel.classList.remove("dialog-only");
           panel.hidden = true;
         }
       }, 170);
@@ -200,6 +201,11 @@
 
     function close() {
       setOpen(false);
+    }
+
+    function openFilteredDialog() {
+      setOpen(false);
+      openFilteredReviews(shadow);
     }
 
     function toggle() {
@@ -269,7 +275,7 @@
           if (drag.target === "settings") {
             toggle();
           } else if (drag.target === "review-filter") {
-            openFilteredReviews(shadow);
+            openFilteredDialog();
           } else if (drag.target === "top") {
             toTop();
           }
@@ -309,7 +315,7 @@
           drag.moved = false;
           return;
         }
-        openFilteredReviews(shadow);
+        openFilteredDialog();
       });
       closeBtn?.addEventListener("click", close);
       panel.addEventListener("click", (event) => {
@@ -368,8 +374,16 @@
           close();
         }
       });
-      document.documentElement.addEventListener(cfg.openEvent, () => {
+      document.documentElement.addEventListener(cfg.openEvent, (event) => {
         document.documentElement.dataset[cfg.openAckDataset] = String(Date.now());
+        const data = document.documentElement.dataset;
+        const filteredReviews = event.detail?.filteredReviews === true || data.steamBuffOpenFilteredReviews === "1";
+        if (filteredReviews) {
+          delete data.steamBuffOpenFilteredReviews;
+          delete data[cfg.openCatDataset];
+          openFilteredDialog();
+          return;
+        }
         openCat(document.documentElement.dataset[cfg.openCatDataset] || getActiveCat());
       });
 

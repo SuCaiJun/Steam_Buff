@@ -18,6 +18,8 @@
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const SETTINGS_LOAD_MARK = "__steamBuffSettingsChunk";
   const SETTINGS_LOAD_PENDING = `${SETTINGS_LOAD_MARK}:pending`;
+  const SETTINGS_RAIL_LOAD_MARK = "__steamBuffSettingsRailChunk";
+  const SETTINGS_RAIL_LOAD_PENDING = `${SETTINGS_RAIL_LOAD_MARK}:pending`;
   const STORE_LOAD_MARK = "__steamBuffStoreChunk";
   const STORE_LOAD_PENDING = `${STORE_LOAD_MARK}:pending`;
   const STEAM_TITLE_WAIT_MS = 100;
@@ -98,6 +100,13 @@
     "settings/catalog.js",
     "settings/membership.js",
     "settings/storage.js",
+  ]);
+  const SETTINGS_RAIL_SCRIPTS = Object.freeze([
+    "shared/i18n.js",
+    "shared/styles/theme.js",
+    "settings/ui/assets.js",
+    "settings/ui/styles.js",
+    "settings/floating-rail.js",
   ]);
   const SETTINGS_UI_SCRIPTS = Object.freeze([
     "settings/api/request.js",
@@ -475,19 +484,82 @@
     }
   }
 
-  function openSettings(category = "") {
+  async function loadSettingsRail(reason = "light-boot") {
+    if (globalThis[SETTINGS_RAIL_LOAD_MARK] === "ready") {
+      return true;
+    }
+    if (globalThis[SETTINGS_RAIL_LOAD_MARK] === SETTINGS_RAIL_LOAD_PENDING) {
+      return false;
+    }
+    if (globalThis.STPageContext?.settingsPage?.() !== "settings-web") {
+      return false;
+    }
+    globalThis[SETTINGS_RAIL_LOAD_MARK] = SETTINGS_RAIL_LOAD_PENDING;
+    try {
+      await injectContentFiles(SETTINGS_RAIL_SCRIPTS);
+      globalThis[SETTINGS_RAIL_LOAD_MARK] = "ready";
+      activateLightRuntime("settings", {
+        reason,
+        loadStrategy: "content-script-floating-rail",
+      });
+      return true;
+    } catch (error) {
+      globalThis[SETTINGS_RAIL_LOAD_MARK] = "";
+      log({
+        level: "error",
+        domain: "settings",
+        feature: "floating-rail",
+        event: "settings-rail-inject-failed",
+        message: "设置中心轻量悬浮入口加载失败",
+        error,
+        meta: pageMeta({ reason }),
+      });
+      throw error;
+    }
+  }
+
+  function openSettings(category = "", options = {}) {
+    const requestId = String(Date.now());
+    const el = root();
+    if (el?.dataset) {
+      el.dataset.steamBuffOpenRequested = requestId;
+      if (category) {
+        el.dataset.steamBuffOpenCat = String(category);
+      }
+      if (options.filteredReviews === true) {
+        el.dataset.steamBuffOpenFilteredReviews = "1";
+      }
+    }
     loadSettingsUi("manual-open")
       .then(() => {
-        const el = root();
-        if (!el) {
+        const target = root();
+        if (!target) {
           return;
         }
         if (category) {
-          el.dataset.steamBuffOpenCat = String(category);
+          target.dataset.steamBuffOpenCat = String(category);
         }
-        el.dispatchEvent(new CustomEvent("STSettingsOpen"));
+        if (options.filteredReviews === true) {
+          target.dataset.steamBuffOpenFilteredReviews = "1";
+        }
+        target.dispatchEvent(new CustomEvent("STSettingsOpen", {
+          detail: {
+            filteredReviews: options.filteredReviews === true,
+          },
+        }));
       })
       .catch(() => {});
+  }
+
+  function bindSettingsOpenRequest() {
+    try {
+      root()?.addEventListener?.("STSettingsOpenRequest", (event) => {
+        openSettings(event?.detail?.category || "", {
+          filteredReviews: event?.detail?.filteredReviews === true,
+        });
+      });
+    } catch {
+    }
   }
 
   function bindSettingsOpenMessage() {
@@ -519,6 +591,8 @@
     }
     watchPageLog();
     bindSettingsOpenMessage();
+    bindSettingsOpenRequest();
+    loadSettingsRail("light-boot").catch(() => {});
     activateLightRuntime("settings", {
       loadStrategy: "content-script-light-boot",
     });
@@ -1528,6 +1602,7 @@
     }
     watchPageLog();
     bindSettingsOpenMessage();
+    bindSettingsOpenRequest();
     watchNewsTranslateBridge();
     watchSettingsChanges();
     logOnce("content-script-start", {
