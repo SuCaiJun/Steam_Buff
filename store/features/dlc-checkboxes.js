@@ -21,6 +21,8 @@
   const scan = api.features.dlcScan;
   const log = window.STLoggerFactory.createLogger("store", "dlc-checkboxes");
   const SAME_ORIGIN_FETCH_TIMEOUT_MS = 12 * 1000;
+  const STYLE_ID = 'es_dlc_checkboxes_style';
+  const sectionResources = new WeakMap();
 
 function addDLCCheckboxes() {
     const dlcSection = document.querySelector(".game_area_dlc_section");
@@ -112,6 +114,8 @@ function addCheckboxesToDLCRows(dlcSection) {
 function observeWishlistChanges(dlcSection) {
     const gameDlcBlocks = dlcSection.querySelector(".gameDlcBlocks");
     if (!gameDlcBlocks) return;
+    const old = sectionResources.get(dlcSection);
+    old?.wishlistObserver?.disconnect?.();
 
     const observer = new MutationObserver(mutations => {
         mutations.forEach(mutation => {
@@ -134,6 +138,10 @@ function observeWishlistChanges(dlcSection) {
         attributes: true,
         subtree: true,
         attributeFilter: ["class"]
+    });
+    sectionResources.set(dlcSection, {
+        ...(sectionResources.get(dlcSection) || {}),
+        wishlistObserver: observer
     });
 }
 
@@ -732,6 +740,11 @@ function claimFreeDLCsBatch(freeDLCs) {
 }
 
 function addCartButton(dlcSection) {
+    const old = sectionResources.get(dlcSection);
+    if (old?.changeHandler) {
+        dlcSection.removeEventListener("change", old.changeHandler);
+    }
+
     const cartButton = document.createElement("div");
     cartButton.className = "game_purchase_action game_purchase_action_bg";
     cartButton.id = "es_selected_btn";
@@ -772,7 +785,7 @@ function addCartButton(dlcSection) {
         addSelectedDLCToCart(dlcSection);
     });
 
-    dlcSection.addEventListener("change", (e) => {
+    const onDlcSelectionChange = (e) => {
         if (e.target.type === "checkbox" && e.target.closest(".es_dlc_label")) {
             updateCartButton(dlcSection);
             
@@ -785,6 +798,11 @@ function addCartButton(dlcSection) {
                 }
             }
         }
+    };
+    dlcSection.addEventListener("change", onDlcSelectionChange);
+    sectionResources.set(dlcSection, {
+        ...(sectionResources.get(dlcSection) || {}),
+        changeHandler: onDlcSelectionChange
     });
 }
 
@@ -858,11 +876,11 @@ function addSelectedDLCToCart(dlcSection) {
 }
 
 function addDLCCheckboxesStyles() {
-    if (document.getElementById('es_dlc_checkboxes_style')) {
+    if (document.getElementById(STYLE_ID)) {
         return;
     }
 
-    window.STStore?.styles?.ensureStyle?.('es_dlc_checkboxes_style', `
+    window.STStore?.styles?.ensureStyle?.(STYLE_ID, `
 
         #es_dlc_option_panel {
             background-color: var(--st-color-surface-inset);
@@ -1181,6 +1199,25 @@ function addDLCCheckboxesStyles() {
     `);
 }
 
+function stopDLCCheckboxes() {
+    document.querySelectorAll(".game_area_dlc_section").forEach(section => {
+        const resources = sectionResources.get(section);
+        resources?.wishlistObserver?.disconnect?.();
+        if (resources?.changeHandler) {
+            section.removeEventListener("change", resources.changeHandler);
+        }
+        sectionResources.delete(section);
+    });
+
+    document.querySelectorAll(".es_dlc_label").forEach(label => label.remove());
+    document.querySelectorAll("#es_dlc_option_panel, #es_selected_btn, #es_dlc_notice, #es_dlc_confirm, #es_free_dlc_status, .es_free_dlc_overlay").forEach(node => node.remove());
+    document.querySelectorAll(".game_area_dlc_row").forEach(row => {
+        row.classList.remove("es_dlc_checked", "es_dlc_in_cart", "es_dlc_claimed");
+    });
+    api.styles?.removeStyle?.(STYLE_ID);
+    return true;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         addDLCCheckboxes,
@@ -1191,5 +1228,6 @@ if (typeof module !== 'undefined' && module.exports) {
   api.features.dlc = Object.freeze({
     add: addDLCCheckboxes,
     styles: addDLCCheckboxesStyles,
+    stop: stopDLCCheckboxes,
   });
 })();

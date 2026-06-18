@@ -108,6 +108,7 @@
       stopFeature(api.features.subscriptionInfo, "subscription-info"),
       stopFeature(api.features.steamPyDeals, "steampy-deals"),
       stopFeature(api.features.wishlistPriceHistory, "wishlist-price-history"),
+      stopFeature(api.features.dlc, "dlc-checkboxes"),
       stopFeature(api.features.cartSelect, "cart-select"),
       stopFeature(api.features.reviewFilter, "review-filter"),
       stopFeature(api.features.searchSuggestions, "search-suggestions"),
