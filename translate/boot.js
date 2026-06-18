@@ -19,6 +19,12 @@
   const AI_PREFIX = `${PREFIX}ai.`;
   const AI_SERVICE = "steam-buff.ai";
   const MATCH = globalThis.STConfig?.matchers;
+  const MODE_SELECTION = "selection";
+  const MODE_MANUAL = "manual";
+  const MODE_AUTO_PAGE = "autoPage";
+  const MODE_AI_CONFIG = "aiConfig";
+  const FEATURE_ID = "translate-runtime";
+  const ALL_MODES = Object.freeze([MODE_SELECTION, MODE_MANUAL, MODE_AUTO_PAGE, MODE_AI_CONFIG]);
   const DEF = Object.freeze({
     scope: "steam",
     page: true,
@@ -49,8 +55,20 @@
     legacy: true,
     meta: {
       entry: "translate/boot.js",
-      migration: "P3 只登记 page/selection/newsPopup mode，vendor 隔离留给 P19。",
+      migration: "P19 轻 boot 只计算 mode，vendor/runner 由后台按需注入。",
     },
+  });
+  runtime?.registerFeature?.({
+    domain: "translate",
+    id: FEATURE_ID,
+    settingsKey: "translate",
+    loadStrategy: "background-on-demand-inject",
+    modes: ALL_MODES,
+    pageScope: ["translate-page", "translate-selection", "translate-manual", "translate-ai-config"],
+    dependencies: ["vendor/xnx3-translate/translate.js"],
+    cost: "vendor-heavy",
+    dispose: true,
+    status: "registered",
   });
 
   function key(id) {
@@ -63,6 +81,41 @@
 
   function aiKey(id) {
     return `${AI_PREFIX}${id}`;
+  }
+
+  function unique(items) {
+    return Array.from(new Set((items || []).filter(Boolean).map(String)));
+  }
+
+  function usesAi(conf = {}) {
+    return conf.service === AI_SERVICE ||
+      conf.selectionService === AI_SERVICE ||
+      conf.newsPopupService === AI_SERVICE;
+  }
+
+  function modesFrom(conf = {}) {
+    if (conf.enabled === false) {
+      return [];
+    }
+    const raw = Array.isArray(conf.modes)
+      ? conf.modes
+      : typeof conf.mode === "string"
+        ? [conf.mode]
+        : [];
+    const out = unique(raw);
+    if (conf.selection === true && !out.includes(MODE_SELECTION)) {
+      out.push(MODE_SELECTION);
+    }
+    if (conf.page === true && !out.includes(MODE_AUTO_PAGE)) {
+      out.push(MODE_AUTO_PAGE);
+    }
+    if (conf.manual === true && !out.includes(MODE_MANUAL)) {
+      out.push(MODE_MANUAL);
+    }
+    if (out.length && usesAi(conf) && !out.includes(MODE_AI_CONFIG)) {
+      out.push(MODE_AI_CONFIG);
+    }
+    return unique(out);
   }
 
   function get(keys) {
@@ -116,7 +169,32 @@
   }
 
   function allowed(conf) {
-    return globalThis.STPageContext?.translateAllowed?.(conf).allowed === true;
+    return globalThis.STPageContext?.translateAllowed?.(conf) || { allowed: false, reason: "page-context-missing" };
+  }
+
+  function reportError(event, message, error, meta = {}) {
+    runtime?.markError?.(event, error || message, {
+      feature: FEATURE_ID,
+      ...meta,
+    });
+    try {
+      chrome.runtime?.sendMessage?.({
+        type: "LOG_APPEND",
+        entry: {
+          time: Date.now(),
+          level: "error",
+          domain: "translate",
+          feature: FEATURE_ID,
+          event,
+          message,
+          error: error?.message || String(error || message),
+          meta,
+        },
+      }, () => {
+        void chrome.runtime?.lastError;
+      });
+    } catch {
+    }
   }
 
   function inject(conf) {
@@ -127,15 +205,15 @@
       }, (response) => {
         const err = chrome.runtime.lastError;
         if (err) {
-          console.error("[Steam Buff] 翻译注入请求失败", err.message || err);
+          reportError("translate-inject-request-failed", "翻译注入请求失败", err.message || err);
           return;
         }
         if (response?.success === false) {
-          console.error("[Steam Buff] 翻译注入失败", response.error || "未知错误");
+          reportError("translate-inject-failed", "翻译注入失败", response.error || "未知错误");
         }
       });
     } catch (error) {
-      console.error("[Steam Buff] 翻译注入请求失败", error);
+      reportError("translate-inject-request-failed", "翻译注入请求失败", error);
     }
   }
 
@@ -147,16 +225,19 @@
     root.dataset[MARK] = "1";
 
     const conf = await cfg();
-    if (!conf.enabled || (!conf.page && !conf.selection) || !allowed(conf)) {
+    const modes = modesFrom(conf);
+    const gate = allowed(conf);
+    if (!conf.enabled || !modes.length || gate.allowed !== true) {
       runtime?.markFeature?.({
         domain: "translate",
-        id: "translate-runtime",
+        id: FEATURE_ID,
         status: "skipped",
-        reason: "disabled-or-out-of-scope",
+        reason: !conf.enabled ? "disabled" : !modes.length ? "no-enabled-mode" : gate.reason || "scope-mismatch",
         meta: {
           scope: conf.scope,
           page: conf.page === true,
           selection: conf.selection === true,
+          modes,
         },
       });
       return;
@@ -166,21 +247,21 @@
       scope: conf.scope,
       page: conf.page === true,
       selection: conf.selection === true,
-      newsPopup: conf.newsPopup !== false,
+      modes,
     });
     runtime?.markFeature?.({
       domain: "translate",
-      id: "translate-runtime",
+      id: FEATURE_ID,
       status: "loading",
       meta: {
-        modes: [
-          conf.page === true ? "page" : "",
-          conf.selection === true ? "selection" : "",
-          conf.newsPopup !== false ? "newsPopup" : "",
-        ].filter(Boolean),
+        modes,
+        cost: "vendor-heavy",
       },
     });
-    inject(conf);
+    inject({
+      ...conf,
+      modes,
+    });
   }
 
   run().catch((error) => {
@@ -188,6 +269,6 @@
       host: location.hostname,
       path: location.pathname,
     });
-    console.error("[Steam Buff] 翻译启动失败", error);
+    reportError("translate-boot-failed", "翻译启动失败", error);
   });
 })();

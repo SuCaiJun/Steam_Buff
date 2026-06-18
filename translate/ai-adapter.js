@@ -348,7 +348,7 @@
 
   function fail(error, data) {
     const msg = error?.message || String(error || "AI 翻译失败");
-    console.error("[Steam Buff] AI 翻译失败", msg);
+    report("error", "ai-translate-failed", "AI 翻译失败", { error: msg });
     return {
       result: 0,
       info: msg,
@@ -356,6 +356,42 @@
       to: data?.to,
       text: [],
     };
+  }
+
+  function report(level, event, message, meta = {}) {
+    try {
+      const logger = globalThis.STLogger;
+      if (logger?.ready) {
+        const fn = logger[level] || logger.error || logger.append;
+        fn?.({
+          level,
+          domain: "translate",
+          feature: "translate-ai",
+          event,
+          message,
+          meta,
+        });
+        return;
+      }
+    } catch {
+    }
+    try {
+      chrome.runtime?.sendMessage?.({
+        type: "LOG_APPEND",
+        entry: {
+          time: Date.now(),
+          domain: "translate",
+          feature: "translate-ai",
+          level,
+          event,
+          message,
+          meta,
+        },
+      }, () => {
+        void chrome.runtime?.lastError;
+      });
+    } catch {
+    }
   }
 
   function installPostHook(trans) {
@@ -387,14 +423,14 @@
     };
   }
 
-  function apply(trans, conf) {
+  function apply(trans, conf, options = {}) {
     if (!trans || !conf || conf.service !== SERVICE) {
       return false;
     }
 
     const next = ai?.normalize?.(conf.ai);
     if (!AI_PROXY_URL || !next?.enabled || !next.host || !next.model) {
-      console.error("[Steam Buff] AI 翻译配置不完整");
+      report("error", "ai-config-incomplete", "AI 翻译配置不完整");
       if (trans.request?.api) {
         trans.request.api.translate = "";
       }
@@ -402,7 +438,11 @@
     }
 
     trans.service?.use?.("translate.service");
-    trans.whole?.enableAll?.();
+    if (options.autoPage === true) {
+      trans.whole?.enableAll?.();
+    } else if (trans.whole) {
+      trans.whole.isEnableAll = false;
+    }
     installPostHook(trans);
     trans.request.api.host = [AI_PROXY_URL];
     trans.request.api.translate = PATH;

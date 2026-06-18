@@ -13,8 +13,14 @@
 
   const MARK = "steamBuffTranslateRunner";
   const GLOBAL_MARK = "steamBuffTranslateRunnerLoaded";
+  const API_MARK = "STTranslateRunner";
   const MATCH = globalThis.STConfig?.matchers;
   const DELAYS = Object.freeze([500, 2000]);
+  const MODE_SELECTION = "selection";
+  const MODE_MANUAL = "manual";
+  const MODE_AUTO_PAGE = "autoPage";
+  const MODE_AI_CONFIG = "aiConfig";
+  const OWNER = "translate:runner";
   const STYLE_ID = "steam-buff-translate-style";
   const PROGRESS_TEXT_STYLE_ID = "translatejs-text-element-hidden";
   const PROGRESS_MASK_STYLE_ID = "translatejs-mask-layer-animation";
@@ -119,6 +125,11 @@
   const originals = new WeakMap();
   const selCache = new Map();
   const selPending = new Map();
+  const state = {
+    started: false,
+    modes: [],
+    autoPage: null,
+  };
 
   function cfg() {
     const conf = globalThis.STEAM_BUFF_TRANSLATE_CONFIG;
@@ -131,6 +142,59 @@
       : null;
   }
 
+  function modesFrom(conf = {}) {
+    if (conf.enabled === false) {
+      return [];
+    }
+    const raw = Array.isArray(conf.modes)
+      ? conf.modes
+      : typeof conf.mode === "string"
+        ? [conf.mode]
+        : [];
+    const out = new Set(raw.filter(Boolean).map(String));
+    if (conf.selection === true) {
+      out.add(MODE_SELECTION);
+    }
+    if (conf.page === true) {
+      out.add(MODE_AUTO_PAGE);
+    }
+    if (conf.manual === true) {
+      out.add(MODE_MANUAL);
+    }
+    if (usesAi(conf)) {
+      out.add(MODE_AI_CONFIG);
+    }
+    return Array.from(out);
+  }
+
+  function usesAi(conf = {}) {
+    return conf.service === AI_SERVICE ||
+      conf.selectionService === AI_SERVICE ||
+      conf.newsPopupService === AI_SERVICE;
+  }
+
+  function hasMode(conf, mode) {
+    return modesFrom(conf).includes(mode);
+  }
+
+  function runtime() {
+    return globalThis.STRuntime?.get?.({ id: "steam-buff-page-runtime" }) || null;
+  }
+
+  function registerResource(key, type, dispose, meta = {}) {
+    try {
+      return runtime()?.registerResource?.({
+        owner: OWNER,
+        key,
+        type,
+        meta,
+        dispose,
+      });
+    } catch {
+      return null;
+    }
+  }
+
   function topFrame() {
     try {
       return window.top === window;
@@ -139,12 +203,54 @@
     }
   }
 
-  function call(fn) {
+  function logRuntime(level, event, message, meta = {}) {
+    const entry = {
+      level,
+      feature: meta.feature || "translate-runtime",
+      event,
+      message,
+      meta,
+    };
+    try {
+      runtime()?.markError?.(event, meta.error || message, {
+        feature: entry.feature,
+        ...meta,
+      });
+    } catch {
+    }
+    try {
+      const logger = globalThis.STLogger;
+      if (logger?.ready) {
+        const fn = logger[level] || logger.error || logger.append;
+        fn?.(entry);
+        return;
+      }
+    } catch {
+    }
+    try {
+      chrome.runtime?.sendMessage?.({
+        type: "LOG_APPEND",
+        entry: {
+          time: Date.now(),
+          domain: "translate",
+          page: String(location.href || ""),
+          ...entry,
+        },
+      }, () => {
+        void chrome.runtime?.lastError;
+      });
+    } catch {
+    }
+  }
+
+  function call(fn, event = "runner-call-failed") {
     try {
       fn();
       return true;
     } catch (error) {
-      console.error("[Steam Buff] 翻译运行失败", error);
+      logRuntime("error", event, "[Steam Buff] 翻译运行失败", {
+        error: error?.message || String(error),
+      });
       return false;
     }
   }
@@ -1236,6 +1342,32 @@
     return conf.service === AI_SERVICE && conf.aiPerformance !== false;
   }
 
+  function stopViewportScheduler() {
+    const view = state.autoPage;
+    if (!view) {
+      return;
+    }
+    if (view.timer) {
+      window.clearTimeout(view.timer);
+      view.timer = 0;
+    }
+    if (view.scrollTimer) {
+      window.clearTimeout(view.scrollTimer);
+      view.scrollTimer = 0;
+    }
+    view.io?.disconnect?.();
+    view.mo?.disconnect?.();
+    if (view.promote) {
+      window.removeEventListener("scroll", view.promote, view.scrollOptions);
+      window.removeEventListener("resize", view.promote, view.resizeOptions);
+    }
+    view.trans.steamBuffViewportScheduler = false;
+    view.active = false;
+    view.high?.clear?.();
+    view.low?.clear?.();
+    state.autoPage = null;
+  }
+
   function area(el) {
     const rect = el.getBoundingClientRect?.();
     return Math.max(0, rect?.width || 0) * Math.max(0, rect?.height || 0);
@@ -1271,12 +1403,12 @@
   }
 
   function installViewportScheduler(trans) {
-    if (trans.steamBuffViewportScheduler === true) {
+    if (state.autoPage || trans.steamBuffViewportScheduler === true) {
       return;
     }
     trans.steamBuffViewportScheduler = true;
 
-    const state = {
+    const view = {
       trans,
       high: new Set(),
       low: new Set(),
@@ -1287,14 +1419,24 @@
       scrollTimer: 0,
       io: null,
       mo: null,
+      promote: null,
+      scrollOptions: { passive: true, capture: true },
+      resizeOptions: { passive: true },
     };
+    state.autoPage = view;
+    registerResource("viewport-scheduler", "custom", stopViewportScheduler, {
+      mode: MODE_AUTO_PAGE,
+    });
 
     const done = (data) => {
+      if (state.autoPage !== view) {
+        return;
+      }
       if (data?.state === 4 || data?.state === 25) {
         return;
       }
-      state.active = false;
-      scheduleViewport(state, hasHigh(state) ? VIEW_DELAY : BACKGROUND_DELAY);
+      view.active = false;
+      scheduleViewport(view, hasHigh(view) ? VIEW_DELAY : BACKGROUND_DELAY);
     };
 
     trans.lifecycle?.execute?.renderFinish?.push?.(() => done());
@@ -1302,30 +1444,35 @@
 
     ready(() => {
       const body = document.body;
-      if (!body) {
+      if (!body || state.autoPage !== view) {
         return;
       }
 
       if ("IntersectionObserver" in window) {
-        state.io = new IntersectionObserver((entries) => {
+        view.io = new IntersectionObserver((entries) => {
+          if (state.autoPage !== view) {
+            return;
+          }
           for (const entry of entries) {
             if (entry.isIntersecting) {
-              queueTree(state, entry.target, true);
+              queueTree(view, entry.target, true);
             }
           }
-          scheduleViewport(state, VIEW_DELAY);
+          scheduleViewport(view, VIEW_DELAY);
         }, { root: null, rootMargin: VIEW_ROOT_MARGIN, threshold: 0 });
       }
 
       const observeRoot = mutationRoot(body);
       const onMutation = (items) => {
-        handleMutations(state, items);
+        if (state.autoPage === view) {
+          handleMutations(view, items);
+        }
       };
       if (observeRoot) {
-        state.mo = window.STObserverUtils?.createDebouncedObserver?.(onMutation, 80)
+        view.mo = window.STObserverUtils?.createDebouncedObserver?.(onMutation, 80)
           || new MutationObserver(onMutation);
         // 持续监听只挂在页面语义主容器或 body 下最大的内容根节点，避免长期观察整个 body。
-        state.mo.observe(observeRoot, {
+        view.mo.observe(observeRoot, {
           childList: true,
           subtree: true,
           characterData: true,
@@ -1334,11 +1481,11 @@
         });
       }
 
-      queueTree(state, body, false);
-      const promote = () => scheduleViewportPromote(state);
-      window.addEventListener("scroll", promote, { passive: true, capture: true });
-      window.addEventListener("resize", promote, { passive: true });
-      scheduleViewport(state, 0);
+      queueTree(view, body, false);
+      view.promote = () => scheduleViewportPromote(view);
+      window.addEventListener("scroll", view.promote, view.scrollOptions);
+      window.addEventListener("resize", view.promote, view.resizeOptions);
+      scheduleViewport(view, 0);
     });
   }
 
@@ -1472,23 +1619,29 @@
     return state.high.size > 0;
   }
 
-  function scheduleViewport(state, delay) {
-    if (state.timer) {
+  function scheduleViewport(view, delay) {
+    if (state.autoPage !== view) {
       return;
     }
-    state.timer = window.setTimeout(() => {
-      state.timer = 0;
-      runViewportBatch(state);
+    if (view.timer) {
+      return;
+    }
+    view.timer = window.setTimeout(() => {
+      view.timer = 0;
+      runViewportBatch(view);
     }, delay);
   }
 
-  function scheduleViewportPromote(state) {
-    if (state.scrollTimer) {
+  function scheduleViewportPromote(view) {
+    if (state.autoPage !== view) {
       return;
     }
-    state.scrollTimer = window.setTimeout(() => {
-      state.scrollTimer = 0;
-      promoteVisible(state);
+    if (view.scrollTimer) {
+      return;
+    }
+    view.scrollTimer = window.setTimeout(() => {
+      view.scrollTimer = 0;
+      promoteVisible(view);
     }, VIEW_DELAY);
   }
 
@@ -2111,6 +2264,7 @@
   }
 
   function apply(trans, conf) {
+    globalThis.STTranslateVendor?.configure?.(conf);
     disableVendorInit(trans);
     if (trans.selectLanguageTag && typeof trans.selectLanguageTag === "object") {
       trans.selectLanguageTag.show = conf.select === true && conf.service !== AI_SERVICE && topFrame();
@@ -2134,7 +2288,9 @@
       trans.language?.setDefaultTo?.(conf.to);
     }
     if (conf.service === globalThis.STTranslateAI?.SERVICE) {
-      globalThis.STTranslateAI.apply(trans, conf);
+      globalThis.STTranslateAI.apply(trans, conf, {
+        autoPage: hasMode(conf, MODE_AUTO_PAGE),
+      });
     } else if (conf.service) {
       trans.service?.use?.(conf.service);
     }
@@ -2145,48 +2301,118 @@
     }
   }
 
-  function start(trans, conf) {
-    apply(trans, conf);
-    ignoreRuntimeUi(trans);
-    ignoreSteamTitle(trans);
-
-    if (conf.selection === true) {
-      call(() => installSelection(trans));
+  function prepareTextMode(trans) {
+    globalThis.STTranslateVendor?.prepareTextMode?.(trans);
+    if (trans?.listener) {
+      trans.listener.use = false;
     }
-    if (conf.page !== true) {
-      return;
+    if (trans?.request?.listener) {
+      trans.request.listener.use = false;
+      trans.request.listener.executetime = 0;
     }
+    if (trans?.whole) {
+      trans.whole.isEnableAll = false;
+    }
+  }
 
+  function stopAutoPage(trans) {
+    stopViewportScheduler();
+    globalThis.STTranslateVendor?.stopAutoPage?.(trans);
+    if (trans?.listener) {
+      trans.listener.use = false;
+      trans.listener.reset?.();
+    }
+    if (trans?.request?.listener) {
+      trans.request.listener.use = false;
+      trans.request.listener.executetime = 0;
+    }
+    if (trans?.whole) {
+      trans.whole.isEnableAll = false;
+    }
+    runtime()?.disposeOwner?.(OWNER);
+  }
+
+  function delayedExecute(trans) {
+    for (const delay of DELAYS) {
+      window.setTimeout(() => {
+        if (!hasMode(cfg(), MODE_AUTO_PAGE)) {
+          return;
+        }
+        if (call(() => trans.execute?.())) {
+          call(() => mark(trans, cfg()));
+        }
+      }, delay);
+    }
+  }
+
+  function runAutoPage(trans, conf) {
     installMarkHook(trans);
     if (aiPerformance(conf)) {
       installViewportScheduler(trans);
       return;
     }
 
-    call(() => trans.listener?.start?.());
-    call(() => trans.request?.listener?.start?.());
+    globalThis.STTranslateVendor?.runAutoPage?.(() => {
+      call(() => trans.listener?.start?.(), "vendor-dom-listener-start-failed");
+      call(() => trans.request?.listener?.start?.(), "vendor-request-listener-start-failed");
+      call(() => trans.listener?.addListener?.(), "vendor-dom-listener-add-failed");
+      call(() => trans.request?.listener?.addListener?.(), "vendor-request-listener-add-failed");
+    });
     ready(() => {
-      if (!call(() => trans.execute?.())) {
+      if (!hasMode(cfg(), MODE_AUTO_PAGE)) {
         return;
       }
-      call(() => mark(trans, conf));
-      for (const delay of DELAYS) {
-        window.setTimeout(() => {
-          if (call(() => trans.execute?.())) {
-            call(() => mark(trans, cfg()));
-          }
-        }, delay);
+      if (!call(() => trans.execute?.(), "auto-page-execute-failed")) {
+        return;
       }
+      call(() => mark(trans, conf), "auto-page-mark-failed");
+      delayedExecute(trans);
     });
+  }
+
+  function configure(conf = cfg()) {
+    const trans = rt();
+    if (!trans) {
+      return false;
+    }
+    const modes = modesFrom(conf);
+    state.modes = modes;
+    apply(trans, conf);
+    ignoreRuntimeUi(trans);
+    ignoreSteamTitle(trans);
+
+    const autoPageOn = modes.includes(MODE_AUTO_PAGE);
+    if (!autoPageOn) {
+      prepareTextMode(trans);
+      stopAutoPage(trans);
+    }
+    if (modes.includes(MODE_SELECTION)) {
+      call(() => installSelection(trans));
+    }
+    if (autoPageOn) {
+      runAutoPage(trans, conf);
+    }
+    state.started = true;
+    return true;
+  }
+
+  function configLike(value) {
+    return value && typeof value === "object" && (
+      Array.isArray(value.modes) ||
+      typeof value.mode === "string" ||
+      typeof value.enabled === "boolean" ||
+      typeof value.page === "boolean" ||
+      typeof value.selection === "boolean" ||
+      typeof value.manual === "boolean"
+    );
+  }
+
+  function start(trans, conf) {
+    configure(configLike(conf) ? conf : configLike(trans) ? trans : cfg());
   }
 
   function run() {
     const root = document.documentElement;
-    if (globalThis[GLOBAL_MARK]) {
-      return;
-    }
-    globalThis[GLOBAL_MARK] = true;
-
     if (!root || root.dataset[MARK] === "1") {
       return;
     }
@@ -2194,11 +2420,32 @@
 
     const trans = rt();
     if (!trans) {
-      console.error("[Steam Buff] 翻译库未加载");
+      logRuntime("error", "vendor-missing", "[Steam Buff] 翻译库未加载");
       return;
     }
 
-    start(trans, cfg());
+    if (!globalThis[GLOBAL_MARK]) {
+      globalThis[GLOBAL_MARK] = true;
+    }
+    globalThis[API_MARK] = Object.freeze({
+      version: "2026-06-18-p19-runner",
+      configure,
+      start(transConf, conf) {
+        start(transConf, conf);
+      },
+      stop() {
+        stopAutoPage(trans);
+      },
+      diagnostics() {
+        return {
+          started: state.started,
+          modes: state.modes.slice(),
+          autoPage: !!state.autoPage,
+        };
+      },
+    });
+
+    configure(cfg());
   }
 
   run();

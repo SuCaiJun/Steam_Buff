@@ -883,11 +883,18 @@
   }
 
   async function ensureNewsTranslator(conf) {
+    const service = String(conf.newsPopupService || "follow");
+    const modes = service === "steam-buff.ai"
+      ? ["manual", "aiConfig"]
+      : ["manual"];
     const rtConf = {
       ...conf,
       page: false,
       selection: false,
-      selectionService: conf.newsPopupService || "follow",
+      manual: true,
+      modes,
+      selectionService: service,
+      newsPopupService: service,
     };
     globalThis.STEAM_BUFF_TRANSLATE_CONFIG = rtConf;
     const injected = await injectTranslate(rtConf);

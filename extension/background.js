@@ -61,12 +61,20 @@
   const AI_FETCH_TIMEOUT_MS = 20 * 1000;
   const SHARED_CONFIG = "shared/config.js";
   const OBSERVER_UTILS = "shared/observer-utils.js";
+  const TRANS_VENDOR_WRAPPER = "translate/vendor-wrapper.js";
   const TRANS_LIB = "vendor/xnx3-translate/translate.js";
   const AI_CONFIG = "ai/config.js";
   const AI_CACHE = "ai/cache.js";
   const TRANS_AI_PROMPTS = "translate/ai-prompts.js";
   const TRANS_AI = "translate/ai-adapter.js";
   const TRANS_RUNNER = "translate/runner.js";
+  const TRANSLATE_AI_SERVICE = "steam-buff.ai";
+  const TRANSLATE_MODES = Object.freeze({
+    selection: "selection",
+    manual: "manual",
+    autoPage: "autoPage",
+    aiConfig: "aiConfig",
+  });
   let aiReady = false;
   let aiLoadError = "";
 
@@ -516,6 +524,41 @@
     return { tabId, frameIds: [frameId] };
   }
 
+  function unique(items) {
+    return Array.from(new Set((items || []).filter(Boolean).map(String)));
+  }
+
+  function translateUsesAi(conf = {}) {
+    return conf.service === TRANSLATE_AI_SERVICE ||
+      conf.selectionService === TRANSLATE_AI_SERVICE ||
+      conf.newsPopupService === TRANSLATE_AI_SERVICE;
+  }
+
+  function translateModesFrom(conf = {}) {
+    if (conf.enabled === false) {
+      return [];
+    }
+    const raw = Array.isArray(conf.modes)
+      ? conf.modes
+      : typeof conf.mode === "string"
+        ? [conf.mode]
+        : [];
+    const modes = unique(raw);
+    if (conf.selection === true && !modes.includes(TRANSLATE_MODES.selection)) {
+      modes.push(TRANSLATE_MODES.selection);
+    }
+    if (conf.page === true && !modes.includes(TRANSLATE_MODES.autoPage)) {
+      modes.push(TRANSLATE_MODES.autoPage);
+    }
+    if (conf.manual === true && !modes.includes(TRANSLATE_MODES.manual)) {
+      modes.push(TRANSLATE_MODES.manual);
+    }
+    if (modes.length && translateUsesAi(conf) && !modes.includes(TRANSLATE_MODES.aiConfig)) {
+      modes.push(TRANSLATE_MODES.aiConfig);
+    }
+    return unique(modes);
+  }
+
   function senderTarget(sender) {
     const tabId = sender?.tab?.id;
     const frameId = sender?.frameId;
@@ -547,14 +590,23 @@
       return;
     }
 
+    const inputCfg = request.cfg && typeof request.cfg === "object" ? request.cfg : {};
+    const modes = translateModesFrom(inputCfg);
+    const translateCfg = {
+      ...inputCfg,
+      modes,
+    };
+
     try {
       await execScript({
         target,
         world: "ISOLATED",
         func: (cfg) => {
           globalThis.STEAM_BUFF_TRANSLATE_CONFIG = cfg || {};
+          globalThis.STTranslateVendor?.configure?.(globalThis.STEAM_BUFF_TRANSLATE_CONFIG);
+          globalThis.STTranslateRunner?.configure?.(globalThis.STEAM_BUFF_TRANSLATE_CONFIG);
         },
-        args: [request.cfg || {}],
+        args: [translateCfg],
       });
 
       const res = await execScript({
@@ -566,17 +618,68 @@
         }),
       });
       const state = res?.[0]?.result || {};
+      if (!modes.length) {
+        sendResponse({ success: true, skipped: true, reason: "no-enabled-mode" });
+        return;
+      }
       if (state.runner === true) {
+        await execScript({
+          target,
+          world: "ISOLATED",
+          func: () => {
+            const cfg = globalThis.STEAM_BUFF_TRANSLATE_CONFIG || {};
+            globalThis.STTranslateVendor?.configure?.(cfg);
+            globalThis.STTranslateRunner?.configure?.(cfg);
+          },
+        });
         sendResponse({ success: true });
         return;
       }
 
+      if (state.lib !== true) {
+        await execScript({
+          target,
+          world: "ISOLATED",
+          files: [TRANS_VENDOR_WRAPPER],
+        });
+        await execScript({
+          target,
+          world: "ISOLATED",
+          func: () => {
+            globalThis.STTranslateVendor?.beforeVendorLoad?.(globalThis.STEAM_BUFF_TRANSLATE_CONFIG || {});
+          },
+        });
+      }
+
+      if (state.lib !== true) {
+        await execScript({
+          target,
+          world: "ISOLATED",
+          files: [TRANS_LIB],
+        });
+        await execScript({
+          target,
+          world: "ISOLATED",
+          func: () => {
+            globalThis.STTranslateVendor?.afterVendorLoad?.(globalThis.STEAM_BUFF_TRANSLATE_CONFIG || {});
+          },
+        });
+      }
       await execScript({
         target,
         world: "ISOLATED",
         files: state.lib === true
-          ? [SHARED_CONFIG, OBSERVER_UTILS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER]
-          : [TRANS_LIB, SHARED_CONFIG, OBSERVER_UTILS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER],
+          ? [TRANS_VENDOR_WRAPPER, SHARED_CONFIG, OBSERVER_UTILS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER]
+          : [SHARED_CONFIG, OBSERVER_UTILS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER],
+      });
+      await execScript({
+        target,
+        world: "ISOLATED",
+        func: () => {
+          const cfg = globalThis.STEAM_BUFF_TRANSLATE_CONFIG || {};
+          globalThis.STTranslateVendor?.configure?.(cfg);
+          globalThis.STTranslateRunner?.configure?.(cfg);
+        },
       });
       sendResponse({ success: true });
     } catch (error) {
