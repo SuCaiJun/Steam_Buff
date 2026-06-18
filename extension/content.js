@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-runtime-scope-20260618-p18-message-storage";
+  const RUN_VERSION = "steam-runtime-scope-20260618-p23-final-validation";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
