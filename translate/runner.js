@@ -2422,7 +2422,7 @@
       globalThis[GLOBAL_MARK] = true;
     }
     globalThis[API_MARK] = Object.freeze({
-      version: "2026-06-18-p19-runner",
+      version: "steam-buff-translate-runner-v1",
       configure,
       start(transConf, conf) {
         start(transConf, conf);

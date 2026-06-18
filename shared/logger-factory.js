@@ -11,7 +11,7 @@
 ((root) => {
   "use strict";
 
-  const LOGGER_FACTORY_VERSION = "2026-06-15-p6-diagnostics";
+  const LOGGER_FACTORY_VERSION = "steam-buff-logger-factory-v1";
   const LogLevel = Object.freeze({
     INFO: "info",
     WARN: "warn",

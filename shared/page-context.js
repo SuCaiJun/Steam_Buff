@@ -11,7 +11,7 @@
 ((root) => {
   "use strict";
 
-  const VERSION = "2026-06-16-p7-page-context";
+  const VERSION = "steam-buff-page-context-v1";
   const CFG = root.STConfig || {};
   const MATCH = CFG.matchers || {};
   const PAGES = CFG.pages || {};

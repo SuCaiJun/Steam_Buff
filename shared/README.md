@@ -23,5 +23,5 @@ shared/
 
 - 域名、URL、页面判断和 endpoint 必须优先集中到 `shared/config.js`。
 - 定时器、Observer、日志、性能监控和错误边界应优先复用 shared 能力。
-- 新增样式 token 放在 `shared/styles/theme.js`，跨域组件模板放在 `shared/styles/components.js`。
-
+- 新增样式 token 放在 `shared/styles/theme.js`，跨域组件模板和基础 CSS 生成器放在 `shared/styles/components.js`。
+- 通知条、状态徽章、表面卡片、进度条等跨域通用样式应复用 `STComponents.templates` 或 `STComponents.css`，不要在各域 runtime/feature 中重复实现。

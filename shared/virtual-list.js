@@ -23,7 +23,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function() {
   "use strict";
 
-  const VERSION = "2026-06-16-p9-large-data";
+  const VERSION = "steam-buff-virtual-list-v1";
   const DEFAULT_PAGE = 120;
   const DEFAULT_ROW_HEIGHT = 48;
   const DEFAULT_OVERSCAN = 8;

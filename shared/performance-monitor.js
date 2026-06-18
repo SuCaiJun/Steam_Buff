@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const MONITOR_VERSION = "2026-06-15-p6-summary";
+  const MONITOR_VERSION = "steam-buff-performance-monitor-v1";
   const CPU_PRECISION = 1000;
 
   const existing = window.STPerformanceMonitor;

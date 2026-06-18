@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2026-06-18-p18-message-storage";
+  const VERSION = "steam-buff-runtime-kernel-v1";
   const GLOBAL_KEY = "__SteamBuffRuntimeKernel";
   const DEFAULT_ID = "steam-buff-runtime";
 

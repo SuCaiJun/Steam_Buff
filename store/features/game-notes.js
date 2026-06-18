@@ -23,7 +23,6 @@
   const FEATURE_ID = "game-notes";
   const NOTE_MAX = 2000;
   const BATCH_SIZE = 80;
-  const STYLE_ID = "st-game-notes-style";
   const DETAIL_HOST_ID = "st-game-notes-detail";
   const QUERY_URL = root.STConfig.steamBuff("/wishlist-notes/query");
   const SAVE_URL = root.STConfig.steamBuff("/wishlist-notes");
@@ -94,102 +93,7 @@
   }
 
   function addStyle() {
-    if (document.getElementById(STYLE_ID)) return;
-    api.styles?.ensureStyle?.(STYLE_ID, `
-      .st-game-notes {
-        box-sizing: border-box;
-        color: var(--st-color-text-secondary);
-        font-family: Motiva Sans, Arial, Helvetica, sans-serif;
-        font-size: 16px;
-        line-height: 22px;
-      }
-      #${DETAIL_HOST_ID} {
-        max-width: 980px;
-        margin: 4px 0 5px;
-      }
-      .st-game-notes-wishlist {
-        max-width: 640px;
-        margin-top: 0;
-        align-self: center;
-      }
-      .st-game-notes-wishlist-row {
-        min-height: 190px;
-        grid-template-rows: 32px 24px 32px 32px 34px;
-        grid-template-areas:
-          "dragger capsule upper upper"
-          "dragger capsule stnote remove"
-          "dragger capsule lower ."
-          "dragger capsule mid purchase"
-          "dragger capsule platform purchase";
-      }
-      .st-game-notes-line {
-        display: flex;
-        align-items: flex-end;
-        gap: 7px;
-        max-width: 100%;
-        flex-wrap: nowrap;
-      }
-      .st-game-notes-body {
-        display: -webkit-box;
-        min-width: 0;
-        line-clamp: 2;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-        white-space: normal;
-        overflow-wrap: anywhere;
-      }
-      .st-game-notes.expanded .st-game-notes-body,
-      .st-game-notes:hover .st-game-notes-body {
-        display: block;
-        line-clamp: unset;
-        -webkit-line-clamp: unset;
-        overflow: visible;
-      }
-      .st-game-notes-empty {
-        color: var(--st-color-text-disabled);
-      }
-      .st-game-notes-more {
-        display: none;
-        flex: 0 0 auto;
-        border: 0;
-        padding: 0;
-        color: var(--st-color-steam-blue);
-        background: transparent;
-        cursor: pointer;
-        font: inherit;
-        white-space: nowrap;
-      }
-      .st-game-notes-more:hover {
-        color: var(--st-color-badge-blue-text);
-      }
-      .st-game-notes h1,
-      .st-game-notes h2,
-      .st-game-notes h3 {
-        margin: 3px 0;
-        color: var(--st-color-white);
-        line-height: 1.2;
-      }
-      .st-game-notes blockquote,
-      .st-game-notes pre {
-        margin: 4px 0;
-        padding: 6px 8px;
-        background: var(--st-color-surface-inset);
-        border-left: 2px solid var(--st-color-border-primary);
-      }
-      .st-game-notes table {
-        border-collapse: collapse;
-      }
-      .st-game-notes th,
-      .st-game-notes td {
-        border: 1px solid var(--st-color-border-hover);
-        padding: 2px 5px;
-      }
-      .st-game-notes img {
-        max-width: 120px;
-        max-height: 80px;
-      }
-    `);
+    api.styles?.ensureFeatureStyle?.("game-notes");
   }
 
   async function authedPost(url, body) {

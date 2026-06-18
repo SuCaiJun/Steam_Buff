@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const ERRORS_VERSION = '2026-06-12-infrastructure';
+  const ERRORS_VERSION = 'steam-buff-errors-v1';
 
   if (root.STErrors?.version === ERRORS_VERSION) {
     return;

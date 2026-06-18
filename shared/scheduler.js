@@ -13,7 +13,7 @@
 
   const MIN_TICK_MS = 1000;
   const DEFAULT_TASK_MS = 10000;
-  const SCHEDULER_VERSION = "20260612-performance-monitor";
+  const SCHEDULER_VERSION = "steam-buff-scheduler-v1";
 
   const existing = window.STScheduler;
   if (existing?.version === SCHEDULER_VERSION && typeof existing.register === 'function') {

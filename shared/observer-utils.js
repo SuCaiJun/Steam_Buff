@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2026-06-12-performance-monitor";
+  const VERSION = "steam-buff-observer-utils-v1";
 
   if (window.STObserverUtils?.version === VERSION) {
     return;

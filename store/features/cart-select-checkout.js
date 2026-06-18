@@ -133,22 +133,7 @@
   }
 
   function addStyles() {
-    window.STStore?.styles?.ensureStyle?.("st_cart_restore_checkout_style", `
-      #st_cart_restore_checkout {
-        float: left;
-        margin-top: 14px;
-        margin-left: 8px;
-      }
-
-      #st_cart_restore_checkout.st_cart_restore_busy {
-        opacity: .72;
-        pointer-events: none;
-      }
-
-      #st_cart_restore_checkout.st_cart_restore_bad {
-        background: var(--st-color-danger);
-      }
-    `);
+    window.STStore?.styles?.ensureFeatureStyle?.("cart-select-checkout");
   }
 
   function ensureButton() {

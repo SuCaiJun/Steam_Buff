@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const FORMAT_UTILS_VERSION = '2026-06-12-infrastructure';
+  const FORMAT_UTILS_VERSION = 'steam-buff-format-utils-v1';
   const CURRENCY_SYMBOLS = Object.freeze({
     AED: 'DH',
     AUD: 'A$',

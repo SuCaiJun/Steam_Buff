@@ -18,6 +18,7 @@
     applyStyles: components.applyStyles,
     appendContent: components.appendContent,
     createStyledElement: components.createStyledElement,
+    css: components.css,
     ensureStyle: components.ensureStyle,
     templates: components.templates,
   });

@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const THEME_VERSION = '2026-06-17-p14-settings-tokens';
+  const THEME_VERSION = 'steam-buff-theme-v1';
 
   if (root.STTheme?.version === THEME_VERSION) {
     return;

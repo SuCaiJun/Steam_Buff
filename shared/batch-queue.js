@@ -23,7 +23,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function() {
   "use strict";
 
-  const VERSION = "2026-06-16-p9-large-data";
+  const VERSION = "steam-buff-batch-queue-v1";
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));

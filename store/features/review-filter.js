@@ -15,7 +15,6 @@
   if (!api) return;
 
   const MARK = "stReviewFilter";
-  const STYLE_ID = "st-review-filter-style";
   const SCAN_MS = 300;
   const CONTAINER_SEL = "#app_reviews_hash, #AppHubCards, .apphub_Cards, .apphub_Card, [data-recommendationid]";
   const CARD_SEL = ".apphub_Card, [data-recommendationid]";
@@ -55,14 +54,7 @@
   }
 
   function addStyle() {
-    if (document.getElementById(STYLE_ID)) {
-      return;
-    }
-    api.styles?.ensureStyle?.(STYLE_ID, `
-      [data-st-review-filter-hidden="1"] {
-        display: none !important;
-      }
-    `);
+    api.styles?.ensureFeatureStyle?.("review-filter");
   }
 
   function isReviewCard(el) {
@@ -526,7 +518,7 @@
     document.removeEventListener("scroll", schedule);
     hiddenReviews.clear();
     restoreCards();
-    api.styles?.removeStyle?.(STYLE_ID);
+    api.styles?.removeFeatureStyle?.("review-filter");
     updatePanel();
     return wasActive;
   }

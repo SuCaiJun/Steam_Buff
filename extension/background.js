@@ -54,7 +54,7 @@
     "extension/content.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-runtime-scope-20260618-p23-final-validation";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v1";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;

@@ -11,7 +11,7 @@
 ((root) => {
   "use strict";
 
-  const VERSION = "2026-06-15-p6-error-boundary";
+  const VERSION = "steam-buff-error-boundary-v1";
 
   if (root.STErrorBoundary?.version === VERSION) {
     return;

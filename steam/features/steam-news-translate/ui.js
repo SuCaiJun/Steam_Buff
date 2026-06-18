@@ -14,7 +14,6 @@
   const ID = "steam-news-translate";
   const RT = "__SteamBuffNewsTranslate";
   const SCHEDULER_TASK = "steam-news-translate-config";
-  const STYLE_ID = "steam-buff-news-translate-style";
   const BUTTON_CLASS = "steam-buff-news-translate-button";
   const ICON_CLASS = "steam-buff-news-translate-icon";
   const TOOL_CLASS = "steam-buff-news-translate-tools";
@@ -74,37 +73,9 @@
     "section",
   ];
   const mounted = new WeakMap();
-  const THEME = window.STTheme || {};
   const styles = window.SteamBuff?.styles;
 
   const log = window.STLoggerFactory.createLogger("steam", ID);
-
-  function cssVar(name) {
-    return `var(${name})`;
-  }
-
-  function styleVars() {
-    const colors = THEME.colors || {};
-    const spacing = THEME.spacing || {};
-    const radius = THEME.radius || {};
-    const transitions = THEME.transitions || {};
-    return {
-      "--st-news-button-border": colors.borderHover,
-      "--st-news-button-border-hover": colors.textDisabled,
-      "--st-news-button-color": colors.textMuted,
-      "--st-news-button-bg": colors.bgCardHover,
-      "--st-news-button-bg-hover": colors.bgCard,
-      "--st-news-button-shadow": cssVar("--st-shadow-panel-menu"),
-      "--st-news-button-padding": `calc(${spacing.sm} - 1px)`,
-      "--st-news-button-margin-bottom": spacing.sm,
-      "--st-news-button-radius": radius.sm,
-      "--st-news-button-transition": transitions.fast,
-      "--st-news-done-border": cssVar("--st-color-steam-blue-alpha-72"),
-      "--st-news-done-bg": cssVar("--st-color-steam-blue-alpha-18"),
-      "--st-news-error-border": cssVar("--st-color-alert-danger-alpha-45"),
-      "--st-news-error-bg": cssVar("--st-color-alert-danger-alpha-12"),
-    };
-  }
 
   function logError(event, message, meta = {}, error = null) {
     log.error(event, message, {
@@ -113,82 +84,8 @@
     });
   }
 
-  function ensureStyle() {
-    styles?.applyStyles?.(document.documentElement, styleVars());
-    styles?.ensureStyle?.(STYLE_ID, `
-      .${BUTTON_CLASS} {
-        box-sizing: border-box !important;
-        width: 48px !important;
-        height: 48px !important;
-        min-width: 48px !important;
-        min-height: 48px !important;
-        display: block !important;
-        border: 1px solid var(--st-news-button-border) !important;
-        border-radius: var(--st-news-button-radius) !important;
-        color: var(--st-news-button-color) !important;
-        background: var(--st-news-button-bg) !important;
-        box-shadow: var(--st-news-button-shadow) !important;
-        cursor: pointer !important;
-        position: static !important;
-        text-indent: 0 !important;
-        overflow: hidden !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-        pointer-events: auto !important;
-        padding: var(--st-news-button-padding) !important;
-        margin: 0 0 var(--st-news-button-margin-bottom) !important;
-        transition: border-color var(--st-news-button-transition), background var(--st-news-button-transition), opacity var(--st-news-button-transition);
-      }
-
-      .${ICON_CLASS} {
-        display: block !important;
-        box-sizing: border-box !important;
-        width: 32px !important;
-        height: 32px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        object-fit: contain !important;
-        opacity: 0.86 !important;
-        filter: invert(88%) sepia(7%) saturate(299%) hue-rotate(171deg) brightness(95%) contrast(88%) !important;
-        pointer-events: none !important;
-      }
-
-      .${BUTTON_CLASS}:hover {
-        border-color: var(--st-news-button-border-hover) !important;
-        background: var(--st-news-button-bg-hover) !important;
-      }
-
-      .${BUTTON_CLASS}:hover .${ICON_CLASS} {
-        opacity: 1 !important;
-      }
-
-      .${BUTTON_CLASS}[data-state="loading"] {
-        cursor: wait !important;
-        opacity: 0.72 !important;
-      }
-
-      .${BUTTON_CLASS}[data-state="loading"] .${ICON_CLASS} {
-        opacity: 0.68 !important;
-      }
-
-      .${BUTTON_CLASS}[data-state="done"] {
-        border-color: var(--st-news-done-border) !important;
-        background: var(--st-news-done-bg) !important;
-      }
-
-      .${BUTTON_CLASS}[data-state="error"] {
-        border-color: var(--st-news-error-border) !important;
-        background: var(--st-news-error-bg) !important;
-      }
-
-      .${TRANSLATED_CLASS} {
-        white-space: normal;
-      }
-
-      .${TRANSLATED_BODY_CLASS} {
-        white-space: pre-wrap;
-      }
-    `);
+  function css() {
+    styles?.ensureFeatureStyle?.(ID);
   }
 
   function visible(el) {
@@ -932,7 +829,7 @@
       return { started: false, reason: "scheduler-unavailable" };
     }
 
-    ensureStyle();
+    css();
     const rt = {
       startedAt: Date.now(),
       scope: scope || null,

@@ -21,7 +21,6 @@
   const fetchGame = api.subs?.fetchGame;
 
   const OWNER = "store:subscription-info";
-  const STYLE_ID = "st-subscription-info-style";
   const SHOW_STATUS = Object.freeze(new Set(["active", "leaving"]));
   const ROW_CLASSES = Object.freeze([
     "tab_item",
@@ -133,6 +132,7 @@
   }
 
   function renderDetail(game) {
+    addStyles();
     const appId = String(game?.sid || pageAppId() || "");
     const subs = activeSubs(game);
     const current = cleanModules(appId);
@@ -383,69 +383,8 @@
   function addStyles() {
     if (stylesReady) return;
     stylesReady = true;
-    if (document.getElementById(STYLE_ID)) return;
-    api.styles?.ensureStyle?.(STYLE_ID, `
-      .${MODULE_CLASSES.SUBSCRIPTION} {
-        margin: 10px 0;
-        padding: 10px;
-        background-color: var(--st-color-primary-surface);
-        border-left: 3px solid var(--st-color-steam-blue);
-        border-radius: 3px;
-        color: var(--st-color-text-secondary);
-      }
-      .${MODULE_CLASSES.SUBSCRIPTION} .st_subscription_title {
-        font-weight: bold;
-        color: var(--st-color-steam-blue);
-        margin-bottom: 5px;
-      }
-      .${MODULE_CLASSES.SUBSCRIPTION} .st_subscription_line {
-        line-height: 1.55;
-      }
-      .${MODULE_CLASSES.SUBSCRIPTION} .st_subscription_platform {
-        color: var(--st-color-steam-blue);
-        font-weight: bold;
-        text-decoration: none;
-      }
-      .${MODULE_CLASSES.SUBSCRIPTION} a.st_subscription_platform:hover {
-        text-decoration: underline;
-      }
-      .st_subscription_pos {
-        position: relative !important;
-      }
-      .st_subscription_badges {
-        position: absolute;
-        left: 8px;
-        z-index: var(--st-z-index-dropdown);
-        display: flex;
-        gap: 4px;
-        pointer-events: none;
-      }
-      .st_subscription_badges.is-row {
-        bottom: 4px;
-      }
-      .st_subscription_badges.is-tile {
-        top: 8px;
-      }
-      .st_subscription_badge {
-        display: inline-block;
-        padding: 2px 5px;
-        border-radius: 2px;
-        background: var(--st-color-success);
-        color: var(--st-color-white);
-        font-size: 10px;
-        line-height: 14px;
-        font-weight: 700;
-        box-shadow: var(--st-shadow-control-badge);
-        white-space: nowrap;
-      }
-      .st_subscription_ubiplus {
-        background: var(--st-color-primary);
-      }
-      .st_subscription_eaplay,
-      .st_subscription_eaplaypro {
-        background: var(--st-color-danger);
-      }
-    `, { owner: OWNER, key: "style" });
+    api.styles?.ensureFeatureStyle?.("store-common-feature");
+    api.styles?.ensureFeatureStyle?.("subscription-info", { owner: OWNER, key: "style" });
   }
 
   function startLists() {
@@ -463,7 +402,7 @@
     observer = null;
     obsReady = false;
     document.querySelectorAll(`.${MODULE_CLASSES.SUBSCRIPTION}, .st_subscription_badges`).forEach(node => node.remove());
-    api.styles?.removeStyle?.(STYLE_ID);
+    api.styles?.removeFeatureStyle?.("subscription-info");
     stylesReady = false;
     window.STRuntime?.current?.()?.disposeOwner?.(OWNER);
     Array.from(disposers).forEach(dispose => dispose());

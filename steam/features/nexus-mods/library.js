@@ -14,7 +14,6 @@
   const ID = "nexus-mods";
   const SCHEDULER_TASK = "nexus-mods-library";
   const BTN = "__RickyNexusModsButton";
-  const STYLE = "__RickyNexusModsStyle";
   const ORIG = "__RickyStOriginalName";
   const LOOP_MS = 1500;
   const MOUNT_LOG_MS = 60000;
@@ -85,19 +84,7 @@
   }
 
   function css() {
-    if (document.getElementById(STYLE)) {
-      return;
-    }
-
-    styles?.ensureStyle?.(STYLE, `
-      #${BTN} {
-        min-width: 96px;
-      }
-      #${BTN}.st-nexus-mods-busy {
-        opacity: 0.72;
-        pointer-events: none;
-      }
-    `);
+    styles?.ensureFeatureStyle?.(ID);
   }
 
   function appidFromRoute() {

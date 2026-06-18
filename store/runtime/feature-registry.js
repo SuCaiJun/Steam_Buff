@@ -27,7 +27,7 @@
     loadStrategy: "runtime-page-chunk",
     meta: {
       entry: "store/runtime/feature-registry.js",
-      migration: "P5 由 content.js 根据商店页面类型注入必要 feature chunk。",
+      migration: "由 content.js 根据商店页面类型按需注入必要 feature chunk。",
     },
   });
 

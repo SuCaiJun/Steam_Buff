@@ -23,7 +23,6 @@
   const sendRequest = api.net.sendRequest;
 
   const ROOT_CLASS = "st_steampy_deals";
-  const STYLE_ID = "st-steampy-deals-style";
   const OWNER = "store:steampy-deals";
   const NARROW_WIDTH = 720;
   const FEATURES = Object.freeze({
@@ -124,114 +123,7 @@
   }
 
   function ensureStyle() {
-    if (document.getElementById(STYLE_ID)) return;
-
-    api.styles?.ensureStyle?.(STYLE_ID, `
-      .${ROOT_CLASS} {
-        position: absolute;
-        right: 16px;
-        bottom: 28px;
-        z-index: var(--st-z-index-sticky);
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0;
-        width: 138px;
-        min-width: 138px;
-        max-width: 220px;
-        font-family: "Motiva Sans", Arial, "Microsoft YaHei", sans-serif;
-      }
-      .${ROOT_CLASS}_host {
-        box-sizing: border-box;
-        min-height: 150px;
-      }
-      .${ROOT_CLASS}_host.${ROOT_CLASS}_host_compact {
-        min-height: 0;
-      }
-      .${ROOT_CLASS}.compact {
-        position: static;
-        align-items: flex-start;
-        clear: both;
-        width: fit-content;
-        max-width: calc(100% - 22px);
-        min-width: 0;
-        margin: 10px 0 0 0;
-      }
-      .${ROOT_CLASS}_row {
-        position: relative;
-        display: grid;
-        grid-template-columns: 48px minmax(0, 1fr);
-        align-items: center;
-        justify-content: start;
-        column-gap: 3px;
-        width: 100%;
-        max-width: 100%;
-        min-height: 16px;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        color: var(--st-color-text-secondary);
-        font-size: 12px;
-        line-height: 15px;
-        text-decoration: none;
-        white-space: nowrap;
-        cursor: pointer;
-      }
-      .${ROOT_CLASS}_row:hover {
-        color: var(--st-color-white);
-        text-decoration: none;
-      }
-      .${ROOT_CLASS}_label,
-      .${ROOT_CLASS}_value {
-        min-width: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-self: start;
-      }
-      .${ROOT_CLASS}_label {
-        gap: 3px;
-      }
-      .${ROOT_CLASS}_value {
-        gap: 4px;
-      }
-      .${ROOT_CLASS}_name {
-        color: var(--st-color-white);
-        font-weight: 700;
-      }
-      .${ROOT_CLASS}_cut {
-        color: var(--st-color-success);
-        font-weight: 700;
-      }
-      .${ROOT_CLASS}_cut:empty {
-        display: none;
-      }
-      .${ROOT_CLASS}_price {
-        color: var(--st-color-success);
-        font-weight: 700;
-        text-decoration: underline;
-      }
-      .${ROOT_CLASS}_empty {
-        color: var(--st-color-text-muted);
-        font-size: 12px;
-      }
-      @media (max-width: 860px) {
-        .${ROOT_CLASS} {
-          position: static;
-          align-items: flex-start;
-          clear: both;
-          width: fit-content;
-          max-width: calc(100% - 22px);
-          min-width: 0;
-          margin: 10px 0 0 0;
-        }
-        .${ROOT_CLASS}_host {
-          min-height: 0;
-        }
-        .${ROOT_CLASS}_row {
-          width: auto;
-        }
-      }
-    `, { owner: OWNER, key: "style" });
+    api.styles?.ensureFeatureStyle?.("steampy-deals", { owner: OWNER, key: "style" });
   }
 
   function parsePrice(text) {

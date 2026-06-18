@@ -235,78 +235,7 @@
    * @returns {void}
    */
   function initStyles() {
-    api.styles?.ensureStyle?.('st-store-common-feature-style', `
-
-        .es_achievement_bar {
-            margin: 10px 0;
-            padding: 10px;
-            background-color: var(--st-color-surface-inset-hover);
-            border-radius: 3px;
-        }
-        .es_achievement_bar .es_achievement_progress {
-            width: 100%;
-            height: 8px;
-            background-color: var(--st-color-surface-subtle-hover);
-            border-radius: 4px;
-            overflow: hidden;
-            margin-top: 5px;
-        }
-        .es_achievement_bar .es_achievement_progress_fill {
-            height: 100%;
-            background-color: var(--st-color-steam-blue);
-            border-radius: 4px;
-        }
-
-        .es_drm_warning {
-            margin: 10px 0;
-            padding: 10px;
-            background-color: var(--st-color-danger-surface);
-            border-left: 3px solid var(--st-color-danger);
-            border-radius: 3px;
-        }
-        .es_drm_warning_title {
-            font-weight: bold;
-            color: var(--st-color-danger);
-            margin-bottom: 5px;
-        }
-
-        .es_family_sharing_warning {
-            margin: 10px 0;
-            padding: 10px;
-            background-color: var(--st-color-member-surface);
-            border-left: 3px solid var(--st-color-warning);
-            border-radius: 3px;
-        }
-        .es_family_sharing_warning_title {
-            font-weight: bold;
-            color: var(--st-color-warning);
-            margin-bottom: 5px;
-        }
-
-        .es_audio_check {
-            margin: 10px 0;
-            padding: 10px;
-            border-radius: 3px;
-        }
-        .es_audio_check.supported {
-            background-color: var(--st-color-success-surface, var(--st-color-primary-surface));
-            border-left: 3px solid var(--st-color-success);
-        }
-        .es_audio_check.supported .es_audio_check_title {
-            font-weight: bold;
-            color: var(--st-color-success);
-            margin-bottom: 5px;
-        }
-        .es_audio_check.not-supported {
-            background-color: var(--st-color-member-surface);
-            border-left: 3px solid var(--st-color-gold);
-        }
-        .es_audio_check.not-supported .es_audio_check_title {
-            font-weight: bold;
-            color: var(--st-color-gold);
-            margin-bottom: 5px;
-        }
-    `);
+    api.styles?.ensureFeatureStyle?.("store-common-feature");
     
     if (on("dlc-tools")) {
         addDLCCheckboxesStyles();

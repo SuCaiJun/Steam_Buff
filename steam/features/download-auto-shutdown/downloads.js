@@ -15,7 +15,6 @@
   const SCHEDULER_TASK = "download-auto-shutdown-frontend";
   const LOG_PREFIX = "[Steam Buff]";
   const CH = "__steam_download_auto_shutdown_Ricky";
-  const STYLE = "__Rickydownload-auto-shutdown-style";
   const ROOT = "__Rickydownload-auto-shutdown-root";
   const TOAST = "__Rickydownload-auto-shutdown-toast";
   const SYNC_MS = 5000;
@@ -33,42 +32,10 @@
     SHUT: "shutdown-started",
     FAIL: "shutdown-failed",
   });
-  const THEME = window.STTheme || {};
   const styles = window.SteamBuff?.styles;
 
   const rootState = window.SteamBuff.state = window.SteamBuff.state || {};
   const s = rootState[ID] = rootState[ID] || {};
-
-  function cssVar(name) {
-    return `var(${name})`;
-  }
-
-  function styleVars() {
-    const colors = THEME.colors || {};
-    const spacing = THEME.spacing || {};
-    const typography = THEME.typography || {};
-    return {
-      "--st-sdas-font": typography.fontFamily,
-      "--st-sdas-text": cssVar("--st-color-text-primary"),
-      "--st-sdas-primary": cssVar("--st-color-primary"),
-      "--st-sdas-border": cssVar("--st-color-border-normal"),
-      "--st-sdas-border-hover": cssVar("--st-color-steam-blue-alpha-72"),
-      "--st-sdas-bg": cssVar("--st-color-surface-control-strong"),
-      "--st-sdas-bg-hover": cssVar("--st-color-bg-card"),
-      "--st-sdas-toast-border": cssVar("--st-color-steam-blue-alpha-45"),
-      "--st-sdas-toast-bg": cssVar("--st-color-surface-control-strong"),
-      "--st-sdas-shadow": cssVar("--st-shadow-control"),
-      "--st-sdas-toast-shadow": cssVar("--st-shadow-panel"),
-      "--st-sdas-warning": cssVar("--st-color-warning"),
-      "--st-sdas-danger": cssVar("--st-color-danger"),
-      "--st-sdas-gap": spacing.sm,
-      "--st-sdas-toggle-pad-x": `calc(${spacing.sm} + ${spacing.xxs})`,
-      "--st-sdas-toast-pad-y": `calc(${spacing.sm} + ${spacing.xxs})`,
-      "--st-sdas-toast-pad-x": spacing.md,
-      "--st-sdas-font-size": typography.bodySmall?.fontSize,
-      "--st-sdas-line-height": typography.body?.lineHeight,
-    };
-  }
 
   function now() {
     return Date.now();
@@ -151,108 +118,7 @@
   }
 
   function css() {
-    if (document.getElementById(STYLE)) {
-      return;
-    }
-    styles?.applyStyles?.(document.documentElement, styleVars());
-    styles?.ensureStyle?.(STYLE, `
-      #${ROOT} {
-        position: fixed;
-        top: 99px;
-        right: 57px;
-        z-index: 999999;
-        height: 28px;
-        display: flex;
-        align-items: center;
-        font-family: var(--st-sdas-font);
-        color: var(--st-sdas-text);
-        pointer-events: auto;
-      }
-      #${ROOT}[hidden] {
-        display: none !important;
-      }
-      #${ROOT} .sdas-toggle {
-        position: relative;
-        box-sizing: border-box;
-        display: inline-flex;
-        align-items: center;
-        gap: var(--st-sdas-gap);
-        height: 28px;
-        padding: 0 var(--st-sdas-toggle-pad-x);
-        border: 1px solid var(--st-sdas-border);
-        border-top: 0;
-        background: var(--st-sdas-bg);
-        box-shadow: var(--st-sdas-shadow);
-        cursor: pointer;
-        user-select: none;
-        white-space: nowrap;
-      }
-      #${ROOT} .sdas-toggle::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 1px;
-        background: var(--st-sdas-border);
-      }
-      #${ROOT} .sdas-toggle:hover {
-        border-color: var(--st-sdas-border-hover);
-        background: var(--st-sdas-bg-hover);
-      }
-      #${ROOT} .sdas-toggle:hover::before {
-        background: var(--st-sdas-border-hover);
-      }
-      #${ROOT} .sdas-toggle input {
-        width: 14px;
-        height: 14px;
-        margin: 0;
-        accent-color: var(--st-sdas-primary);
-      }
-      #${ROOT} .sdas-label {
-        font-size: var(--st-sdas-font-size);
-        line-height: 1;
-      }
-      #${TOAST} {
-        position: fixed;
-        top: 132px;
-        right: 54px;
-        z-index: 1000000;
-        max-width: 360px;
-        padding: var(--st-sdas-toast-pad-y) var(--st-sdas-toast-pad-x);
-        border: 1px solid var(--st-sdas-toast-border);
-        background: var(--st-sdas-toast-bg);
-        color: var(--st-sdas-text);
-        box-shadow: var(--st-sdas-toast-shadow);
-        font-family: var(--st-sdas-font);
-        font-size: var(--st-sdas-font-size);
-        line-height: var(--st-sdas-line-height);
-        opacity: 0;
-        transform: translateY(-4px);
-        transition: opacity 160ms ease, transform 160ms ease;
-        pointer-events: none;
-      }
-      #${TOAST}.sdas-show {
-        opacity: 1;
-        transform: translateY(0);
-      }
-      #${TOAST}[data-kind="warn"] {
-        border-color: var(--st-sdas-warning);
-      }
-      #${TOAST}[data-kind="error"] {
-        border-color: var(--st-sdas-danger);
-      }
-      @media (max-width: 1250px) {
-        #${ROOT} {
-          top: 139px;
-          right: 27px;
-        }
-        #${TOAST} {
-          top: 172px;
-          right: 24px;
-        }
-      }
-    `);
+    styles?.ensureFeatureStyle?.(ID);
   }
 
   function toast(msg, kind = "info") {

@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const DOM_UTILS_VERSION = '2026-06-17-dom-safety';
+  const DOM_UTILS_VERSION = 'steam-buff-dom-utils-v1';
   const TAG_NAME_RE = /^[a-z][a-z0-9-]*$/i;
   const TRUSTED_HTML = Symbol('SteamBuffTrustedHTML');
 

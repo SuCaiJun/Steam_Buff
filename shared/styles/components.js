@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const COMPONENT_VERSION = '2026-06-16-p11-theme-tokens';
+  const COMPONENT_VERSION = 'steam-buff-components-v1';
 
   if (root.STComponents?.version === COMPONENT_VERSION) {
     return;
@@ -136,6 +136,276 @@
     return style;
   }
 
+  const STYLE_BLOCK_DEFAULTS = deepFreeze({
+    surfaceCard: {
+      prefix: '--st-surface-card',
+      margin: 'var(--st-spacing-sm) 0',
+      padding: 'var(--st-spacing-md)',
+      background: 'var(--st-color-surface-inset-hover)',
+      radius: 'var(--st-radius-sm)',
+    },
+    progress: {
+      prefix: '--st-progress',
+      height: 'var(--st-spacing-sm)',
+      background: 'var(--st-color-surface-subtle-hover)',
+      fillBackground: 'var(--st-color-steam-blue)',
+      radius: 'var(--st-radius-sm)',
+      marginTop: 'var(--st-spacing-xs)',
+    },
+    notice: {
+      prefix: '--st-notice',
+      margin: 'var(--st-spacing-sm) 0',
+      padding: 'var(--st-spacing-md)',
+      color: 'var(--st-color-text-secondary)',
+      background: 'var(--st-color-primary-surface)',
+      accent: 'var(--st-color-steam-blue)',
+      borderWidth: 'var(--st-spacing-xs)',
+      radius: 'var(--st-radius-sm)',
+      titleWeight: 'var(--st-font-weight-semibold)',
+      titleMargin: 'var(--st-spacing-xs)',
+    },
+    badge: {
+      prefix: '--st-badge',
+      display: 'inline-flex',
+      alignItems: 'center',
+      minHeight: '18px',
+      padding: '0 var(--st-spacing-sm)',
+      radius: 'var(--st-radius-sm)',
+      color: 'var(--st-color-white)',
+      background: 'var(--st-color-success)',
+      fontSize: 'var(--st-font-size-tiny)',
+      lineHeight: 'var(--st-line-height-tiny)',
+      fontWeight: 'var(--st-font-weight-semibold)',
+      shadow: 'var(--st-shadow-control-badge)',
+    },
+  });
+
+  function styleOptions(name, options = {}) {
+    const defaults = STYLE_BLOCK_DEFAULTS[name] || {};
+    return {
+      ...defaults,
+      ...options,
+      prefix: options.prefix || defaults.prefix,
+    };
+  }
+
+  function cssVar(prefix, name, fallback) {
+    return `var(${prefix}-${name}, ${fallback})`;
+  }
+
+  function selectorList(selectors) {
+    const list = Array.isArray(selectors) ? selectors : [selectors];
+    return list
+      .map((selector) => String(selector || '').trim())
+      .filter(Boolean)
+      .join(',\n');
+  }
+
+  function normalizeDeclaration(line) {
+    const text = String(line || '').trim();
+    if (!text) {
+      return '';
+    }
+    return text.endsWith(';') ? text : `${text};`;
+  }
+
+  function declarationsFromObject(declarations = {}) {
+    return Object.entries(declarations)
+      .map(([name, value]) => {
+        if (value === null || value === undefined || value === '') {
+          return '';
+        }
+        return `${name}: ${value}`;
+      })
+      .filter(Boolean);
+  }
+
+  function buildRule(selectors, declarations = []) {
+    const selector = selectorList(selectors);
+    const lines = (Array.isArray(declarations) ? declarations : declarationsFromObject(declarations))
+      .map(normalizeDeclaration)
+      .filter(Boolean);
+
+    if (!selector || !lines.length) {
+      return '';
+    }
+
+    return `${selector} {\n${lines.map((line) => `  ${line}`).join('\n')}\n}`;
+  }
+
+  function composeCss(...blocks) {
+    return blocks
+      .flat(Infinity)
+      .map((block) => String(block || '').trim())
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
+  function variableRule(selectors, variables = {}) {
+    return buildRule(selectors, variables);
+  }
+
+  function surfaceCardCss(selectors, options = {}) {
+    const settings = styleOptions('surfaceCard', options);
+    return buildRule(selectors, [
+      `margin: ${cssVar(settings.prefix, 'margin', settings.margin)}`,
+      `padding: ${cssVar(settings.prefix, 'padding', settings.padding)}`,
+      `background-color: ${cssVar(settings.prefix, 'bg', settings.background)}`,
+      `border-radius: ${cssVar(settings.prefix, 'radius', settings.radius)}`,
+    ]);
+  }
+
+  function progressCss(options = {}) {
+    const settings = styleOptions('progress', options);
+    return composeCss(
+      buildRule(options.trackSelectors || options.selectors, [
+        'width: 100%',
+        `height: ${cssVar(settings.prefix, 'height', settings.height)}`,
+        `background-color: ${cssVar(settings.prefix, 'bg', settings.background)}`,
+        `border-radius: ${cssVar(settings.prefix, 'radius', settings.radius)}`,
+        'overflow: hidden',
+        `margin-top: ${cssVar(settings.prefix, 'margin-top', settings.marginTop)}`,
+      ]),
+      buildRule(options.fillSelectors, [
+        'height: 100%',
+        `background-color: ${cssVar(settings.prefix, 'fill-bg', settings.fillBackground)}`,
+        `border-radius: ${cssVar(settings.prefix, 'radius', settings.radius)}`,
+      ])
+    );
+  }
+
+  function noticeCss(options = {}) {
+    const settings = styleOptions('notice', options);
+    return composeCss(
+      buildRule(options.rootSelectors || options.selectors, [
+        `margin: ${cssVar(settings.prefix, 'margin', settings.margin)}`,
+        `padding: ${cssVar(settings.prefix, 'padding', settings.padding)}`,
+        `color: ${cssVar(settings.prefix, 'text', settings.color)}`,
+        `background-color: ${cssVar(settings.prefix, 'bg', settings.background)}`,
+        `border-left: ${cssVar(settings.prefix, 'border-width', settings.borderWidth)} solid ${cssVar(settings.prefix, 'accent', settings.accent)}`,
+        `border-radius: ${cssVar(settings.prefix, 'radius', settings.radius)}`,
+      ]),
+      buildRule(options.titleSelectors, [
+        `font-weight: ${settings.titleWeight}`,
+        `color: ${cssVar(settings.prefix, 'title-color', cssVar(settings.prefix, 'accent', settings.accent))}`,
+        `margin-bottom: ${cssVar(settings.prefix, 'title-margin', settings.titleMargin)}`,
+      ])
+    );
+  }
+
+  function badgeCss(selectors, options = {}) {
+    const settings = styleOptions('badge', options);
+    const declarations = [
+      `display: ${settings.display}`,
+    ];
+
+    if (settings.alignItems !== null) {
+      declarations.push(`align-items: ${settings.alignItems}`);
+    }
+    if (settings.minHeight !== null) {
+      declarations.push(`min-height: ${cssVar(settings.prefix, 'min-height', settings.minHeight)}`);
+    }
+
+    declarations.push(
+      `padding: ${cssVar(settings.prefix, 'padding', settings.padding)}`,
+      `border-radius: ${cssVar(settings.prefix, 'radius', settings.radius)}`,
+      `color: ${cssVar(settings.prefix, 'color', settings.color)}`,
+      `background: ${cssVar(settings.prefix, 'bg', settings.background)}`,
+      `font-size: ${cssVar(settings.prefix, 'font-size', settings.fontSize)}`,
+      `line-height: ${cssVar(settings.prefix, 'line-height', settings.lineHeight)}`,
+      `font-weight: ${settings.fontWeight}`,
+      `box-shadow: ${cssVar(settings.prefix, 'shadow', settings.shadow)}`,
+      'white-space: nowrap'
+    );
+
+    return buildRule(selectors, declarations);
+  }
+
+  function surfaceCardTemplate(options = {}) {
+    const settings = styleOptions('surfaceCard', options);
+    return {
+      margin: cssVar(settings.prefix, 'margin', settings.margin),
+      padding: cssVar(settings.prefix, 'padding', settings.padding),
+      backgroundColor: cssVar(settings.prefix, 'bg', settings.background),
+      borderRadius: cssVar(settings.prefix, 'radius', settings.radius),
+    };
+  }
+
+  function progressTrackTemplate(options = {}) {
+    const settings = styleOptions('progress', options);
+    return {
+      width: '100%',
+      height: cssVar(settings.prefix, 'height', settings.height),
+      backgroundColor: cssVar(settings.prefix, 'bg', settings.background),
+      borderRadius: cssVar(settings.prefix, 'radius', settings.radius),
+      overflow: 'hidden',
+      marginTop: cssVar(settings.prefix, 'margin-top', settings.marginTop),
+    };
+  }
+
+  function progressFillTemplate(options = {}) {
+    const settings = styleOptions('progress', options);
+    return {
+      height: '100%',
+      backgroundColor: cssVar(settings.prefix, 'fill-bg', settings.fillBackground),
+      borderRadius: cssVar(settings.prefix, 'radius', settings.radius),
+    };
+  }
+
+  function noticeTemplate(options = {}) {
+    const settings = styleOptions('notice', options);
+    return {
+      margin: cssVar(settings.prefix, 'margin', settings.margin),
+      padding: cssVar(settings.prefix, 'padding', settings.padding),
+      color: cssVar(settings.prefix, 'text', settings.color),
+      backgroundColor: cssVar(settings.prefix, 'bg', settings.background),
+      borderLeft: `${cssVar(settings.prefix, 'border-width', settings.borderWidth)} solid ${cssVar(settings.prefix, 'accent', settings.accent)}`,
+      borderRadius: cssVar(settings.prefix, 'radius', settings.radius),
+    };
+  }
+
+  function noticeTitleTemplate(options = {}) {
+    const settings = styleOptions('notice', options);
+    return {
+      marginBottom: cssVar(settings.prefix, 'title-margin', settings.titleMargin),
+      color: cssVar(settings.prefix, 'title-color', cssVar(settings.prefix, 'accent', settings.accent)),
+      fontWeight: settings.titleWeight,
+    };
+  }
+
+  function badgeTemplate(options = {}) {
+    const settings = styleOptions('badge', options);
+    const template = {
+      display: settings.display,
+      padding: cssVar(settings.prefix, 'padding', settings.padding),
+      borderRadius: cssVar(settings.prefix, 'radius', settings.radius),
+      color: cssVar(settings.prefix, 'color', settings.color),
+      background: cssVar(settings.prefix, 'bg', settings.background),
+      fontSize: cssVar(settings.prefix, 'font-size', settings.fontSize),
+      lineHeight: cssVar(settings.prefix, 'line-height', settings.lineHeight),
+      fontWeight: settings.fontWeight,
+      boxShadow: cssVar(settings.prefix, 'shadow', settings.shadow),
+      whiteSpace: 'nowrap',
+    };
+    if (settings.alignItems !== null) {
+      template.alignItems = settings.alignItems;
+    }
+    if (settings.minHeight !== null) {
+      template.minHeight = cssVar(settings.prefix, 'min-height', settings.minHeight);
+    }
+    return template;
+  }
+
+  const css = deepFreeze({
+    compose: composeCss,
+    rule: buildRule,
+    variables: variableRule,
+    surfaceCard: surfaceCardCss,
+    progress: progressCss,
+    notice: noticeCss,
+    badge: badgeCss,
+  });
+
   const templates = deepFreeze({
     moduleContainer: {
       margin: `${spacing.sm} 0`,
@@ -173,6 +443,12 @@
       flexDirection: 'column',
       gap: spacing.sm,
     },
+    surfaceCard: surfaceCardTemplate(),
+    notice: noticeTemplate(),
+    noticeTitle: noticeTitleTemplate(),
+    statusBadge: badgeTemplate(),
+    progressTrack: progressTrackTemplate(),
+    progressFill: progressFillTemplate(),
     primaryButton: {
       minHeight: '32px',
       border: 'none',
@@ -211,17 +487,14 @@
       transition: `border-color ${transitions.normal}, background ${transitions.normal}`,
     },
     badge: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      minHeight: '20px',
+      ...badgeTemplate({
+        minHeight: '20px',
+        color: colors.steamBlue,
+        background: colors.bgDrawer,
+        fontWeight: typography.tiny?.fontWeight,
+        shadow: 'none',
+      }),
       border: `1px solid ${colors.borderNormal}`,
-      borderRadius: radius.sm,
-      padding: `0 ${spacing.sm}`,
-      color: colors.steamBlue,
-      background: colors.bgDrawer,
-      fontSize: typography.tiny?.fontSize,
-      lineHeight: typography.tiny?.lineHeight,
-      fontWeight: typography.tiny?.fontWeight,
     },
     loadingText: {
       color: colors.steamBlue,
@@ -273,6 +546,7 @@
     appendContent,
     createStyledElement,
     ensureStyle,
+    css,
     templates,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

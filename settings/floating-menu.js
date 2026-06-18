@@ -65,7 +65,7 @@
     loadStrategy: "runtime-on-open",
     meta: {
       entry: "settings/floating-menu.js",
-      migration: "P5 由普通网页轻入口在用户打开设置时按需加载完整面板。",
+      migration: "普通网页轻入口在用户打开设置时按需加载完整面板。",
     },
   });
   runtime?.registerFeature?.({

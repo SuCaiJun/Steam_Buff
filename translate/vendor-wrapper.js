@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2026-06-18-p19-vendor-wrapper";
+  const VERSION = "steam-buff-translate-vendor-wrapper-v1";
   const MARK = "STTranslateVendor";
   const MODE_MANUAL = "manual";
   const MODE_SELECTION = "selection";

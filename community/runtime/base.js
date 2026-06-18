@@ -140,7 +140,7 @@
     meta: {
       page,
       entry: "community/runtime/base.js",
-      migration: "P21 已声明库存/市场/交易 feature 元数据；后续可继续拆分为独立动态 entry。",
+      migration: "已声明库存/市场/交易 feature 元数据；后续可继续拆分为独立动态 entry。",
     },
   });
   registerCommunityFeatures();

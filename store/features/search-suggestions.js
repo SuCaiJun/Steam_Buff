@@ -27,7 +27,6 @@
   const STEAM_SHARED_CDN = root.STConfig.vendors?.steamSharedCdn;
   const DEBOUNCE_MS = 250;
   const CACHE_MS = 45 * 1000;
-  const STYLE_ID = "st-search-suggestions-style";
   const HOST_CLASS = "st-search-suggestions";
   const INPUT_SEL = [
     "#store_nav_search_term",
@@ -541,90 +540,7 @@
   }
 
   function addStyle() {
-    if (document.getElementById(STYLE_ID)) {
-      return;
-    }
-    api.styles?.ensureStyle?.(STYLE_ID, `
-      .${HOST_CLASS} {
-        margin-top: 1px;
-        border-top: 1px solid var(--st-color-border-primary);
-        background: transparent;
-        box-sizing: border-box;
-        width: 100%;
-      }
-      .${HOST_CLASS}.page-mode {
-        margin: 8px 0 12px;
-        max-width: 640px;
-        border: 1px solid var(--st-color-border-primary);
-        background: var(--st-color-surface-control-strong);
-      }
-      .st-search-suggestion-head {
-        padding: 4px 12px 2px;
-        color: var(--st-color-text-muted);
-        font-size: 11px;
-        line-height: 14px;
-      }
-      .${HOST_CLASS} .st-search-suggestion-list {
-        display: block;
-        width: 100%;
-      }
-      .${HOST_CLASS} .st-search-suggestion-item {
-        box-sizing: border-box;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-        padding: 4px 12px;
-        color: var(--st-color-text-secondary);
-        text-decoration: none;
-        min-width: 0;
-      }
-      .${HOST_CLASS} .st-search-suggestion-item:hover,
-      .${HOST_CLASS} .st-search-suggestion-item:focus {
-        background: var(--st-color-surface-control-hover);
-        color: var(--st-color-white);
-        text-decoration: none;
-        outline: none;
-      }
-      .st-search-suggestion-img {
-        flex-shrink: 0;
-        width: 120px;
-        height: 45px;
-        object-fit: cover;
-        background: var(--st-color-bg-body);
-      }
-      .st-search-suggestion-img-empty {
-        display: inline-block;
-      }
-      .st-search-suggestion-body {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 1px;
-      }
-      .st-search-suggestion-title {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: 14px;
-        line-height: 18px;
-        color: inherit;
-      }
-      .st-search-suggestion-sub {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: 12px;
-        line-height: 15px;
-        color: var(--st-color-text-muted);
-      }
-      .st-search-suggestion-item:hover .st-search-suggestion-sub,
-      .st-search-suggestion-item:focus .st-search-suggestion-sub {
-        color: var(--st-color-badge-blue-text);
-      }
-    `);
+    api.styles?.ensureFeatureStyle?.("search-suggestions");
   }
 
   function observerTarget(input) {

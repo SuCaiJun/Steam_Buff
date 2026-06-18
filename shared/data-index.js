@@ -23,7 +23,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function() {
   "use strict";
 
-  const VERSION = "2026-06-16-p9-large-data";
+  const VERSION = "steam-buff-data-index-v1";
   const DEFAULT_CHUNK = 1000;
   const EMPTY_DIFF = Object.freeze({
     added: Object.freeze([]),

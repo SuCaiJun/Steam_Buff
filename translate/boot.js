@@ -54,7 +54,7 @@
     loadStrategy: "background-on-demand-inject",
     meta: {
       entry: "translate/boot.js",
-      migration: "P21 轻 boot 只计算 mode，vendor/runner 由后台按需注入并登记 lifecycle。",
+      migration: "轻 boot 只计算 mode，vendor/runner 由后台按需注入并登记 lifecycle。",
     },
   });
   runtime?.registerFeature?.({
