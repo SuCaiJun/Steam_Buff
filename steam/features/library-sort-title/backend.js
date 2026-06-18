@@ -20,12 +20,11 @@
   const C_FLAG = "__RickyStSetCustomSortAsPatched";
   const O_FLAG = "__RickyStOverviewChangePatched";
   const SYNC_MS = 5 * 60 * 1000;
-  // Steam 启动初期 app overview 会分批到达，先短轮询一段时间再降到低频同步。
+  // Steam 启动初期 app overview 会分批到达，hook 未齐前短轮询，齐全后只做低频健康检查。
   const BOOT_MS = 1000;
-  const WARM_MS = 2000;
-  const WARM_TTL = 45000;
-  const WARM_BUMP_MS = 1000;
+  const HOOK_READY_WARN_MS = 45000;
   const SCHEDULE_DEBOUNCE_MS = 1000;
+  const BULK_UI_REFRESH_MAX = 50;
   // 只隐藏开头连续 [标签]，保留写入 Steam 的完整排序名，避免搜索/排序关键词丢失。
   const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
   // 末尾或夹在名称里的 [#...] 助记符只用于排序/搜索，库列表显示时隐藏。
@@ -155,7 +154,7 @@
     return null;
   }
 
-  function commit(store, repls) {
+  function commit(store, repls, opt = {}) {
     if (!store?.m_mapApps || !repls?.length) {
       return 0;
     }
@@ -169,8 +168,15 @@
         store.m_mapApps.set(repl.appid, repl);
         done.push(repl);
       }
-      if (done.length) {
+      const canNotify = opt.notify !== false && done.length <= BULK_UI_REFRESH_MAX;
+      if (done.length && canNotify) {
         window.collectionStore?.OnAppOverviewChange?.(done, []);
+      } else if (done.length) {
+        log.info("library-sort-title-refresh-skipped", "库排序标题跳过大批量库列表刷新", {
+          reason: String(opt.reason || ""),
+          changed: done.length,
+          limit: BULK_UI_REFRESH_MAX,
+        });
       }
     } catch {
     }
@@ -179,7 +185,7 @@
 
   function refresh(store, app) {
     const repl = build(store, app);
-    return repl ? commit(store, [repl]) : 0;
+    return repl ? commit(store, [repl], { reason: "single" }) : 0;
   }
 
   // 库自定义名称批量保存会连续调用 SetCustomSortAs；这里先收集变化，结束后统一刷新库 UI。
@@ -221,7 +227,7 @@
     return { enabled: !!rt?.bulk?.active, count: list.length, recorded };
   }
 
-  function flushBulkMap(store, items) {
+  function flushBulkMap(store, items, opt = {}) {
     const repls = [];
     for (const [appid, sortAs] of items || []) {
       const app = typeof store?.GetAppOverviewByAppID === "function" ? store.GetAppOverviewByAppID(appid) : null;
@@ -234,16 +240,17 @@
         repls.push(repl);
       }
     }
-    return commit(store, repls);
+    return commit(store, repls, opt);
   }
 
   function flushBulkState(state, reason) {
     const entries = Array.from(state?.map || []);
-    const changed = flushBulkMap(window.appStore, entries);
+    const changed = flushBulkMap(window.appStore, entries, { reason: `bulk:${reason}` });
     log.info("library-sort-title-bulk-flush", "库排序标题批量刷新完成", {
       reason,
       queued: entries.length,
       changed,
+      refreshSkipped: changed > BULK_UI_REFRESH_MAX,
       durationMs: Date.now() - (state?.startedAt || Date.now()),
     });
     return { queued: entries.length, changed };
@@ -290,7 +297,7 @@
         }
       }
     }
-    return commit(window.appStore, repls);
+    return commit(window.appStore, repls, { reason: "sync-all" });
   }
 
   function applyList(apps) {
@@ -404,13 +411,8 @@
           }
           return undefined;
         }
-        const changed = apps.length ? applyList(apps) : 0;
-        if (changed && rt) {
-          rt.warmUntil = Date.now() + WARM_BUMP_MS;
-        }
-
+        applyList(apps);
         const ret = orig.apply(this, args);
-        rt?.schedule?.();
         return ret;
       };
     });
@@ -466,15 +468,25 @@
     const reason = String(data.reason || "done");
     const result = flushBulkState(state, reason);
     const delayed = Array.from(state.map || []);
-    window.setTimeout(() => {
-      const changed = flushBulkMap(window.appStore, delayed);
-      log.info("library-sort-title-bulk-flush", "库排序标题批量延迟复查完成", {
-        reason: "delayed",
+    // 🚀 性能优化：大批量 AppOverviewChange 会让 Steam 库列表同步重排，批量保存只写数据，不主动接管整库刷新。
+    if (delayed.length <= BULK_UI_REFRESH_MAX) {
+      window.setTimeout(() => {
+        const changed = flushBulkMap(window.appStore, delayed, { reason: "bulk:delayed" });
+        log.info("library-sort-title-bulk-flush", "库排序标题批量延迟复查完成", {
+          reason: "delayed",
+          queued: delayed.length,
+          changed,
+          durationMs: Date.now() - (state.startedAt || Date.now()),
+        });
+      }, AFTER_SAVE_RECHECK_MS);
+    } else {
+      log.info("library-sort-title-bulk-delayed-skip", "库排序标题跳过大批量延迟刷新", {
+        reason,
         queued: delayed.length,
-        changed,
+        limit: BULK_UI_REFRESH_MAX,
         durationMs: Date.now() - (state.startedAt || Date.now()),
       });
-    }, AFTER_SAVE_RECHECK_MS);
+    }
     return { enabled: true, reason, ...result };
   }
 
@@ -522,11 +534,17 @@
       if (!rt.changeOk) {
         rt.changeOk = hookChange(window.collectionStore);
       }
-      const changed = applyAll(apps);
-      if (changed) {
-        rt.warmUntil = Date.now() + WARM_BUMP_MS;
+      const hooksReady = rt.sortOk && rt.customOk && rt.changeOk;
+      let changed = 0;
+      if (!rt.bootApplied || (hooksReady && !rt.syncedOnce)) {
+        // 🚀 性能优化：全库 display_name 修正只做启动兜底和 hook 就绪后的最终修正；日常变更走局部事件。
+        changed = applyAll(apps);
+        rt.bootApplied = true;
+        if (hooksReady) {
+          rt.syncedOnce = true;
+        }
       }
-      if (!rt.loggedSuccess && rt.sortOk && rt.customOk && rt.changeOk) {
+      if (!rt.loggedSuccess && hooksReady) {
         rt.loggedSuccess = true;
         log.info("library-sort-title-sync-success", "库排序标题同步已就绪", {
           appCount: apps.length,
@@ -535,7 +553,7 @@
           customOk: rt.customOk,
           changeOk: rt.changeOk,
         });
-      } else if (!rt.loggedFailed && (!rt.sortOk || !rt.customOk || !rt.changeOk) && Date.now() - rt.startedAt > WARM_TTL) {
+      } else if (!rt.loggedFailed && !hooksReady && Date.now() - rt.startedAt > HOOK_READY_WARN_MS) {
         rt.loggedFailed = true;
         log.warn("library-sort-title-sync-failed", "库排序标题同步 hook 未完全就绪", {
           appCount: apps.length,
@@ -546,10 +564,7 @@
         });
       }
 
-      const warm = Date.now() < rt.warmUntil;
-      const nextMs = rt.sortOk && rt.customOk
-        ? (warm ? WARM_MS : SYNC_MS)
-        : BOOT_MS;
+      const nextMs = (hooksReady && rt.syncedOnce) || rt.loggedFailed ? SYNC_MS : BOOT_MS;
       setMs(rt, nextMs);
     };
 
@@ -595,7 +610,8 @@
       sortOk: false,
       customOk: false,
       changeOk: false,
-      warmUntil: Date.now() + WARM_TTL,
+      bootApplied: false,
+      syncedOnce: false,
       startedAt: Date.now(),
       loggedStart: false,
       loggedSuccess: false,
@@ -626,7 +642,7 @@
       },
     };
     window[RT] = rt;
-    // 库排序标题巡检迁移到统一调度器，保留启动短轮询、温热期和稳定期的原动态间隔。
+    // 库排序标题巡检迁移到统一调度器；稳定后只做低频 hook 健康检查，避免日常全库重扫。
     window.STScheduler.register(SCHEDULER_TASK, run, null, { intervalMs: SYNC_MS });
     scope?.schedulerTask?.("backend-sync", SCHEDULER_TASK);
 

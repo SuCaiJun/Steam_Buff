@@ -1522,15 +1522,7 @@
   }
 
   function customPageHint(inputs = []) {
-    if (inputs.some(input => SORT_LABEL_RE.test(nearText(input)))) {
-      return true;
-    }
-    const body = String(document.body?.textContent || "").replace(/\s+/g, " ").slice(0, 12000);
-    if (SORT_LABEL_RE.test(body)) {
-      return true;
-    }
-    return /自定义|Custom|自訂|自定義|カスタム|사용자/i.test(body) &&
-      /宽幅封面图片|徽标|標誌|背景|Logo|Wide capsule|カプセル|캡슐/i.test(body);
+    return inputs.some(input => SORT_LABEL_RE.test(nearText(input)));
   }
 
   function setNative(input, value) {
@@ -3237,7 +3229,7 @@
     css();
     const inputs = textInputs();
     const input = sortInput(inputs);
-    const active = !!input || customPageHint(inputs);
+    const active = !!input;
     if (!active) {
       clearBars(null);
       return;
@@ -4421,9 +4413,6 @@
   }
 
   function shouldRunScheduledTick() {
-    if (window.STPageContext?.isPage?.("steam-library")) {
-      return true;
-    }
     return window.SteamBuff?.ctx?.hasCustomSortUi?.() === true;
   }
 
@@ -4432,7 +4421,7 @@
       log.warn("library-custom-name-scheduler-missing", "库自定义名称统一调度器不可用");
       return;
     }
-    // 迁移到统一调度器：保留立即 tick，后续巡检只在库页或真实自定义排序名称弹窗运行。
+    // 迁移到统一调度器：后续巡检只在真实自定义排序名称弹窗运行，避免普通库页常驻 DOM 扫描。
     window.STScheduler.register(SCHEDULER_TASK, () => tick(), shouldRunScheduledTick);
     s.scope?.schedulerTask?.("ui-mount", SCHEDULER_TASK);
   }

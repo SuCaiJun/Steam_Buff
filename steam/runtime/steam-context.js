@@ -80,12 +80,7 @@
     if (inputs.some(input => /排序|sort/i.test(input.placeholder || input.getAttribute("aria-label") || ""))) {
       return true;
     }
-    const body = String(document.body?.textContent || "").replace(/\s+/g, " ").slice(0, 12000);
-    if (SORT_LABEL_RE.test(body)) {
-      return true;
-    }
-    return /自定义|Custom|自訂|自定義|カスタム|사용자/i.test(body) &&
-      /宽幅封面图片|徽标|標誌|背景|Logo|Wide capsule|カプセル|캡슐/i.test(body);
+    return false;
   }
 
   /* 非主窗口收窄：只让真实库属性弹窗进入 ui 上下文，避免菜单/好友列表常驻扫描。 */
