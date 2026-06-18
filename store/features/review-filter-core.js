@@ -25,8 +25,6 @@
   const DEFAULTS = Object.freeze({
     enabled: true,
     rules: Object.freeze([]),
-    keywords: "",
-    patterns: "",
     maxPlaytimeHours: 0,
     maxReviewPlaytimeHours: 0,
     hideHiddenProfile: false,
@@ -35,12 +33,6 @@
   });
   const PLAYTIME_MARK_RE = /小时游戏时间记录|小时\s*发布于|总时数\s*[\d,.]+\s*小时|[\d,.]+\s*小时\s*总时数|\b(?:hrs?|hours?)\s+on\s+record\b/i;
   const POSTED_MARK_RE = /发布于|\bPosted\b:?/i;
-
-  function splitLines(value, comma) {
-    const text = String(value || "").replace(/\r\n?/g, "\n");
-    const parts = comma ? text.split(/[\n,，]+/) : text.split("\n");
-    return parts.map(item => item.trim()).filter(Boolean);
-  }
 
   function compactText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -115,21 +107,8 @@
     };
   }
 
-  function legacyRules(src) {
-    const out = [];
-    splitLines(src.keywords, true).forEach((value) => {
-      out.push({ type: "keyword", value, enabled: true });
-    });
-    splitLines(src.patterns, false).forEach((value) => {
-      out.push({ type: "regex", value, enabled: true });
-    });
-    return out;
-  }
-
   function normalizeRules(src) {
-    const base = Array.isArray(src.rules) && src.rules.length
-      ? src.rules
-      : legacyRules(src);
+    const base = Array.isArray(src.rules) ? src.rules : [];
     return base
       .map(normalizeRule)
       .filter(Boolean)
@@ -158,9 +137,7 @@
     return {
       enabled: src.enabled !== false,
       rules,
-      keywords: keywordRules.map(rule => rule.value),
       keywordText: keywordRules.map(rule => normText(rule.value)),
-      patterns: regexRules.map(rule => rule.value),
       regexps: regexRules.map(rule => compilePattern(rule.value)).filter(Boolean),
       nicknameText: nicknameRules.map(rule => normText(rule.value)),
       maxPlaytimeHours,

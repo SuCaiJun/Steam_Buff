@@ -65,37 +65,9 @@
     }).filter(Boolean);
   }
 
-  function migrateReviewFilter(conf = {}) {
+  function normalizeReviewFilter(conf = {}) {
     const current = normalizeReviewRules(conf);
-    if (current.length) {
-      return { ...conf, rules: current };
-    }
-
-    const rules = [];
-    String(conf.keywords || "").replace(/\r\n?/g, "\n").split(/[\n,，]+/)
-      .map(item => item.trim())
-      .filter(Boolean)
-      .forEach((value) => {
-        rules.push({
-          id: reviewRuleId("keyword", value),
-          type: "keyword",
-          value,
-          enabled: true,
-        });
-      });
-    String(conf.patterns || "").replace(/\r\n?/g, "\n").split("\n")
-      .map(item => item.trim())
-      .filter(Boolean)
-      .forEach((value) => {
-        rules.push({
-          id: reviewRuleId("regex", value),
-          type: "regex",
-          value,
-          enabled: true,
-        });
-      });
-
-    return { ...conf, rules };
+    return { ...conf, rules: current };
   }
 
   function validateReviewRule(type, value) {
@@ -182,12 +154,12 @@
       : () => options.catalog?.reviewFilterFields?.() || globalThis.STSettings?.catalog?.reviewFilterFields?.() || [];
     const storage = options.storage || globalThis.STSettings?.storage || {};
     const onConfigChange = typeof options.onConfigChange === "function" ? options.onConfigChange : () => {};
-    let conf = migrateReviewFilter(options.config || {});
+    let conf = normalizeReviewFilter(options.config || {});
     let hiddenReviews = [];
     let activeRuleType = "all";
 
     function setConfig(next) {
-      conf = migrateReviewFilter(next || {});
+      conf = normalizeReviewFilter(next || {});
       onConfigChange(conf);
       return conf;
     }
@@ -528,8 +500,6 @@
       const map = new Map(fields.map((field) => [field.key, field]));
       const next = {
         rules: normalizeReviewRules(conf),
-        keywords: "",
-        patterns: "",
       };
       shadow.querySelectorAll("[data-review-filter]").forEach((input) => {
         const id = input.dataset.reviewFilter;
@@ -818,7 +788,7 @@
   const api = Object.freeze({
     REVIEW_RULE_INLINE_LIMIT,
     create,
-    migrateReviewFilter,
+    normalizeReviewFilter,
     normalizeReviewRules,
     persistReviewRules,
     reviewCountBadge,

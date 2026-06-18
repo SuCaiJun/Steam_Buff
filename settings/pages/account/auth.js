@@ -37,10 +37,6 @@
     return value?.refresh_token || value?.access_token || "";
   }
 
-  function legacyAuth(value) {
-    return !!(value && typeof value === "object" && (value.user || value.center || value.user_center));
-  }
-
   function nextAuth(body, old = {}) {
     return cleanAuth({
       access_token: body?.access_token || old.access_token || "",
@@ -136,9 +132,6 @@
     async function load(ctx) {
       const raw = await ctx.storage?.getAuth?.() || null;
       rt.auth = cleanAuth(raw);
-      if (raw && rt.auth && legacyAuth(raw)) {
-        await ctx.storage?.setAuth?.(rt.auth);
-      }
       rt.center = rt.auth ? center?.cachedCenter?.(rt.auth) || null : null;
       if (!rt.auth) {
         center?.clearCenterCache?.();
@@ -191,7 +184,7 @@
     });
   }
 
-  const api = Object.freeze({ cleanAuth, expired, authKey, legacyAuth, nextAuth, create });
+  const api = Object.freeze({ cleanAuth, expired, authKey, nextAuth, create });
   root.STSettingsAccountAuth = api;
 
   if (typeof module === "object" && module.exports) {

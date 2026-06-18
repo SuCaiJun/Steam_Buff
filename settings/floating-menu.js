@@ -260,7 +260,7 @@
     configs = {
       see: await api.storage?.getSee?.() || api.catalog?.seeDefaults?.() || {},
       translate: await api.storage?.getTranslate?.() || api.catalog?.translateDefaults?.() || {},
-      reviewFilter: globalThis.STSettingsReviewFilterPanel?.migrateReviewFilter?.(
+      reviewFilter: globalThis.STSettingsReviewFilterPanel?.normalizeReviewFilter?.(
         await api.storage?.getReviewFilter?.() || api.catalog?.reviewFilterDefaults?.() || {}
       ) || {},
       searchSuggestion: await api.storage?.getSearchSuggestions?.() || api.catalog?.searchSuggestionDefaults?.() || {},

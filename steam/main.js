@@ -141,18 +141,6 @@
     state.fOn = false;
   }
 
-  function cleanupLegacyDom() {
-    [
-      "__RickyLibraryCustomNameBar",
-      "__RickyLibraryCustomNameOne",
-      "__RickyLibraryCustomNameModal",
-      "__RickyLibraryCustomNameProgress",
-      "__Rickydownload-auto-shutdown-root",
-      "__Rickydownload-auto-shutdown-toast",
-      "__RickyNexusModsButton",
-    ].forEach((id) => document.getElementById(id)?.remove());
-  }
-
   function stopPreviousRuntime() {
     runtime?.disposeByOwnerPrefix?.("steam:");
     clearTimer(api.runtime?.timer);
@@ -164,7 +152,6 @@
         window.__SteamBuffNewsTranslate?.stop?.();
       } catch {
       }
-      cleanupLegacyDom();
     }
     api.runtime.started = false;
     api.runtime.status = "restarting";

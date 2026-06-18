@@ -1305,8 +1305,6 @@
       },
       reviewFilter: {
         ruleCount: Array.isArray(reviewFilter?.rules) ? reviewFilter.rules.length : 0,
-        hasKeywords: !!String(reviewFilter?.keywords || "").trim(),
-        hasPatterns: !!String(reviewFilter?.patterns || "").trim(),
       },
       searchSuggestions: compactConfig(searchSuggestions, ["limit", "nativeMode"]),
       see: compactConfig(see, Object.keys(see || {}).slice(0, 20)),

@@ -101,8 +101,6 @@
       fastBatchSuccess: q?.fast?.success || 0,
       fastBatchBlocked: q?.fast?.blocked || 0,
       fastBatchBootstrap: q?.fast?.bootstrap || 0,
-      fastBatchFallback: q?.fast?.fallback || 0,
-      fastBatchFallbackPrompting: q?.fast?.fallbackPrompting === true,
       writeAvgMs: avg,
       writeMaxMs: Math.round(q?.writeMsMax || 0),
       sortTitleBulk: q?.sortTitleBulk?.enabled === true,
@@ -853,8 +851,19 @@
     return Array.isArray(items) && items.length > 0 && items.every(item => item?.mode === "clear");
   }
 
-  function clearFastUnavailableResults(items, result) {
-    const error = result?.error || "清空自定义排序名称需要 Steam CloudStorage 快速写入支持";
+  function fastUnavailableMessage(result, clear = false) {
+    if (result?.error) {
+      return result.error;
+    }
+    if (clear) {
+      return "清空自定义排序名称需要 Steam CloudStorage 快速写入支持";
+    }
+    const reason = result?.reason ? `（${result.reason}）` : "";
+    return `Steam CloudStorage 快速写入不可用${reason}，保存队列已安全中止`;
+  }
+
+  function fastUnavailableResults(items, result) {
+    const error = fastUnavailableMessage(result, clearBatch(items));
     return (Array.isArray(items) ? items : []).map(item => resultItem(item, "failed", error));
   }
 
@@ -1089,95 +1098,37 @@
     q.batchWritten += 1;
   }
 
-  /* 快路径降级兜底：内部结构不可用时保留 SetCustomSortAs，避免整批 0 写入。 */
-  async function processOne(rt, q, item) {
-    let result;
-    const writeStarted = now();
-    try {
-      result = await writeOne(item);
-      recordWriteMs(q, now() - writeStarted);
-      result = resultItem(item, result.status, result.error || "");
-    } catch (error) {
-      recordWriteMs(q, now() - writeStarted);
-      result = resultItem(item, "failed", error?.message || String(error));
+  function stopFastUnavailable(rt, q, result, items, started) {
+    const results = fastUnavailableResults(items, result);
+    const clear = clearBatch(items);
+    const error = fastUnavailableMessage(result, clear);
+    q.fast.blocked += 1;
+    q.fast.reason = result?.reason || "unknown";
+    q.fast.error = result?.error || "";
+    q.error = error;
+    recordBatchWriteMs(q, now() - started);
+    for (const item of results) {
+      applyResult(q, item);
     }
-
-    applyResult(q, result);
-    logProgress(q);
-    post(rt.ch, {
-      type: "save-progress",
-      ...stat(q, {
-        item: result,
-      }),
-    });
-  }
-
-  function disableFastForFallback(q) {
-    if (q.fast.reason === "shortcut-or-app-unavailable") {
-      q.fast.disabledBatch = q.batchIndex;
-    } else {
-      q.fast.disabledAll = true;
-    }
-  }
-
-  /* 旧版写入极慢，只有 UI 明确确认后才退回 SetCustomSortAs，避免用户误触后长时间卡队列。 */
-  async function waitFastFallbackConfirm(rt, q, result, items) {
-    q.fast.fallback += 1;
-    q.fast.reason = result.reason || "unknown";
-    q.fast.error = result.error || "";
-    if (q.fast.lastReason !== q.fast.reason) {
-      q.fast.lastReason = q.fast.reason;
-      log.warn("library-custom-name-save-queue-fast-fallback", "库自定义名称快速写入不可用，等待确认是否使用 Steam 原生单条写入", {
-        ...statsMeta(q),
-        reason: q.fast.reason,
-        error: q.fast.error,
-        count: items.length,
-      });
-    }
-    if (q.fast.fallbackAccepted) {
-      return true;
-    }
-
-    q.fast.fallbackPrompting = true;
-    q.fast.fallbackDecision = "";
-    q.fast.fallbackPromptSeq = (q.fast.fallbackPromptSeq || 0) + 1;
-    post(rt.ch, {
-      type: "save-progress",
-      ...stat(q, {
-        batchAction: "fallback-prompt",
-        fallbackPrompt: true,
-        fallbackPromptSeq: q.fast.fallbackPromptSeq,
-        fallbackReason: q.fast.reason,
-        fallbackError: q.fast.error,
-      }),
-    });
-
-    while (q.fast.fallbackPrompting && !q.cancelled) {
-      await sleep(200);
-    }
-    if (q.cancelled || q.fast.fallbackDecision !== "confirm") {
-      q.cancelled = true;
-      log.info("library-custom-name-save-queue-fast-fallback-declined", "用户已取消库自定义名称旧版慢速写入回退", {
-        ...statsMeta(q),
-        reason: q.fast.reason,
-        error: q.fast.error,
-      });
-      return false;
-    }
-
-    q.fast.fallbackAccepted = true;
-    log.warn("library-custom-name-save-queue-fast-fallback-confirmed", "用户已确认库自定义名称旧版慢速写入回退", {
+    q.index += items.length;
+    log.warn("library-custom-name-save-queue-fast-unavailable", clear ? "库自定义名称清空需要 CloudStorage 快速写入，保存队列已安全中止" : "库自定义名称快速写入不可用，保存队列已安全中止", {
       ...statsMeta(q),
+      count: items.length,
       reason: q.fast.reason,
       error: q.fast.error,
     });
-    return true;
+    post(rt.ch, {
+      type: "save-progress",
+      ...stat(q, {
+        batchAction: "fast-unavailable",
+        items: results,
+        error,
+      }),
+    });
+    return "fast-unavailable";
   }
 
   async function processFastBatch(rt, q) {
-    if (q.fast.disabledAll || q.fast.disabledBatch === q.batchIndex) {
-      return false;
-    }
     const items = q.items.slice(q.index, Math.min(q.items.length, q.index + BATCH_MAX));
     if (!items.length) {
       return false;
@@ -1185,37 +1136,7 @@
     const started = now();
     const result = await writeFastBatch(items);
     if (!result.ok) {
-      if (clearBatch(items)) {
-        const results = clearFastUnavailableResults(items, result);
-        q.fast.blocked += 1;
-        q.fast.reason = result.reason || "fast-unavailable";
-        q.fast.error = result.error || "";
-        recordBatchWriteMs(q, now() - started);
-        for (const item of results) {
-          applyResult(q, item);
-        }
-        q.index += items.length;
-        log.warn("library-custom-name-save-queue-fast-unavailable", "库自定义名称清空需要 CloudStorage 快速写入，已拒绝旧版逐条清空", {
-          ...statsMeta(q),
-          count: items.length,
-          reason: q.fast.reason,
-          error: q.fast.error,
-        });
-        post(rt.ch, {
-          type: "save-progress",
-          ...stat(q, {
-            batchAction: "fast-unavailable",
-            items: results,
-          }),
-        });
-        return true;
-      }
-      const accepted = await waitFastFallbackConfirm(rt, q, result, items);
-      if (!accepted) {
-        return "cancelled";
-      }
-      disableFastForFallback(q);
-      return false;
+      return stopFastUnavailable(rt, q, result, items, started);
     }
 
     const results = Array.isArray(result.results) ? result.results : [];
@@ -1274,14 +1195,14 @@
       }
 
       const fast = await processFastBatch(rt, q);
-      if (fast === "cancelled") {
-        doneReason = "cancelled";
+      if (fast === "fast-unavailable") {
+        doneReason = "fast-unavailable";
         break;
       }
       if (!fast) {
-        const item = q.items[q.index] || {};
-        await processOne(rt, q, item);
-        q.index += 1;
+        doneReason = "fast-unavailable";
+        q.error = "Steam CloudStorage 快速写入未返回结果，保存队列已安全中止";
+        break;
       }
 
       if (q.cancelled) {
@@ -1304,7 +1225,7 @@
       q.cancelled = false;
     }
     logByLevel(q.stats.failed > 0 ? "warn" : "info", q.stats.failed > 0 ? "library-custom-name-save-queue-failed" : "library-custom-name-save-queue-success", q.stats.failed > 0 ? "库自定义名称保存队列完成但存在失败项" : "库自定义名称保存队列完成", statsMeta(q));
-    post(rt.ch, { type: "save-done", ...rememberDone(rt, q) });
+    post(rt.ch, { type: "save-done", ...rememberDone(rt, q, q.error ? { error: q.error } : {}) });
     if (rt.q === q && rt.queueSeq === q.seq) {
       rt.q = null;
     }
@@ -1332,6 +1253,7 @@
       cancelled: false,
       running: true,
       startedAt: now(),
+      error: "",
       writeMsTotal: 0,
       writeMsMax: 0,
       progressLogged: 0,
@@ -1342,17 +1264,9 @@
       fast: {
         enabled: false,
         reason: "",
-        lastReason: "",
-        disabledAll: false,
-        disabledBatch: 0,
         success: 0,
         blocked: 0,
         bootstrap: 0,
-        fallback: 0,
-        fallbackAccepted: false,
-        fallbackPrompting: false,
-        fallbackDecision: "",
-        fallbackPromptSeq: 0,
         error: "",
       },
       sortTitleBulk: { enabled: false, reason: "not-started" },
@@ -1389,7 +1303,7 @@
     });
   }
 
-  // UI 的暂停/继续/取消和旧版回退确认通过 BroadcastChannel 到后台队列，执行结果再回传进度弹窗。
+  // UI 的暂停、继续和取消通过 BroadcastChannel 到后台队列，执行结果再回传进度弹窗。
   function command(rt, rid, action) {
     const q = rt.q;
     if (!q?.running) {
@@ -1404,19 +1318,6 @@
       rt.queueSeq += 1;
       q.cancelled = true;
       q.paused = false;
-      if (q.fast) {
-        q.fast.fallbackPrompting = false;
-        q.fast.fallbackDecision = "cancel";
-      }
-    } else if (action === "fallback-confirm") {
-      q.fast.fallbackDecision = "confirm";
-      q.fast.fallbackPrompting = false;
-    } else if (action === "fallback-cancel") {
-      rt.queueSeq += 1;
-      q.cancelled = true;
-      q.paused = false;
-      q.fast.fallbackDecision = "cancel";
-      q.fast.fallbackPrompting = false;
     }
     post(rt.ch, { type: "cmd-result", rid, ok: true, action, stats: { ...q.stats } });
     post(rt.ch, { type: "save-progress", ...stat(q, { action }) });
@@ -1482,7 +1383,7 @@
           saveOne(rt, rid, { appid: data.appid, name: data.name });
           return;
         }
-        if (data.type === "pause" || data.type === "resume" || data.type === "cancel" || data.type === "fallback-confirm" || data.type === "fallback-cancel") {
+        if (data.type === "pause" || data.type === "resume" || data.type === "cancel") {
           command(rt, rid, data.type);
         }
       },

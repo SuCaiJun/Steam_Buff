@@ -359,8 +359,6 @@
 
   const REVIEW_FILTER_KEYS = Object.freeze({
     rules: "rules",
-    keywords: "keywords",
-    patterns: "patterns",
     maxPlaytimeHours: "maxPlaytimeHours",
     maxReviewPlaytimeHours: "maxReviewPlaytimeHours",
     hideHiddenProfile: "hideHiddenProfile",
@@ -370,8 +368,6 @@
 
   const REVIEW_FILTER_DEFAULTS = Object.freeze({
     [REVIEW_FILTER_KEYS.rules]: Object.freeze([]),
-    [REVIEW_FILTER_KEYS.keywords]: "",
-    [REVIEW_FILTER_KEYS.patterns]: "",
     [REVIEW_FILTER_KEYS.maxPlaytimeHours]: 0,
     [REVIEW_FILTER_KEYS.maxReviewPlaytimeHours]: 0,
     [REVIEW_FILTER_KEYS.hideHiddenProfile]: false,

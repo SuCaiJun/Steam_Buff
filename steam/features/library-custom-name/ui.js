@@ -41,8 +41,6 @@
   const STEAM_CUSTOM_LIMIT_TIP = "该限制为 Steam 设置自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功！";
   const CLOUD_TIP_TEXT = "将本次手动修改的自定义排序名称同步到素材君云端（Steam Buff 云端），帮助更多玩家获得更准确的名称建议。";
   const CLOUD_CANCEL_TEXT = "素材君云端共享可以帮助更多玩家获得更准确的自定义名称建议。本次保存将只写入本地 Steam 库，不再同步到素材君云端，确认关闭吗？";
-  const FAST_FALLBACK_TEXT = "快速写入操作写入失败，是否使用旧版写入方法？";
-  const FAST_FALLBACK_NOTE = "注：该方法写入速度极慢，建议优先在素材君社区反馈该问题，修复后再用该功能。";
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
   const SORT_LABEL_RE = /自定义排序名称|自訂排序名稱|自定義排序名稱|Custom Sort|カスタムソート|カスタム並び替え|사용자 지정 정렬|사용자 정의 정렬/i;
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
@@ -97,8 +95,6 @@
     paused: false,
     cancelled: false,
     waitCmd: "",
-    fallbackPrompting: false,
-    fallbackPromptSeq: 0,
     steamBatch: null,
     saveAction: "save",
     saveRid: "",
@@ -3681,7 +3677,6 @@
     batch.saving = false;
     batch.paused = false;
     batch.waitCmd = "";
-    batch.fallbackPrompting = false;
     batch.message = "保存队列已取消";
     cancelCloudUploads("save-cancel");
     closeProgress();
@@ -4001,8 +3996,6 @@
     batch.saveStatusMisses = 0;
     batch.paused = false;
     batch.waitCmd = "";
-    batch.fallbackPrompting = false;
-    batch.fallbackPromptSeq = 0;
     batch.steamBatch = null;
     batch.summary = false;
     batch.cancelled = false;
@@ -4137,7 +4130,6 @@
       batch.saving = false;
       batch.paused = false;
       batch.waitCmd = "";
-      batch.fallbackPrompting = false;
       batch.message = "保存队列已取消";
       cancelCloudUploads("command-cancel");
       if (!hadSaving) {
@@ -4162,64 +4154,6 @@
     }
   }
 
-  async function answerFastFallback(data) {
-    if (!data.fallbackPrompt || batch.fallbackPrompting) {
-      return;
-    }
-    const promptSeq = Number(data.fallbackPromptSeq) || 0;
-    if (promptSeq && batch.fallbackPromptSeq === promptSeq) {
-      return;
-    }
-    batch.fallbackPrompting = true;
-    batch.fallbackPromptSeq = promptSeq;
-    batch.message = "快速写入失败，等待选择旧版写入方法";
-    renderProgressSoon(true);
-
-    let ok = false;
-    try {
-      ok = await oneConfirm(FAST_FALLBACK_TEXT, {
-        title: "快速写入失败",
-        cancel: "否",
-        confirm: "是",
-        note: FAST_FALLBACK_NOTE,
-        dangerNote: true,
-      });
-    } catch {
-      ok = false;
-    }
-
-    if (ok) {
-      logCommandStart("fallback-confirm");
-      batch.message = "正在切换旧版写入方法";
-      renderProgressSoon(true);
-      try {
-        await backend("fallback-confirm");
-      } catch (error) {
-        batch.message = error?.message || String(error);
-        renderProgressSoon(true);
-      } finally {
-        batch.fallbackPrompting = false;
-      }
-      return;
-    }
-
-    logCommandStart("fallback-cancel");
-    clearSaveWatch();
-    batch.cancelled = true;
-    batch.saving = false;
-    batch.paused = false;
-    batch.waitCmd = "";
-    batch.fallbackPrompting = false;
-    batch.message = "保存队列已取消";
-    cancelCloudUploads("fast-fallback-declined");
-    closeProgress();
-    renderModal();
-    try {
-      await backend("fallback-cancel");
-    } catch {
-    }
-  }
-
   function applyProgress(data) {
     if (batch.cancelled) {
       return;
@@ -4232,6 +4166,9 @@
     }
     if (data.batch) {
       batch.steamBatch = data.batch;
+    }
+    if (data.batchAction === "fast-unavailable") {
+      cancelCloudUploads("fast-unavailable");
     }
     if (data.action === "pause" || data.action === "resume" || data.type === "save-done") {
       batch.waitCmd = "";
@@ -4257,8 +4194,8 @@
         ? (clear ? "清空队列已暂停" : "保存队列已暂停")
         : data.action === "resume"
           ? (clear ? "清空队列继续执行" : "保存队列继续执行")
-          : data.fallbackPrompt
-            ? "快速写入失败，等待选择旧版写入方法"
+          : data.batchAction === "fast-unavailable"
+            ? (data.error || "Steam CloudStorage 快速写入不可用，保存队列已安全中止")
             : data.batchAction === "wait" || b.waiting
               ? `第 ${b.index || 1} 批${clear ? "清空" : "写入"}完成，等待 Steam 云同步 ${Math.ceil((Number(b.waitMs) || 0) / 1000)} 秒`
               : b.index
@@ -4301,7 +4238,6 @@
     if (!done) {
       scheduleSaveWatch();
     }
-    answerFastFallback(data).catch(() => {});
   }
 
   function onModalClick(event) {
