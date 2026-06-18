@@ -684,7 +684,7 @@
       <label>
         <span class="st-title-custom-name-field">${esc(field.label)}</span>
         <span class="st-title-custom-name-control">
-          <input type="text" ${field.readonly ? "disabled" : ""} ${field.placeholder ? `placeholder="${attr(field.placeholder)}"` : ""} ${common}>
+          <input type="text" value="${attr(field.value)}" ${field.readonly ? "disabled" : ""} ${field.placeholder ? `placeholder="${attr(field.placeholder)}"` : ""} ${common}>
           ${field.desc ? `<span class="st-title-custom-name-desc">${esc(field.desc)}</span>` : ""}
         </span>
       </label>

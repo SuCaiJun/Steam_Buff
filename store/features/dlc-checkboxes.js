@@ -20,6 +20,7 @@
   const dlcBridge = api.features.dlcBridge;
   const scan = api.features.dlcScan;
   const log = window.STLoggerFactory.createLogger("store", "dlc-checkboxes");
+  const SAME_ORIGIN_FETCH_TIMEOUT_MS = 12 * 1000;
 
 function addDLCCheckboxes() {
     const dlcSection = document.querySelector(".game_area_dlc_section");
@@ -403,7 +404,7 @@ async function refreshDLCSection() {
     const url = new URL(location.href);
     url.searchParams.set('st_dlcts', Date.now().toString());
 
-    const response = await fetch(url.toString(), {
+    const response = await fetchSameOriginHtml(url, {
         credentials: 'include',
         cache: 'no-store'
     });
@@ -422,6 +423,30 @@ async function refreshDLCSection() {
     await dlcBridge.decorateDLC();
     addDLCCheckboxes();
     return true;
+}
+
+async function fetchSameOriginHtml(input, init = {}) {
+    const url = new URL(input, location.href);
+    if (url.origin !== location.origin) {
+        throw new Error("DLC同源请求被拒绝");
+    }
+
+    const options = { ...init };
+    let timer = null;
+    if (typeof AbortController === "function") {
+        const controller = new AbortController();
+        timer = setTimeout(() => controller.abort(), SAME_ORIGIN_FETCH_TIMEOUT_MS);
+        options.signal = controller.signal;
+    }
+
+    try {
+        // ⚠️ 例外：DLC 状态和免费领取参数只在 Steam 同源 HTML 中可见，无法安全走后台跨域代理。
+        return await fetch(url.toString(), options);
+    } finally {
+        if (timer) {
+            clearTimeout(timer);
+        }
+    }
 }
 
 function selectUnownedDLC(dlcSection) {
@@ -462,7 +487,7 @@ function deselectAllDLC(dlcSection) {
 
 async function fetchSubidFromDLCPage(dlcUrl) {
     try {
-        const response = await fetch(dlcUrl, {
+        const response = await fetchSameOriginHtml(dlcUrl, {
             credentials: "include"
         });
         const html = await response.text();
@@ -743,12 +768,9 @@ function addCartButton(dlcSection) {
         }
     }
 
-    const cartButton = document.getElementById("es_add_to_cart_btn");
-    if (cartButton) {
-        cartButton.addEventListener("click", () => {
-            addSelectedDLCToCart(dlcSection);
-        });
-    }
+    link.addEventListener("click", () => {
+        addSelectedDLCToCart(dlcSection);
+    });
 
     dlcSection.addEventListener("change", (e) => {
         if (e.target.type === "checkbox" && e.target.closest(".es_dlc_label")) {

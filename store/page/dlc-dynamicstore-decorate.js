@@ -13,6 +13,7 @@
     const eventName = script?.dataset.event || 'STStoreDLCDecorateDone';
     const id = script?.dataset.id || '';
     const userdataBase = script?.dataset.userdataBase || '';
+    const FETCH_TIMEOUT_MS = 12 * 1000;
 
     function done(ok) {
         window.dispatchEvent(new CustomEvent(eventName, {
@@ -48,6 +49,21 @@
         }
     }
 
+    async function fetchWithTimeout(url, init) {
+        if (typeof AbortController !== 'function') {
+            return fetch(url, init);
+        }
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        try {
+            // ⚠️ 例外：该脚本运行在 Steam 主世界，必须复用页面 GDynamicStore 会话状态。
+            return await fetch(url, { ...init, signal: controller.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
     async function refreshUserData() {
         const account = window.g_AccountID || 0;
         if (!account || !window.GDynamicStore) return;
@@ -60,7 +76,7 @@
             url += `&v=${encodeURIComponent(String(version))}`;
         }
 
-        const response = await fetch(url, {
+        const response = await fetchWithTimeout(url, {
             credentials: 'include',
             cache: 'no-store'
         });

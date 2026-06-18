@@ -158,14 +158,16 @@
     });
   }
 
+  function onPageShow() {
+    schedRecover("pageshow");
+  }
+
   function setupRecover() {
     if (window.__stStoreRecoverSetup) return;
     window.__stStoreRecoverSetup = true;
 
     // pageshow、内部 URL 变化和 DOM 变动都可能代表购买区被 Steam 重新渲染，需要延迟补扫一次。
-    window.addEventListener("pageshow", () => {
-      schedRecover("pageshow");
-    });
+    window.addEventListener("pageshow", onPageShow);
     api.urlWatch?.watch?.();
 
     if (document.documentElement) {
@@ -177,8 +179,20 @@
     schedRecover("setup");
   }
 
+  function stopRecover() {
+    clearTimeout(recoverTimer);
+    recoverTimer = null;
+    restoreHandler = null;
+    window.removeEventListener("pageshow", onPageShow);
+    window.__stStoreRecoverObs?.disconnect?.();
+    window.__stStoreRecoverObs = null;
+    window.__stStoreRecoverSetup = false;
+    return true;
+  }
+
   api.purchaseRecover = Object.freeze({
     setup: setupRecover,
+    stop: stopRecover,
     schedule: schedRecover,
     need: needRecover,
     setRestore,

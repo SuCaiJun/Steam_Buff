@@ -12,6 +12,7 @@
 
 (function() {
     const EVENT_NAME = 'STStoreFreeDLCClaim';
+    const REQUEST_TIMEOUT_MS = 12 * 1000;
     const currentScript = document.currentScript;
 
     // 免费 DLC 领取必须在页面主上下文读取 g_sessionID 并复用 Steam 会话。
@@ -90,8 +91,23 @@
         };
     }
 
+    async function fetchWithTimeout(url, init) {
+        if (typeof AbortController !== 'function') {
+            return fetch(url, init);
+        }
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        try {
+            // ⚠️ 例外：免费 DLC 领取必须在页面主上下文携带 Steam sessionid。
+            return await fetch(url, { ...init, signal: controller.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
     async function postForm(url, params) {
-        const response = await fetch(url, {
+        const response = await fetchWithTimeout(url, {
             method: 'POST',
             credentials: 'include',
             headers: {

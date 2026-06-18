@@ -34,6 +34,7 @@
   let scanTimer = null;
   let layoutTimer = null;
   let layoutScriptInjected = false;
+  let started = false;
   const hiddenReviews = new Map();
 
   /* 评测文本识别 */
@@ -483,6 +484,10 @@
   }
 
   async function start() {
+    if (started) {
+      schedule();
+      return true;
+    }
     if (!api.settings?.on?.("review-filter")) {
       return false;
     }
@@ -494,11 +499,41 @@
     addStyle();
     setupObserver();
     schedule();
+    started = true;
     return true;
+  }
+
+  function restoreCards() {
+    document.querySelectorAll("[data-st-review-filter], [data-st-review-filter-hidden], [data-st-review-filter-id]").forEach(card => {
+      delete card.dataset.stReviewFilter;
+      delete card.dataset.stReviewFilterId;
+      delete card.dataset.stReviewFilterHidden;
+      delete card.dataset.stReviewFilterReason;
+    });
+  }
+
+  function stop() {
+    const wasActive = started || !!observer || !!scanTimer || !!layoutTimer;
+    started = false;
+    config = null;
+    clearTimeout(scanTimer);
+    clearTimeout(layoutTimer);
+    scanTimer = null;
+    layoutTimer = null;
+    observer?.disconnect?.();
+    observer = null;
+    window.removeEventListener("pageshow", schedule);
+    document.removeEventListener("scroll", schedule);
+    hiddenReviews.clear();
+    restoreCards();
+    api.styles?.removeStyle?.(STYLE_ID);
+    updatePanel();
+    return wasActive;
   }
 
   api.features.reviewFilter = Object.freeze({
     start,
+    stop,
     scan,
     hidden: () => Array.from(hiddenReviews.values()),
   });

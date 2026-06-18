@@ -23,6 +23,15 @@
     existing.stop();
   }
 
+  let schedulerLogger = null;
+  function logScheduler(level, event, message, meta = {}) {
+    try {
+      schedulerLogger = schedulerLogger || window.STLoggerFactory?.createLogger?.("shared", "scheduler");
+      schedulerLogger?.[level]?.(event, message, meta);
+    } catch {
+    }
+  }
+
   class Scheduler {
     constructor() {
       this.version = SCHEDULER_VERSION;
@@ -35,7 +44,7 @@
 
     register(name, callback, condition = null, options = {}) {
       if (!name || typeof callback !== 'function') {
-        console.error('[Steam Buff][Scheduler] Invalid task:', name);
+        logScheduler("error", "task-invalid", "调度任务配置无效", { name });
         return;
       }
 
@@ -128,7 +137,10 @@
               continue;
             }
           } catch (err) {
-            console.error(`[Steam Buff][Scheduler] Condition check failed for ${name}:`, err);
+            logScheduler("error", "condition-failed", "调度任务条件检查失败", {
+              name,
+              error: err?.message || String(err),
+            });
             task.nextRunAt = now + task.intervalMs;
             continue;
           }
@@ -143,12 +155,19 @@
         } catch (err) {
           task.errorCount++;
           task.nextRunAt = now + task.intervalMs;
-          console.error(`[Steam Buff][Scheduler] Task ${name} failed (${task.errorCount} times):`, err);
+          logScheduler("error", "task-failed", "调度任务执行失败", {
+            name,
+            errorCount: task.errorCount,
+            error: err?.message || String(err),
+          });
 
           // 连续失败 3 次，自动暂停
           if (task.errorCount >= 3) {
             task.status = 'paused';
-            console.warn(`[Steam Buff][Scheduler] Task ${name} paused due to repeated failures`);
+            logScheduler("warn", "task-paused", "调度任务连续失败后已暂停", {
+              name,
+              errorCount: task.errorCount,
+            });
           }
         }
       }

@@ -84,14 +84,12 @@
     aiReady = !!globalThis.STAI?.ready;
   } catch (error) {
     aiLoadError = error?.message || String(error);
-    console.error("[Steam Buff] AI 配置加载失败", error);
     logError("background", "ai-config-load-failed", "AI 配置加载失败", error);
   }
 
   try {
     importScripts(chrome.runtime.getURL(AI_CACHE));
   } catch (error) {
-    console.error("[Steam Buff] AI 缓存加载失败", error);
     logError("background", "ai-cache-load-failed", "AI 缓存加载失败", error);
   }
 
@@ -153,12 +151,10 @@
   function bindGlobalLoggers() {
     globalThis.addEventListener("error", (event) => {
       const error = event?.error || event?.message || "未知后台异常";
-      console.error("[Steam Buff] 后台未捕获异常", error);
       logError("background", "background-unhandled-error", "后台未捕获异常", error, globalErrorMeta());
     });
     globalThis.addEventListener("unhandledrejection", (event) => {
       const reason = event?.reason || "未知 Promise 拒绝";
-      console.error("[Steam Buff] 后台未处理 Promise 拒绝", reason);
       logError("background", "background-unhandled-rejection", "后台未处理 Promise 拒绝", reason, globalErrorMeta());
     });
   }
@@ -188,7 +184,6 @@
       () => {
         const err = chrome.runtime.lastError;
         if (err) {
-          console.error("[Steam Buff] 后台注入内容脚本失败", err.message || err);
           logError("injection", "content-script-inject-failed", "后台注入内容脚本失败", err.message || err, { tabId });
         }
       },
@@ -241,7 +236,6 @@
         }
       }
     } catch (error) {
-      console.error("[Steam Buff] 后台读取标签页失败", error?.message || error);
       logError("injection", "tabs-query-failed", "后台读取标签页失败", error, globalErrorMeta());
     }
   }
@@ -399,7 +393,6 @@
       const data = await response.text();
       if (!response.ok && !request.allowHttpError) {
         const msg = httpError(response.status, data);
-        console.error("[Steam Buff] 后台代理请求失败", msg);
         logNetwork({
           feature: "store-fetch",
           event: "http-failed",
@@ -427,7 +420,6 @@
       sendResponse({ success: true, data, status: response.status, ok: response.ok });
     } catch (error) {
       const msg = error.message || String(error);
-      console.error("[Steam Buff] 后台代理请求失败", msg);
       logNetwork({
         feature: "store-fetch",
         event: "request-thrown",
@@ -509,7 +501,6 @@
       })
       .catch((error) => {
         const msg = error.message || String(error);
-        console.error("[Steam Buff] AI 请求失败", msg);
         logError("ai", "request-failed", "AI 请求失败", error);
         sendResponse({ success: false, error: msg });
       });
@@ -684,7 +675,6 @@
       sendResponse({ success: true });
     } catch (error) {
       const msg = error.message || String(error);
-      console.error("[Steam Buff] 翻译注入失败", msg);
       logError("translate", "inject-failed", "翻译注入失败", error);
       sendResponse({ success: false, error: msg });
     }

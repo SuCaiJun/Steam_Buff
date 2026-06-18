@@ -91,6 +91,39 @@
     return api.features.purchaseHistoryClassifier?.start?.(...args);
   }
 
+  function stopFeature(feature, label) {
+    try {
+      return !!feature?.stop?.();
+    } catch (error) {
+      log?.error?.("feature-stop-failed", "商店页子功能停止失败", {
+        featureId: label,
+        error: error?.message || String(error),
+      });
+      return false;
+    }
+  }
+
+  function stopStartedFeatures() {
+    const stopped = [
+      stopFeature(api.features.subscriptionInfo, "subscription-info"),
+      stopFeature(api.features.steamPyDeals, "steampy-deals"),
+      stopFeature(api.features.wishlistPriceHistory, "wishlist-price-history"),
+      stopFeature(api.features.cartSelect, "cart-select"),
+      stopFeature(api.features.reviewFilter, "review-filter"),
+      stopFeature(api.features.searchSuggestions, "search-suggestions"),
+      stopFeature(api.features.titleCustomName, "store-title-custom-name"),
+      stopFeature(api.features.gameNotes, "game-notes"),
+      stopFeature(api.features.purchaseHistoryClassifier, "purchase-history-classifier"),
+      stopFeature(api.purchaseRecover, "purchase-recover"),
+    ].filter(Boolean).length;
+    api.purchaseRecover?.setRestore?.(null);
+    log?.info?.("feature-stop-summary", "商店页聚合入口已停止子功能", {
+      stopped,
+      path: location.pathname,
+    });
+    return stopped;
+  }
+
   /**
    * 获取当前商店页面实体信息。
    * @returns {{type: string, appId: string}|null} 当前页面实体信息。
@@ -420,7 +453,10 @@ api.reg.add({
         waitForDOMReady(() => {
             init().catch(handleInitError);
         });
-        return { started: true };
-    }
+        return { started: true, stop: stopStartedFeatures };
+    },
+    stop() {
+        return stopStartedFeatures();
+    },
 });
 })();
