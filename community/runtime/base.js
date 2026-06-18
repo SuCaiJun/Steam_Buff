@@ -15,6 +15,41 @@
   const PAGE_LISTING = 1;
   const PAGE_TRADE = 2;
   const PAGE_INV = 3;
+  const COMMUNITY_FEATURES = Object.freeze([
+    Object.freeze({
+      id: "inventory",
+      name: "社区库存增强",
+      settingsKey: "market-tools",
+      loadStrategy: "content-script-domain-inject",
+      modes: ["inventory"],
+      pageScope: ["community-inventory"],
+      dependencies: ["community/features/inventory/view.js"],
+      cost: "large-data",
+      entry: "community/features/inventory/view.js",
+    }),
+    Object.freeze({
+      id: "market",
+      name: "社区市场增强",
+      settingsKey: "market-tools",
+      loadStrategy: "content-script-domain-inject",
+      modes: ["market", "listing"],
+      pageScope: ["community-market", "community-listing"],
+      dependencies: ["community/features/market/view.js", "community/runtime/request-queue.js"],
+      cost: "network",
+      entry: "community/features/market/view.js",
+    }),
+    Object.freeze({
+      id: "trade",
+      name: "社区交易报价增强",
+      settingsKey: "market-tools",
+      loadStrategy: "content-script-domain-inject",
+      modes: ["trade"],
+      pageScope: ["community-trade"],
+      dependencies: ["community/features/trade/view.js"],
+      cost: "dom-scan",
+      entry: "community/features/trade/view.js",
+    }),
+  ]);
   const snapshot = window.STPageContext?.snapshot?.() || {};
   const pageType = snapshot.pageType || "";
   const page = pageType === "listing"
@@ -62,6 +97,29 @@
     return "US";
   }
 
+  /**
+   * 将社区页的三个页面功能登记到统一 runtime，供诊断和生命周期矩阵读取。
+   * @returns {void}
+   */
+  function registerCommunityFeatures() {
+    COMMUNITY_FEATURES.forEach((feature) => {
+      runtime?.registerFeature?.({
+        domain: "community",
+        id: feature.id,
+        settingsKey: feature.settingsKey,
+        loadStrategy: feature.loadStrategy,
+        modes: feature.modes,
+        pageScope: feature.pageScope,
+        dependencies: feature.dependencies,
+        cost: feature.cost,
+        dispose: true,
+        meta: {
+          entry: feature.entry,
+        },
+      });
+    });
+  }
+
   api.baseReady = true;
   runtime?.registerAdapter?.({
     id: "community",
@@ -69,13 +127,13 @@
     publicApi: "window.STCommunity",
     registry: "community/main.js",
     loadStrategy: "content-script-domain-inject",
-    legacy: true,
     meta: {
       page,
       entry: "community/runtime/base.js",
-      migration: "P3 保留社区整域动态注入，后续批次拆分库存/市场/交易 feature entry。",
+      migration: "P21 已声明库存/市场/交易 feature 元数据；后续可继续拆分为独立动态 entry。",
     },
   });
+  registerCommunityFeatures();
   api.W = W;
   api.dataIndex = window.STDataIndex;
   api.batchQueue = window.STBatchQueue;
@@ -105,4 +163,5 @@
   api.country = pickCountry();
   api.onReady = onReady;
   api.waitFor = waitFor;
+  api.featureSpecs = COMMUNITY_FEATURES;
 })();

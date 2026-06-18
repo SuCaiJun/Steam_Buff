@@ -1,3 +1,13 @@
+/*
+ * @Author        : 顾青离
+ * @Url           : sucaijun.com
+ * @Email         : Ricky@LiHai.La
+ * @Project       : Steam Buff
+ * @Description   : Steam 客户端增强小工具
+ * @File          : 社区交易报价增强界面
+ * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+ * @Remind        : 二次开发请保留原版权信息，谢谢。
+ */
 (() => {
   "use strict";
 
@@ -9,6 +19,10 @@
 
   const log = window.STLoggerFactory.createLogger('community', 'trade-view');
 
+  /**
+   * 获取当前交易库存中可用于价格标签计算的物品。
+   * @returns {object[]} 当前交易库存物品列表。
+   */
   function tradeItems() {
     const arr = [];
     const inv = api.items.activeInv();
@@ -26,6 +40,10 @@
     return arr;
   }
 
+  /**
+   * 判断交易双方物品数据是否已被 Steam 原生页面加载完成。
+   * @returns {boolean} 数据加载完成返回 true。
+   */
   function allLoaded() {
     const st = api.W.g_rgCurrentTradeStatus;
     if (!st) return false;
@@ -124,6 +142,10 @@
     controls.appendChild(box);
   }
 
+  /**
+   * 初始化社区交易报价增强视图。
+   * @returns {void}
+   */
   function init() {
     api.dom.addSettingsLink(api.settingsUi.open);
     api.invPrices.initQueue();

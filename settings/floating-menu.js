@@ -13,6 +13,7 @@
 
   const api = globalThis.STSettings = globalThis.STSettings || {};
   const runtime = globalThis.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
+  const log = globalThis.STLoggerFactory?.createLogger?.("settings", "floating-menu");
   const MARK = "steamBuffSettingsUi";
   const ROOT_ID = "st-settings-root";
   const RAIL_MIN_TOP = 24;
@@ -40,6 +41,10 @@
   let panels = null;
   let shell = null;
 
+  /**
+   * 判断当前窗口是否允许挂载设置浮窗。
+   * @returns {boolean} 顶层窗口返回 true。
+   */
   function topFrame() {
     try {
       return window.top === window;
@@ -61,6 +66,20 @@
     meta: {
       entry: "settings/floating-menu.js",
       migration: "P5 由普通网页轻入口在用户打开设置时按需加载完整面板。",
+    },
+  });
+  runtime?.registerFeature?.({
+    domain: "settings",
+    id: "floating-menu",
+    settingsKey: "floating-menu",
+    loadStrategy: "runtime-on-open",
+    modes: ["panel"],
+    pageScope: ["settings-web"],
+    dependencies: ["settings/catalog.js", "settings/storage.js", "settings/menu/shell.js"],
+    cost: "startup-light",
+    dispose: true,
+    meta: {
+      entry: "settings/floating-menu.js",
     },
   });
 
@@ -281,6 +300,41 @@
     });
   }
 
+  /**
+   * 生成设置浮窗生命周期日志使用的基础元数据。
+   * @param {object} extra - 附加的非敏感上下文。
+   * @returns {object} 设置浮窗日志元数据。
+   */
+  function mountMeta(extra = {}) {
+    return {
+      path: location.pathname,
+      topFrame: topFrame(),
+      targetPage: targetPage(),
+      activeCat,
+      ...extra,
+    };
+  }
+
+  /**
+   * 记录设置浮窗挂载失败，并释放本轮挂载标记以便用户重试。
+   * @param {unknown} error - 捕获到的异常。
+   * @returns {void}
+   */
+  function handleMountError(error) {
+    if (document.documentElement?.dataset) {
+      delete document.documentElement.dataset[MARK];
+    }
+    runtime?.markError?.("settings-floating-menu-mount-failed", error, mountMeta());
+    log?.error?.("floating-menu-mount-failed", "设置中心挂载失败", {
+      ...mountMeta(),
+      error: error?.message || String(error),
+    });
+  }
+
+  /**
+   * 挂载设置浮窗 Shadow DOM、菜单壳层和事件控制器。
+   * @returns {Promise<void>} 挂载完成后 resolve。
+   */
   async function mount() {
     if (!topFrame() || !targetPage() || !document.body || document.documentElement.dataset[MARK] === "1") {
       return;
@@ -313,10 +367,31 @@
     api.startupAnimation?.install?.(shadow, { iconUrl: appIconUrl() });
 
     document.body.appendChild(host);
+    runtime?.registerResource?.({
+      owner: "settings:floating-menu:panel",
+      key: "shadow-root",
+      type: "feature-lifecycle",
+      dispose() {
+        host.remove();
+        if (document.documentElement?.dataset) {
+          delete document.documentElement.dataset[MARK];
+        }
+      },
+    });
 
     const btn = shadow.querySelector(".round");
     const panel = shadow.querySelector(".overlay");
     if (!btn || !panel) {
+      runtime?.markFeature?.({
+        domain: "settings",
+        id: "floating-menu",
+        status: "failed",
+        reason: "missing-shell-elements",
+        meta: mountMeta(),
+      });
+      log?.error?.("floating-menu-mount-failed", "设置中心挂载失败", {
+        ...mountMeta({ reason: "missing-shell-elements" }),
+      });
       return;
     }
 
@@ -351,10 +426,7 @@
       domain: "settings",
       id: "floating-menu",
       status: "started",
-      meta: {
-        activeCat,
-        path: location.pathname,
-      },
+      meta: mountMeta(),
     });
   }
 
@@ -364,7 +436,7 @@
 
   if (typeof document !== "undefined") {
     ready(() => {
-      mount().catch(() => {});
+      mount().catch(handleMountError);
     });
   }
 })();

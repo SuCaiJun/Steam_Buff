@@ -20,6 +20,10 @@
     styles?.applyStyles?.(element, { display: visible ? "" : "none" });
   }
 
+  /**
+   * 根据当前库存选择状态刷新批量操作按钮。
+   * @returns {void}
+   */
   function updateButtons() {
     const marketable = api.invActions.selectedItems((it) => it.marketable);
     const gemmable = api.invActions.selectedItems(api.items.canGoo);
@@ -58,6 +62,10 @@
   }
 
   // Steam 库存原生选择没有批量动作状态，这里监听点击并补齐 Shift/Ctrl 多选。
+  /**
+   * 绑定库存页 Shift/Ctrl 多选和原生 SelectItem hook。
+   * @returns {void}
+   */
   function bindSelection() {
     const box = api.dom.q("#inventories");
     if (!box || box.dataset.stSeeSelect === "1") return;
@@ -103,6 +111,11 @@
     }
   }
 
+  /**
+   * 渲染库存页批量操作区、价格标签和设置入口。
+   * @param {boolean} own - 当前库存是否属于登录用户。
+   * @returns {void}
+   */
   function render(own) {
     api.dom.q("#inventory_sell_buttons")?.remove();
     api.dom.q("#inventory_reload_button")?.remove();
@@ -192,6 +205,10 @@
     });
   }
 
+  /**
+   * 初始化社区库存增强视图。
+   * @returns {Promise<void>} 库存增强挂载完成后 resolve。
+   */
   async function init() {
     await api.waitFor("#inventory_applogo");
     api.dom.addSettingsLink(api.settingsUi.open);

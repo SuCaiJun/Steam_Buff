@@ -31,6 +31,20 @@
     },
   });
 
+  /**
+   * @typedef {Object} StoreFeatureDef
+   * @property {string} id - 功能 ID，必须与 settings/catalog.js 的设置 key 对齐。
+   * @property {string=} settingsKey - 设置 key，默认使用 id。
+   * @property {string=} loadStrategy - 加载策略，例如 runtime-page-chunk。
+   * @property {string[]=} modes - 功能运行模式。
+   * @property {string[]=} pageScope - 页面白名单。
+   * @property {string[]=} dependencies - 依赖脚本或共享能力。
+   * @property {string=} cost - 启动成本分类。
+   * @property {(api: object) => boolean=} shouldRun - 二次准入判断。
+   * @property {(api: object) => Promise<unknown>|unknown} start - 功能启动函数。
+   * @property {(api: object) => void=} stop - 功能清理函数。
+   */
+
   class FeatureRegistry {
     constructor() {
       this.state = {
@@ -39,6 +53,11 @@
       };
     }
 
+    /**
+     * 登记商店页功能并同步写入统一 runtime 元数据。
+     * @param {StoreFeatureDef} feature - 商店功能定义。
+     * @returns {void}
+     */
     add(feature) {
       if (!feature?.id || typeof feature.start !== "function") {
         throw new Error("无效的商店功能配置");
@@ -61,10 +80,20 @@
       });
     }
 
+    /**
+     * 将元数据字段归一化为字符串数组。
+     * @param {unknown} value - 原始字段值。
+     * @returns {string[]} 字符串数组。
+     */
     toList(value) {
       return Array.isArray(value) ? value : [];
     }
 
+    /**
+     * 通过页面上下文和设置快照判断功能是否允许启动。
+     * @param {StoreFeatureDef} feature - 商店功能定义。
+     * @returns {{allowed: boolean, reason?: string}} 准入结果。
+     */
     canRun(feature) {
       return window.STPageContext?.canRunFeature?.({
         domain: "store",
@@ -79,6 +108,10 @@
       }) || { allowed: true, reason: "" };
     }
 
+    /**
+     * 按登记顺序启动所有命中当前页面的商店功能。
+     * @returns {Promise<Array<{id: string, status: string, reason?: string, result?: unknown, error?: string}>>} 启动结果列表。
+     */
     async start() {
       if (this.state.started) return [];
       this.state.started = true;
@@ -136,12 +169,10 @@
             },
           });
           if (!captured) {
-            globalThis.STLogger?.error?.({
-              domain: "store",
-              feature: feature.id,
-              event: "feature-start-failed",
-              message: "商店页功能启动失败",
-              error,
+            log.error("feature-start-failed", "商店页功能启动失败", {
+              featureId: feature.id,
+              path: location.pathname,
+              error: error?.message || String(error),
             });
           }
           runtime?.markFeature?.({
@@ -158,6 +189,11 @@
       return results;
     }
 
+    /**
+     * 记录低噪音的功能启动摘要。
+     * @param {Array<{status: string}>} results - 启动结果列表。
+     * @returns {void}
+     */
     logSummary(results) {
       const list = Array.isArray(results) ? results : [];
       try {
@@ -168,7 +204,10 @@
           failed: list.filter(item => item.status === "failed").length,
           path: location.pathname,
         });
-      } catch {
+      } catch (error) {
+        runtime?.markError?.("store-features-summary-log-failed", error, {
+          count: list.length,
+        });
       }
     }
   }

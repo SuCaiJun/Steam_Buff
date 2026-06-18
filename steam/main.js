@@ -35,6 +35,11 @@
     return;
   }
 
+  /**
+   * 汇总 Steam feature registry 启动结果。
+   * @param {Array<{status: string}>} results - 功能入口启动结果。
+   * @returns {{total: number, started: number, skipped: number, failed: number}} 启动摘要。
+   */
   function summary(results) {
     const list = Array.isArray(results) ? results : [];
     return {
@@ -45,6 +50,10 @@
     };
   }
 
+  /**
+   * 生成 Steam runtime 当前上下文元数据。
+   * @returns {{route: string, contexts: string[], targets: string[]}} runtime 元数据。
+   */
   function runtimeMeta() {
     return {
       route: api.ctx?.route?.() || "",
@@ -53,6 +62,10 @@
     };
   }
 
+  /**
+   * 执行一次 Steam 功能注册器启动巡检。
+   * @returns {Promise<Array<object>>} 本轮功能启动结果。
+   */
   async function run() {
     const results = await reg.start();
     const noted = results.filter((result) => result.status !== "skipped");
@@ -169,6 +182,10 @@
     return BOOT_MS;
   }
 
+  /**
+   * 启动 Steam 客户端运行时并保持低频巡检。
+   * @returns {Promise<void>} 首轮巡检完成后 resolve。
+   */
   async function start() {
     if (!isSteamMainWindow()) {
       return;
@@ -194,7 +211,13 @@
     const later = (delay) => {
       runtime?.disposeOwner?.("steam:main-loop");
       api.runtime.timer = window.setTimeout(() => {
-        tick().catch(() => {});
+        tick().catch((error) => {
+          runtime?.markError?.("steam-runtime-tick-failed", error, runtimeMeta());
+          log.error("runtime-failed", "Steam 客户端运行时巡检失败", {
+            ...runtimeMeta(),
+            error: error?.message || String(error),
+          });
+        });
       }, delay);
       runtime?.timer?.("steam:main-loop", "runtime-poll", api.runtime.timer);
     };
@@ -236,5 +259,11 @@
     await tick();
   }
 
-  start().catch(() => {});
+  start().catch((error) => {
+    runtime?.markError?.("steam-runtime-failed", error, runtimeMeta());
+    log.error("runtime-failed", "Steam 客户端运行时启动失败", {
+      ...runtimeMeta(),
+      error: error?.message || String(error),
+    });
+  });
 })();

@@ -17,6 +17,7 @@
   const CC_OVERRIDE = api.config.CC_OVERRIDE;
   const TooltipManager = api.tooltip;
   const on = (id) => api.settings?.on?.(id);
+  const log = window.STLoggerFactory?.createLogger?.("store", "features");
 
   function addPriceHistoryTag(...args) {
     return api.features.priceHistory?.add?.(...args) || Promise.resolve();
@@ -90,12 +91,19 @@
     return api.features.purchaseHistoryClassifier?.start?.(...args);
   }
 
-// 商店详情、礼包、合集都共用购买区入口，页面类型决定后续启用哪些增强。
-function getCurrentStorePageInfo() {
+  /**
+   * 获取当前商店页面实体信息。
+   * @returns {{type: string, appId: string}|null} 当前页面实体信息。
+   */
+  function getCurrentStorePageInfo() {
     return api.ctx?.pageInfo?.() || null;
-}
+  }
 
-function initPriceQuery() {
+  /**
+   * 初始化详情页价格历史查询入口。
+   * @returns {void}
+   */
+  function initPriceQuery() {
     const urlMatch = location.href.match(/(app|sub|bundle)\/(\d+)/);
     let appId = "";
     let type = "";
@@ -127,9 +135,14 @@ function initPriceQuery() {
         addPriceHistoryTag(appId, type, subIds, bundleids, cc, location.protocol);
     }
     
-}
+  }
 
-function initPurchaseAreaFeatures(appId) {
+  /**
+   * 启动购买区内的详情页增强功能。
+   * @param {string} appId - Steam 应用 ID。
+   * @returns {void}
+   */
+  function initPurchaseAreaFeatures(appId) {
     if (on("audio-check")) {
         addAudioCheck();
     }
@@ -147,9 +160,13 @@ function initPurchaseAreaFeatures(appId) {
     }
 
     addSteamPyDeals(appId);
-}
+  }
 
-function initAdditionalFeatures() {
+  /**
+   * 根据页面类型启动额外页面功能。
+   * @returns {void}
+   */
+  function initAdditionalFeatures() {
     const pageInfo = getCurrentStorePageInfo();
     if (pageInfo) {
         const type = pageInfo.type;
@@ -165,16 +182,25 @@ function initAdditionalFeatures() {
             }
         }
     }
-}
+  }
 
-function recover(reason) {
+  /**
+   * Steam 商店购买区被重绘后恢复当前启用的增强模块。
+   * @param {string} reason - 触发恢复的原因。
+   * @returns {void}
+   */
+  function recover(reason) {
     const pageInfo = getCurrentStorePageInfo();
     if (!pageInfo || pageInfo.type !== "app") return;
 
     initPurchaseAreaFeatures(pageInfo.appId);
-}
+  }
 
-function initStyles() {
+  /**
+   * 注入商店页聚合入口的共享样式。
+   * @returns {void}
+   */
+  function initStyles() {
     api.styles?.ensureStyle?.('st-store-common-feature-style', `
 
         .es_achievement_bar {
@@ -255,17 +281,29 @@ function initStyles() {
     if (on("cart-select")) {
         addCartSelectStyles();
     }
-}
+  }
 
-function waitForDOMReady(callback) {
+  /**
+   * 在 DOM 可用后执行回调。
+   * @param {Function} callback - DOM ready 后执行的回调。
+   * @returns {void}
+   */
+  function waitForDOMReady(callback) {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', callback);
     } else {
         callback();
     }
-}
+  }
 
-function waitForElement(selector, callback, timeout = 10000) {
+  /**
+   * 等待指定元素出现后执行回调。
+   * @param {string} selector - CSS 选择器。
+   * @param {Function} callback - 找到元素后的回调。
+   * @param {number} timeout - 最长等待毫秒数。
+   * @returns {void}
+   */
+  function waitForElement(selector, callback, timeout = 10000) {
     const startTime = Date.now();
     
     function check() {
@@ -283,9 +321,13 @@ function waitForElement(selector, callback, timeout = 10000) {
     }
     
     check();
-}
+  }
 
-async function init() {
+  /**
+   * 启动商店页聚合入口并按设置分发到具体功能。
+   * @returns {Promise<void>} 启动完成后 resolve。
+   */
+  async function init() {
     if (location.pathname.match(/^\/agecheck\/(app|sub|bundle)\/\d+\/?/)) {
         return;
     }
@@ -340,7 +382,22 @@ async function init() {
         
         initAdditionalFeatures();
     }
-}
+  }
+
+  /**
+   * 记录商店聚合入口启动失败，避免静默吞错。
+   * @param {unknown} error - 捕获到的异常。
+   * @returns {void}
+   */
+  function handleInitError(error) {
+    window.STRuntime?.current?.()?.markError?.("store-enhancements-init-failed", error, {
+      path: location.pathname,
+    });
+    log?.error?.("feature-start-failed", "商店页聚合入口启动失败", {
+      path: location.pathname,
+      error: error?.message || String(error),
+    });
+  }
 
 api.reg.add({
     id: "store-enhancements",
@@ -361,7 +418,7 @@ api.reg.add({
     cost: "dom-scan",
     start() {
         waitForDOMReady(() => {
-            init().catch(() => {});
+            init().catch(handleInitError);
         });
         return { started: true };
     }

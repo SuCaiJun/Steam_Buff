@@ -1,3 +1,13 @@
+/*
+ * @Author        : 顾青离
+ * @Url           : sucaijun.com
+ * @Email         : Ricky@LiHai.La
+ * @Project       : Steam Buff
+ * @Description   : Steam 客户端增强小工具
+ * @File          : 社区市场增强界面
+ * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+ * @Remind        : 二次开发请保留原版权信息，谢谢。
+ */
 (() => {
   "use strict";
 
@@ -38,6 +48,10 @@
     return group;
   }
 
+  /**
+   * 补齐市场列表统计、表格排序和价格汇总。
+   * @returns {void}
+   */
   function fill() {
     for (const table of api.dom.qa(".market_home_listing_table")) {
       if (!api.dom.q(".my_market_header", table)) continue;
@@ -81,6 +95,10 @@
     appendTextSpan(buyTarget, "my_market_buy_listings_total_price", `, ${api.currency.fmt(buyPrice)}`);
   }
 
+  /**
+   * 根据当前市场页面类型加载列表队列或处理已有列表。
+   * @returns {void}
+   */
   function process() {
     api.marketDom.addChecks();
     if (api.page === api.pages.MARKET) {
@@ -189,6 +207,10 @@
     });
   }
 
+  /**
+   * 初始化社区市场增强视图。
+   * @returns {Promise<void>} 市场增强挂载完成后 resolve。
+   */
   async function init() {
     await api.waitFor(".market_header_text");
     api.dom.addSettingsLink(api.settingsUi.open);

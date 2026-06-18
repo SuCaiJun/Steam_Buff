@@ -52,10 +52,9 @@
     publicApi: "window.translate",
     registry: "translate/boot.js",
     loadStrategy: "background-on-demand-inject",
-    legacy: true,
     meta: {
       entry: "translate/boot.js",
-      migration: "P19 轻 boot 只计算 mode，vendor/runner 由后台按需注入。",
+      migration: "P21 轻 boot 只计算 mode，vendor/runner 由后台按需注入并登记 lifecycle。",
     },
   });
   runtime?.registerFeature?.({
@@ -71,6 +70,11 @@
     status: "registered",
   });
 
+  /**
+   * 生成设置中心功能开关 storage key。
+   * @param {string} id - 设置目录功能 ID。
+   * @returns {string} chrome.storage.local key。
+   */
   function key(id) {
     return `${PREFIX}${id}${SUFFIX}`;
   }
@@ -93,6 +97,11 @@
       conf.newsPopupService === AI_SERVICE;
   }
 
+  /**
+   * 从翻译配置推导本页需要加载的功能模式。
+   * @param {object} conf - 归一化后的翻译配置。
+   * @returns {string[]} 需要启用的翻译模式。
+   */
   function modesFrom(conf = {}) {
     if (conf.enabled === false) {
       return [];
@@ -134,6 +143,10 @@
     });
   }
 
+  /**
+   * 读取并归一化翻译与 AI 配置。
+   * @returns {Promise<object>} 翻译启动配置。
+   */
   async function cfg() {
     const ids = Object.keys(DEF);
     const aiDefs = globalThis.STAI?.defaults?.() || {};
@@ -168,10 +181,23 @@
     return out;
   }
 
+  /**
+   * 判断当前页面是否允许启用翻译运行时。
+   * @param {object} conf - 翻译启动配置。
+   * @returns {{allowed: boolean, reason?: string}} 页面准入结果。
+   */
   function allowed(conf) {
     return globalThis.STPageContext?.translateAllowed?.(conf) || { allowed: false, reason: "page-context-missing" };
   }
 
+  /**
+   * 上报翻译 boot 阶段错误，避免普通页面控制台刷屏。
+   * @param {string} event - kebab-case 错误事件名。
+   * @param {string} message - 中文错误说明。
+   * @param {unknown} error - 捕获到的异常或错误摘要。
+   * @param {object} meta - 附加的非敏感上下文。
+   * @returns {void}
+   */
   function reportError(event, message, error, meta = {}) {
     runtime?.markError?.(event, error || message, {
       feature: FEATURE_ID,
@@ -197,6 +223,11 @@
     }
   }
 
+  /**
+   * 请求后台按需注入翻译 vendor 与 runner。
+   * @param {object} conf - 带 modes 的翻译启动配置。
+   * @returns {void}
+   */
   function inject(conf) {
     try {
       chrome.runtime.sendMessage({
@@ -210,13 +241,27 @@
         }
         if (response?.success === false) {
           reportError("translate-inject-failed", "翻译注入失败", response.error || "未知错误");
+          return;
         }
+        runtime?.markFeature?.({
+          domain: "translate",
+          id: FEATURE_ID,
+          status: "started",
+          meta: {
+            modes: conf.modes || [],
+            cost: "vendor-heavy",
+          },
+        });
       });
     } catch (error) {
       reportError("translate-inject-request-failed", "翻译注入请求失败", error);
     }
   }
 
+  /**
+   * 翻译轻入口：只计算准入和模式，真正重依赖由后台按需注入。
+   * @returns {Promise<void>} 启动流程完成后 resolve。
+   */
   async function run() {
     const root = document.documentElement;
     if (!root || root.dataset[MARK] === "1") {
@@ -265,9 +310,10 @@
   }
 
   run().catch((error) => {
+    const page = globalThis.STPageContext?.snapshot?.() || {};
     runtime?.markError?.("translate-boot-failed", error, {
-      host: location.hostname,
-      path: location.pathname,
+      host: page.host || "",
+      path: page.path || location.pathname,
     });
     reportError("translate-boot-failed", "翻译启动失败", error);
   });

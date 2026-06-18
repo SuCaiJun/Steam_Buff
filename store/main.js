@@ -20,6 +20,11 @@
     return window.STPageContext?.snapshot?.().pageType || "other";
   }
 
+  /**
+   * 汇总商店功能注册器启动结果。
+   * @param {Array<{status: string}>} results - 功能启动结果列表。
+   * @returns {{total: number, started: number, skipped: number, failed: number}} 启动摘要。
+   */
   function summary(results) {
     const list = Array.isArray(results) ? results : [];
     return {
@@ -52,9 +57,10 @@
     })
     .catch((error) => {
       runtime?.markError?.("store-runtime-failed", error, meta);
-      log.error("runtime-failed", error, {
+      log.error("runtime-failed", "Steam 商店页运行时启动失败", {
         ...meta,
         durationMs: Date.now() - startedAt,
+        error: error?.message || String(error),
       });
     });
 })();
