@@ -18,7 +18,7 @@
   const FEATURE_PAGES = Object.freeze({
     "library-sort-title": Object.freeze(["SharedJSContext", "backend"]),
     "library-custom-name": Object.freeze(["SharedJSContext", "backend", "custom-sort-dialog", "ui"]),
-    "download-auto-shutdown": Object.freeze(["SharedJSContext", "backend", "/library/downloads", "downloads"]),
+    "download-auto-shutdown": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/downloads", "downloads"]),
     "popup-guard": Object.freeze(["main-ui", "ui"]),
     "nexus-mods": Object.freeze(["/library/app/:appid", "app"]),
     "steam-news-translate": Object.freeze(["main-ui", "ui"]),

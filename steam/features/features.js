@@ -57,7 +57,7 @@
       settingsKey: "download-auto-shutdown",
       loadStrategy: "on-demand-entry",
       modes: ["backend", "downloads"],
-      pageScope: ["SharedJSContext", "/library/downloads"],
+      pageScope: ["SharedJSContext", "main-ui", "/library/downloads"],
       dependencies: ["shared/scheduler.js", "BroadcastChannel"],
       cost: "polling",
       entries: {
@@ -71,7 +71,7 @@
         if (context === "backend") {
           return true;
         }
-        return context === "downloads" && api.ctx?.isDown?.() === true;
+        return context === "downloads" && api.ctx?.isMainUi?.() === true;
       },
     },
     {
