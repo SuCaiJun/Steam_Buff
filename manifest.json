@@ -101,8 +101,8 @@
         "shared/logger-factory.js",
         "shared/error-boundary.js",
         "shared/page-context.js",
-        "shared/settings-bus.js",
         "shared/runtime/message-bus.js",
+        "shared/settings-bus.js",
         "extension/content.js"
       ],
       "run_at": "document_start",

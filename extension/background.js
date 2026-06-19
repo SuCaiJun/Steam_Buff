@@ -37,8 +37,11 @@
     "extension/runtime/guard.js",
     "extension/runtime/injector.js",
     "extension/runtime/logger.js",
-    "shared/settings-bus.js",
+    "shared/i18n.js",
+    "shared/logger-factory.js",
+    "shared/error-boundary.js",
     "shared/runtime/message-bus.js",
+    "shared/settings-bus.js",
     "extension/content.js",
   ]);
   const WEB_BOOT_FILES = Object.freeze([

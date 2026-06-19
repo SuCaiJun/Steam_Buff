@@ -25,6 +25,21 @@
   const STEAM_TITLE_WAIT_MS = 100;
   const STEAM_TITLE_WAIT_MAX = 80;
   const STEAM_TITLE_WAIT_TRIES = "__steamBuffTitleWaitTries";
+  const STEAM_CONTENT_DEPS_LOAD_MARK = "__steamBuffSteamContentDepsLoad";
+  const STEAM_CONTENT_DEPS_PENDING = `${STEAM_CONTENT_DEPS_LOAD_MARK}:pending`;
+  const STEAM_CONTENT_SHARED_SCRIPTS = Object.freeze([
+    "shared/config.js",
+    "shared/i18n.js",
+    "shared/performance-monitor.js",
+    "extension/runtime/guard.js",
+    "extension/runtime/injector.js",
+    "extension/runtime/logger.js",
+    "shared/logger-factory.js",
+    "shared/error-boundary.js",
+    "shared/page-context.js",
+    "shared/runtime/message-bus.js",
+    "shared/settings-bus.js",
+  ]);
 
   function shouldInject() {
     return globalThis.STPageContext?.shouldInject?.() === true;
@@ -303,7 +318,7 @@
   function steamRuntimeLogTarget() {
     const ctx = globalThis.STPageContext?.snapshot?.() || {};
     if (ctx.domain !== "steam") {
-      return false;
+      return isSteamContentTarget();
     }
     if (ctx.title === "SharedJSContext" || ctx.title === "Steam") {
       return true;
@@ -361,11 +376,39 @@
     return document.documentElement || document.head;
   }
 
-  function readySteamDeps() {
+  function isSteamContentTarget() {
+    const ctx = globalThis.STPageContext?.snapshot?.() || {};
+    if (ctx.domain === "steam") {
+      return true;
+    }
+    try {
+      if (MATCH?.isSteamLoopbackHost?.(location.hostname) === true) {
+        return true;
+      }
+    } catch {
+    }
+    const currentTitle = String(document.title || "");
+    return currentTitle === "Steam" ||
+      currentTitle === "SharedJSContext" ||
+      String(location.href || "").includes("IN_STEAMUI_SHARED_CONTEXT=true");
+  }
+
+  function steamContentDepsReady() {
     return !!globalThis.STGuard?.ready &&
       typeof globalThis.STGuard.ok === "function" &&
       typeof globalThis.STGuard.lock === "function" &&
-      typeof globalThis.STInject?.inject === "function";
+      typeof globalThis.STInject?.inject === "function" &&
+      !!globalThis.STLogger?.ready &&
+      typeof globalThis.STLoggerFactory?.createLogger === "function" &&
+      typeof globalThis.STErrorBoundary?.capture === "function" &&
+      !!globalThis.STI18n &&
+      typeof globalThis.STPageContext?.snapshot === "function" &&
+      typeof globalThis.STMessageBus?.request === "function" &&
+      typeof globalThis.STSettingsBus?.loadSettingsSnapshot === "function";
+  }
+
+  function readySteamDeps() {
+    return steamContentDepsReady();
   }
 
   function uniquePaths(paths) {
@@ -422,6 +465,64 @@
         reject(error);
       }
     });
+  }
+
+  function ensureSteamContentDeps() {
+    if (steamContentDepsReady()) {
+      globalThis[STEAM_CONTENT_DEPS_LOAD_MARK] = "ready";
+      return Promise.resolve(true);
+    }
+    if (globalThis[STEAM_CONTENT_DEPS_LOAD_MARK] === STEAM_CONTENT_DEPS_PENDING) {
+      return Promise.resolve(false);
+    }
+    globalThis[STEAM_CONTENT_DEPS_LOAD_MARK] = STEAM_CONTENT_DEPS_PENDING;
+    return injectContentFiles(STEAM_CONTENT_SHARED_SCRIPTS)
+      .then(() => {
+        const ready = steamContentDepsReady();
+        globalThis[STEAM_CONTENT_DEPS_LOAD_MARK] = ready ? "ready" : "";
+        return ready;
+      })
+      .catch((error) => {
+        globalThis[STEAM_CONTENT_DEPS_LOAD_MARK] = "";
+        log({
+          level: "error",
+          domain: "steam",
+          feature: "steam-runtime",
+          event: "steam-content-deps-recover-failed",
+          message: "Steam 内容脚本依赖补注入失败",
+          error,
+          meta: pageMeta({ bootTries }),
+        });
+        return false;
+      });
+  }
+
+  function waitSteamContentDeps() {
+    globalThis[RUN_MARK] = RUN_PENDING;
+    steamRuntimeLogOnce("steam-content-deps-recover-start", {
+      level: "info",
+      domain: "steam",
+      feature: "steam-runtime",
+      event: "steam-content-deps-recover-start",
+      message: "Steam 内容脚本依赖缺失，开始补注入",
+      meta: pageMeta({ bootTries }),
+    });
+    ensureSteamContentDeps()
+      .then((ready) => {
+        if (!ready) {
+          if (!retryRun()) {
+            globalThis[RUN_MARK] = "";
+          }
+          return;
+        }
+        globalThis[RUN_MARK] = "";
+        run();
+      })
+      .catch(() => {
+        if (!retryRun()) {
+          globalThis[RUN_MARK] = "";
+        }
+      });
   }
 
   function activateLightRuntime(domain, meta = {}) {
@@ -1736,8 +1837,8 @@
       return;
     }
 
-    // steamloopback.host 会先出现内容脚本但 guard/injector 未 ready 的窗口，必须 retry 到依赖完整。
-    if (globalThis.STPageContext?.snapshot?.().domain === "steam" && !readySteamDeps()) {
+    // ⚠️ 历史问题：Steam CEF 复用旧窗口时可能只拿到半套内容脚本，必须先补齐共享依赖再启动页面运行时。
+    if (isSteamContentTarget() && !readySteamDeps()) {
       steamRuntimeLogOnce("steam-runtime-deps-waiting", {
         level: "info",
         domain: "steam",
@@ -1746,11 +1847,14 @@
         message: "Steam 运行时等待注入依赖就绪",
         meta: pageMeta({ bootTries }),
       });
-      retryRun();
+      waitSteamContentDeps();
       return;
     }
 
     const gd = globalThis.STGuard;
+    if (isSteamContentTarget()) {
+      globalThis[RUN_MARK] = RUN_VERSION;
+    }
     // guard.ok() 失败通常表示页面仍是 about:blank 或非目标 frame，继续 retry 才能覆盖后续 ready 的 Steam CEF。
     if (!gd?.ok()) {
       steamRuntimeLogOnce("steam-runtime-inject-skipped-guard", {
@@ -1827,6 +1931,7 @@
         });
       })
       .catch((error) => {
+        globalThis[RUN_MARK] = "";
         gd.fail();
         log({
           level: "error",
@@ -1862,6 +1967,11 @@
         }, STEAM_TITLE_WAIT_MS);
         return;
       }
+    }
+
+    if (isSteamContentTarget() && !steamContentDepsReady()) {
+      waitSteamContentDeps();
+      return;
     }
 
     // 被排除页面也标记为已处理，避免后台补注入反复命中 Steam CEF 菜单页。
