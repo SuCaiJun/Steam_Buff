@@ -20,6 +20,10 @@
   const CHANGE_EVENT = "SteamBuffI18nLocaleChanged";
   const DEFAULT_LOCALE = "zh_CN";
   const SUPPORTED = Object.freeze(["zh_CN", "en", "zh_TW"]);
+  const log = root.STLoggerFactory?.createLogger?.("shared", "i18n") || {
+    info() {},
+    warn() {},
+  };
   const FALLBACK_LABELS = Object.freeze({
     zh_CN: "简体中文",
     en: "English",
@@ -28,6 +32,10 @@
   const messages = {};
   const loading = new Map();
   let current = DEFAULT_LOCALE;
+
+  function safeError(error) {
+    return String(error?.message || error || "").slice(0, 300);
+  }
 
   function normalizeLocale(value) {
     const raw = String(value || "").trim().replace("-", "_");
@@ -90,6 +98,10 @@
       .then(async () => {
         if (typeof root.fetch !== "function") {
           messages[id] = {};
+          log.warn("i18n-locale-load-skipped", "语言包加载跳过", {
+            locale: id,
+            reason: "fetch-unavailable",
+          });
           return messages[id];
         }
         const response = await root.fetch(url(`_locales/${id}/messages.json`));
@@ -97,7 +109,11 @@
         messages[id] = cleanMessages(data);
         return messages[id];
       })
-      .catch(() => {
+      .catch((error) => {
+        log.warn("i18n-locale-load-failed", "语言包加载失败", {
+          locale: id,
+          error: safeError(error),
+        });
         messages[id] = {};
         return messages[id];
       })
@@ -125,12 +141,20 @@
       try {
         box.get(keys, (rt) => {
           if (root.chrome?.runtime?.lastError) {
+            log.warn("i18n-storage-read-failed", "界面语言读取失败", {
+              keyCount: Array.isArray(keys) ? keys.length : Object.keys(keys || {}).length,
+              error: safeError(root.chrome.runtime.lastError),
+            });
             resolve({});
             return;
           }
           resolve(rt || {});
         });
-      } catch {
+      } catch (error) {
+        log.warn("i18n-storage-read-failed", "界面语言读取失败", {
+          keyCount: Array.isArray(keys) ? keys.length : Object.keys(keys || {}).length,
+          error: safeError(error),
+        });
         resolve({});
       }
     });
@@ -144,9 +168,20 @@
     return new Promise((resolve) => {
       try {
         box.set(data, () => {
-          resolve(!root.chrome?.runtime?.lastError);
+          const ok = !root.chrome?.runtime?.lastError;
+          if (!ok) {
+            log.warn("i18n-storage-write-failed", "界面语言保存失败", {
+              keyCount: Object.keys(data || {}).length,
+              error: safeError(root.chrome.runtime.lastError),
+            });
+          }
+          resolve(ok);
         });
-      } catch {
+      } catch (error) {
+        log.warn("i18n-storage-write-failed", "界面语言保存失败", {
+          keyCount: Object.keys(data || {}).length,
+          error: safeError(error),
+        });
         resolve(false);
       }
     });
@@ -178,7 +213,12 @@
       const next = datasetLocale();
       if (next !== current) {
         current = next;
-        load(next).catch(() => {});
+        load(next).catch((error) => {
+          log.warn("i18n-locale-dataset-load-failed", "界面语言数据集快照加载失败", {
+            locale: next,
+            error: safeError(error),
+          });
+        });
       }
     }
   }
@@ -243,7 +283,11 @@
         el.dataset[DATASET_KEY] = next;
       }
       root.dispatchEvent?.(new CustomEvent(CHANGE_EVENT, { detail: { locale: next } }));
-    } catch {
+    } catch (error) {
+      log.warn("i18n-locale-change-dispatch-failed", "界面语言变更事件派发失败", {
+        locale: next,
+        error: safeError(error),
+      });
     }
   }
 
@@ -251,7 +295,12 @@
     const next = normalizeLocale(value);
     await Promise.all([load(DEFAULT_LOCALE), load(next)]);
     current = next;
-    await put({ [STORAGE_KEY]: next });
+    const ok = await put({ [STORAGE_KEY]: next });
+    if (ok === false) {
+      log.warn("i18n-locale-save-failed", "界面语言保存失败", {
+        locale: next,
+      });
+    }
     emitChange(next);
     return current;
   }
@@ -259,13 +308,22 @@
   function applySnapshot(value) {
     const next = normalizeLocale(value);
     current = next;
-    load(next).catch(() => {});
+    load(next).catch((error) => {
+      log.warn("i18n-locale-snapshot-load-failed", "界面语言快照加载失败", {
+        locale: next,
+        error: safeError(error),
+      });
+    });
   }
 
   async function init() {
     current = await storedLocale();
     await Promise.all(SUPPORTED.map(load));
     emitChange(current);
+    log.info("i18n-init-success", "多语言运行时初始化完成", {
+      locale: current,
+      supportedCount: SUPPORTED.length,
+    });
     return current;
   }
 
@@ -277,10 +335,18 @@
         }
         const next = normalizeLocale(changes[STORAGE_KEY]?.newValue);
         current = next;
-        load(next).catch(() => {});
+        load(next).catch((error) => {
+          log.warn("i18n-locale-storage-load-failed", "界面语言存储变更加载失败", {
+            locale: next,
+            error: safeError(error),
+          });
+        });
         emitChange(next);
       });
-    } catch {
+    } catch (error) {
+      log.warn("i18n-storage-watch-bind-failed", "界面语言监听绑定失败", {
+        error: safeError(error),
+      });
     }
   }
 
@@ -291,7 +357,10 @@
     root.addEventListener?.(CHANGE_EVENT, (event) => {
       applySnapshot(event?.detail?.locale || datasetLocale());
     });
-  } catch {
+  } catch (error) {
+    log.warn("i18n-locale-event-bind-failed", "界面语言事件监听绑定失败", {
+      error: safeError(error),
+    });
   }
 
   root.STI18n = Object.freeze({

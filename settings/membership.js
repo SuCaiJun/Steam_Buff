@@ -13,6 +13,9 @@
 
   const settings = root.STSettings = root.STSettings || {};
   const KEY = "steam_buff_membership";
+  const log = root.STLoggerFactory?.createLogger?.("settings", "membership") || {
+    warn() {},
+  };
 
   function bool(value, fallback = false) {
     if (typeof value === "boolean") {
@@ -127,7 +130,11 @@
       return root.STSettingsBus.subscribe(() => {
         Promise.resolve(read()).then((next) => {
           onChange(next || empty());
-        }).catch(() => {});
+        }).catch((error) => {
+          log.warn("membership-watch-refresh-failed", "会员状态刷新失败", {
+            error: error?.message || String(error),
+          });
+        });
       }, {
         owner: options.owner || "settings:membership",
         key: options.key || "membership-watch",
@@ -140,12 +147,20 @@
       }
       Promise.resolve(read()).then((next) => {
         onChange(next || empty());
-      }).catch(() => {});
+      }).catch((error) => {
+        log.warn("membership-watch-refresh-failed", "会员状态刷新失败", {
+          error: error?.message || String(error),
+          area,
+        });
+      });
     };
     try {
       chrome.storage.onChanged.addListener(listener);
       return listener;
-    } catch {
+    } catch (error) {
+      log.warn("membership-watch-bind-failed", "会员状态监听注册失败", {
+        error: error?.message || String(error),
+      });
       return null;
     }
   }

@@ -44,7 +44,7 @@
 
     register(name, callback, condition = null, options = {}) {
       if (!name || typeof callback !== 'function') {
-        logScheduler("error", "task-invalid", "调度任务配置无效", { name });
+        logScheduler("error", "scheduler-task-invalid", "调度任务配置无效", { name });
         return;
       }
 
@@ -63,13 +63,24 @@
 
       window.STPerformanceMonitor?.recordTimer?.(name);
       this.start();
+      logScheduler("info", "scheduler-task-registered", "调度任务已注册", {
+        name,
+        intervalMs,
+        taskCount: this.tasks.size,
+      });
     }
 
     unregister(name) {
-      this.tasks.delete(name);
+      const existed = this.tasks.delete(name);
 
       if (this.tasks.size === 0) {
         this.stop();
+      }
+      if (existed) {
+        logScheduler("info", "scheduler-task-unregistered", "调度任务已注销", {
+          name,
+          taskCount: this.tasks.size,
+        });
       }
     }
 
@@ -77,6 +88,9 @@
       const task = this.tasks.get(name);
       if (task) {
         task.status = 'paused';
+        logScheduler("info", "scheduler-task-paused", "调度任务已暂停", {
+          name,
+        });
       }
     }
 
@@ -84,6 +98,9 @@
       const task = this.tasks.get(name);
       if (task) {
         task.status = 'active';
+        logScheduler("info", "scheduler-task-resumed", "调度任务已恢复", {
+          name,
+        });
       }
     }
 
@@ -97,6 +114,10 @@
       );
       task.intervalMs = intervalMs;
       task.nextRunAt = Date.now() + intervalMs;
+      logScheduler("info", "scheduler-task-rescheduled", "调度任务已重新排期", {
+        name,
+        intervalMs,
+      });
       return true;
     }
 
@@ -114,6 +135,9 @@
         clearInterval(this.timerId);
         this.timerId = null;
         this.running = false;
+        logScheduler("info", "scheduler-stopped", "调度器已停止", {
+          taskCount: this.tasks.size,
+        });
       }
     }
 
@@ -137,7 +161,7 @@
               continue;
             }
           } catch (err) {
-            logScheduler("error", "condition-failed", "调度任务条件检查失败", {
+            logScheduler("error", "scheduler-condition-failed", "调度任务条件检查失败", {
               name,
               error: err?.message || String(err),
             });
@@ -155,7 +179,7 @@
         } catch (err) {
           task.errorCount++;
           task.nextRunAt = now + task.intervalMs;
-          logScheduler("error", "task-failed", "调度任务执行失败", {
+          logScheduler("error", "scheduler-task-failed", "调度任务执行失败", {
             name,
             errorCount: task.errorCount,
             error: err?.message || String(err),
@@ -164,7 +188,7 @@
           // 连续失败 3 次，自动暂停
           if (task.errorCount >= 3) {
             task.status = 'paused';
-            logScheduler("warn", "task-paused", "调度任务连续失败后已暂停", {
+            logScheduler("warn", "scheduler-task-auto-paused", "调度任务连续失败后已暂停", {
               name,
               errorCount: task.errorCount,
             });

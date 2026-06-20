@@ -18,8 +18,10 @@
   const insertModule = api.dom.insertModule;
   const isUsableExistingModule = api.dom.isUsableExistingModule;
   const DRM_EXCLUDED_APPIDS = api.config.DRM_EXCLUDED_APPIDS;
+  const log = window.STLoggerFactory?.createLogger?.("store", "third-party-check");
 
 function addDRMWarnings() {
+    const startedAt = Date.now();
     const urlMatch = location.href.match(/app\/(\d+)/);
     const appIdText = urlMatch && urlMatch.length === 2 ? urlMatch[1] : "";
     let hasCurrentModule = false;
@@ -35,6 +37,11 @@ function addDRMWarnings() {
     if (urlMatch && urlMatch.length === 2) {
         const appId = parseInt(urlMatch[1]);
         if (DRM_EXCLUDED_APPIDS.includes(appId)) {
+            log?.info?.("third-party-check-mount-skipped", "第三方检查跳过白名单游戏", {
+                appid: appId,
+                reason: "excluded-appid",
+                path: location.pathname,
+            });
             return;
         }
     }
@@ -170,7 +177,26 @@ function addDRMWarnings() {
         drmContainer.append(title, text);
         
         if (!insertModule(drmContainer, MODULE_CLASSES.DRM_WARNING, false, false)) {
+            log?.warn?.("third-party-check-mount-failed", "第三方检查挂载失败", {
+                appid: Number(appIdText) || 0,
+                detectedCount: drmNames.length,
+                hasFallbackNotice: !!drmString,
+                path: location.pathname,
+            });
+            return;
         }
+        log?.info?.("third-party-check-mount-success", "第三方检查已挂载", {
+            appid: Number(appIdText) || 0,
+            detectedCount: drmNames.length,
+            hasFallbackNotice: !!drmString,
+            durationMs: Date.now() - startedAt,
+        });
+    } else {
+        log?.info?.("third-party-check-mount-skipped", "第三方检查未发现提示内容", {
+            appid: Number(appIdText) || 0,
+            reason: "no-warning",
+            durationMs: Date.now() - startedAt,
+        });
     }
 }
 

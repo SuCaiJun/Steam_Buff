@@ -14,6 +14,9 @@
   const DOM_UTILS_VERSION = 'steam-buff-dom-utils-v1';
   const TAG_NAME_RE = /^[a-z][a-z0-9-]*$/i;
   const TRUSTED_HTML = Symbol('SteamBuffTrustedHTML');
+  const log = root.STLoggerFactory?.createLogger?.('shared', 'dom-utils') || {
+    warn() {},
+  };
 
   if (root.STDomUtils?.version === DOM_UTILS_VERSION) {
     return;
@@ -133,6 +136,9 @@
   function trustedHTML(html, reason) {
     const note = String(reason || '').trim();
     if (!note) {
+      log.warn('dom-trusted-html-rejected', '可信 HTML 登记失败', {
+        reason: 'missing-reason',
+      });
       throw new Error('[Steam Buff] 可信 HTML 必须登记原因');
     }
     return Object.freeze({
@@ -149,6 +155,10 @@
   function setTrustedHTML(element, value) {
     if (!element) return element;
     if (!isTrustedHTML(value)) {
+      log.warn('dom-html-write-rejected', 'HTML 写入被拒绝', {
+        tagName: String(element?.tagName || ''),
+        reason: 'untrusted-html',
+      });
       throw new Error('[Steam Buff] HTML 写入必须通过 trustedHTML() 登记');
     }
     // ⚠️ HTML 只允许来自静态模板或已白名单清洗后的富文本，外部文本必须走 textContent。

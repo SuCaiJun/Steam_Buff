@@ -17,6 +17,10 @@
 
   const DEFAULT_TIMEOUT_MS = 12_000;
   const DEFAULT_RETRY_DELAY_MS = 500;
+  const log = root.STLoggerFactory?.createLogger?.("settings", "api-request") || {
+    info() {},
+    warn() {},
+  };
 
   function safeLogUrl(url) {
     return root.STLoggerFactory?.safeLogUrl?.(url) || String(url || "");
@@ -136,6 +140,8 @@
     const retryDelayMs = Math.max(0, Number(options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS));
     const maxAttempts = retries + 1;
     const headers = options.headers || { Accept: "application/json" };
+    const startedAt = Date.now();
+    const safeUrl = safeLogUrl(url);
 
     return (async () => {
       let lastError = null;
@@ -169,14 +175,39 @@
             error.data = response?.data;
             throw error;
           }
+          log.info("settings-api-request-success", "设置中心接口请求成功", {
+            url: safeUrl,
+            method,
+            status: Number(response?.status) || 0,
+            attempt: attempt + 1,
+            durationMs: Date.now() - startedAt,
+          });
           return response;
         } catch (error) {
           lastError = error;
           const response = error?.response || null;
           if (attempt < maxAttempts - 1 && isRetryable(error, response)) {
-            await sleep(retryDelayMs * Math.pow(2, attempt));
+            const delayMs = retryDelayMs * Math.pow(2, attempt);
+            log.warn("settings-api-request-retry", "设置中心接口请求重试", {
+              url: safeUrl,
+              method,
+              status: Number(response?.status) || Number(error?.status) || 0,
+              attempt: attempt + 1,
+              nextAttempt: attempt + 2,
+              delayMs,
+              error: error?.message || String(error),
+            });
+            await sleep(delayMs);
             continue;
           }
+          log.warn("settings-api-request-failed", "设置中心接口请求失败", {
+            url: safeUrl,
+            method,
+            status: Number(response?.status) || Number(error?.status) || 0,
+            attempt: attempt + 1,
+            durationMs: Date.now() - startedAt,
+            error: error?.message || String(error),
+          });
           throw error;
         }
       }

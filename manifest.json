@@ -55,6 +55,7 @@
         "shared/i18n.js",
         "shared/page-context.js",
         "shared/runtime/kernel.js",
+        "shared/logger-factory.js",
         "translate/boot.js"
       ],
       "run_at": "document_end",

@@ -16,6 +16,9 @@
     return;
   }
   globalThis.__SteamBuffUpdateReminderStarted = true;
+  const log = globalThis.STLoggerFactory?.createLogger?.("settings", "update-reminder") || {
+    warn() {},
+  };
 
   const ROOT = "__SteamBuffUpdateReminder";
   const STYLE = `
@@ -331,6 +334,10 @@
   }
 
   window.setTimeout(() => {
-    start().catch(() => {});
+    start().catch((error) => {
+      log.warn("update-reminder-start-failed", "更新提醒启动失败", {
+        error: error?.message || String(error),
+      });
+    });
   }, 900);
 })();

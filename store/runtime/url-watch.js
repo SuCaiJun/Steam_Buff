@@ -16,6 +16,7 @@
 
   const URL_FALLBACK_VISIBLE_MS = 5000;
   const URL_FALLBACK_HIDDEN_MS = 30000;
+  const log = globalThis.STLoggerFactory?.createLogger?.("store", "url-watch");
   let lastRecoverUrl = location.href;
 
   function pageMeta(extra = {}) {
@@ -28,23 +29,10 @@
     };
   }
 
-  function log(event, message, meta = {}) {
-    try {
-      globalThis.STLogger?.info?.({
-        domain: "store",
-        feature: "url-watch",
-        event,
-        message,
-        meta,
-      });
-    } catch {
-    }
-  }
-
   function notifyUrlChange(reason = "urlchange") {
     if (lastRecoverUrl === location.href) return;
     lastRecoverUrl = location.href;
-    log("store-url-change-detected", "Steam 商店页检测到内部 URL 变化", pageMeta({ reason }));
+    log?.info?.("store-url-change-detected", "Steam 商店页检测到内部 URL 变化", pageMeta({ reason }));
     // Steam 商店会在同一个文档内切换 app/search/wishlist，URL 变化时需要让页面级功能重新判定入口。
     api.settingsGate?.refresh?.(reason);
     api.purchaseRecover?.schedule?.(reason);
@@ -53,6 +41,10 @@
   function watchUrlChange() {
     if (window.__stStoreUrlWatchSetup) return;
     window.__stStoreUrlWatchSetup = true;
+    log?.info?.("store-url-watch-start", "Steam 商店页 URL 变化监听已启动", pageMeta({
+      fallbackVisibleMs: URL_FALLBACK_VISIBLE_MS,
+      fallbackHiddenMs: URL_FALLBACK_HIDDEN_MS,
+    }));
 
     function patchHistory(name) {
       const orig = history[name];

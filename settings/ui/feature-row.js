@@ -158,7 +158,51 @@
       `;
     }
 
-    return Object.freeze({ itemHtml, masterItemHtml, sourceTipHtml, switchHtml, helpLinkHtml });
+    function drawerIcon() {
+      return `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m9 18 6-6-6-6"/>
+        </svg>
+      `;
+    }
+
+    function drawerItemHtml(cat, item, bodyHtml, options = {}) {
+      const enabled = available(item);
+      const tip = enabled ? "" : lockText(item);
+      const open = false;
+      const badgeClass = item.member === true ? "feature-badge member" : "feature-badge";
+      const badge = item.badge ? itemBadge(item) : "";
+      const drawerId = `settings-drawer-${String(item.id || "").replace(/[^a-z0-9_-]/gi, "-")}`;
+      return `
+        <section class="settings-drawer${open ? " open" : ""}" data-settings-drawer="${escAttr(item.id)}">
+          <article class="feature master-toggle settings-drawer-head${enabled ? "" : " disabled"}" data-settings-drawer-head${tip ? ` title="${escAttr(tip)}"` : ""}>
+            <div class="icon-pad">${masterIcon(options.iconKind || item.panel || item.id || cat?.id)}</div>
+            <div class="feature-main row-info">
+              <div class="feature-title row-name">
+                <span>${esc(itemName(item))}</span>
+                ${badge ? `<span class="${badgeClass}">${esc(badge)}</span>` : ""}
+                ${helpLinkHtml(item)}
+                ${enabled ? "" : `<span class="feature-lock">${esc(tip)}</span>`}
+              </div>
+              <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(itemDesc(item))}</span></div>
+            </div>
+            <div class="settings-drawer-actions">
+              <button class="settings-drawer-toggle" type="button" data-settings-drawer-toggle="${escAttr(item.id)}" aria-controls="${escAttr(drawerId)}" aria-expanded="${open ? "true" : "false"}" title="${escAttr(open ? "收起" : "展开")}" aria-label="${escAttr(open ? "收起子功能" : "展开子功能")}">
+                ${drawerIcon()}
+              </button>
+              ${switchHtml(item)}
+            </div>
+          </article>
+          <div class="settings-drawer-content" id="${escAttr(drawerId)}">
+            <div class="settings-drawer-body">
+              ${bodyHtml || ""}
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    return Object.freeze({ itemHtml, masterItemHtml, drawerItemHtml, sourceTipHtml, switchHtml, helpLinkHtml });
   }
 
   const api = Object.freeze({ create });

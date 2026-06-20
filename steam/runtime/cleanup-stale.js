@@ -27,6 +27,36 @@
     "好友列表",
   ]);
   const ALLOWED_TITLES = Object.freeze(["Steam", "SharedJSContext"]);
+  const log = window.STLoggerFactory?.createLogger?.("steam", "cleanup-stale") || {
+    info() {},
+    warn() {},
+    error() {},
+  };
+
+  function errorMessage(error) {
+    return error?.message || String(error);
+  }
+
+  function windowKind() {
+    const title = document.title || "";
+    if (EXCLUDED_TITLES.includes(title)) {
+      return "excluded-title";
+    }
+    if (/(?:Root Menu|Supernav)$/u.test(title)) {
+      return "steam-menu";
+    }
+    return location.hostname === "steamloopback.host" ? "steam-loopback" : "unknown";
+  }
+
+  function cleanupMeta(extra = {}) {
+    return {
+      windowKind: windowKind(),
+      hasRuntime: !!window.SteamBuff?.runtime,
+      hasRuntimeKernel: !!window.STRuntime,
+      hasScheduler: !!window.STScheduler,
+      ...extra,
+    };
+  }
 
   function isExcludedSteamWindow() {
     const title = document.title || "";
@@ -45,7 +75,10 @@
     try {
       window.clearTimeout(value);
       window.clearInterval(value);
-    } catch {
+    } catch (error) {
+      log.warn("steam-stale-runtime-clear-timer-failed", "Steam 非目标窗口清理旧定时器失败", cleanupMeta({
+        error: errorMessage(error),
+      }));
     }
   }
 
@@ -66,12 +99,19 @@
     try {
       window.STRuntime?.current?.()?.disposeByOwnerPrefix?.("steam:");
       window.STScheduler?.stop?.();
-    } catch {
+    } catch (error) {
+      log.warn("steam-stale-runtime-cleanup-failed", "Steam 非目标窗口清理旧运行时资源失败", cleanupMeta({
+        error: errorMessage(error),
+      }));
     }
   }
 
   if (isExcludedSteamWindow()) {
+    log.info("steam-stale-runtime-cleanup-start", "Steam 非目标窗口开始清理旧运行时", cleanupMeta());
     cleanupRuntime();
     cleanupInfrastructure();
+    log.info("steam-stale-runtime-cleanup-success", "Steam 非目标窗口旧运行时清理完成", cleanupMeta({
+      runtimeStatus: window.SteamBuff?.runtime?.status || "",
+    }));
   }
 })();

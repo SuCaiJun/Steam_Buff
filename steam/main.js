@@ -62,6 +62,10 @@
     };
   }
 
+  function errorMessage(error) {
+    return error?.message || String(error);
+  }
+
   /**
    * 执行一次 Steam 功能注册器启动巡检。
    * @returns {Promise<Array<object>>} 本轮功能启动结果。
@@ -105,14 +109,18 @@
     ].includes(title) && !/(?:Root Menu|Supernav)$/u.test(title);
   }
 
-  function clearTimer(value) {
+  function clearTimer(value, key = "timer") {
     if (!value) {
       return;
     }
     try {
       window.clearTimeout(value);
       window.clearInterval(value);
-    } catch {
+    } catch (error) {
+      log.warn("runtime-clear-timer-failed", "Steam 客户端运行时清理旧定时器失败", {
+        key,
+        error: errorMessage(error),
+      });
     }
   }
 
@@ -131,7 +139,7 @@
       "capacityTimer",
       "progressTimer",
     ].forEach((key) => {
-      clearTimer(state[key]);
+      clearTimer(state[key], key);
       if (key in state) {
         state[key] = 0;
       }
@@ -146,7 +154,11 @@
     if (typeof state.stop === "function") {
       try {
         state.stop();
-      } catch {
+      } catch (error) {
+        log.warn("runtime-restart-feature-stop-failed", "Steam 客户端旧功能停止失败", {
+          featureId: id,
+          error: errorMessage(error),
+        });
       }
     }
     clearKnownTimers(state);
@@ -155,21 +167,47 @@
   }
 
   function stopPreviousRuntime() {
-    runtime?.disposeByOwnerPrefix?.("steam:");
-    clearTimer(api.runtime?.timer);
+    const meta = {
+      previousVersion: api.runtime?.version || "",
+      ...runtimeMeta(),
+    };
+    log.info("runtime-restart-cleanup-start", "Steam 客户端运行时开始清理旧版本", meta);
+    try {
+      runtime?.disposeByOwnerPrefix?.("steam:");
+    } catch (error) {
+      log.warn("runtime-restart-cleanup-failed", "Steam 客户端运行时资源清理失败", {
+        phase: "runtime-resources",
+        ...meta,
+        error: errorMessage(error),
+      });
+    }
+    clearTimer(api.runtime?.timer, "runtime.timer");
     if (api.ctx?.isShared?.() !== true) {
       stopState("library-custom-name");
       stopState("download-auto-shutdown");
       stopState("nexus-mods");
       try {
         window.__SteamBuffNewsTranslate?.stop?.();
-      } catch {
+      } catch (error) {
+        log.warn("runtime-restart-feature-stop-failed", "Steam 新闻翻译旧功能停止失败", {
+          featureId: "steam-news-translate",
+          error: errorMessage(error),
+        });
       }
     }
     api.runtime.started = false;
     api.runtime.status = "restarting";
     api.runtime.version = RUNTIME_VERSION;
-    runtime?.deactivateAdapter?.("steam", "runtime-restarting");
+    try {
+      runtime?.deactivateAdapter?.("steam", "runtime-restarting");
+    } catch (error) {
+      log.warn("runtime-restart-cleanup-failed", "Steam 客户端运行时适配器停用失败", {
+        phase: "runtime-adapter",
+        ...meta,
+        error: errorMessage(error),
+      });
+    }
+    log.info("runtime-restart-cleanup-success", "Steam 客户端旧运行时清理完成", meta);
   }
 
   function waitDelay(bootUntil) {

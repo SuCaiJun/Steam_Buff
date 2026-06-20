@@ -35,6 +35,11 @@
   let items = [];
   let meta = {};
   let restoring = false;
+  let lastBridgeFailureKey = "";
+  let lastBridgeFailureAt = 0;
+  let lastRenderKey = "";
+  let lastBulkAnchorMissing = false;
+  let lastSideAnchorMissing = false;
 
   function onCartPage() {
     return MATCH?.isSteamStoreHost?.(location.hostname) === true && /^\/cart\/?$/.test(location.pathname);
@@ -121,6 +126,24 @@
     return api.settings?.on?.("cart-remove-all-confirm") !== false;
   }
 
+  function logBridgeFailure(action, requestId, value, count, startedAt, force = false) {
+    const key = `${action}:${value?.message || "unknown"}`;
+    const now = Date.now();
+    if (!force && key === lastBridgeFailureKey && now - lastBridgeFailureAt < 30000) {
+      return;
+    }
+    lastBridgeFailureKey = key;
+    lastBridgeFailureAt = now;
+    log.warn("cart-select-bridge-failed", "购物车页面桥接请求失败", {
+      action,
+      requestId,
+      itemCount: count,
+      message: value?.message || "",
+      durationMs: now - startedAt,
+      path: location.pathname,
+    });
+  }
+
   function ensurePage() {
     if (pageReady) return pageReady;
 
@@ -165,6 +188,9 @@
         Array.isArray(payload.lineIds) ? payload.lineIds.length : 0,
         Array.isArray(payload.items) ? payload.items.length : 0
       );
+      const timeoutMs = 5000 + count * 14000;
+      const shouldLogBridge = action !== "scan";
+      const startedAt = Date.now();
       let done = false;
 
       const finish = value => {
@@ -172,6 +198,17 @@
         done = true;
         clearTimeout(timer);
         window.removeEventListener(RES_EVT, onRes);
+        if (value?.ok === false) {
+          logBridgeFailure(action, id, value, count, startedAt, shouldLogBridge);
+        } else if (shouldLogBridge) {
+          log.info("cart-select-bridge-success", "购物车页面桥接请求完成", {
+            action,
+            requestId: id,
+            itemCount: count,
+            durationMs: Date.now() - startedAt,
+            path: location.pathname,
+          });
+        }
         resolve(value);
       };
 
@@ -180,7 +217,16 @@
         finish(event.detail);
       };
 
-      const timer = setTimeout(() => finish({ ok: false, message: "等待页面响应超时", result: null }), 5000 + count * 14000);
+      if (shouldLogBridge) {
+        log.info("cart-select-bridge-send", "发送购物车页面桥接请求", {
+          action,
+          requestId: id,
+          itemCount: count,
+          timeoutMs,
+          path: location.pathname,
+        });
+      }
+      const timer = setTimeout(() => finish({ ok: false, message: "等待页面响应超时", result: null }), timeoutMs);
       window.addEventListener(RES_EVT, onRes);
       ensurePage().then(ok => {
         if (!ok) {
@@ -292,6 +338,12 @@
       row.classList.toggle("st_cart_select_off", !input.checked);
       saveState().catch(() => {});
       updateSideSummary();
+      log.info("cart-select-row-toggle", "用户切换购物车项目支付状态", {
+        checked: input.checked,
+        totalCount: items.length,
+        selectedCount: selectedItems().length,
+        skippedCount: skippedItems().length,
+      });
     });
   }
 
@@ -329,9 +381,18 @@
     const anchor = bulkActionAnchor();
     let wrap = document.getElementById("st_cart_select_bulk_actions");
     if (!anchor || !items.length) {
+      if (items.length && !lastBulkAnchorMissing) {
+        lastBulkAnchorMissing = true;
+        log.warn("cart-select-bulk-actions-target-missing", "购物车批量按钮挂载目标未找到", {
+          totalCount: items.length,
+          selector: "remove all | checkout button",
+          path: location.pathname,
+        });
+      }
       wrap?.remove();
       return null;
     }
+    lastBulkAnchorMissing = false;
 
     if (!wrap) {
       wrap = document.createElement("span");
@@ -355,12 +416,34 @@
         const btn = event.target.closest("[data-st-cart-bulk]");
         if (!btn) return;
         const action = btn.dataset.stCartBulk;
+        const startedAt = Date.now();
+        log.info("cart-select-bulk-action-start", "开始处理购物车批量选择", {
+          action,
+          totalCount: items.length,
+          selectedCount: selectedItems().length,
+        });
         const run = action === "all"
           ? setAllSelected(true)
           : action === "none"
             ? setAllSelected(false)
             : invertSelection();
-        run.catch(() => toast("购物车批量选择失败", true));
+        run.then(() => {
+          log.info("cart-select-bulk-action-success", "购物车批量选择完成", {
+            action,
+            totalCount: items.length,
+            selectedCount: selectedItems().length,
+            durationMs: Date.now() - startedAt,
+          });
+        }).catch((error) => {
+          log.warn("cart-select-bulk-action-failed", "购物车批量选择失败", {
+            action,
+            totalCount: items.length,
+            selectedCount: selectedItems().length,
+            durationMs: Date.now() - startedAt,
+            error,
+          });
+          toast("购物车批量选择失败", true);
+        });
       });
     }
 
@@ -424,10 +507,17 @@
   async function showRemoveAllConfirm() {
     const dialog = globalThis.STSettingsDialogs?.dialog;
     if (typeof dialog !== "function") {
+      log.warn("cart-remove-all-confirm-fallback", "移除全部确认组件不可用，降级为浏览器确认框", {
+        path: location.pathname,
+      });
       return window.confirm("确认移除购物车中的所有项目？");
     }
 
     const { host, shadow } = confirmHost();
+    const startedAt = Date.now();
+    log.info("cart-remove-all-confirm-open", "移除全部确认弹窗已打开", {
+      path: location.pathname,
+    });
     try {
       const action = await dialog(shadow, {
         title: "确认移除所有项目",
@@ -436,6 +526,11 @@
           { id: "cancel", label: "继续保留" },
           { id: "remove", label: "确认移除", primary: true },
         ],
+      });
+      log.info("cart-remove-all-confirm-close", "移除全部确认弹窗已关闭", {
+        action,
+        confirmed: action === "remove",
+        durationMs: Date.now() - startedAt,
       });
       return action === "remove";
     } finally {
@@ -457,6 +552,16 @@
     }
     updateSideSummary();
     ensureBulkActions();
+    const key = `${items.length}:${selectedItems().length}:${skippedItems().length}`;
+    if (key !== lastRenderKey) {
+      lastRenderKey = key;
+      log.info("cart-select-render-summary", "购物车选择控件渲染摘要", {
+        totalCount: items.length,
+        selectedCount: selectedItems().length,
+        skippedCount: skippedItems().length,
+        path: location.pathname,
+      });
+    }
   }
 
   function selectedItems() {
@@ -501,7 +606,18 @@
 
   function ensureSideSummary() {
     const anchor = sideAnchor();
-    if (!anchor) return null;
+    if (!anchor) {
+      if (items.length && !lastSideAnchorMissing) {
+        lastSideAnchorMissing = true;
+        log.warn("cart-select-side-summary-target-missing", "购物车侧边汇总挂载目标未找到", {
+          totalCount: items.length,
+          selector: "Estimated Total | tax note | checkout button",
+          path: location.pathname,
+        });
+      }
+      return null;
+    }
+    lastSideAnchorMissing = false;
 
     let box = document.getElementById("st_cart_select_side_summary");
     if (!box) {
@@ -993,14 +1109,35 @@
 
     event.preventDefault();
     event.stopImmediatePropagation();
+    const startedAt = Date.now();
+    log.info("cart-remove-all-action-start", "用户点击移除购物车全部项目", {
+      totalCount: items.length,
+      path: location.pathname,
+    });
     showRemoveAllConfirm().then(ok => {
-      if (!ok) return;
+      if (!ok) {
+        log.info("cart-remove-all-action-cancel", "用户取消移除购物车全部项目", {
+          totalCount: items.length,
+          durationMs: Date.now() - startedAt,
+        });
+        return;
+      }
       btn.dataset.stCartRemoveAllPass = "1";
       btn.click();
+      log.info("cart-remove-all-action-success", "已放行 Steam 原生移除全部操作", {
+        totalCount: items.length,
+        durationMs: Date.now() - startedAt,
+      });
       window.setTimeout(() => {
         delete btn.dataset.stCartRemoveAllPass;
       }, 800);
-    }).catch(() => {});
+    }).catch((error) => {
+      log.warn("cart-remove-all-action-failed", "移除购物车全部项目确认失败", {
+        totalCount: items.length,
+        durationMs: Date.now() - startedAt,
+        error,
+      });
+    });
   }
 
   function commonElement(nodes) {
@@ -1034,11 +1171,27 @@
   function observe() {
     if (observer) return;
     const target = observeTarget();
-    if (!target) return;
+    if (!target) {
+      log.warn("cart-select-observer-target-missing", "购物车选择监听目标未找到", {
+        selector: "responsive_page_template_content | cart shared container",
+        path: location.pathname,
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          dpr: window.devicePixelRatio,
+        },
+      });
+      return;
+    }
     observer = window.STObserverUtils?.createDebouncedObserver?.(scheduleScan, 120)
       || new MutationObserver(scheduleScan);
     // 只监听购物车主体内容容器；购物车行和恢复提示会在该范围内深层替换。
     observer.observe(target, { childList: true, subtree: true });
+    log.info("cart-select-observer-start", "购物车选择监听已启动", {
+      targetId: target.id || "",
+      targetClass: target.className || "",
+      path: location.pathname,
+    });
   }
 
   function addStyles() {
@@ -1046,7 +1199,16 @@
   }
 
   async function start() {
-    if (started || !onCartPage()) return;
+    const startedAt = Date.now();
+    if (started || !onCartPage()) {
+      if (onCartPage()) {
+        log.info("cart-select-start-skipped", "购物车选择已启动，跳过重复启动", {
+          reason: "already-started",
+          path: location.pathname,
+        });
+      }
+      return;
+    }
     started = true;
 
     addStyles();
@@ -1056,6 +1218,13 @@
     observe();
     await scan();
     showRestorePrompt().catch(() => {});
+    log.info("cart-select-start-success", "购物车选择功能已启动", {
+      totalCount: items.length,
+      selectedCount: selectedItems().length,
+      skippedCount: skippedItems().length,
+      durationMs: Date.now() - startedAt,
+      path: location.pathname,
+    });
   }
 
   function cleanupUi() {
@@ -1083,6 +1252,11 @@
     document.querySelectorAll(".st_cart_select_remove_all_anchor").forEach(node => node.classList.remove("st_cart_select_remove_all_anchor"));
     document.querySelectorAll(".st_cart_select_total_row").forEach(node => node.classList.remove("st_cart_select_total_row"));
     document.querySelectorAll(".st_cart_select_cart_title").forEach(node => node.classList.remove("st_cart_select_cart_title"));
+    lastBridgeFailureKey = "";
+    lastBridgeFailureAt = 0;
+    lastRenderKey = "";
+    lastBulkAnchorMissing = false;
+    lastSideAnchorMissing = false;
   }
 
   function stop() {
@@ -1101,6 +1275,11 @@
     document.removeEventListener("click", onRemoveAllConfirmClick, true);
     cleanupUi();
     api.styles?.removeFeatureStyle?.("cart-select");
+    if (wasActive) {
+      log.info("cart-select-stop-success", "购物车选择功能已停止并清理资源", {
+        path: location.pathname,
+      });
+    }
     return wasActive;
   }
 

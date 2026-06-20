@@ -114,6 +114,27 @@
       }
     }
 
+    function setDrawerOpen(drawer, nextOpen) {
+      if (!drawer) {
+        return false;
+      }
+      const drawerToggle = drawer.querySelector("[data-settings-drawer-toggle]");
+      drawer.classList.toggle("open", nextOpen);
+      drawerToggle?.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+      drawerToggle?.setAttribute("title", nextOpen ? "收起" : "展开");
+      drawerToggle?.setAttribute("aria-label", nextOpen ? "收起子功能" : "展开子功能");
+      return true;
+    }
+
+    function toggleDrawer(drawer) {
+      return setDrawerOpen(drawer, !drawer?.classList.contains("open"));
+    }
+
+    function isDrawerHeadClick(event, head) {
+      const interactive = event.target.closest("a, button, input, select, textarea, label, .switch, .source-tip");
+      return !interactive || !head.contains(interactive);
+    }
+
     shadow.addEventListener("click", (event) => {
       const ctx = shell.pageCtx(shadow);
       const nav = event.target.closest(".nav-item");
@@ -122,6 +143,12 @@
         shell.render(shadow);
         shadow.querySelector(".body")?.scrollTo({ top: 0 });
         shell.callPageOpen(shadow);
+        return;
+      }
+
+      const drawerToggle = event.target.closest("[data-settings-drawer-toggle]");
+      if (drawerToggle) {
+        toggleDrawer(drawerToggle.closest("[data-settings-drawer]"));
         return;
       }
 
@@ -140,6 +167,12 @@
         applySwitchState(id, enabled);
         syncDependents(dependents);
         persistSwitchState(id, enabled, previous, dependents);
+        return;
+      }
+
+      const drawerHead = event.target.closest("[data-settings-drawer-head]");
+      if (drawerHead && isDrawerHeadClick(event, drawerHead)) {
+        toggleDrawer(drawerHead.closest("[data-settings-drawer]"));
         return;
       }
 

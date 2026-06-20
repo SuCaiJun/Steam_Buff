@@ -186,13 +186,14 @@
   }
 
   function toTop() {
+    const targets = scrollTargets();
     try {
       root.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       root.scrollTo(0, 0);
     }
 
-    for (const el of scrollTargets()) {
+    for (const el of targets) {
       if (!el.scrollTop) {
         continue;
       }
@@ -202,6 +203,10 @@
         el.scrollTop = 0;
       }
     }
+    log?.info?.("floating-rail-top-action", "轻量悬浮栏触发回到顶部", {
+      targetCount: targets.length,
+      railSide,
+    });
   }
 
   function updateTopButton() {
@@ -265,6 +270,11 @@
     if (options.category) {
       el.dataset.steamBuffOpenCat = String(options.category);
     }
+    log?.info?.(options.filteredReviews === true ? "floating-rail-filtered-reviews-open" : "floating-rail-open-request", "轻量悬浮栏请求打开设置中心", {
+      category: String(options.category || ""),
+      filteredReviews: options.filteredReviews === true,
+      panelMounted: document.documentElement?.dataset?.[PANEL_MARK] === "1",
+    });
     el.dispatchEvent(new CustomEvent(OPEN_REQUEST_EVT, {
       bubbles: true,
       detail: {
@@ -283,7 +293,10 @@
       const top = Number(rt?.[RAIL_TOP_KEY]);
       railTop = Number.isFinite(top) ? top : null;
       railSide = rt?.[RAIL_SIDE_KEY] === "left" ? "left" : "right";
-    } catch {
+    } catch (error) {
+      log?.warn?.("floating-rail-position-read-failed", "轻量悬浮栏位置读取失败", {
+        error: error?.message || String(error),
+      });
       railTop = null;
       railSide = "right";
     }
@@ -300,7 +313,11 @@
     }, {
       owner: OWNER,
       reason: "floating-rail-position-write",
-    })?.catch?.(() => {});
+    })?.catch?.((error) => {
+      log?.warn?.("floating-rail-position-write-failed", "轻量悬浮栏位置保存失败", {
+        error: error?.message || String(error),
+      });
+    });
   }
 
   function button(className, title, src) {
@@ -482,6 +499,7 @@
   }
 
   function dispose(options = {}) {
+    const hadHost = !!host;
     const keepForPanel = document.documentElement?.dataset?.[PANEL_MARK] === "1";
     for (const disposeOne of disposers.splice(0)) {
       try {
@@ -509,15 +527,34 @@
     topBtn = null;
     reviewBtn = null;
     reviewCount = null;
+    log?.info?.("floating-rail-dispose", "轻量悬浮栏已释放", {
+      keepHost: options.keepHost === true,
+      keepForPanel,
+      hadHost,
+    });
   }
 
   async function mount() {
     if (!topFrame() || !targetPage() || !document.body || document.documentElement.dataset[PANEL_MARK] === "1") {
+      log?.info?.("floating-rail-mount-skipped", "轻量悬浮栏挂载跳过", {
+        path: location.pathname,
+        topFrame: topFrame(),
+        targetPage: targetPage(),
+        hasBody: !!document.body,
+        panelMounted: document.documentElement?.dataset?.[PANEL_MARK] === "1",
+      });
       return false;
     }
     if (mounted) {
+      log?.info?.("floating-rail-mount-skipped", "轻量悬浮栏挂载跳过", {
+        path: location.pathname,
+        reason: "already-mounted",
+      });
       return true;
     }
+    log?.info?.("floating-rail-mount-start", "开始挂载轻量悬浮栏", {
+      path: location.pathname,
+    });
     await root.STI18n?.ready?.();
     await loadRailPos();
     render();
@@ -532,6 +569,11 @@
       key: "shadow-root",
       type: "feature-lifecycle",
       dispose,
+    });
+    log?.info?.("floating-rail-mount-success", "轻量悬浮栏挂载成功", {
+      path: location.pathname,
+      railSide,
+      hiddenReviewCount: latestReview.count,
     });
     return true;
   }

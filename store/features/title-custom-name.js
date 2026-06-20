@@ -50,6 +50,9 @@
   let tries = 0;
   let refreshSeq = 0;
   let modalSeq = 0;
+  let lastDetailTargetMissing = false;
+  let lastWishlistTargetMissing = false;
+  let lastWishlistRenderKey = "";
   const nameCache = new Map();
   const namePending = new Set();
 
@@ -145,7 +148,23 @@
 
   function renderTitle() {
     const title = titleEl();
-    if (!title || !state) return false;
+    if (!title || !state) {
+      if (state?.appid && !lastDetailTargetMissing) {
+        lastDetailTargetMissing = true;
+        log.warn("title-custom-name-mount-target-missing", "商店标题自定义名挂载目标未找到", {
+          appid: state.appid,
+          selector: TITLE_SEL,
+          path: location.pathname,
+          viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            dpr: window.devicePixelRatio,
+          },
+        });
+      }
+      return false;
+    }
+    lastDetailTargetMissing = false;
     const host = ensureHost(title);
     const steamTitle = state.steamTitle || text(title.childNodes[0] || title);
     renderNameHost(host, state.appid, state.item, steamTitle, "detail");
@@ -168,9 +187,22 @@
     button.type = "button";
     button.textContent = "编辑";
     host.replaceChildren(button);
+    if (mode === "detail") {
+      log.info("title-custom-name-button-mounted", "商店标题自定义名按钮已挂载", {
+        appid,
+        mode,
+        hasVisibleName: !!visibleName,
+        hostClass: host.className || "",
+        path: location.pathname,
+      });
+    }
     button.addEventListener("click", event => {
       event.preventDefault();
       event.stopPropagation();
+      log.info("title-custom-name-modal-open-start", "用户打开商店标题自定义名弹窗", {
+        appid,
+        mode,
+      });
       openModal({
         appid,
         steamTitle,
@@ -385,6 +417,12 @@
     modal.hidden = false;
     setTab(modal, "base");
     modal.querySelector("[data-title-custom-name-input]")?.focus?.();
+    log.info("title-custom-name-modal-open-success", "商店标题自定义名弹窗已打开", {
+      appid: source.appid,
+      mode: source.mode || "detail",
+      hasCachedName: !!item?.name,
+      path: location.pathname,
+    });
     modalAlias(source.appid).then(item => {
       if (!modalLoadCurrent(modal, source.appid, loadSeq)) return;
       const input = modal.querySelector("[data-title-custom-name-alias]");
@@ -410,6 +448,10 @@
     if (modal) {
       modal.dataset.loadSeq = "";
       modal.hidden = true;
+      log.info("title-custom-name-modal-close", "商店标题自定义名弹窗已关闭", {
+        appid: Number(modal.dataset.appid) || 0,
+        mode: modal.dataset.mode || "detail",
+      });
     }
   }
 
@@ -418,6 +460,10 @@
     if (!modal) return;
     const tab = event.target.closest("[data-title-custom-name-tab]");
     if (tab) {
+      log.info("title-custom-name-tab-change", "商店标题自定义名弹窗切换标签", {
+        appid: Number(modal.dataset.appid) || 0,
+        tab: tab.dataset.titleCustomNameTab || "base",
+      });
       setTab(modal, tab.dataset.titleCustomNameTab || "base");
       return;
     }
@@ -433,6 +479,9 @@
       }
       updateCount(modal);
       setMsg("保存后将清空备注");
+      log.info("title-custom-name-note-clear-click", "用户点击清空商店标题备注", {
+        appid: Number(modal.dataset.appid) || 0,
+      });
       return;
     }
     if (event.target.closest("[data-title-custom-name-save]")) {
@@ -671,7 +720,18 @@
   function ensureWishlistHost(row) {
     const title = wishlistTitleNode(row);
     const parent = wishlistTitleHost(row);
-    if (!title || !parent) return null;
+    if (!title || !parent) {
+      if (!lastWishlistTargetMissing) {
+        lastWishlistTargetMissing = true;
+        log.warn("title-custom-name-wishlist-target-missing", "愿望单自定义名称挂载目标未找到", {
+          path: location.pathname,
+          hasTitle: !!title,
+          hasParent: !!parent,
+        });
+      }
+      return null;
+    }
+    lastWishlistTargetMissing = false;
     let host = parent.querySelector(":scope > .st-title-custom-name-wishlist")
       || row.querySelector(".st-title-custom-name-wishlist");
     if (!host) {
@@ -717,6 +777,15 @@
       await batchFetchWishlistNames(appids);
       if (seq !== refreshSeq || !started || !api.settings?.on?.(FEATURE_ID)) return false;
       appids.forEach(renderWishlistName);
+      const summaryKey = `${rows.length}:${appids.length}`;
+      if (summaryKey !== lastWishlistRenderKey) {
+        lastWishlistRenderKey = summaryKey;
+        log.info("title-custom-name-wishlist-render-summary", "愿望单自定义名称渲染摘要", {
+          rowCount: rows.length,
+          appidCount: appids.length,
+          path: location.pathname,
+        });
+      }
       return true;
     } finally {
       renderingWishlist = false;
@@ -737,13 +806,23 @@
   function startWishlist() {
     if (!isWishlistPath()) return false;
     const container = wishlistDom?.listContainer?.();
-    if (!container) return false;
+    if (!container) {
+      log.warn("title-custom-name-wishlist-observer-target-missing", "愿望单自定义名称监听目标未找到", {
+        path: location.pathname,
+      });
+      return false;
+    }
     renderWishlistRows().catch(() => {});
     if (!wishlistObserver) {
       wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(), 120)
         || new MutationObserver(() => scheduleWishlistRender());
       // 只监听愿望单真实列表容器；虚拟列表会深层替换行节点，保留 subtree。
       wishlistObserver.observe(container, { childList: true, subtree: true });
+      log.info("title-custom-name-wishlist-observer-start", "愿望单自定义名称监听已启动", {
+        targetId: container.id || "",
+        targetClass: container.className || "",
+        path: location.pathname,
+      });
     }
     return true;
   }
@@ -762,6 +841,7 @@
       }
       return;
     }
+    lastDetailTargetMissing = false;
     tries = 0;
     state = {
       appid: info.appid,
@@ -791,7 +871,18 @@
   function observe() {
     if (observer) return;
     const target = observeTarget();
-    if (!target) return;
+    if (!target) {
+      log.warn("title-custom-name-observer-target-missing", "商店标题自定义名监听目标未找到", {
+        selector: "responsive_page_template_content | game_highlights | app title parent",
+        path: location.pathname,
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          dpr: window.devicePixelRatio,
+        },
+      });
+      return;
+    }
     const callback = () => {
       const info = pageInfo();
       if (info && (!state || state.appid !== info.appid || !document.getElementById(HOST_ID))) {
@@ -802,20 +893,40 @@
       || new MutationObserver(callback);
     // 只监听商店主内容容器；Steam 内部跳转会深层替换标题节点，保留 subtree。
     observer.observe(target, { childList: true, subtree: true });
+    log.info("title-custom-name-observer-start", "商店标题自定义名监听已启动", {
+      targetId: target.id || "",
+      targetClass: target.className || "",
+      path: location.pathname,
+    });
   }
 
   function start() {
-    if (!api.settings?.on?.(FEATURE_ID)) return false;
+    const startedAt = Date.now();
+    if (!api.settings?.on?.(FEATURE_ID)) {
+      log.info("title-custom-name-start-skipped", "商店标题自定义名开关关闭，跳过启动", {
+        reason: "settings-disabled",
+        path: location.pathname,
+      });
+      return false;
+    }
     if (started) {
       observe();
       refresh().catch(() => {});
       startWishlist();
+      log.info("title-custom-name-start-skipped", "商店标题自定义名已启动，本次只触发刷新", {
+        reason: "already-started",
+        path: location.pathname,
+      });
       return true;
     }
     started = true;
     observe();
     refresh().catch(() => {});
     startWishlist();
+    log.info("title-custom-name-start-success", "商店标题自定义名已启动", {
+      path: location.pathname,
+      durationMs: Date.now() - startedAt,
+    });
     return true;
   }
 
@@ -834,6 +945,12 @@
     document.querySelectorAll(".st-title-custom-name-wishlist").forEach(node => node.remove());
     document.getElementById(TOAST_ID)?.remove();
     closeModal();
+    lastDetailTargetMissing = false;
+    lastWishlistTargetMissing = false;
+    lastWishlistRenderKey = "";
+    log.info("title-custom-name-stop-success", "商店标题自定义名已停止并清理资源", {
+      path: location.pathname,
+    });
   }
 
   api.features.titleCustomName = Object.freeze({

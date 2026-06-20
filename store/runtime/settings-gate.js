@@ -54,29 +54,19 @@
   let settings = {};
   let membership = { active: false, features: {} };
   let watchingSettings = false;
+  const logger = globalThis.STLoggerFactory?.createLogger?.("store", "settings-gate");
 
   function log(level, event, message, meta = {}) {
     try {
-      const entry = {
-        domain: "store",
-        feature: "settings-gate",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        globalThis.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        globalThis.STLogger?.warn?.(entry);
-      } else {
-        globalThis.STLogger?.info?.(entry);
-      }
+      const fn = logger?.[level] || logger?.info;
+      fn?.(event, message, meta);
     } catch {
     }
   }
 
   // 商店页运行时复用设置页同一套依赖规则，避免子功能在父开关关闭时仍被单独启动。
   async function load() {
+    const startedAt = Date.now();
     try {
       const storage = globalThis.STSettings?.storage || {};
       const [nextSettings, nextMembership] = await Promise.all([
@@ -86,10 +76,21 @@
       settings = nextSettings || {};
       membership = nextMembership || { active: false, features: {} };
       globalThis.STPageContext?.setSettingsSnapshot?.(settings);
-    } catch {
+      log("info", "settings-load-success", "商店页设置快照加载完成", {
+        count: Object.keys(settings).length,
+        membershipActive: membership.active === true,
+        durationMs: Date.now() - startedAt,
+        path: location.pathname,
+      });
+    } catch (error) {
       settings = {};
       membership = { active: false, features: {} };
       globalThis.STPageContext?.setSettingsSnapshot?.(settings);
+      log("warn", "settings-load-failed", "商店页设置快照加载失败，已使用默认配置", {
+        durationMs: Date.now() - startedAt,
+        path: location.pathname,
+        error,
+      });
     }
   }
 
@@ -123,17 +124,38 @@
     ));
   }
 
+  function featureGate(feature) {
+    const fallbackAllowed = on(feature.id);
+    return globalThis.STPageContext?.canRunFeature?.({
+      domain: "store",
+      id: feature.id,
+      settingsKey: feature.id,
+      settingsSnapshot: settings,
+      settingOn: on,
+    }) || { allowed: fallbackAllowed, reason: fallbackAllowed ? "" : "settings-disabled" };
+  }
+
   function refreshFeature(feature, meta) {
+    const gate = featureGate(feature);
     const mod = api.features?.[feature.module];
     if (!mod) {
+      if (gate.allowed === false) {
+        return { id: feature.id, status: "skipped", reason: gate.reason || "disabled" };
+      }
+      log("warn", "settings-refresh-feature-missing", "商店页刷新功能模块缺失", {
+        ...meta,
+        featureId: feature.id,
+        module: feature.module,
+        skippedReason: gate.reason || "",
+      });
       return { id: feature.id, status: "missing" };
     }
-    if (on(feature.id)) {
+    if (gate.allowed) {
       const result = feature.start(api);
       return { id: feature.id, status: result === false ? "skipped" : "started" };
     }
     feature.stop(api);
-    return { id: feature.id, status: "stopped" };
+    return { id: feature.id, status: "stopped", reason: gate.reason || "disabled" };
   }
 
   function refreshFeatureLifecycles(meta) {
@@ -211,6 +233,10 @@
           prefixes: [SETTINGS_PREFIX, SEARCH_SUGGESTION_PREFIX],
           keys: [globalThis.STSettings?.storage?.MEMBERSHIP_KEY || MEMBERSHIP_KEY],
         });
+        log("info", "settings-watch-start", "商店页设置变化监听已启动", {
+          transport: "settings-bus",
+          path: location.pathname,
+        });
         return;
       }
       chrome.storage.onChanged.addListener((changes, area) => {
@@ -219,7 +245,16 @@
           refreshActiveFeatureSet("settings");
         }).catch(() => {});
       });
-    } catch {
+      log("info", "settings-watch-start", "商店页设置变化监听已启动", {
+        transport: "chrome-storage",
+        path: location.pathname,
+      });
+    } catch (error) {
+      watchingSettings = false;
+      log("warn", "settings-watch-failed", "商店页设置变化监听启动失败", {
+        path: location.pathname,
+        error,
+      });
     }
   }
 

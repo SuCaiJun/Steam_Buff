@@ -19,8 +19,10 @@
   const isUsableExistingModule = api.dom.isUsableExistingModule;
   const fetchPlayersInfo = api.net.fetchPlayersInfo;
   const parseResponse = api.format.parseResponse;
+  const log = window.STLoggerFactory?.createLogger?.("store", "family-sharing");
 
 function addFamilySharingNotice(appId, protocol) {
+    const startedAt = Date.now();
     const appIdText = String(appId || "");
     let hasCurrentModule = false;
     document.querySelectorAll(`.${MODULE_CLASSES.FAMILY_SHARING}`).forEach(existing => {
@@ -34,11 +36,26 @@ function addFamilySharingNotice(appId, protocol) {
 
     const comingSoon = document.querySelector(".game_area_comingsoon");
     if (comingSoon) {
+        log?.info?.("family-sharing-mount-skipped", "家庭共享检查跳过即将推出页面", {
+            appid: Number(appId) || 0,
+            reason: "coming-soon",
+            path: location.pathname,
+        });
         return;
     }
 
     const anchor = document.querySelector("#game_area_purchase");
     if (!anchor || !anchor.parentElement) {
+        log?.warn?.("family-sharing-mount-target-missing", "家庭共享检查挂载目标未找到", {
+            appid: Number(appId) || 0,
+            selector: "#game_area_purchase",
+            path: location.pathname,
+            viewport: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+                dpr: window.devicePixelRatio,
+            },
+        });
         return;
     }
 
@@ -50,6 +67,10 @@ function addFamilySharingNotice(appId, protocol) {
     placeholderElement.dataset.steamAppId = appIdText;
     
     if (!insertModule(placeholderElement, MODULE_CLASSES.FAMILY_SHARING, false, true)) {
+        log?.warn?.("family-sharing-mount-failed", "家庭共享检查占位挂载失败", {
+            appid: Number(appId) || 0,
+            path: location.pathname,
+        });
         return;
     }
 
@@ -59,6 +80,11 @@ function addFamilySharingNotice(appId, protocol) {
             try {
                 data = JSON.parse(data);
             } catch (e) {
+                log?.warn?.("family-sharing-parse-failed", "家庭共享检查响应解析失败", {
+                    appid: Number(appId) || 0,
+                    durationMs: Date.now() - startedAt,
+                    error: e,
+                });
                 return;
             }
         }
@@ -79,8 +105,25 @@ function addFamilySharingNotice(appId, protocol) {
             if (placeholderElement.parentNode) {
                 placeholderElement.parentNode.replaceChild(familySharingContainer, placeholderElement);
             }
+            log?.info?.("family-sharing-mount-success", "家庭共享检查已挂载", {
+                appid: Number(appId) || 0,
+                supported: false,
+                durationMs: Date.now() - startedAt,
+            });
+        } else {
+            log?.info?.("family-sharing-mount-skipped", "家庭共享检查未发现限制", {
+                appid: Number(appId) || 0,
+                supported: true,
+                durationMs: Date.now() - startedAt,
+            });
         }
-    }).catch(() => null);
+    }).catch((error) => {
+        log?.warn?.("family-sharing-request-failed", "家庭共享检查请求失败，已降级跳过", {
+            appid: Number(appId) || 0,
+            durationMs: Date.now() - startedAt,
+            error,
+        });
+    });
 }
 
   api.features.familySharing = Object.freeze({

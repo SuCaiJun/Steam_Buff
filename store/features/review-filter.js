@@ -34,7 +34,9 @@
   let layoutTimer = null;
   let layoutScriptInjected = false;
   let started = false;
+  let lastSummaryKey = "";
   const hiddenReviews = new Map();
+  const log = window.STLoggerFactory.createLogger(logDomain(), "review-filter");
 
   /* 评测文本识别 */
   function text(el) {
@@ -237,7 +239,6 @@
   }
 
   function logLayoutInjectFailed(reason, error) {
-    const log = window.STLoggerFactory.createLogger(logDomain(), "review-filter");
     log.error("review-filter-layout-inject-failed", error || "评测区布局脚本注入失败", {
       scriptPath: LAYOUT_SCRIPT,
       reason,
@@ -428,11 +429,29 @@
     updatePanel();
   }
 
+  function scanSummary(cards, durationMs) {
+    const summary = {
+      candidateCount: cards.length,
+      hiddenCount: hiddenReviews.size,
+      durationMs,
+      path: location.pathname,
+    };
+    const key = `${summary.candidateCount}:${summary.hiddenCount}`;
+    if (key === lastSummaryKey) {
+      return;
+    }
+    lastSummaryKey = key;
+    log.info("review-filter-scan-summary", "评测过滤扫描摘要", summary);
+  }
+
   function scan() {
     if (!config?.enabled) {
       return;
     }
-    findReviewCards().forEach(applyCard);
+    const startedAt = Date.now();
+    const cards = findReviewCards();
+    cards.forEach(applyCard);
+    scanSummary(cards, Date.now() - startedAt);
   }
 
   function schedule() {
@@ -459,6 +478,15 @@
     }
     const target = observerTarget();
     if (!target) {
+      log.warn("review-filter-observer-target-missing", "评测过滤监听目标未找到", {
+        selector: CONTAINER_SEL,
+        path: location.pathname,
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          dpr: window.devicePixelRatio,
+        },
+      });
       return;
     }
 
@@ -473,25 +501,52 @@
     observer.observe(target, { childList: true, subtree: true });
     window.addEventListener("pageshow", schedule);
     document.addEventListener("scroll", schedule, { passive: true });
+    log.info("review-filter-observer-start", "评测过滤监听已启动", {
+      targetId: target.id || "",
+      targetClass: target.className || "",
+      path: location.pathname,
+    });
   }
 
   async function start() {
+    const startedAt = Date.now();
     if (started) {
       schedule();
+      log.info("review-filter-start-skipped", "评测过滤已启动，本次只触发补扫", {
+        reason: "already-started",
+        path: location.pathname,
+      });
       return true;
     }
     if (!api.settings?.on?.("review-filter")) {
+      log.info("review-filter-start-skipped", "评测过滤开关关闭，跳过启动", {
+        reason: "settings-disabled",
+        path: location.pathname,
+      });
       return false;
     }
     const raw = await globalThis.STSettings?.storage?.getReviewFilter?.();
     config = api.features.reviewFilterCore?.normalizeConfig?.(raw);
     if (!api.features.reviewFilterCore?.active?.(config)) {
+      log.info("review-filter-start-skipped", "评测过滤规则为空，跳过启动", {
+        reason: "inactive-config",
+        path: location.pathname,
+        ruleCount: config?.rules?.length || 0,
+      });
       return false;
     }
     addStyle();
     setupObserver();
     schedule();
     started = true;
+    log.info("review-filter-start-success", "评测过滤已启动", {
+      path: location.pathname,
+      ruleCount: config?.rules?.length || 0,
+      maxPlaytimeHours: config?.maxPlaytimeHours || 0,
+      maxReviewPlaytimeHours: config?.maxReviewPlaytimeHours || 0,
+      hideHiddenProfile: config?.hideHiddenProfile === true,
+      durationMs: Date.now() - startedAt,
+    });
     return true;
   }
 
@@ -517,9 +572,15 @@
     window.removeEventListener("pageshow", schedule);
     document.removeEventListener("scroll", schedule);
     hiddenReviews.clear();
+    lastSummaryKey = "";
     restoreCards();
     api.styles?.removeFeatureStyle?.("review-filter");
     updatePanel();
+    if (wasActive) {
+      log.info("review-filter-stop-success", "评测过滤已停止并清理资源", {
+        path: location.pathname,
+      });
+    }
     return wasActive;
   }
 

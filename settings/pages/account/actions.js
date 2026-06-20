@@ -17,6 +17,9 @@
     const auth = options.auth;
     const center = options.center;
     const deviceLogin = options.deviceLogin;
+    const log = root.STLoggerFactory?.createLogger?.("settings", "account") || {
+      warn() {},
+    };
 
     function refresh(ctx) {
       ctx.refresh("account");
@@ -51,7 +54,12 @@
           center.clearCenterCache();
         }
         rt.centerError = "";
-        center.syncCenter(shadow, ctx, { force: true }).catch(() => {});
+        center.syncCenter(shadow, ctx, { force: true }).catch((error) => {
+          log.warn("account-center-sync-unhandled", "用户中心同步兜底失败", {
+            source: action,
+            error: error?.message || String(error),
+          });
+        });
         return true;
       }
       if (action === "donate") {

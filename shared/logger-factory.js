@@ -27,7 +27,7 @@
     error: 40,
     fatal: 50,
   });
-  const DEFAULT_CONSOLE_LEVELS = Object.freeze(["error", "fatal"]);
+  const DEFAULT_CONSOLE_LEVELS = Object.freeze(["warn", "error", "fatal"]);
   const DEFAULT_BACKGROUND_LEVELS = Object.freeze(["info", "warn", "error", "network", "fatal"]);
   const QUIET_INFO_EVENTS = Object.freeze([
     /^content-script-start$/u,
@@ -283,9 +283,17 @@
       }
       if (typeof logger?.append === "function") {
         logger.append(entry);
+        return;
       }
     } catch (error) {
       // 日志传输失败时不能递归写日志；诊断模式下由调用方重试或导出本地 fallback。
+      void error;
+    }
+    try {
+      root.chrome?.runtime?.sendMessage?.({ type: "LOG_APPEND", entry }, () => {
+        void root.chrome?.runtime?.lastError;
+      });
+    } catch (error) {
       void error;
     }
   }

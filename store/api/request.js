@@ -22,6 +22,18 @@
   const DEFAULT_TIMEOUT_MS = 12_000;
   const DEFAULT_RETRY_DELAY_MS = 500;
 
+  function featureName(config = {}) {
+    return String(config.messageType || config.feature || "store-request")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "store-request";
+  }
+
+  function requestLogger(config = {}) {
+    return globalThis.STLoggerFactory?.createLogger?.("store", featureName(config));
+  }
+
   function safeLogUrl(url) {
     return globalThis.STLoggerFactory?.safeLogUrl?.(url) || String(url || "");
   }
@@ -47,16 +59,20 @@
 
   function logNetwork(config, event, message, error, status, startedAt, attempt = 0, maxAttempts = 1) {
     try {
-      globalThis.STLogger?.network?.({
-        feature: config.messageType || "store-request",
-        event,
-        message,
+      const level = event === "request-success"
+        ? "info"
+        : (event === "request-retry" ? "warn" : "error");
+      const logger = requestLogger(config);
+      const fn = logger?.[level] || logger?.info;
+      fn?.(event, message, {
         method: config.method || "GET",
         url: safeLogUrl(config.url),
         status: Number(status) || 0,
         durationMs: Date.now() - startedAt,
         attempt,
         maxAttempts,
+        timeoutMs: normalizeTimeout(config),
+        retryDelayMs: Math.max(0, Number(config.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS)),
         error: summarizeError(error),
       });
     } catch (logError) {
@@ -278,6 +294,16 @@
 
         const data = parseResponseData(response, config);
         validateResponse(config, data, response);
+        logNetwork(
+          config,
+          "request-success",
+          "商店页请求完成",
+          null,
+          Number(response?.status) || 0,
+          startedAt,
+          attempt + 1,
+          maxAttempts,
+        );
         return data;
       } catch (error) {
         lastError = error;

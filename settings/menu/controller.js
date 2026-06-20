@@ -11,6 +11,11 @@
 (() => {
   "use strict";
 
+  const log = globalThis.STLoggerFactory?.createLogger?.("settings", "menu-controller") || {
+    info() {},
+    warn() {},
+  };
+
   const DEFAULTS = Object.freeze({
     dragThreshold: 10,
     minTop: 24,
@@ -87,6 +92,21 @@
     let railSide = options.initialSide === "left" ? "left" : "right";
     let bound = false;
 
+    function panelOpen() {
+      return !!(panel?.classList?.contains("open") && !panel.hidden);
+    }
+
+    function actionMeta(extra = {}) {
+      return {
+        activeCat: getActiveCat(),
+        panelOpen: panelOpen(),
+        hasPanel: !!panel,
+        hasRail: !!rail,
+        railSide,
+        ...extra,
+      };
+    }
+
     function applyRailPos(value, side, save) {
       if (!rail) {
         return;
@@ -130,13 +150,14 @@
     }
 
     function toTop() {
+      const targets = scrollTargets();
       try {
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch {
         window.scrollTo(0, 0);
       }
 
-      for (const el of scrollTargets()) {
+      for (const el of targets) {
         if (!el.scrollTop) {
           continue;
         }
@@ -146,6 +167,9 @@
           el.scrollTop = 0;
         }
       }
+      log.info("settings-panel-top-action", "用户触发回到顶部", actionMeta({
+        targetCount: targets.length,
+      }));
     }
 
     function updateTopButton() {
@@ -189,6 +213,9 @@
 
     function open() {
       if (!panel) {
+        log.warn("settings-panel-open-failed", "设置面板打开失败", actionMeta({
+          reason: "panel-missing",
+        }));
         return;
       }
       const wasOpen = panel.classList.contains("open") && !panel.hidden;
@@ -196,20 +223,29 @@
       if (!wasOpen) {
         callPanelOpen(shadow);
         playStartupAnimation(shadow);
+        log.info("settings-panel-open", "设置面板打开", actionMeta());
       }
     }
 
     function close() {
+      const wasOpen = panelOpen();
       setOpen(false);
+      if (wasOpen) {
+        log.info("settings-panel-close", "设置面板关闭", actionMeta());
+      }
     }
 
     function openFilteredDialog() {
       setOpen(false);
       openFilteredReviews(shadow);
+      log.info("settings-panel-filtered-reviews-open", "打开已过滤评论弹窗", actionMeta());
     }
 
     function toggle() {
       if (!panel) {
+        log.warn("settings-panel-toggle-failed", "设置面板切换失败", actionMeta({
+          reason: "panel-missing",
+        }));
         return;
       }
       const next = !panel.classList.contains("open");
@@ -217,24 +253,46 @@
       if (next) {
         callPanelOpen(shadow);
         playStartupAnimation(shadow);
+        log.info("settings-panel-open", "设置面板打开", actionMeta({
+          source: "toggle",
+        }));
+      } else {
+        log.info("settings-panel-close", "设置面板关闭", actionMeta({
+          source: "toggle",
+        }));
       }
     }
 
     function openCat(id) {
       if (!panel) {
+        log.warn("settings-panel-category-open-failed", "设置分类打开失败", actionMeta({
+          categoryId: String(id || ""),
+          reason: "panel-missing",
+        }));
         return;
       }
       const categories = allCategories();
       const wasOpen = panel.classList.contains("open") && !panel.hidden;
-      if (categories.some((cat) => cat.id === id)) {
+      const exists = categories.some((cat) => cat.id === id);
+      if (exists) {
         setActiveCat(id);
         render(shadow);
         shadow?.querySelector(".body")?.scrollTo({ top: 0 });
+      } else {
+        log.warn("settings-panel-category-open-failed", "设置分类不存在", actionMeta({
+          categoryId: String(id || ""),
+          reason: "category-missing",
+        }));
       }
       open();
       if (wasOpen) {
         callPageOpen(shadow);
       }
+      log.info("settings-panel-category-open", "设置分类打开", actionMeta({
+        categoryId: String(id || ""),
+        categoryExists: exists,
+        wasOpen,
+      }));
     }
 
     function bind() {

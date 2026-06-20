@@ -309,6 +309,11 @@
     const cat = data.steamBuffOpenCat || activeCat;
     const filteredReviews = data.steamBuffOpenFilteredReviews === "1";
     delete data.steamBuffOpenFilteredReviews;
+    log?.info?.("floating-menu-open-request-consumed", "设置中心消费打开请求", {
+      category: String(cat || ""),
+      filteredReviews,
+      activeCat,
+    });
 
     if (filteredReviews) {
       panels?.review?.().openFilteredReviews?.(shadow);
@@ -353,11 +358,23 @@
    * @returns {Promise<void>} 挂载完成后 resolve。
    */
   async function mount() {
+    const meta = mountMeta();
     if (!topFrame() || !targetPage() || !document.body || document.documentElement.dataset[MARK] === "1") {
+      log?.info?.("floating-menu-mount-skipped", "设置中心挂载跳过", {
+        ...meta,
+        reason: !topFrame()
+          ? "not-top-frame"
+          : !targetPage()
+            ? "not-target-page"
+            : !document.body
+              ? "body-missing"
+              : "already-mounted",
+      });
       return;
     }
 
     document.documentElement.dataset[MARK] = "1";
+    log?.info?.("floating-menu-mount-start", "开始挂载设置中心", meta);
     const railDetail = globalThis.STSettingsFloatingRail?.latestReviewDetail?.() || null;
     globalThis.STSettingsFloatingRail?.dispose?.({ keepHost: true });
     runtime?.activateAdapter?.("settings", {
@@ -453,6 +470,9 @@
       status: "started",
       meta: mountMeta(),
     });
+    log?.info?.("floating-menu-mount-success", "设置中心挂载成功", mountMeta({
+      transferredReviewCount: Number(railDetail?.items?.length) || 0,
+    }));
   }
 
   if (typeof module === "object" && module.exports) {

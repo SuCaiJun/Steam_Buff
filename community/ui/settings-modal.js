@@ -75,7 +75,7 @@
     try {
       const root = document.documentElement;
       const oldAck = root.dataset.steamBuffOpenAck || "";
-      root.dataset.steamBuffOpenCat = "see";
+      root.dataset.steamBuffOpenCat = "third-party";
       root.dispatchEvent(new CustomEvent("STSettingsOpen"));
       if ((root.dataset.steamBuffOpenAck || "") !== oldAck) {
         return;
@@ -85,7 +85,7 @@
 
     const menu = globalThis.STSettingsMenu;
     if (typeof menu?.openCat === "function") {
-      menu.openCat("see");
+      menu.openCat("third-party");
       return;
     }
 

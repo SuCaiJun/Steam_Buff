@@ -12,11 +12,22 @@
   "use strict";
 
   const DEFAULT_TIMEOUT_MS = 12 * 1000;
+  const log = root.STLoggerFactory?.createLogger?.("shared", "auth-client") || {
+    info() {},
+    warn() {},
+  };
+
+  function safeLogUrl(value) {
+    return root.STLoggerFactory?.safeLogUrl?.(value) || String(value || "");
+  }
 
   function parseJson(text) {
     try {
       return JSON.parse(text || "{}");
-    } catch {
+    } catch (error) {
+      log.warn("auth-client-response-parse-failed", "鉴权接口响应解析失败", {
+        error: error?.message || String(error),
+      });
       return { code: 0, message: "接口返回解析失败" };
     }
   }
@@ -63,8 +74,22 @@
   }
 
   function fetchBg(request = {}) {
+    const startedAt = Date.now();
+    const timeoutMs = Number(request.timeoutMs) || DEFAULT_TIMEOUT_MS;
+    const method = String(request.method || "GET").toUpperCase();
+    const requestUrl = safeLogUrl(request.url);
+
+    function requestMeta(extra = {}) {
+      return {
+        url: requestUrl,
+        method,
+        timeoutMs,
+        durationMs: Date.now() - startedAt,
+        ...extra,
+      };
+    }
+
     return new Promise((resolve, reject) => {
-      const timeoutMs = Number(request.timeoutMs) || DEFAULT_TIMEOUT_MS;
       let done = false;
       let timer = 0;
       const finish = (fn, value) => {
@@ -78,7 +103,13 @@
         fn(value);
       };
       if (timeoutMs > 0) {
-        timer = setTimeout(() => finish(reject, timeoutError(timeoutMs)), timeoutMs);
+        timer = setTimeout(() => {
+          const error = timeoutError(timeoutMs);
+          log.warn("auth-client-bg-request-timeout", "鉴权后台请求超时", requestMeta({
+            error: error.message,
+          }));
+          finish(reject, error);
+        }, timeoutMs);
       }
       try {
         if (root.STMessageBus?.send) {
@@ -90,17 +121,29 @@
             timeoutMs,
           }).then((response) => {
             if (!validateResponse(response)) {
-              finish(reject, new Error("后台响应格式异常"));
+              const error = new Error("后台响应格式异常");
+              log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+                reason: "invalid-response",
+                error: error.message,
+              }));
+              finish(reject, error);
               return;
             }
             if (!response?.success) {
               const error = new Error(response?.error || "后台请求失败");
               error.status = Number(response?.status) || 0;
+              log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+                status: error.status,
+                error: error.message,
+              }));
               finish(reject, error);
               return;
             }
             finish(resolve, response);
           }).catch((error) => {
+            log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+              error: error?.message || String(error),
+            }));
             finish(reject, error);
           });
           return;
@@ -112,22 +155,38 @@
         }, (response) => {
           const err = chrome.runtime.lastError;
           if (err) {
-            finish(reject, new Error(err.message || "后台请求失败"));
+            const error = new Error(err.message || "后台请求失败");
+            log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+              error: error.message,
+            }));
+            finish(reject, error);
             return;
           }
           if (!validateResponse(response)) {
-            finish(reject, new Error("后台响应格式异常"));
+            const error = new Error("后台响应格式异常");
+            log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+              reason: "invalid-response",
+              error: error.message,
+            }));
+            finish(reject, error);
             return;
           }
           if (!response?.success) {
             const error = new Error(response?.error || "后台请求失败");
             error.status = Number(response?.status) || 0;
+            log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+              status: error.status,
+              error: error.message,
+            }));
             finish(reject, error);
             return;
           }
           finish(resolve, response);
         });
       } catch (error) {
+        log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+          error: error?.message || String(error),
+        }));
         finish(reject, error);
       }
     });
@@ -160,28 +219,52 @@
     async function refreshAuth(auth) {
       if (!auth?.refresh_token || !refreshUrl) {
         await clearAuth();
+        log.warn("auth-client-refresh-skipped", "鉴权刷新跳过", {
+          hasRefreshToken: !!auth?.refresh_token,
+          hasRefreshUrl: !!refreshUrl,
+        });
         return null;
       }
-      const response = await fetchBg({
-        url: refreshUrl,
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        data: {
-          refresh_token: auth.refresh_token,
-        },
-        allowHttpError: true,
-        timeoutMs: DEFAULT_TIMEOUT_MS,
+      const startedAt = Date.now();
+      log.info("auth-client-refresh-start", "开始刷新鉴权令牌", {
+        url: safeLogUrl(refreshUrl),
       });
-      const body = parseJson(response.data);
-      const code = Number(body?.code) || response.status || 0;
-      if (code < 200 || code >= 300 || !body?.access_token) {
-        await clearAuth();
-        return null;
+      try {
+        const response = await fetchBg({
+          url: refreshUrl,
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          data: {
+            refresh_token: auth.refresh_token,
+          },
+          allowHttpError: true,
+          timeoutMs: DEFAULT_TIMEOUT_MS,
+        });
+        const body = parseJson(response.data);
+        const code = Number(body?.code) || response.status || 0;
+        if (code < 200 || code >= 300 || !body?.access_token) {
+          await clearAuth();
+          log.warn("auth-client-refresh-failed", "鉴权令牌刷新失败", {
+            status: code,
+            durationMs: Date.now() - startedAt,
+          });
+          return null;
+        }
+        const next = await saveAuth(nextAuth(body, auth));
+        log.info("auth-client-refresh-success", "鉴权令牌刷新成功", {
+          durationMs: Date.now() - startedAt,
+        });
+        return next;
+      } catch (error) {
+        log.warn("auth-client-refresh-failed", "鉴权令牌刷新失败", {
+          error: error?.message || String(error),
+          durationMs: Date.now() - startedAt,
+        });
+        throw error;
       }
-      return saveAuth(nextAuth(body, auth));
     }
 
     async function readyAuth() {
@@ -214,6 +297,10 @@
       let auth = await readyAuth();
       if (!auth?.access_token) {
         if (options.throwOnMissingAuth) {
+          log.warn("auth-client-auth-missing", "鉴权信息缺失", {
+            url: safeLogUrl(url),
+            method: "POST",
+          });
           throw new Error(loginMessage);
         }
         return { auth: null, response: null, body: null, code: 401 };
@@ -226,6 +313,11 @@
         auth = await refreshAuth(auth);
         if (!auth?.access_token) {
           if (options.throwOnMissingAuth) {
+            log.warn("auth-client-auth-expired", "鉴权信息已过期", {
+              url: safeLogUrl(url),
+              method: "POST",
+              status: code,
+            });
             throw new Error(expiredMessage);
           }
           return { auth: null, response, body: data, code: 401 };

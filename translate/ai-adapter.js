@@ -23,6 +23,7 @@
   const MAX_CONCURRENCY = 10;
   const CHUNK_SIZE = 30;
   const CHUNK_CHARS = 4000;
+  const log = globalThis.STLoggerFactory?.createLogger?.("translate", "translate-ai");
   const LANGUAGES = Object.freeze([
     { id: "chinese_simplified", name: "简体中文" },
     { id: "chinese_traditional", name: "繁体中文" },
@@ -36,6 +37,7 @@
     { id: "spanish", name: "西班牙语" },
     { id: "russian", name: "俄语" },
   ]);
+  const fallbackLogAt = new Map();
 
   function langName(id) {
     return LANGUAGES.find((item) => item.id === id)?.name || id || "自动识别";
@@ -204,8 +206,39 @@
     return int(conf?.aiConcurrency, DEFAULT_CONCURRENCY, 1, MAX_CONCURRENCY);
   }
 
-  function send(conf, msgs) {
+  function errorText(error, fallback = "") {
+    return error?.message || String(error || fallback || "");
+  }
+
+  function dataMeta(data = {}, extra = {}) {
+    return {
+      from: String(data?.from || ""),
+      to: String(data?.to || ""),
+      ...extra,
+    };
+  }
+
+  function topFrame() {
+    try {
+      return window.top === window;
+    } catch {
+      return false;
+    }
+  }
+
+  function reportThrottled(level, event, message, meta = {}, intervalMs = 30_000) {
+    const now = Date.now();
+    const last = fallbackLogAt.get(event) || 0;
+    if (now - last < intervalMs) {
+      return;
+    }
+    fallbackLogAt.set(event, now);
+    report(level, event, message, meta);
+  }
+
+  function send(conf, msgs, meta = {}) {
     return new Promise((resolve, reject) => {
+      const startedAt = Date.now();
       try {
         chrome.runtime.sendMessage({
           type: "AI_CHAT_COMPLETIONS",
@@ -214,16 +247,38 @@
         }, (response) => {
           const err = chrome.runtime.lastError;
           if (err) {
+            report("error", "ai-chat-request-failed", "AI 翻译请求失败", {
+              ...meta,
+              durationMs: Date.now() - startedAt,
+              error: errorText(err),
+            });
             reject(new Error(err.message || String(err)));
             return;
           }
           if (!response?.success) {
+            report("error", "ai-chat-request-failed", "AI 翻译请求失败", {
+              ...meta,
+              durationMs: Date.now() - startedAt,
+              status: response?.status || 0,
+              error: response?.error || "AI 请求失败",
+            });
             reject(new Error(response?.error || "AI 请求失败"));
             return;
           }
+          report("info", "ai-chat-request-success", "AI 翻译请求完成", {
+            ...meta,
+            durationMs: Date.now() - startedAt,
+            status: response.status || 0,
+            resultLength: String(response.text || "").length,
+          });
           resolve(response.text || "");
         });
       } catch (error) {
+        report("error", "ai-chat-request-failed", "AI 翻译请求异常", {
+          ...meta,
+          durationMs: Date.now() - startedAt,
+          error: errorText(error),
+        });
         reject(error);
       }
     });
@@ -259,7 +314,11 @@
     }
     try {
       return await msg("AI_TRANSLATE_CACHE_GET", { keys });
-    } catch {
+    } catch (error) {
+      reportThrottled("warn", "ai-cache-read-fallback", "AI 翻译缓存读取降级", {
+        keyCount: keys.length,
+        error: errorText(error),
+      });
       return cache?.getMany?.(keys) || {};
     }
   }
@@ -271,13 +330,21 @@
     try {
       await msg("AI_TRANSLATE_CACHE_SET", { entries });
       return true;
-    } catch {
+    } catch (error) {
+      reportThrottled("warn", "ai-cache-write-fallback", "AI 翻译缓存写入降级", {
+        entryCount: entries.length,
+        error: errorText(error),
+      });
       return cache?.setMany?.(entries) || false;
     }
   }
 
   async function translateChunk(conf, data, items, out) {
-    const content = await send(conf, messages(data, items.map((item) => item.text)));
+    const content = await send(conf, messages(data, items.map((item) => item.text)), dataMeta(data, {
+      itemCount: items.length,
+      totalChars: items.reduce((sum, item) => sum + item.text.length, 0),
+      model: modelName(conf),
+    }));
     const list = parseResult(content, items.length);
     list.forEach((item, idx) => {
       out[items[idx].idx] = item;
@@ -307,11 +374,18 @@
   }
 
   async function translate(conf, data) {
+    const startedAt = Date.now();
     const texts = parseTexts(data);
     if (!texts.length) {
       throw new Error("AI 翻译文本为空");
     }
     const { uniq, idxs } = planTexts(texts);
+    report("info", "ai-translate-start", "AI 翻译开始", dataMeta(data, {
+      textCount: texts.length,
+      uniqueCount: uniq.length,
+      totalChars: texts.reduce((sum, text) => sum + String(text || "").length, 0),
+      concurrency: concurrency(conf),
+    }));
     const out = Array(uniq.length);
     const pending = await Promise.all(uniq.map(async (text, idx) => {
       if (!clean(text)) {
@@ -338,6 +412,14 @@
     }
 
     await translateChunks(conf, data, next, out);
+    report("info", "ai-translate-success", "AI 翻译完成", dataMeta(data, {
+      textCount: texts.length,
+      uniqueCount: uniq.length,
+      cacheHitCount: todo.length - next.length,
+      requestCount: next.length,
+      totalChars: texts.reduce((sum, text) => sum + String(text || "").length, 0),
+      durationMs: Date.now() - startedAt,
+    }));
     return {
       result: 1,
       from: data?.from,
@@ -347,8 +429,8 @@
   }
 
   function fail(error, data) {
-    const msg = error?.message || String(error || "AI 翻译失败");
-    report("error", "ai-translate-failed", "AI 翻译失败", { error: msg });
+    const msg = errorText(error, "AI 翻译失败");
+    report("error", "ai-translate-failed", "AI 翻译失败", dataMeta(data, { error: msg }));
     return {
       result: 0,
       info: msg,
@@ -359,37 +441,12 @@
   }
 
   function report(level, event, message, meta = {}) {
-    try {
-      const logger = globalThis.STLogger;
-      if (logger?.ready) {
-        const fn = logger[level] || logger.error || logger.append;
-        fn?.({
-          level,
-          domain: "translate",
-          feature: "translate-ai",
-          event,
-          message,
-          meta,
-        });
-        return;
-      }
-    } catch {
+    if (level === "info" && !topFrame()) {
+      return;
     }
     try {
-      chrome.runtime?.sendMessage?.({
-        type: "LOG_APPEND",
-        entry: {
-          time: Date.now(),
-          domain: "translate",
-          feature: "translate-ai",
-          level,
-          event,
-          message,
-          meta,
-        },
-      }, () => {
-        void chrome.runtime?.lastError;
-      });
+      const fn = log?.[level] || log?.error || log?.warn || log?.info;
+      fn?.(event, message, meta);
     } catch {
     }
   }
@@ -430,7 +487,12 @@
 
     const next = ai?.normalize?.(conf.ai);
     if (!AI_PROXY_URL || !next?.enabled || !next.host || !next.model) {
-      report("error", "ai-config-incomplete", "AI 翻译配置不完整");
+      report("error", "ai-config-incomplete", "AI 翻译配置不完整", {
+        hasProxy: !!AI_PROXY_URL,
+        enabled: next?.enabled === true,
+        hasHost: !!next?.host,
+        hasModel: !!next?.model,
+      });
       if (trans.request?.api) {
         trans.request.api.translate = "";
       }
@@ -456,6 +518,11 @@
       trans.request.speedDetectionControl.hostQueueIndex = 0;
       trans.request.speedDetectionControl.hostQueue = trans.request.api.host.map((host) => ({ host, time: 0 }));
     }
+    report("info", "ai-config-apply-success", "AI 翻译配置已应用", {
+      autoPage: options.autoPage === true,
+      model: next.model,
+      concurrency: concurrency(conf),
+    });
     return true;
   }
 

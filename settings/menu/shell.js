@@ -33,6 +33,9 @@
     const dialog = typeof options.dialog === "function" ? options.dialog : () => Promise.resolve("");
     const assets = options.assets || {};
     const ctxCache = new WeakMap();
+    const log = root.STLoggerFactory?.createLogger?.("settings", "menu-shell") || {
+      warn() {},
+    };
 
     function tr(key, fallback, params) {
       return root.STI18n?.text?.(key, fallback, params) || String(fallback ?? key ?? "");
@@ -103,17 +106,36 @@
       return ctx;
     }
 
-    function runPage(fn, shadow, ctx) {
+    function hookMeta(meta, startedAt, error) {
+      return {
+        pageId: String(meta.pageId || ""),
+        hook: String(meta.hook || ""),
+        activeCat: getActiveCat(),
+        error: error?.message || String(error),
+        durationMs: Date.now() - startedAt,
+      };
+    }
+
+    function runPage(fn, shadow, ctx, meta = {}) {
+      const startedAt = Date.now();
       try {
-        Promise.resolve(fn(shadow, ctx)).catch(() => {});
-      } catch {
+        Promise.resolve(fn(shadow, ctx)).catch((error) => {
+          log.warn(meta.event || "settings-page-hook-failed", meta.message || "设置页面 hook 执行失败", hookMeta(meta, startedAt, error));
+        });
+      } catch (error) {
+        log.warn(meta.event || "settings-page-hook-failed", meta.message || "设置页面 hook 执行失败", hookMeta(meta, startedAt, error));
       }
     }
 
     function callPageOpen(shadow, id = getActiveCat()) {
       const page = pageById(id);
       if (typeof page?.onOpen === "function") {
-        runPage(page.onOpen, shadow, pageCtx(shadow));
+        runPage(page.onOpen, shadow, pageCtx(shadow), {
+          event: "settings-page-open-failed",
+          message: "设置页面打开失败",
+          pageId: id,
+          hook: "onOpen",
+        });
       }
     }
 
@@ -121,7 +143,12 @@
       const ctx = pageCtx(shadow);
       for (const page of pageList()) {
         if (typeof page.onPanelOpen === "function") {
-          runPage(page.onPanelOpen, shadow, ctx);
+          runPage(page.onPanelOpen, shadow, ctx, {
+            event: "settings-panel-open-hook-failed",
+            message: "设置面板打开 hook 执行失败",
+            pageId: page.id,
+            hook: "onPanelOpen",
+          });
         }
       }
       callPageOpen(shadow);
@@ -132,20 +159,7 @@
     }
 
     function showCat(cat) {
-      const states = getStates() || {};
-      if (cat.id === "translate") {
-        return states.translate !== false;
-      }
-      if (cat.id === "ai") {
-        return states.ai !== false;
-      }
-      if (cat.id === "review-filter") {
-        return states["review-filter"] !== false;
-      }
-      if (cat.id === "see") {
-        return states["market-tools"] !== false;
-      }
-      return true;
+      return !!cat;
     }
 
     function navHtml(categories) {
@@ -161,6 +175,72 @@
       return deps.helpLinkHtml?.(cat) || "";
     }
 
+    function itemPanelHtml(cat, item) {
+      if (item?.panel === "search-suggestion") {
+        return panels.searchSuggestion().html(cat);
+      }
+      if (item?.panel === "see") {
+        return panels.see().html(cat);
+      }
+      return "";
+    }
+
+    function itemListHtml(cat, items, className = "feature-list") {
+      const html = (items || []).map((item) => featureItemHtml(cat, item)).join("");
+      return html ? `<div class="${className}">${html}</div>` : "";
+    }
+
+    function featureItemHtml(cat, item) {
+      const children = Array.isArray(item?.children) ? item.children : [];
+      const panelHtml = itemPanelHtml(cat, item);
+      if (children.length || panelHtml) {
+        const childrenHtml = itemListHtml(cat, children, "feature-list settings-drawer-list");
+        return deps.drawerItemHtml?.(cat, item, `${childrenHtml}${panelHtml}`, {
+          iconKind: item.panel || item.id || cat?.id,
+        }) || "";
+      }
+      return deps.itemHtml(cat, item);
+    }
+
+    function emptyHtml(cat) {
+      const title = cat?.emptyTitle || "暂无可配置功能";
+      const desc = cat?.emptyDesc || "此分类暂未接入独立功能。";
+      return `
+        <section class="settings-card section-card settings-empty-card">
+          <div class="section-header">
+            <div class="dot"></div>
+            <div class="title">${esc(title)}</div>
+          </div>
+          <div class="settings-card-note">${esc(desc)}</div>
+        </section>
+      `;
+    }
+
+    function categoryBodyHtml(cat, page, items) {
+      if (page) {
+        return page.html?.(pageCtx(null)) || "";
+      }
+      if (cat.kind === "empty") {
+        return emptyHtml(cat);
+      }
+      if (cat.kind === "see") {
+        return panels.see().html(cat);
+      }
+      if (cat.kind === "search-suggestion") {
+        return panels.searchSuggestion().html(cat);
+      }
+      if (cat.kind === "translate") {
+        return panels.translate().html(cat);
+      }
+      if (cat.kind === "review-filter") {
+        return panels.review().html(cat);
+      }
+      if (cat.kind === "ai") {
+        return `${items.map((item) => deps.masterItemHtml?.(item, "ai") || "").join("")}${panels.ai().html(cat)}`;
+      }
+      return itemListHtml(cat, items);
+    }
+
     function contentHtml(categories) {
       const visible = categories.filter(showCat);
       const activeCat = getActiveCat();
@@ -171,21 +251,7 @@
       const page = pageById(cat.id);
       const items = cat.items || [];
       const localeHtml = cat.id === "extension-settings" ? uiLocaleHtml() : "";
-      const body = page
-        ? (page.html?.(pageCtx(null)) || "")
-        : cat.kind === "see"
-          ? panels.see().html(cat)
-        : cat.kind === "search-suggestion"
-          ? panels.searchSuggestion().html(cat)
-        : cat.kind === "translate"
-          ? panels.translate().html(cat)
-        : cat.kind === "review-filter"
-          ? panels.review().html(cat)
-        : cat.kind === "ai"
-          ? panels.ai().html(cat)
-        : cat.id === "smart-search"
-          ? `<div class="feature-list">${items.map((item) => deps.itemHtml(cat, item)).join("")}</div>${panels.searchSuggestion().html(cat)}`
-        : `<div class="feature-list">${items.map((item) => deps.itemHtml(cat, item)).join("")}</div>`;
+      const body = categoryBodyHtml(cat, page, items);
       const header = page?.hideHeader ? "" : `
           <h2 class="page-title"><span>${esc(catName(cat))}</span>${titleHelpHtml(cat)}</h2>
           <p class="desc page-subtitle">${esc(catDesc(cat))}</p>
@@ -296,10 +362,6 @@
 
       const categories = allCategories();
       const visible = categories.filter(showCat);
-      if (!categories.some(cat => ["translate", "ai", "review-filter", "see"].includes(cat.id))) {
-        return false;
-      }
-
       if (!visible.some(cat => cat.id === getActiveCat())) {
         render(shadow);
         return true;

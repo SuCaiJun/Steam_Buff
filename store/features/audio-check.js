@@ -17,8 +17,10 @@
   const MODULE_CLASSES = api.dom.MODULE_CLASSES;
   const insertModule = api.dom.insertModule;
   const isUsableExistingModule = api.dom.isUsableExistingModule;
+  const log = window.STLoggerFactory?.createLogger?.("store", "audio-check");
 
 function addAudioCheck() {
+    const startedAt = Date.now();
     const isAppPage = location.href.includes("/app/");
     if (!isAppPage) return;
 
@@ -35,7 +37,19 @@ function addAudioCheck() {
     if (hasCurrentModule) return;
 
     const languagesTable = document.querySelector('table.game_language_options');
-    if (!languagesTable) return;
+    if (!languagesTable) {
+        log?.warn?.("audio-check-mount-target-missing", "配音检查语言表未找到", {
+            appid: Number(appId) || 0,
+            selector: "table.game_language_options",
+            path: location.pathname,
+            viewport: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+                dpr: window.devicePixelRatio,
+            },
+        });
+        return;
+    }
 
     let hasChineseAudio = false;
     const rows = languagesTable.querySelectorAll('tr');
@@ -75,7 +89,19 @@ function addAudioCheck() {
     audioContainer.append(title, text);
 
     if (!insertModule(audioContainer, MODULE_CLASSES.AUDIO_CHECK, false, true)) {
+        log?.warn?.("audio-check-mount-failed", "配音检查挂载失败", {
+            appid: Number(appId) || 0,
+            supported: hasChineseAudio,
+            path: location.pathname,
+        });
+        return;
     }
+    log?.info?.("audio-check-mount-success", "配音检查已挂载", {
+        appid: Number(appId) || 0,
+        supported: hasChineseAudio,
+        rowCount: rows.length,
+        durationMs: Date.now() - startedAt,
+    });
 }
 
   api.features.audioCheck = Object.freeze({

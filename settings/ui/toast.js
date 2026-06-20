@@ -11,11 +11,23 @@
 (() => {
   "use strict";
 
+  const log = globalThis.STLoggerFactory?.createLogger?.("settings", "toast") || {
+    info() {},
+    warn() {},
+  };
+
   function savePrompt(shadow) {
     const dialog = globalThis.STSettingsDialogs?.dialog;
     if (typeof dialog !== "function") {
+      log.warn("settings-save-prompt-skipped", "设置保存提示缺少弹窗能力", {
+        reason: "dialog-missing",
+      });
       return Promise.resolve();
     }
+    const startedAt = Date.now();
+    log.info("settings-save-prompt-open", "设置保存提示打开", {
+      hasShadow: !!shadow,
+    });
     return dialog(shadow, {
       title: "保存成功",
       message: "刷新页面后生效。",
@@ -25,8 +37,15 @@
       ],
     }).then((action) => {
       if (action !== "refresh") {
+        log.info("settings-save-prompt-close", "设置保存提示关闭", {
+          selectedAction: String(action || ""),
+          durationMs: Date.now() - startedAt,
+        });
         return;
       }
+      log.info("settings-save-prompt-refresh", "用户确认刷新页面", {
+        durationMs: Date.now() - startedAt,
+      });
       location.reload();
     });
   }

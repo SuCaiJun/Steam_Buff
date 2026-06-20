@@ -25,6 +25,7 @@
   const MODE_AI_CONFIG = "aiConfig";
   const FEATURE_ID = "translate-runtime";
   const ALL_MODES = Object.freeze([MODE_SELECTION, MODE_MANUAL, MODE_AUTO_PAGE, MODE_AI_CONFIG]);
+  const log = globalThis.STLoggerFactory?.createLogger?.("translate", FEATURE_ID);
   const DEF = Object.freeze({
     scope: "steam",
     page: true,
@@ -190,6 +191,38 @@
     return globalThis.STPageContext?.translateAllowed?.(conf) || { allowed: false, reason: "page-context-missing" };
   }
 
+  function topFrame() {
+    try {
+      return window.top === window;
+    } catch {
+      return false;
+    }
+  }
+
+  function bootMeta(conf = {}, modes = []) {
+    const page = globalThis.STPageContext?.snapshot?.() || {};
+    return {
+      scope: conf.scope || "",
+      page: conf.page === true,
+      selection: conf.selection === true,
+      modes: Array.isArray(modes) ? modes.slice() : [],
+      topFrame: topFrame(),
+      host: page.host || location.hostname || "",
+      pathLength: String(page.path || location.pathname || "").length,
+    };
+  }
+
+  function logInfo(event, message, meta = {}) {
+    if (!topFrame()) {
+      return;
+    }
+    log?.info?.(event, message, meta);
+  }
+
+  function errorText(error, fallback) {
+    return error?.message || String(error || fallback || "");
+  }
+
   /**
    * 上报翻译 boot 阶段错误，避免普通页面控制台刷屏。
    * @param {string} event - kebab-case 错误事件名。
@@ -203,24 +236,10 @@
       feature: FEATURE_ID,
       ...meta,
     });
-    try {
-      chrome.runtime?.sendMessage?.({
-        type: "LOG_APPEND",
-        entry: {
-          time: Date.now(),
-          level: "error",
-          domain: "translate",
-          feature: FEATURE_ID,
-          event,
-          message,
-          error: error?.message || String(error || message),
-          meta,
-        },
-      }, () => {
-        void chrome.runtime?.lastError;
-      });
-    } catch {
-    }
+    log?.error?.(event, message, {
+      ...meta,
+      error: errorText(error, message),
+    });
   }
 
   /**
@@ -230,17 +249,25 @@
    */
   function inject(conf) {
     try {
+      const startedAt = Date.now();
+      logInfo("translate-inject-request-start", "开始请求注入翻译运行时", bootMeta(conf, conf.modes || []));
       chrome.runtime.sendMessage({
         type: "TRANSLATE_INJECT",
         cfg: conf,
       }, (response) => {
         const err = chrome.runtime.lastError;
         if (err) {
-          reportError("translate-inject-request-failed", "翻译注入请求失败", err.message || err);
+          reportError("translate-inject-request-failed", "翻译注入请求失败", err.message || err, {
+            durationMs: Date.now() - startedAt,
+            ...bootMeta(conf, conf.modes || []),
+          });
           return;
         }
         if (response?.success === false) {
-          reportError("translate-inject-failed", "翻译注入失败", response.error || "未知错误");
+          reportError("translate-inject-failed", "翻译注入失败", response.error || "未知错误", {
+            durationMs: Date.now() - startedAt,
+            ...bootMeta(conf, conf.modes || []),
+          });
           return;
         }
         runtime?.markFeature?.({
@@ -252,9 +279,13 @@
             cost: "vendor-heavy",
           },
         });
+        logInfo("translate-inject-request-success", "翻译运行时注入完成", {
+          durationMs: Date.now() - startedAt,
+          ...bootMeta(conf, conf.modes || []),
+        });
       });
     } catch (error) {
-      reportError("translate-inject-request-failed", "翻译注入请求失败", error);
+      reportError("translate-inject-request-failed", "翻译注入请求失败", error, bootMeta(conf, conf.modes || []));
     }
   }
 
@@ -269,15 +300,17 @@
     }
     root.dataset[MARK] = "1";
 
+    const startedAt = Date.now();
     const conf = await cfg();
     const modes = modesFrom(conf);
     const gate = allowed(conf);
     if (!conf.enabled || !modes.length || gate.allowed !== true) {
+      const reason = !conf.enabled ? "disabled" : !modes.length ? "no-enabled-mode" : gate.reason || "scope-mismatch";
       runtime?.markFeature?.({
         domain: "translate",
         id: FEATURE_ID,
         status: "skipped",
-        reason: !conf.enabled ? "disabled" : !modes.length ? "no-enabled-mode" : gate.reason || "scope-mismatch",
+        reason,
         meta: {
           scope: conf.scope,
           page: conf.page === true,
@@ -285,6 +318,13 @@
           modes,
         },
       });
+      if (conf.enabled && topFrame()) {
+        logInfo("translate-boot-skipped", "翻译轻入口跳过启动", {
+          reason,
+          durationMs: Date.now() - startedAt,
+          ...bootMeta(conf, modes),
+        });
+      }
       return;
     }
 
@@ -303,6 +343,10 @@
         cost: "vendor-heavy",
       },
     });
+    logInfo("translate-boot-loading", "翻译轻入口准备加载运行时", {
+      durationMs: Date.now() - startedAt,
+      ...bootMeta(conf, modes),
+    });
     inject({
       ...conf,
       modes,
@@ -313,8 +357,11 @@
     const page = globalThis.STPageContext?.snapshot?.() || {};
     runtime?.markError?.("translate-boot-failed", error, {
       host: page.host || "",
-      path: page.path || location.pathname,
+      pathLength: String(page.path || location.pathname || "").length,
     });
-    reportError("translate-boot-failed", "翻译启动失败", error);
+    reportError("translate-boot-failed", "翻译启动失败", error, {
+      host: page.host || location.hostname || "",
+      pathLength: String(page.path || location.pathname || "").length,
+    });
   });
 })();

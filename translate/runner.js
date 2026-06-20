@@ -125,6 +125,7 @@
   const originals = new WeakMap();
   const selCache = new Map();
   const selPending = new Map();
+  const loggerCache = new Map();
   const state = {
     started: false,
     modes: [],
@@ -203,42 +204,38 @@
     }
   }
 
-  function logRuntime(level, event, message, meta = {}) {
-    const entry = {
-      level,
-      feature: meta.feature || "translate-runtime",
-      event,
-      message,
-      meta,
-    };
-    try {
-      runtime()?.markError?.(event, meta.error || message, {
-        feature: entry.feature,
-        ...meta,
-      });
-    } catch {
+  function loggerFor(feature) {
+    const name = String(feature || "translate-runtime");
+    if (loggerCache.has(name)) {
+      return loggerCache.get(name);
     }
+    const logger = globalThis.STLoggerFactory?.createLogger?.("translate", name) || null;
+    loggerCache.set(name, logger);
+    return logger;
+  }
+
+  function errorText(error, fallback = "") {
+    return error?.message || String(error || fallback || "");
+  }
+
+  function logRuntime(level, event, message, meta = {}) {
+    const feature = meta.feature || "translate-runtime";
     try {
-      const logger = globalThis.STLogger;
-      if (logger?.ready) {
-        const fn = logger[level] || logger.error || logger.append;
-        fn?.(entry);
-        return;
+      if (level === "error") {
+        runtime()?.markError?.(event, meta.error || message, {
+          feature,
+          ...meta,
+        });
       }
     } catch {
     }
+    if (level === "info" && !topFrame()) {
+      return;
+    }
     try {
-      chrome.runtime?.sendMessage?.({
-        type: "LOG_APPEND",
-        entry: {
-          time: Date.now(),
-          domain: "translate",
-          page: String(location.href || ""),
-          ...entry,
-        },
-      }, () => {
-        void chrome.runtime?.lastError;
-      });
+      const logger = loggerFor(feature);
+      const fn = logger?.[level] || logger?.error || logger?.warn || logger?.info;
+      fn?.(event, message, meta);
     } catch {
     }
   }
@@ -248,42 +245,18 @@
       fn();
       return true;
     } catch (error) {
-      logRuntime("error", event, "[Steam Buff] 翻译运行失败", {
-        error: error?.message || String(error),
+      logRuntime("error", event, "翻译运行失败", {
+        error: errorText(error),
       });
       return false;
     }
   }
 
   function logSel(level, event, message, meta = {}) {
-    const entry = {
-      level,
-      feature: "translate-selection",
-      event,
-      message,
-      meta,
-    };
     try {
-      const logger = globalThis.STLogger;
-      if (logger?.ready) {
-        const fn = logger[level] || logger.info || logger.append;
-        fn?.(entry);
-        return;
-      }
-    } catch {
-    }
-    try {
-      chrome.runtime?.sendMessage?.({
-        type: "LOG_APPEND",
-        entry: {
-          time: Date.now(),
-          domain: "translate",
-          page: String(location.href || ""),
-          ...entry,
-        },
-      }, () => {
-        void chrome.runtime?.lastError;
-      });
+      const logger = loggerFor("translate-selection");
+      const fn = logger?.[level] || logger?.info || logger?.warn || logger?.error;
+      fn?.(event, message, meta);
     } catch {
     }
   }
@@ -1341,6 +1314,8 @@
     if (!view) {
       return;
     }
+    const highCount = view.high?.size || 0;
+    const lowCount = view.low?.size || 0;
     if (view.timer) {
       window.clearTimeout(view.timer);
       view.timer = 0;
@@ -1360,6 +1335,11 @@
     view.high?.clear?.();
     view.low?.clear?.();
     state.autoPage = null;
+    logRuntime("info", "auto-page-viewport-scheduler-stop", "翻译视口调度器已停止", {
+      mode: MODE_AUTO_PAGE,
+      highCount,
+      lowCount,
+    });
   }
 
   function area(el) {
@@ -1480,6 +1460,13 @@
       window.addEventListener("scroll", view.promote, view.scrollOptions);
       window.addEventListener("resize", view.promote, view.resizeOptions);
       scheduleViewport(view, 0);
+      logRuntime("info", "auto-page-viewport-scheduler-start", "翻译视口调度器已启动", {
+        mode: MODE_AUTO_PAGE,
+        observeRoot: observeRoot?.id || observeRoot?.className || observeRoot?.tagName || "",
+        highCount: view.high.size,
+        lowCount: view.low.size,
+        hasIntersectionObserver: !!view.io,
+      });
     });
   }
 
@@ -2088,9 +2075,10 @@
     const from = "auto";
     const to = langTo(ctx.trans, ctx.conf);
     const service = effectiveSelService(ctx.trans, ctx.conf);
+    const startedAt = Date.now();
     hideSelAction();
     showSelTip("正在翻译...", ctx.point, "loading", ctx.conf);
-    logSel("info", "selection-request-start", "[Steam Buff] 划词翻译开始", {
+    logSel("info", "selection-request-start", "划词翻译开始", {
       service,
       from,
       to,
@@ -2104,10 +2092,11 @@
       .then((value) => {
         if (seq === selSeq) {
           showSelTip(value || "无翻译结果", ctx.point, "", ctx.conf);
-          logSel("info", "selection-request-success", "[Steam Buff] 划词翻译完成", {
+          logSel("info", "selection-request-success", "划词翻译完成", {
             service,
             from,
             to,
+            durationMs: Date.now() - startedAt,
             resultLength: String(value || "").length,
           });
         }
@@ -2115,11 +2104,12 @@
       .catch((error) => {
         if (seq === selSeq) {
           showSelTip(error?.message || "划词翻译失败", ctx.point, "error", ctx.conf);
-          logSel("error", "selection-request-failed", "[Steam Buff] 划词翻译失败", {
+          logSel("error", "selection-request-failed", "划词翻译失败", {
             service,
             from,
             to,
-            reason: error?.message || String(error || ""),
+            durationMs: Date.now() - startedAt,
+            reason: errorText(error),
           });
         }
       });
@@ -2342,10 +2332,20 @@
   function runAutoPage(trans, conf) {
     installMarkHook(trans);
     if (aiPerformance(conf)) {
+      logRuntime("info", "auto-page-start", "整页翻译启用 AI 视口调度模式", {
+        mode: MODE_AUTO_PAGE,
+        service: conf.service || "",
+        aiPerformance: true,
+      });
       installViewportScheduler(trans);
       return;
     }
 
+    logRuntime("info", "auto-page-start", "整页翻译启用 vendor 监听模式", {
+      mode: MODE_AUTO_PAGE,
+      service: conf.service || "",
+      aiPerformance: false,
+    });
     globalThis.STTranslateVendor?.runAutoPage?.(() => {
       call(() => trans.listener?.start?.(), "vendor-dom-listener-start-failed");
       call(() => trans.request?.listener?.start?.(), "vendor-request-listener-start-failed");
@@ -2365,8 +2365,12 @@
   }
 
   function configure(conf = cfg()) {
+    const startedAt = Date.now();
     const trans = rt();
     if (!trans) {
+      logRuntime("warn", "runner-configure-skipped", "翻译运行时配置跳过，vendor 未加载", {
+        reason: "vendor-missing",
+      });
       return false;
     }
     const modes = modesFrom(conf);
@@ -2387,6 +2391,15 @@
       runAutoPage(trans, conf);
     }
     state.started = true;
+    logRuntime("info", "runner-configure-success", "翻译运行时配置完成", {
+      modes,
+      service: conf.service || "",
+      selectionService: effectiveSelService(trans, conf),
+      autoPage: autoPageOn,
+      selection: modes.includes(MODE_SELECTION),
+      manual: modes.includes(MODE_MANUAL),
+      durationMs: Date.now() - startedAt,
+    });
     return true;
   }
 
@@ -2414,7 +2427,7 @@
 
     const trans = rt();
     if (!trans) {
-      logRuntime("error", "vendor-missing", "[Steam Buff] 翻译库未加载");
+      logRuntime("error", "vendor-missing", "翻译库未加载");
       return;
     }
 
@@ -2440,6 +2453,11 @@
     });
 
     configure(cfg());
+    logRuntime("info", "runner-start-success", "翻译运行时已启动", {
+      modes: state.modes.slice(),
+      autoPage: !!state.autoPage,
+      selectionReady: selReady,
+    });
   }
 
   run();

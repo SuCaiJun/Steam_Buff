@@ -200,6 +200,10 @@
     const api = options.api || root.STSettingsAccountApi;
     let fallbackAuth = options.auth || null;
     const getAuth = typeof options.getAuth === "function" ? options.getAuth : () => fallbackAuth;
+    const log = root.STLoggerFactory?.createLogger?.("settings", "account") || {
+      info() {},
+      warn() {},
+    };
 
     function setAuth(next) {
       fallbackAuth = next;
@@ -260,6 +264,11 @@
       if (cached) {
         rt.center = cached;
       }
+      const startedAt = Date.now();
+      log.info("account-center-sync-start", "开始同步用户中心", {
+        force: opts.force === true,
+        hasCached: !!cached,
+      });
       rt.centerBusy = true;
       rt.centerError = "";
       refresh(ctx);
@@ -289,12 +298,21 @@
           last_used_at: Date.now(),
         });
         rt.centerError = "";
+        log.info("account-center-sync-success", "用户中心同步成功", {
+          durationMs: Date.now() - startedAt,
+          membershipActive: membershipSnapshot(normalizeData(rt.center, current)).active === true,
+        });
         return rt.center;
       } catch (error) {
         rt.centerError = error?.message || String(error);
         if (!rt.auth?.access_token && !rt.auth?.refresh_token) {
           rt.center = null;
         }
+        log.warn("account-center-sync-failed", "用户中心同步失败", {
+          error: error?.message || String(error),
+          durationMs: Date.now() - startedAt,
+          hasAuth: !!(rt.auth?.access_token || rt.auth?.refresh_token),
+        });
         return null;
       } finally {
         rt.centerBusy = false;

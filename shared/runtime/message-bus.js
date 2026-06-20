@@ -17,6 +17,9 @@
 
   const DEFAULT_TIMEOUT_MS = 12 * 1000;
   const MAX_IN_FLIGHT = 80;
+  const log = root.STLoggerFactory?.createLogger?.("shared", "message-bus") || {
+    warn() {},
+  };
   const ROUTES = Object.freeze({
     CONTENT_FILES_INJECT: { timeoutMs: 12 * 1000, owner: "runtime" },
     STEAM_BUFF_OPEN_SETTINGS: { timeoutMs: 5 * 1000, owner: "settings" },
@@ -58,6 +61,16 @@
     return ROUTES[text(type)] || { timeoutMs: DEFAULT_TIMEOUT_MS, owner: "unknown" };
   }
 
+  function messageMeta(type, extra = {}) {
+    const policy = routePolicy(type);
+    return {
+      type: text(type) || "unknown",
+      owner: policy.owner || "unknown",
+      timeoutMs: Number(policy.timeoutMs) || DEFAULT_TIMEOUT_MS,
+      ...extra,
+    };
+  }
+
   function timeoutFor(type, options = {}) {
     const value = Number(options.timeoutMs ?? routePolicy(type).timeoutMs ?? DEFAULT_TIMEOUT_MS);
     return Number.isFinite(value) && value > 0 ? value : 0;
@@ -91,12 +104,18 @@
     const message = payload && typeof payload === "object" ? { ...payload } : {};
     const type = text(message.type || options.type);
     if (!type) {
+      log.warn("message-bus-send-failed", "运行时消息发送失败", {
+        reason: "missing-type",
+      });
       return Promise.reject(new Error("运行时消息缺少 type"));
     }
     message.type = type;
 
     const chromeApi = root.chrome?.runtime;
     if (!chromeApi?.sendMessage) {
+      log.warn("message-bus-send-failed", "运行时消息发送失败", messageMeta(type, {
+        reason: "sendMessage-unavailable",
+      }));
       return Promise.reject(new Error("chrome.runtime.sendMessage 不可用"));
     }
 
@@ -131,6 +150,10 @@
           stats.lastError = safeError(error);
           bump(type, "timedOut");
           bump(type, "failed");
+          log.warn("message-bus-send-timeout", "运行时消息发送超时", messageMeta(type, {
+            timeoutMs,
+            error: error.message,
+          }));
           finish(reject, error);
         }, timeoutMs);
       }
@@ -145,6 +168,9 @@
             err.name = "MessageError";
             stats.lastError = safeError(err);
             bump(type, "failed");
+            log.warn("message-bus-send-failed", "运行时消息发送失败", messageMeta(type, {
+              error: err.message,
+            }));
             finish(reject, err);
             return;
           }
@@ -154,6 +180,9 @@
       } catch (error) {
         stats.lastError = safeError(error);
         bump(type, "failed");
+        log.warn("message-bus-send-failed", "运行时消息发送失败", messageMeta(type, {
+          error: safeError(error),
+        }));
         finish(reject, error);
       }
     });
@@ -171,6 +200,10 @@
       const error = new Error(response?.error || "后台消息请求失败");
       error.response = response;
       error.status = Number(response?.status) || 0;
+      log.warn("message-bus-request-failed", "运行时消息请求失败", messageMeta(payload?.type || options.type, {
+        status: error.status,
+        error: error.message,
+      }));
       throw error;
     }
     return response;
@@ -179,6 +212,13 @@
   function listen(type, handler, options = {}) {
     const route = text(type);
     if (!route || typeof handler !== "function" || !root.chrome?.runtime?.onMessage) {
+      log.warn("message-bus-listen-skipped", "运行时消息监听跳过", messageMeta(route, {
+        reason: !route
+          ? "missing-type"
+          : typeof handler !== "function"
+            ? "handler-invalid"
+            : "onMessage-unavailable",
+      }));
       return null;
     }
     const owner = text(options.owner || routePolicy(route).owner || "message-bus");
@@ -191,6 +231,11 @@
         return handler(message, sender, sendResponse) === true;
       } catch (error) {
         stats.lastError = safeError(error);
+        log.warn("message-bus-listener-failed", "运行时消息监听处理失败", messageMeta(route, {
+          owner,
+          key,
+          error: safeError(error),
+        }));
         sendResponse?.({ success: false, error: safeError(error) });
         return false;
       }
@@ -205,7 +250,12 @@
       disposed = true;
       try {
         root.chrome.runtime.onMessage.removeListener(listener);
-      } catch {
+      } catch (error) {
+        log.warn("message-bus-listener-dispose-failed", "运行时消息监听释放失败", messageMeta(route, {
+          owner,
+          key,
+          error: safeError(error),
+        }));
       }
       listeners.delete(id);
       stats.listened = listeners.size;

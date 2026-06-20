@@ -16,6 +16,9 @@
   if (!pages?.register) {
     return;
   }
+  const log = root.STLoggerFactory?.createLogger?.("settings", "account") || {
+    warn() {},
+  };
 
   const rt = root.STSettingsAccountState.create();
   const api = root.STSettingsAccountApi;
@@ -53,7 +56,12 @@
       ctx.refresh("account");
     }
     if (rt.auth?.access_token || rt.auth?.refresh_token) {
-      center.syncCenter(shadow, ctx).catch(() => {});
+      center.syncCenter(shadow, ctx).catch((error) => {
+        log.warn("account-center-sync-unhandled", "用户中心同步兜底失败", {
+          source: "page-open",
+          error: error?.message || String(error),
+        });
+      });
     }
   }
 

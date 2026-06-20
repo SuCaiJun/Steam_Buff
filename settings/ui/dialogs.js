@@ -11,9 +11,19 @@
 (() => {
   "use strict";
 
+  const log = globalThis.STLoggerFactory?.createLogger?.("settings", "dialog") || {
+    info() {},
+    warn() {},
+  };
+
   function dialog(shadow, options = {}) {
-    const panel = shadow.querySelector(".panel");
+    const startedAt = Date.now();
+    const panel = shadow?.querySelector?.(".panel");
     if (!panel) {
+      log.warn("settings-dialog-mount-skipped", "设置弹窗挂载跳过", {
+        reason: "panel-missing",
+        hasShadow: !!shadow,
+      });
       return Promise.resolve("");
     }
 
@@ -23,6 +33,7 @@
     const title = document.createElement("div");
     const message = document.createElement("div");
     const actions = document.createElement("div");
+    const optionActions = options.actions || [{ id: "ok", label: "确定", primary: true }];
     layer.className = "settings-dialog-layer";
     layer.tabIndex = -1;
     box.className = "settings-dialog";
@@ -35,7 +46,7 @@
     message.textContent = String(options.message || "");
     actions.className = "settings-dialog-actions";
 
-    for (const action of options.actions || [{ id: "ok", label: "确定", primary: true }]) {
+    for (const action of optionActions) {
       const btn = document.createElement("button");
       btn.className = `dialog-btn${action.primary ? " primary" : ""}`;
       btn.type = "button";
@@ -47,6 +58,11 @@
     box.append(title, message, actions);
     layer.appendChild(box);
     panel.appendChild(layer);
+    log.info("settings-dialog-open", "设置弹窗打开", {
+      hasTitle: !!options.title,
+      actionCount: optionActions.length,
+      hasPanel: true,
+    });
 
     return new Promise((resolve) => {
       let done = false;
@@ -59,6 +75,10 @@
         window.setTimeout(() => {
           layer.remove();
         }, 120);
+        log.info("settings-dialog-close", "设置弹窗关闭", {
+          selectedAction: String(value || ""),
+          durationMs: Date.now() - startedAt,
+        });
         resolve(value);
       };
 

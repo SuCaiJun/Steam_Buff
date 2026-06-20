@@ -18,6 +18,9 @@
   const PREFIX = "st.settings.";
   const SUFFIX = ".enabled";
   const EVENT = "STSettingsSnapshotChanged";
+  const log = root.STLoggerFactory?.createLogger?.("shared", "settings-bus") || {
+    warn() {},
+  };
   const POLICY = Object.freeze({
     version: 1,
     keyPrefix: PREFIX,
@@ -47,6 +50,10 @@
 
   function text(value) {
     return value == null ? "" : String(value);
+  }
+
+  function safeError(error) {
+    return text(error?.message || error).slice(0, 300);
   }
 
   function now() {
@@ -162,16 +169,29 @@
       return Promise.resolve({});
     }
     stats.reads += 1;
+    const cleanKeys = normalizeKeys(keys);
     return new Promise((resolve) => {
       try {
         box.get(keys, (rt) => {
           if (root.chrome?.runtime?.lastError) {
+            log.warn("settings-bus-read-failed", "设置总线读取失败", {
+              owner: ownerOf(options),
+              reason: text(options.reason || "read"),
+              keyCount: cleanKeys.length,
+              error: safeError(root.chrome.runtime.lastError),
+            });
             resolve({});
             return;
           }
           resolve(rt || {});
         });
-      } catch {
+      } catch (error) {
+        log.warn("settings-bus-read-failed", "设置总线读取失败", {
+          owner: ownerOf(options),
+          reason: text(options.reason || "read"),
+          keyCount: cleanKeys.length,
+          error: safeError(error),
+        });
         resolve({});
       }
     });
@@ -183,12 +203,12 @@
       return Promise.resolve(false);
     }
     stats.writes += 1;
+    const keys = changedKeysFrom(data);
     return new Promise((resolve) => {
       try {
         box.set(data, () => {
           const ok = !root.chrome?.runtime?.lastError;
           if (ok) {
-            const keys = changedKeysFrom(data);
             invalidateKeys(keys);
             if (!boundStorage) {
               publish({
@@ -197,10 +217,23 @@
                 changedKeys: keys,
               });
             }
+          } else {
+            log.warn("settings-bus-write-failed", "设置总线写入失败", {
+              owner: ownerOf(options),
+              reason: text(options.reason || "write"),
+              keyCount: keys.length,
+              error: safeError(root.chrome?.runtime?.lastError),
+            });
           }
           resolve(ok);
         });
-      } catch {
+      } catch (error) {
+        log.warn("settings-bus-write-failed", "设置总线写入失败", {
+          owner: ownerOf(options),
+          reason: text(options.reason || "write"),
+          keyCount: keys.length,
+          error: safeError(error),
+        });
         resolve(false);
       }
     });
@@ -226,10 +259,23 @@
                 changedKeys: cleanKeys,
               });
             }
+          } else {
+            log.warn("settings-bus-remove-failed", "设置总线删除失败", {
+              owner: ownerOf(options),
+              reason: text(options.reason || "remove"),
+              keyCount: cleanKeys.length,
+              error: safeError(root.chrome?.runtime?.lastError),
+            });
           }
           resolve(ok);
         });
-      } catch {
+      } catch (error) {
+        log.warn("settings-bus-remove-failed", "设置总线删除失败", {
+          owner: ownerOf(options),
+          reason: text(options.reason || "remove"),
+          keyCount: cleanKeys.length,
+          error: safeError(error),
+        });
         resolve(false);
       }
     });
@@ -311,7 +357,13 @@
     root.STPageContext?.setSettingsSnapshot?.(event.snapshot || root.STPageContext?.getSettingsSnapshot?.() || {});
     try {
       root.dispatchEvent?.(new CustomEvent(EVENT, { detail: event }));
-    } catch {
+    } catch (error) {
+      log.warn("settings-bus-dispatch-failed", "设置快照变更事件派发失败", {
+        owner: event.owner,
+        reason: event.reason,
+        keyCount: event.changedKeys.length,
+        error: safeError(error),
+      });
     }
     for (const item of Array.from(subscribers.values())) {
       if (!subscriberHit(item, event)) {
@@ -320,6 +372,13 @@
       try {
         item.callback(event);
       } catch (error) {
+        log.warn("settings-bus-subscriber-failed", "设置订阅回调失败", {
+          owner: item.owner,
+          key: item.key,
+          reason: event.reason,
+          keyCount: event.changedKeys.length,
+          error: safeError(error),
+        });
         runtime()?.markError?.("settings-bus-subscriber-failed", error, {
           owner: item.owner,
           key: item.key,
@@ -348,7 +407,10 @@
         });
       });
       return true;
-    } catch {
+    } catch (error) {
+      log.warn("settings-bus-watch-bind-failed", "设置存储监听绑定失败", {
+        error: safeError(error),
+      });
       boundStorage = false;
       return false;
     }

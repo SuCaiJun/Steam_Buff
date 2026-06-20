@@ -14,6 +14,10 @@
   const VERSION = "steam-buff-runtime-kernel-v1";
   const GLOBAL_KEY = "__SteamBuffRuntimeKernel";
   const DEFAULT_ID = "steam-buff-runtime";
+  const log = window.STLoggerFactory?.createLogger?.("shared", "runtime-kernel") || {
+    info() {},
+    warn() {},
+  };
 
   if (window.STRuntime?.version === VERSION && window[GLOBAL_KEY]?.version === VERSION) {
     return;
@@ -38,6 +42,10 @@
     return error?.message || String(error);
   }
 
+  function safeError(error) {
+    return errText(error).slice(0, 300);
+  }
+
   function safeCall(fn) {
     try {
       return fn();
@@ -57,6 +65,12 @@
       const key = text(input?.key);
       const type = text(input?.type || "custom");
       if (!owner || !key) {
+        log.warn("runtime-resource-register-failed", "运行时资源注册失败", {
+          owner,
+          key,
+          type,
+          reason: "owner-or-key-missing",
+        });
         throw new Error("运行时资源必须声明 owner 和 key");
       }
       const id = `${owner}:${type}:${key}`;
@@ -92,6 +106,13 @@
       try {
         item.dispose();
       } catch (error) {
+        log.warn("runtime-resource-dispose-failed", "运行时资源释放失败", {
+          resourceId: item.id,
+          owner: item.owner,
+          key: item.key,
+          type: item.type,
+          error: safeError(error),
+        });
         this.runtime.markError("resource-dispose-failed", error, {
           resourceId: item.id,
           owner: item.owner,
@@ -152,6 +173,9 @@
     registerAdapter(adapter = {}) {
       const id = text(adapter.id || adapter.domain);
       if (!id) {
+        log.warn("runtime-adapter-register-failed", "运行时 adapter 注册失败", {
+          reason: "id-missing",
+        });
         throw new Error("运行时 adapter 必须声明 id");
       }
       const prev = this.adapters.get(id) || {};
@@ -213,6 +237,11 @@
       const domain = text(feature.domain);
       const id = text(feature.id);
       if (!domain || !id) {
+        log.warn("runtime-feature-register-failed", "运行时 feature 注册失败", {
+          domain,
+          id,
+          reason: "domain-or-id-missing",
+        });
         throw new Error("运行时 feature 必须声明 domain 和 id");
       }
       const key = this.featureKey(domain, id);
@@ -317,6 +346,18 @@
 
     listener(owner, key, target, type, handler, options) {
       this.resources.dispose(`${text(owner)}:listener:${text(key)}`);
+      if (!target?.addEventListener || !type || typeof handler !== "function") {
+        log.warn("runtime-listener-bind-skipped", "运行时监听器绑定跳过", {
+          owner: text(owner),
+          key: text(key),
+          event: text(type),
+          reason: !target?.addEventListener
+            ? "target-unavailable"
+            : !type
+              ? "event-missing"
+              : "handler-invalid",
+        });
+      }
       target?.addEventListener?.(type, handler, options);
       return this.registerResource({
         owner,
@@ -398,6 +439,9 @@
     }
 
     dispose(meta = {}) {
+      const resourceCount = this.resources.items.size;
+      const adapterCount = this.adapters.size;
+      const featureCount = this.features.size;
       this.status = "disposing";
       this.resources.disposeAll();
       for (const adapter of this.adapters.values()) {
@@ -408,6 +452,13 @@
       this.adapters.clear();
       this.features.clear();
       this.status = "disposed";
+      log.info("runtime-dispose-summary", "运行时内核已释放", {
+        id: this.id,
+        reason: text(meta.reason || ""),
+        resourceCount,
+        adapterCount,
+        featureCount,
+      });
     }
 
     featureKey(domain, id, mode = "", entry = "") {

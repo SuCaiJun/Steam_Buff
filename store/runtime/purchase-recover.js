@@ -17,25 +17,14 @@
   const MODULE_CLASSES = api.dom.MODULE_CLASSES;
   const isUsableExistingModule = api.dom.isUsableExistingModule;
   const isUsableInsertTarget = api.dom.isUsableInsertTarget;
+  const logger = globalThis.STLoggerFactory?.createLogger?.("store", "purchase-recover");
   let recoverTimer = null;
   let restoreHandler = null;
 
   function log(level, event, message, meta = {}) {
     try {
-      const entry = {
-        domain: "store",
-        feature: "purchase-recover",
-        event,
-        message,
-        meta,
-      };
-      if (level === "error") {
-        globalThis.STLogger?.error?.(entry);
-      } else if (level === "warn") {
-        globalThis.STLogger?.warn?.(entry);
-      } else {
-        globalThis.STLogger?.info?.(entry);
-      }
+      const fn = logger?.[level] || logger?.info;
+      fn?.(event, message, meta);
     } catch {
     }
   }
@@ -137,6 +126,17 @@
     const target = observerTarget();
     if (!target) {
       window.__stStoreRecoverObs = null;
+      const pageInfo = api.ctx?.pageInfo?.();
+      if (pageInfo?.type === "app") {
+        log("warn", "purchase-recover-observer-target-missing", "商店购买区恢复监听目标未找到", recoverMeta(pageInfo, "observer-setup", {
+          selector: "#game_area_purchase parent | #responsive_page_template_content | .blockbg",
+          viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            dpr: window.devicePixelRatio,
+          },
+        }));
+      }
       return;
     }
 
@@ -156,6 +156,10 @@
       childList: true,
       subtree: true,
     });
+    log("info", "purchase-recover-observer-start", "商店购买区恢复监听已启动", recoverMeta(api.ctx?.pageInfo?.(), "observer-setup", {
+      targetId: target.id || "",
+      targetClass: target.className || "",
+    }));
   }
 
   function onPageShow() {
@@ -165,6 +169,7 @@
   function setupRecover() {
     if (window.__stStoreRecoverSetup) return;
     window.__stStoreRecoverSetup = true;
+    log("info", "purchase-recover-setup-start", "商店购买区恢复调度开始启动", recoverMeta(api.ctx?.pageInfo?.(), "setup"));
 
     // pageshow、内部 URL 变化和 DOM 变动都可能代表购买区被 Steam 重新渲染，需要延迟补扫一次。
     window.addEventListener("pageshow", onPageShow);
@@ -177,6 +182,7 @@
     }
 
     schedRecover("setup");
+    log("info", "purchase-recover-setup-success", "商店购买区恢复调度已启动", recoverMeta(api.ctx?.pageInfo?.(), "setup"));
   }
 
   function stopRecover() {

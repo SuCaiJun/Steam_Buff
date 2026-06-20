@@ -35,6 +35,7 @@
     patches: null,
     autoStarted: false,
     configuredAt: 0,
+    configLogKey: "",
   };
 
   if (globalThis[MARK]?.version === VERSION) {
@@ -76,6 +77,30 @@
 
   function runtime() {
     return globalThis.STRuntime?.get?.({ id: "steam-buff-page-runtime" }) || null;
+  }
+
+  function topFrame() {
+    try {
+      return window.top === window;
+    } catch {
+      return false;
+    }
+  }
+
+  function logger() {
+    return globalThis.STLoggerFactory?.createLogger?.("translate", "translate-vendor") || null;
+  }
+
+  function report(level, event, message, meta = {}) {
+    if (level === "info" && !topFrame()) {
+      return;
+    }
+    try {
+      const log = logger();
+      const fn = log?.[level] || log?.info || log?.warn || log?.error;
+      fn?.(event, message, meta);
+    } catch {
+    }
   }
 
   function ownerForPhase(phase = state.activeKey) {
@@ -150,19 +175,29 @@
   }
 
   function clearPhaseSideEffects(key, owner) {
-    for (const item of state.timers.filter(timer => timer.key.startsWith(`${key}:`))) {
+    const timers = state.timers.filter(timer => timer.key.startsWith(`${key}:`));
+    const observers = state.observers.filter(observer => observer.key.startsWith(`${key}:`));
+    for (const item of timers) {
       if (item.kind === "interval") {
         globalThis.clearInterval(item.id);
       } else {
         globalThis.clearTimeout(item.id);
       }
     }
-    for (const item of state.observers.filter(observer => observer.key.startsWith(`${key}:`))) {
+    for (const item of observers) {
       item.observer?.disconnect?.();
     }
     runtime()?.disposeOwner?.(owner);
     state.timers = state.timers.filter(timer => !timer.key.startsWith(`${key}:`));
     state.observers = state.observers.filter(item => !item.key.startsWith(`${key}:`));
+    if (timers.length || observers.length) {
+      report("info", "vendor-side-effects-cleaned", "翻译 vendor 副作用已清理", {
+        phase: key,
+        owner,
+        timerCount: timers.length,
+        observerCount: observers.length,
+      });
+    }
   }
 
   function clearLoadSideEffects() {
@@ -297,6 +332,7 @@
 
   function configure(conf = {}) {
     const modes = modesFrom(conf);
+    const key = modes.join(",");
     state.modes = modes;
     state.mode = modes[0] || MODE_MANUAL;
     state.configuredAt = Date.now();
@@ -307,6 +343,14 @@
     if (trans?.request?.listener) {
       trans.request.listener.use = modes.includes(MODE_AUTO_PAGE);
     }
+    if (state.configLogKey !== key) {
+      state.configLogKey = key;
+      report("info", "vendor-configure-success", "翻译 vendor 配置完成", {
+        modes,
+        autoPage: modes.includes(MODE_AUTO_PAGE),
+        selection: modes.includes(MODE_SELECTION),
+      });
+    }
     return diagnostics();
   }
 
@@ -316,6 +360,10 @@
     state.activeKey = LOAD_KEY;
     state.phase = LOAD_KEY;
     patch();
+    report("info", "vendor-load-start", "翻译 vendor 开始加载", {
+      modes: state.modes.slice(),
+      phase: LOAD_KEY,
+    });
   }
 
   function afterVendorLoad(conf = {}) {
@@ -335,6 +383,11 @@
     if (trans?.request?.api) {
       trans.request.api.init = "";
     }
+    report("info", "vendor-load-success", "翻译 vendor 加载完成", {
+      modes: state.modes.slice(),
+      mutedLogCount: state.logs.length,
+      phase: LOAD_KEY,
+    });
     return diagnostics();
   }
 
@@ -352,12 +405,18 @@
 
   function runAutoPage(fn) {
     state.autoStarted = true;
+    report("info", "vendor-auto-page-start", "翻译 vendor 整页监听开始", {
+      modes: state.modes.slice(),
+      phase: AUTO_KEY,
+    });
     return withPhase(AUTO_KEY, () => {
       return typeof fn === "function" ? fn() : undefined;
     });
   }
 
   function stopAutoPage(trans) {
+    const timerCount = state.timers.filter(timer => timer.key.startsWith(`${AUTO_KEY}:`)).length;
+    const observerCount = state.observers.filter(observer => observer.key.startsWith(`${AUTO_KEY}:`)).length;
     state.autoStarted = false;
     if (trans?.listener) {
       trans.listener.use = false;
@@ -371,6 +430,10 @@
       trans.whole.isEnableAll = false;
     }
     clearAutoSideEffects();
+    report("info", "vendor-auto-page-stop", "翻译 vendor 整页监听已停止", {
+      timerCount,
+      observerCount,
+    });
   }
 
   function diagnostics() {

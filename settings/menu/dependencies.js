@@ -170,6 +170,10 @@
       return featureRows().masterItemHtml?.(item, kind) || "";
     }
 
+    function drawerItemHtml(cat, item, bodyHtml, options) {
+      return featureRows().drawerItemHtml?.(cat, item, bodyHtml, options) || "";
+    }
+
     function helpLinkHtml(item) {
       return featureRows().helpLinkHtml?.(item) || "";
     }
@@ -228,6 +232,7 @@
       dependentIds,
       itemHtml,
       masterItemHtml,
+      drawerItemHtml,
       sourceTipHtml,
       switchHtml,
       helpLinkHtml,
