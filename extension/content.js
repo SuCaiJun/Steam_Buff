@@ -100,6 +100,9 @@
   const COMMUNITY_SETTING_IDS = Object.freeze([
     "market-tools",
   ]);
+  const TEMP_DISABLED_FEATURES = Object.freeze({
+    "market-tools": "Steam UI 已更新，功能失效",
+  });
   const ALL_SETTING_IDS = Object.freeze([...STEAM_SETTING_IDS, ...COMMUNITY_SETTING_IDS]);
   const SETTINGS_SHARED_SCRIPTS = Object.freeze([
     "ai/config.js",
@@ -816,6 +819,14 @@
     return `${SETTINGS_PREFIX}${id}${SETTINGS_SUFFIX}`;
   }
 
+  function temporarilyDisabledReason(id) {
+    return TEMP_DISABLED_FEATURES[id] || "";
+  }
+
+  function isTemporarilyDisabled(id) {
+    return Object.hasOwn(TEMP_DISABLED_FEATURES, id);
+  }
+
   function transKey(id) {
     return `${TRANS_PREFIX}${id}`;
   }
@@ -893,7 +904,7 @@
 
     const out = {};
     for (const id of ALL_SETTING_IDS) {
-      out[id] = true;
+      out[id] = !isTemporarilyDisabled(id);
     }
     if (globalThis.STSettingsBus?.loadSettingsSnapshot) {
       settingsCache = await globalThis.STSettingsBus.loadSettingsSnapshot({
@@ -904,12 +915,17 @@
         ttlMs: 30_000,
         reason: "content-settings-load",
       });
+      for (const id of ALL_SETTING_IDS) {
+        if (isTemporarilyDisabled(id)) {
+          settingsCache[id] = false;
+        }
+      }
       return settingsCache;
     }
     const rt = await storageGet(ALL_SETTING_IDS.map(settingKey));
     for (const id of ALL_SETTING_IDS) {
       const value = rt[settingKey(id)];
-      out[id] = typeof value === "boolean" ? value : true;
+      out[id] = isTemporarilyDisabled(id) ? false : (typeof value === "boolean" ? value : true);
     }
     settingsCache = out;
     return out;
@@ -1633,9 +1649,24 @@
     }
   }
 
-  async function communityOn() {
+  async function communityGate() {
+    const disabled = COMMUNITY_SETTING_IDS.find(isTemporarilyDisabled);
+    if (disabled) {
+      return {
+        allowed: false,
+        reason: "temporarily-disabled",
+        featureId: disabled,
+        message: temporarilyDisabledReason(disabled),
+      };
+    }
     const settings = await loadSettings();
-    return COMMUNITY_SETTING_IDS.every(id => settings[id] !== false);
+    const off = COMMUNITY_SETTING_IDS.find(id => settings[id] === false);
+    return {
+      allowed: !off,
+      reason: off ? "settings-disabled" : "",
+      featureId: off || "",
+      message: "",
+    };
   }
 
   async function writeSteamSettings() {
@@ -1782,16 +1813,19 @@
         return;
       }
 
-      communityOn().then((on) => {
-        if (!on) {
+      communityGate().then((gate) => {
+        if (!gate.allowed) {
           failCommunity();
           logOnce("community-runtime-inject-skipped-disabled", {
             level: "info",
             domain: "community",
             feature: "community-injection",
             event: "community-runtime-inject-skipped",
-            message: "社区运行时因设置关闭而跳过注入",
-            meta: pageMeta({ reason: "disabled" }),
+            message: gate.message || "社区运行时因设置关闭而跳过注入",
+            meta: pageMeta({
+              reason: gate.reason || "disabled",
+              featureId: gate.featureId || "",
+            }),
           });
           return;
         }

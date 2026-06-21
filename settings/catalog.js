@@ -68,6 +68,7 @@
     steampyProxy: "数据来源：SteamPY。授权/版权：已获得SteamPY官方授权；代购价格以 SteamPY 返回为准。",
     purchaseHistoryClassifier: "功能来源：Steam 消费历史分类器 userscript，作者 SmallFork。授权：MIT License。",
   });
+  const MARKET_TOOLS_DISABLED_BADGE = "Steam UI 已更新，功能失效";
 
   const SEE_FIELDS = Object.freeze([
     {
@@ -850,6 +851,9 @@
           sourceTip: SOURCE_TIPS.marketTools,
           area: "community",
           enabled: true,
+          disabled: true,
+          badge: MARKET_TOOLS_DISABLED_BADGE,
+          lock: "等待适配新版 Steam UI 后恢复开放。",
           panel: "see",
         },
         {
