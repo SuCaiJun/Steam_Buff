@@ -14,6 +14,7 @@
   const ID = "steam-news-translate";
   const RT = "__SteamBuffNewsTranslate";
   const SCHEDULER_TASK = "steam-news-translate-config";
+  const POPUP_WATCH_TASK = "steam-news-translate-popup-watch";
   const BUTTON_CLASS = "steam-buff-news-translate-button";
   const ICON_CLASS = "steam-buff-news-translate-icon";
   const TOOL_CLASS = "steam-buff-news-translate-tools";
@@ -21,6 +22,7 @@
   const TRANSLATED_CLASS = "steam-buff-news-translated";
   const TRANSLATED_BODY_CLASS = "steam-buff-news-translated-body";
   const ICON_PATH = "images/translate.svg";
+  const CONFIG_ATTR = "steamBuffNewsTranslate";
   const CONFIG_REQ = "STEAM_BUFF_NEWS_TRANSLATE_CONFIG_REQUEST";
   const CONFIG_RES = "STEAM_BUFF_NEWS_TRANSLATE_CONFIG_RESPONSE";
   const TEXT_REQ = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_REQUEST";
@@ -29,7 +31,12 @@
   const MAX_TEXT = 20000;
   const SCAN_DELAY = 120;
   const CONFIG_REFRESH_MS = 15000;
+  const POPUP_WATCH_MS = 1500;
   const REQUEST_TIMEOUT_MS = 60000;
+  const TITLE_MIN_TEXT = 3;
+  const TITLE_MIN_FONT_SIZE = 16;
+  const TITLE_MAX_TEXT = 220;
+  const TITLE_META_RE = /^(重大更新|新闻|活动|定期更新|小更新|补丁|公告|来自[:：]?.*|发布于.*|\d{1,2}月\d{1,2}日.*|today|yesterday|posted|from)$/i;
   const CONTROL_SELECTOR = [
     "button",
     "a",
@@ -86,6 +93,45 @@
 
   function errorMessage(error) {
     return error?.message || String(error);
+  }
+
+  function parseConfig(value) {
+    try {
+      const data = JSON.parse(String(value || ""));
+      return data && typeof data === "object" ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function datasetConfig() {
+    return parseConfig(document.documentElement?.dataset?.[CONFIG_ATTR]);
+  }
+
+  function localFeatureEnabled(rt) {
+    return rt?.api?.ctx?.settingOn?.(ID) !== false;
+  }
+
+  function localConfig(rt, reason) {
+    const data = datasetConfig();
+    const featureEnabled = localFeatureEnabled(rt);
+    if (data) {
+      return {
+        ...data,
+        enabled: data.enabled === true && featureEnabled,
+        featureEnabled,
+        source: "dataset",
+        reason,
+      };
+    }
+    return {
+      enabled: featureEnabled,
+      featureEnabled,
+      translateEnabled: null,
+      newsPopup: null,
+      source: "page-settings",
+      reason,
+    };
   }
 
   function css() {
@@ -293,6 +339,133 @@
     return parts;
   }
 
+  function pxNumber(value) {
+    const number = Number.parseFloat(String(value || ""));
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function skipTitleParent(el, bodyHost) {
+    if (!el || el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS},.${BUTTON_CLASS}`)) {
+      return true;
+    }
+    const tag = el.tagName;
+    if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "IFRAME" || tag === "VIDEO" || tag === "IMG") {
+      return true;
+    }
+    if (el.closest?.("[aria-hidden='true'],[hidden]")) {
+      return true;
+    }
+    if (tag !== "A" && (el.matches?.("button,input,select,textarea,[role='button']") || el.closest?.("button,input,select,textarea"))) {
+      return true;
+    }
+    if (bodyHost && (bodyHost === el || bodyHost.contains(el))) {
+      return true;
+    }
+    return !visible(el);
+  }
+
+  function titleNodeScore(item, bodyTop) {
+    const metaPenalty = TITLE_META_RE.test(item.text) ? 600 : 0;
+    const tagBonus = item.parent.tagName === "A" ? 80 : 0;
+    const headingBonus = item.parent.matches?.("h1,h2,h3,[role='heading'],[class*='Title'],[class*='title'],[class*='Headline'],[class*='headline']") ? 120 : 0;
+    const distancePenalty = Math.abs(item.rect.top - bodyTop) * 0.35;
+    return item.fontSize * 100 + item.rect.height * 4 + Math.min(item.text.length, 80) + tagBonus + headingBonus - metaPenalty - distancePenalty;
+  }
+
+  function titleTextNode(card, bodyHost) {
+    if (!card?.isConnected) {
+      return null;
+    }
+    const cardRect = card.getBoundingClientRect();
+    const bodyRect = bodyHost && bodyHost !== card ? bodyHost.getBoundingClientRect() : null;
+    const bodyTop = bodyRect?.top || cardRect.top + Math.min(cardRect.height, 280);
+    const candidates = [];
+    const seenParents = new WeakSet();
+    const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const parent = node.parentElement;
+      if (!parent || seenParents.has(parent)) {
+        continue;
+      }
+      seenParents.add(parent);
+      const text = nodeText(parent).slice(0, TITLE_MAX_TEXT) || clean(node.nodeValue).slice(0, TITLE_MAX_TEXT);
+      if (text.length < TITLE_MIN_TEXT || skipTitleParent(parent, bodyHost)) {
+        continue;
+      }
+      const rect = parent.getBoundingClientRect();
+      if (rect.top < cardRect.top - 4 || rect.top >= bodyTop || rect.width < 40 || rect.height < 12) {
+        continue;
+      }
+      if (bodyRect) {
+        const bodyCenter = (bodyRect.left + bodyRect.right) / 2;
+        const titleCenter = (rect.left + rect.right) / 2;
+        const centerLimit = Math.max(180, bodyRect.width * 0.38);
+        if (rect.right < bodyRect.left - 80 ||
+            rect.left > bodyRect.right + 80 ||
+            rect.left > bodyRect.left + bodyRect.width * 0.62 ||
+            Math.abs(titleCenter - bodyCenter) > centerLimit) {
+          continue;
+        }
+      }
+      const style = window.getComputedStyle(parent);
+      const fontSize = pxNumber(style.fontSize);
+      if (fontSize < TITLE_MIN_FONT_SIZE && rect.height < 22) {
+        continue;
+      }
+      candidates.push({
+        node,
+        parent,
+        text,
+        rect,
+        fontSize,
+      });
+    }
+    return candidates
+      .sort((a, b) => titleNodeScore(b, bodyTop) - titleNodeScore(a, bodyTop))[0] || null;
+  }
+
+  function ancestorTitleTextNode(card) {
+    const popup = card?.closest?.("#popup_target") || null;
+    let current = card?.parentElement || null;
+    while (current && current !== popup && popup?.contains(current)) {
+      const title = titleTextNode(current, card);
+      if (title) {
+        return title;
+      }
+      current = current.parentElement;
+    }
+    return null;
+  }
+
+  function findTitleTextNode(card, bodyHost) {
+    const direct = titleTextNode(card, bodyHost);
+    if (direct && !card?.closest?.(`.${TRANSLATED_BODY_CLASS}`)) {
+      return direct;
+    }
+    return ancestorTitleTextNode(card) || direct;
+  }
+
+  function replaceTitleText(host, text) {
+    if (!host?.isConnected) {
+      return false;
+    }
+    const parts = [];
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const value = clean(walker.currentNode.nodeValue);
+      if (value) {
+        parts.push(walker.currentNode);
+      }
+    }
+    if (!parts.length) {
+      return false;
+    }
+    setTextNode(parts[0], text || "翻译结果为空");
+    parts.slice(1).forEach((node) => setTextNode(node, ""));
+    return true;
+  }
+
   function translatedLines(text) {
     return String(text || "")
       .replace(/\r\n/g, "\n")
@@ -362,11 +535,17 @@
   function extract(card, options = {}) {
     const host = textHost(card, options);
     const text = host ? collectText(host) : "";
+    const title = findTitleTextNode(card, host && host !== card ? host : null);
+    const titleText = title?.text || "";
     return {
       host,
       text,
-      hash: hashText(text),
-      length: text.length,
+      titleHost: title?.parent || null,
+      titleNode: title?.node || null,
+      titleText,
+      titleHash: hashText(titleText),
+      hash: hashText(`${titleText}\n---steam-buff-news---\n${text}`),
+      length: titleText.length + text.length,
     };
   }
 
@@ -384,9 +563,10 @@
   function findVisualToolbar(card) {
     const root = card.closest("#popup_target") || card.parentElement || card;
     const cardRect = card.getBoundingClientRect();
+    const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
     const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
     return Array.from(root.querySelectorAll("div"))
-      .filter((el) => toolbarColumnLike(el, cardRect, viewportHeight))
+      .filter((el) => toolbarColumnLike(el, cardRect, viewportHeight, viewportWidth))
       .sort((a, b) => toolbarScore(b, cardRect) - toolbarScore(a, cardRect))[0] || null;
   }
 
@@ -395,35 +575,46 @@
       return false;
     }
     const rect = el.getBoundingClientRect();
-    return rect.width >= 40 &&
-      rect.width <= 64 &&
-      rect.height >= 24 &&
-      rect.height <= 64 &&
-      nodeText(el).length <= 2;
+    return rect.width >= 28 &&
+      rect.width <= 76 &&
+      rect.height >= 20 &&
+      rect.height <= 76 &&
+      nodeText(el).length <= 8;
   }
 
-  function toolbarColumnLike(el, cardRect, viewportHeight) {
+  function toolbarActionCount(el) {
+    const direct = Array.from(el.children || []).filter(toolbarItemLike).length;
+    if (direct >= 2) {
+      return direct;
+    }
+    return Array.from(el.querySelectorAll("button,a,[role='button'],div"))
+      .filter((item) => item !== el && toolbarItemLike(item)).length;
+  }
+
+  function toolbarColumnLike(el, cardRect, viewportHeight, viewportWidth = Math.max(1, window.innerWidth || 0)) {
     if (!visible(el) || el.classList?.contains(TOOL_CLASS) || el.closest(`.${BOX_CLASS}`)) {
       return false;
     }
     const rect = el.getBoundingClientRect();
-    if (rect.left < cardRect.right - 96 ||
-        rect.left > cardRect.right + 72 ||
-        rect.width < 44 ||
-        rect.width > 80 ||
-        rect.height < 120 ||
-        rect.height > 520 ||
-        rect.top < 90 ||
-        rect.top > Math.max(560, viewportHeight * 0.68) ||
-        rect.bottom < 180) {
+    const besideCard = rect.left >= cardRect.right - 140 && rect.left <= cardRect.right + 128;
+    const overRightEdge = rect.left >= cardRect.left + cardRect.width * 0.78 &&
+      rect.right <= Math.min(viewportWidth + 12, cardRect.right + 128);
+    if ((!besideCard && !overRightEdge) ||
+        rect.width < 32 ||
+        rect.width > 96 ||
+        rect.height < 80 ||
+        rect.height > 620 ||
+        rect.top < 48 ||
+        rect.top > Math.max(620, viewportHeight * 0.78) ||
+        rect.bottom < 128) {
       return false;
     }
-    return Array.from(el.children || []).filter(toolbarItemLike).length >= 3;
+    return toolbarActionCount(el) >= 2;
   }
 
   function toolbarScore(el, cardRect) {
     const rect = el.getBoundingClientRect();
-    const itemCount = Array.from(el.children || []).filter(toolbarItemLike).length;
+    const itemCount = toolbarActionCount(el);
     const leftPenalty = Math.abs(rect.left - (cardRect.right - 24));
     const topPenalty = Math.abs(rect.top - Math.max(120, window.innerHeight * 0.16));
     return itemCount * 1000 - leftPenalty * 3 - topPenalty;
@@ -465,22 +656,64 @@
     card.querySelectorAll?.(`.${BOX_CLASS}`)?.forEach((el) => el.remove());
   }
 
-  function renderTranslation(rt, card, data, text) {
+  function renderTitleTranslation(card, data, text) {
+    if (!data.titleText) {
+      return null;
+    }
+    const current = data.titleHost?.isConnected ? { parent: data.titleHost } : findTitleTextNode(card, data.host);
+    const host = current?.parent || null;
+    if (!host?.isConnected || !replaceTitleText(host, text)) {
+      return null;
+    }
+    host.classList.add(TRANSLATED_CLASS, "notranslate");
+    host.setAttribute("translate", "no");
+    if (host.dataset) {
+      host.dataset.steamBuffNewsTranslateTitleHash = data.titleHash;
+    }
+    return host;
+  }
+
+  function renderBodyTranslation(card, data, text) {
     const host = data.host?.isConnected ? data.host : textHost(card, { strict: true });
     if (!host || host === card) {
       throw new Error("未找到可替换的正文区域");
     }
-    clearLegacyBoxes(card);
     if (!replaceTextNodes(host, text || "翻译结果为空")) {
       throw new Error("未找到可替换的正文文本");
     }
     host.classList.add(TRANSLATED_CLASS, TRANSLATED_BODY_CLASS, "notranslate");
     host.setAttribute("translate", "no");
     host.dataset.steamBuffNewsTranslateHash = data.hash;
+    return host;
+  }
+
+  function normalizeTranslationResult(value) {
+    if (typeof value === "string") {
+      return { title: "", body: value, meta: {} };
+    }
+    const result = value && typeof value === "object" ? value : {};
+    return {
+      title: String(result.title || "").trim(),
+      body: String(result.body || "").trim(),
+      meta: result.meta || {},
+    };
+  }
+
+  function renderTranslation(rt, card, data, value, needs = { title: true, body: true }) {
+    clearLegacyBoxes(card);
+    const result = normalizeTranslationResult(value);
+    const titleHost = needs.title ? renderTitleTranslation(card, data, result.title) : data.titleHost;
+    const host = needs.body ? renderBodyTranslation(card, data, result.body) : data.host;
+    if (needs.title && !titleHost && !needs.body) {
+      throw new Error("未找到可替换的标题文本");
+    }
     rt.translated.set(card, {
       hash: data.hash,
       host,
-      text: collectText(host),
+      titleHost: titleHost || data.titleHost || null,
+      titleHash: data.titleHash,
+      text: host?.isConnected ? collectText(host) : "",
+      titleText: titleHost?.isConnected ? nodeText(titleHost) : "",
     });
   }
 
@@ -535,22 +768,95 @@
     }
   }
 
+  function titleAlreadyTranslated(data, existing) {
+    if (!data.titleText) {
+      return true;
+    }
+    if (existing?.titleHost?.isConnected) {
+      return true;
+    }
+    return data.titleHost?.classList?.contains(TRANSLATED_CLASS) === true;
+  }
+
+  function bodyAlreadyTranslated(data, existing) {
+    if (!data.text) {
+      return true;
+    }
+    if (existing?.host?.isConnected) {
+      return true;
+    }
+    return data.host?.classList?.contains(TRANSLATED_BODY_CLASS) === true;
+  }
+
+  function translationNeeds(data, existing) {
+    return {
+      title: !!data.titleText && !titleAlreadyTranslated(data, existing),
+      body: !!data.text && !bodyAlreadyTranslated(data, existing),
+    };
+  }
+
+  function hasTranslationNeeds(needs) {
+    return needs.title || needs.body;
+  }
+
+  function cachedCoversNeeds(value, needs) {
+    const cached = normalizeTranslationResult(value);
+    return (!needs.title || !!cached.title) && (!needs.body || !!cached.body);
+  }
+
+  function stillCurrent(data, needs) {
+    if (needs.title && (!data.titleHost?.isConnected || nodeText(data.titleHost) !== data.titleText)) {
+      return false;
+    }
+    if (needs.body && (!data.host?.isConnected || collectText(data.host).trim() !== data.text)) {
+      return false;
+    }
+    return true;
+  }
+
+  async function requestTranslationText(text) {
+    const response = await request(TEXT_REQ, TEXT_RES, { text });
+    if (!response.ok) {
+      throw new Error(response.error || "翻译失败");
+    }
+    return {
+      text: String(response.text || "").trim(),
+      meta: response.meta || {},
+    };
+  }
+
+  async function translateNeededText(data, needs) {
+    const [title, body] = await Promise.all([
+      needs.title ? requestTranslationText(data.titleText) : Promise.resolve(null),
+      needs.body ? requestTranslationText(data.text) : Promise.resolve(null),
+    ]);
+    return {
+      title: title?.text || "",
+      body: body?.text || "",
+      meta: {
+        title: title?.meta || null,
+        body: body?.meta || null,
+      },
+    };
+  }
+
   async function translateCard(rt, card, record) {
     const button = record.button;
+    const data = extract(card, { strict: true });
     const existing = rt.translated.get(card);
-    if (existing?.host?.isConnected) {
+    const needs = translationNeeds(data, existing);
+    if (!hasTranslationNeeds(needs)) {
       setButton(button, "done");
       return;
     }
-    const data = extract(card, { strict: true });
-    if (!data.text) {
+    if (!data.text && !data.titleText) {
       setButton(button, "error", "没有可翻译内容");
       return;
     }
     const cached = rt.cache.get(data.hash);
-    if (cached) {
+    if (cached && cachedCoversNeeds(cached, needs)) {
       try {
-        renderTranslation(rt, card, data, cached);
+        renderTranslation(rt, card, data, cached, needs);
         setButton(button, "done");
       } catch (error) {
         setButton(button, "error", error?.message || "翻译失败");
@@ -561,27 +867,30 @@
     setButton(button, "loading", "正在翻译...");
     log.info("news-popup-translate-start", "新闻弹窗翻译开始", {
       textLength: data.length,
+      titleLength: data.titleText.length,
+      bodyLength: data.text.length,
+      needsTitle: needs.title,
+      needsBody: needs.body,
     });
 
     try {
-      const response = await request(TEXT_REQ, TEXT_RES, { text: data.text });
-      if (!response.ok) {
-        throw new Error(response.error || "翻译失败");
-      }
-      if (!card.isConnected || !data.host?.isConnected || collectText(data.host).trim() !== data.text) {
+      const result = await translateNeededText(data, needs);
+      if (!card.isConnected || !stillCurrent(data, needs)) {
         setButton(button, "idle");
         return;
       }
-      const text = String(response.text || "").trim();
-      rt.cache.set(data.hash, text);
+      rt.cache.set(data.hash, result);
       trimCache(rt.cache);
-      renderTranslation(rt, card, data, text);
+      renderTranslation(rt, card, data, result, needs);
       setButton(button, "done");
       log.info("news-popup-translate-success", "新闻弹窗翻译完成", {
         textLength: data.length,
-        resultLength: text.length,
-        durationMs: response.meta?.durationMs || 0,
-        service: response.meta?.service || "",
+        titleLength: data.titleText.length,
+        bodyLength: data.text.length,
+        resultLength: result.title.length + result.body.length,
+        titleDurationMs: result.meta.title?.durationMs || 0,
+        bodyDurationMs: result.meta.body?.durationMs || 0,
+        service: result.meta.body?.service || result.meta.title?.service || "",
       });
     } catch (error) {
       if (card.isConnected) {
@@ -589,12 +898,22 @@
       }
       logError("news-popup-translate-failed", "新闻弹窗翻译失败", {
         textLength: data.length,
+        titleLength: data.titleText.length,
+        bodyLength: data.text.length,
+        needsTitle: needs.title,
+        needsBody: needs.body,
       }, error);
     }
   }
 
   function currentButtonCard(rt, fallbackCard, button) {
     const target = button?.parentElement || null;
+    if (fallbackCard?.isConnected) {
+      const record = mounted.get(fallbackCard);
+      if (!target || record?.target === target || record?.button === button) {
+        return fallbackCard;
+      }
+    }
     const active = activeMountableCard(popupCandidates(), target);
     if (active?.isConnected) {
       return active;
@@ -699,8 +1018,45 @@
     rt.cards.clear();
   }
 
+  function configStateKey(config) {
+    return [
+      config?.enabled === true ? "on" : "off",
+      config?.featureEnabled === false ? "feature-off" : "feature-on",
+      config?.translateEnabled === false ? "translate-off" : "translate-on-or-unknown",
+      config?.newsPopup === false ? "news-off" : "news-on-or-unknown",
+      config?.source || "",
+      config?.reason || "",
+    ].join("|");
+  }
+
+  function logConfigState(rt) {
+    const key = configStateKey(rt.config);
+    if (rt.configStateKey === key) {
+      return;
+    }
+    rt.configStateKey = key;
+    log.info(
+      rt.config.enabled === true ? "news-popup-config-enabled" : "news-popup-config-disabled",
+      rt.config.enabled === true ? "新闻弹窗翻译配置已启用" : "新闻弹窗翻译配置未启用",
+      {
+        source: rt.config.source || "",
+        reason: rt.config.reason || "",
+        featureEnabled: rt.config.featureEnabled !== false,
+        translateEnabled: rt.config.translateEnabled,
+        newsPopup: rt.config.newsPopup,
+      }
+    );
+  }
+
   function applyConfig(rt, config) {
-    rt.config = config && typeof config === "object" ? config : {};
+    const source = config && typeof config === "object" ? config : localConfig(rt, "invalid-config");
+    const featureEnabled = localFeatureEnabled(rt);
+    rt.config = {
+      ...source,
+      enabled: source.enabled === true && featureEnabled,
+      featureEnabled,
+    };
+    logConfigState(rt);
     if (rt.config.enabled !== true) {
       clearMounted(rt);
       return;
@@ -714,7 +1070,7 @@
       applyConfig(rt, response.config);
     } catch (error) {
       logConfigFailure(rt, error);
-      applyConfig(rt, { enabled: false });
+      applyConfig(rt, localConfig(rt, "bridge-fallback"));
     }
   }
 
@@ -724,9 +1080,10 @@
       return;
     }
     rt.configWarnAt = at;
-    log.warn("news-popup-config-request-failed", "新闻弹窗翻译配置获取失败，已临时关闭", {
+    log.warn("news-popup-config-request-failed", "新闻弹窗翻译配置获取失败，已使用本地设置快照", {
       error: errorMessage(error),
       retryMs: CONFIG_REFRESH_MS,
+      hasDatasetConfig: !!datasetConfig(),
     });
   }
 
@@ -735,6 +1092,7 @@
     if (rt.stopped || rt.config?.enabled !== true) {
       return;
     }
+    attachObserver(rt);
     const candidates = popupCandidates();
     const activeCards = rankedPopupCards(candidates);
     let activeCard = null;
@@ -756,10 +1114,49 @@
     if (!activeCard) {
       if (!rt.skipLogged && Date.now() - rt.startedAt > 2500) {
         rt.skipLogged = true;
-        log.info("news-popup-dom-skip", "未识别到可翻译的新闻弹窗", {});
+        logNewsMountMiss(rt, candidates);
       }
       return;
     }
+  }
+
+  function rectMeta(el) {
+    if (!el) {
+      return null;
+    }
+    const rect = el.getBoundingClientRect();
+    return {
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      top: Math.round(rect.top),
+      left: Math.round(rect.left),
+      right: Math.round(rect.right),
+      bottom: Math.round(rect.bottom),
+    };
+  }
+
+  function logNewsMountMiss(rt, candidates) {
+    const at = Date.now();
+    if (at - (rt.mountWarnAt || 0) < 30000) {
+      return;
+    }
+    rt.mountWarnAt = at;
+    const firstCard = candidates[0] || null;
+    const hasCandidates = candidates.length > 0;
+    log[hasCandidates ? "warn" : "info"](
+      hasCandidates ? "news-popup-toolbar-missing" : "news-popup-dom-skip",
+      hasCandidates ? "新闻弹窗已识别但未找到原生侧边工具列" : "未识别到可翻译的新闻弹窗",
+      {
+        hasPopupTarget: !!observeTarget(),
+        candidateCount: candidates.length,
+        firstCardRect: rectMeta(firstCard),
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          dpr: window.devicePixelRatio,
+        },
+      }
+    );
   }
 
   function scheduleScan(rt, delay = SCAN_DELAY) {
@@ -819,6 +1216,9 @@
     if (!target) {
       return;
     }
+    if (rt.observer && rt.observerTarget === target) {
+      return;
+    }
     rt.observer?.disconnect?.();
     rt.observerTarget = target;
     const onMutation = () => {
@@ -832,6 +1232,19 @@
       || new MutationObserver(onMutation);
     rt.observer.observe(target, observeOptions(target));
     rt.scope?.observer?.("popup-target", rt.observer);
+  }
+
+  function watchPopupTarget(rt) {
+    if (rt.stopped) {
+      return;
+    }
+    const latest = observeTarget();
+    if (latest && latest !== rt.observerTarget) {
+      attachObserver(rt);
+    }
+    if (rt.config?.enabled === true) {
+      scheduleScan(rt);
+    }
   }
 
   function start(api, _feature, _context, scope) {
@@ -861,6 +1274,7 @@
       scanHandle: null,
       refreshTimer: 0,
       skipLogged: false,
+      api,
       config: { enabled: false },
       cards: new Set(),
       cache: new Map(),
@@ -869,6 +1283,7 @@
       observer: null,
       observerTarget: null,
       configWarnAt: 0,
+      mountWarnAt: 0,
       stop() {
         log.info("news-popup-ui-stop", "新闻弹窗翻译界面已停止", {
           cardCount: rt.cards.size,
@@ -885,6 +1300,7 @@
           rt.scanTimer = 0;
         }
         window.STScheduler?.unregister?.(SCHEDULER_TASK);
+        window.STScheduler?.unregister?.(POPUP_WATCH_TASK);
         rt.refreshTimer = 0;
         rt.observer?.disconnect?.();
         window.removeEventListener("message", rt.onMessage);
@@ -903,6 +1319,7 @@
     scope?.listener?.("window-scroll", window, "scroll", rt.onScroll, true);
     /* 只在弹窗根节点启用属性监听；根节点尚未出现时依靠调度扫描等待。 */
     attachObserver(rt);
+    applyConfig(rt, localConfig(rt, "startup"));
     // 配置刷新迁移到统一调度器，避免新闻弹窗功能持有独立巡检。
     window.STScheduler.register(
       SCHEDULER_TASK,
@@ -911,10 +1328,18 @@
       { intervalMs: CONFIG_REFRESH_MS }
     );
     scope?.schedulerTask?.("config-refresh", SCHEDULER_TASK);
+    window.STScheduler.register(
+      POPUP_WATCH_TASK,
+      () => watchPopupTarget(rt),
+      () => !rt.stopped,
+      { intervalMs: POPUP_WATCH_MS }
+    );
+    scope?.schedulerTask?.("popup-target-watch", POPUP_WATCH_TASK);
     log.info("news-popup-ui-start", "新闻弹窗翻译界面已启动", {
       hasPopupTarget: !!observeTarget(),
       hasObserver: !!rt.observer,
       refreshMs: CONFIG_REFRESH_MS,
+      popupWatchMs: POPUP_WATCH_MS,
     });
     refreshConfig(rt).catch(() => {});
     return { started: true, stop: rt.stop };

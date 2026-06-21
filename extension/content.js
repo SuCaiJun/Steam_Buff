@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v1";
+  const RUN_VERSION = "steam-buff-runtime-v4";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -68,8 +68,10 @@
   const NEWS_TRANSLATE_CONFIG_RES = "STEAM_BUFF_NEWS_TRANSLATE_CONFIG_RESPONSE";
   const NEWS_TRANSLATE_TEXT_REQ = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_REQUEST";
   const NEWS_TRANSLATE_TEXT_RES = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_RESPONSE";
+  const NEWS_TRANSLATE_BRIDGE_MARK = "__steamBuffNewsTranslateBridge";
   const COMMUNITY_MARK = "steamBuffCommunityInjected";
   const SETTINGS_ATTR = "steamBuffSettings";
+  const NEWS_TRANSLATE_ATTR = "steamBuffNewsTranslate";
   const LOCALE_ATTR = "steamBuffUiLocale";
   const NAME_ID = "library-custom-name";
   const NEWS_TRANSLATE_ID = "steam-news-translate";
@@ -259,7 +261,7 @@
   const BOOT_MS = 250;
   const BOOT_MAX = 480;
   const TRANSLATE_DEFAULTS = Object.freeze({
-    page: true,
+    page: false,
     selection: true,
     selectionTrigger: "direct",
     selectionAction: "click",
@@ -1015,12 +1017,34 @@
     };
   }
 
-  async function postNewsConfig(rid = "") {
-    const featureOn = await enabled(NEWS_TRANSLATE_ID);
+  function writeNewsTranslateDataset(config) {
+    const el = root();
+    if (!el?.dataset) {
+      return;
+    }
+    try {
+      el.dataset[NEWS_TRANSLATE_ATTR] = JSON.stringify(config || { enabled: false });
+    } catch {
+      el.dataset[NEWS_TRANSLATE_ATTR] = "{\"enabled\":false}";
+    }
+  }
+
+  async function writeNewsTranslateSettings(featureOn = null) {
+    if (globalThis.STPageContext?.snapshot?.().domain !== "steam") {
+      return null;
+    }
+    const enabledFeature = featureOn == null ? await enabled(NEWS_TRANSLATE_ID) : featureOn;
     const conf = await loadTranslateConfig();
+    const config = newsTranslatePublicConfig(enabledFeature, conf);
+    writeNewsTranslateDataset(config);
+    return config;
+  }
+
+  async function postNewsConfig(rid = "") {
+    const config = await writeNewsTranslateSettings();
     postNews(NEWS_TRANSLATE_CONFIG_RES, {
       rid: safeRid(rid),
-      config: newsTranslatePublicConfig(featureOn, conf),
+      config: config || { enabled: false },
     });
   }
 
@@ -1131,10 +1155,19 @@
 
   /* Steam 新闻翻译桥接 */
   function watchNewsTranslateBridge() {
-    if (watchNewsTranslate || globalThis.STPageContext?.snapshot?.().domain !== "steam") {
+    if (watchNewsTranslate || globalThis[NEWS_TRANSLATE_BRIDGE_MARK] === RUN_VERSION || !isSteamContentTarget()) {
       return;
     }
     watchNewsTranslate = true;
+    globalThis[NEWS_TRANSLATE_BRIDGE_MARK] = RUN_VERSION;
+    steamRuntimeLogOnce("steam-news-translate-bridge-start", {
+      level: "info",
+      domain: "extension",
+      feature: NEWS_TRANSLATE_ID,
+      event: "steam-news-translate-bridge-start",
+      message: "Steam 新闻翻译桥接已启动",
+      meta: pageMeta(),
+    });
     window.addEventListener("message", (event) => {
       if (event.source !== window) {
         return;
@@ -1623,6 +1656,7 @@
     } catch {
       el.dataset[SETTINGS_ATTR] = "{}";
     }
+    await writeNewsTranslateSettings(settings[NEWS_TRANSLATE_ID] !== false);
     await writeUiLocale();
   }
 
@@ -1721,6 +1755,7 @@
         onDomReady(run);
         return;
       }
+      loadSettingsRail("runtime-boot").catch(() => {});
 
       // 社区页不使用 STGuard，STInject 还没注入时继续走启动重试，避免扩展重载后漏注入。
       if (!inj?.inject) {
@@ -1950,6 +1985,9 @@
   }
 
   function boot() {
+    if (isSteamContentTarget()) {
+      watchNewsTranslateBridge();
+    }
     if (globalThis[RUN_MARK] === RUN_VERSION || globalThis[RUN_MARK] === RUN_PENDING) {
       return;
     }
@@ -1969,11 +2007,6 @@
       }
     }
 
-    if (isSteamContentTarget() && !steamContentDepsReady()) {
-      waitSteamContentDeps();
-      return;
-    }
-
     // 被排除页面也标记为已处理，避免后台补注入反复命中 Steam CEF 菜单页。
     globalThis[RUN_MARK] = RUN_VERSION;
     if (!shouldInject()) {
@@ -1982,6 +2015,13 @@
       return;
     }
 
+    globalThis[RUN_MARK] = "";
+    if (isSteamContentTarget() && !steamContentDepsReady()) {
+      waitSteamContentDeps();
+      return;
+    }
+
+    globalThis[RUN_MARK] = RUN_VERSION;
     if (globalThis.STPageContext?.snapshot?.().domain !== "steam" && !isCommunityPage()) {
       runLightBoot();
       return;

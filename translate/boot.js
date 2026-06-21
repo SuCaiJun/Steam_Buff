@@ -28,7 +28,7 @@
   const log = globalThis.STLoggerFactory?.createLogger?.("translate", FEATURE_ID);
   const DEF = Object.freeze({
     scope: "steam",
-    page: true,
+    page: false,
     selection: true,
     selectionTrigger: "direct",
     selectionAction: "click",

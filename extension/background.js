@@ -57,9 +57,11 @@
     "extension/content.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v1";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v4";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
+  const TAB_INJECT_DELAYS = Object.freeze([0, 1000]);
+  const pendingTabInjects = new Map();
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
   const AI_FETCH_TIMEOUT_MS = 20 * 1000;
   const SHARED_CONFIG = "shared/config.js";
@@ -170,12 +172,57 @@
     }
   }
 
+  function steamAboutBlankParams(value) {
+    const url = String(value || "");
+    if (!url.startsWith("about:blank")) {
+      return null;
+    }
+    try {
+      const query = url.slice("about:blank".length).replace(/^\?/, "");
+      return new URLSearchParams(query);
+    } catch {
+      return null;
+    }
+  }
+
+  function isSteamMainAboutBlank(value) {
+    const params = steamAboutBlankParams(value);
+    if (!params) {
+      return false;
+    }
+    return params.get("browserType") === CFG.pages?.translate?.browserType;
+  }
+
+  function isSteamPropertyDialogAboutBlank(value) {
+    const params = steamAboutBlankParams(value);
+    if (!params) {
+      return false;
+    }
+    return params.has("createflags") &&
+      params.has("centerOnBrowserID") &&
+      params.has("minwidth") &&
+      params.has("minheight") &&
+      !params.has("browserType");
+  }
+
+  function isSteamCefAboutBlank(value) {
+    return isSteamMainAboutBlank(value) || isSteamPropertyDialogAboutBlank(value);
+  }
+
+  function isExcludedSteamTitle(value) {
+    const title = String(value || "");
+    return (CFG.pages?.steam?.excludedTitles || []).includes(title) || /(?:Root Menu|Supernav)$/u.test(title);
+  }
+
   // Steam 客户端内嵌窗口常以 about:blank 起步，不能只看当前 URL 就跳过补注入。
   function ok(tab) {
     if (!tab || typeof tab.id !== "number") {
       return false;
     }
-    return !tab.url || isSteam(tab.url) || tab.url.startsWith("about:blank");
+    if (isExcludedSteamTitle(tab.title)) {
+      return false;
+    }
+    return isSteam(tab.url) || isSteamCefAboutBlank(tab.url);
   }
 
   function inject(tabId) {
@@ -252,6 +299,30 @@
         globalThis.setTimeout(injectAll, delay);
       }
     }
+  }
+
+  function clearPendingTabInject(tabId) {
+    const handles = pendingTabInjects.get(tabId);
+    if (!handles) {
+      return;
+    }
+    handles.forEach(handle => globalThis.clearTimeout(handle));
+    pendingTabInjects.delete(tabId);
+  }
+
+  function injectTabSoon(tab) {
+    if (!ok(tab)) {
+      return;
+    }
+    const tabId = tab.id;
+    clearPendingTabInject(tabId);
+    const handles = TAB_INJECT_DELAYS.map((delay, index) => globalThis.setTimeout(() => {
+      injectIfNeeded(tabId);
+      if (index === TAB_INJECT_DELAYS.length - 1) {
+        pendingTabInjects.delete(tabId);
+      }
+    }, delay));
+    pendingTabInjects.set(tabId, handles);
   }
 
   function openSettings(tab) {
@@ -792,6 +863,8 @@
 
   chrome.runtime.onInstalled.addListener(injectSoon);
   chrome.runtime.onStartup.addListener(injectSoon);
+  chrome.tabs?.onCreated?.addListener(injectTabSoon);
+  chrome.tabs?.onUpdated?.addListener((_tabId, _changeInfo, tab) => injectTabSoon(tab));
   chrome.action?.onClicked?.addListener(openSettings);
   bindGlobalLoggers();
   injectSoon();

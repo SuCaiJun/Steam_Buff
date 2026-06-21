@@ -13,9 +13,14 @@
 
   const api = window.SteamBuff = window.SteamBuff || {};
   const SORT_LABEL_RE = /自定义排序名称|自訂排序名稱|自定義排序名稱|Custom Sort|カスタムソート|カスタム並び替え|사용자 지정 정렬|사용자 정의 정렬/i;
+  const DOWNLOAD_ACTION_RE = /^(继续下载|立即下载|恢复下载|暂停下载|resume download|download now|pause download)$/i;
   const SORT_UI_CACHE_MS = 1200;
+  const DOWNLOAD_UI_HIT_CACHE_MS = 1200;
+  const DOWNLOAD_UI_MISS_CACHE_MS = 180;
   let sortUiCacheAt = 0;
   let sortUiCacheValue = false;
+  let downloadUiCacheAt = 0;
+  let downloadUiCacheValue = false;
 
   /* Steam 客户端上下文识别 */
   function isShared() {
@@ -94,6 +99,31 @@
     return sortUiCacheValue;
   }
 
+  function detectDownloadsUi() {
+    if (!isMainUi()) {
+      return false;
+    }
+    const buttons = document.querySelectorAll("button[aria-label]");
+    for (const button of buttons) {
+      if (DOWNLOAD_ACTION_RE.test(button.getAttribute("aria-label") || "") && visible(button)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /* Steam 下载管理页有时不再暴露 /library/downloads 路由，只能用可见下载动作按钮兜底识别。 */
+  function hasDownloadsUi() {
+    const at = Date.now();
+    const cacheMs = downloadUiCacheValue ? DOWNLOAD_UI_HIT_CACHE_MS : DOWNLOAD_UI_MISS_CACHE_MS;
+    if (downloadUiCacheAt && at - downloadUiCacheAt < cacheMs) {
+      return downloadUiCacheValue;
+    }
+    downloadUiCacheAt = at;
+    downloadUiCacheValue = detectDownloadsUi();
+    return downloadUiCacheValue;
+  }
+
   function cleanRoute(value) {
     const raw = String(value || "").trim();
     if (!raw) {
@@ -149,7 +179,8 @@
   }
 
   function isDown() {
-    return route() === "/library/downloads";
+    const current = route();
+    return current === "/library/downloads" || (!current && hasDownloadsUi());
   }
 
   function targets() {

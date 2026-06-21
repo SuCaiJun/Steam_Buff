@@ -34,6 +34,7 @@
     logs: [],
     patches: null,
     autoStarted: false,
+    vendorAutoPageAllowed: false,
     configuredAt: 0,
     configLogKey: "",
   };
@@ -337,17 +338,19 @@
     state.mode = modes[0] || MODE_MANUAL;
     state.configuredAt = Date.now();
     const trans = globalThis.translate;
+    const vendorAutoPageOn = state.vendorAutoPageAllowed === true && modes.includes(MODE_AUTO_PAGE);
     if (trans?.listener) {
-      trans.listener.use = modes.includes(MODE_AUTO_PAGE);
+      trans.listener.use = vendorAutoPageOn;
     }
     if (trans?.request?.listener) {
-      trans.request.listener.use = modes.includes(MODE_AUTO_PAGE);
+      trans.request.listener.use = vendorAutoPageOn;
     }
     if (state.configLogKey !== key) {
       state.configLogKey = key;
       report("info", "vendor-configure-success", "翻译 vendor 配置完成", {
         modes,
         autoPage: modes.includes(MODE_AUTO_PAGE),
+        vendorAutoPage: vendorAutoPageOn,
         selection: modes.includes(MODE_SELECTION),
       });
     }
@@ -405,6 +408,7 @@
 
   function runAutoPage(fn) {
     state.autoStarted = true;
+    state.vendorAutoPageAllowed = true;
     report("info", "vendor-auto-page-start", "翻译 vendor 整页监听开始", {
       modes: state.modes.slice(),
       phase: AUTO_KEY,
@@ -418,6 +422,7 @@
     const timerCount = state.timers.filter(timer => timer.key.startsWith(`${AUTO_KEY}:`)).length;
     const observerCount = state.observers.filter(observer => observer.key.startsWith(`${AUTO_KEY}:`)).length;
     state.autoStarted = false;
+    state.vendorAutoPageAllowed = false;
     if (trans?.listener) {
       trans.listener.use = false;
       trans.listener.reset?.();
@@ -446,6 +451,7 @@
       observerCount: state.observers.length,
       logCount: state.logs.length,
       autoStarted: state.autoStarted,
+      vendorAutoPageAllowed: state.vendorAutoPageAllowed,
       configuredAt: state.configuredAt,
     };
   }

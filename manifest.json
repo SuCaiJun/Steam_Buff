@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "0.10.0",
+  "version": "0.10.3",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "顾青离",
@@ -30,9 +30,10 @@
   ],
   "host_permissions": [
     "https://steamloopback.host/*",
-    "https://store.steampowered.com/*",
-    "https://checkout.steampowered.com/*",
+    "https://*.steampowered.com/*",
+    "https://steampowered.com/*",
     "https://steamcommunity.com/*",
+    "https://*.steamcommunity.com/*",
     "https://api.steampowered.com/*",
     "https://api.augmentedsteam.com/*",
     "https://steampy.com/*",
@@ -67,8 +68,8 @@
     },
     {
       "matches": [
-        "http://*/*",
-        "https://*/*"
+        "https://*.steampowered.com/*",
+        "https://steampowered.com/*"
       ],
       "js": [
         "shared/config.js",
@@ -84,8 +85,7 @@
       ],
       "run_at": "document_end",
       "exclude_matches": [
-        "https://steamloopback.host/*",
-        "https://steamcommunity.com/*"
+        "https://steamloopback.host/*"
       ]
     },
     {
@@ -112,7 +112,8 @@
     },
     {
       "matches": [
-        "https://steamcommunity.com/*"
+        "https://steamcommunity.com/*",
+        "https://*.steamcommunity.com/*"
       ],
       "js": [
         "extension/runtime/injector.js",
@@ -257,7 +258,8 @@
         "store/page/review-filter-layout.js"
       ],
       "matches": [
-        "https://steamcommunity.com/*"
+        "https://steamcommunity.com/*",
+        "https://*.steamcommunity.com/*"
       ]
     },
     {
@@ -280,8 +282,10 @@
         "images/tip.svg"
       ],
       "matches": [
-        "http://*/*",
-        "https://*/*"
+        "https://*.steampowered.com/*",
+        "https://steampowered.com/*",
+        "https://*.steamcommunity.com/*",
+        "https://steamcommunity.com/*"
       ]
     }
   ]

@@ -39,6 +39,9 @@
   const VIEW_ROOT_MARGIN = "900px 0px";
   const VIEW_BATCH = 40;
   const BACKGROUND_BATCH = 28;
+  const VIEWPORT_SCAN_LIMIT = 160;
+  const INITIAL_VIEWPORT_SCAN_LIMIT = 220;
+  const OBSERVED_ELEMENT_LIMIT = 240;
   const VIEW_DELAY = 120;
   const BACKGROUND_DELAY = 420;
   const VISIBILITY_ATTRS = Object.freeze(["style", "class", "hidden", "aria-hidden"]);
@@ -100,9 +103,6 @@
     "direct",
     "icon",
     "dot",
-    "ctrl",
-    "alt",
-    "shift",
   ]));
   const SEL_ACTIONS = Object.freeze(new Set(["click", "hover"]));
   const SEL_CLOSE_AUTO = "auto";
@@ -119,8 +119,9 @@
   let pinned = false;
   let selSeq = 0;
   let selCtx = null;
-  let selDragKeys = null;
   let selUpTimer = 0;
+  let hoverFrame = 0;
+  let hoverEvent = null;
   const pending = new Map();
   const originals = new WeakMap();
   const selCache = new Map();
@@ -130,6 +131,7 @@
     started: false,
     modes: [],
     autoPage: null,
+    autoPageMode: "",
   };
 
   function cfg() {
@@ -288,6 +290,14 @@
 
   function clean(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function nonPrimaryMouseEvent(event) {
+    return typeof event?.button === "number" && event.button !== 0;
+  }
+
+  function hoverTarget(event) {
+    return target(event?.target)?.closest?.(`[${HOVER_ATTR}="1"]`) || null;
   }
 
   function sameText(left, right) {
@@ -723,7 +733,13 @@
 
     ignoreRuntimeUi(trans);
 
-    document.addEventListener("mousemove", (event) => {
+    const handleHoverMove = () => {
+      const event = hoverEvent;
+      hoverFrame = 0;
+      hoverEvent = null;
+      if (!event) {
+        return;
+      }
       if (pinned) {
         return;
       }
@@ -735,6 +751,25 @@
         }
       } else {
         hideTip();
+      }
+    };
+
+    document.addEventListener("mousemove", (event) => {
+      if (pinned) {
+        return;
+      }
+      if (!hoverTarget(event)) {
+        hideTip();
+        hoverEvent = null;
+        if (hoverFrame) {
+          window.cancelAnimationFrame(hoverFrame);
+          hoverFrame = 0;
+        }
+        return;
+      }
+      hoverEvent = event;
+      if (!hoverFrame) {
+        hoverFrame = window.requestAnimationFrame(handleHoverMove);
       }
     }, true);
 
@@ -753,6 +788,9 @@
     }, true);
 
     document.addEventListener("mousedown", (event) => {
+      if (nonPrimaryMouseEvent(event)) {
+        return;
+      }
       if (pinned && tip && !insideTip(event)) {
         hideTip(true);
       }
@@ -1095,6 +1133,10 @@
   }
 
   function originalAt(event) {
+    const hoverEl = hoverTarget(event);
+    if (!hoverEl || runtimeUi(hoverEl)) {
+      return "";
+    }
     const node = textNodeFromPoint(event.clientX, event.clientY);
     if (!node) {
       return "";
@@ -1104,7 +1146,7 @@
       return "";
     }
     const el = node.parentElement;
-    if (!el || runtimeUi(el) || !el.closest?.(`[${HOVER_ATTR}="1"]`)) {
+    if (!el || runtimeUi(el) || !hoverEl.contains(el)) {
       return "";
     }
     return text;
@@ -1309,6 +1351,17 @@
     return conf.service === AI_SERVICE && conf.aiPerformance !== false;
   }
 
+  function steamTranslateSurface() {
+    const host = location.hostname;
+    return MATCH?.isSteamStoreHost?.(host)
+      || MATCH?.isSteamCommunityHost?.(host)
+      || MATCH?.isSteamTranslateHost?.(host);
+  }
+
+  function useViewportScheduler(conf) {
+    return steamTranslateSurface() || conf.service !== AI_SERVICE || aiPerformance(conf);
+  }
+
   function stopViewportScheduler() {
     const view = state.autoPage;
     if (!view) {
@@ -1335,6 +1388,9 @@
     view.high?.clear?.();
     view.low?.clear?.();
     state.autoPage = null;
+    if (state.autoPageMode === "viewport") {
+      state.autoPageMode = "";
+    }
     logRuntime("info", "auto-page-viewport-scheduler-stop", "翻译视口调度器已停止", {
       mode: MODE_AUTO_PAGE,
       highCount,
@@ -1394,6 +1450,7 @@
       io: null,
       mo: null,
       promote: null,
+      root: null,
       scrollOptions: { passive: true, capture: true },
       resizeOptions: { passive: true },
     };
@@ -1429,7 +1486,7 @@
           }
           for (const entry of entries) {
             if (entry.isIntersecting) {
-              queueTree(view, entry.target, true);
+              queueViewportTree(view, entry.target, VIEWPORT_SCAN_LIMIT);
             }
           }
           scheduleViewport(view, VIEW_DELAY);
@@ -1437,6 +1494,7 @@
       }
 
       const observeRoot = mutationRoot(body);
+      view.root = observeRoot || body;
       const onMutation = (items) => {
         if (state.autoPage === view) {
           handleMutations(view, items);
@@ -1455,7 +1513,8 @@
         });
       }
 
-      queueTree(view, body, false);
+      const initialCount = queueViewportTree(view, view.root, INITIAL_VIEWPORT_SCAN_LIMIT);
+      const observedCount = observeCandidateRoots(view, view.root);
       view.promote = () => scheduleViewportPromote(view);
       window.addEventListener("scroll", view.promote, view.scrollOptions);
       window.addEventListener("resize", view.promote, view.resizeOptions);
@@ -1465,6 +1524,8 @@
         observeRoot: observeRoot?.id || observeRoot?.className || observeRoot?.tagName || "",
         highCount: view.high.size,
         lowCount: view.low.size,
+        initialCount,
+        observedCount,
         hasIntersectionObserver: !!view.io,
       });
     });
@@ -1493,8 +1554,12 @@
         continue;
       }
       for (const node of item.addedNodes || []) {
-        queueTree(state, node, nearViewport(node));
-        changed = true;
+        const queued = queueViewportTree(state, node, VIEWPORT_SCAN_LIMIT);
+        if (queued > 0) {
+          changed = true;
+        } else {
+          observeNodeForViewport(state, node);
+        }
       }
       for (const node of item.removedNodes || []) {
         state.trans.node?.delete?.(node);
@@ -1505,43 +1570,90 @@
     }
   }
 
+  function queueViewportTree(state, root, limit = VIEWPORT_SCAN_LIMIT) {
+    const scan = {
+      count: 0,
+      limit,
+    };
+    scanViewportNode(state, root, scan);
+    return scan.count;
+  }
+
+  function scanViewportNode(state, node, scan) {
+    if (!node || scan.count >= scan.limit) {
+      return;
+    }
+    if (node.nodeType === Node.TEXT_NODE) {
+      queueViewportText(state, node, scan);
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE && node !== document) {
+      return;
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      if (runtimeUi(node) || !visible(node) || !rendered(node)) {
+        return;
+      }
+      observeElement(state, node);
+      if (!nearViewport(node)) {
+        return;
+      }
+    }
+    for (const child of Array.from(node.childNodes || [])) {
+      scanViewportNode(state, child, scan);
+      if (scan.count >= scan.limit) {
+        return;
+      }
+    }
+  }
+
+  function queueViewportText(state, node, scan) {
+    if (!nearViewport(node)) {
+      observeNodeForViewport(state, node);
+      return;
+    }
+    const highCount = state.high.size;
+    const lowCount = state.low.size;
+    queueText(state, node, true);
+    if (state.high.size !== highCount || state.low.size !== lowCount) {
+      scan.count += 1;
+    }
+  }
+
+  function observeCandidateRoots(state, root, limit = OBSERVED_ELEMENT_LIMIT) {
+    if (!state.io || !root) {
+      return 0;
+    }
+    const queue = Array.from(root.children || []);
+    let count = 0;
+    while (queue.length && count < limit) {
+      const el = queue.shift();
+      if (!el || runtimeUi(el) || !visible(el) || !rendered(el)) {
+        continue;
+      }
+      observeElement(state, el);
+      count += 1;
+      if (nearViewport(el) || area(el) > window.innerWidth * window.innerHeight) {
+        queue.push(...Array.from(el.children || []).slice(0, 24));
+      }
+    }
+    return count;
+  }
+
+  function observeNodeForViewport(state, node) {
+    const el = target(node);
+    if (el) {
+      observeElement(state, el);
+    }
+  }
+
   function queueVisibleTarget(state, node) {
     const el = target(node);
     if (!el || runtimeUi(el) || !visible(el) || !rendered(el) || !nearViewport(el)) {
       return false;
     }
     // 折叠区、弹窗和分页内容常通过 class/style 切换可见性，需要重新扫描现有文本节点。
-    queueTree(state, el, true);
-    return true;
-  }
-
-  function queueTree(state, root, preferVisible) {
-    if (!root) {
-      return;
-    }
-    if (root.nodeType === Node.TEXT_NODE) {
-      queueText(state, root, preferVisible || nearViewport(root));
-      return;
-    }
-    if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_FRAGMENT_NODE && root !== document) {
-      return;
-    }
-    if (root.nodeType === Node.ELEMENT_NODE && runtimeUi(root)) {
-      return;
-    }
-
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        return translatableText(node)
-          ? NodeFilter.FILTER_ACCEPT
-          : NodeFilter.FILTER_REJECT;
-      },
-    });
-    let node = walker.nextNode();
-    while (node) {
-      queueText(state, node, preferVisible || nearViewport(node));
-      node = walker.nextNode();
-    }
+    return queueViewportTree(state, el, VIEWPORT_SCAN_LIMIT) > 0;
   }
 
   function queueText(state, node, high) {
@@ -1571,7 +1683,11 @@
 
   function observeText(state, node) {
     const el = target(node);
-    if (!state.io || !el || state.observed.has(el)) {
+    observeElement(state, el);
+  }
+
+  function observeElement(state, el) {
+    if (!state.io || !el || state.observed.has(el) || runtimeUi(el) || !visible(el)) {
       return;
     }
     state.observed.add(el);
@@ -1641,6 +1757,9 @@
       if (moved >= VIEW_BATCH) {
         break;
       }
+    }
+    if (moved < VIEW_BATCH) {
+      moved += queueViewportTree(state, state.root || document.body, VIEWPORT_SCAN_LIMIT - moved);
     }
     if (moved) {
       scheduleViewport(state, VIEW_DELAY);
@@ -1976,28 +2095,18 @@
   }
 
   function selTrigger(conf) {
-    const trigger = String(conf?.selectionTrigger || "direct");
-    return SEL_TRIGGERS.has(trigger) ? trigger : "direct";
+    const value = conf?.selectionTrigger;
+    if (!value) {
+      return "direct";
+    }
+    const trigger = String(value);
+    // 旧版本可能保存已移除的修饰键触发值，回落到图标模式避免误发请求。
+    return SEL_TRIGGERS.has(trigger) ? trigger : "icon";
   }
 
   function selActionMode(conf) {
     const action = String(conf?.selectionAction || "click");
     return SEL_ACTIONS.has(action) ? action : "click";
-  }
-
-  function eventKeys(event) {
-    return {
-      ctrl: event.ctrlKey === true,
-      alt: event.altKey === true,
-      shift: event.shiftKey === true,
-    };
-  }
-
-  function modifierMatched(trigger, event) {
-    if (trigger !== "ctrl" && trigger !== "alt" && trigger !== "shift") {
-      return true;
-    }
-    return event?.[`${trigger}Key`] === true || selDragKeys?.[trigger] === true;
   }
 
   function pointFrom(event) {
@@ -2176,44 +2285,29 @@
     ignoreRuntimeUi(trans);
 
     document.addEventListener("mousedown", (event) => {
+      if (nonPrimaryMouseEvent(event)) {
+        cancelSelEnd();
+        return;
+      }
       if (runtimeUi(event.target)) {
         return;
       }
-      if (event.button !== 0) {
-        return;
-      }
-      selDragKeys = eventKeys(event);
       cancelSelEnd();
       hideSelAction();
       autoHideSelTip();
     }, true);
 
-    document.addEventListener("mousemove", (event) => {
-      if (!selDragKeys) {
-        return;
-      }
-      const keys = eventKeys(event);
-      selDragKeys.ctrl = selDragKeys.ctrl || keys.ctrl;
-      selDragKeys.alt = selDragKeys.alt || keys.alt;
-      selDragKeys.shift = selDragKeys.shift || keys.shift;
-    }, true);
-
     const finishSelection = (event) => {
-      if (runtimeUi(event.target)) {
+      if (nonPrimaryMouseEvent(event)) {
+        cancelSelEnd();
         return;
       }
-      if (typeof event.button === "number" && event.button !== 0) {
-        selDragKeys = null;
+      if (runtimeUi(event.target)) {
         return;
       }
       const conf = cfg();
       const trigger = selTrigger(conf);
-      if (!modifierMatched(trigger, event)) {
-        selDragKeys = null;
-        return;
-      }
       const point = pointFrom(event);
-      selDragKeys = null;
       // Steam 部分页面会在 mouseup 后才最终写入选区，延后一帧再读取。
       scheduleSelEnd(trans, point, conf, trigger);
     };
@@ -2313,6 +2407,7 @@
     if (trans?.whole) {
       trans.whole.isEnableAll = false;
     }
+    state.autoPageMode = "";
     runtime()?.disposeOwner?.(OWNER);
   }
 
@@ -2331,16 +2426,21 @@
 
   function runAutoPage(trans, conf) {
     installMarkHook(trans);
-    if (aiPerformance(conf)) {
-      logRuntime("info", "auto-page-start", "整页翻译启用 AI 视口调度模式", {
+    if (useViewportScheduler(conf)) {
+      globalThis.STTranslateVendor?.stopAutoPage?.(trans);
+      prepareTextMode(trans);
+      state.autoPageMode = "viewport";
+      logRuntime("info", "auto-page-start", "整页翻译启用视口调度模式", {
         mode: MODE_AUTO_PAGE,
         service: conf.service || "",
-        aiPerformance: true,
+        aiPerformance: aiPerformance(conf),
       });
       installViewportScheduler(trans);
       return;
     }
 
+    stopViewportScheduler();
+    state.autoPageMode = "vendor";
     logRuntime("info", "auto-page-start", "整页翻译启用 vendor 监听模式", {
       mode: MODE_AUTO_PAGE,
       service: conf.service || "",
@@ -2435,7 +2535,7 @@
       globalThis[GLOBAL_MARK] = true;
     }
     globalThis[API_MARK] = Object.freeze({
-      version: "steam-buff-translate-runner-v1",
+      version: "steam-buff-translate-runner-v2-viewport-auto-page",
       configure,
       start(transConf, conf) {
         start(transConf, conf);
@@ -2448,6 +2548,7 @@
           started: state.started,
           modes: state.modes.slice(),
           autoPage: !!state.autoPage,
+          autoPageMode: state.autoPageMode,
         };
       },
     });

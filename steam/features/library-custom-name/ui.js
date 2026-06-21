@@ -23,6 +23,7 @@
   const SCHEDULER_TASK = "library-custom-name-ui";
   const MOUNT_LOG_MS = 60000;
   const RESP_MS = 12000;
+  const BAR_CLEANUP_CHECK_DELAYS = Object.freeze([80, 240, 640, 1200]);
   const SAVE_STATUS_MS = 3000;
   const SAVE_STATUS_MAX_MISSES = 3;
   const QUERY_MAX = 100;
@@ -235,6 +236,7 @@
       return;
     }
     closeTips(document);
+    scheduleBarCleanupCheck();
   }
 
   function onDocumentKeydown(event) {
@@ -2479,6 +2481,60 @@
     });
   }
 
+  function hasBar() {
+    return !!document.getElementById(BAR);
+  }
+
+  function hasActiveCustomSortInput() {
+    return !!sortInput(textInputs());
+  }
+
+  function clearBarCleanupCheck() {
+    clearRuntimeTimer(s, "barCleanupTimer", "barCleanupHandle");
+  }
+
+  function scheduleBarCleanupCheck(attempt = 0) {
+    clearBarCleanupCheck();
+    const nextAttempt = Math.max(0, Number(attempt) || 0);
+    const delay = BAR_CLEANUP_CHECK_DELAYS[Math.min(nextAttempt, BAR_CLEANUP_CHECK_DELAYS.length - 1)];
+    s.barCleanupTimer = window.setTimeout(() => {
+      const handle = s.barCleanupHandle;
+      s.barCleanupHandle = null;
+      s.barCleanupTimer = 0;
+      handle?.dispose?.();
+      const active = hasActiveCustomSortInput();
+      if (!active) {
+        if (hasBar()) {
+          clearBars(null);
+          closeTips(document);
+          logMountState(
+            `bar-cleanup:${document.title}`,
+            "info",
+            "library-custom-name-bar-cleanup",
+            "库自定义名称底部按钮已随属性页分类切换隐藏",
+            { repeatMs: MOUNT_LOG_MS }
+          );
+        }
+        return;
+      }
+      tick();
+      if ((hasBar() || active) && nextAttempt + 1 < BAR_CLEANUP_CHECK_DELAYS.length) {
+        scheduleBarCleanupCheck(nextAttempt + 1);
+      }
+    }, Math.max(0, delay));
+    s.barCleanupHandle = s.scope?.resource?.({
+      key: "bar-cleanup-check",
+      type: "timer",
+      dispose() {
+        if (s.barCleanupTimer) {
+          window.clearTimeout(s.barCleanupTimer);
+          s.barCleanupTimer = 0;
+        }
+        s.barCleanupHandle = null;
+      },
+    }) || null;
+  }
+
   function insertBar(input) {
     const host = barHost(input);
     let bar = document.getElementById(BAR);
@@ -2512,7 +2568,17 @@
     const input = sortInput(inputs);
     const active = !!input;
     if (!active) {
+      const hadBar = hasBar();
       clearBars(null);
+      if (hadBar) {
+        logMountState(
+          `bar-cleanup-tick:${document.title}`,
+          "info",
+          "library-custom-name-bar-cleanup",
+          "库自定义名称底部按钮已离开自定义排序页后隐藏",
+          { repeatMs: MOUNT_LOG_MS }
+        );
+      }
       return;
     }
 
@@ -3698,7 +3764,7 @@
   }
 
   function shouldRunScheduledTick() {
-    return window.SteamBuff?.ctx?.hasCustomSortUi?.() === true;
+    return window.SteamBuff?.ctx?.hasCustomSortUi?.() === true || hasBar();
   }
 
   function registerScheduledTick() {
@@ -3758,6 +3824,7 @@
       clearSaveWatch();
       clearRuntimeTimer(batch, "capacityTimer", "capacityHandle");
       clearSearchTimer();
+      clearBarCleanupCheck();
       document.removeEventListener("click", onDocumentClick, true);
       document.removeEventListener("keydown", onDocumentKeydown);
       if (s.oneResolve) {

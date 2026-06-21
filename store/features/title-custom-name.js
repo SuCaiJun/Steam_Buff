@@ -36,6 +36,7 @@
   const TITLE_SEL = ".apphub_AppName, .apphub_AppName_responsive, h1";
   const RETRY_MS = 300;
   const RETRY_MAX = 30;
+  const DETAIL_SETTLE_MAX = 10;
 
   const { text, shouldShowName } = core;
   const wishlistDom = api.wishlistDom;
@@ -44,6 +45,8 @@
   let observer = null;
   let wishlistObserver = null;
   let wishlistTimer = 0;
+  let detailSettleTimer = 0;
+  let detailSettleChecks = 0;
   let renderingWishlist = false;
   let pendingWishlistRender = false;
   let started = false;
@@ -108,9 +111,21 @@
     return /^\/wishlist(?:\/|$)/i.test(location.pathname);
   }
 
+  function visibleTitleElement(el) {
+    if (!(el instanceof HTMLElement) || !text(el)) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return false;
+    }
+    const style = getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden";
+  }
+
   function titleEl() {
     return Array.from(document.querySelectorAll(TITLE_SEL))
-      .find(el => el instanceof HTMLElement && el.offsetParent !== null && text(el));
+      .find(visibleTitleElement);
   }
 
   function esc(value) {
@@ -732,6 +747,8 @@
       return null;
     }
     lastWishlistTargetMissing = false;
+    parent.classList.add("st-title-custom-name-wishlist-row");
+    title.classList.add("st-title-custom-name-wishlist-title");
     let host = parent.querySelector(":scope > .st-title-custom-name-wishlist")
       || row.querySelector(".st-title-custom-name-wishlist");
     if (!host) {
@@ -827,6 +844,30 @@
     return true;
   }
 
+  function detailMountedOnCurrentTitle() {
+    const title = titleEl();
+    const host = document.getElementById(HOST_ID);
+    return !!title && !!host && host.parentElement === title;
+  }
+
+  function scheduleDetailSettleCheck(seq) {
+    if (detailSettleTimer || detailSettleChecks >= DETAIL_SETTLE_MAX) {
+      return;
+    }
+    detailSettleTimer = setTimeout(() => {
+      detailSettleTimer = 0;
+      if (seq !== refreshSeq || !started || !api.settings?.on?.(FEATURE_ID)) {
+        return;
+      }
+      detailSettleChecks += 1;
+      if (!detailMountedOnCurrentTitle()) {
+        refresh().catch(() => {});
+        return;
+      }
+      scheduleDetailSettleCheck(seq);
+    }, RETRY_MS);
+  }
+
   async function refresh() {
     const seq = ++refreshSeq;
     const info = pageInfo();
@@ -843,12 +884,16 @@
     }
     lastDetailTargetMissing = false;
     tries = 0;
+    if (state?.appid !== info.appid) {
+      detailSettleChecks = 0;
+    }
     state = {
       appid: info.appid,
       steamTitle: text(title.childNodes[0] || title),
       item: nameCache.get(info.appid) || null,
     };
     renderTitle();
+    scheduleDetailSettleCheck(seq);
     try {
       const item = await loadName(info.appid);
       if (seq !== refreshSeq || state?.appid !== info.appid) return;
@@ -859,6 +904,7 @@
       state.item = null;
     }
     renderTitle();
+    scheduleDetailSettleCheck(seq);
   }
 
   function observeTarget() {
@@ -885,7 +931,7 @@
     }
     const callback = () => {
       const info = pageInfo();
-      if (info && (!state || state.appid !== info.appid || !document.getElementById(HOST_ID))) {
+      if (info && (!state || state.appid !== info.appid || !detailMountedOnCurrentTitle())) {
         refresh().catch(() => {});
       }
     };
@@ -938,11 +984,20 @@
     wishlistObserver?.disconnect();
     observer = null;
     wishlistObserver = null;
+    clearTimeout(detailSettleTimer);
     clearTimeout(wishlistTimer);
+    detailSettleTimer = 0;
     wishlistTimer = 0;
+    detailSettleChecks = 0;
     state = null;
     document.getElementById(HOST_ID)?.remove();
     document.querySelectorAll(".st-title-custom-name-wishlist").forEach(node => node.remove());
+    document.querySelectorAll(".st-title-custom-name-wishlist-row").forEach(node => {
+      node.classList.remove("st-title-custom-name-wishlist-row");
+    });
+    document.querySelectorAll(".st-title-custom-name-wishlist-title").forEach(node => {
+      node.classList.remove("st-title-custom-name-wishlist-title");
+    });
     document.getElementById(TOAST_ID)?.remove();
     closeModal();
     lastDetailTargetMissing = false;

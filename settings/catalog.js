@@ -173,7 +173,7 @@
 
   const TRANSLATE_DEFAULTS = Object.freeze({
     [TRANSLATE_KEYS.scope]: "steam",
-    [TRANSLATE_KEYS.page]: true,
+    [TRANSLATE_KEYS.page]: false,
     [TRANSLATE_KEYS.selection]: true,
     [TRANSLATE_KEYS.selectionTrigger]: "direct",
     [TRANSLATE_KEYS.selectionAction]: "click",
@@ -234,9 +234,6 @@
         { value: "direct", label: "划词后直接翻译" },
         { value: "icon", label: "显示翻译图标" },
         { value: "dot", label: "显示悬浮圆点" },
-        { value: "ctrl", label: "按 Ctrl 划词后翻译" },
-        { value: "alt", label: "按 Alt 划词后翻译" },
-        { value: "shift", label: "按 Shift 划词后翻译" },
       ]),
     },
     {

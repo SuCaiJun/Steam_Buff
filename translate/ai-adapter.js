@@ -500,9 +500,7 @@
     }
 
     trans.service?.use?.("translate.service");
-    if (options.autoPage === true) {
-      trans.whole?.enableAll?.();
-    } else if (trans.whole) {
+    if (trans.whole) {
       trans.whole.isEnableAll = false;
     }
     installPostHook(trans);

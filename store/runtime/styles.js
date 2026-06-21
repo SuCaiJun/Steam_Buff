@@ -112,7 +112,8 @@
 
     let style = root.document.getElementById(id);
     const version = options.version || '';
-    if (style && (!version || style.dataset.version === version)) {
+    const nextText = String(css || '');
+    if (style && (!version || style.dataset.version === version) && style.textContent === nextText) {
       return style;
     }
 
@@ -125,7 +126,7 @@
     if (version) {
       style.dataset.version = version;
     }
-    style.textContent = String(css || '');
+    style.textContent = nextText;
 
     if (options.owner && !style.dataset.stStoreStyleResource) {
       style.dataset.stStoreStyleResource = '1';
@@ -666,12 +667,30 @@
         margin-left: 7px;
         vertical-align: 1px;
         flex-wrap: nowrap;
+        flex: 0 0 auto;
+        max-width: min(42%, 420px);
+        min-width: 0;
+      }
+      .st-title-custom-name-wishlist-row {
+        min-width: 0;
+      }
+      .st-title-custom-name-wishlist-row .st-title-custom-name-wishlist-title {
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .st-title-custom-name-wishlist[data-label]::before,
       .st-title-custom-name-wishlist .st-title-custom-name-label {
         color: var(--st-color-text-secondary);
         font-size: 14px;
         line-height: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .st-title-custom-name-btn {
         height: 22px;
@@ -1747,7 +1766,7 @@
       }
       .st-game-notes-wishlist {
         max-width: 640px;
-        margin-top: 0;
+        margin: 0;
         align-self: center;
       }
       .st-game-notes-wishlist-row {
@@ -1759,6 +1778,10 @@
           "dragger capsule lower ."
           "dragger capsule mid purchase"
           "dragger capsule platform purchase";
+      }
+      .st-game-notes-wishlist .st-game-notes-line {
+        align-items: center;
+        min-height: 24px;
       }
       .st-game-notes-line {
         display: flex;

@@ -120,20 +120,51 @@
     return !!doc().documentElement;
   }
 
-  function isAllowedSteamAboutBlank(value = href()) {
+  function steamAboutBlankParams(value = href()) {
     if (!text(value).startsWith("about:blank")) {
-      return false;
+      return null;
     }
     try {
       const query = text(value).slice("about:blank".length).replace(/^\?/, "");
       if (typeof URLSearchParams !== "function") {
-        return /(?:^|&)browserType=4(?:&|$)/.test(query);
+        return null;
       }
-      const params = new URLSearchParams(query);
+      return new URLSearchParams(query);
+    } catch {
+      return null;
+    }
+  }
+
+  function isAllowedSteamAboutBlank(value = href()) {
+    const params = steamAboutBlankParams(value);
+    if (!params) {
+      return false;
+    }
+    try {
       return params.get("browserType") === PAGES.translate?.browserType;
     } catch {
       return false;
     }
+  }
+
+  function isSteamPropertyDialogAboutBlank(value = href()) {
+    const params = steamAboutBlankParams(value);
+    if (!params) {
+      return false;
+    }
+    try {
+      return params.has("createflags") &&
+        params.has("centerOnBrowserID") &&
+        params.has("minwidth") &&
+        params.has("minheight") &&
+        !params.has("browserType");
+    } catch {
+      return false;
+    }
+  }
+
+  function isSteamClientAboutBlank(value = href()) {
+    return isAllowedSteamAboutBlank(value) || isSteamPropertyDialogAboutBlank(value);
   }
 
   function titleIn(items, value = title()) {
@@ -148,6 +179,10 @@
     return titleIn(PAGES.steam?.allowedTitles, value);
   }
 
+  function hasSteamSharedContextMarker(value = href()) {
+    return text(value).includes("IN_STEAMUI_SHARED_CONTEXT=true");
+  }
+
   function isSteamAllowed() {
     if (allowedSteamTitle()) {
       return true;
@@ -155,22 +190,30 @@
     if (excludedSteamTitle()) {
       return false;
     }
-    return false;
+    return hasSteamSharedContextMarker();
   }
 
   function isSteamCleanupTarget() {
     return MATCH.isSteamLoopbackHost?.(host()) === true || allowedSteamTitle() || excludedSteamTitle();
   }
 
+  function isSteamWebHost(value = host()) {
+    const name = lower(value);
+    return MATCH.isSteamPoweredLikeHost?.(name) === true ||
+      MATCH.isSteamCommunityLikeHost?.(name) === true;
+  }
+
   function isLightBootPage() {
     return topFrame() &&
       documentElementReady() &&
       list(PAGES.protocols?.lightBoot).includes(loc().protocol) &&
-      MATCH.isSteamLoopbackHost?.(host()) !== true;
+      MATCH.isSteamLoopbackHost?.(host()) !== true &&
+      isHtmlPage() &&
+      isSteamWebHost();
   }
 
   function shouldWaitSteamTitle() {
-    return MATCH.isSteamLoopbackHost?.(host()) === true &&
+    return (MATCH.isSteamLoopbackHost?.(host()) === true || isSteamPropertyDialogAboutBlank()) &&
       topFrame() &&
       documentElementReady() &&
       !title() &&
@@ -180,7 +223,10 @@
   function shouldInject() {
     const url = href();
     if (isAllowedSteamAboutBlank(url)) {
-      return topFrame() && documentElementReady();
+      return topFrame() && documentElementReady() && !excludedSteamTitle();
+    }
+    if (isSteamPropertyDialogAboutBlank(url)) {
+      return topFrame() && documentElementReady() && !excludedSteamTitle();
     }
     if (list(PAGES.excludedUrlParts).some(item => url.startsWith(item) || url.includes(item))) {
       return false;
@@ -197,6 +243,7 @@
   function domain() {
     const name = host();
     if (MATCH.isSteamLoopbackHost?.(name)) return "steam";
+    if (isSteamClientAboutBlank()) return "steam";
     if (MATCH.isSteamStoreHost?.(name)) return "store";
     if (MATCH.isSteamCheckoutHost?.(name)) return "checkout";
     if (MATCH.isSteamCommunityHost?.(name)) return "community";
@@ -318,6 +365,9 @@
     if (MATCH.isSteamLoopbackHost?.(host()) === true) {
       return "";
     }
+    if (!isSteamWebHost() || !isHtmlPage()) {
+      return "";
+    }
     if (PAGES.settings?.topFrameOnly !== false && !topFrame()) {
       return "";
     }
@@ -359,6 +409,16 @@
     }
     if (extra.route) {
       base.add(extra.route);
+    }
+    if (
+      domain() === "steam" &&
+      !allowedSteamTitle() &&
+      !isAllowedSteamAboutBlank() &&
+      !excludedSteamTitle() &&
+      hasSteamSharedContextMarker()
+    ) {
+      base.add("steam-shared-context");
+      base.add("custom-sort-dialog");
     }
     list(extra.pageTokens).forEach(item => base.add(item));
     return Array.from(base).filter(Boolean);
@@ -515,6 +575,8 @@
         allowed: isSteamAllowed(),
         cleanupTarget: isSteamCleanupTarget(),
         aboutMain: isAllowedSteamAboutBlank(),
+        propertyDialogAboutBlank: isSteamPropertyDialogAboutBlank(),
+        sharedContext: hasSteamSharedContextMarker(),
       },
       ...extra,
     };
@@ -632,6 +694,8 @@
   Object.assign(api, {
     VERSION,
     isAllowedSteamAboutBlank,
+    isSteamPropertyDialogAboutBlank,
+    hasSteamSharedContextMarker,
     isSteamClientPageAllowed: isSteamAllowed,
     isSteamCleanupTarget,
     shouldWaitSteamTitle,

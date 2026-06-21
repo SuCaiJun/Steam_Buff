@@ -22,6 +22,8 @@
   const RETRY_MS = 1000;
   const TOAST_MS = 4200;
   const MOUNT_LOG_MS = 60000;
+  const WAKE_DELAYS = Object.freeze([120, 360, 760, 1400]);
+  const WAKE_MIN_MS = 500;
   const ST = Object.freeze({
     READY: "backend-ready",
     OFF: "disabled-by-user",
@@ -290,6 +292,114 @@
     document.getElementById(TOAST)?.remove();
   }
 
+  function clearWakeSyncTimers() {
+    const handles = Array.isArray(s.wakeHandles) ? s.wakeHandles.slice() : [];
+    s.wakeHandles = [];
+    handles.forEach((handle) => {
+      try {
+        handle?.dispose?.();
+      } catch {
+      }
+    });
+  }
+
+  function disposeWakeSyncTimer(key) {
+    const handles = Array.isArray(s.wakeHandles) ? s.wakeHandles : [];
+    const next = [];
+    handles.forEach((handle) => {
+      if (handle?.key === key) {
+        try {
+          handle.dispose();
+        } catch {
+        }
+        return;
+      }
+      next.push(handle);
+    });
+    s.wakeHandles = next;
+  }
+
+  function addWakeSyncTimer(key, timerId) {
+    const handle = s.scope?.resource?.({
+      key,
+      type: "timer",
+      dispose() {
+        window.clearTimeout(timerId);
+      },
+    }) || Object.freeze({
+      key,
+      dispose() {
+        window.clearTimeout(timerId);
+      },
+    });
+    s.wakeHandles = Array.isArray(s.wakeHandles) ? s.wakeHandles : [];
+    s.wakeHandles.push(handle);
+  }
+
+  function scheduleWakeSync(api, ch, reason = "wake") {
+    if (!s.fOn || !main(api)) {
+      return;
+    }
+    const at = now();
+    if (s.wakeAt && at - s.wakeAt < WAKE_MIN_MS) {
+      return;
+    }
+    s.wakeAt = at;
+    clearWakeSyncTimers();
+    WAKE_DELAYS.forEach((delay, index) => {
+      const key = `wake-sync-${index}`;
+      const timerId = window.setTimeout(() => {
+        disposeWakeSyncTimer(key);
+        if (s.fOn) {
+          sync(api, ch);
+        }
+      }, delay);
+      addWakeSyncTimer(key, timerId);
+    });
+    s.wakeReason = reason;
+  }
+
+  function addWakeListener(scope, key, target, type, handler, options) {
+    const handle = scope?.listener?.(key, target, type, handler, options);
+    if (handle) {
+      s.wakeListeners = Array.isArray(s.wakeListeners) ? s.wakeListeners : [];
+      s.wakeListeners.push(handle);
+      return;
+    }
+    target?.addEventListener?.(type, handler, options);
+    s.wakeListeners = Array.isArray(s.wakeListeners) ? s.wakeListeners : [];
+    s.wakeListeners.push(Object.freeze({
+      key,
+      dispose() {
+        target?.removeEventListener?.(type, handler, options);
+      },
+    }));
+  }
+
+  function clearWakeListeners() {
+    const handles = Array.isArray(s.wakeListeners) ? s.wakeListeners.slice() : [];
+    s.wakeListeners = [];
+    handles.forEach((handle) => {
+      try {
+        handle?.dispose?.();
+      } catch {
+      }
+    });
+  }
+
+  function bindWakeEvents(api, ch, scope) {
+    s.onWakePointerUp = () => scheduleWakeSync(api, ch, "pointerup");
+    s.onWakeKeyUp = (event) => {
+      if (event?.key === "Tab" || event?.key === "Enter" || event?.key === " ") {
+        scheduleWakeSync(api, ch, "keyup");
+      }
+    };
+    s.onWakeFocus = () => scheduleWakeSync(api, ch, "focus");
+    addWakeListener(scope, "frontend-wake-pointerup", document, "pointerup", s.onWakePointerUp, { passive: true });
+    addWakeListener(scope, "frontend-wake-keyup", document, "keyup", s.onWakeKeyUp);
+    addWakeListener(scope, "frontend-wake-focus", window, "focus", s.onWakeFocus);
+  }
+
   function isView(api) {
     return api?.ctx?.isDown?.() === true || !!s.st?.show;
   }
@@ -458,6 +568,13 @@
     s.stop = () => {
       window.STScheduler?.unregister?.(SCHEDULER_TASK);
       s.syncI = 0;
+      clearWakeSyncTimers();
+      clearWakeListeners();
+      s.onWakePointerUp = null;
+      s.onWakeKeyUp = null;
+      s.onWakeFocus = null;
+      s.wakeAt = 0;
+      s.wakeReason = "";
       if (s.toastHandle) {
         const handle = s.toastHandle;
         s.toastHandle = null;
@@ -497,6 +614,7 @@
       }
     };
     scope?.listener?.("frontend-channel-message", ch, "message", s.onMsg);
+    bindWakeEvents(api, ch, scope);
 
     // 前端 hello 同步迁移到统一调度器，保持原 5 秒节奏并减少独立巡检。
     window.STScheduler.register(
@@ -510,6 +628,7 @@
     scope?.schedulerTask?.("frontend-sync", SCHEDULER_TASK);
 
     sync(api, ch);
+    scheduleWakeSync(api, ch, "startup");
     return { started: true };
   }
 

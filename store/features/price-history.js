@@ -27,6 +27,9 @@
   const formatPrice = api.format.formatPrice;
   const formatDate = api.format.formatDate;
   const calculateDaysDiff = api.format.calculateDaysDiff;
+  const PRICE_HISTORY_LOADING_TEXT = "正在读取历史最低价格...";
+  const PRICE_HISTORY_QUERY_TIMEOUT_MS = 30_000;
+  let priceHistoryQuerySeq = 0;
 
 function normalizeSteamText(value) {
     return String(value || '').replace(/\s+/g, ' ').trim();
@@ -166,6 +169,62 @@ function setMessage(node, first, second = "") {
         appendBreak(node);
         appendText(node, second);
     }
+}
+
+function markPriceNodeLoading(node, queryId) {
+    node.dataset.stPriceHistoryQueryId = String(queryId);
+    node.dataset.stPriceHistoryState = "loading";
+    node.innerText = PRICE_HISTORY_LOADING_TEXT;
+}
+
+function removeExistingPriceNodes(gameWrapper, subId) {
+    const subIdText = String(subId);
+    gameWrapper.querySelectorAll(".game_lowest_price").forEach(function(node) {
+        if (!node.dataset.stPriceHistorySubid || node.dataset.stPriceHistorySubid === subIdText) {
+            node.remove();
+        }
+    });
+}
+
+function activePriceNode(node, queryId) {
+    return node
+        && node.isConnected
+        && node.dataset.stPriceHistoryQueryId === String(queryId);
+}
+
+function setActiveMessage(node, queryId, first, second = "") {
+    if (!activePriceNode(node, queryId)) {
+        return false;
+    }
+    node.dataset.stPriceHistoryState = "done";
+    setMessage(node, first, second);
+    return true;
+}
+
+function setRemainingLoadingMessages(nodes, queryId, first, second = "") {
+    let count = 0;
+    for (const id in nodes) {
+        if (!Object.hasOwnProperty.call(nodes, id)) {
+            continue;
+        }
+        const node = nodes[id];
+        if (!activePriceNode(node, queryId) || node.dataset.stPriceHistoryState !== "loading") {
+            continue;
+        }
+        node.dataset.stPriceHistoryState = "done";
+        setMessage(node, first, second);
+        count += 1;
+    }
+    return count;
+}
+
+function renderActiveLowestInfo(node, queryId, app, currentPriceInfo, lowestPriceInfo) {
+    if (!activePriceNode(node, queryId)) {
+        return false;
+    }
+    node.dataset.stPriceHistoryState = "done";
+    renderLowestInfo(node, app, currentPriceInfo, lowestPriceInfo);
+    return true;
 }
 
 function appendDiscount(parent, cut) {
@@ -343,6 +402,7 @@ function addPriceHistoryTag(appId, type, subIds, bundleids, cc, protocol) {
     cc = cc || "cn";
     protocol = protocol || "https";
     const startedAt = Date.now();
+    const queryId = `${Date.now()}-${priceHistoryQuerySeq += 1}`;
 
     if (type === "app"
         && typeof skipPrice === "function"
@@ -378,9 +438,11 @@ function addPriceHistoryTag(appId, type, subIds, bundleids, cc, protocol) {
             gameWrapper = null;
         }
         if (gameWrapper) {
+            removeExistingPriceNodes(gameWrapper, subId);
             const lowestInfo = document.createElement("div");
             lowestInfo.className = "game_lowest_price";
-            lowestInfo.innerText = "正在读取历史最低价格...";
+            lowestInfo.dataset.stPriceHistorySubid = String(subId);
+            markPriceNodeLoading(lowestInfo, queryId);
             applyStyles(lowestInfo, {
                 margin: `${spacing.sm} 0`,
             });
@@ -396,6 +458,25 @@ function addPriceHistoryTag(appId, type, subIds, bundleids, cc, protocol) {
         bundleidCount: bundleids.length,
         cc,
     });
+
+    // 🚀 性能保护：消息通道偶发不返回时，最多等待 30 秒，避免页面长期停留在加载态。
+    const timeoutId = window.setTimeout(() => {
+        const pendingCount = setRemainingLoadingMessages(
+            lowestPriceNodes,
+            queryId,
+            "价格查询超时",
+            "请稍后刷新页面重试"
+        );
+        if (pendingCount > 0) {
+            log.warn("price-history-query-timeout", "价格历史查询超时，已停止加载状态", {
+                appid: appId,
+                type,
+                pendingCount,
+                timeoutMs: PRICE_HISTORY_QUERY_TIMEOUT_MS,
+                durationMs: Date.now() - startedAt,
+            });
+        }
+    }, PRICE_HISTORY_QUERY_TIMEOUT_MS);
 
     fetchSteamDBPriceInfo(appId, type, subIds, bundleids, cc, protocol).then(function(response) {
         let data = response;
@@ -427,7 +508,7 @@ function addPriceHistoryTag(appId, type, subIds, bundleids, cc, protocol) {
                 const lowestInfo = lowestPriceNodes[app.Id];
                 if (lowestInfo && app.Info) {
                     if (!app.Info.lowest || !app.Info.lowest.timestamp) {
-                        setMessage(lowestInfo, "历史价格数据不完整");
+                        setActiveMessage(lowestInfo, queryId, "历史价格数据不完整");
                         return;
                     }
 
@@ -446,30 +527,26 @@ function addPriceHistoryTag(appId, type, subIds, bundleids, cc, protocol) {
                     const lowestPriceInfo = steamLowestPriceInfo || app.Info.lowest;
                     
                     if (!currentPriceInfo || !currentPriceInfo.price || !lowestPriceInfo || !lowestPriceInfo.price) {
-                        setMessage(lowestInfo, "价格数据不完整");
+                        setActiveMessage(lowestInfo, queryId, "价格数据不完整");
                         return;
                     }
 
-                    renderLowestInfo(lowestInfo, app, currentPriceInfo, lowestPriceInfo);
+                    renderActiveLowestInfo(lowestInfo, queryId, app, currentPriceInfo, lowestPriceInfo);
                 }
             });
-        } else {
-            for (const id in lowestPriceNodes) {
-                if (Object.hasOwnProperty.call(lowestPriceNodes, id)) {
-                    setMessage(lowestPriceNodes[id], "未查询到历史价格数据");
-                }
-            }
         }
+        const missingCount = setRemainingLoadingMessages(lowestPriceNodes, queryId, "未查询到历史价格数据");
         log.info("price-history-query-success", "价格历史查询完成", {
             appid: appId,
             type,
             count: appInfos.length,
+            missingCount,
             durationMs: Date.now() - startedAt,
         });
     }).catch(function(err) {
         for (const id in lowestPriceNodes) {
             if (Object.hasOwnProperty.call(lowestPriceNodes, id)) {
-                setMessage(lowestPriceNodes[id], `价格查询失败：${err?.message || err}`, "请检查网络或刷新页面");
+                setActiveMessage(lowestPriceNodes[id], queryId, `价格查询失败：${err?.message || err}`, "请检查网络或刷新页面");
             }
         }
         log.error("price-history-query-failed", err, {
@@ -477,6 +554,8 @@ function addPriceHistoryTag(appId, type, subIds, bundleids, cc, protocol) {
             type,
             durationMs: Date.now() - startedAt,
         });
+    }).finally(function() {
+        window.clearTimeout(timeoutId);
     });
 
     return Promise.resolve(lowestPriceNodes);

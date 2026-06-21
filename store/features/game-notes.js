@@ -30,11 +30,14 @@
   const TITLE_SEL = ".apphub_AppName, .apphub_AppName_responsive, h1";
   const DETAIL_RETRY_LIMIT = 20;
   const DETAIL_RETRY_MS = 250;
+  const DETAIL_SETTLE_LIMIT = 10;
 
   const wishlistDom = api.wishlistDom;
   const dom = root.STDomUtils || {};
   let detailTimer = 0;
+  let detailSettleTimer = 0;
   let detailRetries = 0;
+  let detailSettleChecks = 0;
   let wishlistObserver = null;
   let wishlistTimer = 0;
   let renderingWishlist = false;
@@ -68,9 +71,21 @@
     return /^\/wishlist(?:\/|$)/i.test(location.pathname);
   }
 
+  function visibleTitleElement(el) {
+    if (!(el instanceof HTMLElement) || !text(el.textContent)) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return false;
+    }
+    const style = getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden";
+  }
+
   function titleEl() {
     return Array.from(document.querySelectorAll(TITLE_SEL))
-      .find(el => el instanceof HTMLElement && el.offsetParent !== null && text(el));
+      .find(visibleTitleElement);
   }
 
   function wishlistTitleText(node) {
@@ -237,9 +252,36 @@
     return title?.parentElement || null;
   }
 
+  function detailMountedOnCurrentTitle() {
+    const title = titleEl();
+    const host = document.getElementById(DETAIL_HOST_ID);
+    return !!title && !!host && host.previousElementSibling === title;
+  }
+
+  function scheduleDetailSettleCheck() {
+    if (detailSettleTimer || detailSettleChecks >= DETAIL_SETTLE_LIMIT) {
+      return;
+    }
+    detailSettleTimer = setTimeout(() => {
+      detailSettleTimer = 0;
+      if (!api.settings?.on?.(FEATURE_ID)) {
+        return;
+      }
+      detailSettleChecks += 1;
+      if (!detailMountedOnCurrentTitle()) {
+        startDetail();
+        return;
+      }
+      scheduleDetailSettleCheck();
+    }, DETAIL_RETRY_MS);
+  }
+
   function startDetail() {
     const info = pageInfo();
     if (!info) return false;
+    if (detailAppid !== info.appid) {
+      detailSettleChecks = 0;
+    }
     const title = titleEl();
     const target = detailInsertTarget(title);
     if (!title || !target) return false;
@@ -255,6 +297,7 @@
     }
     renderNote(host, info.appid, cache.get(info.appid)?.note || "", steamNameForApp(info.appid));
     fetchNotes([info.appid]).then(() => updateVisible(info.appid)).catch(() => {});
+    scheduleDetailSettleCheck();
     return true;
   }
 
@@ -394,9 +437,12 @@
   function stop() {
     wishlistObserver?.disconnect();
     clearTimeout(detailTimer);
+    clearTimeout(detailSettleTimer);
     clearTimeout(wishlistTimer);
     detailTimer = 0;
+    detailSettleTimer = 0;
     detailRetries = 0;
+    detailSettleChecks = 0;
     wishlistObserver = null;
     wishlistTimer = 0;
     document.querySelectorAll(".st-game-notes").forEach(node => node.remove());
