@@ -28,6 +28,41 @@
 
   function noop() {}
 
+  function fallbackScrollTargets() {
+    function targets(extraTargets = []) {
+      return Array.from(new Set([
+        document.scrollingElement,
+        document.documentElement,
+        document.body,
+        ...(Array.isArray(extraTargets) ? extraTargets : [extraTargets]),
+      ].filter(target => target && typeof target.scrollTop === "number")));
+    }
+    return {
+      fixedScrollTargets: targets,
+      scrollTargets: targets,
+      scrollY(extraTargets = []) {
+        const top = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        if (top > 0) {
+          return top;
+        }
+        for (const el of targets(extraTargets)) {
+          if (el.scrollTop > 0) {
+            return el.scrollTop;
+          }
+        }
+        return 0;
+      },
+      rememberScrollTarget() {},
+      clear() {},
+    };
+  }
+
+  function createScrollTargets() {
+    return globalThis.STSettingsScrollTargets?.create?.() || fallbackScrollTargets();
+  }
+
+  const sharedScrollTargets = createScrollTargets();
+
   function clampRailTop(value, rail, cfg = DEFAULTS) {
     const height = rail?.offsetHeight || 54;
     const max = Math.max(cfg.minTop, window.innerHeight - height - cfg.margin);
@@ -39,35 +74,15 @@
   }
 
   function fixedScrollTargets() {
-    return [
-      document.scrollingElement,
-      document.documentElement,
-      document.body,
-      document.querySelector("#responsive_page_template_content"),
-      document.querySelector(".responsive_page_frame"),
-      document.querySelector(".DialogContent"),
-      document.querySelector(".ModalPosition_Content"),
-      document.querySelector("[class*='scroll'][class*='Scroll']"),
-    ].filter(Boolean);
+    return sharedScrollTargets.fixedScrollTargets();
   }
 
   function scrollTargets() {
-    const fixed = fixedScrollTargets();
-    const active = Array.from(document.querySelectorAll("*")).filter((el) => el.scrollTop > 0);
-    return Array.from(new Set([...fixed, ...active]));
+    return sharedScrollTargets.scrollTargets();
   }
 
   function scrollY() {
-    const top = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-    if (top > 0) {
-      return top;
-    }
-    for (const el of fixedScrollTargets()) {
-      if (el.scrollTop > 0) {
-        return el.scrollTop;
-      }
-    }
-    return 0;
+    return sharedScrollTargets.scrollY();
   }
 
   function create(options = {}) {
@@ -91,6 +106,9 @@
     let railTop = options.initialTop ?? null;
     let railSide = options.initialSide === "left" ? "left" : "right";
     let bound = false;
+    let topButtonRaf = 0;
+    let disposers = [];
+    const scroll = createScrollTargets();
 
     function panelOpen() {
       return !!(panel?.classList?.contains("open") && !panel.hidden);
@@ -150,7 +168,10 @@
     }
 
     function toTop() {
-      const targets = scrollTargets();
+      const targets = scroll.scrollTargets([
+        shadow?.querySelector(".body"),
+        panel,
+      ]);
       try {
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch {
@@ -176,7 +197,7 @@
       if (!topBtn) {
         return;
       }
-      const hide = scrollY() < cfg.topShowY;
+      const hide = scroll.scrollY() < cfg.topShowY;
       if (topBtn.hidden === hide) {
         return;
       }
@@ -186,6 +207,58 @@
           applyRailTop(railTop, false);
         });
       }
+    }
+
+    function cancelTopButtonUpdate() {
+      if (!topButtonRaf) {
+        return;
+      }
+      const cancel = window.cancelAnimationFrame || window.clearTimeout;
+      cancel.call(window, topButtonRaf);
+      topButtonRaf = 0;
+    }
+
+    function scheduleTopButton(event) {
+      scroll.rememberScrollTarget(event?.target);
+      if (topButtonRaf) {
+        return;
+      }
+      const raf = window.requestAnimationFrame || ((fn) => window.setTimeout(fn, 16));
+      topButtonRaf = raf.call(window, () => {
+        topButtonRaf = 0;
+        updateTopButton();
+      });
+    }
+
+    function addDisposer(dispose) {
+      if (typeof dispose === "function") {
+        disposers.push(dispose);
+      }
+    }
+
+    function listen(target, type, handler, options) {
+      if (!target?.addEventListener || typeof handler !== "function") {
+        return;
+      }
+      target.addEventListener(type, handler, options);
+      addDisposer(() => target.removeEventListener(type, handler, options));
+    }
+
+    function dispose() {
+      if (!bound) {
+        return false;
+      }
+      bound = false;
+      cancelTopButtonUpdate();
+      for (const disposeOne of disposers.splice(0)) {
+        try {
+          disposeOne();
+        } catch {
+        }
+      }
+      scroll.clear?.();
+      log.info("settings-panel-controller-dispose", "设置面板控制器监听已释放", actionMeta());
+      return true;
     }
 
     function setOpen(open) {
@@ -297,7 +370,7 @@
 
     function bind() {
       if (bound || !shadow || !btn || !panel) {
-        return;
+        return dispose;
       }
       bound = true;
       const drag = {
@@ -348,7 +421,7 @@
         applyRailTop(railTop, false);
       });
 
-      btn.addEventListener("click", (event) => {
+      listen(btn, "click", (event) => {
         if (drag.moved || drag.handledClick) {
           event.preventDefault();
           event.stopPropagation();
@@ -357,7 +430,7 @@
         }
         toggle();
       });
-      topBtn?.addEventListener("click", (event) => {
+      listen(topBtn, "click", (event) => {
         if (drag.moved || drag.handledClick) {
           event.preventDefault();
           event.stopPropagation();
@@ -366,7 +439,7 @@
         }
         toTop();
       });
-      reviewBtn?.addEventListener("click", (event) => {
+      listen(reviewBtn, "click", (event) => {
         event.preventDefault();
         event.stopPropagation();
         if (drag.moved || drag.handledClick) {
@@ -375,14 +448,8 @@
         }
         openFilteredDialog();
       });
-      closeBtn?.addEventListener("click", close);
-      panel.addEventListener("click", (event) => {
-        if (event.target === panel) {
-          close();
-        }
-      });
-
-      rail?.addEventListener("pointerdown", (event) => {
+      listen(closeBtn, "click", close);
+      listen(rail, "pointerdown", (event) => {
         if (event.button !== 0 && event.pointerType === "mouse") {
           return;
         }
@@ -401,7 +468,7 @@
         rail.setPointerCapture(event.pointerId);
       });
 
-      rail?.addEventListener("pointermove", (event) => {
+      listen(rail, "pointermove", (event) => {
         if (!drag.active || event.pointerId !== drag.pointerId) {
           return;
         }
@@ -421,18 +488,10 @@
         }
       });
 
-      rail?.addEventListener("pointerup", (event) => endDrag(event, true));
-      rail?.addEventListener("pointercancel", (event) => endDrag(event, false));
+      listen(rail, "pointerup", (event) => endDrag(event, true));
+      listen(rail, "pointercancel", (event) => endDrag(event, false));
 
-      document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          if (shadow.querySelector(".settings-dialog-layer")) {
-            return;
-          }
-          close();
-        }
-      });
-      document.documentElement.addEventListener(cfg.openEvent, (event) => {
+      listen(document.documentElement, cfg.openEvent, (event) => {
         document.documentElement.dataset[cfg.openAckDataset] = String(Date.now());
         const data = document.documentElement.dataset;
         const filteredReviews = event.detail?.filteredReviews === true || data.steamBuffOpenFilteredReviews === "1";
@@ -445,20 +504,17 @@
         openCat(document.documentElement.dataset[cfg.openCatDataset] || getActiveCat());
       });
 
-      window.addEventListener("resize", () => {
-        if (rail) {
-          applyRailTop(railTop, true);
-        }
-      });
-      window.addEventListener("scroll", updateTopButton, { passive: true });
-      document.addEventListener("scroll", updateTopButton, { passive: true, capture: true });
+      listen(window, "scroll", scheduleTopButton, { passive: true });
+      listen(document, "scroll", scheduleTopButton, { passive: true, capture: true });
 
       updateTopButton();
+      return dispose;
     }
 
     return Object.freeze({
       bind,
       close,
+      dispose,
       open,
       openCat,
       setOpen,

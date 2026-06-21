@@ -69,6 +69,8 @@
   const NEWS_TRANSLATE_TEXT_REQ = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_REQUEST";
   const NEWS_TRANSLATE_TEXT_RES = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_RESPONSE";
   const NEWS_TRANSLATE_BRIDGE_MARK = "__steamBuffNewsTranslateBridge";
+  const NEWS_TRANSLATE_BRIDGE_HANDLER_MARK = "__steamBuffNewsTranslateBridgeHandler";
+  const NEWS_TRANSLATE_BRIDGE_HANDLER_REF = "__steamBuffNewsTranslateBridgeHandlerRef";
   const COMMUNITY_MARK = "steamBuffCommunityInjected";
   const SETTINGS_ATTR = "steamBuffSettings";
   const NEWS_TRANSLATE_ATTR = "steamBuffNewsTranslate";
@@ -153,6 +155,7 @@
     "settings/ui/toast.js",
     "settings/ui/fields.js",
     "settings/ui/feature-row.js",
+    "settings/ui/scroll-targets.js",
     "settings/panels/review-filter.js",
     "settings/panels/search-suggestions.js",
     "settings/panels/see.js",
@@ -228,10 +231,12 @@
       "store/features/game-notes.js",
     ]),
     wishlist: Object.freeze([
+      "store/api/subscription-info.js",
       "store/features/wishlist-price-history-core.js",
       "store/features/wishlist-price-history.js",
       "store/features/review-filter-core.js",
       "store/features/search-suggestions.js",
+      "store/features/subscription-info.js",
       "store/features/wishlist-dom.js",
       "store/features/title-custom-name.js",
       "store/features/game-notes.js",
@@ -251,8 +256,10 @@
       "store/features/purchase-history-classifier.js",
     ]),
     other: Object.freeze([
+      "store/api/subscription-info.js",
       "store/features/review-filter-core.js",
       "store/features/search-suggestions.js",
+      "store/features/subscription-info.js",
       "store/features/game-notes.js",
     ]),
   });
@@ -426,6 +433,10 @@
       !!globalThis.STSettingsMembership;
   }
 
+  function canOpenSettingsUi() {
+    return globalThis.STPageContext?.settingsPage?.() === "settings-web";
+  }
+
   function injectPaths(paths) {
     const inj = globalThis.STInject;
     if (!inj?.inject) {
@@ -559,6 +570,17 @@
   }
 
   async function loadSettingsUi(reason = "manual-open") {
+    if (!canOpenSettingsUi()) {
+      log({
+        level: "info",
+        domain: "settings",
+        feature: "settings-loader",
+        event: "settings-runtime-inject-skipped",
+        message: "当前页面不允许打开设置中心，跳过完整面板加载",
+        meta: pageMeta({ reason }),
+      });
+      return false;
+    }
     if (globalThis[SETTINGS_LOAD_MARK] === "ready") {
       return true;
     }
@@ -637,7 +659,10 @@
       }
     }
     loadSettingsUi("manual-open")
-      .then(() => {
+      .then((loaded) => {
+        if (!loaded) {
+          return;
+        }
         const target = root();
         if (!target) {
           return;
@@ -1045,10 +1070,20 @@
     }
   }
 
+  function readNewsTranslateDataset() {
+    try {
+      const data = JSON.parse(String(root()?.dataset?.[NEWS_TRANSLATE_ATTR] || ""));
+      return data && typeof data === "object" ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
   async function writeNewsTranslateSettings(featureOn = null) {
     if (globalThis.STPageContext?.snapshot?.().domain !== "steam") {
       return null;
     }
+    watchNewsTranslateBridge();
     const enabledFeature = featureOn == null ? await enabled(NEWS_TRANSLATE_ID) : featureOn;
     const conf = await loadTranslateConfig();
     const config = newsTranslatePublicConfig(enabledFeature, conf);
@@ -1057,7 +1092,12 @@
   }
 
   async function postNewsConfig(rid = "") {
-    const config = await writeNewsTranslateSettings();
+    let config = null;
+    try {
+      config = await writeNewsTranslateSettings();
+    } catch {
+      config = readNewsTranslateDataset();
+    }
     postNews(NEWS_TRANSLATE_CONFIG_RES, {
       rid: safeRid(rid),
       config: config || { enabled: false },
@@ -1171,29 +1211,35 @@
 
   /* Steam 新闻翻译桥接 */
   function watchNewsTranslateBridge() {
-    if (watchNewsTranslate || globalThis[NEWS_TRANSLATE_BRIDGE_MARK] === RUN_VERSION || !isSteamContentTarget()) {
+    if (!isSteamContentTarget()) {
       return;
+    }
+    if (
+      globalThis[NEWS_TRANSLATE_BRIDGE_HANDLER_MARK] === RUN_VERSION &&
+      typeof globalThis[NEWS_TRANSLATE_BRIDGE_HANDLER_REF] === "function"
+    ) {
+      globalThis[NEWS_TRANSLATE_BRIDGE_MARK] = RUN_VERSION;
+      watchNewsTranslate = true;
+      return;
+    }
+    if (typeof globalThis[NEWS_TRANSLATE_BRIDGE_HANDLER_REF] === "function") {
+      window.removeEventListener("message", globalThis[NEWS_TRANSLATE_BRIDGE_HANDLER_REF]);
     }
     watchNewsTranslate = true;
     globalThis[NEWS_TRANSLATE_BRIDGE_MARK] = RUN_VERSION;
-    steamRuntimeLogOnce("steam-news-translate-bridge-start", {
-      level: "info",
-      domain: "extension",
-      feature: NEWS_TRANSLATE_ID,
-      event: "steam-news-translate-bridge-start",
-      message: "Steam 新闻翻译桥接已启动",
-      meta: pageMeta(),
-    });
-    window.addEventListener("message", (event) => {
-      if (event.source !== window) {
-        return;
-      }
+    globalThis[NEWS_TRANSLATE_BRIDGE_HANDLER_MARK] = RUN_VERSION;
+    const bridgeHandler = (event) => {
       const data = event.data || {};
-      if (data.source === "steam-buff-content") {
+      if (data.source !== "steam-buff-page") {
         return;
       }
       if (data.type === NEWS_TRANSLATE_CONFIG_REQ) {
-        postNewsConfig(data.rid).catch(() => {});
+        postNewsConfig(data.rid).catch(() => {
+          postNews(NEWS_TRANSLATE_CONFIG_RES, {
+            rid: safeRid(data.rid),
+            config: readNewsTranslateDataset() || { enabled: false },
+          });
+        });
         return;
       }
       if (data.type === NEWS_TRANSLATE_TEXT_REQ) {
@@ -1205,7 +1251,17 @@
           });
         });
       }
+    };
+    globalThis[NEWS_TRANSLATE_BRIDGE_HANDLER_REF] = bridgeHandler;
+    steamRuntimeLogOnce("steam-news-translate-bridge-start", {
+      level: "info",
+      domain: "extension",
+      feature: NEWS_TRANSLATE_ID,
+      event: "steam-news-translate-bridge-start",
+      message: "Steam 新闻翻译桥接已启动",
+      meta: pageMeta(),
     });
+    window.addEventListener("message", bridgeHandler);
   }
 
   function trustedNamePage() {

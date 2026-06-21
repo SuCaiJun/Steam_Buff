@@ -136,16 +136,18 @@
     const easings = theme.easings || {};
     const transitions = theme.transitions || {};
     return {
-      "--st-news-button-border": cssVar("--st-color-white-alpha-12"),
-      "--st-news-button-border-hover": cssVar("--st-color-white-alpha-18"),
-      "--st-news-button-color": cssVar("--st-color-text-muted"),
-      "--st-news-button-bg": cssVar("--st-color-surface-control-strong"),
-      "--st-news-button-bg-hover": cssVar("--st-color-surface-control-hover"),
-      "--st-news-button-shadow": cssVar("--st-shadow-panel-menu"),
+      "--st-news-button-border": cssVar("--st-color-steam-toolbar-button-border"),
+      "--st-news-button-border-hover": cssVar("--st-color-steam-toolbar-button-border-hover"),
+      "--st-news-button-color": cssVar("--st-color-steam-toolbar-button-text"),
+      "--st-news-button-bg": cssVar("--st-color-steam-toolbar-button-bg"),
+      "--st-news-button-bg-hover": cssVar("--st-color-steam-toolbar-button-bg-hover"),
+      "--st-news-button-shadow": cssVar("--st-shadow-steam-toolbar-button"),
       "--st-news-button-padding": spacing.sm,
       "--st-news-button-margin-bottom": spacing.sm,
       "--st-news-button-radius": radius.sm,
       "--st-news-button-transition": transitions.fast,
+      "--st-news-icon-filter": cssVar("--st-filter-icon-steam-blue"),
+      "--st-news-icon-filter-hover": cssVar("--st-filter-icon-steam-blue-hover"),
       "--st-news-button-progress": cssVar("--st-color-steam-blue-alpha-45"),
       "--st-news-button-progress-duration": durations.slower,
       "--st-news-button-progress-easing": easings.standard,
@@ -922,7 +924,7 @@
         padding: 0 !important;
         object-fit: contain !important;
         opacity: 0.86 !important;
-        filter: invert(88%) sepia(7%) saturate(299%) hue-rotate(171deg) brightness(95%) contrast(88%) !important;
+        filter: var(--st-news-icon-filter) !important;
         pointer-events: none !important;
       }
 
@@ -933,6 +935,7 @@
 
       .${NEWS_TRANSLATE_BUTTON_CLASS}:hover .${NEWS_TRANSLATE_ICON_CLASS} {
         opacity: 1 !important;
+        filter: var(--st-news-icon-filter-hover) !important;
       }
 
       .${NEWS_TRANSLATE_BUTTON_CLASS}[data-state="loading"] {

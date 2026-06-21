@@ -39,6 +39,21 @@
           states[id] = value;
         };
     const pendingSwitches = new Map();
+    const disposers = [];
+
+    function addDisposer(dispose) {
+      if (typeof dispose === "function") {
+        disposers.push(dispose);
+      }
+    }
+
+    function listen(target, type, handler, eventOptions) {
+      if (!target?.addEventListener || typeof handler !== "function") {
+        return;
+      }
+      target.addEventListener(type, handler, eventOptions);
+      addDisposer(() => target.removeEventListener(type, handler, eventOptions));
+    }
 
     const controller = root.STSettingsMenuController.create({
       shadow,
@@ -61,7 +76,17 @@
       playStartupAnimation: options.playStartupAnimation,
       openFilteredReviews: (targetShadow) => panels.review().openFilteredReviews(targetShadow),
     });
-    controller?.bind?.();
+    addDisposer(controller?.bind?.());
+
+    function dispose() {
+      pendingSwitches.clear();
+      for (const disposeOne of disposers.splice(0)) {
+        try {
+          disposeOne();
+        } catch {
+        }
+      }
+    }
 
     function switchById(id) {
       return Array.from(shadow.querySelectorAll(".switch"))
@@ -135,7 +160,7 @@
       return !interactive || !head.contains(interactive);
     }
 
-    shadow.addEventListener("click", (event) => {
+    listen(shadow, "click", (event) => {
       const ctx = shell.pageCtx(shadow);
       const nav = event.target.closest(".nav-item");
       if (nav) {
@@ -201,13 +226,13 @@
       }
     });
 
-    shadow.addEventListener("keydown", (event) => {
+    listen(shadow, "keydown", (event) => {
       if (!panels.review().handleKeydown(event, shadow)) {
         return;
       }
     });
 
-    shadow.addEventListener("change", (event) => {
+    listen(shadow, "change", (event) => {
       const locale = event.target.closest("[data-ui-locale]");
       if (locale) {
         api.storage?.setUiLocale?.(locale.value)?.then?.((next) => {
@@ -234,7 +259,7 @@
       }
     });
 
-    shadow.addEventListener("keydown", (event) => {
+    listen(shadow, "keydown", (event) => {
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
         return;
       }
@@ -252,10 +277,16 @@
       next.click();
     });
 
-    root.addEventListener(cfg.reviewUpdateEvent, (event) => {
+    listen(root, cfg.reviewUpdateEvent, (event) => {
       panels.review().setHiddenReviews(event.detail?.items);
       panels.review().updateButton(shadow);
       panels.review().syncFilteredDialog(shadow);
+    });
+    root.STRuntime?.current?.()?.registerResource?.({
+      owner: "settings:floating-menu:events",
+      key: "listeners",
+      type: "listener",
+      dispose,
     });
 
     panels.review().updateButton(shadow);
@@ -269,10 +300,14 @@
       openCat: controller.openCat,
       close: controller.close,
       toggle: controller.toggle,
+      dispose,
       host: shadow.host,
     };
 
-    return controller;
+    return Object.freeze({
+      ...controller,
+      dispose,
+    });
   }
 
   const api = Object.freeze({ bind });

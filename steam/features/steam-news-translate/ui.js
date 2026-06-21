@@ -738,9 +738,6 @@
         reject(new Error("翻译请求超时"));
       }, timeoutMs);
       const onMessage = (event) => {
-        if (event.source !== window) {
-          return;
-        }
         const data = event.data || {};
         if (data.source !== "steam-buff-content" || data.type !== responseType || data.rid !== rid) {
           return;
@@ -1064,14 +1061,31 @@
     scheduleScan(rt, 20);
   }
 
-  async function refreshConfig(rt) {
+  function hasNewsPopupContext(rt) {
+    if (!observeTarget()) {
+      return false;
+    }
+    if (rt.cards?.size > 0 || document.querySelector(`.${BUTTON_CLASS}`)) {
+      return true;
+    }
+    return popupCandidates().length > 0;
+  }
+
+  async function refreshConfig(rt, options = {}) {
+    if (!options.force && !hasNewsPopupContext(rt)) {
+      applyConfig(rt, localConfig(rt, "no-popup-local"));
+      return false;
+    }
     try {
       const response = await request(CONFIG_REQ, CONFIG_RES, {}, 8000);
       applyConfig(rt, response.config);
     } catch (error) {
-      logConfigFailure(rt, error);
+      if (hasNewsPopupContext(rt)) {
+        logConfigFailure(rt, error);
+      }
       applyConfig(rt, localConfig(rt, "bridge-fallback"));
     }
+    return true;
   }
 
   function logConfigFailure(rt, error) {
@@ -1106,7 +1120,7 @@
     }
     if (!activeCard && rt.activeCard?.isConnected) {
       const record = mounted.get(rt.activeCard);
-      if (record?.button?.isConnected && findVisualToolbar(rt.activeCard)) {
+      if (record?.button?.isConnected && record.target?.isConnected && visible(record.target)) {
         activeCard = rt.activeCard;
       }
     }
@@ -1183,9 +1197,6 @@
   }
 
   function onBridgeConfig(rt, event) {
-    if (event.source !== window) {
-      return;
-    }
     const data = event.data || {};
     if (data.source === "steam-buff-content" && data.type === CONFIG_RES && !data.rid) {
       applyConfig(rt, data.config);

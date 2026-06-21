@@ -14,6 +14,8 @@
   const api = window.SteamBuff = window.SteamBuff || {};
   const SORT_LABEL_RE = /自定义排序名称|自訂排序名稱|自定義排序名稱|Custom Sort|カスタムソート|カスタム並び替え|사용자 지정 정렬|사용자 정의 정렬/i;
   const DOWNLOAD_ACTION_RE = /^(继续下载|立即下载|恢复下载|暂停下载|resume download|download now|pause download)$/i;
+  const DOWNLOAD_EMPTY_RE = /队列中无下载|no downloads(?:\s+in\s+(?:the\s+)?queue|\s+queued)?|download queue is empty|nothing (?:is )?(?:currently )?downloading/i;
+  const DOWNLOAD_PANEL_RE = /即将进行|已启用自动更新|网络\s*\d|磁盘使用量\s*\d|scheduled|automatic updates|network\s*\d|disk usage\s*\d/i;
   const SORT_UI_CACHE_MS = 1200;
   const DOWNLOAD_UI_HIT_CACHE_MS = 1200;
   const DOWNLOAD_UI_MISS_CACHE_MS = 180;
@@ -109,10 +111,28 @@
         return true;
       }
     }
+    return hasDownloadsEmptyUi();
+  }
+
+  function normalizeText(el) {
+    return String(el?.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function hasDownloadsEmptyUi() {
+    const candidates = document.querySelectorAll("main, section, div");
+    for (const el of candidates) {
+      if (!visible(el)) {
+        continue;
+      }
+      const text = normalizeText(el);
+      if (DOWNLOAD_EMPTY_RE.test(text) && DOWNLOAD_PANEL_RE.test(text)) {
+        return true;
+      }
+    }
     return false;
   }
 
-  /* Steam 下载管理页有时不再暴露 /library/downloads 路由，只能用可见下载动作按钮兜底识别。 */
+  /* 注: Steam 空下载队列没有继续/暂停按钮，下载管理页识别必须同时覆盖空队列面板。 */
   function hasDownloadsUi() {
     const at = Date.now();
     const cacheMs = downloadUiCacheValue ? DOWNLOAD_UI_HIT_CACHE_MS : DOWNLOAD_UI_MISS_CACHE_MS;

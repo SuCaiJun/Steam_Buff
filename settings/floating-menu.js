@@ -410,6 +410,7 @@
       key: "shadow-root",
       type: "feature-lifecycle",
       dispose() {
+        globalThis.STSettingsMenu?.dispose?.();
         host.remove();
         if (document.documentElement?.dataset) {
           delete document.documentElement.dataset[MARK];

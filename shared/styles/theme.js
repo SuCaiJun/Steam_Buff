@@ -85,6 +85,11 @@
     textHint: '#acb8c3',
     badgeBlueText: '#d7edf9',
     badgeBlueBg: '#1b4f74',
+    steamToolbarButtonBg: '#44444b',
+    steamToolbarButtonBgHover: '#51515a',
+    steamToolbarButtonBorder: '#63636d',
+    steamToolbarButtonBorderHover: '#74747f',
+    steamToolbarButtonText: '#969696',
   };
 
   colors.surface = {
@@ -279,6 +284,7 @@
     panelLarge: '0 24px 60px rgba(0,0,0,0.5)',
     dialog: '0 16px 42px rgba(0,0,0,0.48)',
     tooltip: '0 0 10px rgba(0,0,0,0.5)',
+    steamToolbarButton: `0 3px 32px ${colors.black}`,
     switchChecked: `0 0 12px ${colors.primaryGlow}`,
     focusRing: `0 0 0 3px ${colors.focusShadow}`,
   };
@@ -300,6 +306,11 @@
     switchOn: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryDark} 100%)`,
     settingsHeader: 'linear-gradient(180deg, #2a3f5a 0%, #1f2d3d 100%)',
     settingsFeatureActive: `linear-gradient(90deg, ${colors.primarySurface} 0%, rgba(26,159,255,0.05) 100%)`,
+  };
+
+  const filters = {
+    iconSteamBlue: 'brightness(0) saturate(100%) invert(75%) sepia(89%) saturate(574%) hue-rotate(167deg) brightness(101%) contrast(91%)',
+    iconSteamBlueHover: 'brightness(0) saturate(100%) invert(79%) sepia(96%) saturate(604%) hue-rotate(166deg) brightness(109%) contrast(97%)',
   };
 
   const cssVariables = {
@@ -343,6 +354,11 @@
     '--st-color-text-hint': colors.textHint,
     '--st-color-badge-blue-text': colors.badgeBlueText,
     '--st-color-badge-blue-bg': colors.badgeBlueBg,
+    '--st-color-steam-toolbar-button-bg': colors.steamToolbarButtonBg,
+    '--st-color-steam-toolbar-button-bg-hover': colors.steamToolbarButtonBgHover,
+    '--st-color-steam-toolbar-button-border': colors.steamToolbarButtonBorder,
+    '--st-color-steam-toolbar-button-border-hover': colors.steamToolbarButtonBorderHover,
+    '--st-color-steam-toolbar-button-text': colors.steamToolbarButtonText,
     '--st-color-primary-surface': colors.primarySurface,
     '--st-color-primary-surface-hover': colors.primarySurfaceHover,
     '--st-color-danger-surface': colors.dangerSurface,
@@ -563,8 +579,11 @@
     '--st-shadow-panel-large': shadows.panelLarge,
     '--st-shadow-dialog': shadows.dialog,
     '--st-shadow-tooltip': shadows.tooltip,
+    '--st-shadow-steam-toolbar-button': shadows.steamToolbarButton,
     '--st-shadow-switch-checked': shadows.switchChecked,
     '--st-shadow-focus-ring': shadows.focusRing,
+    '--st-filter-icon-steam-blue': filters.iconSteamBlue,
+    '--st-filter-icon-steam-blue-hover': filters.iconSteamBlueHover,
     '--st-radius-xs': radius.xs,
     '--st-radius-sm': radius.sm,
     '--st-radius-md': radius.md,
@@ -681,6 +700,7 @@
     shadows,
     zIndex,
     gradients,
+    filters,
     cssVariables,
     applyCssVariables,
   });
