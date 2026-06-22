@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const THEME_VERSION = 'steam-buff-theme-v1';
+  const THEME_VERSION = 'steam-buff-theme-v3';
 
   if (root.STTheme?.version === THEME_VERSION) {
     return;
@@ -77,9 +77,13 @@
     primarySurfaceHover: 'rgba(26,159,255,0.16)',
     primaryBorder: 'rgba(26,159,255,0.38)',
     primaryBorderStrong: 'rgba(102,192,244,0.55)',
+    successSurface: 'rgba(91,168,84,0.12)',
+    warningSurface: 'rgba(240,173,78,0.12)',
     dangerSurface: 'rgba(255,91,91,0.12)',
     dangerBorder: 'rgba(255,91,91,0.45)',
     dangerText: '#ffb5b5',
+    audioUnsupported: '#8ba0b4',
+    audioUnsupportedSurface: 'rgba(139,160,180,0.12)',
     memberSurface: 'rgba(245,194,74,0.08)',
     memberBorder: 'rgba(245,194,74,0.4)',
     textHint: '#acb8c3',
@@ -361,8 +365,12 @@
     '--st-color-steam-toolbar-button-text': colors.steamToolbarButtonText,
     '--st-color-primary-surface': colors.primarySurface,
     '--st-color-primary-surface-hover': colors.primarySurfaceHover,
+    '--st-color-success-surface': colors.successSurface,
+    '--st-color-warning-surface': colors.warningSurface,
     '--st-color-danger-surface': colors.dangerSurface,
     '--st-color-danger-border': colors.dangerBorder,
+    '--st-color-audio-unsupported': colors.audioUnsupported,
+    '--st-color-audio-unsupported-surface': colors.audioUnsupportedSurface,
     '--st-color-member-surface': colors.memberSurface,
     '--st-color-member-border': colors.memberBorder,
     '--st-color-primary-light': '#4db5ff',

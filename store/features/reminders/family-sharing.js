@@ -20,6 +20,23 @@
   const fetchPlayersInfo = api.net.fetchPlayersInfo;
   const parseResponse = api.format.parseResponse;
   const log = window.STLoggerFactory?.createLogger?.("store", "family-sharing");
+  const RESULT_EVENT = "st:family-sharing-result";
+  const supportState = window.__stFamilySharingSupportState || {};
+  window.__stFamilySharingSupportState = supportState;
+
+  function publishSupportState(appIdText, status) {
+    if (!appIdText) return;
+    supportState[appIdText] = {
+      status,
+      at: Date.now(),
+    };
+    window.dispatchEvent(new CustomEvent(RESULT_EVENT, {
+      detail: {
+        appid: appIdText,
+        status,
+      },
+    }));
+  }
 
 function addFamilySharingNotice(appId, protocol) {
     const startedAt = Date.now();
@@ -85,6 +102,7 @@ function addFamilySharingNotice(appId, protocol) {
                     durationMs: Date.now() - startedAt,
                     error: e,
                 });
+                publishSupportState(appIdText, "unknown");
                 return;
             }
         }
@@ -110,12 +128,14 @@ function addFamilySharingNotice(appId, protocol) {
                 supported: false,
                 durationMs: Date.now() - startedAt,
             });
+            publishSupportState(appIdText, "unsupported");
         } else {
             log?.info?.("family-sharing-mount-skipped", "家庭共享检查未发现限制", {
                 appid: Number(appId) || 0,
                 supported: true,
                 durationMs: Date.now() - startedAt,
             });
+            publishSupportState(appIdText, "supported");
         }
     }).catch((error) => {
         log?.warn?.("family-sharing-request-failed", "家庭共享检查请求失败，已降级跳过", {
@@ -123,6 +143,7 @@ function addFamilySharingNotice(appId, protocol) {
             durationMs: Date.now() - startedAt,
             error,
         });
+        publishSupportState(appIdText, "unknown");
     });
 }
 

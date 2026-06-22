@@ -185,6 +185,7 @@
     "store/runtime/config.js",
     "store/runtime/context.js",
     "store/runtime/cache.js",
+    "store/runtime/family-library-cache.js",
     "store/runtime/assets.js",
     "store/runtime/format.js",
     "store/runtime/dom.js",
@@ -213,10 +214,12 @@
   const STORE_FEATURE_CHUNKS = Object.freeze({
     details: Object.freeze([
       "store/api/subscription-info.js",
+      "store/api/family-library.js",
       "store/features/price/price-history.js",
       "store/features/price/steampy-deals.js",
       "store/features/reminders/audio-check.js",
       "store/features/reminders/family-sharing.js",
+      "store/features/reminders/family-library-owned-marker.js",
       "store/features/reminders/drm-warning.js",
       "store/features/reminders/subscription-info.js",
       "store/features/dlc/dlc-bridge.js",
@@ -237,6 +240,7 @@
       "store/features/review/review-filter-core.js",
       "store/features/search/search-suggestions.js",
       "store/features/reminders/subscription-info.js",
+      "store/features/reminders/family-library-owned-marker.js",
       "store/features/price/wishlist-dom.js",
       "store/features/search/title-custom-name.js",
       "store/features/notes/game-notes.js",
@@ -249,7 +253,10 @@
       "store/features/notes/game-notes.js",
     ]),
     cart: Object.freeze([
+      "store/api/subscription-info.js",
       "store/features/cart/cart-select.js",
+      "store/features/reminders/subscription-info.js",
+      "store/features/reminders/family-library-owned-marker.js",
     ]),
     history: Object.freeze([
       "store/features/purchase-history/purchase-history-classifier.user.js",
@@ -260,6 +267,7 @@
       "store/features/review/review-filter-core.js",
       "store/features/search/search-suggestions.js",
       "store/features/reminders/subscription-info.js",
+      "store/features/reminders/family-library-owned-marker.js",
       "store/features/notes/game-notes.js",
     ]),
   });

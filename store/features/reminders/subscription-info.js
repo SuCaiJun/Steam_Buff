@@ -21,6 +21,14 @@
   const fetchGame = api.subs?.fetchGame;
 
   const OWNER = "store:subscription-info";
+  const BADGE_OWNER = `${OWNER}:badges`;
+  const DETAIL_SETTING_ID = "subscription-detail-card";
+  const BADGE_SETTING_IDS = Object.freeze({
+    store: "subscription-store-badge",
+    wishlist: "subscription-wishlist-badge",
+    cart: "subscription-cart-badge",
+  });
+  const BADGE_SUMMARY_LOG_MS = 30_000;
   const SHOW_STATUS = Object.freeze(new Set(["active", "leaving"]));
   const ROW_CLASSES = Object.freeze([
     "tab_item",
@@ -38,9 +46,13 @@
 
   let scanTimer = null;
   let stylesReady = false;
+  let detailActive = false;
   let obsReady = false;
   let observer = null;
+  let badgeLogState = { signature: "", time: 0 };
+  const activeBadgeScopes = new Set();
   const disposers = new Set();
+  const log = window.STLoggerFactory?.createLogger?.("store", "subscription-info");
 
   function track(dispose) {
     const wrapped = () => {
@@ -56,6 +68,16 @@
     el.setAttribute("translate", "no");
     el.classList.add("notranslate");
     return el;
+  }
+
+  function pageMeta(extra = {}) {
+    const ctx = window.STPageContext?.snapshot?.() || {};
+    return {
+      path: location.pathname,
+      pageType: ctx.pageType || "",
+      title: document.title || "",
+      ...extra,
+    };
   }
 
   function pageAppId() {
@@ -188,7 +210,17 @@
   function addDetail(appId, protocol) {
     const id = parseInt(appId, 10);
     if (!Number.isFinite(id) || id <= 0 || typeof fetchGame !== "function") return Promise.resolve();
-    return fetchGame(id).then(renderDetail).catch(() => {});
+    detailActive = true;
+    log?.info?.("subscription-detail-start", "第三方会员详情提醒启动", pageMeta({
+      appid: id,
+      settingsKey: DETAIL_SETTING_ID,
+    }));
+    return fetchGame(id).then(renderDetail).catch((error) => {
+      log?.warn?.("subscription-detail-failed", "第三方会员详情提醒加载失败", pageMeta({
+        appid: id,
+        reason: error?.message || String(error),
+      }));
+    });
   }
 
   function appIdForNode(node) {
@@ -202,7 +234,7 @@
   function listType(node) {
     const cls = String(node.className || "");
     const isRow = ROW_CLASSES.some((name) => cls.includes(name));
-    if (isRow || location.pathname.startsWith("/search") || location.pathname.startsWith("/wishlist")) {
+    if (isRow || location.pathname.startsWith("/wishlist")) {
       return "row";
     }
     return "tile";
@@ -217,62 +249,172 @@
   function clearTextLinkBadges() {
     document.querySelectorAll("a[href*='/app/'].st_subscription_target").forEach((node) => {
       if (isImageTarget(node)) return;
-      node.querySelectorAll(":scope > .st_subscription_badges").forEach((item) => item.remove());
+      removeSubscriptionBadges(node);
       node.classList.remove("st_subscription_target", "st_subscription_pos");
       delete node.dataset.stSubId;
       delete node.dataset.stSubType;
+      delete node.dataset.stSubScope;
       delete node.dataset.stSubDone;
     });
   }
 
-  function targets() {
+  function regularTargets() {
     clearTextLinkBadges();
     const nodes = [];
-    const selectors = [
-      "#search_resultsRows a[data-ds-appid]",
-      "#StoreTemplate .Panel .Panel a[href*='/app/']",
-      "[data-ds-appid]:not(.gutter_item)",
-      "[class^='salepreviewwidgets_']",
-      ".SaleSectionContainer .Panel",
-      ".tab_item",
-    ];
+    const selectors = [];
+    if (activeBadgeScopes.has("store")) {
+      selectors.push(
+        "#StoreTemplate .Panel .Panel a[href*='/app/']",
+        "[data-ds-appid]:not(.gutter_item)",
+        "[class^='salepreviewwidgets_']",
+        ".SaleSectionContainer .Panel",
+        ".tab_item",
+      );
+    }
+    if (activeBadgeScopes.has("wishlist")) {
+      selectors.push(
+        "#wishlist_ctn a[href*='/app/']",
+        "#wishlist_list a[href*='/app/']",
+      );
+    }
+    if (!selectors.length) return [];
     document.querySelectorAll(selectors.join(",")).forEach((node) => {
       const base = node.closest("[data-ds-appid]") || node;
       const id = appIdForNode(base);
       if (!id || !isImageTarget(base)) return;
-      nodes.push(base);
+      const scope = activeBadgeScopes.has("wishlist") && base.closest("#wishlist_ctn, #wishlist_list") ? "wishlist" : "store";
+      const image = scope === "wishlist" ? api.dom.imageBadgeForNode?.(base, id) : null;
+      nodes.push({
+        node: base,
+        appId: id,
+        image,
+        type: image ? "image" : listType(base),
+        scope,
+      });
     });
-    return Array.from(new Set(nodes));
+    const seen = new Set();
+    return nodes.filter((item) => {
+      if (seen.has(item.node)) return false;
+      seen.add(item.node);
+      return true;
+    });
   }
 
-  function markPending(node, id) {
+  function cartTargets() {
+    if (!activeBadgeScopes.has("cart")) return [];
+    return (api.dom.cartBadgeTargets?.() || []).map(item => ({
+      node: item.node,
+      appId: item.appId,
+      image: item.image,
+      type: "cart",
+      scope: "cart",
+    }));
+  }
+
+  function targets() {
+    return [...regularTargets(), ...cartTargets()];
+  }
+
+  function markPending(target, id) {
+    const node = target.node;
     node.classList.add("st_subscription_target");
     node.dataset.stSubId = String(id);
-    node.dataset.stSubType = listType(node);
+    node.dataset.stSubType = target.type;
+    node.dataset.stSubScope = target.scope;
   }
 
-  function renderBadge(node, game) {
-    if (!node || !game) return;
-    node.querySelectorAll(":scope > .st_subscription_badges").forEach((item) => item.remove());
-    const subs = activeSubs(game);
-    if (subs.length === 0) return;
+  function removeEmptyBadgeHost(container) {
+    if (!container?.classList?.contains("st_subscription_badges")) return;
+    if (container.querySelector(".st_subscription_badge")) return;
+    container.remove();
+  }
 
+  function removeSubscriptionBadges(root = document, scope = "") {
+    root.querySelectorAll?.(".st_subscription_service_badge").forEach((badge) => {
+      const host = badge.closest(".st_subscription_badges");
+      const target = host?.parentElement;
+      if (scope && target?.dataset?.stSubScope !== scope) return;
+      badge.remove();
+      removeEmptyBadgeHost(host);
+    });
+  }
+
+  function clearSubscriptionTarget(node, scope = "") {
+    if (scope && node.dataset.stSubScope !== scope) return false;
+    delete node.dataset.stSubId;
+    delete node.dataset.stSubType;
+    delete node.dataset.stSubScope;
+    delete node.dataset.stSubDone;
+    node.classList.remove("st_subscription_target");
+    if (!node.querySelector(":scope > .st_subscription_badges")) {
+      node.classList.remove("st_subscription_pos", "st_store_cart_badge_target", "st_store_image_badge_target");
+    }
+    return true;
+  }
+
+  function ensureBadgeHost(target) {
+    const node = target.node;
+    let host = node.querySelector(":scope > .st_subscription_badges");
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "st_subscription_badges";
+      noTranslate(host);
+      node.appendChild(host);
+    }
+    host.classList.toggle("is-row", target.type === "row");
+    host.classList.toggle("is-tile", target.type === "tile");
+    host.classList.toggle("is-cart", target.type === "cart");
+    host.classList.toggle("is-image", target.type === "image");
+    return host;
+  }
+
+  function positionBadgeHost(target, host) {
+    const node = target?.node;
+    if (!node || !host) return false;
+    if (target.type === "cart") {
+      return api.dom.positionCartBadgeHost?.(node, host, target.image) === true;
+    }
+    if (target.type === "image") {
+      const image = target.image || api.dom.imageBadgeForNode?.(node, target.appId);
+      return api.dom.positionImageBadgeHost?.(node, host, image) === true;
+    }
     if (getComputedStyle(node).position === "static") {
       node.classList.add("st_subscription_pos");
     }
+    return true;
+  }
 
-    const badges = document.createElement("div");
-    badges.className = `st_subscription_badges ${node.dataset.stSubType === "row" ? "is-row" : "is-tile"}`;
-    noTranslate(badges);
+  function renderBadge(target, game) {
+    const node = target?.node;
+    if (!node || !game) return false;
+    removeSubscriptionBadges(node);
+    const subs = activeSubs(game);
+    if (subs.length === 0) return false;
+
+    const host = ensureBadgeHost(target);
+    if (!positionBadgeHost(target, host)) {
+      removeSubscriptionBadges(node);
+      return false;
+    }
+
     subs.forEach((item) => {
       const badge = document.createElement("span");
-      badge.className = `st_subscription_badge st_subscription_${item.platform}`;
+      badge.className = `st_subscription_badge st_subscription_service_badge st_subscription_${item.platform}`;
       badge.textContent = item.info.short;
       badge.title = lineText(item);
       noTranslate(badge);
-      badges.appendChild(badge);
+      host.appendChild(badge);
     });
-    node.appendChild(badges);
+    node.dataset.stSubDone = "1";
+    return true;
+  }
+
+  function logBadgeSummary(meta = {}) {
+    const signature = `${meta.scopes || ""}:${meta.targetCount || 0}:${meta.mountedCount || 0}:${meta.status || ""}`;
+    const now = Date.now();
+    if (badgeLogState.signature === signature && now - badgeLogState.time < BADGE_SUMMARY_LOG_MS) return;
+    badgeLogState = { signature, time: now };
+    log?.info?.("subscription-badge-scan-summary", "第三方会员角标扫描完成", pageMeta(meta));
   }
 
   function scanLists() {
@@ -280,29 +422,55 @@
     const nodes = targets();
     const ids = [];
 
-    nodes.forEach((node) => {
-      const id = parseInt(appIdForNode(node), 10);
+    nodes.forEach((target) => {
+      const node = target.node;
+      const id = parseInt(target.appId, 10);
       if (!Number.isFinite(id) || id <= 0) return;
       if (node.dataset.stSubId === String(id)
           && node.dataset.stSubDone === "1"
-          && node.querySelector(":scope > .st_subscription_badges")) return;
-      markPending(node, id);
+          && node.querySelector(":scope > .st_subscription_badges .st_subscription_service_badge")) {
+        const host = node.querySelector(":scope > .st_subscription_badges");
+        positionBadgeHost(target, host);
+        return;
+      }
+      markPending(target, id);
       ids.push(id);
     });
 
     const uniq = Array.from(new Set(ids));
-    if (uniq.length === 0) return;
+    if (uniq.length === 0) {
+      logBadgeSummary({
+        status: "no-pending",
+        scopes: Array.from(activeBadgeScopes).join(","),
+        targetCount: nodes.length,
+        mountedCount: nodes.filter(target => target.node.querySelector(":scope > .st_subscription_badges .st_subscription_service_badge")).length,
+      });
+      return;
+    }
 
     fetchGames(uniq).then((games) => {
       const map = new Map(games.map((game) => [String(game.sid), game]));
-      nodes.forEach((node) => {
+      let mountedCount = 0;
+      nodes.forEach((target) => {
+        const node = target.node;
         const id = node.dataset.stSubId;
         const game = map.get(id);
         if (!game) return;
-        renderBadge(node, game);
-        node.dataset.stSubDone = "1";
+        if (renderBadge(target, game)) {
+          mountedCount += 1;
+        }
       });
-    }).catch(() => {});
+      logBadgeSummary({
+        status: mountedCount ? "mounted" : "miss",
+        scopes: Array.from(activeBadgeScopes).join(","),
+        targetCount: nodes.length,
+        mountedCount,
+      });
+    }).catch((error) => {
+      log?.warn?.("subscription-badge-scan-failed", "第三方会员角标扫描失败", pageMeta({
+        reason: error?.message || String(error),
+      }));
+    });
   }
 
   function scheduleScan() {
@@ -325,7 +493,7 @@
       clearTimeout(timerId);
     });
     timerResource = window.STRuntime?.current?.()?.registerResource?.({
-      owner: OWNER,
+      owner: BADGE_OWNER,
       key: "scan-timer",
       type: "timer",
       dispose: disposeTimer,
@@ -333,11 +501,16 @@
   }
 
   function observerTarget() {
-    return document.querySelector("#search_resultsRows")
-      || document.querySelector("#wishlist_ctn")
+    if (activeBadgeScopes.has("cart")) {
+      return api.dom.cartBadgeObserverTarget?.() || null;
+    }
+    if (activeBadgeScopes.has("wishlist")) {
+      return document.querySelector("#wishlist_ctn")
       || document.querySelector("#wishlist_list")
+      || null;
+    }
+    return document.querySelector("#StoreTemplate")
       || document.querySelector(".PU7fdVEQB8s-.Panel")
-      || document.querySelector("#StoreTemplate")
       || document.querySelector(".SaleSectionContainer")
       || document.querySelector(".tab_content_ctn")
       || document.getElementById("responsive_page_template_content")
@@ -347,7 +520,13 @@
   function setupObserver() {
     if (obsReady || observer) return;
     const target = observerTarget();
-    if (!target) return;
+    if (!target) {
+      log?.warn?.("subscription-badge-target-missing", "第三方会员角标监听目标缺失", pageMeta({
+        scopes: Array.from(activeBadgeScopes).join(","),
+        candidateCount: targets().length,
+      }));
+      return;
+    }
     obsReady = true;
     observer = window.STObserverUtils?.createDebouncedObserver?.(scheduleScan, 250)
       || new MutationObserver(scheduleScan);
@@ -355,7 +534,7 @@
     observer.observe(target, { childList: true, subtree: true });
     const disposeObserver = track(() => observer?.disconnect?.());
     window.STRuntime?.current?.()?.registerResource?.({
-      owner: OWNER,
+      owner: BADGE_OWNER,
       key: "list-observer",
       type: "observer",
       dispose: disposeObserver,
@@ -363,7 +542,7 @@
     window.addEventListener("pageshow", scheduleScan);
     const disposePageShow = track(() => window.removeEventListener("pageshow", scheduleScan));
     window.STRuntime?.current?.()?.registerResource?.({
-      owner: OWNER,
+      owner: BADGE_OWNER,
       key: "pageshow",
       type: "listener",
       meta: { event: "pageshow" },
@@ -372,7 +551,7 @@
     document.addEventListener("scroll", scheduleScan, { passive: true });
     const disposeScroll = track(() => document.removeEventListener("scroll", scheduleScan, { passive: true }));
     window.STRuntime?.current?.()?.registerResource?.({
-      owner: OWNER,
+      owner: BADGE_OWNER,
       key: "scroll",
       type: "listener",
       meta: { event: "scroll" },
@@ -387,13 +566,32 @@
     api.styles?.ensureFeatureStyle?.("subscription-info", { owner: OWNER, key: "style" });
   }
 
-  function startLists() {
+  function startBadges(scope = "store") {
+    const normalized = BADGE_SETTING_IDS[scope] ? scope : "store";
+    activeBadgeScopes.add(normalized);
     addStyles();
     setupObserver();
     scheduleScan();
+    log?.info?.("subscription-badge-start", "第三方会员角标功能启动", pageMeta({
+      scope: normalized,
+      settingsKey: BADGE_SETTING_IDS[normalized],
+      observerReady: !!observer,
+    }));
+    return true;
   }
 
-  function stop() {
+  function startLists() {
+    return startBadges("store");
+  }
+
+  function stopDetail() {
+    detailActive = false;
+    document.querySelectorAll(`.${MODULE_CLASSES.SUBSCRIPTION}`).forEach(node => node.remove());
+    removeFeatureStyleIfIdle();
+    return true;
+  }
+
+  function stopBadgeRuntime() {
     if (scanTimer) {
       clearTimeout(scanTimer);
       scanTimer = null;
@@ -401,16 +599,59 @@
     observer?.disconnect?.();
     observer = null;
     obsReady = false;
-    document.querySelectorAll(`.${MODULE_CLASSES.SUBSCRIPTION}, .st_subscription_badges`).forEach(node => node.remove());
+    window.STRuntime?.current?.()?.disposeOwner?.(BADGE_OWNER);
+    Array.from(disposers).forEach(dispose => dispose());
+    disposers.clear();
+  }
+
+  function stopBadges(scope = "") {
+    if (scope && BADGE_SETTING_IDS[scope]) {
+      activeBadgeScopes.delete(scope);
+    } else {
+      activeBadgeScopes.clear();
+    }
+    const cleanupScope = scope && BADGE_SETTING_IDS[scope] ? scope : "";
+    removeSubscriptionBadges(document, cleanupScope);
+    document.querySelectorAll(".st_subscription_target").forEach((node) => {
+      clearSubscriptionTarget(node, cleanupScope);
+    });
+    if (activeBadgeScopes.size === 0) {
+      stopBadgeRuntime();
+    } else {
+      scheduleScan();
+    }
+    removeFeatureStyleIfIdle();
+    return true;
+  }
+
+  function removeFeatureStyleIfIdle() {
+    if (detailActive || activeBadgeScopes.size > 0) return;
     api.styles?.removeFeatureStyle?.("subscription-info");
     stylesReady = false;
     window.STRuntime?.current?.()?.disposeOwner?.(OWNER);
-    Array.from(disposers).forEach(dispose => dispose());
+  }
+
+  function stop() {
+    stopDetail();
+    activeBadgeScopes.clear();
+    removeSubscriptionBadges();
+    document.querySelectorAll(".st_subscription_badges").forEach(removeEmptyBadgeHost);
+    document.querySelectorAll(".st_subscription_target").forEach((node) => {
+      clearSubscriptionTarget(node);
+    });
+    stopBadgeRuntime();
+    api.styles?.removeFeatureStyle?.("subscription-info");
+    stylesReady = false;
+    window.STRuntime?.current?.()?.disposeOwner?.(OWNER);
+    return true;
   }
 
   api.features.subscriptionInfo = Object.freeze({
     addDetail,
+    startBadges,
     startLists,
+    stopDetail,
+    stopBadges,
     stop,
   });
 })();

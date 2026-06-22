@@ -49,6 +49,98 @@
         return api.features.gameNotes?.stop?.();
       },
     },
+    {
+      id: "family-library-detail-card",
+      module: "familyLibraryOwnedMarker",
+      pageScope: ["store-app"],
+      start(api) {
+        const info = api.ctx?.pageInfo?.();
+        if (info?.type !== "app") return false;
+        return api.features.familyLibraryOwnedMarker?.addDetail?.(info.appId);
+      },
+      stop(api) {
+        return api.features.familyLibraryOwnedMarker?.stopDetail?.();
+      },
+    },
+    {
+      id: "family-library-store-badge",
+      module: "familyLibraryOwnedMarker",
+      pageScope: ["store-details", "store-other"],
+      start(api) {
+        return api.features.familyLibraryOwnedMarker?.startBadges?.("store");
+      },
+      stop(api) {
+        return api.features.familyLibraryOwnedMarker?.stopBadges?.("store");
+      },
+    },
+    {
+      id: "family-library-wishlist-badge",
+      module: "familyLibraryOwnedMarker",
+      pageScope: ["store-wishlist"],
+      start(api) {
+        return api.features.familyLibraryOwnedMarker?.startBadges?.("wishlist");
+      },
+      stop(api) {
+        return api.features.familyLibraryOwnedMarker?.stopBadges?.("wishlist");
+      },
+    },
+    {
+      id: "family-library-cart-badge",
+      module: "familyLibraryOwnedMarker",
+      pageScope: ["store-cart"],
+      start(api) {
+        return api.features.familyLibraryOwnedMarker?.startBadges?.("cart");
+      },
+      stop(api) {
+        return api.features.familyLibraryOwnedMarker?.stopBadges?.("cart");
+      },
+    },
+    {
+      id: "subscription-detail-card",
+      module: "subscriptionInfo",
+      pageScope: ["store-app"],
+      start(api) {
+        const info = api.ctx?.pageInfo?.();
+        if (info?.type !== "app") return false;
+        return api.features.subscriptionInfo?.addDetail?.(info.appId, location.protocol);
+      },
+      stop(api) {
+        return api.features.subscriptionInfo?.stopDetail?.();
+      },
+    },
+    {
+      id: "subscription-store-badge",
+      module: "subscriptionInfo",
+      pageScope: ["store-details", "store-other"],
+      start(api) {
+        return api.features.subscriptionInfo?.startBadges?.("store");
+      },
+      stop(api) {
+        return api.features.subscriptionInfo?.stopBadges?.("store");
+      },
+    },
+    {
+      id: "subscription-wishlist-badge",
+      module: "subscriptionInfo",
+      pageScope: ["store-wishlist"],
+      start(api) {
+        return api.features.subscriptionInfo?.startBadges?.("wishlist");
+      },
+      stop(api) {
+        return api.features.subscriptionInfo?.stopBadges?.("wishlist");
+      },
+    },
+    {
+      id: "subscription-cart-badge",
+      module: "subscriptionInfo",
+      pageScope: ["store-cart"],
+      start(api) {
+        return api.features.subscriptionInfo?.startBadges?.("cart");
+      },
+      stop(api) {
+        return api.features.subscriptionInfo?.stopBadges?.("cart");
+      },
+    },
   ]);
 
   let settings = {};
@@ -130,6 +222,7 @@
       domain: "store",
       id: feature.id,
       settingsKey: feature.id,
+      pageScope: feature.pageScope,
       settingsSnapshot: settings,
       settingOn: on,
     }) || { allowed: fallbackAllowed, reason: fallbackAllowed ? "" : "settings-disabled" };

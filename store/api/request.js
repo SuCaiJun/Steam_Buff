@@ -69,6 +69,7 @@
         url: safeLogUrl(config.url),
         status: Number(status) || 0,
         durationMs: Date.now() - startedAt,
+        rid: String(config.rid || config.requestId || ""),
         attempt,
         maxAttempts,
         timeoutMs: normalizeTimeout(config),

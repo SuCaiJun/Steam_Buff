@@ -85,6 +85,7 @@ const TooltipManager = {
 
 const MODULE_CLASSES = {
     FAMILY_SHARING: 'es_family_sharing_warning',
+    FAMILY_LIBRARY_OWNED: 'st_family_library_owned_marker',
     DRM_WARNING: 'es_drm_warning',
     AUDIO_CHECK: 'es_audio_check',
     SUBSCRIPTION: 'es_subscription_info',
@@ -95,18 +96,29 @@ const INSERT_PRIORITIES = {
     [MODULE_CLASSES.FAMILY_SHARING]: [
         'game_area_purchase'
     ],
+
+    [MODULE_CLASSES.FAMILY_LIBRARY_OWNED]: [
+        MODULE_CLASSES.FAMILY_SHARING,
+        MODULE_CLASSES.AUDIO_CHECK,
+        MODULE_CLASSES.DRM_WARNING,
+        MODULE_CLASSES.SUBSCRIPTION,
+        'game_area_purchase'
+    ],
     
     [MODULE_CLASSES.AUDIO_CHECK]: [
+        MODULE_CLASSES.FAMILY_LIBRARY_OWNED,
         MODULE_CLASSES.FAMILY_SHARING,
         'game_area_purchase'
     ],
 
     [MODULE_CLASSES.DRM_WARNING]: [
+        MODULE_CLASSES.FAMILY_LIBRARY_OWNED,
         MODULE_CLASSES.FAMILY_SHARING,
         'game_area_purchase'
     ],
 
     [MODULE_CLASSES.SUBSCRIPTION]: [
+        MODULE_CLASSES.FAMILY_LIBRARY_OWNED,
         MODULE_CLASSES.DRM_WARNING,
         MODULE_CLASSES.AUDIO_CHECK,
         MODULE_CLASSES.FAMILY_SHARING,
@@ -252,6 +264,139 @@ function showError(container, loadingContainer, errorText = '加载失败') {
     }
 }
 
+function appIdFromSteamUrl(url) {
+    const match = String(url || "").match(/\/app\/(\d+)/);
+    return match ? match[1] : "";
+}
+
+function visible(element) {
+    return !!(element?.offsetWidth || element?.offsetHeight || element?.getClientRects?.().length);
+}
+
+function compactText(element) {
+    return String(element?.textContent || "").replace(/\s+/g, " ").trim();
+}
+
+function isCartPage() {
+    return /^\/cart\/?$/i.test(String(location.pathname || ""));
+}
+
+const BADGE_EDGE_OFFSET_PX = 4;
+
+function imageBadgeForNode(node, appId) {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) return null;
+    const appIdText = String(appId || "");
+    const links = [];
+    if (node.matches?.("a[href*='/app/']")) {
+        links.push(node);
+    }
+    links.push(...Array.from(node.querySelectorAll?.("a[href*='/app/']") || []));
+    const exact = links.find(link => (
+        (!appIdText || appIdFromSteamUrl(link.href) === appIdText)
+        && visible(link.querySelector?.("img"))
+    ));
+    if (exact) return exact.querySelector("img");
+
+    const images = Array.from(node.querySelectorAll?.("img") || []).filter(visible);
+    images.sort((left, right) => {
+        const leftRect = left.getBoundingClientRect?.();
+        const rightRect = right.getBoundingClientRect?.();
+        return ((rightRect?.width || 0) * (rightRect?.height || 0))
+            - ((leftRect?.width || 0) * (leftRect?.height || 0));
+    });
+    return images[0] || null;
+}
+
+function cartRowHasNativeAction(row) {
+    const actions = Array.from(row?.querySelectorAll?.('a, button, [role="button"]') || [])
+        .filter(visible);
+    return actions.some(action => /^(移除|Remove)$/i.test(compactText(action)));
+}
+
+function cartImageForRow(row, appId) {
+    const links = Array.from(row?.querySelectorAll?.("a[href*='/app/']") || []);
+    const exact = links.find(link => appIdFromSteamUrl(link.href) === String(appId) && link.querySelector("img"));
+    const link = exact || links.find(item => item.querySelector("img"));
+    return link?.querySelector?.("img") || null;
+}
+
+function cartRowFromAppLink(link) {
+    let node = link;
+    for (let depth = 0; depth < 8 && node && node !== document.body; depth += 1) {
+        if (node.matches?.(".st_cart_select_row[data-st-cart-select-ready], [data-st-cart-line-id]")) {
+            return node;
+        }
+        const rect = node.getBoundingClientRect?.();
+        if (rect?.width > 280 && rect.height > 48 && rect.height <= 220 && cartRowHasNativeAction(node)) {
+            return node;
+        }
+        node = node.parentElement;
+    }
+    return null;
+}
+
+function cartBadgeObserverTarget() {
+    if (!isCartPage()) return null;
+    return document.querySelector("[data-st-cart-line-id]")?.parentElement
+        || document.querySelector(".st_cart_select_row")?.parentElement
+        || document.getElementById("responsive_page_template_content")
+        || null;
+}
+
+function cartBadgeTargets() {
+    if (!isCartPage()) return [];
+    const rows = new Set();
+    document.querySelectorAll(".st_cart_select_row[data-st-cart-select-ready], [data-st-cart-line-id]").forEach(row => {
+        rows.add(row);
+    });
+
+    // 优先使用 cart-select 已标记的真实购物车行；没有这些锚点时才走 DOM fallback，避免扫到推荐商品区。
+    if (rows.size === 0) {
+        const content = document.getElementById("responsive_page_template_content") || document;
+        content.querySelectorAll("a[href*='/app/'] img").forEach((image) => {
+            const link = image.closest("a[href*='/app/']");
+            const row = cartRowFromAppLink(link);
+            if (row) rows.add(row);
+        });
+    }
+
+    return Array.from(rows).map((row) => {
+        const lineId = String(row.dataset?.stCartLineId || "");
+        const directLink = row.querySelector("a[href*='/app/']");
+        const appId = appIdFromSteamUrl(directLink?.href);
+        const image = appId ? cartImageForRow(row, appId) : null;
+        return appId && image ? { row, node: row, image, appId, lineId } : null;
+    }).filter(Boolean);
+}
+
+function positionCartBadgeHost(target, host, image) {
+    if (!target || !host || !image) return false;
+    const targetRect = target.getBoundingClientRect?.();
+    const imageRect = image.getBoundingClientRect?.();
+    if (!targetRect || !imageRect || imageRect.width <= 0 || imageRect.height <= 0) {
+        return false;
+    }
+    target.classList.add("st_store_cart_badge_target");
+    host.classList.add("is-cart");
+    host.style.setProperty("--st-cart-badge-left", `${Math.max(0, Math.round(imageRect.left - targetRect.left + BADGE_EDGE_OFFSET_PX))}px`);
+    host.style.setProperty("--st-cart-badge-top", `${Math.max(0, Math.round(imageRect.top - targetRect.top + BADGE_EDGE_OFFSET_PX))}px`);
+    return true;
+}
+
+function positionImageBadgeHost(target, host, image) {
+    if (!target || !host || !image) return false;
+    const targetRect = target.getBoundingClientRect?.();
+    const imageRect = image.getBoundingClientRect?.();
+    if (!targetRect || !imageRect || imageRect.width <= 0 || imageRect.height <= 0) {
+        return false;
+    }
+    target.classList.add("st_store_image_badge_target");
+    host.classList.add("is-image");
+    host.style.setProperty("--st-image-badge-left", `${Math.max(0, Math.round(imageRect.left - targetRect.left + BADGE_EDGE_OFFSET_PX))}px`);
+    host.style.setProperty("--st-image-badge-top", `${Math.max(0, Math.round(imageRect.top - targetRect.top + BADGE_EDGE_OFFSET_PX))}px`);
+    return true;
+}
+
   api.tooltip = TooltipManager;
   api.dom = Object.freeze({
     TooltipManager,
@@ -264,5 +409,11 @@ function showError(container, loadingContainer, errorText = '加载失败') {
     insertModule,
     createModuleContainer,
     showError,
+    appIdFromSteamUrl,
+    imageBadgeForNode,
+    cartBadgeObserverTarget,
+    cartBadgeTargets,
+    positionCartBadgeHost,
+    positionImageBadgeHost,
   });
 })();

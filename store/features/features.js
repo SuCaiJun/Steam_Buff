@@ -31,6 +31,14 @@
     return api.features.familySharing?.add?.(...args);
   }
 
+  function addFamilyLibraryDetailCard(...args) {
+    return api.features.familyLibraryOwnedMarker?.addDetail?.(...args) || Promise.resolve();
+  }
+
+  function startFamilyLibraryBadges(...args) {
+    return api.features.familyLibraryOwnedMarker?.startBadges?.(...args);
+  }
+
   function addDRMWarnings(...args) {
     return api.features.drmWarning?.add?.(...args);
   }
@@ -40,7 +48,7 @@
   }
 
   function startSubscriptionBadges(...args) {
-    return api.features.subscriptionInfo?.startLists?.(...args);
+    return api.features.subscriptionInfo?.startBadges?.(...args);
   }
 
   function skipPrice() {
@@ -65,6 +73,16 @@
 
   function startCartSelect(...args) {
     return api.features.cartSelect?.start?.(...args);
+  }
+
+  function canRun(id) {
+    const fallbackAllowed = on(id);
+    return globalThis.STPageContext?.canRunFeature?.({
+      domain: "store",
+      id,
+      settingsKey: id,
+      settingOn: on,
+    })?.allowed ?? fallbackAllowed;
   }
 
   function addCartSelectStyles(...args) {
@@ -106,6 +124,7 @@
   function stopStartedFeatures() {
     const stopped = [
       stopFeature(api.features.subscriptionInfo, "subscription-info"),
+      stopFeature(api.features.familyLibraryOwnedMarker, "family-library-owned-marker"),
       stopFeature(api.features.steamPyDeals, "steampy-deals"),
       stopFeature(api.features.wishlistPriceHistory, "wishlist-price-history"),
       stopFeature(api.features.dlc, "dlc-checkboxes"),
@@ -185,11 +204,15 @@
         addFamilySharingNotice(appId, location.protocol);
     }
 
+    if (canRun("family-library-detail-card")) {
+        addFamilyLibraryDetailCard(appId);
+    }
+
     if (on("third-party-check")) {
         addDRMWarnings();
     }
 
-    if (on("subscription-info")) {
+    if (canRun("subscription-detail-card")) {
         addSubscriptionInfo(appId, location.protocol);
     }
 
@@ -304,17 +327,37 @@
 
     initStyles();
 
-    if (on("subscription-info")) {
-        startSubscriptionBadges();
+    if (canRun("cart-select")) {
+        await Promise.resolve(startCartSelect());
+    }
+
+    if (canRun("subscription-store-badge")) {
+        startSubscriptionBadges("store");
+    }
+
+    if (canRun("subscription-wishlist-badge")) {
+        startSubscriptionBadges("wishlist");
+    }
+
+    if (canRun("subscription-cart-badge")) {
+        startSubscriptionBadges("cart");
+    }
+
+    if (canRun("family-library-store-badge")) {
+        startFamilyLibraryBadges("store");
+    }
+
+    if (canRun("family-library-wishlist-badge")) {
+        startFamilyLibraryBadges("wishlist");
+    }
+
+    if (canRun("family-library-cart-badge")) {
+        startFamilyLibraryBadges("cart");
     }
 
     // Steam 商店 React/客户端内嵌页可能二次渲染购买区，这里负责补回被跳过或被删掉的模块。
     api.purchaseRecover?.setRestore?.((appId, reason) => recover(reason));
     api.purchaseRecover?.setup?.();
-
-    if (on("cart-select")) {
-        startCartSelect();
-    }
 
     if (on("review-filter")) {
         startReviewFilter();

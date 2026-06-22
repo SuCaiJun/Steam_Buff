@@ -229,12 +229,16 @@
       appDetails: (appId, filters = "basic", lang = "english") => `${join(ORIGINS.steamStore, "/api/appdetails")}?appids=${encoded(appId)}&filters=${encoded(filters)}&l=${encoded(lang)}`,
       dynamicStoreUserdata,
       dynamicStoreUserdataBase: join(ORIGINS.steamStore, "/dynamicstore/userdata/"),
+      familyManagement: () => join(ORIGINS.steamStore, "/account/familymanagement/?tab=library"),
     }),
     steamApi: Object.freeze({
       host: HOSTS.steamApi,
       origin: ORIGINS.steamApi,
       cartAddItems: () => join(ORIGINS.steamApi, "/IAccountCartService/AddItemsToCart/v1/"),
       cartAddItemsBody: (token, inputJson, storeOrigin = ORIGINS.steamStore) => `access_token=${encoded(token)}&origin=${encoded(storeOrigin)}&input_json=${encoded(inputJson)}`,
+      familyGroupForUser: () => join(ORIGINS.steamApi, "/IFamilyGroupsService/GetFamilyGroupForUser/v1/"),
+      sharedLibraryApps: () => join(ORIGINS.steamApi, "/IFamilyGroupsService/GetSharedLibraryApps/v1/"),
+      playerLinkDetails: () => join(ORIGINS.steamApi, "/IPlayerService/GetPlayerLinkDetails/v1/"),
     }),
     steamCommunity: Object.freeze({
       host: HOSTS.steamCommunity,
