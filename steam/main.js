@@ -20,6 +20,8 @@
   const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;
   const LOOP_MS = 10000;
+  const SETTINGS_ATTR = "data-steam-buff-settings";
+  const SETTINGS_REFRESH_MS = 120;
 
   if (!api || !reg) {
     return;
@@ -182,6 +184,7 @@
       });
     }
     clearTimer(api.runtime?.timer, "runtime.timer");
+    clearTimer(api.runtime?.settingsRefreshTimer, "runtime.settingsRefreshTimer");
     if (api.ctx?.isShared?.() !== true) {
       stopState("library-custom-name");
       stopState("download-auto-shutdown");
@@ -237,6 +240,7 @@
       results: [],
       status: "starting",
       timer: 0,
+      settingsRefreshTimer: 0,
       waitingLogged: false,
       readyLogged: false,
     };
@@ -258,6 +262,43 @@
         });
       }, delay);
       runtime?.timer?.("steam:main-loop", "runtime-poll", api.runtime.timer);
+    };
+
+    const refreshBySettings = (reason = "settings-attribute") => {
+      if (api.runtime.settingsRefreshTimer) {
+        window.clearTimeout(api.runtime.settingsRefreshTimer);
+        api.runtime.settingsRefreshTimer = 0;
+      }
+      api.runtime.settingsRefreshTimer = window.setTimeout(() => {
+        api.runtime.settingsRefreshTimer = 0;
+        tick().catch((error) => {
+          runtime?.markError?.("steam-runtime-settings-refresh-failed", error, runtimeMeta());
+          log.error("runtime-failed", "Steam 客户端设置变更刷新失败", {
+            ...runtimeMeta(),
+            reason,
+            error: error?.message || String(error),
+          });
+        });
+      }, SETTINGS_REFRESH_MS);
+      runtime?.timer?.("steam:settings-watch", "settings-refresh", api.runtime.settingsRefreshTimer);
+    };
+
+    const bindSettingsWatcher = () => {
+      const target = document.documentElement;
+      if (!target || typeof MutationObserver !== "function") {
+        return;
+      }
+      const observer = new MutationObserver((items) => {
+        if (items.some(item => item.attributeName === SETTINGS_ATTR)) {
+          refreshBySettings("settings-attribute");
+        }
+      });
+      // 优化: 设置开关变更后立即重跑门禁，让已关闭功能立刻释放资源，不再等 10 秒巡检。
+      observer.observe(target, {
+        attributes: true,
+        attributeFilter: [SETTINGS_ATTR],
+      });
+      runtime?.observer?.("steam:settings-watch", "settings-attribute", observer);
     };
 
     const tick = async () => {
@@ -294,6 +335,7 @@
       later(LOOP_MS);
     };
 
+    bindSettingsWatcher();
     await tick();
   }
 

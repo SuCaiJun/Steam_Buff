@@ -22,7 +22,7 @@
   const RETRY_MS = 1000;
   const TOAST_MS = 4200;
   const MOUNT_LOG_MS = 60000;
-  const WAKE_DELAYS = Object.freeze([120, 360, 760, 1400]);
+  const WAKE_DELAY_MS = 360;
   const WAKE_MIN_MS = 500;
   const ST = Object.freeze({
     READY: "backend-ready",
@@ -336,8 +336,14 @@
     s.wakeHandles.push(handle);
   }
 
+  function shouldWakeSync(api) {
+    const route = api?.ctx?.route?.() || "";
+    const root = document.getElementById(ROOT);
+    return route === "/library/downloads" || s.st?.show === true || s.lastShow === true || (root && root.hidden === false);
+  }
+
   function scheduleWakeSync(api, ch, reason = "wake") {
-    if (!s.fOn || !main(api)) {
+    if (!s.fOn || !main(api) || !shouldWakeSync(api)) {
       return;
     }
     const at = now();
@@ -346,16 +352,14 @@
     }
     s.wakeAt = at;
     clearWakeSyncTimers();
-    WAKE_DELAYS.forEach((delay, index) => {
-      const key = `wake-sync-${index}`;
-      const timerId = window.setTimeout(() => {
-        disposeWakeSyncTimer(key);
-        if (s.fOn) {
-          sync(api, ch);
-        }
-      }, delay);
-      addWakeSyncTimer(key, timerId);
-    });
+    const key = "wake-sync";
+    const timerId = window.setTimeout(() => {
+      disposeWakeSyncTimer(key);
+      if (s.fOn && shouldWakeSync(api)) {
+        sync(api, ch);
+      }
+    }, WAKE_DELAY_MS);
+    addWakeSyncTimer(key, timerId);
     s.wakeReason = reason;
   }
 
@@ -388,14 +392,12 @@
   }
 
   function bindWakeEvents(api, ch, scope) {
-    s.onWakePointerUp = () => scheduleWakeSync(api, ch, "pointerup");
     s.onWakeKeyUp = (event) => {
       if (event?.key === "Tab" || event?.key === "Enter" || event?.key === " ") {
         scheduleWakeSync(api, ch, "keyup");
       }
     };
     s.onWakeFocus = () => scheduleWakeSync(api, ch, "focus");
-    addWakeListener(scope, "frontend-wake-pointerup", document, "pointerup", s.onWakePointerUp, { passive: true });
     addWakeListener(scope, "frontend-wake-keyup", document, "keyup", s.onWakeKeyUp);
     addWakeListener(scope, "frontend-wake-focus", window, "focus", s.onWakeFocus);
   }

@@ -16,9 +16,16 @@
   const DOWNLOAD_ACTION_RE = /^(继续下载|立即下载|恢复下载|暂停下载|resume download|download now|pause download)$/i;
   const DOWNLOAD_EMPTY_RE = /队列中无下载|no downloads(?:\s+in\s+(?:the\s+)?queue|\s+queued)?|download queue is empty|nothing (?:is )?(?:currently )?downloading/i;
   const DOWNLOAD_PANEL_RE = /即将进行|已启用自动更新|网络\s*\d|磁盘使用量\s*\d|scheduled|automatic updates|network\s*\d|disk usage\s*\d/i;
-  const SORT_UI_CACHE_MS = 1200;
+  const DOWNLOAD_PANEL_SELECTORS = Object.freeze([
+    "#popup_target [class~='Panel']",
+    "#popup_target [role='main']",
+    "#popup_target main",
+    "#popup_target section",
+  ]);
+  const DOWNLOAD_PANEL_SCAN_LIMIT = 512;
+  const SORT_UI_CACHE_MS = 5000;
   const DOWNLOAD_UI_HIT_CACHE_MS = 1200;
-  const DOWNLOAD_UI_MISS_CACHE_MS = 180;
+  const DOWNLOAD_UI_MISS_CACHE_MS = DOWNLOAD_UI_HIT_CACHE_MS;
   let sortUiCacheAt = 0;
   let sortUiCacheValue = false;
   let downloadUiCacheAt = 0;
@@ -48,16 +55,20 @@
     }
   }
 
-  function visible(el) {
+  function likelyVisible(el) {
     if (!el || !el.isConnected || el.nodeType !== 1) {
       return false;
     }
-    const rect = el.getBoundingClientRect();
-    if (rect.width < 2 || rect.height < 2) {
+    if (el.type === "hidden") {
       return false;
     }
-    const style = window.getComputedStyle(el);
-    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity || 1) !== 0;
+    // 优化: 这里处在候选批量扫描路径，只读显式隐藏属性，避免任何布局测量 API 触发 Steam CEF 回流。
+    for (let cur = el; cur && cur !== document.body && cur !== document.documentElement; cur = cur.parentElement) {
+      if (cur.hidden || cur.inert || cur.getAttribute?.("aria-hidden") === "true") {
+        return false;
+      }
+    }
+    return true;
   }
 
   function nearText(el) {
@@ -76,16 +87,13 @@
     if (!isUi()) {
       return false;
     }
-    const inputs = Array.from(document.querySelectorAll("input[type='text'], input:not([type])"))
-      .filter(visible);
-    if (!inputs.length) {
-      return false;
-    }
-    if (inputs.some(input => SORT_LABEL_RE.test(nearText(input)))) {
-      return true;
-    }
-    if (inputs.some(input => /排序|sort/i.test(input.placeholder || input.getAttribute("aria-label") || ""))) {
-      return true;
+    const inputs = Array.from(document.querySelectorAll("input[type='text'], input:not([type])"));
+    for (const input of inputs) {
+      const inputMeta = `${input.placeholder || ""} ${input.getAttribute("aria-label") || ""}`;
+      const hasSortSignal = SORT_LABEL_RE.test(nearText(input)) || /排序|sort/i.test(inputMeta);
+      if (hasSortSignal && likelyVisible(input)) {
+        return true;
+      }
     }
     return false;
   }
@@ -107,7 +115,7 @@
     }
     const buttons = document.querySelectorAll("button[aria-label]");
     for (const button of buttons) {
-      if (DOWNLOAD_ACTION_RE.test(button.getAttribute("aria-label") || "") && visible(button)) {
+      if (DOWNLOAD_ACTION_RE.test(button.getAttribute("aria-label") || "") && likelyVisible(button)) {
         return true;
       }
     }
@@ -118,14 +126,36 @@
     return String(el?.textContent || "").replace(/\s+/g, " ").trim();
   }
 
-  function hasDownloadsEmptyUi() {
-    const candidates = document.querySelectorAll("main, section, div");
-    for (const el of candidates) {
-      if (!visible(el)) {
+  function downloadPanelCandidates() {
+    const out = [];
+    const seen = new Set();
+    for (const selector of DOWNLOAD_PANEL_SELECTORS) {
+      let nodes = [];
+      try {
+        nodes = document.querySelectorAll(selector);
+      } catch {
         continue;
       }
+      for (const node of nodes) {
+        if (!node || seen.has(node) || node === document.body || node === document.documentElement) {
+          continue;
+        }
+        seen.add(node);
+        out.push(node);
+        if (out.length >= DOWNLOAD_PANEL_SCAN_LIMIT) {
+          return out;
+        }
+      }
+    }
+    return out;
+  }
+
+  function hasDownloadsEmptyUi() {
+    const candidates = downloadPanelCandidates();
+    for (const el of candidates) {
       const text = normalizeText(el);
-      if (DOWNLOAD_EMPTY_RE.test(text) && DOWNLOAD_PANEL_RE.test(text)) {
+      // 优化: 空队列兜底只在少量 Steam 面板候选命中文字后检查可见性，避免全页 div 回流扫描。
+      if (DOWNLOAD_EMPTY_RE.test(text) && DOWNLOAD_PANEL_RE.test(text) && likelyVisible(el)) {
         return true;
       }
     }
