@@ -142,7 +142,7 @@
         "shared/utils/dom.js",
         "shared/utils/format.js",
         "shared/observer-utils.js",
-        "store/features/age-gate-skip.js"
+        "store/features/age-gate/age-gate-skip.js"
       ],
       "run_at": "document_start"
     },
@@ -157,9 +157,9 @@
         "shared/config.js",
         "shared/error-boundary.js",
         "shared/i18n.js",
-        "store/features/review-filter-core.js",
-        "store/features/review-filter.js",
-        "store/features/review-filter-community.js"
+        "store/features/review/review-filter-core.js",
+        "store/features/review/review-filter.js",
+        "store/features/review/review-filter-community.js"
       ],
       "run_at": "document_end"
     },
@@ -179,7 +179,7 @@
         "shared/error-boundary.js",
         "shared/i18n.js",
         "store/runtime/styles.js",
-        "store/features/cart-select-checkout.js"
+        "store/features/cart/cart-select-checkout.js"
       ],
       "run_at": "document_end"
     }
