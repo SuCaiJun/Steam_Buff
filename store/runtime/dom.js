@@ -383,7 +383,7 @@ function positionCartBadgeHost(target, host, image) {
     return true;
 }
 
-function positionImageBadgeHost(target, host, image) {
+function positionImageBadgeHost(target, host, image, placement = "top-left") {
     if (!target || !host || !image) return false;
     const targetRect = target.getBoundingClientRect?.();
     const imageRect = image.getBoundingClientRect?.();
@@ -393,7 +393,13 @@ function positionImageBadgeHost(target, host, image) {
     target.classList.add("st_store_image_badge_target");
     host.classList.add("is-image");
     host.style.setProperty("--st-image-badge-left", `${Math.max(0, Math.round(imageRect.left - targetRect.left + BADGE_EDGE_OFFSET_PX))}px`);
-    host.style.setProperty("--st-image-badge-top", `${Math.max(0, Math.round(imageRect.top - targetRect.top + BADGE_EDGE_OFFSET_PX))}px`);
+    if (placement === "bottom-left") {
+        host.style.setProperty("--st-image-badge-top", "auto");
+        host.style.setProperty("--st-image-badge-bottom", `${Math.max(0, Math.round(targetRect.bottom - imageRect.bottom + BADGE_EDGE_OFFSET_PX))}px`);
+    } else {
+        host.style.setProperty("--st-image-badge-top", `${Math.max(0, Math.round(imageRect.top - targetRect.top + BADGE_EDGE_OFFSET_PX))}px`);
+        host.style.removeProperty("--st-image-badge-bottom");
+    }
     return true;
 }
 

@@ -264,6 +264,7 @@
     const selectors = [];
     if (activeBadgeScopes.has("store")) {
       selectors.push(
+        "#search_resultsRows a[data-ds-appid]",
         "#StoreTemplate .Panel .Panel a[href*='/app/']",
         "[data-ds-appid]:not(.gutter_item)",
         "[class^='salepreviewwidgets_']",
@@ -283,13 +284,14 @@
       const id = appIdForNode(base);
       if (!id || !isImageTarget(base)) return;
       const scope = activeBadgeScopes.has("wishlist") && base.closest("#wishlist_ctn, #wishlist_list") ? "wishlist" : "store";
-      const image = scope === "wishlist" ? api.dom.imageBadgeForNode?.(base, id) : null;
+      const image = api.dom.imageBadgeForNode?.(base, id);
       nodes.push({
         node: base,
         appId: id,
         image,
         type: image ? "image" : listType(base),
         scope,
+        badgePlacement: scope === "wishlist" ? "top-left" : "bottom-left",
       });
     });
     const seen = new Set();
@@ -308,6 +310,7 @@
       image: item.image,
       type: "cart",
       scope: "cart",
+      badgePlacement: "top-left",
     }));
   }
 
@@ -376,7 +379,7 @@
     }
     if (target.type === "image") {
       const image = target.image || api.dom.imageBadgeForNode?.(node, target.appId);
-      return api.dom.positionImageBadgeHost?.(node, host, image) === true;
+      return api.dom.positionImageBadgeHost?.(node, host, image, target.badgePlacement) === true;
     }
     if (getComputedStyle(node).position === "static") {
       node.classList.add("st_subscription_pos");
@@ -510,6 +513,8 @@
       || null;
     }
     return document.querySelector("#StoreTemplate")
+      || document.querySelector("#search_resultsRows")
+      || document.querySelector("#search_result_container")
       || document.querySelector(".PU7fdVEQB8s-.Panel")
       || document.querySelector(".SaleSectionContainer")
       || document.querySelector(".tab_content_ctn")

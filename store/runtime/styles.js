@@ -1995,7 +1995,7 @@
         bottom: var(--st-spacing-xs);
       }
       .st_subscription_badges.is-tile {
-        top: var(--st-spacing-sm);
+        bottom: var(--st-spacing-xs);
       }
       .st_subscription_badges.is-cart {
         left: var(--st-cart-badge-left, var(--st-spacing-sm));
@@ -2005,6 +2005,7 @@
       .st_subscription_badges.is-image {
         left: var(--st-image-badge-left, var(--st-spacing-sm));
         top: var(--st-image-badge-top, var(--st-spacing-sm));
+        bottom: var(--st-image-badge-bottom, auto);
       }
       .st_subscription_badge {
         --st-store-badge-bg: var(--st-color-success);

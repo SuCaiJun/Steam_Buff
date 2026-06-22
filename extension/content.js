@@ -250,6 +250,7 @@
       "store/features/review/review-filter-core.js",
       "store/features/search/search-suggestions.js",
       "store/features/reminders/subscription-info.js",
+      "store/features/reminders/family-library-owned-marker.js",
       "store/features/notes/game-notes.js",
     ]),
     cart: Object.freeze([

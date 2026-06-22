@@ -65,7 +65,7 @@
     {
       id: "family-library-store-badge",
       module: "familyLibraryOwnedMarker",
-      pageScope: ["store-details", "store-other"],
+      pageScope: ["store-details", "store-search", "store-other"],
       start(api) {
         return api.features.familyLibraryOwnedMarker?.startBadges?.("store");
       },
@@ -111,7 +111,7 @@
     {
       id: "subscription-store-badge",
       module: "subscriptionInfo",
-      pageScope: ["store-details", "store-other"],
+      pageScope: ["store-details", "store-search", "store-other"],
       start(api) {
         return api.features.subscriptionInfo?.startBadges?.("store");
       },
