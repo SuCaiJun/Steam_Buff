@@ -306,13 +306,14 @@
     return /^\d+$/.test(id) ? `steam://friends/message/${id}` : "";
   }
 
-  function appendOwnerName(parent, item) {
+  function appendOwnerName(parent, item, tooltipText = "") {
     if (!item || !item.name) return;
     const href = item.isSelf ? "" : steamChatUrl(item.steamid);
     if (!href) {
       const span = document.createElement("span");
       span.className = "st_family_library_owned_marker__owner-name";
       span.textContent = item.name;
+      if (tooltipText) span.title = tooltipText;
       parent.appendChild(span);
       return;
     }
@@ -320,6 +321,7 @@
     link.className = "st_family_library_owned_marker__owner-link";
     link.href = href;
     link.textContent = item.name;
+    if (tooltipText) link.title = tooltipText;
     parent.appendChild(link);
   }
 
@@ -341,16 +343,17 @@
       return;
     }
     body.appendChild(document.createTextNode(`你的家庭组中共 ${summary.count} 位成员拥有此游戏：`));
+    const tooltipText = earliestPurchaseText(entry);
     const visibleItems = summary.items.slice(0, 3);
     visibleItems.forEach((item, index) => {
       if (index > 0) body.appendChild(document.createTextNode("、"));
-      appendOwnerName(body, item);
+      appendOwnerName(body, item, tooltipText);
     });
     if (summary.count > visibleItems.length) {
       body.appendChild(document.createTextNode(` 等 ${summary.count} 位成员`));
     }
     body.appendChild(document.createTextNode("。"));
-    if (summary.fullText) body.title = summary.fullText;
+    body.title = tooltipText || summary.fullText;
   }
 
   function cardState(cache, appId) {
@@ -374,6 +377,21 @@
 
   function padTime(value) {
     return String(value).padStart(2, "0");
+  }
+
+  function secondDateText(seconds) {
+    const value = Number(seconds) || 0;
+    if (value <= 0) return "";
+    const date = new Date(value * 1000);
+    if (Number.isNaN(date.getTime())) return "";
+    const dateText = `${date.getFullYear()}年${padTime(date.getMonth() + 1)}月${padTime(date.getDate())}日`;
+    const timeText = `${padTime(date.getHours())}:${padTime(date.getMinutes())}:${padTime(date.getSeconds())}`;
+    return `${dateText} ${timeText}`;
+  }
+
+  function earliestPurchaseText(entry) {
+    const text = secondDateText(entry?.acquiredAt);
+    return text ? `最早购买于${text}` : "";
   }
 
   function updatedAtText(cache) {
@@ -550,13 +568,13 @@
   function showBlockingWait() {
     if (typeof window.ShowBlockingWaitDialog === "function") {
       try {
-        const dialog = window.ShowBlockingWaitDialog("正在扫描家庭组库存...", "扫描期间不要关闭浏览器，耐心等待！");
+        const dialog = window.ShowBlockingWaitDialog("正在扫描家庭组游戏数据...", "扫描期间不要关闭浏览器，耐心等待！");
         return { close: () => dialog?.Dismiss?.() };
       } catch {
       }
     }
     const modal = createModal({
-      title: "正在扫描家庭组库存...",
+      title: "正在扫描家庭组游戏数据...",
       message: "扫描期间不要关闭浏览器，耐心等待！",
       danger: true,
     });
@@ -597,7 +615,7 @@
     log?.info?.("family-library-empty-cache-prompt", "家庭组游戏库首次扫描提示已显示", pageMeta({ appid: Number(appId) || 0 }));
     const action = await showActionDialog({
       title: "Steam Buff共享检查",
-      message: "您似乎没有家庭库的游戏记录，是否现在扫描家庭库游戏并记录？",
+      message: "似乎没有家庭库的游戏记录，是否现在扫描家庭库游戏并记录？",
       primaryLabel: "扫描家庭库",
       secondaryLabel: "关闭功能",
     });
