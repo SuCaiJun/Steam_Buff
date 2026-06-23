@@ -66,7 +66,10 @@
       return;
     }
     if (app.appid) {
-      names().set(app.appid, name);
+      const map = names();
+      if (map.get(app.appid) !== name) {
+        map.set(app.appid, name);
+      }
     }
     if (app[ORIG]) {
       return;
@@ -98,13 +101,19 @@
     return text || name;
   }
 
-  function display(app, cust, orig) {
-    const source = cust || app?.[ORIG] || orig || app?.display_name || "";
-    return view(source);
+  function display(cust) {
+    return view(cust);
   }
 
   function same(app, cust) {
     return !!cust && (app?.display_name === cust || app?.display_name === view(cust));
+  }
+
+  function isDirty(app) {
+    if (!hasCust(app)) {
+      return false;
+    }
+    return app.display_name !== view(app.custom_sort_as_display);
   }
 
   function saveNow(app) {
@@ -124,13 +133,16 @@
     }
 
     const cust = hasCust(app) ? app.custom_sort_as_display : "";
+    if (!cust) {
+      return false;
+    }
     const orig = official(app, arg);
-    if (arg || !cust || !same(app, cust)) {
+    if (arg || !same(app, cust)) {
       saveOrig(app, orig);
     }
 
-    /* 统一展示出口：Steam 有时会把完整自定义名直接塞进 display_name，fallback 也必须隐藏助记符。 */
-    const next = display(app, cust, orig);
+    // 注:只清洗自定义排序名，官方 display_name 可能真实以 [标签] 开头，不能作为 fallback 走 view()。
+    const next = display(cust);
     if (next && app.display_name !== next) {
       app.display_name = next;
       return true;
@@ -170,7 +182,18 @@
       }
       const canNotify = opt.notify !== false && done.length <= BULK_UI_REFRESH_MAX;
       if (done.length && canNotify) {
-        window.collectionStore?.OnAppOverviewChange?.(done, []);
+        const rt = window[RT];
+        const prev = rt?.notifying === true;
+        try {
+          if (rt) {
+            rt.notifying = true;
+          }
+          window.collectionStore?.OnAppOverviewChange?.(done, []);
+        } finally {
+          if (rt) {
+            rt.notifying = prev;
+          }
+        }
       } else if (done.length) {
         log.info("library-sort-title-refresh-skipped", "库排序标题跳过大批量库列表刷新", {
           reason: String(opt.reason || ""),
@@ -186,6 +209,15 @@
   function refresh(store, app) {
     const repl = build(store, app);
     return repl ? commit(store, [repl], { reason: "single" }) : 0;
+  }
+
+  function restoreOfficial(app, orig) {
+    const next = app?.[ORIG] || orig || "";
+    if (next && app.display_name !== next) {
+      app.display_name = next;
+      return true;
+    }
+    return false;
   }
 
   // 库自定义名称批量保存会连续调用 SetCustomSortAs；这里先收集变化，结束后统一刷新库 UI。
@@ -284,7 +316,7 @@
       app.original_sort_as = undefined;
     }
 
-    return apply(app);
+    return cust ? apply(app) : restoreOfficial(app, orig);
   }
 
   function applyAll(apps) {
@@ -411,9 +443,18 @@
           }
           return undefined;
         }
-        applyList(apps);
-        const ret = orig.apply(this, args);
-        return ret;
+        if (rt?.notifying) {
+          return orig.apply(this, args);
+        }
+        if (!rt?.syncedOnce) {
+          applyList(apps);
+        } else {
+          const dirty = apps.filter(isDirty);
+          if (dirty.length) {
+            applyList(dirty);
+          }
+        }
+        return orig.apply(this, args);
       };
     });
   }
@@ -537,7 +578,7 @@
       const hooksReady = rt.sortOk && rt.customOk && rt.changeOk;
       let changed = 0;
       if (!rt.bootApplied || (hooksReady && !rt.syncedOnce)) {
-        // 🚀 性能优化：全库 display_name 修正只做启动兜底和 hook 就绪后的最终修正；日常变更走局部事件。
+        // 🚀 性能优化：全库自定义排序名修正只做启动兜底和 hook 就绪后的最终修正；日常变更走局部事件。
         changed = applyAll(apps);
         rt.bootApplied = true;
         if (hooksReady) {
@@ -616,6 +657,7 @@
       loggedStart: false,
       loggedSuccess: false,
       loggedFailed: false,
+      notifying: false,
       beginCustomNameBulk,
       recordCustomNameBulk,
       endCustomNameBulk,

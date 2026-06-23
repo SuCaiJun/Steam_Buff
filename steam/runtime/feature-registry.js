@@ -49,7 +49,6 @@
         loaded: new Set(),
         starting: new Set(),
         started: new Set(),
-        running: new Map(),
         lastSummaryKey: "",
       };
     }
@@ -226,59 +225,6 @@
       await this.loadScript(this.entryPath(feature, entry));
     }
 
-    // 设置关闭时必须把已启动的入口和它注册的运行时资源一起收掉。
-    stopEntry(feature, context, reason = "disabled") {
-      const entry = this.entryName(feature, context);
-      if (!entry) {
-        return false;
-      }
-
-      const key = `${feature.id}:${context}:${entry}`;
-      const owner = `steam:${feature.id}:${context}`;
-      const stop = this.state.running.get(key);
-      this.state.running.delete(key);
-      this.state.starting.delete(key);
-
-      if (!this.state.started.delete(key)) {
-        return false;
-      }
-
-      let disposed = 0;
-      try {
-        disposed = runtime?.disposeOwner?.(owner) || 0;
-      } catch (error) {
-        log.warn("feature-stop-failed", "Steam 客户端功能停止失败", {
-          featureId: feature.id,
-          context,
-          entry,
-          error: error?.message || String(error),
-        });
-      }
-
-      if (!disposed && typeof stop === "function") {
-        try {
-          stop();
-        } catch (error) {
-          log.warn("feature-stop-failed", "Steam 客户端功能停止失败", {
-            featureId: feature.id,
-            context,
-            entry,
-            error: error?.message || String(error),
-          });
-        }
-      }
-
-      runtime?.markFeature?.({
-        domain: "steam",
-        id: feature.id,
-        mode: context,
-        entry,
-        status: "disabled",
-        reason: reason || "disabled",
-      });
-      return true;
-    }
-
     async startEntry(feature, context) {
       const entry = this.entryName(feature, context);
       if (!entry) {
@@ -286,23 +232,6 @@
       }
 
       const key = `${feature.id}:${context}:${entry}`;
-      const gate = this.canStart(feature, context);
-      if (!gate.allowed) {
-        if (this.state.started.has(key)) {
-          this.stopEntry(feature, context, gate.reason || "context-mismatch");
-          return { id: feature.id, context, entry, status: "stopped", reason: gate.reason || "context-mismatch" };
-        } else {
-          runtime?.markFeature?.({
-            domain: "steam",
-            id: feature.id,
-            mode: context,
-            entry,
-            status: "disabled",
-            reason: gate.reason || "context-mismatch",
-          });
-        }
-        return { id: feature.id, context, entry, status: "skipped", reason: gate.reason || "context-mismatch" };
-      }
       if (this.state.started.has(key)) {
         runtime?.markFeature?.({
           domain: "steam",
@@ -325,6 +254,24 @@
         });
         return { id: feature.id, context, entry, status: "skipped", reason: "already-starting" };
       }
+      const gate = this.canStart(feature, context);
+      if (!gate.allowed) {
+        runtime?.markFeature?.({
+          domain: "steam",
+          id: feature.id,
+          mode: context,
+          entry,
+          status: "skipped",
+          reason: gate.reason || "context-mismatch",
+          meta: {
+            contexts: this.api.ctx?.contexts?.() || [],
+            targets: this.api.ctx?.targets?.() || [],
+            page: gate.page || "",
+            pageType: gate.pageType || "",
+          },
+        });
+        return { id: feature.id, context, entry, status: "skipped", reason: gate.reason || "context-mismatch" };
+      }
 
       // starting/started 防止 5 秒巡检和路由变化重复启动同一个上下文入口。
       this.state.starting.add(key);
@@ -337,18 +284,6 @@
       });
       try {
         await this.loadEntry(feature, entry);
-        const postGate = this.canStart(feature, context);
-        if (!postGate.allowed) {
-          runtime?.markFeature?.({
-            domain: "steam",
-            id: feature.id,
-            mode: context,
-            entry,
-            status: "disabled",
-            reason: postGate.reason || "context-mismatch",
-          });
-          return { id: feature.id, context, entry, status: "skipped", reason: postGate.reason || "context-mismatch" };
-        }
         const start = this.state.entries[feature.id]?.[entry];
         if (typeof start !== "function") {
           const captured = window.STErrorBoundary?.capture?.(new Error("Steam 客户端功能入口不可调用"), {
@@ -381,11 +316,6 @@
         const scope = this.createResourceScope(feature, context);
         const result = start(this.api, feature, context, scope);
         const started = !result || result.started !== false || result.reason === "already-started";
-        if (result?.started !== false && typeof result?.stop === "function") {
-          this.state.running.set(key, result.stop);
-        } else {
-          this.state.running.delete(key);
-        }
         runtime?.markFeature?.({
           domain: "steam",
           id: feature.id,

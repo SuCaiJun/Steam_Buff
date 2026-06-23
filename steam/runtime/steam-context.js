@@ -71,6 +71,18 @@
     return true;
   }
 
+  function visible(el) {
+    if (!el || !el.isConnected || el.nodeType !== 1) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) {
+      return false;
+    }
+    const style = window.getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity || 1) !== 0;
+  }
+
   function nearText(el) {
     let cur = el;
     let out = "";
@@ -115,7 +127,7 @@
     }
     const buttons = document.querySelectorAll("button[aria-label]");
     for (const button of buttons) {
-      if (DOWNLOAD_ACTION_RE.test(button.getAttribute("aria-label") || "") && likelyVisible(button)) {
+      if (DOWNLOAD_ACTION_RE.test(button.getAttribute("aria-label") || "") && visible(button)) {
         return true;
       }
     }
@@ -155,7 +167,7 @@
     for (const el of candidates) {
       const text = normalizeText(el);
       // 优化: 空队列兜底只在少量 Steam 面板候选命中文字后检查可见性，避免全页 div 回流扫描。
-      if (DOWNLOAD_EMPTY_RE.test(text) && DOWNLOAD_PANEL_RE.test(text) && likelyVisible(el)) {
+      if (DOWNLOAD_EMPTY_RE.test(text) && DOWNLOAD_PANEL_RE.test(text) && visible(el)) {
         return true;
       }
     }
