@@ -2,7 +2,7 @@
 
 一个全方位增强 Steam 使用体验的浏览器扩展，覆盖 Steam 商店、社区、客户端内置页面。
 
-![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue) ![Version](https://img.shields.io/badge/version-0.10.3-orange) ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-green)
+![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue) ![Version](https://img.shields.io/github/manifest-json/v/sys1em/Steam_Buff?filename=manifest.json&label=version&color=orange) ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-green)
 
 当前仓库是扩展端源码。项目仍在重构和功能迁移阶段，部分模块会继续调整。
 
