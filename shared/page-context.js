@@ -19,9 +19,6 @@
     "library-sort-title": Object.freeze(["SharedJSContext", "backend"]),
     "library-custom-name": Object.freeze(["SharedJSContext", "backend", "custom-sort-dialog", "ui"]),
     "download-auto-shutdown": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/downloads", "downloads"]),
-    "popup-guard": Object.freeze(["main-ui", "ui"]),
-    "nexus-mods": Object.freeze(["/library/app/:appid", "app"]),
-    "steam-news-translate": Object.freeze(["main-ui", "ui"]),
     "store-enhancements": Object.freeze([
       "store-details",
       "store-app",
@@ -182,7 +179,9 @@
   }
 
   function excludedSteamTitle(value = title()) {
-    return titleIn(PAGES.steam?.excludedTitles, value) || /(?:Root Menu|Supernav)$/u.test(value);
+    return titleIn(PAGES.steam?.excludedTitles, value) ||
+      /(?:Root Menu|Supernav)$/u.test(value) ||
+      /^MainMenu_/u.test(value);
   }
 
   function allowedSteamTitle(value = title()) {
@@ -223,11 +222,13 @@
   }
 
   function shouldWaitSteamTitle() {
-    return (MATCH.isSteamLoopbackHost?.(host()) === true || isSteamPropertyDialogAboutBlank()) &&
+    // 优化:属性弹窗 about:blank 已可通过 URL 判定,不能等空标题 8 秒再启动库自定义名称 UI。
+    return MATCH.isSteamLoopbackHost?.(host()) === true &&
       topFrame() &&
       documentElementReady() &&
       !title() &&
-      !isAllowedSteamAboutBlank();
+      !isAllowedSteamAboutBlank() &&
+      !isSteamPropertyDialogAboutBlank();
   }
 
   function shouldInject() {
@@ -419,6 +420,9 @@
     }
     if (extra.route) {
       base.add(extra.route);
+    }
+    if (domain() === "steam" && isSteamPropertyDialogAboutBlank()) {
+      base.add("property-dialog");
     }
     if (
       domain() === "steam" &&

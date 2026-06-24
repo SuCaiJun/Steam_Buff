@@ -23,7 +23,8 @@
     "#popup_target section",
   ]);
   const DOWNLOAD_PANEL_SCAN_LIMIT = 512;
-  const SORT_UI_CACHE_MS = 5000;
+  const SORT_UI_HIT_CACHE_MS = 1200;
+  const SORT_UI_MISS_CACHE_MS = 150;
   const DOWNLOAD_UI_HIT_CACHE_MS = 1200;
   const DOWNLOAD_UI_MISS_CACHE_MS = DOWNLOAD_UI_HIT_CACHE_MS;
   let sortUiCacheAt = 0;
@@ -53,6 +54,21 @@
     } catch {
       return false;
     }
+  }
+
+  function isPropertyDialog() {
+    if (!isUi() || isMainUi()) {
+      return false;
+    }
+    const value = String(window.location?.href || "");
+    if (value.startsWith("about:blank") &&
+      /(?:[?&])createflags=/u.test(value) &&
+      /(?:[?&])centerOnBrowserID=/u.test(value) &&
+      !/(?:[?&])browserType=/u.test(value)) {
+      return true;
+    }
+    // 优化:属性窗口落地到 steamloopback 后会丢失 about:blank 参数，用自定义排序输入框作为低成本续判。
+    return hasCustomSortUi();
   }
 
   function likelyVisible(el) {
@@ -113,7 +129,8 @@
   /* 非主窗口收窄：只让真实库属性弹窗进入 ui 上下文，避免菜单/好友列表常驻扫描。 */
   function hasCustomSortUi() {
     const at = Date.now();
-    if (sortUiCacheAt && at - sortUiCacheAt < SORT_UI_CACHE_MS) {
+    const cacheMs = sortUiCacheValue ? SORT_UI_HIT_CACHE_MS : SORT_UI_MISS_CACHE_MS;
+    if (sortUiCacheAt && at - sortUiCacheAt < cacheMs) {
       return sortUiCacheValue;
     }
     sortUiCacheAt = at;
@@ -267,7 +284,7 @@
     if (isShared()) {
       out.push("backend");
     }
-    if (isMainUi() || hasCustomSortUi()) {
+    if (isMainUi() || isPropertyDialog() || hasCustomSortUi()) {
       out.push("ui");
     }
     if (isMainUi()) {
@@ -306,6 +323,7 @@
     isShared,
     isUi,
     isMainUi,
+    isPropertyDialog,
     hasCustomSortUi,
     route,
     routeSources,

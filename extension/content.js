@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v4";
+  const RUN_VERSION = "steam-buff-runtime-v6";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -96,8 +96,6 @@
     "library-sort-title",
     NAME_ID,
     "download-auto-shutdown",
-    "nexus-mods",
-    NEWS_TRANSLATE_ID,
   ]);
   const COMMUNITY_SETTING_IDS = Object.freeze([
     "market-tools",
@@ -1752,7 +1750,6 @@
     } catch {
       el.dataset[SETTINGS_ATTR] = "{}";
     }
-    await writeNewsTranslateSettings(settings[NEWS_TRANSLATE_ID] !== false);
     await writeUiLocale();
   }
 
@@ -1781,15 +1778,11 @@
           const keys = event.changedKeys || [];
           const localeHit = keys.includes(UI_LOCALE_KEY);
           const hit = ALL_SETTING_IDS.some(id => keys.includes(settingKey(id)));
-          const newsHit = keys.some((item) => item === settingKey(NEWS_TRANSLATE_ID) || item === settingKey("translate") || item.startsWith(TRANS_PREFIX) || item.startsWith(AI_PREFIX));
           if (hit) {
             settingsCache = null;
             if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
               writeSteamSettings().catch(() => {});
             }
-          }
-          if (newsHit && globalThis.STPageContext?.snapshot?.().domain === "steam") {
-            postNewsConfig("").catch(() => {});
           }
           if (localeHit) {
             writeUiLocale().catch(() => {});
@@ -1809,15 +1802,11 @@
         const localeHit = Object.hasOwn(changes || {}, UI_LOCALE_KEY);
         const keys = Object.keys(changes || {});
         const hit = ALL_SETTING_IDS.some(id => Object.hasOwn(changes, settingKey(id)));
-        const newsHit = keys.some((item) => item === settingKey(NEWS_TRANSLATE_ID) || item === settingKey("translate") || item.startsWith(TRANS_PREFIX) || item.startsWith(AI_PREFIX));
         if (hit) {
           settingsCache = null;
           if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
             writeSteamSettings().catch(() => {});
           }
-        }
-        if (newsHit && globalThis.STPageContext?.snapshot?.().domain === "steam") {
-          postNewsConfig("").catch(() => {});
         }
         if (localeHit) {
           writeUiLocale().catch(() => {});
@@ -1834,7 +1823,6 @@
     watchPageLog();
     bindSettingsOpenMessage();
     bindSettingsOpenRequest();
-    watchNewsTranslateBridge();
     watchSettingsChanges();
     logOnce("content-script-start", {
       level: "info",
@@ -2084,9 +2072,6 @@
   }
 
   function boot() {
-    if (isSteamContentTarget()) {
-      watchNewsTranslateBridge();
-    }
     if (globalThis[RUN_MARK] === RUN_VERSION || globalThis[RUN_MARK] === RUN_PENDING) {
       return;
     }

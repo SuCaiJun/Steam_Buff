@@ -31,7 +31,8 @@
   });
   const MODULE_CLASS = api.dom.MODULE_CLASSES.FAMILY_LIBRARY_OWNED;
   const FAMILY_MANAGEMENT_URL = window.STConfig?.vendors?.steamStore?.familyManagement?.() || "";
-  const BADGE_SCAN_DELAY_MS = 650;
+  const BADGE_SCAN_DELAY_MS = 1000;
+  const BADGE_OBSERVER_DEBOUNCE_MS = 1000;
   const BADGE_SUMMARY_LOG_MS = 30_000;
   const ROW_CLASSES = Object.freeze([
     "tab_item",
@@ -906,10 +907,8 @@
     return document.querySelector(".PU7fdVEQB8s-.Panel")
       || document.querySelector("#search_resultsRows")
       || document.querySelector("#search_result_container")
-      || document.querySelector("#StoreTemplate")
       || document.querySelector(".SaleSectionContainer")
       || document.querySelector(".tab_content_ctn")
-      || document.getElementById("responsive_page_template_content")
       || null;
   }
 
@@ -1033,6 +1032,7 @@
     const now = Date.now();
     if (badgeLogState.signature === signature && now - badgeLogState.time < BADGE_SUMMARY_LOG_MS) return;
     badgeLogState = { signature, time: now };
+    if (window.STLoggerFactory?.getDiagnostics?.().enabled !== true) return;
     log?.info?.("family-library-badge-scan-summary", "家庭库商店角标扫描完成", pageMeta(meta));
   }
 
@@ -1076,10 +1076,11 @@
     });
   }
 
-  function scheduleBadgeScan() {
+  function queueBadgeScan(delay) {
     if (badgeScanTimer || activeBadgeScopes.size === 0) return;
     let disposeTimer = null;
     let timerResource = null;
+    const waitMs = Math.max(0, Number(delay) || 0);
     badgeScanTimer = setTimeout(() => {
       if (timerResource) {
         timerResource.dispose();
@@ -1091,7 +1092,7 @@
           reason: String(error?.code || error?.name || "scan-failed"),
         }));
       });
-    }, BADGE_SCAN_DELAY_MS);
+    }, waitMs);
     const timerId = badgeScanTimer;
     disposeTimer = trackBadge(() => {
       if (badgeScanTimer === timerId) {
@@ -1107,6 +1108,10 @@
     });
   }
 
+  function scheduleBadgeScan() {
+    queueBadgeScan(BADGE_SCAN_DELAY_MS);
+  }
+
   function setupBadgeObserver() {
     if (badgeObserver) return true;
     const target = badgeObserverTarget();
@@ -1117,10 +1122,11 @@
       }));
       return false;
     }
-    badgeObserver = window.STObserverUtils?.createDebouncedObserver?.(scheduleBadgeScan, 250)
-      || new MutationObserver(scheduleBadgeScan);
+    badgeObserver = window.STObserverUtils?.createDebouncedObserver?.(() => queueBadgeScan(0), BADGE_OBSERVER_DEBOUNCE_MS)
+      || new MutationObserver(() => scheduleBadgeScan());
     // 只监听商店商品列表/内容容器，覆盖 React 局部重绘，不监听 document.body。
-    badgeObserver.observe(target, { childList: true, subtree: true });
+    window.STObserverUtils?.createVisibilityGatedObserver?.(badgeObserver, target, { childList: true, subtree: true })
+      || badgeObserver.observe(target, { childList: true, subtree: true });
     const disposeObserver = trackBadge(() => badgeObserver?.disconnect?.());
     window.STRuntime?.current?.()?.registerResource?.({
       owner: BADGE_OWNER,

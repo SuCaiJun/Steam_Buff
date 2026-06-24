@@ -28,7 +28,8 @@
     fatal: 50,
   });
   const DEFAULT_CONSOLE_LEVELS = Object.freeze(["warn", "error", "fatal"]);
-  const DEFAULT_BACKGROUND_LEVELS = Object.freeze(["info", "warn", "error", "network", "fatal"]);
+  const DEFAULT_BACKGROUND_LEVELS = Object.freeze(["warn", "error", "network", "fatal"]);
+  const DIAGNOSTIC_BACKGROUND_LEVELS = Object.freeze(["info", "warn", "error", "network", "fatal"]);
   const QUIET_INFO_EVENTS = Object.freeze([
     /^content-script-start$/u,
     /^runtime-(?:start|ready|waiting|skipped)$/u,
@@ -272,7 +273,12 @@
     if (!diagnostics.background || isQuietStartup(entry) || !sampled) {
       return;
     }
-    if (diagnostics.enabled && (!scopeAllowed(entry) || !levelAllowed(entry, DEFAULT_BACKGROUND_LEVELS))) {
+    // 优化:默认不把 info 写入 background，避免 Store 冷启动扫描摘要用 IPC 挤占后台线程。
+    if (diagnostics.enabled) {
+      if (!scopeAllowed(entry) || !levelAllowed(entry, DIAGNOSTIC_BACKGROUND_LEVELS)) {
+        return;
+      }
+    } else if (!levelAllowed(entry, DEFAULT_BACKGROUND_LEVELS)) {
       return;
     }
     try {
@@ -302,7 +308,7 @@
     if (!sampled) {
       return;
     }
-    const fallbackLevels = diagnostics.console ? DEFAULT_BACKGROUND_LEVELS : DEFAULT_CONSOLE_LEVELS;
+    const fallbackLevels = diagnostics.console ? DIAGNOSTIC_BACKGROUND_LEVELS : DEFAULT_CONSOLE_LEVELS;
     if (!levelAllowed(entry, fallbackLevels) || !scopeAllowed(entry) || isQuietStartup(entry)) {
       return;
     }

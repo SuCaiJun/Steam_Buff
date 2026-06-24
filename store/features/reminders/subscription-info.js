@@ -28,6 +28,8 @@
     wishlist: "subscription-wishlist-badge",
     cart: "subscription-cart-badge",
   });
+  const BADGE_SCAN_DELAY_MS = 1000;
+  const BADGE_OBSERVER_DEBOUNCE_MS = 1000;
   const BADGE_SUMMARY_LOG_MS = 30_000;
   const SHOW_STATUS = Object.freeze(new Set(["active", "leaving"]));
   const ROW_CLASSES = Object.freeze([
@@ -417,6 +419,7 @@
     const now = Date.now();
     if (badgeLogState.signature === signature && now - badgeLogState.time < BADGE_SUMMARY_LOG_MS) return;
     badgeLogState = { signature, time: now };
+    if (window.STLoggerFactory?.getDiagnostics?.().enabled !== true) return;
     log?.info?.("subscription-badge-scan-summary", "第三方会员角标扫描完成", pageMeta(meta));
   }
 
@@ -476,10 +479,11 @@
     });
   }
 
-  function scheduleScan() {
+  function queueScan(delay) {
     if (scanTimer) return;
     let disposeTimer = null;
     let timerResource = null;
+    const waitMs = Math.max(0, Number(delay) || 0);
     scanTimer = setTimeout(() => {
       if (timerResource) {
         timerResource.dispose();
@@ -487,7 +491,7 @@
         disposeTimer?.();
       }
       scanLists();
-    }, 500);
+    }, waitMs);
     const timerId = scanTimer;
     disposeTimer = track(() => {
       if (scanTimer === timerId) {
@@ -503,6 +507,10 @@
     });
   }
 
+  function scheduleScan() {
+    queueScan(BADGE_SCAN_DELAY_MS);
+  }
+
   function observerTarget() {
     if (activeBadgeScopes.has("cart")) {
       return api.dom.cartBadgeObserverTarget?.() || null;
@@ -512,13 +520,9 @@
       || document.querySelector("#wishlist_list")
       || null;
     }
-    return document.querySelector("#StoreTemplate")
-      || document.querySelector("#search_resultsRows")
+    return document.querySelector("#search_resultsRows")
       || document.querySelector("#search_result_container")
-      || document.querySelector(".PU7fdVEQB8s-.Panel")
-      || document.querySelector(".SaleSectionContainer")
       || document.querySelector(".tab_content_ctn")
-      || document.getElementById("responsive_page_template_content")
       || null;
   }
 
@@ -533,10 +537,11 @@
       return;
     }
     obsReady = true;
-    observer = window.STObserverUtils?.createDebouncedObserver?.(scheduleScan, 250)
-      || new MutationObserver(scheduleScan);
+    observer = window.STObserverUtils?.createDebouncedObserver?.(() => queueScan(0), BADGE_OBSERVER_DEBOUNCE_MS)
+      || new MutationObserver(() => scheduleScan());
     // 只监听商品列表或商店内容容器；列表卡片由 React 深层替换，保留 subtree。
-    observer.observe(target, { childList: true, subtree: true });
+    window.STObserverUtils?.createVisibilityGatedObserver?.(observer, target, { childList: true, subtree: true })
+      || observer.observe(target, { childList: true, subtree: true });
     const disposeObserver = track(() => observer?.disconnect?.());
     window.STRuntime?.current?.()?.registerResource?.({
       owner: BADGE_OWNER,

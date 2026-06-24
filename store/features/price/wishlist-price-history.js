@@ -29,6 +29,7 @@
   const PANEL_EDGE = 16;
   const CLOSE_DELAY = 180;
   const CONTENT_LEAVE_MS = 90;
+  const ROW_OBSERVER_DEBOUNCE_MS = 1000;
   const CHART_BARS = Object.freeze(["35%", "78%", "52%", "88%", "64%"]);
   const LIST_SEL = ".PU7fdVEQB8s-.Panel, #wishlist_ctn, #wishlist_list";
   const ROW_SEL = "[data-index], .wishlist_row";
@@ -852,9 +853,10 @@
     document.addEventListener("keydown", handleKeyDown);
     observer = window.STObserverUtils?.createDebouncedObserver?.(() => {
       syncRows();
-    }, 120) || new MutationObserver(() => syncRows());
+    }, ROW_OBSERVER_DEBOUNCE_MS) || new MutationObserver(() => syncRows());
     // 只监听愿望单真实列表容器；React 虚拟列表会深层替换行节点，保留 subtree。
-    observer.observe(container, { childList: true, subtree: true });
+    window.STObserverUtils?.createVisibilityGatedObserver?.(observer, container, { childList: true, subtree: true })
+      || observer.observe(container, { childList: true, subtree: true });
   }
 
   function startWhenReady(tries = 0) {

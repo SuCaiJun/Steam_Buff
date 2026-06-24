@@ -31,6 +31,8 @@
   const DETAIL_RETRY_LIMIT = 20;
   const DETAIL_RETRY_MS = 250;
   const DETAIL_SETTLE_LIMIT = 10;
+  const WISHLIST_RENDER_DEBOUNCE_MS = 1000;
+  const WISHLIST_OBSERVER_DEBOUNCE_MS = 1000;
 
   const wishlistDom = api.wishlistDom;
   const dom = root.STDomUtils || {};
@@ -374,10 +376,11 @@
     batchFetchWishlistNotes(appids).catch(() => {});
   }
 
-  function scheduleWishlistRender() {
+  function scheduleWishlistRender(delay = WISHLIST_RENDER_DEBOUNCE_MS) {
     if (renderingWishlist) return;
     clearTimeout(wishlistTimer);
-    wishlistTimer = setTimeout(renderWishlistRows, 120);
+    const waitMs = Math.max(0, Number(delay) || 0);
+    wishlistTimer = setTimeout(renderWishlistRows, waitMs);
   }
 
   function startWishlist() {
@@ -387,10 +390,11 @@
     if (!container) return false;
     renderWishlistRows();
     if (!wishlistObserver) {
-      wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(), 120)
+      wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(0), WISHLIST_OBSERVER_DEBOUNCE_MS)
         || new MutationObserver(() => scheduleWishlistRender());
       // 只监听愿望单真实列表容器；虚拟列表会深层替换行节点，保留 subtree。
-      wishlistObserver.observe(container, { childList: true, subtree: true });
+      root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistObserver, container, { childList: true, subtree: true })
+        || wishlistObserver.observe(container, { childList: true, subtree: true });
     }
     return true;
   }

@@ -34,7 +34,7 @@
       settingsKey: "library-custom-name",
       loadStrategy: "on-demand-entry",
       modes: ["backend", "ui"],
-      pageScope: ["SharedJSContext", "custom-sort-dialog"],
+      pageScope: ["SharedJSContext", "custom-sort-dialog", "property-dialog"],
       dependencies: ["shared/scheduler.js", "BroadcastChannel"],
       cost: "large-library",
       entries: {
@@ -48,7 +48,7 @@
         if (context === "backend") {
           return true;
         }
-        return context === "ui" && api.ctx?.hasCustomSortUi?.() === true;
+        return context === "ui" && (api.ctx?.hasCustomSortUi?.() === true || api.ctx?.isPropertyDialog?.() === true);
       },
     },
     {
@@ -72,59 +72,6 @@
           return true;
         }
         return context === "downloads" && api.ctx?.isMainUi?.() === true;
-      },
-    },
-    {
-      id: "popup-guard",
-      name: "Steam 弹窗遮罩兼容",
-      settingsKey: "popup-guard",
-      loadStrategy: "on-demand-entry",
-      modes: ["ui"],
-      pageScope: ["main-ui"],
-      dependencies: [],
-      cost: "event-listener",
-      entries: {
-        ui: "ui.js",
-      },
-      shouldRun(api, context) {
-        return context === "ui" && api.ctx?.isMainUi?.();
-      },
-    },
-    {
-      id: "nexus-mods",
-      name: "Nexus Mods 跳转",
-      settingsKey: "nexus-mods",
-      loadStrategy: "on-demand-entry",
-      modes: ["ui"],
-      pageScope: ["/library/app/:appid"],
-      dependencies: ["shared/scheduler.js"],
-      cost: "dom-scan",
-      entries: {
-        ui: "library.js",
-      },
-      shouldRun(api, context) {
-        return context === "ui" &&
-          api.ctx?.isMainUi?.() === true &&
-          api.ctx?.settingOn?.("nexus-mods") !== false &&
-          (api.ctx?.targets?.() || []).includes("app");
-      },
-    },
-    {
-      id: "steam-news-translate",
-      name: "Steam 新闻弹窗翻译",
-      settingsKey: "steam-news-translate",
-      loadStrategy: "on-demand-entry",
-      modes: ["ui"],
-      pageScope: ["main-ui"],
-      dependencies: ["shared/observer-utils.js", "shared/scheduler.js", "TRANSLATE_INJECT"],
-      cost: "observer",
-      entries: {
-        ui: "ui.js",
-      },
-      shouldRun(api, context) {
-        return context === "ui" &&
-          api.ctx?.isMainUi?.() &&
-          api.ctx?.settingOn?.("steam-news-translate") !== false;
       },
     },
   ];

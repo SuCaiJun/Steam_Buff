@@ -86,9 +86,60 @@
     });
   }
 
+  // 优化: Store React 页面切到后台时仍会持续变更 DOM，隐藏页先断开观察器，回到前台再恢复。
+  function createVisibilityGatedObserver(observer, target, options) {
+    if (!observer || !target) {
+      return observer;
+    }
+
+    const observe = observer.observe.bind(observer);
+    const disconnect = observer.disconnect.bind(observer);
+    let connected = false;
+    let disposed = false;
+
+    function connect() {
+      if (disposed || connected || document.hidden) {
+        return;
+      }
+      observe(target, options);
+      connected = true;
+    }
+
+    function pause() {
+      if (!connected) {
+        return;
+      }
+      disconnect();
+      connected = false;
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        pause();
+      } else {
+        connect();
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    observer.disconnect = () => {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      disconnect();
+      connected = false;
+    };
+
+    connect();
+    return observer;
+  }
+
   window.STObserverUtils = Object.freeze({
     version: VERSION,
     createDebouncedObserver,
     createThrottledObserver,
+    createVisibilityGatedObserver,
   });
 })();

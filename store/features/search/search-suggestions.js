@@ -25,7 +25,8 @@
   const AUTH_REFRESH = root.STConfig.loginAuth("/auth/refresh");
   const STEAM_STORE = root.STConfig.vendors?.steamStore;
   const STEAM_SHARED_CDN = root.STConfig.vendors?.steamSharedCdn;
-  const DEBOUNCE_MS = 250;
+  const DEBOUNCE_MS = 300;
+  const SCAN_DEBOUNCE_MS = 300;
   const CACHE_MS = 45 * 1000;
   const HOST_CLASS = "st-search-suggestions";
   const INPUT_SEL = [
@@ -528,15 +529,20 @@
     }
   }
 
-  function scheduleScan() {
+  function queueScan(delay) {
     if (scanPending) {
       return;
     }
     scanPending = true;
+    const waitMs = Math.max(0, Number(delay) || 0);
     setTimeout(() => {
       scanPending = false;
       scan();
-    }, 120);
+    }, waitMs);
+  }
+
+  function scheduleScan() {
+    queueScan(SCAN_DEBOUNCE_MS);
   }
 
   function addStyle() {
@@ -548,7 +554,6 @@
     return form?.parentElement
       || document.getElementById("store_header")
       || document.getElementById("global_header")
-      || document.getElementById("responsive_page_template_content")
       || null;
   }
 
@@ -560,13 +565,15 @@
     if (!target) {
       return;
     }
-    observer = root.STObserverUtils?.createDebouncedObserver?.(scheduleScan, 120)
-      || new MutationObserver(scheduleScan);
+    observer = root.STObserverUtils?.createDebouncedObserver?.(() => queueScan(0), SCAN_DEBOUNCE_MS)
+      || new MutationObserver(() => scheduleScan());
     // 只监听搜索表单/商店头部或主内容容器，避免全页商品流变化触发联想扫描。
-    observer.observe(target, {
+    const options = {
       childList: true,
       subtree: true,
-    });
+    };
+    root.STObserverUtils?.createVisibilityGatedObserver?.(observer, target, options)
+      || observer.observe(target, options);
   }
 
   function appUrl(appid) {

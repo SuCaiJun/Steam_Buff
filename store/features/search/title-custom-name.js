@@ -37,6 +37,9 @@
   const RETRY_MS = 300;
   const RETRY_MAX = 30;
   const DETAIL_SETTLE_MAX = 10;
+  const DETAIL_OBSERVER_DEBOUNCE_MS = 1000;
+  const WISHLIST_RENDER_DEBOUNCE_MS = 1000;
+  const WISHLIST_OBSERVER_DEBOUNCE_MS = 1000;
 
   const { text, shouldShowName } = core;
   const wishlistDom = api.wishlistDom;
@@ -813,11 +816,12 @@
     }
   }
 
-  function scheduleWishlistRender() {
+  function scheduleWishlistRender(delay = WISHLIST_RENDER_DEBOUNCE_MS) {
     clearTimeout(wishlistTimer);
+    const waitMs = Math.max(0, Number(delay) || 0);
     wishlistTimer = setTimeout(() => {
       renderWishlistRows().catch(() => {});
-    }, 120);
+    }, waitMs);
   }
 
   function startWishlist() {
@@ -831,10 +835,11 @@
     }
     renderWishlistRows().catch(() => {});
     if (!wishlistObserver) {
-      wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(), 120)
+      wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(0), WISHLIST_OBSERVER_DEBOUNCE_MS)
         || new MutationObserver(() => scheduleWishlistRender());
       // 只监听愿望单真实列表容器；虚拟列表会深层替换行节点，保留 subtree。
-      wishlistObserver.observe(container, { childList: true, subtree: true });
+      root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistObserver, container, { childList: true, subtree: true })
+        || wishlistObserver.observe(container, { childList: true, subtree: true });
       log.info("title-custom-name-wishlist-observer-start", "愿望单自定义名称监听已启动", {
         targetId: container.id || "",
         targetClass: container.className || "",
@@ -908,8 +913,7 @@
   }
 
   function observeTarget() {
-    return document.getElementById("responsive_page_template_content")
-      || document.getElementById("game_highlights")
+    return document.getElementById("game_highlights")
       || document.querySelector(".apphub_AppName")?.parentElement
       || null;
   }
@@ -935,10 +939,11 @@
         refresh().catch(() => {});
       }
     };
-    observer = root.STObserverUtils?.createDebouncedObserver?.(callback, 150)
+    observer = root.STObserverUtils?.createDebouncedObserver?.(callback, DETAIL_OBSERVER_DEBOUNCE_MS)
       || new MutationObserver(callback);
     // 只监听商店主内容容器；Steam 内部跳转会深层替换标题节点，保留 subtree。
-    observer.observe(target, { childList: true, subtree: true });
+    root.STObserverUtils?.createVisibilityGatedObserver?.(observer, target, { childList: true, subtree: true })
+      || observer.observe(target, { childList: true, subtree: true });
     log.info("title-custom-name-observer-start", "商店标题自定义名监听已启动", {
       targetId: target.id || "",
       targetClass: target.className || "",

@@ -15,7 +15,8 @@
   if (!api) return;
 
   const MARK = "stReviewFilter";
-  const SCAN_MS = 300;
+  const SCAN_MS = 500;
+  const OBSERVER_DEBOUNCE_MS = 500;
   const CONTAINER_SEL = "#app_reviews_hash, #AppHubCards, .apphub_Cards, .apphub_Card, [data-recommendationid]";
   const CARD_SEL = ".apphub_Card, [data-recommendationid]";
   const COMMUNITY_BODY_SEL = ".apphub_CardTextContent";
@@ -441,6 +442,7 @@
       return;
     }
     lastSummaryKey = key;
+    if (window.STLoggerFactory?.getDiagnostics?.().enabled !== true) return;
     log.info("review-filter-scan-summary", "评测过滤扫描摘要", summary);
   }
 
@@ -454,21 +456,25 @@
     scanSummary(cards, Date.now() - startedAt);
   }
 
-  function schedule() {
+  function queueScan(delay) {
     if (scanTimer) {
       return;
     }
+    const waitMs = Math.max(0, Number(delay) || 0);
     scanTimer = setTimeout(() => {
       scanTimer = null;
       scan();
-    }, SCAN_MS);
+    }, waitMs);
+  }
+
+  function schedule() {
+    queueScan(SCAN_MS);
   }
 
   function observerTarget() {
     return document.querySelector("#app_reviews_hash")
       || document.getElementById(COMMUNITY_ROOT_ID)
       || document.querySelector(".apphub_Cards")
-      || document.getElementById("responsive_page_template_content")
       || null;
   }
 
@@ -492,13 +498,14 @@
 
     const callback = (mutations) => {
       if (mutations.some(item => item.addedNodes?.length)) {
-        schedule();
+        queueScan(0);
       }
     };
-    observer = window.STObserverUtils?.createDebouncedObserver?.(callback, 120)
+    observer = window.STObserverUtils?.createDebouncedObserver?.(callback, OBSERVER_DEBOUNCE_MS)
       || new MutationObserver(callback);
     // 只监听评测列表或商店主内容容器；评测区懒加载时会深层挂载，必须保留 subtree。
-    observer.observe(target, { childList: true, subtree: true });
+    window.STObserverUtils?.createVisibilityGatedObserver?.(observer, target, { childList: true, subtree: true })
+      || observer.observe(target, { childList: true, subtree: true });
     window.addEventListener("pageshow", schedule);
     document.addEventListener("scroll", schedule, { passive: true });
     log.info("review-filter-observer-start", "评测过滤监听已启动", {

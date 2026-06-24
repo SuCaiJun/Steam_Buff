@@ -44,6 +44,7 @@
     "shared/settings-bus.js",
     "extension/content.js",
   ]);
+  const STEAM_LOOPBACK_GUARD_FILE = "extension/runtime/steamloopback-guard.js";
   const WEB_BOOT_FILES = Object.freeze([
     "shared/config.js",
     "extension/runtime/injector.js",
@@ -57,7 +58,8 @@
     "extension/content.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v4";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v6";
+  const STEAM_LOOPBACK_INJECT_REQUEST = "STEAM_LOOPBACK_INJECT_REQUEST";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const TAB_INJECT_DELAYS = Object.freeze([0, 1000]);
@@ -211,10 +213,41 @@
 
   function isExcludedSteamTitle(value) {
     const title = String(value || "");
-    return (CFG.pages?.steam?.excludedTitles || []).includes(title) || /(?:Root Menu|Supernav)$/u.test(title);
+    return (CFG.pages?.steam?.excludedTitles || []).includes(title) ||
+      /(?:Root Menu|Supernav)$/u.test(title) ||
+      /^MainMenu_/u.test(title);
   }
 
-  // Steam 客户端内嵌窗口常以 about:blank 起步，不能只看当前 URL 就跳过补注入。
+  function hasSteamSharedContextMarker(value) {
+    return String(value || "").includes("IN_STEAMUI_SHARED_CONTEXT=true");
+  }
+
+  function isAllowedSteamLoopbackPath(value) {
+    try {
+      const url = new URL(String(value || ""));
+      return MATCH.isSteamLoopbackHost(url.hostname) &&
+        (url.pathname.startsWith("/library/") || url.pathname.startsWith("/downloads"));
+    } catch {
+      return false;
+    }
+  }
+
+  function shouldInjectSteamLoopbackRuntime(input = {}) {
+    const title = String(input.title || "").trim();
+    const url = String(input.url || "");
+    if (isExcludedSteamTitle(title)) {
+      return false;
+    }
+    if (title === "Steam" || title === "SharedJSContext") {
+      return true;
+    }
+    return hasSteamSharedContextMarker(url) ||
+      isSteamMainAboutBlank(url) ||
+      isSteamPropertyDialogAboutBlank(url) ||
+      isAllowedSteamLoopbackPath(url);
+  }
+
+  // Steam 客户端内嵌窗口常以 about:blank 起步，后台只补轻 guard；完整 runtime 由 guard 精准申请。
   function ok(tab) {
     if (!tab || typeof tab.id !== "number") {
       return false;
@@ -229,12 +262,13 @@
     chrome.scripting.executeScript(
       {
         target: { tabId, allFrames: true },
-        files: FILES,
+        world: "ISOLATED",
+        files: [STEAM_LOOPBACK_GUARD_FILE],
       },
       () => {
         const err = chrome.runtime.lastError;
         if (err) {
-          logError("injection", "content-script-inject-failed", "后台注入内容脚本失败", err.message || err, { tabId });
+          logError("injection", "steam-loopback-guard-inject-failed", "后台补注入 Steam CEF 轻量守卫失败", err.message || err, { tabId });
         }
       },
     );
@@ -258,6 +292,25 @@
       return;
     }
     inject(tabId);
+  }
+
+  async function injectSteamLoopbackFrameIfNeeded(tabId, frameId) {
+    const frameTarget = { tabId, frameIds: [frameId] };
+    const active = await execScript({
+      target: frameTarget,
+      world: "ISOLATED",
+      func: (mark, version) => globalThis[mark] === version,
+      args: [CONTENT_MARK, CONTENT_MARK_VERSION],
+    });
+    if (active?.[0]?.result === true) {
+      return false;
+    }
+    await execScript({
+      target: frameTarget,
+      world: "ISOLATED",
+      files: FILES,
+    });
+    return true;
   }
 
   function tabsQueryAll() {
@@ -780,6 +833,37 @@
     }
   }
 
+  async function steamLoopbackInjectRequest(request, sender, sendResponse) {
+    const tabId = sender?.tab?.id;
+    const frameId = sender?.frameId;
+    if (typeof tabId !== "number" || typeof frameId !== "number") {
+      sendResponse({ success: false, error: "无法定位 Steam CEF 注入目标" });
+      return;
+    }
+
+    const meta = {
+      title: String(request.title || sender?.tab?.title || ""),
+      url: String(request.url || sender?.url || sender?.tab?.url || ""),
+    };
+    if (!shouldInjectSteamLoopbackRuntime(meta)) {
+      sendResponse({ success: true, skipped: true, reason: "steam-loopback-scope-mismatch" });
+      return;
+    }
+
+    try {
+      const injected = await injectSteamLoopbackFrameIfNeeded(tabId, frameId);
+      sendResponse({ success: true, injected });
+    } catch (error) {
+      logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF 完整运行时按需注入失败", error, {
+        tabId,
+        frameId,
+        title: meta.title,
+        url: safeLogUrl(meta.url),
+      });
+      sendResponse({ success: false, error: error?.message || String(error) });
+    }
+  }
+
   function cacheGet(request, sender, sendResponse) {
     const store = globalThis.STAITranslateCache;
     if (!store?.getMany) {
@@ -807,6 +891,7 @@
     STORE_FETCH: "允许列表内跨域请求代理",
     TRANSLATE_INJECT: "翻译 runner 按需注入",
     CONTENT_FILES_INJECT: "当前 frame 内容脚本按需注入",
+    [STEAM_LOOPBACK_INJECT_REQUEST]: "Steam CEF 白名单 frame 按需注入",
     AI_CHAT_COMPLETIONS: "AI 网关连接测试与翻译代理",
     AI_TRANSLATE_CACHE_GET: "AI 翻译缓存读取",
     AI_TRANSLATE_CACHE_SET: "AI 翻译缓存写入",
@@ -821,6 +906,7 @@
     STORE_FETCH: storeFetch,
     TRANSLATE_INJECT: translateInject,
     CONTENT_FILES_INJECT: injectContentFiles,
+    [STEAM_LOOPBACK_INJECT_REQUEST]: steamLoopbackInjectRequest,
     AI_CHAT_COMPLETIONS: aiChat,
     AI_TRANSLATE_CACHE_GET: cacheGet,
     AI_TRANSLATE_CACHE_SET: cacheSet,

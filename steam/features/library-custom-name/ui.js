@@ -24,6 +24,7 @@
   const MOUNT_LOG_MS = 60000;
   const RESP_MS = 12000;
   const BAR_CLEANUP_CHECK_DELAYS = Object.freeze([80, 240, 640, 1200]);
+  const BAR_MOUNT_RETRY_DELAYS = Object.freeze([0, 80, 180, 360, 700, 1200, 1800]);
   const SAVE_STATUS_MS = 3000;
   const SAVE_STATUS_MAX_MISSES = 3;
   const QUERY_MAX = 100;
@@ -2485,12 +2486,55 @@
     return !!document.getElementById(BAR);
   }
 
+  function isPropertyDialog() {
+    return window.SteamBuff?.ctx?.isPropertyDialog?.() === true;
+  }
+
+  function isCustomSortUi() {
+    return window.SteamBuff?.ctx?.hasCustomSortUi?.() === true;
+  }
+
   function hasActiveCustomSortInput() {
     return !!sortInput(textInputs());
   }
 
   function clearBarCleanupCheck() {
     clearRuntimeTimer(s, "barCleanupTimer", "barCleanupHandle");
+  }
+
+  function clearBarMountRetry() {
+    clearRuntimeTimer(s, "barMountTimer", "barMountHandle");
+  }
+
+  function scheduleBarMountRetry(attempt = 0) {
+    clearBarMountRetry();
+    const nextAttempt = Math.max(0, Number(attempt) || 0);
+    if (nextAttempt >= BAR_MOUNT_RETRY_DELAYS.length) {
+      return;
+    }
+    const delay = BAR_MOUNT_RETRY_DELAYS[nextAttempt];
+    s.barMountTimer = window.setTimeout(() => {
+      const handle = s.barMountHandle;
+      s.barMountHandle = null;
+      s.barMountTimer = 0;
+      handle?.dispose?.();
+      const before = hasBar();
+      tick();
+      if (!hasBar() && (s.barMountRetryArmed || isPropertyDialog() || isCustomSortUi() || before) && nextAttempt + 1 < BAR_MOUNT_RETRY_DELAYS.length) {
+        scheduleBarMountRetry(nextAttempt + 1);
+      }
+    }, Math.max(0, delay));
+    s.barMountHandle = s.scope?.resource?.({
+      key: "bar-mount-retry",
+      type: "timer",
+      dispose() {
+        if (s.barMountTimer) {
+          window.clearTimeout(s.barMountTimer);
+          s.barMountTimer = 0;
+        }
+        s.barMountHandle = null;
+      },
+    }) || null;
   }
 
   function scheduleBarCleanupCheck(attempt = 0) {
@@ -2518,6 +2562,9 @@
         return;
       }
       tick();
+      if (active && !hasBar()) {
+        scheduleBarMountRetry();
+      }
       if ((hasBar() || active) && nextAttempt + 1 < BAR_CLEANUP_CHECK_DELAYS.length) {
         scheduleBarCleanupCheck(nextAttempt + 1);
       }
@@ -2561,7 +2608,7 @@
     return { ok: false, reason: "host-missing" };
   }
 
-  // tick 是低频驻留扫描，负责在 Steam 切换库详情或 React 重挂输入框后补回三个按钮。
+  // tick 是低频兜底扫描，短窗口重试负责在 Steam 属性弹窗 React 重挂输入框后尽快补回三个按钮。
   function tick() {
     css();
     const inputs = textInputs();
@@ -3764,7 +3811,7 @@
   }
 
   function shouldRunScheduledTick() {
-    return window.SteamBuff?.ctx?.hasCustomSortUi?.() === true || hasBar();
+    return !isPropertyDialog() && (isCustomSortUi() || hasBar());
   }
 
   function registerScheduledTick() {
@@ -3787,6 +3834,7 @@
     }
     s.started = true;
     s.scope = scope || null;
+    s.barMountRetryArmed = isPropertyDialog() || isCustomSortUi();
     s.resObs = new MutationObserver((items) => {
       for (const item of items) {
         onQuery(item);
@@ -3801,7 +3849,7 @@
     onQuery();
     scope?.listener?.("document-click", document, "click", onDocumentClick, true);
     scope?.listener?.("document-keydown", document, "keydown", onDocumentKeydown);
-    tick();
+    scheduleBarMountRetry();
     registerScheduledTick();
     s.stop = () => {
       if (s.resObs) {
@@ -3825,6 +3873,7 @@
       clearRuntimeTimer(batch, "capacityTimer", "capacityHandle");
       clearSearchTimer();
       clearBarCleanupCheck();
+      clearBarMountRetry();
       document.removeEventListener("click", onDocumentClick, true);
       document.removeEventListener("keydown", onDocumentKeydown);
       if (s.oneResolve) {
@@ -3838,6 +3887,7 @@
       document.getElementById(PROGRESS)?.remove();
       s.started = false;
       s.scope = null;
+      s.barMountRetryArmed = false;
     };
     return { started: true, stop: s.stop };
   }

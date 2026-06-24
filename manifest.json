@@ -93,18 +93,7 @@
         "https://steamloopback.host/*"
       ],
       "js": [
-        "shared/config.js",
-        "shared/i18n.js",
-        "shared/performance-monitor.js",
-        "extension/runtime/guard.js",
-        "extension/runtime/injector.js",
-        "extension/runtime/logger.js",
-        "shared/logger-factory.js",
-        "shared/error-boundary.js",
-        "shared/page-context.js",
-        "shared/runtime/message-bus.js",
-        "shared/settings-bus.js",
-        "extension/content.js"
+        "extension/runtime/steamloopback-guard.js"
       ],
       "run_at": "document_start",
       "all_frames": true,
