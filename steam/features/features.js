@@ -76,6 +76,24 @@
         return context === "downloads" && api.ctx?.isMainUi?.() === true;
       },
     },
+    {
+      id: "steam-news-translate",
+      name: "Steam 新闻弹窗翻译",
+      settingsKey: "steam-news-translate",
+      loadStrategy: "on-demand-entry",
+      modes: ["ui"],
+      pageScope: ["main-ui"],
+      dependencies: ["shared/observer-utils.js", "shared/scheduler.js", "TRANSLATE_INJECT"],
+      cost: "observer",
+      entries: {
+        ui: "ui.js",
+      },
+      shouldRun(api, context) {
+        return context === "ui" &&
+          api.ctx?.isMainUi?.() === true &&
+          api.ctx?.settingOn?.("steam-news-translate") !== false;
+      },
+    },
   ];
 
   features.forEach((item) => {

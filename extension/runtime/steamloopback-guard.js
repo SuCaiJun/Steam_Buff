@@ -12,7 +12,7 @@
   "use strict";
 
   const MARK = "__steamBuffLoopbackGuard";
-  const VERSION = "steam-loopback-guard-v1";
+  const VERSION = "steam-loopback-guard-v2";
   const REQUEST_TYPE = "STEAM_LOOPBACK_INJECT_REQUEST";
   const WAIT_MS = 50;
   const MAX_TRIES = 40;

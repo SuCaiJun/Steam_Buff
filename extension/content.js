@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v7";
+  const RUN_VERSION = "steam-buff-runtime-v8";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -91,6 +91,7 @@
     "library-sort-title",
     NAME_ID,
     "download-auto-shutdown",
+    NEWS_TRANSLATE_ID,
   ]);
   const COMMUNITY_SETTING_IDS = Object.freeze([
     "market-tools",
@@ -1058,6 +1059,28 @@
     window.addEventListener("message", bridgeHandler);
   }
 
+  function isSteamNewsTranslateBridgeTarget() {
+    const ctx = globalThis.STPageContext?.snapshot?.() || {};
+    if (ctx.domain !== "steam") {
+      return false;
+    }
+    if (ctx.title === "Steam" || ctx.steam?.aboutMain === true) {
+      return true;
+    }
+    try {
+      return String(location.href || "").startsWith("about:blank") &&
+        /(?:[?&])browserType=4(?:&|$)/u.test(String(location.href || ""));
+    } catch {
+      return false;
+    }
+  }
+
+  function ensureSteamNewsTranslateBridge() {
+    if (isSteamNewsTranslateBridgeTarget()) {
+      watchNewsTranslateBridge();
+    }
+  }
+
   function trustedNamePage() {
     const ctx = globalThis.STPageContext?.snapshot?.() || {};
     return ctx.domain === "steam" || ctx.domain === "store";
@@ -1641,6 +1664,7 @@
     bindSettingsOpenMessage();
     bindSettingsOpenRequest();
     watchSettingsChanges();
+    ensureSteamNewsTranslateBridge();
     logOnce("content-script-start", {
       level: "info",
       domain: "extension",

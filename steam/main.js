@@ -15,7 +15,7 @@
   const reg = api?.reg;
   const log = window.STLoggerFactory.createLogger('steam', 'main');
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
-  const RUNTIME_VERSION = "steam-buff-runtime-v7";
+  const RUNTIME_VERSION = "steam-buff-runtime-v8";
   const BOOT_MS = 500;
   const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;

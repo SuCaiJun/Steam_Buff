@@ -18,6 +18,25 @@
   const SCAN_DELAY_MS = 1000;
   const OBSERVER_DEBOUNCE_MS = 1000;
   const BOOTSTRAP_RETRY_MAX = 10;
+  const MISSING_TARGET_LOG_MS = 30_000;
+  const EXCLUDED_TARGET_SELECTOR = "#home_maincap_v7 .store_main_capsule, .carousel_container.maincap .store_main_capsule";
+  const TARGET_STATE_CLASSES = Object.freeze([
+    "st_subscription_target",
+    "st_family_library_badge_target",
+    "st_subscription_pos",
+    "st_store_cart_badge_target",
+    "st_store_image_badge_target",
+  ]);
+  const TARGET_STATE_DATA_KEYS = Object.freeze([
+    "stSubId",
+    "stSubType",
+    "stSubScope",
+    "stSubDone",
+    "stFgId",
+    "stFgType",
+    "stFgScope",
+    "stFgDone",
+  ]);
   const ROW_CLASSES = Object.freeze([
     "tab_item",
     "search_result_row",
@@ -33,6 +52,8 @@
   let observer = null;
   let observerTarget = null;
   let bootstrapRetryCount = 0;
+  let missingTargetLogAt = 0;
+  let missingTargetLogKey = "";
 
   function normalizeScope(scope) {
     const text = String(scope || "store");
@@ -85,6 +106,34 @@
     return ROW_CLASSES.some((name) => cls.includes(name)) || cls.includes("salepreviewwidgets_");
   }
 
+  function isExcludedTarget(node) {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+    return node.matches?.(EXCLUDED_TARGET_SELECTOR)
+      || !!node.closest?.("#home_maincap_v7, .carousel_container.maincap");
+  }
+
+  function cleanupExcludedTarget(node) {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
+    Array.from(node.children || []).forEach((child) => {
+      if (child.classList?.contains("st_subscription_badges")) {
+        child.remove();
+      }
+    });
+    node.classList.remove(...TARGET_STATE_CLASSES);
+    TARGET_STATE_DATA_KEYS.forEach((key) => {
+      delete node.dataset?.[key];
+    });
+  }
+
+  function cleanupExcludedTargets(root = document) {
+    const nodes = new Set();
+    if (root?.matches?.(EXCLUDED_TARGET_SELECTOR)) {
+      nodes.add(root);
+    }
+    root?.querySelectorAll?.(EXCLUDED_TARGET_SELECTOR).forEach((node) => nodes.add(node));
+    nodes.forEach(cleanupExcludedTarget);
+  }
+
   function isImageTarget(node) {
     if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
     if (node.dataset?.dsAppid) return true;
@@ -126,6 +175,10 @@
     const nodes = [];
     document.querySelectorAll(selectors.join(",")).forEach((node) => {
       const base = node.closest("[data-ds-appid]") || node;
+      if (isExcludedTarget(base)) {
+        cleanupExcludedTarget(base);
+        return;
+      }
       const id = appIdForNode(base);
       if (!id || !isImageTarget(base)) return;
       const scope = scopes.has("wishlist") && base.closest("#wishlist_ctn, #wishlist_list") ? "wishlist" : "store";
@@ -161,6 +214,29 @@
     return cartTargets(new Set(["cart"]))[0]?.node?.parentElement || null;
   }
 
+  function storeHomeObserverTarget() {
+    const ctx = window.STPageContext?.snapshot?.() || {};
+    if ((ctx.pageType || "") !== "other" || location.pathname !== "/") {
+      return null;
+    }
+    const candidate = document.querySelector(
+      ".main_content_ctn [data-ds-appid], " +
+      ".main_content_ctn a[href*='/app/'], " +
+      ".main_content_ctn [class*='salepreviewwidgets_'], " +
+      ".main_content_ctn .tab_item"
+    );
+    if (!candidate) {
+      return null;
+    }
+    // 注: Store 首页推荐流没有搜索页那类固定列表 id，用主页内容容器承载多个轮播区的低频变更。
+    return candidate.closest(".main_content_ctn")
+      || candidate.closest(".home_page_body_ctn")
+      || candidate.closest(".home_cluster_ctn")
+      || candidate.closest(".carousel_container")
+      || candidate.closest(".carousel_items")
+      || null;
+  }
+
   function dedupeTargets(items) {
     const seen = new Set();
     return items.filter((item) => {
@@ -186,10 +262,25 @@
       || document.querySelector("#search_result_container")
       || document.querySelector(".SaleSectionContainer")
       || document.querySelector(".tab_content_ctn")
+      || storeHomeObserverTarget()
       || null;
   }
 
+  function shouldLogMissingTarget(scopes, candidateCount) {
+    const at = Date.now();
+    const key = `${location.pathname}:${Array.from(scopes).join(",")}:${candidateCount > 0 ? "has-candidates" : "empty"}`;
+    if (missingTargetLogKey === key && at - missingTargetLogAt < MISSING_TARGET_LOG_MS) {
+      return false;
+    }
+    missingTargetLogKey = key;
+    missingTargetLogAt = at;
+    return true;
+  }
+
   function targetsFor(scopes = activeScopes()) {
+    if (scopes.has("store")) {
+      cleanupExcludedTargets();
+    }
     return dedupeTargets([...regularTargets(scopes), ...cartTargets(scopes)]);
   }
 
@@ -232,7 +323,7 @@
 
   function maybeRetryBootstrap(targetCount) {
     if (entries.size === 0 || bootstrapRetryCount >= BOOTSTRAP_RETRY_MAX) return;
-    if (observer && targetCount > 0) return;
+    if (observer || targetCount > 0) return;
     bootstrapRetryCount += 1;
     setupObserver();
     queueScan(SCAN_DELAY_MS);
@@ -271,10 +362,13 @@
     if (scopes.size === 0) return false;
     const target = findObserverTarget(scopes);
     if (!target) {
-      log?.warn?.("app-card-badge-target-missing", "商店 app 卡片角标监听目标缺失", pageMeta({
-        scopes: Array.from(scopes).join(","),
-        candidateCount: targetsFor(scopes).length,
-      }));
+      const candidateCount = targetsFor(scopes).length;
+      if (shouldLogMissingTarget(scopes, candidateCount)) {
+        log?.warn?.("app-card-badge-target-missing", "商店 app 卡片角标监听目标缺失", pageMeta({
+          scopes: Array.from(scopes).join(","),
+          candidateCount,
+        }));
+      }
       return false;
     }
     if (observer && observerTarget === target) return true;
@@ -318,6 +412,9 @@
     entries.set(featureId, entry);
     if (wasIdle) {
       bootstrapRetryCount = 0;
+    }
+    if (normalized === "store") {
+      cleanupExcludedTargets();
     }
     const observerReady = setupObserver();
     queueScan(SCAN_DELAY_MS);
