@@ -21,23 +21,15 @@
   const fetchGame = api.subs?.fetchGame;
 
   const OWNER = "store:subscription-info";
-  const BADGE_OWNER = `${OWNER}:badges`;
+  const FEATURE_ID = "subscription-info";
   const DETAIL_SETTING_ID = "subscription-detail-card";
   const BADGE_SETTING_IDS = Object.freeze({
     store: "subscription-store-badge",
     wishlist: "subscription-wishlist-badge",
     cart: "subscription-cart-badge",
   });
-  const BADGE_SCAN_DELAY_MS = 1000;
-  const BADGE_OBSERVER_DEBOUNCE_MS = 1000;
   const BADGE_SUMMARY_LOG_MS = 30_000;
   const SHOW_STATUS = Object.freeze(new Set(["active", "leaving"]));
-  const ROW_CLASSES = Object.freeze([
-    "tab_item",
-    "search_result_row",
-    "salepreviewwidgets_StoreSaleItemReview",
-    "salepreviewwidgets_SaleItemBrowserRow",
-  ]);
   const PLATFORMS = Object.freeze({
     gamepasspc: { name: "PC Game Pass", short: "PCGP" },
     gamepasscon: { name: "Xbox Game Pass", short: "XGP" },
@@ -46,24 +38,13 @@
     eaplaypro: { name: "EA PLAY PRO", short: "EA PRO" },
   });
 
-  let scanTimer = null;
   let stylesReady = false;
   let detailActive = false;
-  let obsReady = false;
-  let observer = null;
+  let detailSeq = 0;
+  let badgeSeq = 0;
   let badgeLogState = { signature: "", time: 0 };
   const activeBadgeScopes = new Set();
-  const disposers = new Set();
   const log = window.STLoggerFactory?.createLogger?.("store", "subscription-info");
-
-  function track(dispose) {
-    const wrapped = () => {
-      if (!disposers.delete(wrapped)) return;
-      dispose();
-    };
-    disposers.add(wrapped);
-    return wrapped;
-  }
 
   function noTranslate(el) {
     if (!el) return el;
@@ -86,11 +67,6 @@
     const info = api.ctx?.pageInfo?.();
     if (info?.type === "app") return info.appId;
     const match = location.pathname.match(/\/app\/(\d+)/);
-    return match ? match[1] : "";
-  }
-
-  function appIdFromUrl(url) {
-    const match = String(url || "").match(/\/app\/(\d+)/);
     return match ? match[1] : "";
   }
 
@@ -212,34 +188,27 @@
   function addDetail(appId, protocol) {
     const id = parseInt(appId, 10);
     if (!Number.isFinite(id) || id <= 0 || typeof fetchGame !== "function") return Promise.resolve();
+    const seq = detailSeq + 1;
+    detailSeq = seq;
     detailActive = true;
     log?.info?.("subscription-detail-start", "第三方会员详情提醒启动", pageMeta({
       appid: id,
       settingsKey: DETAIL_SETTING_ID,
     }));
-    return fetchGame(id).then(renderDetail).catch((error) => {
+    return fetchGame(id).then((game) => {
+      if (!detailActive || seq !== detailSeq) {
+        return;
+      }
+      renderDetail(game);
+    }).catch((error) => {
+      if (!detailActive || seq !== detailSeq) {
+        return;
+      }
       log?.warn?.("subscription-detail-failed", "第三方会员详情提醒加载失败", pageMeta({
         appid: id,
         reason: error?.message || String(error),
       }));
     });
-  }
-
-  function appIdForNode(node) {
-    if (!node || node.nodeType !== Node.ELEMENT_NODE) return "";
-    if (node.dataset?.dsAppid) return node.dataset.dsAppid.split(",")[0];
-    if (node.matches?.("a[href*='/app/']")) return appIdFromUrl(node.href);
-    const link = node.querySelector?.("a[href*='/app/']");
-    return link ? appIdFromUrl(link.href) : "";
-  }
-
-  function listType(node) {
-    const cls = String(node.className || "");
-    const isRow = ROW_CLASSES.some((name) => cls.includes(name));
-    if (isRow || location.pathname.startsWith("/wishlist")) {
-      return "row";
-    }
-    return "tile";
   }
 
   function isImageTarget(node) {
@@ -258,66 +227,6 @@
       delete node.dataset.stSubScope;
       delete node.dataset.stSubDone;
     });
-  }
-
-  function regularTargets() {
-    clearTextLinkBadges();
-    const nodes = [];
-    const selectors = [];
-    if (activeBadgeScopes.has("store")) {
-      selectors.push(
-        "#search_resultsRows a[data-ds-appid]",
-        "#StoreTemplate .Panel .Panel a[href*='/app/']",
-        "[data-ds-appid]:not(.gutter_item)",
-        "[class^='salepreviewwidgets_']",
-        ".SaleSectionContainer .Panel",
-        ".tab_item",
-      );
-    }
-    if (activeBadgeScopes.has("wishlist")) {
-      selectors.push(
-        "#wishlist_ctn a[href*='/app/']",
-        "#wishlist_list a[href*='/app/']",
-      );
-    }
-    if (!selectors.length) return [];
-    document.querySelectorAll(selectors.join(",")).forEach((node) => {
-      const base = node.closest("[data-ds-appid]") || node;
-      const id = appIdForNode(base);
-      if (!id || !isImageTarget(base)) return;
-      const scope = activeBadgeScopes.has("wishlist") && base.closest("#wishlist_ctn, #wishlist_list") ? "wishlist" : "store";
-      const image = api.dom.imageBadgeForNode?.(base, id);
-      nodes.push({
-        node: base,
-        appId: id,
-        image,
-        type: image ? "image" : listType(base),
-        scope,
-        badgePlacement: scope === "wishlist" ? "top-left" : "bottom-left",
-      });
-    });
-    const seen = new Set();
-    return nodes.filter((item) => {
-      if (seen.has(item.node)) return false;
-      seen.add(item.node);
-      return true;
-    });
-  }
-
-  function cartTargets() {
-    if (!activeBadgeScopes.has("cart")) return [];
-    return (api.dom.cartBadgeTargets?.() || []).map(item => ({
-      node: item.node,
-      appId: item.appId,
-      image: item.image,
-      type: "cart",
-      scope: "cart",
-      badgePlacement: "top-left",
-    }));
-  }
-
-  function targets() {
-    return [...regularTargets(), ...cartTargets()];
   }
 
   function markPending(target, id) {
@@ -423,9 +332,11 @@
     log?.info?.("subscription-badge-scan-summary", "第三方会员角标扫描完成", pageMeta(meta));
   }
 
-  function scanLists() {
+  function scanLists(nodes = []) {
     if (typeof fetchGames !== "function") return;
-    const nodes = targets();
+    if (activeBadgeScopes.size === 0) return;
+    const seq = badgeSeq;
+    clearTextLinkBadges();
     const ids = [];
 
     nodes.forEach((target) => {
@@ -455,10 +366,14 @@
     }
 
     fetchGames(uniq).then((games) => {
+      if (seq !== badgeSeq || activeBadgeScopes.size === 0) {
+        return;
+      }
       const map = new Map(games.map((game) => [String(game.sid), game]));
       let mountedCount = 0;
       nodes.forEach((target) => {
         const node = target.node;
+        if (!node?.isConnected || !activeBadgeScopes.has(target.scope)) return;
         const id = node.dataset.stSubId;
         const game = map.get(id);
         if (!game) return;
@@ -473,99 +388,12 @@
         mountedCount,
       });
     }).catch((error) => {
+      if (seq !== badgeSeq || activeBadgeScopes.size === 0) {
+        return;
+      }
       log?.warn?.("subscription-badge-scan-failed", "第三方会员角标扫描失败", pageMeta({
         reason: error?.message || String(error),
       }));
-    });
-  }
-
-  function queueScan(delay) {
-    if (scanTimer) return;
-    let disposeTimer = null;
-    let timerResource = null;
-    const waitMs = Math.max(0, Number(delay) || 0);
-    scanTimer = setTimeout(() => {
-      if (timerResource) {
-        timerResource.dispose();
-      } else {
-        disposeTimer?.();
-      }
-      scanLists();
-    }, waitMs);
-    const timerId = scanTimer;
-    disposeTimer = track(() => {
-      if (scanTimer === timerId) {
-        scanTimer = null;
-      }
-      clearTimeout(timerId);
-    });
-    timerResource = window.STRuntime?.current?.()?.registerResource?.({
-      owner: BADGE_OWNER,
-      key: "scan-timer",
-      type: "timer",
-      dispose: disposeTimer,
-    });
-  }
-
-  function scheduleScan() {
-    queueScan(BADGE_SCAN_DELAY_MS);
-  }
-
-  function observerTarget() {
-    if (activeBadgeScopes.has("cart")) {
-      return api.dom.cartBadgeObserverTarget?.() || null;
-    }
-    if (activeBadgeScopes.has("wishlist")) {
-      return document.querySelector("#wishlist_ctn")
-      || document.querySelector("#wishlist_list")
-      || null;
-    }
-    return document.querySelector("#search_resultsRows")
-      || document.querySelector("#search_result_container")
-      || document.querySelector(".tab_content_ctn")
-      || null;
-  }
-
-  function setupObserver() {
-    if (obsReady || observer) return;
-    const target = observerTarget();
-    if (!target) {
-      log?.warn?.("subscription-badge-target-missing", "第三方会员角标监听目标缺失", pageMeta({
-        scopes: Array.from(activeBadgeScopes).join(","),
-        candidateCount: targets().length,
-      }));
-      return;
-    }
-    obsReady = true;
-    observer = window.STObserverUtils?.createDebouncedObserver?.(() => queueScan(0), BADGE_OBSERVER_DEBOUNCE_MS)
-      || new MutationObserver(() => scheduleScan());
-    // 只监听商品列表或商店内容容器；列表卡片由 React 深层替换，保留 subtree。
-    window.STObserverUtils?.createVisibilityGatedObserver?.(observer, target, { childList: true, subtree: true })
-      || observer.observe(target, { childList: true, subtree: true });
-    const disposeObserver = track(() => observer?.disconnect?.());
-    window.STRuntime?.current?.()?.registerResource?.({
-      owner: BADGE_OWNER,
-      key: "list-observer",
-      type: "observer",
-      dispose: disposeObserver,
-    });
-    window.addEventListener("pageshow", scheduleScan);
-    const disposePageShow = track(() => window.removeEventListener("pageshow", scheduleScan));
-    window.STRuntime?.current?.()?.registerResource?.({
-      owner: BADGE_OWNER,
-      key: "pageshow",
-      type: "listener",
-      meta: { event: "pageshow" },
-      dispose: disposePageShow,
-    });
-    document.addEventListener("scroll", scheduleScan, { passive: true });
-    const disposeScroll = track(() => document.removeEventListener("scroll", scheduleScan, { passive: true }));
-    window.STRuntime?.current?.()?.registerResource?.({
-      owner: BADGE_OWNER,
-      key: "scroll",
-      type: "listener",
-      meta: { event: "scroll" },
-      dispose: disposeScroll,
     });
   }
 
@@ -580,12 +408,23 @@
     const normalized = BADGE_SETTING_IDS[scope] ? scope : "store";
     activeBadgeScopes.add(normalized);
     addStyles();
-    setupObserver();
-    scheduleScan();
+    const result = api.appCardBadgeScanner?.start?.(FEATURE_ID, normalized, {
+      scan: scanLists,
+      onError(error) {
+        log?.warn?.("subscription-badge-scan-failed", "第三方会员角标扫描失败", pageMeta({
+          reason: error?.message || String(error),
+        }));
+      },
+    });
+    if (result?.started !== true) {
+      log?.warn?.("subscription-badge-scanner-missing", "第三方会员角标共享扫描器不可用", pageMeta({
+        scope: normalized,
+      }));
+    }
     log?.info?.("subscription-badge-start", "第三方会员角标功能启动", pageMeta({
       scope: normalized,
       settingsKey: BADGE_SETTING_IDS[normalized],
-      observerReady: !!observer,
+      observerReady: result?.observerReady === true,
     }));
     return true;
   }
@@ -596,25 +435,18 @@
 
   function stopDetail() {
     detailActive = false;
+    detailSeq += 1;
     document.querySelectorAll(`.${MODULE_CLASSES.SUBSCRIPTION}`).forEach(node => node.remove());
     removeFeatureStyleIfIdle();
     return true;
   }
 
   function stopBadgeRuntime() {
-    if (scanTimer) {
-      clearTimeout(scanTimer);
-      scanTimer = null;
-    }
-    observer?.disconnect?.();
-    observer = null;
-    obsReady = false;
-    window.STRuntime?.current?.()?.disposeOwner?.(BADGE_OWNER);
-    Array.from(disposers).forEach(dispose => dispose());
-    disposers.clear();
+    api.appCardBadgeScanner?.stop?.(FEATURE_ID);
   }
 
   function stopBadges(scope = "") {
+    badgeSeq += 1;
     if (scope && BADGE_SETTING_IDS[scope]) {
       activeBadgeScopes.delete(scope);
     } else {
@@ -625,11 +457,7 @@
     document.querySelectorAll(".st_subscription_target").forEach((node) => {
       clearSubscriptionTarget(node, cleanupScope);
     });
-    if (activeBadgeScopes.size === 0) {
-      stopBadgeRuntime();
-    } else {
-      scheduleScan();
-    }
+    api.appCardBadgeScanner?.stop?.(FEATURE_ID, cleanupScope);
     removeFeatureStyleIfIdle();
     return true;
   }
@@ -643,6 +471,7 @@
 
   function stop() {
     stopDetail();
+    badgeSeq += 1;
     activeBadgeScopes.clear();
     removeSubscriptionBadges();
     document.querySelectorAll(".st_subscription_badges").forEach(removeEmptyBadgeHost);

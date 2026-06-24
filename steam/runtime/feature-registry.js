@@ -96,13 +96,24 @@
       return Array.isArray(value) ? value : [];
     }
 
-    shouldStart(feature, context) {
-      return this.canStart(feature, context).allowed;
+    contextSnapshot() {
+      const settingsSnapshot = this.api.ctx?.settings?.() || {};
+      const targets = this.api.ctx?.targets?.() || [];
+      return {
+        contexts: this.api.ctx?.contexts?.() || [],
+        targets,
+        settingsSnapshot,
+        route: this.api.ctx?.route?.() || "",
+        settingOn: id => settingsSnapshot[id] !== false,
+      };
     }
 
-    canStart(feature, context) {
-      const targets = this.api.ctx?.targets?.() || [];
-      const settingsSnapshot = this.api.ctx?.settings?.() || {};
+    shouldStart(feature, context, snapshot = null) {
+      return this.canStart(feature, context, snapshot).allowed;
+    }
+
+    canStart(feature, context, snapshot = null) {
+      const ctx = snapshot || this.contextSnapshot();
       const gate = window.STPageContext?.canRunFeature?.({
         domain: "steam",
         id: feature.id,
@@ -111,10 +122,10 @@
         pageScope: this.toList(feature.pageScope).length
           ? this.toList(feature.pageScope)
           : this.toList(feature.activeOn),
-        settingsSnapshot,
-        settingOn: id => this.api.ctx?.settingOn?.(id),
-        route: this.api.ctx?.route?.() || "",
-        pageTokens: targets,
+        settingsSnapshot: ctx.settingsSnapshot,
+        settingOn: ctx.settingOn,
+        route: ctx.route,
+        pageTokens: ctx.targets,
       }) || { allowed: true, reason: "" };
       if (!gate.allowed) {
         return gate;
@@ -122,7 +133,7 @@
       if (typeof feature.shouldRun !== "function") {
         return gate;
       }
-      if (!feature.shouldRun(this.api, context)) {
+      if (!feature.shouldRun(this.api, context, ctx)) {
         return {
           ...gate,
           allowed: false,
@@ -225,7 +236,52 @@
       await this.loadScript(this.entryPath(feature, entry));
     }
 
-    async startEntry(feature, context) {
+    markStopped(featureId) {
+      const id = String(featureId || "").trim();
+      if (!id) {
+        return { id, started: 0, starting: 0, loaded: 0, entries: 0 };
+      }
+      const feature = this.state.features.find(item => item.id === id);
+      const prefix = `${id}:`;
+      let started = 0;
+      let starting = 0;
+      for (const key of Array.from(this.state.started)) {
+        if (key.startsWith(prefix)) {
+          this.state.started.delete(key);
+          started += 1;
+        }
+      }
+      for (const key of Array.from(this.state.starting)) {
+        if (key.startsWith(prefix)) {
+          this.state.starting.delete(key);
+          starting += 1;
+        }
+      }
+      let loaded = 0;
+      if (feature) {
+        const entries = Object.values(feature.entries || (feature.entry ? { default: feature.entry } : {}));
+        for (const entry of entries) {
+          const url = this.api.path.url(this.entryPath(feature, entry));
+          if (this.state.loaded.delete(url)) {
+            loaded += 1;
+          }
+          delete this.state.loading[url];
+        }
+      }
+      const entries = Object.keys(this.state.entries[id] || {}).length;
+      delete this.state.entries[id];
+      this.state.lastSummaryKey = "";
+      runtime?.markFeature?.({
+        domain: "steam",
+        id,
+        status: "stopped",
+        reason: "settings-disabled",
+        meta: { started, starting, loaded, entries },
+      });
+      return { id, started, starting, loaded, entries };
+    }
+
+    async startEntry(feature, context, snapshot = null) {
       const entry = this.entryName(feature, context);
       if (!entry) {
         return null;
@@ -254,7 +310,7 @@
         });
         return { id: feature.id, context, entry, status: "skipped", reason: "already-starting" };
       }
-      const gate = this.canStart(feature, context);
+      const gate = this.canStart(feature, context, snapshot);
       if (!gate.allowed) {
         runtime?.markFeature?.({
           domain: "steam",
@@ -264,8 +320,8 @@
           status: "skipped",
           reason: gate.reason || "context-mismatch",
           meta: {
-            contexts: this.api.ctx?.contexts?.() || [],
-            targets: this.api.ctx?.targets?.() || [],
+            contexts: snapshot?.contexts || [],
+            targets: snapshot?.targets || [],
             page: gate.page || "",
             pageType: gate.pageType || "",
           },
@@ -284,6 +340,18 @@
       });
       try {
         await this.loadEntry(feature, entry);
+        const afterLoadGate = this.canStart(feature, context, this.contextSnapshot());
+        if (!afterLoadGate.allowed) {
+          runtime?.markFeature?.({
+            domain: "steam",
+            id: feature.id,
+            mode: context,
+            entry,
+            status: "skipped",
+            reason: afterLoadGate.reason || "context-mismatch",
+          });
+          return { id: feature.id, context, entry, status: "skipped", reason: afterLoadGate.reason || "context-mismatch" };
+        }
         const start = this.state.entries[feature.id]?.[entry];
         if (typeof start !== "function") {
           const captured = window.STErrorBoundary?.capture?.(new Error("Steam 客户端功能入口不可调用"), {
@@ -379,11 +447,12 @@
     }
 
     async start() {
-      const contexts = this.api.ctx?.contexts?.() || [];
+      const snapshot = this.contextSnapshot();
+      const contexts = snapshot.contexts;
       const results = [];
       for (const feature of this.state.features) {
         for (const context of contexts) {
-          const result = await this.startEntry(feature, context);
+          const result = await this.startEntry(feature, context, snapshot);
           if (result) {
             results.push(result);
           }

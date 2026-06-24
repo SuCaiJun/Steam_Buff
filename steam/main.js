@@ -15,11 +15,12 @@
   const reg = api?.reg;
   const log = window.STLoggerFactory.createLogger('steam', 'main');
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
-  const RUNTIME_VERSION = "steam-buff-runtime-v6";
+  const RUNTIME_VERSION = "steam-buff-runtime-v7";
   const BOOT_MS = 500;
   const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;
   const LOOP_MS = 10000;
+  const STEAM_FEATURES_DISABLED_MESSAGE = "__steam_buff_features_disabled";
 
   if (!api || !reg) {
     return;
@@ -181,6 +182,10 @@
         error: errorMessage(error),
       });
     }
+    try {
+      api.runtime?.stopSettingsListener?.();
+    } catch {
+    }
     clearTimer(api.runtime?.timer, "runtime.timer");
     if (api.ctx?.isShared?.() !== true) {
       stopState("library-custom-name");
@@ -208,6 +213,63 @@
       });
     }
     log.info("runtime-restart-cleanup-success", "Steam 客户端旧运行时清理完成", meta);
+  }
+
+  function disabledFeatureIds(data) {
+    const keys = Array.isArray(data?.keys) ? data.keys : [];
+    const known = new Set((reg.list?.() || []).map(item => item.id));
+    const out = [];
+    for (const key of keys) {
+      const id = String(key || "").trim();
+      if (id && known.has(id) && !out.includes(id)) {
+        out.push(id);
+      }
+    }
+    return out;
+  }
+
+  function stopDisabledFeature(featureId) {
+    const ownerPrefix = `steam:${featureId}:`;
+    let disposedCount = 0;
+    try {
+      disposedCount = runtime?.disposeByOwnerPrefix?.(ownerPrefix) || 0;
+    } catch (error) {
+      log.warn("runtime-feature-disable-cleanup-failed", "Steam 客户端功能关闭清理资源失败", {
+        featureId,
+        error: errorMessage(error),
+      });
+    }
+    stopState(featureId);
+    const marked = reg.markStopped?.(featureId) || {};
+    log.debug?.("runtime-feature-disabled-cleanup", "Steam 客户端功能关闭清理完成", {
+      featureId,
+      disposedCount,
+      startedCount: marked.started || 0,
+      startingCount: marked.starting || 0,
+      loadedCount: marked.loaded || 0,
+      entryCount: marked.entries || 0,
+    });
+  }
+
+  function installFeatureDisabledListener() {
+    const handler = (event) => {
+      if (event.source !== window) {
+        return;
+      }
+      const data = event.data || {};
+      if (data.type !== STEAM_FEATURES_DISABLED_MESSAGE) {
+        return;
+      }
+      for (const featureId of disabledFeatureIds(data)) {
+        stopDisabledFeature(featureId);
+      }
+    };
+    if (runtime?.listener) {
+      runtime.listener("steam:settings-stop", "features-disabled-message", window, "message", handler);
+      return;
+    }
+    window.addEventListener("message", handler);
+    api.runtime.stopSettingsListener = () => window.removeEventListener("message", handler);
   }
 
   function waitDelay(bootUntil) {
@@ -240,6 +302,7 @@
       waitingLogged: false,
       readyLogged: false,
     };
+    installFeatureDisabledListener();
     log.info("runtime-start", "Steam 客户端运行时开始启动", {
       route: api.ctx?.route?.() || "",
     });

@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v6";
+  const RUN_VERSION = "steam-buff-runtime-v7";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -22,24 +22,18 @@
   const SETTINGS_RAIL_LOAD_PENDING = `${SETTINGS_RAIL_LOAD_MARK}:pending`;
   const STORE_LOAD_MARK = "__steamBuffStoreChunk";
   const STORE_LOAD_PENDING = `${STORE_LOAD_MARK}:pending`;
+  const CONTENT_BUNDLES = Object.freeze({
+    steamContentDeps: "steam-content-deps",
+    settingsShared: "settings-shared",
+    settingsUi: "settings-ui",
+    settingsRail: "settings-rail",
+    storeRuntime: "store-runtime",
+  });
   const STEAM_TITLE_WAIT_MS = 100;
   const STEAM_TITLE_WAIT_MAX = 80;
   const STEAM_TITLE_WAIT_TRIES = "__steamBuffTitleWaitTries";
   const STEAM_CONTENT_DEPS_LOAD_MARK = "__steamBuffSteamContentDepsLoad";
   const STEAM_CONTENT_DEPS_PENDING = `${STEAM_CONTENT_DEPS_LOAD_MARK}:pending`;
-  const STEAM_CONTENT_SHARED_SCRIPTS = Object.freeze([
-    "shared/config.js",
-    "shared/i18n.js",
-    "shared/performance-monitor.js",
-    "extension/runtime/guard.js",
-    "extension/runtime/injector.js",
-    "extension/runtime/logger.js",
-    "shared/logger-factory.js",
-    "shared/error-boundary.js",
-    "shared/page-context.js",
-    "shared/runtime/message-bus.js",
-    "shared/settings-bus.js",
-  ]);
 
   function shouldInject() {
     return globalThis.STPageContext?.shouldInject?.() === true;
@@ -73,6 +67,7 @@
   const NEWS_TRANSLATE_BRIDGE_HANDLER_REF = "__steamBuffNewsTranslateBridgeHandlerRef";
   const COMMUNITY_MARK = "steamBuffCommunityInjected";
   const SETTINGS_ATTR = "steamBuffSettings";
+  const STEAM_FEATURES_DISABLED_MESSAGE = "__steam_buff_features_disabled";
   const NEWS_TRANSLATE_ATTR = "steamBuffNewsTranslate";
   const LOCALE_ATTR = "steamBuffUiLocale";
   const NAME_ID = "library-custom-name";
@@ -100,180 +95,7 @@
   const COMMUNITY_SETTING_IDS = Object.freeze([
     "market-tools",
   ]);
-  const TEMP_DISABLED_FEATURES = Object.freeze({
-    "market-tools": "Steam UI 已更新，功能失效",
-  });
   const ALL_SETTING_IDS = Object.freeze([...STEAM_SETTING_IDS, ...COMMUNITY_SETTING_IDS]);
-  const SETTINGS_SHARED_SCRIPTS = Object.freeze([
-    "ai/config.js",
-    "shared/config.js",
-    "extension/runtime/logger.js",
-    "shared/logger-factory.js",
-    "shared/error-boundary.js",
-    "shared/i18n.js",
-    "shared/styles/theme.js",
-    "shared/utils/dom.js",
-    "shared/page-context.js",
-    "shared/runtime/kernel.js",
-    "shared/runtime/message-bus.js",
-    "shared/settings-bus.js",
-    "settings/catalog.js",
-    "settings/membership.js",
-    "settings/storage.js",
-  ]);
-  const SETTINGS_RAIL_SCRIPTS = Object.freeze([
-    "shared/i18n.js",
-    "shared/styles/theme.js",
-    "settings/ui/assets.js",
-    "settings/ui/styles.js",
-    "settings/floating-rail.js",
-  ]);
-  const SETTINGS_UI_SCRIPTS = Object.freeze([
-    "settings/api/request.js",
-    "settings/update-log-renderer.js",
-    "settings/update-checker.js",
-    "settings/settings-backup.js",
-    "settings/pages/registry.js",
-    "settings/pages/about.js",
-    "settings/update-reminder.js",
-    "settings/pages/account/style.js",
-    "settings/pages/account/state.js",
-    "settings/pages/account/api.js",
-    "settings/pages/account/auth.js",
-    "settings/pages/account/device-login.js",
-    "settings/pages/account/center.js",
-    "settings/pages/account/view.js",
-    "settings/pages/account/actions.js",
-    "settings/pages/account.js",
-    "settings/startup-animation.js",
-    "settings/ui/html.js",
-    "settings/ui/assets.js",
-    "settings/ui/styles.js",
-    "settings/ui/dialogs.js",
-    "settings/ui/toast.js",
-    "settings/ui/fields.js",
-    "settings/ui/feature-row.js",
-    "settings/ui/scroll-targets.js",
-    "settings/panels/review-filter.js",
-    "settings/panels/search-suggestions.js",
-    "settings/panels/see.js",
-    "settings/panels/ai.js",
-    "settings/panels/translate.js",
-    "settings/menu/dependencies.js",
-    "settings/menu/panels.js",
-    "settings/menu/shell.js",
-    "settings/menu/controller.js",
-    "settings/menu/events.js",
-    "settings/floating-menu.js",
-  ]);
-  const STORE_BASE_SCRIPTS = Object.freeze([
-    "shared/styles/theme.js",
-    "shared/errors.js",
-    "shared/utils/dom.js",
-    "shared/styles/components.js",
-    "shared/utils/format.js",
-    "shared/performance-monitor.js",
-    "shared/scheduler.js",
-    "shared/observer-utils.js",
-    "shared/data-index.js",
-    "shared/batch-queue.js",
-    "shared/virtual-list.js",
-    "shared/page-context.js",
-    "shared/runtime/kernel.js",
-    "store/runtime/config.js",
-    "store/runtime/context.js",
-    "store/runtime/cache.js",
-    "store/runtime/family-library-cache.js",
-    "store/runtime/assets.js",
-    "store/runtime/format.js",
-    "store/runtime/dom.js",
-    "store/runtime/styles.js",
-    "extension/runtime/logger.js",
-    "shared/logger-factory.js",
-    "shared/error-boundary.js",
-    "shared/runtime/message-bus.js",
-    "shared/settings-bus.js",
-    "store/runtime/feature-registry.js",
-    "store/runtime/settings-gate.js",
-    "store/runtime/url-watch.js",
-    "store/runtime/purchase-recover.js",
-    "shared/config.js",
-    "shared/i18n.js",
-    "shared/auth-client.js",
-    "settings/catalog.js",
-    "settings/membership.js",
-    "settings/storage.js",
-    "settings/ui/html.js",
-    "settings/ui/styles.js",
-    "settings/ui/dialogs.js",
-    "settings/ui/toast.js",
-    "store/api/request.js",
-  ]);
-  const STORE_FEATURE_CHUNKS = Object.freeze({
-    details: Object.freeze([
-      "store/api/subscription-info.js",
-      "store/api/family-library.js",
-      "store/features/price/price-history.js",
-      "store/features/price/steampy-deals.js",
-      "store/features/reminders/audio-check.js",
-      "store/features/reminders/family-sharing.js",
-      "store/features/reminders/family-library-owned-marker.js",
-      "store/features/reminders/drm-warning.js",
-      "store/features/reminders/subscription-info.js",
-      "store/features/dlc/dlc-bridge.js",
-      "store/features/dlc/dlc-scan.js",
-      "store/features/dlc/dlc-checkboxes.js",
-      "store/features/cart/cart-select.js",
-      "store/features/review/review-filter-core.js",
-      "store/features/review/review-filter.js",
-      "store/features/search/search-suggestions.js",
-      "store/features/price/wishlist-dom.js",
-      "store/features/search/title-custom-name.js",
-      "store/features/notes/game-notes.js",
-    ]),
-    wishlist: Object.freeze([
-      "store/api/subscription-info.js",
-      "store/features/price/wishlist-price-history-core.js",
-      "store/features/price/wishlist-price-history.js",
-      "store/features/review/review-filter-core.js",
-      "store/features/search/search-suggestions.js",
-      "store/features/reminders/subscription-info.js",
-      "store/features/reminders/family-library-owned-marker.js",
-      "store/features/price/wishlist-dom.js",
-      "store/features/search/title-custom-name.js",
-      "store/features/notes/game-notes.js",
-    ]),
-    search: Object.freeze([
-      "store/api/subscription-info.js",
-      "store/features/review/review-filter-core.js",
-      "store/features/search/search-suggestions.js",
-      "store/features/reminders/subscription-info.js",
-      "store/features/reminders/family-library-owned-marker.js",
-      "store/features/notes/game-notes.js",
-    ]),
-    cart: Object.freeze([
-      "store/api/subscription-info.js",
-      "store/features/cart/cart-select.js",
-      "store/features/reminders/subscription-info.js",
-      "store/features/reminders/family-library-owned-marker.js",
-    ]),
-    history: Object.freeze([
-      "store/features/purchase-history/purchase-history-classifier.user.js",
-      "store/features/purchase-history/purchase-history-classifier.js",
-    ]),
-    other: Object.freeze([
-      "store/api/subscription-info.js",
-      "store/features/review/review-filter-core.js",
-      "store/features/search/search-suggestions.js",
-      "store/features/reminders/subscription-info.js",
-      "store/features/reminders/family-library-owned-marker.js",
-      "store/features/notes/game-notes.js",
-    ]),
-  });
-  const STORE_START_SCRIPTS = Object.freeze([
-    "store/features/features.js",
-    "store/main.js",
-  ]);
   const SEEN_NAME_MAX = 200;
   const BOOT_MS = 250;
   const BOOT_MAX = 480;
@@ -306,6 +128,7 @@
     temperature: "",
   });
   let settingsCache = null;
+  let steamSettingsSnapshot = null;
   let watchSettings = false;
   let watchNames = false;
   let watchLogs = false;
@@ -430,10 +253,6 @@
     return steamContentDepsReady();
   }
 
-  function uniquePaths(paths) {
-    return Array.from(new Set((paths || []).filter(Boolean)));
-  }
-
   function settingsReady() {
     return !!globalThis.STSettings?.catalog &&
       !!globalThis.STSettings?.storage &&
@@ -444,26 +263,19 @@
     return globalThis.STPageContext?.settingsPage?.() === "settings-web";
   }
 
-  function injectPaths(paths) {
-    const inj = globalThis.STInject;
-    if (!inj?.inject) {
-      return Promise.reject(new Error("动态注入器未就绪"));
-    }
-    return inj.inject(uniquePaths(paths));
-  }
-
-  function injectContentFiles(paths) {
-    const files = uniquePaths(paths);
-    if (!files.length) {
+  function injectContentBundle(bundle, meta = {}) {
+    const id = String(bundle || "").trim();
+    if (!id) {
       return Promise.resolve({ success: true });
     }
     if (globalThis.STMessageBus?.request) {
       return globalThis.STMessageBus.request({
         type: "CONTENT_FILES_INJECT",
-        files,
+        bundle: id,
+        meta,
       }, {
         timeoutMs: 12_000,
-        dedupeKey: `CONTENT_FILES_INJECT:${files.join("|")}`,
+        dedupeKey: `CONTENT_FILES_INJECT:${id}:${JSON.stringify(meta || {})}`,
         expectSuccess: true,
       });
     }
@@ -471,7 +283,8 @@
       try {
         chrome.runtime.sendMessage({
           type: "CONTENT_FILES_INJECT",
-          files,
+          bundle: id,
+          meta,
         }, (response) => {
           const err = chrome.runtime.lastError;
           if (err) {
@@ -499,7 +312,7 @@
       return Promise.resolve(false);
     }
     globalThis[STEAM_CONTENT_DEPS_LOAD_MARK] = STEAM_CONTENT_DEPS_PENDING;
-    return injectContentFiles(STEAM_CONTENT_SHARED_SCRIPTS)
+    return injectContentBundle(CONTENT_BUNDLES.steamContentDeps)
       .then(() => {
         const ready = steamContentDepsReady();
         globalThis[STEAM_CONTENT_DEPS_LOAD_MARK] = ready ? "ready" : "";
@@ -572,7 +385,7 @@
     if (settingsReady()) {
       return true;
     }
-    await injectContentFiles(SETTINGS_SHARED_SCRIPTS);
+    await injectContentBundle(CONTENT_BUNDLES.settingsShared);
     return settingsReady();
   }
 
@@ -597,7 +410,7 @@
     globalThis[SETTINGS_LOAD_MARK] = SETTINGS_LOAD_PENDING;
     try {
       await ensureSettingsShared();
-      await injectContentFiles(SETTINGS_UI_SCRIPTS);
+      await injectContentBundle(CONTENT_BUNDLES.settingsUi);
       globalThis[SETTINGS_LOAD_MARK] = "ready";
       activateLightRuntime("settings", {
         reason,
@@ -631,7 +444,7 @@
     }
     globalThis[SETTINGS_RAIL_LOAD_MARK] = SETTINGS_RAIL_LOAD_PENDING;
     try {
-      await injectContentFiles(SETTINGS_RAIL_SCRIPTS);
+      await injectContentBundle(CONTENT_BUNDLES.settingsRail);
       globalThis[SETTINGS_RAIL_LOAD_MARK] = "ready";
       activateLightRuntime("settings", {
         reason,
@@ -743,13 +556,6 @@
     return globalThis.STPageContext?.storePageType?.() || "other";
   }
 
-  function storeFeaturePaths(type) {
-    if (type === "age") {
-      return [];
-    }
-    return STORE_FEATURE_CHUNKS[type] || STORE_FEATURE_CHUNKS.other;
-  }
-
   async function loadStoreRuntime() {
     const ctx = globalThis.STPageContext?.snapshot?.() || {};
     if (ctx.domain !== "store") {
@@ -761,8 +567,7 @@
     globalThis[STORE_LOAD_MARK] = STORE_LOAD_PENDING;
     const type = storePageType();
     try {
-      const featurePaths = storeFeaturePaths(type);
-      if (!featurePaths.length) {
+      if (type === "age") {
         globalThis[STORE_LOAD_MARK] = "ready";
         activateLightRuntime("store", {
           pageType: type,
@@ -770,15 +575,10 @@
         });
         return true;
       }
-      await injectContentFiles([
-        ...STORE_BASE_SCRIPTS,
-        ...featurePaths,
-        ...STORE_START_SCRIPTS,
-      ]);
+      await injectContentBundle(CONTENT_BUNDLES.storeRuntime, { pageType: type });
       globalThis[STORE_LOAD_MARK] = "ready";
       activateLightRuntime("store", {
         pageType: type,
-        featureScriptCount: featurePaths.length,
         loadStrategy: "runtime-page-chunk",
       });
       return true;
@@ -849,14 +649,6 @@
 
   function settingKey(id) {
     return `${SETTINGS_PREFIX}${id}${SETTINGS_SUFFIX}`;
-  }
-
-  function temporarilyDisabledReason(id) {
-    return TEMP_DISABLED_FEATURES[id] || "";
-  }
-
-  function isTemporarilyDisabled(id) {
-    return Object.hasOwn(TEMP_DISABLED_FEATURES, id);
   }
 
   function transKey(id) {
@@ -936,7 +728,7 @@
 
     const out = {};
     for (const id of ALL_SETTING_IDS) {
-      out[id] = !isTemporarilyDisabled(id);
+      out[id] = true;
     }
     if (globalThis.STSettingsBus?.loadSettingsSnapshot) {
       settingsCache = await globalThis.STSettingsBus.loadSettingsSnapshot({
@@ -947,17 +739,12 @@
         ttlMs: 30_000,
         reason: "content-settings-load",
       });
-      for (const id of ALL_SETTING_IDS) {
-        if (isTemporarilyDisabled(id)) {
-          settingsCache[id] = false;
-        }
-      }
       return settingsCache;
     }
     const rt = await storageGet(ALL_SETTING_IDS.map(settingKey));
     for (const id of ALL_SETTING_IDS) {
       const value = rt[settingKey(id)];
-      out[id] = isTemporarilyDisabled(id) ? false : (typeof value === "boolean" ? value : true);
+      out[id] = typeof value === "boolean" ? value : true;
     }
     settingsCache = out;
     return out;
@@ -1713,15 +1500,6 @@
   }
 
   async function communityGate() {
-    const disabled = COMMUNITY_SETTING_IDS.find(isTemporarilyDisabled);
-    if (disabled) {
-      return {
-        allowed: false,
-        reason: "temporarily-disabled",
-        featureId: disabled,
-        message: temporarilyDisabledReason(disabled),
-      };
-    }
     const settings = await loadSettings();
     const off = COMMUNITY_SETTING_IDS.find(id => settings[id] === false);
     return {
@@ -1732,23 +1510,62 @@
     };
   }
 
-  async function writeSteamSettings() {
+  function steamSettingsFrom(all = {}) {
+    const settings = {};
+    for (const id of STEAM_SETTING_IDS) {
+      settings[id] = all[id] !== false;
+    }
+    return settings;
+  }
+
+  function disabledSteamFeatureIds(prev = {}, next = {}) {
+    return STEAM_SETTING_IDS.filter(id => prev[id] !== false && next[id] === false);
+  }
+
+  function notifySteamFeaturesDisabled(keys) {
+    if (!Array.isArray(keys) || keys.length === 0) {
+      return;
+    }
+    try {
+      window.postMessage({
+        type: STEAM_FEATURES_DISABLED_MESSAGE,
+        keys,
+      }, "*");
+    } catch {
+    }
+  }
+
+  function readSteamSettingsSnapshot() {
+    if (steamSettingsSnapshot && typeof steamSettingsSnapshot === "object") {
+      return steamSettingsSnapshot;
+    }
+    try {
+      const raw = root()?.dataset?.[SETTINGS_ATTR] || "";
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function writeSteamSettings(options = {}) {
     const el = root();
     if (!el) {
       return;
     }
 
     // Steam 主上下文脚本通过 dataset 读取开关快照，避免每次按钮点击都等待内容脚本往返。
-    const all = await loadSettings();
-    const settings = {};
-    for (const id of STEAM_SETTING_IDS) {
-      settings[id] = all[id] !== false;
-    }
+    const prev = readSteamSettingsSnapshot();
+    const settings = steamSettingsFrom(await loadSettings());
 
     try {
       el.dataset[SETTINGS_ATTR] = JSON.stringify(settings);
     } catch {
       el.dataset[SETTINGS_ATTR] = "{}";
+    }
+    steamSettingsSnapshot = settings;
+    if (options.notifyDisabled !== false && prev) {
+      notifySteamFeaturesDisabled(disabledSteamFeatureIds(prev, settings));
     }
     await writeUiLocale();
   }
@@ -2006,7 +1823,7 @@
       return;
     }
 
-    writeSteamSettings()
+    writeSteamSettings({ notifyDisabled: false })
       .then(() => {
         steamRuntimeLogOnce("steam-runtime-inject-start", {
           level: "info",

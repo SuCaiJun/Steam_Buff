@@ -24,8 +24,8 @@
       entries: {
         backend: "backend.js",
       },
-      shouldRun(api, context) {
-        return context === "backend" && api.ctx?.settingOn?.("library-sort-title") !== false;
+      shouldRun(api, context, ctx = {}) {
+        return context === "backend" && (ctx.settingOn?.("library-sort-title") ?? api.ctx?.settingOn?.("library-sort-title")) !== false;
       },
     },
     {
@@ -41,8 +41,9 @@
         backend: "backend.js",
         ui: "ui.js",
       },
-      shouldRun(api, context) {
-        if (api.ctx?.settingOn?.("library-custom-name") === false) {
+      shouldRun(api, context, ctx = {}) {
+        const on = ctx.settingOn?.("library-custom-name") ?? api.ctx?.settingOn?.("library-custom-name");
+        if (on === false) {
           return false;
         }
         if (context === "backend") {
@@ -64,8 +65,9 @@
         backend: "backend.js",
         downloads: "downloads.js",
       },
-      shouldRun(api, context) {
-        if (api.ctx?.settingOn?.("download-auto-shutdown") === false) {
+      shouldRun(api, context, ctx = {}) {
+        const on = ctx.settingOn?.("download-auto-shutdown") ?? api.ctx?.settingOn?.("download-auto-shutdown");
+        if (on === false) {
           return false;
         }
         if (context === "backend") {

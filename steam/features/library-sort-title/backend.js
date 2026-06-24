@@ -16,6 +16,7 @@
   const RT = "__SteamBuffLibrarySortTitle";
   const ORIG = "__RickyStOriginalName";
   const ORIGS = "__RickyStOriginalNames";
+  const PATCHES = "__RickyStPatchedMethods";
   const S_FLAG = "__RickyStSetSortAsPatched";
   const C_FLAG = "__RickyStSetCustomSortAsPatched";
   const O_FLAG = "__RickyStOverviewChangePatched";
@@ -41,6 +42,25 @@
       window[ORIGS] = new Map();
     }
     return window[ORIGS];
+  }
+
+  function patches() {
+    if (!Array.isArray(window[PATCHES])) {
+      window[PATCHES] = [];
+    }
+    return window[PATCHES];
+  }
+
+  function restorePatches() {
+    const list = patches();
+    for (const item of list.splice(0)) {
+      try {
+        if (item?.obj?.[item.name] === item.fn) {
+          item.obj[item.name] = item.orig;
+        }
+      } catch {
+      }
+    }
   }
 
   function official(app, arg) {
@@ -361,6 +381,7 @@
       Object.defineProperty(fn, flag, { value: true });
       fn.toString = () => orig.toString();
       obj[name] = fn;
+      patches().push({ obj, name, flag, fn, orig });
     } catch {
       return false;
     }
@@ -387,6 +408,9 @@
 
     return patch(proto, "SetSortAs", S_FLAG, (orig) => {
       return function sortHook(...args) {
+        if (window[RT]?.scheduled !== true) {
+          return orig.apply(this, args);
+        }
         const arg = args[0];
         const name = official(this, arg);
         if (name) {
@@ -406,6 +430,9 @@
   function hookCust(store) {
     return patch(store, "SetCustomSortAs", C_FLAG, (orig) => {
       return async function custHook(appid, sortAs, ...rest) {
+        if (window[RT]?.scheduled !== true) {
+          return orig.call(this, appid, sortAs, ...rest);
+        }
         const first = typeof this.GetAppOverviewByAppID === "function" ? this.GetAppOverviewByAppID(appid) : null;
         saveNow(first);
 
@@ -425,7 +452,7 @@
             return ret;
           }
           sync();
-          window.setTimeout(sync, AFTER_SAVE_RECHECK_MS);
+          scheduleRuntimeTimeout(rt, "custom-sort-recheck", sync, AFTER_SAVE_RECHECK_MS);
         }
         return ret;
       };
@@ -437,6 +464,9 @@
       return function changeHook(...args) {
         const apps = Array.isArray(args[0]) ? args[0] : [];
         const rt = window[RT];
+        if (rt?.scheduled !== true) {
+          return orig.apply(this, args);
+        }
         if (apps.length && bulkOn(rt)) {
           for (const app of apps) {
             recordBulk(rt, app?.appid, app?.custom_sort_as_display);
@@ -511,7 +541,7 @@
     const delayed = Array.from(state.map || []);
     // 🚀 性能优化：大批量 AppOverviewChange 会让 Steam 库列表同步重排，批量保存只写数据，不主动接管整库刷新。
     if (delayed.length <= BULK_UI_REFRESH_MAX) {
-      window.setTimeout(() => {
+      scheduleRuntimeTimeout(rt, "bulk-delayed-flush", () => {
         const changed = flushBulkMap(window.appStore, delayed, { reason: "bulk:delayed" });
         log.info("library-sort-title-bulk-flush", "库排序标题批量延迟复查完成", {
           reason: "delayed",
@@ -537,6 +567,44 @@
     }
     rt.ms = ms;
     window.STScheduler?.reschedule?.(SCHEDULER_TASK, { intervalMs: ms });
+  }
+
+  function scheduleRuntimeTimeout(rt, key, callback, delay) {
+    if (rt?.scheduled !== true || typeof callback !== "function") {
+      return 0;
+    }
+    let handle = null;
+    const timer = window.setTimeout(() => {
+      if (handle) {
+        handle.dispose();
+      } else {
+        rt.timeoutHandles?.delete(timer);
+      }
+      if (rt.scheduled === true) {
+        callback();
+      }
+    }, Math.max(0, Number(delay) || 0));
+    handle = rt.scope?.resource?.({
+      key,
+      type: "timer",
+      dispose() {
+        window.clearTimeout(timer);
+        rt.timeoutHandles?.delete(handle || timer);
+      },
+    }) || null;
+    rt.timeoutHandles?.add(handle || timer);
+    return timer;
+  }
+
+  function clearRuntimeTimeouts(rt) {
+    for (const item of Array.from(rt?.timeoutHandles || [])) {
+      if (item?.dispose) {
+        item.dispose();
+      } else {
+        window.clearTimeout(item);
+      }
+    }
+    rt?.timeoutHandles?.clear?.();
   }
 
   // 客户端启动初期 appStore 分批就绪，启动阶段短轮询，hook 齐全后降到低频巡检。
@@ -654,6 +722,8 @@
       bootApplied: false,
       syncedOnce: false,
       startedAt: Date.now(),
+      scope: scope || null,
+      timeoutHandles: new Set(),
       loggedStart: false,
       loggedSuccess: false,
       loggedFailed: false,
@@ -666,6 +736,7 @@
       stop() {
         window.STScheduler?.unregister?.(SCHEDULER_TASK);
         rt.scheduled = false;
+        clearRuntimeTimeouts(rt);
         if (rt.delayHandle) {
           const handle = rt.delayHandle;
           rt.delayHandle = null;
@@ -674,6 +745,11 @@
           window.clearTimeout(rt.delay);
           rt.delay = 0;
         }
+        restorePatches();
+        window[ORIGS]?.clear?.();
+        delete window[ORIGS];
+        rt.bulk = null;
+        rt.timeoutHandles?.clear?.();
         for (const event of EVENTS) {
           window.removeEventListener(event, schedule);
         }
@@ -681,11 +757,12 @@
         if (window[RT] === rt) {
           window[RT] = null;
         }
+        rt.scope = null;
       },
     };
     window[RT] = rt;
     // 库排序标题巡检迁移到统一调度器；稳定后只做低频 hook 健康检查，避免日常全库重扫。
-    window.STScheduler.register(SCHEDULER_TASK, run, null, { intervalMs: SYNC_MS });
+    window.STScheduler.register(SCHEDULER_TASK, run, () => api.ctx?.settingOn?.(ID) !== false, { intervalMs: SYNC_MS });
     scope?.schedulerTask?.("backend-sync", SCHEDULER_TASK);
 
     for (const event of EVENTS) {

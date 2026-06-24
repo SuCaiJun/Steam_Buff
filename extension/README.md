@@ -40,7 +40,6 @@ UPDATE_CHECK             更新检查
 
 - 后台代理是跨域访问入口，只允许必要请求头。
 - `content.js` 只做页面识别、设置快照写入、桥接和按需注入。
-- Steam CEF 的 about:blank、旧窗口复用、半套内容脚本状态都要保留补注入逻辑。
 - 新增业务能力放到对应一级域目录，不堆到 `content.js`。
 - 新增后台路由时，同步 `ROUTE_POLICY` 和 `ROUTES`。
 - 异步消息路由必须 `return true` 保持 `sendResponse` 通道。

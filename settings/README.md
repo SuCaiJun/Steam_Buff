@@ -43,6 +43,5 @@ extension/content.js
 
 - 新设置项先改 `catalog.js`，再接面板和运行域读取逻辑。
 - 控件优先复用 `ui/fields.js`、`ui/feature-row.js`、`ui/dialogs.js`、`ui/toast.js`。
-- 非会员只禁用交互并给提示，不清空用户配置。
 - 账号、会员、更新请求统一走 `settings/api/request.js`。
 - 样式集中在 `ui/styles.js` 和 `STTheme.cssVariables`，不要在面板里写重复大段 CSS。

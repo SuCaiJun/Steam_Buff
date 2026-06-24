@@ -452,13 +452,24 @@
     }
     s.bOn = true;
     s.scope = scope || null;
+    s.channelCloseHandle = scope?.resource?.({
+      key: "backend-channel",
+      type: "resource",
+      dispose() {
+        if (s.ch === ch && typeof ch.close === "function") {
+          ch.close();
+          s.ch = null;
+        }
+        s.channelCloseHandle = null;
+      },
+    }) || null;
     // 下载监控迁移到统一调度器，避免 Steam 多页面各自持有独立巡检。
     window.STScheduler.register(
       SCHEDULER_TASK,
       () => {
         poll(api).catch(() => {});
       },
-      () => s.bOn === true,
+      () => s.bOn === true && api.ctx?.settingOn?.(ID) !== false,
       { intervalMs: POLL_MS }
     );
     scope?.schedulerTask?.("backend-poll", SCHEDULER_TASK);
@@ -471,7 +482,11 @@
         ch.removeEventListener("message", s.onMsg);
         s.onMsg = null;
       }
-      if (s.ch && typeof s.ch.close === "function") {
+      if (s.channelCloseHandle) {
+        const handle = s.channelCloseHandle;
+        s.channelCloseHandle = null;
+        handle.dispose();
+      } else if (s.ch && typeof s.ch.close === "function") {
         s.ch.close();
         s.ch = null;
       }

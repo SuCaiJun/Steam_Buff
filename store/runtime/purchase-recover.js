@@ -18,6 +18,7 @@
   const isUsableExistingModule = api.dom.isUsableExistingModule;
   const isUsableInsertTarget = api.dom.isUsableInsertTarget;
   const logger = globalThis.STLoggerFactory?.createLogger?.("store", "purchase-recover");
+  const OBSERVER_DEBOUNCE_MS = 1000;
   let recoverTimer = null;
   let restoreHandler = null;
 
@@ -112,10 +113,7 @@
   function observerTarget() {
     const pageInfo = api.ctx?.pageInfo?.();
     if (!pageInfo || pageInfo.type !== "app") return null;
-    return document.querySelector("#game_area_purchase")?.parentElement
-      || document.getElementById("responsive_page_template_content")
-      || document.querySelector(".blockbg")
-      || null;
+    return document.querySelector("#game_area_purchase")?.parentElement || null;
   }
 
   function startObserver() {
@@ -129,7 +127,7 @@
       const pageInfo = api.ctx?.pageInfo?.();
       if (pageInfo?.type === "app") {
         log("warn", "purchase-recover-observer-target-missing", "商店购买区恢复监听目标未找到", recoverMeta(pageInfo, "observer-setup", {
-          selector: "#game_area_purchase parent | #responsive_page_template_content | .blockbg",
+          selector: "#game_area_purchase parent",
           viewport: {
             width: window.innerWidth,
             height: window.innerHeight,
@@ -140,22 +138,25 @@
       return;
     }
 
-    window.__stStoreRecoverObs = window.STObserverUtils?.createDebouncedObserver?.(() => {
-      if (needRecover()) {
-        schedRecover("mutation");
-      }
-    }, 200) || new MutationObserver(() => {
-      if (needRecover()) {
-        schedRecover("mutation");
-      }
-    });
-    window.__stStoreRecoverObs.__stTarget = target;
+    const utils = window.STObserverUtils;
+    if (!utils?.createDebouncedObserver || !utils?.createVisibilityGatedObserver) {
+      window.__stStoreRecoverObs = null;
+      log("warn", "purchase-recover-observer-utils-missing", "商店购买区恢复监听工具未就绪，跳过 DOM 监听", recoverMeta(api.ctx?.pageInfo?.(), "observer-setup"));
+      return;
+    }
 
-    // 只监听 App 页购买区父容器/主内容区域，覆盖 Steam React 深层重建购买模块。
-    window.__stStoreRecoverObs.observe(target, {
+    const rawObserver = utils.createDebouncedObserver(() => {
+      if (needRecover()) {
+        schedRecover("mutation");
+      }
+    }, OBSERVER_DEBOUNCE_MS);
+    window.__stStoreRecoverObs = utils.createVisibilityGatedObserver(rawObserver, target, {
       childList: true,
       subtree: true,
     });
+    window.__stStoreRecoverObs.__stTarget = target;
+
+    // 只监听 App 页购买区父容器，找不到精准目标时不启动观察器。
     log("info", "purchase-recover-observer-start", "商店购买区恢复监听已启动", recoverMeta(api.ctx?.pageInfo?.(), "observer-setup", {
       targetId: target.id || "",
       targetClass: target.className || "",

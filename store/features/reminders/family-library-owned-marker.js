@@ -21,7 +21,6 @@
   const CART_BADGE_SETTING_ID = "family-library-cart-badge";
   const DETAIL_CARD_SETTING_ID = "family-library-detail-card";
   const OWNER = `store:${FEATURE_ID}`;
-  const BADGE_OWNER = `${OWNER}:badges`;
   const FAMILY_SHARING_RESULT_EVENT = "st:family-sharing-result";
   const FAMILY_SHARING_WAIT_MS = 1800;
   const BADGE_SETTING_IDS = Object.freeze({
@@ -31,15 +30,7 @@
   });
   const MODULE_CLASS = api.dom.MODULE_CLASSES.FAMILY_LIBRARY_OWNED;
   const FAMILY_MANAGEMENT_URL = window.STConfig?.vendors?.steamStore?.familyManagement?.() || "";
-  const BADGE_SCAN_DELAY_MS = 1000;
-  const BADGE_OBSERVER_DEBOUNCE_MS = 1000;
   const BADGE_SUMMARY_LOG_MS = 30_000;
-  const ROW_CLASSES = Object.freeze([
-    "tab_item",
-    "search_result_row",
-    "salepreviewwidgets_StoreSaleItemReview",
-    "salepreviewwidgets_SaleItemBrowserRow",
-  ]);
 
   const log = window.STLoggerFactory?.createLogger?.("store", FEATURE_ID);
   const session = window.__stFamilyLibraryOwnedMarkerSession || {
@@ -50,12 +41,14 @@
   window.__stFamilyLibraryOwnedMarkerSession = session;
   let refreshInFlight = null;
   let detailActive = false;
+  let detailSeq = 0;
+  let badgeSeq = 0;
   const activeBadgeScopes = new Set();
-  let badgeScanTimer = null;
-  let badgeObserver = null;
+  const familySharingWaitDisposers = new Set();
+  const dialogDisposers = new Set();
+  const blockingWaitClosers = new Set();
   let badgeCache;
   let badgeLogState = { signature: "", time: 0 };
-  const badgeDisposers = new Set();
   const familySharingSupportState = window.__stFamilySharingSupportState || {};
   window.__stFamilySharingSupportState = familySharingSupportState;
   let detailAppId = "";
@@ -64,15 +57,6 @@
 
   function rid() {
     return `fl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-
-  function trackBadge(dispose) {
-    const wrapped = () => {
-      if (!badgeDisposers.delete(wrapped)) return;
-      dispose();
-    };
-    badgeDisposers.add(wrapped);
-    return wrapped;
   }
 
   function noTranslate(element) {
@@ -185,6 +169,26 @@
     return familySharingModules(appId).some(node => node.dataset.placeholder === "true");
   }
 
+  function trackDisposer(set, dispose) {
+    let active = true;
+    const wrapped = () => {
+      if (!active) return;
+      active = false;
+      set.delete(wrapped);
+      try {
+        dispose();
+      } catch {
+      }
+    };
+    set.add(wrapped);
+    return wrapped;
+  }
+
+  function clearDisposers(set) {
+    Array.from(set).forEach(dispose => dispose());
+    set.clear();
+  }
+
   function removeDetailForUnsupportedSharing(appId, source) {
     if (familySharingStatus(appId) !== "unsupported") return false;
     const appIdText = String(appId || "");
@@ -216,11 +220,16 @@
     return new Promise((resolve) => {
       let done = false;
       let timeoutId = null;
+      let disposeWait = null;
       const finish = (status = "") => {
         if (done) return;
         done = true;
         window.removeEventListener(FAMILY_SHARING_RESULT_EVENT, onResult);
         clearTimeout(timeoutId);
+        if (disposeWait) {
+          familySharingWaitDisposers.delete(disposeWait);
+          disposeWait = null;
+        }
         resolve(status || familySharingStatus(appId));
       };
       const onResult = (event) => {
@@ -231,6 +240,7 @@
       };
       timeoutId = setTimeout(() => finish(""), FAMILY_SHARING_WAIT_MS);
       window.addEventListener(FAMILY_SHARING_RESULT_EVENT, onResult);
+      disposeWait = trackDisposer(familySharingWaitDisposers, () => finish(""));
     });
   }
 
@@ -544,10 +554,16 @@
     actions.append(secondary, primary);
     modal.dialog.appendChild(actions);
     return new Promise((resolve) => {
+      let disposeDialog = null;
       const done = (value) => {
+        if (disposeDialog) {
+          dialogDisposers.delete(disposeDialog);
+          disposeDialog = null;
+        }
         modal.layer.remove();
         resolve(value);
       };
+      disposeDialog = trackDisposer(dialogDisposers, () => done("close"));
       primary.addEventListener("click", () => done("primary"));
       secondary.addEventListener("click", () => done("secondary"));
       modal.close.addEventListener("click", () => done("close"));
@@ -570,7 +586,8 @@
     if (typeof window.ShowBlockingWaitDialog === "function") {
       try {
         const dialog = window.ShowBlockingWaitDialog("正在扫描家庭组游戏数据...", "扫描期间不要关闭浏览器，耐心等待！");
-        return { close: () => dialog?.Dismiss?.() };
+        const close = trackDisposer(blockingWaitClosers, () => dialog?.Dismiss?.());
+        return { close };
       } catch {
       }
     }
@@ -580,7 +597,8 @@
       danger: true,
     });
     modal.close.hidden = true;
-    return { close: () => modal.layer.remove() };
+    const close = trackDisposer(blockingWaitClosers, () => modal.layer.remove());
+    return { close };
   }
 
   function showAlert(title, message) {
@@ -597,10 +615,16 @@
     actions.appendChild(primary);
     modal.dialog.appendChild(actions);
     return new Promise((resolve) => {
+      let disposeDialog = null;
       const done = () => {
+        if (disposeDialog) {
+          dialogDisposers.delete(disposeDialog);
+          disposeDialog = null;
+        }
         modal.layer.remove();
         resolve("primary");
       };
+      disposeDialog = trackDisposer(dialogDisposers, done);
       primary.addEventListener("click", done);
       modal.close.addEventListener("click", done);
       modal.layer.addEventListener("keydown", (event) => {
@@ -791,12 +815,18 @@
       const cache = await refreshFamilyLibrary(options.source || "manual");
       session.lastRefreshAt = Date.now();
       wait.close();
+      if (!detailActive || String(options.appId || "") !== detailAppId) {
+        return;
+      }
       if (detailActive && !removeDetailForUnsupportedSharing(options.appId, "refresh-success")) {
         mountCard(options.appId, cache);
       }
       await showAlert("Steam Buff共享检查", `已将 ${cache.stats.appCount} 个家庭库游戏记录到本地缓存。`);
     } catch (error) {
       wait.close();
+      if (!detailActive || String(options.appId || "") !== detailAppId) {
+        return;
+      }
       setRefreshButton(button, "failed", options.defaultLabel || "更新");
       if (button) button.title = friendlyError(error);
       setStatus(options.container, `刷新失败：${friendlyError(error)}`, "error");
@@ -805,111 +835,6 @@
       await showAlert("家庭库刷新失败", `${friendlyError(error)}${helpText}`);
       throw error;
     }
-  }
-
-  function appIdFromUrl(url) {
-    const match = String(url || "").match(/\/app\/(\d+)/);
-    return match ? match[1] : "";
-  }
-
-  function appIdForNode(node) {
-    if (!node || node.nodeType !== Node.ELEMENT_NODE) return "";
-    if (node.dataset?.dsAppid) return node.dataset.dsAppid.split(",")[0];
-    if (node.matches?.("a[href*='/app/']")) return appIdFromUrl(node.href);
-    const link = node.querySelector?.("a[href*='/app/']");
-    return link ? appIdFromUrl(link.href) : "";
-  }
-
-  function listType(node) {
-    const cls = String(node?.className || "");
-    const isRow = ROW_CLASSES.some((name) => cls.includes(name));
-    if (isRow || location.pathname.startsWith("/wishlist")) {
-      return "row";
-    }
-    return "tile";
-  }
-
-  function isImageTarget(node) {
-    if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
-    if (node.dataset?.dsAppid) return true;
-    return !!node.querySelector?.("img, picture");
-  }
-
-  function regularBadgeTargets() {
-    const nodes = [];
-    const selectors = [];
-    if (activeBadgeScopes.has("store")) {
-      selectors.push(
-        "#search_resultsRows a[data-ds-appid]",
-        "#StoreTemplate .Panel .Panel a[href*='/app/']",
-        "[data-ds-appid]:not(.gutter_item)",
-        "[class^='salepreviewwidgets_']",
-        ".SaleSectionContainer .Panel",
-        ".tab_item",
-      );
-    }
-    if (activeBadgeScopes.has("wishlist")) {
-      selectors.push(
-        "#wishlist_ctn a[href*='/app/']",
-        "#wishlist_list a[href*='/app/']",
-      );
-    }
-    if (!selectors.length) return [];
-    document.querySelectorAll(selectors.join(",")).forEach((node) => {
-      const base = node.closest("[data-ds-appid]") || node;
-      const id = appIdForNode(base);
-      if (!id || !isImageTarget(base)) return;
-      const scope = activeBadgeScopes.has("wishlist") && base.closest("#wishlist_ctn, #wishlist_list") ? "wishlist" : "store";
-      const image = api.dom.imageBadgeForNode?.(base, id);
-      nodes.push({
-        node: base,
-        appId: id,
-        image,
-        type: image ? "image" : listType(base),
-        scope,
-        badgePlacement: scope === "wishlist" ? "top-left" : "bottom-left",
-      });
-    });
-    const seen = new Set();
-    return nodes.filter((item) => {
-      if (seen.has(item.node)) return false;
-      seen.add(item.node);
-      return true;
-    });
-  }
-
-  function cartBadgeTargets() {
-    if (!activeBadgeScopes.has("cart")) return [];
-    return (api.dom.cartBadgeTargets?.() || []).map(item => ({
-      node: item.node,
-      appId: item.appId,
-      image: item.image,
-      type: "cart",
-      scope: "cart",
-      badgePlacement: "top-left",
-    }));
-  }
-
-  function badgeTargets() {
-    return [...regularBadgeTargets(), ...cartBadgeTargets()];
-  }
-
-  function badgeObserverTarget() {
-    if (activeBadgeScopes.has("cart")) {
-      return api.dom.cartBadgeObserverTarget?.() || null;
-    }
-    if (activeBadgeScopes.has("wishlist")) {
-      return document.querySelector("#wishlist_ctn")
-      || document.querySelector("#wishlist_list")
-      || null;
-    }
-    if (!activeBadgeScopes.has("store")) return null;
-    return document.querySelector(".PU7fdVEQB8s-.Panel")
-      || document.querySelector("#search_resultsRows")
-      || document.querySelector("#search_result_container")
-      || document.querySelector(".SaleSectionContainer")
-      || document.querySelector(".tab_content_ctn")
-      || null;
   }
 
   function removeEmptyBadgeHost(container) {
@@ -1036,10 +961,11 @@
     log?.info?.("family-library-badge-scan-summary", "家庭库商店角标扫描完成", pageMeta(meta));
   }
 
-  async function scanBadges() {
+  async function scanBadges(targets = []) {
     if (activeBadgeScopes.size === 0) return;
-    const targets = badgeTargets();
+    const seq = badgeSeq;
     const cache = await loadBadgeCache();
+    if (seq !== badgeSeq || activeBadgeScopes.size === 0) return;
     if (!cache) {
       clearFamilyBadges();
       logBadgeSummary({
@@ -1053,7 +979,8 @@
     let mountedCount = 0;
     targets.forEach((target) => {
       const node = target.node;
-      const appId = target.appId || appIdForNode(node);
+      const appId = target.appId;
+      if (!node?.isConnected || !activeBadgeScopes.has(target.scope)) return;
       if (!appId) return;
       if (node.dataset.stFgId === String(appId)
           && node.dataset.stFgDone === "1"
@@ -1076,85 +1003,6 @@
     });
   }
 
-  function queueBadgeScan(delay) {
-    if (badgeScanTimer || activeBadgeScopes.size === 0) return;
-    let disposeTimer = null;
-    let timerResource = null;
-    const waitMs = Math.max(0, Number(delay) || 0);
-    badgeScanTimer = setTimeout(() => {
-      if (timerResource) {
-        timerResource.dispose();
-      } else {
-        disposeTimer?.();
-      }
-      scanBadges().catch((error) => {
-        log?.warn?.("family-library-badge-scan-failed", "家庭库商店角标扫描失败", pageMeta({
-          reason: String(error?.code || error?.name || "scan-failed"),
-        }));
-      });
-    }, waitMs);
-    const timerId = badgeScanTimer;
-    disposeTimer = trackBadge(() => {
-      if (badgeScanTimer === timerId) {
-        badgeScanTimer = null;
-      }
-      clearTimeout(timerId);
-    });
-    timerResource = window.STRuntime?.current?.()?.registerResource?.({
-      owner: BADGE_OWNER,
-      key: "badge-scan-timer",
-      type: "timer",
-      dispose: disposeTimer,
-    });
-  }
-
-  function scheduleBadgeScan() {
-    queueBadgeScan(BADGE_SCAN_DELAY_MS);
-  }
-
-  function setupBadgeObserver() {
-    if (badgeObserver) return true;
-    const target = badgeObserverTarget();
-    if (!target) {
-      log?.warn?.("family-library-badge-target-missing", "家庭库商店角标监听目标缺失", pageMeta({
-        pageScope: Array.from(activeBadgeScopes).join(","),
-        candidateCount: badgeTargets().length,
-      }));
-      return false;
-    }
-    badgeObserver = window.STObserverUtils?.createDebouncedObserver?.(() => queueBadgeScan(0), BADGE_OBSERVER_DEBOUNCE_MS)
-      || new MutationObserver(() => scheduleBadgeScan());
-    // 只监听商店商品列表/内容容器，覆盖 React 局部重绘，不监听 document.body。
-    window.STObserverUtils?.createVisibilityGatedObserver?.(badgeObserver, target, { childList: true, subtree: true })
-      || badgeObserver.observe(target, { childList: true, subtree: true });
-    const disposeObserver = trackBadge(() => badgeObserver?.disconnect?.());
-    window.STRuntime?.current?.()?.registerResource?.({
-      owner: BADGE_OWNER,
-      key: "badge-list-observer",
-      type: "observer",
-      dispose: disposeObserver,
-    });
-    window.addEventListener("pageshow", scheduleBadgeScan);
-    const disposePageShow = trackBadge(() => window.removeEventListener("pageshow", scheduleBadgeScan));
-    window.STRuntime?.current?.()?.registerResource?.({
-      owner: BADGE_OWNER,
-      key: "badge-pageshow",
-      type: "listener",
-      meta: { event: "pageshow" },
-      dispose: disposePageShow,
-    });
-    document.addEventListener("scroll", scheduleBadgeScan, { passive: true });
-    const disposeScroll = trackBadge(() => document.removeEventListener("scroll", scheduleBadgeScan, { passive: true }));
-    window.STRuntime?.current?.()?.registerResource?.({
-      owner: BADGE_OWNER,
-      key: "badge-scroll",
-      type: "listener",
-      meta: { event: "scroll" },
-      dispose: disposeScroll,
-    });
-    return true;
-  }
-
   function ensureFeatureStyles(key) {
     api.styles?.ensureFeatureStyle?.("store-common-feature", { owner: OWNER, key: "common-style" });
     api.styles?.ensureFeatureStyle?.("family-library-owned-marker", { owner: OWNER, key });
@@ -1164,17 +1012,20 @@
     const startedAt = Date.now();
     const id = Number(appId) || 0;
     if (!id || document.querySelector(".game_area_comingsoon")) return;
+    const seq = detailSeq + 1;
+    detailSeq = seq;
     detailActive = true;
     detailAppId = String(id);
     setupFamilySharingResultListener(id);
     ensureFeatureStyles("detail-style");
     log?.info?.("family-library-feature-start", "家庭库检查功能启动", pageMeta({ appid: id, settingsKey: DETAIL_CARD_SETTING_ID }));
     const sharingStatus = await waitForFamilySharingResult(id);
-    if (!detailActive || detailAppId !== String(id)) return;
+    if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
     if (sharingStatus === "unsupported" || removeDetailForUnsupportedSharing(id, "pre-mount")) {
       return;
     }
     const cache = await api.familyLibraryCache?.read?.();
+    if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
     const container = mountCard(id, cache);
     if (!container) return;
     const entry = api.familyLibraryCache?.appEntry?.(cache, id);
@@ -1200,6 +1051,7 @@
     } else if (!cache) {
       await maybePromptEmpty(id, container);
     }
+    if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
     log?.info?.("family-library-feature-ready", "家庭库检查功能启动完成", pageMeta({
       appid: id,
       durationMs: Date.now() - startedAt,
@@ -1210,12 +1062,23 @@
     const normalized = BADGE_SETTING_IDS[scope] ? scope : "store";
     activeBadgeScopes.add(normalized);
     ensureFeatureStyles("badge-style");
-    const ready = setupBadgeObserver();
-    scheduleBadgeScan();
+    const result = api.appCardBadgeScanner?.start?.(FEATURE_ID, normalized, {
+      scan: scanBadges,
+      onError(error) {
+        log?.warn?.("family-library-badge-scan-failed", "家庭库商店角标扫描失败", pageMeta({
+          reason: String(error?.code || error?.name || "scan-failed"),
+        }));
+      },
+    });
+    if (result?.started !== true) {
+      log?.warn?.("family-library-badge-scanner-missing", "家庭库商店角标共享扫描器不可用", pageMeta({
+        scope: normalized,
+      }));
+    }
     log?.info?.("family-library-badge-start", "家庭库商店角标功能启动", pageMeta({
       scope: normalized,
       settingsKey: BADGE_SETTING_IDS[normalized],
-      observerReady: ready === true,
+      observerReady: result?.observerReady === true,
     }));
     return true;
   }
@@ -1227,8 +1090,12 @@
 
   function stopDetail() {
     detailActive = false;
+    detailSeq += 1;
     detailAppId = "";
     lastFamilySharingHideLogKey = "";
+    clearDisposers(familySharingWaitDisposers);
+    clearDisposers(dialogDisposers);
+    clearDisposers(blockingWaitClosers);
     removeFamilySharingResultListener();
     document.querySelectorAll(`.${MODULE_CLASS}`).forEach(node => node.remove());
     document.querySelectorAll(".st_family_library_dialog_layer").forEach(node => node.remove());
@@ -1237,20 +1104,13 @@
   }
 
   function stopBadgeRuntime() {
-    if (badgeScanTimer) {
-      clearTimeout(badgeScanTimer);
-      badgeScanTimer = null;
-    }
-    badgeObserver?.disconnect?.();
-    badgeObserver = null;
     clearFamilyBadges();
-    window.STRuntime?.current?.()?.disposeOwner?.(BADGE_OWNER);
-    Array.from(badgeDisposers).forEach(dispose => dispose());
-    badgeDisposers.clear();
+    api.appCardBadgeScanner?.stop?.(FEATURE_ID);
     badgeCache = undefined;
   }
 
   function stopBadges(scope = "") {
+    badgeSeq += 1;
     if (scope && BADGE_SETTING_IDS[scope]) {
       activeBadgeScopes.delete(scope);
     } else {
@@ -1258,10 +1118,9 @@
     }
     const cleanupScope = scope && BADGE_SETTING_IDS[scope] ? scope : "";
     clearFamilyBadges(document, cleanupScope);
+    api.appCardBadgeScanner?.stop?.(FEATURE_ID, cleanupScope);
     if (activeBadgeScopes.size === 0) {
-      stopBadgeRuntime();
-    } else {
-      scheduleBadgeScan();
+      badgeCache = undefined;
     }
     removeFeatureStyleIfIdle();
     return true;

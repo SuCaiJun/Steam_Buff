@@ -27,5 +27,3 @@ images/
 
 - 新图片先确认是否已有资源可复用。
 - 页面脚本需要访问的新资源，要同步 `manifest.json.web_accessible_resources`。
-- 第三方图片要在工作区 `docs/third-party-licenses/` 记录来源和许可。
-- 删除图片前先 `rg` 检查引用。

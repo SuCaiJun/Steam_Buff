@@ -44,6 +44,7 @@
   const OBSERVED_ELEMENT_LIMIT = 240;
   const VIEW_DELAY = 120;
   const BACKGROUND_DELAY = 420;
+  const AUTO_PAGE_OBSERVER_DEBOUNCE_MS = 1000;
   const VISIBILITY_ATTRS = Object.freeze(["style", "class", "hidden", "aria-hidden"]);
   const TIP_CLASS = "steam-buff-translate-tooltip";
   const SEL_TIP_ID = "steam-buff-translate-selection-tip";
@@ -1501,16 +1502,23 @@
         }
       };
       if (observeRoot) {
-        view.mo = window.STObserverUtils?.createDebouncedObserver?.(onMutation, 80)
-          || new MutationObserver(onMutation);
-        // 持续监听只挂在页面语义主容器或 body 下最大的内容根节点，避免长期观察整个 body。
-        view.mo.observe(observeRoot, {
-          childList: true,
-          subtree: true,
-          characterData: true,
-          attributes: true,
-          attributeFilter: VISIBILITY_ATTRS,
-        });
+        const utils = window.STObserverUtils;
+        if (!utils?.createDebouncedObserver || !utils?.createVisibilityGatedObserver) {
+          logRuntime("warn", "auto-page-observer-utils-missing", "翻译整页监听工具未就绪，跳过 DOM 监听", {
+            mode: MODE_AUTO_PAGE,
+            observeRoot: observeRoot?.id || observeRoot?.className || observeRoot?.tagName || "",
+          });
+        } else {
+          const rawObserver = utils.createDebouncedObserver(onMutation, AUTO_PAGE_OBSERVER_DEBOUNCE_MS);
+          // 持续监听只挂在页面语义主容器或 body 下最大的内容根节点，隐藏页先断开。
+          view.mo = utils.createVisibilityGatedObserver(rawObserver, observeRoot, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributes: true,
+            attributeFilter: VISIBILITY_ATTRS,
+          });
+        }
       }
 
       const initialCount = queueViewportTree(view, view.root, INITIAL_VIEWPORT_SCAN_LIMIT);

@@ -29,7 +29,5 @@ xnx3-translate      translate/vendor-wrapper.js、translate/runner.js
 
 ## 开发要点
 
-- 新增或更新第三方库前先确认许可证兼容 GPL-3.0-or-later 分发。
-- 更新代码时同步 `version.md` 和工作区 `docs/third-party-licenses/` 来源记录。
 - 不要直接改第三方源码塞业务逻辑；业务适配放在本项目代码里。
 - 新库需要页面访问时，同步 `manifest.json.web_accessible_resources`。

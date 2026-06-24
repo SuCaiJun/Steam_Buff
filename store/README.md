@@ -39,7 +39,7 @@ features/review/                        商店/社区评论过滤
 features/dlc/                           DLC 批量选择、领取、桥接
 features/reminders/                     音频、家庭共享、DRM、订阅等提醒检查
 features/notes/                         游戏备注
-features/purchase-history/              消费历史分类
+features/third-party-scripts/           第三方脚本适配层
 ```
 
 ## 维护备注

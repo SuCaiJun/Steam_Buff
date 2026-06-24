@@ -20,6 +20,7 @@
   const RESTORE_KEY = "st.store.cartSelect.restore";
   const RESTORE_TTL_MS = 30 * 60 * 1000;
   const SCAN_MS = 700;
+  const OBSERVER_DEBOUNCE_MS = 1000;
   const EMPTY_SCAN_RETRY_MAX = 12;
   const MATCH = globalThis.STConfig?.matchers;
   const log = window.STLoggerFactory.createLogger("store", "cart-select");
@@ -40,6 +41,7 @@
   let lastRenderKey = "";
   let lastBulkAnchorMissing = false;
   let lastSideAnchorMissing = false;
+  let observerTargetMissingLogged = false;
 
   function onCartPage() {
     return MATCH?.isSteamStoreHost?.(location.hostname) === true && /^\/cart\/?$/.test(location.pathname);
@@ -827,6 +829,9 @@
         country: res.result.country || meta.country || "CN",
       };
       renderRows();
+      if (!observer) {
+        observe();
+      }
       showRestorePrompt().catch(() => {});
     }
     return items;
@@ -1153,40 +1158,76 @@
     return null;
   }
 
+  function broadObserverTarget(el) {
+    return !el
+      || el === document.body
+      || el === document.documentElement
+      || el.id === "responsive_page_template_content"
+      || el.id === "StoreTemplate";
+  }
+
+  function preciseObserverTarget(el) {
+    return broadObserverTarget(el) ? null : el;
+  }
+
   function observeTarget() {
-    const content = document.getElementById("responsive_page_template_content");
+    const rows = Array.from(document.querySelectorAll("[data-st-cart-line-id]"));
+    const rowShared = rows.length > 1 ? commonElement(rows) : rows[0]?.parentElement;
+    if (preciseObserverTarget(rowShared)) {
+      return rowShared;
+    }
+
+    const emptyBox = emptyCartBox();
+    if (preciseObserverTarget(emptyBox)) {
+      return emptyBox;
+    }
+
     const anchors = [
       cartTitle(),
-      emptyCartBox(),
       removeAllButton(),
       checkoutButtons()[0],
-      document.querySelector("[data-st-cart-line-id]"),
       document.getElementById("st_cart_restore_panel"),
     ];
     const shared = commonElement(anchors);
     // 只监听购物车主体内容；顶部导航购物车按钮和全局弹窗变化不应触发购物车扫描。
-    return (shared && shared !== document.body ? shared : content) || null;
+    return preciseObserverTarget(shared);
   }
 
   function observe() {
-    if (observer) return;
+    if (observer?.__stTarget?.isConnected) return;
+    observer?.disconnect?.();
+    observer = null;
     const target = observeTarget();
     if (!target) {
-      log.warn("cart-select-observer-target-missing", "购物车选择监听目标未找到", {
-        selector: "responsive_page_template_content | cart shared container",
-        path: location.pathname,
-        viewport: {
-          width: window.innerWidth,
-          height: window.innerHeight,
-          dpr: window.devicePixelRatio,
-        },
-      });
+      if (!observerTargetMissingLogged) {
+        observerTargetMissingLogged = true;
+        log.warn("cart-select-observer-target-missing", "购物车选择监听目标未找到", {
+          selector: "cart row parent | empty cart box | cart shared container",
+          path: location.pathname,
+          viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            dpr: window.devicePixelRatio,
+          },
+        });
+      }
       return;
     }
-    observer = window.STObserverUtils?.createDebouncedObserver?.(scheduleScan, 120)
-      || new MutationObserver(scheduleScan);
+    const utils = window.STObserverUtils;
+    if (!utils?.createDebouncedObserver || !utils?.createVisibilityGatedObserver) {
+      if (!observerTargetMissingLogged) {
+        observerTargetMissingLogged = true;
+        log.warn("cart-select-observer-utils-missing", "购物车选择监听工具未就绪，跳过 DOM 监听", {
+          path: location.pathname,
+        });
+      }
+      return;
+    }
+    const rawObserver = utils.createDebouncedObserver(scheduleScan, OBSERVER_DEBOUNCE_MS);
+    observer = utils.createVisibilityGatedObserver(rawObserver, target, { childList: true, subtree: true });
+    observer.__stTarget = target;
+    observerTargetMissingLogged = false;
     // 只监听购物车主体内容容器；购物车行和恢复提示会在该范围内深层替换。
-    observer.observe(target, { childList: true, subtree: true });
     log.info("cart-select-observer-start", "购物车选择监听已启动", {
       targetId: target.id || "",
       targetClass: target.className || "",

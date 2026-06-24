@@ -14,6 +14,7 @@
   const REQ_EVT = "STStoreCartSelectRequest";
   const RES_EVT = "STStoreCartSelectResponse";
   const ROW_SEL = "[data-st-cart-line-id]";
+  const SCAN_LIMIT = 1800;
   const STEAM_API_HOST = document.currentScript?.dataset.steamApiHost || "";
 
   function reactKey(node) {
@@ -65,11 +66,65 @@
     return row || node;
   }
 
+  function commonElement(nodes) {
+    const items = nodes.filter(Boolean);
+    if (items.length < 2) return null;
+    let current = items[0];
+    while (current && current !== document.body && current !== document.documentElement) {
+      if (items.every(item => current.contains(item))) {
+        return current;
+      }
+      current = current.parentElement;
+    }
+    return null;
+  }
+
+  function compactText(el) {
+    return String(el?.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function scopedRoot() {
+    return document.getElementById("responsive_page_template_content")
+      || document.querySelector("main")
+      || document.querySelector("[role='main']")
+      || null;
+  }
+
+  function cartAnchors(root) {
+    if (!root) return [];
+    return Array.from(root.querySelectorAll("h1, h2, button, a, [role='button']"))
+      .filter(el => /您的购物车|Your Cart|移除|Remove|支付|Checkout|Purchase|payment/i.test(compactText(el)));
+  }
+
+  function scanRoot() {
+    const rows = Array.from(document.querySelectorAll(ROW_SEL));
+    const rowRoot = rows.length > 1 ? commonElement(rows) : rows[0]?.parentElement;
+    if (rowRoot) {
+      return rowRoot;
+    }
+
+    const root = scopedRoot();
+    const anchorRoot = commonElement(cartAnchors(root));
+    return anchorRoot || root;
+  }
+
+  function scanNodes(root) {
+    if (!root) return [];
+    const nodes = [root];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    while (nodes.length < SCAN_LIMIT) {
+      const node = walker.nextNode();
+      if (!node) break;
+      nodes.push(node);
+    }
+    return nodes;
+  }
+
   function scan() {
     const seen = new Set();
     const items = [];
 
-    document.querySelectorAll("body *").forEach(node => {
+    scanNodes(scanRoot()).forEach(node => {
       const info = dataFrom(node);
       if (!info || seen.has(info.lineId)) return;
 

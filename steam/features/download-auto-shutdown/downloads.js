@@ -564,9 +564,24 @@
         "下载完成自动关机界面入口缺少统一调度器"
       );
       s.fOn = false;
+      if (s.ch === ch && typeof ch.close === "function") {
+        ch.close();
+        s.ch = null;
+      }
       return { started: false, reason: "scheduler-unavailable" };
     }
     s.scope = scope || null;
+    s.channelCloseHandle = scope?.resource?.({
+      key: "frontend-channel",
+      type: "resource",
+      dispose() {
+        if (s.ch === ch && typeof ch.close === "function") {
+          ch.close();
+          s.ch = null;
+        }
+        s.channelCloseHandle = null;
+      },
+    }) || null;
     s.stop = () => {
       window.STScheduler?.unregister?.(SCHEDULER_TASK);
       s.syncI = 0;
@@ -589,7 +604,11 @@
         ch.removeEventListener("message", s.onMsg);
         s.onMsg = null;
       }
-      if (s.ch && typeof s.ch.close === "function") {
+      if (s.channelCloseHandle) {
+        const handle = s.channelCloseHandle;
+        s.channelCloseHandle = null;
+        handle.dispose();
+      } else if (s.ch && typeof s.ch.close === "function") {
         s.ch.close();
         s.ch = null;
       }
@@ -624,14 +643,14 @@
       () => {
         sync(api, ch);
       },
-      () => s.fOn === true,
+      () => s.fOn === true && api.ctx?.settingOn?.(ID) !== false,
       { intervalMs: SYNC_MS }
     );
     scope?.schedulerTask?.("frontend-sync", SCHEDULER_TASK);
 
     sync(api, ch);
     scheduleWakeSync(api, ch, "startup");
-    return { started: true };
+    return { started: true, stop: s.stop };
   }
 
   window.SteamBuff.reg.addEntry(ID, "downloads.js", start);

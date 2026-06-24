@@ -187,7 +187,6 @@
         registry: text(adapter.registry || prev.registry),
         loadStrategy: text(adapter.loadStrategy || prev.loadStrategy || "runtime-adapter"),
         status: text(adapter.status || prev.status || "registered"),
-        legacy: adapter.legacy === true || prev.legacy === true,
         registeredAt: prev.registeredAt || now(),
         activatedAt: prev.activatedAt || 0,
         meta: {

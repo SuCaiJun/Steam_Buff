@@ -421,6 +421,54 @@
     }
   }
 
+  function rejectPendingRequests(map, message) {
+    const error = new Error(message || "feature stopped");
+    for (const wait of Array.from(map.values())) {
+      if (wait?.timer) {
+        window.clearTimeout(wait.timer);
+      }
+      try {
+        wait?.reject?.(error);
+      } catch {
+      }
+    }
+    map.clear();
+  }
+
+  function clearBatchAsyncState() {
+    rejectPendingRequests(pend, "feature stopped");
+    rejectPendingRequests(qpend, "feature stopped");
+    batch.previewSeq += 1;
+    batch.searchSeq += 1;
+    batch.capacitySeq += 1;
+    batch.cancelled = true;
+    batch.busy = false;
+    batch.saving = false;
+    batch.paused = false;
+    batch.waitCmd = "";
+    batch.steamBatch = null;
+    batch.saveRid = "";
+    batch.saveStatusMisses = 0;
+    batch.cloudQueue = [];
+    batch.cloudFlush = null;
+    batch.cloudFinishing = false;
+    batch.localRows = [];
+    batch.cloudMap = new Map();
+    batch.stateMap = new Map();
+    batch.rows = [];
+    batch.rowMap = new Map();
+    batch.searchRows = [];
+    batch.searchIndex = null;
+    batch.searchScanned = 0;
+    batch.searching = false;
+    batch.selectedCount = 0;
+    batch.writeCount = 0;
+    batch.storageCapacity = emptyCapacity();
+    batch.stats = emptyStats();
+    batch.page = 1;
+    batch.pager?.setPage?.(1);
+  }
+
   function backendOnce(type, data) {
     const ch = chan();
     if (!ch) {
@@ -3811,7 +3859,7 @@
   }
 
   function shouldRunScheduledTick() {
-    return !isPropertyDialog() && (isCustomSortUi() || hasBar());
+    return settingOn(ID) && !isPropertyDialog() && (isCustomSortUi() || hasBar());
   }
 
   function registerScheduledTick() {
@@ -3874,6 +3922,7 @@
       clearSearchTimer();
       clearBarCleanupCheck();
       clearBarMountRetry();
+      clearBatchAsyncState();
       document.removeEventListener("click", onDocumentClick, true);
       document.removeEventListener("keydown", onDocumentKeydown);
       if (s.oneResolve) {

@@ -62,32 +62,46 @@ Steam Buff 主要补这些日常缺口：
 extension/
 ├── ai/                    # AI 服务配置与适配
 ├── community/             # Steam 社区增强模块
-│   ├── features/          # 社区功能特性
-│   ├── inventory/         # 库存相关
-│   └── market/            # 市场相关
+│   ├── api/               # 社区接口与请求封装
+│   ├── domain/            # 库存、市场等领域模型
+│   ├── features/          # 库存、市场、交易报价功能
+│   ├── runtime/           # 社区运行时基础能力
+│   └── ui/                # 社区页 UI 组件
 ├── extension/             # 扩展核心
 │   ├── background.js      # Service Worker
-│   ├── content/           # 内容脚本
-│   └── inject/            # 页面注入脚本
+│   ├── background-logger.js
+│   ├── background-update.js
+│   ├── content.js         # 内容脚本轻入口、桥接和按需注入
+│   └── runtime/           # 内容脚本预加载守卫
 ├── images/                # 图标与图片资源
 ├── settings/              # 设置中心
 │   ├── catalog.js         # 功能目录与入口配置
+│   ├── menu/              # 设置中心菜单与依赖关系
+│   ├── pages/             # 账号、关于等页面
 │   ├── panels/            # 设置面板
-│   └── pages/             # 设置页面
+│   └── ui/                # 设置页组件与样式
 ├── shared/                # 共享模块
 │   ├── config.js          # 全局配置（域名、API 等）
-│   ├── auth/              # 认证客户端
+│   ├── runtime/           # 统一运行时内核
+│   ├── styles/            # 共享主题与组件
 │   └── utils/             # 工具函数
 ├── steam/                 # Steam 客户端增强
+│   ├── api/               # Steam 客户端接口适配
 │   ├── features/          # 客户端功能特性
-│   └── runtime.js         # 客户端运行时入口
+│   ├── runtime/           # 客户端上下文、样式和注册器
+│   ├── shared/            # 客户端共享常量
+│   └── main.js            # 客户端运行时入口
 ├── store/                 # Steam 商店增强
-│   ├── features/          # 商店功能特性
 │   ├── api/               # Steam API 封装
-│   └── runtime.js         # 商店页运行时入口
+│   ├── features/          # 商店功能特性
+│   ├── page/              # 页面上下文注入脚本
+│   ├── runtime/           # 商店运行时、设置和样式
+│   └── main.js            # 商店页运行时入口
 ├── translate/             # 翻译模块
-│   ├── engines/           # 翻译引擎适配
-│   └── runtime.js         # 翻译运行时
+│   ├── page/              # 页面翻译桥接脚本
+│   ├── boot.js            # 翻译轻入口
+│   ├── runner.js          # 翻译运行时
+│   └── vendor-wrapper.js  # 第三方翻译库隔离层
 ├── vendor/                # 第三方库（本地打包）
 │   ├── pinyin-pro/        # 拼音转换
 │   ├── qrcode-generator/  # 二维码生成
@@ -107,16 +121,24 @@ extension/
 
 以在商店页添加新功能为例：
 
-1. 在 `store/features/` 下创建功能目录，如 `store/features/my-feature/`
+1. 在对应运行域的 `features/` 下创建功能目录，如 `store/features/my-feature/`
 
-2. 编写功能代码：
+2. 编写功能代码，并通过现有域 API 暴露最小入口：
 
    ```javascript
-   // store/features/my-feature/index.js
-   export function init() {
-     console.log('My feature initialized');
-     // 功能逻辑
-   }
+   (() => {
+     "use strict";
+
+     const ID = "my-feature";
+     const log = window.STLoggerFactory.createLogger("store", ID);
+
+     function start() {
+       log.info("my-feature-start", "我的功能已启动", {});
+       return { started: true };
+     }
+
+     window.STStore.features.myFeature = { start };
+   })();
    ```
 
 3. 在 `settings/catalog.js` 中注册功能：
@@ -130,29 +152,17 @@ extension/
    }
    ```
 
-4. 在 `manifest.json` 中添加内容脚本（如需要）：
+4. 在对应域的运行时入口或 feature registry 中声明 `id`、`settingsKey`、`loadStrategy`、`pageScope`、`dependencies`、`cost` 和清理方式。
 
-   ```json
-   {
-     "matches": ["*://store.steampowered.com/*"],
-     "js": ["store/features/my-feature/index.js"]
-   }
-   ```
+5. 如需新增按需脚本，必须同步 `manifest.json` 的 `web_accessible_resources`、后台注入白名单和对应 contract test；不要把完整功能直接堆进 `content_scripts`。
 
-5. 重新加载扩展测试
+6. 重新加载扩展并在真实页面测试
 
 ### 添加新的 API 封装
 
 如需调用新的 Steam API 或第三方 API：
 
-1. 在 `shared/config.js` 中添加 API 域名：
-
-   ```javascript
-   export const API_ENDPOINTS = {
-     STEAM_API: 'https://api.steampowered.com',
-     MY_API: 'https://my-api.example.com'
-   };
-   ```
+1. 在 `shared/config.js` 中添加 host、origin 和对外 helper，避免在功能文件里硬编码 URL。
 
 2. 在对应模块的 `api/` 目录下封装 API 调用
 
