@@ -6,6 +6,7 @@
 
 ```text
 vendor/
+├── fflate/             ZIP 压缩，用于诊断包导出
 ├── pinyin-pro/         拼音转换，用于中文名、助记符、搜索
 ├── qrcode-generator/   二维码生成，用于账号或设备登录 UI
 └── xnx3-translate/     translate.js 本地库，用于页面翻译
@@ -23,6 +24,7 @@ version.md  版本和来源说明
 
 ```text
 pinyin-pro          steam/library-custom-name、store/search-suggestions
+fflate              settings/diagnostics-export.js、诊断包导出
 qrcode-generator    extension/runtime/qrcode.js、账号相关页面
 xnx3-translate      translate/vendor-wrapper.js、translate/runner.js
 ```

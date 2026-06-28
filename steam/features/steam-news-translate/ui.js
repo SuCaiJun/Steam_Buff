@@ -29,10 +29,18 @@
   const TEXT_RES = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_RESPONSE";
   const MIN_TEXT = 24;
   const MAX_TEXT = 20000;
-  const SCAN_DELAY = 120;
+  const SCAN_DELAY = 300;
+  const MUTATION_SCAN_DELAY = 500;
+  const SCROLL_SCAN_DELAY = 500;
   const CONFIG_REFRESH_MS = 15000;
   const POPUP_WATCH_MS = 1500;
+  // 优化: 弹窗 DOM 分阶段渲染时只开启短窗口补扫，避免把全量候选扫描挂成长驻轮询。
+  const POPUP_SETTLE_MS = 3200;
   const REQUEST_TIMEOUT_MS = 60000;
+  const BUTTON_SWEEP_MS = 1150;
+  const BUTTON_SWEEP_FRAME_MS = 32;
+  const BUTTON_SWEEP_FROM = 160;
+  const BUTTON_SWEEP_TO = -160;
   const TITLE_MIN_TEXT = 3;
   const TITLE_MIN_FONT_SIZE = 16;
   const TITLE_MAX_TEXT = 220;
@@ -49,13 +57,30 @@
     `.${BOX_CLASS}`,
   ].join(",");
   const POPUP_SELECTOR = [
-    "#popup_target [role='dialog']",
-    "#popup_target [class*='Dialog']",
-    "#popup_target [class*='dialog']",
-    "#popup_target [class*='Modal']",
-    "#popup_target [class*='modal']",
-    "#popup_target [class*='Popup']",
-    "#popup_target [class*='popup']",
+    "[role='dialog']",
+    "[class*='Dialog']",
+    "[class*='dialog']",
+    "[class*='Modal']",
+    "[class*='modal']",
+    "[class*='Popup']",
+    "[class*='popup']",
+    "[class*='PartnerEvent']",
+    "[class*='partnerevent']",
+    "[class*='EventDisplay']",
+    "[class*='eventdisplay']",
+    "[class*='GameNews']",
+    "[class*='gamenews']",
+    "[class*='News']",
+    "[class*='news']",
+  ].join(",");
+  const POPUP_SIGNAL_SELECTOR = [
+    "article",
+    "[role='article']",
+    "[role='dialog']",
+    "[class*='Dialog']",
+    "[class*='dialog']",
+    "[class*='Modal']",
+    "[class*='modal']",
     "[class*='PartnerEvent']",
     "[class*='partnerevent']",
     "[class*='EventDisplay']",
@@ -80,6 +105,7 @@
     "section",
   ];
   const mounted = new WeakMap();
+  const buttonMotion = new WeakMap();
   const styles = window.SteamBuff?.styles;
 
   const log = window.STLoggerFactory.createLogger("steam", ID);
@@ -219,13 +245,39 @@
     return /新闻|news|来自[:：]?|from[:：]?|发布于|posted|published|devlog|更新|补丁/i.test(text.slice(0, 640));
   }
 
+  function popupSignal(root) {
+    return !!root?.isConnected && !!root.querySelector(POPUP_SIGNAL_SELECTOR);
+  }
+
   function popupCandidates() {
-    const details = popupTargetDetailCandidates();
-    const raw = details.length ? details : Array.from(document.querySelectorAll(POPUP_SELECTOR));
+    const root = observeTarget();
+    if (!root || !popupSignal(root)) {
+      return [];
+    }
+    const details = popupTargetDetailCandidates(root);
+    const raw = details.length ? details : Array.from(root.querySelectorAll(POPUP_SELECTOR));
     const found = Array.from(new Set(raw))
       .filter(popupLike)
       .sort((a, b) => rectArea(b) - rectArea(a));
     return compactCandidates(found);
+  }
+
+  function nodeHasPopupSignal(node) {
+    return node?.nodeType === 1 && (
+      node.matches?.(POPUP_SIGNAL_SELECTOR) ||
+      node.closest?.(POPUP_SIGNAL_SELECTOR) ||
+      node.querySelector?.(POPUP_SIGNAL_SELECTOR)
+    );
+  }
+
+  function mutationHasPopupSignal(items) {
+    return Array.from(items || []).some((item) => {
+      if (nodeHasPopupSignal(item.target)) {
+        return true;
+      }
+      const nodes = Array.from(item.addedNodes || []);
+      return nodes.some(nodeHasPopupSignal);
+    });
   }
 
   function compactCandidates(found) {
@@ -282,8 +334,7 @@
     return target ? null : (ranked[0] || null);
   }
 
-  function popupTargetDetailCandidates() {
-    const root = document.getElementById("popup_target");
+  function popupTargetDetailCandidates(root = observeTarget()) {
     if (!root) {
       return [];
     }
@@ -591,25 +642,44 @@
       .filter((item) => item !== el && toolbarItemLike(item)).length;
   }
 
+  function toolbarCloseLike(el) {
+    const text = nodeText(el).toLowerCase();
+    const label = clean([
+      el?.getAttribute?.("aria-label"),
+      el?.getAttribute?.("title"),
+      el?.getAttribute?.("data-tooltip-text"),
+      text,
+    ].filter(Boolean).join(" ")).toLowerCase();
+    return text === "×" ||
+      text === "x" ||
+      /\bclose\b|关闭|關閉/.test(label);
+  }
+
   function toolbarColumnLike(el, cardRect, viewportHeight, viewportWidth = Math.max(1, window.innerWidth || 0)) {
-    if (!visible(el) || el.classList?.contains(TOOL_CLASS) || el.closest(`.${BOX_CLASS}`)) {
+    if (!visible(el) || el.classList?.contains(TOOL_CLASS) || el.closest(`.${BOX_CLASS}`) || toolbarCloseLike(el)) {
       return false;
     }
     const rect = el.getBoundingClientRect();
     const besideCard = rect.left >= cardRect.right - 140 && rect.left <= cardRect.right + 128;
     const overRightEdge = rect.left >= cardRect.left + cardRect.width * 0.78 &&
       rect.right <= Math.min(viewportWidth + 12, cardRect.right + 128);
+    const actionCount = toolbarActionCount(el);
+    // 注: 部分 Steam 新闻弹窗只保留一个原生侧边项，不能继续套用多按钮工具列的高度下限。
+    const singleItemColumn = actionCount === 1;
+    const minHeight = singleItemColumn ? 42 : 80;
+    const minTop = singleItemColumn ? Math.max(88, viewportHeight * 0.08) : 48;
+    const minBottom = singleItemColumn ? minTop + 36 : 128;
     if ((!besideCard && !overRightEdge) ||
         rect.width < 32 ||
         rect.width > 96 ||
-        rect.height < 80 ||
+        rect.height < minHeight ||
         rect.height > 620 ||
-        rect.top < 48 ||
+        rect.top < minTop ||
         rect.top > Math.max(620, viewportHeight * 0.78) ||
-        rect.bottom < 128) {
+        rect.bottom < minBottom) {
       return false;
     }
-    return toolbarActionCount(el) >= 2;
+    return actionCount >= 1;
   }
 
   function toolbarScore(el, cardRect) {
@@ -626,6 +696,7 @@
 
   function removeButtonRecord(rt, card) {
     const record = mounted.get(card);
+    stopButtonMotion(record?.button);
     record?.button?.remove?.();
     mounted.delete(card);
     rt.cards.delete(card);
@@ -649,7 +720,10 @@
     }
     Array.from(target?.children || [])
       .filter((el) => el.classList?.contains(BUTTON_CLASS))
-      .forEach((el) => el.remove());
+      .forEach((el) => {
+        stopButtonMotion(el);
+        el.remove();
+      });
   }
 
   function clearLegacyBoxes(card) {
@@ -717,13 +791,64 @@
     });
   }
 
+  function stopButtonMotion(button) {
+    const motion = buttonMotion.get(button);
+    if (motion?.timer) {
+      window.clearTimeout(motion.timer);
+    }
+    buttonMotion.delete(button);
+    button?.style?.removeProperty("--st-news-button-sweep-x");
+  }
+
+  // 优化: Steam CEF 对这个侧边按钮的 CSS animation 不推进，loading 期间只更新单个 CSS 变量。
+  function startButtonMotion(button) {
+    if (!button?.style || buttonMotion.has(button)) {
+      return;
+    }
+    const motion = { timer: 0, start: 0 };
+    const step = () => {
+      if (button.dataset.state !== "loading" || !button.isConnected) {
+        stopButtonMotion(button);
+        return;
+      }
+      const time = window.performance?.now?.() || Date.now();
+      if (!motion.start) {
+        motion.start = time;
+      }
+      const progress = ((time - motion.start) % BUTTON_SWEEP_MS) / BUTTON_SWEEP_MS;
+      const x = BUTTON_SWEEP_FROM + (BUTTON_SWEEP_TO - BUTTON_SWEEP_FROM) * progress;
+      button.style.setProperty("--st-news-button-sweep-x", `${x.toFixed(2)}%`);
+      motion.timer = window.setTimeout(step, BUTTON_SWEEP_FRAME_MS);
+    };
+    button.style.setProperty("--st-news-button-sweep-x", `${BUTTON_SWEEP_FROM}%`);
+    motion.timer = window.setTimeout(step, 0);
+    buttonMotion.set(button, motion);
+  }
+
   function setButton(button, state, message = "") {
     button.dataset.state = state;
     const loading = state === "loading";
+    if (loading) {
+      button.dataset.busy = "1";
+    } else {
+      delete button.dataset.busy;
+    }
+    if ("disabled" in button) {
+      button.disabled = loading;
+    } else if (loading) {
+      button.setAttribute("disabled", "");
+    } else {
+      button.removeAttribute("disabled");
+    }
     button.setAttribute("aria-busy", loading ? "true" : "false");
     button.setAttribute("aria-disabled", loading ? "true" : "false");
     button.title = message || "Steam Buff 翻译";
     button.setAttribute("aria-label", button.title);
+    if (loading) {
+      startButtonMotion(button);
+    } else {
+      stopButtonMotion(button);
+    }
   }
 
   function stopControlEvent(event) {
@@ -765,24 +890,42 @@
     }
   }
 
+  function sameRenderedTitle(data, existing) {
+    const host = existing?.titleHost;
+    return !!(
+      host?.isConnected &&
+      data.titleHost === host &&
+      nodeText(host) === existing.titleText
+    );
+  }
+
+  function sameRenderedBody(data, existing) {
+    const host = existing?.host;
+    return !!(
+      host?.isConnected &&
+      data.host === host &&
+      collectText(host).trim() === existing.text
+    );
+  }
+
   function titleAlreadyTranslated(data, existing) {
     if (!data.titleText) {
       return true;
     }
-    if (existing?.titleHost?.isConnected) {
+    if (sameRenderedTitle(data, existing)) {
       return true;
     }
-    return data.titleHost?.classList?.contains(TRANSLATED_CLASS) === true;
+    return false;
   }
 
   function bodyAlreadyTranslated(data, existing) {
     if (!data.text) {
       return true;
     }
-    if (existing?.host?.isConnected) {
+    if (sameRenderedBody(data, existing)) {
       return true;
     }
-    return data.host?.classList?.contains(TRANSLATED_BODY_CLASS) === true;
+    return false;
   }
 
   function translationNeeds(data, existing) {
@@ -839,6 +982,10 @@
 
   async function translateCard(rt, card, record) {
     const button = record.button;
+    if (rt.pendingCards?.has(card) || record.pending === true) {
+      setButton(button, "loading", "正在翻译...");
+      return;
+    }
     const data = extract(card, { strict: true });
     const existing = rt.translated.get(card);
     const needs = translationNeeds(data, existing);
@@ -861,6 +1008,8 @@
       return;
     }
 
+    rt.pendingCards?.add(card);
+    record.pending = true;
     setButton(button, "loading", "正在翻译...");
     log.info("news-popup-translate-start", "新闻弹窗翻译开始", {
       textLength: data.length,
@@ -900,20 +1049,23 @@
         needsTitle: needs.title,
         needsBody: needs.body,
       }, error);
+    } finally {
+      rt.pendingCards?.delete(card);
+      record.pending = false;
     }
   }
 
   function currentButtonCard(rt, fallbackCard, button) {
     const target = button?.parentElement || null;
+    const active = activeMountableCard(popupCandidates(), target);
+    if (active?.isConnected) {
+      return active;
+    }
     if (fallbackCard?.isConnected) {
       const record = mounted.get(fallbackCard);
       if (!target || record?.target === target || record?.button === button) {
         return fallbackCard;
       }
-    }
-    const active = activeMountableCard(popupCandidates(), target);
-    if (active?.isConnected) {
-      return active;
     }
     if (fallbackCard?.isConnected) {
       return fallbackCard;
@@ -926,6 +1078,11 @@
     if (!card?.isConnected) {
       setButton(button, "error", "未识别当前新闻卡");
       scheduleScan(rt, 20);
+      return;
+    }
+    const existing = mounted.get(card);
+    if (button.dataset.busy === "1" || existing?.pending === true || rt.pendingCards?.has(card)) {
+      setButton(button, "loading", "正在翻译...");
       return;
     }
     const target = button.parentElement || mounted.get(card)?.target || null;
@@ -961,7 +1118,8 @@
     }
     /* 右侧工具列固定复用，同一容器只能保留当前新闻卡的一个按钮 */
     clearTargetButtons(rt, target, card);
-    const button = document.createElement("div");
+    const button = document.createElement("button");
+    button.type = "button";
     button.className = toolbarButtonClass();
     button.setAttribute("role", "button");
     button.setAttribute("tabindex", "0");
@@ -982,7 +1140,7 @@
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (button.dataset.state === "loading") {
+      if (button.dataset.busy === "1" || button.dataset.state === "loading") {
         return;
       }
       activateButton(rt, card, button);
@@ -1008,11 +1166,31 @@
   function clearMounted(rt) {
     for (const card of rt.cards) {
       const record = mounted.get(card);
+      stopButtonMotion(record?.button);
       record?.button?.remove?.();
       card.querySelectorAll?.(`.${TOOL_CLASS},.${BOX_CLASS}`)?.forEach((el) => el.remove());
       mounted.delete(card);
     }
     rt.cards.clear();
+  }
+
+  function mountedAlive(rt) {
+    const card = rt.activeCard;
+    const record = card ? mounted.get(card) : null;
+    return !!(
+      card?.isConnected &&
+      record?.button?.isConnected &&
+      record.target?.isConnected &&
+      visible(record.target)
+    );
+  }
+
+  function markPopupSettling(rt) {
+    rt.popupSettleUntil = Date.now() + POPUP_SETTLE_MS;
+  }
+
+  function popupSettling(rt) {
+    return Date.now() < (rt.popupSettleUntil || 0);
   }
 
   function configStateKey(config) {
@@ -1058,17 +1236,21 @@
       clearMounted(rt);
       return;
     }
+    if (rt.config.reason === "no-popup-local" && !mountedAlive(rt)) {
+      return;
+    }
     scheduleScan(rt, 20);
   }
 
   function hasNewsPopupContext(rt) {
-    if (!observeTarget()) {
+    const target = observeTarget();
+    if (!target) {
       return false;
     }
     if (rt.cards?.size > 0 || document.querySelector(`.${BUTTON_CLASS}`)) {
       return true;
     }
-    return popupCandidates().length > 0;
+    return popupSignal(target) && !!activeMountableCard(popupCandidates());
   }
 
   async function refreshConfig(rt, options = {}) {
@@ -1126,12 +1308,16 @@
     }
     pruneMounted(rt, activeCard ? new Set([activeCard]) : new Set());
     if (!activeCard) {
+      if (popupSettling(rt)) {
+        scheduleScan(rt, SCAN_DELAY);
+      }
       if (!rt.skipLogged && Date.now() - rt.startedAt > 2500) {
         rt.skipLogged = true;
         logNewsMountMiss(rt, candidates);
       }
       return;
     }
+    rt.popupSettleUntil = 0;
   }
 
   function rectMeta(el) {
@@ -1196,6 +1382,13 @@
     }) || null;
   }
 
+  function scheduleScrollScan(rt) {
+    if (mountedAlive(rt) || (!rt.cards?.size && !document.querySelector(`.${BUTTON_CLASS}`))) {
+      return;
+    }
+    scheduleScan(rt, SCROLL_SCAN_DELAY);
+  }
+
   function onBridgeConfig(rt, event) {
     const data = event.data || {};
     if (data.source === "steam-buff-content" && data.type === CONFIG_RES && !data.rid) {
@@ -1232,14 +1425,21 @@
     }
     rt.observer?.disconnect?.();
     rt.observerTarget = target;
-    const onMutation = () => {
+    const onMutation = (items = []) => {
       const latest = observeTarget();
       if (latest && latest !== rt.observerTarget && latest.id === "popup_target") {
         attachObserver(rt);
       }
+      const hasPopupSignal = mutationHasPopupSignal(items);
+      if (hasPopupSignal) {
+        markPopupSettling(rt);
+      }
+      if (!mountedAlive(rt) && !hasPopupSignal && !popupSettling(rt)) {
+        return;
+      }
       scheduleScan(rt);
     };
-    rt.observer = window.STObserverUtils?.createDebouncedObserver?.(onMutation, 80)
+    rt.observer = window.STObserverUtils?.createDebouncedObserver?.(onMutation, MUTATION_SCAN_DELAY)
       || new MutationObserver(onMutation);
     rt.observer.observe(target, observeOptions(target));
     rt.scope?.observer?.("popup-target", rt.observer);
@@ -1250,10 +1450,11 @@
       return;
     }
     const latest = observeTarget();
-    if (latest && latest !== rt.observerTarget) {
+    const changed = latest && latest !== rt.observerTarget;
+    if (changed) {
       attachObserver(rt);
     }
-    if (rt.config?.enabled === true) {
+    if (rt.config?.enabled === true && (changed || mountedAlive(rt) || popupSettling(rt))) {
       scheduleScan(rt);
     }
   }
@@ -1289,12 +1490,14 @@
       config: { enabled: false },
       cards: new Set(),
       cache: new Map(),
+      pendingCards: new WeakSet(),
       translated: new WeakMap(),
       activeCard: null,
       observer: null,
       observerTarget: null,
       configWarnAt: 0,
       mountWarnAt: 0,
+      popupSettleUntil: 0,
       stop() {
         log.info("news-popup-ui-stop", "新闻弹窗翻译界面已停止", {
           cardCount: rt.cards.size,
@@ -1323,7 +1526,7 @@
       },
     };
     rt.onMessage = (event) => onBridgeConfig(rt, event);
-    rt.onScroll = () => scheduleScan(rt, 80);
+    rt.onScroll = () => scheduleScrollScan(rt);
     window[RT] = rt;
 
     scope?.listener?.("bridge-config-message", window, "message", rt.onMessage);

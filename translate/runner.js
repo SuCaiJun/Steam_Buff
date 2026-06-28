@@ -2021,21 +2021,21 @@
     });
   }
 
-  function aiSel(text, from, to, conf) {
+  function aiSel(text, from, to, conf, options = {}) {
     const fn = globalThis.STTranslateAI?.translate;
     if (typeof fn !== "function") {
       return Promise.reject(new Error("AI 翻译模块未加载"));
     }
-    return fn(conf, selData(text, from, to)).then(resultText);
+    return fn(conf, selData(text, from, to), options).then(resultText);
   }
 
-  function reqText(trans, text, from, to, conf, service) {
+  function reqText(trans, text, from, to, conf, service, options = {}) {
     // Edge 的自动识别协议不同，划词请求直连 JSON 端点以避免 from=auto 触发 400。
     if (service === EDGE_SERVICE) {
       return edgeSel(trans, text, from, to);
     }
     if (service === AI_SERVICE) {
-      return aiSel(text, from, to, conf);
+      return aiSel(text, from, to, conf, options);
     }
     return nativeSel(trans, text, from, to);
   }
@@ -2067,7 +2067,7 @@
         return selPending.get(key);
       }
 
-      const req = reqText(trans, text, from, to, conf, service);
+      const req = reqText(trans, text, from, to, conf, service, options);
       const task = req.then((value) => {
         rememberSel(key, value);
         return value;

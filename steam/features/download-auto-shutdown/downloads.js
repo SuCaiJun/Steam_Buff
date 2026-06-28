@@ -13,11 +13,13 @@
 
   const ID = "download-auto-shutdown";
   const SCHEDULER_TASK = "download-auto-shutdown-frontend";
+  const ROUTE_WATCH_TASK = "download-auto-shutdown-route-watch";
   const LOG_PREFIX = "[Steam Buff]";
   const CH = "__steam_download_auto_shutdown_Ricky";
   const ROOT = "__Rickydownload-auto-shutdown-root";
   const TOAST = "__Rickydownload-auto-shutdown-toast";
   const SYNC_MS = 5000;
+  const ROUTE_WATCH_MS = 1000;
   const RESP_MS = 8000;
   const RETRY_MS = 1000;
   const TOAST_MS = 4200;
@@ -406,6 +408,22 @@
     return api?.ctx?.isDown?.() === true || !!s.st?.show;
   }
 
+  function routeKey(api) {
+    return [
+      api?.ctx?.route?.() || "",
+      s.st?.show === true ? "backend-show" : "backend-hide",
+    ].join("|");
+  }
+
+  function routeChanged(api) {
+    const next = routeKey(api);
+    if (s.routeKey === next) {
+      return false;
+    }
+    s.routeKey = next;
+    return true;
+  }
+
   function render(api, ch) {
     if (!main(api)) {
       cleanup();
@@ -584,7 +602,9 @@
     }) || null;
     s.stop = () => {
       window.STScheduler?.unregister?.(SCHEDULER_TASK);
+      window.STScheduler?.unregister?.(ROUTE_WATCH_TASK);
       s.syncI = 0;
+      s.routeKey = "";
       clearWakeSyncTimers();
       clearWakeListeners();
       s.onWakePointerUp = null;
@@ -647,6 +667,19 @@
       { intervalMs: SYNC_MS }
     );
     scope?.schedulerTask?.("frontend-sync", SCHEDULER_TASK);
+    s.routeKey = routeKey(api);
+    // 优化: route watcher 只比较 O(1) 路由 key，变化时才触发 sync，避免把 5 秒 hello 降成 1 秒轮询。
+    window.STScheduler.register(
+      ROUTE_WATCH_TASK,
+      () => {
+        if (routeChanged(api)) {
+          sync(api, ch);
+        }
+      },
+      () => s.fOn === true && api.ctx?.settingOn?.(ID) !== false,
+      { intervalMs: ROUTE_WATCH_MS }
+    );
+    scope?.schedulerTask?.("route-watch", ROUTE_WATCH_TASK);
 
     sync(api, ch);
     scheduleWakeSync(api, ch, "startup");

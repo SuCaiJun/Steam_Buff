@@ -86,6 +86,10 @@
     });
   }
 
+  function normalizeCheckResponse(response) {
+    return response?.data || response;
+  }
+
   function send(message) {
     return new Promise((resolve, reject) => {
       try {
@@ -97,7 +101,7 @@
               reject(new Error(response?.error || "更新检查失败"));
               return;
             }
-            resolve(response);
+            resolve(normalizeCheckResponse(response));
           }).catch(reject);
           return;
         }
@@ -111,7 +115,7 @@
             reject(new Error(response?.error || "更新检查失败"));
             return;
           }
-          resolve(response.data || response);
+          resolve(normalizeCheckResponse(response));
         });
       } catch (error) {
         reject(error);

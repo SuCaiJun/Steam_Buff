@@ -87,6 +87,9 @@
   const AUTH_KEY = "steam_buff_auth";
   const AI_SERVICE = "steam-buff.ai";
   const NEWS_TEXT_MAX = 20000;
+  const NEWS_AI_CHUNK_CHARS = 1600;
+  const NEWS_AI_HARD_CHUNK_CHARS = 1800;
+  const NEWS_AI_TIMEOUT_MS = 45_000;
   const STEAM_SETTING_IDS = Object.freeze([
     "library-sort-title",
     NAME_ID,
@@ -957,6 +960,91 @@
     return rtConf;
   }
 
+  function splitLongNewsPart(text, limit) {
+    const out = [];
+    let rest = String(text || "");
+    while (rest.length > limit) {
+      let cut = limit;
+      const start = Math.max(0, limit - 360);
+      const probe = rest.slice(start, limit);
+      const soft = Math.max(
+        probe.lastIndexOf("\n"),
+        probe.lastIndexOf(". "),
+        probe.lastIndexOf("! "),
+        probe.lastIndexOf("? "),
+        probe.lastIndexOf("。"),
+        probe.lastIndexOf("！"),
+        probe.lastIndexOf("？"),
+        probe.lastIndexOf("；"),
+        probe.lastIndexOf("; ")
+      );
+      if (soft > 80) {
+        cut = start + soft + 1;
+      }
+      out.push(rest.slice(0, cut));
+      rest = rest.slice(cut);
+    }
+    if (rest) {
+      out.push(rest);
+    }
+    return out;
+  }
+
+  function newsTextChunks(text) {
+    const out = [];
+    let cur = "";
+    const push = () => {
+      if (cur) {
+        out.push(cur);
+        cur = "";
+      }
+    };
+    for (const part of String(text || "").split(/(\n+)/)) {
+      if (!part) {
+        continue;
+      }
+      if (part.length > NEWS_AI_HARD_CHUNK_CHARS) {
+        push();
+        out.push(...splitLongNewsPart(part, NEWS_AI_HARD_CHUNK_CHARS));
+        continue;
+      }
+      if (cur && cur.length + part.length > NEWS_AI_CHUNK_CHARS) {
+        push();
+      }
+      cur += part;
+    }
+    push();
+    return out.length ? out : [String(text || "")];
+  }
+
+  async function translateNewsText(rtConf, text, options = {}) {
+    const service = String(options.service || rtConf.newsPopupService || "follow");
+    const to = options.to || rtConf.to || "chinese_simplified";
+    const resolved = globalThis.STTranslateText.serviceFor?.(globalThis.translate, rtConf, service) || service;
+    const isAi = resolved === AI_SERVICE;
+    const chunks = isAi ? newsTextChunks(text) : [text];
+    const translated = [];
+    for (const chunk of chunks) {
+      const result = await globalThis.STTranslateText.translateText(globalThis.translate, rtConf, chunk, {
+        from: "auto",
+        to,
+        service,
+        ...(isAi ? { timeoutMs: NEWS_AI_TIMEOUT_MS } : {}),
+      });
+      translated.push(String(result || ""));
+    }
+    return {
+      text: translated.join(""),
+      meta: {
+        service: resolved,
+        length: text.length,
+        chunkCount: chunks.length,
+        maxChunkLength: chunks.reduce((max, chunk) => Math.max(max, chunk.length), 0),
+        timeoutMs: isAi ? NEWS_AI_TIMEOUT_MS : 0,
+      },
+    };
+  }
+
   async function handleNewsTextRequest(data) {
     const rid = safeRid(data?.rid);
     const startedAt = Date.now();
@@ -980,19 +1068,17 @@
     try {
       const rtConf = await ensureNewsTranslator(conf);
       const service = String(conf.newsPopupService || "follow");
-      const result = await globalThis.STTranslateText.translateText(globalThis.translate, rtConf, text, {
-        from: "auto",
+      const result = await translateNewsText(rtConf, text, {
         to: conf.to || "chinese_simplified",
         service,
       });
       postNews(NEWS_TRANSLATE_TEXT_RES, {
         rid,
         ok: true,
-        text: String(result || ""),
+        text: String(result.text || ""),
         meta: {
-          service: globalThis.STTranslateText.serviceFor?.(globalThis.translate, rtConf, service) || service,
+          ...result.meta,
           durationMs: Date.now() - startedAt,
-          length: text.length,
         },
       });
     } catch (error) {

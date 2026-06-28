@@ -39,7 +39,6 @@
   const LEVELS = Object.freeze(new Set(["debug", "info", "warn", "error", "fatal", "network"]));
   const QUERY_ALLOW = Object.freeze(new Set(["appid", "appids", "subid", "bundleid", "id", "cc"]));
   const SENSITIVE = /^(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|body|requestbody|responsebody|responsetext|requestdata|data|headers)$/i;
-  const SETTINGS_SENSITIVE = /^(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|secret|apikey|api_key|key)$/i;
   const SENSITIVE_WORD = /(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|bearer)\s*[:=]?\s*[^,\s;]*/gi;
   const QUIET_INFO_EVENT = /^(?:content-script-start|runtime-deps-waiting|runtime-(?:start|ready|waiting|skipped)|features-start-summary|.+-runtime-inject-(?:start|success|skipped)|.+-page-script-inject-(?:start|success))$/u;
   const BJ_OFFSET_MS = 8 * 60 * 60 * 1000;
@@ -152,69 +151,6 @@
     return out;
   }
 
-  function browserInfo(ua) {
-    const text = redactText(ua || root.navigator?.userAgent || "", 400);
-    const rules = [
-      ["Edge", /Edg\/([\d.]+)/],
-      ["Chrome", /Chrome\/([\d.]+)/],
-      ["Firefox", /Firefox\/([\d.]+)/],
-      ["Safari", /Version\/([\d.]+).*Safari/],
-    ];
-    for (const [name, pattern] of rules) {
-      const match = text.match(pattern);
-      if (match) {
-        return { name, version: match[1], userAgent: text };
-      }
-    }
-    return { name: "Unknown", version: "", userAgent: text };
-  }
-
-  function cleanEnv(env = {}) {
-    const page = env.page || {};
-    const display = env.display || {};
-    const device = env.device || {};
-    const memory = env.memory || {};
-    return {
-      browser: browserInfo(env.browser?.userAgent || root.navigator?.userAgent || ""),
-      page: {
-        title: clip(page.title || "", 240),
-        url: safeUrl(page.url || ""),
-      },
-      display: {
-        screenWidth: Math.max(0, Math.round(num(display.screenWidth))),
-        screenHeight: Math.max(0, Math.round(num(display.screenHeight))),
-        availWidth: Math.max(0, Math.round(num(display.availWidth))),
-        availHeight: Math.max(0, Math.round(num(display.availHeight))),
-        devicePixelRatio: Number.isFinite(Number(display.devicePixelRatio))
-          ? Number(display.devicePixelRatio)
-          : 1,
-      },
-      device: {
-        platform: redactText(device.platform || "", 80),
-        language: redactText(device.language || "", 40),
-        languages: Array.isArray(device.languages)
-          ? device.languages.slice(0, 10).map(item => redactText(item, 40)).filter(Boolean)
-          : [],
-        hardwareConcurrency: Math.max(0, Math.round(num(device.hardwareConcurrency))),
-        deviceMemory: Number.isFinite(Number(device.deviceMemory))
-          ? Number(device.deviceMemory)
-          : null,
-      },
-      memory: {
-        memoryUsedMB: Number.isFinite(Number(memory.memoryUsedMB)) ? Number(memory.memoryUsedMB) : null,
-        totalHeapMB: Number.isFinite(Number(memory.totalHeapMB)) ? Number(memory.totalHeapMB) : null,
-      },
-    };
-  }
-
-  function extensionId() {
-    try {
-      return chrome.runtime?.id || "";
-    } catch {
-      return "";
-    }
-  }
-
   function bytes(text) {
     const value = String(text || "");
     if (typeof TextEncoder === "function") {
@@ -296,50 +232,6 @@
     }
     const text = redactText(JSON.stringify(clean || {}), POLICY.metaMax);
     return { truncated: true, text };
-  }
-
-  function sanitizeSettings(value, depth = 0) {
-    if (value === null || value === undefined) {
-      return value;
-    }
-    if (typeof value === "string") {
-      return redactText(value, 180);
-    }
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-    if (typeof value === "boolean") {
-      return value;
-    }
-    if (depth >= 4) {
-      return "[已截断]";
-    }
-    if (Array.isArray(value)) {
-      return value.slice(0, 120).map(item => sanitizeSettings(item, depth + 1));
-    }
-    if (typeof value === "object") {
-      const out = {};
-      for (const [key, item] of Object.entries(value)) {
-        if (SETTINGS_SENSITIVE.test(key)) {
-          out[`has${key.slice(0, 1).toUpperCase()}${key.slice(1)}`] = !!item;
-          continue;
-        }
-        out[redactText(key, 80)] = sanitizeSettings(item, depth + 1);
-      }
-      return out;
-    }
-    return redactText(String(value), 180);
-  }
-
-  function cleanSettings(settings = {}) {
-    const clean = sanitizeSettings(settings);
-    if (bytes(JSON.stringify(clean || {})) <= 64 * 1024) {
-      return clean || {};
-    }
-    return {
-      truncated: true,
-      text: redactText(JSON.stringify(clean || {}), 64 * 1024),
-    };
   }
 
   function cleanError(error) {
@@ -627,43 +519,57 @@
     }
   }
 
-  function filename(now = new Date()) {
+  function filenameBase(now = new Date()) {
     const stamp = bjStamp(now instanceof Date ? now.getTime() : now);
-    return `steam-buff-log-v${version() || "unknown"}-${stamp}.json`;
+    return `steam-buff-diagnostics-v${version() || "unknown"}-${stamp}`;
   }
 
-  function summaryFromLogs(logs) {
-    const counts = levelCounts(logs);
+  function filename(now = new Date()) {
+    return `${filenameBase(now)}.zip`;
+  }
+
+  function toJsonl(rows) {
+    return Array.isArray(rows) && rows.length
+      ? `${rows.map(row => JSON.stringify(row)).join("\n")}\n`
+      : "";
+  }
+
+  function retentionPolicy() {
     return {
-      count: Array.isArray(logs) ? logs.length : 0,
-      sizeBytes: sizeOf(logs),
-      firstTime: logs?.length ? bjTime(itemTs(logs[0])) : "",
-      lastTime: logs?.length ? bjTime(itemTs(logs[logs.length - 1])) : "",
-      levelCounts: counts,
+      version: POLICY.version,
+      maxEntries: POLICY.maxEntries,
+      targetBytes: POLICY.targetBytes,
+      hardBytes: POLICY.hardBytes,
+      maxAgeMs: POLICY.maxAgeMs,
     };
   }
 
-  async function exportLogsNow(input = {}, sender = null) {
+  function summaryFromLogs(logs, exportedLogs, logsJsonl, exportTs) {
+    const counts = levelCounts(exportedLogs);
+    return {
+      exportedAt: bjTime(exportTs),
+      exportTs,
+      count: exportedLogs.length,
+      sizeBytes: bytes(logsJsonl),
+      firstTime: exportedLogs[0]?.time || "",
+      lastTime: exportedLogs[exportedLogs.length - 1]?.time || "",
+      errorCount: counts.error,
+      levelCounts: counts,
+      retentionPolicy: retentionPolicy(),
+      storageStats: statsFrom(logs),
+      files: ["logs.jsonl", "config.json", "env.json", "summary.json"],
+      format: "zip",
+    };
+  }
+
+  async function exportLogsNow() {
     const box = await getBox();
     const fallback = await getFallbackLogs().catch(() => []);
     const logs = compact(mergeLogs(Array.isArray(box.logs) ? box.logs : [], fallback));
     const exportTs = Date.now();
-    const envInput = input?.env && typeof input.env === "object" ? input.env : {};
-    if (!envInput.page?.url && sender?.tab?.url) {
-      envInput.page = { ...(envInput.page || {}), url: sender.tab.url };
-    }
     const exportedLogs = logs.map(pickLog).filter(Boolean);
-    const payload = {
-      app: "Steam Buff",
-      version: version(),
-      extensionId: extensionId(),
-      exportedAt: bjTime(exportTs),
-      exportTs,
-      env: cleanEnv(envInput),
-      settings: cleanSettings(input?.settings && typeof input.settings === "object" ? input.settings : {}),
-      summary: summaryFromLogs(logs),
-      logs: exportedLogs,
-    };
+    const logsJsonl = toJsonl(exportedLogs);
+    const summary = summaryFromLogs(logs, exportedLogs, logsJsonl, exportTs);
     if (fallback.length) {
       await putBox({ version: POLICY.version, updatedAt: exportTs, logs, stats: statsFrom(logs) });
       const cleared = await removeFallbackBox();
@@ -673,13 +579,15 @@
     }
     return {
       filename: filename(exportTs),
-      data: JSON.stringify(payload, null, 2),
+      filenameBase: filenameBase(exportTs),
+      logsJsonl,
+      summary,
       stats: statsFrom(logs),
     };
   }
 
-  function exportLogs(input = {}, sender = null) {
-    return enqueueStorage(() => exportLogsNow(input, sender));
+  function exportLogs() {
+    return enqueueStorage(exportLogsNow);
   }
 
   async function clearNow() {

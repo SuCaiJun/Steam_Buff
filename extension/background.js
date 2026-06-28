@@ -90,15 +90,22 @@
   const SETTINGS_RAIL_SCRIPTS = Object.freeze([
     "shared/i18n.js",
     "shared/styles/theme.js",
+    "shared/utils/dom.js",
     "settings/ui/assets.js",
     "settings/ui/styles.js",
     "settings/floating-rail.js",
+    "settings/api/request.js",
+    "settings/update-log-renderer.js",
+    "settings/update-checker.js",
+    "settings/update-reminder.js",
   ]);
   const SETTINGS_UI_SCRIPTS = Object.freeze([
     "settings/api/request.js",
     "settings/update-log-renderer.js",
     "settings/update-checker.js",
     "settings/settings-backup.js",
+    "vendor/fflate/fflate.js",
+    "settings/diagnostics-export.js",
     "settings/pages/registry.js",
     "settings/pages/about.js",
     "settings/update-reminder.js",
@@ -253,6 +260,7 @@
   const pendingTabInjects = new Map();
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
   const AI_FETCH_TIMEOUT_MS = 20 * 1000;
+  const AI_FETCH_TIMEOUT_MAX_MS = 90 * 1000;
   const SHARED_CONFIG = "shared/config.js";
   const OBSERVER_UTILS = "shared/observer-utils.js";
   const TRANS_VENDOR_WRAPPER = "translate/vendor-wrapper.js";
@@ -624,6 +632,13 @@
     return Number.isFinite(next) && next > 0 ? next : 0;
   }
 
+  function capTimeout(value, fallback, max) {
+    const requested = normalizeTimeout(value, 0);
+    const timeout = requested > 0 ? requested : normalizeTimeout(fallback, 0);
+    const cap = normalizeTimeout(max, 0);
+    return timeout > 0 && cap > 0 ? Math.min(timeout, cap) : timeout;
+  }
+
   function timeoutError(timeoutMs) {
     const error = new Error(`请求超时（${Math.round(timeoutMs)}ms）`);
     error.name = "TimeoutError";
@@ -792,13 +807,14 @@
       return;
     }
 
+    const timeoutMs = capTimeout(request.timeoutMs, AI_FETCH_TIMEOUT_MS, AI_FETCH_TIMEOUT_MAX_MS);
     fetchWithTimeout(url.toString(), {
       method: "POST",
       headers: next.headers,
       body: JSON.stringify(next.body),
       cache: "no-cache",
       credentials: "omit",
-    }, request.timeoutMs ?? AI_FETCH_TIMEOUT_MS)
+    }, timeoutMs)
       .then((response) => response.text().then((text) => {
         if (!response.ok) {
           throw new Error(httpError(response.status, text));

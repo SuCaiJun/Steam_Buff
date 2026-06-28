@@ -18,7 +18,6 @@
 
   const CFG = globalThis.STConfig;
   const toExternalUrl = typeof CFG.toSteamExternalUrl === "function" ? CFG.toSteamExternalUrl : (url) => String(url || "");
-  const UPDATE_LATEST_API = CFG.urls.updateLatest || CFG.urls.updateLogs || CFG.steamBuff("/update-logs/latest");
   const UPDATE_PAGE = CFG.urls.updatePage;
   const DONATE_URL = CFG.urls.donate;
   const FEEDBACK_URL = CFG.urls.feedback;
@@ -976,19 +975,6 @@
     return value ? `v${value}` : String(text || fallback);
   }
 
-  function cmpVer(left, right) {
-    const a = verText(left).split(".").map(num => Number.parseInt(num, 10) || 0);
-    const b = verText(right).split(".").map(num => Number.parseInt(num, 10) || 0);
-    const len = Math.max(a.length, b.length);
-    for (let idx = 0; idx < len; idx += 1) {
-      const diff = (a[idx] || 0) - (b[idx] || 0);
-      if (diff !== 0) {
-        return diff > 0 ? 1 : -1;
-      }
-    }
-    return 0;
-  }
-
   function apiData(payload) {
     return payload && typeof payload === "object" ? payload.data : null;
   }
@@ -1038,14 +1024,6 @@
       publishedAt: cleanLogText(row.published_at || ""),
       updatedAt: cleanLogText(row.updated_at || ""),
     };
-  }
-
-  function parseLatest(payload) {
-    const item = normalizeApiLog(apiData(payload));
-    if (!item) {
-      throw new Error("官网最新版本格式异常");
-    }
-    return item;
   }
 
   function parseDetail(payload) {
@@ -1131,18 +1109,7 @@
     if (globalThis.STUpdateChecker?.check) {
       return globalThis.STUpdateChecker.check({ manual: true });
     }
-    const latest = parseLatest(await fetchApi(UPDATE_LATEST_API, "官网最新版本"));
-    const current = ctx.version() || "未知版本";
-    const remote = verText(latest.version);
-    const hasNew = !!remote && !!verText(current) && cmpVer(remote, current) > 0;
-    return {
-      current,
-      remote,
-      latest,
-      link: home(ctx),
-      hasNew,
-      checkedAt: Date.now(),
-    };
+    throw new Error("更新检查模块未加载");
   }
 
   async function showCurrentLog(shadow, ctx) {
@@ -1184,138 +1151,6 @@
         reject(error);
       }
     });
-  }
-
-  function logEnv() {
-    const nav = globalThis.navigator || {};
-    const scr = globalThis.screen || {};
-    const perfMem = globalThis.performance?.memory || {};
-    return {
-      env: {
-        browser: {
-          userAgent: String(nav.userAgent || ""),
-        },
-        page: {
-          title: String(document.title || ""),
-          url: String(location.href || ""),
-        },
-        display: {
-          screenWidth: Math.max(0, Math.round(Number(scr.width) || 0)),
-          screenHeight: Math.max(0, Math.round(Number(scr.height) || 0)),
-          availWidth: Math.max(0, Math.round(Number(scr.availWidth) || 0)),
-          availHeight: Math.max(0, Math.round(Number(scr.availHeight) || 0)),
-          devicePixelRatio: Number.isFinite(Number(globalThis.devicePixelRatio))
-            ? Number(globalThis.devicePixelRatio)
-            : 1,
-        },
-        device: {
-          platform: String(nav.platform || ""),
-          language: String(nav.language || ""),
-          languages: Array.isArray(nav.languages) ? nav.languages.slice(0, 10) : [],
-          hardwareConcurrency: Math.max(0, Math.round(Number(nav.hardwareConcurrency) || 0)),
-          deviceMemory: Number.isFinite(Number(nav.deviceMemory)) ? Number(nav.deviceMemory) : null,
-        },
-        memory: {
-          memoryUsedMB: Number.isFinite(Number(perfMem.usedJSHeapSize))
-            ? Math.round((Number(perfMem.usedJSHeapSize) / 1024 / 1024) * 100) / 100
-            : null,
-          totalHeapMB: Number.isFinite(Number(perfMem.totalJSHeapSize))
-            ? Math.round((Number(perfMem.totalJSHeapSize) / 1024 / 1024) * 100) / 100
-            : null,
-        },
-      },
-    };
-  }
-
-  function featureSnapshot(states = {}) {
-    const catalog = globalThis.STSettings?.catalog || {};
-    const list = [];
-    for (const cat of catalog.list?.() || []) {
-      for (const item of cat.items || []) {
-        if (!item?.id) {
-          continue;
-        }
-        list.push({
-          id: item.id,
-          name: String(item.name || item.id),
-          category: String(cat.name || cat.id || ""),
-          area: String(item.area || ""),
-          enabled: states[item.id] !== false,
-        });
-      }
-    }
-    return list;
-  }
-
-  function compactConfig(values = {}, keys = []) {
-    const out = {};
-    for (const key of keys) {
-      const value = values?.[key];
-      if (typeof value === "boolean") {
-        out[key] = value;
-      } else if (typeof value === "number") {
-        out[key] = Number.isFinite(value) ? value : null;
-      } else if (value !== undefined && value !== null) {
-        out[key] = String(value).slice(0, 120);
-      }
-    }
-    return out;
-  }
-
-  function readSettings(job) {
-    try {
-      return typeof job === "function" ? Promise.resolve(job()).catch(() => ({})) : Promise.resolve({});
-    } catch {
-      return Promise.resolve({});
-    }
-  }
-
-  async function settingsSnapshot() {
-    const storage = globalThis.STSettings?.storage || {};
-    const [features, translate, ai, reviewFilter, searchSuggestions, see, membership] = await Promise.all([
-      readSettings(storage.getAll),
-      readSettings(storage.getTranslate),
-      readSettings(storage.getAi),
-      readSettings(storage.getReviewFilter),
-      readSettings(storage.getSearchSuggestions),
-      readSettings(storage.getSee),
-      readSettings(storage.getMembership),
-    ]);
-    return {
-      features: featureSnapshot(features),
-      translate: compactConfig(translate, [
-        "scope",
-        "page",
-        "selection",
-        "selectionTrigger",
-        "selectionService",
-        "local",
-        "to",
-        "service",
-        "aiConcurrency",
-        "force",
-      ]),
-      ai: {
-        enabled: ai?.enabled === true,
-        host: ai?.host ? String(ai.host).slice(0, 120) : "",
-        model: ai?.model ? String(ai.model).slice(0, 120) : "",
-        keyMode: ai?.keyMode ? String(ai.keyMode).slice(0, 40) : "",
-        hasKey: !!ai?.key,
-        hasKeyName: !!ai?.keyName,
-      },
-      reviewFilter: {
-        ruleCount: Array.isArray(reviewFilter?.rules) ? reviewFilter.rules.length : 0,
-      },
-      searchSuggestions: compactConfig(searchSuggestions, ["limit", "nativeMode"]),
-      see: compactConfig(see, Object.keys(see || {}).slice(0, 20)),
-      membership: membership ? {
-        active: membership.active === true,
-        level: String(membership.level || ""),
-        badge: String(membership.badge || ""),
-        expire: String(membership.expire || ""),
-        features: membership.features || {},
-      } : null,
-    };
   }
 
   function fmtSize(bytes) {
@@ -1409,12 +1244,12 @@
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.globe}</svg>`;
   }
 
-  function downloadText(filename, text) {
-    const blob = new Blob([String(text || "")], { type: "application/json;charset=utf-8" });
+  function downloadBlob(filename, blob) {
+    const name = filename || "steam-buff-diagnostics.zip";
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = filename || "steam-buff-log.json";
+    link.download = name;
     link.style.display = "none";
     document.body.appendChild(link);
     link.click();
@@ -1422,6 +1257,11 @@
       URL.revokeObjectURL(url);
       link.remove();
     }, 0);
+  }
+
+  function downloadText(filename, text) {
+    const name = filename || "steam-buff-settings.json";
+    downloadBlob(name, new Blob([String(text || "")], { type: "application/json;charset=utf-8" }));
   }
 
   function readFileText(file) {
@@ -1647,26 +1487,27 @@
 
   async function exportDiagLog(shadow, ctx) {
     const startedAt = Date.now();
-    log.info("diag-log-export-start", "开始导出诊断日志");
+    log.info("diag-log-export-start", "开始导出日志");
     try {
-      const response = await sendLogMessage("LOG_EXPORT", {
-        env: logEnv().env,
-        settings: await settingsSnapshot(),
-      });
-      downloadText(response.filename, response.data);
+      const response = await sendLogMessage("LOG_EXPORT");
+      const pack = await globalThis.STSettingsDiagnosticsExport?.build?.(response);
+      if (!pack?.blob) {
+        throw new Error("日志生成失败");
+      }
+      downloadBlob(pack.filename || response.filename, pack.blob);
       logStats = response.stats || logStats;
-      log.info("diag-log-export-success", "诊断日志导出成功", {
+      log.info("diag-log-export-success", "日志导出成功", {
         count: Number(logStats?.count) || 0,
         sizeBytes: Number(logStats?.sizeBytes) || 0,
         durationMs: Date.now() - startedAt,
       });
       ctx.refresh("about");
     } catch (error) {
-      log.error("diag-log-export-failed", "诊断日志导出失败", {
+      log.error("diag-log-export-failed", "日志导出失败", {
         error: error?.message || String(error),
         durationMs: Date.now() - startedAt,
       });
-      ctx.dialog(shadow, { title: "导出诊断日志失败", message: error?.message || String(error) });
+      ctx.dialog(shadow, { title: "导出日志失败", message: error?.message || String(error) });
     }
   }
 
@@ -1821,10 +1662,14 @@
         meta: `当前版本：${verLabel(next.current)}\n最新版本：${verLabel(latest.version || next.remote)}`,
         label: "新版日志",
         item: latest,
-        actions: [
-          { id: "mute", label: "今天不再提醒" },
-          { id: "open", label: "打开官网下载", primary: true },
-        ],
+        actions: manual
+          ? [
+              { id: "open", label: "打开官网下载", primary: true },
+            ]
+          : [
+              { id: "mute", label: "今天不再提醒" },
+              { id: "open", label: "打开官网下载", primary: true },
+            ],
       }).then((action) => {
         if (action === "open") {
           if (!globalThis.STUpdateChecker?.openDownload?.(next.link || ctx.homepage() || UPDATE_PAGE, { version: verText(next.remote || latest.version) })) {
@@ -2063,10 +1908,10 @@
       actionCard(ctx, {
         action: "diag-log",
         icon: "pulse",
-        title: `诊断日志 <span class="about-log-health ${health.cls}" title="${ctx.esc(health.title)}"></span>`,
+        title: `日志 <span class="about-log-health ${health.cls}" title="${ctx.esc(health.title)}"></span>`,
         desc: ctx.esc(logSummary()),
         mono: true,
-        actions: '<button class="about-action-link about-log-export" type="button">导出</button><button class="about-action-link danger divider about-log-clear" type="button">清空日志</button>',
+        actions: '<button class="about-action-link about-log-export" type="button">导出日志</button><button class="about-action-link danger divider about-log-clear" type="button">清空日志</button>',
       }),
       actionCard(ctx, {
         action: "settings-backup",

@@ -132,8 +132,6 @@
     const theme = root.STTheme || {};
     const spacing = theme.spacing || {};
     const radius = theme.radius || {};
-    const durations = theme.durations || {};
-    const easings = theme.easings || {};
     const transitions = theme.transitions || {};
     return {
       "--st-news-button-border": cssVar("--st-color-steam-toolbar-button-border"),
@@ -141,6 +139,8 @@
       "--st-news-button-color": cssVar("--st-color-steam-toolbar-button-text"),
       "--st-news-button-bg": cssVar("--st-color-steam-toolbar-button-bg"),
       "--st-news-button-bg-hover": cssVar("--st-color-steam-toolbar-button-bg-hover"),
+      "--st-news-button-loading-bg": cssVar("--st-color-steam-blue-alpha-28"),
+      "--st-news-button-loading-shadow": `0 0 0 1px ${cssVar("--st-color-steam-blue-alpha-55")} inset, 0 0 12px ${cssVar("--st-color-steam-blue-alpha-28")}`,
       "--st-news-button-shadow": cssVar("--st-shadow-steam-toolbar-button"),
       "--st-news-button-padding": spacing.sm,
       "--st-news-button-margin-bottom": spacing.sm,
@@ -148,9 +148,9 @@
       "--st-news-button-transition": transitions.fast,
       "--st-news-icon-filter": cssVar("--st-filter-icon-steam-blue"),
       "--st-news-icon-filter-hover": cssVar("--st-filter-icon-steam-blue-hover"),
-      "--st-news-button-progress": cssVar("--st-color-steam-blue-alpha-45"),
-      "--st-news-button-progress-duration": durations.slower,
-      "--st-news-button-progress-easing": easings.standard,
+      "--st-news-button-progress": cssVar("--st-color-white-alpha-18"),
+      "--st-news-button-progress-head": cssVar("--st-color-steam-blue-alpha-72"),
+      "--st-news-button-progress-tail": cssVar("--st-color-steam-blue-alpha-55"),
       "--st-news-error-border": cssVar("--st-color-danger-soft"),
       "--st-news-error-bg": cssVar("--st-color-danger-strong"),
     };
@@ -880,9 +880,13 @@
         height: 50px !important;
         min-width: 50px !important;
         min-height: 50px !important;
+        appearance: none !important;
+        -webkit-appearance: none !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
+        font: inherit !important;
+        line-height: 1 !important;
         border: 1px solid var(--st-news-button-border) !important;
         border-radius: var(--st-news-button-radius) !important;
         color: var(--st-news-button-color) !important;
@@ -890,6 +894,7 @@
         box-shadow: var(--st-news-button-shadow) !important;
         cursor: pointer !important;
         position: relative !important;
+        isolation: isolate !important;
         text-indent: 0 !important;
         overflow: hidden !important;
         opacity: 1 !important;
@@ -903,19 +908,23 @@
       .${NEWS_TRANSLATE_BUTTON_CLASS}::before {
         content: "" !important;
         position: absolute !important;
-        inset: 0 !important;
-        width: 46% !important;
+        top: -1px !important;
+        bottom: -1px !important;
+        left: -72% !important;
+        width: 58% !important;
         border-radius: inherit !important;
-        background: var(--st-news-button-progress) !important;
+        background: linear-gradient(90deg, transparent 0%, var(--st-news-button-progress) 18%, var(--st-news-button-progress-tail) 42%, var(--st-news-button-progress-head) 50%, var(--st-news-button-progress-tail) 58%, var(--st-news-button-progress) 82%, transparent 100%) !important;
+        box-shadow: 0 0 12px var(--st-news-button-progress-tail) !important;
         opacity: 0 !important;
         pointer-events: none !important;
-        transform: translateX(-125%) !important;
-        z-index: 0 !important;
+        transform: translate3d(0, 0, 0) skewX(-16deg) !important;
+        will-change: transform !important;
+        z-index: 1 !important;
       }
 
       .${NEWS_TRANSLATE_ICON_CLASS} {
         position: relative !important;
-        z-index: 1 !important;
+        z-index: 2 !important;
         display: block !important;
         box-sizing: border-box !important;
         width: 32px !important;
@@ -941,11 +950,26 @@
       .${NEWS_TRANSLATE_BUTTON_CLASS}[data-state="loading"] {
         cursor: wait !important;
         opacity: 1 !important;
+        border-color: var(--st-news-button-border-hover) !important;
+        transition: border-color var(--st-news-button-transition), opacity var(--st-news-button-transition), box-shadow var(--st-news-button-transition) !important;
+        background-color: var(--st-news-button-loading-bg) !important;
+        background-image:
+          linear-gradient(90deg, transparent 0%, var(--st-news-button-progress) 34%, var(--st-news-button-progress-tail) 44%, var(--st-news-button-progress-head) 50%, var(--st-news-button-progress-tail) 56%, var(--st-news-button-progress) 66%, transparent 100%),
+          linear-gradient(0deg, var(--st-news-button-loading-bg), var(--st-news-button-loading-bg)) !important;
+        background-size: 220% 100%, 100% 100% !important;
+        background-position: var(--st-news-button-sweep-x, 160%) 0, 0 0 !important;
+        background-repeat: no-repeat !important;
+        box-shadow: var(--st-news-button-loading-shadow) !important;
+      }
+
+      .${NEWS_TRANSLATE_BUTTON_CLASS}:disabled {
+        cursor: wait !important;
+        opacity: 1 !important;
       }
 
       .${NEWS_TRANSLATE_BUTTON_CLASS}[data-state="loading"]::before {
-        opacity: 1 !important;
-        animation: steam-buff-news-button-progress var(--st-news-button-progress-duration) var(--st-news-button-progress-easing) infinite !important;
+        opacity: 0 !important;
+        animation: none !important;
       }
 
       .${NEWS_TRANSLATE_BUTTON_CLASS}[data-state="loading"] .${NEWS_TRANSLATE_ICON_CLASS} {
@@ -961,15 +985,6 @@
         border-color: var(--st-news-error-border) !important;
         background: var(--st-news-error-bg) !important;
         opacity: 1 !important;
-      }
-
-      @keyframes steam-buff-news-button-progress {
-        0% {
-          transform: translateX(-125%);
-        }
-        100% {
-          transform: translateX(240%);
-        }
       }
 
       .${NEWS_TRANSLATE_DONE_CLASS} {

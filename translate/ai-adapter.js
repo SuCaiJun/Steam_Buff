@@ -210,6 +210,11 @@
     return error?.message || String(error || fallback || "");
   }
 
+  function timeoutOption(options = {}) {
+    const timeout = Number(options?.timeoutMs || 0);
+    return Number.isFinite(timeout) && timeout > 0 ? timeout : 0;
+  }
+
   function dataMeta(data = {}, extra = {}) {
     return {
       from: String(data?.from || ""),
@@ -236,15 +241,20 @@
     report(level, event, message, meta);
   }
 
-  function send(conf, msgs, meta = {}) {
+  function send(conf, msgs, meta = {}, options = {}) {
     return new Promise((resolve, reject) => {
       const startedAt = Date.now();
       try {
-        chrome.runtime.sendMessage({
+        const payload = {
           type: "AI_CHAT_COMPLETIONS",
           ai: conf.ai || {},
           messages: msgs,
-        }, (response) => {
+        };
+        const timeoutMs = timeoutOption(options);
+        if (timeoutMs) {
+          payload.timeoutMs = timeoutMs;
+        }
+        chrome.runtime.sendMessage(payload, (response) => {
           const err = chrome.runtime.lastError;
           if (err) {
             report("error", "ai-chat-request-failed", "AI 翻译请求失败", {
@@ -339,12 +349,14 @@
     }
   }
 
-  async function translateChunk(conf, data, items, out) {
+  async function translateChunk(conf, data, items, out, options = {}) {
+    const timeoutMs = timeoutOption(options);
     const content = await send(conf, messages(data, items.map((item) => item.text)), dataMeta(data, {
       itemCount: items.length,
       totalChars: items.reduce((sum, item) => sum + item.text.length, 0),
       model: modelName(conf),
-    }));
+      timeoutMs: timeoutMs || undefined,
+    }), options);
     const list = parseResult(content, items.length);
     list.forEach((item, idx) => {
       out[items[idx].idx] = item;
@@ -355,7 +367,7 @@
     })));
   }
 
-  async function translateChunks(conf, data, items, out) {
+  async function translateChunks(conf, data, items, out, options = {}) {
     if (!items.length) {
       return;
     }
@@ -367,13 +379,13 @@
       while (next < list.length) {
         const idx = next;
         next += 1;
-        await translateChunk(conf, data, list[idx], out);
+        await translateChunk(conf, data, list[idx], out, options);
       }
     }
     await Promise.all(Array.from({ length: size }, () => worker()));
   }
 
-  async function translate(conf, data) {
+  async function translate(conf, data, options = {}) {
     const startedAt = Date.now();
     const texts = parseTexts(data);
     if (!texts.length) {
@@ -411,7 +423,7 @@
       }
     }
 
-    await translateChunks(conf, data, next, out);
+    await translateChunks(conf, data, next, out, options);
     report("info", "ai-translate-success", "AI 翻译完成", dataMeta(data, {
       textCount: texts.length,
       uniqueCount: uniq.length,

@@ -275,7 +275,7 @@
         </section>
       </div>
     `;
-    const dom = root.STDomUtils;
+    const dom = globalThis.STDomUtils;
     dom.setTrustedHTML(shadow, dom.trustedHTML(template, "update-reminder-static-template"));
     dom.setTrustedHTML(shadow.querySelector(".body"), dom.trustedHTML(logHtml, "update-reminder-log-sanitized-renderer"));
     shadow.addEventListener("click", (event) => {
