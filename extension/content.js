@@ -86,6 +86,7 @@
   const UI_LOCALE_KEY = "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
   const AI_SERVICE = "steam-buff.ai";
+  const NEWS_AI_MODE = "steam-news-popup";
   const NEWS_TEXT_MAX = 20000;
   const NEWS_AI_CHUNK_CHARS = 1600;
   const NEWS_AI_HARD_CHUNK_CHARS = 1800;
@@ -1044,11 +1045,73 @@
     return out.length ? out : [String(text || "")];
   }
 
+  function newsRequestTexts(data = {}) {
+    if (Array.isArray(data.texts)) {
+      return data.texts.map((text) => String(text || "").replace(/\s+\n/g, "\n").trim());
+    }
+    return [String(data.text || "").replace(/\s+\n/g, "\n").trim()];
+  }
+
+  async function translateNewsAiTexts(rtConf, texts, options = {}) {
+    const to = options.to || rtConf.to || "chinese_simplified";
+    const fn = globalThis.STTranslateAI?.translate;
+    if (typeof fn !== "function") {
+      throw new Error("AI 翻译模块未加载");
+    }
+    const response = await fn(rtConf, {
+      from: "auto",
+      to,
+      mode: NEWS_AI_MODE,
+      text: encodeURIComponent(JSON.stringify(texts)),
+    }, {
+      timeoutMs: NEWS_AI_TIMEOUT_MS,
+    });
+    const out = Array.isArray(response?.text) ? response.text.map((text) => String(text || "")) : [];
+    if (out.length !== texts.length) {
+      throw new Error("AI 新闻分块翻译结果数量不一致");
+    }
+    return {
+      text: out.join("\n"),
+      texts: out,
+      meta: {
+        service: AI_SERVICE,
+        length: texts.reduce((sum, text) => sum + text.length, 0),
+        textCount: texts.length,
+        chunkCount: 1,
+        maxChunkLength: texts.reduce((max, text) => Math.max(max, text.length), 0),
+        timeoutMs: NEWS_AI_TIMEOUT_MS,
+      },
+    };
+  }
+
   async function translateNewsText(rtConf, text, options = {}) {
     const service = String(options.service || rtConf.newsPopupService || "follow");
     const to = options.to || rtConf.to || "chinese_simplified";
     const resolved = globalThis.STTranslateText.serviceFor?.(globalThis.translate, rtConf, service) || service;
     const isAi = resolved === AI_SERVICE;
+    if (Array.isArray(text)) {
+      if (isAi) {
+        return translateNewsAiTexts(rtConf, text, options);
+      }
+      const translatedItems = [];
+      const metas = [];
+      for (const item of text) {
+        const result = await translateNewsText(rtConf, item, options);
+        translatedItems.push(String(result.text || ""));
+        metas.push(result.meta || null);
+      }
+      return {
+        text: translatedItems.join("\n"),
+        texts: translatedItems,
+        meta: {
+          service: resolved,
+          length: text.reduce((sum, item) => sum + item.length, 0),
+          textCount: text.length,
+          chunkCount: metas.reduce((sum, meta) => sum + (meta?.chunkCount || 1), 0),
+          items: metas,
+        },
+      };
+    }
     const chunks = isAi ? newsTextChunks(text) : [text];
     const translated = [];
     for (const chunk of chunks) {
@@ -1062,6 +1125,7 @@
     }
     return {
       text: translated.join(""),
+      texts: [translated.join("")],
       meta: {
         service: resolved,
         length: text.length,
@@ -1075,8 +1139,9 @@
   async function handleNewsTextRequest(data) {
     const rid = safeRid(data?.rid);
     const startedAt = Date.now();
-    const text = String(data?.text || "").replace(/\s+\n/g, "\n").trim();
-    if (!text) {
+    const texts = newsRequestTexts(data);
+    const text = texts.join("\n");
+    if (!texts.length || !texts.some(Boolean)) {
       postNews(NEWS_TRANSLATE_TEXT_RES, { rid, ok: false, error: "没有可翻译内容" });
       return;
     }
@@ -1095,7 +1160,8 @@
     try {
       const rtConf = await ensureNewsTranslator(conf);
       const service = String(conf.newsPopupService || "follow");
-      const result = await translateNewsText(rtConf, text, {
+      const input = Array.isArray(data?.texts) ? texts : text;
+      const result = await translateNewsText(rtConf, input, {
         to: conf.to || "chinese_simplified",
         service,
       });
@@ -1103,6 +1169,7 @@
         rid,
         ok: true,
         text: String(result.text || ""),
+        texts: Array.isArray(result.texts) ? result.texts : [String(result.text || "")],
         meta: {
           ...result.meta,
           durationMs: Date.now() - startedAt,

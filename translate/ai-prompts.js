@@ -12,7 +12,9 @@
   "use strict";
 
   const api = globalThis.STTranslateAIPrompts = globalThis.STTranslateAIPrompts || {};
-  if (api.ready) {
+  const API_VERSION = "steam-buff-ai-prompts-v2";
+  const STEAM_NEWS_MODE = "steam-news-popup";
+  if (api.ready && api.version === API_VERSION) {
     return;
   }
 
@@ -27,6 +29,11 @@
   function meta(title) {
     const text = clean(title);
     return text ? `\n\n## 上下文信息\n文档标题：${text}` : "";
+  }
+
+  function steamNewsMode(ctx) {
+    const mode = clean(ctx?.mode || ctx?.context);
+    return mode === STEAM_NEWS_MODE || mode === "steam-news";
   }
 
   function protocol() {
@@ -58,6 +65,30 @@
     ].join("\n");
   }
 
+  function steamNewsSystem(ctx) {
+    const to = clean(ctx?.to) || "目标语言";
+    return [
+      `你是专业的${to}母语翻译者，正在翻译 Steam 新闻、开发日志、更新公告或补丁说明。`,
+      "",
+      "## Steam 新闻公告规则",
+      `1. 目标是输出自然、地道的${to}游戏公告文案，而不是逐字直译。`,
+      "2. 请根据原文类型调整语气：新闻和社区公告要自然、亲切；开发日志要清晰、专业；更新公告和补丁说明要准确、简洁。",
+      "3. 开场称呼、社区寒暄、玩家群体称呼需要按目标语言的游戏公告习惯自然改写；翻译为中文时按中文公告习惯处理。",
+      "4. 遇到 Greetings、Hello、Hi、Hey、Dear 等英文开场时，不要逐字翻译问候词；应结合上下文和称呼对象，改写成自然的集体称呼或问候语。",
+      "5. 如果称呼对象是玩家群体、游戏内阵营、角色身份、社区昵称或粉丝称呼，请保留其语义，并转换成自然称呼。",
+      "6. 如百分比、伤害数值、版本号、哈希、指令、参数、道具 ID、快捷键（Ctrl/Shift 等）完全原样保留，禁止换算、改写、四舍五入；增减符号 +/-、增益效果 [Buff] 、减益负面效果 [Debuff] 、持续伤害 [Dot] 、持续回血 [Hot] 、范围伤害 [AOE] 、法术输出 [AP] 、物理伤害 [AD] 等固定保留，不本土化替换。",
+      "7. 全局格式与专有名词强制保留项，完整原样输出，不做任何修改：游戏官方定名、版本号、道具/技能/Boss专有名词、网页URL、代码片段、各类占位符${xxx}/{xxx}/[xxx]、Markdown标题/列表/表格/标签、HTML标记、快捷键、ID编号。",
+      "8. 平衡性改动、bug修复、新增/移除功能、底层优化等条目，前后因果、改动幅度、生效范围必须和原文完全一致，不得删减、夸大、脑补补充原文不存在的信息。",
+      "9. 外语社区梗、玩家圈内戏称、自嘲、调侃文案，翻译为中文时转换国内游戏玩家通用话术，不生硬直译；硬核行业术语不口语化。",
+      "10. 保留游戏名、版本号、专有名词、URL、代码、占位符、Markdown/HTML 结构、列表和表格结构。",
+      "11. 保持补丁条目、数值、技能名、物品名、版本变化和前后逻辑准确。",
+      "12. 不要输出解释、注释、额外说明或与原文无关的内容。",
+      "",
+      protocol(),
+      meta(ctx?.title),
+    ].join("\n");
+  }
+
   function normalSystem(ctx) {
     const to = clean(ctx?.to) || "目标语言";
     return [
@@ -75,6 +106,9 @@
   }
 
   function system(ctx) {
+    if (steamNewsMode(ctx)) {
+      return steamNewsSystem(ctx);
+    }
     return steamHost(ctx?.host) ? steamSystem(ctx) : normalSystem(ctx);
   }
 
@@ -91,7 +125,10 @@
 
   Object.assign(api, {
     ready: true,
+    version: API_VERSION,
+    STEAM_NEWS_MODE,
     steamHost,
+    steamNewsMode,
     system,
     user,
   });

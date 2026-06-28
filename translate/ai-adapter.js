@@ -47,6 +47,10 @@
     return String(value ?? "").trim();
   }
 
+  function promptMode(data) {
+    return clean(data?.mode || data?.context || "");
+  }
+
   function int(value, def, min, max) {
     const num = Number.parseInt(value, 10);
     if (!Number.isFinite(num)) {
@@ -129,6 +133,7 @@
       texts,
       host: location.hostname,
       title: document.title,
+      mode: promptMode(data),
     };
     return [
       {
@@ -155,6 +160,7 @@
   }
 
   function cacheBase(conf, data, text) {
+    const mode = promptMode(data);
     const base = {
       v: PROMPT_VERSION,
       provider: SERVICE,
@@ -163,6 +169,9 @@
       to: data?.to || "",
       text,
     };
+    if (mode) {
+      base.mode = mode;
+    }
     if (cacheText(text).length <= SHORT_CACHE_LIMIT) {
       return {
         ...base,
@@ -217,9 +226,11 @@
   }
 
   function dataMeta(data = {}, extra = {}) {
+    const mode = promptMode(data);
     return {
       from: String(data?.from || ""),
       to: String(data?.to || ""),
+      ...(mode ? { mode } : {}),
       ...extra,
     };
   }

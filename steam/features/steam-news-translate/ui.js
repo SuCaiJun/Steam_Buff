@@ -63,6 +63,23 @@
     `.${TOOL_CLASS}`,
     `.${BOX_CLASS}`,
   ].join(",");
+  const BLOCK_TEXT_SELECTOR = "p,li,tr,[role='row'],blockquote,pre,dd,dt,h1,h2,h3,h4,h5,h6";
+  const BODY_SKIP_SELECTOR = [
+    "[class*='EventHeader']",
+    "[class*='eventheader']",
+    "[class*='EventFooter']",
+    "[class*='eventfooter']",
+    "[class*='EventShare']",
+    "[class*='eventshare']",
+    "[class*='EventAuthor']",
+    "[class*='eventauthor']",
+    "[class*='Byline']",
+    "[class*='byline']",
+    "[class*='DateAndTime']",
+    "[class*='dateandtime']",
+    "[class*='Social']",
+    "[class*='social']",
+  ].join(",");
   const POPUP_SELECTOR = [
     "[role='dialog']",
     "[class*='Dialog']",
@@ -98,8 +115,19 @@
     "[class*='news']",
   ].join(",");
   const BODY_SELECTORS = [
+    "[class*='EventBodyText']",
     "[class*='EventBody']",
     "[class*='eventbody']",
+    "[class*='EventContents']",
+    "[class*='eventcontents']",
+    "[class*='EventDescription']",
+    "[class*='eventdescription']",
+    "[class*='ArticleContent']",
+    "[class*='articlecontent']",
+    "[class*='PostContent']",
+    "[class*='postcontent']",
+    "[class*='PatchNotes']",
+    "[class*='patchnotes']",
     "[class*='Description']",
     "[class*='description']",
     "[class*='Summary']",
@@ -108,7 +136,11 @@
     "[class*='body']",
     "[class*='Content']",
     "[class*='content']",
+  ];
+  const BODY_FALLBACK_SELECTORS = [
     "article",
+    "[role='article']",
+    "main",
     "section",
   ];
   const mounted = new WeakMap();
@@ -361,6 +393,9 @@
     if (el.closest?.("[aria-hidden='true'],[hidden]")) {
       return true;
     }
+    if (el.closest?.(BODY_SKIP_SELECTOR)) {
+      return true;
+    }
     return !visible(el);
   }
 
@@ -370,7 +405,6 @@
 
   function textParts(root) {
     const parts = [];
-    const seen = new Set();
     let length = 0;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
@@ -384,12 +418,8 @@
     });
     while (walker.nextNode()) {
       const text = clean(walker.currentNode.nodeValue);
-      const key = text.toLocaleLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        parts.push({ node: walker.currentNode, text });
-        length += text.length + 1;
-      }
+      parts.push({ node: walker.currentNode, text });
+      length += text.length + 1;
       if (length > MAX_TEXT) {
         break;
       }
@@ -570,16 +600,17 @@
     return Math.min(AI_MAX_CONCURRENCY, Math.max(1, num));
   }
 
-  function bodyUnitHost(part) {
+  function bodyUnitHost(part, root) {
     const parent = part.node?.parentElement || null;
-    return parent?.closest?.("li,tr,[role='row']") || parent;
+    const block = parent?.closest?.(BLOCK_TEXT_SELECTOR) || parent;
+    return block && root?.contains?.(block) ? block : parent;
   }
 
   function bodyUnits(host) {
     const units = [];
     let current = null;
     for (const part of textParts(host).filter((item) => item.node?.isConnected)) {
-      const unitHost = bodyUnitHost(part);
+      const unitHost = bodyUnitHost(part, host);
       if (!current || current.host !== unitHost) {
         current = { host: unitHost, parts: [] };
         units.push(current);
@@ -623,16 +654,20 @@
     return out.filter(Boolean);
   }
 
-  function bodyTask(units, order) {
+  function bodyTask(units, order, phase = "later") {
     const parts = units.flatMap((unit) => unit.parts);
+    const texts = units.map((unit) => unit.text);
     const text = units.map((unit) => unit.text).join("\n");
+    const splitLimit = phase === "first" ? AI_FIRST_CHUNK_CHARS : AI_LONG_CHUNK_CHARS;
     return {
       order,
+      phase,
       firstIndex: units[0]?.index ?? order,
       units,
       parts,
+      texts,
       text,
-      pieces: text.length > AI_LONG_CHUNK_CHARS ? splitSoftText(text, AI_LONG_CHUNK_CHARS) : null,
+      pieces: units.length === 1 && text.length > splitLimit ? splitSoftText(text, splitLimit) : null,
     };
   }
 
@@ -652,14 +687,19 @@
       order += 1;
     };
     units.forEach((unit, index) => {
-      const limit = index < AI_FIRST_BODY_GROUPS ? AI_FIRST_CHUNK_CHARS : AI_LATER_CHUNK_CHARS;
+      if (index < AI_FIRST_BODY_GROUPS) {
+        push();
+        tasks.push(bodyTask([unit], order, "first"));
+        order += 1;
+        return;
+      }
       if (unit.text.length > AI_LONG_CHUNK_CHARS) {
         push();
         tasks.push(bodyTask([unit], order));
         order += 1;
         return;
       }
-      if (group.length && chars + unit.text.length > limit) {
+      if (group.length && chars + unit.text.length > AI_LATER_CHUNK_CHARS) {
         push();
       }
       group.push(unit);
@@ -673,20 +713,36 @@
     return parts.every((part) => part.node?.isConnected && clean(part.node.nodeValue) === part.text);
   }
 
-  function applyTextParts(parts, text) {
+  function bodyTaskCurrent(task) {
+    return task.units.every((unit) => textPartsCurrent(unit.parts));
+  }
+
+  function applyTextUnit(unit, text) {
     const lines = translatedLines(text);
-    if (!parts.length || !lines.length || !textPartsCurrent(parts)) {
+    if (!unit?.parts?.length || !lines.length || !textPartsCurrent(unit.parts)) {
       return false;
     }
-    if (lines.length < parts.length) {
-      parts.forEach((part, index) => setTextNode(part.node, index === 0 ? lines.join("\n") : ""));
-      return true;
+    setTextNode(unit.parts[0].node, lines.join("\n"));
+    unit.parts.slice(1).forEach((part) => setTextNode(part.node, ""));
+    return true;
+  }
+
+  function applyBodyTask(task, value) {
+    const values = Array.isArray(value)
+      ? value.map((text) => String(text || "").trim()).filter(Boolean)
+      : translatedLines(value);
+    if (!task?.units?.length || !values.length || !bodyTaskCurrent(task)) {
+      return false;
     }
-    parts.forEach((part, index) => setTextNode(part.node, lines[index] || ""));
-    if (lines.length > parts.length) {
-      const last = parts[parts.length - 1];
-      setTextNode(last.node, `${last.node.nodeValue}\n${lines.slice(parts.length).join("\n")}`);
+    if (task.units.length === 1) {
+      return applyTextUnit(task.units[0], values.join("\n"));
     }
+    if (values.length !== task.units.length) {
+      return false;
+    }
+    task.units.forEach((unit, index) => {
+      applyTextUnit(unit, values[index]);
+    });
     return true;
   }
 
@@ -703,11 +759,76 @@
     await Promise.all(Array.from({ length: size }, () => runWorker()));
   }
 
+  function bodyHostCandidate(el) {
+    if (!visible(el) || el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) || el.matches?.(BODY_SKIP_SELECTOR)) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 220 || rect.height < 24) {
+      return false;
+    }
+    return nodeText(el).length >= MIN_TEXT;
+  }
+
+  function bodyHostCandidates(card, selectors) {
+    return Array.from(new Set(
+      selectors.flatMap((selector) => Array.from(card.querySelectorAll(selector)))
+    )).filter(bodyHostCandidate);
+  }
+
+  function bodyBlockCount(el) {
+    return Array.from(el.querySelectorAll(BLOCK_TEXT_SELECTOR))
+      .filter((item) => visible(item) && !item.closest?.(BODY_SKIP_SELECTOR))
+      .length;
+  }
+
+  function bodyHostScore(card, el, textLength, blockCount) {
+    const rect = el.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const name = `${el.id || ""} ${el.className || ""}`;
+    const specificBonus = /eventbody|eventcontents|eventdescription|articlecontent|postcontent|patchnotes|description|summary|body/i.test(name) ? 1200 : 0;
+    const broadPenalty = /^(ARTICLE|SECTION|MAIN)$/.test(el.tagName) || el.getAttribute("role") === "article" ? 700 : 0;
+    const topPenalty = Math.max(0, rect.top - cardRect.top) * 0.12;
+    return specificBonus + Math.min(textLength, MAX_TEXT) + blockCount * 160 + Math.min(rect.height, 900) * 0.2 - broadPenalty - topPenalty;
+  }
+
+  function pickBodyHost(card, candidates) {
+    const textCache = new WeakMap();
+    const blockCache = new WeakMap();
+    const scoreCache = new WeakMap();
+    const textLength = (el) => {
+      if (!textCache.has(el)) {
+        textCache.set(el, nodeText(el).length);
+      }
+      return textCache.get(el);
+    };
+    const blockCount = (el) => {
+      if (!blockCache.has(el)) {
+        blockCache.set(el, bodyBlockCount(el));
+      }
+      return blockCache.get(el);
+    };
+    const score = (el) => {
+      if (!scoreCache.has(el)) {
+        scoreCache.set(el, bodyHostScore(card, el, textLength(el), blockCount(el)));
+      }
+      return scoreCache.get(el);
+    };
+    return candidates
+      .filter((el) => !candidates.some((other) => {
+        if (other === el || !el.contains(other)) {
+          return false;
+        }
+        return textLength(other) >= Math.max(MIN_TEXT, textLength(el) * 0.72);
+      }))
+      .sort((a, b) => score(b) - score(a))[0] || null;
+  }
+
   function inferredTextHosts(card) {
     const cardRect = card.getBoundingClientRect();
     return Array.from(card.querySelectorAll(":scope > *"))
       .filter((el) => {
-        if (!visible(el) || el.closest(`.${TOOL_CLASS},.${BOX_CLASS}`)) {
+        if (!visible(el) || el.closest(`.${TOOL_CLASS},.${BOX_CLASS}`) || el.matches?.(BODY_SKIP_SELECTOR)) {
           return false;
         }
         const tag = el.tagName;
@@ -727,11 +848,12 @@
   }
 
   function textHost(card, options = {}) {
-    const roots = BODY_SELECTORS.flatMap((selector) => Array.from(card.querySelectorAll(selector)))
-      .filter((el) => visible(el) && !el.closest(`.${TOOL_CLASS},.${BOX_CLASS}`))
-      .sort((a, b) => nodeText(b).length - nodeText(a).length);
-    return roots.find((el) => nodeText(el).length >= MIN_TEXT) ||
-      inferredTextHosts(card)[0] ||
+    const direct = pickBodyHost(card, bodyHostCandidates(card, BODY_SELECTORS));
+    const inferred = inferredTextHosts(card)[0] || null;
+    const fallback = pickBodyHost(card, bodyHostCandidates(card, BODY_FALLBACK_SELECTORS));
+    return direct ||
+      inferred ||
+      fallback ||
       (options.strict ? null : card);
   }
 
@@ -1121,6 +1243,28 @@
     };
   }
 
+  async function requestTranslationTexts(texts) {
+    const items = Array.isArray(texts) ? texts.map((text) => String(text || "")) : [];
+    if (!items.length) {
+      throw new Error("AI 分块文本为空");
+    }
+    const response = await request(TEXT_REQ, TEXT_RES, { texts: items });
+    if (!response.ok) {
+      throw new Error(response.error || "翻译失败");
+    }
+    const out = Array.isArray(response.texts)
+      ? response.texts.map((text) => String(text || "").trim())
+      : [];
+    if (out.length !== items.length) {
+      throw new Error("AI 分块翻译结果数量不一致");
+    }
+    return {
+      texts: out,
+      text: out.join("\n"),
+      meta: response.meta || {},
+    };
+  }
+
   function jobActive(card, record, jobId) {
     return !!card?.isConnected && record?.pending === true && record?.jobId === jobId;
   }
@@ -1138,17 +1282,31 @@
         out.push(result.text);
         metas.push(result.meta);
       }
+      const text = out.join("\n");
       return {
-        text: out.join("\n"),
+        text,
+        texts: [text],
         meta: {
           requestCount: metas.length,
           pieces: metas,
         },
       };
     }
+    if (task.units.length > 1) {
+      const result = await requestTranslationTexts(task.texts);
+      return {
+        text: result.text,
+        texts: result.texts,
+        meta: {
+          requestCount: 1,
+          chunks: [result.meta],
+        },
+      };
+    }
     const result = await requestTranslationText(task.text);
     return {
       text: result.text,
+      texts: [result.text],
       meta: {
         requestCount: 1,
         chunks: [result.meta],
@@ -1193,19 +1351,49 @@
     let requestCount = 0;
     let translatedCount = 0;
     const translateTask = async (task) => {
-      if (!jobActive(card, record, jobId) || !textPartsCurrent(task.parts)) {
+      if (!jobActive(card, record, jobId) || !bodyTaskCurrent(task)) {
         failedCount += 1;
         return;
       }
+      const retryUnits = async () => {
+        let attempted = 0;
+        for (const unit of task.units) {
+          if (!jobActive(card, record, jobId) || !textPartsCurrent(unit.parts)) {
+            failedCount += 1;
+            continue;
+          }
+          attempted += 1;
+          const singleTask = bodyTask([unit], task.order);
+          try {
+            const single = await requestBodyTaskText(singleTask);
+            requestCount += single.meta.requestCount || 1;
+            if (jobActive(card, record, jobId) && applyBodyTask(singleTask, single.texts || single.text)) {
+              translatedCount += 1;
+            } else {
+              failedCount += 1;
+            }
+          } catch {
+            failedCount += 1;
+          }
+        }
+        return attempted;
+      };
       try {
         const result = await requestBodyTaskText(task);
         requestCount += result.meta.requestCount || 1;
-        if (!jobActive(card, record, jobId) || !applyTextParts(task.parts, result.text)) {
+        if (jobActive(card, record, jobId) && applyBodyTask(task, result.texts || result.text)) {
+          translatedCount += 1;
+          return;
+        }
+        if (!jobActive(card, record, jobId) || task.units.length <= 1) {
           failedCount += 1;
           return;
         }
-        translatedCount += 1;
+        await retryUnits();
       } catch (error) {
+        if (task.units.length > 1 && await retryUnits()) {
+          return;
+        }
         failedCount += 1;
         log.warn("news-popup-ai-chunk-failed", "AI 新闻分块翻译失败", {
           order: task.order,
@@ -1215,17 +1403,22 @@
         });
       }
     };
-    const leadingTasks = tasks.filter((task) => task.firstIndex < AI_FIRST_BODY_GROUPS);
-    const laterTasks = tasks.filter((task) => task.firstIndex >= AI_FIRST_BODY_GROUPS);
-    await runLimited(leadingTasks, 1, translateTask);
-    await runLimited(laterTasks, aiRequestLimit(rt), translateTask);
+    // 异步时序依赖: 标题已先落地，正文必须从开头几段开始，再顺序补后文。
+    const firstTasks = tasks
+      .filter((task) => task.phase === "first")
+      .sort((a, b) => a.firstIndex - b.firstIndex);
+    const laterTasks = tasks
+      .filter((task) => task.phase !== "first")
+      .sort((a, b) => a.firstIndex - b.firstIndex);
+    await runLimited(firstTasks, 1, translateTask);
+    await runLimited(laterTasks, 1, translateTask);
 
     const host = data.host?.isConnected ? data.host : null;
     const bodyText = host ? collectText(host) : "";
     if (tasks.length && !translatedCount && !titleText) {
       throw new Error("AI 分块翻译失败");
     }
-    rememberTranslation(rt, card, data, titleHost, host);
+    rememberTranslation(rt, card, data, titleHost, failedCount ? null : host);
     return {
       title: titleText,
       body: bodyText,
@@ -1234,10 +1427,13 @@
         body: {
           progressive: true,
           chunkCount: tasks.length,
+          firstCount: firstTasks.length,
+          laterCount: laterTasks.length,
           translatedCount,
           failedCount,
           requestCount,
-          concurrency: aiRequestLimit(rt),
+          concurrency: 1,
+          serviceConcurrency: aiRequestLimit(rt),
           service: AI_SERVICE,
         },
       },
