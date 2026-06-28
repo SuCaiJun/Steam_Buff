@@ -39,7 +39,6 @@
     local: "chinese_simplified",
     to: "chinese_simplified",
     service: "client.edge",
-    aiConcurrency: 3,
     aiPerformance: true,
     force: false,
     select: false,
@@ -152,7 +151,8 @@
     const ids = Object.keys(DEF);
     const aiDefs = globalThis.STAI?.defaults?.() || {};
     const aiIds = Object.keys(aiDefs);
-    const rt = await get([key("translate"), ...ids.map(transKey), ...aiIds.map(aiKey)]);
+    const legacyAiKeys = aiIds.includes("aiConcurrency") ? [transKey("aiConcurrency")] : [];
+    const rt = await get([key("translate"), ...ids.map(transKey), ...aiIds.map(aiKey), ...legacyAiKeys]);
     const out = {
       enabled: rt[key("translate")] === true,
       ai: {},
@@ -169,10 +169,18 @@
     }
     for (const id of aiIds) {
       const def = aiDefs[id];
-      const value = rt[aiKey(id)];
-      out.ai[id] = typeof def === "boolean"
-        ? (typeof value === "boolean" ? value : def)
-        : (typeof value === "string" ? value : def);
+      const storeKey = aiKey(id);
+      const value = id === "aiConcurrency" && !Object.hasOwn(rt, storeKey)
+        ? rt[transKey("aiConcurrency")]
+        : rt[storeKey];
+      if (typeof def === "boolean") {
+        out.ai[id] = typeof value === "boolean" ? value : def;
+      } else if (typeof def === "number") {
+        const num = Number(value);
+        out.ai[id] = Number.isFinite(num) ? num : def;
+      } else {
+        out.ai[id] = typeof value === "string" ? value : def;
+      }
     }
     out.ai = globalThis.STAI?.normalize?.(out.ai) || out.ai;
     if (out.service === AI_SERVICE) {

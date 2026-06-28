@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v8";
+  const RUN_VERSION = "steam-buff-runtime-v10";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -115,7 +115,6 @@
     local: "chinese_simplified",
     to: "chinese_simplified",
     service: "client.edge",
-    aiConcurrency: 3,
     aiPerformance: true,
     force: false,
     select: false,
@@ -130,6 +129,7 @@
     keyMode: "none",
     keyName: "",
     temperature: "",
+    aiConcurrency: 3,
   });
   let settingsCache = null;
   let steamSettingsSnapshot = null;
@@ -764,6 +764,14 @@
     return { enabled: nameOn, nameOn };
   }
 
+  function aiConcurrency(value) {
+    const num = Number.parseInt(value, 10);
+    if (!Number.isFinite(num)) {
+      return AI_DEFAULTS.aiConcurrency;
+    }
+    return Math.min(10, Math.max(1, num));
+  }
+
   function normalizeAi(values = {}) {
     const src = values && typeof values === "object" ? values : {};
     const out = {
@@ -774,6 +782,7 @@
       keyMode: String(src.keyMode || AI_DEFAULTS.keyMode).trim() || AI_DEFAULTS.keyMode,
       keyName: String(src.keyName || "").trim(),
       temperature: String(src.temperature || "").trim(),
+      aiConcurrency: aiConcurrency(src.aiConcurrency),
     };
     if (out.host && !out.host.endsWith("/")) {
       out.host = `${out.host}/`;
@@ -785,10 +794,12 @@
     const transIds = Object.keys(TRANSLATE_DEFAULTS);
     const aiDefs = globalThis.STAI?.defaults?.() || AI_DEFAULTS;
     const aiIds = Object.keys(aiDefs);
+    const legacyAiKeys = aiIds.includes("aiConcurrency") ? [transKey("aiConcurrency")] : [];
     const rt = await storageGet([
       settingKey("translate"),
       ...transIds.map(transKey),
       ...aiIds.map(aiKey),
+      ...legacyAiKeys,
     ]);
     const out = {
       enabled: rt[settingKey("translate")] === true,
@@ -812,10 +823,18 @@
 
     for (const id of aiIds) {
       const def = aiDefs[id];
-      const value = rt[aiKey(id)];
-      out.ai[id] = typeof def === "boolean"
-        ? (typeof value === "boolean" ? value : def)
-        : (typeof value === "string" ? value : def);
+      const storeKey = aiKey(id);
+      const value = id === "aiConcurrency" && !Object.hasOwn(rt, storeKey)
+        ? rt[transKey("aiConcurrency")]
+        : rt[storeKey];
+      if (typeof def === "boolean") {
+        out.ai[id] = typeof value === "boolean" ? value : def;
+      } else if (typeof def === "number") {
+        const num = Number(value);
+        out.ai[id] = Number.isFinite(num) ? num : def;
+      } else {
+        out.ai[id] = typeof value === "string" ? value : def;
+      }
     }
     out.ai = globalThis.STAI?.normalize?.(out.ai) || normalizeAi(out.ai);
     if (out.service === AI_SERVICE) {
@@ -827,6 +846,11 @@
 
   function newsTranslateOn(featureOn, conf) {
     return featureOn !== false && conf?.enabled === true && conf.newsPopup !== false;
+  }
+
+  function resolvedNewsService(conf = {}) {
+    const service = String(conf.newsPopupService || "follow");
+    return service === "follow" ? String(conf.service || "client.edge") : service;
   }
 
   function safeRid(value) {
@@ -852,6 +876,8 @@
       translateEnabled: conf?.enabled === true,
       newsPopup: conf?.newsPopup !== false,
       service: String(conf?.newsPopupService || "follow"),
+      resolvedService: resolvedNewsService(conf),
+      aiConcurrency: aiConcurrency(conf?.ai?.aiConcurrency),
       to: String(conf?.to || "chinese_simplified"),
     };
   }
@@ -937,7 +963,8 @@
 
   async function ensureNewsTranslator(conf) {
     const service = String(conf.newsPopupService || "follow");
-    const modes = service === "steam-buff.ai"
+    const resolved = resolvedNewsService(conf);
+    const modes = resolved === "steam-buff.ai"
       ? ["manual", "aiConfig"]
       : ["manual"];
     const rtConf = {

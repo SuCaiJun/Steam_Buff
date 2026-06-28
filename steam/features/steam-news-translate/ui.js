@@ -37,6 +37,13 @@
   // 优化: 弹窗 DOM 分阶段渲染时只开启短窗口补扫，避免把全量候选扫描挂成长驻轮询。
   const POPUP_SETTLE_MS = 3200;
   const REQUEST_TIMEOUT_MS = 60000;
+  const AI_SERVICE = "steam-buff.ai";
+  const AI_FIRST_BODY_GROUPS = 4;
+  const AI_FIRST_CHUNK_CHARS = 600;
+  const AI_LATER_CHUNK_CHARS = 1000;
+  const AI_LONG_CHUNK_CHARS = 800;
+  const AI_DEFAULT_CONCURRENCY = 3;
+  const AI_MAX_CONCURRENCY = 10;
   const BUTTON_SWEEP_MS = 1150;
   const BUTTON_SWEEP_FRAME_MS = 32;
   const BUTTON_SWEEP_FROM = 160;
@@ -551,6 +558,151 @@
     return true;
   }
 
+  function aiServiceOn(rt) {
+    return String(rt?.config?.resolvedService || rt?.config?.service || "") === AI_SERVICE;
+  }
+
+  function aiRequestLimit(rt) {
+    const num = Number.parseInt(rt?.config?.aiConcurrency, 10);
+    if (!Number.isFinite(num)) {
+      return AI_DEFAULT_CONCURRENCY;
+    }
+    return Math.min(AI_MAX_CONCURRENCY, Math.max(1, num));
+  }
+
+  function bodyUnitHost(part) {
+    const parent = part.node?.parentElement || null;
+    return parent?.closest?.("li,tr,[role='row']") || parent;
+  }
+
+  function bodyUnits(host) {
+    const units = [];
+    let current = null;
+    for (const part of textParts(host).filter((item) => item.node?.isConnected)) {
+      const unitHost = bodyUnitHost(part);
+      if (!current || current.host !== unitHost) {
+        current = { host: unitHost, parts: [] };
+        units.push(current);
+      }
+      current.parts.push(part);
+    }
+    return units.map((unit, index) => ({
+      ...unit,
+      index,
+      text: unit.parts.map((part) => part.text).join("\n").trim(),
+    })).filter((unit) => unit.text);
+  }
+
+  function splitSoftText(text, limit) {
+    const out = [];
+    let rest = String(text || "");
+    while (rest.length > limit) {
+      let cut = limit;
+      const start = Math.max(0, limit - 240);
+      const probe = rest.slice(start, limit);
+      const soft = Math.max(
+        probe.lastIndexOf("\n"),
+        probe.lastIndexOf(". "),
+        probe.lastIndexOf("! "),
+        probe.lastIndexOf("? "),
+        probe.lastIndexOf("。"),
+        probe.lastIndexOf("！"),
+        probe.lastIndexOf("？"),
+        probe.lastIndexOf("；"),
+        probe.lastIndexOf("; ")
+      );
+      if (soft > 60) {
+        cut = start + soft + 1;
+      }
+      out.push(rest.slice(0, cut).trim());
+      rest = rest.slice(cut).trim();
+    }
+    if (rest) {
+      out.push(rest);
+    }
+    return out.filter(Boolean);
+  }
+
+  function bodyTask(units, order) {
+    const parts = units.flatMap((unit) => unit.parts);
+    const text = units.map((unit) => unit.text).join("\n");
+    return {
+      order,
+      firstIndex: units[0]?.index ?? order,
+      units,
+      parts,
+      text,
+      pieces: text.length > AI_LONG_CHUNK_CHARS ? splitSoftText(text, AI_LONG_CHUNK_CHARS) : null,
+    };
+  }
+
+  function aiBodyTasks(data) {
+    const units = bodyUnits(data.host);
+    const tasks = [];
+    let group = [];
+    let chars = 0;
+    let order = 0;
+    const push = () => {
+      if (!group.length) {
+        return;
+      }
+      tasks.push(bodyTask(group, order));
+      group = [];
+      chars = 0;
+      order += 1;
+    };
+    units.forEach((unit, index) => {
+      const limit = index < AI_FIRST_BODY_GROUPS ? AI_FIRST_CHUNK_CHARS : AI_LATER_CHUNK_CHARS;
+      if (unit.text.length > AI_LONG_CHUNK_CHARS) {
+        push();
+        tasks.push(bodyTask([unit], order));
+        order += 1;
+        return;
+      }
+      if (group.length && chars + unit.text.length > limit) {
+        push();
+      }
+      group.push(unit);
+      chars += unit.text.length + 1;
+    });
+    push();
+    return tasks;
+  }
+
+  function textPartsCurrent(parts) {
+    return parts.every((part) => part.node?.isConnected && clean(part.node.nodeValue) === part.text);
+  }
+
+  function applyTextParts(parts, text) {
+    const lines = translatedLines(text);
+    if (!parts.length || !lines.length || !textPartsCurrent(parts)) {
+      return false;
+    }
+    if (lines.length < parts.length) {
+      parts.forEach((part, index) => setTextNode(part.node, index === 0 ? lines.join("\n") : ""));
+      return true;
+    }
+    parts.forEach((part, index) => setTextNode(part.node, lines[index] || ""));
+    if (lines.length > parts.length) {
+      const last = parts[parts.length - 1];
+      setTextNode(last.node, `${last.node.nodeValue}\n${lines.slice(parts.length).join("\n")}`);
+    }
+    return true;
+  }
+
+  async function runLimited(items, limit, worker) {
+    let next = 0;
+    const size = Math.min(Math.max(1, limit), items.length);
+    async function runWorker() {
+      while (next < items.length) {
+        const index = next;
+        next += 1;
+        await worker(items[index], index);
+      }
+    }
+    await Promise.all(Array.from({ length: size }, () => runWorker()));
+  }
+
   function inferredTextHosts(card) {
     const cardRect = card.getBoundingClientRect();
     return Array.from(card.querySelectorAll(":scope > *"))
@@ -773,14 +925,7 @@
     };
   }
 
-  function renderTranslation(rt, card, data, value, needs = { title: true, body: true }) {
-    clearLegacyBoxes(card);
-    const result = normalizeTranslationResult(value);
-    const titleHost = needs.title ? renderTitleTranslation(card, data, result.title) : data.titleHost;
-    const host = needs.body ? renderBodyTranslation(card, data, result.body) : data.host;
-    if (needs.title && !titleHost && !needs.body) {
-      throw new Error("未找到可替换的标题文本");
-    }
+  function rememberTranslation(rt, card, data, titleHost, host) {
     rt.translated.set(card, {
       hash: data.hash,
       host,
@@ -789,6 +934,17 @@
       text: host?.isConnected ? collectText(host) : "",
       titleText: titleHost?.isConnected ? nodeText(titleHost) : "",
     });
+  }
+
+  function renderTranslation(rt, card, data, value, needs = { title: true, body: true }) {
+    clearLegacyBoxes(card);
+    const result = normalizeTranslationResult(value);
+    const titleHost = needs.title ? renderTitleTranslation(card, data, result.title) : data.titleHost;
+    const host = needs.body ? renderBodyTranslation(card, data, result.body) : data.host;
+    if (needs.title && !titleHost && !needs.body) {
+      throw new Error("未找到可替换的标题文本");
+    }
+    rememberTranslation(rt, card, data, titleHost, host);
   }
 
   function stopButtonMotion(button) {
@@ -965,6 +1121,41 @@
     };
   }
 
+  function jobActive(card, record, jobId) {
+    return !!card?.isConnected && record?.pending === true && record?.jobId === jobId;
+  }
+
+  function titleTextCurrent(data) {
+    return !data.titleHost?.isConnected || nodeText(data.titleHost) === data.titleText;
+  }
+
+  async function requestBodyTaskText(task) {
+    if (Array.isArray(task.pieces) && task.pieces.length > 1) {
+      const out = [];
+      const metas = [];
+      for (const piece of task.pieces) {
+        const result = await requestTranslationText(piece);
+        out.push(result.text);
+        metas.push(result.meta);
+      }
+      return {
+        text: out.join("\n"),
+        meta: {
+          requestCount: metas.length,
+          pieces: metas,
+        },
+      };
+    }
+    const result = await requestTranslationText(task.text);
+    return {
+      text: result.text,
+      meta: {
+        requestCount: 1,
+        chunks: [result.meta],
+      },
+    };
+  }
+
   async function translateNeededText(data, needs) {
     const [title, body] = await Promise.all([
       needs.title ? requestTranslationText(data.titleText) : Promise.resolve(null),
@@ -976,6 +1167,79 @@
       meta: {
         title: title?.meta || null,
         body: body?.meta || null,
+      },
+    };
+  }
+
+  async function translateAiNeededText(rt, card, data, needs, record, jobId) {
+    let titleHost = data.titleHost;
+    let titleText = "";
+    let titleMeta = null;
+    if (needs.title) {
+      const title = await requestTranslationText(data.titleText);
+      if (!jobActive(card, record, jobId) || !titleTextCurrent(data)) {
+        throw new Error("新闻弹窗已切换");
+      }
+      titleHost = renderTitleTranslation(card, data, title.text);
+      if (!titleHost && !needs.body) {
+        throw new Error("未找到可替换的标题文本");
+      }
+      titleText = title.text;
+      titleMeta = title.meta;
+    }
+
+    const tasks = needs.body ? aiBodyTasks(data) : [];
+    let failedCount = 0;
+    let requestCount = 0;
+    let translatedCount = 0;
+    const translateTask = async (task) => {
+      if (!jobActive(card, record, jobId) || !textPartsCurrent(task.parts)) {
+        failedCount += 1;
+        return;
+      }
+      try {
+        const result = await requestBodyTaskText(task);
+        requestCount += result.meta.requestCount || 1;
+        if (!jobActive(card, record, jobId) || !applyTextParts(task.parts, result.text)) {
+          failedCount += 1;
+          return;
+        }
+        translatedCount += 1;
+      } catch (error) {
+        failedCount += 1;
+        log.warn("news-popup-ai-chunk-failed", "AI 新闻分块翻译失败", {
+          order: task.order,
+          textLength: task.text.length,
+          pieceCount: task.pieces?.length || 1,
+          error: errorMessage(error),
+        });
+      }
+    };
+    const leadingTasks = tasks.filter((task) => task.firstIndex < AI_FIRST_BODY_GROUPS);
+    const laterTasks = tasks.filter((task) => task.firstIndex >= AI_FIRST_BODY_GROUPS);
+    await runLimited(leadingTasks, 1, translateTask);
+    await runLimited(laterTasks, aiRequestLimit(rt), translateTask);
+
+    const host = data.host?.isConnected ? data.host : null;
+    const bodyText = host ? collectText(host) : "";
+    if (tasks.length && !translatedCount && !titleText) {
+      throw new Error("AI 分块翻译失败");
+    }
+    rememberTranslation(rt, card, data, titleHost, host);
+    return {
+      title: titleText,
+      body: bodyText,
+      meta: {
+        title: titleMeta,
+        body: {
+          progressive: true,
+          chunkCount: tasks.length,
+          translatedCount,
+          failedCount,
+          requestCount,
+          concurrency: aiRequestLimit(rt),
+          service: AI_SERVICE,
+        },
       },
     };
   }
@@ -1010,6 +1274,8 @@
 
     rt.pendingCards?.add(card);
     record.pending = true;
+    const jobId = `${data.hash}:${Date.now().toString(36)}`;
+    record.jobId = jobId;
     setButton(button, "loading", "正在翻译...");
     log.info("news-popup-translate-start", "新闻弹窗翻译开始", {
       textLength: data.length,
@@ -1020,20 +1286,31 @@
     });
 
     try {
-      const result = await translateNeededText(data, needs);
-      if (!card.isConnected || !stillCurrent(data, needs)) {
+      const aiProgressive = aiServiceOn(rt);
+      const result = aiProgressive
+        ? await translateAiNeededText(rt, card, data, needs, record, jobId)
+        : await translateNeededText(data, needs);
+      if (!aiProgressive && (!card.isConnected || !stillCurrent(data, needs))) {
         setButton(button, "idle");
         return;
       }
-      rt.cache.set(data.hash, result);
-      trimCache(rt.cache);
-      renderTranslation(rt, card, data, result, needs);
-      setButton(button, "done");
+      const failedCount = result.meta.body?.failedCount || 0;
+      if (!aiProgressive) {
+        renderTranslation(rt, card, data, result, needs);
+      }
+      if (!failedCount) {
+        rt.cache.set(data.hash, result);
+        trimCache(rt.cache);
+      }
+      setButton(button, failedCount ? "error" : "done", failedCount ? "部分内容翻译失败" : "");
       log.info("news-popup-translate-success", "新闻弹窗翻译完成", {
         textLength: data.length,
         titleLength: data.titleText.length,
         bodyLength: data.text.length,
         resultLength: result.title.length + result.body.length,
+        progressive: result.meta.body?.progressive === true,
+        chunkCount: result.meta.body?.chunkCount || 0,
+        failedCount,
         titleDurationMs: result.meta.title?.durationMs || 0,
         bodyDurationMs: result.meta.body?.durationMs || 0,
         service: result.meta.body?.service || result.meta.title?.service || "",
@@ -1052,6 +1329,7 @@
     } finally {
       rt.pendingCards?.delete(card);
       record.pending = false;
+      delete record.jobId;
     }
   }
 

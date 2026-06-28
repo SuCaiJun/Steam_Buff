@@ -203,7 +203,8 @@
   }
 
   function concurrency(conf) {
-    return int(conf?.aiConcurrency, DEFAULT_CONCURRENCY, 1, MAX_CONCURRENCY);
+    const value = conf?.ai?.aiConcurrency ?? conf?.aiConcurrency;
+    return ai?.concurrency?.({ aiConcurrency: value }) || int(value, DEFAULT_CONCURRENCY, 1, MAX_CONCURRENCY);
   }
 
   function errorText(error, fallback = "") {

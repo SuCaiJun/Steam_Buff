@@ -19,6 +19,8 @@
 
   const PREFIX = "st.settings.ai.";
   const CHAT_PATH = "chat/completions";
+  const CONCURRENCY_MIN = 1;
+  const CONCURRENCY_MAX = 10;
   const DEFAULTS = Object.freeze({
     enabled: false,
     host: "",
@@ -27,6 +29,7 @@
     keyMode: "none",
     keyName: "",
     temperature: "",
+    aiConcurrency: 3,
   });
 
   const FIELDS = Object.freeze([
@@ -76,6 +79,14 @@
       label: "温度",
       placeholder: "0.2",
     },
+    {
+      type: "number",
+      key: "aiConcurrency",
+      label: "AI 并发上限",
+      min: CONCURRENCY_MIN,
+      max: CONCURRENCY_MAX,
+      step: 1,
+    },
   ]);
 
   function storageKey(id) {
@@ -96,6 +107,18 @@
 
   function bool(value) {
     return value === true || value === "true";
+  }
+
+  function int(value, def, min, max) {
+    const num = Number.parseInt(value, 10);
+    if (!Number.isFinite(num)) {
+      return def;
+    }
+    return Math.min(max, Math.max(min, num));
+  }
+
+  function concurrency(values = {}) {
+    return int(values?.aiConcurrency, DEFAULTS.aiConcurrency, CONCURRENCY_MIN, CONCURRENCY_MAX);
   }
 
   function normalizeHost(value) {
@@ -139,6 +162,7 @@
       keyMode: str(src.keyMode) || DEFAULTS.keyMode,
       keyName: str(src.keyName),
       temperature: str(src.temperature),
+      aiConcurrency: concurrency(src),
     };
   }
 
@@ -234,6 +258,7 @@
     defaults,
     fields,
     normalize,
+    concurrency,
     endpoint,
     chatRequest,
     chatText,

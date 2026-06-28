@@ -199,7 +199,6 @@
         "local",
         "to",
         "service",
-        "aiConcurrency",
         "force",
       ]),
       ai: {
@@ -207,6 +206,7 @@
         host: ai?.host ? safeUrl(ai.host) : "",
         model: ai?.model ? cleanText(ai.model) : "",
         keyMode: ai?.keyMode ? cleanText(ai.keyMode, 40) : "",
+        aiConcurrency: num(ai?.aiConcurrency) || 0,
         hasKey: !!ai?.key,
         hasKeyName: !!ai?.keyName,
       },

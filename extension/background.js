@@ -252,7 +252,7 @@
     "store/main.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v8";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v10";
   const STEAM_LOOPBACK_INJECT_REQUEST = "STEAM_LOOPBACK_INJECT_REQUEST";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
@@ -279,6 +279,8 @@
   });
   let aiReady = false;
   let aiLoadError = "";
+  let aiActive = 0;
+  const aiQueue = [];
 
   /* 后台脚本依赖 */
   try {
@@ -779,7 +781,59 @@
     return `HTTP状态码错误: ${status}`;
   }
 
+  function aiLimit(conf) {
+    const limit = globalThis.STAI?.concurrency?.(conf);
+    return Number.isFinite(limit) ? limit : 3;
+  }
+
+  function drainAiQueue() {
+    while (aiQueue.length) {
+      const task = aiQueue[0];
+      if (aiActive >= task.limit) {
+        return;
+      }
+      aiQueue.shift();
+      aiActive += 1;
+      Promise.resolve()
+        .then(task.job)
+        .then(task.resolve, task.reject)
+        .finally(() => {
+          aiActive = Math.max(0, aiActive - 1);
+          drainAiQueue();
+        });
+    }
+  }
+
+  function runAiLimited(limit, job) {
+    return new Promise((resolve, reject) => {
+      aiQueue.push({ limit, job, resolve, reject });
+      drainAiQueue();
+    });
+  }
+
+  function fetchAiChat(url, next, timeoutMs) {
+    return fetchWithTimeout(url, {
+      method: "POST",
+      headers: next.headers,
+      body: JSON.stringify(next.body),
+      cache: "no-cache",
+      credentials: "omit",
+    }, timeoutMs)
+      .then((response) => response.text().then((text) => {
+        if (!response.ok) {
+          throw new Error(httpError(response.status, text));
+        }
+        const data = parseJson(text);
+        const content = globalThis.STAI?.chatText?.(data);
+        if (!content) {
+          throw new Error("AI 响应格式异常");
+        }
+        return { content, status: response.status };
+      }));
+  }
+
   function aiChat(request, sender, sendResponse) {
+    void sender;
     if (!aiReady) {
       sendResponse({
         success: false,
@@ -808,24 +862,8 @@
     }
 
     const timeoutMs = capTimeout(request.timeoutMs, AI_FETCH_TIMEOUT_MS, AI_FETCH_TIMEOUT_MAX_MS);
-    fetchWithTimeout(url.toString(), {
-      method: "POST",
-      headers: next.headers,
-      body: JSON.stringify(next.body),
-      cache: "no-cache",
-      credentials: "omit",
-    }, timeoutMs)
-      .then((response) => response.text().then((text) => {
-        if (!response.ok) {
-          throw new Error(httpError(response.status, text));
-        }
-        const data = parseJson(text);
-        const content = globalThis.STAI?.chatText?.(data);
-        if (!content) {
-          throw new Error("AI 响应格式异常");
-        }
-        return { content, status: response.status };
-      }))
+    const limit = aiLimit(request.ai);
+    runAiLimited(limit, () => fetchAiChat(url.toString(), next, timeoutMs))
       .then((res) => {
         sendResponse({ success: true, text: res.content, status: res.status });
       })

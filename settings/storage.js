@@ -491,16 +491,25 @@
   async function getAi() {
     const defs = aiDefaults();
     const ids = Object.keys(defs);
-    const keys = ids.map(aiKey);
+    const legacyAiKeys = ids.includes("aiConcurrency") ? [transKey("aiConcurrency")] : [];
+    const keys = [...ids.map(aiKey), ...legacyAiKeys];
     const rt = await get(keys);
     const out = {};
 
     for (const id of ids) {
       const def = defs[id];
-      const value = rt[aiKey(id)];
-      out[id] = typeof def === "boolean"
-        ? (typeof value === "boolean" ? value : def)
-        : (typeof value === "string" ? value : def);
+      const storeKey = aiKey(id);
+      const value = id === "aiConcurrency" && !Object.hasOwn(rt, storeKey)
+        ? rt[transKey("aiConcurrency")]
+        : rt[storeKey];
+      if (typeof def === "boolean") {
+        out[id] = typeof value === "boolean" ? value : def;
+      } else if (typeof def === "number") {
+        const num = Number(value);
+        out[id] = Number.isFinite(num) ? num : def;
+      } else {
+        out[id] = typeof value === "string" ? value : def;
+      }
     }
 
     return globalThis.STAI?.normalize?.(out) || out;
@@ -509,15 +518,21 @@
   async function setAi(values) {
     const defs = aiDefaults();
     const data = {};
+    const normalized = globalThis.STAI?.normalize?.({ ...defs, ...(values || {}) }) || {};
 
     for (const id of Object.keys(defs)) {
       if (!Object.hasOwn(values || {}, id)) {
         continue;
       }
       const def = defs[id];
-      data[aiKey(id)] = typeof def === "boolean"
-        ? Boolean(values[id])
-        : String(values[id] ?? def);
+      if (typeof def === "boolean") {
+        data[aiKey(id)] = normalized[id] === true;
+      } else if (typeof def === "number") {
+        const num = Number(normalized[id] ?? values[id] ?? def);
+        data[aiKey(id)] = Number.isFinite(num) ? num : def;
+      } else {
+        data[aiKey(id)] = String(normalized[id] ?? values[id] ?? def);
+      }
     }
 
     if (!Object.keys(data).length) {
