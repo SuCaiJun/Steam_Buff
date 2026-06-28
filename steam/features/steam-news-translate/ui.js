@@ -1193,6 +1193,13 @@
     return Date.now() < (rt.popupSettleUntil || 0);
   }
 
+  function needsPopupRecoveryScan(rt, root) {
+    if (!root?.isConnected || mountedAlive(rt) || popupSettling(rt) || !popupSignal(root)) {
+      return false;
+    }
+    return !!activeMountableCard(popupCandidates());
+  }
+
   function configStateKey(config) {
     return [
       config?.enabled === true ? "on" : "off",
@@ -1454,7 +1461,11 @@
     if (changed) {
       attachObserver(rt);
     }
-    if (rt.config?.enabled === true && (changed || mountedAlive(rt) || popupSettling(rt))) {
+    const recover = rt.config?.enabled === true && needsPopupRecoveryScan(rt, latest);
+    if (recover) {
+      markPopupSettling(rt);
+    }
+    if (rt.config?.enabled === true && (changed || recover || mountedAlive(rt) || popupSettling(rt))) {
       scheduleScan(rt);
     }
   }
