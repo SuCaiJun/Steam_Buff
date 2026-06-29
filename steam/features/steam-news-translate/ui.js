@@ -36,13 +36,16 @@
   const POPUP_WATCH_MS = 1500;
   // 优化: 弹窗 DOM 分阶段渲染时只开启短窗口补扫，避免把全量候选扫描挂成长驻轮询。
   const POPUP_SETTLE_MS = 3200;
-  const REQUEST_TIMEOUT_MS = 60000;
+  const REQUEST_TIMEOUT_MS = 120_000;
   const AI_SERVICE = "steam-buff.ai";
-  const AI_FIRST_BODY_GROUPS = 4;
-  const AI_FIRST_CHUNK_CHARS = 600;
-  const AI_LATER_CHUNK_CHARS = 1000;
-  const AI_LONG_CHUNK_CHARS = 800;
-  const AI_DEFAULT_CONCURRENCY = 3;
+  const AI_BODY_FIRST_TASK_COUNT = 3;
+  const AI_BODY_FIRST_MIN_WORD_LIMIT = 350;
+  const AI_BODY_FIRST_WORD_LIMIT = 600;
+  const AI_BODY_FIRST_LONG_WORD_LIMIT = 600;
+  const AI_BODY_MIN_WORD_LIMIT = 800;
+  const AI_BODY_WORD_LIMIT = 1200;
+  const AI_BODY_LONG_WORD_LIMIT = 1200;
+  const AI_DEFAULT_CONCURRENCY = 10;
   const AI_MAX_CONCURRENCY = 10;
   const BUTTON_SWEEP_MS = 1150;
   const BUTTON_SWEEP_FRAME_MS = 32;
@@ -225,6 +228,91 @@
 
   function assetUrl(path) {
     return window.SteamBuff?.path?.url ? window.SteamBuff.path.url(path) : path;
+  }
+
+  function firstClean(values) {
+    for (const value of values) {
+      const text = clean(value);
+      if (text) {
+        return text;
+      }
+    }
+    return "";
+  }
+
+  function routeAppid() {
+    const sources = [
+      window.SteamBuff?.ctx?.route?.(),
+      window.tempNavStore?.m_locationPathname,
+      window.MainWindowBrowserManager?.m_URLRequested,
+      window.MainWindowBrowserManager?.m_URL,
+      window.location?.href,
+    ];
+    for (const source of sources) {
+      const match = String(source || "").match(/\/(?:library|app)\/app\/(\d+)|\/app\/(\d+)|[?&]appid=(\d+)/i);
+      const id = Number(match?.[1] || match?.[2] || match?.[3] || 0);
+      if (Number.isFinite(id) && id > 0) {
+        return String(id);
+      }
+    }
+    return "";
+  }
+
+  function appById(appid) {
+    const id = Number(appid);
+    if (!Number.isFinite(id) || id <= 0) {
+      return null;
+    }
+    try {
+      if (typeof window.appStore?.GetAppOverviewByAppID === "function") {
+        return window.appStore.GetAppOverviewByAppID(id);
+      }
+    } catch {
+    }
+    try {
+      return window.appStore?.m_mapApps?.get?.(id) || null;
+    } catch {
+    }
+    return null;
+  }
+
+  function appNameFromStore(appid) {
+    const app = appById(appid);
+    return firstClean([
+      app?.__RickyStOriginalName,
+      app?.originalDisplayName,
+      app?.english_name,
+      app?.name,
+      app?.display_name,
+    ]);
+  }
+
+  function appMetaFromLinks(root) {
+    const links = Array.from(root?.querySelectorAll?.("a[href]") || []);
+    for (const link of links) {
+      const href = String(link.getAttribute("href") || link.href || "");
+      const match = href.match(/\/app\/(\d+)|[?&]appid=(\d+)/i);
+      const appid = match?.[1] || match?.[2] || "";
+      if (!appid) {
+        continue;
+      }
+      return {
+        appid,
+        gameName: clean(link.getAttribute("aria-label") || link.getAttribute("title") || nodeText(link)),
+      };
+    }
+    return {};
+  }
+
+  function contentTypeFromText(title, text) {
+    const value = `${title}\n${String(text || "").slice(0, 1200)}`;
+    if (/patch\s*notes|hotfix|changelog|bug\s*fix|fixed|修复|补丁|热修|改动日志/i.test(value)) {
+      return "更新公告/补丁说明";
+    }
+    if (/dev\s*log|developer|开发日志|开发者日志/i.test(value)) {
+      return "开发日志";
+    }
+    return "新闻/社区公告";
   }
 
   function rectArea(el) {
@@ -617,34 +705,146 @@
       }
       current.parts.push(part);
     }
-    return units.map((unit, index) => ({
+    return units.map((unit) => ({
       ...unit,
-      index,
       text: unit.parts.map((part) => part.text).join("\n").trim(),
-    })).filter((unit) => unit.text);
+    }))
+      .filter((unit) => unit.text)
+      .flatMap(splitBodyHostUnit)
+      .map((unit, index) => ({
+        ...unit,
+        index,
+      }));
+  }
+
+  function splitBodyHostUnit(unit) {
+    if (!unit?.parts?.length || unit.parts.length <= 1 || wordCount(unit.text) <= AI_BODY_LONG_WORD_LIMIT) {
+      return [unit];
+    }
+    const out = [];
+    let parts = [];
+    let words = 0;
+    const push = () => {
+      if (!parts.length) {
+        return;
+      }
+      out.push({
+        host: unit.host,
+        parts,
+        text: parts.map((part) => part.text).join("\n").trim(),
+      });
+      parts = [];
+      words = 0;
+    };
+    for (const part of unit.parts) {
+      const partWords = Math.max(1, wordCount(part.text));
+      const nextWords = words + partWords;
+      if (parts.length && nextWords > AI_BODY_WORD_LIMIT && words >= AI_BODY_MIN_WORD_LIMIT) {
+        push();
+      }
+      parts.push(part);
+      words += partWords;
+      if (words >= AI_BODY_WORD_LIMIT) {
+        push();
+      }
+    }
+    push();
+    return out.length ? out : [unit];
+  }
+
+  function wordLike(text) {
+    return /[\p{L}\p{N}]/u.test(String(text || ""));
+  }
+
+  function cjkChar(text) {
+    return /[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/u.test(String(text || ""));
+  }
+
+  function fallbackWordCount(text) {
+    let count = 0;
+    let latin = false;
+    for (const ch of String(text || "")) {
+      if (cjkChar(ch)) {
+        count += 1;
+        latin = false;
+        continue;
+      }
+      if (wordLike(ch)) {
+        if (!latin) {
+          count += 1;
+        }
+        latin = true;
+        continue;
+      }
+      latin = false;
+    }
+    return count;
+  }
+
+  function wordCount(text) {
+    const value = String(text || "").trim();
+    if (!value) {
+      return 0;
+    }
+    try {
+      const Segmenter = globalThis.Intl?.Segmenter;
+      if (typeof Segmenter === "function") {
+        let count = 0;
+        for (const item of new Segmenter(undefined, { granularity: "word" }).segment(value)) {
+          const segment = String(item?.segment || "").trim();
+          if (!segment || item?.isWordLike === false) {
+            continue;
+          }
+          if (item?.isWordLike === true || wordLike(segment)) {
+            count += 1;
+          }
+        }
+        if (count > 0) {
+          return count;
+        }
+      }
+    } catch {
+    }
+    return fallbackWordCount(value);
+  }
+
+  function softCutIndex(text, limit) {
+    const value = String(text || "");
+    let low = 1;
+    let high = value.length;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (wordCount(value.slice(0, mid)) <= limit) {
+        low = mid;
+      } else {
+        high = mid - 1;
+      }
+    }
+    const raw = Math.max(1, Math.min(low, value.length - 1));
+    const cutStart = Math.max(0, raw - 800);
+    const probe = value.slice(cutStart, raw);
+    const soft = Math.max(
+      probe.lastIndexOf("\n"),
+      probe.lastIndexOf(". "),
+      probe.lastIndexOf("! "),
+      probe.lastIndexOf("? "),
+      probe.lastIndexOf("。"),
+      probe.lastIndexOf("！"),
+      probe.lastIndexOf("？"),
+      probe.lastIndexOf("；"),
+      probe.lastIndexOf("; ")
+    );
+    if (soft > 120) {
+      return cutStart + soft + 1;
+    }
+    return raw;
   }
 
   function splitSoftText(text, limit) {
     const out = [];
     let rest = String(text || "");
-    while (rest.length > limit) {
-      let cut = limit;
-      const start = Math.max(0, limit - 240);
-      const probe = rest.slice(start, limit);
-      const soft = Math.max(
-        probe.lastIndexOf("\n"),
-        probe.lastIndexOf(". "),
-        probe.lastIndexOf("! "),
-        probe.lastIndexOf("? "),
-        probe.lastIndexOf("。"),
-        probe.lastIndexOf("！"),
-        probe.lastIndexOf("？"),
-        probe.lastIndexOf("；"),
-        probe.lastIndexOf("; ")
-      );
-      if (soft > 60) {
-        cut = start + soft + 1;
-      }
+    while (wordCount(rest) > limit) {
+      const cut = softCutIndex(rest, limit);
       out.push(rest.slice(0, cut).trim());
       rest = rest.slice(cut).trim();
     }
@@ -654,11 +854,13 @@
     return out.filter(Boolean);
   }
 
-  function bodyTask(units, order, phase = "later") {
+  function bodyTask(units, order, phase = "later", meta = {}) {
     const parts = units.flatMap((unit) => unit.parts);
     const texts = units.map((unit) => unit.text);
     const text = units.map((unit) => unit.text).join("\n");
-    const splitLimit = phase === "first" ? AI_FIRST_CHUNK_CHARS : AI_LONG_CHUNK_CHARS;
+    const words = wordCount(text);
+    const limit = phase === "first" ? AI_BODY_FIRST_WORD_LIMIT : AI_BODY_WORD_LIMIT;
+    const longLimit = phase === "first" ? AI_BODY_FIRST_LONG_WORD_LIMIT : AI_BODY_LONG_WORD_LIMIT;
     return {
       order,
       phase,
@@ -667,7 +869,9 @@
       parts,
       texts,
       text,
-      pieces: units.length === 1 && text.length > splitLimit ? splitSoftText(text, splitLimit) : null,
+      words,
+      meta,
+      pieces: units.length === 1 && words > longLimit ? splitSoftText(text, limit) : null,
     };
   }
 
@@ -675,35 +879,47 @@
     const units = bodyUnits(data.host);
     const tasks = [];
     let group = [];
-    let chars = 0;
+    let words = 0;
     let order = 0;
+    const phase = () => tasks.length < AI_BODY_FIRST_TASK_COUNT ? "first" : "later";
+    const firstPhase = () => phase() === "first";
+    const wordLimit = () => firstPhase() ? AI_BODY_FIRST_WORD_LIMIT : AI_BODY_WORD_LIMIT;
+    const minWordLimit = () => firstPhase() ? AI_BODY_FIRST_MIN_WORD_LIMIT : AI_BODY_MIN_WORD_LIMIT;
+    const longWordLimit = () => firstPhase() ? AI_BODY_FIRST_LONG_WORD_LIMIT : AI_BODY_LONG_WORD_LIMIT;
+    const add = (unit, unitWords) => {
+      group.push(unit);
+      words += unitWords;
+    };
     const push = () => {
       if (!group.length) {
         return;
       }
-      tasks.push(bodyTask(group, order));
+      tasks.push(bodyTask(group, order, phase(), data.meta));
       group = [];
-      chars = 0;
+      words = 0;
       order += 1;
     };
-    units.forEach((unit, index) => {
-      if (index < AI_FIRST_BODY_GROUPS) {
+    units.forEach((unit) => {
+      const unitWords = Math.max(1, wordCount(unit.text));
+      if (unitWords > longWordLimit()) {
         push();
-        tasks.push(bodyTask([unit], order, "first"));
+        tasks.push(bodyTask([unit], order, phase(), data.meta));
         order += 1;
         return;
       }
-      if (unit.text.length > AI_LONG_CHUNK_CHARS) {
-        push();
-        tasks.push(bodyTask([unit], order));
-        order += 1;
+      if (!group.length) {
+        add(unit, unitWords);
         return;
       }
-      if (group.length && chars + unit.text.length > AI_LATER_CHUNK_CHARS) {
+      const nextWords = words + unitWords;
+      if (nextWords <= wordLimit() || (words < minWordLimit() && nextWords <= longWordLimit())) {
+        add(unit, unitWords);
+        return;
+      }
+      if (nextWords > wordLimit()) {
         push();
       }
-      group.push(unit);
-      chars += unit.text.length + 1;
+      add(unit, unitWords);
     });
     push();
     return tasks;
@@ -862,12 +1078,21 @@
     const text = host ? collectText(host) : "";
     const title = findTitleTextNode(card, host && host !== card ? host : null);
     const titleText = title?.text || "";
+    const routeId = routeAppid();
+    const linkMeta = appMetaFromLinks(card.closest("#popup_target") || card);
+    const appid = routeId || linkMeta.appid || "";
     return {
       host,
       text,
       titleHost: title?.parent || null,
       titleNode: title?.node || null,
       titleText,
+      meta: {
+        title: titleText,
+        gameName: appNameFromStore(appid) || linkMeta.gameName || "",
+        appid,
+        contentType: contentTypeFromText(titleText, text),
+      },
       titleHash: hashText(titleText),
       hash: hashText(`${titleText}\n---steam-buff-news---\n${text}`),
       length: titleText.length + text.length,
@@ -1232,8 +1457,12 @@
     return true;
   }
 
-  async function requestTranslationText(text) {
-    const response = await request(TEXT_REQ, TEXT_RES, { text });
+  function requestMeta(meta) {
+    return meta && typeof meta === "object" ? meta : {};
+  }
+
+  async function requestTranslationText(text, meta = {}) {
+    const response = await request(TEXT_REQ, TEXT_RES, { text, meta: requestMeta(meta) });
     if (!response.ok) {
       throw new Error(response.error || "翻译失败");
     }
@@ -1243,12 +1472,12 @@
     };
   }
 
-  async function requestTranslationTexts(texts) {
+  async function requestTranslationTexts(texts, meta = {}) {
     const items = Array.isArray(texts) ? texts.map((text) => String(text || "")) : [];
     if (!items.length) {
       throw new Error("AI 分块文本为空");
     }
-    const response = await request(TEXT_REQ, TEXT_RES, { texts: items });
+    const response = await request(TEXT_REQ, TEXT_RES, { texts: items, meta: requestMeta(meta) });
     if (!response.ok) {
       throw new Error(response.error || "翻译失败");
     }
@@ -1273,15 +1502,21 @@
     return !data.titleHost?.isConnected || nodeText(data.titleHost) === data.titleText;
   }
 
+  function staleJobError() {
+    const error = new Error("新闻弹窗已切换");
+    error.staleNewsJob = true;
+    return error;
+  }
+
+  function isStaleJobError(error) {
+    return error?.staleNewsJob === true || error?.message === "新闻弹窗已切换";
+  }
+
   async function requestBodyTaskText(task) {
     if (Array.isArray(task.pieces) && task.pieces.length > 1) {
-      const out = [];
-      const metas = [];
-      for (const piece of task.pieces) {
-        const result = await requestTranslationText(piece);
-        out.push(result.text);
-        metas.push(result.meta);
-      }
+      const results = await Promise.all(task.pieces.map((piece) => requestTranslationText(piece, task.meta)));
+      const out = results.map((result) => result.text);
+      const metas = results.map((result) => result.meta);
       const text = out.join("\n");
       return {
         text,
@@ -1293,7 +1528,7 @@
       };
     }
     if (task.units.length > 1) {
-      const result = await requestTranslationTexts(task.texts);
+      const result = await requestTranslationTexts(task.texts, task.meta);
       return {
         text: result.text,
         texts: result.texts,
@@ -1303,7 +1538,7 @@
         },
       };
     }
-    const result = await requestTranslationText(task.text);
+    const result = await requestTranslationText(task.text, task.meta);
     return {
       text: result.text,
       texts: [result.text],
@@ -1316,8 +1551,8 @@
 
   async function translateNeededText(data, needs) {
     const [title, body] = await Promise.all([
-      needs.title ? requestTranslationText(data.titleText) : Promise.resolve(null),
-      needs.body ? requestTranslationText(data.text) : Promise.resolve(null),
+      needs.title ? requestTranslationText(data.titleText, data.meta) : Promise.resolve(null),
+      needs.body ? requestTranslationText(data.text, data.meta) : Promise.resolve(null),
     ]);
     return {
       title: title?.text || "",
@@ -1333,10 +1568,32 @@
     let titleHost = data.titleHost;
     let titleText = "";
     let titleMeta = null;
-    if (needs.title) {
-      const title = await requestTranslationText(data.titleText);
+    const tasks = needs.body ? aiBodyTasks(data) : [];
+    const firstTasks = tasks
+      .filter((task) => task.phase === "first")
+      .sort((a, b) => a.firstIndex - b.firstIndex);
+    const laterTasks = tasks
+      .filter((task) => task.phase !== "first")
+      .sort((a, b) => a.firstIndex - b.firstIndex);
+    let failedCount = 0;
+    let requestCount = 0;
+    let translatedCount = 0;
+    const failedUnits = new Set();
+    const trackFailedUnits = (task) => {
+      task.units
+        .filter((unit) => textPartsCurrent(unit.parts))
+        .forEach((unit) => failedUnits.add(unit));
+    };
+    const clearFailedUnits = (task) => {
+      task.units.forEach((unit) => failedUnits.delete(unit));
+    };
+    const translateTitle = async () => {
+      if (!needs.title) {
+        return;
+      }
+      const title = await requestTranslationText(data.titleText, data.meta);
       if (!jobActive(card, record, jobId) || !titleTextCurrent(data)) {
-        throw new Error("新闻弹窗已切换");
+        throw staleJobError();
       }
       titleHost = renderTitleTranslation(card, data, title.text);
       if (!titleHost && !needs.body) {
@@ -1344,15 +1601,11 @@
       }
       titleText = title.text;
       titleMeta = title.meta;
-    }
-
-    const tasks = needs.body ? aiBodyTasks(data) : [];
-    let failedCount = 0;
-    let requestCount = 0;
-    let translatedCount = 0;
+    };
     const translateTask = async (task) => {
       if (!jobActive(card, record, jobId) || !bodyTaskCurrent(task)) {
         failedCount += 1;
+        trackFailedUnits(task);
         return;
       }
       const retryUnits = async () => {
@@ -1363,17 +1616,20 @@
             continue;
           }
           attempted += 1;
-          const singleTask = bodyTask([unit], task.order);
+          const singleTask = bodyTask([unit], task.order, task.phase, task.meta);
           try {
             const single = await requestBodyTaskText(singleTask);
             requestCount += single.meta.requestCount || 1;
             if (jobActive(card, record, jobId) && applyBodyTask(singleTask, single.texts || single.text)) {
               translatedCount += 1;
+              failedUnits.delete(unit);
             } else {
               failedCount += 1;
+              failedUnits.add(unit);
             }
           } catch {
             failedCount += 1;
+            failedUnits.add(unit);
           }
         }
         return attempted;
@@ -1383,10 +1639,12 @@
         requestCount += result.meta.requestCount || 1;
         if (jobActive(card, record, jobId) && applyBodyTask(task, result.texts || result.text)) {
           translatedCount += 1;
+          clearFailedUnits(task);
           return;
         }
         if (!jobActive(card, record, jobId) || task.units.length <= 1) {
           failedCount += 1;
+          trackFailedUnits(task);
           return;
         }
         await retryUnits();
@@ -1395,6 +1653,7 @@
           return;
         }
         failedCount += 1;
+        trackFailedUnits(task);
         log.warn("news-popup-ai-chunk-failed", "AI 新闻分块翻译失败", {
           order: task.order,
           textLength: task.text.length,
@@ -1403,22 +1662,50 @@
         });
       }
     };
-    // 异步时序依赖: 标题已先落地，正文必须从开头几段开始，再顺序补后文。
-    const firstTasks = tasks
-      .filter((task) => task.phase === "first")
-      .sort((a, b) => a.firstIndex - b.firstIndex);
-    const laterTasks = tasks
-      .filter((task) => task.phase !== "first")
-      .sort((a, b) => a.firstIndex - b.firstIndex);
-    await runLimited(firstTasks, 1, translateTask);
-    await runLimited(laterTasks, 1, translateTask);
+    const retryFailedUnits = async () => {
+      const units = Array.from(failedUnits).filter((unit) => textPartsCurrent(unit.parts));
+      if (!units.length || !jobActive(card, record, jobId)) {
+        return 0;
+      }
+      const retryTasks = units.map((unit, index) => bodyTask([unit], tasks.length + index, "retry", data.meta));
+      let recovered = 0;
+      await runLimited(retryTasks, serviceLimit, async (task) => {
+        if (!jobActive(card, record, jobId) || !bodyTaskCurrent(task)) {
+          return;
+        }
+        try {
+          const result = await requestBodyTaskText(task);
+          requestCount += result.meta.requestCount || 1;
+          if (jobActive(card, record, jobId) && applyBodyTask(task, result.texts || result.text)) {
+            recovered += 1;
+            translatedCount += 1;
+            clearFailedUnits(task);
+          }
+        } catch (error) {
+          log.warn("news-popup-ai-retry-failed", "AI 新闻漏翻重试失败", {
+            order: task.order,
+            textLength: task.text.length,
+            error: errorMessage(error),
+          });
+        }
+      });
+      return recovered;
+    };
+    const serviceLimit = aiRequestLimit(rt);
+    const bodyLimit = Math.max(1, serviceLimit - (needs.title ? 1 : 0));
+    const titleTask = translateTitle();
+    const bodyTasks = firstTasks.concat(laterTasks);
+    const bodyQueueTask = runLimited(bodyTasks, bodyLimit, translateTask);
+    await Promise.all([titleTask, bodyQueueTask]);
+    const retryCount = await retryFailedUnits();
+    const finalFailedCount = Array.from(failedUnits).filter((unit) => textPartsCurrent(unit.parts)).length;
 
     const host = data.host?.isConnected ? data.host : null;
     const bodyText = host ? collectText(host) : "";
     if (tasks.length && !translatedCount && !titleText) {
       throw new Error("AI 分块翻译失败");
     }
-    rememberTranslation(rt, card, data, titleHost, failedCount ? null : host);
+    rememberTranslation(rt, card, data, titleHost, finalFailedCount ? null : host);
     return {
       title: titleText,
       body: bodyText,
@@ -1429,11 +1716,15 @@
           chunkCount: tasks.length,
           firstCount: firstTasks.length,
           laterCount: laterTasks.length,
+          retryCount,
           translatedCount,
-          failedCount,
+          failedCount: finalFailedCount,
+          failedAttemptCount: failedCount,
           requestCount,
-          concurrency: 1,
-          serviceConcurrency: aiRequestLimit(rt),
+          concurrency: serviceLimit,
+          firstConcurrency: bodyLimit,
+          laterConcurrency: bodyLimit,
+          serviceConcurrency: serviceLimit,
           service: AI_SERVICE,
         },
       },
@@ -1512,6 +1803,13 @@
         service: result.meta.body?.service || result.meta.title?.service || "",
       });
     } catch (error) {
+      if (isStaleJobError(error)) {
+        if (card.isConnected) {
+          setButton(button, "idle");
+          scheduleScan(rt, 20);
+        }
+        return;
+      }
       if (card.isConnected) {
         setButton(button, "error", error?.message || "翻译失败");
       }

@@ -11,7 +11,7 @@
 ((root) => {
   "use strict";
 
-  const VERSION = "steam-buff-floating-rail-v1";
+  const VERSION = "steam-buff-floating-rail-v2";
   if (root.STSettingsFloatingRail?.version === VERSION) {
     root.STSettingsFloatingRail.mount?.();
     return;
@@ -492,7 +492,8 @@
 
   function bind() {
     bindDrag();
-    listen(root, "resize", () => applyRailPos(railTop, railSide, true));
+    // 注: 窗口/Steam UI 尺寸变化只重排，不写入存储，避免覆盖用户手动拖动的位置。
+    listen(root, "resize", () => applyRailPos(railTop, railSide, false));
     listen(root, "scroll", scheduleTopButton, { passive: true });
     listen(document, "scroll", scheduleTopButton, { passive: true, capture: true });
     listen(root, REVIEW_UPDATE_EVT, (event) => updateReviewButton(event.detail || {}));

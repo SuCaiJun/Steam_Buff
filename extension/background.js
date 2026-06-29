@@ -260,7 +260,7 @@
   const pendingTabInjects = new Map();
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
   const AI_FETCH_TIMEOUT_MS = 20 * 1000;
-  const AI_FETCH_TIMEOUT_MAX_MS = 90 * 1000;
+  const AI_FETCH_TIMEOUT_MAX_MS = 120 * 1000;
   const SHARED_CONFIG = "shared/config.js";
   const OBSERVER_UTILS = "shared/observer-utils.js";
   const TRANS_VENDOR_WRAPPER = "translate/vendor-wrapper.js";
@@ -783,7 +783,7 @@
 
   function aiLimit(conf) {
     const limit = globalThis.STAI?.concurrency?.(conf);
-    return Number.isFinite(limit) ? limit : 3;
+    return Number.isFinite(limit) ? limit : 10;
   }
 
   function drainAiQueue() {

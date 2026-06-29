@@ -1913,12 +1913,25 @@
     return createTextTranslator(trans, conf).serviceFor(selService(conf));
   }
 
-  function selData(text, from, to) {
+  function selData(text, from, to, options = {}) {
     return {
       from,
       to,
+      ...(options.mode ? { mode: options.mode } : {}),
+      ...(options.meta && typeof options.meta === "object" ? { meta: options.meta } : {}),
       text: encodeURIComponent(JSON.stringify([text])),
     };
+  }
+
+  function selCacheContext(options = {}) {
+    const meta = options.meta && typeof options.meta === "object" ? options.meta : {};
+    return JSON.stringify({
+      mode: options.mode || "",
+      gameName: meta.gameName || "",
+      appid: meta.appid || "",
+      title: meta.title || "",
+      contentType: meta.contentType || "",
+    });
   }
 
   function edgeFrom(from) {
@@ -2026,7 +2039,7 @@
     if (typeof fn !== "function") {
       return Promise.reject(new Error("AI 翻译模块未加载"));
     }
-    return fn(conf, selData(text, from, to), options).then(resultText);
+    return fn(conf, selData(text, from, to, options), options).then(resultText);
   }
 
   function reqText(trans, text, from, to, conf, service, options = {}) {
@@ -2059,7 +2072,7 @@
       const from = String(options.from || "auto");
       const to = String(options.to || defaultTo || "chinese_simplified");
       const service = serviceFor(options.service);
-      const key = `${service}\n${from}\n${to}\n${text}`;
+      const key = `${service}\n${from}\n${to}\n${selCacheContext(options)}\n${text}`;
       if (selCache.has(key)) {
         return Promise.resolve(selCache.get(key));
       }

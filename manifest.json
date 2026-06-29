@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "0.11.27",
+  "version": "0.11.42",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "顾青离",
@@ -40,6 +40,7 @@
     "https://www.sucaijun.com/*",
     "https://api.sucaijun.com/*",
     "https://aligueler.com/*",
+    "https://open.bigmodel.cn/*",
     "https://steam-buff.ai.sucaijun.com/*"
   ],
   "background": {

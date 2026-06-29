@@ -17,9 +17,9 @@
   const SERVICE = "steam-buff.ai";
   const AI_PROXY_URL = CFG.urls?.aiTranslateProxy || "";
   const PATH = "__steam_buff_ai_translate__";
-  const PROMPT_VERSION = "steam-buff-ai-translate-prompt-v1";
+  const PROMPT_VERSION = "steam-buff-ai-translate-prompt-v2";
   const SHORT_CACHE_LIMIT = 80;
-  const DEFAULT_CONCURRENCY = 3;
+  const DEFAULT_CONCURRENCY = 10;
   const MAX_CONCURRENCY = 10;
   const CHUNK_SIZE = 30;
   const CHUNK_CHARS = 4000;
@@ -49,6 +49,15 @@
 
   function promptMode(data) {
     return clean(data?.mode || data?.context || "");
+  }
+
+  function promptMeta(data) {
+    const raw = data?.meta || data?.promptMeta || data?.background || {};
+    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  }
+
+  function metaValue(data, key) {
+    return clean(promptMeta(data)?.[key] || "");
   }
 
   function int(value, def, min, max) {
@@ -132,7 +141,10 @@
       to,
       texts,
       host: location.hostname,
-      title: document.title,
+      title: metaValue(data, "title") || document.title,
+      gameName: metaValue(data, "gameName"),
+      appid: metaValue(data, "appid"),
+      contentType: metaValue(data, "contentType"),
       mode: promptMode(data),
     };
     return [
@@ -161,6 +173,7 @@
 
   function cacheBase(conf, data, text) {
     const mode = promptMode(data);
+    const meta = promptMeta(data);
     const base = {
       v: PROMPT_VERSION,
       provider: SERVICE,
@@ -171,6 +184,16 @@
     };
     if (mode) {
       base.mode = mode;
+    }
+    const title = clean(meta.title) || document.title || "";
+    for (const key of ["gameName", "appid", "contentType"]) {
+      const value = clean(meta[key]);
+      if (value) {
+        base[key] = value;
+      }
+    }
+    if (title) {
+      base.title = title;
     }
     if (cacheText(text).length <= SHORT_CACHE_LIMIT) {
       return {
@@ -183,7 +206,7 @@
       scope: "context",
       host: hostName(conf),
       pageHost: location.hostname,
-      title: document.title || "",
+      pageTitle: document.title || "",
     };
   }
 
@@ -453,11 +476,11 @@
   }
 
   function fail(error, data) {
-    const msg = errorText(error, "AI 翻译失败");
-    report("error", "ai-translate-failed", "AI 翻译失败", dataMeta(data, { error: msg }));
+    const info = errorText(error, "AI 翻译失败");
+    report("error", "ai-translate-failed", "AI 翻译失败", dataMeta(data, { error: info }));
     return {
       result: 0,
-      info: msg,
+      info,
       from: data?.from,
       to: data?.to,
       text: [],

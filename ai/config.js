@@ -23,13 +23,13 @@
   const CONCURRENCY_MAX = 10;
   const DEFAULTS = Object.freeze({
     enabled: false,
-    host: "",
-    model: "",
+    host: "https://open.bigmodel.cn/api/paas/v4/chat/completions/",
+    model: "GLM-4-Flash",
     key: "",
-    keyMode: "none",
+    keyMode: "bearer",
     keyName: "",
     temperature: "",
-    aiConcurrency: 3,
+    aiConcurrency: 10,
   });
 
   const FIELDS = Object.freeze([
@@ -42,13 +42,13 @@
       type: "text",
       key: "host",
       label: "AI 网关地址",
-      placeholder: "https://api.deepseek.com",
+      placeholder: DEFAULTS.host,
     },
     {
       type: "text",
       key: "model",
       label: "模型",
-      placeholder: "deepseek-chat",
+      placeholder: DEFAULTS.model,
     },
     {
       type: "select",

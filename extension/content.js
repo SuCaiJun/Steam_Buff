@@ -90,7 +90,7 @@
   const NEWS_TEXT_MAX = 20000;
   const NEWS_AI_CHUNK_CHARS = 1600;
   const NEWS_AI_HARD_CHUNK_CHARS = 1800;
-  const NEWS_AI_TIMEOUT_MS = 45_000;
+  const NEWS_AI_TIMEOUT_MS = 120_000;
   const STEAM_SETTING_IDS = Object.freeze([
     "library-sort-title",
     NAME_ID,
@@ -124,13 +124,13 @@
   });
   const AI_DEFAULTS = Object.freeze({
     enabled: false,
-    host: "",
-    model: "",
+    host: "https://open.bigmodel.cn/api/paas/v4/chat/completions/",
+    model: "GLM-4-Flash",
     key: "",
-    keyMode: "none",
+    keyMode: "bearer",
     keyName: "",
     temperature: "",
-    aiConcurrency: 3,
+    aiConcurrency: 10,
   });
   let settingsCache = null;
   let steamSettingsSnapshot = null;
@@ -1052,6 +1052,11 @@
     return [String(data.text || "").replace(/\s+\n/g, "\n").trim()];
   }
 
+  function newsRequestMeta(data = {}) {
+    const raw = data?.meta;
+    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  }
+
   async function translateNewsAiTexts(rtConf, texts, options = {}) {
     const to = options.to || rtConf.to || "chinese_simplified";
     const fn = globalThis.STTranslateAI?.translate;
@@ -1062,6 +1067,7 @@
       from: "auto",
       to,
       mode: NEWS_AI_MODE,
+      meta: options.meta || {},
       text: encodeURIComponent(JSON.stringify(texts)),
     }, {
       timeoutMs: NEWS_AI_TIMEOUT_MS,
@@ -1119,6 +1125,7 @@
         from: "auto",
         to,
         service,
+        ...(isAi ? { mode: NEWS_AI_MODE, meta: options.meta || {} } : {}),
         ...(isAi ? { timeoutMs: NEWS_AI_TIMEOUT_MS } : {}),
       });
       translated.push(String(result || ""));
@@ -1140,6 +1147,7 @@
     const rid = safeRid(data?.rid);
     const startedAt = Date.now();
     const texts = newsRequestTexts(data);
+    const meta = newsRequestMeta(data);
     const text = texts.join("\n");
     if (!texts.length || !texts.some(Boolean)) {
       postNews(NEWS_TRANSLATE_TEXT_RES, { rid, ok: false, error: "没有可翻译内容" });
@@ -1164,6 +1172,7 @@
       const result = await translateNewsText(rtConf, input, {
         to: conf.to || "chinese_simplified",
         service,
+        meta,
       });
       postNews(NEWS_TRANSLATE_TEXT_RES, {
         rid,
