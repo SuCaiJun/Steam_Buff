@@ -1,8 +1,22 @@
-# Steam Buff
+<h1 align="center">
+  <br>
+  <a href="https://www.sucaijun.com/25.html" alt="logo" ><img src="https://raw.githubusercontent.com/sys1em/Steam_Buff/main/images/icon.png" width="150"/></a>
+  <br>
+  Steam Buff
+  <br>
+</h1>
+<h4 align="center">一个全方位增强 Steam 使用体验的浏览器扩展，覆盖 Steam 商店、社区、客户端内置页面。</h4>
 
-一个全方位增强 Steam 使用体验的浏览器扩展，覆盖 Steam 商店、社区、客户端内置页面。
-
-![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue) ![Version](https://img.shields.io/github/manifest-json/v/sys1em/Steam_Buff?filename=manifest.json&label=version&color=orange) ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-green)
+<p align="center">
+  <a href="https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3"><img src="https://img.shields.io/badge/Manifest-V3-blue" alt="Manifest V3"></a>
+   <a href="https://github.com/sys1em/Steam_Buff/releases"><img src="https://img.shields.io/github/manifest-json/v/sys1em/Steam_Buff?filename=manifest.json&label=version&color=success" alt="GitHub release"></a>
+     <a href="https://www.gnu.org/licenses/gpl-3.0.html"><img src="https://shields.io/github/license/sys1em/Steam_Buff" alt="License: GPL v3"></a>
+</p>
+<p align="center">
+  <a href="/README.md"><img alt="中文(简体)" src="https://img.shields.io/badge/中文(简体)-d9d9d9"></a>
+   <a href="/docs/README_zh-TW.md"><img alt="中文(繁體)" src="https://img.shields.io/badge/中文(繁體)-d9d9d9"></a>
+  <a href="/docs/README_en.md"><img alt="English" src="https://img.shields.io/badge/English-d9d9d9"></a>
+</p>
 
 当前仓库是扩展端源码。项目仍在重构和功能迁移阶段，部分模块会继续调整。
 
