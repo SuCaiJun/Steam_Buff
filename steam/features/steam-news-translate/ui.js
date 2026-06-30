@@ -1031,6 +1031,10 @@
     return true;
   }
 
+  function batchMostlyTranslated(items) {
+    return items.filter((item) => item.changed).length > items.length / 2;
+  }
+
   function applyBodyTaskResult(task, value) {
     const values = Array.isArray(value)
       ? value.map((text) => String(text || "").trim()).filter(Boolean)
@@ -1061,10 +1065,21 @@
       result.failedUnits = task.units.filter((unit) => textPartsCurrent(unit.parts));
       return result;
     }
-    slices.forEach(([unit, slice]) => {
+    const mapped = slices.map(([unit, slice]) => ({
+      unit,
+      slice,
+      changed: translationChanged(unitTranslationText(unit, slice), unit.text),
+    }));
+    const acceptUnchanged = batchMostlyTranslated(mapped);
+    mapped.forEach(({ unit, slice, changed }) => {
       if (applyTextUnit(unit, slice)) {
         result.applied += 1;
-      } else if (textPartsCurrent(unit.parts)) {
+        return;
+      }
+      if (acceptUnchanged && !changed) {
+        return;
+      }
+      if (textPartsCurrent(unit.parts)) {
         result.failedUnits.push(unit);
       }
     });
@@ -1645,28 +1660,6 @@
     return error?.staleNewsJob === true || error?.message === "新闻弹窗已切换";
   }
 
-  function isArrayCountMismatch(error) {
-    return error?.message === "AI 分块翻译结果数量不一致";
-  }
-
-  async function requestTranslationTextsIndividually(texts, meta = {}) {
-    const items = Array.isArray(texts) ? texts.map((text) => String(text || "")) : [];
-    const results = [];
-    for (const text of items) {
-      results.push(await requestTranslationText(text, meta));
-    }
-    const out = results.map((result) => result.text);
-    return {
-      text: out.join("\n"),
-      texts: out,
-      meta: {
-        requestCount: results.length,
-        chunks: results.map((result) => result.meta),
-        fallback: "slot",
-      },
-    };
-  }
-
   async function requestBodyTaskText(task) {
     if (Array.isArray(task.pieces) && task.pieces.length > 1) {
       const results = await Promise.all(task.pieces.map((piece) => requestTranslationText(piece, task.meta)));
@@ -1683,15 +1676,7 @@
       };
     }
     if (task.texts.length > 1) {
-      let result = null;
-      try {
-        result = await requestTranslationTexts(task.texts, task.meta);
-      } catch (error) {
-        if (!isArrayCountMismatch(error)) {
-          throw error;
-        }
-        return requestTranslationTextsIndividually(task.texts, task.meta);
-      }
+      const result = await requestTranslationTexts(task.texts, task.meta);
       return {
         text: result.text,
         texts: result.texts,
@@ -1777,32 +1762,6 @@
         trackFailedUnits(task);
         return;
       }
-      const retryUnits = async (units = task.units) => {
-        let attempted = 0;
-        for (const unit of units) {
-          if (!jobActive(card, record, jobId) || !textPartsCurrent(unit.parts)) {
-            failedCount += 1;
-            continue;
-          }
-          attempted += 1;
-          const singleTask = bodyTask([unit], task.order, task.phase, task.meta);
-          try {
-            const single = await requestBodyTaskText(singleTask);
-            requestCount += single.meta.requestCount || 1;
-            if (jobActive(card, record, jobId) && applyBodyTask(singleTask, single.texts || single.text)) {
-              translatedCount += 1;
-              failedUnits.delete(unit);
-            } else {
-              failedCount += 1;
-              failedUnits.add(unit);
-            }
-          } catch {
-            failedCount += 1;
-            failedUnits.add(unit);
-          }
-        }
-        return attempted;
-      };
       try {
         const result = await requestBodyTaskText(task);
         requestCount += result.meta.requestCount || 1;
@@ -1816,19 +1775,11 @@
           if (!applied.failedUnits.length || !jobActive(card, record, jobId)) {
             return;
           }
-          await retryUnits(applied.failedUnits);
           return;
         }
-        if (!jobActive(card, record, jobId) || task.units.length <= 1) {
-          failedCount += 1;
-          trackFailedUnits(task);
-          return;
-        }
-        await retryUnits();
+        failedCount += 1;
+        trackFailedUnits(task);
       } catch (error) {
-        if (task.units.length > 1 && await retryUnits()) {
-          return;
-        }
         failedCount += 1;
         trackFailedUnits(task);
         log.warn("news-popup-ai-chunk-failed", "AI 新闻分块翻译失败", {
@@ -1839,42 +1790,12 @@
         });
       }
     };
-    const retryFailedUnits = async () => {
-      const units = Array.from(failedUnits).filter((unit) => textPartsCurrent(unit.parts));
-      if (!units.length || !jobActive(card, record, jobId)) {
-        return 0;
-      }
-      const retryTasks = units.map((unit, index) => bodyTask([unit], tasks.length + index, "retry", data.meta));
-      let recovered = 0;
-      await runLimited(retryTasks, serviceLimit, async (task) => {
-        if (!jobActive(card, record, jobId) || !bodyTaskCurrent(task)) {
-          return;
-        }
-        try {
-          const result = await requestBodyTaskText(task);
-          requestCount += result.meta.requestCount || 1;
-          if (jobActive(card, record, jobId) && applyBodyTask(task, result.texts || result.text)) {
-            recovered += 1;
-            translatedCount += 1;
-            clearFailedUnits(task);
-          }
-        } catch (error) {
-          log.warn("news-popup-ai-retry-failed", "AI 新闻漏翻重试失败", {
-            order: task.order,
-            textLength: task.text.length,
-            error: errorMessage(error),
-          });
-        }
-      });
-      return recovered;
-    };
     const serviceLimit = aiRequestLimit(rt);
     const bodyLimit = Math.max(1, serviceLimit - (needs.title ? 1 : 0));
     const titleTask = translateTitle();
     const bodyTasks = firstTasks.concat(laterTasks);
     const bodyQueueTask = runLimited(bodyTasks, bodyLimit, translateTask);
     await Promise.all([titleTask, bodyQueueTask]);
-    const retryCount = await retryFailedUnits();
 
     const host = data.host?.isConnected ? data.host : null;
     const bodyText = host ? collectText(host) : "";
@@ -1897,7 +1818,7 @@
           chunkCount: tasks.length,
           firstCount: firstTasks.length,
           laterCount: laterTasks.length,
-          retryCount,
+          retryCount: 0,
           translatedCount,
           failedCount: finalFailedCount,
           failedAttemptCount: failedCount,
