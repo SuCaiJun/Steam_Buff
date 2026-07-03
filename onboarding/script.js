@@ -32,7 +32,7 @@
     loginBusy: false,
     loginDevice: null,
     loginAuth: null,
-    loginProfile: null,
+    accountData: null,
     loginMessage: "",
     loginCopy: "",
   };
@@ -52,8 +52,6 @@
     cart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2.2 10.4a2 2 0 0 0 2 1.6h6.9a2 2 0 0 0 2-1.5L21 8H7"></path><circle cx="10" cy="20" r="1.5"></circle><circle cx="18" cy="20" r="1.5"></circle><path d="M12 12h5"></path></svg>',
     chart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M6 16l4-5 3 3 5-7"></path><path d="M18 7h-4"></path><path d="M18 7v4"></path></svg>',
     trend: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l5-5 4 4 7-9"></path><path d="M15 7h5v5"></path><path d="M4 20h16"></path></svg>',
-    moon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 7 7 0 1 0 20 15.5z"></path><path d="M16 12h4"></path><path d="M18 10v4"></path></svg>',
-    translate: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h9"></path><path d="M9 3v2"></path><path d="M6 9c1.2 2.2 3 4 6 5"></path><path d="M12 5c-.7 4-2.6 7-7 9"></path><path d="M14 20l4-9 4 9"></path><path d="M15.5 17h5"></path></svg>',
     login: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path></svg>',
     check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>',
     restart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7"></path><path d="M18 3v5h-5"></path><path d="M21 12a9 9 0 0 1-15 6.7"></path><path d="M6 21v-5h5"></path></svg>',
@@ -105,7 +103,7 @@
       title: "游戏库自定义名称",
       desc: "为游戏添加个性化备注名称，快速识别和管理大型游戏库。",
       tone: "blue",
-      media: { src: "", poster: "", alt: "游戏库自定义名称演示" },
+      media: { src: "./images/customName.webp", poster: "填写自定义排序名称自动同步显示，无需重启steam", alt: "游戏库自定义名称演示" },
     },
     {
       id: "wishlist",
@@ -113,7 +111,7 @@
       title: "愿望单智能分组",
       desc: "按类型、优先级自由分组，促销时第一时间关注重点游戏。",
       tone: "purple",
-      media: { src: "", poster: "", alt: "愿望单分组演示" },
+      media: { src: "./images/wishlist-group.webp", poster: "", alt: "愿望单分组演示" },
     },
     {
       id: "checks",
@@ -121,15 +119,15 @@
       title: "检查与提醒",
       desc: "集中检查关键状态，在价格、库存或配置需要关注时及时提醒。",
       tone: "green",
-      media: { src: "", poster: "", alt: "检查与提醒演示" },
+      media: { src: "./images/alert-check.webp", poster: "", alt: "检查与提醒演示" },
     },
     {
       id: "shopping",
       icon: "cart",
-      title: "购物增强",
+      title: "DLC购买增强",
       desc: "围绕购买前后的信息整理和操作流程，减少反复切换页面的成本。",
       tone: "blue",
-      media: { src: "", poster: "", alt: "购物增强演示" },
+      media: { src: "./images/DLC.webp", poster: "", alt: "购物增强演示" },
     },
     {
       id: "price",
@@ -137,7 +135,7 @@
       title: "历史低价分析",
       desc: "查看历史价格走势和低价参考，帮助判断当前折扣力度。",
       tone: "red",
-      media: { src: "", poster: "", alt: "历史低价分析演示" },
+      media: { src: "./images/price-history.webp", poster: "", alt: "历史低价分析演示" },
     },
     {
       id: "forecast",
@@ -145,23 +143,7 @@
       title: "未来打折预测",
       desc: "结合历史促销节奏与价格变化，辅助判断是否值得现在入手。",
       tone: "purple",
-      media: { src: "", poster: "", alt: "未来打折预测演示" },
-    },
-    {
-      id: "shutdown",
-      icon: "moon",
-      title: "下载完成自动关机",
-      desc: "下载队列完成后执行关机动作，睡前下载更省心。",
-      tone: "green",
-      media: { src: "", poster: "", alt: "下载完成自动关机演示" },
-    },
-    {
-      id: "translate",
-      icon: "translate",
-      title: "翻译",
-      desc: "对商店、社区和客户端内容进行辅助翻译，降低跨语言浏览成本。",
-      tone: "blue",
-      media: { src: "", poster: "", alt: "翻译演示" },
+      media: { src: "./images/price-history.webp", poster: "", alt: "未来打折预测演示" },
     },
   ]);
 
@@ -377,24 +359,26 @@
     }
   }
 
-  function firstText(...values) {
-    for (const value of values) {
-      const text = String(value || "").trim();
-      if (text) return text;
+  function accountProfile() {
+    const api = window.STSettingsAccountCenter || window.STAccountProfile;
+    if (!api?.normalizeData || !api?.membershipSnapshot) {
+      throw new Error("账号资料模块未加载");
     }
-    return "";
+    return api;
   }
 
-  function loginProfile(center = {}, auth = {}) {
-    const user = center?.user || {};
-    const sponsor = center?.sponsor || user.sponsor || {};
-    const active = !!(auth?.access_token || auth?.refresh_token);
-    return {
-      name: firstText(user.nickname, user.name, user.display_name, user.user_login, user.id, "Steam Buff 用户"),
-      id: firstText(user.steam_id, user.steamid, user.steamId, user.id, user.uid, "用户 ID 暂无"),
-      avatar: firstText(user.avatar, user.avatar_url, user.steam_avatar),
-      badge: firstText(sponsor.badge, sponsor.name, sponsor.display_name, active ? "已登录" : "未登录"),
-    };
+  function normalizeAccount(center = {}, auth = {}) {
+    return accountProfile().normalizeData(center, auth);
+  }
+
+  function accountMeta(data) {
+    const id = String(data?.user?.id || "用户 ID 暂无").trim() || "用户 ID 暂无";
+    const badge = String(data?.sponsor?.badge || "普通用户").trim() || "普通用户";
+    return `${badge} · ${id === "用户 ID 暂无" ? id : `ID: ${id}`}`;
+  }
+
+  async function storeMembership(data) {
+    await storageSet(MEMBERSHIP_KEY, accountProfile().membershipSnapshot(data));
   }
 
   function stopLoginPoll() {
@@ -489,17 +473,41 @@
     }, delay);
   }
 
-  async function syncLoginProfile(auth) {
+  function centerCode(res) {
+    return Number(res?.body?.code) || Number(res?.status) || 0;
+  }
+
+  function centerExpired(res) {
+    return centerCode(res) === 401;
+  }
+
+  async function refreshStoredAuth(auth, cfg) {
+    if (!auth?.refresh_token) throw new Error("登录已过期，请重新登录");
+    const res = await storeFetch("/auth/refresh", { refresh_token: auth.refresh_token }, "", "POST", cfg.urls.loginAuthBase);
+    if (!okCode(res) || !res.body?.access_token) throw new Error(res.body?.message || "登录刷新失败，请重新登录");
+    const next = nextAuth(res.body, auth);
+    await storageSet(AUTH_KEY, next);
+    state.loginAuth = next;
+    return next;
+  }
+
+  async function fetchUserCenter(auth, cfg) {
+    return storeFetch("/user/center", null, auth.access_token, "GET", cfg.urls.steamBuffBase);
+  }
+
+  async function syncAccountData(auth) {
     const cfg = await sharedConfig();
-    const res = await storeFetch("/user/center", null, auth.access_token, "GET", cfg.urls.steamBuffBase);
+    let current = auth;
+    let res = await fetchUserCenter(current, cfg);
+    if (centerExpired(res)) {
+      current = await refreshStoredAuth(current, cfg);
+      res = await fetchUserCenter(current, cfg);
+    }
     if (!okCode(res)) throw new Error(res.body?.message || "获取用户信息失败");
-    const profile = loginProfile(res.body || {}, auth);
-    state.loginProfile = profile;
-    await storageSet(MEMBERSHIP_KEY, {
-      active: String(profile.badge || "") !== "普通用户",
-      badge: profile.badge,
-      features: {},
-    });
+    const profile = normalizeAccount(res.body || {}, current);
+    state.accountData = profile;
+    await storeMembership(profile);
+    return profile;
   }
 
   async function startLogin() {
@@ -580,9 +588,9 @@
       state.loginDevice = null;
       state.loginMessage = "登录成功";
       try {
-        await syncLoginProfile(auth);
+        await syncAccountData(auth);
       } catch {
-        state.loginProfile = loginProfile({}, auth);
+        state.accountData = normalizeAccount({}, auth);
       }
       stopLoginPoll();
       render();
@@ -609,9 +617,19 @@
     const auth = cleanAuth(await storageGet(AUTH_KEY));
     if (!auth) return;
     state.loginAuth = auth;
-    state.loginMode = "success";
-    state.loginMessage = "已登录";
-    state.loginProfile = loginProfile({}, auth);
+    state.loginMode = "syncing";
+    state.loginMessage = "正在同步账号信息...";
+    state.accountData = null;
+    render();
+    try {
+      await syncAccountData(auth);
+      state.loginMode = "success";
+      state.loginMessage = "已登录";
+    } catch (error) {
+      state.accountData = normalizeAccount({}, state.loginAuth || auth);
+      state.loginMode = "success";
+      state.loginMessage = error?.message ? "已登录，用户信息暂未同步。" : "已登录";
+    }
     render();
   }
 
@@ -713,9 +731,11 @@
   }
 
   function renderFeatures(body) {
-    const layout = el("div", "feature-stack");
-    layout.setAttribute("aria-label", "核心功能");
-    features.forEach((item, index) => layout.append(featureCard(item, index)));
+    const layout = el("div", "feature-layout");
+    const list = el("div", "feature-stack");
+    list.setAttribute("aria-label", "核心功能");
+    features.forEach((item, index) => list.append(featureCard(item, index)));
+    layout.append(list, el("p", "feature-settings-hint", "更多功能请看扩展的设置中心..."));
     body.append(layout);
   }
 
@@ -748,11 +768,11 @@
   function renderLoginAuth() {
     const box = el("section", `login-auth ${state.loginMode}`.trim());
     if (state.loginMode === "success") {
-      const profile = state.loginProfile || loginProfile({}, state.loginAuth || {});
+      const profile = state.accountData || normalizeAccount({}, state.loginAuth || {});
       const avatar = el("span", "login-avatar");
-      if (profile.avatar) {
+      if (profile.user.avatar) {
         const img = document.createElement("img");
-        img.src = profile.avatar;
+        img.src = profile.user.avatar;
         img.alt = "";
         avatar.append(img);
       } else {
@@ -761,18 +781,24 @@
       const copy = el("div", "login-auth-copy");
       copy.append(
         el("span", "login-auth-kicker", "当前已登录"),
-        el("strong", "", profile.name),
-        el("small", "", `${profile.badge} · ${profile.id}`)
+        el("strong", "", profile.user.name),
+        el("small", "", accountMeta(profile))
       );
       box.append(avatar, copy);
       return box;
     }
 
     const copy = el("div", "login-auth-copy");
-    const title = state.loginMode === "device" ? "在当前页完成登录" : "登录 / 绑定账号";
+    const title = state.loginMode === "device"
+      ? "在当前页完成登录"
+      : state.loginMode === "syncing"
+        ? "正在同步账号信息"
+        : "登录 / 绑定账号";
     const desc = state.loginMode === "device"
       ? "复制授权码或授权链接，在浏览器完成授权后回到这里继续。"
-      : "不会打开设置中心；点击后会在这里展示授权码和登录状态。";
+      : state.loginMode === "syncing"
+        ? "已检测到登录状态，正在读取昵称、头像和权益。"
+        : "不会打开设置中心；点击后会在这里展示授权码和登录状态。";
     copy.append(el("strong", "", title), el("small", "", desc));
     box.append(icon("login", "login-auth-icon"), copy);
 

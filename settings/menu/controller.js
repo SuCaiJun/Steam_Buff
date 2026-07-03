@@ -269,9 +269,7 @@
       btn.setAttribute("aria-expanded", open ? "true" : "false");
 
       if (open) {
-        window.requestAnimationFrame(() => {
-          panel.classList.add("open");
-        });
+        panel.classList.add("open");
         return;
       }
 
