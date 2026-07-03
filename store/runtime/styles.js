@@ -208,6 +208,9 @@
         line-height: 1.5;
         box-sizing: border-box;
       }
+      .st-wishlist-price-history-panel.is-hover-through {
+        pointer-events: none;
+      }
       .st-wishlist-price-history-panel::after {
         content: "";
         position: absolute;

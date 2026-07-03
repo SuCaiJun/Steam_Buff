@@ -38,6 +38,7 @@
     cdk: "steampy-cdk-price",
     proxy: "steampy-proxy-price",
   });
+  const HOVER_THROUGH_ID = "wishlist-price-history-hover-through";
   const log = window.STLoggerFactory.createLogger("store", FEATURE_ID);
   const DataIndex = api.dataIndex || window.STDataIndex;
 
@@ -62,6 +63,7 @@
   let currentCard = null;
   let cardHover = false;
   let panelHover = false;
+  let hoverThrough = false;
   let detachTimer = 0;
 
   function text(value) {
@@ -137,6 +139,15 @@
       cdk: on(FEATURES.cdk),
       proxy: on(FEATURES.proxy),
     };
+  }
+
+  function refreshInteractionMode(panel = currentPanel) {
+    hoverThrough = api.settings?.all?.()[HOVER_THROUGH_ID] === true;
+    if (hoverThrough) {
+      panelHover = false;
+    }
+    panel?.classList?.toggle("is-hover-through", hoverThrough);
+    return hoverThrough;
   }
 
   function addStyle() {
@@ -244,7 +255,7 @@
   }
 
   function shouldKeepPanel() {
-    return cardHover || panelHover;
+    return cardHover || (!hoverThrough && panelHover);
   }
 
   function scheduleDetach(delay = CLOSE_DELAY) {
@@ -674,6 +685,7 @@
       document.body.appendChild(panel);
       currentPanel = panel;
     }
+    refreshInteractionMode(panel);
     panel.classList.remove("is-leaving");
     panel.classList.remove("st-wphp-content-enter", "st-wphp-content-leave", "st-wphp-content-prep", "st-wphp-chart-replay");
     panel.classList.toggle("st-wphp-fast", fast);
@@ -772,7 +784,7 @@
 
   function replayCurrentPanelOnEnter(event) {
     if (!currentPanel || currentPanel.classList.contains("is-leaving")) return;
-    if (cardContains(event.relatedTarget) || panelContains(event.relatedTarget)) return;
+    if (cardContains(event.relatedTarget) || (!hoverThrough && panelContains(event.relatedTarget))) return;
     currentPanel.classList.remove("st-wphp-fast");
     armWillChange(currentPanel);
     positionPanel(true);
@@ -795,17 +807,19 @@
   }
 
   function handleMouseOut(event) {
-    if (!currentRow || cardContains(event.relatedTarget) || panelContains(event.relatedTarget)) return;
+    if (!currentRow || cardContains(event.relatedTarget) || (!hoverThrough && panelContains(event.relatedTarget))) return;
     cardHover = false;
     scheduleDetach();
   }
 
   function handlePanelMouseEnter() {
+    if (hoverThrough) return;
     panelHover = true;
     clearDetachTimer();
   }
 
   function handlePanelMouseLeave(event) {
+    if (hoverThrough) return;
     panelHover = false;
     if (cardContains(event.relatedTarget)) {
       cardHover = true;
@@ -888,6 +902,7 @@
     if (!api.settings?.on?.(FEATURE_ID)) {
       return false;
     }
+    refreshInteractionMode();
     if (started) {
       syncRows();
       startWhenReady();

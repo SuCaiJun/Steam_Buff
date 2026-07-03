@@ -33,6 +33,10 @@
   const DETAIL_SETTLE_LIMIT = 10;
   const WISHLIST_RENDER_DEBOUNCE_MS = 1000;
   const WISHLIST_OBSERVER_DEBOUNCE_MS = 1000;
+  const WISHLIST_SETTLE_RETRY_MS = 300;
+  const WISHLIST_SETTLE_MAX = 8;
+  const WISHLIST_SORT_REFRESH_MS = 700;
+  const WISHLIST_SORT_TEXT_RE = /排序|您的排序|名称|价格|折扣|添加日期|最畅销|发行日期|总体评价|sort|your sort|name|price|discount|date added|top sellers|release date|review score/i;
 
   const wishlistDom = api.wishlistDom;
   const dom = root.STDomUtils || {};
@@ -41,7 +45,13 @@
   let detailRetries = 0;
   let detailSettleChecks = 0;
   let wishlistObserver = null;
+  let wishlistShellObserver = null;
+  let wishlistContainer = null;
+  let wishlistShell = null;
   let wishlistTimer = 0;
+  let wishlistSettleTimer = 0;
+  let wishlistSortTimer = 0;
+  let wishlistSettleChecks = 0;
   let renderingWishlist = false;
   let detailAppid = 0;
   let cache = new Map();
@@ -71,6 +81,13 @@
 
   function isWishlistPath() {
     return /^\/wishlist(?:\/|$)/i.test(location.pathname);
+  }
+
+  function isWishlistSortTarget(target) {
+    const button = target?.closest?.("button");
+    if (!button || button.closest?.(".st-game-notes, .st-game-notes-wishlist, #st-settings-root")) return false;
+    const label = text(button.getAttribute("aria-label") || button.title || button.textContent || "");
+    return WISHLIST_SORT_TEXT_RE.test(label);
   }
 
   function visibleTitleElement(el) {
@@ -205,8 +222,11 @@
 
   function renderNote(host, appid, note, steamName) {
     host.classList.add("st-game-notes");
-    host.dataset.appid = String(appid);
-    host.dataset.steamName = steamName || "";
+    const idText = String(appid || "");
+    const nameText = steamName || "";
+    if (host.hasAttribute("data-appid")) host.removeAttribute("data-appid");
+    if (host.dataset.stAppid !== idText) host.dataset.stAppid = idText;
+    if (host.dataset.steamName !== nameText) host.dataset.steamName = nameText;
     const key = JSON.stringify([appid, String(note || ""), steamName || ""]);
     if (host._stGameNotesKey === key && host.querySelector(".st-game-notes-body")) {
       requestAnimationFrame(() => updateMore(host));
@@ -245,7 +265,7 @@
 
   function updateVisible(appid) {
     const current = cache.get(appid) || { note: "", steamName: "" };
-    document.querySelectorAll(`.st-game-notes[data-appid="${appid}"]`).forEach(host => {
+    document.querySelectorAll(`.st-game-notes[data-st-appid="${appid}"]`).forEach(host => {
       renderNote(host, appid, current.note, current.steamName || host.dataset.steamName || "");
     });
   }
@@ -349,6 +369,18 @@
     return host;
   }
 
+  function wishlistHostReady(row) {
+    const appid = rowAppid(row);
+    if (!appid) return true;
+    const host = row.querySelector(".st-game-notes-wishlist");
+    return !!host && host.dataset.stAppid === String(appid);
+  }
+
+  function wishlistRowsReady() {
+    const rows = (wishlistDom?.rows?.(document) || []).filter(row => rowAppid(row));
+    return rows.length > 0 && rows.every(wishlistHostReady);
+  }
+
   async function batchFetchWishlistNotes(appids) {
     const ids = Array.from(new Set((appids || []).map(Number).filter(id => id > 0 && !cache.has(id) && !pending.has(id))));
     if (!ids.length) return;
@@ -383,19 +415,87 @@
     wishlistTimer = setTimeout(renderWishlistRows, waitMs);
   }
 
+  function bindWishlistShell(container) {
+    const shell = wishlistDom?.listShell?.(container) || null;
+    if (wishlistShell === shell && wishlistShellObserver) return;
+    wishlistShellObserver?.disconnect();
+    wishlistShellObserver = null;
+    wishlistShell = shell;
+    if (!shell) return;
+    const refreshContainer = () => {
+      const next = wishlistDom?.listContainer?.();
+      if (!next || next === wishlistContainer) return;
+      bindWishlistObserver(next);
+      scheduleWishlistRender(0);
+      scheduleWishlistSettleCheck();
+    };
+    wishlistShellObserver = root.STObserverUtils?.createDebouncedObserver?.(refreshContainer, WISHLIST_OBSERVER_DEBOUNCE_MS)
+      || new MutationObserver(refreshContainer);
+    root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistShellObserver, shell, { childList: true })
+      || wishlistShellObserver.observe(shell, { childList: true });
+  }
+
+  function bindWishlistObserver(container) {
+    if (wishlistContainer === container && wishlistObserver) {
+      bindWishlistShell(container);
+      return;
+    }
+    wishlistObserver?.disconnect();
+    wishlistContainer = container;
+    wishlistSettleChecks = 0;
+    wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(0), WISHLIST_OBSERVER_DEBOUNCE_MS)
+      || new MutationObserver(() => scheduleWishlistRender());
+    // 只监听愿望单真实列表容器；虚拟列表会深层替换行节点，保留 subtree。
+    root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistObserver, container, { childList: true, subtree: true })
+      || wishlistObserver.observe(container, { childList: true, subtree: true });
+    bindWishlistShell(container);
+  }
+
+  function scheduleWishlistSettleCheck() {
+    if (wishlistSettleTimer || wishlistSettleChecks >= WISHLIST_SETTLE_MAX) return;
+    wishlistSettleTimer = setTimeout(() => {
+      wishlistSettleTimer = 0;
+      if (!api.settings?.on?.(FEATURE_ID) || !isWishlistPath()) return;
+      const container = wishlistDom?.listContainer?.();
+      if (container && container !== wishlistContainer) {
+        bindWishlistObserver(container);
+      }
+      if (wishlistRowsReady()) return;
+      wishlistSettleChecks += 1;
+      renderWishlistRows();
+      scheduleWishlistSettleCheck();
+    }, WISHLIST_SETTLE_RETRY_MS);
+  }
+
+  function scheduleWishlistSortRefresh() {
+    clearTimeout(wishlistSortTimer);
+    wishlistSortTimer = setTimeout(() => {
+      wishlistSortTimer = 0;
+      if (!api.settings?.on?.(FEATURE_ID) || !isWishlistPath()) return;
+      const container = wishlistDom?.listContainer?.();
+      if (container && container !== wishlistContainer) {
+        bindWishlistObserver(container);
+      }
+      wishlistSettleChecks = 0;
+      scheduleWishlistRender(0);
+      scheduleWishlistSettleCheck();
+    }, WISHLIST_SORT_REFRESH_MS);
+  }
+
+  function onWishlistSortClick(event) {
+    if (!isWishlistPath() || !api.settings?.on?.(FEATURE_ID) || !isWishlistSortTarget(event.target)) return;
+    scheduleWishlistSortRefresh();
+  }
+
   function startWishlist() {
     if (!isWishlistPath()) return false;
     addStyle();
     const container = wishlistDom?.listContainer?.();
     if (!container) return false;
     renderWishlistRows();
-    if (!wishlistObserver) {
-      wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(0), WISHLIST_OBSERVER_DEBOUNCE_MS)
-        || new MutationObserver(() => scheduleWishlistRender());
-      // 只监听愿望单真实列表容器；虚拟列表会深层替换行节点，保留 subtree。
-      root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistObserver, container, { childList: true, subtree: true })
-        || wishlistObserver.observe(container, { childList: true, subtree: true });
-    }
+    bindWishlistObserver(container);
+    document.addEventListener("click", onWishlistSortClick, true);
+    scheduleWishlistSettleCheck();
     return true;
   }
 
@@ -440,14 +540,24 @@
 
   function stop() {
     wishlistObserver?.disconnect();
+    wishlistShellObserver?.disconnect();
     clearTimeout(detailTimer);
     clearTimeout(detailSettleTimer);
     clearTimeout(wishlistTimer);
+    clearTimeout(wishlistSettleTimer);
+    clearTimeout(wishlistSortTimer);
+    document.removeEventListener("click", onWishlistSortClick, true);
     detailTimer = 0;
     detailSettleTimer = 0;
+    wishlistSettleTimer = 0;
+    wishlistSortTimer = 0;
     detailRetries = 0;
     detailSettleChecks = 0;
+    wishlistSettleChecks = 0;
     wishlistObserver = null;
+    wishlistShellObserver = null;
+    wishlistContainer = null;
+    wishlistShell = null;
     wishlistTimer = 0;
     document.querySelectorAll(".st-game-notes").forEach(node => node.remove());
     document.querySelectorAll(".st-game-notes-wishlist-row").forEach(node => {

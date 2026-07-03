@@ -633,6 +633,16 @@
           sourceTip: SOURCE_TIPS.wishlistPriceHistory,
           area: "store",
           enabled: true,
+          children: Object.freeze([
+            {
+              id: "wishlist-price-history-hover-through",
+              name: "悬浮卡片鼠标穿透",
+              desc: "开启后，愿望单历史价格悬浮卡片不响应鼠标点击和悬停，鼠标可直接落到背后的游戏卡片。",
+              area: "store",
+              enabled: false,
+              deps: depAll(["wishlist-price-history"]),
+            },
+          ]),
         },
         {
           id: "data-display-enhancements",

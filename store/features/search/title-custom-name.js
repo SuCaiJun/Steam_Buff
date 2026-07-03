@@ -40,6 +40,10 @@
   const DETAIL_OBSERVER_DEBOUNCE_MS = 1000;
   const WISHLIST_RENDER_DEBOUNCE_MS = 1000;
   const WISHLIST_OBSERVER_DEBOUNCE_MS = 1000;
+  const WISHLIST_SETTLE_RETRY_MS = 300;
+  const WISHLIST_SETTLE_MAX = 8;
+  const WISHLIST_SORT_REFRESH_MS = 700;
+  const WISHLIST_SORT_TEXT_RE = /排序|您的排序|名称|价格|折扣|添加日期|最畅销|发行日期|总体评价|sort|your sort|name|price|discount|date added|top sellers|release date|review score/i;
 
   const { text, shouldShowName } = core;
   const wishlistDom = api.wishlistDom;
@@ -47,7 +51,13 @@
   let state = null;
   let observer = null;
   let wishlistObserver = null;
+  let wishlistShellObserver = null;
+  let wishlistContainer = null;
+  let wishlistShell = null;
   let wishlistTimer = 0;
+  let wishlistSettleTimer = 0;
+  let wishlistSortTimer = 0;
+  let wishlistSettleChecks = 0;
   let detailSettleTimer = 0;
   let detailSettleChecks = 0;
   let renderingWishlist = false;
@@ -112,6 +122,13 @@
 
   function isWishlistPath() {
     return /^\/wishlist(?:\/|$)/i.test(location.pathname);
+  }
+
+  function isWishlistSortTarget(target) {
+    const button = target?.closest?.("button");
+    if (!button || button.closest?.(`#${MODAL_ID}, .st-title-custom-name-wishlist, #st-settings-root`)) return false;
+    const label = text(button.getAttribute("aria-label") || button.title || button.textContent || "");
+    return WISHLIST_SORT_TEXT_RE.test(label);
   }
 
   function visibleTitleElement(el) {
@@ -192,12 +209,16 @@
   function renderNameHost(host, appid, item, steamTitle, mode) {
     const visibleName = shouldShowName(item, steamTitle) ? text(item?.name) : "";
     const label = visibleName ? `[${visibleName}]` : "";
+    const idText = String(appid || "");
     const key = JSON.stringify([appid, text(item?.name), text(item?.name_source), steamTitle, mode]);
     const labelReady = (host.dataset.label || "") === label;
-    if (host._stTitleCustomNameKey === key && host.querySelector(".st-title-custom-name-btn") && labelReady) {
+    const idReady = (host.dataset.stAppid || "") === idText;
+    if (host._stTitleCustomNameKey === key && host.querySelector(".st-title-custom-name-btn") && labelReady && idReady) {
       return;
     }
     host._stTitleCustomNameKey = key;
+    if (host.hasAttribute("data-appid")) host.removeAttribute("data-appid");
+    if (!idReady) host.dataset.stAppid = idText;
     if (label) host.dataset.label = label;
     else delete host.dataset.label;
     const button = document.createElement("button");
@@ -764,6 +785,19 @@
     return host;
   }
 
+  function wishlistHostReady(row) {
+    const appid = rowAppid(row);
+    if (!appid) return true;
+    const parent = wishlistTitleHost(row);
+    const host = row.querySelector(".st-title-custom-name-wishlist");
+    return !!host && host.parentElement === parent && host.dataset.stAppid === String(appid);
+  }
+
+  function wishlistRowsReady() {
+    const rows = wishlistRows().filter(row => rowAppid(row));
+    return rows.length > 0 && rows.every(wishlistHostReady);
+  }
+
   function renderWishlistName(appid) {
     wishlistRows().forEach(row => {
       if (rowAppid(row) !== Number(appid)) return;
@@ -824,6 +858,78 @@
     }, waitMs);
   }
 
+  function bindWishlistShell(container) {
+    const shell = wishlistDom?.listShell?.(container) || null;
+    if (wishlistShell === shell && wishlistShellObserver) return;
+    wishlistShellObserver?.disconnect();
+    wishlistShellObserver = null;
+    wishlistShell = shell;
+    if (!shell) return;
+    const refreshContainer = () => {
+      const next = wishlistDom?.listContainer?.();
+      if (!next || next === wishlistContainer) return;
+      bindWishlistObserver(next);
+      scheduleWishlistRender(0);
+      scheduleWishlistSettleCheck();
+    };
+    wishlistShellObserver = root.STObserverUtils?.createDebouncedObserver?.(refreshContainer, WISHLIST_OBSERVER_DEBOUNCE_MS)
+      || new MutationObserver(refreshContainer);
+    root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistShellObserver, shell, { childList: true })
+      || wishlistShellObserver.observe(shell, { childList: true });
+  }
+
+  function bindWishlistObserver(container) {
+    if (wishlistContainer === container && wishlistObserver) {
+      bindWishlistShell(container);
+      return;
+    }
+    wishlistObserver?.disconnect();
+    wishlistContainer = container;
+    wishlistSettleChecks = 0;
+    wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(0), WISHLIST_OBSERVER_DEBOUNCE_MS)
+      || new MutationObserver(() => scheduleWishlistRender());
+    // 只监听愿望单真实列表容器；虚拟列表会深层替换行节点，保留 subtree。
+    root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistObserver, container, { childList: true, subtree: true })
+      || wishlistObserver.observe(container, { childList: true, subtree: true });
+    bindWishlistShell(container);
+  }
+
+  function scheduleWishlistSettleCheck() {
+    if (wishlistSettleTimer || wishlistSettleChecks >= WISHLIST_SETTLE_MAX) return;
+    wishlistSettleTimer = setTimeout(() => {
+      wishlistSettleTimer = 0;
+      if (!started || !isWishlistPath() || !api.settings?.on?.(FEATURE_ID)) return;
+      const container = wishlistDom?.listContainer?.();
+      if (container && container !== wishlistContainer) {
+        bindWishlistObserver(container);
+      }
+      if (wishlistRowsReady()) return;
+      wishlistSettleChecks += 1;
+      renderWishlistRows().catch(() => {});
+      scheduleWishlistSettleCheck();
+    }, WISHLIST_SETTLE_RETRY_MS);
+  }
+
+  function scheduleWishlistSortRefresh() {
+    clearTimeout(wishlistSortTimer);
+    wishlistSortTimer = setTimeout(() => {
+      wishlistSortTimer = 0;
+      if (!started || !isWishlistPath() || !api.settings?.on?.(FEATURE_ID)) return;
+      const container = wishlistDom?.listContainer?.();
+      if (container && container !== wishlistContainer) {
+        bindWishlistObserver(container);
+      }
+      wishlistSettleChecks = 0;
+      scheduleWishlistRender(0);
+      scheduleWishlistSettleCheck();
+    }, WISHLIST_SORT_REFRESH_MS);
+  }
+
+  function onWishlistSortClick(event) {
+    if (!isWishlistPath() || !api.settings?.on?.(FEATURE_ID) || !isWishlistSortTarget(event.target)) return;
+    scheduleWishlistSortRefresh();
+  }
+
   function startWishlist() {
     if (!isWishlistPath()) return false;
     const container = wishlistDom?.listContainer?.();
@@ -834,18 +940,9 @@
       return false;
     }
     renderWishlistRows().catch(() => {});
-    if (!wishlistObserver) {
-      wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(0), WISHLIST_OBSERVER_DEBOUNCE_MS)
-        || new MutationObserver(() => scheduleWishlistRender());
-      // 只监听愿望单真实列表容器；虚拟列表会深层替换行节点，保留 subtree。
-      root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistObserver, container, { childList: true, subtree: true })
-        || wishlistObserver.observe(container, { childList: true, subtree: true });
-      log.info("title-custom-name-wishlist-observer-start", "愿望单自定义名称监听已启动", {
-        targetId: container.id || "",
-        targetClass: container.className || "",
-        path: location.pathname,
-      });
-    }
+    bindWishlistObserver(container);
+    document.addEventListener("click", onWishlistSortClick, true);
+    scheduleWishlistSettleCheck();
     return true;
   }
 
@@ -987,13 +1084,23 @@
     tries = 0;
     observer?.disconnect();
     wishlistObserver?.disconnect();
+    wishlistShellObserver?.disconnect();
     observer = null;
     wishlistObserver = null;
+    wishlistShellObserver = null;
+    wishlistContainer = null;
+    wishlistShell = null;
     clearTimeout(detailSettleTimer);
     clearTimeout(wishlistTimer);
+    clearTimeout(wishlistSettleTimer);
+    clearTimeout(wishlistSortTimer);
+    document.removeEventListener("click", onWishlistSortClick, true);
     detailSettleTimer = 0;
     wishlistTimer = 0;
+    wishlistSettleTimer = 0;
+    wishlistSortTimer = 0;
     detailSettleChecks = 0;
+    wishlistSettleChecks = 0;
     state = null;
     document.getElementById(HOST_ID)?.remove();
     document.querySelectorAll(".st-title-custom-name-wishlist").forEach(node => node.remove());

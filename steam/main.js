@@ -15,7 +15,7 @@
   const reg = api?.reg;
   const log = window.STLoggerFactory.createLogger('steam', 'main');
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
-  const RUNTIME_VERSION = "steam-buff-runtime-v8";
+  const RUNTIME_VERSION = "steam-buff-runtime-v9";
   const BOOT_MS = 500;
   const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;
@@ -89,7 +89,7 @@
     if (window.STPageContext?.shouldInject?.() !== true) {
       return false;
     }
-    if (api.ctx?.isShared?.() || api.ctx?.isMainUi?.() || api.ctx?.hasCustomSortUi?.()) {
+    if (api.ctx?.isShared?.() || api.ctx?.isMainUi?.() || api.ctx?.isPropertyDialog?.()) {
       return true;
     }
     const title = document.title || "";

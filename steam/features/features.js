@@ -34,7 +34,7 @@
       settingsKey: "library-custom-name",
       loadStrategy: "on-demand-entry",
       modes: ["backend", "ui"],
-      pageScope: ["SharedJSContext", "custom-sort-dialog", "property-dialog"],
+      pageScope: ["SharedJSContext", "property-dialog"],
       dependencies: ["shared/scheduler.js", "BroadcastChannel"],
       cost: "large-library",
       entries: {
@@ -49,7 +49,7 @@
         if (context === "backend") {
           return true;
         }
-        return context === "ui" && (api.ctx?.hasCustomSortUi?.() === true || api.ctx?.isPropertyDialog?.() === true);
+        return context === "ui" && api.ctx?.isPropertyDialog?.() === true;
       },
     },
     {

@@ -252,7 +252,7 @@
     "store/main.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v10";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v12";
   const STEAM_LOOPBACK_INJECT_REQUEST = "STEAM_LOOPBACK_INJECT_REQUEST";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const ONBOARDING_OPEN_SETTINGS_MESSAGE = "STEAM_BUFF_ONBOARDING_OPEN_SETTINGS";
@@ -430,6 +430,18 @@
     }
   }
 
+  function steamLoopbackCandidateUrls(input = {}) {
+    const raw = [
+      input.url,
+      input.senderUrl,
+      input.tabUrl,
+      ...(Array.isArray(input.urls) ? input.urls : []),
+    ];
+    return Array.from(new Set(raw
+      .map(item => String(item || "").trim())
+      .filter(Boolean)));
+  }
+
   function isAllowedSteamLoopbackPath(value) {
     try {
       const url = new URL(String(value || ""));
@@ -440,26 +452,27 @@
     }
   }
 
-  function hasCustomSortSignal(input = {}) {
-    return input.customSortUi === true || input.pageHint === "custom-sort-dialog";
+  function hasPropertyDialogSignal(input = {}) {
+    return input.propertyDialog === true ||
+      input.pageHint === "property-dialog";
   }
 
   function shouldInjectSteamLoopbackRuntime(input = {}) {
     const title = String(input.title || "").trim();
-    const url = String(input.url || "");
+    const urls = steamLoopbackCandidateUrls(input);
     if (isExcludedSteamTitle(title)) {
       return false;
     }
     if (title === "Steam" || title === "SharedJSContext") {
       return true;
     }
-    if (hasCustomSortSignal(input) && isSteamLoopbackUrl(url)) {
+    if (hasPropertyDialogSignal(input) && urls.some(isSteamLoopbackUrl)) {
       return true;
     }
-    return hasSteamSharedContextMarker(url) ||
+    return urls.some(url => hasSteamSharedContextMarker(url) ||
       isSteamMainAboutBlank(url) ||
       isSteamPropertyDialogAboutBlank(url) ||
-      isAllowedSteamLoopbackPath(url);
+      isAllowedSteamLoopbackPath(url));
   }
 
   // Steam 客户端内嵌窗口常以 about:blank 起步，后台只补轻 guard；完整 runtime 由 guard 精准申请。
@@ -1247,10 +1260,16 @@
       return;
     }
 
+    const urls = steamLoopbackCandidateUrls({
+      url: request.url,
+      senderUrl: sender?.url,
+      tabUrl: sender?.tab?.url,
+    });
     const meta = {
       title: String(request.title || sender?.tab?.title || ""),
-      url: String(request.url || sender?.url || sender?.tab?.url || ""),
-      customSortUi: request.customSortUi === true,
+      url: urls[0] || "",
+      urls,
+      propertyDialog: request.propertyDialog === true,
       pageHint: String(request.pageHint || ""),
     };
     if (!shouldInjectSteamLoopbackRuntime(meta)) {

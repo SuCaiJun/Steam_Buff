@@ -853,8 +853,17 @@
       || null;
   }
 
-  function customPageHint(inputs = []) {
-    return inputs.some(input => SORT_LABEL_RE.test(nearText(input)));
+  function customSortSurface(inputs = textInputs()) {
+    const input = sortInput(inputs);
+    const panel = input?.closest?.("[role='tabpanel'][id*='/properties/customization']") ||
+      input?.closest?.("[role='tabpanel'][id*='/properties/']") ||
+      null;
+    return {
+      inputs,
+      input,
+      panel,
+      active: !!input,
+    };
   }
 
   function setNative(input, value) {
@@ -2543,7 +2552,7 @@
   }
 
   function hasActiveCustomSortInput() {
-    return !!sortInput(textInputs());
+    return customSortSurface().active;
   }
 
   function clearBarCleanupCheck() {
@@ -2568,7 +2577,7 @@
       handle?.dispose?.();
       const before = hasBar();
       tick();
-      if (!hasBar() && (s.barMountRetryArmed || isPropertyDialog() || isCustomSortUi() || before) && nextAttempt + 1 < BAR_MOUNT_RETRY_DELAYS.length) {
+      if (!hasBar() && (s.barMountRetryArmed || isPropertyDialog() || before) && nextAttempt + 1 < BAR_MOUNT_RETRY_DELAYS.length) {
         scheduleBarMountRetry(nextAttempt + 1);
       }
     }, Math.max(0, delay));
@@ -2595,6 +2604,7 @@
       s.barCleanupTimer = 0;
       handle?.dispose?.();
       const active = hasActiveCustomSortInput();
+      const propertyDialog = isPropertyDialog();
       if (!active) {
         if (hasBar()) {
           clearBars(null);
@@ -2607,13 +2617,16 @@
             { repeatMs: MOUNT_LOG_MS }
           );
         }
+        if (propertyDialog && nextAttempt + 1 < BAR_CLEANUP_CHECK_DELAYS.length) {
+          scheduleBarCleanupCheck(nextAttempt + 1);
+        }
         return;
       }
       tick();
       if (active && !hasBar()) {
         scheduleBarMountRetry();
       }
-      if ((hasBar() || active) && nextAttempt + 1 < BAR_CLEANUP_CHECK_DELAYS.length) {
+      if ((hasBar() || active || propertyDialog) && nextAttempt + 1 < BAR_CLEANUP_CHECK_DELAYS.length) {
         scheduleBarCleanupCheck(nextAttempt + 1);
       }
     }, Math.max(0, delay));
@@ -2659,9 +2672,10 @@
   // tick 是低频兜底扫描，短窗口重试负责在 Steam 属性弹窗 React 重挂输入框后尽快补回三个按钮。
   function tick() {
     css();
-    const inputs = textInputs();
-    const input = sortInput(inputs);
-    const active = !!input;
+    const surface = customSortSurface();
+    const inputs = surface.inputs;
+    const input = surface.input;
+    const active = surface.active;
     if (!active) {
       const hadBar = hasBar();
       clearBars(null);
@@ -3859,7 +3873,7 @@
   }
 
   function shouldRunScheduledTick() {
-    return settingOn(ID) && !isPropertyDialog() && (isCustomSortUi() || hasBar());
+    return settingOn(ID) && (isCustomSortUi() || hasBar());
   }
 
   function registerScheduledTick() {
@@ -3882,7 +3896,7 @@
     }
     s.started = true;
     s.scope = scope || null;
-    s.barMountRetryArmed = isPropertyDialog() || isCustomSortUi();
+    s.barMountRetryArmed = isPropertyDialog();
     s.resObs = new MutationObserver((items) => {
       for (const item of items) {
         onQuery(item);

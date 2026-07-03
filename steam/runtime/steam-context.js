@@ -13,9 +13,15 @@
 
   const api = window.SteamBuff = window.SteamBuff || {};
   const SORT_LABEL_RE = /自定义排序名称|自訂排序名稱|自定義排序名稱|Custom Sort|カスタムソート|カスタム並び替え|사용자 지정 정렬|사용자 정의 정렬/i;
+  const PROPERTY_PANEL_SELECTOR = "[role='tabpanel'][id*='/app/'][id*='/properties/']";
   const DOWNLOAD_ACTION_RE = /^(继续下载|立即下载|恢复下载|暂停下载|resume download|download now|pause download)$/i;
   const DOWNLOAD_EMPTY_RE = /队列中无下载|no downloads(?:\s+in\s+(?:the\s+)?queue|\s+queued)?|download queue is empty|nothing (?:is )?(?:currently )?downloading/i;
   const DOWNLOAD_PANEL_RE = /即将进行|已启用自动更新|网络\s*\d|磁盘使用量\s*\d|scheduled|automatic updates|network\s*\d|disk usage\s*\d/i;
+  const DOWNLOAD_HEADER_RE = Object.freeze([
+    /网络\s*\d|network\s*\d/i,
+    /峰值\s*\d|peak\s*\d/i,
+    /磁盘使用量\s*\d|disk usage\s*\d/i,
+  ]);
   const DOWNLOAD_PANEL_SELECTORS = Object.freeze([
     "#popup_target [class~='Panel']",
     "#popup_target [role='main']",
@@ -26,7 +32,7 @@
   const SORT_UI_HIT_CACHE_MS = 1200;
   const SORT_UI_MISS_CACHE_MS = 150;
   const DOWNLOAD_UI_HIT_CACHE_MS = 1200;
-  const DOWNLOAD_UI_MISS_CACHE_MS = DOWNLOAD_UI_HIT_CACHE_MS;
+  const DOWNLOAD_UI_MISS_CACHE_MS = 250;
   let sortUiCacheAt = 0;
   let sortUiCacheValue = false;
   let downloadUiCacheAt = 0;
@@ -56,6 +62,29 @@
     }
   }
 
+  function isSteamLoopback() {
+    try {
+      return new URL(window.location.href).hostname === "steamloopback.host";
+    } catch {
+      return false;
+    }
+  }
+
+  function hasPropertyPanel() {
+    try {
+      return !!document.querySelector(PROPERTY_PANEL_SELECTOR);
+    } catch {
+      return false;
+    }
+  }
+
+  function isPropertyDialogShell() {
+    if (!isUi() || isMainUi() || !isSteamLoopback()) {
+      return false;
+    }
+    return document.body?.classList?.contains("ModalDialogBody") === true && hasPropertyPanel();
+  }
+
   function isPropertyDialog() {
     if (!isUi() || isMainUi()) {
       return false;
@@ -67,8 +96,8 @@
       !/(?:[?&])browserType=/u.test(value)) {
       return true;
     }
-    // 优化:属性窗口落地到 steamloopback 后会丢失 about:blank 参数，用自定义排序输入框作为低成本续判。
-    return hasCustomSortUi();
+    // 优化:属性窗口落地到 steamloopback 后会丢失 about:blank 参数，用属性页 tabpanel 续判。
+    return isPropertyDialogShell();
   }
 
   function likelyVisible(el) {
@@ -148,7 +177,7 @@
         return true;
       }
     }
-    return hasDownloadsEmptyUi();
+    return hasDownloadsHeaderUi() || hasDownloadsEmptyUi();
   }
 
   function normalizeText(el) {
@@ -185,6 +214,19 @@
       const text = normalizeText(el);
       // 优化: 空队列兜底只在少量 Steam 面板候选命中文字后检查可见性，避免全页 div 回流扫描。
       if (DOWNLOAD_EMPTY_RE.test(text) && DOWNLOAD_PANEL_RE.test(text) && visible(el)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function hasDownloadsHeaderUi() {
+    const candidates = downloadPanelCandidates();
+    for (const el of candidates) {
+      const text = normalizeText(el);
+      const hits = DOWNLOAD_HEADER_RE.reduce((count, item) => count + (item.test(text) ? 1 : 0), 0);
+      // 优化: 下载页顶部速率指标比队列正文更早渲染，命中两个以上指标才做可见性检查，避免库页下载状态误判。
+      if (hits >= 2 && visible(el)) {
         return true;
       }
     }
@@ -284,7 +326,7 @@
     if (isShared()) {
       out.push("backend");
     }
-    if (isMainUi() || isPropertyDialog() || hasCustomSortUi()) {
+    if (isMainUi() || isPropertyDialog()) {
       out.push("ui");
     }
     if (isMainUi()) {

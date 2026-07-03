@@ -25,6 +25,7 @@
   const LIST_SEL = ".PU7fdVEQB8s-.Panel, #wishlist_ctn, #wishlist_list";
   const ROW_SEL = ".wishlist_row, [data-ds-appid], [data-app-id], [data-index]";
   const TITLE_SEL = ".pOyXxbQoV38-, .title, .contenthub_featured_item_title, a[href*='/app/']";
+  const UNSAFE_SHELL_IDS = new Set(["responsive_page_template_content", "StoreTemplate"]);
 
   function isElement(node) {
     return !!node && node.nodeType === 1 && typeof node.querySelectorAll === "function";
@@ -46,6 +47,7 @@
 
   function datasetAppid(node) {
     if (!isElement(node)) return 0;
+    if (node.closest?.(".st-title-custom-name-wishlist, .st-game-notes, .st-game-notes-wishlist")) return 0;
     return appidFromValue(node.dataset?.dsAppid)
       || appidFromValue(node.dataset?.appid)
       || appidFromValue(node.dataset?.appId)
@@ -58,7 +60,7 @@
     if (!isElement(row)) return 0;
     const direct = datasetAppid(row);
     if (direct) return direct;
-    const holder = row.querySelector("[data-ds-appid], [data-appid], [data-app-id]");
+    const holder = row.querySelector("[data-ds-appid], [data-appid]:not(.st-title-custom-name-wishlist):not(.st-game-notes):not(.st-game-notes-wishlist), [data-app-id]");
     if (holder) {
       const nested = datasetAppid(holder);
       if (nested) return nested;
@@ -127,6 +129,14 @@
     return document.querySelector(LIST_SEL) || null;
   }
 
+  function listShell(container = listContainer()) {
+    const parent = container?.parentElement || null;
+    if (!isElement(parent) || parent === document.body || parent === document.documentElement) {
+      return null;
+    }
+    return UNSAFE_SHELL_IDS.has(parent.id || "") ? null : parent;
+  }
+
   return {
     LIST_SEL,
     ROW_SEL,
@@ -137,5 +147,6 @@
     titleNode,
     titleText,
     listContainer,
+    listShell,
   };
 });

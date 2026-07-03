@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v10";
+  const RUN_VERSION = "steam-buff-runtime-v12";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -32,6 +32,8 @@
   const STEAM_TITLE_WAIT_MS = 100;
   const STEAM_TITLE_WAIT_MAX = 80;
   const STEAM_TITLE_WAIT_TRIES = "__steamBuffTitleWaitTries";
+  const STEAM_SCOPE_WAIT_TRIES = "__steamBuffScopeWaitTries";
+  const STEAM_SCOPE_WAIT_MAX = 80;
   const STEAM_CONTENT_DEPS_LOAD_MARK = "__steamBuffSteamContentDepsLoad";
   const STEAM_CONTENT_DEPS_PENDING = `${STEAM_CONTENT_DEPS_LOAD_MARK}:pending`;
 
@@ -2101,6 +2103,10 @@
     return globalThis.STPageContext?.shouldWaitSteamTitle?.() === true;
   }
 
+  function shouldWaitSteamRuntimeScope() {
+    return globalThis.STPageContext?.shouldWaitSteamRuntimeScope?.() === true;
+  }
+
   function boot() {
     if (globalThis[RUN_MARK] === RUN_VERSION || globalThis[RUN_MARK] === RUN_PENDING) {
       return;
@@ -2121,9 +2127,23 @@
       }
     }
 
-    // 被排除页面也标记为已处理，避免后台补注入反复命中 Steam CEF 菜单页。
-    globalThis[RUN_MARK] = RUN_VERSION;
     if (!shouldInject()) {
+      if (shouldWaitSteamRuntimeScope()) {
+        const tries = Number(globalThis[STEAM_SCOPE_WAIT_TRIES]) || 0;
+        if (tries < STEAM_SCOPE_WAIT_MAX) {
+          globalThis[RUN_MARK] = RUN_PENDING;
+          globalThis[STEAM_SCOPE_WAIT_TRIES] = tries + 1;
+          window.setTimeout(() => {
+            if (globalThis[RUN_MARK] === RUN_PENDING) {
+              globalThis[RUN_MARK] = "";
+            }
+            boot();
+          }, STEAM_TITLE_WAIT_MS);
+          return;
+        }
+      }
+      // 被排除页面也标记为已处理，避免后台补注入反复命中 Steam CEF 菜单页。
+      globalThis[RUN_MARK] = RUN_VERSION;
       runLightBoot();
       cleanupExcludedSteamRuntime();
       return;

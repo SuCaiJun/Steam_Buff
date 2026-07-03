@@ -29,6 +29,7 @@
   const TEXT_RES = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_RESPONSE";
   const MIN_TEXT = 24;
   const MAX_TEXT = 20000;
+  const FAST_SCAN_DELAY = 20;
   const SCAN_DELAY = 300;
   const MUTATION_SCAN_DELAY = 1000;
   const SCROLL_SCAN_DELAY = 500;
@@ -45,6 +46,10 @@
   const AI_BODY_MIN_WORD_LIMIT = 800;
   const AI_BODY_WORD_LIMIT = 1200;
   const AI_BODY_LONG_WORD_LIMIT = 1200;
+  const AI_BODY_TEXT_BATCH_SIZE = 8;
+  const AI_BODY_TEXT_BATCH_CHARS = 1200;
+  const AI_BODY_RETRY_WORD_LIMIT = 320;
+  const AI_BODY_RETRY_MAX_UNITS = 4;
   const AI_DEFAULT_CONCURRENCY = 10;
   const AI_MAX_CONCURRENCY = 10;
   const BUTTON_SWEEP_MS = 1150;
@@ -689,18 +694,30 @@
     return !visible(el);
   }
 
-  function collectText(root) {
-    return textParts(root).map((part) => part.text).join("\n").slice(0, MAX_TEXT).trim();
+  function excludedTextParent(parent, exclude) {
+    return exclude.some((el) => el?.isConnected && (el === parent || el.contains?.(parent)));
   }
 
-  function textParts(root) {
+  function textPartOptions(options = {}) {
+    const exclude = Array.isArray(options.exclude)
+      ? options.exclude.filter(Boolean)
+      : [];
+    return { exclude };
+  }
+
+  function collectText(root, options = {}) {
+    return textParts(root, options).map((part) => part.text).join("\n").slice(0, MAX_TEXT).trim();
+  }
+
+  function textParts(root, options = {}) {
+    const opts = textPartOptions(options);
     const parts = [];
     let length = 0;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         const parent = node.parentElement;
         const text = clean(node.nodeValue);
-        if (!text || text.length < 2 || skipTextParent(parent)) {
+        if (!text || text.length < 2 || skipTextParent(parent) || excludedTextParent(parent, opts.exclude)) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
@@ -925,8 +942,8 @@
   }
 
   /* 正文原位翻译：只替换文本节点，保留 Steam 原文里的视频、图片、链接卡片和其它交互 DOM。 */
-  function replaceTextNodes(host, text) {
-    const parts = textParts(host).filter((part) => part.node?.isConnected);
+  function replaceTextNodes(host, text, options = {}) {
+    const parts = textParts(host, options).filter((part) => part.node?.isConnected);
     const lines = translatedLines(text);
     if (!parts.length || !lines.length) {
       return false;
@@ -961,10 +978,23 @@
     return block && root?.contains?.(block) ? block : parent;
   }
 
-  function bodyUnits(host) {
+  function bodyTextOptions(host, titleHost) {
+    // 注: Steam 新闻标题有时落在正文 host 内；正文采集和渲染必须排除标题，避免标题翻译让正文任务过期或误判成功。
+    return {
+      exclude: host?.contains?.(titleHost) ? [titleHost] : [],
+    };
+  }
+
+  function collectBodyText(data) {
+    return data?.host ? collectText(data.host, bodyTextOptions(data.host, data.titleHost)) : "";
+  }
+
+  function bodyUnits(source) {
+    const host = source?.host || source;
+    const titleHost = source?.host ? source.titleHost : null;
     const units = [];
     let current = null;
-    for (const part of textParts(host).filter((item) => item.node?.isConnected)) {
+    for (const part of textParts(host, bodyTextOptions(host, titleHost)).filter((item) => item.node?.isConnected)) {
       const unitHost = bodyUnitHost(part, host);
       if (!current || current.host !== unitHost) {
         current = { host: unitHost, parts: [] };
@@ -1149,7 +1179,7 @@
   }
 
   function aiBodyTasks(data) {
-    const units = bodyUnits(data.host);
+    const units = bodyUnits(data);
     const tasks = [];
     let group = [];
     let words = 0;
@@ -1194,6 +1224,36 @@
       }
       add(unit, unitWords);
     });
+    push();
+    return tasks;
+  }
+
+  // 优化: AI 数组批次偶发数量漂移或原文回显时，只补偿仍保持原文的失败段落；每组最多 4 个 unit / 320 words，禁止整篇重翻。
+  function retryBodyTasks(units, meta = {}) {
+    const current = Array.from(units || [])
+      .filter((unit) => unit?.parts?.length && textPartsCurrent(unit.parts))
+      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    const tasks = [];
+    let group = [];
+    let words = 0;
+    let order = 0;
+    const push = () => {
+      if (!group.length) {
+        return;
+      }
+      tasks.push(bodyTask(group, order, "retry", meta));
+      group = [];
+      words = 0;
+      order += 1;
+    };
+    for (const unit of current) {
+      const unitWords = Math.max(1, wordCount(unit.text));
+      if (group.length && (group.length >= AI_BODY_RETRY_MAX_UNITS || words + unitWords > AI_BODY_RETRY_WORD_LIMIT)) {
+        push();
+      }
+      group.push(unit);
+      words += unitWords;
+    }
     push();
     return tasks;
   }
@@ -1477,9 +1537,10 @@
 
   function extract(card, options = {}) {
     const host = textHost(card, options);
-    const text = host ? collectText(host) : "";
     const title = findTitleTextNode(card, host && host !== card ? host : null);
     const titleText = title?.text || "";
+    const titleHost = title?.parent || null;
+    const text = host ? collectText(host, bodyTextOptions(host, titleHost)) : "";
     const routeId = routeAppid();
     const newsMeta = newsMetaFromCard(card);
     const linkMeta = appMetaFromLinks(card.closest("#popup_target") || card);
@@ -1488,7 +1549,7 @@
     return {
       host,
       text,
-      titleHost: title?.parent || null,
+      titleHost,
       titleNode: title?.node || null,
       titleText,
       meta: {
@@ -1726,7 +1787,7 @@
     if (!host || host === card) {
       throw new Error("未找到可替换的正文区域");
     }
-    if (!replaceTextNodes(host, text || "翻译结果为空")) {
+    if (!replaceTextNodes(host, text || "翻译结果为空", bodyTextOptions(host, data.titleHost))) {
       throw new Error("未找到可替换的正文文本");
     }
     host.classList.add(TRANSLATED_CLASS, TRANSLATED_BODY_CLASS, "notranslate");
@@ -1753,7 +1814,7 @@
       host,
       titleHost: titleHost || data.titleHost || null,
       titleHash: data.titleHash,
-      text: host?.isConnected ? collectText(host) : "",
+      text: host?.isConnected ? collectBodyText({ host, titleHost: titleHost || data.titleHost || null }) : "",
       titleText: titleHost?.isConnected ? nodeText(titleHost) : "",
     });
   }
@@ -1882,7 +1943,7 @@
     return !!(
       host?.isConnected &&
       data.host === host &&
-      collectText(host).trim() === existing.text
+      collectBodyText({ host, titleHost: data.titleHost }).trim() === existing.text
     );
   }
 
@@ -1926,7 +1987,7 @@
     if (needs.title && (!data.titleHost?.isConnected || nodeText(data.titleHost) !== data.titleText)) {
       return false;
     }
-    if (needs.body && (!data.host?.isConnected || collectText(data.host).trim() !== data.text)) {
+    if (needs.body && (!data.host?.isConnected || collectBodyText(data).trim() !== data.text)) {
       return false;
     }
     return true;
@@ -1947,11 +2008,31 @@
     };
   }
 
-  async function requestTranslationTexts(texts, meta = {}) {
-    const items = Array.isArray(texts) ? texts.map((text) => String(text || "")) : [];
-    if (!items.length) {
-      throw new Error("AI 分块文本为空");
+  function textRequestBatches(items) {
+    const batches = [];
+    let current = [];
+    let chars = 0;
+    const push = () => {
+      if (!current.length) {
+        return;
+      }
+      batches.push(current);
+      current = [];
+      chars = 0;
+    };
+    for (const item of items) {
+      const length = String(item || "").length;
+      if (current.length && (current.length >= AI_BODY_TEXT_BATCH_SIZE || chars + length > AI_BODY_TEXT_BATCH_CHARS)) {
+        push();
+      }
+      current.push(item);
+      chars += length;
     }
+    push();
+    return batches;
+  }
+
+  async function requestTranslationTextBatch(items, meta = {}) {
     const response = await request(TEXT_REQ, TEXT_RES, { texts: items, meta: requestMeta(meta) });
     if (!response.ok) {
       throw new Error(response.error || "翻译失败");
@@ -1966,6 +2047,33 @@
       texts: out,
       text: out.join("\n"),
       meta: response.meta || {},
+    };
+  }
+
+  async function requestTranslationTexts(texts, meta = {}) {
+    const items = Array.isArray(texts) ? texts.map((text) => String(text || "")) : [];
+    if (!items.length) {
+      throw new Error("AI 分块文本为空");
+    }
+    const batches = textRequestBatches(items);
+    if (batches.length <= 1) {
+      return requestTranslationTextBatch(items, meta);
+    }
+    const out = [];
+    const metas = [];
+    // 优化: 新闻正文 slot 多时，大 JSON 数组容易被模型合并/漏项；小批串行请求保证返回数量稳定，避免系统性“部分内容翻译失败”。
+    for (const batch of batches) {
+      const result = await requestTranslationTextBatch(batch, meta);
+      out.push(...result.texts);
+      metas.push(result.meta);
+    }
+    return {
+      texts: out,
+      text: out.join("\n"),
+      meta: {
+        requestCount: metas.reduce((sum, item) => sum + (item?.requestCount || 1), 0),
+        batches: metas,
+      },
     };
   }
 
@@ -2008,8 +2116,8 @@
         text: result.text,
         texts: result.texts,
         meta: {
-          requestCount: 1,
-          chunks: [result.meta],
+          requestCount: result.meta.requestCount || 1,
+          chunks: result.meta.batches || [result.meta],
         },
       };
     }
@@ -2052,6 +2160,7 @@
       .sort((a, b) => a.firstIndex - b.firstIndex);
     let failedCount = 0;
     let requestCount = 0;
+    let retryCount = 0;
     let translatedCount = 0;
     const failedUnits = new Set();
     const trackUnits = (units) => {
@@ -2117,15 +2226,56 @@
         });
       }
     };
+    const retryFailedBodyUnits = async () => {
+      const retryTasks = retryBodyTasks(failedUnits, data.meta);
+      if (!retryTasks.length || !jobActive(card, record, jobId)) {
+        return;
+      }
+      const retryLimit = Math.max(1, Math.min(bodyLimit, 3));
+      await runLimited(retryTasks, retryLimit, async (task) => {
+        if (!jobActive(card, record, jobId) || !bodyTaskCurrent(task)) {
+          trackFailedUnits(task);
+          return;
+        }
+        retryCount += 1;
+        try {
+          const result = await requestBodyTaskText(task);
+          requestCount += result.meta.requestCount || 1;
+          const applied = jobActive(card, record, jobId)
+            ? applyBodyTaskResult(task, result.texts || result.text)
+            : { applied: 0, failedUnits: task.units };
+          clearFailedUnits(task);
+          if (applied.applied > 0) {
+            translatedCount += applied.applied;
+            trackUnits(applied.failedUnits);
+            return;
+          }
+          failedCount += 1;
+          trackFailedUnits(task);
+        } catch (error) {
+          failedCount += 1;
+          trackFailedUnits(task);
+          log.warn("news-popup-ai-retry-failed", "AI 新闻失败段落补偿翻译失败", {
+            order: task.order,
+            textLength: task.text.length,
+            unitCount: task.units.length,
+            error: errorMessage(error),
+          });
+        }
+      });
+    };
     const serviceLimit = aiRequestLimit(rt);
     const bodyLimit = Math.max(1, serviceLimit - (needs.title ? 1 : 0));
     const titleTask = translateTitle();
     const bodyTasks = firstTasks.concat(laterTasks);
     const bodyQueueTask = runLimited(bodyTasks, bodyLimit, translateTask);
     await Promise.all([titleTask, bodyQueueTask]);
+    if (needs.body) {
+      await retryFailedBodyUnits();
+    }
 
     const host = data.host?.isConnected ? data.host : null;
-    const bodyText = host ? collectText(host) : "";
+    const bodyText = host ? collectBodyText({ ...data, host }) : "";
     const bodyChanged = !needs.body || (host && translationChanged(bodyText, data.text));
     let finalFailedCount = Array.from(failedUnits).filter((unit) => textPartsCurrent(unit.parts)).length;
     if (needs.body && tasks.length && !bodyChanged) {
@@ -2145,7 +2295,7 @@
           chunkCount: tasks.length,
           firstCount: firstTasks.length,
           laterCount: laterTasks.length,
-          retryCount: 0,
+          retryCount,
           translatedCount,
           failedCount: finalFailedCount,
           failedAttemptCount: failedCount,
@@ -2235,7 +2385,7 @@
       if (isStaleJobError(error)) {
         if (card.isConnected) {
           setButton(button, "idle");
-          scheduleScan(rt, 20);
+          scheduleScan(rt, FAST_SCAN_DELAY);
         }
         return;
       }
@@ -2278,7 +2428,7 @@
     const card = currentButtonCard(rt, fallbackCard, button);
     if (!card?.isConnected) {
       setButton(button, "error", "未识别当前新闻卡");
-      scheduleScan(rt, 20);
+      scheduleScan(rt, FAST_SCAN_DELAY);
       return;
     }
     const existing = mounted.get(card);
@@ -2406,13 +2556,21 @@
   }
 
   function shouldObservePopupTarget(rt, target = observeTarget()) {
-    return !!target?.isConnected && (popupFrameSignal(target) || popupSignal(target) || popupSettling(rt) || hasMountedSurface(rt));
+    return !!target?.isConnected;
+  }
+
+  function popupObserverMode(rt, target = observeTarget()) {
+    if (!target?.isConnected) {
+      return "";
+    }
+    return (popupFrameSignal(target) || popupSignal(target) || popupSettling(rt) || hasMountedSurface(rt)) ? "popup" : "root";
   }
 
   function detachObserver(rt) {
     rt.observer?.disconnect?.();
     rt.observer = null;
     rt.observerTarget = null;
+    rt.observerMode = "";
   }
 
   function needsPopupRecoveryScan(rt, root) {
@@ -2478,7 +2636,7 @@
     if (!shouldScanPopup(rt)) {
       return;
     }
-    scheduleScan(rt, 20);
+    scheduleScan(rt, FAST_SCAN_DELAY);
   }
 
   function hasNewsPopupContext(rt) {
@@ -2604,15 +2762,33 @@
   }
 
   function scheduleScan(rt, delay = SCAN_DELAY) {
-    if (rt.stopped || rt.scanTimer) {
+    if (rt.stopped) {
       return;
     }
+    const wait = Math.max(0, Number(delay) || 0);
+    const dueAt = Date.now() + wait;
+    if (rt.scanTimer) {
+      if ((rt.scanDueAt || 0) <= dueAt) {
+        return;
+      }
+      if (rt.scanHandle) {
+        const handle = rt.scanHandle;
+        rt.scanHandle = null;
+        handle.dispose();
+      } else {
+        window.clearTimeout(rt.scanTimer);
+        rt.scanTimer = 0;
+      }
+    }
+    rt.scanDueAt = dueAt;
     rt.scanTimer = window.setTimeout(() => {
+      rt.scanTimer = 0;
+      rt.scanDueAt = 0;
       const handle = rt.scanHandle;
       rt.scanHandle = null;
       handle?.dispose?.();
       scan(rt);
-    }, delay);
+    }, wait);
     rt.scanHandle = rt.scope?.resource?.({
       key: "scan-delay",
       type: "timer",
@@ -2621,6 +2797,7 @@
           window.clearTimeout(rt.scanTimer);
           rt.scanTimer = 0;
         }
+        rt.scanDueAt = 0;
         rt.scanHandle = null;
       },
     }) || null;
@@ -2644,8 +2821,14 @@
     return document.getElementById("popup_target") || null;
   }
 
-  function observeOptions(target) {
+  function observeOptions(target, mode = "popup") {
     if (target?.id === "popup_target") {
+      if (mode === "root") {
+        return {
+          childList: true,
+          subtree: true,
+        };
+      }
       return {
         childList: true,
         subtree: true,
@@ -2665,11 +2848,13 @@
       detachObserver(rt);
       return;
     }
-    if (rt.observer && rt.observerTarget === target) {
+    const mode = popupObserverMode(rt, target);
+    if (rt.observer && rt.observerTarget === target && rt.observerMode === mode) {
       return;
     }
     rt.observer?.disconnect?.();
     rt.observerTarget = target;
+    rt.observerMode = mode;
     const onMutation = (items = []) => {
       const latest = observeTarget();
       if (latest && latest !== rt.observerTarget && latest.id === "popup_target") {
@@ -2678,15 +2863,23 @@
       const hasPopupSignal = mutationHasPopupSignal(items);
       if (hasPopupSignal) {
         markPopupSettling(rt);
+        if (rt.observerMode !== "popup") {
+          attachObserver(rt);
+        }
+        scheduleScan(rt, FAST_SCAN_DELAY);
+        return;
       }
       if (!mountedAlive(rt) && !hasPopupSignal && !popupSettling(rt)) {
         return;
       }
       scheduleScan(rt);
     };
-    rt.observer = window.STObserverUtils?.createDebouncedObserver?.(onMutation, MUTATION_SCAN_DELAY)
+    /* 优化: #popup_target 是 Steam 弹窗专用根；非弹窗期只看新增节点信号，命中后立刻切回 1000ms 深度 debounce，避免按钮首帧被 debounce 拖慢。 */
+    rt.observer = mode === "root"
+      ? new MutationObserver(onMutation)
+      : window.STObserverUtils?.createDebouncedObserver?.(onMutation, MUTATION_SCAN_DELAY)
       || new MutationObserver(onMutation);
-    rt.observer.observe(target, observeOptions(target));
+    rt.observer.observe(target, observeOptions(target, mode));
     rt.scope?.observer?.("popup-target", rt.observer);
   }
 
@@ -2736,6 +2929,7 @@
       scope: scope || null,
       stopped: false,
       scanTimer: 0,
+      scanDueAt: 0,
       scanHandle: null,
       refreshTimer: 0,
       skipLogged: false,
@@ -2748,6 +2942,7 @@
       activeCard: null,
       observer: null,
       observerTarget: null,
+      observerMode: "",
       configWarnAt: 0,
       mountWarnAt: 0,
       popupSettleUntil: 0,
@@ -2766,6 +2961,7 @@
           window.clearTimeout(rt.scanTimer);
           rt.scanTimer = 0;
         }
+        rt.scanDueAt = 0;
         window.STScheduler?.unregister?.(SCHEDULER_TASK);
         window.STScheduler?.unregister?.(POPUP_WATCH_TASK);
         rt.refreshTimer = 0;

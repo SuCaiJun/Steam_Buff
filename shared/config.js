@@ -305,7 +305,6 @@
         main: "Steam",
         ui: "main-ui",
         downloads: "/library/downloads",
-        customSortDialog: "custom-sort-dialog",
       }),
     }),
     store: Object.freeze({

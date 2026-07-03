@@ -404,13 +404,26 @@
     addWakeListener(scope, "frontend-wake-focus", window, "focus", s.onWakeFocus);
   }
 
+  function localView(api, route = api?.ctx?.route?.() || "") {
+    if (route === "/library/downloads") {
+      return true;
+    }
+    if (route) {
+      return false;
+    }
+    return api?.ctx?.isDown?.() === true;
+  }
+
   function isView(api) {
-    return api?.ctx?.isDown?.() === true || !!s.st?.show;
+    return localView(api) || !!s.st?.show;
   }
 
   function routeKey(api) {
+    const route = api?.ctx?.route?.() || "";
+    // 优化: 部分 Steam 主窗口先渲染下载页 DOM，routeSources 稍后才稳定；把本地可见性纳入 key，避免按钮只能等 5 秒 hello。
     return [
-      api?.ctx?.route?.() || "",
+      route,
+      localView(api, route) ? "local-show" : "local-hide",
       s.st?.show === true ? "backend-show" : "backend-hide",
     ].join("|");
   }

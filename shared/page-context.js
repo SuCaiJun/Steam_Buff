@@ -11,13 +11,13 @@
 ((root) => {
   "use strict";
 
-  const VERSION = "steam-buff-page-context-v1";
+  const VERSION = "steam-buff-page-context-v3";
   const CFG = root.STConfig || {};
   const MATCH = CFG.matchers || {};
   const PAGES = CFG.pages || {};
   const FEATURE_PAGES = Object.freeze({
     "library-sort-title": Object.freeze(["SharedJSContext", "backend"]),
-    "library-custom-name": Object.freeze(["SharedJSContext", "backend", "custom-sort-dialog", "ui"]),
+    "library-custom-name": Object.freeze(["SharedJSContext", "backend", "property-dialog"]),
     "download-auto-shutdown": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/downloads", "downloads"]),
     "store-enhancements": Object.freeze([
       "store-details",
@@ -58,6 +58,7 @@
   const FEATURE_ACTIONS = Object.freeze({
     "floating-menu": "settings-open",
   });
+  const PROPERTY_PANEL_SELECTOR = "[role='tabpanel'][id*='/app/'][id*='/properties/']";
 
   const STORE_PATTERNS = Object.freeze([
     ["age", /^\/agecheck\/(app|sub|bundle)\/(\d+)\/?/i],
@@ -174,6 +175,29 @@
     return isAllowedSteamAboutBlank(value) || isSteamPropertyDialogAboutBlank(value);
   }
 
+  function isSteamLoopbackHost(value = host()) {
+    return MATCH.isSteamLoopbackHost?.(value) === true;
+  }
+
+  function hasSteamPropertyPanel() {
+    try {
+      return !!doc().querySelector?.(PROPERTY_PANEL_SELECTOR);
+    } catch {
+      return false;
+    }
+  }
+
+  function isSteamPropertyDialogShell() {
+    if (!isSteamLoopbackHost() || excludedSteamTitle()) {
+      return false;
+    }
+    return doc().body?.classList?.contains?.("ModalDialogBody") === true && hasSteamPropertyPanel();
+  }
+
+  function isSteamPropertyDialog() {
+    return isSteamPropertyDialogAboutBlank() || isSteamPropertyDialogShell();
+  }
+
   function titleIn(items, value = title()) {
     return list(items).includes(value);
   }
@@ -199,11 +223,11 @@
     if (excludedSteamTitle()) {
       return false;
     }
-    return hasSteamSharedContextMarker();
+    return hasSteamSharedContextMarker() || isSteamPropertyDialogShell();
   }
 
   function isSteamCleanupTarget() {
-    return MATCH.isSteamLoopbackHost?.(host()) === true || allowedSteamTitle() || excludedSteamTitle();
+    return isSteamLoopbackHost() || allowedSteamTitle() || excludedSteamTitle();
   }
 
   function isSteamWebHost(value = host()) {
@@ -228,7 +252,18 @@
       documentElementReady() &&
       !title() &&
       !isAllowedSteamAboutBlank() &&
-      !isSteamPropertyDialogAboutBlank();
+      !isSteamPropertyDialog();
+  }
+
+  function shouldWaitSteamRuntimeScope() {
+    return isSteamLoopbackHost() &&
+      topFrame() &&
+      documentElementReady() &&
+      !excludedSteamTitle() &&
+      !allowedSteamTitle() &&
+      !hasSteamSharedContextMarker() &&
+      !isAllowedSteamAboutBlank() &&
+      !isSteamPropertyDialog();
   }
 
   function shouldInject() {
@@ -245,7 +280,7 @@
     if (!["steam", "store", "community"].includes(domain())) {
       return false;
     }
-    if (MATCH.isSteamLoopbackHost?.(host()) === true) {
+    if (isSteamLoopbackHost()) {
       return topFrame() && documentElementReady() && isSteamAllowed();
     }
     return true;
@@ -373,7 +408,7 @@
   }
 
   function settingsPage() {
-    if (MATCH.isSteamLoopbackHost?.(host()) === true) {
+    if (isSteamLoopbackHost()) {
       return "";
     }
     if (!isSteamWebHost() || !isHtmlPage()) {
@@ -391,6 +426,7 @@
     if (domain() === "community") return communityPage();
     if (domain() === "web") return settingsPage() || "web";
     if (domain() === "steam") {
+      if (isSteamPropertyDialog()) return "property-dialog";
       if (title() === "SharedJSContext") return "SharedJSContext";
       if (isAllowedSteamAboutBlank()) return "steam-about-main";
       return allowedSteamTitle() ? "main-ui" : "steam-ui";
@@ -421,18 +457,11 @@
     if (extra.route) {
       base.add(extra.route);
     }
-    if (domain() === "steam" && isSteamPropertyDialogAboutBlank()) {
+    if (domain() === "steam" && isSteamPropertyDialog()) {
       base.add("property-dialog");
     }
-    if (
-      domain() === "steam" &&
-      !allowedSteamTitle() &&
-      !isAllowedSteamAboutBlank() &&
-      !excludedSteamTitle() &&
-      hasSteamSharedContextMarker()
-    ) {
+    if (domain() === "steam" && hasSteamSharedContextMarker()) {
       base.add("steam-shared-context");
-      base.add("custom-sort-dialog");
     }
     list(extra.pageTokens).forEach(item => base.add(item));
     return Array.from(base).filter(Boolean);
@@ -590,6 +619,8 @@
         cleanupTarget: isSteamCleanupTarget(),
         aboutMain: isAllowedSteamAboutBlank(),
         propertyDialogAboutBlank: isSteamPropertyDialogAboutBlank(),
+        propertyDialogShell: isSteamPropertyDialogShell(),
+        propertyDialog: isSteamPropertyDialog(),
         sharedContext: hasSteamSharedContextMarker(),
       },
       ...extra,
@@ -709,10 +740,13 @@
     VERSION,
     isAllowedSteamAboutBlank,
     isSteamPropertyDialogAboutBlank,
+    isSteamPropertyDialogShell,
+    isSteamPropertyDialog,
     hasSteamSharedContextMarker,
     isSteamClientPageAllowed: isSteamAllowed,
     isSteamCleanupTarget,
     shouldWaitSteamTitle,
+    shouldWaitSteamRuntimeScope,
     shouldInject,
     shouldLightBoot: isLightBootPage,
     storePageType: storeType,
