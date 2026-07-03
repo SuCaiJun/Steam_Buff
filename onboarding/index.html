@@ -1,0 +1,55 @@
+<!--
+ * @Author        : 顾青离
+ * @Url           : sucaijun.com
+ * @Email         : Ricky@LiHai.La
+ * @Project       : Steam Buff
+ * @Description   : Steam 客户端增强小工具
+ * @File          : 安装引导页结构
+ * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+ * @Remind        : 二次开发请保留原版权信息，谢谢。
+ -->
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steam Buff 使用指引</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="onboarding" aria-live="polite">
+    <section class="guide-card">
+      <header class="guide-top">
+        <div class="top-left">
+          <button class="icon-button" type="button" data-action="back" aria-label="返回上一页" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6"></path>
+            </svg>
+          </button>
+          <div class="brand-lockup" aria-label="Steam Buff">
+            <span class="brand-icon">
+              <img src="../images/icon.png" alt="" width="28" height="28">
+            </span>
+            <span class="brand-name">Steam Buff</span>
+          </div>
+        </div>
+        <div class="progress-steps" id="progress-steps" role="progressbar" aria-label="引导进度" aria-valuemin="1" aria-valuemax="4" aria-valuenow="1"></div>
+      </header>
+
+      <div class="guide-main">
+        <section class="copy-pane">
+          <div class="page-body" id="page-body"></div>
+        </section>
+        <section class="media-pane" id="media-stage" aria-label="功能演示"></section>
+      </div>
+
+      <footer class="guide-footer">
+        <div class="footer-note" id="footer-note"></div>
+        <div class="footer-actions" id="footer-actions"></div>
+      </footer>
+    </section>
+  </main>
+
+  <script src="./script.js"></script>
+</body>
+</html>

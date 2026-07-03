@@ -25,7 +25,6 @@
   const NEWS_TRANSLATE_ICON_CLASS = "steam-buff-news-translate-icon";
   const NEWS_TRANSLATE_DONE_CLASS = "steam-buff-news-translated";
   const NEWS_TRANSLATE_BODY_CLASS = "steam-buff-news-translated-body";
-  const NEXUS_MODS_BUTTON = "__RickyNexusModsButton";
 
   function cssVar(name) {
     return `var(${name})`;
@@ -995,17 +994,6 @@
         white-space: pre-wrap;
       }`,
       vars: steamNewsTranslateVars,
-    },
-    "nexus-mods": {
-      id: "__RickyNexusModsStyle",
-      css: `
-      #${NEXUS_MODS_BUTTON} {
-        min-width: 96px;
-      }
-      #${NEXUS_MODS_BUTTON}.st-nexus-mods-busy {
-        opacity: 0.72;
-        pointer-events: none;
-      }`,
     },
   });
 

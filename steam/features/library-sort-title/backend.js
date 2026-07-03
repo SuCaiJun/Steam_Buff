@@ -125,6 +125,48 @@
     return view(cust);
   }
 
+  function clean(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function pushSearchToken(list, seen, value) {
+    const item = clean(value);
+    const key = item.toLocaleLowerCase();
+    if (!item || seen.has(key)) {
+      return;
+    }
+    list.push(item);
+    seen.add(key);
+  }
+
+  function sameSearchText(a, b) {
+    return clean(a).toLocaleLowerCase() === clean(b).toLocaleLowerCase();
+  }
+
+  function startsWithSearchText(value, prefix) {
+    const text = clean(value).toLocaleLowerCase();
+    const head = clean(prefix).toLocaleLowerCase();
+    return !!text && !!head && (text === head || text.startsWith(`${head} `));
+  }
+
+  function searchSortKey(app, cust, orig) {
+    const list = [];
+    const seen = new Set();
+    pushSearchToken(list, seen, cust);
+    pushSearchToken(list, seen, orig);
+    pushSearchToken(list, seen, app?.[ORIG]);
+    pushSearchToken(list, seen, app?.original_sort_as);
+    return list.join(" ").toLocaleLowerCase();
+  }
+
+  function originalSort(app, orig, cust) {
+    const saved = clean(app?.original_sort_as);
+    if (saved && !startsWithSearchText(saved, cust)) {
+      return saved;
+    }
+    return clean(app?.[ORIG]) || clean(orig);
+  }
+
   function same(app, cust) {
     return !!cust && (app?.display_name === cust || app?.display_name === view(cust));
   }
@@ -162,12 +204,13 @@
     }
 
     // 注:只清洗自定义排序名，官方 display_name 可能真实以 [标签] 开头，不能作为 fallback 走 view()。
+    let changed = false;
     const next = display(cust);
     if (next && app.display_name !== next) {
       app.display_name = next;
-      return true;
+      changed = true;
     }
-    return false;
+    return changed;
   }
 
   // Steam 的 app overview 变更依赖对象替换和 OnAppOverviewChange，直接改原对象有时不会刷新库 UI。
@@ -314,6 +357,7 @@
     }
 
     const had = hasCust(app);
+    const prevCust = had ? app.custom_sort_as_display : "";
     const orig = official(app);
     if (!had || !same(app, app.custom_sort_as_display)) {
       saveOrig(app, orig);
@@ -321,17 +365,17 @@
 
     const cust = typeof sortAs === "string" && sortAs ? sortAs : "";
     if (cust) {
-      if (!app.original_sort_as && typeof app.sort_as === "string") {
+      // 优化:sort_as 也是 Steam 库搜索索引之一；只在本次写入的单个目标上保留官方名 token，避免启动全库重写。
+      if (!app.original_sort_as && typeof app.sort_as === "string" && !sameSearchText(app.sort_as, cust)) {
         app.original_sort_as = app.sort_as;
       }
-      app.sort_as = cust.toLocaleLowerCase();
+      app.sort_as = searchSortKey(app, cust, orig);
       app.custom_sort_as_display = cust;
     } else {
       app.custom_sort_as_display = "";
-      if (typeof app.original_sort_as === "string" && app.original_sort_as) {
-        app.sort_as = app.original_sort_as;
-      } else if (app[ORIG] || orig) {
-        app.sort_as = (app[ORIG] || orig).toLocaleLowerCase();
+      const next = originalSort(app, orig, prevCust);
+      if (next) {
+        app.sort_as = next.toLocaleLowerCase();
       }
       app.original_sort_as = undefined;
     }

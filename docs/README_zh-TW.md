@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://www.sucaijun.com/25.html" alt="logo" ><img src="https://raw.githubusercontent.com/sys1em/Steam_Buff/main/images/icon.png" width="150"/></a>
+  <a href="https://www.sucaijun.com/25.html" alt="logo" ><img src="https://raw.githubusercontent.com/sys1em/repo-assets/main/Steam_Buff/images/logo.png" width="150"/></a>
   <br>
   Steam Buff
   <br>
@@ -37,6 +37,10 @@ Steam Buff 主要補上這些日常缺口：
 - 整合庫存、市集與交易報價相關輔助能力。
 - 支援 Steam 用戶端下載完成後自動關機。
 - ...以及更多提升效率的工具。
+
+## Steam 庫列表搜尋演示
+
+<video src="https://raw.githubusercontent.com/sys1em/repo-assets/main/Steam_Buff/videos/SteamBuff_2026-06.webm" controls style="border-radius:12px;"></video>
 
 ## 執行環境
 

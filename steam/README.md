@@ -1,6 +1,6 @@
 # Steam 域
 
-Steam 客户端内置页面运行域，面向 `steamloopback.host` 和 Steam CEF 主窗口。负责库自定义名称、库排序、下载完成自动关机、新闻弹窗翻译和 Nexus Mods 入口。
+Steam 客户端内置页面运行域，面向 `steamloopback.host` 和 Steam CEF 主窗口。负责库自定义名称、库排序、下载完成自动关机和新闻弹窗翻译。
 
 ## 目录
 
@@ -34,7 +34,6 @@ extension/content.js
 features/library-custom-name/       库名称填充、自定义名、助记符
 features/library-sort-title/        自定义排序名称后台填充
 features/download-auto-shutdown/    下载完成自动关机
-features/nexus-mods/                库详情页 Nexus Mods 入口
 features/steam-news-translate/      Steam 新闻弹窗翻译
 features/popup-guard/               弹窗保护
 ```

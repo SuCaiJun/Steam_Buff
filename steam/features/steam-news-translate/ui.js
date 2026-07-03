@@ -30,7 +30,7 @@
   const MIN_TEXT = 24;
   const MAX_TEXT = 20000;
   const SCAN_DELAY = 300;
-  const MUTATION_SCAN_DELAY = 500;
+  const MUTATION_SCAN_DELAY = 1000;
   const SCROLL_SCAN_DELAY = 500;
   const CONFIG_REFRESH_MS = 15000;
   const POPUP_WATCH_MS = 1500;
@@ -54,6 +54,7 @@
   const TITLE_MIN_TEXT = 3;
   const TITLE_MIN_FONT_SIZE = 16;
   const TITLE_MAX_TEXT = 220;
+  const DEFAULT_CONTENT_TYPE = "新闻/社区公告或更新公告";
   const TITLE_META_RE = /^(重大更新|新闻|活动|定期更新|小更新|补丁|公告|来自[:：]?.*|发布于.*|\d{1,2}月\d{1,2}日.*|today|yesterday|posted|from)$/i;
   const CONTROL_SELECTOR = [
     "button",
@@ -83,23 +84,28 @@
     "[class*='Social']",
     "[class*='social']",
   ].join(",");
-  const POPUP_SELECTOR = [
+  const POPUP_FRAME_SELECTOR = [
     "[role='dialog']",
-    "[class*='Dialog']",
-    "[class*='dialog']",
+    "[aria-modal='true']",
     "[class*='Modal']",
     "[class*='modal']",
     "[class*='Popup']",
     "[class*='popup']",
-    "[class*='PartnerEvent']",
-    "[class*='partnerevent']",
-    "[class*='EventDisplay']",
-    "[class*='eventdisplay']",
-    "[class*='GameNews']",
-    "[class*='gamenews']",
-    "[class*='News']",
-    "[class*='news']",
   ].join(",");
+  const APP_ENTRY_SELECTOR = [
+    "a[href^='steam://nav/games/details/']",
+    "a[href^='steam://openurl/https://store.steampowered.com/app/']",
+    "a[href^='steam://openurl/http://store.steampowered.com/app/']",
+    "a[href^='https://store.steampowered.com/app/']",
+    "a[href^='http://store.steampowered.com/app/']",
+  ].join(",");
+  const NEWS_ENTRY_SELECTOR = [
+    "a[href^='steam://openurl/https://store.steampowered.com/news/app/']",
+    "a[href^='steam://openurl/http://store.steampowered.com/news/app/']",
+    "a[href^='https://store.steampowered.com/news/app/']",
+    "a[href^='http://store.steampowered.com/news/app/']",
+  ].join(",");
+  const APP_ICON_SELECTOR = "img[src*='/community_assets/images/apps/']";
   const POPUP_SIGNAL_SELECTOR = [
     "article",
     "[role='article']",
@@ -117,6 +123,7 @@
     "[class*='News']",
     "[class*='news']",
   ].join(",");
+  const POPUP_MUTATION_SIGNAL_SELECTOR = `${POPUP_FRAME_SELECTOR},${POPUP_SIGNAL_SELECTOR},${APP_ENTRY_SELECTOR},${NEWS_ENTRY_SELECTOR},${APP_ICON_SELECTOR}`;
   const BODY_SELECTORS = [
     "[class*='EventBodyText']",
     "[class*='EventBody']",
@@ -287,32 +294,176 @@
     ]);
   }
 
-  function appMetaFromLinks(root) {
-    const links = Array.from(root?.querySelectorAll?.("a[href]") || []);
-    for (const link of links) {
-      const href = String(link.getAttribute("href") || link.href || "");
-      const match = href.match(/\/app\/(\d+)|[?&]appid=(\d+)/i);
-      const appid = match?.[1] || match?.[2] || "";
-      if (!appid) {
-        continue;
+  function appEntryMeta(el) {
+    const raw = String(el?.getAttribute?.("href") || el?.href || "");
+    if (!raw) {
+      return null;
+    }
+    const library = raw.match(/^steam:\/\/nav\/games\/details\/(\d+)(?:[/?#].*)?$/i);
+    if (library) {
+      return { appid: library[1], kind: "library", href: raw };
+    }
+    const value = raw.replace(/^steam:\/\/openurl\//i, "");
+    let url = null;
+    try {
+      url = new URL(value, location.href);
+    } catch {
+      return null;
+    }
+    if (!/^https?:$/i.test(url.protocol) || url.hostname.toLowerCase() !== "store.steampowered.com") {
+      return null;
+    }
+    const store = url.pathname.match(/^\/app\/(\d+)(?:\/|$)/i);
+    return store ? { appid: store[1], kind: "store", href: raw } : null;
+  }
+
+  function newsEntryMeta(el) {
+    const raw = String(el?.getAttribute?.("href") || el?.href || "");
+    if (!raw) {
+      return null;
+    }
+    const value = raw.replace(/^steam:\/\/openurl\//i, "");
+    let url = null;
+    try {
+      url = new URL(value, location.href);
+    } catch {
+      return null;
+    }
+    if (!/^https?:$/i.test(url.protocol) || url.hostname.toLowerCase() !== "store.steampowered.com") {
+      return null;
+    }
+    const news = url.pathname.match(/^\/news\/app\/(\d+)\/view\/([^/?#]+)/i);
+    return news ? { appid: news[1], gid: news[2], kind: "news", href: raw } : null;
+  }
+
+  function appIconMeta(el) {
+    const raw = String(el?.currentSrc || el?.src || el?.getAttribute?.("src") || "");
+    if (!raw) {
+      return null;
+    }
+    let url = null;
+    try {
+      url = new URL(raw, location.href);
+    } catch {
+      return null;
+    }
+    if (!/^https?:$/i.test(url.protocol)) {
+      return null;
+    }
+    const icon = url.pathname.match(/\/community_assets\/images\/apps\/(\d+)\//i);
+    return icon ? { appid: icon[1], kind: "icon", href: raw } : null;
+  }
+
+  function popupAppEntryLinks(root) {
+    const seen = new Set();
+    return Array.from(root?.querySelectorAll?.(APP_ENTRY_SELECTOR) || []).filter((link) => {
+      if (seen.has(link) ||
+          link.classList?.contains(BUTTON_CLASS) ||
+          link.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
+          !appEntryMeta(link) ||
+          !visible(link)) {
+        return false;
       }
+      seen.add(link);
+      return true;
+    });
+  }
+
+  function popupNewsEntryLinks(root) {
+    const seen = new Set();
+    return Array.from(root?.querySelectorAll?.(NEWS_ENTRY_SELECTOR) || []).filter((link) => {
+      const meta = newsEntryMeta(link);
+      const key = meta ? `${meta.appid}:${meta.gid}` : "";
+      if (!key ||
+          seen.has(key) ||
+          link.classList?.contains(BUTTON_CLASS) ||
+          link.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
+          !visible(link)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function popupNewsEntry(root) {
+    return popupNewsEntryLinks(root)[0] || null;
+  }
+
+  function popupAppEntry(root) {
+    return popupAppEntryLinks(root)[0] || null;
+  }
+
+  function popupAppIcons(root) {
+    const seen = new Set();
+    return Array.from(root?.querySelectorAll?.(APP_ICON_SELECTOR) || []).filter((icon) => {
+      if (seen.has(icon) ||
+          icon.classList?.contains(BUTTON_CLASS) ||
+          icon.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
+          !appIconMeta(icon) ||
+          !visible(icon)) {
+        return false;
+      }
+      seen.add(icon);
+      return true;
+    });
+  }
+
+  function popupAppIcon(root) {
+    return popupAppIcons(root).find((icon) => !!appIconMountTarget(icon, null, root)) || null;
+  }
+
+  function appMetaFromLinks(root) {
+    const links = popupAppEntryLinks(root);
+    for (const link of links) {
+      const meta = appEntryMeta(link);
       return {
-        appid,
+        appid: meta.appid,
         gameName: clean(link.getAttribute("aria-label") || link.getAttribute("title") || nodeText(link)),
+      };
+    }
+    const icon = popupAppIcon(root);
+    const meta = appIconMeta(icon);
+    if (meta) {
+      return {
+        appid: meta.appid,
+        gameName: "",
       };
     }
     return {};
   }
 
-  function contentTypeFromText(title, text) {
-    const value = `${title}\n${String(text || "").slice(0, 1200)}`;
-    if (/patch\s*notes|hotfix|changelog|bug\s*fix|fixed|修复|补丁|热修|改动日志/i.test(value)) {
-      return "更新公告/补丁说明";
-    }
-    if (/dev\s*log|developer|开发日志|开发者日志/i.test(value)) {
-      return "开发日志";
-    }
-    return "新闻/社区公告";
+  function newsMetaFromCard(card) {
+    const link = popupNewsEntryLinks(card)[0] || null;
+    const meta = newsEntryMeta(link);
+    return meta ? {
+      appid: meta.appid,
+      gid: meta.gid,
+      newsHref: meta.href,
+      title: nodeText(link),
+    } : {};
+  }
+
+  function steamHeaderText(card) {
+    const text = nodeText(card).slice(0, 360);
+    return clean(text.split(/(?:来自[:：]?|from[:：]?|发布于|发表于|posted|published|开始时间|结束时间)/i)[0] || "");
+  }
+
+  function steamNewsLabelsFromCard(card) {
+    const statusLabels = new Set(["进行中", "已结束", "即将开始", "现已推出", "免费开玩"]);
+    const tokens = steamHeaderText(card).split(/\s+/).map(clean).filter(Boolean);
+    const type = tokens.find((item) => !statusLabels.has(item)) || "";
+    const status = tokens.find((item) => statusLabels.has(item)) || "";
+    return {
+      type,
+      status,
+    };
+  }
+
+  function gameNameFromCard(card) {
+    const text = nodeText(card).slice(0, 520);
+    const match = text.match(/(?:来自|from)[:：]?\s*(.+?)\s*(?:发布于|发表于|posted|published|开始时间|结束时间|$)/i);
+    return clean(match?.[1] || "");
   }
 
   function rectArea(el) {
@@ -320,60 +471,59 @@
     return Math.max(0, rect.width) * Math.max(0, rect.height);
   }
 
-  function popupLike(el) {
-    if (!visible(el)) {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    if (popupTargetArticleLike(el)) {
-      return true;
-    }
-    const maxWidth = Math.max(360, window.innerWidth * 0.94);
-    const maxHeight = el.closest("#popup_target") ? window.innerHeight * 2.4 : window.innerHeight * 0.98;
-    if (rect.width < 260 || rect.height < 150 || rect.width > maxWidth || rect.height > maxHeight) {
-      return false;
-    }
-    if (nodeText(el).length < MIN_TEXT) {
-      return false;
-    }
-    if (el.closest("#popup_target")) {
-      return true;
-    }
-    const name = `${el.id || ""} ${el.className || ""}`;
-    if (/news|event|dialog|modal|popup|partner/i.test(name)) {
-      return true;
-    }
-    const style = window.getComputedStyle(el);
-    return style.position === "fixed" || style.position === "absolute";
-  }
-
-  /* Steam 长文卡片识别：文章滚动到中段时外层卡片高度会远超视口，不能再用弹窗最大高度过滤。 */
-  function popupTargetArticleLike(el) {
-    if (!visible(el) || !el.closest("#popup_target") || el.closest(`.${TOOL_CLASS},.${BOX_CLASS}`)) {
+  function newsEntryCardLike(el, link, root) {
+    if (!visible(el) || !root?.contains?.(el) || !el.contains(link) || el.closest(`.${TOOL_CLASS},.${BOX_CLASS}`)) {
       return false;
     }
     const rect = el.getBoundingClientRect();
     const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
-    const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
     const maxWidth = Math.min(1120, viewportWidth * 0.9);
-    const text = nodeText(el);
-    if (text.length < MIN_TEXT) {
-      return false;
-    }
     if (rect.width < 420 || rect.width > maxWidth || rect.height < 120) {
-      return false;
-    }
-    if (rect.top > viewportHeight * 0.86 || rect.bottom < 120) {
       return false;
     }
     if (rect.left < viewportWidth * 0.18 || rect.right > viewportWidth * 0.92) {
       return false;
     }
-    return /新闻|news|来自[:：]?|from[:：]?|发布于|posted|published|devlog|更新|补丁/i.test(text.slice(0, 640));
+    return !!newsEntryMeta(link);
+  }
+
+  function newsEntryCard(link, root) {
+    for (let el = link?.parentElement, depth = 0; el && root?.contains?.(el) && depth < 10; depth += 1, el = el.parentElement) {
+      if (newsEntryCardLike(el, link, root)) {
+        return el;
+      }
+    }
+    return null;
+  }
+
+  function popupFrameLike(el) {
+    if (!visible(el)) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
+    const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
+    if (rect.width < 260 || rect.height < 120) {
+      return false;
+    }
+    return rect.right > 0 && rect.bottom > 0 && rect.left < viewportWidth && rect.top < viewportHeight;
+  }
+
+  function popupFrameSignal(root) {
+    if (!root?.isConnected) {
+      return false;
+    }
+    if (root.matches?.(POPUP_FRAME_SELECTOR) && popupFrameLike(root)) {
+      return true;
+    }
+    return Array.from(root.querySelectorAll?.(POPUP_FRAME_SELECTOR) || []).some(popupFrameLike);
   }
 
   function popupSignal(root) {
-    return !!root?.isConnected && !!root.querySelector(POPUP_SIGNAL_SELECTOR);
+    if (!root?.isConnected) {
+      return false;
+    }
+    return !!(popupNewsEntry(root) || popupAppEntry(root) || popupAppIcon(root)) && !!root.querySelector(POPUP_SIGNAL_SELECTOR);
   }
 
   function popupCandidates() {
@@ -382,18 +532,14 @@
       return [];
     }
     const details = popupTargetDetailCandidates(root);
-    const raw = details.length ? details : Array.from(root.querySelectorAll(POPUP_SELECTOR));
-    const found = Array.from(new Set(raw))
-      .filter(popupLike)
-      .sort((a, b) => rectArea(b) - rectArea(a));
-    return compactCandidates(found);
+    return details.slice(0, 8);
   }
 
   function nodeHasPopupSignal(node) {
     return node?.nodeType === 1 && (
-      node.matches?.(POPUP_SIGNAL_SELECTOR) ||
-      node.closest?.(POPUP_SIGNAL_SELECTOR) ||
-      node.querySelector?.(POPUP_SIGNAL_SELECTOR)
+      node.matches?.(POPUP_MUTATION_SIGNAL_SELECTOR) ||
+      node.closest?.(POPUP_MUTATION_SIGNAL_SELECTOR) ||
+      node.querySelector?.(POPUP_MUTATION_SIGNAL_SELECTOR)
     );
   }
 
@@ -446,27 +592,83 @@
       .map((item) => item.card);
   }
 
-  function activePopupCard(candidates) {
-    return rankedPopupCards(candidates)[0] || null;
-  }
-
   function activeMountableCard(candidates, target = null) {
     const ranked = rankedPopupCards(candidates);
     for (const card of ranked) {
-      const toolbar = findVisualToolbar(card);
-      if (toolbar && (!target || toolbar === target)) {
+      const mountTarget = findAppLinkMountTarget(card);
+      if (mountTarget && (!target || mountTarget === target)) {
         return card;
       }
     }
     return target ? null : (ranked[0] || null);
   }
 
+  function addUniqueElement(out, el) {
+    if (el?.isConnected && !out.includes(el)) {
+      out.push(el);
+    }
+  }
+
+  function addUniquePanel(out, el) {
+    if (el?.isConnected && !out.some((item) => item.contains(el) || el.contains(item))) {
+      out.push(el);
+    }
+  }
+
+  function popupNativeMountTargets(root) {
+    const out = [];
+    for (const link of popupAppEntryLinks(root)) {
+      addUniqueElement(out, appLinkMountTarget(link, null, root));
+    }
+    addUniqueElement(out, popupAppIconMountTarget(root, null));
+    return out;
+  }
+
+  function anchoredPopupPanelLike(el, root) {
+    if (!visible(el) || !root?.contains?.(el) || el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`)) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
+    const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
+    return rect.width >= 420 &&
+      rect.width <= viewportWidth * 0.92 &&
+      rect.height >= 120 &&
+      rect.height <= viewportHeight * 1.15 &&
+      rect.left >= viewportWidth * 0.08 &&
+      rect.right <= viewportWidth + 2 &&
+      nodeText(el).length >= MIN_TEXT;
+  }
+
+  function anchoredPopupPanels(root) {
+    const out = [];
+    for (const target of popupNativeMountTargets(root)) {
+      for (let el = target?.parentElement, depth = 0; el && el !== root && root?.contains?.(el) && depth < 8; depth += 1, el = el.parentElement) {
+        if (anchoredPopupPanelLike(el, root)) {
+          addUniquePanel(out, el);
+        }
+      }
+      if (out.length >= 4) {
+        break;
+      }
+    }
+    return out;
+  }
+
   function popupTargetDetailCandidates(root = observeTarget()) {
     if (!root) {
       return [];
     }
-    return Array.from(root.querySelectorAll("article,section,main,[role='article'],div"))
-      .filter(popupTargetArticleLike)
+    const found = [];
+    for (const panel of anchoredPopupPanels(root)) {
+      for (const link of popupNewsEntryLinks(panel)) {
+        addUniqueElement(found, newsEntryCard(link, root));
+      }
+      if (found.length >= 16) {
+        break;
+      }
+    }
+    return compactCandidates(found)
       .sort((a, b) => rectArea(b) - rectArea(a));
   }
 
@@ -538,6 +740,31 @@
       return true;
     }
     return !visible(el);
+  }
+
+  function firstTextNode(el) {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      if (clean(walker.currentNode.nodeValue)) {
+        return walker.currentNode;
+      }
+    }
+    return null;
+  }
+
+  function newsTitleTextNode(card) {
+    const link = popupNewsEntryLinks(card)[0] || null;
+    const text = nodeText(link).slice(0, TITLE_MAX_TEXT);
+    if (!link || text.length < TITLE_MIN_TEXT || skipTitleParent(link, null)) {
+      return null;
+    }
+    return {
+      node: firstTextNode(link),
+      parent: link,
+      text,
+      rect: link.getBoundingClientRect(),
+      fontSize: pxNumber(window.getComputedStyle(link).fontSize),
+    };
   }
 
   function titleNodeScore(item, bodyTop) {
@@ -615,6 +842,10 @@
   }
 
   function findTitleTextNode(card, bodyHost) {
+    const linked = newsTitleTextNode(card);
+    if (linked) {
+      return linked;
+    }
     const direct = titleTextNode(card, bodyHost);
     if (direct && !card?.closest?.(`.${TRANSLATED_BODY_CLASS}`)) {
       return direct;
@@ -1115,10 +1346,30 @@
     return nodeText(el).length >= MIN_TEXT;
   }
 
+  function topMetaHostLike(card, el) {
+    if (!card || !el || !card.contains(el)) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    if (rect.top > cardRect.top + 140 || rect.height > 180) {
+      return false;
+    }
+    const text = nodeText(el).slice(0, 260);
+    const metaSignals = [
+      /新闻|news/i,
+      /来自[:：]?|from[:：]?/i,
+      /发布于|posted|published/i,
+    ].filter((re) => re.test(text)).length;
+    return metaSignals >= 2;
+  }
+
   function bodyHostCandidates(card, selectors) {
-    return Array.from(new Set(
+    const candidates = Array.from(new Set(
       selectors.flatMap((selector) => Array.from(card.querySelectorAll(selector)))
     )).filter(bodyHostCandidate);
+    const content = candidates.filter((el) => !topMetaHostLike(card, el));
+    return content.length ? content : candidates;
   }
 
   function bodyBlockCount(el) {
@@ -1171,7 +1422,7 @@
 
   function inferredTextHosts(card) {
     const cardRect = card.getBoundingClientRect();
-    return Array.from(card.querySelectorAll(":scope > *"))
+    const candidates = Array.from(card.querySelectorAll(":scope > *"))
       .filter((el) => {
         if (!visible(el) || el.closest(`.${TOOL_CLASS},.${BOX_CLASS}`) || el.matches?.(BODY_SKIP_SELECTOR)) {
           return false;
@@ -1190,6 +1441,9 @@
         return true;
       })
       .sort((a, b) => nodeText(b).length - nodeText(a).length);
+    /* 注: Steam 普通 DIV 新闻卡片的首个子节点常是标题/来源/日期头部，不是正文；选中它会让按钮因正文过短而不挂载。 */
+    const content = candidates.filter((el) => !topMetaHostLike(card, el));
+    return content.length ? content : candidates;
   }
 
   function shouldPreferInferredBodyHost(card, direct, inferred) {
@@ -1227,8 +1481,10 @@
     const title = findTitleTextNode(card, host && host !== card ? host : null);
     const titleText = title?.text || "";
     const routeId = routeAppid();
+    const newsMeta = newsMetaFromCard(card);
     const linkMeta = appMetaFromLinks(card.closest("#popup_target") || card);
-    const appid = routeId || linkMeta.appid || "";
+    const appid = routeId || newsMeta.appid || linkMeta.appid || "";
+    const labels = steamNewsLabelsFromCard(card);
     return {
       host,
       text,
@@ -1237,14 +1493,22 @@
       titleText,
       meta: {
         title: titleText,
-        gameName: appNameFromStore(appid) || linkMeta.gameName || "",
+        gameName: appNameFromStore(appid) || linkMeta.gameName || gameNameFromCard(card),
         appid,
-        contentType: contentTypeFromText(titleText, text),
+        gid: newsMeta.gid || "",
+        newsHref: newsMeta.newsHref || "",
+        steamTypeLabel: labels.type,
+        steamStatusLabel: labels.status,
+        contentType: labels.type || DEFAULT_CONTENT_TYPE,
       },
       titleHash: hashText(titleText),
-      hash: hashText(`${titleText}\n---steam-buff-news---\n${text}`),
+      hash: hashText(`${newsMeta.gid || ""}\n---steam-buff-news-id---\n${titleText}\n---steam-buff-news---\n${text}`),
       length: titleText.length + text.length,
     };
+  }
+
+  function mountableData(data) {
+    return !!data.titleText || data.text.length >= MIN_TEXT;
   }
 
   function hashText(text) {
@@ -1257,87 +1521,150 @@
     return (hash >>> 0).toString(16);
   }
 
-  /* 原生侧边列识别：右侧关闭/上下/商店列是固定工具列，不能跟随文章卡顶部滚动。 */
-  function findVisualToolbar(card) {
-    const root = card.closest("#popup_target") || card.parentElement || card;
-    const cardRect = card.getBoundingClientRect();
-    const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
-    const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
-    return Array.from(root.querySelectorAll("div"))
-      .filter((el) => toolbarColumnLike(el, cardRect, viewportHeight, viewportWidth))
-      .sort((a, b) => toolbarScore(b, cardRect) - toolbarScore(a, cardRect))[0] || null;
+  function findAppLinkMountTarget(card) {
+    const root = card.closest("#popup_target") || observeTarget() || card.parentElement || card;
+    const body = textHost(card, { strict: true });
+    for (const link of popupAppEntryLinks(root)) {
+      if (body?.contains?.(link)) {
+        continue;
+      }
+      const target = appLinkMountTarget(link, card, root);
+      if (target) {
+        return target;
+      }
+    }
+    return popupAppIconMountTarget(root, card);
+  }
+
+  function appEntryHref(el) {
+    return appEntryMeta(el)?.href || "";
+  }
+
+  function nativeAppEntryLike(el) {
+    if (!visible(el) ||
+        el.classList?.contains(BUTTON_CLASS) ||
+        el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
+        !appEntryHref(el)) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    return rect.width >= 24 &&
+      rect.width <= 260 &&
+      rect.height >= 24 &&
+      rect.height <= 140 &&
+      nodeText(el).length <= 80;
+  }
+
+  function appLinkMountTarget(link, card, root = link?.closest("#popup_target")) {
+    if (!nativeAppEntryLike(link)) {
+      return null;
+    }
+    for (let el = link.parentElement, depth = 0; el && depth < 6 && root?.contains?.(el); depth += 1, el = el.parentElement) {
+      if (appLinkMountContainerLike(el, link, card)) {
+        return el;
+      }
+    }
+    return null;
+  }
+
+  function appLinkMountContainerLike(el, link, card) {
+    if (!visible(el) ||
+        !el.contains(link) ||
+        el.classList?.contains(BUTTON_CLASS) ||
+        el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
+        el.matches?.("a,button,input,select,textarea") ||
+        el.getAttribute?.("role") === "button") {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 28 || rect.width > 320 || rect.height < 28 || rect.height > 420) {
+      return false;
+    }
+    if (nodeText(el).length > 120) {
+      return false;
+    }
+    const cardRect = card?.getBoundingClientRect?.();
+    return !cardRect || rect.top <= cardRect.bottom + 24;
+  }
+
+  function popupAppIconMountTarget(root, card = null) {
+    for (const icon of popupAppIcons(root)) {
+      const target = appIconMountTarget(icon, card, root);
+      if (target) {
+        return target;
+      }
+    }
+    return null;
+  }
+
+  function nativeAppIconLike(icon) {
+    if (!visible(icon) ||
+        icon.classList?.contains(BUTTON_CLASS) ||
+        icon.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
+        !appIconMeta(icon)) {
+      return false;
+    }
+    const rect = icon.getBoundingClientRect();
+    return rect.width >= 24 &&
+      rect.width <= 80 &&
+      rect.height >= 24 &&
+      rect.height <= 80 &&
+      nodeText(icon).length <= 8;
+  }
+
+  function appIconMountTarget(icon, card, root = icon?.closest("#popup_target")) {
+    if (!nativeAppIconLike(icon)) {
+      return null;
+    }
+    for (let el = icon.parentElement, depth = 0; el && depth < 6 && root?.contains?.(el); depth += 1, el = el.parentElement) {
+      if (appIconMountContainerLike(el, icon, card)) {
+        return el;
+      }
+    }
+    return null;
   }
 
   function toolbarItemLike(el) {
-    if (!visible(el) || el.classList?.contains(BUTTON_CLASS) || el.closest(`.${TOOL_CLASS},.${BOX_CLASS}`)) {
+    if (!visible(el) ||
+        el.classList?.contains(BUTTON_CLASS) ||
+        el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`)) {
       return false;
     }
     const rect = el.getBoundingClientRect();
-    return rect.width >= 28 &&
-      rect.width <= 76 &&
+    return rect.width >= 24 &&
+      rect.width <= 84 &&
       rect.height >= 20 &&
-      rect.height <= 76 &&
-      nodeText(el).length <= 8;
+      rect.height <= 84 &&
+      nodeText(el).length <= 12;
   }
 
-  function toolbarActionCount(el) {
-    const direct = Array.from(el.children || []).filter(toolbarItemLike).length;
-    if (direct >= 2) {
-      return direct;
-    }
-    return Array.from(el.querySelectorAll("button,a,[role='button'],div"))
-      .filter((item) => item !== el && toolbarItemLike(item)).length;
-  }
-
-  function toolbarCloseLike(el) {
-    const text = nodeText(el).toLowerCase();
-    const label = clean([
-      el?.getAttribute?.("aria-label"),
-      el?.getAttribute?.("title"),
-      el?.getAttribute?.("data-tooltip-text"),
-      text,
-    ].filter(Boolean).join(" ")).toLowerCase();
-    return text === "×" ||
-      text === "x" ||
-      /\bclose\b|关闭|關閉/.test(label);
-  }
-
-  function toolbarColumnLike(el, cardRect, viewportHeight, viewportWidth = Math.max(1, window.innerWidth || 0)) {
-    if (!visible(el) || el.classList?.contains(TOOL_CLASS) || el.closest(`.${BOX_CLASS}`) || toolbarCloseLike(el)) {
+  function appIconMountContainerLike(el, icon, card) {
+    if (!visible(el) ||
+        !el.contains(icon) ||
+        el.classList?.contains(BUTTON_CLASS) ||
+        el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
+        el.matches?.("a,button,input,select,textarea") ||
+        el.getAttribute?.("role") === "button") {
       return false;
     }
     const rect = el.getBoundingClientRect();
-    const besideCard = rect.left >= cardRect.right - 140 && rect.left <= cardRect.right + 128;
-    const overRightEdge = rect.left >= cardRect.left + cardRect.width * 0.78 &&
-      rect.right <= Math.min(viewportWidth + 12, cardRect.right + 128);
-    const actionCount = toolbarActionCount(el);
-    // 注: 部分 Steam 新闻弹窗只保留一个原生侧边项，不能继续套用多按钮工具列的高度下限。
-    const singleItemColumn = actionCount === 1;
-    const minHeight = singleItemColumn ? 42 : 80;
-    const minTop = singleItemColumn ? Math.max(88, viewportHeight * 0.08) : 48;
-    const minBottom = singleItemColumn ? minTop + 36 : 128;
-    if ((!besideCard && !overRightEdge) ||
-        rect.width < 32 ||
+    const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
+    if (rect.left < viewportWidth * 0.7 ||
+        rect.width < 40 ||
         rect.width > 96 ||
-        rect.height < minHeight ||
-        rect.height > 620 ||
-        rect.top < minTop ||
-        rect.top > Math.max(620, viewportHeight * 0.78) ||
-        rect.bottom < minBottom) {
+        rect.height < 100 ||
+        rect.height > 420 ||
+        nodeText(el).length > 120) {
       return false;
     }
-    return actionCount >= 1;
+    const cardRect = card?.getBoundingClientRect?.();
+    if (cardRect && (rect.top < cardRect.top - 80 || rect.top > cardRect.bottom + 24)) {
+      return false;
+    }
+    return Array.from(el.children || []).filter(toolbarItemLike).length >= 3;
   }
 
-  function toolbarScore(el, cardRect) {
-    const rect = el.getBoundingClientRect();
-    const itemCount = toolbarActionCount(el);
-    const leftPenalty = Math.abs(rect.left - (cardRect.right - 24));
-    const topPenalty = Math.abs(rect.top - Math.max(120, window.innerHeight * 0.16));
-    return itemCount * 1000 - leftPenalty * 3 - topPenalty;
-  }
-
-  function toolbarButtonClass() {
+  function buttonClass() {
     return `${BUTTON_CLASS} notranslate`;
   }
 
@@ -1968,7 +2295,7 @@
 
   function mount(rt, card) {
     const existing = mounted.get(card);
-    const target = findVisualToolbar(card);
+    const target = findAppLinkMountTarget(card);
     if (!target) {
       if (existing?.button?.isConnected && existing.target?.isConnected && visible(existing.target) && card.isConnected) {
         return true;
@@ -1981,8 +2308,8 @@
     if (existing?.button?.isConnected && existing.target === target) {
       return true;
     }
-    const data = extract(card);
-    if (data.length < MIN_TEXT) {
+    const data = extract(card, { strict: true });
+    if (!mountableData(data)) {
       return false;
     }
 
@@ -1990,11 +2317,11 @@
     if (existing?.button?.isConnected) {
       removeButtonRecord(rt, card);
     }
-    /* 右侧工具列固定复用，同一容器只能保留当前新闻卡的一个按钮 */
+    /* 优化: 只复用 app 入口链接所在的本地控制容器，避免几何扫描误挂到其他弹窗区域。 */
     clearTargetButtons(rt, target, card);
     const button = document.createElement("button");
     button.type = "button";
-    button.className = toolbarButtonClass();
+    button.className = buttonClass();
     button.setAttribute("role", "button");
     button.setAttribute("tabindex", "0");
     button.title = "Steam Buff 翻译";
@@ -2067,11 +2394,42 @@
     return Date.now() < (rt.popupSettleUntil || 0);
   }
 
+  function hasMountedSurface(rt) {
+    return mountedAlive(rt) || rt.cards?.size > 0 || !!document.querySelector(`.${BUTTON_CLASS}`);
+  }
+
+  function shouldScanPopup(rt, root = observeTarget()) {
+    if (hasMountedSurface(rt)) {
+      return true;
+    }
+    return !!root?.isConnected && (popupSettling(rt) || popupSignal(root));
+  }
+
+  function shouldObservePopupTarget(rt, target = observeTarget()) {
+    return !!target?.isConnected && (popupFrameSignal(target) || popupSignal(target) || popupSettling(rt) || hasMountedSurface(rt));
+  }
+
+  function detachObserver(rt) {
+    rt.observer?.disconnect?.();
+    rt.observer = null;
+    rt.observerTarget = null;
+  }
+
   function needsPopupRecoveryScan(rt, root) {
     if (!root?.isConnected || mountedAlive(rt) || popupSettling(rt) || !popupSignal(root)) {
       return false;
     }
-    return !!activeMountableCard(popupCandidates());
+    return true;
+  }
+
+  function popupRecoveryEnabled(rt) {
+    if (rt.config?.enabled === true) {
+      return true;
+    }
+    if (rt.config?.featureEnabled === false || rt.config?.translateEnabled === false || rt.config?.newsPopup === false) {
+      return false;
+    }
+    return localConfig(rt, "popup-recovery").enabled === true;
   }
 
   function configStateKey(config) {
@@ -2117,7 +2475,7 @@
       clearMounted(rt);
       return;
     }
-    if (rt.config.reason === "no-popup-local" && !mountedAlive(rt)) {
+    if (!shouldScanPopup(rt)) {
       return;
     }
     scheduleScan(rt, 20);
@@ -2131,7 +2489,7 @@
     if (rt.cards?.size > 0 || document.querySelector(`.${BUTTON_CLASS}`)) {
       return true;
     }
-    return popupSignal(target) && !!activeMountableCard(popupCandidates());
+    return popupSignal(target);
   }
 
   async function refreshConfig(rt, options = {}) {
@@ -2167,6 +2525,11 @@
   function scan(rt) {
     rt.scanTimer = 0;
     if (rt.stopped || rt.config?.enabled !== true) {
+      return;
+    }
+    const root = observeTarget();
+    if (!shouldScanPopup(rt, root)) {
+      detachObserver(rt);
       return;
     }
     attachObserver(rt);
@@ -2225,8 +2588,8 @@
     const firstCard = candidates[0] || null;
     const hasCandidates = candidates.length > 0;
     log[hasCandidates ? "warn" : "info"](
-      hasCandidates ? "news-popup-toolbar-missing" : "news-popup-dom-skip",
-      hasCandidates ? "新闻弹窗已识别但未找到原生侧边工具列" : "未识别到可翻译的新闻弹窗",
+      hasCandidates ? "news-popup-app-entry-mount-missing" : "news-popup-dom-skip",
+      hasCandidates ? "新闻弹窗已识别但未找到 app 入口挂载容器" : "未识别到可翻译的新闻弹窗",
       {
         hasPopupTarget: !!observeTarget(),
         candidateCount: candidates.length,
@@ -2298,7 +2661,8 @@
 
   function attachObserver(rt) {
     const target = observeTarget();
-    if (!target) {
+    if (!shouldObservePopupTarget(rt, target)) {
+      detachObserver(rt);
       return;
     }
     if (rt.observer && rt.observerTarget === target) {
@@ -2332,14 +2696,18 @@
     }
     const latest = observeTarget();
     const changed = latest && latest !== rt.observerTarget;
-    if (changed) {
+    const canObserve = shouldObservePopupTarget(rt, latest);
+    if (changed && canObserve) {
       attachObserver(rt);
+    } else if (!canObserve) {
+      detachObserver(rt);
     }
-    const recover = rt.config?.enabled === true && needsPopupRecoveryScan(rt, latest);
+    const recoverEnabled = popupRecoveryEnabled(rt);
+    const recover = recoverEnabled && needsPopupRecoveryScan(rt, latest);
     if (recover) {
       markPopupSettling(rt);
     }
-    if (rt.config?.enabled === true && (changed || recover || mountedAlive(rt) || popupSettling(rt))) {
+    if (recoverEnabled && (recover || (changed && shouldScanPopup(rt, latest)) || mountedAlive(rt) || popupSettling(rt))) {
       scheduleScan(rt);
     }
   }

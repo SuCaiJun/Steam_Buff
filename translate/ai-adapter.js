@@ -17,7 +17,7 @@
   const SERVICE = "steam-buff.ai";
   const AI_PROXY_URL = CFG.urls?.aiTranslateProxy || "";
   const PATH = "__steam_buff_ai_translate__";
-  const PROMPT_VERSION = "steam-buff-ai-translate-prompt-v2";
+  const PROMPT_VERSION = "steam-buff-ai-translate-prompt-v3";
   const SHORT_CACHE_LIMIT = 80;
   const DEFAULT_CONCURRENCY = 10;
   const MAX_CONCURRENCY = 10;

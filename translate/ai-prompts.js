@@ -12,7 +12,7 @@
   "use strict";
 
   const api = globalThis.STTranslateAIPrompts = globalThis.STTranslateAIPrompts || {};
-  const API_VERSION = "steam-buff-ai-prompts-v4";
+  const API_VERSION = "steam-buff-ai-prompts-v5";
   const STEAM_NEWS_MODE = "steam-news-popup";
   if (api.ready && api.version === API_VERSION) {
     return;
@@ -34,7 +34,6 @@
   function background(ctx) {
     const lines = [
       field("游戏名称", ctx?.gameName),
-      field("Steam AppID", ctx?.appid),
       field("文档标题", ctx?.title),
       field("内容类型", ctx?.contentType),
     ].filter(Boolean);

@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://www.sucaijun.com/25.html" alt="logo" ><img src="https://raw.githubusercontent.com/sys1em/Steam_Buff/main/images/icon.png" width="150"/></a>
+  <a href="https://www.sucaijun.com/25.html" alt="logo" ><img src="https://raw.githubusercontent.com/sys1em/repo-assets/main/Steam_Buff/images/logo.png" width="150"/></a>
   <br>
   Steam Buff
   <br>
@@ -18,6 +18,7 @@
    <a href="/docs/README_zh-TW.md"><img alt="中文(繁體)" src="https://img.shields.io/badge/中文(繁體)-d9d9d9"></a>
   <a href="/docs/README_en.md"><img alt="English" src="https://img.shields.io/badge/English-d9d9d9"></a>
 </p>
+
 
 This repository contains the extension-side source code. The project is still undergoing refactoring and feature migration, so some modules may continue to change.
 
@@ -37,6 +38,10 @@ Steam Buff fills these daily gaps:
 - Integrate helper tools for inventory, market, and trade offers.
 - Automatically shut down the PC after Steam client downloads finish.
 - ...and more tools that improve everyday efficiency.
+
+## Steam Library List Search Demo
+
+<video src="https://raw.githubusercontent.com/sys1em/repo-assets/main/Steam_Buff/videos/SteamBuff_2026-06.webm" controls style="border-radius:12px;"></video>
 
 ## Runtime Environment
 

@@ -255,6 +255,9 @@
   const CONTENT_MARK_VERSION = "steam-buff-runtime-v10";
   const STEAM_LOOPBACK_INJECT_REQUEST = "STEAM_LOOPBACK_INJECT_REQUEST";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
+  const ONBOARDING_OPEN_SETTINGS_MESSAGE = "STEAM_BUFF_ONBOARDING_OPEN_SETTINGS";
+  const ONBOARDING_PAGE = "onboarding/index.html";
+  const ONBOARDING_STORE_URL = "https://store.steampowered.com/";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const TAB_INJECT_DELAYS = Object.freeze([0, 1000]);
   const pendingTabInjects = new Map();
@@ -419,6 +422,14 @@
     return String(value || "").includes("IN_STEAMUI_SHARED_CONTEXT=true");
   }
 
+  function isSteamLoopbackUrl(value) {
+    try {
+      return MATCH.isSteamLoopbackHost(new URL(String(value || "")).hostname);
+    } catch {
+      return false;
+    }
+  }
+
   function isAllowedSteamLoopbackPath(value) {
     try {
       const url = new URL(String(value || ""));
@@ -429,6 +440,10 @@
     }
   }
 
+  function hasCustomSortSignal(input = {}) {
+    return input.customSortUi === true || input.pageHint === "custom-sort-dialog";
+  }
+
   function shouldInjectSteamLoopbackRuntime(input = {}) {
     const title = String(input.title || "").trim();
     const url = String(input.url || "");
@@ -436,6 +451,9 @@
       return false;
     }
     if (title === "Steam" || title === "SharedJSContext") {
+      return true;
+    }
+    if (hasCustomSortSignal(input) && isSteamLoopbackUrl(url)) {
       return true;
     }
     return hasSteamSharedContextMarker(url) ||
@@ -601,6 +619,59 @@
         sendOpen();
       },
     );
+  }
+
+  function openOnboardingPage() {
+    if (!chrome.tabs?.create) {
+      return;
+    }
+    chrome.tabs.create({ url: chrome.runtime.getURL(ONBOARDING_PAGE) }, () => {
+      const err = chrome.runtime.lastError;
+      if (err) {
+        logError("onboarding", "onboarding-open-failed", "安装引导页打开失败", err.message || err);
+      }
+    });
+  }
+
+  function openOnboardingSettings(request, sender, sendResponse) {
+    void request;
+    if (!isOnboardingSender(sender)) {
+      sendResponse({ success: false, error: "引导页来源无效" });
+      return;
+    }
+    chrome.tabs.create({ url: ONBOARDING_STORE_URL }, (tab) => {
+      const err = chrome.runtime.lastError;
+      const tabId = tab?.id;
+      if (err || typeof tabId !== "number") {
+        sendResponse({ success: false, error: err?.message || "无法打开 Steam 商店页" });
+        return;
+      }
+
+      let done = false;
+      const finish = (targetTab, timedOut = false) => {
+        if (done) return;
+        done = true;
+        chrome.tabs.onUpdated.removeListener(listener);
+        openSettings(targetTab || tab);
+        sendResponse({ success: true, tabId, timedOut });
+      };
+      const listener = (updatedTabId, changeInfo, updatedTab) => {
+        if (updatedTabId === tabId && changeInfo.status === "complete") {
+          finish(updatedTab);
+        }
+      };
+
+      chrome.tabs.onUpdated.addListener(listener);
+      if (tab.status === "complete") {
+        finish(tab);
+        return;
+      }
+      globalThis.setTimeout(() => {
+        chrome.tabs.get(tabId, (current) => {
+          finish(chrome.runtime.lastError ? tab : current || tab, true);
+        });
+      }, 8000);
+    });
   }
 
   // 后台代理是跨域访问边界，只允许业务需要的少量请求头，避免调用方透传浏览器敏感头。
@@ -978,6 +1049,14 @@
       MATCH.isSteamCommunityLikeHost?.(url.hostname) === true;
   }
 
+  function isOnboardingSender(sender) {
+    const url = senderUrlObject(sender);
+    return !!url
+      && url.protocol === "chrome-extension:"
+      && url.hostname === chrome.runtime.id
+      && url.pathname.replace(/^\/+/, "") === ONBOARDING_PAGE;
+  }
+
   function isStoreSender(sender) {
     const url = senderUrlObject(sender);
     return !!url && MATCH.isSteamStoreHost?.(url.hostname) === true;
@@ -1171,6 +1250,8 @@
     const meta = {
       title: String(request.title || sender?.tab?.title || ""),
       url: String(request.url || sender?.url || sender?.tab?.url || ""),
+      customSortUi: request.customSortUi === true,
+      pageHint: String(request.pageHint || ""),
     };
     if (!shouldInjectSteamLoopbackRuntime(meta)) {
       sendResponse({ success: true, skipped: true, reason: "steam-loopback-scope-mismatch" });
@@ -1226,6 +1307,7 @@
     LOG_EXPORT: "诊断日志导出",
     LOG_CLEAR: "诊断日志清空",
     LOG_STATS: "诊断日志状态",
+    [ONBOARDING_OPEN_SETTINGS_MESSAGE]: "安装引导页打开设置中心",
   });
 
   const ROUTES = Object.freeze({
@@ -1237,6 +1319,7 @@
     AI_CHAT_COMPLETIONS: aiChat,
     AI_TRANSLATE_CACHE_GET: cacheGet,
     AI_TRANSLATE_CACHE_SET: cacheSet,
+    [ONBOARDING_OPEN_SETTINGS_MESSAGE]: openOnboardingSettings,
     LOG_APPEND(request, sender, sendResponse) {
       globalThis.STBackgroundLogger.append(request.entry || request, sender)
         .then((stats) => sendResponse({ success: true, stats }))
@@ -1274,7 +1357,12 @@
     return false;
   });
 
-  chrome.runtime.onInstalled.addListener(injectSoon);
+  chrome.runtime.onInstalled.addListener((details) => {
+    injectSoon();
+    if (details?.reason === "install") {
+      openOnboardingPage();
+    }
+  });
   chrome.runtime.onStartup.addListener(injectSoon);
   chrome.tabs?.onCreated?.addListener(injectTabSoon);
   chrome.tabs?.onUpdated?.addListener((_tabId, _changeInfo, tab) => injectTabSoon(tab));

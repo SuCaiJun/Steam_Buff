@@ -190,7 +190,6 @@
     if (api.ctx?.isShared?.() !== true) {
       stopState("library-custom-name");
       stopState("download-auto-shutdown");
-      stopState("nexus-mods");
       try {
         window.__SteamBuffNewsTranslate?.stop?.();
       } catch (error) {

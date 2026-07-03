@@ -862,16 +862,6 @@
           enabled: true,
         },
         {
-          id: "nexus-mods",
-          name: "Nexus Mods",
-          disabled: true,
-          badge: "待适配",
-          lock: "后端API正在开发，暂时无法使用该功能",
-          desc: "在 Steam 客户端库详情页添加 Nexus Mods 跳转入口",
-          area: "steam",
-          enabled: true,
-        },
-        {
           id: "steam-news-translate",
           name: "Steam 新闻弹窗翻译",
           desc: "在 Steam 客户端库首页新闻弹窗中手动翻译当前新闻",

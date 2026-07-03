@@ -30,6 +30,8 @@
       if (href) {
         const link = document.createElement("a");
         link.href = href;
+        // 保留设置页，设备登录轮询才能继续收到成功状态。
+        link.target = "_blank";
         link.rel = "noreferrer noopener";
         link.style.display = "none";
         (document.body || document.documentElement).appendChild(link);
