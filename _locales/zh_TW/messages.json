@@ -101,6 +101,18 @@
   "settings_category_ai_desc": {
     "message": "大型模型閘道、模型和金鑰設定。"
   },
+  "settings_category_third_party_services_name": {
+    "message": "第三方服務"
+  },
+  "settings_category_third_party_services_desc": {
+    "message": "預留給第三方服務設定。"
+  },
+  "settings_category_third_party_name": {
+    "message": "第三方相關"
+  },
+  "settings_category_third_party_desc": {
+    "message": "第三方整合、開源腳本和外部服務增強。"
+  },
   "settings_category_client_name": {
     "message": "用戶端增強"
   },
@@ -123,7 +135,7 @@
     "message": "搜尋聯想詞"
   },
   "settings_feature_search_suggestions_desc": {
-    "message": "控制智慧搜尋分類和 Steam 商店搜尋聯想執行階段"
+    "message": "控制搜尋聯想詞分類和 Steam 商店搜尋聯想執行階段"
   },
   "settings_feature_search_suggestions_badge": {
     "message": "贊助者"
@@ -137,6 +149,18 @@
   "settings_feature_translate_desc": {
     "message": "控制翻譯設定分類和網頁翻譯執行階段"
   },
+  "settings_feature_wishlist_price_history_name": {
+    "message": "願望清單懸浮卡片"
+  },
+  "settings_feature_wishlist_price_history_desc": {
+    "message": "在 Steam 願望清單懸停遊戲時顯示價格懸浮卡片，包含 Steam 目前價格、歷史最低價和 SteamPY 價格。"
+  },
+  "settings_feature_store_title_custom_name_name": {
+    "message": "遊戲商店標題中文名"
+  },
+  "settings_feature_store_title_custom_name_desc": {
+    "message": "在 Steam 商店遊戲標題旁顯示 Steam Buff 中文名，並支援提交自己的中文名。"
+  },
   "settings_feature_ai_name": {
     "message": "AI 模組"
   },
@@ -148,6 +172,9 @@
   },
   "settings_feature_market_tools_desc": {
     "message": "控制庫存增強設定分類和社群庫存、市場、交易報價增強"
+  },
+  "settings_feature_market_tools_lock": {
+    "message": "庫存增強模組暫時禁用"
   },
   "settings_feature_review_filter_name": {
     "message": "評論過濾模組"

@@ -447,6 +447,7 @@
           id: "store-detail-reminders",
           name: "商店详情的提醒与检查",
           desc: "统一控制商店详情页的可用性、语言和第三方组件检查。",
+          help: "商店详情的提醒与检查",
           area: "store",
           enabled: true,
           children: Object.freeze([
@@ -481,6 +482,7 @@
           id: "subscription-info",
           name: "第三方会员检查",
           desc: "统一控制订阅服务提醒卡片和各页面角标。",
+          help: "第三方会员检查",
           sourceTip: SOURCE_TIPS.subscriptionInfo,
           area: "store",
           enabled: true,
@@ -523,6 +525,7 @@
           id: "family-library-owned-marker",
           name: "家庭组已有游戏标记",
           desc: "统一控制 Steam 家庭组已有游戏的商店角标和详情页提醒卡片。",
+          help: "家庭组已有游戏标记",
           area: "store",
           enabled: true,
           children: Object.freeze([
@@ -572,6 +575,7 @@
           id: "price-related-enhancements",
           name: "价格相关增强",
           desc: "统一控制商店价格历史、趋势、活动和 SteamPY 价格展示。",
+          help: "价格相关增强",
           area: "store",
           enabled: true,
           children: Object.freeze([
@@ -628,8 +632,9 @@
         },
         {
           id: "wishlist-price-history",
-          name: "愿望单历史最低价",
-          desc: "在 Steam 愿望单悬停游戏时显示 Steam 当前价、Steam 历史最低价和 SteamPY 价格。",
+          name: "愿望单悬浮卡片",
+          desc: "在 Steam 愿望单悬停游戏时显示价格悬浮卡片，包含 Steam 当前价、历史最低价和 SteamPY 价格。",
+          help: "愿望单悬浮卡片",
           sourceTip: SOURCE_TIPS.wishlistPriceHistory,
           area: "store",
           enabled: true,
@@ -648,6 +653,7 @@
           id: "data-display-enhancements",
           name: "数据展示",
           desc: "统一控制评价、在线人数、销量排名、时长和媒体评分展示。",
+          help: "数据展示",
           area: "store",
           enabled: true,
           children: Object.freeze([
@@ -710,8 +716,9 @@
         },
         {
           id: "search-suggestions",
-          name: "智能搜索",
+          name: "搜索联想词",
           desc: "控制 Steam 商店搜索联想词、中文名称匹配和结果展示增强。",
+          help: "搜索联想词",
           area: "store",
           enabled: true,
           member: true,
@@ -780,8 +787,9 @@
         },
         {
           id: "store-title-custom-name",
-          name: "商店标题中文名",
+          name: "游戏商店标题中文名",
           desc: "在 Steam 商店游戏标题旁显示 Steam Buff 中文名，并支持提交自己的中文名。",
+          help: "游戏商店标题中文名",
           area: "store",
           enabled: true,
           children: Object.freeze([
@@ -799,6 +807,7 @@
           id: "dlc-tools",
           name: "DLC购买增强",
           desc: "批量选择、加入购物车和领取免费 DLC",
+          help: "DLC购买增强",
           area: "store",
           enabled: true,
         },
@@ -806,6 +815,7 @@
           id: "cart-select",
           name: "购物车增强",
           desc: "在购物车中选择本次支付项目，并可恢复未支付项目。",
+          help: "购物车增强",
           area: "store",
           enabled: true,
           children: Object.freeze([
@@ -834,6 +844,7 @@
       id: "review-filter",
       name: "评论过滤",
       desc: "按关键词、正则、游戏时间和用户资料过滤 Steam 商店评测。",
+      help: "评论过滤",
       kind: "review-filter",
       items: Object.freeze([
         {
@@ -854,6 +865,7 @@
           id: "library-sort-title",
           name: "库列表显示自定义名称",
           desc: "库列表优先显示游戏的自定义排序名称",
+          help: "库列表显示自定义名称",
           area: "steam",
           enabled: true,
         },
@@ -861,6 +873,7 @@
           id: "library-custom-name",
           name: "库自定义名称填充",
           desc: "在 Steam 客户端自定义页查询并填充库自定义排序名称",
+          help: "库自定义名称填充",
           area: "steam",
           enabled: true,
         },
@@ -868,6 +881,7 @@
           id: "download-auto-shutdown",
           name: "下载完成自动关机",
           desc: "下载队列完成后约延迟30-60秒后执行关机动作",
+          help: "下载完成自动关机",
           area: "steam",
           enabled: true,
         },
@@ -875,6 +889,7 @@
           id: "steam-news-translate",
           name: "Steam 新闻弹窗翻译",
           desc: "在 Steam 客户端库首页新闻弹窗中手动翻译当前新闻",
+          help: "Steam 新闻弹窗翻译",
           area: "steam",
           enabled: true,
           deps: depAll(["translate"]),
@@ -891,6 +906,7 @@
           id: "translate",
           name: "翻译模块",
           desc: "控制翻译设置分类和网页翻译运行时。",
+          help: "翻译模块",
           sourceTip: SOURCE_TIPS.translate,
           area: "web",
           enabled: false,
@@ -899,8 +915,9 @@
     },
     {
       id: "ai",
-      name: "Ai服务设置",
+      name: "AI服务",
       desc: "大模型网关、模型和密钥配置。",
+      help: "AI服务",
       kind: "ai",
       items: Object.freeze([
         {
@@ -913,23 +930,36 @@
       ]),
     },
     {
+      id: "third-party-services",
+      name: "第三方服务",
+      desc: "预留给第三方服务配置。",
+      kind: "empty",
+      emptyTitle: "暂无第三方服务配置",
+      emptyDesc: "此分类暂未接入独立功能。",
+      items: Object.freeze([]),
+    },
+    {
       id: "third-party",
       name: "第三方相关",
       desc: "第三方集成、开源脚本和外部服务增强。",
+      help: "第三方相关",
       items: Object.freeze([
         {
           id: "market-tools",
-          name: "库存增强",
+          name: "库存增强模块",
           desc: "控制 Steam Economy Enhancer 集成的社区库存、市场、交易报价增强。",
           sourceTip: SOURCE_TIPS.marketTools,
           area: "community",
-          enabled: true,
+          enabled: false,
+          disabled: true,
+          lock: "库存增强模块暂时禁用",
           panel: "see",
         },
         {
           id: "purchase-history-classifier",
           name: "消费历史分类器",
           desc: "在 Steam 消费历史页按直购、送礼、退款、内购、充值、买入和卖出分类统计。",
+          help: "消费历史分类器",
           sourceTip: SOURCE_TIPS.purchaseHistoryClassifier,
           area: "store",
           enabled: true,

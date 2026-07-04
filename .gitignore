@@ -6,7 +6,4 @@
 Thumbs.db
 .temp/
 node_modules/
-**/README.md
-!/README.md
-!/*/README.md
-/*/*/**/README.md
+

@@ -101,6 +101,18 @@
   "settings_category_ai_desc": {
     "message": "Model gateway, model, and API key configuration."
   },
+  "settings_category_third_party_services_name": {
+    "message": "Third-Party Services"
+  },
+  "settings_category_third_party_services_desc": {
+    "message": "Reserved for third-party service configuration."
+  },
+  "settings_category_third_party_name": {
+    "message": "Third-Party Integrations"
+  },
+  "settings_category_third_party_desc": {
+    "message": "Third-party integrations, open-source scripts, and external service enhancements."
+  },
   "settings_category_client_name": {
     "message": "Client Enhancements"
   },
@@ -123,7 +135,7 @@
     "message": "Search Suggestions"
   },
   "settings_feature_search_suggestions_desc": {
-    "message": "Control smart search categories and the Steam store search suggestion runtime."
+    "message": "Control search suggestion categories and the Steam store search suggestion runtime."
   },
   "settings_feature_search_suggestions_badge": {
     "message": "Sponsor"
@@ -137,6 +149,18 @@
   "settings_feature_translate_desc": {
     "message": "Control the translation settings category and webpage translation runtime."
   },
+  "settings_feature_wishlist_price_history_name": {
+    "message": "Wishlist Hover Card"
+  },
+  "settings_feature_wishlist_price_history_desc": {
+    "message": "Show a price hover card on Steam wishlist games, including Steam current price, historical low, and SteamPY prices."
+  },
+  "settings_feature_store_title_custom_name_name": {
+    "message": "Store Game Chinese Title"
+  },
+  "settings_feature_store_title_custom_name_desc": {
+    "message": "Show the Steam Buff Chinese title next to Steam store game titles and allow submitting your own Chinese title."
+  },
   "settings_feature_ai_name": {
     "message": "AI Module"
   },
@@ -148,6 +172,9 @@
   },
   "settings_feature_market_tools_desc": {
     "message": "Control inventory settings and community inventory, market, and trade offer enhancements."
+  },
+  "settings_feature_market_tools_lock": {
+    "message": "Inventory Module is temporarily disabled"
   },
   "settings_feature_review_filter_name": {
     "message": "Review Filter Module"

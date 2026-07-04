@@ -101,6 +101,18 @@
   "settings_category_ai_desc": {
     "message": "大模型网关、模型和密钥配置。"
   },
+  "settings_category_third_party_services_name": {
+    "message": "第三方服务"
+  },
+  "settings_category_third_party_services_desc": {
+    "message": "预留给第三方服务配置。"
+  },
+  "settings_category_third_party_name": {
+    "message": "第三方相关"
+  },
+  "settings_category_third_party_desc": {
+    "message": "第三方集成、开源脚本和外部服务增强。"
+  },
   "settings_category_client_name": {
     "message": "客户端增强"
   },
@@ -123,7 +135,7 @@
     "message": "搜索联想词"
   },
   "settings_feature_search_suggestions_desc": {
-    "message": "控制智能搜索分类和 Steam 商店搜索联想运行时"
+    "message": "控制搜索联想词分类和 Steam 商店搜索联想运行时"
   },
   "settings_feature_search_suggestions_badge": {
     "message": "赞助者"
@@ -137,6 +149,18 @@
   "settings_feature_translate_desc": {
     "message": "控制翻译设置分类和网页翻译运行时"
   },
+  "settings_feature_wishlist_price_history_name": {
+    "message": "愿望单悬浮卡片"
+  },
+  "settings_feature_wishlist_price_history_desc": {
+    "message": "在 Steam 愿望单悬停游戏时显示价格悬浮卡片，包含 Steam 当前价、历史最低价和 SteamPY 价格。"
+  },
+  "settings_feature_store_title_custom_name_name": {
+    "message": "游戏商店标题中文名"
+  },
+  "settings_feature_store_title_custom_name_desc": {
+    "message": "在 Steam 商店游戏标题旁显示 Steam Buff 中文名，并支持提交自己的中文名。"
+  },
   "settings_feature_ai_name": {
     "message": "AI模块"
   },
@@ -148,6 +172,9 @@
   },
   "settings_feature_market_tools_desc": {
     "message": "控制库存增强设置分类和社区库存、市场、交易报价增强"
+  },
+  "settings_feature_market_tools_lock": {
+    "message": "库存增强模块暂时禁用"
   },
   "settings_feature_review_filter_name": {
     "message": "评论过滤模块"
