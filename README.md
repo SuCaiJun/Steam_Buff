@@ -38,11 +38,6 @@ Steam Buff 主要补这些日常缺口：
 - 支持 Steam 客户端下载完成后自动关机。
 - ...以及更多提升效率的工具
 
-
-## Steam 库列表搜索演示
-
-<video src="https://raw.githubusercontent.com/sys1em/repo-assets/main/Steam_Buff/videos/SteamBuff_2026-06.webm" controls style="border-radius:12px;"></video>
-
 ## 运行环境
 
 - Chrome / Edge 等 Chromium 内核浏览器

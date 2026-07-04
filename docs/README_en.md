@@ -38,11 +38,6 @@ Steam Buff fills these daily gaps:
 - Integrate helper tools for inventory, market, and trade offers.
 - Automatically shut down the PC after Steam client downloads finish.
 - ...and more tools that improve everyday efficiency.
-
-## Steam Library List Search Demo
-
-<video src="https://raw.githubusercontent.com/sys1em/repo-assets/main/Steam_Buff/videos/SteamBuff_2026-06.webm" controls style="border-radius:12px;"></video>
-
 ## Runtime Environment
 
 - Chrome / Edge or other Chromium-based browsers
