@@ -20,6 +20,7 @@
     site: "www.sucaijun.com",
     api: "api.sucaijun.com",
     subscriptionInfo: "aligueler.com",
+    isthereanydeal: "api.isthereanydeal.com",
     steampy: "steampy.com",
     steamDb: "steamdb.info",
     augmentedSteam: "api.augmentedsteam.com",
@@ -59,6 +60,7 @@
     site: origin(HOSTS.site),
     api: origin(HOSTS.api),
     subscriptionInfo: origin(HOSTS.subscriptionInfo),
+    isthereanydeal: origin(HOSTS.isthereanydeal),
     steampy: origin(HOSTS.steampy),
     steamDb: origin(HOSTS.steamDb),
     steamStore: origin(HOSTS.steamStore),
@@ -201,6 +203,16 @@
   });
 
   const vendors = Object.freeze({
+    isthereanydeal: Object.freeze({
+      host: HOSTS.isthereanydeal,
+      origin: ORIGINS.isthereanydeal,
+      endpoint: (path = "") => join(ORIGINS.isthereanydeal, path),
+      statsMostPopular: (limit = 1, offset = 0) => `${join(ORIGINS.isthereanydeal, "/stats/most-popular/v1")}?limit=${encoded(limit)}&offset=${encoded(offset)}`,
+      lookupSteam: (shopId = 61) => join(ORIGINS.isthereanydeal, `/lookup/id/shop/${encoded(shopId)}/v1`),
+      prices: () => join(ORIGINS.isthereanydeal, "/games/prices/v3"),
+      historyLow: () => join(ORIGINS.isthereanydeal, "/games/historylow/v1"),
+      history: () => join(ORIGINS.isthereanydeal, "/games/history/v2"),
+    }),
     steampy: Object.freeze({
       host: HOSTS.steampy,
       origin: ORIGINS.steampy,

@@ -1284,6 +1284,7 @@
       ai: "AI 参数",
       reviewFilter: "评论过滤",
       searchSuggestions: "搜索联想",
+      familyLibrary: "家庭库刷新",
       see: "库存增强",
     };
     const list = (sections || []).map(section => names[section] || section);

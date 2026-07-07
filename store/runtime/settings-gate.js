@@ -17,6 +17,7 @@
   const SETTINGS_PREFIX = "st.settings.";
   const SETTINGS_SUFFIX = ".enabled";
   const SEARCH_SUGGESTION_PREFIX = `${SETTINGS_PREFIX}searchSuggestions.`;
+  const FAMILY_LIBRARY_PREFIX = `${SETTINGS_PREFIX}familyLibrary.`;
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
   const REFRESHABLE_FEATURES = Object.freeze([
     {
@@ -212,7 +213,8 @@
     return Object.keys(changes || {}).some(key => (
       key === (globalThis.STSettings?.storage?.MEMBERSHIP_KEY || MEMBERSHIP_KEY)
       || globalThis.STSettingsMembership?.isChange?.(changes, area)
-      || (key.startsWith(SETTINGS_PREFIX) && (key.endsWith(SETTINGS_SUFFIX) || key.startsWith(SEARCH_SUGGESTION_PREFIX)))
+      || (key.startsWith(SETTINGS_PREFIX)
+        && (key.endsWith(SETTINGS_SUFFIX) || key.startsWith(SEARCH_SUGGESTION_PREFIX) || key.startsWith(FAMILY_LIBRARY_PREFIX)))
     ));
   }
 
@@ -323,7 +325,7 @@
         }, {
           owner: "store:settings-gate",
           key: "settings-watch",
-          prefixes: [SETTINGS_PREFIX, SEARCH_SUGGESTION_PREFIX],
+          prefixes: [SETTINGS_PREFIX, SEARCH_SUGGESTION_PREFIX, FAMILY_LIBRARY_PREFIX],
           keys: [globalThis.STSettings?.storage?.MEMBERSHIP_KEY || MEMBERSHIP_KEY],
         });
         log("info", "settings-watch-start", "商店页设置变化监听已启动", {

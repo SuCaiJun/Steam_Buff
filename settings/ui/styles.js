@@ -1648,6 +1648,11 @@
           margin-top: 12px;
         }
 
+        .settings-form + .settings-drawer-list,
+        .translate-form + .settings-drawer-list {
+          margin-top: 12px;
+        }
+
         .section-card,
         .translate-card,
         .settings-card {

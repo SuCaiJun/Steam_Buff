@@ -58,6 +58,9 @@
   }
 
   function logNetwork(config, event, message, error, status, startedAt, attempt = 0, maxAttempts = 1) {
+    if (config.silentLog === true) {
+      return;
+    }
     try {
       const level = event === "request-success"
         ? "info"
@@ -66,7 +69,7 @@
       const fn = logger?.[level] || logger?.info;
       fn?.(event, message, {
         method: config.method || "GET",
-        url: safeLogUrl(config.url),
+        url: safeLogUrl(config.logUrl || config.url),
         status: Number(status) || 0,
         durationMs: Date.now() - startedAt,
         rid: String(config.rid || config.requestId || ""),
@@ -216,6 +219,7 @@
             body: config.data,
             data: config.requestData,
             allowHttpError: !!config.allowHttpError,
+            silentLog: config.silentLog === true,
             timeoutMs,
           }, {
             timeoutMs,
@@ -235,6 +239,7 @@
           body: config.data,
           data: config.requestData,
           allowHttpError: !!config.allowHttpError,
+          silentLog: config.silentLog === true,
           timeoutMs,
         }, (response) => {
           const err = chrome.runtime.lastError;
@@ -305,6 +310,9 @@
           attempt + 1,
           maxAttempts,
         );
+        if (config.includeResponse === true) {
+          return { data, response };
+        }
         return data;
       } catch (error) {
         lastError = error;

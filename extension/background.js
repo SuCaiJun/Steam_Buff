@@ -20,6 +20,7 @@
   const STORE_HOSTS = Object.freeze(new Set([
     CFG.vendors.steamStore.host,
     CFG.vendors.steamApi.host,
+    CFG.vendors.isthereanydeal.host,
     CFG.vendors.augmentedSteam.host,
     CFG.vendors.steampy.host,
     ...CFG.hosts.storeProxy,
@@ -28,7 +29,12 @@
     "accept",
     "content-type",
     "authorization",
+    "itad-api-key",
     "x-requested-with",
+  ]));
+  const SAFE_RESPONSE_HEADERS = Object.freeze(new Set([
+    "content-type",
+    "retry-after",
   ]));
   const FILES = Object.freeze([
     "shared/config.js",
@@ -134,6 +140,7 @@
     "settings/panels/see.js",
     "settings/panels/ai.js",
     "settings/panels/translate.js",
+    "settings/panels/third-party-services.js",
     "settings/menu/dependencies.js",
     "settings/menu/panels.js",
     "settings/menu/shell.js",
@@ -188,6 +195,12 @@
     details: Object.freeze([
       "store/api/subscription-info.js",
       "store/api/family-library.js",
+      "store/api/providers/isthereanydeal.js",
+      "store/api/third-party-data.js",
+      "store/features/data-display/forecast-pack.js",
+      "store/features/data-display/charts.js",
+      "store/features/data-display/view.js",
+      "store/features/data-display/feature.js",
       "store/features/reminders/app-card-badge-scanner.js",
       "store/features/price/price-history.js",
       "store/features/price/steampy-deals.js",
@@ -705,6 +718,27 @@
     return out;
   }
 
+  function cleanResponseHeaders(headers) {
+    const out = {};
+    try {
+      headers?.forEach?.((value, name) => {
+        const lower = String(name || "").toLowerCase();
+        if (SAFE_RESPONSE_HEADERS.has(lower)) {
+          out[lower] = String(value || "");
+        }
+      });
+    } catch {
+    }
+    return out;
+  }
+
+  function storeLogNetwork(request, entry) {
+    if (request?.silentLog === true) {
+      return;
+    }
+    logNetwork(entry);
+  }
+
   function reqBody(request) {
     if (request.body !== undefined) {
       return request.body;
@@ -765,7 +799,7 @@
     try {
       url = new URL(request.url);
     } catch {
-      logNetwork({
+      storeLogNetwork(request, {
         feature: "store-fetch",
         event: "invalid-url",
         message: "后台代理收到无效请求地址",
@@ -779,7 +813,7 @@
     }
 
     if (!STORE_HOSTS.has(url.hostname)) {
-      logNetwork({
+      storeLogNetwork(request, {
         feature: "store-fetch",
         event: "blocked-host",
         message: "后台代理拒绝非允许列表地址",
@@ -810,7 +844,7 @@
       const data = await response.text();
       if (!response.ok && !request.allowHttpError) {
         const msg = httpError(response.status, data);
-        logNetwork({
+        storeLogNetwork(request, {
           feature: "store-fetch",
           event: "http-failed",
           message: "后台代理请求失败",
@@ -820,11 +854,11 @@
           durationMs: Date.now() - startedAt,
           error: `HTTP状态码错误: ${response.status}`,
         });
-        sendResponse({ success: false, error: msg, data, status: response.status, ok: false });
+        sendResponse({ success: false, error: msg, data, status: response.status, ok: false, headers: cleanResponseHeaders(response.headers) });
         return;
       }
       if (!response.ok) {
-        logNetwork({
+        storeLogNetwork(request, {
           feature: "store-fetch",
           event: "http-allowed-error",
           message: "后台代理收到非成功状态码",
@@ -834,10 +868,10 @@
           durationMs: Date.now() - startedAt,
         });
       }
-      sendResponse({ success: true, data, status: response.status, ok: response.ok });
+      sendResponse({ success: true, data, status: response.status, ok: response.ok, headers: cleanResponseHeaders(response.headers) });
     } catch (error) {
       const msg = error.message || String(error);
-      logNetwork({
+      storeLogNetwork(request, {
         feature: "store-fetch",
         event: "request-thrown",
         message: "后台代理请求异常",

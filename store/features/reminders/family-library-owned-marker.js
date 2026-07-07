@@ -31,6 +31,24 @@
   const MODULE_CLASS = api.dom.MODULE_CLASSES.FAMILY_LIBRARY_OWNED;
   const FAMILY_MANAGEMENT_URL = window.STConfig?.vendors?.steamStore?.familyManagement?.() || "";
   const BADGE_SUMMARY_LOG_MS = 30_000;
+  const DEFAULT_REFRESH_SETTINGS = Object.freeze({
+    refreshInterval: "1d",
+    autoRefresh: true,
+  });
+  const REFRESH_INTERVAL_SECONDS = Object.freeze({
+    "1d": 24 * 60 * 60,
+    "3d": 3 * 24 * 60 * 60,
+    "7d": 7 * 24 * 60 * 60,
+    "30d": 30 * 24 * 60 * 60,
+    manual: 0,
+  });
+  const REFRESH_INTERVAL_LABELS = Object.freeze({
+    "1d": "1 天",
+    "3d": "3 天",
+    "7d": "7 天",
+    "30d": "30 天",
+    manual: "手动",
+  });
 
   const log = window.STLoggerFactory?.createLogger?.("store", FEATURE_ID);
   const session = window.__stFamilyLibraryOwnedMarkerSession || {
@@ -288,6 +306,42 @@
 
   function excludeSelfEnabled() {
     return api.settings?.on?.(EXCLUDE_SELF_SETTING_ID) === true;
+  }
+
+  function normalizeRefreshSettings(input) {
+    const refreshInterval = Object.hasOwn(REFRESH_INTERVAL_SECONDS, input?.refreshInterval)
+      ? String(input.refreshInterval)
+      : DEFAULT_REFRESH_SETTINGS.refreshInterval;
+    return {
+      refreshInterval,
+      autoRefresh: typeof input?.autoRefresh === "boolean" ? input.autoRefresh : DEFAULT_REFRESH_SETTINGS.autoRefresh,
+    };
+  }
+
+  async function familyRefreshSettings() {
+    try {
+      return normalizeRefreshSettings(await window.STSettings?.storage?.getFamilyLibrary?.());
+    } catch (error) {
+      log?.warn?.("family-library-refresh-settings-read-failed", "家庭库刷新设置读取失败，使用默认值", pageMeta({
+        reason: error?.message || String(error),
+      }));
+      return normalizeRefreshSettings(DEFAULT_REFRESH_SETTINGS);
+    }
+  }
+
+  function refreshIntervalSeconds(settings) {
+    return REFRESH_INTERVAL_SECONDS[normalizeRefreshSettings(settings).refreshInterval] || 0;
+  }
+
+  function refreshIntervalLabel(settings) {
+    return REFRESH_INTERVAL_LABELS[normalizeRefreshSettings(settings).refreshInterval] || REFRESH_INTERVAL_LABELS["1d"];
+  }
+
+  function cacheRefreshDue(cache, settings) {
+    const seconds = refreshIntervalSeconds(settings);
+    if (seconds <= 0) return false;
+    if (!cache?.updatedAt) return true;
+    return api.familyLibraryCache.nowSeconds() - Number(cache.updatedAt) >= seconds;
   }
 
   function ownerItems(cache, entry) {
@@ -634,10 +688,30 @@
     });
   }
 
-  async function maybePromptEmpty(appId, container) {
+  async function maybePromptEmpty(appId, container, settings) {
+    const cfg = normalizeRefreshSettings(settings);
+    if (cfg.refreshInterval === "manual") return;
     if (session.emptyPromptShown) return;
     session.emptyPromptShown = true;
-    log?.info?.("family-library-empty-cache-prompt", "家庭组游戏库首次扫描提示已显示", pageMeta({ appid: Number(appId) || 0 }));
+    if (cfg.autoRefresh) {
+      log?.info?.("family-library-empty-cache-auto-refresh", "家庭组游戏库首次扫描自动开始", pageMeta({
+        appid: Number(appId) || 0,
+        refreshInterval: cfg.refreshInterval,
+      }));
+      await refreshWithUi({
+        appId,
+        container,
+        source: "empty-cache-auto-refresh",
+        defaultLabel: "扫描家庭库",
+        successAlert: false,
+      });
+      return;
+    }
+    log?.info?.("family-library-empty-cache-prompt", "家庭组游戏库首次扫描提示已显示", pageMeta({
+      appid: Number(appId) || 0,
+      refreshInterval: cfg.refreshInterval,
+      autoRefresh: cfg.autoRefresh === true,
+    }));
     const action = await showActionDialog({
       title: "Steam Buff共享检查",
       message: "似乎没有家庭库的游戏记录，是否现在扫描家庭库游戏并记录？",
@@ -651,16 +725,31 @@
     }
   }
 
-  async function maybePromptStale(appId, cache, container) {
-    if (!api.familyLibraryCache?.isStale?.(cache) || session.stalePromptShown) return;
+  async function maybePromptStale(appId, cache, container, settings) {
+    const cfg = normalizeRefreshSettings(settings);
+    if (!cacheRefreshDue(cache, cfg) || session.stalePromptShown) return;
     session.stalePromptShown = true;
-    log?.info?.("family-library-stale-cache-prompt", "家庭组游戏库过期刷新提示已显示", pageMeta({
+    const meta = {
       appid: Number(appId) || 0,
       cacheAgeMs: api.familyLibraryCache.cacheAgeMs(cache),
-    }));
+      refreshInterval: cfg.refreshInterval,
+      autoRefresh: cfg.autoRefresh === true,
+    };
+    if (cfg.autoRefresh) {
+      log?.info?.("family-library-stale-cache-auto-refresh", "家庭组游戏库过期自动刷新开始", pageMeta(meta));
+      await refreshWithUi({
+        appId,
+        container,
+        source: "stale-cache-auto-refresh",
+        defaultLabel: "更新",
+        successAlert: false,
+      });
+      return;
+    }
+    log?.info?.("family-library-stale-cache-prompt", "家庭组游戏库过期刷新提示已显示", pageMeta(meta));
     const action = await showActionDialog({
       title: "Steam Buff共享检查",
-      message: "家庭组游戏库数据已超过 24 小时未更新，是否现在刷新？",
+      message: `家庭组游戏库数据已超过 ${refreshIntervalLabel(cfg)} 未更新，是否现在刷新？`,
       primaryLabel: "刷新",
       secondaryLabel: "取消",
     });
@@ -720,13 +809,14 @@
         acquiredAt: Number(app?.rt_time_acquired) || 0,
       };
     });
+    const ttlSeconds = Number(input.ttlSeconds) || api.familyLibraryCache.TTL_SECONDS;
     return {
       version: 1,
       accountSteamId: input.accountSteamId || "",
       familyGroupId: input.familyGroupId || "",
       familyName: input.familyName || "",
       updatedAt: now,
-      expiresAt: now + api.familyLibraryCache.TTL_SECONDS,
+      expiresAt: now + ttlSeconds,
       membersBySteamId,
       appsById,
       stats: { appCount: Object.keys(appsById).length, memberCount: members.length },
@@ -739,6 +829,7 @@
     const startedAt = Date.now();
     log?.info?.("family-library-refresh-start", "家庭组游戏库刷新开始", pageMeta({ rid: requestId, source }));
     refreshInFlight = (async () => {
+      const refreshSettings = await familyRefreshSettings();
       const storeUser = readStoreUserConfig();
       const family = await api.familyLibrary.fetchFamilyGroup({ accessToken: storeUser.accessToken, rid: requestId });
       const groupId = String(family?.response?.family_groupid || "");
@@ -763,6 +854,7 @@
         members,
         apps,
         namesBySteamId,
+        ttlSeconds: refreshIntervalSeconds(refreshSettings) || api.familyLibraryCache.TTL_SECONDS,
       });
       try {
         const saved = await api.familyLibraryCache.write(cache);
@@ -770,6 +862,7 @@
           rid: requestId,
           appCount: saved.stats.appCount,
           memberCount: saved.stats.memberCount,
+          refreshInterval: refreshSettings.refreshInterval,
           durationMs: Date.now() - startedAt,
         }));
         return saved;
@@ -821,7 +914,9 @@
       if (detailActive && !removeDetailForUnsupportedSharing(options.appId, "refresh-success")) {
         mountCard(options.appId, cache);
       }
-      await showAlert("Steam Buff共享检查", `已将 ${cache.stats.appCount} 个家庭库游戏记录到本地缓存。`);
+      if (options.successAlert !== false) {
+        await showAlert("Steam Buff共享检查", `已将 ${cache.stats.appCount} 个家庭库游戏记录到本地缓存。`);
+      }
     } catch (error) {
       wait.close();
       if (!detailActive || String(options.appId || "") !== detailAppId) {
@@ -1024,7 +1119,10 @@
     if (sharingStatus === "unsupported" || removeDetailForUnsupportedSharing(id, "pre-mount")) {
       return;
     }
-    const cache = await api.familyLibraryCache?.read?.();
+    const [cache, refreshSettings] = await Promise.all([
+      api.familyLibraryCache?.read?.(),
+      familyRefreshSettings(),
+    ]);
     if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
     const container = mountCard(id, cache);
     if (!container) return;
@@ -1042,14 +1140,17 @@
         appCount: cache?.stats?.appCount || 0,
       }));
     }
-    if (cache && api.familyLibraryCache?.isStale?.(cache)) {
+    // 优化: 详情页只在功能启动时做一次缓存年龄判断，不挂到 DOM 观察器或路由重扫。
+    if (cache && cacheRefreshDue(cache, refreshSettings)) {
       log?.info?.("family-library-cache-stale", "家庭组游戏库缓存已过期", pageMeta({
         appid: id,
         cacheAgeMs: api.familyLibraryCache.cacheAgeMs(cache),
+        refreshInterval: refreshSettings.refreshInterval,
+        autoRefresh: refreshSettings.autoRefresh === true,
       }));
-      await maybePromptStale(id, cache, container);
+      await maybePromptStale(id, cache, container, refreshSettings);
     } else if (!cache) {
-      await maybePromptEmpty(id, container);
+      await maybePromptEmpty(id, container, refreshSettings);
     }
     if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
     log?.info?.("family-library-feature-ready", "家庭库检查功能启动完成", pageMeta({

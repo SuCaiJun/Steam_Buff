@@ -105,7 +105,7 @@
     "message": "第三方服務"
   },
   "settings_category_third_party_services_desc": {
-    "message": "預留給第三方服務設定。"
+    "message": "管理外部資料服務金鑰和連線測試。"
   },
   "settings_category_third_party_name": {
     "message": "第三方相關"
@@ -166,6 +166,12 @@
   },
   "settings_feature_ai_desc": {
     "message": "控制 AI 設定分類和 AI 服務設定是否啟用"
+  },
+  "settings_feature_third_party_services_name": {
+    "message": "第三方服務設定"
+  },
+  "settings_feature_third_party_services_desc": {
+    "message": "控制第三方資料服務是否啟用，以及 IsThereAnyDeal API Key。"
   },
   "settings_feature_market_tools_name": {
     "message": "庫存增強模組"

@@ -29,12 +29,14 @@
     "features",
     "translate",
     "ai",
+    "thirdPartyServices",
     "reviewFilter",
     "searchSuggestions",
     "see",
   ]);
   const SENSITIVE = Object.freeze({
     ai: Object.freeze(["key"]),
+    thirdPartyServices: Object.freeze(["isthereanydeal.key"]),
   });
 
   function catalog() {
@@ -94,6 +96,33 @@
     return value && typeof value === "object" && !Array.isArray(value) ? value : {};
   }
 
+  function getPath(src, path) {
+    const parts = String(path || "").split(".").filter(Boolean);
+    let cur = src;
+    for (const part of parts) {
+      if (!cur || typeof cur !== "object" || !Object.hasOwn(cur, part)) {
+        return undefined;
+      }
+      cur = cur[part];
+    }
+    return cur;
+  }
+
+  function deletePath(src, path) {
+    const parts = String(path || "").split(".").filter(Boolean);
+    if (!parts.length || !src || typeof src !== "object") {
+      return;
+    }
+    let cur = src;
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      cur = cur?.[parts[i]];
+      if (!cur || typeof cur !== "object") {
+        return;
+      }
+    }
+    delete cur[parts[parts.length - 1]];
+  }
+
   function keysOf(section) {
     const cat = catalog();
     if (section === "features") {
@@ -104,6 +133,9 @@
     }
     if (section === "ai") {
       return Object.keys(cat.aiDefaults?.() || {});
+    }
+    if (section === "thirdPartyServices") {
+      return Object.keys(cat.thirdPartyServicesDefaults?.() || {});
     }
     if (section === "reviewFilter") {
       return Object.keys(cat.reviewFilterDefaults?.() || {});
@@ -128,6 +160,9 @@
     if (section === "ai") {
       return cat.aiDefaults?.() || {};
     }
+    if (section === "thirdPartyServices") {
+      return cat.thirdPartyServicesDefaults?.() || {};
+    }
     if (section === "reviewFilter") {
       return cat.reviewFilterDefaults?.() || {};
     }
@@ -147,9 +182,7 @@
     }
     for (const [section, keys] of Object.entries(SENSITIVE)) {
       for (const key of keys) {
-        if (out[section] && Object.hasOwn(out[section], key)) {
-          delete out[section][key];
-        }
+        deletePath(out[section], key);
       }
     }
     return out;
@@ -159,7 +192,7 @@
     const src = obj(sections);
     return Object.entries(SENSITIVE).some(([section, keys]) => {
       const data = obj(src[section]);
-      return keys.some(key => Object.hasOwn(data, key) && String(data[key] ?? "").trim() !== "");
+      return keys.some(key => String(getPath(data, key) ?? "").trim() !== "");
     });
   }
 
@@ -255,6 +288,7 @@
       features: await storage().getAll?.() || {},
       translate: await storage().getTranslate?.() || {},
       ai: await storage().getAi?.() || {},
+      thirdPartyServices: await storage().getThirdPartyServices?.() || {},
       reviewFilter: await storage().getReviewFilter?.() || {},
       searchSuggestions: await storage().getSearchSuggestions?.() || {},
       see: await storage().getSee?.() || {},

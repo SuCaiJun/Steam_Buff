@@ -24,7 +24,9 @@
   const TRANS_PREFIX = `${PREFIX}translate.`;
   const REVIEW_FILTER_PREFIX = `${PREFIX}reviewFilter.`;
   const SEARCH_SUGGESTION_PREFIX = `${PREFIX}searchSuggestions.`;
+  const FAMILY_LIBRARY_PREFIX = `${PREFIX}familyLibrary.`;
   const AI_PREFIX = `${PREFIX}ai.`;
+  const THIRD_PARTY_SERVICES_PREFIX = `${PREFIX}thirdPartyServices.`;
   const UI_LOCALE_KEY = globalThis.STI18n?.STORAGE_KEY || api.catalog?.UI_LOCALE_KEY || "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
@@ -58,12 +60,20 @@
     return api.catalog?.aiDefaults?.() || {};
   }
 
+  function thirdPartyServicesDefaults() {
+    return api.catalog?.thirdPartyServicesDefaults?.() || {};
+  }
+
   function transKey(id) {
     return `${TRANS_PREFIX}${id}`;
   }
 
   function aiKey(id) {
     return `${AI_PREFIX}${id}`;
+  }
+
+  function thirdPartyServicesKey(path) {
+    return `${THIRD_PARTY_SERVICES_PREFIX}${path}`;
   }
 
   function reviewFilterDefaults() {
@@ -89,6 +99,33 @@
     return `${SEARCH_SUGGESTION_PREFIX}${id}`;
   }
 
+  function familyLibraryDefaults() {
+    return api.catalog?.familyLibraryDefaults?.() || {
+      refreshInterval: "1d",
+      autoRefresh: true,
+    };
+  }
+
+  function familyLibraryFields() {
+    return api.catalog?.familyLibraryFields?.() || [];
+  }
+
+  function familyLibraryKey(id) {
+    return `${FAMILY_LIBRARY_PREFIX}${id}`;
+  }
+
+  function normalizeFamilyLibrary(values) {
+    const defs = familyLibraryDefaults();
+    const fields = familyLibraryFields();
+    const intervalField = fields.find(field => field.key === "refreshInterval") || {};
+    const intervals = new Set((intervalField.options || []).map(opt => String(opt.value)));
+    const refreshInterval = String(values?.refreshInterval ?? defs.refreshInterval);
+    return {
+      refreshInterval: intervals.has(refreshInterval) ? refreshInterval : defs.refreshInterval,
+      autoRefresh: typeof values?.autoRefresh === "boolean" ? values.autoRefresh : defs.autoRefresh === true,
+    };
+  }
+
   function normalizeSearchSuggestions(values) {
     const defs = searchSuggestionDefaults();
     const fields = searchSuggestionFields();
@@ -105,6 +142,107 @@
     return {
       limit,
       nativeMode: modes.has(nativeMode) ? nativeMode : defs.nativeMode,
+    };
+  }
+
+  function clone(value) {
+    try {
+      return JSON.parse(JSON.stringify(value ?? {}));
+    } catch {
+      return {};
+    }
+  }
+
+  function getPath(src, path, fallback) {
+    const parts = String(path || "").split(".").filter(Boolean);
+    let cur = src;
+    for (const part of parts) {
+      if (!cur || typeof cur !== "object" || !Object.hasOwn(cur, part)) {
+        return fallback;
+      }
+      cur = cur[part];
+    }
+    return cur === undefined ? fallback : cur;
+  }
+
+  function setPath(target, path, value) {
+    const parts = String(path || "").split(".").filter(Boolean);
+    if (!parts.length) {
+      return;
+    }
+    let cur = target;
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      const part = parts[i];
+      if (!cur[part] || typeof cur[part] !== "object" || Array.isArray(cur[part])) {
+        cur[part] = {};
+      }
+      cur = cur[part];
+    }
+    cur[parts[parts.length - 1]] = value;
+  }
+
+  function thirdPartyServicesPaths() {
+    return [
+      "enabled",
+      "defaultProvider",
+      "isthereanydeal.key",
+      "isthereanydeal.country",
+      "isthereanydeal.shops",
+      "isthereanydeal.enableInternalCapabilities",
+      "routes.prices",
+      "routes.history",
+      "routes.discountForecast",
+      "routes.reviews",
+      "routes.players",
+      "routes.playtime",
+      "routes.mediaScore",
+    ];
+  }
+
+  function cleanItadShops(value) {
+    const raw = Array.isArray(value)
+      ? value
+      : String(value ?? "").split(",");
+    const shops = raw
+      .map(item => Number.parseInt(item, 10))
+      .filter(item => Number.isFinite(item) && item > 0);
+    return shops.length ? Array.from(new Set(shops)) : [61];
+  }
+
+  function cleanItadCountry(value, fallbackValue = "auto") {
+    const raw = String(value ?? (fallbackValue || "auto")).trim();
+    if (!raw || raw.toLowerCase() === "auto") {
+      return "auto";
+    }
+    return /^[a-z]{2}$/i.test(raw) ? raw.toUpperCase() : fallbackValue;
+  }
+
+  function normalizeThirdPartyServices(values) {
+    const defs = thirdPartyServicesDefaults();
+    const src = values && typeof values === "object" ? values : {};
+    const itad = src.isthereanydeal && typeof src.isthereanydeal === "object" ? src.isthereanydeal : {};
+    const defItad = defs.isthereanydeal || {};
+    const routes = { ...(defs.routes || {}), ...(src.routes || {}) };
+    const routeValue = (value) => String(value || "") === "isthereanydeal" ? "isthereanydeal" : "";
+
+    return {
+      enabled: src.enabled === true,
+      defaultProvider: String(src.defaultProvider || defs.defaultProvider || "isthereanydeal") === "isthereanydeal" ? "isthereanydeal" : "isthereanydeal",
+      isthereanydeal: {
+        key: String(itad.key ?? defItad.key ?? "").trim(),
+        country: cleanItadCountry(itad.country, defItad.country || "auto"),
+        shops: cleanItadShops(itad.shops ?? defItad.shops),
+        enableInternalCapabilities: itad.enableInternalCapabilities === true,
+      },
+      routes: {
+        prices: routeValue(routes.prices || "isthereanydeal") || "isthereanydeal",
+        history: routeValue(routes.history || "isthereanydeal") || "isthereanydeal",
+        discountForecast: routeValue(routes.discountForecast || "isthereanydeal") || "isthereanydeal",
+        reviews: routeValue(routes.reviews),
+        players: routeValue(routes.players),
+        playtime: routeValue(routes.playtime),
+        mediaScore: routeValue(routes.mediaScore),
+      },
     };
   }
 
@@ -488,6 +626,37 @@
     return next;
   }
 
+  async function getFamilyLibrary() {
+    const defs = familyLibraryDefaults();
+    const ids = Object.keys(defs);
+    const keys = ids.map(familyLibraryKey);
+    const rt = await get(keys);
+    const out = {};
+
+    for (const id of ids) {
+      out[id] = Object.hasOwn(rt, familyLibraryKey(id)) ? rt[familyLibraryKey(id)] : defs[id];
+    }
+
+    return normalizeFamilyLibrary(out);
+  }
+
+  async function setFamilyLibrary(values) {
+    const next = normalizeFamilyLibrary(values);
+    const data = {};
+
+    for (const id of Object.keys(familyLibraryDefaults())) {
+      data[familyLibraryKey(id)] = next[id];
+    }
+
+    const ok = await put(data);
+    logSave("family-library", ok, {
+      refreshInterval: next.refreshInterval,
+      autoRefresh: next.autoRefresh === true,
+      count: Object.keys(data).length,
+    });
+    return ok ? next : false;
+  }
+
   async function getAi() {
     const defs = aiDefaults();
     const ids = Object.keys(defs);
@@ -545,6 +714,41 @@
     return ok;
   }
 
+  async function getThirdPartyServices() {
+    const defs = normalizeThirdPartyServices(thirdPartyServicesDefaults());
+    const paths = thirdPartyServicesPaths();
+    const keys = paths.map(thirdPartyServicesKey);
+    const rt = await get(keys);
+    const out = clone(defs);
+
+    for (const path of paths) {
+      const storeKey = thirdPartyServicesKey(path);
+      if (Object.hasOwn(rt, storeKey)) {
+        setPath(out, path, clone(rt[storeKey]));
+      }
+    }
+
+    return normalizeThirdPartyServices(out);
+  }
+
+  async function setThirdPartyServices(values) {
+    const next = normalizeThirdPartyServices(values);
+    const data = {};
+
+    for (const path of thirdPartyServicesPaths()) {
+      data[thirdPartyServicesKey(path)] = clone(getPath(next, path, getPath(thirdPartyServicesDefaults(), path, "")));
+    }
+
+    const ok = await put(data);
+    logSave("third-party-services", ok, {
+      enabled: next.enabled === true,
+      provider: next.defaultProvider,
+      hasItadKey: String(next.isthereanydeal?.key || "").trim() !== "",
+      count: Object.keys(data).length,
+    });
+    return ok ? next : false;
+  }
+
   async function getRailPos() {
     const rt = await get([RAIL_TOP, RAIL_SIDE]);
     const top = Number(rt[RAIL_TOP]);
@@ -573,8 +777,10 @@
       features: await getAll(),
       translate: await getTranslate(),
       ai: await getAi(),
+      thirdPartyServices: await getThirdPartyServices(),
       reviewFilter: await getReviewFilter(),
       searchSuggestions: await getSearchSuggestions(),
+      familyLibrary: await getFamilyLibrary(),
       see: await getSee(),
     };
   }
@@ -584,8 +790,10 @@
       setAll(sections.features || {}),
       setTranslate(sections.translate || {}),
       setAi(sections.ai || {}),
+      setThirdPartyServices(sections.thirdPartyServices || {}),
       setReviewFilter(sections.reviewFilter || {}),
       setSearchSuggestions(sections.searchSuggestions || {}),
+      setFamilyLibrary(sections.familyLibrary || {}),
       setSee(sections.see || {}),
     ];
     const out = await Promise.all(jobs);
@@ -616,8 +824,13 @@
     SEARCH_SUGGESTION_PREFIX,
     getSearchSuggestions,
     setSearchSuggestions,
+    FAMILY_LIBRARY_PREFIX,
+    getFamilyLibrary,
+    setFamilyLibrary,
     getAi,
     setAi,
+    getThirdPartyServices,
+    setThirdPartyServices,
     getRailPos,
     setRailPos,
     getBackupSections,

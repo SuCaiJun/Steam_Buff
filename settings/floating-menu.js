@@ -32,7 +32,9 @@
     translate: {},
     reviewFilter: {},
     searchSuggestion: {},
+    familyLibrary: {},
     ai: {},
+    thirdPartyServices: {},
   };
   let membership = { active: false, features: {} };
   let railTop = null;
@@ -283,7 +285,9 @@
         await api.storage?.getReviewFilter?.() || api.catalog?.reviewFilterDefaults?.() || {}
       ) || {},
       searchSuggestion: await api.storage?.getSearchSuggestions?.() || api.catalog?.searchSuggestionDefaults?.() || {},
+      familyLibrary: await api.storage?.getFamilyLibrary?.() || api.catalog?.familyLibraryDefaults?.() || {},
       ai: await api.storage?.getAi?.() || api.catalog?.aiDefaults?.() || {},
+      thirdPartyServices: await api.storage?.getThirdPartyServices?.() || api.catalog?.thirdPartyServicesDefaults?.() || {},
     };
   }
 

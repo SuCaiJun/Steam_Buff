@@ -62,11 +62,12 @@
     marketTools: "功能来源：Steam Economy Enhancer 开源扩展。授权：MIT License",
     familySharing: "数据来源：Augmented Steam API。授权：GPL-3.0，接口可用性不保证。",
     subscriptionInfo: "数据来源：SubscriptionInfo。授权： MPL-2.0；数据来源以第三方维护方为准。",
-    priceHistory: "数据来源：Augmented Steam Price API。授权：BSD-3-Clause。",
+    priceHistory: "数据来源：IsThereAnyDeal；购买区紧凑展示复用第三方数据服务价格模型。",
     wishlistPriceHistory: "数据来源：Augmented Steam Price API 的 Steam 价格数据与 SteamPY 授权价格。",
     steampyCdk: "数据来源：SteamPY。授权/版权：已获得SteamPY官方授权；CDK 价格以 SteamPY 返回为准。",
     steampyProxy: "数据来源：SteamPY。授权/版权：已获得SteamPY官方授权；代购价格以 SteamPY 返回为准。",
     purchaseHistoryClassifier: "功能来源：Steam 消费历史分类器 userscript，作者 SmallFork。授权：MIT License。",
+    isthereanydeal: "数据来源：IsThereAnyDeal 官方 API。用户自备 API Key，本扩展不托管、不共享密钥。",
   });
 
   const SEE_FIELDS = Object.freeze([
@@ -423,6 +424,83 @@
     },
   ]);
 
+  const FAMILY_LIBRARY_DEFAULTS = Object.freeze({
+    refreshInterval: "1d",
+    autoRefresh: true,
+  });
+
+  const FAMILY_LIBRARY_FIELDS = Object.freeze([
+    {
+      type: "select",
+      key: "refreshInterval",
+      label: "更新时间",
+      options: Object.freeze([
+        { value: "1d", label: "1天" },
+        { value: "3d", label: "3天" },
+        { value: "7d", label: "7天" },
+        { value: "30d", label: "30天" },
+        { value: "manual", label: "手动" },
+      ]),
+    },
+    {
+      type: "switch",
+      key: "autoRefresh",
+      label: "自动更新",
+    },
+  ]);
+
+  const THIRD_PARTY_SERVICES_DEFAULTS = Object.freeze({
+    enabled: false,
+    defaultProvider: "isthereanydeal",
+    isthereanydeal: Object.freeze({
+      key: "",
+      country: "auto",
+      shops: Object.freeze([61]),
+      enableInternalCapabilities: false,
+    }),
+    routes: Object.freeze({
+      prices: "isthereanydeal",
+      history: "isthereanydeal",
+      discountForecast: "isthereanydeal",
+      reviews: "",
+      players: "",
+      playtime: "",
+      mediaScore: "",
+    }),
+  });
+
+  const THIRD_PARTY_SERVICES_FIELDS = Object.freeze([
+    {
+      type: "checkbox",
+      key: "enabled",
+      label: "启用第三方数据服务",
+    },
+    {
+      type: "select",
+      key: "defaultProvider",
+      label: "默认价格数据源",
+      options: Object.freeze([
+        { value: "isthereanydeal", label: "IsThereAnyDeal" },
+      ]),
+    },
+    {
+      type: "password",
+      key: "isthereanydeal.key",
+      label: "ITAD API Key",
+      placeholder: "输入自己的 IsThereAnyDeal API Key",
+    },
+    {
+      type: "select",
+      key: "isthereanydeal.country",
+      label: "请求地区",
+      options: Object.freeze([
+        { value: "auto", label: "跟随 Steam 页面" },
+        { value: "CN", label: "中国大陆" },
+        { value: "US", label: "美国" },
+      ]),
+    },
+  ]);
+
   const categories = Object.freeze([
     {
       id: "extension-settings",
@@ -528,6 +606,8 @@
           help: "家庭组已有游戏标记",
           area: "store",
           enabled: true,
+          panel: "family-library",
+          panelPosition: "before",
           children: Object.freeze([
             {
               id: "family-library-exclude-self",
@@ -932,11 +1012,19 @@
     {
       id: "third-party-services",
       name: "第三方服务",
-      desc: "预留给第三方服务配置。",
-      kind: "empty",
-      emptyTitle: "暂无第三方服务配置",
-      emptyDesc: "此分类暂未接入独立功能。",
-      items: Object.freeze([]),
+      desc: "管理外部数据服务密钥和连接测试。",
+      help: "第三方服务",
+      kind: "third-party-services",
+      items: Object.freeze([
+        {
+          id: "third-party-services",
+          name: "第三方服务配置",
+          desc: "控制第三方数据服务是否启用，以及 IsThereAnyDeal API Key。",
+          sourceTip: SOURCE_TIPS.isthereanydeal,
+          area: "settings",
+          enabled: false,
+        },
+      ]),
     },
     {
       id: "third-party",
@@ -1098,12 +1186,32 @@
     return SEARCH_SUGGESTION_FIELDS;
   }
 
+  function familyLibraryDefaults() {
+    return { ...FAMILY_LIBRARY_DEFAULTS };
+  }
+
+  function familyLibraryFields() {
+    return FAMILY_LIBRARY_FIELDS;
+  }
+
   function aiDefaults() {
     return globalThis.STAI?.defaults?.() || {};
   }
 
   function aiFields() {
     return globalThis.STAI?.fields?.() || [];
+  }
+
+  function thirdPartyServicesDefaults() {
+    return {
+      ...THIRD_PARTY_SERVICES_DEFAULTS,
+      isthereanydeal: { ...THIRD_PARTY_SERVICES_DEFAULTS.isthereanydeal },
+      routes: { ...THIRD_PARTY_SERVICES_DEFAULTS.routes },
+    };
+  }
+
+  function thirdPartyServicesFields() {
+    return THIRD_PARTY_SERVICES_FIELDS;
   }
 
   api.catalog = Object.freeze({
@@ -1123,7 +1231,11 @@
     reviewFilterFields,
     searchSuggestionDefaults,
     searchSuggestionFields,
+    familyLibraryDefaults,
+    familyLibraryFields,
     aiDefaults,
     aiFields,
+    thirdPartyServicesDefaults,
+    thirdPartyServicesFields,
   });
 })();

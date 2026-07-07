@@ -221,6 +221,10 @@
         return;
       }
 
+      if (panels.thirdPartyServices().handleClick(event, shadow)) {
+        return;
+      }
+
       if (shell.pageById(shell.getActiveCat())?.handle?.(event, shadow, ctx)) {
         return;
       }
@@ -255,6 +259,14 @@
       }
 
       if (panels.translate().handleChange(event, shadow)) {
+        return;
+      }
+
+      if (panels.familyLibrary().handleChange(event, shadow)) {
+        return;
+      }
+
+      if (panels.thirdPartyServices().handleChange(event, shadow)) {
         return;
       }
     });

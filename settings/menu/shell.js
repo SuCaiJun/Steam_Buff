@@ -176,6 +176,9 @@
     }
 
     function itemPanelHtml(cat, item) {
+      if (item?.panel === "family-library") {
+        return panels.familyLibrary().html(cat);
+      }
       if (item?.panel === "search-suggestion") {
         return panels.searchSuggestion().html(cat);
       }
@@ -195,7 +198,10 @@
       const panelHtml = itemPanelHtml(cat, item);
       if (children.length || panelHtml) {
         const childrenHtml = itemListHtml(cat, children, "feature-list settings-drawer-list");
-        return deps.drawerItemHtml?.(cat, item, `${childrenHtml}${panelHtml}`, {
+        const bodyHtml = item?.panelPosition === "before"
+          ? `${panelHtml}${childrenHtml}`
+          : `${childrenHtml}${panelHtml}`;
+        return deps.drawerItemHtml?.(cat, item, bodyHtml, {
           iconKind: item.panel || item.id || cat?.id,
         }) || "";
       }
@@ -237,6 +243,9 @@
       }
       if (cat.kind === "ai") {
         return `${items.map((item) => deps.masterItemHtml?.(item, "ai") || "").join("")}${panels.ai().html(cat)}`;
+      }
+      if (cat.kind === "third-party-services") {
+        return panels.thirdPartyServices().html(cat);
       }
       return itemListHtml(cat, items);
     }

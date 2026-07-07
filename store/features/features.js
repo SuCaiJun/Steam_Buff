@@ -105,6 +105,10 @@
     return api.features.gameNotes?.start?.(...args);
   }
 
+  function startDataDisplay(...args) {
+    return api.features.dataDisplay?.start?.(...args);
+  }
+
   function startPurchaseHistoryClassifier(...args) {
     return api.features.purchaseHistoryClassifier?.start?.(...args);
   }
@@ -133,6 +137,7 @@
       stopFeature(api.features.searchSuggestions, "search-suggestions"),
       stopFeature(api.features.titleCustomName, "store-title-custom-name"),
       stopFeature(api.features.gameNotes, "game-notes"),
+      stopFeature(api.features.dataDisplay, "data-display"),
       stopFeature(api.features.purchaseHistoryClassifier, "purchase-history-classifier"),
       stopFeature(api.purchaseRecover, "purchase-recover"),
     ].filter(Boolean).length;
@@ -228,6 +233,10 @@
     if (pageInfo) {
         const type = pageInfo.type;
         const appId = pageInfo.appId;
+
+        if ((type === "app" || type === "sub" || type === "bundle") && canRun("data-display-enhancements")) {
+            startDataDisplay(pageInfo);
+        }
         
         if (type === "app") {
             initPurchaseAreaFeatures(appId);

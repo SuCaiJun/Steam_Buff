@@ -105,7 +105,7 @@
     "message": "Third-Party Services"
   },
   "settings_category_third_party_services_desc": {
-    "message": "Reserved for third-party service configuration."
+    "message": "Manage external data service keys and connection tests."
   },
   "settings_category_third_party_name": {
     "message": "Third-Party Integrations"
@@ -166,6 +166,12 @@
   },
   "settings_feature_ai_desc": {
     "message": "Control whether the AI settings category and AI service configuration are enabled."
+  },
+  "settings_feature_third_party_services_name": {
+    "message": "Third-Party Service Configuration"
+  },
+  "settings_feature_third_party_services_desc": {
+    "message": "Control whether third-party data services are enabled and configure the IsThereAnyDeal API key."
   },
   "settings_feature_market_tools_name": {
     "message": "Inventory Module"

@@ -105,7 +105,7 @@
     "message": "第三方服务"
   },
   "settings_category_third_party_services_desc": {
-    "message": "预留给第三方服务配置。"
+    "message": "管理外部数据服务密钥和连接测试。"
   },
   "settings_category_third_party_name": {
     "message": "第三方相关"
@@ -166,6 +166,12 @@
   },
   "settings_feature_ai_desc": {
     "message": "控制 AI 设置分类和 AI 服务配置是否启用"
+  },
+  "settings_feature_third_party_services_name": {
+    "message": "第三方服务配置"
+  },
+  "settings_feature_third_party_services_desc": {
+    "message": "控制第三方数据服务是否启用，以及 IsThereAnyDeal API Key。"
   },
   "settings_feature_market_tools_name": {
     "message": "库存增强模块"
