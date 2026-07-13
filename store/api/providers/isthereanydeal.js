@@ -43,6 +43,7 @@
   const FALLBACK_RETRY_AFTER_MS = 60 * 1000;
   const TIMEOUT_MS = 12 * 1000;
   const blockedUntil = new Map();
+  const pending = new Map();
   const log = globalThis.STLoggerFactory?.createLogger?.("store", "itad-provider") || null;
 
   function now() {
@@ -350,6 +351,10 @@
     return `itad:${endpointKey}`;
   }
 
+  function pendingKey(endpointKey, requestData) {
+    return `${cacheKey(endpointKey)}::${JSON.stringify(requestData ?? null)}`;
+  }
+
   async function withCache(endpointKey, requestData, ttl, loader) {
     const key = cacheKey(endpointKey, requestData);
     const cached = api.cache?.get?.(key, requestData);
@@ -359,13 +364,26 @@
         cache: { hit: true, ttlMs: ttl },
       };
     }
-    const data = await loader();
-    const out = {
-      ...data,
-      cache: { hit: false, ttlMs: ttl },
-    };
-    api.cache?.set?.(key, out, requestData, ttl);
-    return out;
+    const activeKey = pendingKey(endpointKey, requestData);
+    const active = pending.get(activeKey);
+    if (active) return active;
+
+    let task;
+    task = (async () => {
+      try {
+        const data = await loader();
+        const out = {
+          ...data,
+          cache: { hit: false, ttlMs: ttl },
+        };
+        api.cache?.set?.(key, out, requestData, ttl);
+        return out;
+      } finally {
+        if (pending.get(activeKey) === task) pending.delete(activeKey);
+      }
+    })();
+    pending.set(activeKey, task);
+    return task;
   }
 
   function normalizeSteamItems(items = []) {

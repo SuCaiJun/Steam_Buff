@@ -53,32 +53,6 @@
     };
   }
 
-  function firstId(data = {}) {
-    return Array.isArray(data.ids) && data.ids.length ? data.ids[0] : "";
-  }
-
-  function currentDeal(data = {}) {
-    const id = firstId(data);
-    const items = Array.isArray(data.prices) ? data.prices : [];
-    const item = items.find(row => row.id === id) || items[0] || {};
-    const deals = Array.isArray(item.deals) ? item.deals : [];
-    return deals.find(deal => Number(deal?.shop?.id) === 61) || deals[0] || null;
-  }
-
-  function lowDeal(data = {}) {
-    const id = firstId(data);
-    const lows = Array.isArray(data.historyLow) ? data.historyLow : [];
-    const item = lows.find(row => row.id === id) || lows[0] || {};
-    return item.low || null;
-  }
-
-  function historyEvents(data = {}) {
-    const id = firstId(data);
-    const history = data.history && typeof data.history === "object" ? data.history : {};
-    const item = history[id] || Object.values(history)[0] || {};
-    return Array.isArray(item.events) ? item.events : [];
-  }
-
   function itemMeta(data = {}, pageInfo = {}) {
     const items = Array.isArray(data.items) ? data.items : [];
     const item = items.find(row => row.type === "app") || items[0] || {};
@@ -193,10 +167,11 @@
   // 预测包只做归一化数据重组：触发源为用户点击，成本为 O(历史价格点数)，不会反向触发第三方请求或页面扫描。
   function build(pricePack = {}, pageInfo = {}, options = {}) {
     const data = pricePack?.data || {};
-    const deal = normalizeDeal(currentDeal(data));
-    const low = normalizeLow(lowDeal(data), deal?.price?.currency || "");
+    const summary = api.thirdPartyData.summarizePricePack(pricePack, pageInfo);
+    const deal = normalizeDeal(summary.current);
+    const low = normalizeLow(summary.historicalLow, deal?.price?.currency || "");
     const currency = text(options.currency) || currencyOf(deal, low) || text(options.fallbackCurrency);
-    const events = historyEvents(data)
+    const events = summary.historyEvents
       .map(event => normalizeEvent(event, currency))
       .filter(Boolean)
       .sort((left, right) => Date.parse(left.timestamp || 0) - Date.parse(right.timestamp || 0));
@@ -230,9 +205,6 @@
   const forecast = Object.freeze({
     SALE_WINDOWS,
     build,
-    currentDeal,
-    lowDeal,
-    historyEvents,
   });
 
   api.features = api.features || {};

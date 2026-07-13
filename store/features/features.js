@@ -27,6 +27,10 @@
     return api.features.audioCheck?.add?.(...args);
   }
 
+  function addWorkshopCheck(...args) {
+    return api.features.workshopCheck?.add?.(...args);
+  }
+
   function addFamilySharingNotice(...args) {
     return api.features.familySharing?.add?.(...args);
   }
@@ -203,6 +207,10 @@
   function initPurchaseAreaFeatures(appId) {
     if (on("audio-check")) {
         addAudioCheck();
+    }
+
+    if (on("workshop-check")) {
+        addWorkshopCheck(appId);
     }
 
     if (on("family-sharing")) {

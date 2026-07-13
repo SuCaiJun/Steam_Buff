@@ -76,26 +76,6 @@
     return currency ? `${currency} ${amount}` : String(amount);
   }
 
-  function line(className, value) {
-    const node = document.createElement("div");
-    node.className = className;
-    node.textContent = value;
-    return node;
-  }
-
-  function tipContent(point) {
-    const box = document.createElement("div");
-    box.className = "st-data-display-chart-tip";
-    box.append(
-      line("st-data-display-chart-tip__date", dateLabel(point.time, true)),
-      line("st-data-display-chart-tip__price", moneyText(point.amount, point.currency))
-    );
-    if (point.cut > 0) {
-      box.appendChild(line("st-data-display-chart-tip__discount", `折扣: -${point.cut}%`));
-    }
-    return box;
-  }
-
   function svgEl(name, attrs = {}) {
     const node = document.createElementNS(SVG_NS, name);
     Object.entries(attrs).forEach(([key, value]) => {
@@ -118,6 +98,7 @@
       const bar = document.createElement("span");
       bar.className = "st-data-display-chart__bar";
       bar.style.setProperty("--st-dd-bar", `${32 + ((index * 17) % 52)}%`);
+      bar.style.setProperty("--st-dd-delay", `-${index * 110}ms`);
       box.appendChild(bar);
     }
     return box;
@@ -241,24 +222,19 @@
   function appendTitles(svg, points) {
     const width = stepWidth(points.length);
     points.forEach((point, index) => {
-      const label = `${dateLabel(point.time, true)} ${moneyText(point.amount, point.currency)}${point.cut > 0 ? ` -${point.cut}%` : ""}`;
       const rect = svgEl("rect", {
         class: "st-data-display-chart__hit",
         x: `${stepX(index, points.length)}%`,
         y: PAD.top,
         width: `${Math.max(width, 1)}%`,
         height: HEIGHT - PAD.top - PAD.bottom,
-        "aria-label": label,
-        tabindex: "0",
       });
-      const showTip = (event) => {
-        api.tooltip?.show?.(tipContent(point), event?.currentTarget || rect, { position: "top", offset: 10 });
-      };
-      const hideTip = () => api.tooltip?.hide?.();
-      rect.addEventListener("mouseenter", showTip);
-      rect.addEventListener("focus", showTip);
-      rect.addEventListener("mouseleave", hideTip);
-      rect.addEventListener("blur", hideTip);
+      api.chartTooltip?.bindPointTooltip?.(rect, point, {
+        date: item => dateLabel(item.time, true),
+        price: item => moneyText(item.amount, item.currency),
+        discount: item => (item.cut > 0 ? `折扣: -${item.cut}%` : ""),
+        label: item => `${dateLabel(item.time, true)} ${moneyText(item.amount, item.currency)}${item.cut > 0 ? ` -${item.cut}%` : ""}`,
+      });
       svg.appendChild(rect);
     });
   }

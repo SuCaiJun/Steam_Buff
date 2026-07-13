@@ -15,6 +15,21 @@
   const components = root.STComponents;
   const sharedCss = components.css;
 
+  const STORE_NOTICE_IDENTITIES = Object.freeze({
+    familySharing: Object.freeze({
+      selector: '.es_family_sharing_warning',
+      accent: 'var(--st-color-warning)',
+    }),
+    audioCheck: Object.freeze({
+      selector: '.es_audio_check',
+      accent: 'var(--st-color-success-soft)',
+    }),
+    workshopCheck: Object.freeze({
+      selector: '.es_workshop_check',
+      accent: 'var(--st-color-workshop-accent, var(--st-color-steam-blue))',
+    }),
+  });
+
   const STORE_NOTICE_VARIANTS = Object.freeze({
     subscriptionInfo: Object.freeze({
       selector: '.es_subscription_info',
@@ -29,17 +44,32 @@
     familySharingUnsupported: Object.freeze({
       selector: '.es_family_sharing_warning',
       bg: 'var(--st-color-warning-surface, var(--st-color-member-surface))',
-      accent: 'var(--st-color-warning)',
+      titleColor: 'var(--st-color-warning)',
     }),
     audioSupported: Object.freeze({
       selector: '.es_audio_check.supported',
       bg: 'var(--st-color-success-surface, var(--st-color-primary-surface))',
-      accent: 'var(--st-color-success-soft)',
+      titleColor: 'var(--st-color-success-soft)',
     }),
     audioUnsupported: Object.freeze({
       selector: '.es_audio_check.not-supported',
       bg: 'var(--st-color-audio-unsupported-surface)',
-      accent: 'var(--st-color-audio-unsupported)',
+      titleColor: 'var(--st-color-audio-unsupported)',
+    }),
+    workshopSupported: Object.freeze({
+      selector: '.es_workshop_check.supported',
+      bg: 'var(--st-color-success-surface, var(--st-color-primary-surface))',
+      titleColor: 'var(--st-color-success-soft)',
+    }),
+    workshopUnsupported: Object.freeze({
+      selector: '.es_workshop_check.not-supported',
+      bg: 'var(--st-color-workshop-surface-muted, var(--st-color-surface-subtle))',
+      titleColor: 'var(--st-color-workshop-accent, var(--st-color-steam-blue))',
+    }),
+    workshopError: Object.freeze({
+      selector: '.es_workshop_check.error',
+      bg: 'var(--st-color-danger-surface)',
+      titleColor: 'var(--st-color-danger)',
     }),
     familyLibraryOwned: Object.freeze({
       selector: '.st_family_library_owned_marker',
@@ -49,11 +79,20 @@
   });
 
   function noticeVariantCss(variant) {
-    return sharedCss.variables(variant.selector, {
+    const variables = {
       '--st-store-notice-bg': variant.bg,
-      '--st-store-notice-accent': variant.accent,
       '--st-store-notice-title-color': variant.titleColor || variant.accent,
-    });
+    };
+    if (variant.accent) {
+      variables['--st-store-notice-accent'] = variant.accent;
+    }
+    return sharedCss.variables(variant.selector, variables);
+  }
+
+  function noticeIdentityStyles() {
+    return Object.values(STORE_NOTICE_IDENTITIES).map((identity) => sharedCss.variables(identity.selector, {
+      '--st-store-notice-accent': identity.accent,
+    }));
   }
 
   function noticeVariantStyles() {
@@ -92,6 +131,7 @@
         '.es_drm_warning',
         '.es_family_sharing_warning',
         '.es_audio_check',
+        '.es_workshop_check',
       ],
       titleSelectors: [
         '.st-store-notice__title',
@@ -99,6 +139,7 @@
         '.es_drm_warning_title',
         '.es_family_sharing_warning_title',
         '.es_audio_check_title',
+        '.es_workshop_check_title',
       ],
       margin: '10px 0',
       padding: '10px',
@@ -107,6 +148,7 @@
       titleWeight: 'bold',
       titleMargin: '5px',
     }),
+    noticeIdentityStyles(),
     noticeVariantStyles(),
     sharedCss.badge([
       '.st-store-badge',
@@ -121,7 +163,68 @@
       fontSize: '10px',
       lineHeight: '14px',
       fontWeight: '700',
-    })
+    }),
+    `
+      .st-store-chart-tooltip,
+      .st-data-display-chart-tip {
+        min-width: 120px;
+      }
+      .st-store-chart-tooltip__date,
+      .st-data-display-chart-tip__date {
+        margin-bottom: var(--st-spacing-xxs, 2px);
+        color: var(--st-color-text-muted);
+        font-size: var(--st-font-size-caption);
+      }
+      .st-store-chart-tooltip__price,
+      .st-data-display-chart-tip__price {
+        color: var(--st-color-text-primary);
+        font-size: var(--st-font-size-body);
+        font-weight: var(--st-font-weight-semibold);
+        font-variant-numeric: tabular-nums;
+      }
+      .st-store-chart-tooltip__discount,
+      .st-data-display-chart-tip__discount {
+        margin-top: var(--st-spacing-xxs, 2px);
+        color: var(--st-color-success);
+        font-size: var(--st-font-size-caption);
+      }
+      .es_audio_check_body {
+        display: flex;
+        flex-direction: column;
+        gap: var(--st-spacing-xs, 4px);
+      }
+      .es_workshop_check_body {
+        display: flex;
+        flex-direction: column;
+        gap: var(--st-spacing-xs, 4px);
+      }
+      .es_audio_check_text {
+        color: var(--st-color-text-secondary);
+        line-height: var(--st-line-height-body);
+      }
+      .es_workshop_check_text {
+        color: var(--st-color-text-secondary);
+        line-height: var(--st-line-height-body);
+      }
+      .es_audio_check_text.is-loading {
+        color: var(--st-color-text-muted);
+      }
+      .es_workshop_check_text.is-loading {
+        color: var(--st-color-text-muted);
+      }
+      .es_audio_check_text.is-supported {
+        color: var(--st-color-success);
+      }
+      .es_workshop_check_text.is-supported {
+        color: var(--st-color-success);
+      }
+      .es_audio_check_text.is-error {
+        color: var(--st-color-danger-text);
+      }
+      .es_workshop_check_text.is-error {
+        color: var(--st-color-danger-text);
+      }
+    `
   );
 
   /**
@@ -337,25 +440,6 @@
         fill: transparent;
         cursor: pointer;
       }
-      .st-data-display-chart-tip {
-        min-width: 120px;
-      }
-      .st-data-display-chart-tip__date {
-        margin-bottom: var(--st-spacing-xxs, 2px);
-        color: var(--st-color-text-muted);
-        font-size: var(--st-font-size-caption);
-      }
-      .st-data-display-chart-tip__price {
-        color: var(--st-color-text-primary);
-        font-size: var(--st-font-size-body);
-        font-weight: var(--st-font-weight-semibold);
-        font-variant-numeric: tabular-nums;
-      }
-      .st-data-display-chart-tip__discount {
-        margin-top: var(--st-spacing-xxs, 2px);
-        color: var(--st-color-success);
-        font-size: var(--st-font-size-caption);
-      }
       .st-data-display-chart__x-axis {
         position: absolute;
         right: 0;
@@ -381,8 +465,10 @@
       }
       .st-data-display-chart--loading {
         align-items: flex-end;
+        height: 205px;
         gap: var(--st-spacing-sm);
         padding: var(--st-spacing-lg);
+        box-sizing: border-box;
       }
       .st-data-display-chart__bar {
         width: var(--st-spacing-lg);
@@ -390,14 +476,18 @@
         min-height: var(--st-spacing-lg);
         border-radius: var(--st-radius-sm) var(--st-radius-sm) 0 0;
         background: var(--st-gradient-primary-vertical);
-        animation: st-data-display-pulse var(--st-motion-slow, var(--st-motion-normal)) ease-in-out infinite alternate;
+        transform-origin: bottom;
+        animation: st-data-display-pulse 1.1s ease-in-out infinite alternate;
+        animation-delay: var(--st-dd-delay, 0ms);
       }
       @keyframes st-data-display-pulse {
         from {
           opacity: var(--st-opacity-muted, .72);
+          transform: scaleY(.58);
         }
         to {
           opacity: 1;
+          transform: scaleY(1);
         }
       }
       @media (max-width: 720px) {

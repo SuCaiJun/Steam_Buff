@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const THEME_VERSION = 'steam-buff-theme-v3';
+  const THEME_VERSION = 'steam-buff-theme-v7';
 
   if (root.STTheme?.version === THEME_VERSION) {
     return;
@@ -84,6 +84,12 @@
     dangerText: '#ffb5b5',
     audioUnsupported: '#8ba0b4',
     audioUnsupportedSurface: 'rgba(139,160,180,0.12)',
+    workshopAccent: '#b78cff',
+    workshopAccentSoft: '#d9c6ff',
+    workshopMutedAccent: '#b8b1c7',
+    workshopSurface: 'rgba(183,140,255,0.1)',
+    workshopSurfaceStrong: 'rgba(183,140,255,0.15)',
+    workshopSurfaceMuted: 'rgba(183,140,255,0.045)',
     memberSurface: 'rgba(245,194,74,0.08)',
     memberBorder: 'rgba(245,194,74,0.4)',
     textHint: '#acb8c3',
@@ -371,6 +377,12 @@
     '--st-color-danger-border': colors.dangerBorder,
     '--st-color-audio-unsupported': colors.audioUnsupported,
     '--st-color-audio-unsupported-surface': colors.audioUnsupportedSurface,
+    '--st-color-workshop-accent': colors.workshopAccent,
+    '--st-color-workshop-accent-soft': colors.workshopAccentSoft,
+    '--st-color-workshop-muted-accent': colors.workshopMutedAccent,
+    '--st-color-workshop-surface': colors.workshopSurface,
+    '--st-color-workshop-surface-strong': colors.workshopSurfaceStrong,
+    '--st-color-workshop-surface-muted': colors.workshopSurfaceMuted,
     '--st-color-member-surface': colors.memberSurface,
     '--st-color-member-border': colors.memberBorder,
     '--st-color-primary-light': '#4db5ff',

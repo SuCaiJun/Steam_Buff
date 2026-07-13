@@ -83,11 +83,84 @@ const TooltipManager = {
     }
 };
 
+let chartTipStyleEnsured = false;
+
+function tipText(value) {
+    return String(value ?? '').trim();
+}
+
+function ensureChartTooltipStyle() {
+    if (chartTipStyleEnsured) return;
+    if (api.styles?.ensureFeatureStyle?.('store-common-feature')) {
+        chartTipStyleEnsured = true;
+    }
+}
+
+function tipValue(point, options, key) {
+    const getter = options?.[key];
+    return tipText(typeof getter === 'function' ? getter(point) : point?.[key]);
+}
+
+function tipLine(className, value) {
+    const node = document.createElement('div');
+    node.className = className;
+    node.textContent = value;
+    return node;
+}
+
+function chartTooltipContent(point = {}, options = {}) {
+    const box = document.createElement('div');
+    box.className = 'st-store-chart-tooltip';
+    const date = tipValue(point, options, 'date');
+    const price = tipValue(point, options, 'price');
+    const discount = tipValue(point, options, 'discount');
+    if (date) box.appendChild(tipLine('st-store-chart-tooltip__date', date));
+    if (price) box.appendChild(tipLine('st-store-chart-tooltip__price', price));
+    if (discount) box.appendChild(tipLine('st-store-chart-tooltip__discount', discount));
+    return box;
+}
+
+function chartTooltipLabel(point = {}, options = {}) {
+    const custom = options?.label;
+    if (typeof custom === 'function') return tipText(custom(point));
+    return [
+        tipValue(point, options, 'date'),
+        tipValue(point, options, 'price'),
+        tipValue(point, options, 'discount'),
+    ].filter(Boolean).join(' ');
+}
+
+// 给图表命中区复用的轻量 tooltip 绑定；只响应用户 hover/focus，不监听鼠标移动或 DOM 变化。
+function bindPointTooltip(target, point = {}, options = {}) {
+    if (!target?.addEventListener) return null;
+    ensureChartTooltipStyle();
+    const label = chartTooltipLabel(point, options);
+    if (label && target.setAttribute && !target.getAttribute?.('aria-label')) {
+        target.setAttribute('aria-label', label);
+    }
+    if (options.focusable !== false && target.setAttribute && !target.getAttribute?.('tabindex')) {
+        target.setAttribute('tabindex', '0');
+    }
+    const showTip = (event) => {
+        TooltipManager.show(chartTooltipContent(point, options), event?.currentTarget || target, {
+            position: options.position || 'top',
+            offset: Number.isFinite(Number(options.offset)) ? Number(options.offset) : 10,
+        });
+    };
+    const hideTip = () => TooltipManager.hide();
+    target.addEventListener('mouseenter', showTip);
+    target.addEventListener('focus', showTip);
+    target.addEventListener('mouseleave', hideTip);
+    target.addEventListener('blur', hideTip);
+    return Object.freeze({ show: showTip, hide: hideTip });
+}
+
 const MODULE_CLASSES = {
     FAMILY_SHARING: 'es_family_sharing_warning',
     FAMILY_LIBRARY_OWNED: 'st_family_library_owned_marker',
     DRM_WARNING: 'es_drm_warning',
     AUDIO_CHECK: 'es_audio_check',
+    WORKSHOP_CHECK: 'es_workshop_check',
     SUBSCRIPTION: 'es_subscription_info',
     METADATA: 'rightcol.game_meta_data'
 };
@@ -111,6 +184,12 @@ const INSERT_PRIORITIES = {
         'game_area_purchase'
     ],
 
+    [MODULE_CLASSES.WORKSHOP_CHECK]: [
+        MODULE_CLASSES.FAMILY_LIBRARY_OWNED,
+        MODULE_CLASSES.FAMILY_SHARING,
+        'game_area_purchase'
+    ],
+
     [MODULE_CLASSES.DRM_WARNING]: [
         MODULE_CLASSES.FAMILY_LIBRARY_OWNED,
         MODULE_CLASSES.FAMILY_SHARING,
@@ -120,6 +199,7 @@ const INSERT_PRIORITIES = {
     [MODULE_CLASSES.SUBSCRIPTION]: [
         MODULE_CLASSES.FAMILY_LIBRARY_OWNED,
         MODULE_CLASSES.DRM_WARNING,
+        MODULE_CLASSES.WORKSHOP_CHECK,
         MODULE_CLASSES.AUDIO_CHECK,
         MODULE_CLASSES.FAMILY_SHARING,
         'game_area_purchase'
@@ -404,8 +484,16 @@ function positionImageBadgeHost(target, host, image, placement = "top-left") {
 }
 
   api.tooltip = TooltipManager;
+  api.chartTooltip = Object.freeze({
+    content: chartTooltipContent,
+    label: chartTooltipLabel,
+    bindPointTooltip,
+  });
   api.dom = Object.freeze({
     TooltipManager,
+    chartTooltipContent,
+    chartTooltipLabel,
+    bindPointTooltip,
     MODULE_CLASSES,
     INSERT_PRIORITIES,
     hasHiddenAncestor,

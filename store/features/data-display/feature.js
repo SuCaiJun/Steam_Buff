@@ -17,14 +17,11 @@
   const FEATURE_ID = "data-display-enhancements";
   const OWNER = "store:data-display";
   const ROOT_ID = "st-store-data-display";
-  const REMINDER_CLASS = "st_family_library_owned_marker";
-  const REMINDER_RETRY_DELAYS = Object.freeze([800, 1600, 2600, 4000, 6000, 8000]);
   const SUPPORTED_TYPES = Object.freeze(new Set(["app", "sub", "bundle"]));
   const view = api.features?.dataDisplayView;
   const log = window.STLoggerFactory?.createLogger?.("store", "data-display");
   let seq = 0;
   let activeRoot = null;
-  let reminderRetryTimer = 0;
 
   function text(value) {
     return String(value ?? "").trim();
@@ -81,20 +78,7 @@
       .find(node => api.dom?.isUsableInsertTarget?.(node, "game_area_purchase") !== false) || null;
   }
 
-  function usableReminderRoot(info = {}) {
-    if (info.type !== "app") return null;
-    const appId = text(info.appId || info.id);
-    const nodes = Array.from(document.querySelectorAll(`.${REMINDER_CLASS}`));
-    const sorted = appId
-      ? nodes.filter(node => text(node.dataset?.steamAppId) === appId)
-        .concat(nodes.filter(node => text(node.dataset?.steamAppId) !== appId))
-      : nodes;
-    return sorted.find(node => api.dom?.isUsableInsertTarget?.(node, REMINDER_CLASS) !== false) || null;
-  }
-
-  function mountAnchor(info = {}) {
-    const reminder = usableReminderRoot(info);
-    if (reminder) return reminder;
+  function mountAnchor() {
     const root = usablePurchaseRoot();
     if (root) return root;
     return Array.from(document.querySelectorAll(".game_area_purchase_game"))
@@ -107,14 +91,11 @@
     return true;
   }
 
-  // 注: loading 也必须落在购买区前，否则 DLC 列表页会先显示在购买区后，等家庭库卡片异步出现后再跳回购买区前。
+  // 注: app 页固定挂在购买容器首位；异步提醒卡片始终插在容器外，不会再推动历史价格换位。
   function insertAtAnchor(anchor, root) {
     if (!anchor?.parentNode) return false;
-    if (anchor.classList?.contains?.(REMINDER_CLASS)) {
-      return insertAfter(anchor, root);
-    }
     if (anchor.id === "game_area_purchase") {
-      anchor.parentNode.insertBefore(root, anchor);
+      anchor.insertBefore(root, anchor.firstElementChild);
       return true;
     }
     return insertAfter(anchor, root);
@@ -122,40 +103,11 @@
 
   function anchorSelector(anchor) {
     if (!anchor) return "";
-    if (anchor.classList?.contains?.(REMINDER_CLASS)) return `.${REMINDER_CLASS}`;
     if (anchor.id) return `#${anchor.id}`;
     return ".game_area_purchase_game";
   }
 
-  function clearReminderRetry() {
-    if (!reminderRetryTimer) return;
-    window.clearTimeout?.(reminderRetryTimer);
-    reminderRetryTimer = 0;
-  }
-
-  function moveBelowReminder(root, info = {}) {
-    if (!root?.isConnected) return false;
-    const reminder = usableReminderRoot(info);
-    if (!reminder || reminder.nextSibling === root) return false;
-    return insertAfter(reminder, root);
-  }
-
-  function scheduleReminderReposition(root, info = {}, attempt = 0) {
-    if (info.type !== "app" || reminderRetryTimer) return;
-    const delay = REMINDER_RETRY_DELAYS[attempt];
-    if (!delay) return;
-    // 注: 家庭提醒卡片由异步缓存结果挂载；这里仅做页面加载后的有限次补位，避免 observer/轮询进入详情页高频路径。
-    reminderRetryTimer = window.setTimeout?.(() => {
-      reminderRetryTimer = 0;
-      if (root !== activeRoot || !root?.isConnected) return;
-      if (!moveBelowReminder(root, info)) {
-        scheduleReminderReposition(root, info, attempt + 1);
-      }
-    }, delay) || 0;
-  }
-
   function removeCurrent() {
-    clearReminderRetry();
     document.getElementById(ROOT_ID)?.remove?.();
     activeRoot = null;
   }
@@ -166,7 +118,7 @@
     if (!anchor) {
       log?.warn?.("data-display-mount-target-missing", "数据展示挂载目标缺失", pageMeta({
       pageType: info.type || "",
-      selector: `.${REMINDER_CLASS} / #game_area_purchase`,
+      selector: "#game_area_purchase / .game_area_purchase_game",
       candidateCount: candidateCount(),
       settingsKey: FEATURE_ID,
       viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
@@ -185,7 +137,6 @@
       return null;
     }
     activeRoot = root;
-    if (selector !== `.${REMINDER_CLASS}`) scheduleReminderReposition(root, info);
     log?.info?.("data-display-mount-success", "数据展示已挂载", pageMeta({
       rootId: ROOT_ID,
       pageType: info.type || "",

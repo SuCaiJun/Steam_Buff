@@ -406,8 +406,8 @@
     return date.getTime();
   }
 
-  function section(title, body, meta, detail) {
-    return { title, body, meta, detail };
+  function section(settingId, title, body, meta, detail) {
+    return { settingId, title, body, meta, detail };
   }
 
   function forecastSections(summary = {}, result = {}, pageInfo = {}) {
@@ -444,6 +444,7 @@
 
     const sections = [
       section(
+        "price-forecast-discount",
         "未来折扣推测",
         `综合历史折扣周期后，当前更稳的结论是：预计 ${predictedDays} 天后（${daysText(predictedDays, now)}）出现约 -${commonCut}% 折扣，到手大约 ${priceAtCut(base, commonCut, currency)}。`,
         `把握度 ${confidence}%`,
@@ -465,6 +466,7 @@
       const holidayCut = singleCut(holidayRange, commonCut);
       const holidayConfidence = Math.round(clamp((confidence / 100) - 0.06 + Math.min(holidayHits.length, 3) * 0.06, 0.52, 0.9) * 100);
       sections.push(section(
+        "price-forecast-seasonal",
         "节日折扣推测",
         holidayHits.length
           ? `更靠近「${sale.name}」这波活动：预计 ${saleStartDays} 天后（${dateText(sale.startsAt)}）前后出现约 -${holidayCut}% 折扣，到手大约 ${priceAtCut(base, holidayCut, currency)}。`
@@ -497,6 +499,7 @@
       const lowPriceText = lowAmount !== null ? amountMoney(lowAmount, currency) : priceAtCut(base, lowCutValue, currency);
       const lowConfidence = Math.round(clamp(0.5 + Math.min(nearLow.length, 4) * 0.08 + Math.min(lowIntervals.length, 3) * 0.04, 0.52, 0.88) * 100);
       sections.push(section(
+        "price-forecast-historical-low",
         "未来史低推测",
         `预计未来一年内最近一次史低窗口在 ${lowDays} 天后（${daysText(lowDays, now)}）附近，可能达到 -${lowCutValue}% 折扣，到手大约 ${lowPriceText}。`,
         `把握度 ${lowConfidence}%`,
@@ -506,7 +509,7 @@
       ));
     }
 
-    return sections;
+    return sections.filter(item => api.settings.on(item.settingId));
   }
 
   function renderForecastReferences(root, result = {}, pageInfo = {}) {
