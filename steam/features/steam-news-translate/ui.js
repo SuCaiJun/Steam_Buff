@@ -21,7 +21,7 @@
   const BOX_CLASS = "steam-buff-news-translation";
   const TRANSLATED_CLASS = "steam-buff-news-translated";
   const TRANSLATED_BODY_CLASS = "steam-buff-news-translated-body";
-  const ICON_PATH = "images/translate.svg";
+  const ICON_PATH = "images/features/translate.svg";
   const CONFIG_ATTR = "steamBuffNewsTranslate";
   const CONFIG_REQ = "STEAM_BUFF_NEWS_TRANSLATE_CONFIG_REQUEST";
   const CONFIG_RES = "STEAM_BUFF_NEWS_TRANSLATE_CONFIG_RESPONSE";

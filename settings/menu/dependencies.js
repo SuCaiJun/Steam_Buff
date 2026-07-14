@@ -18,38 +18,10 @@
     return root.STSettingsHtml?.[name] || ((text) => String(text ?? ""));
   }
 
-  function defaultMasterIcon(kind) {
-    if (kind === "ai") {
-      return `
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 2a4 4 0 0 1 4 4v2"/>
-          <path d="M8 8V6a4 4 0 0 1 4-4"/>
-          <rect x="4" y="8" width="16" height="12" rx="2"/>
-          <path d="M9 14h.01"/>
-          <path d="M15 14h.01"/>
-          <path d="M9 18h6"/>
-        </svg>
-      `;
-    }
-    if (kind === "review-filter") {
-      return `
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M3 5h18"/>
-          <path d="M6 12h12"/>
-          <path d="M10 19h4"/>
-        </svg>
-      `;
-    }
-    return `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="m5 8 6 6"/>
-        <path d="M4 14 10 8l2-3"/>
-        <path d="M2 5h12"/>
-        <path d="M7 2h1"/>
-        <path d="m22 22-5-10-5 10"/>
-        <path d="M14 18h6"/>
-      </svg>
-    `;
+  function featureIconHtml(id) {
+    const url = root.STSettingsAssets.featureIcon(id);
+    const safeUrl = root.STSettingsHtml?.escAttr?.(url) || String(url);
+    return `<img class="feature-icon-img" src="${safeUrl}" alt="" aria-hidden="true">`;
   }
 
   function create(options = {}) {
@@ -59,9 +31,10 @@
     const membershipGate = root.STSettingsMembership || root.STSettings?.membership || {};
     const esc = fallback(options.esc, "esc");
     const escAttr = fallback(options.escAttr, "escAttr");
-    const tipIconUrl = typeof options.tipIconUrl === "function" ? options.tipIconUrl : () => "";
+    const tipIconUrl = options.tipIconUrl;
+    const helpIconUrl = options.helpIconUrl;
+    const drawerIconUrl = options.drawerIconUrl;
     const helpUrl = typeof options.helpUrl === "function" ? options.helpUrl : () => "";
-    const masterIcon = typeof options.masterIcon === "function" ? options.masterIcon : defaultMasterIcon;
     let rows = null;
 
     function tr(key, fallback, params) {
@@ -143,11 +116,13 @@
           esc,
           escAttr,
           tipIconUrl,
+          helpIconUrl,
+          drawerIconUrl,
           available,
           depNames,
           lockText,
           state,
-          masterIcon,
+          featureIconHtml,
           helpUrl,
         }) || {};
       }
@@ -166,12 +141,12 @@
       return featureRows().itemHtml?.(cat, item) || "";
     }
 
-    function masterItemHtml(item, kind) {
-      return featureRows().masterItemHtml?.(item, kind) || "";
+    function masterItemHtml(item) {
+      return featureRows().masterItemHtml?.(item) || "";
     }
 
-    function drawerItemHtml(cat, item, bodyHtml, options) {
-      return featureRows().drawerItemHtml?.(cat, item, bodyHtml, options) || "";
+    function drawerItemHtml(item, bodyHtml) {
+      return featureRows().drawerItemHtml?.(item, bodyHtml) || "";
     }
 
     function helpLinkHtml(item) {

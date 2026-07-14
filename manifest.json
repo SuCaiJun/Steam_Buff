@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "0.12.00",
+  "version": "0.12.05",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "顾青离",
@@ -209,8 +209,8 @@
         "steam/main.js",
         "vendor/fflate/*.js",
         "vendor/pinyin-pro/*.js",
-        "images/tip.svg",
-        "images/translate.svg"
+        "images/ui/source-tip.svg",
+        "images/features/translate.svg"
       ],
       "matches": [
         "https://steamloopback.host/*"
@@ -219,6 +219,11 @@
     {
       "resources": [
         "images/*",
+        "images/features/*",
+        "images/ui/*",
+        "images/translate/*",
+        "images/store/*",
+        "images/store/providers/*",
         "store/page/*.js",
         "vendor/SmallFork/purchase-history-classifier.js",
         "_locales/*/messages.json"
@@ -259,8 +264,8 @@
     },
     {
       "resources": [
-        "images/trans.svg",
-        "images/close.svg",
+        "images/translate/selection-translate.svg",
+        "images/translate/selection-close.svg",
         "_locales/*/messages.json"
       ],
       "matches": [
@@ -273,10 +278,26 @@
     {
       "resources": [
         "images/icon.png",
-        "images/Settings.svg",
-        "images/TOP.svg",
-        "images/commentFilter.svg",
-        "images/tip.svg"
+        "images/ui/settings.svg",
+        "images/ui/back-to-top.svg",
+        "images/ui/source-tip.svg",
+        "images/ui/settings-translate.svg",
+        "images/ui/help.svg",
+        "images/ui/chevron-right.svg",
+        "images/features/store-detail-reminders.svg",
+        "images/features/subscription-info.svg",
+        "images/features/family-library-owned-marker.svg",
+        "images/features/price-related-enhancements.svg",
+        "images/features/price-forecast.svg",
+        "images/features/wishlist-price-history.svg",
+        "images/features/data-display-enhancements.svg",
+        "images/features/search-suggestions.svg",
+        "images/features/store-title-custom-name.svg",
+        "images/features/cart-select.svg",
+        "images/features/review-filter.svg",
+        "images/features/translate.svg",
+        "images/features/ai.svg",
+        "images/third-party/market-tools.svg"
       ],
       "matches": [
         "https://*.steampowered.com/*",

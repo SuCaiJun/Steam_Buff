@@ -25,8 +25,10 @@
     const depNames = typeof options.depNames === "function" ? options.depNames : () => "上级开关";
     const lockText = typeof options.lockText === "function" ? options.lockText : (item) => item.lock || `需开启 ${depNames(item)}`;
     const state = typeof options.state === "function" ? options.state : () => true;
-    const tipIconUrl = typeof options.tipIconUrl === "function" ? options.tipIconUrl : () => "";
-    const masterIcon = typeof options.masterIcon === "function" ? options.masterIcon : () => "";
+    const tipIconUrl = options.tipIconUrl;
+    const helpIconUrl = options.helpIconUrl;
+    const drawerIconUrl = options.drawerIconUrl;
+    const featureIconHtml = options.featureIconHtml;
     const helpUrl = typeof options.helpUrl === "function"
       ? options.helpUrl
       : (item, key) => {
@@ -73,16 +75,6 @@
       `;
     }
 
-    function tutorialIcon() {
-      return `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4"/>
-          <circle cx="12" cy="17.5" r="0.6" fill="currentColor" stroke="none"/>
-        </svg>
-      `;
-    }
-
     function helpKey(value, item) {
       if (value === true) {
         return String(itemName(item) || item?.id || "").trim();
@@ -119,7 +111,7 @@
       const label = `查看教程：${meta.key || itemName(item) || "教程"}`;
       return `
         <a class="feature-tutorial" href="${escAttr(href)}" target="_blank" rel="noreferrer noopener" title="${escAttr(label)}" aria-label="${escAttr(label)}">
-          ${tutorialIcon()}
+          <img class="feature-tutorial-icon" src="${escAttr(helpIconUrl())}" alt="" aria-hidden="true">
         </a>
       `;
     }
@@ -145,10 +137,10 @@
       `;
     }
 
-    function masterItemHtml(item, kind) {
+    function masterItemHtml(item) {
       return `
         <article class="feature master-toggle">
-          <div class="icon-pad">${masterIcon(kind)}</div>
+          <div class="icon-pad">${featureIconHtml(item.id)}</div>
           <div class="feature-main row-info">
             <div class="feature-title row-name"><span>${esc(itemName(item))}</span>${helpLinkHtml(item)}</div>
             <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(itemDesc(item))}</span></div>
@@ -158,15 +150,7 @@
       `;
     }
 
-    function drawerIcon() {
-      return `
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="m9 18 6-6-6-6"/>
-        </svg>
-      `;
-    }
-
-    function drawerItemHtml(cat, item, bodyHtml, options = {}) {
+    function drawerItemHtml(item, bodyHtml) {
       const enabled = available(item);
       const tip = enabled ? "" : lockText(item);
       const open = false;
@@ -176,7 +160,7 @@
       return `
         <section class="settings-drawer${open ? " open" : ""}" data-settings-drawer="${escAttr(item.id)}">
           <article class="feature master-toggle settings-drawer-head${enabled ? "" : " disabled"}" data-settings-drawer-head${tip ? ` title="${escAttr(tip)}"` : ""}>
-            <div class="icon-pad">${masterIcon(options.iconKind || item.panel || item.id || cat?.id)}</div>
+            <div class="icon-pad">${featureIconHtml(item.id)}</div>
             <div class="feature-main row-info">
               <div class="feature-title row-name">
                 <span>${esc(itemName(item))}</span>
@@ -188,7 +172,7 @@
             </div>
             <div class="settings-drawer-actions">
               <button class="settings-drawer-toggle" type="button" data-settings-drawer-toggle="${escAttr(item.id)}" aria-controls="${escAttr(drawerId)}" aria-expanded="${open ? "true" : "false"}" title="${escAttr(open ? "收起" : "展开")}" aria-label="${escAttr(open ? "收起子功能" : "展开子功能")}">
-                ${drawerIcon()}
+                <img class="settings-drawer-icon" src="${escAttr(drawerIconUrl())}" alt="" aria-hidden="true">
               </button>
               ${switchHtml(item)}
             </div>

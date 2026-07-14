@@ -665,7 +665,7 @@
     function html(cat) {
       const fields = getFields();
       return `
-      ${cat.items.map((item) => masterItemHtml(item, "review-filter")).join("")}
+      ${cat.items.map((item) => masterItemHtml(item)).join("")}
       <div class="settings-form">
         <section class="settings-card section-card review-rule-card">
           <div class="section-header">

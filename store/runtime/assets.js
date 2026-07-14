@@ -18,7 +18,7 @@
   }
 
   const ImageAssets = Object.freeze({
-    MC_LOGO: "mc_logo_no_text.png",
+    MC_LOGO: "store/providers/mc-logo.png",
   });
 
   api.assets = Object.freeze({

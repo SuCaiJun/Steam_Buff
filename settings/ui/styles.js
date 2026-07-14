@@ -805,28 +805,29 @@
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          flex: 0 0 14px;
-          width: 14px;
-          height: 14px;
+          flex: 0 0 16px;
+          width: 16px;
+          height: 16px;
           margin: 1px 0 0;
           vertical-align: top;
           outline: none;
         }
 
         .source-tip-icon {
-          width: 14px;
-          height: 14px;
+          width: 16px;
+          height: 16px;
           display: block;
-          flex: 0 0 14px;
+          flex: 0 0 16px;
           object-fit: contain;
-          opacity: .82;
+          filter: var(--st-filter-icon-steam-blue);
+          opacity: .72;
           user-select: none;
           transition: filter .16s ease, opacity .16s ease;
         }
 
         .source-tip:hover .source-tip-icon,
         .source-tip:focus .source-tip-icon {
-          filter: brightness(1.14);
+          filter: var(--st-filter-icon-steam-blue-hover);
           opacity: 1;
         }
 
@@ -1410,33 +1411,48 @@
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          flex: 0 0 22px;
-          width: 22px;
-          height: 22px;
-          border: 1px solid var(--st-color-steam-blue-alpha-34);
+          align-self: center;
+          flex: 0 0 18px;
+          width: 18px;
+          height: 18px;
+          margin-left: -2px;
+          border: 0;
           border-radius: 50%;
-          color: var(--st-color-steam-blue);
-          background: var(--st-color-primary-alpha-08);
+          background: transparent;
           text-decoration: none;
           outline: none;
           cursor: pointer;
-          transition: border-color .16s ease, color .16s ease, background .16s ease, transform .16s ease;
+          line-height: 0;
+          vertical-align: middle;
+          transition: background-color .16s ease;
         }
 
-        .feature-tutorial svg {
+        .feature-tutorial-icon {
           display: block;
-          width: 18px;
-          height: 18px;
-          flex: 0 0 18px;
+          width: 17px;
+          height: 17px;
+          flex: 0 0 17px;
+          object-fit: contain;
+          filter: var(--st-filter-icon-steam-blue);
+          opacity: .88;
           pointer-events: none;
+          transition: filter .16s ease, opacity .16s ease;
         }
 
         .feature-tutorial:hover,
         .feature-tutorial:focus-visible {
-          border-color: var(--st-color-steam-blue-alpha-72);
-          color: var(--st-color-primary-soft-text);
-          background: var(--st-color-primary-alpha-16);
-          transform: translateY(-1px);
+          background: var(--st-color-primary-alpha-12);
+        }
+
+        .feature-tutorial:hover .feature-tutorial-icon,
+        .feature-tutorial:focus-visible .feature-tutorial-icon {
+          filter: var(--st-filter-icon-steam-blue-hover);
+          opacity: 1;
+        }
+
+        .feature-tutorial:focus-visible {
+          outline: 2px solid var(--st-color-primary-alpha-45);
+          outline-offset: 1px;
         }
 
         .switch {
@@ -1555,6 +1571,16 @@
           height: 18px;
         }
 
+        .master-toggle .icon-pad .feature-icon-img,
+        .settings-master .icon-pad .feature-icon-img {
+          width: 18px;
+          height: 18px;
+          display: block;
+          object-fit: contain;
+          filter: var(--st-filter-icon-steam-blue);
+          pointer-events: none;
+        }
+
         .settings-drawer {
           display: flex;
           flex-direction: column;
@@ -1595,26 +1621,35 @@
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          color: var(--st-color-text-secondary);
           background: transparent;
           cursor: pointer;
-          transition: color var(--st-motion-fast, .15s ease), background-color var(--st-motion-fast, .15s ease);
+          transition: background-color var(--st-motion-fast, .15s ease);
         }
 
         .settings-drawer-toggle:hover,
         .settings-drawer-toggle:focus-visible {
-          color: var(--st-color-primary-soft-text);
           background: transparent;
           outline: none;
         }
 
-        .settings-drawer-toggle svg {
+        .settings-drawer-icon {
           width: 18px;
           height: 18px;
-          transition: transform var(--st-motion-switch, .25s cubic-bezier(.4, 0, .2, 1));
+          display: block;
+          object-fit: contain;
+          filter: var(--st-filter-icon-steam-blue);
+          opacity: .72;
+          pointer-events: none;
+          transition: transform var(--st-motion-switch, .25s cubic-bezier(.4, 0, .2, 1)), filter var(--st-motion-fast, .15s ease), opacity var(--st-motion-fast, .15s ease);
         }
 
-        .settings-drawer.open .settings-drawer-toggle svg {
+        .settings-drawer-toggle:hover .settings-drawer-icon,
+        .settings-drawer-toggle:focus-visible .settings-drawer-icon {
+          filter: var(--st-filter-icon-steam-blue-hover);
+          opacity: 1;
+        }
+
+        .settings-drawer.open .settings-drawer-icon {
           transform: rotate(90deg);
         }
 

@@ -67,24 +67,16 @@
     fn();
   }
 
-  function runtimeUrl(path) {
-    try {
-      return root.chrome?.runtime?.getURL?.(path) || "";
-    } catch {
-      return "";
-    }
-  }
-
   function iconUrl() {
-    return root.STSettingsAssets?.settingsIcon?.() || runtimeUrl("images/Settings.svg");
+    return root.STSettingsAssets.settingsIcon();
   }
 
   function topUrl() {
-    return root.STSettingsAssets?.topIcon?.() || runtimeUrl("images/TOP.svg");
+    return root.STSettingsAssets.topIcon();
   }
 
   function commentFilterUrl() {
-    return root.STSettingsAssets?.commentFilterIcon?.() || runtimeUrl("images/commentFilter.svg");
+    return root.STSettingsAssets.commentFilterIcon();
   }
 
   function tr(key, fallback, params) {

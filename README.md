@@ -13,12 +13,6 @@
   <a href="https://www.gnu.org/licenses/gpl-3.0.html"><img src="https://shields.io/github/license/sys1em/Steam_Buff" alt="License: GPL v3" target="_blank" /></a>
   <a href="https://app.codacy.com/gh/sys1em/Steam_Buff"><img src="https://app.codacy.com/project/badge/Grade/29248fc531f1421c874c1f881bc335be" target="_blank" /></a>
 </p>
-<p align="center">
-  <a href="/README.md"><img alt="中文(简体)" src="https://img.shields.io/badge/中文(简体)-d9d9d9" /></a>
-   <a href="/docs/README_zh-TW.md"><img alt="中文(繁體)" src="https://img.shields.io/badge/中文(繁體)-d9d9d9" /></a>
-  <a href="/docs/README_en.md"><img alt="English" src="https://img.shields.io/badge/English-d9d9d9" /></a>
-</p>
-
 当前仓库是扩展端源码。项目仍在重构和功能迁移阶段，部分模块会继续调整。
 
 ## 为什么需要 Steam Buff？

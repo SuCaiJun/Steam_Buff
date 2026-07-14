@@ -182,7 +182,7 @@
       const selection = fields.filter((field) => selectionKeys.has(field.key));
       const news = fields.filter((field) => newsKeys.has(field.key));
       return `
-        ${cat.items.map((item) => options.masterItemHtml?.(item, "translate") || "").join("")}
+        ${cat.items.map((item) => options.masterItemHtml?.(item) || "").join("")}
         <div class="translate-form">
           ${section("翻译范围", base)}
           ${section("划词翻译", selection)}

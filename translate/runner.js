@@ -52,8 +52,8 @@
   const SEL_ACTION_CLASS = "steam-buff-translate-selection-action";
   const SEL_BODY_CLASS = "steam-buff-translate-selection-body";
   const SEL_CLOSE_CLASS = "steam-buff-translate-selection-close";
-  const SEL_ICON = "images/trans.svg";
-  const SEL_CLOSE_ICON = "images/close.svg";
+  const SEL_ICON = "images/translate/selection-translate.svg";
+  const SEL_CLOSE_ICON = "images/translate/selection-close.svg";
   const SELECT_HOST_ID = "steam-buff-translate-select";
   const SELECT_HOST_CLASS = "steam-buff-translate-select-host";
   const SELECT_ID = `${SELECT_HOST_ID}SelectLanguage`;

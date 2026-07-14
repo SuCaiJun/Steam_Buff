@@ -37,7 +37,7 @@
   ].join(",");
   const FALLBACK_IMG = (() => {
     try {
-      return root.chrome?.runtime?.getURL?.("images/search.png") || "";
+      return root.chrome?.runtime?.getURL?.("images/store/search-fallback.png") || "";
     } catch {
       return "";
     }

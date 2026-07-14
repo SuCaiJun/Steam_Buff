@@ -201,9 +201,7 @@
         const bodyHtml = item?.panelPosition === "before"
           ? `${panelHtml}${childrenHtml}`
           : `${childrenHtml}${panelHtml}`;
-        return deps.drawerItemHtml?.(cat, item, bodyHtml, {
-          iconKind: item.panel || item.id || cat?.id,
-        }) || "";
+        return deps.drawerItemHtml?.(item, bodyHtml) || "";
       }
       return deps.itemHtml(cat, item);
     }
@@ -242,7 +240,7 @@
         return panels.review().html(cat);
       }
       if (cat.kind === "ai") {
-        return `${items.map((item) => deps.masterItemHtml?.(item, "ai") || "").join("")}${panels.ai().html(cat)}`;
+        return `${items.map((item) => deps.masterItemHtml?.(item) || "").join("")}${panels.ai().html(cat)}`;
       }
       if (cat.kind === "third-party-services") {
         return panels.thirdPartyServices().html(cat);

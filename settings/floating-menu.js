@@ -93,32 +93,32 @@
     fn();
   }
 
-  function fallbackAsset(name) {
-    try {
-      return chrome.runtime.getURL(`images/${name}`);
-    } catch {
-      return "";
-    }
-  }
-
   function iconUrl() {
-    return globalThis.STSettingsAssets?.settingsIcon?.() || fallbackAsset("Settings.svg");
+    return globalThis.STSettingsAssets.settingsIcon();
   }
 
   function topUrl() {
-    return globalThis.STSettingsAssets?.topIcon?.() || fallbackAsset("TOP.svg");
+    return globalThis.STSettingsAssets.topIcon();
   }
 
   function commentFilterUrl() {
-    return globalThis.STSettingsAssets?.commentFilterIcon?.() || fallbackAsset("commentFilter.svg");
+    return globalThis.STSettingsAssets.commentFilterIcon();
   }
 
   function appIconUrl() {
-    return globalThis.STSettingsAssets?.appIcon?.() || fallbackAsset("icon.png");
+    return globalThis.STSettingsAssets.appIcon();
   }
 
   function tipIconUrl() {
-    return globalThis.STSettingsAssets?.tipIcon?.() || fallbackAsset("tip.svg");
+    return globalThis.STSettingsAssets.tipIcon();
+  }
+
+  function helpIconUrl() {
+    return globalThis.STSettingsAssets.helpIcon();
+  }
+
+  function drawerIconUrl() {
+    return globalThis.STSettingsAssets.drawerIcon();
   }
 
   function helpUrl(item, key) {
@@ -227,6 +227,8 @@
       esc,
       escAttr,
       tipIconUrl,
+      helpIconUrl,
+      drawerIconUrl,
       helpUrl,
     });
   }
