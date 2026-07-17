@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const THEME_VERSION = 'steam-buff-theme-v7';
+  const THEME_VERSION = 'steam-buff-theme-v8';
 
   if (root.STTheme?.version === THEME_VERSION) {
     return;
@@ -34,6 +34,7 @@
     bluePrimary: '#1a9fff',
     blueDark: '#0078d4',
     steamBlue: '#66c0f4',
+    steamPropertyWindow: '#171d25',
 
     gold: '#f5c24a',
     success: '#5ba32b',
@@ -113,6 +114,7 @@
     control: colors.surfaceControl,
     controlStrong: colors.surfaceControlStrong,
     controlHover: colors.surfaceControlHover,
+    propertyWindow: colors.steamPropertyWindow,
     disabled: colors.surfaceDisabled,
     subtle: colors.surfaceSubtle,
     subtleHover: colors.surfaceSubtleHover,
@@ -327,6 +329,7 @@
     '--st-color-primary': colors.primary,
     '--st-color-primary-dark': colors.primaryDark,
     '--st-color-steam-blue': colors.steamBlue,
+    '--st-color-steam-property-window': colors.steamPropertyWindow,
     '--st-color-gold': colors.gold,
     '--st-color-success': colors.success,
     '--st-color-warning': colors.warning,

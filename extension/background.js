@@ -12,10 +12,12 @@
   "use strict";
 
   importScripts(chrome.runtime.getURL("shared/config.js"));
+  importScripts(chrome.runtime.getURL("onboarding/contract.js"));
   importScripts(chrome.runtime.getURL("extension/background-logger.js"));
   importScripts(chrome.runtime.getURL("extension/background-update.js"));
 
   const CFG = globalThis.STConfig;
+  const ONBOARDING = globalThis.STOnboardingContract;
   const MATCH = CFG.matchers;
   const STORE_HOSTS = Object.freeze(new Set([
     CFG.vendors.steamStore.host,
@@ -270,7 +272,8 @@
   const CONTENT_MARK_VERSION = "steam-buff-runtime-v12";
   const STEAM_LOOPBACK_INJECT_REQUEST = "STEAM_LOOPBACK_INJECT_REQUEST";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
-  const ONBOARDING_OPEN_SETTINGS_MESSAGE = "STEAM_BUFF_ONBOARDING_OPEN_SETTINGS";
+  const ONBOARDING_OPEN_LOCAL_MESSAGE = ONBOARDING.MESSAGES.openLocalPage;
+  const ONBOARDING_OPEN_SETTINGS_MESSAGE = ONBOARDING.MESSAGES.openSettings;
   const ONBOARDING_PAGE = "onboarding/index.html";
   const ONBOARDING_STORE_URL = "https://store.steampowered.com/";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
@@ -653,11 +656,42 @@
     if (!chrome.tabs?.create) {
       return;
     }
-    chrome.tabs.create({ url: chrome.runtime.getURL(ONBOARDING_PAGE) }, () => {
+    chrome.tabs.create({ url: CFG.urls.onboardingPage(1) }, () => {
       const err = chrome.runtime.lastError;
       if (err) {
         logError("onboarding", "onboarding-open-failed", "安装引导页打开失败", err.message || err);
       }
+    });
+  }
+
+  // 云端只能从正式 HTTPS v1 顶层页面请求切换当前标签
+  function isOnboardingCloudSender(sender) {
+    const url = senderUrlObject(sender);
+    return !!url
+      && url.origin === CFG.urls.onboardingOrigin
+      && url.pathname === "/wizard/v1/"
+      && sender?.frameId === 0
+      && Number.isInteger(sender?.tab?.id);
+  }
+
+  function openOnboardingLocalPage(request, sender, sendResponse) {
+    if (!isOnboardingCloudSender(sender)) {
+      sendResponse({ success: false, error: "云端引导页来源无效" });
+      return;
+    }
+    const pageCount = request?.pageCount;
+    const localIndex = request?.localIndex;
+    const page = ONBOARDING.pageForLocalIndex(localIndex, pageCount);
+    if (!page || request?.page !== page) {
+      sendResponse({ success: false, error: "本地引导页码无效" });
+      return;
+    }
+    const url = chrome.runtime.getURL(`${ONBOARDING_PAGE}?page=${page}`);
+    chrome.tabs.update(sender.tab.id, { url }, () => {
+      const err = chrome.runtime.lastError;
+      sendResponse(err
+        ? { success: false, error: err.message || "本地引导页打开失败" }
+        : { success: true });
     });
   }
 
@@ -1362,6 +1396,7 @@
     LOG_EXPORT: "诊断日志导出",
     LOG_CLEAR: "诊断日志清空",
     LOG_STATS: "诊断日志状态",
+    [ONBOARDING_OPEN_LOCAL_MESSAGE]: "云端安装引导页打开本地步骤",
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: "安装引导页打开设置中心",
   });
 
@@ -1374,6 +1409,7 @@
     AI_CHAT_COMPLETIONS: aiChat,
     AI_TRANSLATE_CACHE_GET: cacheGet,
     AI_TRANSLATE_CACHE_SET: cacheSet,
+    [ONBOARDING_OPEN_LOCAL_MESSAGE]: openOnboardingLocalPage,
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: openOnboardingSettings,
     LOG_APPEND(request, sender, sendResponse) {
       globalThis.STBackgroundLogger.append(request.entry || request, sender)

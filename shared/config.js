@@ -36,6 +36,7 @@
     github: "github.com",
     keylol: "keylol.com",
     aiProxy: "steam-buff.ai.sucaijun.com",
+    onboarding: "steam-buff.sucaijun.com",
   });
 
   function pathOf(path = "") {
@@ -71,6 +72,7 @@
     github: origin(HOSTS.github),
     keylol: origin(HOSTS.keylol),
     aiProxy: origin(HOSTS.aiProxy),
+    onboarding: origin(HOSTS.onboarding),
   });
   const STEAM_BUFF_BASE = join(ORIGINS.site, "/wp-json/steam-buff/v1");
   const SUPPORTER_BASE = join(ORIGINS.site, "/wp-json/supporter/v1");
@@ -183,9 +185,14 @@
     account: join(ORIGINS.site, "/user/data"),
     donate: join(ORIGINS.site, "/supporter/golink/"),
     feedback: join(ORIGINS.site, "/forum/468.html"),
+    onboardingTutorial: join(ORIGINS.site, "/forum/562.html"),
     vip: join(ORIGINS.site, "/user/vip/"),
     helpSearch,
     aiTranslateProxy: join(ORIGINS.aiProxy, "/"),
+    onboardingOrigin: ORIGINS.onboarding,
+    onboardingWizard: join(ORIGINS.onboarding, "/wizard/v1/"),
+    onboardingFlow: join(ORIGINS.onboarding, "/wizard/v1/flow.json"),
+    onboardingPage: (page) => `${join(ORIGINS.onboarding, "/wizard/v1/")}?page=${encoded(page)}`,
     subscriptionInfoGameData: join(ORIGINS.subscriptionInfo, "/SubscriptionInfo/ajax/gamedata.php"),
   });
 

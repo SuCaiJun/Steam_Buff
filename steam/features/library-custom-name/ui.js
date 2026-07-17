@@ -43,7 +43,6 @@
   const CLOUD_TIP_TEXT = "将本次手动修改的自定义排序名称同步到素材君云端（Steam Buff 云端），帮助更多玩家获得更准确的名称建议。";
   const CLOUD_CANCEL_TEXT = "素材君云端共享可以帮助更多玩家获得更准确的自定义名称建议。本次保存将只写入本地 Steam 库，不再同步到素材君云端，确认关闭吗？";
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
-  const SORT_LABEL_RE = /自定义排序名称|自訂排序名稱|自定義排序名稱|Custom Sort|カスタムソート|カスタム並び替え|사용자 지정 정렬|사용자 정의 정렬/i;
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
 
@@ -508,6 +507,24 @@
     throw backendTimeoutError();
   }
 
+  function postBackend(type, data) {
+    const ch = chan();
+    if (!ch) {
+      return false;
+    }
+    try {
+      ch.postMessage({
+        script: ID,
+        side: "ui",
+        type,
+        ...data,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function clearSaveWatch() {
     clearRuntimeTimer(batch, "saveWatchTimer", "saveWatchHandle");
   }
@@ -698,91 +715,9 @@
     }
   }
 
-  function currentAppid() {
-    const route = window.SteamBuff?.ctx?.route?.() || window.tempNavStore?.m_locationPathname || "";
-    const match = String(route).match(/\/library\/app\/(\d+)/);
-    if (match) {
-      return Number(match[1]) || 0;
-    }
-    const href = String(window.location.href || "");
-    const urlMatch = href.match(/[?&]appid=(\d+)/) || href.match(/\/app\/(\d+)/);
-    return urlMatch ? Number(urlMatch[1]) || 0 : 0;
-  }
-
-  function appidValue(value) {
-    const id = Number(value);
-    return Number.isFinite(id) && id > 0 ? id : 0;
-  }
-
-  function scanReactAppid(value, seen, depth) {
-    if (!value || depth > 6 || (typeof value !== "object" && typeof value !== "function")) {
-      return 0;
-    }
-    if (seen.has(value)) {
-      return 0;
-    }
-    seen.add(value);
-    let keys = [];
-    try {
-      keys = Object.keys(value).slice(0, 100);
-    } catch {
-      return 0;
-    }
-    for (const key of keys) {
-      let next;
-      try {
-        next = value[key];
-      } catch {
-        continue;
-      }
-      if (/^(appid|appID|unAppID)$/i.test(key)) {
-        const id = appidValue(next);
-        if (id) {
-          return id;
-        }
-      }
-      const found = scanReactAppid(next, seen, depth + 1);
-      if (found) {
-        return found;
-      }
-    }
-    return 0;
-  }
-
-  function reactAppid(input) {
-    const nodes = [];
-    let cur = input || null;
-    for (let i = 0; cur && i < 10; i += 1, cur = cur.parentElement) {
-      nodes.push(cur);
-    }
-    if (document.body) {
-      // Steam 属性窗口的 AppID 挂在 React props 上，主库路由切换后仍以这里为准。
-      nodes.push(document.body);
-      nodes.push(...Array.from(document.body.querySelectorAll("main, section, div")).slice(0, 300));
-    }
-    const seen = new WeakSet();
-    for (const node of nodes) {
-      if (!node) {
-        continue;
-      }
-      for (const key of Object.keys(node)) {
-        if (!/^__react/.test(key)) {
-          continue;
-        }
-        const id = scanReactAppid(node[key], seen, 0);
-        if (id) {
-          return id;
-        }
-      }
-    }
-    return 0;
-  }
-
   function oneContext(input = sortInput()) {
-    const appid = reactAppid(input) || currentAppid();
     return {
-      appid,
-      title: text(document.title),
+      appid: propertyAppid(input),
     };
   }
 
@@ -828,9 +763,9 @@
     return out.replace(/\s+/g, " ").trim();
   }
 
-  function textInputs() {
-    return Array.from(document.querySelectorAll("input[type='text'], input:not([type])"))
-      .filter(visible);
+  function customSortPanel() {
+    const panels = Array.from(document.querySelectorAll("[role='tabpanel'][id$='/properties/customization_Content']"));
+    return panels.find(panel => /\/app\/\d+\/properties\/customization_Content$/.test(String(panel.id || ""))) || null;
   }
 
   function inputMeta(input) {
@@ -847,17 +782,15 @@
     return inputs.slice(0, 5).map(inputMeta);
   }
 
-  function sortInput(inputs = textInputs()) {
-    return inputs.find(input => SORT_LABEL_RE.test(nearText(input)))
-      || inputs.find(input => /排序|sort/i.test(input.placeholder || input.getAttribute("aria-label") || ""))
-      || null;
+  function sortInput() {
+    return customSortSurface().input;
   }
 
-  function customSortSurface(inputs = textInputs()) {
-    const input = sortInput(inputs);
-    const panel = input?.closest?.("[role='tabpanel'][id*='/properties/customization']") ||
-      input?.closest?.("[role='tabpanel'][id*='/properties/']") ||
-      null;
+  function customSortSurface() {
+    const panel = customSortPanel();
+    const inputs = panel ? Array.from(panel.querySelectorAll("input[type='text']")).filter(visible) : [];
+    // 2026-07-17 live CEF：该 tabpanel 有四个隐藏 file input 和唯一一个 text input；数量变化时停止，不猜目标。
+    const input = inputs.length === 1 ? inputs[0] : null;
     return {
       inputs,
       input,
@@ -886,51 +819,6 @@
     return /hidden|clip|scroll|auto/i.test(`${style.overflow} ${style.overflowX} ${style.overflowY}`);
   }
 
-  function isRowCandidate(input, el) {
-    if (!el || el === document.body || el === document.documentElement) {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    const inputRect = input?.getBoundingClientRect?.();
-    if (!rect || !inputRect || rect.width < inputRect.width || rect.height < inputRect.height) {
-      return false;
-    }
-    const text = String(el.textContent || "").replace(/\s+/g, " ").trim();
-    if (!SORT_LABEL_RE.test(text)) {
-      return false;
-    }
-    return rect.width <= Math.max(inputRect.width + 720, inputRect.width * 4) &&
-      rect.height <= Math.max(inputRect.height + 260, inputRect.height * 8);
-  }
-
-  function fieldRow(input) {
-    let cur = input?.parentElement || null;
-    let best = null;
-    for (let i = 0; cur && i < 9; i += 1, cur = cur.parentElement) {
-      if (isRowCandidate(input, cur)) {
-        best = cur;
-      }
-    }
-    return best;
-  }
-
-  function rowControl(row, input) {
-    if (!row) {
-      return null;
-    }
-    let cur = input?.parentElement || null;
-    let best = null;
-    while (cur && cur !== row) {
-      const rect = cur.getBoundingClientRect();
-      const inputRect = input?.getBoundingClientRect?.();
-      if (rect?.width >= inputRect?.width && !isClipped(cur)) {
-        best = cur;
-      }
-      cur = cur.parentElement;
-    }
-    return best || input?.parentElement || row;
-  }
-
   function clampRect(rect) {
     const width = Math.round(window.innerWidth || document.documentElement?.clientWidth || 0);
     const height = Math.round(window.innerHeight || document.documentElement?.clientHeight || 0);
@@ -948,51 +836,14 @@
     return out.width > 160 && out.height > 80 ? out : null;
   }
 
-  // 三个按钮只悬浮在属性面板底部，不插入 Steam 字段 DOM，避免 React/flex 布局把输入框挤窄。
+  // 工具栏只按 live CEF 已验证的 customization tabpanel 定位，不插入 Steam 字段 DOM。
   function fixedArea(input) {
-    const rect = input?.getBoundingClientRect?.();
-    if (!rect) {
+    const panel = input?.closest?.("[role='tabpanel'][id$='/properties/customization_Content']") || null;
+    if (!panel || !/\/app\/\d+\/properties\/customization_Content$/.test(String(panel.id || ""))) {
       return null;
     }
-    const minWidth = Math.max(320, rect.width + 120);
-    const minHeight = Math.max(220, rect.height * 8);
-    let cur = input?.parentElement || null;
-    const candidates = [];
-    for (let i = 0; cur && i < 12; i += 1, cur = cur.parentElement) {
-      if (cur === document.body || cur === document.documentElement) {
-        break;
-      }
-      const areaRect = clampRect(cur.getBoundingClientRect?.());
-      if (!areaRect || areaRect.width < minWidth || areaRect.height < minHeight) {
-        continue;
-      }
-      candidates.push({
-        el: cur,
-        rect: areaRect,
-        mode: "fixed-area-bottom",
-        clipped: isClipped(cur),
-      });
-    }
-
-    // 右侧内容区通常从侧栏之后开始；优先选择这个稳定区域，避免滚动时在小卡片和外层容器间横跳。
-    const pool = candidates.filter(item => item.rect.left >= 120);
-    const list = pool.length ? pool : candidates;
-    const best = list
-      .map(item => ({
-        ...item,
-        score: item.rect.width * item.rect.height + (item.clipped ? 100000000 : 0),
-      }))
-      .sort((a, b) => b.score - a.score)[0] || null;
-    if (best) {
-      return { el: best.el, rect: best.rect, mode: best.mode };
-    }
-    const viewport = clampRect({
-      left: 0,
-      top: 0,
-      right: window.innerWidth || document.documentElement?.clientWidth || 0,
-      bottom: window.innerHeight || document.documentElement?.clientHeight || 0,
-    });
-    return viewport ? { el: document.body, rect: viewport, mode: "fixed-viewport-bottom" } : null;
+    const rect = clampRect(panel.getBoundingClientRect?.());
+    return rect ? { el: panel, rect, mode: "fixed-panel-bottom" } : null;
   }
 
   function barHost(input) {
@@ -1015,7 +866,7 @@
     bar.hidden = false;
     const barWidth = Math.max(220, Math.ceil(bar.offsetWidth || 0));
     const barHeight = Math.max(38, Math.ceil(bar.offsetHeight || 0));
-    const pad = 12;
+    const pad = 8;
     const leftMin = area.rect.left + pad;
     const leftMax = Math.max(leftMin, area.rect.right - barWidth - pad);
     const topMin = area.rect.top + pad;
@@ -2335,39 +2186,6 @@
     oneBox("获取失败", message || "操作失败", true);
   }
 
-  function oneResult(title, message) {
-    oneBox(title, message || "操作完成", true);
-  }
-
-  function feedbackBox(app, custom) {
-    css();
-    let box = document.getElementById(ONE);
-    if (!box) {
-      box = document.createElement("section");
-      box.id = ONE;
-      box.addEventListener("click", onOneClick);
-      document.body.appendChild(box);
-    }
-    bringDialogToFront(box);
-    box.hidden = false;
-    setTrustedTemplate(box, `
-      <div class="st-lcn-one-panel" role="dialog" aria-modal="true">
-        <div class="st-lcn-one-head"><h3>名称上传云端</h3></div>
-        <div class="st-lcn-one-body">
-          <div class="st-lcn-form">
-            <label>APPID<input type="text" value="${attr(app.appid)}" disabled></label>
-            <label>steam原名<input type="text" value="${attr(app.official_name)}" disabled></label>
-            <label>自定义名<input type="text" value="${attr(custom)}" data-lcn-feedback-name></label>
-          </div>
-        </div>
-        <div class="st-lcn-one-actions">
-          <button class="st-lcn-btn" type="button" data-lcn-one="cancel">取消</button>
-          <button class="st-lcn-btn primary" type="button" data-lcn-one="feedback-submit">提交</button>
-        </div>
-      </div>
-    `, "library-custom-name-feedback-dialog-template");
-  }
-
   function onOneClick(event) {
     const action = event.target.closest?.("[data-lcn-one]")?.dataset?.lcnOne;
     if (!action) {
@@ -2385,9 +2203,6 @@
     if (action === "ok") {
       closeOne();
       return;
-    }
-    if (action === "feedback-submit") {
-      submitFeedback().catch((error) => oneResult("提交失败", error?.message || String(error)));
     }
   }
 
@@ -2421,7 +2236,7 @@
         cur = await backend("current-app", ctx);
       } catch {
       }
-      const appid = Number(cur?.app?.appid) || Number(ctx.appid) || currentAppid();
+      const appid = Number(cur?.app?.appid) || Number(ctx.appid);
       if (!appid) {
         throw new Error("未识别当前游戏 AppID");
       }
@@ -2446,61 +2261,116 @@
     }
   }
 
-  async function openFeedback() {
-    const input = sortInput();
-    const ctx = oneContext(input);
-    let cur = null;
-    try {
-      cur = await backend("current-app", ctx);
-    } catch {
-    }
-    const app = cur?.app || {};
-    const appid = Number(app.appid) || Number(ctx.appid) || currentAppid();
-    if (!appid) {
-      oneResult("名称上传云端失败", "未识别当前游戏 AppID");
-      return;
-    }
-    s.feedback = {
-      appid,
-      official_name: text(app.official_name),
-    };
-    feedbackBox(s.feedback, stripCloudName(text(input?.value) || text(app.current_custom_name)));
+  function uploadCloudChecked() {
+    return document.querySelector(`#${BAR} [data-lcn-auto-upload]`)?.checked === true;
   }
 
-  async function submitFeedback() {
-    const app = s.feedback || {};
-    const name = stripCloudName(document.querySelector(`#${ONE} [data-lcn-feedback-name]`)?.value);
-    if (!Number(app.appid)) {
-      oneResult("提交失败", "未识别当前游戏 AppID");
+  function propertyAppid(input) {
+    const panel = input?.closest?.("[role='tabpanel'][id$='/properties/customization_Content']");
+    const match = String(panel?.id || "").match(/\/app\/(\d+)\/properties\/customization_Content$/);
+    return match ? Number(match[1]) || 0 : 0;
+  }
+
+  function unbindAutoUpload() {
+    if (s.uploadInput) {
+      s.uploadInput.removeEventListener("change", onAutoUploadChange);
+      s.uploadInput = null;
+    }
+    s.uploadReady = false;
+    setAutoUploadReady(false);
+  }
+
+  function setAutoUploadReady(ready) {
+    const control = document.querySelector(`#${BAR} [data-lcn-auto-upload]`);
+    if (control) {
+      control.disabled = ready !== true;
+    }
+  }
+
+  async function resolveAutoUploadReady(input) {
+    const appid = propertyAppid(input);
+    if (!appid) {
+      return false;
+    }
+    try {
+      const result = await backend("auto-upload-ready", { appid }, { retry: 1 });
+      return result?.ready === true;
+    } catch {
+      return false;
+    }
+  }
+
+  function bindAutoUpload(input) {
+    if (s.uploadInput === input) {
+      setAutoUploadReady(s.uploadReady === true);
       return;
     }
-    if (!text(app.official_name)) {
-      oneResult("提交失败", "未识别 Steam 原名");
-      return;
-    }
-    oneBox("名称上传云端", "正在提交...", false);
-    const res = await feedback({
-      appid: Number(app.appid),
-      steam_name: app.official_name,
-      custom_name: name,
+    unbindAutoUpload();
+    s.uploadInput = input;
+    // live CEF 已验证 tabpanel ID 直接包含 AppID；挂载时只做一次精确后端就绪查询，超时最多重试一次。
+    resolveAutoUploadReady(input).then((ready) => {
+      if (s.uploadInput !== input) {
+        return;
+      }
+      s.uploadReady = ready === true;
+      setAutoUploadReady(s.uploadReady);
     });
-    const code = Number(res?.code) || 0;
-    const message = text(res?.message) || "提交完成";
-    oneResult(code >= 200 && code < 300 ? "提交成功" : "提交失败", message);
+    input.addEventListener("change", onAutoUploadChange);
+  }
+
+  function cancelAutoUpload(input = s.uploadInput) {
+    const appid = propertyAppid(input);
+    if (appid) {
+      postBackend("auto-upload-cancel", { appid });
+    }
+  }
+
+  function onAutoUploadChange(event) {
+    const input = event.currentTarget;
+    if (event.isTrusted !== true || input !== s.uploadInput || s.uploadReady !== true) {
+      return;
+    }
+    const appid = propertyAppid(input);
+    if (!appid) {
+      return;
+    }
+    if (!uploadCloudChecked()) {
+      cancelAutoUpload(input);
+      return;
+    }
+    // change 只发送本次用户编辑意图；SharedJSContext 在原生 SetCustomSortAs 成功后负责云端提交。
+    postBackend("auto-upload-intent", {
+      appid,
+      sortAs: String(input.value || ""),
+      customName: stripCloudName(input.value),
+    });
+  }
+
+  function onAutoUploadOptionChange(event) {
+    const control = event.target.closest?.("[data-lcn-auto-upload]");
+    if (!control) {
+      return;
+    }
+    s.autoUploadChecked = control.checked === true;
+    if (!s.autoUploadChecked) {
+      cancelAutoUpload();
+    }
   }
 
   function makeBar() {
     const bar = document.createElement("div");
     bar.id = BAR;
     bar.addEventListener("click", onBarClick);
+    bar.addEventListener("change", onAutoUploadOptionChange);
     bar.addEventListener("keydown", onTipKeydown);
     const tip = CLOUD_TIP_TEXT;
     setTrustedTemplate(bar, `
       <button class="st-lcn-btn" type="button" data-lcn-one>获取云端名称</button>
       <button class="st-lcn-btn" type="button" data-lcn-batch>批量修改名称</button>
-      <button class="st-lcn-btn" type="button" data-lcn-feedback aria-label="名称上传云端">
+      <label class="st-lcn-action-option">
+        <input type="checkbox" data-lcn-auto-upload ${s.autoUploadChecked !== false ? "checked" : ""} disabled>
         ${tipHtml("名称上传云端", tip)}
-      </button>
+      </label>
     `, "library-custom-name-toolbar-template");
 
     return bar;
@@ -2513,8 +2383,7 @@
     closeTips(event.currentTarget);
     const one = event.target.closest?.("[data-lcn-one]");
     const batchBtn = event.target.closest?.("[data-lcn-batch]");
-    const feedBtn = event.target.closest?.("[data-lcn-feedback]");
-    if (!one && !batchBtn && !feedBtn) {
+    if (!one && !batchBtn) {
       return;
     }
 
@@ -2522,10 +2391,6 @@
     event.stopPropagation();
     if (one) {
       fillOne().catch((error) => oneFail(error?.message || String(error)));
-      return;
-    }
-    if (feedBtn) {
-      openFeedback().catch((error) => oneResult("名称上传云端失败", error?.message || String(error)));
       return;
     }
     openBatch();
@@ -2606,6 +2471,7 @@
       const active = hasActiveCustomSortInput();
       const propertyDialog = isPropertyDialog();
       if (!active) {
+        unbindAutoUpload();
         if (hasBar()) {
           clearBars(null);
           closeTips(document);
@@ -2677,6 +2543,7 @@
     const input = surface.input;
     const active = surface.active;
     if (!active) {
+      unbindAutoUpload();
       const hadBar = hasBar();
       clearBars(null);
       if (hadBar) {
@@ -2698,6 +2565,7 @@
       "库自定义名称界面入口已进入目标页"
     );
     if (!input) {
+      unbindAutoUpload();
       clearBars(null);
       logMountState(
         `input-missing:${document.title}:${inputs.length}`,
@@ -2714,6 +2582,7 @@
 
     const result = insertBar(input);
     if (!result.ok) {
+      unbindAutoUpload();
       logMountState(
         `host-missing:${document.title}:${inputs.length}`,
         "warn",
@@ -2727,6 +2596,7 @@
       return;
     }
 
+    bindAutoUpload(input);
     const visibleBar = visibleInViewport(result.bar) && !result.bar.hidden;
     logMountState(
       `mounted:${document.title}:${visibleBar}:${result.mode}:${result.box?.className || ""}`,
@@ -3896,6 +3766,10 @@
     }
     s.started = true;
     s.scope = scope || null;
+    if (typeof s.autoUploadChecked !== "boolean") {
+      s.autoUploadChecked = true;
+    }
+    s.uploadReady = false;
     s.barMountRetryArmed = isPropertyDialog();
     s.resObs = new MutationObserver((items) => {
       for (const item of items) {
@@ -3936,6 +3810,7 @@
       clearSearchTimer();
       clearBarCleanupCheck();
       clearBarMountRetry();
+      unbindAutoUpload();
       clearBatchAsyncState();
       document.removeEventListener("click", onDocumentClick, true);
       document.removeEventListener("keydown", onDocumentKeydown);

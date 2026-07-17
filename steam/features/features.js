@@ -13,6 +13,22 @@
 
   const features = [
     {
+      id: "native-custom-sort-events",
+      name: "Steam 原生自定义排序保存事件",
+      loadStrategy: "on-demand-entry",
+      modes: ["backend"],
+      pageScope: ["SharedJSContext"],
+      cost: "event-hook",
+      entries: {
+        backend: "backend.js",
+      },
+      shouldRun(api, context, ctx = {}) {
+        const sortOn = ctx.settingOn?.("library-sort-title") ?? api.ctx?.settingOn?.("library-sort-title");
+        const nameOn = ctx.settingOn?.("library-custom-name") ?? api.ctx?.settingOn?.("library-custom-name");
+        return context === "backend" && (sortOn !== false || nameOn !== false);
+      },
+    },
+    {
       id: "library-sort-title",
       name: "库标题排序名",
       settingsKey: "library-sort-title",

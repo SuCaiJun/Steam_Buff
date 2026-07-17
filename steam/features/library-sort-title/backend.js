@@ -17,8 +17,8 @@
   const ORIG = "__RickyStOriginalName";
   const ORIGS = "__RickyStOriginalNames";
   const PATCHES = "__RickyStPatchedMethods";
+  const CUSTOM_SORT_EVENTS = "__SteamBuffNativeCustomSortEvents";
   const S_FLAG = "__RickyStSetSortAsPatched";
-  const C_FLAG = "__RickyStSetCustomSortAsPatched";
   const O_FLAG = "__RickyStOverviewChangePatched";
   const SYNC_MS = 5 * 60 * 1000;
   // Steam 启动初期 app overview 会分批到达，hook 未齐前短轮询，齐全后只做低频健康检查。
@@ -470,37 +470,49 @@
     });
   }
 
+  function onCustomSortBefore(data) {
+    if (window[RT]?.scheduled === true) {
+      saveNow(data?.app);
+    }
+  }
+
   // SetCustomSortAs 写入后 Steam 云同步可能延迟覆盖对象，所以立即同步后还要延迟确认一次。
-  function hookCust(store) {
-    return patch(store, "SetCustomSortAs", C_FLAG, (orig) => {
-      return async function custHook(appid, sortAs, ...rest) {
-        if (window[RT]?.scheduled !== true) {
-          return orig.call(this, appid, sortAs, ...rest);
-        }
-        const first = typeof this.GetAppOverviewByAppID === "function" ? this.GetAppOverviewByAppID(appid) : null;
-        saveNow(first);
+  function onCustomSortAfter(data) {
+    const rt = window[RT];
+    if (rt?.scheduled !== true || data?.ok !== true) {
+      return;
+    }
+    const store = data.store;
+    const appid = Number(data.appid) || 0;
+    const sortAs = typeof data.sortAs === "string" ? data.sortAs : "";
+    const first = data.app || null;
+    if (recordBulk(rt, appid, sortAs, true)) {
+      return;
+    }
+    const sync = () => {
+      const app = typeof store?.GetAppOverviewByAppID === "function" ? store.GetAppOverviewByAppID(appid) : first;
+      if (!app) {
+        return;
+      }
+      setCust(app, sortAs);
+      refresh(store, app);
+    };
+    sync();
+    scheduleRuntimeTimeout(rt, "custom-sort-recheck", sync, AFTER_SAVE_RECHECK_MS);
+  }
 
-        const sync = () => {
-          const app = typeof this.GetAppOverviewByAppID === "function" ? this.GetAppOverviewByAppID(appid) : first;
-          if (!app) {
-            return;
-          }
-          setCust(app, sortAs);
-          refresh(this, app);
-        };
-
-        const ret = await orig.call(this, appid, sortAs, ...rest);
-        if (ret !== false) {
-          const rt = window[RT];
-          if (recordBulk(rt, appid, sortAs, true)) {
-            return ret;
-          }
-          sync();
-          scheduleRuntimeTimeout(rt, "custom-sort-recheck", sync, AFTER_SAVE_RECHECK_MS);
-        }
-        return ret;
-      };
-    });
+  function bindCustomSortEvents(rt, store) {
+    const events = window[CUSTOM_SORT_EVENTS];
+    if (!events?.subscribe || !events?.ensure) {
+      return false;
+    }
+    if (!rt.customEventsOff) {
+      rt.customEventsOff = events.subscribe(ID, {
+        before: onCustomSortBefore,
+        after: onCustomSortAfter,
+      });
+    }
+    return typeof rt.customEventsOff === "function" && events.ensure(store) === true;
   }
 
   function hookChange(store) {
@@ -682,7 +694,7 @@
         rt.sortOk = hookSort(apps);
       }
       if (!rt.customOk) {
-        rt.customOk = hookCust(window.appStore);
+        rt.customOk = bindCustomSortEvents(rt, window.appStore);
       }
       if (!rt.changeOk) {
         rt.changeOk = hookChange(window.collectionStore);
@@ -762,6 +774,7 @@
       delayHandle: null,
       sortOk: false,
       customOk: false,
+      customEventsOff: null,
       changeOk: false,
       bootApplied: false,
       syncedOnce: false,
@@ -789,6 +802,8 @@
           window.clearTimeout(rt.delay);
           rt.delay = 0;
         }
+        rt.customEventsOff?.();
+        rt.customEventsOff = null;
         restorePatches();
         window[ORIGS]?.clear?.();
         delete window[ORIGS];

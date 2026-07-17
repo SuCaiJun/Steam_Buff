@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "0.12.05",
+  "version": "0.12.07",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "顾青离",
@@ -41,12 +41,24 @@
     "https://api.sucaijun.com/*",
     "https://aligueler.com/*",
     "https://open.bigmodel.cn/*",
-    "https://steam-buff.ai.sucaijun.com/*"
+    "https://steam-buff.ai.sucaijun.com/*",
+    "https://steam-buff.sucaijun.com/*"
   ],
   "background": {
     "service_worker": "extension/background.js"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://steam-buff.sucaijun.com/wizard/v1/*"
+      ],
+      "js": [
+        "shared/config.js",
+        "onboarding/contract.js",
+        "onboarding/bridge.js"
+      ],
+      "run_at": "document_end"
+    },
     {
       "matches": [
         "https://*.steampowered.com/*",

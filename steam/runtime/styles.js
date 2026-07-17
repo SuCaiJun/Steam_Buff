@@ -46,8 +46,11 @@
       "--st-lcn-bg-soft": colors.bgInputFocus,
       "--st-lcn-bg-dark": colors.bgInput,
       "--st-lcn-bg-black": colors.black,
-      "--st-lcn-bar-bg": cssVar("--st-color-surface-control-strong"),
+      "--st-lcn-bar-bg": cssVar("--st-color-steam-property-window"),
       "--st-lcn-bar-shadow": cssVar("--st-shadow-panel-soft"),
+      "--st-lcn-property-bg": cssVar("--st-color-steam-property-window"),
+      "--st-lcn-property-bg-hover": cssVar("--st-color-bg-card"),
+      "--st-lcn-property-border": cssVar("--st-color-border-normal"),
       "--st-lcn-btn-border": cssVar("--st-color-steam-blue-alpha-55"),
       "--st-lcn-btn-bg": cssVar("--st-color-steam-blue-alpha-28"),
       "--st-lcn-btn-hover-bg": cssVar("--st-color-steam-blue-alpha-36"),
@@ -183,7 +186,7 @@
         width: max-content;
         max-width: min(360px, calc(100vw - 24px));
         margin: 0;
-        padding: 4px;
+        padding: 8px;
         border-radius: 3px;
         background: var(--st-lcn-bar-bg);
         box-shadow: var(--st-lcn-bar-shadow);
@@ -214,6 +217,18 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn:hover:not(:disabled),
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn:hover:not(:disabled) {
         background: var(--st-lcn-btn-hover-bg);
+      }
+      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn,
+      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option {
+        border-color: var(--st-lcn-property-border);
+        background: var(--st-lcn-property-bg);
+      }
+      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn {
+        padding: 0 16px;
+      }
+      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn:hover:not(:disabled),
+      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option:hover {
+        background: var(--st-lcn-property-bg-hover);
       }
       #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-btn.primary,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn.primary,
@@ -265,6 +280,19 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn:disabled,
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn:disabled {
         background: var(--st-lcn-disabled-bg);
+      }
+      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 30px;
+        border: 1px solid var(--st-lcn-property-border);
+        border-radius: 2px;
+        padding: 0 16px;
+        color: var(--st-lcn-white);
+        cursor: pointer;
+        font-size: 12px;
+        white-space: nowrap;
       }
       #${LIBRARY_CUSTOM_NAME_ONE},
       #${LIBRARY_CUSTOM_NAME_MODAL},
@@ -365,28 +393,6 @@
       #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-actions {
         padding: 0 16px 16px;
       }
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-form {
-        display: grid;
-        gap: 10px;
-      }
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-form label {
-        display: grid;
-        gap: 5px;
-        color: var(--st-lcn-text-muted);
-        font-size: 12px;
-      }
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-form input {
-        height: 34px;
-        border: 1px solid var(--st-lcn-input-border);
-        background: var(--st-lcn-input-bg);
-        color: var(--st-lcn-text-primary);
-        padding: 0 10px;
-        outline: none;
-      }
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-form input:disabled {
-        color: var(--st-lcn-text-muted);
-        background: var(--st-lcn-input-bg-disabled);
-      }
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-panel {
         width: min(420px, calc(100vw - 48px));
       }
@@ -475,9 +481,11 @@
         color: var(--st-lcn-text);
         font-size: 12px;
       }
+      #${LIBRARY_CUSTOM_NAME_BAR} input,
       #${LIBRARY_CUSTOM_NAME_MODAL} input {
         accent-color: var(--st-lcn-steam-blue);
       }
+      #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"],
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"],
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"] {
         appearance: none;
@@ -492,6 +500,7 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"] {
         border-radius: 50%;
       }
+      #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"],
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"] {
         border-radius: 2px;
       }
@@ -499,6 +508,7 @@
         border-color: var(--st-lcn-steam-blue);
         background: radial-gradient(circle, var(--st-lcn-steam-blue) 0 36%, transparent 40%), var(--st-lcn-check-checked-bg);
       }
+      #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"]:checked,
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:checked {
         border-color: var(--st-lcn-steam-blue);
         background:
