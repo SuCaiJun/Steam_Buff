@@ -37,6 +37,9 @@
   const IMPORT_SCAN_YIELD = 1000;
   const CLOUD_UPLOAD_MAX = 2000;
   const CLOUD_UPLOAD_DELAY_MS = 0;
+  const IMPORT_MODE_COVER = "cover";
+  const IMPORT_MODE_CHANGES = "changes";
+  const IMPORT_MODES = Object.freeze([IMPORT_MODE_COVER, IMPORT_MODE_CHANGES]);
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
   const STEAM_CUSTOM_LIMIT_TIP = "该限制为 Steam 设置自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功！";
@@ -64,6 +67,7 @@
     mnemonic: false,
     uploadCloud: true,
     localRows: [],
+    localMap: new Map(),
     cloudMap: new Map(),
     stateMap: new Map(),
     rows: [],
@@ -105,6 +109,10 @@
     progressClosed: false,
     progressRenderAt: 0,
     progressTimer: 0,
+    restoreFocus: null,
+    progressRestoreFocus: null,
+    progressNeedsFocus: false,
+    importMode: "",
     message: "等待查询",
   };
 
@@ -122,6 +130,94 @@
       document.body.appendChild(el);
     }
     return el;
+  }
+
+  function focusElement(element) {
+    if (!element?.isConnected || typeof element.focus !== "function") {
+      return false;
+    }
+    try {
+      element.focus({ preventScroll: true });
+    } catch {
+      element.focus();
+    }
+    return true;
+  }
+
+  function restoreDialogFocus(target, fallbackRoot = null) {
+    if (focusElement(target)) {
+      return;
+    }
+    focusElement(fallbackRoot?.querySelector?.("button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex='-1'])"));
+  }
+
+  function focusKey(root, element) {
+    if (!root?.contains?.(element)) {
+      return null;
+    }
+    const attrs = [
+      "data-lcn-close",
+      "data-lcn-action",
+      "data-lcn-page",
+      "data-lcn-select",
+      "data-lcn-search",
+      "data-lcn-check",
+      "data-lcn-name",
+      "data-lcn-upload-cloud",
+      "data-lcn-mnemonic",
+      "data-lcn-type",
+      "data-lcn-progress",
+      "data-lcn-one",
+    ];
+    for (const name of attrs) {
+      if (element.hasAttribute?.(name)) {
+        return { name, value: element.getAttribute(name) || "" };
+      }
+    }
+    if (element.getAttribute?.("name") === "st-lcn-policy") {
+      return { name: "name", value: "st-lcn-policy", option: element.value };
+    }
+    return null;
+  }
+
+  function focusByKey(root, key) {
+    if (!root || !key) {
+      return false;
+    }
+    const candidates = Array.from(root.querySelectorAll(`[${key.name}]`));
+    const next = candidates.find((element) => {
+      if ((element.getAttribute(key.name) || "") !== key.value) {
+        return false;
+      }
+      return key.option === undefined || element.value === key.option;
+    });
+    return focusElement(next);
+  }
+
+  function trapDialogTab(root, event) {
+    if (event.key !== "Tab") {
+      return;
+    }
+    const controls = Array.from(root.querySelectorAll("button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])"))
+      .filter((element) => element.getClientRects().length > 0);
+    if (!controls.length) {
+      event.preventDefault();
+      return;
+    }
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (event.shiftKey && event.target === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && event.target === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function visibleDialog(id) {
+    const dialog = document.getElementById(id);
+    return dialog && !dialog.hidden ? dialog : null;
   }
 
   function text(value) {
@@ -240,8 +336,33 @@
   }
 
   function onDocumentKeydown(event) {
-    if (event.key === "Escape") {
-      closeTips(document);
+    const one = visibleDialog(ONE);
+    const progress = visibleDialog(PROGRESS);
+    const modal = visibleDialog(MODAL);
+    const activeDialog = one || progress || modal;
+    if (activeDialog) {
+      trapDialogTab(activeDialog, event);
+    }
+    if (event.key !== "Escape") {
+      return;
+    }
+    closeTips(document);
+    if (one) {
+      event.preventDefault();
+      event.stopPropagation();
+      dismissOne();
+      return;
+    }
+    if (progress) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeProgressAsk().catch(() => {});
+      return;
+    }
+    if (modal) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeBatchAsk().catch(() => {});
     }
   }
 
@@ -451,7 +572,9 @@
     batch.cloudQueue = [];
     batch.cloudFlush = null;
     batch.cloudFinishing = false;
+    batch.importMode = "";
     batch.localRows = [];
+    batch.localMap = new Map();
     batch.cloudMap = new Map();
     batch.stateMap = new Map();
     batch.rows = [];
@@ -1137,20 +1260,17 @@
     });
   }
 
-  /* 清空后缓存同步：筛选模式会从本地缓存重建行，必须同步避免旧自定义名回弹。 */
+  /* 保存成功后缓存同步：筛选和导出都以本地缓存为准，必须立即更新。 */
   function updateLocalCustomName(appid, name) {
     const id = Number(appid);
     if (!Number.isFinite(id) || id <= 0) {
       return;
     }
     const next = text(name);
-    for (const app of batch.localRows) {
-      if (Number(app?.appid) !== id) {
-        continue;
-      }
+    const app = batch.localMap.get(id);
+    if (app) {
       app.current_custom_name = next;
       app.has_custom_sort_as = !!next;
-      return;
     }
   }
 
@@ -1210,13 +1330,15 @@
         for (const app of apps) {
           const appid = Number(app?.appid);
           if (Number.isFinite(appid) && appid > 0) {
-            batch.localRows.push({
+            const local = {
               appid,
               official_name: text(app.official_name),
               current_custom_name: text(app.current_custom_name),
               has_custom_sort_as: app?.has_custom_sort_as === true || !!text(app.current_custom_name),
               app_type: Number(app.app_type) || 0,
-            });
+            };
+            batch.localRows.push(local);
+            batch.localMap.set(appid, local);
           }
         }
         offset = Number(page.nextOffset) || (offset + apps.length);
@@ -1532,6 +1654,7 @@
 
   function clearLocalRows() {
     batch.localRows = [];
+    batch.localMap = new Map();
     batch.cloudMap = new Map();
     batch.stateMap = new Map();
     batch.searchQuery = "";
@@ -1714,6 +1837,55 @@
     scheduleSearch(true);
   }
 
+  function downloadJson(filename, data) {
+    const blob = new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+      link.remove();
+    }, 0);
+  }
+
+  function exportFileName() {
+    const date = new Date();
+    const pad = (value) => String(value).padStart(2, "0");
+    return `steam-buff-custom-names-${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}.json`;
+  }
+
+  function exportCurrentNames() {
+    const items = batch.localRows
+      .map((app) => ({
+        appid: Number(app?.appid),
+        name: text(app?.current_custom_name),
+      }))
+      .filter((item) => Number.isFinite(item.appid) && item.appid > 0 && item.name)
+      .sort((left, right) => left.appid - right.appid);
+    if (!items.length) {
+      batch.message = "当前没有可导出的自定义排序名称";
+      renderModal();
+      return;
+    }
+    try {
+      downloadJson(exportFileName(), { items });
+      batch.message = `已导出 ${items.length} 项当前自定义排序名称`;
+      log.info("library-custom-name-export-success", "库自定义名称 JSON 导出完成", {
+        exported: items.length,
+      });
+    } catch (error) {
+      batch.message = error?.message || String(error);
+      log.error("library-custom-name-export-failed", "库自定义名称 JSON 导出失败", {
+        error: error?.message || String(error),
+      });
+    }
+    renderModal();
+  }
+
   function readJsonFile(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -1744,21 +1916,47 @@
     return map;
   }
 
-  async function applyImportedNames(names, seq) {
+  function prepareRowsForImport() {
+    batch.policy = "cover";
+    batch.types.game = true;
+    batch.types.software = true;
+    batch.types.tool = true;
+    batch.types.other = true;
+    batch.searchQuery = "";
+    batch.searchNeedle = "";
+    batch.searchSeq += 1;
+    resetSearchState();
+    resetRowsForPolicy();
+    for (const row of batch.rows) {
+      row.checked = false;
+      keepRowState(row);
+    }
+    refreshCounts();
+  }
+
+  function shouldSelectImportedName(mode, row, name) {
+    return mode === IMPORT_MODE_COVER || text(row?.custom) !== text(name);
+  }
+
+  async function applyImportedNames(names, seq, mode) {
+    prepareRowsForImport();
     let matched = 0;
-    let applied = 0;
+    let filled = 0;
+    let selected = 0;
+    let unchanged = 0;
     const total = batch.rows.length;
     for (let i = 0; i < total; i += 1) {
       if (seq !== batch.previewSeq) {
-        return { matched, applied, cancelled: true };
+        return { matched, filled, selected, unchanged, cancelled: true };
       }
       const row = batch.rows[i];
       const name = names.get(Number(row?.appid));
       if (name) {
         matched += 1;
+        const checked = shouldSelectImportedName(mode, row, name);
         updateRowWrite(row, () => {
           row.want = name;
-          row.checked = true;
+          row.checked = checked;
           row.manual = true;
           row.cloudTouched = true;
           row.mnemonicTouched = false;
@@ -1767,7 +1965,12 @@
           refreshRowSearch(row);
         });
         keepRowState(row);
-        applied += 1;
+        filled += 1;
+        if (checked) {
+          selected += 1;
+        } else {
+          unchanged += 1;
+        }
       }
       if (i > 0 && i % IMPORT_SCAN_YIELD === 0) {
         batch.message = `正在导入 JSON ${i}/${total}`;
@@ -1775,14 +1978,19 @@
         await yieldUI();
       }
     }
-    return { matched, applied, cancelled: false };
+    return { matched, filled, selected, unchanged, cancelled: false };
   }
 
-  async function importJsonFile(file) {
+  async function importJsonFile(file, mode) {
     if (!file) {
       return;
     }
-    if (!batch.rows.length) {
+    if (!IMPORT_MODES.includes(mode)) {
+      batch.message = "请选择导入方式";
+      renderModal();
+      return;
+    }
+    if (!batch.localRows.length) {
       batch.message = "请先加载本地列表";
       renderModal();
       return;
@@ -1799,19 +2007,20 @@
       }
       batch.message = `正在匹配 JSON ${names.size} 项`;
       refreshMessage();
-      const result = await applyImportedNames(names, seq);
+      const result = await applyImportedNames(names, seq, mode);
       if (result.cancelled) {
         return;
       }
-      if (searchActive()) {
-        batch.searchSeq += 1;
-        scheduleSearch(false);
-      }
-      batch.message = `导入完成，匹配 ${result.matched} 项，填入 ${result.applied} 项`;
+      batch.message = mode === IMPORT_MODE_COVER
+        ? `覆盖导入完成，匹配 ${result.matched} 项，待写入 ${result.selected} 项`
+        : `仅新增与修改导入完成，匹配 ${result.matched} 项，待写入 ${result.selected} 项，已存在 ${result.unchanged} 项`;
       log.info("library-custom-name-import-success", "库自定义名称 JSON 导入完成", {
+        mode,
         imported: names.size,
         matched: result.matched,
-        applied: result.applied,
+        filled: result.filled,
+        selected: result.selected,
+        unchanged: result.unchanged,
       });
     } catch (error) {
       batch.message = error?.message || String(error);
@@ -2121,9 +2330,13 @@
     }
   }
 
-  function oneBox(title, message, done) {
+  function openOneDialog() {
     css();
     let box = document.getElementById(ONE);
+    const opening = !box || box.hidden;
+    if (opening) {
+      s.oneRestoreFocus = document.activeElement;
+    }
     if (!box) {
       box = document.createElement("section");
       box.id = ONE;
@@ -2132,26 +2345,23 @@
     }
     bringDialogToFront(box);
     box.hidden = false;
+    return box;
+  }
+
+  function oneBox(title, message, done) {
+    const box = openOneDialog();
     setTrustedTemplate(box, `
-      <div class="st-lcn-one-panel" role="dialog" aria-modal="true">
-        <div class="st-lcn-one-head"><h3>${esc(title)}</h3></div>
+      <div class="st-lcn-one-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-one-title" tabindex="-1">
+        <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">${esc(title)}</h3></div>
         <div class="st-lcn-one-body"><div class="st-lcn-one-message">${esc(message)}</div></div>
         ${done ? `<div class="st-lcn-one-actions"><button class="st-lcn-btn primary" type="button" data-lcn-one="ok">确认</button></div>` : ""}
       </div>
     `, "library-custom-name-one-dialog-template");
+    focusElement(box.querySelector("[data-lcn-one='ok']") || box.querySelector(".st-lcn-one-panel"));
   }
 
   function oneConfirm(message, opt = {}) {
-    css();
-    let box = document.getElementById(ONE);
-    if (!box) {
-      box = document.createElement("section");
-      box.id = ONE;
-      box.addEventListener("click", onOneClick);
-      document.body.appendChild(box);
-    }
-    bringDialogToFront(box);
-    box.hidden = false;
+    const box = openOneDialog();
     const title = opt.title || "确认覆盖";
     const cancel = opt.cancel || "取消";
     const confirm = opt.confirm || "继续";
@@ -2163,8 +2373,8 @@
       }
       s.oneResolve = resolve;
       setTrustedTemplate(box, `
-        <div class="st-lcn-one-panel" role="dialog" aria-modal="true">
-          <div class="st-lcn-one-head"><h3>${esc(title)}</h3></div>
+        <div class="st-lcn-one-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-one-title" tabindex="-1">
+          <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">${esc(title)}</h3></div>
           <div class="st-lcn-one-body"><div class="st-lcn-one-message">${esc(message)}${note ? `<div class="st-lcn-one-note${noteClass}">${esc(note)}</div>` : ""}</div></div>
           <div class="st-lcn-one-actions">
             <button class="st-lcn-btn" type="button" data-lcn-one="cancel">${esc(cancel)}</button>
@@ -2172,14 +2382,49 @@
           </div>
         </div>
       `, "library-custom-name-confirm-dialog-template");
+      focusElement(box.querySelector("[data-lcn-one='cancel']"));
     });
+  }
+
+  function chooseImportMode() {
+    batch.importMode = "";
+    const box = openOneDialog();
+    if (s.oneResolve) {
+      s.oneResolve(false);
+      s.oneResolve = null;
+    }
+    setTrustedTemplate(box, `
+      <div class="st-lcn-one-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-one-title" tabindex="-1">
+        <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">选择导入方式</h3></div>
+        <div class="st-lcn-one-body"><div class="st-lcn-one-message">请选择本次 JSON 文件的处理方式</div></div>
+        <div class="st-lcn-one-actions">
+          <button class="st-lcn-btn" type="button" data-lcn-one="cancel">取消</button>
+          <button class="st-lcn-btn" type="button" data-lcn-one="import-cover">覆盖导入</button>
+          <button class="st-lcn-btn primary" type="button" data-lcn-one="import-changes">仅新增与修改</button>
+        </div>
+      </div>
+    `, "library-custom-name-import-mode-dialog-template");
+    focusElement(box.querySelector("[data-lcn-one='cancel']"));
   }
 
   function closeOne() {
     const box = document.getElementById(ONE);
+    const wasOpen = !!box && !box.hidden;
     if (box) {
       box.hidden = true;
     }
+    if (wasOpen) {
+      const modal = visibleDialog(PROGRESS) || visibleDialog(MODAL);
+      restoreDialogFocus(s.oneRestoreFocus, modal);
+      s.oneRestoreFocus = null;
+    }
+  }
+
+  function dismissOne() {
+    const resolve = s.oneResolve;
+    s.oneResolve = null;
+    closeOne();
+    resolve?.(false);
   }
 
   function oneFail(message) {
@@ -2189,6 +2434,19 @@
   function onOneClick(event) {
     const action = event.target.closest?.("[data-lcn-one]")?.dataset?.lcnOne;
     if (!action) {
+      return;
+    }
+    if (action === "import-cover" || action === "import-changes") {
+      batch.importMode = action === "import-cover" ? IMPORT_MODE_COVER : IMPORT_MODE_CHANGES;
+      closeOne();
+      const file = document.querySelector(`#${MODAL} [data-lcn-import-file]`);
+      if (!file) {
+        batch.importMode = "";
+        batch.message = "导入文件选择器不可用";
+        renderModal();
+        return;
+      }
+      file.click();
       return;
     }
     if (action === "confirm" || action === "cancel") {
@@ -2647,13 +2905,13 @@
     const disabled = batch.waitCmd ? " disabled" : "";
     const label = batch.waitCmd ? (paused ? "继续中" : "暂停中") : (paused ? "继续" : "暂停");
     return `
-      <div class="st-lcn-progress-panel">
+      <div class="st-lcn-progress-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-progress-title">
         <div class="st-lcn-progress-head">
-          <h3>${title}</h3>
+          <h3 id="st-lcn-progress-title">${title}</h3>
         </div>
         <div class="st-lcn-progress-body">
           <div class="st-lcn-progress-msg">${esc(summary ? doneMessage : batch.message)}</div>
-          <div class="st-lcn-progress-bar" aria-label="${clear ? "清空进度" : "保存进度"}">
+          <div class="st-lcn-progress-bar" role="progressbar" aria-label="${clear ? "清空进度" : "保存进度"}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${attr(pct)}">
             <div class="st-lcn-progress-fill" data-lcn-progress-value="${attr(pct)}"></div>
           </div>
           <div class="st-lcn-progress-line">${esc(progressLine())}</div>
@@ -2687,9 +2945,10 @@
           <button class="st-lcn-inline-btn" type="button" data-lcn-select="none" ${locked || !rows.length ? "disabled" : ""}>取消全选</button>
         </div>
         <div class="st-lcn-filter-actions">
-          <input class="st-lcn-search" type="search" data-lcn-search value="${attr(batch.searchQuery)}" placeholder="搜索游戏 / AppID / 待写入名" ${batch.saving ? "disabled" : ""}>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-action="import" ${locked ? "disabled" : ""}>导入</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-action="import" ${locked || !batch.localRows.length ? "disabled" : ""}>导入</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-action="export" ${locked || !batch.localRows.length ? "disabled" : ""}>导出</button>
           <input class="st-lcn-file" type="file" data-lcn-import-file accept=".json,application/json">
+          <input class="st-lcn-search" type="search" data-lcn-search value="${attr(batch.searchQuery)}" placeholder="搜索游戏 / AppID / 待写入名" ${batch.saving ? "disabled" : ""}>
         </div>
       </div>
     `;
@@ -2745,10 +3004,10 @@
     const mnemonicChecked = batch.mnemonic && !isRebuildMnemonicPolicy();
     const tip = CLOUD_TIP_TEXT;
     return `
-      <div class="st-lcn-panel">
+      <div class="st-lcn-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-modal-title">
         <div class="st-lcn-head">
-          <h2>批量修改名称</h2>
-          <button class="st-lcn-close" type="button" data-lcn-close>&times;</button>
+          <h2 id="st-lcn-modal-title">批量修改名称</h2>
+          <button class="st-lcn-close" type="button" data-lcn-close aria-label="关闭" title="关闭">&times;</button>
         </div>
         <div class="st-lcn-body">
           <div class="st-lcn-controls">
@@ -2796,6 +3055,7 @@
       const keepSearch = active?.matches?.("[data-lcn-search]");
       const searchStart = keepSearch ? active.selectionStart : 0;
       const searchEnd = keepSearch ? active.selectionEnd : 0;
+      const key = focusKey(modal, active);
       setTrustedTemplate(modal, modalHtml(), "library-custom-name-batch-modal-template");
       bindModalControls(modal);
       if (keepSearch) {
@@ -2807,6 +3067,8 @@
           } catch {
           }
         }
+      } else if (key) {
+        focusByKey(modal, key);
       }
     }
   }
@@ -2925,11 +3187,16 @@
   function renderProgress() {
     const modal = document.getElementById(PROGRESS);
     if (modal) {
+      const key = focusKey(modal, document.activeElement);
       setTrustedTemplate(modal, progressHtml(), "library-custom-name-progress-template");
       const fill = modal.querySelector(".st-lcn-progress-fill[data-lcn-progress-value]");
       if (fill) {
         fill.style.setProperty("--st-lcn-progress", `${fill.dataset.lcnProgressValue || 0}%`);
       }
+      if (!focusByKey(modal, key) && batch.progressNeedsFocus) {
+        focusElement(modal.querySelector("[data-lcn-progress]"));
+      }
+      batch.progressNeedsFocus = false;
       batch.progressRenderAt = now();
     }
   }
@@ -2968,6 +3235,11 @@
 
   function openProgress(summary, render = true) {
     let modal = document.getElementById(PROGRESS);
+    const opening = !modal || modal.hidden;
+    if (opening) {
+      batch.progressRestoreFocus = document.activeElement;
+      batch.progressNeedsFocus = true;
+    }
     if (!modal) {
       modal = document.createElement("section");
       modal.id = PROGRESS;
@@ -2984,11 +3256,17 @@
 
   function closeProgress() {
     const modal = document.getElementById(PROGRESS);
+    const wasOpen = !!modal && !modal.hidden;
     batch.progressClosed = true;
     if (modal) {
       modal.hidden = true;
     }
     clearRuntimeTimer(batch, "progressTimer", "progressHandle");
+    if (wasOpen) {
+      restoreDialogFocus(batch.progressRestoreFocus, visibleDialog(MODAL));
+      batch.progressRestoreFocus = null;
+      batch.progressNeedsFocus = false;
+    }
   }
 
   function cancelSave() {
@@ -3062,6 +3340,10 @@
     css();
     batch.uploadCloud = true;
     let modal = document.getElementById(MODAL);
+    const opening = !modal || modal.hidden;
+    if (opening) {
+      batch.restoreFocus = document.activeElement;
+    }
     if (!modal) {
       modal = document.createElement("section");
       modal.id = MODAL;
@@ -3076,6 +3358,9 @@
     bringDialogToFront(modal);
     modal.hidden = false;
     renderModal();
+    if (opening) {
+      focusElement(modal.querySelector("[data-lcn-close]"));
+    }
     if (!batch.localRows.length && !batch.busy) {
       loadLocalRows().catch((error) => {
         batch.busy = false;
@@ -3097,12 +3382,17 @@
     batch.searchComposing = false;
     backend("cancel-preview").catch(() => {});
     const modal = document.getElementById(MODAL);
+    const wasOpen = !!modal && !modal.hidden;
     if (modal) {
       modal.style.pointerEvents = "none";
       modal.hidden = true;
       window.setTimeout(() => {
         modal.style.pointerEvents = "";
       }, 0);
+    }
+    if (wasOpen) {
+      restoreDialogFocus(batch.restoreFocus, document.getElementById(BAR));
+      batch.restoreFocus = null;
     }
   }
 
@@ -3532,18 +3822,21 @@
       if (row) {
         row.state = item.status || row.state;
         row.error = item.error || "";
-        if (item.status === "success" && item.mode === "clear") {
-          updateLocalCustomName(row.appid, "");
-          row.custom = "";
-          row.want = "";
-          row.manual = false;
-          row.cloudTouched = false;
-          row.mnemonicTouched = false;
-          keepRowState(row);
-          /* 清空成功后要刷新列表计数，但不能让预览 skipped 覆盖保存队列统计。 */
-          const queueStats = { ...batch.stats };
-          refreshCounts();
-          batch.stats = queueStats;
+        if (item.status === "success") {
+          const next = item.mode === "clear" ? "" : text(row.want);
+          updateLocalCustomName(row.appid, next);
+          row.custom = next;
+          if (item.mode === "clear") {
+            row.want = "";
+            row.manual = false;
+            row.cloudTouched = false;
+            row.mnemonicTouched = false;
+            keepRowState(row);
+            /* 清空成功后要刷新列表计数，但不能让预览 skipped 覆盖保存队列统计。 */
+            const queueStats = { ...batch.stats };
+            refreshCounts();
+            batch.stats = queueStats;
+          }
         }
         refreshProgressRow(row);
       }
@@ -3605,7 +3898,10 @@
       clearSelectedNames();
     } else if (action === "import") {
       event.preventDefault();
-      document.querySelector(`#${MODAL} [data-lcn-import-file]`)?.click();
+      chooseImportMode();
+    } else if (action === "export") {
+      event.preventDefault();
+      exportCurrentNames();
     }
   }
 
@@ -3634,8 +3930,13 @@
     const file = event.target.closest("[data-lcn-import-file]");
     if (file) {
       const picked = file.files?.[0] || null;
+      const mode = batch.importMode;
+      batch.importMode = "";
       file.value = "";
-      importJsonFile(picked).catch((error) => {
+      if (!picked) {
+        return;
+      }
+      importJsonFile(picked, mode).catch((error) => {
         batch.busy = false;
         batch.message = error?.message || String(error);
         renderModal();

@@ -24,7 +24,39 @@
   const DONATIONS_API = CFG.supporter("/donations?limit=100");
   const DONATION_CACHE_MS = 60 * 60 * 1000;
   const OPEN_SOURCE_LIBS = Object.freeze(Array.from(CFG.links?.openSourceLibs || CFG.externalLinks?.openSourceLibs || []));
+  const sharedCss = globalThis.STComponents?.css;
+  if (!sharedCss?.dialog || !sharedCss?.button) {
+    throw new Error("[Steam Buff] 关于页面依赖 STComponents 未加载");
+  }
+
+  const SHARED_DIALOG_STYLE = sharedCss.compose(
+    sharedCss.dialog({
+      variant: "content",
+      layerSelectors: ".about-log-layer",
+      openLayerSelectors: ".about-log-layer.show",
+      surfaceSelectors: ".about-log-dialog",
+      openSurfaceSelectors: ".about-log-layer.show .about-log-dialog",
+      headerSelectors: ".about-log-head",
+      titleSelectors: ".about-log-title",
+      closeSelectors: ".about-log-close",
+      bodySelectors: ".about-log-content",
+      layerPosition: "absolute",
+      layerZIndex: "var(--st-z-index-overlay)",
+      width: "min(520px, calc(100% - 24px))",
+      maxHeight: "calc(100% - 40px)",
+      layerPadding: "74px 20px 20px",
+    }),
+    sharedCss.button(".about-log-action", {
+      variant: "secondary",
+      minWidth: "76px",
+    }),
+    sharedCss.button(".about-log-action.primary", {
+      variant: "primary",
+      minWidth: "76px",
+    })
+  );
   const STYLE = `
+    ${SHARED_DIALOG_STYLE}
     .about-link:focus-visible,
     .about-check:focus-visible,
     .about-log-export:focus-visible,
@@ -742,82 +774,13 @@
       }
     }
 
-    .about-log-layer {
-      position: absolute;
-      inset: 0;
-      z-index: 24;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 74px 20px 20px;
-      background: var(--st-color-overlay-soft);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .14s ease;
-    }
-
-    .about-log-layer.show {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    .about-log-dialog {
-      width: min(520px, calc(100% - 24px));
-      border: 1px solid var(--st-color-white-alpha-08);
-      border-radius: 8px;
-      color: var(--st-color-text-primary);
-      background: var(--st-color-bg-card);
-      box-shadow: 0 16px 42px var(--st-color-black-alpha-48);
-      transform: translateY(-8px);
-      transition: transform .14s ease;
-    }
-
-    .about-log-layer.show .about-log-dialog {
-      transform: translateY(0);
-    }
-
-    .about-log-head {
-      min-height: 44px;
-      border-bottom: 1px solid var(--st-color-white-alpha-05);
-      padding: 0 12px 0 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .about-log-title {
-      color: var(--st-color-white);
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.35;
-    }
-
-    .about-log-close {
-      width: 28px;
-      height: 28px;
-      border: 0;
-      border-radius: 4px;
-      color: var(--st-color-text-muted);
-      background: transparent;
-      cursor: pointer;
-      font-size: 20px;
-      line-height: 24px;
-    }
-
-    .about-log-close:hover {
-      color: var(--st-color-text-primary);
-      background: var(--st-color-white-alpha-06);
-    }
-
     .about-log-content {
-      padding: 16px 18px 18px;
       display: grid;
-      gap: 10px;
+      gap: var(--st-dialog-gap);
     }
 
     .about-log-meta {
-      color: var(--st-color-text-muted);
+      color: var(--st-dialog-muted-color);
       font-size: 12px;
       line-height: 1.5;
       white-space: pre-wrap;
@@ -831,11 +794,11 @@
 
     .about-log-dialog-body {
       max-height: min(52vh, calc(1.6em * 15));
-      border: 1px solid var(--st-color-white-alpha-06);
-      border-radius: 6px;
+      border: 1px solid var(--st-dialog-border);
+      border-radius: var(--st-dialog-control-radius);
       padding: 10px 12px;
       color: var(--st-color-text-secondary);
-      background: var(--st-color-bg-input);
+      background: var(--st-dialog-surface-inset);
       font-size: 14px;
       line-height: 1.6;
       white-space: pre-wrap;
@@ -902,35 +865,6 @@
       gap: 10px;
     }
 
-    .about-log-action {
-      min-width: 76px;
-      height: 32px;
-      border: 1px solid var(--st-color-white-alpha-08);
-      border-radius: 5px;
-      padding: 0 16px;
-      color: var(--st-color-text-primary);
-      background: var(--st-color-white-alpha-05);
-      cursor: pointer;
-      font: inherit;
-      font-size: 13px;
-    }
-
-    .about-log-action:hover {
-      border-color: var(--st-color-white-alpha-16);
-      background: var(--st-color-white-alpha-10);
-    }
-
-    .about-log-action.primary {
-      border-color: transparent;
-      color: var(--st-color-white);
-      background: linear-gradient(180deg, var(--st-color-primary) 0%, var(--st-color-primary-dark) 100%);
-      box-shadow: 0 2px 6px var(--st-color-primary-alpha-25);
-    }
-
-    .about-log-action.primary:hover {
-      filter: brightness(1.1);
-      background: linear-gradient(180deg, var(--st-color-primary) 0%, var(--st-color-primary-dark) 100%);
-    }
   `;
 
   let info = null;
@@ -1543,12 +1477,53 @@
     }
   }
 
+  function focusElement(element) {
+    if (!element?.isConnected || typeof element.focus !== "function") {
+      return false;
+    }
+    try {
+      element.focus({ preventScroll: true });
+    } catch {
+      element.focus();
+    }
+    return true;
+  }
+
+  function restoreLogFocus(shadow, target) {
+    if (focusElement(target)) {
+      return;
+    }
+    focusElement(shadow.querySelector("[data-about-log='current'], .about-check, .about-update-link"));
+  }
+
+  function trapLogTab(layer, event) {
+    if (event.key !== "Tab") {
+      return;
+    }
+    const controls = Array.from(layer.querySelectorAll("button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])"))
+      .filter((element) => element.getClientRects().length > 0);
+    if (!controls.length) {
+      event.preventDefault();
+      return;
+    }
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (event.shiftKey && event.target === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && event.target === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   function showLogDialog(shadow, ctx, options = {}) {
     const panel = shadow.querySelector(".panel");
     if (!panel) {
       return Promise.resolve("");
     }
 
+    const restoreTarget = shadow.activeElement;
     panel.querySelector(".about-log-layer")?.remove();
     const layer = document.createElement("div");
     const box = document.createElement("div");
@@ -1563,14 +1538,16 @@
     box.className = "about-log-dialog";
     box.setAttribute("role", "dialog");
     box.setAttribute("aria-modal", "true");
-    box.setAttribute("aria-label", String(options.title || "更新日志"));
+    box.setAttribute("aria-labelledby", "st-about-log-title");
     head.className = "about-log-head";
     title.className = "about-log-title";
+    title.id = "st-about-log-title";
     title.textContent = String(options.title || "更新日志");
     closeBtn.className = "about-log-close";
     closeBtn.type = "button";
     closeBtn.dataset.aboutDialogAction = "close";
     closeBtn.setAttribute("aria-label", "关闭");
+    closeBtn.title = "关闭";
     closeBtn.textContent = "×";
     content.className = "about-log-content";
     logBox.className = "about-log-dialog-body";
@@ -1624,6 +1601,7 @@
         layer.classList.remove("show");
         window.setTimeout(() => {
           layer.remove();
+          restoreLogFocus(shadow, restoreTarget);
           resolve(value);
         }, 120);
       };
@@ -1639,6 +1617,7 @@
         }
       });
       layer.addEventListener("keydown", (event) => {
+        trapLogTab(layer, event);
         if (event.key === "Escape") {
           event.preventDefault();
           event.stopPropagation();

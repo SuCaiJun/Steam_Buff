@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const THEME_VERSION = 'steam-buff-theme-v8';
+  const THEME_VERSION = 'steam-buff-theme-v9';
 
   if (root.STTheme?.version === THEME_VERSION) {
     return;
@@ -35,6 +35,7 @@
     blueDark: '#0078d4',
     steamBlue: '#66c0f4',
     steamPropertyWindow: '#171d25',
+    steamPropertyButton: '#23262e',
 
     gold: '#f5c24a',
     success: '#5ba32b',
@@ -318,6 +319,7 @@
     switchOn: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryDark} 100%)`,
     settingsHeader: 'linear-gradient(180deg, #2a3f5a 0%, #1f2d3d 100%)',
     settingsFeatureActive: `linear-gradient(90deg, ${colors.primarySurface} 0%, rgba(26,159,255,0.05) 100%)`,
+    dialogOverlay: 'radial-gradient(ellipse at top, rgba(42,63,90,0.5) 0%, rgba(27,40,56,0.78) 52%), rgba(11,16,23,0.78)',
   };
 
   const filters = {
@@ -330,6 +332,7 @@
     '--st-color-primary-dark': colors.primaryDark,
     '--st-color-steam-blue': colors.steamBlue,
     '--st-color-steam-property-window': colors.steamPropertyWindow,
+    '--st-color-steam-property-button': colors.steamPropertyButton,
     '--st-color-gold': colors.gold,
     '--st-color-success': colors.success,
     '--st-color-warning': colors.warning,
@@ -605,6 +608,37 @@
     '--st-shadow-steam-toolbar-button': shadows.steamToolbarButton,
     '--st-shadow-switch-checked': shadows.switchChecked,
     '--st-shadow-focus-ring': shadows.focusRing,
+    '--st-dialog-overlay-bg': gradients.dialogOverlay,
+    '--st-dialog-surface': colors.bgBody,
+    '--st-dialog-surface-raised': colors.bgCard,
+    '--st-dialog-surface-inset': colors.bgInput,
+    '--st-dialog-header-bg': gradients.settingsHeader,
+    '--st-dialog-border': colors.borderLight,
+    '--st-dialog-border-hover': colors.borderHover,
+    '--st-dialog-divider': 'rgba(255,255,255,0.05)',
+    '--st-dialog-title-color': colors.white,
+    '--st-dialog-text-color': colors.textPrimary,
+    '--st-dialog-muted-color': colors.textMuted,
+    '--st-dialog-secondary-bg': colors.surfaceSubtle,
+    '--st-dialog-secondary-bg-hover': colors.surfaceSubtleHover,
+    '--st-dialog-primary-bg': gradients.primaryVertical,
+    '--st-dialog-primary-shadow': shadows.buttonPrimary,
+    '--st-dialog-panel-shadow': shadows.panelLarge,
+    '--st-dialog-shadow': shadows.dialog,
+    '--st-dialog-focus-shadow': shadows.focusRing,
+    '--st-dialog-radius': radius.lg,
+    '--st-dialog-control-radius': radius.md,
+    '--st-dialog-shell-header-height': '52px',
+    '--st-dialog-header-height': '44px',
+    '--st-dialog-data-header-height': '48px',
+    '--st-dialog-control-height': '32px',
+    '--st-control-height-regular': '32px',
+    '--st-control-height-compact': '28px',
+    '--st-control-radius': radius.md,
+    '--st-control-focus-shadow': shadows.focusRing,
+    '--st-dialog-body-padding': spacing.lg,
+    '--st-dialog-body-padding-compact': spacing.md,
+    '--st-dialog-gap': spacing.sm,
     '--st-filter-icon-steam-blue': filters.iconSteamBlue,
     '--st-filter-icon-steam-blue-hover': filters.iconSteamBlueHover,
     '--st-radius-xs': radius.xs,

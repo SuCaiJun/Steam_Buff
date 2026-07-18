@@ -87,6 +87,7 @@
     "shared/i18n.js",
     "shared/styles/theme.js",
     "shared/utils/dom.js",
+    "shared/styles/components.js",
     "shared/page-context.js",
     "shared/runtime/kernel.js",
     "shared/runtime/message-bus.js",
@@ -100,6 +101,7 @@
     "shared/i18n.js",
     "shared/styles/theme.js",
     "shared/utils/dom.js",
+    "shared/styles/components.js",
     "settings/ui/assets.js",
     "settings/ui/styles.js",
     "settings/floating-rail.js",
@@ -109,6 +111,8 @@
     "settings/update-reminder.js",
   ]);
   const SETTINGS_UI_SCRIPTS = Object.freeze([
+    "shared/styles/theme.js",
+    "shared/styles/components.js",
     "settings/api/request.js",
     "settings/update-log-renderer.js",
     "settings/update-checker.js",

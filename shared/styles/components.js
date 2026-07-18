@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const COMPONENT_VERSION = 'steam-buff-components-v1';
+  const COMPONENT_VERSION = 'steam-buff-components-v2';
 
   if (root.STComponents?.version === COMPONENT_VERSION) {
     return;
@@ -180,6 +180,104 @@
     },
   });
 
+  const DIALOG_VARIANTS = deepFreeze({
+    shell: {
+      width: 'min(880px, calc(100vw - 40px))',
+      maxHeight: 'calc(100vh - 80px)',
+      layerAlign: 'center',
+      layerPadding: '40px 20px',
+      surfaceBackground: 'var(--st-dialog-surface)',
+      surfaceShadow: 'var(--st-dialog-panel-shadow)',
+      headerHeight: 'var(--st-dialog-shell-header-height)',
+      headerPadding: '0 20px',
+      bodyPadding: '0',
+      surfaceTransform: 'scale(.97)',
+    },
+    standard: {
+      width: 'min(420px, calc(100vw - 32px))',
+      maxHeight: 'calc(100vh - 40px)',
+      layerAlign: 'flex-start',
+      layerPadding: '74px 20px 20px',
+      surfaceBackground: 'var(--st-dialog-surface-raised)',
+      surfaceShadow: 'var(--st-dialog-shadow)',
+      headerHeight: 'var(--st-dialog-header-height)',
+      headerPadding: '0 16px 0 20px',
+      bodyPadding: 'var(--st-dialog-body-padding)',
+      surfaceTransform: 'translateY(-8px)',
+    },
+    content: {
+      width: 'min(520px, calc(100vw - 32px))',
+      maxHeight: 'calc(100vh - 40px)',
+      layerAlign: 'flex-start',
+      layerPadding: 'max(56px, 8vh) 20px 20px',
+      surfaceBackground: 'var(--st-dialog-surface-raised)',
+      surfaceShadow: 'var(--st-dialog-shadow)',
+      headerHeight: 'var(--st-dialog-header-height)',
+      headerPadding: '0 16px 0 20px',
+      bodyPadding: 'var(--st-dialog-body-padding)',
+      surfaceTransform: 'translateY(-8px)',
+    },
+    data: {
+      width: 'min(880px, calc(100vw - 48px))',
+      maxHeight: 'calc(100vh - 48px)',
+      layerAlign: 'center',
+      layerPadding: '24px',
+      surfaceBackground: 'var(--st-dialog-surface)',
+      surfaceShadow: 'var(--st-dialog-panel-shadow)',
+      headerHeight: 'var(--st-dialog-data-header-height)',
+      headerPadding: '0 16px',
+      bodyPadding: 'var(--st-dialog-body-padding-compact)',
+      surfaceTransform: 'translateY(-8px)',
+    },
+    progress: {
+      width: 'min(420px, calc(100vw - 48px))',
+      maxHeight: 'calc(100vh - 48px)',
+      layerAlign: 'center',
+      layerPadding: '24px',
+      surfaceBackground: 'var(--st-dialog-surface)',
+      surfaceShadow: 'var(--st-dialog-panel-shadow)',
+      headerHeight: 'var(--st-dialog-header-height)',
+      headerPadding: '0 20px',
+      bodyPadding: 'var(--st-dialog-body-padding)',
+      surfaceTransform: 'translateY(-8px)',
+    },
+  });
+
+  const BUTTON_VARIANTS = deepFreeze({
+    secondary: {
+      border: '1px solid var(--st-dialog-border)',
+      color: 'var(--st-dialog-text-color)',
+      background: 'var(--st-dialog-secondary-bg)',
+      hoverBorder: 'var(--st-dialog-border-hover)',
+      hoverBackground: 'var(--st-dialog-secondary-bg-hover)',
+      shadow: 'none',
+    },
+    primary: {
+      border: '1px solid transparent',
+      color: 'var(--st-color-white)',
+      background: 'var(--st-dialog-primary-bg)',
+      hoverBorder: 'transparent',
+      hoverBackground: 'var(--st-dialog-primary-bg)',
+      shadow: 'var(--st-dialog-primary-shadow)',
+    },
+    danger: {
+      border: '1px solid var(--st-color-alert-danger-alpha-45)',
+      color: 'var(--st-color-danger-text)',
+      background: 'var(--st-color-danger-alpha-72)',
+      hoverBorder: 'var(--st-color-danger)',
+      hoverBackground: 'var(--st-color-danger-soft-alpha-72)',
+      shadow: 'none',
+    },
+    ghost: {
+      border: '1px solid transparent',
+      color: 'var(--st-dialog-muted-color)',
+      background: 'transparent',
+      hoverBorder: 'transparent',
+      hoverBackground: 'var(--st-dialog-secondary-bg-hover)',
+      shadow: 'none',
+    },
+  });
+
   function styleOptions(name, options = {}) {
     const defaults = STYLE_BLOCK_DEFAULTS[name] || {};
     return {
@@ -194,11 +292,21 @@
   }
 
   function selectorList(selectors) {
-    const list = Array.isArray(selectors) ? selectors : [selectors];
-    return list
+    return selectorItems(selectors)
       .map((selector) => String(selector || '').trim())
       .filter(Boolean)
       .join(',\n');
+  }
+
+  function selectorItems(selectors) {
+    return (Array.isArray(selectors) ? selectors : [selectors])
+      .flat(Infinity)
+      .map((selector) => String(selector || '').trim())
+      .filter(Boolean);
+  }
+
+  function withSuffix(selectors, suffix) {
+    return selectorItems(selectors).map((selector) => `${selector}${suffix}`);
   }
 
   function normalizeDeclaration(line) {
@@ -243,6 +351,222 @@
 
   function variableRule(selectors, variables = {}) {
     return buildRule(selectors, variables);
+  }
+
+  function dialogCss(options = {}) {
+    const variant = {
+      ...(DIALOG_VARIANTS[options.variant] || DIALOG_VARIANTS.standard),
+      ...options,
+    };
+    const layer = options.layerSelectors;
+    const surface = options.surfaceSelectors;
+    const close = options.closeSelectors;
+    const motionSelectors = selectorItems([layer, surface]);
+    const surfaceRules = [
+      `width: ${variant.width}`,
+      `max-height: ${variant.maxHeight}`,
+      'border: 1px solid var(--st-dialog-border)',
+      'border-radius: var(--st-dialog-radius)',
+      'color: var(--st-dialog-text-color)',
+      `background: ${variant.surfaceBackground}`,
+      `box-shadow: ${variant.surfaceShadow}`,
+      'overflow: hidden',
+      `transform: ${variant.surfaceTransform}`,
+      'transition: transform var(--st-motion-fast)',
+    ];
+    if (variant.surfacePadding !== null && variant.surfacePadding !== undefined) {
+      surfaceRules.push(`padding: ${variant.surfacePadding}`);
+    }
+
+    return composeCss(
+      buildRule(layer, [
+        `position: ${variant.layerPosition || 'fixed'}`,
+        'inset: 0',
+        `z-index: ${variant.layerZIndex || 'var(--st-z-index-dialog)'}`,
+        'display: flex',
+        `align-items: ${variant.layerAlign}`,
+        'justify-content: center',
+        'box-sizing: border-box',
+        `padding: ${variant.layerPadding}`,
+        'background: var(--st-dialog-overlay-bg)',
+        'opacity: 0',
+        'pointer-events: none',
+        'transition: opacity var(--st-motion-fast)',
+      ]),
+      buildRule(options.openLayerSelectors, [
+        'opacity: 1',
+        'pointer-events: auto',
+      ]),
+      buildRule(surface, surfaceRules),
+      buildRule(options.openSurfaceSelectors, [
+        'transform: none',
+      ]),
+      buildRule(options.headerSelectors, [
+        `min-height: ${variant.headerHeight}`,
+        `padding: ${variant.headerPadding}`,
+        'display: flex',
+        'align-items: center',
+        'justify-content: space-between',
+        'gap: var(--st-dialog-gap)',
+        'border-bottom: 1px solid var(--st-dialog-divider)',
+        'background: var(--st-dialog-header-bg)',
+      ]),
+      buildRule(options.titleSelectors, [
+        'margin: 0',
+        'color: var(--st-dialog-title-color)',
+        'font-size: var(--st-font-size-dialog-title)',
+        'font-weight: var(--st-font-weight-semibold)',
+        'line-height: var(--st-line-height-body)',
+      ]),
+      buildRule(close, [
+        'position: relative',
+        'flex: 0 0 auto',
+        'width: var(--st-control-height-compact)',
+        'height: var(--st-control-height-compact)',
+        'border: 0',
+        'border-radius: var(--st-control-radius)',
+        'padding: 0',
+        'color: var(--st-dialog-muted-color)',
+        'background: transparent',
+        'cursor: pointer',
+        'font-size: 0',
+        'line-height: 0',
+      ]),
+      buildRule(withSuffix(close, '::before'), [
+        'content: ""',
+        'position: absolute',
+        'left: 50%',
+        'top: 50%',
+        'width: 12px',
+        'height: 1px',
+        'border-radius: 1px',
+        'background: currentColor',
+        'transform: translate(-50%, -50%) rotate(45deg)',
+      ]),
+      buildRule(withSuffix(close, '::after'), [
+        'content: ""',
+        'position: absolute',
+        'left: 50%',
+        'top: 50%',
+        'width: 12px',
+        'height: 1px',
+        'border-radius: 1px',
+        'background: currentColor',
+        'transform: translate(-50%, -50%) rotate(-45deg)',
+      ]),
+      buildRule([
+        ...withSuffix(close, ':hover'),
+        ...withSuffix(close, ':focus-visible'),
+      ], [
+        'color: var(--st-dialog-text-color)',
+        'background: var(--st-dialog-secondary-bg-hover)',
+        'outline: none',
+      ]),
+      buildRule(withSuffix(close, ':focus-visible'), [
+        'box-shadow: var(--st-control-focus-shadow)',
+      ]),
+      buildRule(options.bodySelectors, [
+        'min-height: 0',
+        `padding: ${variant.bodyPadding}`,
+        'color: var(--st-dialog-text-color)',
+      ]),
+      buildRule(options.footerSelectors, [
+        'padding: var(--st-dialog-body-padding)',
+        'display: flex',
+        'align-items: center',
+        'justify-content: flex-end',
+        'flex-wrap: wrap',
+        'gap: var(--st-dialog-gap)',
+      ]),
+      motionSelectors.length ? `@media (prefers-reduced-motion: reduce) {\n${buildRule(motionSelectors, ['transition: none'])}\n}` : ''
+    );
+  }
+
+  function buttonCss(selectors, options = {}) {
+    const variant = BUTTON_VARIANTS[options.variant] || BUTTON_VARIANTS.secondary;
+    const compact = options.density === 'compact';
+    const height = compact ? 'var(--st-control-height-compact)' : 'var(--st-control-height-regular)';
+    const padding = options.padding || (compact ? '0 var(--st-spacing-md)' : '0 var(--st-spacing-lg)');
+    const fontSize = compact ? 'var(--st-font-size-caption)' : 'var(--st-font-size-body-small)';
+    const minWidth = options.minWidth ? `min-width: ${options.minWidth}` : '';
+
+    return composeCss(
+      buildRule(selectors, [
+        `height: ${height}`,
+        minWidth,
+        `border: ${variant.border}`,
+        'border-radius: var(--st-control-radius)',
+        `padding: ${padding}`,
+        'display: inline-flex',
+        'align-items: center',
+        'justify-content: center',
+        'gap: var(--st-spacing-xs)',
+        `color: ${variant.color}`,
+        `background: ${variant.background}`,
+        `box-shadow: ${variant.shadow}`,
+        'font-family: inherit',
+        `font-size: ${fontSize}`,
+        'font-weight: var(--st-font-weight-medium)',
+        'line-height: 1',
+        'white-space: nowrap',
+        'cursor: pointer',
+        'transition: filter var(--st-motion-fast), background-color var(--st-motion-fast), border-color var(--st-motion-fast), box-shadow var(--st-motion-fast)',
+      ]),
+      buildRule(withSuffix(selectors, ':hover:not(:disabled)'), [
+        `border-color: ${variant.hoverBorder}`,
+        `background: ${variant.hoverBackground}`,
+        options.variant === 'primary' ? 'filter: brightness(1.1)' : '',
+      ]),
+      buildRule(withSuffix(selectors, ':focus-visible'), [
+        'outline: none',
+        'border-color: var(--st-color-primary)',
+        'box-shadow: var(--st-control-focus-shadow)',
+      ]),
+      buildRule(withSuffix(selectors, ':disabled'), [
+        'color: var(--st-color-text-disabled)',
+        'border-color: var(--st-color-border-normal)',
+        'background: var(--st-color-surface-disabled)',
+        'box-shadow: none',
+        'filter: none',
+        'cursor: not-allowed',
+      ]),
+      buildRule(withSuffix(selectors, '[aria-busy="true"]'), [
+        'pointer-events: none',
+        'cursor: progress',
+      ])
+    );
+  }
+
+  function fieldCss(selectors, options = {}) {
+    const compact = options.density === 'compact';
+    const height = compact ? 'var(--st-control-height-compact)' : 'var(--st-control-height-regular)';
+    const padding = options.padding || (compact ? '0 var(--st-spacing-sm)' : '0 var(--st-spacing-md)');
+    const fontSize = compact ? 'var(--st-font-size-caption)' : 'var(--st-font-size-body-small)';
+
+    return composeCss(
+      buildRule(selectors, [
+        `height: ${height}`,
+        'border: 1px solid var(--st-dialog-border)',
+        'border-radius: var(--st-control-radius)',
+        `padding: ${padding}`,
+        'color: var(--st-dialog-text-color)',
+        'background: var(--st-dialog-surface-inset)',
+        'font-family: inherit',
+        `font-size: ${fontSize}`,
+        'outline: none',
+        'transition: border-color var(--st-motion-fast), background-color var(--st-motion-fast), box-shadow var(--st-motion-fast)',
+      ]),
+      buildRule(withSuffix(selectors, ':focus'), [
+        'border-color: var(--st-color-primary)',
+        'box-shadow: var(--st-control-focus-shadow)',
+      ]),
+      buildRule(withSuffix(selectors, ':disabled'), [
+        'color: var(--st-color-text-disabled)',
+        'border-color: var(--st-color-border-normal)',
+        'background: var(--st-color-surface-disabled)',
+        'cursor: not-allowed',
+      ])
+    );
   }
 
   function surfaceCardCss(selectors, options = {}) {
@@ -400,6 +724,9 @@
     compose: composeCss,
     rule: buildRule,
     variables: variableRule,
+    dialog: dialogCss,
+    button: buttonCss,
+    field: fieldCss,
     surfaceCard: surfaceCardCss,
     progress: progressCss,
     notice: noticeCss,

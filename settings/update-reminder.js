@@ -21,83 +21,45 @@
   };
 
   const ROOT = "__SteamBuffUpdateReminder";
+  const sharedCss = globalThis.STComponents?.css;
+  if (!sharedCss?.dialog || !sharedCss?.button) {
+    throw new Error("[Steam Buff] 更新提醒依赖 STComponents 未加载");
+  }
+
+  const SHARED_STYLE = sharedCss.compose(
+    sharedCss.dialog({
+      variant: "content",
+      layerSelectors: ".layer",
+      openLayerSelectors: ".layer.show",
+      surfaceSelectors: ".dialog",
+      openSurfaceSelectors: ".layer.show .dialog",
+      headerSelectors: ".head",
+      titleSelectors: ".title",
+      closeSelectors: ".close",
+      bodySelectors: ".content",
+    }),
+    sharedCss.button(".action", {
+      variant: "secondary",
+      minWidth: "96px",
+    }),
+    sharedCss.button(".action.primary", {
+      variant: "primary",
+      minWidth: "96px",
+    })
+  );
   const STYLE = `
+    ${SHARED_STYLE}
     :host {
       all: initial;
       color-scheme: dark;
       font-family: var(--st-font-family-base, "Motiva Sans", "Microsoft YaHei", Arial, sans-serif);
     }
-    .layer {
-      position: fixed;
-      inset: 0;
-      z-index: 2147483646;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      box-sizing: border-box;
-      padding: max(56px, 8vh) 20px 20px;
-      background: var(--st-color-overlay-soft);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .16s ease;
-    }
-    .layer.show {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .dialog {
-      width: min(520px, calc(100vw - 32px));
-      border: 1px solid var(--st-color-white-alpha-08);
-      border-radius: 8px;
-      color: var(--st-color-text-primary);
-      background: var(--st-color-bg-card);
-      box-shadow: 0 16px 42px var(--st-color-black-alpha-48);
-      transform: translateY(-8px);
-      transition: transform .16s ease;
-      overflow: hidden;
-    }
-    .layer.show .dialog {
-      transform: translateY(0);
-    }
-    .head {
-      min-height: 44px;
-      border-bottom: 1px solid var(--st-color-white-alpha-05);
-      padding: 0 12px 0 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-    .title {
-      color: var(--st-color-white);
-      font-size: 16px;
-      font-weight: 650;
-      line-height: 1.35;
-    }
-    .close {
-      width: 28px;
-      height: 28px;
-      border: 0;
-      border-radius: 4px;
-      color: var(--st-color-text-muted);
-      background: transparent;
-      cursor: pointer;
-      font-size: 20px;
-      line-height: 24px;
-    }
-    .close:hover,
-    .close:focus-visible {
-      color: var(--st-color-text-primary);
-      background: var(--st-color-white-alpha-06);
-      outline: none;
-    }
     .content {
-      padding: 16px 18px 18px;
       display: grid;
-      gap: 10px;
+      gap: var(--st-dialog-gap);
     }
     .meta {
-      color: var(--st-color-text-muted);
+      color: var(--st-dialog-muted-color);
       font-size: 12px;
       line-height: 1.5;
       white-space: pre-wrap;
@@ -109,11 +71,11 @@
     }
     .body {
       max-height: min(52vh, calc(1.6em * 15));
-      border: 1px solid var(--st-color-white-alpha-06);
-      border-radius: 6px;
+      border: 1px solid var(--st-dialog-border);
+      border-radius: var(--st-control-radius);
       padding: 10px 12px;
       color: var(--st-color-text-secondary);
-      background: var(--st-color-bg-input);
+      background: var(--st-dialog-surface-inset);
       font-size: 14px;
       line-height: 1.6;
       white-space: pre-wrap;
@@ -170,36 +132,6 @@
       justify-content: flex-end;
       gap: 10px;
     }
-    .action {
-      min-width: 96px;
-      height: 32px;
-      border: 1px solid var(--st-color-white-alpha-08);
-      border-radius: 5px;
-      padding: 0 16px;
-      color: var(--st-color-text-primary);
-      background: var(--st-color-white-alpha-05);
-      cursor: pointer;
-      font: inherit;
-      font-size: 13px;
-      white-space: nowrap;
-    }
-    .action:hover,
-    .action:focus-visible {
-      border-color: var(--st-color-white-alpha-16);
-      background: var(--st-color-white-alpha-10);
-      outline: none;
-    }
-    .action.primary {
-      border-color: transparent;
-      color: var(--st-color-white);
-      background: linear-gradient(180deg, var(--st-color-primary) 0%, var(--st-color-primary-dark) 100%);
-      box-shadow: 0 2px 6px var(--st-color-primary-alpha-25);
-    }
-    .action.primary:hover,
-    .action.primary:focus-visible {
-      filter: brightness(1.1);
-      background: linear-gradient(180deg, var(--st-color-primary) 0%, var(--st-color-primary-dark) 100%);
-    }
     @media (max-width: 480px) {
       .layer {
         align-items: center;
@@ -235,14 +167,51 @@
     });
   }
 
+  function restoreFocus(host) {
+    const target = host?.__stRestoreFocus;
+    if (!target?.isConnected || typeof target.focus !== "function") {
+      return;
+    }
+    try {
+      target.focus({ preventScroll: true });
+    } catch {
+      target.focus();
+    }
+  }
+
   function close(host) {
     const layer = host?.shadowRoot?.querySelector(".layer");
     if (!layer) {
       host?.remove?.();
+      restoreFocus(host);
       return;
     }
     layer.classList.remove("show");
-    window.setTimeout(() => host.remove(), 160);
+    window.setTimeout(() => {
+      host.remove();
+      restoreFocus(host);
+    }, 160);
+  }
+
+  function trapTab(shadow, event) {
+    if (event.key !== "Tab") {
+      return;
+    }
+    const controls = Array.from(shadow.querySelectorAll("button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])"))
+      .filter((element) => element.getClientRects().length > 0);
+    if (!controls.length) {
+      event.preventDefault();
+      return;
+    }
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (event.shiftKey && shadow.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && shadow.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   function build(info) {
@@ -253,14 +222,15 @@
     const current = api.verLabel(info.current);
 
     host.id = ROOT;
+    host.__stRestoreFocus = document.activeElement;
     const logHtml = api.latestHtml(latest);
     const template = `
       <style>${STYLE}</style>
       <div class="layer" role="presentation">
-        <section class="dialog" role="dialog" aria-modal="true" aria-label="Steam Buff 发现新版本">
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="st-update-reminder-title">
           <header class="head">
-            <div class="title">Steam Buff 发现新版本</div>
-            <button class="close" type="button" data-action="close" aria-label="关闭">×</button>
+            <div class="title" id="st-update-reminder-title">Steam Buff 发现新版本</div>
+            <button class="close" type="button" data-action="close" aria-label="关闭" title="关闭">×</button>
           </header>
           <div class="content">
             <div class="meta">当前版本：${api.esc(current)}
@@ -294,6 +264,7 @@
       }
     });
     shadow.addEventListener("keydown", (event) => {
+      trapTab(shadow, event);
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();

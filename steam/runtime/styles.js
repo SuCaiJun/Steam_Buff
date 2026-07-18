@@ -32,76 +32,102 @@
 
   function libraryCustomNameVars() {
     const theme = root.STTheme || {};
-    const colors = theme.colors || {};
     const typography = theme.typography || {};
     return {
       "--st-lcn-font": typography.fontFamily,
-      "--st-lcn-white": colors.white,
-      "--st-lcn-steam-blue": colors.steamBlue,
-      "--st-lcn-text": colors.textSecondary,
-      "--st-lcn-text-primary": colors.textPrimary,
-      "--st-lcn-text-muted": colors.textMuted,
-      "--st-lcn-text-disabled": colors.textDisabled,
-      "--st-lcn-bg": colors.bgBody,
-      "--st-lcn-bg-soft": colors.bgInputFocus,
-      "--st-lcn-bg-dark": colors.bgInput,
-      "--st-lcn-bg-black": colors.black,
-      "--st-lcn-bar-bg": cssVar("--st-color-steam-property-window"),
-      "--st-lcn-bar-shadow": cssVar("--st-shadow-panel-soft"),
-      "--st-lcn-property-bg": cssVar("--st-color-steam-property-window"),
+      "--st-lcn-property-bg": cssVar("--st-color-steam-property-button"),
       "--st-lcn-property-bg-hover": cssVar("--st-color-bg-card"),
       "--st-lcn-property-border": cssVar("--st-color-border-normal"),
-      "--st-lcn-btn-border": cssVar("--st-color-steam-blue-alpha-55"),
-      "--st-lcn-btn-bg": cssVar("--st-color-steam-blue-alpha-28"),
-      "--st-lcn-btn-hover-bg": cssVar("--st-color-steam-blue-alpha-36"),
-      "--st-lcn-primary-gradient": cssVar("--st-gradient-primary-horizontal"),
-      "--st-lcn-primary-border": cssVar("--st-color-steam-blue-alpha-55"),
-      "--st-lcn-danger-border": cssVar("--st-color-alert-danger-alpha-45"),
-      "--st-lcn-danger-bg": cssVar("--st-color-danger-alpha-72"),
-      "--st-lcn-danger-bg-hover": cssVar("--st-color-danger-soft-alpha-72"),
       "--st-lcn-success-border": cssVar("--st-color-success-bright-alpha-55"),
       "--st-lcn-success-bg": cssVar("--st-color-success-bright-alpha-50"),
-      "--st-lcn-success-bg-hover": colors.success,
+      "--st-lcn-success-bg-hover": cssVar("--st-color-success"),
       "--st-lcn-spinner-border": cssVar("--st-color-white-alpha-35"),
-      "--st-lcn-disabled-bg": cssVar("--st-color-black-alpha-35"),
-      "--st-lcn-disabled-border": colors.borderNormal,
-      "--st-lcn-overlay": cssVar("--st-color-black-alpha-58"),
-      "--st-lcn-overlay-strong": cssVar("--st-color-black-alpha-60"),
-      "--st-lcn-panel-border": cssVar("--st-color-steam-blue-alpha-20"),
-      "--st-lcn-panel-border-soft": cssVar("--st-color-steam-blue-alpha-18"),
-      "--st-lcn-panel-shadow": cssVar("--st-shadow-panel"),
-      "--st-lcn-divider": cssVar("--st-color-white-alpha-10"),
-      "--st-lcn-divider-soft": cssVar("--st-color-white-alpha-06"),
-      "--st-lcn-input-border": cssVar("--st-color-white-alpha-12"),
-      "--st-lcn-input-border-strong": cssVar("--st-color-white-alpha-14"),
-      "--st-lcn-input-bg": cssVar("--st-color-black-alpha-32"),
-      "--st-lcn-input-bg-disabled": cssVar("--st-color-black-alpha-20"),
       "--st-lcn-progress-bg": cssVar("--st-color-black-alpha-35"),
-      "--st-lcn-check-border": cssVar("--st-color-steam-blue-alpha-55"),
-      "--st-lcn-check-bg": cssVar("--st-color-black-alpha-22"),
-      "--st-lcn-check-disabled-border": colors.textDisabled,
-      "--st-lcn-check-disabled-checked-border": colors.textSecondary,
-      "--st-lcn-check-disabled-bg": cssVar("--st-color-white-alpha-08"),
-      "--st-lcn-check-checked-bg": cssVar("--st-color-steam-blue-alpha-16"),
-      "--st-lcn-check-disabled-checked-bg": cssVar("--st-color-white-alpha-12"),
-      "--st-lcn-check-mark-dark": colors.bgInput,
-      "--st-lcn-inline-border": cssVar("--st-color-steam-blue-alpha-34"),
-      "--st-lcn-inline-bg": cssVar("--st-color-steam-blue-alpha-08"),
-      "--st-lcn-inline-bg-hover": cssVar("--st-color-steam-blue-alpha-16"),
       "--st-lcn-tip-border": cssVar("--st-color-steam-blue-alpha-72"),
       "--st-lcn-tip-border-hover": cssVar("--st-color-steam-blue-alpha-72"),
       "--st-lcn-tip-bg": cssVar("--st-color-steam-blue-alpha-12"),
       "--st-lcn-tip-bg-hover": cssVar("--st-color-steam-blue-alpha-28"),
       "--st-lcn-popover-shadow": cssVar("--st-shadow-panel-menu"),
-      "--st-lcn-search-bg": cssVar("--st-color-body-alpha-88"),
-      "--st-lcn-search-border": cssVar("--st-color-steam-blue-alpha-28"),
-      "--st-lcn-search-focus": cssVar("--st-color-steam-blue-alpha-72"),
-      "--st-lcn-search-shadow": cssVar("--st-shadow-focus-ring"),
       "--st-lcn-empty-border": cssVar("--st-color-white-alpha-12"),
       "--st-lcn-row-ok": cssVar("--st-color-success-alpha-12"),
       "--st-lcn-row-fail": cssVar("--st-color-danger-alpha-12"),
     };
   }
+
+  const libraryCustomNameSharedCss = components.css.compose(
+    components.css.dialog({
+      variant: "standard",
+      layerSelectors: `#${LIBRARY_CUSTOM_NAME_ONE}`,
+      openLayerSelectors: `#${LIBRARY_CUSTOM_NAME_ONE}:not([hidden])`,
+      surfaceSelectors: `#${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-panel`,
+      openSurfaceSelectors: `#${LIBRARY_CUSTOM_NAME_ONE}:not([hidden]) .st-lcn-one-panel`,
+      headerSelectors: `#${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-head`,
+      titleSelectors: `#${LIBRARY_CUSTOM_NAME_ONE} h3`,
+      bodySelectors: `#${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-body`,
+      footerSelectors: `#${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-actions`,
+      layerAlign: "center",
+      layerPadding: "24px",
+      layerZIndex: "var(--st-z-index-max)",
+      width: "min(380px, calc(100vw - 48px))",
+      maxHeight: "calc(100vh - 48px)",
+    }),
+    components.css.dialog({
+      variant: "data",
+      layerSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL}`,
+      openLayerSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL}:not([hidden])`,
+      surfaceSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-panel`,
+      openSurfaceSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL}:not([hidden]) .st-lcn-panel`,
+      headerSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-head`,
+      titleSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL} h2`,
+      closeSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-close`,
+      bodySelectors: `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-body`,
+      layerZIndex: "var(--st-z-index-max)",
+      width: "min(780px, calc(100vw - 48px))",
+      maxHeight: "min(620px, calc(100vh - 48px))",
+    }),
+    components.css.dialog({
+      variant: "progress",
+      layerSelectors: `#${LIBRARY_CUSTOM_NAME_PROGRESS}`,
+      openLayerSelectors: `#${LIBRARY_CUSTOM_NAME_PROGRESS}:not([hidden])`,
+      surfaceSelectors: `#${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-panel`,
+      openSurfaceSelectors: `#${LIBRARY_CUSTOM_NAME_PROGRESS}:not([hidden]) .st-lcn-progress-panel`,
+      headerSelectors: `#${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-head`,
+      titleSelectors: `#${LIBRARY_CUSTOM_NAME_PROGRESS} h3`,
+      bodySelectors: `#${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-body`,
+      layerZIndex: "var(--st-z-index-max)",
+    }),
+    components.css.button([
+      `#${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn`,
+      `#${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-btn`,
+      `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn`,
+      `#${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn`,
+      `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn`,
+    ], {
+      variant: "secondary",
+      density: "compact",
+    }),
+    components.css.button([
+      `#${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-btn.primary`,
+      `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn.primary`,
+      `#${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn.primary`,
+    ], {
+      variant: "primary",
+      density: "compact",
+    }),
+    components.css.button([
+      `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn.danger`,
+      `#${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn.danger`,
+    ], {
+      variant: "danger",
+      density: "compact",
+    }),
+    components.css.field([
+      `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-search`,
+      `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-input`,
+    ], {
+      density: "compact",
+    })
+  );
 
   function downloadAutoShutdownVars() {
     const theme = root.STTheme || {};
@@ -162,6 +188,7 @@
     "library-custom-name": {
       id: "__RickyLibraryCustomNameStyle",
       css: `
+      ${libraryCustomNameSharedCss}
       #${LIBRARY_CUSTOM_NAME_BAR} {
         display: flex;
         gap: 8px;
@@ -186,10 +213,9 @@
         width: max-content;
         max-width: min(360px, calc(100vw - 24px));
         margin: 0;
-        padding: 8px;
-        border-radius: 3px;
-        background: var(--st-lcn-bar-bg);
-        box-shadow: var(--st-lcn-bar-shadow);
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
       }
       #${LIBRARY_CUSTOM_NAME_BAR}[hidden] {
         display: none;
@@ -197,26 +223,6 @@
       #${LIBRARY_CUSTOM_NAME_BAR},
       #${LIBRARY_CUSTOM_NAME_BAR} * {
         -webkit-app-region: no-drag !important;
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn,
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-btn,
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn,
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn {
-        min-height: 30px;
-        border: 1px solid var(--st-lcn-btn-border);
-        border-radius: 2px;
-        padding: 0 12px;
-        color: var(--st-lcn-white);
-        background: var(--st-lcn-btn-bg);
-        cursor: pointer;
-        font-size: 12px;
-        white-space: nowrap;
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn:hover:not(:disabled),
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-btn:hover:not(:disabled),
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn:hover:not(:disabled),
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn:hover:not(:disabled) {
-        background: var(--st-lcn-btn-hover-bg);
       }
       #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn,
       #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option {
@@ -230,17 +236,6 @@
       #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option:hover {
         background: var(--st-lcn-property-bg-hover);
       }
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-btn.primary,
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn.primary,
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn.primary {
-        background: var(--st-lcn-primary-gradient);
-        border-color: var(--st-lcn-primary-border);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn.danger,
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn.danger {
-        border-color: var(--st-lcn-danger-border);
-        background: var(--st-lcn-danger-bg);
-      }
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn.success {
         border-color: var(--st-lcn-success-border);
         background: var(--st-lcn-success-bg);
@@ -248,15 +243,12 @@
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn.success:hover:not(:disabled) {
         background: var(--st-lcn-success-bg-hover);
       }
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn.danger:hover:not(:disabled) {
-        background: var(--st-lcn-danger-bg-hover);
-      }
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-spinner {
         display: inline-block;
         width: 14px;
         height: 14px;
         border: 2px solid var(--st-lcn-spinner-border);
-        border-top-color: var(--st-lcn-white);
+        border-top-color: var(--st-color-white);
         border-radius: 50%;
         animation: st-lcn-spin .75s linear infinite;
         vertical-align: -2px;
@@ -266,30 +258,15 @@
           transform: rotate(360deg);
         }
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn:disabled,
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-btn:disabled,
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn:disabled,
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn:disabled,
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn:disabled {
-        color: var(--st-lcn-text-disabled);
-        border-color: var(--st-lcn-disabled-border);
-        cursor: not-allowed;
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn:disabled,
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-btn:disabled,
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn:disabled,
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn:disabled {
-        background: var(--st-lcn-disabled-bg);
-      }
       #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        min-height: 30px;
+        min-height: var(--st-control-height-compact);
         border: 1px solid var(--st-lcn-property-border);
-        border-radius: 2px;
+        border-radius: var(--st-control-radius);
         padding: 0 16px;
-        color: var(--st-lcn-white);
+        color: var(--st-color-white);
         cursor: pointer;
         font-size: 12px;
         white-space: nowrap;
@@ -297,19 +274,7 @@
       #${LIBRARY_CUSTOM_NAME_ONE},
       #${LIBRARY_CUSTOM_NAME_MODAL},
       #${LIBRARY_CUSTOM_NAME_PROGRESS} {
-        position: fixed;
-        inset: 0;
-        z-index: 2147483647;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 24px;
-        background: var(--st-lcn-overlay);
-        color: var(--st-lcn-text);
         font-family: var(--st-lcn-font);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} {
-        background: var(--st-lcn-overlay-strong);
       }
       #${LIBRARY_CUSTOM_NAME_ONE},
       #${LIBRARY_CUSTOM_NAME_MODAL},
@@ -324,46 +289,10 @@
       #${LIBRARY_CUSTOM_NAME_PROGRESS}[hidden] {
         display: none;
       }
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-panel,
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-panel {
-        border: 1px solid var(--st-lcn-panel-border);
-        background: var(--st-lcn-bg);
-        box-shadow: var(--st-lcn-panel-shadow);
-      }
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-panel {
-        width: min(380px, calc(100vw - 48px));
-      }
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-head,
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-head,
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-head {
-        padding: 14px 16px;
-        border-bottom: 1px solid var(--st-lcn-divider);
-        background: var(--st-lcn-bg-soft);
-      }
-      #${LIBRARY_CUSTOM_NAME_ONE} h3,
-      #${LIBRARY_CUSTOM_NAME_MODAL} h2,
-      #${LIBRARY_CUSTOM_NAME_MODAL} h3,
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} h3 {
-        margin: 0;
-        color: var(--st-lcn-white);
-        letter-spacing: 0;
-      }
-      #${LIBRARY_CUSTOM_NAME_ONE} h3,
-      #${LIBRARY_CUSTOM_NAME_MODAL} h2 {
-        font-size: 16px;
-      }
       #${LIBRARY_CUSTOM_NAME_MODAL} h3 {
-        font-size: 14px;
-      }
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} h3 {
-        font-size: 15px;
-      }
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-body,
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-body {
-        padding: 16px;
+        font-size: 13px;
       }
       #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-body {
-        color: var(--st-lcn-text);
         font-size: 13px;
         line-height: 1.6;
         overflow-wrap: anywhere;
@@ -378,7 +307,7 @@
         margin-top: 8px;
       }
       #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-note.danger {
-        color: var(--st-lcn-danger-border);
+        color: var(--st-color-danger-text);
       }
       #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-actions,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-actions,
@@ -390,87 +319,79 @@
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-actions {
         justify-content: flex-end;
       }
-      #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-actions {
-        padding: 0 16px 16px;
-      }
-      #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-panel {
-        width: min(420px, calc(100vw - 48px));
-      }
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-msg {
         margin-bottom: 12px;
-        color: var(--st-lcn-text-muted);
+        color: var(--st-dialog-muted-color);
         font-size: 12px;
       }
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-bar {
         height: 8px;
         overflow: hidden;
         background: var(--st-lcn-progress-bg);
-        border: 1px solid var(--st-lcn-divider);
+        border: 1px solid var(--st-dialog-divider);
       }
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-fill {
         height: 100%;
         width: var(--st-lcn-progress, 0%);
-        background: var(--st-lcn-primary-gradient);
+        background: var(--st-dialog-primary-bg);
       }
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-line {
         margin-top: 10px;
-        color: var(--st-lcn-text);
+        color: var(--st-color-text-secondary);
         font-size: 12px;
       }
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-actions {
         margin-top: 14px;
       }
+      #${LIBRARY_CUSTOM_NAME_MODAL} {
+        align-items: center;
+        padding: 0;
+        background: var(--st-dialog-overlay-bg);
+      }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-panel {
-        width: min(780px, calc(100vw - 48px));
-        max-height: min(620px, calc(100vh - 48px));
         display: grid;
         grid-template-rows: auto minmax(0, 1fr);
-        border: 1px solid var(--st-lcn-panel-border-soft);
-        background: var(--st-lcn-bg);
-        box-shadow: var(--st-lcn-panel-shadow);
+        width: 100%;
+        height: 100%;
+        max-width: 842px;
+        max-height: 601px;
+        box-sizing: border-box;
+        border: 0;
+        border-radius: 0;
+        background: var(--st-dialog-surface);
+        box-shadow: var(--st-dialog-panel-shadow);
+        transform: none;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-head {
         position: relative;
         z-index: 5;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-close {
-        position: relative;
-        z-index: 6;
-        flex: 0 0 auto;
-        width: 32px;
-        height: 32px;
-        border: 0;
-        color: var(--st-lcn-text);
-        background: transparent;
-        cursor: pointer;
-        font-size: 24px;
-        line-height: 32px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-body {
-        min-height: 0;
-        overflow: auto;
-        padding: 14px 16px 16px;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-note {
         margin: 4px 0 14px;
-        color: var(--st-lcn-text-muted);
+        color: var(--st-dialog-muted-color);
         font-size: 12px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-controls {
         display: grid;
         grid-template-columns: minmax(300px, 315px) minmax(300px, 360px);
-        gap: 12px;
+        gap: 16px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} fieldset {
         margin: 0;
-        border: 1px solid var(--st-lcn-divider);
-        padding: 8px 10px 10px;
+        border: 1px solid var(--st-dialog-divider);
+        border-radius: var(--st-control-radius);
+        padding: 8px 12px 12px;
+        background: var(--st-dialog-surface-raised);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} legend {
-        color: var(--st-lcn-text-muted);
+        color: var(--st-dialog-muted-color);
         font-size: 12px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} label {
@@ -478,12 +399,12 @@
         gap: 6px;
         align-items: center;
         margin-right: 12px;
-        color: var(--st-lcn-text);
+        color: var(--st-dialog-text-color);
         font-size: 12px;
       }
       #${LIBRARY_CUSTOM_NAME_BAR} input,
       #${LIBRARY_CUSTOM_NAME_MODAL} input {
-        accent-color: var(--st-lcn-steam-blue);
+        accent-color: var(--st-color-steam-blue);
       }
       #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"],
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"],
@@ -491,76 +412,62 @@
         appearance: none;
         -webkit-appearance: none;
         flex: 0 0 auto;
-        width: 13px;
-        height: 13px;
+        width: 16px;
+        height: 16px;
         margin: 0;
-        border: 1px solid var(--st-lcn-check-border);
-        background: var(--st-lcn-check-bg);
+        border: 1px solid var(--st-dialog-border-hover);
+        background: var(--st-dialog-surface-inset);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"] {
         border-radius: 50%;
       }
       #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"],
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"] {
-        border-radius: 2px;
+        border-radius: 3px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:checked {
-        border-color: var(--st-lcn-steam-blue);
-        background: radial-gradient(circle, var(--st-lcn-steam-blue) 0 36%, transparent 40%), var(--st-lcn-check-checked-bg);
+        border-color: var(--st-color-steam-blue);
+        background: radial-gradient(circle, var(--st-color-steam-blue) 0 36%, transparent 40%), var(--st-color-steam-blue-alpha-16);
       }
       #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"]:checked,
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:checked {
-        border-color: var(--st-lcn-steam-blue);
+        border-color: var(--st-color-steam-blue);
         background:
-          linear-gradient(135deg, transparent 0 42%, var(--st-lcn-check-mark-dark) 43% 55%, transparent 56%),
-          linear-gradient(45deg, transparent 0 48%, var(--st-lcn-check-mark-dark) 49% 61%, transparent 62%),
-          var(--st-lcn-steam-blue);
+          linear-gradient(135deg, transparent 0 42%, var(--st-color-bg-input) 43% 55%, transparent 56%),
+          linear-gradient(45deg, transparent 0 48%, var(--st-color-bg-input) 49% 61%, transparent 62%),
+          var(--st-color-steam-blue);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:disabled,
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:disabled {
         cursor: not-allowed;
-        border-color: var(--st-lcn-check-disabled-border);
-        background-color: var(--st-lcn-check-disabled-bg);
+        border-color: var(--st-color-text-disabled);
+        background-color: var(--st-color-white-alpha-08);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:disabled:checked {
-        border-color: var(--st-lcn-check-disabled-checked-border);
-        background: radial-gradient(circle, var(--st-lcn-text) 0 36%, transparent 40%), var(--st-lcn-check-disabled-checked-bg);
+        border-color: var(--st-color-text-secondary);
+        background: radial-gradient(circle, var(--st-color-text-secondary) 0 36%, transparent 40%), var(--st-color-white-alpha-12);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:disabled:checked {
-        border-color: var(--st-lcn-check-disabled-checked-border);
+        border-color: var(--st-color-text-secondary);
         background:
-          linear-gradient(135deg, transparent 0 42%, var(--st-lcn-bg) 43% 55%, transparent 56%),
-          linear-gradient(45deg, transparent 0 48%, var(--st-lcn-bg) 49% 61%, transparent 62%),
-          var(--st-lcn-text);
+          linear-gradient(135deg, transparent 0 42%, var(--st-color-bg-body) 43% 55%, transparent 56%),
+          linear-gradient(45deg, transparent 0 48%, var(--st-color-bg-body) 49% 61%, transparent 62%),
+          var(--st-color-text-secondary);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn {
-        min-height: 22px;
         margin-left: 2px;
-        border: 1px solid var(--st-lcn-inline-border);
-        border-radius: 2px;
         padding: 0 8px;
-        color: var(--st-lcn-steam-blue);
-        background: var(--st-lcn-inline-bg);
-        cursor: pointer;
-        font-size: 12px;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn:hover:not(:disabled) {
-        color: var(--st-lcn-white);
-        background: var(--st-lcn-inline-bg-hover);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn:disabled {
-        background: var(--st-lcn-check-disabled-bg);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-actions {
         flex-wrap: wrap;
         align-items: center;
-        margin-top: 12px;
+        margin-top: 16px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-action-option {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        min-height: 30px;
+        min-height: var(--st-control-height-compact);
         margin-left: 2px;
       }
       #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip,
@@ -586,7 +493,7 @@
         height: 14px;
         border: 1px solid var(--st-lcn-tip-border);
         border-radius: 50%;
-        color: var(--st-lcn-steam-blue);
+        color: var(--st-color-steam-blue);
         background: var(--st-lcn-tip-bg);
         font-size: 10px;
         font-weight: 700;
@@ -603,7 +510,7 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:focus .st-lcn-tip-mark,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:focus-within .st-lcn-tip-mark,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip.is-open .st-lcn-tip-mark {
-        color: var(--st-lcn-white);
+        color: var(--st-color-white);
         border-color: var(--st-lcn-tip-border-hover);
         background: var(--st-lcn-tip-bg-hover);
       }
@@ -617,10 +524,10 @@
         max-width: min(280px, calc(100vw - 32px));
         box-sizing: border-box;
         padding: 8px 10px;
-        border: 1px solid var(--st-lcn-panel-border);
-        border-radius: 3px;
-        color: var(--st-lcn-text-primary);
-        background: var(--st-lcn-bg-dark);
+        border: 1px solid var(--st-dialog-border);
+        border-radius: var(--st-radius-sm);
+        color: var(--st-color-text-primary);
+        background: var(--st-dialog-surface-inset);
         box-shadow: var(--st-lcn-popover-shadow);
         font-size: 12px;
         line-height: 1.5;
@@ -655,14 +562,14 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-msg {
         min-height: 18px;
         margin-top: 10px;
-        color: var(--st-lcn-text-muted);
+        color: var(--st-dialog-muted-color);
         font-size: 12px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-empty {
         margin-top: 12px;
         border: 1px dashed var(--st-lcn-empty-border);
         padding: 20px;
-        color: var(--st-lcn-text-muted);
+        color: var(--st-dialog-muted-color);
         text-align: center;
         font-size: 12px;
       }
@@ -672,7 +579,7 @@
         justify-content: space-between;
         gap: 10px;
         margin-top: 12px;
-        color: var(--st-lcn-text-muted);
+        color: var(--st-dialog-muted-color);
         font-size: 12px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-page-actions {
@@ -699,18 +606,6 @@
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-search {
         width: min(310px, 34vw);
-        height: 28px;
-        border: 1px solid var(--st-lcn-search-border);
-        border-radius: 2px;
-        padding: 4px 8px;
-        color: var(--st-lcn-text-primary);
-        background: var(--st-lcn-search-bg);
-        font-size: 12px;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-search:focus {
-        outline: none;
-        border-color: var(--st-lcn-search-focus);
-        box-shadow: var(--st-lcn-search-shadow);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-file {
         position: absolute;
@@ -722,10 +617,13 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-table-wrap {
         position: relative;
         z-index: 1;
-        max-height: 310px;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
         margin-top: 12px;
         overflow: auto;
-        border: 1px solid var(--st-lcn-divider);
+        border: 1px solid var(--st-dialog-divider);
+        border-radius: var(--st-control-radius);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} table {
         width: 100%;
@@ -741,7 +639,7 @@
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} th,
       #${LIBRARY_CUSTOM_NAME_MODAL} td {
-        border-bottom: 1px solid var(--st-lcn-divider-soft);
+        border-bottom: 1px solid var(--st-color-white-alpha-06);
         padding: 7px 8px;
         text-align: left;
         vertical-align: middle;
@@ -750,24 +648,17 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} th {
         position: sticky;
         top: 0;
-        background: var(--st-lcn-bg-soft);
-        color: var(--st-lcn-text-muted);
+        background: var(--st-color-bg-input-focus);
+        color: var(--st-dialog-muted-color);
         font-weight: 500;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-input {
         width: 100%;
-        height: 28px;
-        border: 1px solid var(--st-lcn-input-border-strong);
-        border-radius: 2px;
-        padding: 4px 7px;
-        color: var(--st-lcn-white);
-        background: var(--st-lcn-bg-black);
-        font-size: 12px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-appid {
         display: block;
         margin-top: 2px;
-        color: var(--st-lcn-text-disabled);
+        color: var(--st-color-text-disabled);
         font-size: 11px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} tr.ok td {
@@ -777,7 +668,7 @@
         background: var(--st-lcn-row-fail);
       }`,
       vars: libraryCustomNameVars,
-      staleText: ".st-lcn-tip.is-open",
+      staleText: "max-height: 601px",
     },
     "download-auto-shutdown": {
       id: "__Rickydownload-auto-shutdown-style",
