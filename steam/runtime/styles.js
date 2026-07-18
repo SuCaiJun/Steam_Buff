@@ -380,7 +380,7 @@
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-controls {
         display: grid;
-        grid-template-columns: minmax(300px, 315px) minmax(300px, 360px);
+        grid-template-columns: minmax(525px, 1fr) minmax(240px, 260px);
         gap: 16px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} fieldset {
@@ -401,6 +401,7 @@
         margin-right: 12px;
         color: var(--st-dialog-text-color);
         font-size: 12px;
+        white-space: nowrap;
       }
       #${LIBRARY_CUSTOM_NAME_BAR} input,
       #${LIBRARY_CUSTOM_NAME_MODAL} input {

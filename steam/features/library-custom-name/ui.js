@@ -42,7 +42,7 @@
   const IMPORT_MODES = Object.freeze([IMPORT_MODE_COVER, IMPORT_MODE_CHANGES]);
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
-  const STEAM_CUSTOM_LIMIT_TIP = "该限制为 Steam 设置自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功！";
+  const STEAM_CUSTOM_LIMIT_TIP = "存储上限和容量上限为 Steam 官方对自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功或无法保存至 steam 云端！";
   const CLOUD_TIP_TEXT = "将本次手动修改的自定义排序名称同步到素材君云端（Steam Buff 云端），帮助更多玩家获得更准确的名称建议。";
   const CLOUD_CANCEL_TEXT = "素材君云端共享可以帮助更多玩家获得更准确的自定义名称建议。本次保存将只写入本地 Steam 库，不再同步到素材君云端，确认关闭吗？";
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
@@ -164,7 +164,6 @@
       "data-lcn-check",
       "data-lcn-name",
       "data-lcn-upload-cloud",
-      "data-lcn-mnemonic",
       "data-lcn-type",
       "data-lcn-progress",
       "data-lcn-one",
@@ -1184,9 +1183,6 @@
     if (batch.policy === "current-custom") {
       return hasCustom(row);
     }
-    if (batch.policy === "rebuild-mnemonic") {
-      return hasCustom(row);
-    }
     return true;
   }
 
@@ -1213,10 +1209,10 @@
       want = custom;
       checked = stored ? !!old.checked : false;
       source = "local";
-    } else if (!manual && batch.policy === "rebuild-mnemonic") {
-      want = custom;
-      checked = false;
-      source = "local";
+    } else if (!manual && batch.policy === "skip" && !hasCustom(app)) {
+      want = cloud;
+      checked = true;
+      source = cloud ? "api" : "";
     } else if (!manual && cloud) {
       want = cloud;
       checked = (stored ? !!old.checked : true) && !(batch.policy === "skip" && hasCustom(app));
@@ -1274,7 +1270,8 @@
     }
   }
 
-  function resetRowsForPolicy() {
+  function resetRowsForPolicy(options = {}) {
+    const currentPage = batch.page;
     for (const row of batch.rows) {
       keepRowState(row);
     }
@@ -1286,6 +1283,10 @@
       rows.push(makeRow(app, batch.stateMap.get(Number(app.appid))));
     }
     setRows(rows);
+    if (options.preservePage === true) {
+      batch.page = currentPage;
+      clampPage();
+    }
     batch.message = previewMessage();
   }
 
@@ -1387,10 +1388,6 @@
     return !!row?.checked && Number(row?.appid) > 0 && !!text(row?.custom);
   }
 
-  function isRebuildMnemonicPolicy() {
-    return batch.policy === "rebuild-mnemonic";
-  }
-
   function refreshRowSearch(row) {
     if (!row) {
       return "";
@@ -1426,9 +1423,6 @@
   }
 
   function canQueryCloud() {
-    if (isRebuildMnemonicPolicy()) {
-      return false;
-    }
     if (!searchActive()) {
       return batch.selectedCount > 0;
     }
@@ -1550,15 +1544,14 @@
     return `${formatMb(cap.pendingBytes)}/${formatMb(cap.currentBytes)}/${formatMb(cap.limitBytes, false)}MB`;
   }
 
-  function storageLimitTipHtml(label) {
-    const tip = STEAM_CUSTOM_LIMIT_TIP;
-    return tipHtml(label, tip, "st-lcn-limit-tip");
+  function storageLimitTipHtml() {
+    return tipHtml("", STEAM_CUSTOM_LIMIT_TIP, "st-lcn-limit-tip");
   }
 
   function previewMessageHtml() {
     const skipped = Math.max(0, batch.rows.length - batch.writeCount);
     const search = searchActive() ? `，搜索 ${activeRows().length}/${batch.rows.length}` : "";
-    return `加载完成${search}，已选 ${batch.selectedCount} 项，待写入 ${batch.writeCount} 项，跳过 ${skipped} 项，${storageLimitTipHtml("上限")} ${esc(customLimitLine())} 项，${storageLimitTipHtml("容量")} ${esc(capacityLine())}`;
+    return `加载完成${search}，已选 ${batch.selectedCount} 项，待写入 ${batch.writeCount} 项，跳过 ${skipped} 项，上限 ${esc(customLimitLine())} 项，容量 ${esc(capacityLine())}${storageLimitTipHtml()}`;
   }
 
   function messageHtml() {
@@ -3000,8 +2993,7 @@
     const write = batch.writeCount;
     const locked = batch.busy || batch.saving;
     const queryDisabled = locked || !canQueryCloud();
-    const mnemonicDisabled = locked || isRebuildMnemonicPolicy();
-    const mnemonicChecked = batch.mnemonic && !isRebuildMnemonicPolicy();
+    const mnemonicDisabled = locked;
     const tip = CLOUD_TIP_TEXT;
     return `
       <div class="st-lcn-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-modal-title">
@@ -3017,7 +3009,6 @@
               <label><input type="radio" name="st-lcn-policy" value="hide" ${batch.policy === "hide" ? "checked" : ""} ${locked ? "disabled" : ""}>隐藏已有</label>
               <label><input type="radio" name="st-lcn-policy" value="skip" ${batch.policy === "skip" ? "checked" : ""} ${locked ? "disabled" : ""}>跳过已有</label>
               <label><input type="radio" name="st-lcn-policy" value="current-custom" ${isCurrentCustomPolicy() ? "checked" : ""} ${locked ? "disabled" : ""}>当前自定义写入待写</label>
-              <label><input type="radio" name="st-lcn-policy" value="rebuild-mnemonic" ${isRebuildMnemonicPolicy() ? "checked" : ""} ${locked ? "disabled" : ""}>重建助记符</label>
             </fieldset>
             <fieldset>
               <legend>类型范围</legend>
@@ -3027,26 +3018,31 @@
               <label><input type="checkbox" data-lcn-type="other" ${batch.types.other ? "checked" : ""} ${locked ? "disabled" : ""}>其他</label>
             </fieldset>
           </div>
+          <div class="st-lcn-msg">${messageHtml()}</div>
           <div class="st-lcn-actions">
             <button class="st-lcn-btn" type="button" data-lcn-action="query" title="只获取已勾选游戏的云端名称" ${queryDisabled ? "disabled" : ""}>获取云端名称</button>
+            <button class="st-lcn-btn" type="button" data-lcn-action="mnemonic" ${mnemonicDisabled ? "disabled" : ""}>${batch.mnemonic ? "取消助记符" : "生成助记符"}</button>
             <button class="st-lcn-btn primary" type="button" data-lcn-action="save" ${locked || !write ? "disabled" : ""}>保存修改</button>
-            <button class="st-lcn-btn" type="button" data-lcn-action="clear-selected" ${locked || !batch.selectedCount ? "disabled" : ""}>清空已选名称</button>
+            <button class="st-lcn-btn danger" type="button" data-lcn-action="clear-selected" ${locked || !batch.selectedCount ? "disabled" : ""}>清空已选名称</button>
             <label class="st-lcn-action-option">
               <input type="checkbox" data-lcn-upload-cloud ${batch.uploadCloud ? "checked" : ""} ${locked ? "disabled" : ""}>
               ${tipHtml("名称上传云端", tip)}
             </label>
-            <label class="st-lcn-action-option"><input type="checkbox" data-lcn-mnemonic ${mnemonicChecked ? "checked" : ""} ${mnemonicDisabled ? "disabled" : ""}>生成助记符</label>
           </div>
-          <div class="st-lcn-msg">${messageHtml()}</div>
           ${rowsHtml()}
         </div>
       </div>
     `;
   }
 
-  function renderModal() {
+  function renderModal(options = {}) {
     const modal = document.getElementById(MODAL);
     if (modal) {
+      // 弹窗刷新会替换表格节点；普通操作恢复原滚动，翻页明确从新页顶部开始。
+      const table = modal.querySelector(".st-lcn-table-wrap");
+      const tableScroll = options.resetTableScroll === true || !table
+        ? null
+        : { left: table.scrollLeft, top: table.scrollTop };
       const active = document.activeElement;
       if (batch.searchComposing && active?.matches?.("[data-lcn-search]")) {
         batch.searchQuery = String(active.value || "");
@@ -3070,11 +3066,21 @@
       } else if (key) {
         focusByKey(modal, key);
       }
+      const nextTable = modal.querySelector(".st-lcn-table-wrap");
+      if (nextTable) {
+        if (tableScroll) {
+          nextTable.scrollLeft = tableScroll.left;
+          nextTable.scrollTop = tableScroll.top;
+        } else if (options.resetTableScroll === true) {
+          nextTable.scrollLeft = 0;
+          nextTable.scrollTop = 0;
+        }
+      }
     }
   }
 
-  function renderVisibleRows() {
-    renderModal();
+  function renderVisibleRows(options = {}) {
+    renderModal(options);
   }
 
   function refreshMessage() {
@@ -3399,11 +3405,6 @@
   async function fetchCloudNames() {
     const seq = batch.previewSeq + 1;
     const startedAt = now();
-    if (isRebuildMnemonicPolicy()) {
-      batch.message = "重建助记符不需要获取云端名称";
-      renderModal();
-      return;
-    }
     if (!batch.localRows.length) {
       await loadLocalRows();
       if (seq !== batch.previewSeq || !batch.localRows.length) {
@@ -3457,7 +3458,7 @@
             batch.cloudMap.set(Number(appid), name);
           }
         }
-        resetRowsForPolicy();
+        resetRowsForPolicy({ preservePage: true });
         renderVisibleRows();
         await yieldUI();
       }
@@ -3540,27 +3541,13 @@
     }
   }
 
-  async function rebuildMnemonicRows() {
-    const core = await ensureMnemonic();
-    for (const row of batch.rows) {
-      if (!text(row.custom)) {
-        continue;
-      }
-      updateRowWrite(row, () => {
-        const want = core.rebuildMnemonic(row.custom);
-        row.want = want;
-        row.checked = !!want && want !== row.custom;
-        row.manual = false;
-        row.mnemonicTouched = true;
-        row.cloudTouched = false;
-        row.cloudSource = "local";
-        row.state = "";
-        row.error = "";
-      });
-      keepRowState(row);
-    }
-    batch.message = previewMessage();
-    renderVisibleRows();
+  function toggleMnemonic() {
+    const on = !batch.mnemonic;
+    applyMnemonicToRows(on).catch((error) => {
+      batch.busy = false;
+      batch.message = error?.message || String(error);
+      renderModal();
+    });
   }
 
   async function runSaveQueue(items, rows, skipped, opt = {}) {
@@ -3880,7 +3867,7 @@
         batch.page = totalPages();
       }
       clampPage();
-      renderVisibleRows();
+      renderVisibleRows({ resetTableScroll: true });
       return;
     }
     const select = event.target.closest("[data-lcn-select]")?.dataset?.lcnSelect;
@@ -3892,6 +3879,8 @@
     const action = event.target.closest("[data-lcn-action]")?.dataset?.lcnAction;
     if (action === "query") {
       fetchCloudNames();
+    } else if (action === "mnemonic") {
+      toggleMnemonic();
     } else if (action === "save") {
       save();
     } else if (action === "clear-selected") {
@@ -3945,17 +3934,8 @@
     }
     const policy = event.target.closest("input[name='st-lcn-policy']");
     if (policy) {
-      batch.policy = ["cover", "hide", "skip", "current-custom", "rebuild-mnemonic"].includes(policy.value) ? policy.value : "hide";
-      if (isRebuildMnemonicPolicy()) {
-        batch.mnemonic = false;
-      }
+      batch.policy = ["cover", "hide", "skip", "current-custom"].includes(policy.value) ? policy.value : "hide";
       applyLocalFilters();
-      if (isRebuildMnemonicPolicy()) {
-        rebuildMnemonicRows().catch((error) => {
-          batch.message = error?.message || String(error);
-          renderModal();
-        });
-      }
       return;
     }
     const upload = event.target.closest("[data-lcn-upload-cloud]");
@@ -3985,21 +3965,6 @@
         });
         refreshLive(row);
       }
-      return;
-    }
-    const mnemonic = event.target.closest("[data-lcn-mnemonic]");
-    if (mnemonic) {
-      if (isRebuildMnemonicPolicy()) {
-        batch.mnemonic = false;
-        mnemonic.checked = false;
-        return;
-      }
-      applyMnemonicToRows(!!mnemonic.checked).catch((error) => {
-        batch.mnemonic = !mnemonic.checked;
-        batch.busy = false;
-        batch.message = error?.message || String(error);
-        renderModal();
-      });
       return;
     }
     const type = event.target.closest("[data-lcn-type]");
