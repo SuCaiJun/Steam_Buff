@@ -64,7 +64,6 @@
       tool: false,
       other: false,
     },
-    mnemonic: false,
     uploadCloud: true,
     localRows: [],
     localMap: new Map(),
@@ -85,6 +84,8 @@
     pager: VIRTUAL_LIST?.createPager?.({ pageSize: BATCH_PAGE_SIZE }) || null,
     selectedCount: 0,
     writeCount: 0,
+    mnemonicEligibleCount: 0,
+    mnemonicPendingCount: 0,
     storageCapacity: emptyCapacity(),
     capacitySeq: 0,
     capacityTimer: 0,
@@ -1200,6 +1201,8 @@
     const cloud = batch.cloudMap.get(appid) || "";
     const manual = !!old?.manual;
     const cloudTouched = !!old?.cloudTouched;
+    const mnemonicTouched = !!old?.mnemonicTouched;
+    const mnemonicOn = !!old?.mnemonicOn;
     const stored = hasStoredState(old);
     let want = manual ? text(old.want) : "";
     let checked = !!old?.checked;
@@ -1234,6 +1237,8 @@
       checked,
       manual,
       cloudTouched,
+      mnemonicTouched,
+      mnemonicOn,
       cloudSource: source,
       state: old?.state || "",
       error: old?.error || "",
@@ -1251,6 +1256,7 @@
       cloudTouched: !!row.cloudTouched,
       cloudSource: row.cloudSource || "",
       mnemonicTouched: !!row.mnemonicTouched,
+      mnemonicOn: !!row.mnemonicOn,
       state: row.state || "",
       error: row.error || "",
     });
@@ -1386,6 +1392,27 @@
 
   function canClear(row) {
     return !!row?.checked && Number(row?.appid) > 0 && !!text(row?.custom);
+  }
+
+  function mnemonicEligible(row) {
+    return !!row?.checked && !!text(row?.want);
+  }
+
+  function mnemonicPending(row) {
+    return mnemonicEligible(row) && row.mnemonicOn !== true;
+  }
+
+  function mnemonicRows() {
+    return batch.rows.filter(mnemonicEligible);
+  }
+
+  // 助记符是逐行结果，不是弹窗模式；混合勾选时优先补齐尚未生成的行。
+  function mnemonicAction() {
+    const count = batch.mnemonicEligibleCount;
+    return {
+      count,
+      on: !count || batch.mnemonicPendingCount > 0,
+    };
   }
 
   function refreshRowSearch(row) {
@@ -1609,6 +1636,8 @@
   function refreshCounts() {
     let write = 0;
     let selected = 0;
+    let mnemonicEligibleRows = 0;
+    let mnemonicPendingRows = 0;
     const map = new Map();
     for (let i = 0; i < batch.rows.length; i += 1) {
       const row = batch.rows[i];
@@ -1622,11 +1651,19 @@
       if (canWrite(row)) {
         write += 1;
       }
+      if (mnemonicEligible(row)) {
+        mnemonicEligibleRows += 1;
+      }
+      if (mnemonicPending(row)) {
+        mnemonicPendingRows += 1;
+      }
     }
     batch.rowMap = map;
     batch.searchIndex = { rows: batch.rows, byKey: map, total: batch.rows.length };
     batch.selectedCount = selected;
     batch.writeCount = write;
+    batch.mnemonicEligibleCount = mnemonicEligibleRows;
+    batch.mnemonicPendingCount = mnemonicPendingRows;
     clampPage();
     refreshSkip();
     refreshStorageCapacitySoon();
@@ -1642,6 +1679,8 @@
     batch.page = 1;
     batch.selectedCount = 0;
     batch.writeCount = 0;
+    batch.mnemonicEligibleCount = 0;
+    batch.mnemonicPendingCount = 0;
     refreshSkip();
   }
 
@@ -1683,6 +1722,12 @@
       }
       if (canWrite(row)) {
         batch.writeCount += 1;
+      }
+      if (mnemonicEligible(row)) {
+        batch.mnemonicEligibleCount += 1;
+      }
+      if (mnemonicPending(row)) {
+        batch.mnemonicPendingCount += 1;
       }
     }
     batch.searchIndex = null;
@@ -1953,6 +1998,7 @@
           row.manual = true;
           row.cloudTouched = true;
           row.mnemonicTouched = false;
+          row.mnemonicOn = false;
           row.state = "";
           row.error = "";
           refreshRowSearch(row);
@@ -2032,15 +2078,25 @@
   function updateRowWrite(row, apply) {
     const beforeSelected = !!row.checked;
     const before = canWrite(row);
+    const beforeMnemonicEligible = mnemonicEligible(row);
+    const beforeMnemonicPending = mnemonicPending(row);
     apply();
     const afterSelected = !!row.checked;
     const after = canWrite(row);
+    const afterMnemonicEligible = mnemonicEligible(row);
+    const afterMnemonicPending = mnemonicPending(row);
     if (beforeSelected !== afterSelected) {
       batch.selectedCount += afterSelected ? 1 : -1;
     }
     if (before !== after) {
       batch.writeCount += after ? 1 : -1;
       refreshSkip();
+    }
+    if (beforeMnemonicEligible !== afterMnemonicEligible) {
+      batch.mnemonicEligibleCount += afterMnemonicEligible ? 1 : -1;
+    }
+    if (beforeMnemonicPending !== afterMnemonicPending) {
+      batch.mnemonicPendingCount += afterMnemonicPending ? 1 : -1;
     }
     refreshStorageCapacitySoon();
   }
@@ -2993,7 +3049,8 @@
     const write = batch.writeCount;
     const locked = batch.busy || batch.saving;
     const queryDisabled = locked || !canQueryCloud();
-    const mnemonicDisabled = locked;
+    const mnemonic = mnemonicAction();
+    const mnemonicDisabled = locked || !mnemonic.count;
     const tip = CLOUD_TIP_TEXT;
     return `
       <div class="st-lcn-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-modal-title">
@@ -3021,7 +3078,7 @@
           <div class="st-lcn-msg">${messageHtml()}</div>
           <div class="st-lcn-actions">
             <button class="st-lcn-btn" type="button" data-lcn-action="query" title="只获取已勾选游戏的云端名称" ${queryDisabled ? "disabled" : ""}>获取云端名称</button>
-            <button class="st-lcn-btn" type="button" data-lcn-action="mnemonic" ${mnemonicDisabled ? "disabled" : ""}>${batch.mnemonic ? "取消助记符" : "生成助记符"}</button>
+            <button class="st-lcn-btn" type="button" data-lcn-action="mnemonic" ${mnemonicDisabled ? "disabled" : ""}>${mnemonic.on ? "生成助记符" : "取消助记符"}</button>
             <button class="st-lcn-btn primary" type="button" data-lcn-action="save" ${locked || !write ? "disabled" : ""}>保存修改</button>
             <button class="st-lcn-btn danger" type="button" data-lcn-action="clear-selected" ${locked || !batch.selectedCount ? "disabled" : ""}>清空已选名称</button>
             <label class="st-lcn-action-option">
@@ -3098,6 +3155,12 @@
     const queryBtn = modal.querySelector("[data-lcn-action='query']");
     if (queryBtn) {
       queryBtn.disabled = batch.busy || batch.saving || !canQueryCloud();
+    }
+    const mnemonicBtn = modal.querySelector("[data-lcn-action='mnemonic']");
+    if (mnemonicBtn) {
+      const mnemonic = mnemonicAction();
+      mnemonicBtn.disabled = batch.busy || batch.saving || !mnemonic.count;
+      mnemonicBtn.textContent = mnemonic.on ? "生成助记符" : "取消助记符";
     }
     const saveBtn = modal.querySelector("[data-lcn-action='save']");
     if (saveBtn) {
@@ -3485,21 +3548,24 @@
   }
 
   async function applyMnemonicToRows(on) {
+    const rows = mnemonicRows().filter(row => on ? row.mnemonicOn !== true : row.mnemonicOn === true);
+    if (!rows.length) {
+      batch.message = "没有可处理的助记符条目";
+      renderModal();
+      return;
+    }
     const ok = await oneConfirm("该操作将刷新待写入数据，是否继续？", {
-      title: on ? "确认勾选助记符" : "确认取消助记符",
+      title: on ? "确认生成助记符" : "确认取消助记符",
       cancel: "否",
       confirm: "是",
     });
     if (!ok) {
-      batch.mnemonic = !on;
       renderModal();
       return;
     }
 
-    const rows = batch.rows.filter(row => row.checked && text(row.want));
     const total = rows.length;
     const core = await ensureMnemonic();
-    batch.mnemonic = !!on;
     batch.busy = true;
     batch.saveAction = "mnemonic";
     batch.saveUploadCloud = false;
@@ -3520,6 +3586,7 @@
           row.want = on ? core.rebuildMnemonic(base) : base;
           row.manual = text(row.want) !== text(row.apiName);
           row.mnemonicTouched = true;
+          row.mnemonicOn = !!on;
           row.cloudTouched = false;
           row.state = "";
           row.error = "";
@@ -3542,8 +3609,8 @@
   }
 
   function toggleMnemonic() {
-    const on = !batch.mnemonic;
-    applyMnemonicToRows(on).catch((error) => {
+    const action = mnemonicAction();
+    applyMnemonicToRows(action.on).catch((error) => {
       batch.busy = false;
       batch.message = error?.message || String(error);
       renderModal();
@@ -3818,6 +3885,7 @@
             row.manual = false;
             row.cloudTouched = false;
             row.mnemonicTouched = false;
+            row.mnemonicOn = false;
             keepRowState(row);
             /* 清空成功后要刷新列表计数，但不能让预览 skipped 覆盖保存队列统计。 */
             const queueStats = { ...batch.stats };
@@ -4000,6 +4068,7 @@
       row.manual = text(row.want) !== base;
       row.cloudTouched = true;
       row.mnemonicTouched = false;
+      row.mnemonicOn = false;
       row.state = "";
       row.error = "";
       refreshRowSearch(row);
