@@ -67,7 +67,6 @@
   const NEWS_TRANSLATE_BRIDGE_MARK = "__steamBuffNewsTranslateBridge";
   const NEWS_TRANSLATE_BRIDGE_HANDLER_MARK = "__steamBuffNewsTranslateBridgeHandler";
   const NEWS_TRANSLATE_BRIDGE_HANDLER_REF = "__steamBuffNewsTranslateBridgeHandlerRef";
-  const COMMUNITY_MARK = "steamBuffCommunityInjected";
   const SETTINGS_ATTR = "steamBuffSettings";
   const STEAM_FEATURES_DISABLED_MESSAGE = "__steam_buff_features_disabled";
   const NEWS_TRANSLATE_ATTR = "steamBuffNewsTranslate";
@@ -99,10 +98,6 @@
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
   ]);
-  const COMMUNITY_SETTING_IDS = Object.freeze([
-    "market-tools",
-  ]);
-  const ALL_SETTING_IDS = Object.freeze([...STEAM_SETTING_IDS, ...COMMUNITY_SETTING_IDS]);
   const SEEN_NAME_MAX = 200;
   const BOOT_MS = 250;
   const BOOT_MAX = 480;
@@ -614,46 +609,6 @@
     return true;
   }
 
-  function isCommunityPage() {
-    return globalThis.STPageContext?.isCommunityTargetPage?.() === true;
-  }
-
-  function lockCommunity() {
-    const el = root();
-    if (!el) {
-      return false;
-    }
-    if (el.dataset[COMMUNITY_MARK] === "1") {
-      return false;
-    }
-    el.dataset[COMMUNITY_MARK] = "1";
-    return true;
-  }
-
-  function failCommunity() {
-    const el = root();
-    if (el) {
-      el.dataset[COMMUNITY_MARK] = "";
-    }
-  }
-
-  function onDomReady(fn) {
-    let done = false;
-    const fire = () => {
-      if (done || document.readyState === "loading") {
-        return;
-      }
-      done = true;
-      fn();
-    };
-    if (document.readyState !== "loading") {
-      fire();
-      return;
-    }
-    document.addEventListener("DOMContentLoaded", fire, { once: true });
-    document.addEventListener("readystatechange", fire, { once: true });
-  }
-
   function settingKey(id) {
     return `${SETTINGS_PREFIX}${id}${SETTINGS_SUFFIX}`;
   }
@@ -734,13 +689,13 @@
     }
 
     const out = {};
-    for (const id of ALL_SETTING_IDS) {
+    for (const id of STEAM_SETTING_IDS) {
       out[id] = true;
     }
     if (globalThis.STSettingsBus?.loadSettingsSnapshot) {
       settingsCache = await globalThis.STSettingsBus.loadSettingsSnapshot({
         owner: "extension:content",
-        ids: ALL_SETTING_IDS,
+        ids: STEAM_SETTING_IDS,
         defaults: out,
         force,
         ttlMs: 30_000,
@@ -748,8 +703,8 @@
       });
       return settingsCache;
     }
-    const rt = await storageGet(ALL_SETTING_IDS.map(settingKey));
-    for (const id of ALL_SETTING_IDS) {
+    const rt = await storageGet(STEAM_SETTING_IDS.map(settingKey));
+    for (const id of STEAM_SETTING_IDS) {
       const value = rt[settingKey(id)];
       out[id] = typeof value === "boolean" ? value : true;
     }
@@ -1713,17 +1668,6 @@
     }
   }
 
-  async function communityGate() {
-    const settings = await loadSettings();
-    const off = COMMUNITY_SETTING_IDS.find(id => settings[id] === false);
-    return {
-      allowed: !off,
-      reason: off ? "settings-disabled" : "",
-      featureId: off || "",
-      message: "",
-    };
-  }
-
   function steamSettingsFrom(all = {}) {
     const settings = {};
     for (const id of STEAM_SETTING_IDS) {
@@ -1808,7 +1752,7 @@
         globalThis.STSettingsBus.subscribe((event) => {
           const keys = event.changedKeys || [];
           const localeHit = keys.includes(UI_LOCALE_KEY);
-          const hit = ALL_SETTING_IDS.some(id => keys.includes(settingKey(id)));
+          const hit = STEAM_SETTING_IDS.some(id => keys.includes(settingKey(id)));
           if (hit) {
             settingsCache = null;
             if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
@@ -1832,7 +1776,7 @@
         }
         const localeHit = Object.hasOwn(changes || {}, UI_LOCALE_KEY);
         const keys = Object.keys(changes || {});
-        const hit = ALL_SETTING_IDS.some(id => Object.hasOwn(changes, settingKey(id)));
+        const hit = STEAM_SETTING_IDS.some(id => Object.hasOwn(changes, settingKey(id)));
         if (hit) {
           settingsCache = null;
           if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
@@ -1865,131 +1809,6 @@
       meta: pageMeta(),
     });
     const inj = globalThis.STInject;
-
-    if (isCommunityPage()) {
-      if (document.readyState === "loading") {
-        onDomReady(run);
-        return;
-      }
-      loadSettingsRail("runtime-boot").catch(() => {});
-
-      // 社区页不使用 STGuard，STInject 还没注入时继续走启动重试，避免扩展重载后漏注入。
-      if (!inj?.inject) {
-        logOnce("community-runtime-deps-waiting", {
-          level: "info",
-          domain: "community",
-          feature: "community-injection",
-          event: "runtime-deps-waiting",
-          message: "社区运行时等待注入依赖就绪",
-          meta: pageMeta({ bootTries }),
-        });
-        retryRun();
-        return;
-      }
-      if (!lockCommunity()) {
-        logOnce("community-runtime-inject-skipped-lock", {
-          level: "info",
-          domain: "community",
-          feature: "community-injection",
-          event: "community-runtime-inject-skipped",
-          message: "社区运行时已注入，跳过重复注入",
-          meta: pageMeta({ reason: "already-locked" }),
-        });
-        return;
-      }
-
-      communityGate().then((gate) => {
-        if (!gate.allowed) {
-          failCommunity();
-          logOnce("community-runtime-inject-skipped-disabled", {
-            level: "info",
-            domain: "community",
-            feature: "community-injection",
-            event: "community-runtime-inject-skipped",
-            message: gate.message || "社区运行时因设置关闭而跳过注入",
-            meta: pageMeta({
-              reason: gate.reason || "disabled",
-              featureId: gate.featureId || "",
-            }),
-          });
-          return;
-        }
-
-        logOnce("community-runtime-inject-start", {
-          level: "info",
-          domain: "community",
-          feature: "community-injection",
-          event: "community-runtime-inject-start",
-          message: "开始注入 Steam 社区经济增强",
-          meta: pageMeta(),
-        });
-        // 只在库存、市场、交易报价页加载社区经济增强；关闭开关时释放标记，后续页面变化可重新判断。
-        writeUiLocale().catch(() => {});
-        return inj.inject([
-          "extension/runtime/logger.js",
-          "shared/logger-factory.js",
-          "shared/config.js",
-          "shared/error-boundary.js",
-          "shared/i18n.js",
-          "shared/styles/theme.js",
-          "shared/utils/dom.js",
-          "shared/styles/components.js",
-          "shared/performance-monitor.js",
-          "shared/observer-utils.js",
-          "shared/data-index.js",
-          "shared/batch-queue.js",
-          "shared/virtual-list.js",
-          "shared/page-context.js",
-          "shared/runtime/kernel.js",
-          "community/runtime/base.js",
-          "community/runtime/settings.js",
-          "community/runtime/dom.js",
-          "community/runtime/storage.js",
-          "community/runtime/request-queue.js",
-          "community/runtime/styles.js",
-          "community/domain/items.js",
-          "community/domain/market-api.js",
-          "community/domain/pricing.js",
-          "community/ui/logger.js",
-          "community/ui/spinner.js",
-          "community/ui/settings-modal.js",
-          "community/ui/styles.js",
-          "community/features/inventory/prices.js",
-          "community/features/inventory/sell-confirm.js",
-          "community/features/inventory/actions.js",
-          "community/features/inventory/quick-sell.js",
-          "community/features/inventory/view.js",
-          "community/features/market/state.js",
-          "community/features/market/dom.js",
-          "community/features/market/actions.js",
-          "community/features/market/view.js",
-          "community/features/trade/view.js",
-          "community/main.js",
-        ]).then(() => {
-          logOnce("community-runtime-inject-success", {
-            level: "info",
-            domain: "community",
-            feature: "community-injection",
-            event: "community-runtime-inject-success",
-            message: "Steam 社区经济增强注入完成",
-            meta: pageMeta(),
-          });
-        });
-      }).catch((error) => {
-        failCommunity();
-        log({
-          level: "error",
-          domain: "community",
-          feature: "community-injection",
-          event: "community-runtime-inject-failed",
-          message: "注入 Steam 社区经济增强失败",
-          error,
-          meta: pageMeta(),
-        });
-      });
-
-      return;
-    }
 
     // ⚠️ 历史问题：Steam CEF 复用旧窗口时可能只拿到半套内容脚本，必须先补齐共享依赖再启动页面运行时。
     if (isSteamContentTarget() && !readySteamDeps()) {
@@ -2156,7 +1975,7 @@
     }
 
     globalThis[RUN_MARK] = RUN_VERSION;
-    if (globalThis.STPageContext?.snapshot?.().domain !== "steam" && !isCommunityPage()) {
+    if (globalThis.STPageContext?.snapshot?.().domain !== "steam") {
       runLightBoot();
       return;
     }

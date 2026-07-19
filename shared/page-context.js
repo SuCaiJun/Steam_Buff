@@ -48,10 +48,6 @@
     "family-library-wishlist-badge": Object.freeze(["store-wishlist"]),
     "family-library-cart-badge": Object.freeze(["store-cart"]),
     "purchase-history-classifier": Object.freeze(["store-history", "store-account-history"]),
-    "market-tools": Object.freeze(["community-inventory", "community-market", "community-listing", "community-trade"]),
-    inventory: Object.freeze(["community-inventory"]),
-    market: Object.freeze(["community-market", "community-listing"]),
-    trade: Object.freeze(["community-trade"]),
     "floating-menu": Object.freeze(["settings-web"]),
     "translate-runtime": Object.freeze(["translate-page", "translate-selection", "translate-news-popup"]),
   });

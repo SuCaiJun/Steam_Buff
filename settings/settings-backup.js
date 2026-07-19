@@ -32,7 +32,6 @@
     "thirdPartyServices",
     "reviewFilter",
     "searchSuggestions",
-    "see",
   ]);
   const SENSITIVE = Object.freeze({
     ai: Object.freeze(["key"]),
@@ -143,9 +142,6 @@
     if (section === "searchSuggestions") {
       return Object.keys(cat.searchSuggestionDefaults?.() || {});
     }
-    if (section === "see") {
-      return Object.keys(cat.seeDefaults?.() || {});
-    }
     return [];
   }
 
@@ -168,9 +164,6 @@
     }
     if (section === "searchSuggestions") {
       return cat.searchSuggestionDefaults?.() || {};
-    }
-    if (section === "see") {
-      return cat.seeDefaults?.() || {};
     }
     return {};
   }
@@ -291,7 +284,6 @@
       thirdPartyServices: await storage().getThirdPartyServices?.() || {},
       reviewFilter: await storage().getReviewFilter?.() || {},
       searchSuggestions: await storage().getSearchSuggestions?.() || {},
-      see: await storage().getSee?.() || {},
     };
   }
 

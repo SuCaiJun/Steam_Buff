@@ -25,7 +25,6 @@
     "review-filter": "images/features/review-filter.svg",
     "translate": "images/ui/settings-translate.svg",
     "ai": "images/features/ai.svg",
-    "market-tools": "images/third-party/market-tools.svg",
   });
 
   function runtimeUrl(path) {

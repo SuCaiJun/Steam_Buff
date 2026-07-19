@@ -19,47 +19,8 @@
 
   const UI_LOCALE_KEY = "SETTING_UI_LOCALE";
 
-  const SEE_KEYS = Object.freeze({
-    minNormal: "SETTING_MIN_NORMAL_PRICE",
-    maxNormal: "SETTING_MAX_NORMAL_PRICE",
-    minFoil: "SETTING_MIN_FOIL_PRICE",
-    maxFoil: "SETTING_MAX_FOIL_PRICE",
-    minMisc: "SETTING_MIN_MISC_PRICE",
-    maxMisc: "SETTING_MAX_MISC_PRICE",
-    offset: "SETTING_PRICE_OFFSET",
-    minCheck: "SETTING_PRICE_MIN_CHECK_PRICE",
-    minList: "SETTING_PRICE_MIN_LIST_PRICE",
-    algo: "SETTING_PRICE_ALGORITHM",
-    skipLowQ: "SETTING_PRICE_IGNORE_LOWEST_Q",
-    historyHours: "SETTING_PRICE_HISTORY_HOURS",
-    invLabels: "SETTING_INVENTORY_PRICE_LABELS",
-    tradeLabels: "SETTING_TRADEOFFER_PRICE_LABELS",
-    quickSell: "SETTING_QUICK_SELL_BUTTONS",
-    autoRelist: "SETTING_RELIST_AUTOMATICALLY",
-  });
-
-  const SEE_DEFAULTS = Object.freeze({
-    [SEE_KEYS.minNormal]: 0.05,
-    [SEE_KEYS.maxNormal]: 2.5,
-    [SEE_KEYS.minFoil]: 0.15,
-    [SEE_KEYS.maxFoil]: 10,
-    [SEE_KEYS.minMisc]: 0.05,
-    [SEE_KEYS.maxMisc]: 10,
-    [SEE_KEYS.offset]: 0,
-    [SEE_KEYS.minCheck]: 0,
-    [SEE_KEYS.minList]: 0.03,
-    [SEE_KEYS.algo]: 1,
-    [SEE_KEYS.skipLowQ]: 1,
-    [SEE_KEYS.historyHours]: 12,
-    [SEE_KEYS.invLabels]: 1,
-    [SEE_KEYS.tradeLabels]: 1,
-    [SEE_KEYS.quickSell]: 1,
-    [SEE_KEYS.autoRelist]: 0,
-  });
-
   const SOURCE_TIPS = Object.freeze({
     translate: "数据来源/运行库：xnx3 translate.js 本地库。授权：MIT License",
-    marketTools: "功能来源：Steam Economy Enhancer 开源扩展。授权：MIT License",
     familySharing: "数据来源：Augmented Steam API。授权：GPL-3.0，接口可用性不保证。",
     workshop: "数据来源：Steam Store appdetails categories 分类，接口可用性以 Steam 官方返回为准。",
     subscriptionInfo: "数据来源：SubscriptionInfo。授权： MPL-2.0；数据来源以第三方维护方为准。",
@@ -70,87 +31,6 @@
     purchaseHistoryClassifier: "功能来源：Steam 消费历史分类器 userscript，作者 SmallFork。授权：MIT License。",
     isthereanydeal: "数据来源：IsThereAnyDeal 官方 API。用户自备 API Key，本扩展不托管、不共享密钥。",
   });
-
-  const SEE_FIELDS = Object.freeze([
-    {
-      type: "select",
-      key: SEE_KEYS.algo,
-      label: "基准价格计算方式",
-      options: Object.freeze([
-        { value: "1", label: "历史均价 和 最低售价 之间的最大值" },
-        { value: "2", label: "最低售价" },
-        { value: "3", label: "当前 最高买入价 或 最低售价" },
-      ]),
-    },
-    {
-      type: "number",
-      key: SEE_KEYS.historyHours,
-      label: "计算多少小时内的历史均价",
-      min: "0",
-      step: "2",
-    },
-    {
-      type: "number",
-      key: SEE_KEYS.offset,
-      label: "价格补正（可为负数）",
-      step: "0.01",
-    },
-    {
-      type: "checkbox",
-      key: SEE_KEYS.skipLowQ,
-      label: "当前最低售价较少时使用第二低售价",
-    },
-    {
-      type: "number",
-      key: SEE_KEYS.minCheck,
-      label: "不检查指定价格及以下的市场列表",
-      step: "0.01",
-    },
-    {
-      type: "number",
-      key: SEE_KEYS.minList,
-      label: "不列出指定价格及以下的市场列表",
-      step: "0.01",
-    },
-    {
-      type: "checkbox",
-      key: SEE_KEYS.invLabels,
-      label: "在库存中显示价格标签",
-    },
-    {
-      type: "checkbox",
-      key: SEE_KEYS.tradeLabels,
-      label: "在交易报价中显示价格标签",
-    },
-    {
-      type: "checkbox",
-      key: SEE_KEYS.quickSell,
-      label: "显示快速出售信息及按钮",
-    },
-    {
-      type: "pair",
-      keys: Object.freeze([SEE_KEYS.minNormal, SEE_KEYS.maxNormal]),
-      label: "普通卡牌最低 / 最高售价",
-      step: "0.01",
-    },
-    {
-      type: "pair",
-      keys: Object.freeze([SEE_KEYS.minFoil, SEE_KEYS.maxFoil]),
-      label: "闪亮卡牌最低 / 最高售价",
-      step: "0.01",
-    },
-    {
-      type: "pair",
-      keys: Object.freeze([SEE_KEYS.minMisc, SEE_KEYS.maxMisc]),
-      label: "其他物品最低 / 最高售价",
-      step: "0.01",
-    },
-    {
-      type: "checkbox",
-      key: SEE_KEYS.autoRelist,
-      label: "自动重新上架定价高于市场的物品",
-    },
-  ]);
 
   const TRANSLATE_KEYS = Object.freeze({
     scope: "scope",
@@ -958,7 +838,7 @@
       desc: "预留给 Steam 社区的一方增强功能。",
       kind: "empty",
       emptyTitle: "暂无独立社区增强功能",
-      emptyDesc: "库存、市场和交易报价增强已归入第三方相关，后续一方社区功能会放在这里。",
+      emptyDesc: "后续一方社区功能会放在这里。",
       items: Object.freeze([]),
     },
     {
@@ -1074,17 +954,6 @@
       help: "第三方相关",
       items: Object.freeze([
         {
-          id: "market-tools",
-          name: "库存增强模块",
-          desc: "控制 Steam Economy Enhancer 集成的社区库存、市场、交易报价增强。",
-          sourceTip: SOURCE_TIPS.marketTools,
-          area: "community",
-          enabled: false,
-          disabled: true,
-          lock: "库存增强模块暂时禁用",
-          panel: "see",
-        },
-        {
           id: "purchase-history-classifier",
           name: "消费历史分类器",
           desc: "在 Steam 消费历史页按直购、送礼、退款、内购、充值、买入和卖出分类统计。",
@@ -1195,14 +1064,6 @@
     return out;
   }
 
-  function seeDefaults() {
-    return { ...SEE_DEFAULTS };
-  }
-
-  function seeFields() {
-    return SEE_FIELDS;
-  }
-
   function translateDefaults() {
     return { ...TRANSLATE_DEFAULTS };
   }
@@ -1264,8 +1125,6 @@
     dependency,
     dependentsOf,
     defaults,
-    seeDefaults,
-    seeFields,
     translateDefaults,
     translateFields,
     reviewFilterDefaults,

@@ -119,12 +119,6 @@
   "settings_category_client_desc": {
     "message": "Steam client library and download page enhancements. Restart Steam after enabling or disabling features on this page."
   },
-  "settings_category_see_name": {
-    "message": "Inventory Enhancements"
-  },
-  "settings_category_see_desc": {
-    "message": "Inventory enhancements are integrated from the open-source Steam Economy Enhancer extension with some local adjustments."
-  },
   "settings_feature_settings_startup_animation_name": {
     "message": "Settings Startup Animation"
   },
@@ -172,15 +166,6 @@
   },
   "settings_feature_third_party_services_desc": {
     "message": "Control whether third-party data services are enabled and configure the IsThereAnyDeal API key."
-  },
-  "settings_feature_market_tools_name": {
-    "message": "Inventory Module"
-  },
-  "settings_feature_market_tools_desc": {
-    "message": "Control inventory settings and community inventory, market, and trade offer enhancements."
-  },
-  "settings_feature_market_tools_lock": {
-    "message": "Inventory Module is temporarily disabled"
   },
   "settings_feature_review_filter_name": {
     "message": "Review Filter Module"

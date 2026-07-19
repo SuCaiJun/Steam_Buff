@@ -5,7 +5,7 @@
   Steam Buff
   <br/>
 </h1>
-<h4 align="center">一個全方位增強 Steam 使用體驗的瀏覽器擴充功能，涵蓋 Steam 商店、社群、用戶端內建頁面。</h4>
+<h4 align="center">一個全方位增強 Steam 使用體驗的瀏覽器擴充功能，涵蓋 Steam 商店、社群評測與翻譯、用戶端內建頁面。</h4>
 
 <p align="center">
   <a href="https://developer.chrome.google.cn/docs/extensions/develop/migrate/what-is-mv3"><img src="https://img.shields.io/badge/Manifest-V3-blue" alt="Manifest V3" target="_blank" /></a>
@@ -34,9 +34,11 @@ Steam Buff 主要補上這些日常缺口：
 - 依關鍵字、正規表示式、遊戲時數、個人檔案狀態、評論篇數等條件篩選評論。
 - 在 Steam 用戶端收藏庫頁面顯示自訂名稱，並支援自訂排序名稱。
 - 提供頁面翻譯、劃詞翻譯與 Steam 新聞彈窗翻譯。
-- 整合庫存、市集與交易報價相關輔助能力。
 - 支援 Steam 用戶端下載完成後自動關機。
 - ...以及更多提升效率的工具。
+
+目前版本已不再提供 Steam 社群庫存、市集或交易報價執行階段功能；舊版設定備份中的相關分區不會還原，也不會載入對應程式碼。
+
 ## 執行環境
 
 - Chrome / Edge 等 Chromium 核心瀏覽器
@@ -64,23 +66,19 @@ Steam Buff 主要補上這些日常缺口：
 
 4. 點選**載入未封裝項目**
 
-5. 選擇本倉庫的 `extension` 目錄
+5. 選擇包含 `manifest.json` 的擴充功能根目錄：下載本擴充功能倉庫或公開原始碼鏡像時選擇倉庫根目錄；下載 `steam-tools` 主倉庫時選擇其中的 `extension/` 子目錄
 
 6. 安裝完成後，造訪 Steam 商店或開啟 Steam 用戶端即可使用
 
-安裝後可開啟設定中心，依需求啟用搜尋、價格、評論篩選、翻譯、用戶端增強、庫存增強等模組。
+安裝後可開啟設定中心，依需求啟用搜尋、價格、評論篩選、翻譯、AI、第三方服務和用戶端增強等模組。
 
 ## 目錄結構
 
 ```text
 extension/
-├── ai/                    # AI 服務設定與適配
-├── community/             # Steam 社群增強模組
-│   ├── api/               # 社群介面與請求封裝
-│   ├── domain/            # 庫存、市集等領域模型
-│   ├── features/          # 庫存、市集、交易報價功能
-│   ├── runtime/           # 社群執行階段基礎能力
-│   └── ui/                # 社群頁 UI 元件
+├── ai/                    # AI 服務設定與快取
+├── _locales/              # 多語言訊息
+├── onboarding/            # 首次使用引導頁與橋接
 ├── extension/             # 擴充功能核心
 │   ├── background.js      # Service Worker
 │   ├── background-logger.js
@@ -100,7 +98,6 @@ extension/
 │   ├── styles/            # 共用主題與元件
 │   └── utils/             # 工具函式
 ├── steam/                 # Steam 用戶端增強
-│   ├── api/               # Steam 用戶端介面適配
 │   ├── features/          # 用戶端功能特性
 │   ├── runtime/           # 用戶端上下文、樣式與註冊器
 │   ├── shared/            # 用戶端共用常數
@@ -112,32 +109,35 @@ extension/
 │   ├── runtime/           # 商店執行階段、設定與樣式
 │   └── main.js            # 商店頁執行階段入口
 ├── translate/             # 翻譯模組
-│   ├── page/              # 頁面翻譯橋接腳本
 │   ├── boot.js            # 翻譯輕入口
 │   ├── runner.js          # 翻譯執行階段
 │   └── vendor-wrapper.js  # 第三方翻譯庫隔離層
 ├── vendor/                # 第三方函式庫（本地打包）
+│   ├── SmallFork/         # 消費歷史分類器
+│   ├── fflate/            # 壓縮與備份工具
 │   ├── pinyin-pro/        # 拼音轉換
 │   ├── qrcode-generator/  # QR Code 產生
+│   ├── xnx3-translate/    # 翻譯函式庫
 │   └── ...
+├── docs/                  # 多語言專案說明
 └── manifest.json          # 擴充功能清單檔
 ```
 
 ### 設計理念
 
-1. **功能模組化**：每個功能獨立放在 `features/` 目錄下，便於維護與擴充。
-2. **執行階段分離**：商店、社群、用戶端三個執行階段彼此獨立，降低相互影響。
+1. **功能模組化**：每個功能獨立放在對應執行域的 `features/` 目錄下，便於維護與擴充。
+2. **執行階段分離**：商店、用戶端與頁面工具彼此獨立，降低相互影響。
 3. **設定集中化**：API 網域、第三方服務設定統一在 `shared/config.js` 管理。
 
 ## 開發指南
 
 ### 新增功能
 
-以在商店頁新增功能為例：
+以在商店頁新增功能為例。簡單功能由商店聚合入口啟動；只有需要獨立生命週期的功能才加入執行階段註冊器：
 
 1. 在對應執行域的 `features/` 下建立功能目錄，例如 `store/features/my-feature/`
 
-2. 撰寫功能程式碼，並透過既有域 API 暴露最小入口：
+2. 在功能檔案中實作啟動邏輯，並接入 `store/features/features.js` 的設定開關：
 
    ```javascript
    (() => {
@@ -146,12 +146,14 @@ extension/
      const ID = "my-feature";
      const log = window.STLoggerFactory.createLogger("store", ID);
 
-     function start() {
+     function startMyFeature() {
        log.info("my-feature-start", "我的功能已啟動", {});
-       return { started: true };
      }
 
-     window.STStore.features.myFeature = { start };
+     // 在既有 init() 的同一作用域內呼叫：
+     function init() {
+       if (on(ID)) startMyFeature();
+     }
    })();
    ```
 
@@ -166,7 +168,7 @@ extension/
    }
    ```
 
-4. 在對應域的執行階段入口或 feature registry 中宣告 `id`、`settingsKey`、`loadStrategy`、`pageScope`、`dependencies`、`cost` 和清理方式。
+4. 在 `extension/background.js` 的 `STORE_FEATURE_CHUNKS` 加入按頁面類型載入的腳本路徑；需要獨立生命週期時，再在 `store/features/features.js` 透過 `STStore.reg.add` 宣告 `id`、`settingsKey`、`modes`、`pageScope`、`dependencies`、`cost` 和清理方式。
 
 5. 如需新增按需腳本，必須同步 `manifest.json` 的 `web_accessible_resources`、背景注入白名單和對應 contract test；不要把完整功能直接堆進 `content_scripts`。
 
@@ -191,15 +193,11 @@ extension/
 
 ### 資料收集
 
-Steam Buff 不會主動收集使用者的以下資料：
-
-- 瀏覽記錄
-- Steam 帳號密碼
-- 您的身分資訊
+Steam Buff 不會在背景主動蒐集瀏覽記錄，也不會要求或上傳 Steam 帳號密碼。帳號資料、登入令牌、會員狀態和同步資料只會在使用者登入、開啟帳號中心或主動啟用對應功能時按需處理。
 
 ### 資料使用
 
-部分功能需要在使用者使用時請求外部資料：
+部分功能會在頁面執行、設定中心檢查更新、帳號登入或使用者主動操作時請求外部資料：
 
 | 功能           | 資料請求對象        | 用途                       |
 | -------------- | ------------------- | -------------------------- |
@@ -207,8 +205,11 @@ Steam Buff 不會主動收集使用者的以下資料：
 | 價格工具       | Steam API / SteamPY | 取得價格歷史資料           |
 | 翻譯模組       | 翻譯服務 API        | 翻譯頁面內容               |
 | 遊戲庫名稱同步 | Steam Buff 後端     | 同步使用者自訂名稱（可選） |
+| 帳號與會員     | Steam Buff 登入服務 | 處理登入令牌、帳號狀態和會員權益（可選） |
+| 第三方價格     | ITAD / SteamPY      | 依設定取得價格或歷史資料 |
+| AI 翻譯        | 使用者設定的 AI 服務 | 處理使用者主動提交的翻譯文字 |
 
-所有網路請求僅在使用者主動使用對應功能時觸發。
+請求範圍由頁面准入、功能設定和使用者操作決定。設定中心開啟後可能自動檢查更新，並使用本地快取；登入令牌、會員狀態和使用者設定會按需儲存在擴充功能儲存區。
 
 Steam Buff 不會主動蒐集使用者瀏覽記錄，不包含廣告埋點，也不會把 Steam 帳號密碼上傳到本專案服務。
 
@@ -218,13 +219,18 @@ Steam Buff 在開發過程中參考或使用了以下開源專案：
 
 - [Augmented Steam](https://github.com/tfedor/AugmentedSteam) - Steam 增強功能的先驅專案
 - [SteamDB Extension](https://github.com/SteamDatabase/BrowserExtension) - Steam 資料庫擴充功能
-- [Steam Economy Enhancer](https://github.com/Nuklon/Steam-Economy-Enhancer) - Steam 市集增強
 - [pinyin-pro](https://github.com/zh-lx/pinyin-pro) - 拼音轉換函式庫
 - [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) - QR Code 產生函式庫
+- [xnx3 translate.js](https://github.com/xnx3/translate) - 翻譯執行階段
+- [fflate](https://github.com/101arrowz/fflate) - 壓縮與解壓函式庫
+- [Steam History Classifier](https://keylol.com/t1035599-1-1) - 消費歷史分類器腳本
+
+舊版本曾包含 [Steam Economy Enhancer](https://github.com/Nuklon/Steam-Economy-Enhancer) 的社群經濟程式碼；該執行階段已移除，目前版本不分發或啟用這部分功能。保留來源與授權記錄僅供歷史追溯。
 
 詳細來源、授權條款和授權記錄見：
 
-- 工作區 `vendor/*/LICENSE`
+- 隨包元件：`vendor/*/LICENSE`
+- 歷史第三方來源與授權記錄：主倉庫 `docs/third-party-licenses/`；公開原始碼鏡像不包含這個歷史記錄目錄
 
 特別感謝 Steam Buff 社群玩家貢獻遊戲中文名稱資料與使用回饋。
 

@@ -102,7 +102,7 @@
     }
 
     function syncModule(id) {
-      if (["translate", "ai", "review-filter", "market-tools"].includes(id)) {
+      if (["translate", "ai", "review-filter"].includes(id)) {
         shell.syncModuleNav(shadow);
       }
     }
@@ -202,10 +202,6 @@
       }
 
       if (panels.review().handleClick(event, shadow)) {
-        return;
-      }
-
-      if (panels.see().handleClick(event, shadow)) {
         return;
       }
 

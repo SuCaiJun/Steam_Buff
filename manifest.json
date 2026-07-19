@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "0.12.14",
+  "version": "0.12.16",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "顾青离",
@@ -209,7 +209,6 @@
         "steam/shared/constants.js",
         "shared/error-boundary.js",
         "shared/styles/theme.js",
-        "shared/utils/dom.js",
         "shared/styles/components.js",
         "steam/runtime/paths.js",
         "steam/runtime/steam-context.js",
@@ -253,20 +252,11 @@
         "shared/utils/dom.js",
         "shared/styles/components.js",
         "shared/observer-utils.js",
-        "shared/data-index.js",
-        "shared/batch-queue.js",
-        "shared/virtual-list.js",
         "shared/page-context.js",
-        "shared/runtime/kernel.js",
         "_locales/*/messages.json",
         "shared/logger-factory.js",
         "shared/error-boundary.js",
-        "community/runtime/*.js",
         "extension/runtime/logger.js",
-        "community/domain/*.js",
-        "community/ui/*.js",
-        "community/features/*/*.js",
-        "community/main.js",
         "store/page/review-filter-layout.js"
       ],
       "matches": [
@@ -308,8 +298,7 @@
         "images/features/cart-select.svg",
         "images/features/review-filter.svg",
         "images/features/translate.svg",
-        "images/features/ai.svg",
-        "images/third-party/market-tools.svg"
+        "images/features/ai.svg"
       ],
       "matches": [
         "https://*.steampowered.com/*",

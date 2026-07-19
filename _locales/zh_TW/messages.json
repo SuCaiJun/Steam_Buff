@@ -119,12 +119,6 @@
   "settings_category_client_desc": {
     "message": "Steam 用戶端收藏庫和下載頁增強，此頁面功能開啟或關閉後需要重新啟動 Steam 用戶端。"
   },
-  "settings_category_see_name": {
-    "message": "庫存增強"
-  },
-  "settings_category_see_desc": {
-    "message": "庫存增強功能由 Steam Economy Enhancer 開源擴充功能提供，我在整合這份程式碼時做了一些優化調整。"
-  },
   "settings_feature_settings_startup_animation_name": {
     "message": "設定中心啟動動畫"
   },
@@ -172,15 +166,6 @@
   },
   "settings_feature_third_party_services_desc": {
     "message": "控制第三方資料服務是否啟用，以及 IsThereAnyDeal API Key。"
-  },
-  "settings_feature_market_tools_name": {
-    "message": "庫存增強模組"
-  },
-  "settings_feature_market_tools_desc": {
-    "message": "控制庫存增強設定分類和社群庫存、市場、交易報價增強"
-  },
-  "settings_feature_market_tools_lock": {
-    "message": "庫存增強模組暫時禁用"
   },
   "settings_feature_review_filter_name": {
     "message": "評論過濾模組"

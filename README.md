@@ -5,7 +5,7 @@
   Steam Buff
   <br/>
 </h1>
-<h4 align="center">一个全方位增强 Steam 使用体验的浏览器扩展，覆盖 Steam 商店、社区、客户端内置页面。</h4>
+<h4 align="center">一个全方位增强 Steam 使用体验的浏览器扩展，覆盖 Steam 商店、社区评测与翻译、客户端内置页面。</h4>
 
 <p align="center">
   <a href="https://developer.chrome.google.cn/docs/extensions/develop/migrate/what-is-mv3"><img src="https://img.shields.io/badge/Manifest-V3-blue" alt="Manifest V3" target="_blank" /></a>
@@ -34,9 +34,10 @@ Steam Buff 主要补这些日常缺口：
 - 按关键词、正则、游戏时长、资料状态、评测篇数等条件过滤评论。
 - 在 Steam 客户端库页面显示自定义名称，并支持自定义排序名。
 - 提供页面翻译、划词翻译和 Steam 新闻弹窗翻译。
-- 集成库存、市场和交易报价相关辅助能力。
 - 支持 Steam 客户端下载完成后自动关机。
 - ...以及更多提升效率的工具
+
+当前版本不再提供 Steam 社区库存、市场或交易报价运行时；社区页相关能力以评测筛选和翻译支持为主。旧版本设置备份中的相关分区不会恢复，也不会加载对应代码。
 
 ## 运行环境
 
@@ -65,23 +66,19 @@ Steam Buff 主要补这些日常缺口：
 
 4. 点击**加载已解压的扩展程序**
 
-5. 选择本仓库的 `extension` 目录
+5. 选择包含 `manifest.json` 的扩展根目录：如果下载的是本扩展仓库或公开源码镜像，选择仓库根目录；如果下载的是 `steam-tools` 主仓库，选择其中的 `extension/` 子目录
 
 6. 安装完成，访问 Steam 商店或打开 Steam 客户端即可使用
 
-安装后可打开设置中心，按需启用搜索、价格、评论过滤、翻译、客户端增强、库存增强等模块。
+安装后可打开设置中心，按需启用搜索、价格、评论过滤、翻译、AI、第三方服务和客户端增强等模块。
 
 ## 目录结构
 
 ```text
 extension/
-├── ai/                    # AI 服务配置与适配
-├── community/             # Steam 社区增强模块
-│   ├── api/               # 社区接口与请求封装
-│   ├── domain/            # 库存、市场等领域模型
-│   ├── features/          # 库存、市场、交易报价功能
-│   ├── runtime/           # 社区运行时基础能力
-│   └── ui/                # 社区页 UI 组件
+├── ai/                    # AI 服务配置与缓存
+├── _locales/              # 多语言消息
+├── onboarding/            # 首次使用引导页与桥接
 ├── extension/             # 扩展核心
 │   ├── background.js      # Service Worker
 │   ├── background-logger.js
@@ -101,7 +98,6 @@ extension/
 │   ├── styles/            # 共享主题与组件
 │   └── utils/             # 工具函数
 ├── steam/                 # Steam 客户端增强
-│   ├── api/               # Steam 客户端接口适配
 │   ├── features/          # 客户端功能特性
 │   ├── runtime/           # 客户端上下文、样式和注册器
 │   ├── shared/            # 客户端共享常量
@@ -113,32 +109,35 @@ extension/
 │   ├── runtime/           # 商店运行时、设置和样式
 │   └── main.js            # 商店页运行时入口
 ├── translate/             # 翻译模块
-│   ├── page/              # 页面翻译桥接脚本
 │   ├── boot.js            # 翻译轻入口
 │   ├── runner.js          # 翻译运行时
 │   └── vendor-wrapper.js  # 第三方翻译库隔离层
 ├── vendor/                # 第三方库（本地打包）
+│   ├── SmallFork/         # 消费历史分类器
+│   ├── fflate/            # 压缩与备份工具
 │   ├── pinyin-pro/        # 拼音转换
 │   ├── qrcode-generator/  # 二维码生成
+│   ├── xnx3-translate/    # 翻译库
 │   └── ...
+├── docs/                  # 多语言项目说明
 └── manifest.json          # 扩展清单文件
 ```
 
 ### 设计理念
 
-1. **功能模块化**：每个功能独立在 `features/` 目录下，便于维护和扩展
-2. **运行时分离**：商店、社区、客户端三个运行时相互独立，减少相互影响
+1. **功能模块化**：每个功能独立在对应运行域的 `features/` 目录下，便于维护和扩展
+2. **运行时分离**：商店、客户端和社区评测/翻译入口按作用域加载，减少相互影响
 3. **配置集中化**：API 域名、第三方服务配置统一在 `shared/config.js` 管理
 
 ## 开发指南
 
 ### 添加新功能
 
-以在商店页添加新功能为例：
+以在商店页添加新功能为例。简单功能由商店聚合入口启动；只有需要独立生命周期的功能才注册到运行时注册器。
 
 1. 在对应运行域的 `features/` 下创建功能目录，如 `store/features/my-feature/`
 
-2. 编写功能代码，并通过现有域 API 暴露最小入口：
+2. 在功能文件中实现启动逻辑，并接入 `store/features/features.js` 的设置开关：
 
    ```javascript
    (() => {
@@ -147,12 +146,14 @@ extension/
      const ID = "my-feature";
      const log = window.STLoggerFactory.createLogger("store", ID);
 
-     function start() {
+     function startMyFeature() {
        log.info("my-feature-start", "我的功能已启动", {});
-       return { started: true };
      }
 
-     window.STStore.features.myFeature = { start };
+     // 在现有聚合入口 init() 的同一作用域内调用：
+     function init() {
+       if (on(ID)) startMyFeature();
+     }
    })();
    ```
 
@@ -162,16 +163,17 @@ extension/
    {
      id: 'my-feature',
      name: '我的新功能',
-     category: 'store',
+     area: 'store',
      enabled: true
    }
    ```
 
-4. 在对应域的运行时入口或 feature registry 中声明 `id`、`settingsKey`、`loadStrategy`、`pageScope`、`dependencies`、`cost` 和清理方式。
+4. 在 `extension/background.js` 的 `STORE_FEATURE_CHUNKS` 中加入按页面类型加载的脚本路径；需要独立生命周期时，再在 `store/features/features.js` 使用 `STStore.reg.add` 声明 `id`、`settingsKey`、`modes`、`pageScope`、`dependencies`、`cost` 和清理方式。
 
 5. 如需新增按需脚本，必须同步 `manifest.json` 的 `web_accessible_resources`、后台注入白名单和对应 contract test；不要把完整功能直接堆进 `content_scripts`。
 
 6. 重新加载扩展并在真实页面测试
+
 
 ### 添加新的 API 封装
 
@@ -192,15 +194,11 @@ extension/
 
 ### 数据收集
 
-Steam Buff 不会主动收集用户的以下数据：
-
-- 浏览历史
-- Steam 账号密码
-- 您的身份信息
+Steam Buff 不会在后台主动采集浏览历史，也不会要求或上传 Steam 账号密码。账号资料、登录令牌、会员状态和同步数据仅在用户登录、打开账号中心或主动启用对应功能时按需处理。
 
 ### 数据使用
 
-部分功能需要在用户使用时请求外部数据：
+部分功能会在对应页面运行、设置中心检查更新、账号登录或用户触发功能时请求外部数据：
 
 | 功能           | 数据请求对象        | 用途                       |
 | -------------- | ------------------- | -------------------------- |
@@ -208,8 +206,12 @@ Steam Buff 不会主动收集用户的以下数据：
 | 价格工具       | Steam API / SteamPY | 获取价格历史数据           |
 | 翻译模块       | 翻译服务 API        | 翻译页面内容               |
 | 游戏库名称同步 | Steam Buff 后端     | 同步用户自定义名称（可选） |
+| 更新提醒       | Steam Buff 更新服务 | 检查版本和更新日志         |
+| 账号与会员     | Steam Buff 登录服务 | 处理登录令牌、账号状态和会员权益（可选） |
+| 第三方价格     | ITAD / SteamPY      | 获取价格或历史数据（按功能开关和用户配置） |
+| AI 翻译        | 用户配置的 AI 服务  | 处理用户主动提交的翻译文本（可选） |
 
-所有网络请求仅在用户主动使用对应功能时触发。
+页面功能的请求范围由对应功能的页面准入、设置状态和用户操作决定；更新提醒可能在设置中心加载后自动检查，并使用本地缓存降低请求频率。登录令牌、会员状态和用户配置按需保存在本地扩展存储中。
 
 Steam Buff 不会主动采集用户浏览历史，不包含广告埋点，也不会把 Steam 账号密码上传到本项目服务。
 
@@ -219,13 +221,18 @@ Steam Buff 在开发过程中参考或使用了以下开源项目：
 
 - [Augmented Steam](https://github.com/tfedor/AugmentedSteam) - Steam 增强功能的先驱项目
 - [SteamDB Extension](https://github.com/SteamDatabase/BrowserExtension) - Steam 数据库扩展
-- [Steam Economy Enhancer](https://github.com/Nuklon/Steam-Economy-Enhancer) - Steam 市场增强
 - [pinyin-pro](https://github.com/zh-lx/pinyin-pro) - 拼音转换库
 - [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) - 二维码生成库
+- [xnx3 translate.js](https://github.com/xnx3/translate) - 翻译运行库
+- [fflate](https://github.com/101arrowz/fflate) - 压缩与解压库
+- [Steam History Classifier](https://keylol.com/t1035599-1-1) - 消费历史分类器脚本
+
+历史版本曾包含 [Steam Economy Enhancer](https://github.com/Nuklon/Steam-Economy-Enhancer) 的社区经济增强代码；该运行时已移除，当前版本不分发或启用这部分功能。保留来源和许可证记录仅用于历史授权追溯。
 
 详细来源、许可证和授权记录见：
 
-\- 工作区  `vendor/*/LICENSE`
+- 当前扩展随包组件：`vendor/*/LICENSE`
+- 历史第三方来源和授权记录：主仓库 `docs/third-party-licenses/`；公开源码镜像不包含该历史记录目录
 
 特别感谢 Steam Buff 社区的玩家贡献游戏中文名数据和使用反馈。
 

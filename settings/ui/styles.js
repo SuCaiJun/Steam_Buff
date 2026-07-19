@@ -561,10 +561,6 @@
           letter-spacing: 0;
         }
 
-        .see-control {
-          justify-self: end;
-        }
-
         .translate-save,
         .settings-save {
           border: 1px solid var(--st-color-border-primary-solid);
@@ -1249,14 +1245,6 @@
           justify-content: flex-end;
         }
 
-        .see-pair {
-          width: 280px;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-        }
-
-        .see-control,
         .translate-control,
         .settings-control {
           width: min(280px, 100%);
@@ -1490,7 +1478,6 @@
           line-height: 1.45;
         }
 
-        select.see-control,
         select.translate-control,
         select.settings-control {
           padding-right: 32px;
@@ -1503,13 +1490,11 @@
           background-position: right 12px center;
         }
 
-        .see-control:hover,
         .translate-control:hover,
         .settings-control:hover {
           border-color: var(--st-color-white-alpha-16);
         }
 
-        .see-control:focus,
         .translate-control:focus,
         .settings-control:focus {
           border-color: var(--st-color-primary);
@@ -1517,7 +1502,6 @@
           box-shadow: 0 0 0 3px var(--st-color-primary-alpha-12);
         }
 
-        .see-check,
         .translate-check,
         .settings-check:not(.switch-input) {
           position: relative;
@@ -1536,13 +1520,11 @@
           cursor: pointer;
         }
 
-        .see-check:hover,
         .translate-check:hover,
         .settings-check:hover {
           border-color: var(--st-color-primary-alpha-50);
         }
 
-        .see-check:checked,
         .translate-check:checked,
         .settings-check:not(.switch-input):checked {
           border-color: transparent;
@@ -1660,10 +1642,8 @@
             justify-content: flex-start;
           }
 
-          .see-control,
           .translate-control,
-          .settings-control,
-          .see-pair {
+          .settings-control {
             width: 100%;
           }
 

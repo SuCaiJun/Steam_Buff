@@ -5,7 +5,7 @@
   Steam Buff
   <br/>
 </h1>
-<h4 align="center">A browser extension that enhances the Steam experience across the Steam Store, Community, and built-in Steam client pages.</h4>
+<h4 align="center">A browser extension that enhances Steam Store pages, Community reviews and translation, and built-in Steam client pages.</h4>
 
 <p align="center">
   <a href="https://developer.chrome.google.cn/docs/extensions/develop/migrate/what-is-mv3"><img src="https://img.shields.io/badge/Manifest-V3-blue" alt="Manifest V3" target="_blank" /></a>
@@ -35,9 +35,11 @@ Steam Buff fills these daily gaps:
 - Filter reviews by keyword, regular expression, playtime, profile status, review count, and more.
 - Show custom names on Steam client library pages and support custom sort names.
 - Provide page translation, selected-text translation, and Steam news popup translation.
-- Integrate helper tools for inventory, market, and trade offers.
 - Automatically shut down the PC after Steam client downloads finish.
 - ...and more tools that improve everyday efficiency.
+
+The current version no longer provides Steam Community inventory, market, or trade-offer runtime features. Related sections in old settings backups are ignored and do not load that code.
+
 ## Runtime Environment
 
 - Chrome / Edge or other Chromium-based browsers
@@ -65,23 +67,19 @@ Some features depend on Steam page structures, the Steam Buff backend, third-par
 
 4. Click **Load unpacked**.
 
-5. Select the `extension` directory in this repository.
+5. Select the extension root directory containing `manifest.json`: use the repository root when downloading this extension repository or its public source mirror; when downloading the main `steam-tools` repository, select its `extension/` subdirectory.
 
 6. After installation, visit the Steam Store or open the Steam client to use the extension.
 
-After installation, you can open the settings center and enable modules such as search, pricing, review filtering, translation, client enhancements, and inventory enhancements as needed.
+After installation, you can open the settings center and enable modules such as search, pricing, review filtering, translation, AI, third-party services, and client enhancements as needed.
 
 ## Directory Structure
 
 ```text
 extension/
-├── ai/                    # AI service configuration and adapters
-├── community/             # Steam Community enhancement modules
-│   ├── api/               # Community APIs and request wrappers
-│   ├── domain/            # Domain models for inventory, market, and more
-│   ├── features/          # Inventory, market, and trade offer features
-│   ├── runtime/           # Community runtime foundations
-│   └── ui/                # Community page UI components
+├── ai/                    # AI service configuration and cache
+├── _locales/              # Localized messages
+├── onboarding/            # First-run onboarding page and bridge
 ├── extension/             # Extension core
 │   ├── background.js      # Service Worker
 │   ├── background-logger.js
@@ -101,7 +99,6 @@ extension/
 │   ├── styles/            # Shared themes and components
 │   └── utils/             # Utility functions
 ├── steam/                 # Steam client enhancements
-│   ├── api/               # Steam client API adapters
 │   ├── features/          # Client feature modules
 │   ├── runtime/           # Client context, styles, and registry
 │   ├── shared/            # Client shared constants
@@ -113,32 +110,35 @@ extension/
 │   ├── runtime/           # Store runtime, settings, and styles
 │   └── main.js            # Store page runtime entry
 ├── translate/             # Translation module
-│   ├── page/              # Page translation bridge scripts
 │   ├── boot.js            # Lightweight translation entry
 │   ├── runner.js          # Translation runtime
 │   └── vendor-wrapper.js  # Isolation layer for third-party translation libraries
 ├── vendor/                # Third-party libraries bundled locally
+│   ├── SmallFork/         # Purchase history classifier
+│   ├── fflate/            # Compression and backup helper
 │   ├── pinyin-pro/        # Pinyin conversion
 │   ├── qrcode-generator/  # QR code generation
+│   ├── xnx3-translate/    # Translation library
 │   └── ...
+├── docs/                  # Localized project documentation
 └── manifest.json          # Extension manifest
 ```
 
 ### Design Principles
 
-1. **Modular features**: Each feature lives independently under `features/` for easier maintenance and extension.
-2. **Separated runtimes**: The Store, Community, and Steam client runtimes are independent, reducing cross-domain impact.
+1. **Modular features**: Each feature lives independently under the relevant runtime's `features/` directory for easier maintenance and extension.
+2. **Separated runtimes**: Store, client, and page tools remain independent, reducing cross-domain impact.
 3. **Centralized configuration**: API domains and third-party service settings are managed in `shared/config.js`.
 
 ## Development Guide
 
 ### Adding a New Feature
 
-For example, to add a new feature to Store pages:
+For example, to add a new feature to Store pages. Simple features are started by the Store aggregator; only features with an independent lifecycle need a runtime registry entry:
 
 1. Create a feature directory under the corresponding runtime domain, such as `store/features/my-feature/`.
 
-2. Write the feature code and expose the smallest possible entry through the existing domain API:
+2. Write the feature code and connect it to the setting gate in `store/features/features.js`:
 
    ```javascript
    (() => {
@@ -147,12 +147,14 @@ For example, to add a new feature to Store pages:
      const ID = "my-feature";
      const log = window.STLoggerFactory.createLogger("store", ID);
 
-     function start() {
+     function startMyFeature() {
        log.info("my-feature-start", "My feature has started", {});
-       return { started: true };
      }
 
-     window.STStore.features.myFeature = { start };
+     // Call inside the existing init() in the same scope:
+     function init() {
+       if (on(ID)) startMyFeature();
+     }
    })();
    ```
 
@@ -167,7 +169,7 @@ For example, to add a new feature to Store pages:
    }
    ```
 
-4. Declare the `id`, `settingsKey`, `loadStrategy`, `pageScope`, `dependencies`, `cost`, and cleanup method in the corresponding runtime entry or feature registry.
+4. Add on-demand script paths to `extension/background.js` `STORE_FEATURE_CHUNKS`. For an independent lifecycle, declare `id`, `settingsKey`, `modes`, `pageScope`, `dependencies`, `cost`, and cleanup in `store/features/features.js` with `STStore.reg.add`.
 
 5. If you need to add on-demand scripts, update `manifest.json` `web_accessible_resources`, the background injection whitelist, and the corresponding contract tests. Do not put full feature modules directly into `content_scripts`.
 
@@ -192,15 +194,11 @@ If you need to call a new Steam API or third-party API:
 
 ### Data Collection
 
-Steam Buff does not actively collect the following user data:
-
-- Browsing history
-- Steam account passwords
-- Personal identity information
+Steam Buff does not collect browsing history in the background and does not request or upload Steam account passwords. Account profiles, login tokens, membership state, and synced data are processed only when users sign in, open the account center, or explicitly enable the corresponding feature.
 
 ### Data Usage
 
-Some features need to request external data when used by the user:
+Some features request external data while their page is active, when the settings center checks for updates, during account login, or after an explicit user action:
 
 | Feature              | Data Request Target | Purpose                                      |
 | -------------------- | ------------------- | -------------------------------------------- |
@@ -208,8 +206,11 @@ Some features need to request external data when used by the user:
 | Price tools          | Steam API / SteamPY | Retrieve price history data                  |
 | Translation module   | Translation API     | Translate page content                       |
 | Library name sync    | Steam Buff backend  | Sync user custom names, if enabled by users  |
+| Account and membership | Steam Buff login service | Handle login tokens, account state, and optional membership status |
+| Third-party pricing  | ITAD / SteamPY      | Retrieve price or history data as configured |
+| AI translation       | User-configured AI service | Process text explicitly submitted for translation |
 
-All network requests are triggered only when the user actively uses the corresponding feature.
+Request scope is controlled by page admission, feature settings, and user actions. Update checks may run after the settings center opens and use local caching. Login tokens, membership state, and user configuration are stored in extension storage as needed.
 
 Steam Buff does not actively collect users' browsing history, does not include advertising trackers, and does not upload Steam account passwords to this project's services.
 
@@ -219,13 +220,18 @@ Steam Buff references or uses the following open-source projects:
 
 - [Augmented Steam](https://github.com/tfedor/AugmentedSteam) - A pioneering project for Steam enhancements
 - [SteamDB Extension](https://github.com/SteamDatabase/BrowserExtension) - Steam database extension
-- [Steam Economy Enhancer](https://github.com/Nuklon/Steam-Economy-Enhancer) - Steam market enhancements
 - [pinyin-pro](https://github.com/zh-lx/pinyin-pro) - Pinyin conversion library
 - [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) - QR code generation library
+- [xnx3 translate.js](https://github.com/xnx3/translate) - Translation runtime
+- [fflate](https://github.com/101arrowz/fflate) - Compression and decompression library
+- [Steam History Classifier](https://keylol.com/t1035599-1-1) - Purchase history classifier script
+
+Earlier versions included community economy code from [Steam Economy Enhancer](https://github.com/Nuklon/Steam-Economy-Enhancer). That runtime has been removed and is not distributed or enabled in the current version; the source and license record is retained only for historical attribution.
 
 For detailed sources, licenses, and authorization records, see:
 
-- Workspace `vendor/*/LICENSE`
+- Bundled components: `vendor/*/LICENSE`
+- Historical third-party attribution records: `docs/third-party-licenses/` in the main repository; the public source mirror does not include this historical record directory
 
 Special thanks to Steam Buff community players for contributing Chinese game-name data and usage feedback.
 

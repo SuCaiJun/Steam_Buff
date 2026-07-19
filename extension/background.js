@@ -143,7 +143,6 @@
     "settings/ui/scroll-targets.js",
     "settings/panels/review-filter.js",
     "settings/panels/search-suggestions.js",
-    "settings/panels/see.js",
     "settings/panels/ai.js",
     "settings/panels/translate.js",
     "settings/panels/third-party-services.js",

@@ -179,13 +179,12 @@
   }
 
   async function settingsSnapshot() {
-    const [features, translate, ai, reviewFilter, searchSuggestions, see, membership] = await Promise.all([
+    const [features, translate, ai, reviewFilter, searchSuggestions, membership] = await Promise.all([
       readSettings("getAll"),
       readSettings("getTranslate"),
       readSettings("getAi"),
       readSettings("getReviewFilter"),
       readSettings("getSearchSuggestions"),
-      readSettings("getSee"),
       readSettings("getMembership"),
     ]);
     return {
@@ -214,7 +213,6 @@
         ruleCount: Array.isArray(reviewFilter?.rules) ? reviewFilter.rules.length : 0,
       },
       searchSuggestions: compactConfig(searchSuggestions, ["limit", "nativeMode"]),
-      see: compactConfig(see, Object.keys(obj(see)).slice(0, 20)),
       membership: membership ? {
         active: membership.active === true,
         level: cleanText(membership.level || "", 40),

@@ -199,7 +199,6 @@
   const links = Object.freeze({
     openSourceLibs: Object.freeze([
       { name: "Augmented Steam", url: join(ORIGINS.github, "/IsThereAnyDeal/AugmentedSteam") },
-      { name: "Steam Economy Enhancer", url: join(ORIGINS.github, "/Nuklon/Steam-Economy-Enhancer") },
       { name: "Steam 消费历史分类器", url: join(ORIGINS.keylol, "/t1035599-1-1") },
       { name: "SteamDB Extension", url: join(ORIGINS.github, "/SteamDatabase/BrowserExtension") },
       { name: "SubscriptionInfo", url: join(ORIGINS.github, "/alike03/SubscriptionInfo") },
@@ -342,18 +341,8 @@
     community: Object.freeze({
       host: HOSTS.steamCommunity,
       targetPages: Object.freeze([
-        "community-inventory",
-        "community-market",
-        "community-listing",
-        "community-trade",
+        "community-review",
       ]),
-      pageTypes: Object.freeze({
-        inventory: Object.freeze(["/id/:name/inventory", "/profiles/:id/inventory"]),
-        market: Object.freeze(["/market"]),
-        listing: Object.freeze(["/market/listings/:appid/:item"]),
-        trade: Object.freeze(["/tradeoffer"]),
-        review: Object.freeze(["/app/:appid/reviews"]),
-      }),
     }),
     translate: Object.freeze({
       hostPatterns: Object.freeze([HOSTS.steamCommunity, HOSTS.steamPowered]),

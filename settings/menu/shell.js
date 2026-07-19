@@ -182,9 +182,6 @@
       if (item?.panel === "search-suggestion") {
         return panels.searchSuggestion().html(cat);
       }
-      if (item?.panel === "see") {
-        return panels.see().html(cat);
-      }
       return "";
     }
 
@@ -226,9 +223,6 @@
       }
       if (cat.kind === "empty") {
         return emptyHtml(cat);
-      }
-      if (cat.kind === "see") {
-        return panels.see().html(cat);
       }
       if (cat.kind === "search-suggestion") {
         return panels.searchSuggestion().html(cat);

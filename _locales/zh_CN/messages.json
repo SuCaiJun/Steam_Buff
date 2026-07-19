@@ -119,12 +119,6 @@
   "settings_category_client_desc": {
     "message": "Steam 客户端库和下载页增强，此页面功能开启或关闭需要重启steam客户端。"
   },
-  "settings_category_see_name": {
-    "message": "库存增强"
-  },
-  "settings_category_see_desc": {
-    "message": "库存增强功能由 Steam Economy Enhancer 开源扩展提供，我在在集成这个代码时做了一些优化调整。"
-  },
   "settings_feature_settings_startup_animation_name": {
     "message": "设置中心启动动画"
   },
@@ -172,15 +166,6 @@
   },
   "settings_feature_third_party_services_desc": {
     "message": "控制第三方数据服务是否启用，以及 IsThereAnyDeal API Key。"
-  },
-  "settings_feature_market_tools_name": {
-    "message": "库存增强模块"
-  },
-  "settings_feature_market_tools_desc": {
-    "message": "控制库存增强设置分类和社区库存、市场、交易报价增强"
-  },
-  "settings_feature_market_tools_lock": {
-    "message": "库存增强模块暂时禁用"
   },
   "settings_feature_review_filter_name": {
     "message": "评论过滤模块"

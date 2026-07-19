@@ -205,7 +205,6 @@
       reviewFilter: {},
       searchSuggestion: {},
       familyLibrary: {},
-      see: {},
       ai: {},
       translate: {},
       thirdPartyServices: {},
@@ -216,7 +215,6 @@
       reviewFilter: "review",
       searchSuggestion: "searchSuggestion",
       familyLibrary: "familyLibrary",
-      see: "see",
       ai: "ai",
       translate: "translate",
       thirdPartyServices: "thirdPartyServices",
@@ -295,22 +293,6 @@
       return instances.familyLibrary;
     }
 
-    function see() {
-      if (!instances.see) {
-        instances.see = root.STSettingsSeePanel.create({
-          catalog,
-          storage,
-          config: getConfig("see"),
-          esc,
-          escAttr,
-          fieldInput,
-          savePrompt,
-          onConfigChange: (next) => setConfig("see", next),
-        });
-      }
-      return instances.see;
-    }
-
     function ai() {
       if (!instances.ai) {
         instances.ai = root.STSettingsAIPanel.create({
@@ -367,7 +349,6 @@
       review,
       searchSuggestion,
       familyLibrary,
-      see,
       ai,
       translate,
       thirdPartyServices,

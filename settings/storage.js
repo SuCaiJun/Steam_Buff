@@ -48,10 +48,6 @@
     return api.catalog?.defaults?.() || {};
   }
 
-  function seeDefaults() {
-    return api.catalog?.seeDefaults?.() || {};
-  }
-
   function translateDefaults() {
     return api.catalog?.translateDefaults?.() || {};
   }
@@ -446,39 +442,6 @@
     return ok ? visible : null;
   }
 
-  function getSee() {
-    const defs = seeDefaults();
-    const out = {};
-
-    for (const [id, def] of Object.entries(defs)) {
-      try {
-        const value = localStorage.getItem(id);
-        out[id] = value == null ? def : value;
-      } catch {
-        out[id] = def;
-      }
-    }
-
-    return Promise.resolve(out);
-  }
-
-  function setSee(values) {
-    const defs = seeDefaults();
-
-    for (const id of Object.keys(defs)) {
-      if (!Object.hasOwn(values || {}, id)) {
-        continue;
-      }
-      try {
-        localStorage.setItem(id, String(values[id]));
-      } catch {
-        // localStorage 不可写时保留默认值即可。
-      }
-    }
-
-    return Promise.resolve(true);
-  }
-
   async function getTranslate() {
     const defs = translateDefaults();
     const ids = Object.keys(defs);
@@ -781,7 +744,6 @@
       reviewFilter: await getReviewFilter(),
       searchSuggestions: await getSearchSuggestions(),
       familyLibrary: await getFamilyLibrary(),
-      see: await getSee(),
     };
   }
 
@@ -794,7 +756,6 @@
       setReviewFilter(sections.reviewFilter || {}),
       setSearchSuggestions(sections.searchSuggestions || {}),
       setFamilyLibrary(sections.familyLibrary || {}),
-      setSee(sections.see || {}),
     ];
     const out = await Promise.all(jobs);
     return out.every(value => value !== false);
@@ -815,8 +776,6 @@
     normalizeMembership,
     getMembership,
     setMembership,
-    getSee,
-    setSee,
     getTranslate,
     setTranslate,
     getReviewFilter,
