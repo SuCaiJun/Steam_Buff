@@ -15,6 +15,7 @@
   if (!api) return;
 
   const charts = api.features?.dataDisplayCharts;
+  const forecastPack = api.features?.dataDisplayForecastPack;
   const AI_NOT_CONFIGURED_TEXT = "预测需要先配置 AI 服务";
   const AI_TIMEOUT_MS = 30_000;
   const DEFAULT_RANGE_MONTHS = 12;
@@ -92,13 +93,13 @@
     return [
       {
         role: "system",
-        content: "你是 Steam 游戏价格趋势分析助手。只根据结构化价格数据输出简短中文建议；不要编造评价、在线人数、游玩时长或媒体评分。",
+        content: "你是 Steam 游戏价格趋势分析助手。只根据结构化价格数据和 festivalAnalysis 输出简短中文建议；不得根据活动名称猜测游戏题材匹配，也不要编造评价、在线人数、游玩时长或媒体评分。",
       },
       {
         role: "user",
         content: JSON.stringify({
           task: "discount_forecast",
-          output: "用三句话说明当前是否值得买、下一次可能关注的促销窗口、风险提示。",
+          output: "用三句话说明当前是否值得买、festivalAnalysis 推荐的节日窗口与依据、风险提示。",
           pack,
         }),
       },
@@ -152,16 +153,28 @@
     return priceSummary({ ok: true, data }).historyEvents;
   }
 
-  function createShell(pageInfo = {}) {
+  function sectionEnabled(root, name) {
+    return root?.dataset?.[name] === "true";
+  }
+
+  function createShell(pageInfo = {}, options = {}) {
     const root = noTranslate(el("section", "st-data-display"));
     root.id = "st-store-data-display";
     root.dataset.state = "loading";
     root.dataset.pageType = text(pageInfo.type);
     root.dataset.entityId = text(pageInfo.appId || pageInfo.id);
+    root.dataset.chartEnabled = options.chartEnabled === false ? "false" : "true";
+    root.dataset.forecastEnabled = options.forecastEnabled === false ? "false" : "true";
+    const range = el("div", "st-data-display-range");
+    const chart = el("div", "st-data-display__chart-row");
+    const forecast = el("div", "st-data-display__forecast");
+    range.hidden = !sectionEnabled(root, "chartEnabled");
+    chart.hidden = !sectionEnabled(root, "chartEnabled");
+    forecast.hidden = !sectionEnabled(root, "forecastEnabled");
     root.append(
-      el("div", "st-data-display-range"),
-      el("div", "st-data-display__chart-row"),
-      el("div", "st-data-display__forecast")
+      range,
+      chart,
+      forecast
     );
     renderLoading(root);
     return root;
@@ -230,6 +243,7 @@
         pricePack: result,
         pageCountry: api.ctx?.country?.(),
         document,
+        festivalData: result?.festivalData,
       });
       if (packStatus?.ok !== true) {
         setForecastStatus(root, packStatus?.userMessage || "价格预测数据暂不可用。", "warn");
@@ -350,162 +364,242 @@
     return amountMoney(Math.max(0, Number(base) * (1 - Number(cut) / 100)), currency);
   }
 
-  function cutFromPrice(base, amount) {
-    if (!Number.isFinite(Number(base)) || Number(base) <= 0 || !Number.isFinite(Number(amount))) return 0;
-    return clamp(Math.round((1 - Number(amount) / Number(base)) * 100), 0, 95);
-  }
-
-  function nextByInterval(lastTime, intervalDays, now = Date.now()) {
-    let days = clamp(Math.round(intervalDays) || 45, 14, 180);
-    if (lastTime > 0) {
-      let nextTime = lastTime + days * 86400000;
-      while (nextTime <= now) nextTime += days * 86400000;
-      days = clamp(Math.ceil((nextTime - now) / 86400000), 1, 180);
-    }
-    return days;
-  }
-
-  function nextWithinYear(lastTime, intervalDays, fallbackDays, now = Date.now()) {
-    const fallback = clamp(Math.round(fallbackDays) || 60, 1, 365);
-    if (!lastTime || !Number.isFinite(Number(intervalDays)) || Number(intervalDays) <= 0) {
-      return fallback;
-    }
-    const step = clamp(Math.round(intervalDays), 14, 365);
-    let nextTime = lastTime + step * 86400000;
-    while (nextTime <= now) nextTime += step * 86400000;
-    const days = Math.ceil((nextTime - now) / 86400000);
-    return days > 365 ? fallback : clamp(days, 1, 365);
-  }
-
-  function saleName(value = "") {
-    const name = text(value);
-    if (/spring/i.test(name)) return "春季大促";
-    if (/summer/i.test(name)) return "夏季大促";
-    if (/autumn|fall/i.test(name)) return "秋季大促";
-    if (/winter/i.test(name)) return "冬季大促";
-    return name || "下一次大促";
-  }
-
-  function seasonalWindows(now = Date.now()) {
-    const windows = Array.isArray(api.features?.dataDisplayForecastPack?.SALE_WINDOWS)
-      ? api.features.dataDisplayForecastPack.SALE_WINDOWS
-      : [];
-    return windows
-      .map(item => ({
-        name: saleName(item.name),
-        startsAt: Date.parse(text(item.startsAt)),
-        endsAt: Date.parse(text(item.endsAt)),
-      }))
-      .filter(item => Number.isFinite(item.startsAt) && Number.isFinite(item.endsAt) && item.endsAt >= now)
-      .sort((left, right) => left.startsAt - right.startsAt);
-  }
-
-  function shiftYear(time, offset) {
-    const date = new Date(time);
-    date.setFullYear(date.getFullYear() + offset);
-    return date.getTime();
-  }
-
   function section(settingId, title, body, meta, detail) {
     return { settingId, title, body, meta, detail };
+  }
+
+  function historicalLowEvidence(outlook = {}) {
+    const count = Number(outlook.episodeCount) || 0;
+    if (outlook.evidenceLevel === "strong") {
+      return `史低重复证据较强：历史有效折扣中有 ${count} 场达到或低于该史低价；这里只表示历史重复程度，不是概率。`;
+    }
+    if (outlook.evidenceLevel === "medium") {
+      return `史低重复证据中等：历史有效折扣中有 ${count} 场达到或低于该史低价；这里只表示历史重复程度，不是概率。`;
+    }
+    if (outlook.evidenceLevel === "low") {
+      return `史低重复证据较少：历史有效折扣中仅有 ${count} 场达到或低于该史低价；不输出史低概率。`;
+    }
+    return "史低重复证据不足：当前价格历史中没有可确认的重复史低折扣，不输出史低概率。";
+  }
+
+  function historicalLowText(outlook = {}, currency = "") {
+    const lowAmount = Number.isFinite(Number(outlook.historicalLowAmount))
+      ? amountMoney(outlook.historicalLowAmount, currency)
+      : "暂无";
+    if (outlook.state === "unavailable") {
+      return "史低参考：历史数据样本不足，无法预测。";
+    }
+    if (outlook.state === "free-history") {
+      return "史低参考：这款游戏曾经免费过，当前模型不支持预测此游戏。";
+    }
+    if (outlook.state === "current-unavailable") {
+      return `史低参考：当前到手价不可用，暂时无法判断是否已经达到史低 ${lowAmount}。`;
+    }
+    if (outlook.state === "new-low") {
+      return `史低参考：当前到手价已经低于此前记录的史低 ${lowAmount}，这是当前可观察到的新低价。`;
+    }
+    if (outlook.state === "at-low") {
+      return `史低参考：当前到手价已经达到历史最低价 ${lowAmount}。`;
+    }
+    const requiredCut = Number(outlook.requiredCut);
+    const requiredText = Number.isFinite(requiredCut)
+      ? `至少需要约 -${Math.max(0, Math.round(requiredCut))}% 才能追平。`
+      : "当前可靠原价不足，暂时无法计算追平所需折扣。";
+    if (outlook.reason === "next-discount-can-reach-low" && Number(outlook.nextLowDays) > 0) {
+      return `史低参考：当前到手价尚未达到史低 ${lowAmount}，${requiredText}下次可能达到史低的时间约在 ${Math.ceil(Number(outlook.nextLowDays))} 天后。`;
+    }
+    if (outlook.reason === "predicted-strength-below-low") {
+      return `史低参考：当前到手价尚未达到史低 ${lowAmount}，${requiredText}按当前预测的下一次折扣力度仍不足以追平史低，暂时无法给出下一次史低时间。`;
+    }
+    if (outlook.reason === "regular-price-unavailable") {
+      return `史低参考：当前到手价尚未达到史低 ${lowAmount}；当前可靠原价不足，暂时无法计算追平所需折扣和下一次史低时间。`;
+    }
+    if (outlook.reason === "discount-strength-unavailable") {
+      return `史低参考：当前到手价尚未达到史低 ${lowAmount}，${requiredText}下一次折扣力度证据不足，暂时无法给出下一次史低时间。`;
+    }
+    return `史低参考：当前到手价尚未达到史低 ${lowAmount}，${requiredText}折扣时间证据不足，暂时无法给出下一次史低时间。`;
+  }
+
+  function festivalEvidenceDetail(item = {}) {
+    const matched = Number(item.matchedWindows) || 0;
+    const hits = Number(item.hitWindows) || 0;
+    if (item.evidenceLevel === "strong") {
+      return `强证据：最近连续 ${item.consecutiveHits} 届同名同类型活动都出现折扣；共统计 ${matched} 届，命中 ${hits} 届。`;
+    }
+    if (item.evidenceLevel === "medium") {
+      return `中等证据：同名同类型活动共统计 ${matched} 届，命中 ${hits} 届，但最近未连续命中两届。`;
+    }
+    if (item.evidenceLevel === "low") {
+      return `低证据：同名同类型活动共统计 ${matched} 届，仅 1 届出现折扣。`;
+    }
+    return "没有足够的同名同类型活动折扣记录。";
   }
 
   function forecastSections(summary = {}, result = {}, pageInfo = {}) {
     const events = (Array.isArray(summary.historyEvents) ? summary.historyEvents : [])
       .map(event => ({ ...event, time: eventTime(event), amount: eventAmount(event), cut: Number(event?.cut) || 0 }))
-      .filter(event => event.time > 0 && event.amount !== null)
+      .filter(event => event.time > 0)
       .sort((left, right) => left.time - right.time);
     const discounted = events.filter(event => event.cut > 0);
     const currentCut = Number(summary.current?.cut) || 0;
-    const lowCut = Number(summary.historicalLow?.cut) || 0;
-    const lowAmount = amountOf(summary.historicalLow?.price);
-    if (events.length < 3 && discounted.length < 2 && currentCut <= 0 && lowCut <= 0 && lowAmount === null) {
-      return [];
-    }
-
-    const intervals = [];
-    for (let index = 1; index < discounted.length; index += 1) {
-      const days = Math.round((discounted[index].time - discounted[index - 1].time) / 86400000);
-      if (days >= 7 && days <= 365) intervals.push(days);
-    }
-    const avgInterval = intervals.length
-      ? Math.round(intervals.reduce((sum, value) => sum + value, 0) / intervals.length)
-      : 50;
-    const now = Date.now();
-    const lastDiscountTime = discounted.length ? discounted[discounted.length - 1].time : 0;
-    const predictedDays = nextByInterval(lastDiscountTime, avgInterval, now);
-    const cuts = discounted.map(event => event.cut).filter(Boolean).slice(-8);
-    const commonRange = cutRange(cuts, Math.max(currentCut, lowCut, 20));
-    const commonCut = singleCut(commonRange, Math.max(currentCut, lowCut, 20));
     const base = listPrice(summary);
     const currency = text(summary.current?.price?.currency || summary.historicalLow?.price?.currency || events[0]?.price?.currency);
-    const confidence = Math.round(clamp(0.58 + Math.min(discounted.length, 8) * 0.035 + Math.min(intervals.length, 5) * 0.03, 0.6, 0.92) * 100);
+    const isFree = base === 0 && amountOf(summary.current?.price) === 0 && currentCut === 0;
+    const now = Date.now();
+    const cuts = discounted.map(event => event.cut).filter(Boolean).slice(-8);
+    const commonRange = cutRange(cuts, Math.max(currentCut, 20));
+    const commonCut = singleCut(commonRange, Math.max(currentCut, 20));
+    const discountAnalysis = forecastPack?.discountForecast?.(events, {
+      now,
+      currentCut,
+      isFree,
+      festivalData: result?.festivalData,
+      releaseDate: summary.releaseDate,
+      currentDeal: summary.current,
+      historicalLow: summary.historicalLow,
+      regularAmount: amountOf(summary.current?.regular),
+    }) || { state: "insufficient", windows: [] };
+    const predictedDays = Number(discountAnalysis.predictedDays) > 0
+      ? Math.ceil(Number(discountAnalysis.predictedDays))
+      : 0;
+    const predictedCut = Number(discountAnalysis.predictedCut) > 0 ? discountAnalysis.predictedCut : commonCut;
+    const correction = discountAnalysis.seasonalCorrection;
+    const correctedCut = Number(correction?.predictedCut) > 0
+      ? Number(correction.predictedCut)
+      : predictedCut;
+    const lowOutlook = discountAnalysis.historicalLowOutlook || {};
+    const lowReference = historicalLowText(lowOutlook, currency);
+    const lowEvidence = lowReference && !["unavailable", "free-history"].includes(lowOutlook.state)
+      ? historicalLowEvidence(lowOutlook)
+      : "";
     const source = text(result?.source?.name || result?.provider || "IsThereAnyDeal");
 
-    const sections = [
-      section(
+    const sections = [];
+    if (discountAnalysis.state === "free") {
+      sections.push(section(
         "price-forecast-discount",
         "未来折扣推测",
-        `综合历史折扣周期后，当前更稳的结论是：预计 ${predictedDays} 天后（${daysText(predictedDays, now)}）出现约 -${commonCut}% 折扣，到手大约 ${priceAtCut(base, commonCut, currency)}。`,
-        `把握度 ${confidence}%`,
-        intervals.length
-          ? `参考近 ${discounted.length} 次折扣，平均间隔约 ${avgInterval} 天；数据来源 ${source}。`
-          : `折扣间隔样本较少，先按现有历史折扣、当前折扣和史低折扣保守估算；数据来源 ${source}。`
-      ),
-    ];
-
-    const windows = seasonalWindows(now);
-    const sale = windows[0] || null;
-    const saleStartDays = sale ? Math.max(0, Math.ceil((sale.startsAt - now) / 86400000)) : predictedDays;
-    if (sale) {
-      const pad = 14 * 86400000;
-      const prevStart = shiftYear(sale.startsAt, -1);
-      const prevEnd = shiftYear(sale.endsAt, -1);
-      const holidayHits = discounted.filter(event => event.time >= prevStart - pad && event.time <= prevEnd + pad);
-      const holidayRange = cutRange(holidayHits.map(event => event.cut), Math.max(commonRange[1], lowCut, 20));
-      const holidayCut = singleCut(holidayRange, commonCut);
-      const holidayConfidence = Math.round(clamp((confidence / 100) - 0.06 + Math.min(holidayHits.length, 3) * 0.06, 0.52, 0.9) * 100);
+        "当前是免费游戏，不需要预测折扣。",
+        lowReference,
+        lowEvidence
+      ));
+    } else if (discountAnalysis.state === "active") {
+      const currentPriceText = moneyText(summary.current?.price);
+      const activeBody = predictedDays && correctedCut > 0
+        ? `现在正以 -${currentCut}% 销售，到手约 ${currentPriceText}。下次打折时间约 ${predictedDays} 天后，折扣约 -${correctedCut}%。`
+        : (predictedDays
+          ? `现在正以 -${currentCut}% 销售，到手约 ${currentPriceText}。下次打折时间约 ${predictedDays} 天后，但折扣力度暂时无法可靠估计。`
+          : `现在正以 -${currentCut}% 销售，到手约 ${currentPriceText}。历史样本不足，暂时算不出下一次折扣。`);
       sections.push(section(
-        "price-forecast-seasonal",
-        "节日折扣推测",
-        holidayHits.length
-          ? `更靠近「${sale.name}」这波活动：预计 ${saleStartDays} 天后（${dateText(sale.startsAt)}）前后出现约 -${holidayCut}% 折扣，到手大约 ${priceAtCut(base, holidayCut, currency)}。`
-          : `下一次更值得盯「${sale.name}」这波活动：约 ${saleStartDays} 天后（${dateRangeText(sale.startsAt, sale.endsAt)}）开始，按常见折扣估算约 -${holidayCut}%，到手大约 ${priceAtCut(base, holidayCut, currency)}。`,
-        `把握度 ${holidayConfidence}%`,
-        holidayHits.length
-          ? `参考去年同档前后 14 天内的 ${holidayHits.length} 次折扣命中。`
-          : `去年同档样本不足，先用常见折扣和下一次 Steam 活动窗口估算。`
+        "price-forecast-discount",
+        "未来折扣推测",
+        activeBody,
+        lowReference,
+        [lowEvidence, `数据来源 ${source}。`].filter(Boolean).join(" ")
+      ));
+    } else if (!predictedDays) {
+      sections.push(section(
+        "price-forecast-discount",
+        "未来折扣推测",
+        "样本数据不足，暂时算不出下一次折扣。",
+        lowReference,
+        [lowEvidence, `数据来源 ${source}。`].filter(Boolean).join(" ")
+      ));
+    } else {
+      const riskText = correction?.mode === "sparse" || discountAnalysis.state === "limited"
+        ? ""
+        : (Array.isArray(discountAnalysis.windows) && discountAnalysis.windows.length
+          ? discountAnalysis.windows.map(item => `${item.days} 天内 ${item.probabilityPercent}%`).join(" · ")
+          : "");
+      const correctionRange = correction
+        ? `${dateText(correction.startsAt)}～${dateText(correction.endsAt)}`
+        : "";
+      const correctionCutMin = Number(correction?.predictedCutMin) || 0;
+      const correctionCutMax = Number(correction?.predictedCutMax) || correctionCutMin;
+      const hasCorrectionCut = correctionCutMin > 0 || Number(correction?.predictedCut) > 0;
+      const correctionCutText = correctionCutMin !== correctionCutMax
+        ? `-${correctionCutMin}%～-${correctionCutMax}%`
+        : `-${correctionCutMin || correctedCut}%`;
+      const body = correction?.mode === "sparse"
+        ? (hasCorrectionCut
+          ? `样本数据不足，推测 ${predictedDays} 天后的「${correction.name}」（${correctionRange}），可能会有 ${correctionCutText} 左右折扣。`
+          : `这款游戏很少打折，无法预测未来打折信息。建议关注 ${predictedDays} 天后的「${correction.name}」（${correctionRange}），看看是否打折。`)
+        : correction
+          ? (discountAnalysis.state === "limited"
+            ? `样本数据不多，推测 ${predictedDays} 天后的「${correction.name}」（${correctionRange}）可能出现约 -${correctedCut}% 折扣。`
+            : `预计 ${predictedDays} 天后的「${correction.name}」（${correctionRange}）可能出现约 -${correctedCut}% 折扣，到手大约 ${priceAtCut(base, correctedCut, currency)}。`)
+          : (discountAnalysis.state === "limited"
+            ? `当前样本数据不足，预计 ${predictedDays} 天后（${daysText(predictedDays, now)}）有一定概率出现约 -${predictedCut}% 折扣，到手约 ${priceAtCut(base, predictedCut, currency)}。`
+            : `预计 ${predictedDays} 天后（${daysText(predictedDays, now)}）可能出现约 -${predictedCut}% 折扣，到手大概 ${priceAtCut(base, predictedCut, currency)}。`);
+      sections.push(section(
+        "price-forecast-discount",
+        "未来折扣推测",
+        body,
+        lowReference,
+        [
+          riskText,
+          lowEvidence,
+          `参考 ${discountAnalysis.eventsCount || discounted.length} 次折扣；数据来源 ${source}。`,
+        ].filter(Boolean).join(" ")
       ));
     }
 
-    if (lowCut > 0 || lowAmount !== null) {
-      const nearLow = discounted.filter((event) => {
-        const amountNear = lowAmount !== null && event.amount <= lowAmount * 1.05;
-        const cutNear = lowCut > 0 && event.cut >= Math.max(1, lowCut - 5);
-        return amountNear || cutNear;
-      });
-      const lowIntervals = [];
-      for (let index = 1; index < nearLow.length; index += 1) {
-        const days = Math.round((nearLow[index].time - nearLow[index - 1].time) / 86400000);
-        if (days >= 14 && days <= 730) lowIntervals.push(days);
-      }
-      const avgLowInterval = lowIntervals.length
-        ? Math.round(lowIntervals.reduce((sum, value) => sum + value, 0) / lowIntervals.length)
-        : 0;
-      const lastNearLowTime = nearLow.length ? nearLow[nearLow.length - 1].time : lastDiscountTime;
-      const lowDays = nextWithinYear(lastNearLowTime, avgLowInterval, saleStartDays || predictedDays, now);
-      const inferredLowCut = lowCut > 0 ? lowCut : cutFromPrice(base, lowAmount);
-      const lowCutValue = inferredLowCut > 0 ? inferredLowCut : singleCut(commonRange, commonCut);
-      const lowPriceText = lowAmount !== null ? amountMoney(lowAmount, currency) : priceAtCut(base, lowCutValue, currency);
-      const lowConfidence = Math.round(clamp(0.5 + Math.min(nearLow.length, 4) * 0.08 + Math.min(lowIntervals.length, 3) * 0.04, 0.52, 0.88) * 100);
+    const festivalAnalysis = result?.festivalData
+      ? forecastPack?.festivalDiscountForecast?.(result.festivalData, events, {
+        now,
+        releaseDate: summary.releaseDate,
+      })
+      : null;
+    const festivalRecommendation = festivalAnalysis?.recommended || null;
+    if (festivalAnalysis?.reason === "no-history") {
       sections.push(section(
-        "price-forecast-historical-low",
-        "未来史低推测",
-        `预计未来一年内最近一次史低窗口在 ${lowDays} 天后（${daysText(lowDays, now)}）附近，可能达到 -${lowCutValue}% 折扣，到手大约 ${lowPriceText}。`,
-        `把握度 ${lowConfidence}%`,
-        nearLow.length
-          ? `参考 ${nearLow.length} 次接近史低记录；接近史低按价格距史低 5% 内或折扣距史低 5 个百分点内计算。`
-          : `接近史低样本较少，先按史低价格和下一次折扣窗口保守估算。`
+        "price-forecast-seasonal",
+        "节日折扣推测",
+        "当前返回的历史节日窗口不足，暂时无法推测节日折扣。",
+        "",
+        ""
+      ));
+    } else if (festivalAnalysis?.reason === "no-future") {
+      sections.push(section(
+        "price-forecast-seasonal",
+        "节日折扣推测",
+        "当前没有未来一年的节日数据。",
+        "",
+        ""
+      ));
+    } else if (festivalAnalysis?.reason === "no-evidence") {
+      sections.push(section(
+        "price-forecast-seasonal",
+        "节日折扣推测",
+        "未来活动中没有找到该游戏参加同名同类型活动的历史折扣证据。",
+        "",
+        "没有足够的同名同类型活动折扣记录。"
+      ));
+    } else if (festivalRecommendation) {
+      const startsAt = Date.parse(festivalRecommendation.startsAt);
+      const endsAt = Date.parse(festivalRecommendation.endsAt);
+      const range = dateRangeText(startsAt, endsAt);
+      const timing = festivalRecommendation.ongoing
+        ? `正在进行的「${festivalRecommendation.name}」（${range}）`
+        : `${festivalRecommendation.daysToStart} 天后的「${festivalRecommendation.name}」（${range}）`;
+      const probability = Number(festivalRecommendation.probabilityPercent) || 0;
+      const predictedFestivalCut = Number(festivalRecommendation.predictedCut) || 0;
+      const festivalCutMin = Number(festivalRecommendation.predictedCutMin) || predictedFestivalCut;
+      const festivalCutMax = Number(festivalRecommendation.predictedCutMax) || predictedFestivalCut;
+      const festivalCutText = festivalCutMin !== festivalCutMax
+        ? `-${festivalCutMin}%～-${festivalCutMax}%`
+        : `-${predictedFestivalCut}%`;
+      const body = festivalRecommendation.evidenceLevel === "strong"
+        ? `${timing}，按当前规则，该活动出现折扣的可能性约 ${probability}%；历史命中时折扣约 ${festivalCutText}，按中位数到手约 ${priceAtCut(base, predictedFestivalCut, currency)}。`
+        : (festivalRecommendation.evidenceLevel === "medium"
+          ? `${timing} 有中等证据可能打折；历史多次命中但不连续，命中时折扣约 ${festivalCutText}。`
+          : `${timing} 只有一次历史命中，仅作低证据提醒；当次折扣约 ${festivalCutText}。`);
+      sections.push(section(
+        "price-forecast-seasonal",
+        "节日折扣推测",
+        body,
+        "",
+        festivalEvidenceDetail(festivalRecommendation)
       ));
     }
 
@@ -514,7 +608,7 @@
 
   function renderForecastReferences(root, result = {}, pageInfo = {}) {
     const wrap = root.querySelector(".st-data-display__forecast");
-    if (!wrap) return;
+    if (!wrap || !sectionEnabled(root, "forecastEnabled")) return;
     wrap.replaceChildren();
     if (result?.ok !== true) {
       return;
@@ -538,6 +632,7 @@
 
   function renderRangeControls(root, events = [], months = DEFAULT_RANGE_MONTHS, enabled = true) {
     const controls = root.querySelector(".st-data-display-range");
+    if (!sectionEnabled(root, "chartEnabled")) return;
     controls?.replaceChildren();
     RANGE_OPTIONS.forEach((item) => {
       const button = el("button", "st-data-display-range__button", item.label);
@@ -557,6 +652,7 @@
   }
 
   function renderChart(root, events = [], months = DEFAULT_RANGE_MONTHS) {
+    if (!sectionEnabled(root, "chartEnabled")) return;
     const row = root.querySelector(".st-data-display__chart-row");
     if (!row) return;
     row.replaceChildren();
@@ -568,26 +664,38 @@
 
   function renderLoading(root) {
     root.dataset.state = "loading";
-    root.querySelector(".st-data-display-range")?.replaceChildren();
-    const row = root.querySelector(".st-data-display__chart-row");
-    row?.replaceChildren(charts?.createSkeleton?.() || el("div", "st-data-display-chart--empty", "正在加载"));
-    renderForecastReferences(root, {}, {});
+    if (sectionEnabled(root, "chartEnabled")) {
+      root.querySelector(".st-data-display-range")?.replaceChildren();
+      const row = root.querySelector(".st-data-display__chart-row");
+      row?.replaceChildren(charts?.createSkeleton?.() || el("div", "st-data-display-chart--empty", "正在加载"));
+    }
+    if (sectionEnabled(root, "forecastEnabled")) {
+      renderForecastReferences(root, {}, {});
+    }
   }
 
   function renderNonReady(root, state, message) {
     root.dataset.state = state;
-    renderRangeControls(root, [], DEFAULT_RANGE_MONTHS, false);
-    const row = root.querySelector(".st-data-display__chart-row");
-    row?.replaceChildren(charts?.createEmpty?.(message || "暂无历史价格数据") || el("div", "st-data-display-chart--empty", message || "暂无历史价格数据"));
-    renderForecastReferences(root, {}, {});
+    if (sectionEnabled(root, "chartEnabled")) {
+      renderRangeControls(root, [], DEFAULT_RANGE_MONTHS, false);
+      const row = root.querySelector(".st-data-display__chart-row");
+      row?.replaceChildren(charts?.createEmpty?.(message || "暂无历史价格数据") || el("div", "st-data-display-chart--empty", message || "暂无历史价格数据"));
+    }
+    if (sectionEnabled(root, "forecastEnabled")) {
+      renderForecastReferences(root, {}, {});
+    }
   }
 
   function renderReady(root, result, pageInfo = {}) {
-    const summary = priceSummary(result);
+    const summary = priceSummary(result, pageInfo);
     const events = summary.historyEvents;
     root.dataset.state = "ready";
-    renderChart(root, events, DEFAULT_RANGE_MONTHS);
-    renderForecastReferences(root, result, pageInfo);
+    if (sectionEnabled(root, "chartEnabled")) {
+      renderChart(root, events, DEFAULT_RANGE_MONTHS);
+    }
+    if (sectionEnabled(root, "forecastEnabled")) {
+      renderForecastReferences(root, result, pageInfo);
+    }
   }
 
   function renderState(root, state, result = {}, pageInfo = {}) {
@@ -607,6 +715,7 @@
   api.features.dataDisplayView = Object.freeze({
     createShell,
     renderState,
+    renderForecastState: renderForecastReferences,
     runForecast,
     currentDeal,
     lowDeal,

@@ -303,6 +303,11 @@
         background: var(--st-data-display-bg);
         font-family: var(--st-font-family-base);
       }
+      .st-data-display-range[hidden],
+      .st-data-display__chart-row[hidden],
+      .st-data-display__forecast[hidden] {
+        display: none;
+      }
       .st-data-display__chart-row {
         min-height: 220px;
         padding-top: var(--st-spacing-xl, 24px);

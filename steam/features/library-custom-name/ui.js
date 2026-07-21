@@ -43,7 +43,7 @@
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
   const STEAM_CUSTOM_LIMIT_TIP = "存储上限和容量上限为 Steam 官方对自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功或无法保存至 steam 云端！";
-  const CLOUD_TIP_TEXT = "将本次手动修改的自定义排序名称同步到素材君云端（Steam Buff 云端），帮助更多玩家获得更准确的名称建议。";
+  const CLOUD_TIP_TEXT = "将自定义排序名称同步到素材君云端（Steam Buff 云端），以便下次使用【获取云端名称】功能从云端获取过来，或在商店及其他页面使用该名称。注1：请确保上传的自定义名称符合当地法律法规，不符合法律法规的名称请勿上传云端，一经发现可能会封号处理。注2：您上传的自定义名称可能会用于改善社区游戏名称库，用于帮助更多玩家获得更准确的游戏名称。";
   const CLOUD_CANCEL_TEXT = "素材君云端共享可以帮助更多玩家获得更准确的自定义名称建议。本次保存将只写入本地 Steam 库，不再同步到素材君云端，确认关闭吗？";
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";

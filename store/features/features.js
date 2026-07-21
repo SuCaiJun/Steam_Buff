@@ -242,8 +242,19 @@
         const type = pageInfo.type;
         const appId = pageInfo.appId;
 
-        if ((type === "app" || type === "sub" || type === "bundle") && canRun("data-display-enhancements")) {
-            startDataDisplay(pageInfo);
+        if (type === "app" || type === "sub" || type === "bundle") {
+            const chartEnabled = canRun("data-display-enhancements");
+            const forecastEnabled = canRun("price-forecast");
+            const discountForecastEnabled = canRun("price-forecast-discount");
+            const seasonalForecastEnabled = canRun("price-forecast-seasonal");
+            if (chartEnabled || forecastEnabled) {
+                startDataDisplay(pageInfo, {
+                    chartEnabled,
+                    forecastEnabled,
+                    discountForecastEnabled,
+                    seasonalForecastEnabled,
+                });
+            }
         }
         
         if (type === "app") {

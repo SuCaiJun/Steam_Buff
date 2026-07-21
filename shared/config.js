@@ -75,6 +75,7 @@
     onboarding: origin(HOSTS.onboarding),
   });
   const STEAM_BUFF_BASE = join(ORIGINS.site, "/wp-json/steam-buff/v1");
+  const STEAM_FESTIVALS_BASE = join(ORIGINS.site, "/wp-json/steam-festivals/v1");
   const SUPPORTER_BASE = join(ORIGINS.site, "/wp-json/supporter/v1");
   const LOGIN_AUTH_BASE = join(ORIGINS.site, "/wp-json/login-auth/v1");
 
@@ -174,11 +175,13 @@
     steamCommunityOrigin: ORIGINS.steamCommunity,
     steamApiOrigin: ORIGINS.steamApi,
     steamBuffBase: STEAM_BUFF_BASE,
+    steamFestivalsBase: STEAM_FESTIVALS_BASE,
     supporterBase: SUPPORTER_BASE,
     loginAuthBase: LOGIN_AUTH_BASE,
     updateLatest: join(STEAM_BUFF_BASE, "/update-logs/latest"),
     updateLogs: join(STEAM_BUFF_BASE, "/update-logs/latest"),
     updateLog: (version) => join(STEAM_BUFF_BASE, `/update-logs/${encoded(version)}`),
+    steamFestivals: (anchorDate, beforeMonths = 36, afterMonths = 12) => `${join(STEAM_FESTIVALS_BASE, "/festivals")}?anchor_date=${encoded(anchorDate)}&before_months=${encoded(beforeMonths)}&after_months=${encoded(afterMonths)}`,
     homepage: join(ORIGINS.site, "/25.html"),
     updatePage: join(ORIGINS.site, "/25.html"),
     device: join(ORIGINS.site, "/login-auth/device"),
@@ -218,6 +221,7 @@
       prices: () => join(ORIGINS.isthereanydeal, "/games/prices/v3"),
       historyLow: () => join(ORIGINS.isthereanydeal, "/games/historylow/v1"),
       history: () => join(ORIGINS.isthereanydeal, "/games/history/v2"),
+      info: () => join(ORIGINS.isthereanydeal, "/games/info/v2"),
     }),
     steampy: Object.freeze({
       host: HOSTS.steampy,

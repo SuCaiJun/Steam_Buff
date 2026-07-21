@@ -25,19 +25,14 @@
     prices: "stable",
     historyLow: "stable",
     history: "stable",
-    players: "internal",
-    playtime: "internal",
-    reviews: "internal",
-    mediaScore: "internal",
+    info: "stable",
   });
   const TTL = Object.freeze({
     lookup: 24 * 60 * 60 * 1000,
     prices: 10 * 60 * 1000,
     historyLow: 12 * 60 * 60 * 1000,
     history: 12 * 60 * 60 * 1000,
-    players: 10 * 60 * 1000,
-    hltb: 12 * 60 * 60 * 1000,
-    reviews: 12 * 60 * 60 * 1000,
+    info: 24 * 60 * 60 * 1000,
     test: 60 * 1000,
   });
   const FALLBACK_RETRY_AFTER_MS = 60 * 1000;
@@ -129,14 +124,8 @@
     if (endpointKey === "history") {
       return itad.history?.() || "https://api.isthereanydeal.com/games/history/v2";
     }
-    if (endpointKey === "players") {
-      return itad.endpoint?.("/internal/players/v1") || "https://api.isthereanydeal.com/internal/players/v1";
-    }
-    if (endpointKey === "hltb") {
-      return itad.endpoint?.("/internal/hltb/v1") || "https://api.isthereanydeal.com/internal/hltb/v1";
-    }
-    if (endpointKey === "reviews") {
-      return itad.endpoint?.("/internal/reviews/v1") || "https://api.isthereanydeal.com/internal/reviews/v1";
+    if (endpointKey === "info") {
+      return itad.info?.() || "https://api.isthereanydeal.com/games/info/v2";
     }
     return itad.statsMostPopular?.(1, 0) || "https://api.isthereanydeal.com/stats/most-popular/v1?limit=1&offset=0";
   }
@@ -153,9 +142,6 @@
     }
     if (options.id) {
       url.searchParams.set("id", cleanId(options.id));
-    }
-    if (options.appid) {
-      url.searchParams.set("appid", String(parseInt(options.appid, 10) || 0));
     }
     if (options.since) {
       url.searchParams.set("since", text(options.since));
@@ -409,186 +395,216 @@
     return items.every(item => Object.hasOwn(data, item.key) && (data[item.key] === null || typeof data[item.key] === "string"));
   }
 
-  function asList(data) {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.data)) return data.data;
-    if (Array.isArray(data?.items)) return data.items;
-    if (Array.isArray(data?.list)) return data.list;
-    if (Array.isArray(data?.history)) return data.history;
-    return [];
-  }
-
-  function validateIdList(data) {
-    const list = asList(data);
-    return list.length >= 0 && (Array.isArray(data) || list.length > 0);
-  }
-
   function validateObject(data) {
     return !!data && typeof data === "object" && !Array.isArray(data);
   }
 
-  function appidOf(value) {
-    const parsed = parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  function hasFields(value, fields) {
+    return validateObject(value) && fields.every(field => Object.hasOwn(value, field));
   }
 
-  function firstObject(data) {
-    if (Array.isArray(data)) {
-      return data.find(item => item && typeof item === "object" && !Array.isArray(item)) || null;
-    }
-    return validateObject(data) ? data : null;
+  function validateDateTime(value) {
+    return typeof value === "string" && value.trim() !== "" && Number.isFinite(Date.parse(value));
   }
 
-  function valueAt(src, keys) {
-    for (const key of keys) {
-      if (!Object.hasOwn(src || {}, key)) continue;
-      const value = number(src[key], NaN);
-      if (Number.isFinite(value)) return value;
-    }
-    return null;
+  function validateMoney(value) {
+    return hasFields(value, ["amount", "amountInt", "currency"])
+      && typeof value.amount === "number"
+      && Number.isFinite(value.amount)
+      && value.amount >= 0
+      && Number.isInteger(value.amountInt)
+      && value.amountInt >= 0
+      && /^[A-Z]{3}$/.test(value.currency);
   }
 
-  function score(value) {
-    if (!value || typeof value !== "object") return null;
-    const item = firstObject(value);
-    if (!item) return null;
-    const out = {
-      score: valueAt(item, ["score", "rating", "percent", "percentile"]),
-      count: valueAt(item, ["count", "reviews", "total"]),
-      tier: text(item.tier || item.label),
-      url: safeUrl(item.url),
-    };
-    return out.score !== null || out.count !== null || out.tier || out.url ? out : null;
+  function validateShop(value) {
+    return hasFields(value, ["id", "name"])
+      && typeof value.id === "number"
+      && Number.isFinite(value.id)
+      && typeof value.name === "string";
+  }
+
+  function validateCut(value, integer = false) {
+    return typeof value === "number"
+      && Number.isFinite(value)
+      && value >= 0
+      && value <= 100
+      && (!integer || Number.isInteger(value));
+  }
+
+  function validateDeal(value) {
+    return hasFields(value, [
+      "shop", "price", "regular", "cut", "voucher", "storeLow", "flag",
+      "drm", "platforms", "timestamp", "expiry", "url",
+    ])
+      && validateShop(value.shop)
+      && validateMoney(value.price)
+      && validateMoney(value.regular)
+      && validateCut(value.cut, true)
+      && (value.voucher === null || typeof value.voucher === "string")
+      && (value.storeLow === null || validateMoney(value.storeLow))
+      && (value.flag === null || ["H", "N", "S"].includes(value.flag))
+      && Array.isArray(value.drm)
+      && Array.isArray(value.platforms)
+      && validateDateTime(value.timestamp)
+      && (value.expiry === null || validateDateTime(value.expiry))
+      && !!safeUrl(value.url);
+  }
+
+  function validatePriceHistory(value) {
+    return hasFields(value, ["all", "y1", "m3"])
+      && [value.all, value.y1, value.m3].every(item => item === null || validateMoney(item));
+  }
+
+  function validatePricesResponse(data) {
+    return Array.isArray(data) && data.every(item => (
+      hasFields(item, ["id", "historyLow", "deals"])
+      && typeof item.id === "string"
+      && item.id.trim() !== ""
+      && validatePriceHistory(item.historyLow)
+      && Array.isArray(item.deals)
+      && item.deals.every(validateDeal)
+    ));
+  }
+
+  function validateHistoryLow(value) {
+    return hasFields(value, ["shop", "price", "regular", "cut", "timestamp"])
+      && validateShop(value.shop)
+      && validateMoney(value.price)
+      && validateMoney(value.regular)
+      && validateCut(value.cut, true)
+      && validateDateTime(value.timestamp);
+  }
+
+  function validateHistoryLowResponse(data) {
+    return Array.isArray(data) && data.every(item => (
+      hasFields(item, ["id", "low"])
+      && typeof item.id === "string"
+      && item.id.trim() !== ""
+      && validateHistoryLow(item.low)
+    ));
+  }
+
+  function validateHistoryDeal(value) {
+    return value === null || (
+      hasFields(value, ["price", "regular", "cut"])
+      && validateMoney(value.price)
+      && validateMoney(value.regular)
+      && validateCut(value.cut)
+    );
+  }
+
+  function validateHistoryResponse(data) {
+    return Array.isArray(data) && data.every(item => (
+      hasFields(item, ["timestamp", "shop", "deal"])
+      && validateDateTime(item.timestamp)
+      && validateShop(item.shop)
+      && validateHistoryDeal(item.deal)
+    ));
   }
 
   function money(value) {
-    if (!value || typeof value !== "object") return null;
-    const amount = Number(value.amount);
-    const amountInt = Number(value.amountInt);
+    if (!validateMoney(value)) return null;
     return {
-      amount: Number.isFinite(amount) ? amount : (Number.isFinite(amountInt) ? amountInt / 100 : 0),
-      amountInt: Number.isFinite(amountInt) ? amountInt : (Number.isFinite(amount) ? Math.round(amount * 100) : 0),
-      currency: text(value.currency).toUpperCase(),
+      amount: value.amount,
+      amountInt: value.amountInt,
+      currency: value.currency,
     };
   }
 
   function shop(value) {
-    if (!value || typeof value !== "object") return null;
+    if (!validateShop(value)) return null;
     return {
-      id: number(value.id, 0),
-      name: text(value.name),
+      id: value.id,
+      name: value.name,
     };
   }
 
   function deal(value) {
-    if (!value || typeof value !== "object") return null;
+    if (!validateDeal(value)) return null;
     return {
       shop: shop(value.shop),
       price: money(value.price),
       regular: money(value.regular),
-      cut: number(value.cut, 0),
-      url: safeUrl(value.url || value.urls?.buy || value.urls?.game),
-      timestamp: text(value.timestamp || value.time || value.updatedAt),
+      cut: value.cut,
+      url: safeUrl(value.url),
+      timestamp: value.timestamp,
     };
   }
 
-  function low(value) {
-    if (!value || typeof value !== "object") return null;
-    const candidate = value.low || value.all || value.historyLow || value;
-    const lowDeal = deal(candidate);
-    return lowDeal || {
-      price: money(candidate.price || candidate),
-      shop: shop(candidate.shop),
-      cut: number(candidate.cut, 0),
-      timestamp: text(candidate.timestamp || candidate.time),
-      url: safeUrl(candidate.url),
+  function priceHistory(value) {
+    if (!validatePriceHistory(value)) return null;
+    return {
+      all: value.all === null ? null : money(value.all),
+      y1: value.y1 === null ? null : money(value.y1),
+      m3: value.m3 === null ? null : money(value.m3),
+    };
+  }
+
+  function historyLow(value) {
+    if (!validateHistoryLow(value)) return null;
+    return {
+      shop: shop(value.shop),
+      price: money(value.price),
+      regular: money(value.regular),
+      cut: value.cut,
+      timestamp: value.timestamp,
     };
   }
 
   function priceItem(value) {
-    const item = value && typeof value === "object" ? value : {};
     return {
-      id: cleanId(item.id),
-      deals: asList(item.deals).map(deal).filter(Boolean),
-      historyLow: low(item.historyLow),
+      id: value.id,
+      deals: value.deals.map(deal),
+      historyLow: priceHistory(value.historyLow),
       updatedAt: now(),
     };
   }
 
   function historyLowItem(value) {
-    const item = value && typeof value === "object" ? value : {};
     return {
-      id: cleanId(item.id),
-      low: low(item.low || item.historyLow || item),
+      id: value.id,
+      low: historyLow(value.low),
       updatedAt: now(),
     };
   }
 
   function historyEvent(value) {
-    const item = value && typeof value === "object" ? value : {};
-    const current = item.deal && typeof item.deal === "object" ? item.deal : item;
+    const current = value.deal;
     return {
-      shop: shop(current.shop || item.shop),
-      price: money(current.price),
-      regular: money(current.regular),
-      cut: number(current.cut, 0),
-      timestamp: text(item.timestamp || item.time || current.timestamp || current.time),
-      url: safeUrl(current.url || current.urls?.buy || current.urls?.game || item.url),
+      shop: shop(value.shop),
+      price: current === null ? null : money(current.price),
+      regular: current === null ? null : money(current.regular),
+      cut: current === null ? 0 : current.cut,
+      timestamp: value.timestamp,
+      url: "",
     };
   }
 
   function historyData(id, data) {
     return {
       id: cleanId(id),
-      events: asList(data).map(historyEvent).filter(item => item.price || item.timestamp),
+      events: data.map(historyEvent),
       updatedAt: now(),
     };
   }
 
-  function playersData(appid, data) {
-    const item = firstObject(data);
+  function releaseDate(value) {
+    if (value === null) return "";
+    const raw = text(value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
+    const stamp = Date.parse(`${raw}T00:00:00Z`);
+    return Number.isFinite(stamp) && new Date(stamp).toISOString().slice(0, 10) === raw
+      ? raw
+      : "";
+  }
+
+  function gameInfoData(id, data) {
     return {
-      appid: appidOf(item?.appid || item?.appId || appid),
-      current: valueAt(item, ["current", "now", "players", "online", "recent"]),
-      peak24h: valueAt(item, ["peak24h", "peakDay", "daily", "day", "maxDay"]),
-      peak7d: valueAt(item, ["peak7d", "peakWeek", "weekly", "week", "maxWeek"]),
+      id: cleanId(id),
+      releaseDate: releaseDate(data.releaseDate),
       updatedAt: now(),
     };
-  }
-
-  function hltbData(appid, data) {
-    const item = firstObject(data);
-    return {
-      appid: appidOf(item?.appid || item?.appId || appid),
-      mainHours: valueAt(item, ["main", "mainStory", "story", "mainHours"]),
-      extraHours: valueAt(item, ["extra", "mainExtra", "extras", "extraHours"]),
-      completionistHours: valueAt(item, ["completionist", "complete", "completionistHours"]),
-      updatedAt: now(),
-    };
-  }
-
-  function reviewsData(appid, data) {
-    const item = firstObject(data);
-    const metacritic = score(item?.metacritic || item?.metaCritic);
-    const opencritic = score(item?.opencritic || item?.openCritic);
-    return {
-      appid: appidOf(item?.appid || item?.appId || appid),
-      metacritic,
-      opencritic,
-      updatedAt: now(),
-    };
-  }
-
-  function hasPlayerValue(data) {
-    return data.current !== null || data.peak24h !== null || data.peak7d !== null;
-  }
-
-  function hasHltbValue(data) {
-    return data.mainHours !== null || data.extraHours !== null || data.completionistHours !== null;
-  }
-
-  function hasReviewValue(data) {
-    return !!(data.metacritic || data.opencritic);
   }
 
   function normalizeLookup(data, items) {
@@ -659,11 +675,11 @@
         body: clean,
         requestId: options.requestId,
       }, config);
-      if (!validateIdList(res.data)) {
+      if (!validatePricesResponse(res.data)) {
         throw invalidShape("prices", res.status, res.requestId);
       }
       return {
-        data: asList(res.data).map(priceItem).filter(item => item.id),
+        data: res.data.map(priceItem),
         status: res.status,
         requestId: res.requestId,
         updatedAt: now(),
@@ -683,11 +699,11 @@
         body: clean,
         requestId: options.requestId,
       }, config);
-      if (!validateIdList(res.data)) {
+      if (!validateHistoryLowResponse(res.data)) {
         throw invalidShape("historyLow", res.status, res.requestId);
       }
       return {
-        data: asList(res.data).map(historyLowItem).filter(item => item.id),
+        data: res.data.map(historyLowItem),
         status: res.status,
         requestId: res.requestId,
         updatedAt: now(),
@@ -706,7 +722,7 @@
         method: "GET",
         requestId: options.requestId,
       }, config);
-      if (!validateIdList(res.data)) {
+      if (!validateHistoryResponse(res.data)) {
         throw invalidShape("history", res.status, res.requestId);
       }
       return {
@@ -718,65 +734,25 @@
     });
   }
 
-  async function getPlayers(appid, options = {}, config = {}) {
-    const clean = appidOf(appid);
-    const requestData = { appid: clean };
-    return withCache("players", requestData, TTL.players, async () => {
-      const res = await requestJson("players", {
-        url: endpointWithQuery("players", { appid: clean }),
+  async function getInfo(id, options = {}, config = {}) {
+    const clean = cleanId(id);
+    const requestData = { id: clean };
+    return withCache("info", requestData, TTL.info, async () => {
+      const res = await requestJson("info", {
+        url: endpointWithQuery("info", { id: clean }),
         method: "GET",
         requestId: options.requestId,
       }, config);
-      const data = playersData(clean, res.data);
-      if (!clean || !validateObject(res.data) || !hasPlayerValue(data)) {
-        throw invalidShape("players", res.status, res.requestId);
+      if (
+        !validateObject(res.data)
+        || cleanId(res.data.id) !== clean
+        || !Object.hasOwn(res.data, "releaseDate")
+        || (res.data.releaseDate !== null && !releaseDate(res.data.releaseDate))
+      ) {
+        throw invalidShape("info", res.status, res.requestId);
       }
       return {
-        data,
-        status: res.status,
-        requestId: res.requestId,
-        updatedAt: now(),
-      };
-    });
-  }
-
-  async function getHltb(appid, options = {}, config = {}) {
-    const clean = appidOf(appid);
-    const requestData = { appid: clean };
-    return withCache("hltb", requestData, TTL.hltb, async () => {
-      const res = await requestJson("hltb", {
-        url: endpointWithQuery("hltb", { appid: clean }),
-        method: "GET",
-        requestId: options.requestId,
-      }, config);
-      const data = hltbData(clean, res.data);
-      if (!clean || !validateObject(res.data) || !hasHltbValue(data)) {
-        throw invalidShape("hltb", res.status, res.requestId);
-      }
-      return {
-        data,
-        status: res.status,
-        requestId: res.requestId,
-        updatedAt: now(),
-      };
-    });
-  }
-
-  async function getReviews(appid, options = {}, config = {}) {
-    const clean = appidOf(appid);
-    const requestData = { appid: clean };
-    return withCache("reviews", requestData, TTL.reviews, async () => {
-      const res = await requestJson("reviews", {
-        url: endpointWithQuery("reviews", { appid: clean }),
-        method: "GET",
-        requestId: options.requestId,
-      }, config);
-      const data = reviewsData(clean, res.data);
-      if (!clean || !validateObject(res.data) || !hasReviewValue(data)) {
-        throw invalidShape("reviews", res.status, res.requestId);
-      }
-      return {
-        data,
+        data: gameInfoData(clean, res.data),
         status: res.status,
         requestId: res.requestId,
         updatedAt: now(),
@@ -812,9 +788,7 @@
       getPrices,
       getHistoryLow,
       getHistory,
-      getPlayers,
-      getHltb,
-      getReviews,
+      getInfo,
       normalizeSteamItems,
     }),
   });

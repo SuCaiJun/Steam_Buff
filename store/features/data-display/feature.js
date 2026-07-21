@@ -112,7 +112,16 @@
     activeRoot = null;
   }
 
-  function mount(info) {
+  function displayOptions(options = {}) {
+    return {
+      chartEnabled: options.chartEnabled !== false,
+      forecastEnabled: options.forecastEnabled !== false,
+      discountForecastEnabled: options.discountForecastEnabled !== false,
+      seasonalForecastEnabled: options.seasonalForecastEnabled !== false,
+    };
+  }
+
+  function mount(info, options) {
     const anchor = mountAnchor(info);
     const selector = anchorSelector(anchor);
     if (!anchor) {
@@ -126,7 +135,7 @@
       return null;
     }
     removeCurrent();
-    const root = view?.createShell?.(info);
+    const root = view?.createShell?.(info, options);
     if (!root || !insertAtAnchor(anchor, root)) {
       log?.warn?.("data-display-mount-target-missing", "数据展示挂载失败", pageMeta({
       pageType: info.type || "",
@@ -148,46 +157,95 @@
     return root;
   }
 
-  async function load(root, info, ticket) {
+  async function load(root, info, ticket, options) {
     const startedAt = Date.now();
-    if (!api.thirdPartyData?.getPricePack) {
-      view?.renderState?.(root, "error", { userMessage: "第三方数据服务未就绪。" });
-      return;
-    }
-    log?.info?.("data-display-load-start", "数据展示开始加载价格数据", pageMeta({
-      pageType: info.type || "",
-      appid: Number(info.appId) || 0,
-      provider: "isthereanydeal",
-      settingsKey: FEATURE_ID,
-    }));
-    try {
-      const result = await api.thirdPartyData.getPricePack(pageInfoForService(info), {
-        pageCountry: api.ctx?.country?.(),
-      });
-      if (ticket !== seq || root !== activeRoot) return;
-      const state = stateFromResult(result);
-      view?.renderState?.(root, state, result, info);
-      log?.[result?.ok === true ? "info" : "warn"]?.(result?.ok === true ? "data-display-load-success" : "data-display-load-failed", result?.ok === true ? "数据展示价格数据加载完成" : "数据展示价格数据不可用", pageMeta({
+    const priceNeeded = options.chartEnabled || options.forecastEnabled;
+    const festivalsNeeded = options.forecastEnabled
+      && (options.discountForecastEnabled || options.seasonalForecastEnabled);
+    let priceData = null;
+    let festivalData = null;
+    const isCurrent = () => ticket === seq && root === activeRoot;
+    if (priceNeeded) {
+      log?.info?.("data-display-load-start", "数据展示开始加载价格数据", pageMeta({
         pageType: info.type || "",
         appid: Number(info.appId) || 0,
-        provider: result?.provider || "isthereanydeal",
-        durationMs: Date.now() - startedAt,
-        cacheHit: result?.cache?.hit === true,
-        errorCode: result?.code || "",
-      }));
-    } catch (error) {
-      if (ticket !== seq || root !== activeRoot) return;
-      view?.renderState?.(root, "error", { userMessage: "第三方价格数据加载失败，请稍后重试。" });
-      log?.error?.("data-display-load-failed", "数据展示价格数据加载异常", pageMeta({
-        pageType: info.type || "",
-        appid: Number(info.appId) || 0,
-        durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        provider: "isthereanydeal",
+        settingsKey: FEATURE_ID,
       }));
     }
+    const priceReady = priceNeeded
+      ? Promise.resolve().then(() => {
+        if (!api.thirdPartyData?.getPricePack) {
+          throw new Error("第三方数据服务未就绪");
+        }
+        return api.thirdPartyData.getPricePack(pageInfoForService(info), {
+          pageCountry: api.ctx?.country?.(),
+        });
+      }).then((result) => {
+        priceData = result;
+        if (!isCurrent()) return result;
+        const renderResult = festivalData ? { ...result, festivalData } : result;
+        const state = stateFromResult(renderResult);
+        view?.renderState?.(root, state, renderResult, info);
+        log?.[result?.ok === true ? "info" : "warn"]?.(result?.ok === true ? "data-display-load-success" : "data-display-load-failed", result?.ok === true ? "数据展示价格数据加载完成" : "数据展示价格数据不可用", pageMeta({
+          pageType: info.type || "",
+          appid: Number(info.appId) || 0,
+          provider: result?.provider || "isthereanydeal",
+          durationMs: Date.now() - startedAt,
+          cacheHit: result?.cache?.hit === true,
+          errorCode: result?.code || "",
+        }));
+        return result;
+      }, (error) => {
+        if (isCurrent()) {
+          view?.renderState?.(root, "error", { userMessage: "第三方价格数据加载失败，请稍后重试。" });
+          log?.error?.("data-display-load-failed", "数据展示价格数据加载异常", pageMeta({
+            pageType: info.type || "",
+            appid: Number(info.appId) || 0,
+            durationMs: Date.now() - startedAt,
+            error: error?.message || String(error),
+          }));
+        }
+        return null;
+      })
+      : Promise.resolve(null);
+    const festivalReady = festivalsNeeded
+      ? Promise.resolve().then(() => {
+        if (!api.thirdPartyData?.getSteamFestivals) {
+          throw new Error("Steam 节日数据服务未就绪");
+        }
+        return api.thirdPartyData.getSteamFestivals({ beforeMonths: 36, afterMonths: 12 });
+      }).then((result) => {
+        festivalData = result;
+        if (!isCurrent()) return result;
+        log?.info?.("steam-festivals-load-success", "Steam 节日数据加载完成", pageMeta({
+          pageType: info.type || "",
+          itemCount: (result.before?.length || 0) + (result.after?.length || 0),
+          anchorDate: result.anchorDate,
+          beforeMonths: result.beforeMonths,
+          afterMonths: result.afterMonths,
+          durationMs: Date.now() - startedAt,
+        }));
+        if (options.forecastEnabled && priceData) {
+          view?.renderForecastState?.(root, { ...priceData, festivalData: result }, info);
+        }
+        return result;
+      }, (error) => {
+        if (isCurrent()) {
+          log?.warn?.("steam-festivals-load-failed", "Steam 节日数据加载失败", pageMeta({
+            pageType: info.type || "",
+            durationMs: Date.now() - startedAt,
+            error: error?.message || String(error),
+          }));
+        }
+        return null;
+      })
+      : Promise.resolve(null);
+
+    await Promise.all([priceReady, festivalReady]);
   }
 
-  function start(pageInfo = api.ctx?.pageInfo?.()) {
+  function start(pageInfo = api.ctx?.pageInfo?.(), startOptions = {}) {
     const info = pageInfo || {};
     if (!SUPPORTED_TYPES.has(info.type)) {
       return { started: false, reason: "unsupported-page" };
@@ -196,12 +254,16 @@
       log?.warn?.("data-display-view-missing", "数据展示视图模块缺失", pageMeta({ pageType: info.type || "" }));
       return { started: false, reason: "view-missing" };
     }
+    const options = displayOptions(startOptions);
+    if (!options.chartEnabled && !options.forecastEnabled) {
+      return { started: false, reason: "all-sections-disabled" };
+    }
     api.styles?.ensureFeatureStyle?.("data-display", { owner: OWNER, key: "style" });
-    const root = mount(info);
+    const root = mount(info, options);
     if (!root) return { started: false, reason: "mount-failed" };
     const ticket = seq + 1;
     seq = ticket;
-    const ready = load(root, info, ticket);
+    const ready = load(root, info, ticket, options);
     return { started: true, ready, stop };
   }
 

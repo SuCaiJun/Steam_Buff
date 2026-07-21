@@ -79,16 +79,11 @@
         key: String(itad.key ?? defItad.key ?? "").trim(),
         country: String(itad.country || defItad.country || "auto"),
         shops: Array.isArray(itad.shops) ? itad.shops : clone(defItad.shops || [61]),
-        enableInternalCapabilities: itad.enableInternalCapabilities === true,
       },
       routes: {
         prices: routes.prices === PROVIDER ? PROVIDER : PROVIDER,
         history: routes.history === PROVIDER ? PROVIDER : PROVIDER,
         discountForecast: routes.discountForecast === PROVIDER ? PROVIDER : PROVIDER,
-        reviews: routes.reviews === PROVIDER ? PROVIDER : "",
-        players: routes.players === PROVIDER ? PROVIDER : "",
-        playtime: routes.playtime === PROVIDER ? PROVIDER : "",
-        mediaScore: routes.mediaScore === PROVIDER ? PROVIDER : "",
       },
     };
   }

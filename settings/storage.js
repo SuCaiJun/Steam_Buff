@@ -184,14 +184,9 @@
       "isthereanydeal.key",
       "isthereanydeal.country",
       "isthereanydeal.shops",
-      "isthereanydeal.enableInternalCapabilities",
       "routes.prices",
       "routes.history",
       "routes.discountForecast",
-      "routes.reviews",
-      "routes.players",
-      "routes.playtime",
-      "routes.mediaScore",
     ];
   }
 
@@ -228,16 +223,11 @@
         key: String(itad.key ?? defItad.key ?? "").trim(),
         country: cleanItadCountry(itad.country, defItad.country || "auto"),
         shops: cleanItadShops(itad.shops ?? defItad.shops),
-        enableInternalCapabilities: itad.enableInternalCapabilities === true,
       },
       routes: {
         prices: routeValue(routes.prices || "isthereanydeal") || "isthereanydeal",
         history: routeValue(routes.history || "isthereanydeal") || "isthereanydeal",
         discountForecast: routeValue(routes.discountForecast || "isthereanydeal") || "isthereanydeal",
-        reviews: routeValue(routes.reviews),
-        players: routeValue(routes.players),
-        playtime: routeValue(routes.playtime),
-        mediaScore: routeValue(routes.mediaScore),
       },
     };
   }

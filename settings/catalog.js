@@ -337,16 +337,11 @@
       key: "",
       country: "auto",
       shops: Object.freeze([61]),
-      enableInternalCapabilities: false,
     }),
     routes: Object.freeze({
       prices: "isthereanydeal",
       history: "isthereanydeal",
       discountForecast: "isthereanydeal",
-      reviews: "",
-      players: "",
-      playtime: "",
-      mediaScore: "",
     }),
   });
 
@@ -552,7 +547,7 @@
         {
           id: "price-related-enhancements",
           name: "价格相关增强",
-          desc: "统一控制商店价格历史、趋势、活动和 SteamPY 价格展示。",
+          desc: "统一控制商店价格历史、趋势预测和 SteamPY 价格展示。",
           help: "价格相关增强",
           area: "store",
           enabled: true,
@@ -577,7 +572,7 @@
                 {
                   id: "price-forecast-discount",
                   name: "未来折扣推测",
-                  desc: "显示下一次常规折扣时间、折扣力度和预计价格。",
+                  desc: "显示下一次常规折扣时间、折扣力度、预计价格和史低参考，并在有历史证据时结合四季特卖时间修正。",
                   area: "store",
                   enabled: true,
                   deps: depAll(["price-forecast"]),
@@ -585,31 +580,12 @@
                 {
                   id: "price-forecast-seasonal",
                   name: "节日折扣推测",
-                  desc: "显示下一次 Steam 季节促销窗口和预计折扣。",
-                  area: "store",
-                  enabled: true,
-                  deps: depAll(["price-forecast"]),
-                },
-                {
-                  id: "price-forecast-historical-low",
-                  name: "未来史低推测",
-                  desc: "显示下一次可能接近历史最低价的时间和价格。",
+                  desc: "根据历史节日窗口和价格记录，推荐未来更可能打折的 Steam 活动。",
                   area: "store",
                   enabled: true,
                   deps: depAll(["price-forecast"]),
                 },
               ]),
-            },
-            {
-              id: "steam-events",
-              name: "活动显示",
-              desc: "显示当前正在进行和未来即将到来的 Steam 活动",
-              area: "store",
-              enabled: true,
-              disabled: true,
-              badge: "待开发",
-              lock: "活动入口依赖已下线的价格图表模块，等待对接新 API",
-              deps: depAll(["price-related-enhancements", "price-history"]),
             },
             {
               id: "steampy-cdk-price",

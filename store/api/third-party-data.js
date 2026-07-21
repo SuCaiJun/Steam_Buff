@@ -21,7 +21,12 @@
   });
   const DEFAULT_HISTORY_SINCE = "1996-07-01T00:00:00Z";
   const UNSUPPORTED_MESSAGE = "当前平台暂不支持该能力。";
-  const READY_CAPABILITIES = Object.freeze(new Set(["stable", "optional", "internal-verified"]));
+  const READY_CAPABILITIES = Object.freeze(new Set(["stable", "optional"]));
+  const FESTIVAL_TYPES = Object.freeze(new Set(["seasonal_sale", "themed_sale", "next_fest", "other"]));
+  const FESTIVAL_DEFAULT_BEFORE_MONTHS = 36;
+  const FESTIVAL_DEFAULT_AFTER_MONTHS = 12;
+  const FESTIVAL_MAX_MONTHS = 60;
+  const FESTIVAL_CACHE_TTL_MS = 5 * 60 * 1000;
   const log = globalThis.STLoggerFactory?.createLogger?.("store", "third-party-data") || null;
 
   function text(value) {
@@ -30,6 +35,199 @@
 
   function now() {
     return Date.now();
+  }
+
+  function integer(value, field) {
+    if (typeof value === "number" && Number.isInteger(value)) return value;
+    if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+    throw new TypeError(`${field} 必须是整数`);
+  }
+
+  function festivalDate(value, field) {
+    const raw = text(value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      throw new TypeError(`${field} 必须是 YYYY-MM-DD 日期`);
+    }
+    const stamp = Date.parse(`${raw}T00:00:00Z`);
+    if (!Number.isFinite(stamp) || new Date(stamp).toISOString().slice(0, 10) !== raw) {
+      throw new TypeError(`${field} 必须是有效的 YYYY-MM-DD 日期`);
+    }
+    return raw;
+  }
+
+  function shiftFestivalMonths(dateText, offset) {
+    const [year, month, day] = dateText.split("-").map(Number);
+    const absoluteMonth = (year * 12) + (month - 1) + offset;
+    const targetYear = Math.floor(absoluteMonth / 12);
+    const targetMonth = ((absoluteMonth % 12) + 12) % 12 + 1;
+    const lastDay = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
+    const targetDay = Math.min(day, lastDay);
+    return `${String(targetYear).padStart(4, "0")}-${String(targetMonth).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`;
+  }
+
+  function festivalIsoDate(dateText) {
+    return `${dateText}T00:00:00.000Z`;
+  }
+
+  function festivalRange(options = {}) {
+    if (
+      Object.prototype.hasOwnProperty.call(options, "startYear")
+      || Object.prototype.hasOwnProperty.call(options, "years")
+    ) {
+      throw new TypeError("Steam 节日查询已改用 anchorDate、beforeMonths 和 afterMonths");
+    }
+    const stamp = options.now === undefined ? now() : Number(options.now);
+    if (!Number.isFinite(stamp)) {
+      throw new TypeError("now 必须是有效时间戳");
+    }
+    const anchorDate = festivalDate(
+      options.anchorDate === undefined || options.anchorDate === null
+        ? new Date(stamp).toISOString().slice(0, 10)
+        : options.anchorDate,
+      "anchor_date"
+    );
+    const beforeMonths = options.beforeMonths === undefined || options.beforeMonths === null
+      ? FESTIVAL_DEFAULT_BEFORE_MONTHS
+      : integer(options.beforeMonths, "before_months");
+    const afterMonths = options.afterMonths === undefined || options.afterMonths === null
+      ? FESTIVAL_DEFAULT_AFTER_MONTHS
+      : integer(options.afterMonths, "after_months");
+    if (beforeMonths < 0 || beforeMonths > FESTIVAL_MAX_MONTHS) {
+      throw new RangeError(`before_months 必须在 0 到 ${FESTIVAL_MAX_MONTHS} 之间`);
+    }
+    if (afterMonths < 0 || afterMonths > FESTIVAL_MAX_MONTHS) {
+      throw new RangeError(`after_months 必须在 0 到 ${FESTIVAL_MAX_MONTHS} 之间`);
+    }
+    if (beforeMonths === 0 && afterMonths === 0) {
+      throw new RangeError("before_months 和 after_months 至少一个必须大于 0");
+    }
+    const rangeStart = shiftFestivalMonths(anchorDate, -beforeMonths);
+    const rangeEnd = shiftFestivalMonths(anchorDate, afterMonths);
+    return {
+      anchorDate,
+      beforeMonths,
+      afterMonths,
+      rangeStart: festivalIsoDate(rangeStart),
+      rangeEnd: festivalIsoDate(rangeEnd),
+    };
+  }
+
+  function festivalTime(value, field) {
+    const raw = text(value);
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(raw)) {
+      throw new TypeError(`${field} 必须是 UTC ISO 8601 时间`);
+    }
+    const stamp = Date.parse(raw);
+    if (!Number.isFinite(stamp)) {
+      throw new TypeError(`${field} 不是有效时间`);
+    }
+    return new Date(stamp).toISOString();
+  }
+
+  function normalizeFestivalItem(item) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new TypeError("Steam 节日条目格式无效");
+    }
+    const name = text(item.name);
+    const type = text(item.type);
+    const typeLabel = text(item.type_label);
+    if (!name) throw new TypeError("Steam 节日名称不能为空");
+    if (!FESTIVAL_TYPES.has(type)) throw new TypeError("Steam 节日类型无效");
+    if (!typeLabel) throw new TypeError("Steam 节日类型名称不能为空");
+    const startsAt = festivalTime(item.starts_at, "starts_at");
+    const endsAt = festivalTime(item.ends_at, "ends_at");
+    const updatedAt = festivalTime(item.updated_at, "updated_at");
+    if (Date.parse(endsAt) <= Date.parse(startsAt)) {
+      throw new TypeError("Steam 节日结束时间必须晚于开始时间");
+    }
+    return Object.freeze({ name, type, typeLabel, startsAt, endsAt, updatedAt });
+  }
+
+  function normalizeFestivalItems(items, field) {
+    if (!Array.isArray(items)) {
+      throw new TypeError(`Steam 节日 ${field} 必须是数组`);
+    }
+    const normalized = items.map(normalizeFestivalItem);
+    for (let index = 1; index < normalized.length; index += 1) {
+      if (Date.parse(normalized[index].startsAt) < Date.parse(normalized[index - 1].startsAt)) {
+        throw new TypeError(`Steam 节日 ${field} 未按开始时间升序返回`);
+      }
+    }
+    return Object.freeze(normalized);
+  }
+
+  function normalizeFestivalResponse(data, range) {
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      throw new TypeError("Steam 节日响应格式无效");
+    }
+    if (Number(data.code) !== 200 || text(data.message) !== "ok" || text(data.mode) !== "window" || text(data.timezone) !== "UTC") {
+      throw new TypeError("Steam 节日响应状态无效");
+    }
+    const anchorDate = festivalDate(data.anchor_date, "anchor_date");
+    const beforeMonths = integer(data.before_months, "before_months");
+    const afterMonths = integer(data.after_months, "after_months");
+    const rangeStart = festivalTime(data.range_start, "range_start");
+    const rangeEnd = festivalTime(data.range_end, "range_end");
+    if (
+      anchorDate !== range.anchorDate
+      || beforeMonths !== range.beforeMonths
+      || afterMonths !== range.afterMonths
+      || rangeStart !== range.rangeStart
+      || rangeEnd !== range.rangeEnd
+    ) {
+      throw new TypeError("Steam 节日响应时间范围与请求不一致");
+    }
+    const before = normalizeFestivalItems(data.before, "before");
+    const after = normalizeFestivalItems(data.after, "after");
+    const anchorStamp = Date.parse(`${anchorDate}T00:00:00Z`);
+    if (before.some(item => Date.parse(item.startsAt) >= anchorStamp)) {
+      throw new TypeError("Steam 节日 before 包含基准日期之后的条目");
+    }
+    if (after.some(item => Date.parse(item.startsAt) < anchorStamp)) {
+      throw new TypeError("Steam 节日 after 包含基准日期之前的条目");
+    }
+    return Object.freeze({
+      mode: "window",
+      anchorDate,
+      beforeMonths,
+      afterMonths,
+      rangeStart,
+      rangeEnd,
+      timezone: "UTC",
+      before,
+      after,
+    });
+  }
+
+  async function getSteamFestivals(options = {}) {
+    const range = festivalRange(options);
+    const endpoint = globalThis.STConfig?.urls?.steamFestivals;
+    if (typeof endpoint !== "function") {
+      throw new Error("Steam 节日接口配置未初始化");
+    }
+    const requestUrl = endpoint(range.anchorDate, range.beforeMonths, range.afterMonths);
+    const cached = api.cache?.get?.(requestUrl);
+    if (cached) return cached;
+    if (typeof api.net?.sendRequest !== "function") {
+      throw new Error("商店页请求服务未初始化");
+    }
+    const data = await api.net.sendRequest({
+      method: "GET",
+      headers: { Accept: "application/json" },
+      url: requestUrl,
+      parseJSON: true,
+      messageType: "STEAM_FESTIVALS",
+      timeoutMs: options.timeoutMs ?? 12_000,
+      retries: options.retries ?? 1,
+      retryDelayMs: options.retryDelayMs ?? 500,
+      validate(response) {
+        return !!response && typeof response === "object" && !Array.isArray(response);
+      },
+      validateMessage: "Steam 节日响应格式无效",
+    });
+    const normalized = normalizeFestivalResponse(data, range);
+    api.cache?.set?.(requestUrl, normalized, null, FESTIVAL_CACHE_TTL_MS);
+    return normalized;
   }
 
   function pageType() {
@@ -219,15 +417,6 @@
     return Number(pageInfo.appid || pageInfo.appId || pageInfo.id) || 0;
   }
 
-  function steamAppid(pageInfo = {}) {
-    const appid = Number(pageInfo.appid || pageInfo.appId || (text(pageInfo.type).toLowerCase() === "app" ? pageInfo.id : 0));
-    return Number.isFinite(appid) && appid > 0 ? appid : 0;
-  }
-
-  function firstId(data = {}) {
-    return Array.isArray(data.ids) && data.ids.length ? text(data.ids[0]) : "";
-  }
-
   function targetKey(target = {}) {
     const type = text(target.type || target.kind).toLowerCase();
     const id = parseInt(target.id ?? target.appid ?? target.appId ?? target.subid ?? target.subId ?? target.bundleid ?? target.bundleId, 10);
@@ -238,16 +427,13 @@
   function providerGameId(data = {}, target = {}) {
     const key = targetKey(target);
     const mapping = data.lookup && typeof data.lookup === "object" ? data.lookup.mapping : null;
-    if (key && mapping) {
-      return Object.hasOwn(mapping, key) ? text(mapping[key]) : "";
-    }
-    return firstId(data);
+    return key && mapping && Object.hasOwn(mapping, key) ? text(mapping[key]) : "";
   }
 
   function dataItem(list, id) {
     const items = Array.isArray(list) ? list : [];
     const clean = text(id);
-    return (clean ? items.find(item => text(item?.id) === clean) : null) || items[0] || null;
+    return clean ? items.find(item => text(item?.id) === clean) || null : null;
   }
 
   function currentDeal(data = {}, id = "") {
@@ -258,19 +444,27 @@
 
   function historicalLow(data = {}, id = "") {
     const item = dataItem(data.historyLow, id);
-    return item?.low || item?.historyLow || null;
+    return item?.low || null;
   }
 
   function historyEvents(data = {}, id = "") {
     const history = data.history && typeof data.history === "object" ? data.history : {};
     const clean = text(id);
-    const item = (clean ? history[clean] : null) || Object.values(history)[0] || {};
-    return Array.isArray(item.events) ? item.events : [];
+    const item = clean ? history[clean] : null;
+    return Array.isArray(item?.events) ? item.events : [];
+  }
+
+  function gameInfo(data = {}, id = "") {
+    const info = data.info && typeof data.info === "object" ? data.info : {};
+    const clean = text(id);
+    const item = clean ? info[clean] : null;
+    return item && typeof item === "object" && !Array.isArray(item) ? item : null;
   }
 
   function summarizePricePack(result = {}, target = {}) {
     const data = result?.data && typeof result.data === "object" ? result.data : {};
     const id = providerGameId(data, target);
+    const info = id ? gameInfo(data, id) : null;
     return {
       ok: result?.ok === true,
       code: text(result?.code),
@@ -285,7 +479,17 @@
       current: id ? currentDeal(data, id) : null,
       historicalLow: id ? historicalLow(data, id) : null,
       historyEvents: id ? historyEvents(data, id) : [],
+      releaseDate: text(info?.releaseDate),
     };
+  }
+
+  async function optionalGameInfo(provider, id, options, config) {
+    if (typeof provider?.getInfo !== "function") return null;
+    try {
+      return await provider.getInfo(id, options, config);
+    } catch {
+      return null;
+    }
   }
 
   function forecastBuilder() {
@@ -339,10 +543,13 @@
         });
       }
       const includeHistory = options.includeHistory !== false && text(options.mode).toLowerCase() !== "summary";
-      const [prices, historyLow, histories] = await Promise.all([
+      const [prices, historyLow, histories, infos] = await Promise.all([
         provider.getPrices(ids, opt, config),
         provider.getHistoryLow(ids, opt, config),
         includeHistory ? Promise.all(ids.map(id => provider.getHistory(id, opt, config))) : Promise.resolve([]),
+        includeHistory
+          ? Promise.all(ids.map(id => optionalGameInfo(provider, id, opt, config)))
+          : Promise.resolve([]),
       ]);
       return success("prices", provider, {
         items,
@@ -354,32 +561,20 @@
           out[item.data.id] = item.data;
           return out;
         }, {}),
+        info: infos.reduce((out, item) => {
+          if (item?.data?.id) out[item.data.id] = item.data;
+          return out;
+        }, {}),
       }, {
-        hit: lookup.cache?.hit === true && prices.cache?.hit === true && historyLow.cache?.hit === true && histories.every(item => item.cache?.hit === true),
+        hit: lookup.cache?.hit === true
+          && prices.cache?.hit === true
+          && historyLow.cache?.hit === true
+          && histories.every(item => item.cache?.hit === true)
+          && infos.every(item => item === null || item.cache?.hit === true),
         ttlMs: Math.min(lookup.cache?.ttlMs || 0, prices.cache?.ttlMs || 0, historyLow.cache?.ttlMs || 0),
       });
     } catch (error) {
       return errorState(error, "prices", provider);
-    }
-  }
-
-  async function optionalByAppid(capability, providerMethod, pageInfo = {}, options = {}) {
-    const status = await statusFor(capability, options);
-    if (status.state) return status.state;
-    const { config, provider } = status;
-    const appid = steamAppid(pageInfo);
-    if (!appid || typeof provider?.[providerMethod] !== "function") {
-      return failure("CAPABILITY_UNSUPPORTED", UNSUPPORTED_MESSAGE, {
-        provider: provider?.id || DEFAULT_PROVIDER,
-        capability,
-        source: source(provider),
-      });
-    }
-    try {
-      const res = await provider[providerMethod](appid, requestOptions(config, options), config);
-      return success(capability, provider, res.data, res.cache);
-    } catch (error) {
-      return errorState(error, capability, provider);
     }
   }
 
@@ -403,6 +598,7 @@
         steamPagePrice: options.steamPagePrice,
         document: options.document,
         now: options.now,
+        festivalData: options.festivalData,
       });
       if (pricePack?.ok !== true) {
         log?.warn?.("forecast-pack-build-failed", "价格预测数据源不可用", {
@@ -447,19 +643,8 @@
     getProviderStatus,
     testProvider,
     getPricePack,
-    getReviews(pageInfo, options = {}) {
-      return optionalByAppid("reviews", "getReviews", pageInfo, options);
-    },
-    getPlayers(pageInfo, options = {}) {
-      return optionalByAppid("players", "getPlayers", pageInfo, options);
-    },
-    getPlaytime(pageInfo, options = {}) {
-      return optionalByAppid("playtime", "getHltb", pageInfo, options);
-    },
-    getMediaScore(pageInfo, options = {}) {
-      return optionalByAppid("mediaScore", "getReviews", pageInfo, options);
-    },
     summarizePricePack,
+    getSteamFestivals,
     buildDiscountForecastPack,
   });
 })();
