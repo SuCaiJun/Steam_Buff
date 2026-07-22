@@ -19,21 +19,11 @@
   const CACHE_KEY = "steam_buff_update_check_cache";
   const AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
   const UPDATE_FETCH_TIMEOUT_MS = 10 * 1000;
+  const logger = root.STLoggerFactory.createLogger("background", "update");
 
-  function appendLog(entry, sender) {
-    const job = root.STBackgroundLogger?.append?.(entry, sender);
-    return job?.catch?.(() => null) || Promise.resolve(null);
-  }
-
-  function log(level, event, message, meta) {
-    appendLog({
-      level,
-      domain: "background",
-      feature: "update",
-      event,
-      message,
-      meta,
-    });
+  function log(level, event, message, details) {
+    const fn = logger[level] || logger.info;
+    fn(event, message, details || {});
   }
 
   function pad(value) {
@@ -234,11 +224,18 @@
     }
     const result = resultFromLatest(normalizeLatest(data), Date.now(), false);
     await writeCache(result);
-    log("info", manual ? "update-manual-check-success" : "update-auto-check-success", manual ? "手动检查更新成功" : "自动检查更新成功", {
-      current: result.current,
-      remote: result.remote,
-      hasNew: result.hasNew,
-    });
+    if (manual) {
+      log("info", "update-manual-check-success", "手动检查更新成功", {
+        current: result.current,
+        remote: result.remote,
+        hasNew: result.hasNew,
+      });
+    } else if (result.hasNew) {
+      log("info", "update-new-version-found", "自动检查发现新版本", {
+        current: result.current,
+        remote: result.remote,
+      });
+    }
     return result;
   }
 
@@ -248,19 +245,13 @@
     const cache = await readCache();
     if (cacheFresh(cache) && cache.result && verText(cache.result.current) === verText(version())) {
       const result = { ...cache.result, fromCache: true };
-      log("info", "update-auto-check-skipped", "6小时内已检查更新，使用缓存结果", {
-        remote: result.remote || result.latest?.version || "",
-        hasNew: !!result.hasNew,
-        checkedAt: Number(cache.checkedAt) || 0,
-      });
       return result;
     }
     if (!autoPending) {
-      log("info", "update-auto-check-start", "开始自动检查更新");
       autoPending = fetchLatest(false)
         .catch((error) => {
-          log("warn", "update-auto-check-failed", "自动检查更新失败", {
-            error: error?.message || String(error),
+          log("error", "update-auto-check-failed", "自动检查更新失败", {
+            error,
           });
           throw error;
         })
@@ -282,8 +273,8 @@
       sendResponse({ success: true, data: await autoCheck() });
     } catch (error) {
       if (manual) {
-        log("warn", "update-manual-check-failed", "手动检查更新失败", {
-          error: error?.message || String(error),
+        log("error", "update-manual-check-failed", "手动检查更新失败", {
+          error,
         });
       }
       sendResponse({ success: false, error: error?.message || String(error) });

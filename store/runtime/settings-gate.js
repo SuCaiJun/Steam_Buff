@@ -263,7 +263,7 @@
         log("error", "settings-refresh-feature-failed", "商店页功能生命周期刷新失败", {
           ...meta,
           feature: feature.id,
-          error: error?.message || String(error),
+          error,
         });
       }
     }
@@ -303,7 +303,7 @@
       log("error", "settings-refresh-failed", "商店页设置快照刷新失败", {
         ...meta,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
     }
   }

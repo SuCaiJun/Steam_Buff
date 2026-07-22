@@ -108,7 +108,7 @@
       });
       return items;
     } catch (error) {
-      log.error("search-suggestions-query-failed", error, {
+      log.error("search-suggestions-query-failed", "搜索联想词查询失败", {
         keywordLength: String(keyword || "").length,
         durationMs: Date.now() - startedAt,
         error,

@@ -706,7 +706,7 @@ function claimFreeDLCsBatch(freeDLCs) {
                 message: detail.message || '执行失败'
             });
             renderFinished();
-            log.error("dlc-free-claim-failed", detail.message || "执行失败", {
+            log.error("dlc-free-claim-failed", "批量领取免费 DLC 失败", {
                 count: freeDLCs.length,
                 successCount,
                 failCount,
@@ -728,7 +728,7 @@ function claimFreeDLCsBatch(freeDLCs) {
                 message: error.message || '脚本注入失败'
             });
             renderFinished();
-            log.error("dlc-free-claim-failed", error, {
+            log.error("dlc-free-claim-failed", "批量领取免费 DLC 失败", {
                 count: freeDLCs.length,
                 successCount,
                 failCount,
@@ -865,12 +865,12 @@ function addSelectedDLCToCart(dlcSection) {
             durationMs: Date.now() - startedAt,
         });
     } catch (error) {
-        log.error("dlc-cart-add-failed", error, {
+        log.error("dlc-cart-add-failed", "已选 DLC 加入购物车失败", {
             count: subids.length,
             durationMs: Date.now() - startedAt,
             error,
         });
-        throw error;
+        return false;
     }
 }
 

@@ -13,7 +13,20 @@
 
   importScripts(chrome.runtime.getURL("shared/config.js"));
   importScripts(chrome.runtime.getURL("onboarding/contract.js"));
+  importScripts(chrome.runtime.getURL("shared/logger-schema.js"));
   importScripts(chrome.runtime.getURL("extension/background-logger.js"));
+  globalThis.STLogger = Object.freeze({
+    ready: true,
+    schemaVersion: globalThis.STLoggerSchema.version,
+    sessionId: globalThis.STLoggerSchema.createSessionId("background"),
+    execution: "background",
+    append(entry, options) {
+      return globalThis.STBackgroundLogger.append(
+        options?.forcePersist === true ? { entry, forcePersist: true } : entry,
+      );
+    },
+  });
+  importScripts(chrome.runtime.getURL("shared/logger-factory.js"));
   importScripts(chrome.runtime.getURL("extension/background-update.js"));
 
   const CFG = globalThis.STConfig;
@@ -44,6 +57,7 @@
     "shared/page-context.js",
     "extension/runtime/guard.js",
     "extension/runtime/injector.js",
+    "shared/logger-schema.js",
     "extension/runtime/logger.js",
     "shared/i18n.js",
     "shared/logger-factory.js",
@@ -56,6 +70,7 @@
   const WEB_BOOT_FILES = Object.freeze([
     "shared/config.js",
     "extension/runtime/injector.js",
+    "shared/logger-schema.js",
     "extension/runtime/logger.js",
     "shared/logger-factory.js",
     "shared/error-boundary.js",
@@ -71,6 +86,7 @@
     "shared/performance-monitor.js",
     "extension/runtime/guard.js",
     "extension/runtime/injector.js",
+    "shared/logger-schema.js",
     "extension/runtime/logger.js",
     "shared/logger-factory.js",
     "shared/error-boundary.js",
@@ -81,6 +97,7 @@
   const SETTINGS_SHARED_SCRIPTS = Object.freeze([
     "ai/config.js",
     "shared/config.js",
+    "shared/logger-schema.js",
     "extension/runtime/logger.js",
     "shared/logger-factory.js",
     "shared/error-boundary.js",
@@ -175,6 +192,7 @@
     "store/runtime/format.js",
     "store/runtime/dom.js",
     "store/runtime/styles.js",
+    "shared/logger-schema.js",
     "extension/runtime/logger.js",
     "shared/logger-factory.js",
     "shared/error-boundary.js",
@@ -272,7 +290,7 @@
     "store/main.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v12";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v13";
   const STEAM_LOOPBACK_INJECT_REQUEST = "STEAM_LOOPBACK_INJECT_REQUEST";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const ONBOARDING_OPEN_LOCAL_MESSAGE = ONBOARDING.MESSAGES.openLocalPage;
@@ -321,69 +339,52 @@
     logError("background", "ai-cache-load-failed", "AI 缓存加载失败", error);
   }
 
-  function appendLog(entry, sender) {
-    const job = globalThis.STBackgroundLogger?.append?.(entry, sender);
-    return job?.catch?.(() => null) || Promise.resolve(null);
+  function backgroundLogger(feature, options) {
+    return globalThis.STLoggerFactory.createLogger("background", feature, options);
   }
 
   function logError(feature, event, message, error, meta) {
-    appendLog({
-      level: "error",
-      domain: "background",
-      feature,
-      event,
-      message,
+    backgroundLogger(feature).error(event, message, {
       error,
-      meta,
+      ...(meta || {}),
     });
   }
 
   function logNetwork(entry) {
-    const url = entry?.url
-      ? (globalThis.STBackgroundLogger?.safeLogUrl?.(entry.url) || safeLogUrl(entry.url))
-      : "";
-    appendLog({
-      level: "network",
-      domain: "background",
-      ...entry,
-      ...(url ? { url } : {}),
-    });
-  }
-
-  function safeLogUrl(value) {
-    if (!value) {
-      return "";
-    }
+    const feature = String(entry?.feature || "background");
+    const event = String(entry?.event || "request-failed");
+    const message = String(entry?.message || "后台请求失败");
+    let requestUrlPolicy;
     try {
-      const url = new URL(String(value));
-      const out = new URL(`${url.origin}${url.pathname}`);
-      for (const key of ["appid", "appids", "subid", "bundleid", "id", "cc", "start", "count"]) {
-        const values = url.searchParams.getAll(key);
-        for (const item of values) {
-          out.searchParams.append(key, String(item || "").slice(0, 120));
-        }
-      }
-      return out.toString();
+      const url = new URL(entry?.url);
+      if (STORE_HOSTS.has(url.hostname)) requestUrlPolicy = { allowPath: true };
     } catch {
-      return String(value).replace(/([?&](?:access_token|refresh_token|token|sessionid|password|key)=)[^&#\s]*/gi, "$1[REDACTED]").slice(0, 300);
+      requestUrlPolicy = undefined;
     }
-  }
-
-  function globalErrorMeta() {
-    return {
-      path: String(globalThis.location?.pathname || ""),
-      href: String(globalThis.location?.href || ""),
-    };
+    backgroundLogger(feature, { requestUrlPolicy }).network(event, message, {
+      error: entry?.error,
+      service: entry?.service,
+      operationId: entry?.operationId,
+      requestId: entry?.requestId,
+      durationMs: entry?.durationMs,
+      request: {
+        method: String(entry?.method || "GET"),
+        endpointKey: String(entry?.endpointKey || feature),
+        url: entry?.url,
+      },
+      response: Number(entry?.status) ? { status: Number(entry.status) } : undefined,
+    });
   }
 
   function bindGlobalLoggers() {
     globalThis.addEventListener("error", (event) => {
-      const error = event?.error || event?.message || "未知后台异常";
-      logError("background", "background-unhandled-error", "后台未捕获异常", error, globalErrorMeta());
+      const error = event?.error != null ? event.error : event?.message;
+      logError("background", "background-unhandled-error", "后台未捕获异常", error, {
+        source: globalThis.STLoggerSchema.sourceFromErrorEvent(event),
+      });
     });
     globalThis.addEventListener("unhandledrejection", (event) => {
-      const reason = event?.reason || "未知 Promise 拒绝";
-      logError("background", "background-unhandled-rejection", "后台未处理 Promise 拒绝", reason, globalErrorMeta());
+      logError("background", "background-unhandled-rejection", "后台未处理 Promise 拒绝", event?.reason);
     });
   }
 
@@ -517,7 +518,7 @@
       () => {
         const err = chrome.runtime.lastError;
         if (err) {
-          logError("injection", "steam-loopback-guard-inject-failed", "后台补注入 Steam CEF 轻量守卫失败", err.message || err, { tabId });
+          logError("injection", "steam-loopback-guard-inject-failed", "后台补注入 Steam CEF 轻量守卫失败", err, { tabId });
         }
       },
     );
@@ -588,7 +589,7 @@
         }
       }
     } catch (error) {
-      logError("injection", "tabs-query-failed", "后台读取标签页失败", error, globalErrorMeta());
+      logError("injection", "tabs-query-failed", "后台读取标签页失败", error);
     }
   }
 
@@ -636,7 +637,7 @@
       chrome.tabs.sendMessage(tabId, { type: SETTINGS_OPEN_MESSAGE }, () => {
         const err = chrome.runtime.lastError;
         if (err) {
-          logError("settings", "settings-open-message-failed", "设置中心打开消息发送失败", err.message || err, { tabId });
+          logError("settings", "settings-open-message-failed", "设置中心打开消息发送失败", err, { tabId });
         }
       });
     };
@@ -648,7 +649,7 @@
       () => {
         const err = chrome.runtime.lastError;
         if (err) {
-          logError("settings", "settings-open-boot-failed", "设置中心轻入口补注入失败", err.message || err, { tabId });
+          logError("settings", "settings-open-boot-failed", "设置中心轻入口补注入失败", err, { tabId });
         }
         sendOpen();
       },
@@ -662,7 +663,7 @@
     chrome.tabs.create({ url: CFG.urls.onboardingPage(1) }, () => {
       const err = chrome.runtime.lastError;
       if (err) {
-        logError("onboarding", "onboarding-open-failed", "安装引导页打开失败", err.message || err);
+        logError("onboarding", "onboarding-open-failed", "安装引导页打开失败", err);
       }
     });
   }
@@ -773,7 +774,13 @@
     if (request?.silentLog === true) {
       return;
     }
-    logNetwork(entry);
+    logNetwork({
+      ...entry,
+      service: request?.service,
+      operationId: request?.operationId,
+      requestId: request?.requestId,
+      endpointKey: request?.endpointKey,
+    });
   }
 
   function reqBody(request) {
@@ -881,6 +888,10 @@
       const data = await response.text();
       if (!response.ok && !request.allowHttpError) {
         const msg = httpError(response.status, data);
+        const requestError = new Error(msg);
+        requestError.name = "HttpError";
+        requestError.code = "HTTP_STATUS_ERROR";
+        requestError.status = response.status;
         storeLogNetwork(request, {
           feature: "store-fetch",
           event: "http-failed",
@@ -889,7 +900,7 @@
           url: url.toString(),
           status: response.status,
           durationMs: Date.now() - startedAt,
-          error: `HTTP状态码错误: ${response.status}`,
+          error: requestError,
         });
         sendResponse({ success: false, error: msg, data, status: response.status, ok: false, headers: cleanResponseHeaders(response.headers) });
         return;
@@ -918,7 +929,15 @@
         durationMs: Date.now() - startedAt,
         error,
       });
-      sendResponse({ success: false, error: msg, status: 0, ok: false });
+      sendResponse({
+        success: false,
+        error: msg,
+        status: 0,
+        ok: false,
+        errorKind: "transport",
+        ...(error?.name ? { errorName: String(error.name) } : {}),
+        ...(error?.code ? { errorCode: String(error.code) } : {}),
+      });
     }
   }
 
@@ -1357,8 +1376,6 @@
       logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF 完整运行时按需注入失败", error, {
         tabId,
         frameId,
-        title: meta.title,
-        url: safeLogUrl(meta.url),
       });
       sendResponse({ success: false, error: error?.message || String(error) });
     }
@@ -1415,7 +1432,7 @@
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: openOnboardingLocalPage,
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: openOnboardingSettings,
     LOG_APPEND(request, sender, sendResponse) {
-      globalThis.STBackgroundLogger.append(request.entry || request, sender)
+      globalThis.STBackgroundLogger.append(request, sender)
         .then((stats) => sendResponse({ success: true, stats }))
         .catch((error) => sendResponse({ success: false, error: error?.message || String(error) }));
     },
@@ -1452,15 +1469,26 @@
   });
 
   chrome.runtime.onInstalled.addListener((details) => {
-    injectSoon();
-    if (details?.reason === "install") {
-      openOnboardingPage();
-    }
+    globalThis.STBackgroundLogger.initialize()
+      .then(() => {
+        injectSoon();
+        if (details?.reason === "install") openOnboardingPage();
+      })
+      .catch((error) => {
+        backgroundLogger("background-runtime").error("background-session-failed", "后台日志存储初始化失败", { error });
+      });
   });
   chrome.runtime.onStartup.addListener(injectSoon);
   chrome.tabs?.onCreated?.addListener(injectTabSoon);
   chrome.tabs?.onUpdated?.addListener((_tabId, _changeInfo, tab) => injectTabSoon(tab));
   chrome.action?.onClicked?.addListener(openSettings);
   bindGlobalLoggers();
-  injectSoon();
+  globalThis.STBackgroundLogger.initialize()
+    .then(() => {
+      backgroundLogger("background-runtime").info("background-session-ready", "后台日志与消息运行时已就绪");
+      injectSoon();
+    })
+    .catch((error) => {
+      backgroundLogger("background-runtime").error("background-session-failed", "后台日志存储初始化失败", { error });
+    });
 })();

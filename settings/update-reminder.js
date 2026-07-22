@@ -307,7 +307,7 @@
   window.setTimeout(() => {
     start().catch((error) => {
       log.warn("update-reminder-start-failed", "更新提醒启动失败", {
-        error: error?.message || String(error),
+        error,
       });
     });
   }, 900);

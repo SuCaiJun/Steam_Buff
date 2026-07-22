@@ -134,7 +134,7 @@
           rt.center = null;
         }
         log.warn("account-center-sync-failed", "用户中心同步失败", {
-          error: error?.message || String(error),
+          error,
           durationMs: Date.now() - startedAt,
           hasAuth: !!(rt.auth?.access_token || rt.auth?.refresh_token),
         });

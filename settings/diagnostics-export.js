@@ -15,53 +15,30 @@
     return;
   }
 
+  const schema = root.STLoggerSchema;
+  if (!schema) {
+    return;
+  }
+
   const APP = "Steam Buff";
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;
   const ZIP_LEVEL = 6;
-  const QUERY_ALLOW = Object.freeze(new Set(["appid", "appids", "subid", "bundleid", "id", "cc"]));
-  const SENSITIVE_KEY = /(?:authorization|cookie|set-cookie|access[_-]?token|refresh[_-]?token|token|sessionid|password|secret|headers?|body)/i;
-  const SENSITIVE_TEXT = /(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|bearer)\s*[:=]?\s*[^,\s;]*/gi;
-  const BJ_OFFSET_MS = 8 * 60 * 60 * 1000;
 
   function num(value) {
     const next = Number(value);
     return Number.isFinite(next) ? next : 0;
   }
 
-  function pad(value, size = 2) {
-    return String(Math.max(0, Number(value) || 0)).padStart(size, "0");
-  }
-
   function bjTime(ts = Date.now()) {
-    const date = new Date(Number(ts) + BJ_OFFSET_MS);
-    return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}.${pad(date.getUTCMilliseconds(), 3)} +08:00`;
-  }
-
-  function clip(text, max = 240) {
-    const value = String(text ?? "").replace(/\r\n?/g, "\n");
-    return value.length <= max ? value : `${value.slice(0, max)}...[已截断]`;
+    return schema.beijingTime(ts);
   }
 
   function redactText(text, max = 300) {
-    return clip(String(text ?? "").replace(SENSITIVE_TEXT, "$1 [REDACTED]"), max);
+    return schema.truncateText(schema.redactText(text), max, max, 0).value;
   }
 
   function safeUrl(value) {
-    if (!value) {
-      return "";
-    }
-    try {
-      const url = new URL(String(value));
-      const out = new URL(`${url.origin}${url.pathname}`);
-      for (const key of QUERY_ALLOW) {
-        for (const item of url.searchParams.getAll(key)) {
-          out.searchParams.append(key, redactText(item, 120));
-        }
-      }
-      return out.toString();
-    } catch {
-      return redactText(value, 300);
-    }
+    return schema.safeUrl(value, { allowPath: true }).url;
   }
 
   function manifest() {
@@ -124,17 +101,10 @@
     return redactText(value, max);
   }
 
-  function isSensitiveKey(key) {
-    return SENSITIVE_KEY.test(String(key || ""));
-  }
-
   function compactConfig(values = {}, keys = []) {
     const src = obj(values);
     const out = {};
     for (const key of keys) {
-      if (isSensitiveKey(key)) {
-        continue;
-      }
       const value = src[key];
       if (typeof value === "boolean") {
         out[key] = value;
@@ -244,7 +214,6 @@
       capturedTs: exportTs,
       browser: browserInfo(nav.userAgent || ""),
       page: {
-        title: redactText(root.document?.title || "", 240),
         url: safeUrl(root.location?.href || ""),
       },
       display: {
@@ -296,6 +265,46 @@
     };
   }
 
+  function countMap(input = {}) {
+    const out = {};
+    for (const [key, value] of Object.entries(obj(input))) {
+      const count = Math.max(0, Number(value) || 0);
+      if (count > 0) out[String(key)] = count;
+    }
+    return out;
+  }
+
+  function loggerHealth(input = {}) {
+    const src = obj(input);
+    return {
+      fallbackCount: Math.max(0, Number(src.fallbackCount) || 0),
+      transportFailureCount: Math.max(0, Number(src.transportFailureCount) || 0),
+      invalidEntryCount: Math.max(0, Number(src.invalidEntryCount) || 0),
+      truncatedFieldCount: Math.max(0, Number(src.truncatedFieldCount) || 0),
+      droppedCount: Math.max(0, Number(src.droppedCount) || 0),
+      droppedByLevel: countMap(src.droppedByLevel),
+    };
+  }
+
+  function runtimeHealth(input = {}) {
+    const src = obj(input);
+    const injections = obj(src.injectionCounts);
+    const mounts = obj(src.mountCounts);
+    const out = {};
+    if (Object.hasOwn(src, "sessionCount")) out.sessionCount = Math.max(0, Number(src.sessionCount) || 0);
+    if (Object.hasOwn(src, "backgroundSessionCount")) {
+      out.backgroundSessionCount = Math.max(0, Number(src.backgroundSessionCount) || 0);
+    }
+    const injectionCounts = countMap(injections);
+    const featureStateCounts = countMap(src.featureStateCounts);
+    const mountCounts = countMap(mounts);
+    if (Object.keys(injectionCounts).length) out.injectionCounts = injectionCounts;
+    if (Object.keys(featureStateCounts).length) out.featureStateCounts = featureStateCounts;
+    if (Object.keys(mountCounts).length) out.mountCounts = mountCounts;
+    if (src.lastRuntimeStatus) out.lastRuntimeStatus = cleanText(src.lastRuntimeStatus, 40);
+    return out;
+  }
+
   function summarySnapshot(logExport = {}, exportTs) {
     const src = logExport.summary || logExport.stats || {};
     return {
@@ -304,14 +313,14 @@
       exportTs,
       format: "zip",
       files: ["logs.jsonl", "config.json", "env.json", "summary.json"],
-      logs: {
-        count: Number(src.count) || 0,
-        sizeBytes: Number(src.sizeBytes) || 0,
-        firstTime: String(src.firstTime || ""),
-        lastTime: String(src.lastTime || ""),
-        errorCount: Number(src.errorCount) || 0,
-        levelCounts: levelCounts(src.levelCounts),
-      },
+      count: Number(src.count) || 0,
+      sizeBytes: Number(src.sizeBytes) || 0,
+      firstTime: String(src.firstTime || ""),
+      lastTime: String(src.lastTime || ""),
+      errorCount: Number(src.errorCount) || 0,
+      levelCounts: levelCounts(src.levelCounts),
+      loggerHealth: loggerHealth(src.loggerHealth),
+      runtimeHealth: runtimeHealth(src.runtimeHealth),
       retentionPolicy: retentionPolicy(src),
     };
   }

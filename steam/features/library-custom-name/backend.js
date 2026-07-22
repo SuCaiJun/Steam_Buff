@@ -305,7 +305,7 @@
     } catch (error) {
       q.sortTitleBulk = { enabled: false, reason: "failed", error: error?.message || String(error) };
       log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列启用排序标题批量抑制失败", {
-        error: q.sortTitleBulk.error,
+        error,
       });
     }
     return q.sortTitleBulk;
@@ -329,7 +329,7 @@
     } catch (error) {
       log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列结束排序标题批量抑制失败", {
         ...statsMeta(q),
-        error: error?.message || String(error),
+        error,
       });
       return null;
     }
@@ -358,7 +358,7 @@
       return api.recordCustomNameBulk(changes);
     } catch (error) {
       log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列记录排序标题刷新失败", {
-        error: error?.message || String(error),
+        error,
       });
     }
     return null;
@@ -1168,7 +1168,7 @@
       } catch (error) {
         log.warn("library-custom-name-save-queue-fast-callback-failed", "库自定义名称快速写入已落盘但刷新回调失败", {
           changed: changedKeys.length,
-          error: error?.message || String(error),
+          error,
         });
       }
       try {
@@ -1176,7 +1176,7 @@
       } catch (error) {
         log.warn("library-custom-name-save-queue-fast-upload-failed", "库自定义名称快速写入已落盘但上传调度失败", {
           changed: changedKeys.length,
-          error: error?.message || String(error),
+          error,
         });
       }
       const scheduleMs = now() - scheduleStarted;
@@ -1438,7 +1438,7 @@
       endSortTitleBulk(q, "error");
       log.error("library-custom-name-save-queue-failed", "库自定义名称保存队列异常", {
         ...statsMeta(q),
-        error: error?.message || String(error),
+        error,
       });
       post(rt.ch, {
         type: "save-done",

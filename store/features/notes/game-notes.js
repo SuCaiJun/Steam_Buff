@@ -172,7 +172,16 @@
 
   async function fetchNotes(appids) {
     const ids = Array.from(new Set((appids || []).map(Number).filter(id => id > 0 && !cache.has(id) && !pending.has(id))));
-    if (!ids.length || !await hasAuth()) return;
+    if (!ids.length) return;
+    try {
+      if (!await hasAuth()) return;
+    } catch (error) {
+      log.warn("game-notes-query-failed", "游戏备注鉴权检查失败", {
+        count: ids.length,
+        error,
+      });
+      return;
+    }
     ids.forEach(id => pending.add(id));
     for (const part of chunk(ids, BATCH_SIZE)) {
       const startedAt = Date.now();

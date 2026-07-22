@@ -17,19 +17,17 @@
 
   function logInjectFailed(path, reason, error) {
     try {
-      globalThis.STLogger?.error?.({
-        domain: "extension",
-        feature: "page-script-injector",
-        event: "page-script-inject-failed",
-        message: "页面脚本注入失败",
-        error: error || reason,
-        meta: {
+      globalThis.STLoggerFactory?.createLogger?.("extension", "page-script-injector")?.error?.(
+        "page-script-inject-failed",
+        "页面脚本注入失败",
+        {
+          error: error || reason,
           scriptPath: path,
           reason,
           host: location.hostname,
           path: location.pathname,
         },
-      });
+      );
     } catch {
     }
   }

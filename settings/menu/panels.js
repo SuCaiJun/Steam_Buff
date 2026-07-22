@@ -130,7 +130,7 @@
           refreshInterval: next.refreshInterval,
           autoRefresh: next.autoRefresh === true,
           durationMs: Date.now() - startedAt,
-          error: error?.message || String(error),
+          error,
         });
         dialog(shadow, { title: "保存失败", message: "家庭库刷新设置保存异常，请稍后重试。" });
         return false;

@@ -93,7 +93,7 @@
         rt.msg = error?.message || String(error);
         rt.loadError = "数据加载失败，点击重试";
         log.error("device-login-failed", "设备码登录启动失败", {
-          error: error?.message || String(error),
+          error,
           durationMs: Date.now() - startedAt,
         });
         refresh(ctx);
@@ -155,7 +155,7 @@
       getCenter()?.syncCenter?.(shadow, ctx).catch((error) => {
         log.warn("account-center-sync-unhandled", "用户中心同步兜底失败", {
           source: "device-login",
-          error: error?.message || String(error),
+          error,
         });
       });
     }

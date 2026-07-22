@@ -313,7 +313,7 @@
     } catch (error) {
       await put({ [RESTORE_KEY]: batches });
       setBtn("恢复失败，重试", "bad");
-      log.error("checkout-cart-restore-failed", error, batchMeta(batches, {
+      log.error("checkout-cart-restore-failed", "结算页购物车恢复失败", batchMeta(batches, {
         durationMs: Date.now() - startedAt,
         error,
       }));

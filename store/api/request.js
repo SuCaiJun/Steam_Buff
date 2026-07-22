@@ -31,33 +31,16 @@
   }
 
   function requestLogger(config = {}) {
-    return globalThis.STLoggerFactory?.createLogger?.("store", featureName(config));
-  }
-
-  function safeLogUrl(url) {
-    return globalThis.STLoggerFactory?.safeLogUrl?.(url) || String(url || "");
+    return globalThis.STLoggerFactory?.createLogger?.("store", featureName(config), {
+      requestUrlPolicy: config.requestUrlPolicy,
+    });
   }
 
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
   }
 
-  function summarizeError(error) {
-    if (!error) {
-      return "";
-    }
-    if (typeof error === "string") {
-      return error;
-    }
-    return {
-      name: String(error.name || ""),
-      message: String(error.message || error || ""),
-      code: String(error.code || ""),
-      status: Number(error.status || error.statusCode) || 0,
-    };
-  }
-
-  function logNetwork(config, event, message, error, status, startedAt, attempt = 0, maxAttempts = 1) {
+  function logNetwork(config, event, message, error, status, startedAt, attempt, maxAttempts, ids, delayMs = 0) {
     if (config.silentLog === true) {
       return;
     }
@@ -67,17 +50,28 @@
         : (event === "request-retry" ? "warn" : "error");
       const logger = requestLogger(config);
       const fn = logger?.[level] || logger?.info;
+      const responseStatus = Number(status) || 0;
       fn?.(event, message, {
-        method: config.method || "GET",
-        url: safeLogUrl(config.logUrl || config.url),
-        status: Number(status) || 0,
+        service: config.service,
+        operationId: ids.operationId,
+        requestId: ids.requestId,
+        request: {
+          method: config.method || "GET",
+          endpointKey: config.endpointKey || featureName(config),
+          url: config.logUrl || config.url,
+          params: config.logParams,
+          timeoutMs: normalizeTimeout(config),
+        },
+        response: responseStatus ? { status: responseStatus } : undefined,
+        retry: event === "request-retry" || attempt > 1
+          ? {
+            attempt,
+            maxAttempts,
+            ...(delayMs > 0 ? { delayMs } : {}),
+          }
+          : undefined,
         durationMs: Date.now() - startedAt,
-        rid: String(config.rid || config.requestId || ""),
-        attempt,
-        maxAttempts,
-        timeoutMs: normalizeTimeout(config),
-        retryDelayMs: Math.max(0, Number(config.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS)),
-        error: summarizeError(error),
+        ...(error ? { error } : {}),
       });
     } catch (logError) {
       void logError;
@@ -95,18 +89,27 @@
       return true;
     }
     const name = String(error?.name || "");
-    if (name === "AbortError" || name === "TimeoutError") {
+    const code = String(error?.code || "");
+    if (error?.errorKind === "transport") {
       return true;
     }
-    const message = String(error?.message || error || "");
-    return /timeout|network|fetch|aborted?/i.test(message);
+    if (
+      name === "AbortError"
+      || name === "TimeoutError"
+      || name === "RequestError"
+      || name === "MessageError"
+      || code === "REQUEST_TIMEOUT"
+    ) {
+      return true;
+    }
+    return false;
   }
 
   function createTimeoutError(url, timeoutMs) {
     const error = new Error(`请求超时（${Math.round(timeoutMs)}ms）`);
     error.name = "TimeoutError";
     error.code = "REQUEST_TIMEOUT";
-    error.url = safeLogUrl(url);
+    void url;
     return error;
   }
 
@@ -115,6 +118,9 @@
     const message = String(response?.error || "").trim() || (status ? `${fallbackMessage}（HTTP ${status}）` : fallbackMessage);
     const error = new Error(message);
     error.status = status;
+    if (response?.errorKind) error.errorKind = String(response.errorKind);
+    if (response?.errorName) error.name = String(response.errorName);
+    if (response?.errorCode) error.code = String(response.errorCode);
     error.ok = !!response?.ok;
     error.data = response?.data;
     error.response = response || null;
@@ -128,18 +134,6 @@
     try {
       return JSON.parse(response.data);
     } catch (error) {
-      globalThis.STErrorBoundary?.capture?.(error, {
-        domain: "store",
-        feature: config.messageType || "store-request",
-        phase: "data-parse",
-        event: "api-response-parse-failed",
-        message: "商店页响应解析失败",
-        userMessage: "数据解析失败，请稍后重试",
-        meta: {
-          status: Number(response?.status) || 0,
-          url: safeLogUrl(config.url),
-        },
-      });
       const parseError = new Error(config.parseMessage || "商店页响应解析失败");
       parseError.name = "ParseError";
       parseError.status = Number(response?.status) || 0;
@@ -221,13 +215,22 @@
             allowHttpError: !!config.allowHttpError,
             silentLog: config.silentLog === true,
             timeoutMs,
+            operationId: config.operationId,
+            requestId: config.requestId,
+            endpointKey: config.endpointKey || featureName(config),
+            service: config.service,
           }, {
             timeoutMs,
+            logFailures: false,
           }).then((response) => {
             finish(resolve, response || null);
           }).catch((error) => {
-            error.name = error.name || "RequestError";
-            finish(reject, error);
+            const isErrorObject = globalThis.STLoggerSchema?.isErrorObject?.(error) === true;
+            const requestError = isErrorObject
+              ? error
+              : new Error(typeof error === "string" ? error : "后台请求失败");
+            if (!isErrorObject) requestError.name = "RequestError";
+            finish(reject, requestError);
           });
           return;
         }
@@ -241,6 +244,10 @@
           allowHttpError: !!config.allowHttpError,
           silentLog: config.silentLog === true,
           timeoutMs,
+          operationId: config.operationId,
+          requestId: config.requestId,
+          endpointKey: config.endpointKey || featureName(config),
+          service: config.service,
         }, (response) => {
           const err = chrome.runtime.lastError;
           if (err) {
@@ -284,13 +291,23 @@
     const timeoutMs = normalizeTimeout(config);
     const retryDelayMs = Math.max(0, Number(config.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS));
     const maxAttempts = retries + 1;
+    const ids = {
+      operationId: String(config.operationId || "").trim()
+        || globalThis.STLoggerFactory?.createOperationId?.()
+        || globalThis.STLoggerSchema?.createId?.("operation")
+        || "",
+      requestId: String(config.requestId || config.rid || "").trim()
+        || globalThis.STLoggerFactory?.createRequestId?.()
+        || globalThis.STLoggerSchema?.createId?.("request")
+        || "",
+    };
     let lastError = null;
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const attemptStartedAt = Date.now();
       let response = null;
       try {
-        response = await sendMessageOnce({ ...config, method }, timeoutMs);
+        response = await sendMessageOnce({ ...config, method, ...ids }, timeoutMs);
         if (!response || response.success === false) {
           throw createResponseError(response, "后台请求失败");
         }
@@ -309,6 +326,7 @@
           startedAt,
           attempt + 1,
           maxAttempts,
+          ids,
         );
         if (config.includeResponse === true) {
           return { data, response };
@@ -328,6 +346,8 @@
             attemptStartedAt,
             attempt + 1,
             maxAttempts,
+            ids,
+            delay,
           );
           await sleep(delay);
           continue;
@@ -342,6 +362,7 @@
           startedAt,
           attempt + 1,
           maxAttempts,
+          ids,
         );
         throw error;
       }
@@ -392,6 +413,9 @@
       data: JSON.stringify(requestData),
       requestData,
       messageType: "QUERY_PRICE",
+      service: "augmented-steam",
+      endpointKey: "augmented-steam-prices",
+      requestUrlPolicy: { allowPath: true },
       parseJSON: true,
       timeoutMs: options.timeoutMs ?? 12_000,
       retries: options.retries ?? 1,
@@ -458,6 +482,9 @@
       url: requestUrl,
       parseJSON: true,
       messageType: "QUERY_PLAYERS",
+      service: "augmented-steam",
+      endpointKey: "augmented-steam-app",
+      requestUrlPolicy: { allowPath: true },
       timeoutMs: 10_000,
       retries: 1,
       validate(data) {

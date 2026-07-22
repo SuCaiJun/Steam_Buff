@@ -94,26 +94,18 @@
       log.info("account-token-refresh-start", "开始刷新登录令牌", {
         hasRefreshToken: !!token,
       });
-      try {
-        const res = await api.request("/auth/refresh", { refresh_token: token }, "", ctx, "POST", api.urls.loginAuthBase);
-        const code = Number(res.body?.code) || res.status || 0;
-        if (code < 200 || code >= 300 || !res.body?.access_token) {
-          await clearAuthState(ctx);
-          throw new Error(res.body?.message || "登录已过期，请重新登录");
-        }
-
-        await storeAuth(ctx, nextAuth(res.body, rt.auth || {}));
-        log.info("account-token-refresh-success", "登录令牌刷新成功", {
-          durationMs: Date.now() - startedAt,
-        });
-        return rt.auth;
-      } catch (error) {
-        log.warn("account-token-refresh-failed", "登录令牌刷新失败", {
-          error: error?.message || String(error),
-          durationMs: Date.now() - startedAt,
-        });
-        throw error;
+      const res = await api.request("/auth/refresh", { refresh_token: token }, "", ctx, "POST", api.urls.loginAuthBase);
+      const code = Number(res.body?.code) || res.status || 0;
+      if (code < 200 || code >= 300 || !res.body?.access_token) {
+        await clearAuthState(ctx);
+        throw new Error(res.body?.message || "登录已过期，请重新登录");
       }
+
+      await storeAuth(ctx, nextAuth(res.body, rt.auth || {}));
+      log.info("account-token-refresh-success", "登录令牌刷新成功", {
+        durationMs: Date.now() - startedAt,
+      });
+      return rt.auth;
     }
 
     async function readyAuth(ctx) {
@@ -163,11 +155,12 @@
           durationMs: Date.now() - startedAt,
         });
       } catch (error) {
+        rt.msg = error?.message || String(error);
         log.error("account-logout-failed", "退出登录失败", {
-          error: error?.message || String(error),
+          error,
           durationMs: Date.now() - startedAt,
         });
-        throw error;
+        return false;
       } finally {
         rt.busy = false;
         helpers.refresh?.(ctx);

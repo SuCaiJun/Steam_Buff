@@ -33,10 +33,6 @@
   const loading = new Map();
   let current = DEFAULT_LOCALE;
 
-  function safeError(error) {
-    return String(error?.message || error || "").slice(0, 300);
-  }
-
   function normalizeLocale(value) {
     const raw = String(value || "").trim().replace("-", "_");
     const lower = raw.toLowerCase();
@@ -112,7 +108,7 @@
       .catch((error) => {
         log.warn("i18n-locale-load-failed", "语言包加载失败", {
           locale: id,
-          error: safeError(error),
+          error,
         });
         messages[id] = {};
         return messages[id];
@@ -143,7 +139,7 @@
           if (root.chrome?.runtime?.lastError) {
             log.warn("i18n-storage-read-failed", "界面语言读取失败", {
               keyCount: Array.isArray(keys) ? keys.length : Object.keys(keys || {}).length,
-              error: safeError(root.chrome.runtime.lastError),
+              error: root.chrome.runtime.lastError,
             });
             resolve({});
             return;
@@ -153,7 +149,7 @@
       } catch (error) {
         log.warn("i18n-storage-read-failed", "界面语言读取失败", {
           keyCount: Array.isArray(keys) ? keys.length : Object.keys(keys || {}).length,
-          error: safeError(error),
+          error,
         });
         resolve({});
       }
@@ -172,7 +168,7 @@
           if (!ok) {
             log.warn("i18n-storage-write-failed", "界面语言保存失败", {
               keyCount: Object.keys(data || {}).length,
-              error: safeError(root.chrome.runtime.lastError),
+              error: root.chrome.runtime.lastError,
             });
           }
           resolve(ok);
@@ -180,7 +176,7 @@
       } catch (error) {
         log.warn("i18n-storage-write-failed", "界面语言保存失败", {
           keyCount: Object.keys(data || {}).length,
-          error: safeError(error),
+          error,
         });
         resolve(false);
       }
@@ -216,7 +212,7 @@
         load(next).catch((error) => {
           log.warn("i18n-locale-dataset-load-failed", "界面语言数据集快照加载失败", {
             locale: next,
-            error: safeError(error),
+            error,
           });
         });
       }
@@ -286,7 +282,7 @@
     } catch (error) {
       log.warn("i18n-locale-change-dispatch-failed", "界面语言变更事件派发失败", {
         locale: next,
-        error: safeError(error),
+        error,
       });
     }
   }
@@ -311,7 +307,7 @@
     load(next).catch((error) => {
       log.warn("i18n-locale-snapshot-load-failed", "界面语言快照加载失败", {
         locale: next,
-        error: safeError(error),
+        error,
       });
     });
   }
@@ -338,14 +334,14 @@
         load(next).catch((error) => {
           log.warn("i18n-locale-storage-load-failed", "界面语言存储变更加载失败", {
             locale: next,
-            error: safeError(error),
+            error,
           });
         });
         emitChange(next);
       });
     } catch (error) {
       log.warn("i18n-storage-watch-bind-failed", "界面语言监听绑定失败", {
-        error: safeError(error),
+        error,
       });
     }
   }
@@ -359,7 +355,7 @@
     });
   } catch (error) {
     log.warn("i18n-locale-event-bind-failed", "界面语言事件监听绑定失败", {
-      error: safeError(error),
+      error,
     });
   }
 

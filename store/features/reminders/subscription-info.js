@@ -206,7 +206,7 @@
       }
       log?.warn?.("subscription-detail-failed", "第三方会员详情提醒加载失败", pageMeta({
         appid: id,
-        reason: error?.message || String(error),
+        error,
       }));
     });
   }
@@ -392,7 +392,7 @@
         return;
       }
       log?.warn?.("subscription-badge-scan-failed", "第三方会员角标扫描失败", pageMeta({
-        reason: error?.message || String(error),
+        error,
       }));
     });
   }
@@ -412,7 +412,7 @@
       scan: scanLists,
       onError(error) {
         log?.warn?.("subscription-badge-scan-failed", "第三方会员角标扫描失败", pageMeta({
-          reason: error?.message || String(error),
+          error,
         }));
       },
     });

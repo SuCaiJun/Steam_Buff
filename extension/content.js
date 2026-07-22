@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v12";
+  const RUN_VERSION = "steam-buff-runtime-v13";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -68,6 +68,8 @@
   const NEWS_TRANSLATE_BRIDGE_HANDLER_MARK = "__steamBuffNewsTranslateBridgeHandler";
   const NEWS_TRANSLATE_BRIDGE_HANDLER_REF = "__steamBuffNewsTranslateBridgeHandlerRef";
   const SETTINGS_ATTR = "steamBuffSettings";
+  const RUNTIME_SESSION_ATTR = "steamBuffRuntimeSessionId";
+  const RUNTIME_OPERATION_ATTR = "steamBuffRuntimeOperationId";
   const STEAM_FEATURES_DISABLED_MESSAGE = "__steam_buff_features_disabled";
   const NEWS_TRANSLATE_ATTR = "steamBuffNewsTranslate";
   const LOCALE_ATTR = "steamBuffUiLocale";
@@ -138,6 +140,8 @@
   let bootTries = 0;
   const seenNameReqs = new Map();
   const seenLogs = new Set();
+  let steamRuntimeOperationId = "";
+  let steamRuntimeInjectStartedAt = 0;
 
   function log(entry) {
     try {
@@ -151,7 +155,6 @@
     return {
       host: ctx.host || location.hostname,
       path: ctx.path || location.pathname,
-      title: ctx.title || document.title || "",
       topFrame: ctx.topFrame ?? (window.top === window),
       page: ctx.page || "",
       pageType: ctx.pageType || "",
@@ -186,34 +189,24 @@
     log(entry);
   }
 
-  function trimBridgeMeta(meta) {
-    if (!meta || typeof meta !== "object") {
-      return undefined;
+  function beginSteamRuntimeInjection() {
+    steamRuntimeOperationId = globalThis.STLoggerFactory.createOperationId();
+    steamRuntimeInjectStartedAt = Date.now();
+    const el = root();
+    if (el) {
+      el.dataset[RUNTIME_SESSION_ATTR] = globalThis.STLogger.sessionId;
+      el.dataset[RUNTIME_OPERATION_ATTR] = steamRuntimeOperationId;
     }
-    try {
-      const text = JSON.stringify(meta);
-      if (text.length <= 4096) {
-        return meta;
-      }
-      return { truncated: true, text: text.slice(0, 4096) };
-    } catch {
-      return { truncated: true, text: "[无法序列化]" };
-    }
+    return steamRuntimeOperationId;
   }
 
-  function pageLogEntry(input) {
-    const out = {};
-    for (const key of ["time", "level", "domain", "feature", "event", "message", "page", "url", "method", "status", "durationMs", "error"]) {
-      if (input[key] !== undefined) {
-        out[key] = input[key];
-      }
-    }
-    const meta = trimBridgeMeta(input.meta);
-    out.meta = {
-      ...(meta || {}),
-      bridge: "page",
-    };
-    return out;
+  function steamRuntimeInjectionMeta(extra = {}) {
+    return pageMeta({
+      loadStrategy: "sequential-web-accessible-scripts",
+      resourceGroup: "steamloopback-host-runtime",
+      runtimeVersion: RUN_VERSION,
+      ...extra,
+    });
   }
 
   function root() {
@@ -1194,14 +1187,6 @@
       }
     };
     globalThis[NEWS_TRANSLATE_BRIDGE_HANDLER_REF] = bridgeHandler;
-    steamRuntimeLogOnce("steam-news-translate-bridge-start", {
-      level: "info",
-      domain: "extension",
-      feature: NEWS_TRANSLATE_ID,
-      event: "steam-news-translate-bridge-start",
-      message: "Steam 新闻翻译桥接已启动",
-      meta: pageMeta(),
-    });
     window.addEventListener("message", bridgeHandler);
   }
 
@@ -1567,11 +1552,13 @@
       if (event.source !== window || event.data?.type !== LOG_EVENT) {
         return;
       }
-      const entry = event.data.entry;
-      if (!entry || typeof entry !== "object") {
+      const validation = globalThis.STLoggerSchema?.validateEntry?.(event.data.entry);
+      if (validation?.ok !== true) {
         return;
       }
-      log(pageLogEntry(entry));
+      globalThis.STLogger?.append?.(event.data.entry, {
+        forcePersist: event.data.forcePersist === true,
+      });
     });
   }
 
@@ -1857,17 +1844,23 @@
       return;
     }
 
+    const operationId = beginSteamRuntimeInjection();
+    let injectPhase = "settings-snapshot";
+    steamRuntimeLogOnce(`runtime-inject-start:${operationId}`, {
+      level: "info",
+      domain: "steam",
+      feature: "steam-runtime",
+      event: "runtime-inject-start",
+      message: "开始注入 Steam 运行时",
+      operationId,
+      meta: steamRuntimeInjectionMeta({ phase: injectPhase }),
+    });
+
     writeSteamSettings({ notifyDisabled: false })
       .then(() => {
-        steamRuntimeLogOnce("steam-runtime-inject-start", {
-          level: "info",
-          domain: "steam",
-          feature: "steam-runtime",
-          event: "steam-runtime-inject-start",
-          message: "开始注入 Steam 运行时",
-          meta: pageMeta(),
-        });
+        injectPhase = "resource-load";
         return inj.inject([
+          "shared/logger-schema.js",
           "extension/runtime/logger.js",
           "shared/logger-factory.js",
           "shared/config.js",
@@ -1894,13 +1887,15 @@
         ]);
       })
       .then(() => {
-        steamRuntimeLogOnce("steam-runtime-inject-success", {
+        steamRuntimeLogOnce(`runtime-inject-success:${operationId}`, {
           level: "info",
           domain: "steam",
           feature: "steam-runtime",
-          event: "steam-runtime-inject-success",
+          event: "runtime-inject-success",
           message: "Steam 运行时注入完成",
-          meta: pageMeta(),
+          operationId,
+          durationMs: Date.now() - steamRuntimeInjectStartedAt,
+          meta: steamRuntimeInjectionMeta({ phase: "resource-load" }),
         });
       })
       .catch((error) => {
@@ -1910,10 +1905,12 @@
           level: "error",
           domain: "steam",
           feature: "steam-runtime",
-          event: "steam-runtime-inject-failed",
+          event: "runtime-inject-failed",
           message: "注入 Steam 运行时失败",
+          operationId,
+          durationMs: Date.now() - steamRuntimeInjectStartedAt,
           error,
-          meta: pageMeta(),
+          meta: steamRuntimeInjectionMeta({ phase: injectPhase }),
         });
       });
   }

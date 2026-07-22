@@ -60,7 +60,7 @@
       log.error("runtime-failed", "Steam 商店页运行时启动失败", {
         ...meta,
         durationMs: Date.now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
     });
 })();

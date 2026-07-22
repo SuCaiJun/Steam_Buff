@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "0.12.16",
+  "version": "0.12.17",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "顾青离",
@@ -72,6 +72,8 @@
         "shared/i18n.js",
         "shared/page-context.js",
         "shared/runtime/kernel.js",
+        "shared/logger-schema.js",
+        "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "translate/boot.js"
       ],
@@ -90,6 +92,7 @@
       "js": [
         "shared/config.js",
         "extension/runtime/injector.js",
+        "shared/logger-schema.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "shared/error-boundary.js",
@@ -122,6 +125,7 @@
       ],
       "js": [
         "extension/runtime/injector.js",
+        "shared/logger-schema.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "shared/config.js",
@@ -141,6 +145,8 @@
       ],
       "js": [
         "shared/styles/theme.js",
+        "shared/logger-schema.js",
+        "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "shared/error-boundary.js",
         "shared/errors.js",
@@ -157,6 +163,7 @@
       ],
       "js": [
         "shared/observer-utils.js",
+        "shared/logger-schema.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "shared/config.js",
@@ -177,6 +184,7 @@
         "shared/utils/dom.js",
         "shared/styles/components.js",
         "shared/scheduler.js",
+        "shared/logger-schema.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "shared/runtime/message-bus.js",
@@ -204,6 +212,7 @@
         "shared/page-context.js",
         "shared/runtime/kernel.js",
         "_locales/*/messages.json",
+        "shared/logger-schema.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
         "steam/shared/constants.js",
@@ -254,6 +263,7 @@
         "shared/observer-utils.js",
         "shared/page-context.js",
         "_locales/*/messages.json",
+        "shared/logger-schema.js",
         "shared/logger-factory.js",
         "shared/error-boundary.js",
         "extension/runtime/logger.js",

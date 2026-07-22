@@ -1032,7 +1032,7 @@
     } catch (error) {
       log.warn("update-log-detail-failed", "更新日志详情读取失败", {
         version,
-        error: error?.message || String(error),
+        error,
         durationMs: Date.now() - startedAt,
       });
       return item || { version, desc: "日志详情加载失败" };
@@ -1262,14 +1262,20 @@
 
   function logSettingsBackup(level, event, message, meta = {}) {
     const method = level === "error" ? "error" : level === "warn" ? "warn" : "info";
-    log[method](event, message, {
-      imported: Number(meta.imported) || 0,
-      defaulted: Number(meta.defaulted) || 0,
-      skipped: Number(meta.skipped) || 0,
-      exported: Number(meta.exported) || 0,
-      includeSensitive: meta.includeSensitive === true,
-      hasSensitive: meta.hasSensitive === true,
-    });
+    const details = {};
+    if (meta.operationId !== undefined && meta.operationId !== null) {
+      details.operationId = String(meta.operationId || "") || undefined;
+    }
+    for (const key of ["imported", "defaulted", "skipped", "exported"]) {
+      if (meta[key] !== undefined && meta[key] !== null) details[key] = Number(meta[key]) || 0;
+    }
+    for (const key of ["includeSensitive", "hasSensitive"]) {
+      if (meta[key] !== undefined && meta[key] !== null) details[key] = meta[key] === true;
+    }
+    if (meta.durationMs !== undefined && meta.durationMs !== null) {
+      details.durationMs = Math.max(0, Number(meta.durationMs) || 0);
+    }
+    log[method](event, message, details);
   }
 
   async function exportSettings(shadow, ctx, options = {}) {
@@ -1280,7 +1286,8 @@
     }
     const includeSensitive = options.includeSensitive === true;
     const startedAt = Date.now();
-    logSettingsBackup("info", "settings-export-start", "开始导出设置备份", { includeSensitive });
+    const operationId = globalThis.STLoggerFactory.createOperationId();
+    logSettingsBackup("info", "settings-export-start", "开始导出设置备份", { includeSensitive, operationId });
     try {
       const out = await backup.exportPackage({ includeSensitive });
       downloadText(out.filename, out.data);
@@ -1288,11 +1295,13 @@
         includeSensitive,
         exported: out.stats?.exported,
         hasSensitive: out.stats?.hasSensitive,
+        operationId,
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
       log.error("settings-export-failed", "设置备份导出失败", {
-        error: error?.message || String(error),
+        error,
+        operationId,
         durationMs: Date.now() - startedAt,
       });
       ctx.dialog(shadow, { title: "导出设置失败", message: error?.message || String(error) });
@@ -1309,7 +1318,8 @@
       return;
     }
     const startedAt = Date.now();
-    logSettingsBackup("info", "settings-import-read-start", "开始读取设置备份文件");
+    const operationId = globalThis.STLoggerFactory.createOperationId();
+    logSettingsBackup("info", "settings-import-read-start", "开始读取设置备份文件", { operationId });
     try {
       const text = await readFileText(file);
       const preview = backup.inspectPackage(text);
@@ -1323,16 +1333,17 @@
         ],
       });
       if (action !== "import") {
-        logSettingsBackup("info", "settings-import-skipped", "用户取消导入设置备份");
+        logSettingsBackup("info", "settings-import-skipped", "用户取消导入设置备份", { operationId });
         return;
       }
 
       const current = await backup.exportPackage({ includeSensitive: includeSensitiveBackup });
       downloadText(current.filename.replace("steam-buff-settings-", "steam-buff-settings-before-import-"), current.data);
-      logSettingsBackup("info", "settings-import-start", "开始导入设置备份", preview.stats);
+      logSettingsBackup("info", "settings-import-start", "开始导入设置备份", { ...preview.stats, operationId });
       const result = await backup.importPackage(text);
       logSettingsBackup("info", "settings-import-success", "设置备份导入成功", {
         ...(result.stats || {}),
+        operationId,
         durationMs: Date.now() - startedAt,
       });
       ctx.dialog(shadow, {
@@ -1349,7 +1360,8 @@
       });
     } catch (error) {
       log.error("settings-import-failed", "设置备份导入失败", {
-        error: error?.message || String(error),
+        error,
+        operationId,
         durationMs: Date.now() - startedAt,
       });
       ctx.dialog(shadow, { title: "导入设置失败", message: error?.message || String(error) });
@@ -1367,40 +1379,54 @@
     }
   }
 
-  function parseDonationResponse(text) {
-    const data = globalThis.STSettingsApiRequest.parseJson(text, "支持者列表返回解析失败");
-    return globalThis.STSettingsApiRequest.listFromPayload(data);
-  }
-
-  function cleanDonationText(value, fallback = "") {
-    return String(value ?? fallback).replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+  function cleanDonationText(value) {
+    return String(value ?? "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
   }
 
   function normalizeDonation(item) {
-    if (!item || typeof item !== "object") {
-      return null;
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new TypeError("支持者列表条目必须是对象");
+    }
+    for (const key of ["name", "avatar", "currency", "message", "created_at", "source"]) {
+      if (typeof item[key] !== "string") {
+        throw new TypeError(`支持者列表条目字段 ${key} 必须是字符串`);
+      }
+    }
+    if (typeof item.redeemed !== "boolean") {
+      throw new TypeError("支持者列表条目字段 redeemed 必须是布尔值");
     }
     const amount = Number(item.amount);
-    const name = cleanDonationText(item.name || item.display_name || item.source_user_name, "匿名支持者") || "匿名支持者";
+    if (!Number.isFinite(amount) || amount < 0) {
+      throw new TypeError("支持者列表条目字段 amount 必须是非负数");
+    }
+    const name = cleanDonationText(item.name);
+    const currency = cleanDonationText(item.currency);
+    if (!name || !currency) {
+      throw new TypeError("支持者列表条目的 name 和 currency 不能为空");
+    }
     return {
       name,
-      amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
-      currency: cleanDonationText(item.currency, "¥") || "¥",
-      avatar: cleanDonationText(item.avatar || item.avatar_url || ""),
-      message: cleanDonationText(item.message || item.remark || ""),
-      createdAt: cleanDonationText(item.created_at || item.paid_at || item.createdAt || ""),
-      source: cleanDonationText(item.source || ""),
+      amount,
+      currency,
+      avatar: cleanDonationText(item.avatar),
+      message: cleanDonationText(item.message),
+      createdAt: cleanDonationText(item.created_at),
+      source: cleanDonationText(item.source),
     };
   }
 
   async function fetchDonations(url) {
-    const response = await globalThis.STSettingsApiRequest.request({
-      url,
-      method: "GET",
+    return globalThis.STSettingsApiRequest.getJson(url, {
       label: "支持者列表",
       headers: { Accept: "application/json" },
+      allowHttpError: false,
+      service: "supporter-api",
+      endpointKey: "supporter-donations",
+      requestUrlPolicy: { allowPath: true, allowedQueryKeys: ["limit"] },
+      parseMessage: "支持者列表返回解析失败",
+      validate: Array.isArray,
+      validateMessage: "支持者列表返回结构异常：顶层必须是数组",
     });
-    return parseDonationResponse(response.data);
   }
 
   async function loadDonors(ctx) {
@@ -1409,7 +1435,7 @@
     }
     try {
       const data = await fetchDonations(DONATIONS_API);
-      donors = data.map(normalizeDonation).filter(Boolean);
+      donors = data.map(normalizeDonation);
       donorsLoadedAt = Date.now();
       ctx.refresh("about");
     } catch {
@@ -1421,9 +1447,10 @@
 
   async function exportDiagLog(shadow, ctx) {
     const startedAt = Date.now();
-    log.info("diag-log-export-start", "开始导出日志");
+    const operationId = globalThis.STLoggerFactory.createOperationId();
+    log.info("diag-log-export-start", "开始导出日志", { operationId });
     try {
-      const response = await sendLogMessage("LOG_EXPORT");
+      const response = await sendLogMessage("LOG_EXPORT", { operationId });
       const pack = await globalThis.STSettingsDiagnosticsExport?.build?.(response);
       if (!pack?.blob) {
         throw new Error("日志生成失败");
@@ -1433,12 +1460,14 @@
       log.info("diag-log-export-success", "日志导出成功", {
         count: Number(logStats?.count) || 0,
         sizeBytes: Number(logStats?.sizeBytes) || 0,
+        operationId,
         durationMs: Date.now() - startedAt,
       });
       ctx.refresh("about");
     } catch (error) {
       log.error("diag-log-export-failed", "日志导出失败", {
-        error: error?.message || String(error),
+        error,
+        operationId,
         durationMs: Date.now() - startedAt,
       });
       ctx.dialog(shadow, { title: "导出日志失败", message: error?.message || String(error) });
@@ -1455,21 +1484,22 @@
       ],
     });
     if (action !== "clear") {
-      log.info("diag-log-clear-skipped", "用户取消清空诊断日志");
       return;
     }
     const startedAt = Date.now();
-    log.warn("diag-log-clear-start", "开始清空诊断日志");
+    const operationId = globalThis.STLoggerFactory.createOperationId();
     try {
-      const response = await sendLogMessage("LOG_CLEAR");
+      const response = await sendLogMessage("LOG_CLEAR", { operationId });
       logStats = response.stats || null;
-      log.warn("diag-log-clear-success", "诊断日志清空成功", {
+      log.info("diag-log-clear-success", "诊断日志清空成功", {
+        operationId,
         durationMs: Date.now() - startedAt,
       });
       ctx.refresh("about");
     } catch (error) {
       log.error("diag-log-clear-failed", "诊断日志清空失败", {
-        error: error?.message || String(error),
+        error,
+        operationId,
         durationMs: Date.now() - startedAt,
       });
       ctx.dialog(shadow, { title: "清空诊断日志失败", message: error?.message || String(error) });

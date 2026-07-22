@@ -353,7 +353,7 @@
     runtime?.markError?.("settings-floating-menu-mount-failed", error, mountMeta());
     log?.error?.("floating-menu-mount-failed", "设置中心挂载失败", {
       ...mountMeta(),
-      error: error?.message || String(error),
+      error,
     });
   }
 

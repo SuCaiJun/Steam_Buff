@@ -171,10 +171,6 @@
     });
   }
 
-  function errorMessage(error) {
-    return error?.message || String(error);
-  }
-
   function parseConfig(value) {
     try {
       const data = JSON.parse(String(value || ""));
@@ -2218,12 +2214,12 @@
       } catch (error) {
         failedCount += 1;
         trackFailedUnits(task);
-        log.warn("news-popup-ai-chunk-failed", "AI 新闻分块翻译失败", {
-          order: task.order,
-          textLength: task.text.length,
-          pieceCount: task.pieces?.length || 1,
-          error: errorMessage(error),
-        });
+          log.warn("news-popup-ai-chunk-failed", "AI 新闻分块翻译失败", {
+            order: task.order,
+            textLength: task.text.length,
+            pieceCount: task.pieces?.length || 1,
+            error,
+          });
       }
     };
     const retryFailedBodyUnits = async () => {
@@ -2259,7 +2255,7 @@
             order: task.order,
             textLength: task.text.length,
             unitCount: task.units.length,
-            error: errorMessage(error),
+            error,
           });
         }
       });
@@ -2674,7 +2670,7 @@
     }
     rt.configWarnAt = at;
     log.warn("news-popup-config-request-failed", "新闻弹窗翻译配置获取失败，已使用本地设置快照", {
-      error: errorMessage(error),
+      error,
       retryMs: CONFIG_REFRESH_MS,
       hasDatasetConfig: !!datasetConfig(),
     });

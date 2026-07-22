@@ -115,7 +115,7 @@
     }).catch((error) => {
       workshopLog?.warn?.("workshop-check-load-failed", "创意工坊状态加载失败", pageMeta({
         appid: Number(appId) || 0,
-        reason: error?.message || String(error),
+        error,
       }));
       return { ok: false, code: "request-failed" };
     }).finally(() => {

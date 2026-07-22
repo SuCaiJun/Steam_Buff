@@ -573,7 +573,7 @@
         status: clear ? "deleted" : "saved",
       });
     } catch (error) {
-      log.error("title-custom-name-note-save-failed", error, {
+      log.error("title-custom-name-note-save-failed", "游戏备注保存失败", {
         appid: ctx.appid,
         noteLength: note.length,
         durationMs: Date.now() - startedAt,
@@ -590,31 +590,21 @@
 
   async function saveAliasFromModal(ctx, alias) {
     const startedAt = Date.now();
-    try {
-      if (alias) {
-        await authedPost(ALIAS_SAVE, {
-          appid: ctx.appid,
-          steam_name: ctx.steamTitle,
-          alias,
-        });
-      } else {
-        await authedDelete(ALIAS_SAVE, { appid: ctx.appid });
-      }
-      log.info("title-custom-name-alias-save-success", "游戏别名保存完成", {
+    if (alias) {
+      await authedPost(ALIAS_SAVE, {
         appid: ctx.appid,
-        aliasLength: alias.length,
-        durationMs: Date.now() - startedAt,
-        status: alias ? "saved" : "deleted",
+        steam_name: ctx.steamTitle,
+        alias,
       });
-    } catch (error) {
-      log.error("title-custom-name-alias-save-failed", error, {
-        appid: ctx.appid,
-        aliasLength: alias.length,
-        durationMs: Date.now() - startedAt,
-        error,
-      });
-      throw error;
+    } else {
+      await authedDelete(ALIAS_SAVE, { appid: ctx.appid });
     }
+    log.info("title-custom-name-alias-save-success", "游戏别名保存完成", {
+      appid: ctx.appid,
+      aliasLength: alias.length,
+      durationMs: Date.now() - startedAt,
+      status: alias ? "saved" : "deleted",
+    });
   }
 
   async function submitName() {
@@ -662,7 +652,7 @@
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
-      log.error("title-custom-name-submit-failed", error, {
+      log.error("title-custom-name-submit-failed", "商店标题中文名提交失败", {
         appid: ctx.appid,
         durationMs: Date.now() - startedAt,
         error,
@@ -684,7 +674,7 @@
       });
       return data;
     } catch (error) {
-      log.error("title-custom-name-load-failed", error, {
+      log.error("title-custom-name-load-failed", "商店标题中文名读取失败", {
         appid,
         durationMs: Date.now() - startedAt,
         error,

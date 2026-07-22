@@ -993,7 +993,7 @@
         });
       }
     } catch (error) {
-      log.error("cart-select-restore-failed", error, {
+      log.error("cart-select-restore-failed", "购物车批次恢复失败", {
         durationMs: Date.now() - startedAt,
         error,
       });
@@ -1071,7 +1071,7 @@
       });
       next.click();
     } catch (error) {
-      log.error("cart-select-checkout-failed", error, {
+      log.error("cart-select-checkout-failed", "购物车结算失败", {
         durationMs: Date.now() - startedAt,
         error,
       });

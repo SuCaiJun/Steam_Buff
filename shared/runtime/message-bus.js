@@ -61,12 +61,14 @@
     return ROUTES[text(type)] || { timeoutMs: DEFAULT_TIMEOUT_MS, owner: "unknown" };
   }
 
-  function messageMeta(type, extra = {}) {
+  function messageMeta(type, extra = {}, message = {}) {
     const policy = routePolicy(type);
     return {
       type: text(type) || "unknown",
       owner: policy.owner || "unknown",
       timeoutMs: Number(policy.timeoutMs) || DEFAULT_TIMEOUT_MS,
+      operationId: text(message.operationId) || undefined,
+      requestId: text(message.requestId) || undefined,
       ...extra,
     };
   }
@@ -103,19 +105,26 @@
   function send(payload = {}, options = {}) {
     const message = payload && typeof payload === "object" ? { ...payload } : {};
     const type = text(message.type || options.type);
+    const logFailures = options.logFailures !== false;
     if (!type) {
-      log.warn("message-bus-send-failed", "运行时消息发送失败", {
-        reason: "missing-type",
-      });
+      if (logFailures) {
+        log.warn("message-bus-send-failed", "运行时消息发送失败", {
+          operationId: text(message.operationId) || undefined,
+          requestId: text(message.requestId) || undefined,
+          reason: "missing-type",
+        });
+      }
       return Promise.reject(new Error("运行时消息缺少 type"));
     }
     message.type = type;
 
     const chromeApi = root.chrome?.runtime;
     if (!chromeApi?.sendMessage) {
-      log.warn("message-bus-send-failed", "运行时消息发送失败", messageMeta(type, {
-        reason: "sendMessage-unavailable",
-      }));
+      if (logFailures) {
+        log.warn("message-bus-send-failed", "运行时消息发送失败", messageMeta(type, {
+          reason: "sendMessage-unavailable",
+        }, message));
+      }
       return Promise.reject(new Error("chrome.runtime.sendMessage 不可用"));
     }
 
@@ -150,10 +159,12 @@
           stats.lastError = safeError(error);
           bump(type, "timedOut");
           bump(type, "failed");
-          log.warn("message-bus-send-timeout", "运行时消息发送超时", messageMeta(type, {
-            timeoutMs,
-            error: error.message,
-          }));
+          if (logFailures) {
+            log.warn("message-bus-send-timeout", "运行时消息发送超时", messageMeta(type, {
+              timeoutMs,
+              error,
+            }, message));
+          }
           finish(reject, error);
         }, timeoutMs);
       }
@@ -162,15 +173,20 @@
         stats.lastSentAt = Date.now();
         bump(type, "sent");
         chromeApi.sendMessage(message, (response) => {
+          if (done) {
+            return;
+          }
           const error = chromeApi.lastError;
           if (error) {
             const err = new Error(error.message || "后台消息请求失败");
             err.name = "MessageError";
             stats.lastError = safeError(err);
             bump(type, "failed");
-            log.warn("message-bus-send-failed", "运行时消息发送失败", messageMeta(type, {
-              error: err.message,
-            }));
+            if (logFailures) {
+              log.warn("message-bus-send-failed", "运行时消息发送失败", messageMeta(type, {
+                error: err,
+              }, message));
+            }
             finish(reject, err);
             return;
           }
@@ -180,9 +196,11 @@
       } catch (error) {
         stats.lastError = safeError(error);
         bump(type, "failed");
-        log.warn("message-bus-send-failed", "运行时消息发送失败", messageMeta(type, {
-          error: safeError(error),
-        }));
+        if (logFailures) {
+          log.warn("message-bus-send-failed", "运行时消息发送失败", messageMeta(type, {
+            error,
+          }, message));
+        }
         finish(reject, error);
       }
     });
@@ -200,10 +218,12 @@
       const error = new Error(response?.error || "后台消息请求失败");
       error.response = response;
       error.status = Number(response?.status) || 0;
-      log.warn("message-bus-request-failed", "运行时消息请求失败", messageMeta(payload?.type || options.type, {
-        status: error.status,
-        error: error.message,
-      }));
+      if (options.logFailures !== false) {
+        log.warn("message-bus-request-failed", "运行时消息请求失败", messageMeta(payload?.type || options.type, {
+          status: error.status,
+          error,
+        }, payload));
+      }
       throw error;
     }
     return response;
@@ -234,7 +254,7 @@
         log.warn("message-bus-listener-failed", "运行时消息监听处理失败", messageMeta(route, {
           owner,
           key,
-          error: safeError(error),
+          error,
         }));
         sendResponse?.({ success: false, error: safeError(error) });
         return false;
@@ -254,7 +274,7 @@
         log.warn("message-bus-listener-dispose-failed", "运行时消息监听释放失败", messageMeta(route, {
           owner,
           key,
-          error: safeError(error),
+          error,
         }));
       }
       listeners.delete(id);

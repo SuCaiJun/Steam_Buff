@@ -203,7 +203,7 @@
             pageType: info.type || "",
             appid: Number(info.appId) || 0,
             durationMs: Date.now() - startedAt,
-            error: error?.message || String(error),
+            error,
           }));
         }
         return null;
@@ -235,7 +235,7 @@
           log?.warn?.("steam-festivals-load-failed", "Steam 节日数据加载失败", pageMeta({
             pageType: info.type || "",
             durationMs: Date.now() - startedAt,
-            error: error?.message || String(error),
+            error,
           }));
         }
         return null;

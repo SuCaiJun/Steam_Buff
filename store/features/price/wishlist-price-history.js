@@ -768,7 +768,7 @@
         positionPanel();
       }
       if (query) {
-        log.error("wishlist-price-query-failed", error, {
+        log.error("wishlist-price-query-failed", "愿望单价格查询失败", {
           appid,
           durationMs: Date.now() - startedAt,
           error,

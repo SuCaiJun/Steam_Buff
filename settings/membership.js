@@ -132,7 +132,7 @@
           onChange(next || empty());
         }).catch((error) => {
           log.warn("membership-watch-refresh-failed", "会员状态刷新失败", {
-            error: error?.message || String(error),
+            error,
           });
         });
       }, {
@@ -149,7 +149,7 @@
         onChange(next || empty());
       }).catch((error) => {
         log.warn("membership-watch-refresh-failed", "会员状态刷新失败", {
-          error: error?.message || String(error),
+          error,
           area,
         });
       });
@@ -159,7 +159,7 @@
       return listener;
     } catch (error) {
       log.warn("membership-watch-bind-failed", "会员状态监听注册失败", {
-        error: error?.message || String(error),
+        error,
       });
       return null;
     }

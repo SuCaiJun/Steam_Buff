@@ -711,7 +711,7 @@
         log.warn("library-custom-name-save-status-timeout", "库自定义名称保存队列状态查询超时", {
           rid: batch.saveRid || "",
           misses: batch.saveStatusMisses,
-          error: error?.message || String(error),
+          error,
           ...statsMeta(),
         });
         renderModal();
@@ -1369,7 +1369,7 @@
       batch.message = error?.message || String(error);
       log.error("library-custom-name-preview-failed", "库自定义名称本地列表加载失败", {
         durationMs: now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
     } finally {
       if (seq === batch.previewSeq) {
@@ -1918,7 +1918,7 @@
     } catch (error) {
       batch.message = error?.message || String(error);
       log.error("library-custom-name-export-failed", "库自定义名称 JSON 导出失败", {
-        error: error?.message || String(error),
+        error,
       });
     }
     renderModal();
@@ -2064,7 +2064,7 @@
     } catch (error) {
       batch.message = error?.message || String(error);
       log.error("library-custom-name-import-failed", "库自定义名称 JSON 导入失败", {
-        error: error?.message || String(error),
+        error,
       });
     } finally {
       if (seq === batch.previewSeq) {
@@ -2308,7 +2308,7 @@
             log.warn("library-custom-name-cloud-upload-batch-failed", "库自定义名称素材君云端上传批次失败", {
               size: chunk.length,
               pending: batch.stats.cloudPending,
-              error: error?.message || String(error),
+              error,
             });
           }
           renderProgressSoon();
@@ -3537,7 +3537,7 @@
       batch.message = error?.message || String(error);
       log.error("library-custom-name-preview-failed", "库自定义名称云端名称获取失败", {
         durationMs: now() - startedAt,
-        error: error?.message || String(error),
+        error,
       });
     } finally {
       if (seq === batch.previewSeq) {
@@ -3643,7 +3643,7 @@
         count: items.length,
         skipped,
         action,
-        error: error?.message || String(error),
+        error,
       });
       return;
     }
@@ -3713,7 +3713,7 @@
         skipped,
         action,
         durationMs: now() - (batch.saveStartedAt || now()),
-        error: error?.message || String(error),
+        error,
       });
     }
     renderModal();

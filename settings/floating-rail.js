@@ -287,7 +287,7 @@
       railSide = rt?.[RAIL_SIDE_KEY] === "left" ? "left" : "right";
     } catch (error) {
       log?.warn?.("floating-rail-position-read-failed", "轻量悬浮栏位置读取失败", {
-        error: error?.message || String(error),
+        error,
       });
       railTop = null;
       railSide = "right";
@@ -307,7 +307,7 @@
       reason: "floating-rail-position-write",
     })?.catch?.((error) => {
       log?.warn?.("floating-rail-position-write-failed", "轻量悬浮栏位置保存失败", {
-        error: error?.message || String(error),
+        error,
       });
     });
   }
@@ -576,7 +576,7 @@
       mount().catch((error) => {
         log?.error?.("floating-rail-mount-failed", "设置中心轻量悬浮入口挂载失败", {
           path: location.pathname,
-          error: error?.message || String(error),
+          error,
         });
       });
     });

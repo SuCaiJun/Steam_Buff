@@ -253,7 +253,7 @@
           hasItadKey: hasItadKey(next),
           durationMs: Date.now() - startedAt,
           errorCode: "STORAGE_THROWN",
-          error: error?.message || String(error),
+          error,
         });
         dialog(shadow, { title: "保存失败", message: "第三方服务配置保存异常，请稍后重试。" });
         return false;
@@ -332,7 +332,7 @@
           durationMs: Date.now() - startedAt,
           retryable: failure.retryable,
           errorCode: failure.code,
-          error: error?.message || String(error),
+          error,
         });
         dialog(shadow, { title: "ITAD 测试失败", message: failure.message });
       } finally {

@@ -17,11 +17,6 @@
     return;
   }
 
-  const log = globalThis.STLoggerFactory?.createLogger?.("settings", "settings-backup") || {
-    info() {},
-    warn() {},
-    error() {},
-  };
   const TYPE = "steam-buff-settings";
   const SCHEMA_VERSION = 1;
   const APP = "Steam Buff";
@@ -249,31 +244,24 @@
   }
 
   function inspectPackage(input) {
-    try {
-      const data = parse(input);
-      if (!data || typeof data !== "object") {
-        throw new Error("设置备份文件格式无效。");
-      }
-      if (data.type !== TYPE) {
-        throw new Error("不是 Steam Buff 设置备份。");
-      }
-      if (Number(data.schemaVersion) !== SCHEMA_VERSION) {
-        throw new Error(`暂不支持的设置备份版本：${data.schemaVersion || "未知"}`);
-      }
-      const normalized = normalizeSettings(data.settings || {});
-      return {
-        valid: true,
-        package: data,
-        normalized: normalized.settings,
-        stats: normalized.stats,
-        sections: SECTIONS.filter(section => Object.keys(obj(data.settings?.[section])).length > 0),
-      };
-    } catch (error) {
-      log.warn("settings-backup-inspect-failed", "设置备份文件检查失败", {
-        error: error?.message || String(error),
-      });
-      throw error;
+    const data = parse(input);
+    if (!data || typeof data !== "object") {
+      throw new Error("设置备份文件格式无效。");
     }
+    if (data.type !== TYPE) {
+      throw new Error("不是 Steam Buff 设置备份。");
+    }
+    if (Number(data.schemaVersion) !== SCHEMA_VERSION) {
+      throw new Error(`暂不支持的设置备份版本：${data.schemaVersion || "未知"}`);
+    }
+    const normalized = normalizeSettings(data.settings || {});
+    return {
+      valid: true,
+      package: data,
+      normalized: normalized.settings,
+      stats: normalized.stats,
+      sections: SECTIONS.filter(section => Object.keys(obj(data.settings?.[section])).length > 0),
+    };
   }
 
   async function currentSections() {
@@ -290,83 +278,43 @@
   async function exportPackage(options = {}) {
     const includeSensitive = options.includeSensitive === true;
     const exportedAt = now();
-    const startedAt = now();
-    log.info("settings-backup-export-start", "开始导出设置备份", {
-      includeSensitive,
-    });
-    try {
-      const sections = stripSensitive(await currentSections(), includeSensitive);
-      const payload = {
-        type: TYPE,
-        schemaVersion: SCHEMA_VERSION,
-        app: APP,
-        extensionVersion: version(),
-        exportedAt,
-        options: {
-          includeSensitive,
-        },
-        settings: sections,
-      };
-      const result = {
-        filename: filename(exportedAt),
-        data: JSON.stringify(payload, null, 2),
-        payload,
-        stats: {
-          exported: countValues(sections),
-          hasSensitive: includeSensitive && hasSensitive(sections),
-        },
-      };
-      log.info("settings-backup-export-success", "设置备份导出成功", {
+    const sections = stripSensitive(await currentSections(), includeSensitive);
+    const payload = {
+      type: TYPE,
+      schemaVersion: SCHEMA_VERSION,
+      app: APP,
+      extensionVersion: version(),
+      exportedAt,
+      options: {
         includeSensitive,
-        exported: result.stats.exported,
-        hasSensitive: result.stats.hasSensitive,
-        durationMs: now() - startedAt,
-      });
-      return result;
-    } catch (error) {
-      log.error("settings-backup-export-failed", "设置备份导出失败", {
-        includeSensitive,
-        error: error?.message || String(error),
-        durationMs: now() - startedAt,
-      });
-      throw error;
-    }
+      },
+      settings: sections,
+    };
+    return {
+      filename: filename(exportedAt),
+      data: JSON.stringify(payload, null, 2),
+      payload,
+      stats: {
+        exported: countValues(sections),
+        hasSensitive: includeSensitive && hasSensitive(sections),
+      },
+    };
   }
 
   async function importPackage(input) {
-    const startedAt = now();
-    log.info("settings-backup-import-start", "开始导入设置备份");
-    try {
-      const preview = inspectPackage(input);
-      const ok = await storage().setBackupSections?.(preview.normalized);
-      const result = {
-        ...preview,
-        ok: ok !== false,
-      };
-      const meta = {
-        imported: preview.stats.imported,
-        skipped: preview.stats.skipped,
-        defaulted: preview.stats.defaulted,
-        hasSensitive: preview.stats.hasSensitive,
-        sectionCount: preview.sections.length,
-        durationMs: now() - startedAt,
-      };
-      if (result.ok) {
-        log.info("settings-backup-import-success", "设置备份导入成功", meta);
-      } else {
-        log.warn("settings-backup-import-failed", "设置备份导入未完成", {
-          ...meta,
-          reason: "storage-rejected",
-        });
-      }
-      return result;
-    } catch (error) {
-      log.error("settings-backup-import-failed", "设置备份导入失败", {
-        error: error?.message || String(error),
-        durationMs: now() - startedAt,
-      });
-      throw error;
+    const preview = inspectPackage(input);
+    const target = storage();
+    if (typeof target?.setBackupSections !== "function") {
+      throw new Error("设置备份写入接口不可用");
     }
+    const ok = await target.setBackupSections(preview.normalized);
+    if (ok !== true) {
+      throw new Error("设置备份写入失败");
+    }
+    return {
+      ...preview,
+      ok: true,
+    };
   }
 
   api.backup = Object.freeze({

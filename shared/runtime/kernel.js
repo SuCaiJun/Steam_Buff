@@ -42,10 +42,6 @@
     return error?.message || String(error);
   }
 
-  function safeError(error) {
-    return errText(error).slice(0, 300);
-  }
-
   function safeCall(fn) {
     try {
       return fn();
@@ -111,7 +107,7 @@
           owner: item.owner,
           key: item.key,
           type: item.type,
-          error: safeError(error),
+          error,
         });
         this.runtime.markError("resource-dispose-failed", error, {
           resourceId: item.id,

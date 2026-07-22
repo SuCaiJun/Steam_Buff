@@ -17,18 +17,13 @@
     warn() {},
   };
 
-  function safeLogUrl(value) {
-    return root.STLoggerFactory?.safeLogUrl?.(value) || String(value || "");
-  }
-
   function parseJson(text) {
     try {
       return JSON.parse(text || "{}");
     } catch (error) {
-      log.warn("auth-client-response-parse-failed", "鉴权接口响应解析失败", {
-        error: error?.message || String(error),
-      });
-      return { code: 0, message: "接口返回解析失败" };
+      const parseError = new Error("鉴权接口响应解析失败", { cause: error });
+      parseError.name = "ParseError";
+      throw parseError;
     }
   }
 
@@ -73,17 +68,29 @@
     return !!response && typeof response === "object" && typeof response.success === "boolean";
   }
 
-  function fetchBg(request = {}) {
+  function fetchBg(request = {}, options = {}) {
     const startedAt = Date.now();
     const timeoutMs = Number(request.timeoutMs) || DEFAULT_TIMEOUT_MS;
     const method = String(request.method || "GET").toUpperCase();
-    const requestUrl = safeLogUrl(request.url);
+    const operationId = String(request.operationId || "").trim();
+    const requestId = String(request.requestId || "").trim() || root.STLoggerFactory?.createRequestId?.() || "";
+    const logFailures = options.logFailures !== false;
+
+    function reportFailure(event, message, details) {
+      if (logFailures) log.warn(event, message, details);
+    }
 
     function requestMeta(extra = {}) {
       return {
-        url: requestUrl,
-        method,
-        timeoutMs,
+        service: "steam-buff-api",
+        operationId,
+        requestId,
+        request: {
+          method,
+          endpointKey: "auth-request",
+          url: request.url,
+          timeoutMs,
+        },
         durationMs: Date.now() - startedAt,
         ...extra,
       };
@@ -105,8 +112,8 @@
       if (timeoutMs > 0) {
         timer = setTimeout(() => {
           const error = timeoutError(timeoutMs);
-          log.warn("auth-client-bg-request-timeout", "鉴权后台请求超时", requestMeta({
-            error: error.message,
+          reportFailure("auth-client-bg-request-timeout", "鉴权后台请求超时", requestMeta({
+            error,
           }));
           finish(reject, error);
         }, timeoutMs);
@@ -117,14 +124,22 @@
             type: "STORE_FETCH",
             timeoutMs,
             ...request,
+            operationId,
+            requestId,
+            endpointKey: "auth-request",
+            service: "steam-buff-api",
           }, {
             timeoutMs,
+            logFailures: false,
           }).then((response) => {
+            if (done) {
+              return;
+            }
             if (!validateResponse(response)) {
               const error = new Error("后台响应格式异常");
-              log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+              reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
                 reason: "invalid-response",
-                error: error.message,
+                error,
               }));
               finish(reject, error);
               return;
@@ -132,17 +147,20 @@
             if (!response?.success) {
               const error = new Error(response?.error || "后台请求失败");
               error.status = Number(response?.status) || 0;
-              log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-                status: error.status,
-                error: error.message,
+              reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+                response: error.status ? { status: error.status } : undefined,
+                error,
               }));
               finish(reject, error);
               return;
             }
             finish(resolve, response);
           }).catch((error) => {
-            log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-              error: error?.message || String(error),
+            if (done) {
+              return;
+            }
+            reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+              error,
             }));
             finish(reject, error);
           });
@@ -152,21 +170,28 @@
           type: "STORE_FETCH",
           timeoutMs,
           ...request,
+          operationId,
+          requestId,
+          endpointKey: "auth-request",
+          service: "steam-buff-api",
         }, (response) => {
+          if (done) {
+            return;
+          }
           const err = chrome.runtime.lastError;
           if (err) {
             const error = new Error(err.message || "后台请求失败");
-            log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-              error: error.message,
+            reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+              error,
             }));
             finish(reject, error);
             return;
           }
           if (!validateResponse(response)) {
             const error = new Error("后台响应格式异常");
-            log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+            reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
               reason: "invalid-response",
-              error: error.message,
+              error,
             }));
             finish(reject, error);
             return;
@@ -174,9 +199,9 @@
           if (!response?.success) {
             const error = new Error(response?.error || "后台请求失败");
             error.status = Number(response?.status) || 0;
-            log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-              status: error.status,
-              error: error.message,
+            reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+              response: error.status ? { status: error.status } : undefined,
+              error,
             }));
             finish(reject, error);
             return;
@@ -184,8 +209,8 @@
           finish(resolve, response);
         });
       } catch (error) {
-        log.warn("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-          error: error?.message || String(error),
+        reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+          error,
         }));
         finish(reject, error);
       }
@@ -219,16 +244,9 @@
     async function refreshAuth(auth) {
       if (!auth?.refresh_token || !refreshUrl) {
         await clearAuth();
-        log.warn("auth-client-refresh-skipped", "鉴权刷新跳过", {
-          hasRefreshToken: !!auth?.refresh_token,
-          hasRefreshUrl: !!refreshUrl,
-        });
         return null;
       }
       const startedAt = Date.now();
-      log.info("auth-client-refresh-start", "开始刷新鉴权令牌", {
-        url: safeLogUrl(refreshUrl),
-      });
       try {
         const response = await fetchBg({
           url: refreshUrl,
@@ -242,26 +260,24 @@
           },
           allowHttpError: true,
           timeoutMs: DEFAULT_TIMEOUT_MS,
-        });
+        }, { logFailures: false });
         const body = parseJson(response.data);
         const code = Number(body?.code) || response.status || 0;
         if (code < 200 || code >= 300 || !body?.access_token) {
           await clearAuth();
           log.warn("auth-client-refresh-failed", "鉴权令牌刷新失败", {
-            status: code,
+            response: code ? { status: code } : undefined,
             durationMs: Date.now() - startedAt,
           });
           return null;
         }
         const next = await saveAuth(nextAuth(body, auth));
-        log.info("auth-client-refresh-success", "鉴权令牌刷新成功", {
-          durationMs: Date.now() - startedAt,
-        });
         return next;
       } catch (error) {
+        await clearAuth();
         log.warn("auth-client-refresh-failed", "鉴权令牌刷新失败", {
-          error: error?.message || String(error),
           durationMs: Date.now() - startedAt,
+          error,
         });
         throw error;
       }
@@ -297,10 +313,6 @@
       let auth = await readyAuth();
       if (!auth?.access_token) {
         if (options.throwOnMissingAuth) {
-          log.warn("auth-client-auth-missing", "鉴权信息缺失", {
-            url: safeLogUrl(url),
-            method: "POST",
-          });
           throw new Error(loginMessage);
         }
         return { auth: null, response: null, body: null, code: 401 };
@@ -313,11 +325,6 @@
         auth = await refreshAuth(auth);
         if (!auth?.access_token) {
           if (options.throwOnMissingAuth) {
-            log.warn("auth-client-auth-expired", "鉴权信息已过期", {
-              url: safeLogUrl(url),
-              method: "POST",
-              status: code,
-            });
             throw new Error(expiredMessage);
           }
           return { auth: null, response, body: data, code: 401 };

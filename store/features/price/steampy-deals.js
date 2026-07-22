@@ -261,7 +261,7 @@
       });
       return data;
     }).catch((error) => {
-      log.error("steampy-price-query-failed", error, {
+      log.error("steampy-price-query-failed", "SteamPY 价格查询失败", {
         appid: appId,
         [payload.type]: payload.id,
         durationMs: Date.now() - startedAt,

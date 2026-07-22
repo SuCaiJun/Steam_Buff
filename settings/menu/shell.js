@@ -111,7 +111,7 @@
         pageId: String(meta.pageId || ""),
         hook: String(meta.hook || ""),
         activeCat: getActiveCat(),
-        error: error?.message || String(error),
+        error,
         durationMs: Date.now() - startedAt,
       };
     }

@@ -67,6 +67,9 @@
       url: requestUrl(options.endpoint, options.params),
       parseJSON: true,
       messageType: FEATURE_ID,
+      service: "steam-webapi",
+      endpointKey: String(options.endpoint || "steam-family"),
+      requestUrlPolicy: { allowPath: true },
       rid: options.rid || "",
       timeoutMs: TIMEOUT_MS,
       retries: options.retries ?? 1,
@@ -132,7 +135,7 @@
       endpoint: "playerLinkDetails",
       params,
       validate(data) {
-        const accounts = data?.response?.accounts || data?.accounts;
+        const accounts = data?.response?.accounts;
         return Array.isArray(accounts);
       },
       validateMessage: "Steam 家庭组成员信息格式异常",

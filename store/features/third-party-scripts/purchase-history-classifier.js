@@ -66,7 +66,7 @@
       })
       .catch((error) => {
         started = false;
-        log.error("purchase-history-classifier-failed", error, {
+        log.error("purchase-history-classifier-failed", "购买历史分类失败", {
           version: VERSION,
           vendor: VENDOR_SCRIPT,
           error,

@@ -23,14 +23,6 @@
   }
 
   function friendlyMessage(error, fallback = "功能暂时不可用，请稍后重试") {
-    const message = text(error?.message || error);
-    const code = text(error?.code).toUpperCase();
-    if (/NETWORK|FETCH|TIMEOUT|ABORT/u.test(code) || /fetch|network|timeout|超时|网络/iu.test(message)) {
-      return "网络请求失败，请检查连接后重试";
-    }
-    if (/PARSE|JSON/u.test(code) || /JSON|parse|解析/iu.test(message)) {
-      return "数据解析失败，请稍后重试";
-    }
     if (Number(error?.status || error?.statusCode) >= 500) {
       return "服务器暂时不可用，请稍后重试";
     }

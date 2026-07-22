@@ -217,6 +217,12 @@
       url: requestUrl,
       parseJSON: true,
       messageType: "STEAM_FESTIVALS",
+      service: "steam-buff-api",
+      endpointKey: "steam-festivals",
+      requestUrlPolicy: {
+        allowPath: true,
+        allowedQueryKeys: ["anchor_date", "before_months", "after_months"],
+      },
       timeoutMs: options.timeoutMs ?? 12_000,
       retries: options.retries ?? 1,
       retryDelayMs: options.retryDelayMs ?? 500,

@@ -89,7 +89,7 @@
       .catch((error) => {
         log("error", "purchase-recover-failed", "商店购买区增强模块恢复失败", recoverMeta(pageInfo, reason, {
           durationMs: Date.now() - startedAt,
-          error: error?.message || String(error),
+          error,
         }));
       });
   }

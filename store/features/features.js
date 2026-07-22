@@ -123,7 +123,7 @@
     } catch (error) {
       log?.error?.("feature-stop-failed", "商店页子功能停止失败", {
         featureId: label,
-        error: error?.message || String(error),
+        error,
       });
       return false;
     }
@@ -429,7 +429,7 @@
     });
     log?.error?.("feature-start-failed", "商店页聚合入口启动失败", {
       path: location.pathname,
-      error: error?.message || String(error),
+      error,
     });
   }
 

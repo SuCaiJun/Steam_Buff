@@ -11,11 +11,15 @@
 (() => {
   "use strict";
 
+  const runtimeCorrelation = document.documentElement?.dataset || {};
   const api = window.SteamBuff;
   const reg = api?.reg;
-  const log = window.STLoggerFactory.createLogger('steam', 'main');
+  const log = window.STLoggerFactory.createLogger('steam', 'main', {
+    sessionId: runtimeCorrelation.steamBuffRuntimeSessionId || "",
+    operationId: runtimeCorrelation.steamBuffRuntimeOperationId || "",
+  });
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
-  const RUNTIME_VERSION = "steam-buff-runtime-v9";
+  const RUNTIME_VERSION = "steam-buff-runtime-v10";
   const BOOT_MS = 500;
   const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;
@@ -37,21 +41,6 @@
   }
 
   /**
-   * 汇总 Steam feature registry 启动结果。
-   * @param {Array<{status: string}>} results - 功能入口启动结果。
-   * @returns {{total: number, started: number, skipped: number, failed: number}} 启动摘要。
-   */
-  function summary(results) {
-    const list = Array.isArray(results) ? results : [];
-    return {
-      total: list.length,
-      started: list.filter(item => item.status === "started").length,
-      skipped: list.filter(item => item.status === "skipped").length,
-      failed: list.filter(item => item.status === "failed").length,
-    };
-  }
-
-  /**
    * 生成 Steam runtime 当前上下文元数据。
    * @returns {{route: string, contexts: string[], targets: string[]}} runtime 元数据。
    */
@@ -63,21 +52,54 @@
     };
   }
 
-  function errorMessage(error) {
-    return error?.message || String(error);
-  }
-
   /**
    * 执行一次 Steam 功能注册器启动巡检。
    * @returns {Promise<Array<object>>} 本轮功能启动结果。
    */
   async function run() {
     const results = await reg.start();
-    const noted = results.filter((result) => result.status !== "skipped");
+    const noted = results.filter((result) => result.status !== "skipped" && result.unchanged !== true);
     if (noted.length) {
       api.runtime.results.push(...noted);
     }
     return results;
+  }
+
+  function normalizedFeatureSnapshot(results) {
+    const allowed = new Set(["waiting", "started", "skipped", "failed", "disabled", "stopped"]);
+    return (Array.isArray(results) ? results : [])
+      .map((item) => {
+        const status = item?.status === "loading" ? "waiting" : String(item?.status || "");
+        if (!allowed.has(status)) {
+          return null;
+        }
+        return {
+          featureId: String(item?.id || ""),
+          context: String(item?.context || ""),
+          entry: String(item?.entry || ""),
+          status,
+          reason: status === "started" ? "" : String(item?.reason || ""),
+        };
+      })
+      .filter((item) => item?.featureId)
+      .sort((left, right) => `${left.featureId}:${left.context}:${left.entry}`.localeCompare(`${right.featureId}:${right.context}:${right.entry}`));
+  }
+
+  function recordFeatureSnapshot(results) {
+    const meta = runtimeMeta();
+    const features = normalizedFeatureSnapshot(results);
+    const contexts = meta.contexts.slice().sort();
+    const key = JSON.stringify({ route: meta.route, contexts, features });
+    if (api.runtime.lastFeatureSnapshotKey === key) {
+      return false;
+    }
+    api.runtime.lastFeatureSnapshotKey = key;
+    log.info("runtime-feature-snapshot", "Steam 客户端功能状态已更新", {
+      runtimeStatus: "ready",
+      contexts,
+      features,
+    });
+    return true;
   }
 
   function hasCtx() {
@@ -120,7 +142,7 @@
     } catch (error) {
       log.warn("runtime-clear-timer-failed", "Steam 客户端运行时清理旧定时器失败", {
         key,
-        error: errorMessage(error),
+        error,
       });
     }
   }
@@ -158,7 +180,7 @@
       } catch (error) {
         log.warn("runtime-restart-feature-stop-failed", "Steam 客户端旧功能停止失败", {
           featureId: id,
-          error: errorMessage(error),
+          error,
         });
       }
     }
@@ -179,7 +201,7 @@
       log.warn("runtime-restart-cleanup-failed", "Steam 客户端运行时资源清理失败", {
         phase: "runtime-resources",
         ...meta,
-        error: errorMessage(error),
+        error,
       });
     }
     try {
@@ -195,7 +217,7 @@
       } catch (error) {
         log.warn("runtime-restart-feature-stop-failed", "Steam 新闻翻译旧功能停止失败", {
           featureId: "steam-news-translate",
-          error: errorMessage(error),
+          error,
         });
       }
     }
@@ -208,7 +230,7 @@
       log.warn("runtime-restart-cleanup-failed", "Steam 客户端运行时适配器停用失败", {
         phase: "runtime-adapter",
         ...meta,
-        error: errorMessage(error),
+        error,
       });
     }
     log.info("runtime-restart-cleanup-success", "Steam 客户端旧运行时清理完成", meta);
@@ -235,7 +257,7 @@
     } catch (error) {
       log.warn("runtime-feature-disable-cleanup-failed", "Steam 客户端功能关闭清理资源失败", {
         featureId,
-        error: errorMessage(error),
+        error,
       });
     }
     stopState(featureId);
@@ -300,9 +322,11 @@
       timer: 0,
       waitingLogged: false,
       readyLogged: false,
+      timeoutLogged: false,
+      lastFeatureSnapshotKey: "",
     };
     installFeatureDisabledListener();
-    log.info("runtime-start", "Steam 客户端运行时开始启动", {
+    log.debug?.("runtime-start", "Steam 客户端运行时开始启动", {
       route: api.ctx?.route?.() || "",
     });
 
@@ -315,7 +339,7 @@
           runtime?.markError?.("steam-runtime-tick-failed", error, runtimeMeta());
           log.error("runtime-failed", "Steam 客户端运行时巡检失败", {
             ...runtimeMeta(),
-            error: error?.message || String(error),
+            error,
           });
         });
       }, delay);
@@ -327,7 +351,14 @@
         // 首次启动时 Steam 可能长时间不暴露 SharedJSContext/UI，不能永久放弃，只在启动窗口后降频等待。
         if (!api.runtime.waitingLogged) {
           api.runtime.waitingLogged = true;
-          log.info("runtime-waiting", "Steam 客户端运行时等待上下文就绪", {
+          log.debug?.("runtime-waiting", "Steam 客户端运行时等待上下文就绪", {
+            route: api.ctx?.route?.() || "",
+            durationMs: Date.now() - api.runtime.startedAt,
+          });
+        }
+        if (Date.now() >= bootUntil && !api.runtime.timeoutLogged) {
+          api.runtime.timeoutLogged = true;
+          log.warn("runtime-context-timeout", "Steam 客户端运行上下文在启动等待窗口内未就绪", {
             route: api.ctx?.route?.() || "",
             durationMs: Date.now() - api.runtime.startedAt,
           });
@@ -344,13 +375,13 @@
       }
       if (!api.runtime.readyLogged) {
         api.runtime.readyLogged = true;
-        log.info("runtime-ready", "Steam 客户端运行时已就绪", {
+        log.info("runtime-context-ready", "Steam 客户端运行上下文已就绪", {
           route: api.ctx?.route?.() || "",
           contexts: api.ctx?.contexts?.() || [],
-          ...summary(results),
           durationMs: Date.now() - api.runtime.startedAt,
         });
       }
+      recordFeatureSnapshot(results);
 
       // Steam 客户端路由切换不会重新加载页面，常驻巡检用于补启动新路由的功能入口。
       later(LOOP_MS);
@@ -363,7 +394,7 @@
     runtime?.markError?.("steam-runtime-failed", error, runtimeMeta());
     log.error("runtime-failed", "Steam 客户端运行时启动失败", {
       ...runtimeMeta(),
-      error: error?.message || String(error),
+      error,
     });
   });
 })();

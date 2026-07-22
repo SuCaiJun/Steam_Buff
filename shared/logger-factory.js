@@ -11,12 +11,21 @@
 ((root) => {
   "use strict";
 
-  const LOGGER_FACTORY_VERSION = "steam-buff-logger-factory-v1";
+  const LOGGER_FACTORY_VERSION = "steam-buff-logger-factory-v2";
+  const schema = root.STLoggerSchema;
+  if (!schema) {
+    return;
+  }
+  if (root.STLoggerFactory?.version === LOGGER_FACTORY_VERSION) {
+    return;
+  }
+
   const LogLevel = Object.freeze({
+    DEBUG: "debug",
     INFO: "info",
+    NETWORK: "network",
     WARN: "warn",
     ERROR: "error",
-    NETWORK: "network",
     FATAL: "fatal",
   });
   const LEVEL_WEIGHT = Object.freeze({
@@ -27,37 +36,23 @@
     error: 40,
     fatal: 50,
   });
-  const DEFAULT_CONSOLE_LEVELS = Object.freeze(["warn", "error", "fatal"]);
-  const DEFAULT_BACKGROUND_LEVELS = Object.freeze(["warn", "error", "network", "fatal"]);
-  const DIAGNOSTIC_BACKGROUND_LEVELS = Object.freeze(["info", "warn", "error", "network", "fatal"]);
-  const QUIET_INFO_EVENTS = Object.freeze([
-    /^content-script-start$/u,
-    /^runtime-(?:start|ready|waiting|skipped)$/u,
-    /^runtime-deps-waiting$/u,
-    /^features-start-summary$/u,
-    /-runtime-inject-(?:start|success|skipped)$/u,
-    /-page-script-inject-(?:start|success)$/u,
-  ]);
-
-  const SENSITIVE_KEYS = [
-    "authorization",
-    "cookie",
-    "password",
-    "token",
-    "access_token",
-    "refresh_token",
-    "sessionid",
-    "secret",
-    "key",
-  ];
-  const QUERY_ALLOW = new Set(["appid", "appids", "subid", "bundleid", "id", "cc", "start", "count"]);
-  const SENSITIVE_TEXT = /(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|bearer)\s*[:=]?\s*[^,\s;&]*/gi;
-
-  if (root.STLoggerFactory?.version === LOGGER_FACTORY_VERSION) {
-    return;
-  }
+  const DETAIL_FIELDS = Object.freeze(new Set([
+    "service",
+    "operationId",
+    "requestId",
+    "source",
+    "error",
+    "request",
+    "response",
+    "durationMs",
+    "retry",
+    "recovery",
+    "context",
+  ]));
 
   const sampleState = new Map();
+  const contextExecution = execution();
+  const sessionId = root.STLogger?.sessionId || schema.createSessionId(contextExecution);
   let diagnostics = normalizeDiagnostics(root.STEAM_BUFF_DIAGNOSTICS || {});
 
   function normalizePart(value, fallback) {
@@ -78,9 +73,17 @@
     return merged;
   }
 
+  function execution() {
+    if (typeof root.document === "undefined" && root.chrome?.runtime?.id) return "background";
+    const protocol = String(root.location?.protocol || "");
+    if (protocol === "chrome-extension:") return "settings";
+    if (root.chrome?.runtime?.id) return "content";
+    return "page";
+  }
+
   function normalizeLevel(value, fallback = "info") {
     const level = String(value || "").toLowerCase();
-    return Object.prototype.hasOwnProperty.call(LEVEL_WEIGHT, level) ? level : fallback;
+    return Object.hasOwn(LEVEL_WEIGHT, level) ? level : fallback;
   }
 
   function normalizeDiagnostics(input = {}) {
@@ -90,7 +93,7 @@
     const sampleEvery = Number(raw.sampleEvery);
     return {
       enabled: raw.enabled === true,
-      console: raw.console === true,
+      console: false,
       background: raw.background !== false,
       exposeDebug: raw.exposeDebug === true || raw.debug === true,
       domains: mergeSet(raw.domains, raw.domain),
@@ -102,14 +105,13 @@
         : (Number.isFinite(sampleRate) && sampleRate > 0 && sampleRate < 1
           ? Math.max(2, Math.round(1 / sampleRate))
           : 1),
-      quietStartup: raw.quietStartup !== false,
     };
   }
 
   function diagnosticSnapshot() {
     return {
       enabled: diagnostics.enabled,
-      console: diagnostics.console,
+      console: false,
       background: diagnostics.background,
       exposeDebug: diagnostics.exposeDebug,
       domains: Array.from(diagnostics.domains),
@@ -117,243 +119,122 @@
       levels: Array.from(diagnostics.levels),
       minLevel: diagnostics.minLevel,
       sampleEvery: diagnostics.sampleEvery,
-      quietStartup: diagnostics.quietStartup,
     };
   }
 
-  function isSensitiveKey(key) {
-    const text = String(key || "").toLowerCase();
-    return SENSITIVE_KEYS.some((item) => text.includes(item));
-  }
-
-  function isUrlKey(key) {
-    return /(?:^|_)(url|href|link|page)(?:$|_)/i.test(String(key || ""));
-  }
-
-  function redactText(value, max = 1000) {
-    const raw = String(value ?? "");
-    if (SENSITIVE_TEXT.test(raw)) {
-      SENSITIVE_TEXT.lastIndex = 0;
-      return "[REDACTED]";
-    }
-    SENSITIVE_TEXT.lastIndex = 0;
-    const text = raw.replace(SENSITIVE_TEXT, "[REDACTED]");
-    return text.length > max ? `${text.slice(0, max)}...[TRUNCATED]` : text;
-  }
-
-  function safePathname(url) {
-    const parts = url.pathname.split("/");
-    return parts.map((part, index) => {
-      if (!part) {
-        return part;
-      }
-      if (parts[index - 2] === "app" && /^\d+$/.test(parts[index - 1])) {
-        return "[name]";
-      }
-      if (parts[index - 2] === "listings" && /^\d+$/.test(parts[index - 1])) {
-        return "[item]";
-      }
-      return part;
-    }).join("/");
-  }
-
-  function safeLogUrl(value) {
-    const raw = String(value || "").trim();
-    if (!raw) {
+  function manifestVersion() {
+    try {
+      return root.chrome?.runtime?.getManifest?.().version || "";
+    } catch {
       return "";
     }
-    try {
-      const absolute = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw);
-      const base = root.location?.origin || "https://steamcommunity.com";
-      const url = new URL(raw, base);
-      const path = safePathname(url);
-      const out = absolute ? new URL(`${url.origin}${path}`) : new URL(path || "/", base);
-      for (const key of QUERY_ALLOW) {
-        for (const item of url.searchParams.getAll(key)) {
-          out.searchParams.append(key, redactText(item, 120));
-        }
-      }
-      return absolute ? out.toString() : `${out.pathname}${out.search}`;
-    } catch {
-      return redactText(raw, 300);
-    }
   }
 
-  function errorToPlain(error) {
-    return {
-      name: redactText(error.name || "Error", 120),
-      message: redactText(error.message || String(error)),
-      code: redactText(error.code || "", 120),
-      stack: redactText(error.stack || ""),
-    };
-  }
-
-  function sanitizeValue(value, depth = 0, seen = new WeakSet(), key = "") {
-    if (value instanceof Error) {
-      return errorToPlain(value);
-    }
-    if (value === null || value === undefined || typeof value !== "object") {
-      if (typeof value === "function") {
-        return `[Function ${value.name || "anonymous"}]`;
-      }
-      if (typeof value === "string") {
-        return isUrlKey(key) ? safeLogUrl(value) : redactText(value);
-      }
-      return value;
-    }
-    if (depth >= 6) {
-      return "[MaxDepth]";
-    }
-    if (seen.has(value)) {
-      return "[Circular]";
-    }
-
-    seen.add(value);
-    if (Array.isArray(value)) {
-      return value.map((item) => sanitizeValue(item, depth + 1, seen, key));
-    }
-
-    const output = {};
-    Object.entries(value).forEach(([key, item]) => {
-      output[key] = isSensitiveKey(key) ? "[REDACTED]" : sanitizeValue(item, depth + 1, seen, key);
+  function contextSnapshot(extra = {}) {
+    const page = root.STPageContext?.snapshot?.() || {};
+    return schema.normalizeContext({
+      execution: contextExecution,
+      extensionVersion: manifestVersion(),
+      pageType: page.pageType || page.page || "",
+      route: page.path || root.location?.pathname || "",
+      ...extra,
     });
-    return output;
   }
 
-  function createEntry(level, domain, feature, event, message, meta) {
-    const time = Date.now();
-    return {
-      time,
-      timestamp: new Date(time).toISOString(),
-      level,
-      domain,
-      feature,
-      event: normalizePart(event, "unknown-event"),
-      message: String(message || ""),
-      meta: sanitizeValue(meta || {}),
-    };
-  }
-
-  function levelAllowed(entry, fallbackLevels) {
-    const levels = diagnostics.levels.size ? diagnostics.levels : toSet(fallbackLevels);
-    if (levels.size && !levels.has(entry.level)) {
-      return false;
+  function splitDetails(value) {
+    const input = value && typeof value === "object" ? value : {};
+    const details = {};
+    const meta = {};
+    for (const [key, item] of Object.entries(input)) {
+      if (DETAIL_FIELDS.has(key) && (key !== "source" || (item && typeof item === "object"))) details[key] = item;
+      else meta[key] = item;
     }
-    return LEVEL_WEIGHT[entry.level] >= LEVEL_WEIGHT[diagnostics.minLevel];
+    if (!details.context) details.context = contextSnapshot();
+    if (Object.keys(meta).length) details.meta = meta;
+    return details;
   }
 
   function scopeAllowed(entry) {
-    if (diagnostics.domains.size && !diagnostics.domains.has(entry.domain)) {
-      return false;
-    }
-    if (diagnostics.features.size && !diagnostics.features.has(entry.feature)) {
-      return false;
-    }
-    return true;
+    if (diagnostics.domains.size && !diagnostics.domains.has(entry.domain)) return false;
+    if (diagnostics.features.size && !diagnostics.features.has(entry.feature)) return false;
+    if (diagnostics.levels.size && !diagnostics.levels.has(entry.level)) return false;
+    return LEVEL_WEIGHT[entry.level] >= LEVEL_WEIGHT[diagnostics.minLevel];
   }
 
   function sampleAllowed(entry) {
-    if (diagnostics.sampleEvery <= 1) {
-      return true;
-    }
+    if (diagnostics.sampleEvery <= 1) return true;
     const key = `${entry.domain}:${entry.feature}:${entry.level}:${entry.event}`;
     const count = (sampleState.get(key) || 0) + 1;
     sampleState.set(key, count);
     return count % diagnostics.sampleEvery === 1;
   }
 
-  function isQuietStartup(entry) {
-    if (entry.level !== LogLevel.INFO || diagnostics.enabled || diagnostics.quietStartup === false) {
-      return false;
-    }
-    return QUIET_INFO_EVENTS.some(pattern => pattern.test(entry.event));
-  }
-
-  function publish(entry, sampled = true) {
-    if (!diagnostics.background || isQuietStartup(entry) || !sampled) {
-      return;
-    }
-    // 优化:默认不把 info 写入 background，避免 Store 冷启动扫描摘要用 IPC 挤占后台线程。
-    if (diagnostics.enabled) {
-      if (!scopeAllowed(entry) || !levelAllowed(entry, DIAGNOSTIC_BACKGROUND_LEVELS)) {
-        return;
-      }
-    } else if (!levelAllowed(entry, DEFAULT_BACKGROUND_LEVELS)) {
-      return;
-    }
+  function publish(entry) {
+    if (!diagnostics.background) return;
+    if (diagnostics.enabled && (!scopeAllowed(entry) || !sampleAllowed(entry))) return;
+    const forcePersist = diagnostics.enabled && entry.level === "debug";
+    if (!schema.shouldPersist(entry, { forcePersist })) return;
     try {
-      const logger = root.STLogger;
-      if (logger && typeof logger[entry.level] === "function") {
-        logger[entry.level](entry);
-        return;
-      }
-      if (typeof logger?.append === "function") {
-        logger.append(entry);
-        return;
-      }
-    } catch (error) {
-      // 日志传输失败时不能递归写日志；诊断模式下由调用方重试或导出本地 fallback。
-      void error;
+      const transport = root.STLogger?.append?.(entry, forcePersist ? { forcePersist: true } : undefined);
+      transport?.catch?.(() => null);
+    } catch {
+      // 日志链自身失败不得递归记录。
     }
+  }
+
+  function log(level, domain, feature, event, message, details = {}, scopedSessionId = "", options = {}) {
     try {
-      root.chrome?.runtime?.sendMessage?.({ type: "LOG_APPEND", entry }, () => {
-        void root.chrome?.runtime?.lastError;
-      });
-    } catch (error) {
-      void error;
+      const entry = schema.createEntry({
+        level: normalizeLevel(level),
+        domain: normalizePart(domain, "shared"),
+        feature: normalizePart(feature, "unknown"),
+        event,
+        message,
+        sessionId: String(scopedSessionId || "").trim() || sessionId,
+        ...splitDetails(details),
+      }, { requestUrlPolicy: options.requestUrlPolicy });
+      publish(entry);
+      return entry;
+    } catch {
+      return null;
     }
   }
 
-  function print(entry, sampled = true) {
-    if (!sampled) {
-      return;
-    }
-    const fallbackLevels = diagnostics.console ? DIAGNOSTIC_BACKGROUND_LEVELS : DEFAULT_CONSOLE_LEVELS;
-    if (!levelAllowed(entry, fallbackLevels) || !scopeAllowed(entry) || isQuietStartup(entry)) {
-      return;
-    }
-    if (!diagnostics.console && !DEFAULT_CONSOLE_LEVELS.includes(entry.level)) {
-      return;
-    }
-    const consoleFn = console[entry.level] || console.warn;
-    const prefix = `[Steam Buff][${entry.domain}:${entry.feature}]`;
-    consoleFn(`${prefix} ${entry.level} ${entry.event}: ${entry.message}`, entry.meta);
-  }
-
-  function log(level, domain, feature, event, message, meta = {}) {
-    const entry = createEntry(
-      normalizeLevel(level),
-      normalizePart(domain, "shared"),
-      normalizePart(feature, "unknown"),
-      event,
-      message,
-      meta
-    );
-
-    const sampled = sampleAllowed(entry);
-    publish(entry, sampled);
-    print(entry, sampled);
-    return entry;
-  }
-
-  function createLogger(domain, feature) {
+  function createLogger(domain, feature, defaults = {}) {
     const scopedDomain = normalizePart(domain, "shared");
     const scopedFeature = normalizePart(feature, "unknown");
-
+    const scopedDefaults = defaults && typeof defaults === "object" ? defaults : {};
+    const scopedSessionId = String(scopedDefaults.sessionId || "").trim() || sessionId;
+    const scopedOperationId = String(scopedDefaults.operationId || "").trim();
+    const requestUrlPolicy = scopedDefaults.requestUrlPolicy && typeof scopedDefaults.requestUrlPolicy === "object"
+      ? scopedDefaults.requestUrlPolicy
+      : undefined;
+    const withDefaults = (details) => ({
+      ...(scopedOperationId ? { operationId: scopedOperationId } : {}),
+      ...((details && typeof details === "object") ? details : {}),
+    });
     return Object.freeze({
       domain: scopedDomain,
       feature: scopedFeature,
-      info(event, message, meta = {}) {
-        return log(LogLevel.INFO, scopedDomain, scopedFeature, event, message, meta);
+      sessionId: scopedSessionId,
+      operationId: scopedOperationId,
+      debug(event, message, details = {}) {
+        return log(LogLevel.DEBUG, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
       },
-      warn(event, message, meta = {}) {
-        return log(LogLevel.WARN, scopedDomain, scopedFeature, event, message, meta);
+      info(event, message, details = {}) {
+        return log(LogLevel.INFO, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
       },
-      error(event, message, meta = {}) {
-        return log(LogLevel.ERROR, scopedDomain, scopedFeature, event, message, meta);
+      network(event, message, details = {}) {
+        return log(LogLevel.NETWORK, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
       },
-      network(event, message, meta = {}) {
-        return log(LogLevel.NETWORK, scopedDomain, scopedFeature, event, message, meta);
+      warn(event, message, details = {}) {
+        return log(LogLevel.WARN, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
+      },
+      error(event, message, details = {}) {
+        return log(LogLevel.ERROR, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
+      },
+      fatal(event, message, details = {}) {
+        return log(LogLevel.FATAL, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
       },
     });
   }
@@ -383,44 +264,25 @@
       root.STDebug = createDebugApi();
       return;
     }
-    if (root.STDebug?.owner === "steam-buff-logger-factory") {
-      delete root.STDebug;
-    }
+    if (root.STDebug?.owner === "steam-buff-logger-factory") delete root.STDebug;
   }
 
-  /**
-   * 配置诊断日志输出范围。
-   * @param {Object} options - 诊断选项，支持 domain/feature/level/sampleEvery。
-   * @returns {Object} 当前诊断配置快照。
-   */
   function configureDiagnostics(options = {}) {
     const rawOptions = options && typeof options === "object" ? options : {};
-    const nextOptions = {
-      ...diagnosticSnapshot(),
-      ...rawOptions,
-    };
-    if (Object.prototype.hasOwnProperty.call(rawOptions, "domain")
-      && !Object.prototype.hasOwnProperty.call(rawOptions, "domains")) {
+    const nextOptions = { ...diagnosticSnapshot(), ...rawOptions };
+    if (Object.hasOwn(rawOptions, "domain") && !Object.hasOwn(rawOptions, "domains")) {
       nextOptions.domains = rawOptions.domain;
     }
-    if (Object.prototype.hasOwnProperty.call(rawOptions, "feature")
-      && !Object.prototype.hasOwnProperty.call(rawOptions, "features")) {
+    if (Object.hasOwn(rawOptions, "feature") && !Object.hasOwn(rawOptions, "features")) {
       nextOptions.features = rawOptions.feature;
     }
-    diagnostics = normalizeDiagnostics({
-      ...nextOptions,
-    });
+    diagnostics = normalizeDiagnostics(nextOptions);
     refreshDebugApi();
     return diagnosticSnapshot();
   }
 
   function enableDiagnostics(options = {}) {
-    return configureDiagnostics({
-      enabled: true,
-      console: true,
-      exposeDebug: true,
-      ...(options || {}),
-    });
+    return configureDiagnostics({ enabled: true, exposeDebug: true, ...(options || {}) });
   }
 
   function disableDiagnostics() {
@@ -429,10 +291,23 @@
     return diagnosticSnapshot();
   }
 
+  function safeLogUrl(value, policy = {}) {
+    return schema.safeUrl(value, policy).url;
+  }
+
   root.STLoggerFactory = Object.freeze({
     version: LOGGER_FACTORY_VERSION,
+    schemaVersion: schema.version,
     LogLevel,
+    sessionId,
+    execution: contextExecution,
     createLogger,
+    createOperationId() {
+      return schema.createId("operation");
+    },
+    createRequestId() {
+      return schema.createId("request");
+    },
     safeLogUrl,
     configureDiagnostics,
     setDiagnostics: configureDiagnostics,
@@ -441,4 +316,4 @@
     getDiagnostics: diagnosticSnapshot,
   });
   refreshDebugApi();
-})(typeof globalThis !== "undefined" ? globalThis : window);
+})(typeof globalThis !== "undefined" ? globalThis : self);

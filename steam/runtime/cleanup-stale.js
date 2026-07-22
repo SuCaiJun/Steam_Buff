@@ -33,10 +33,6 @@
     error() {},
   };
 
-  function errorMessage(error) {
-    return error?.message || String(error);
-  }
-
   function windowKind() {
     const title = document.title || "";
     if (EXCLUDED_TITLES.includes(title)) {
@@ -77,7 +73,7 @@
       window.clearInterval(value);
     } catch (error) {
       log.warn("steam-stale-runtime-clear-timer-failed", "Steam 非目标窗口清理旧定时器失败", cleanupMeta({
-        error: errorMessage(error),
+        error,
       }));
     }
   }
@@ -101,7 +97,7 @@
       window.STScheduler?.stop?.();
     } catch (error) {
       log.warn("steam-stale-runtime-cleanup-failed", "Steam 非目标窗口清理旧运行时资源失败", cleanupMeta({
-        error: errorMessage(error),
+        error,
       }));
     }
   }

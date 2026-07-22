@@ -46,7 +46,7 @@
           log.warn("native-custom-sort-subscriber-failed", "Steam 原生自定义排序保存订阅处理失败", {
             owner,
             phase,
-            error: error?.message || String(error),
+            error,
           });
         }
       }

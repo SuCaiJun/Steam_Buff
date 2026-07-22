@@ -163,7 +163,7 @@
           } catch (err) {
             logScheduler("error", "scheduler-condition-failed", "调度任务条件检查失败", {
               name,
-              error: err?.message || String(err),
+              error: err,
             });
             task.nextRunAt = now + task.intervalMs;
             continue;
@@ -182,7 +182,7 @@
           logScheduler("error", "scheduler-task-failed", "调度任务执行失败", {
             name,
             errorCount: task.errorCount,
-            error: err?.message || String(err),
+            error: err,
           });
 
           // 连续失败 3 次，自动暂停

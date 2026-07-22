@@ -172,7 +172,7 @@
             log.error("feature-start-failed", "商店页功能启动失败", {
               featureId: feature.id,
               path: location.pathname,
-              error: error?.message || String(error),
+              error,
             });
           }
           runtime?.markFeature?.({
@@ -185,30 +185,7 @@
           results.push({ id: feature.id, status: "failed", error: String(error) });
         }
       }
-      this.logSummary(results);
       return results;
-    }
-
-    /**
-     * 记录低噪音的功能启动摘要。
-     * @param {Array<{status: string}>} results - 启动结果列表。
-     * @returns {void}
-     */
-    logSummary(results) {
-      const list = Array.isArray(results) ? results : [];
-      try {
-        log.info("features-start-summary", "商店页功能启动摘要", {
-          total: list.length,
-          started: list.filter(item => item.status === "started").length,
-          skipped: list.filter(item => item.status === "skipped").length,
-          failed: list.filter(item => item.status === "failed").length,
-          path: location.pathname,
-        });
-      } catch (error) {
-        runtime?.markError?.("store-features-summary-log-failed", error, {
-          count: list.length,
-        });
-      }
     }
   }
 

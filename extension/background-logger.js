@@ -11,500 +11,578 @@
 ((root) => {
   "use strict";
 
-  if (root.STBackgroundLogger?.ready) {
-    return;
-  }
+  const schema = root.STLoggerSchema;
+  if (!schema || root.STBackgroundLogger?.schemaVersion === schema.version) return;
 
   const STORE_KEY = "steam_buff_diag_logs";
   const FALLBACK_KEY = "steam_buff_diag_fallback_logs";
+  const STORAGE_VERSION = 2;
   const MB = 1024 * 1024;
+  const lifecycleInfoEvents = schema.lifecycleInfoEvents;
   const POLICY = Object.freeze({
-    version: 1,
-    maxEntries: null,
-    targetBytes: Math.floor(4.5 * MB),
-    hardBytes: 5 * MB,
+    version: STORAGE_VERSION,
+    targetBytes: 5 * MB,
+    hardBytes: Math.floor(5.5 * MB),
     maxAgeMs: 7 * 24 * 60 * 60 * 1000,
-    messageMax: 1000,
-    metaMax: 4 * 1024,
-    quietEvents: [
-      "content-script-start",
-      "runtime-deps-waiting",
-      "runtime-start",
-      "runtime-ready",
-      "runtime-waiting",
-      "runtime-skipped",
-      "features-start-summary",
-    ],
   });
-  const LEVELS = Object.freeze(new Set(["debug", "info", "warn", "error", "fatal", "network"]));
-  const QUERY_ALLOW = Object.freeze(new Set(["appid", "appids", "subid", "bundleid", "id", "cc"]));
-  const SENSITIVE = /^(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|body|requestbody|responsebody|responsetext|requestdata|data|headers)$/i;
-  const SENSITIVE_WORD = /(authorization|cookie|set-cookie|access_token|refresh_token|token|sessionid|password|bearer)\s*[:=]?\s*[^,\s;]*/gi;
-  const QUIET_INFO_EVENT = /^(?:content-script-start|runtime-deps-waiting|runtime-(?:start|ready|waiting|skipped)|features-start-summary|.+-runtime-inject-(?:start|success|skipped)|.+-page-script-inject-(?:start|success))$/u;
-  const BJ_OFFSET_MS = 8 * 60 * 60 * 1000;
-
-  // chrome.storage.local 没有原子更新能力，所有读改写和清空必须串行。
+  const LEVELS = Object.freeze(["debug", "info", "network", "warn", "error", "fatal"]);
+  const defaultHealth = () => ({
+    fallbackCount: 0,
+    transportFailureCount: 0,
+    invalidEntryCount: 0,
+    truncatedFieldCount: 0,
+    droppedCount: 0,
+    droppedByLevel: {},
+  });
   let storageQueue = Promise.resolve();
+  let initialized = false;
+  let writing = false;
+  let cachedBox = null;
 
-  function pad(value, size = 2) {
-    return String(Math.max(0, Number(value) || 0)).padStart(size, "0");
+  function emptyFallbackMerge() {
+    return { generationId: "", signatures: [], health: defaultHealth() };
   }
 
-  function num(value) {
-    const next = Number(value);
-    return Number.isFinite(next) ? next : 0;
-  }
-
-  function tsFrom(value) {
-    const next = Number(value);
-    if (Number.isFinite(next) && next > 0) {
-      return Math.round(next);
+  function normalizeHealth(value) {
+    const input = value && typeof value === "object" ? value : {};
+    const out = defaultHealth();
+    for (const key of Object.keys(out).filter(item => item !== "droppedByLevel")) {
+      out[key] = Math.max(0, Number(input[key]) || 0);
     }
-    const parsed = Date.parse(String(value || ""));
-    return Number.isFinite(parsed) ? parsed : 0;
+    for (const [level, count] of Object.entries(input.droppedByLevel || {})) {
+      out.droppedByLevel[String(level)] = Math.max(0, Number(count) || 0);
+    }
+    return out;
   }
 
-  function itemTs(item) {
-    return tsFrom(item?.ts) || tsFrom(item?.time);
+  function addHealth(left, right) {
+    const a = normalizeHealth(left);
+    const b = normalizeHealth(right);
+    for (const key of Object.keys(a).filter(item => item !== "droppedByLevel")) a[key] += b[key];
+    for (const [level, count] of Object.entries(b.droppedByLevel)) {
+      a.droppedByLevel[level] = (a.droppedByLevel[level] || 0) + count;
+    }
+    return a;
   }
 
-  function bjParts(value) {
-    const ts = tsFrom(value) || Date.now();
-    const date = new Date(ts + BJ_OFFSET_MS);
+  function emptyBox() {
     return {
-      year: date.getUTCFullYear(),
-      month: date.getUTCMonth() + 1,
-      day: date.getUTCDate(),
-      hour: date.getUTCHours(),
-      minute: date.getUTCMinutes(),
-      second: date.getUTCSeconds(),
-      ms: date.getUTCMilliseconds(),
+      version: STORAGE_VERSION,
+      updatedAt: Date.now(),
+      logs: [],
+      health: defaultHealth(),
+      fallbackMerge: emptyFallbackMerge(),
     };
   }
 
-  function bjTime(value) {
-    const part = bjParts(value);
-    return `${part.year}-${pad(part.month)}-${pad(part.day)} ${pad(part.hour)}:${pad(part.minute)}:${pad(part.second)}.${pad(part.ms, 3)} +08:00`;
+  function validBox(value) {
+    return !!value && typeof value === "object" && value.version === STORAGE_VERSION && Array.isArray(value.logs);
   }
 
-  function bjStamp(value) {
-    const part = bjParts(value);
-    return `${part.year}${pad(part.month)}${pad(part.day)}-${pad(part.hour)}${pad(part.minute)}${pad(part.second)}`;
+  function storageArea() {
+    const area = root.chrome?.storage?.local;
+    if (!area) throw new Error("chrome.storage.local 不可用");
+    return area;
   }
 
-  function safeIso(value) {
-    const ts = tsFrom(value);
-    return ts ? new Date(ts).toISOString() : "";
-  }
-
-  function levelCounts(logs) {
-    const out = {
-      debug: 0,
-      info: 0,
-      warn: 0,
-      error: 0,
-      fatal: 0,
-      network: 0,
-    };
-    for (const item of logs || []) {
-      const level = String(item?.level || "");
-      if (Object.prototype.hasOwnProperty.call(out, level)) {
-        out[level] += 1;
-      }
-    }
-    return out;
-  }
-
-  function isFailure(item) {
-    const event = String(item?.event || "");
-    const level = String(item?.level || "");
-    const status = num(item?.status);
-    return level === "error"
-      || /(?:^|[-])(failed|thrown|error|invalid|blocked|timeout|rejected)$/.test(event)
-      || event.includes("unhandled")
-      || status >= 400;
-  }
-
-  function pickLog(item) {
-    if (!item || typeof item !== "object") {
-      return null;
-    }
-    const ts = itemTs(item) || Date.now();
-    const out = {
-      time: bjTime(ts),
-      ts,
-      level: String(item.level || "info"),
-      domain: redactText(item.domain || "", 80),
-      feature: redactText(item.feature || "", 120),
-      event: redactText(item.event || "", 120),
-      message: redactText(item.message || ""),
-    };
-    if (item.page) out.page = safeUrl(item.page);
-    if (item.url) out.url = safeUrl(item.url);
-    if (item.method) out.method = redactText(item.method, 16).toUpperCase();
-    if (item.status !== undefined) out.status = num(item.status);
-    if (item.durationMs !== undefined) out.durationMs = Math.max(0, Math.round(num(item.durationMs)));
-    if (item.error) out.error = cleanError(item.error);
-    if (item.meta && typeof item.meta === "object" && Object.keys(item.meta).length) {
-      out.meta = trimMeta(item.meta);
-    }
-    return out;
-  }
-
-  function bytes(text) {
-    const value = String(text || "");
-    if (typeof TextEncoder === "function") {
-      return new TextEncoder().encode(value).length;
-    }
-    return value.length * 2;
-  }
-
-  function clip(text, max = POLICY.messageMax) {
-    const value = String(text ?? "").replace(/\r\n?/g, "\n");
-    if (value.length <= max) {
-      return value;
-    }
-    return `${value.slice(0, max)}...已截断`;
-  }
-
-  function redactText(text, max = POLICY.messageMax) {
-    const value = String(text ?? "")
-      .replace(SENSITIVE_WORD, "[已脱敏]")
-      .replace(/(HTTP状态码错误:\s*\d{3})[\s\S]*/g, "$1");
-    return clip(value, max);
-  }
-
-  function safeUrl(value) {
-    if (!value) {
-      return "";
-    }
-    try {
-      const url = new URL(String(value));
-      const next = new URL(`${url.origin}${url.pathname}`);
-      for (const key of QUERY_ALLOW) {
-        const values = url.searchParams.getAll(key);
-        for (const item of values) {
-          next.searchParams.append(key, redactText(item, 120));
-        }
-      }
-      return next.toString();
-    } catch {
-      return redactText(value, 300);
-    }
-  }
-
-  function sanitizeValue(value, depth = 0) {
-    if (value === null || value === undefined) {
-      return value;
-    }
-    if (typeof value === "string") {
-      return redactText(value);
-    }
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-    if (typeof value === "boolean") {
-      return value;
-    }
-    if (depth >= 5) {
-      return "[已截断]";
-    }
-    if (Array.isArray(value)) {
-      return value.slice(0, 30).map(item => sanitizeValue(item, depth + 1));
-    }
-    if (typeof value === "object") {
-      const out = {};
-      for (const [key, item] of Object.entries(value)) {
-        if (SENSITIVE.test(key)) {
-          continue;
-        }
-        out[key] = sanitizeValue(item, depth + 1);
-      }
-      return out;
-    }
-    return redactText(String(value));
-  }
-
-  function trimMeta(value) {
-    const clean = sanitizeValue(value);
-    if (bytes(JSON.stringify(clean || {})) <= POLICY.metaMax) {
-      return clean;
-    }
-    const text = redactText(JSON.stringify(clean || {}), POLICY.metaMax);
-    return { truncated: true, text };
-  }
-
-  function cleanError(error) {
-    if (!error) {
-      return undefined;
-    }
-    if (typeof error === "string") {
-      return { message: redactText(error) };
-    }
-    if (typeof error !== "object") {
-      return { message: redactText(String(error)) };
-    }
-    const out = {};
-    if (error.name) out.name = redactText(error.name, 120);
-    if (error.message) out.message = redactText(error.message);
-    if (error.code !== undefined) out.code = redactText(error.code, 120);
-    if (error.status !== undefined || error.statusCode !== undefined) {
-      out.status = Number(error.status ?? error.statusCode) || 0;
-    }
-    if (error.stack) {
-      out.stack = String(error.stack)
-        .split("\n")
-        .slice(1, 4)
-        .map(line => redactText(line, 220))
-        .join("\n");
-    }
-    return Object.keys(out).length ? out : undefined;
-  }
-
-  function domainFromUrl(url) {
-    try {
-      const host = new URL(String(url)).hostname;
-      const domain = root.STConfig?.matchers?.logDomainForHost?.(host) || "";
-      if (domain && domain !== "web") return domain;
-      return host || "";
-    } catch {
-      return "";
-    }
-  }
-
-  function normalize(input = {}, sender = null) {
-    const entry = input.entry && typeof input.entry === "object" ? input.entry : input;
-    const ts = tsFrom(entry.ts || entry.time) || Date.now();
-    const url = safeUrl(entry.url || sender?.url || sender?.tab?.url || "");
-    const out = {
-      time: safeIso(ts),
-      ts,
-      level: LEVELS.has(entry.level) ? entry.level : "info",
-      domain: redactText(entry.domain || domainFromUrl(url) || "extension", 80),
-      feature: redactText(entry.feature || "", 120),
-      event: redactText(entry.event || "", 120),
-      message: redactText(entry.message || ""),
-    };
-    if (entry.page) out.page = safeUrl(entry.page);
-    if (url) out.url = url;
-    if (entry.method) out.method = redactText(entry.method, 16).toUpperCase();
-    if (entry.status !== undefined) out.status = Number(entry.status) || 0;
-    if (entry.durationMs !== undefined) out.durationMs = Math.max(0, Math.round(Number(entry.durationMs) || 0));
-    const error = cleanError(entry.error);
-    if (error) out.error = error;
-    const meta = trimMeta(entry.meta);
-    if (meta && typeof meta === "object" && Object.keys(meta).length) {
-      out.meta = meta;
-    }
-    return out;
-  }
-
-  function store() {
-    if (typeof chrome === "undefined") {
-      return null;
-    }
-    return chrome?.storage?.local || null;
-  }
-
-  function getBox() {
-    const box = store();
-    if (!box) {
-      return Promise.reject(new Error("chrome.storage.local 不可用"));
-    }
+  function storageGet(keys) {
     return new Promise((resolve, reject) => {
       try {
-        box.get([STORE_KEY], (rt) => {
-          const error = chrome.runtime?.lastError?.message || "";
-          if (error) {
-            reject(new Error(error || "读取诊断日志失败"));
-            return;
-          }
-          const value = rt?.[STORE_KEY];
-          resolve(value && typeof value === "object" ? value : { logs: [] });
+        storageArea().get(keys, (value) => {
+          const error = root.chrome?.runtime?.lastError?.message || "";
+          if (error) reject(new Error(error));
+          else resolve(value || {});
         });
       } catch (error) {
-        reject(new Error(error?.message || "读取诊断日志失败"));
+        reject(error);
       }
     });
   }
 
-  function getFallbackLogs() {
-    const box = store();
-    if (!box) {
-      return Promise.reject(new Error("chrome.storage.local 不可用"));
-    }
+  function storageSet(value) {
     return new Promise((resolve, reject) => {
       try {
-        box.get([FALLBACK_KEY], (rt) => {
-          const error = chrome.runtime?.lastError?.message || "";
-          if (error) {
-            reject(new Error(error || "读取诊断回退日志失败"));
-            return;
-          }
-          const value = rt?.[FALLBACK_KEY];
-          resolve(Array.isArray(value) ? value : []);
+        writing = true;
+        storageArea().set(value, () => {
+          const error = root.chrome?.runtime?.lastError?.message || "";
+          writing = false;
+          if (error) reject(new Error(error));
+          else resolve(true);
         });
       } catch (error) {
-        reject(new Error(error?.message || "读取诊断回退日志失败"));
+        writing = false;
+        reject(error);
       }
     });
   }
 
-  function putBox(box) {
-    const area = store();
-    if (!area) {
-      return Promise.reject(new Error("chrome.storage.local 不可用"));
-    }
+  function storageRemove(keys) {
     return new Promise((resolve, reject) => {
       try {
-        area.set({ [STORE_KEY]: box }, () => {
-          const error = chrome.runtime?.lastError?.message || "";
-          if (error) {
-            reject(new Error(error || "写入诊断日志失败"));
-            return;
-          }
-          resolve(true);
+        writing = true;
+        storageArea().remove(keys, () => {
+          const error = root.chrome?.runtime?.lastError?.message || "";
+          writing = false;
+          if (error) reject(new Error(error));
+          else resolve(true);
         });
       } catch (error) {
-        reject(new Error(error?.message || "写入诊断日志失败"));
+        writing = false;
+        reject(error);
       }
     });
-  }
-
-  function removeBox() {
-    const area = store();
-    if (!area) {
-      return Promise.resolve({ ok: false, error: "chrome.storage.local 不可用" });
-    }
-    return new Promise((resolve) => {
-      try {
-        area.remove([STORE_KEY], () => {
-          const error = chrome.runtime?.lastError?.message || "";
-          resolve({ ok: !error, error });
-        });
-      } catch (error) {
-        resolve({ ok: false, error: error?.message || String(error) });
-      }
-    });
-  }
-
-  function removeFallbackBox() {
-    const area = store();
-    if (!area) {
-      return Promise.resolve({ ok: false, error: "chrome.storage.local 不可用" });
-    }
-    return new Promise((resolve) => {
-      try {
-        area.remove([FALLBACK_KEY], () => {
-          const error = chrome.runtime?.lastError?.message || "";
-          resolve({ ok: !error, error });
-        });
-      } catch (error) {
-        resolve({ ok: false, error: error?.message || String(error) });
-      }
-    });
-  }
-
-  function sizeOf(logs) {
-    return bytes(JSON.stringify(logs || []));
-  }
-
-  function compact(logs, limit = POLICY.targetBytes) {
-    const now = Date.now();
-    let fresh = (logs || [])
-      .filter(item => now - (itemTs(item) || now) <= POLICY.maxAgeMs);
-    if (Number.isFinite(POLICY.maxEntries) && POLICY.maxEntries > 0) {
-      fresh = fresh.slice(-POLICY.maxEntries);
-    }
-    while (fresh.length > 1 && sizeOf(fresh) > POLICY.hardBytes) {
-      fresh.shift();
-    }
-    while (fresh.length > 1 && sizeOf(fresh) > limit) {
-      fresh.shift();
-    }
-    return fresh;
-  }
-
-  function mergeLogs(primary, fallback) {
-    return [...(Array.isArray(primary) ? primary : []), ...(Array.isArray(fallback) ? fallback : [])]
-      .sort((left, right) => itemTs(left) - itemTs(right));
-  }
-
-  function statsFrom(logs) {
-    const list = Array.isArray(logs) ? logs : [];
-    const counts = levelCounts(list);
-    return {
-      count: list.length,
-      firstTime: list[0]?.time || "",
-      lastTime: list[list.length - 1]?.time || "",
-      sizeBytes: sizeOf(list),
-      errorCount: counts.error,
-      levelCounts: counts,
-      policy: POLICY,
-    };
-  }
-
-  function shouldStore(item) {
-    if (!item || item.meta?.diagnostic === true) {
-      return true;
-    }
-    return !(item.level === "info" && QUIET_INFO_EVENT.test(String(item.event || "")));
   }
 
   function enqueueStorage(job) {
-    const task = storageQueue
-      .catch(() => null)
-      .then(job);
+    const task = storageQueue.catch(() => null).then(job);
     storageQueue = task.catch(() => null);
     return task;
   }
 
-  async function appendNow(input, sender = null) {
-    const box = await getBox();
-    const fallback = await getFallbackLogs().catch(() => []);
-    const entry = normalize(input, sender);
-    const merged = mergeLogs(Array.isArray(box.logs) ? box.logs : [], fallback);
-    if (!shouldStore(entry)) {
-      return statsFrom(compact(merged));
+  async function initializeNow() {
+    if (initialized) return true;
+    const value = await storageGet([STORE_KEY, FALLBACK_KEY]);
+    const main = value[STORE_KEY];
+    const fallback = value[FALLBACK_KEY];
+    const mainReady = validBox(main);
+    const fallbackReady = fallback === undefined || validBox(fallback);
+    if (!mainReady) {
+      const removeKeys = fallbackReady && fallback !== undefined ? [STORE_KEY] : [STORE_KEY, FALLBACK_KEY];
+      await storageRemove(removeKeys);
+      const box = emptyBox();
+      await storageSet({ [STORE_KEY]: box });
+      cachedBox = box;
+    } else {
+      cachedBox = normalizeBox(main);
+      if (!fallbackReady) await storageRemove([FALLBACK_KEY]);
     }
-    const logs = compact([
-      ...merged,
-      entry,
-    ]);
-    const next = {
-      version: POLICY.version,
-      updatedAt: Date.now(),
-      logs,
-      stats: statsFrom(logs),
-    };
-    await putBox(next);
-    if (fallback.length) {
-      const cleared = await removeFallbackBox();
-      if (!cleared.ok) {
-        throw new Error(cleared.error || "清理诊断回退日志失败");
-      }
-    }
-    return next.stats;
+    initialized = true;
+    return true;
   }
 
-  function append(input, sender = null) {
+  function initialize() {
+    return enqueueStorage(initializeNow);
+  }
+
+  function normalizeStoredLogs(raw, healthInput) {
+    const logs = [];
+    const health = normalizeHealth(healthInput);
+    for (const item of Array.isArray(raw) ? raw : []) {
+      try {
+        const entryInput = item?.entry && typeof item.entry === "object" ? item.entry : item;
+        const entry = schema.normalizeEntry(entryInput, { allowAggregation: true });
+        logs.push(entry);
+      } catch {
+        health.invalidEntryCount += 1;
+      }
+    }
+    return { logs, health };
+  }
+
+  function normalizeFallbackMerge(value) {
+    const input = value && typeof value === "object" ? value : {};
+    return {
+      generationId: String(input.generationId || ""),
+      signatures: Array.from(new Set(Array.isArray(input.signatures) ? input.signatures.map(String) : [])).slice(-120),
+      health: normalizeHealth(input.health),
+    };
+  }
+
+  function normalizeBox(value) {
+    const normalized = normalizeStoredLogs(value?.logs, value?.health);
+    return {
+      version: STORAGE_VERSION,
+      updatedAt: Number(value?.updatedAt) || Date.now(),
+      logs: normalized.logs,
+      health: normalized.health,
+      fallbackMerge: normalizeFallbackMerge(value?.fallbackMerge),
+      _dirty: JSON.stringify(normalized.logs) !== JSON.stringify(value?.logs || [])
+        || JSON.stringify(normalized.health) !== JSON.stringify(normalizeHealth(value?.health))
+        || JSON.stringify(normalizeFallbackMerge(value?.fallbackMerge)) !== JSON.stringify(value?.fallbackMerge || emptyFallbackMerge()),
+    };
+  }
+
+  async function mainBox() {
+    if (cachedBox) return cachedBox;
+    const value = await storageGet([STORE_KEY]);
+    cachedBox = validBox(value[STORE_KEY]) ? normalizeBox(value[STORE_KEY]) : emptyBox();
+    return cachedBox;
+  }
+
+  async function fallbackBox() {
+    const value = await storageGet([FALLBACK_KEY]);
+    const raw = value[FALLBACK_KEY];
+    if (!validBox(raw)) return { generationId: "", logs: [], health: defaultHealth(), present: raw !== undefined };
+    const normalized = { logs: [], health: normalizeHealth(raw.health) };
+    for (const item of raw.logs) {
+      try {
+        const entryInput = item?.entry && typeof item.entry === "object" ? item.entry : item;
+        const entry = schema.normalizeEntry(entryInput, { allowAggregation: true });
+        if (schema.shouldPersist(entry, { forcePersist: item?.forcePersist === true })) {
+          normalized.logs.push({
+            entry,
+            fallbackId: String(item?.fallbackId || ""),
+          });
+        }
+      } catch {
+        normalized.health.invalidEntryCount += 1;
+      }
+    }
+    return {
+      generationId: String(raw.generationId || ""),
+      logs: normalized.logs,
+      health: normalized.health,
+      present: true,
+    };
+  }
+
+  function eventTime(value) {
+    const text = String(value || "");
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d{3})$/u);
+    if (!match) return 0;
+    return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]) - 8, Number(match[5]), Number(match[6]), Number(match[7]));
+  }
+
+  function sizeOf(logs) {
+    const list = Array.isArray(logs) ? logs : [];
+    if (!list.length) return 2;
+    return 2 + (list.length - 1) + list.reduce((total, entry) => total + schema.byteLength(JSON.stringify(entry)), 0);
+  }
+
+  function levelCounts(logs) {
+    const counts = Object.fromEntries(LEVELS.map(level => [level, 0]));
+    for (const entry of logs || []) if (Object.hasOwn(counts, entry?.level)) counts[entry.level] += 1;
+    return counts;
+  }
+
+  function recordDrop(health, entry) {
+    const level = String(entry?.level || "info");
+    health.droppedCount += 1;
+    health.droppedByLevel[level] = (health.droppedByLevel[level] || 0) + 1;
+  }
+
+  function retentionPriority(entry, failures) {
+    if (entry.level === "fatal") return 60;
+    if (entry.level === "error") return 50;
+    if (entry.operationId && failures.has(entry.operationId)) return 45;
+    if (entry.level === "warn") return 40;
+    if (lifecycleInfoEvents.has(entry.event)) return 35;
+    if (entry.level === "network") return 20;
+    if (entry.level === "info") return 10;
+    return 0;
+  }
+
+  function compact(logs, healthInput) {
+    const health = normalizeHealth(healthInput);
+    const cutoff = Date.now() - POLICY.maxAgeMs;
+    const fresh = [];
+    for (const entry of logs || []) {
+      if (eventTime(entry?.time) && eventTime(entry.time) < cutoff) recordDrop(health, entry);
+      else fresh.push(entry);
+    }
+    const failures = new Set(fresh.filter(item => ["error", "fatal"].includes(item.level) && item.operationId).map(item => item.operationId));
+    const byteSizes = fresh.map(entry => schema.byteLength(JSON.stringify(entry)));
+    let totalBytes = fresh.length ? 2 + (fresh.length - 1) + byteSizes.reduce((total, value) => total + value, 0) : 2;
+    if (fresh.length > 1 && totalBytes > POLICY.targetBytes) {
+      const evictionOrder = fresh
+        .map((entry, index) => ({ index, priority: retentionPriority(entry, failures) }))
+        .sort((left, right) => left.priority - right.priority || left.index - right.index);
+      const removed = new Set();
+      for (const candidate of evictionOrder) {
+        if (fresh.length - removed.size <= 1 || totalBytes <= POLICY.targetBytes) break;
+        removed.add(candidate.index);
+        totalBytes -= byteSizes[candidate.index] + 1;
+        recordDrop(health, fresh[candidate.index]);
+      }
+      return { logs: fresh.filter((_entry, index) => !removed.has(index)), health };
+    }
+    return { logs: fresh, health };
+  }
+
+  function fingerprint(entry) {
+    const source = entry?.source || {};
+    const value = JSON.stringify({
+      domain: entry?.domain || "",
+      feature: entry?.feature || "",
+      service: entry?.service || "",
+      event: entry?.event || "",
+      error: { name: entry?.error?.name || "", code: entry?.error?.code || "" },
+      source: { file: source.file || "", function: source.function || "", line: source.line || 0, column: source.column || 0 },
+    });
+    let hash = 2166136261;
+    for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+    return `fnv1a-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+  }
+
+  function lifecycleSignature(entry) {
+    return JSON.stringify({
+      sessionId: entry?.sessionId || "",
+      operationId: entry?.operationId || "",
+      feature: entry?.feature || "",
+      event: entry?.event || "",
+      route: entry?.context?.route || "",
+      targetKey: entry?.meta?.targetKey || "",
+      meta: entry?.event === "runtime-feature-snapshot" ? entry?.meta?.features || [] : entry?.meta || {},
+    });
+  }
+
+  function aggregationSignature(entry) {
+    return JSON.stringify({
+      sessionId: entry?.sessionId || "",
+      domain: entry?.domain || "",
+      feature: entry?.feature || "",
+      event: entry?.event || "",
+      operationId: entry?.operationId || "",
+      requestId: entry?.requestId || "",
+      fingerprint: entry?.fingerprint || "",
+    });
+  }
+
+  function aggregateStoredEntry(logs, entry) {
+    if (lifecycleInfoEvents.has(entry.event)) {
+      const signature = lifecycleSignature(entry);
+      if (logs.some(item => lifecycleSignature(item) === signature)) return true;
+    }
+    if (entry.error) {
+      entry.fingerprint = entry.fingerprint || fingerprint(entry);
+      const signature = aggregationSignature(entry);
+      const existing = logs.find(item => item.error && aggregationSignature(item) === signature);
+      if (existing) {
+        existing.repeatCount = (Number(existing.repeatCount) || 1) + 1;
+        existing.firstSeen = existing.firstSeen || existing.time;
+        existing.lastSeen = entry.time;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function fallbackSignature(entry) {
+    return JSON.stringify({
+      time: entry?.time || "",
+      level: entry?.level || "",
+      domain: entry?.domain || "",
+      feature: entry?.feature || "",
+      service: entry?.service || "",
+      sessionId: entry?.sessionId || "",
+      operationId: entry?.operationId || "",
+      requestId: entry?.requestId || "",
+      event: entry?.event || "",
+      message: entry?.message || "",
+      fingerprint: entry?.fingerprint || "",
+      error: entry?.error ? {
+        name: entry.error.name || "",
+        code: entry.error.code || "",
+        status: entry.error.status || 0,
+        valueType: entry.error.valueType || "",
+        message: entry.error.message || "",
+        rootCause: entry.error.rootCause ? {
+          name: entry.error.rootCause.name || "",
+          code: entry.error.rootCause.code || "",
+          status: entry.error.rootCause.status || 0,
+          valueType: entry.error.rootCause.valueType || "",
+          message: entry.error.rootCause.message || "",
+        } : null,
+      } : null,
+      source: entry?.source || null,
+    });
+  }
+
+  function fallbackJournalSignature(item) {
+    const fallbackId = String(item?.fallbackId || "");
+    return fallbackId ? `fallback-id:${fallbackId}` : fallbackSignature(item?.entry);
+  }
+
+  function mergeFallback(main, fallback) {
+    const logs = main.logs.slice();
+    let health = normalizeHealth(main.health);
+    if (!fallback.present) {
+      return { logs, health, fallbackMerge: normalizeFallbackMerge(main.fallbackMerge), merged: false };
+    }
+    const signatures = new Set(logs.map(fallbackSignature));
+    const mergeState = normalizeFallbackMerge(main.fallbackMerge);
+    if (fallback.generationId !== mergeState.generationId) {
+      mergeState.generationId = fallback.generationId;
+      mergeState.signatures = [];
+      mergeState.health = defaultHealth();
+    }
+    const mergedSignatures = new Set(mergeState.signatures);
+    let merged = false;
+    for (const item of fallback.logs) {
+      const entry = item.entry;
+      const signature = fallbackJournalSignature(item);
+      if (signatures.has(signature) || mergedSignatures.has(signature)) continue;
+      mergedSignatures.add(signature);
+      signatures.add(signature);
+      logs.push(entry);
+      merged = true;
+    }
+    const healthDelta = defaultHealth();
+    const currentFallbackHealth = normalizeHealth(fallback.health);
+    for (const key of Object.keys(healthDelta).filter(item => item !== "droppedByLevel")) {
+      healthDelta[key] = Math.max(0, currentFallbackHealth[key] - mergeState.health[key]);
+    }
+    for (const [level, count] of Object.entries(currentFallbackHealth.droppedByLevel)) {
+      healthDelta.droppedByLevel[level] = Math.max(0, count - (mergeState.health.droppedByLevel[level] || 0));
+    }
+    const healthChanged = Object.keys(healthDelta).some(key => key === "droppedByLevel"
+      ? Object.values(healthDelta.droppedByLevel).some(count => count > 0)
+      : healthDelta[key] > 0);
+    if (healthChanged) health = addHealth(health, healthDelta);
+    mergeState.signatures = Array.from(mergedSignatures).slice(-120);
+    mergeState.health = currentFallbackHealth;
+    return { logs, health, fallbackMerge: mergeState, merged: merged || healthChanged };
+  }
+
+  function statsFrom(logs, health) {
+    const list = Array.isArray(logs) ? logs : [];
+    const counts = levelCounts(list);
+    let firstTime = "";
+    let lastTime = "";
+    for (const entry of list) {
+      const time = String(entry?.time || "");
+      if (!time) continue;
+      if (!firstTime || time < firstTime) firstTime = time;
+      if (!lastTime || time > lastTime) lastTime = time;
+    }
+    return {
+      count: list.length,
+      sizeBytes: sizeOf(list),
+      firstTime,
+      lastTime,
+      errorCount: counts.error + counts.fatal,
+      levelCounts: counts,
+      loggerHealth: normalizeHealth(health),
+      policy: POLICY,
+    };
+  }
+
+  function runtimeHealth(logs) {
+    const out = {};
+    const injections = {};
+    const featureLatest = new Map();
+    const mounts = {};
+    const sessions = new Set();
+    let lastRuntimeTime = "";
+    for (const entry of logs || []) {
+      const event = String(entry?.event || "");
+      const lifecycle = event === "background-session-ready"
+        || event === "background-session-failed"
+        || event.startsWith("runtime-inject-")
+        || event === "runtime-context-ready"
+        || event === "runtime-context-timeout"
+        || event === "runtime-feature-snapshot"
+        || event.startsWith("feature-mount-");
+      if (lifecycle && entry.sessionId) sessions.add(entry.sessionId);
+      if (event === "background-session-ready") out.backgroundSessionCount = (out.backgroundSessionCount || 0) + 1;
+      if (event.startsWith("runtime-inject-")) {
+        const state = event.slice("runtime-inject-".length);
+        injections[state] = (injections[state] || 0) + 1;
+      }
+      if (event === "runtime-context-ready" || event === "runtime-context-timeout") {
+        const time = String(entry?.time || "");
+        if (!lastRuntimeTime || time >= lastRuntimeTime) {
+          lastRuntimeTime = time;
+          out.lastRuntimeStatus = event.slice("runtime-context-".length);
+        }
+      }
+      if (event === "runtime-feature-snapshot") {
+        const features = Array.isArray(entry.meta?.features) ? entry.meta.features : [];
+        for (const feature of features) {
+          const key = `${entry.sessionId || ""}:${feature.featureId || ""}`;
+          const time = String(entry?.time || "");
+          const current = featureLatest.get(key);
+          if (!current || time >= current.time) {
+            featureLatest.set(key, { status: String(feature.status || ""), time });
+          }
+        }
+      }
+      if (event.startsWith("feature-mount-")) {
+        const state = event.slice("feature-mount-".length);
+        mounts[state] = (mounts[state] || 0) + 1;
+      }
+    }
+    if (sessions.size) out.sessionCount = sessions.size;
+    if (Object.keys(injections).length) out.injectionCounts = injections;
+    const featureStateCounts = {};
+    for (const value of featureLatest.values()) {
+      if (value.status) featureStateCounts[value.status] = (featureStateCounts[value.status] || 0) + 1;
+    }
+    if (Object.keys(featureStateCounts).length) out.featureStateCounts = featureStateCounts;
+    if (Object.keys(mounts).length) out.mountCounts = mounts;
+    return out;
+  }
+
+  async function prepareStored() {
+    await initializeNow();
+    const main = await mainBox();
+    const fallback = await fallbackBox();
+    const merged = mergeFallback(main, fallback);
+    const compacted = compact(merged.logs, merged.health);
+    return {
+      main,
+      fallback,
+      logs: compacted.logs,
+      health: compacted.health,
+      fallbackMerge: merged.fallbackMerge,
+      changed: main._dirty === true
+        || merged.merged
+        || JSON.stringify(compacted.logs) !== JSON.stringify(main.logs)
+        || JSON.stringify(compacted.health) !== JSON.stringify(main.health)
+        || JSON.stringify(merged.fallbackMerge) !== JSON.stringify(normalizeFallbackMerge(main.fallbackMerge)),
+    };
+  }
+
+  async function commitPrepared(prepared) {
+    const next = {
+      version: STORAGE_VERSION,
+      updatedAt: Date.now(),
+      logs: prepared.logs,
+      health: prepared.health,
+      fallbackMerge: normalizeFallbackMerge(prepared.fallbackMerge),
+    };
+    if (prepared.changed || !cachedBox) {
+      await storageSet({ [STORE_KEY]: next });
+      cachedBox = next;
+    }
+    return statsFrom(next.logs, next.health);
+  }
+
+  async function appendNow(input, sender) {
+    const prepared = await prepareStored();
+    const raw = input?.entry && typeof input.entry === "object" ? input.entry : input;
+    const forcePersist = input?.forcePersist === true;
+    let entry;
+    try {
+      entry = schema.normalizeEntry(raw, { allowAggregation: true });
+    } catch (error) {
+      const nextHealth = normalizeHealth(prepared.health);
+      nextHealth.invalidEntryCount += 1;
+      await commitPrepared({ ...prepared, health: nextHealth, changed: true });
+      throw new TypeError("日志 entry 不符合新契约", { cause: error });
+    }
+    if (sender?.frameId !== undefined && entry.context && entry.context.frameId === undefined) {
+      const frameId = Number(sender.frameId);
+      if (Number.isInteger(frameId) && frameId >= 0) entry.context = { ...entry.context, frameId };
+    }
+    if (!schema.shouldPersist(entry, { forcePersist })) return commitPrepared(prepared);
+    const logs = prepared.logs.slice();
+    const duplicate = aggregateStoredEntry(logs, entry);
+    if (duplicate && !entry.error) return commitPrepared(prepared);
+    if (!duplicate) logs.push(entry);
+    const compacted = compact(logs, prepared.health);
+    const nextHealth = normalizeHealth(compacted.health);
+    nextHealth.truncatedFieldCount += schema.countTruncatedFields(entry);
+    return commitPrepared({ ...prepared, logs: compacted.logs, health: nextHealth, changed: true });
+  }
+
+  function append(input, sender) {
     return enqueueStorage(() => appendNow(input, sender));
   }
 
   async function statsNow() {
-    const box = await getBox();
-    const fallback = await getFallbackLogs().catch(() => []);
-    const logs = compact(mergeLogs(Array.isArray(box.logs) ? box.logs : [], fallback));
-    if (logs.length !== box.logs?.length || fallback.length) {
-      await putBox({ version: POLICY.version, updatedAt: Date.now(), logs, stats: statsFrom(logs) });
-      if (fallback.length) {
-        const cleared = await removeFallbackBox();
-        if (!cleared.ok) {
-          throw new Error(cleared.error || "清理诊断回退日志失败");
-        }
-      }
-    }
-    return statsFrom(logs);
+    const prepared = await prepareStored();
+    return commitPrepared(prepared);
   }
 
   function stats() {
@@ -512,77 +590,42 @@
   }
 
   function version() {
-    try {
-      return chrome.runtime.getManifest().version || "";
-    } catch {
-      return "";
-    }
+    try { return root.chrome?.runtime?.getManifest?.().version || ""; } catch { return ""; }
   }
 
-  function filenameBase(now = new Date()) {
-    const stamp = bjStamp(now instanceof Date ? now.getTime() : now);
+  function filenameBase(exportTs) {
+    const date = new Date(exportTs || Date.now());
+    const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}-${String(date.getHours()).padStart(2, "0")}${String(date.getMinutes()).padStart(2, "0")}${String(date.getSeconds()).padStart(2, "0")}`;
     return `steam-buff-diagnostics-v${version() || "unknown"}-${stamp}`;
   }
 
-  function filename(now = new Date()) {
-    return `${filenameBase(now)}.zip`;
-  }
-
-  function toJsonl(rows) {
-    return Array.isArray(rows) && rows.length
-      ? `${rows.map(row => JSON.stringify(row)).join("\n")}\n`
-      : "";
-  }
-
-  function retentionPolicy() {
-    return {
-      version: POLICY.version,
-      maxEntries: POLICY.maxEntries,
-      targetBytes: POLICY.targetBytes,
-      hardBytes: POLICY.hardBytes,
-      maxAgeMs: POLICY.maxAgeMs,
-    };
-  }
-
-  function summaryFromLogs(logs, exportedLogs, logsJsonl, exportTs) {
-    const counts = levelCounts(exportedLogs);
-    return {
-      exportedAt: bjTime(exportTs),
-      exportTs,
-      count: exportedLogs.length,
-      sizeBytes: bytes(logsJsonl),
-      firstTime: exportedLogs[0]?.time || "",
-      lastTime: exportedLogs[exportedLogs.length - 1]?.time || "",
-      errorCount: counts.error,
-      levelCounts: counts,
-      retentionPolicy: retentionPolicy(),
-      storageStats: statsFrom(logs),
-      files: ["logs.jsonl", "config.json", "env.json", "summary.json"],
-      format: "zip",
-    };
-  }
-
   async function exportLogsNow() {
-    const box = await getBox();
-    const fallback = await getFallbackLogs().catch(() => []);
-    const logs = compact(mergeLogs(Array.isArray(box.logs) ? box.logs : [], fallback));
+    const prepared = await prepareStored();
+    const stats = await commitPrepared(prepared);
+    const logs = prepared.logs;
     const exportTs = Date.now();
-    const exportedLogs = logs.map(pickLog).filter(Boolean);
-    const logsJsonl = toJsonl(exportedLogs);
-    const summary = summaryFromLogs(logs, exportedLogs, logsJsonl, exportTs);
-    if (fallback.length) {
-      await putBox({ version: POLICY.version, updatedAt: exportTs, logs, stats: statsFrom(logs) });
-      const cleared = await removeFallbackBox();
-      if (!cleared.ok) {
-        throw new Error(cleared.error || "清理诊断回退日志失败");
-      }
-    }
+    const logsJsonl = logs.map(item => JSON.stringify(item)).join("\n") + (logs.length ? "\n" : "");
     return {
-      filename: filename(exportTs),
       filenameBase: filenameBase(exportTs),
+      filename: `${filenameBase(exportTs)}.zip`,
       logsJsonl,
-      summary,
-      stats: statsFrom(logs),
+      summary: {
+        schemaVersion: schema.version,
+        exportedAt: new Date(exportTs).toISOString(),
+        exportTs,
+        count: stats.count,
+        sizeBytes: schema.byteLength(logsJsonl),
+        firstTime: stats.firstTime,
+        lastTime: stats.lastTime,
+        errorCount: stats.errorCount,
+        levelCounts: stats.levelCounts,
+        loggerHealth: stats.loggerHealth,
+        runtimeHealth: runtimeHealth(logs),
+        retentionPolicy: POLICY,
+        files: ["logs.jsonl", "config.json", "env.json", "summary.json"],
+        format: "zip",
+      },
+      stats,
     };
   }
 
@@ -591,23 +634,30 @@
   }
 
   async function clearNow() {
-    const result = await removeBox();
-    const fallback = await removeFallbackBox();
-    if (!result.ok || !fallback.ok) {
-      throw new Error(result.error || fallback.error || "清空诊断日志失败");
-    }
-    return statsFrom([]);
+    await storageRemove([STORE_KEY, FALLBACK_KEY]);
+    const box = emptyBox();
+    await storageSet({ [STORE_KEY]: box });
+    cachedBox = box;
+    return statsFrom([], box.health);
   }
 
   function clear() {
-    return enqueueStorage(clearNow);
+    return enqueueStorage(async () => {
+      await initializeNow();
+      return clearNow();
+    });
   }
+
+  root.chrome?.storage?.onChanged?.addListener?.((changes, areaName) => {
+    if (areaName !== "local" || writing) return;
+    if (changes?.[STORE_KEY]) cachedBox = null;
+  });
 
   root.STBackgroundLogger = Object.freeze({
     ready: true,
+    schemaVersion: schema.version,
     policy: POLICY,
-    safeLogUrl: safeUrl,
-    normalize,
+    initialize,
     append,
     exportLogs,
     clear,

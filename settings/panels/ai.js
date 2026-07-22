@@ -202,7 +202,7 @@
           }
           log.error("ai-test-failed", "AI 连接测试异常", {
             durationMs: Math.round(performance.now() - started),
-            error: error?.message || String(error),
+            error,
           });
           dialog(shadow, { title: "AI 测试失败", message: `${error?.message || String(error)}\n用时 ${used} 秒` });
         });
@@ -214,7 +214,7 @@
         const used = ((performance.now() - started) / 1000).toFixed(1);
         log.error("ai-test-failed", "AI 连接测试异常", {
           durationMs: Math.round(performance.now() - started),
-          error: error?.message || String(error),
+          error,
         });
         dialog(shadow, { title: "AI 测试失败", message: `${error?.message || String(error)}\n用时 ${used} 秒` });
       }
@@ -284,7 +284,7 @@
             savePrompt(shadow);
           }).catch((error) => {
             log.error("ai-config-save-failed", "AI 配置保存失败", {
-              error: error?.message || String(error),
+              error,
               durationMs: Date.now() - startedAt,
             });
             savePrompt(shadow);
@@ -298,7 +298,7 @@
         }
       } catch (error) {
         log.error("ai-config-save-failed", "AI 配置保存异常", {
-          error: error?.message || String(error),
+          error,
           durationMs: Date.now() - startedAt,
         });
         savePrompt(shadow);

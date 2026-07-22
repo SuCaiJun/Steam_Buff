@@ -285,7 +285,7 @@
     } catch (error) {
       log.warn("update-log-detail-failed", "更新日志详情读取失败", {
         version: versionText,
-        error: error?.message || String(error),
+        error,
         durationMs: Date.now() - startedAt,
       });
       return null;

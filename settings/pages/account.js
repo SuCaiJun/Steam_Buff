@@ -59,7 +59,7 @@
       center.syncCenter(shadow, ctx).catch((error) => {
         log.warn("account-center-sync-unhandled", "用户中心同步兜底失败", {
           source: "page-open",
-          error: error?.message || String(error),
+          error,
         });
       });
     }

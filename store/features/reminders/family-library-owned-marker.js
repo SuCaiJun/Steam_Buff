@@ -94,15 +94,6 @@
     };
   }
 
-  function safeError(error) {
-    return {
-      name: String(error?.name || ""),
-      message: String(error?.message || error || "").slice(0, 180),
-      code: String(error?.code || ""),
-      status: Number(error?.status || error?.statusCode) || 0,
-    };
-  }
-
   function friendlyError(error) {
     const code = String(error?.code || "");
     if (code === "STORE_CONFIG_MISSING") return "无法读取 Steam 页面登录信息，请刷新页面后重试。";
@@ -323,7 +314,7 @@
       return normalizeRefreshSettings(await window.STSettings?.storage?.getFamilyLibrary?.());
     } catch (error) {
       log?.warn?.("family-library-refresh-settings-read-failed", "家庭库刷新设置读取失败，使用默认值", pageMeta({
-        reason: error?.message || String(error),
+        error,
       }));
       return normalizeRefreshSettings(DEFAULT_REFRESH_SETTINGS);
     }
@@ -773,11 +764,11 @@
   }
 
   function accountNames(data) {
-    const accounts = data?.response?.accounts || data?.accounts || [];
+    const accounts = data?.response?.accounts || [];
     const out = {};
     accounts.forEach((account) => {
-      const publicData = account?.public_data || account?.publicData || {};
-      const steamid = String(publicData.steamid || account?.steamid || "");
+      const publicData = account?.public_data || {};
+      const steamid = String(publicData.steamid || "");
       if (steamid) out[steamid] = String(publicData.persona_name || "");
     });
     return out;
@@ -875,7 +866,7 @@
         rid: requestId,
         durationMs: Date.now() - startedAt,
         reason: String(error?.code || error?.name || "refresh-failed"),
-        error: safeError(error),
+        error,
       }));
       throw error;
     }).finally(() => {

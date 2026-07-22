@@ -52,10 +52,6 @@
     return value == null ? "" : String(value);
   }
 
-  function safeError(error) {
-    return text(error?.message || error).slice(0, 300);
-  }
-
   function now() {
     return Date.now();
   }
@@ -178,7 +174,7 @@
               owner: ownerOf(options),
               reason: text(options.reason || "read"),
               keyCount: cleanKeys.length,
-              error: safeError(root.chrome.runtime.lastError),
+              error: root.chrome.runtime.lastError,
             });
             resolve({});
             return;
@@ -190,7 +186,7 @@
           owner: ownerOf(options),
           reason: text(options.reason || "read"),
           keyCount: cleanKeys.length,
-          error: safeError(error),
+          error,
         });
         resolve({});
       }
@@ -222,7 +218,7 @@
               owner: ownerOf(options),
               reason: text(options.reason || "write"),
               keyCount: keys.length,
-              error: safeError(root.chrome?.runtime?.lastError),
+              error: root.chrome?.runtime?.lastError,
             });
           }
           resolve(ok);
@@ -232,7 +228,7 @@
           owner: ownerOf(options),
           reason: text(options.reason || "write"),
           keyCount: keys.length,
-          error: safeError(error),
+          error,
         });
         resolve(false);
       }
@@ -264,7 +260,7 @@
               owner: ownerOf(options),
               reason: text(options.reason || "remove"),
               keyCount: cleanKeys.length,
-              error: safeError(root.chrome?.runtime?.lastError),
+              error: root.chrome?.runtime?.lastError,
             });
           }
           resolve(ok);
@@ -274,7 +270,7 @@
           owner: ownerOf(options),
           reason: text(options.reason || "remove"),
           keyCount: cleanKeys.length,
-          error: safeError(error),
+          error,
         });
         resolve(false);
       }
@@ -362,7 +358,7 @@
         owner: event.owner,
         reason: event.reason,
         keyCount: event.changedKeys.length,
-        error: safeError(error),
+        error,
       });
     }
     for (const item of Array.from(subscribers.values())) {
@@ -377,7 +373,7 @@
           key: item.key,
           reason: event.reason,
           keyCount: event.changedKeys.length,
-          error: safeError(error),
+          error,
         });
         runtime()?.markError?.("settings-bus-subscriber-failed", error, {
           owner: item.owner,
@@ -409,7 +405,7 @@
       return true;
     } catch (error) {
       log.warn("settings-bus-watch-bind-failed", "设置存储监听绑定失败", {
-        error: safeError(error),
+        error,
       });
       boundStorage = false;
       return false;

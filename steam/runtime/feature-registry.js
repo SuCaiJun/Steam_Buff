@@ -12,7 +12,11 @@
   "use strict";
 
   const api = window.SteamBuff = window.SteamBuff || {};
-  const log = window.STLoggerFactory.createLogger('steam', 'feature-registry');
+  const runtimeCorrelation = document.documentElement?.dataset || {};
+  const log = window.STLoggerFactory.createLogger('steam', 'feature-registry', {
+    sessionId: runtimeCorrelation.steamBuffRuntimeSessionId || "",
+    operationId: runtimeCorrelation.steamBuffRuntimeOperationId || "",
+  });
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
 
   api.dataIndex = window.STDataIndex;
@@ -49,7 +53,6 @@
         loaded: new Set(),
         starting: new Set(),
         started: new Set(),
-        lastSummaryKey: "",
       };
     }
 
@@ -270,7 +273,6 @@
       }
       const entries = Object.keys(this.state.entries[id] || {}).length;
       delete this.state.entries[id];
-      this.state.lastSummaryKey = "";
       runtime?.markFeature?.({
         domain: "steam",
         id,
@@ -289,26 +291,10 @@
 
       const key = `${feature.id}:${context}:${entry}`;
       if (this.state.started.has(key)) {
-        runtime?.markFeature?.({
-          domain: "steam",
-          id: feature.id,
-          mode: context,
-          entry,
-          status: "skipped",
-          reason: "already-started",
-        });
-        return { id: feature.id, context, entry, status: "skipped", reason: "already-started" };
+        return { id: feature.id, context, entry, status: "started", reason: "", unchanged: true };
       }
       if (this.state.starting.has(key)) {
-        runtime?.markFeature?.({
-          domain: "steam",
-          id: feature.id,
-          mode: context,
-          entry,
-          status: "skipped",
-          reason: "already-starting",
-        });
-        return { id: feature.id, context, entry, status: "skipped", reason: "already-starting" };
+        return { id: feature.id, context, entry, status: "waiting", reason: "already-starting", unchanged: true };
       }
       const gate = this.canStart(feature, context, snapshot);
       if (!gate.allowed) {
@@ -384,13 +370,14 @@
         const scope = this.createResourceScope(feature, context);
         const result = start(this.api, feature, context, scope);
         const started = !result || result.started !== false || result.reason === "already-started";
+        const reason = started && result?.reason === "already-started" ? "" : (result?.reason || "");
         runtime?.markFeature?.({
           domain: "steam",
           id: feature.id,
           mode: context,
           entry,
           status: started ? "started" : "skipped",
-          reason: result?.reason || "",
+          reason,
           meta: {
             hasStop: typeof result?.stop === "function",
           },
@@ -411,7 +398,7 @@
           context,
           entry,
           status: started ? "started" : "skipped",
-          reason: result?.reason || "",
+          reason,
           result,
         };
       } catch (error) {
@@ -438,9 +425,10 @@
           mode: context,
           entry,
           status: "failed",
+          reason: "start-failed",
           error,
         });
-        return { id: feature.id, context, entry, status: "failed", error: String(error) };
+        return { id: feature.id, context, entry, status: "failed", reason: "start-failed", error: String(error) };
       } finally {
         this.state.starting.delete(key);
       }
@@ -458,34 +446,7 @@
           }
         }
       }
-      this.logSummary(results, contexts);
       return results;
-    }
-
-    logSummary(results, contexts) {
-      const list = Array.isArray(results) ? results : [];
-      const total = list.length;
-      const started = list.filter(item => item.status === "started").length;
-      const skipped = list.filter(item => item.status === "skipped").length;
-      const failed = list.filter(item => item.status === "failed").length;
-      const meaningful = started > 0 || failed > 0;
-      const key = JSON.stringify({
-        contexts,
-        started: list.filter(item => item.status === "started").map(item => `${item.id}:${item.context}:${item.entry}`),
-        failed: list.filter(item => item.status === "failed").map(item => `${item.id}:${item.context}:${item.entry || item.reason || ""}`),
-      });
-
-      if (!meaningful || this.state.lastSummaryKey === key) {
-        return;
-      }
-      this.state.lastSummaryKey = key;
-      log.info("features-start-summary", "Steam 客户端功能启动摘要", {
-        total,
-        started,
-        skipped,
-        failed,
-        contexts,
-      });
     }
 
     list() {

@@ -123,7 +123,7 @@
       return normalizeCache(data[STORAGE_KEY]);
     } catch (error) {
       log?.warn?.("family-library-cache-read-failed", "家庭组游戏库缓存读取失败", {
-        reason: error?.message || String(error),
+        error,
       });
       return null;
     }
