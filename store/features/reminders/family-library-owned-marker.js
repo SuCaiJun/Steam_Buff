@@ -309,13 +309,23 @@
     };
   }
 
-  async function familyRefreshSettings() {
+  async function familyRefreshSettings(options = {}) {
+    const allowFallback = options.allowFallback !== false;
     try {
-      return normalizeRefreshSettings(await window.STSettings?.storage?.getFamilyLibrary?.());
+      const getFamilyLibrary = window.STSettings?.storage?.getFamilyLibrary;
+      if (typeof getFamilyLibrary !== "function") {
+        throw new TypeError("家庭库刷新设置读取接口不可用");
+      }
+      return normalizeRefreshSettings(await getFamilyLibrary.call(window.STSettings.storage));
     } catch (error) {
-      log?.warn?.("family-library-refresh-settings-read-failed", "家庭库刷新设置读取失败，使用默认值", pageMeta({
-        error,
-      }));
+      log?.warn?.(
+        "family-library-refresh-settings-read-failed",
+        allowFallback ? "家庭库刷新设置读取失败，使用默认值" : "家庭库刷新设置读取失败",
+        pageMeta({
+          error,
+        })
+      );
+      if (!allowFallback) return null;
       return normalizeRefreshSettings(DEFAULT_REFRESH_SETTINGS);
     }
   }
@@ -328,11 +338,12 @@
     return REFRESH_INTERVAL_LABELS[normalizeRefreshSettings(settings).refreshInterval] || REFRESH_INTERVAL_LABELS["1d"];
   }
 
-  function cacheRefreshDue(cache, settings) {
+  function cacheRefreshDue(cache, settings, refreshState) {
     const seconds = refreshIntervalSeconds(settings);
     if (seconds <= 0) return false;
-    if (!cache?.updatedAt) return true;
-    return api.familyLibraryCache.nowSeconds() - Number(cache.updatedAt) >= seconds;
+    if (!refreshState) return false;
+    const nextRefreshAt = api.familyLibraryCache.nextRefreshAt(cache, refreshState, seconds);
+    return api.familyLibraryCache.nowSeconds() >= nextRefreshAt;
   }
 
   function ownerItems(cache, entry) {
@@ -516,7 +527,13 @@
 
     container.append(title, content, actions);
     button.addEventListener("click", () => {
-      refreshWithUi({ appId, container, source: "card-button", defaultLabel }).catch(() => {});
+      refreshWithUi({
+        appId,
+        container,
+        source: "card-button",
+        defaultLabel,
+        hasPreviousData: !!cache,
+      }).catch(() => {});
     });
     if (Date.now() - session.lastRefreshAt < 3000) {
       setRefreshButton(button, "success", defaultLabel);
@@ -679,9 +696,10 @@
     });
   }
 
-  async function maybePromptEmpty(appId, container, settings) {
+  async function maybePromptEmpty(appId, container, settings, refreshState) {
     const cfg = normalizeRefreshSettings(settings);
     if (cfg.refreshInterval === "manual") return;
+    if (!cacheRefreshDue(null, cfg, refreshState)) return;
     if (session.emptyPromptShown) return;
     session.emptyPromptShown = true;
     if (cfg.autoRefresh) {
@@ -695,6 +713,7 @@
         source: "empty-cache-auto-refresh",
         defaultLabel: "扫描家庭库",
         successAlert: false,
+        hasPreviousData: false,
       });
       return;
     }
@@ -710,15 +729,21 @@
       secondaryLabel: "关闭功能",
     });
     if (action === "primary") {
-      await refreshWithUi({ appId, container, source: "empty-cache-prompt", defaultLabel: "扫描家庭库" });
+      await refreshWithUi({
+        appId,
+        container,
+        source: "empty-cache-prompt",
+        defaultLabel: "扫描家庭库",
+        hasPreviousData: false,
+      });
     } else if (action === "secondary") {
       await disableFeatureByUser();
     }
   }
 
-  async function maybePromptStale(appId, cache, container, settings) {
+  async function maybePromptStale(appId, cache, container, settings, refreshState) {
     const cfg = normalizeRefreshSettings(settings);
-    if (!cacheRefreshDue(cache, cfg) || session.stalePromptShown) return;
+    if (!cacheRefreshDue(cache, cfg, refreshState) || session.stalePromptShown) return;
     session.stalePromptShown = true;
     const meta = {
       appid: Number(appId) || 0,
@@ -734,6 +759,7 @@
         source: "stale-cache-auto-refresh",
         defaultLabel: "更新",
         successAlert: false,
+        hasPreviousData: true,
       });
       return;
     }
@@ -745,7 +771,13 @@
       secondaryLabel: "取消",
     });
     if (action === "primary") {
-      await refreshWithUi({ appId, container, source: "stale-cache-prompt", defaultLabel: "更新" });
+      await refreshWithUi({
+        appId,
+        container,
+        source: "stale-cache-prompt",
+        defaultLabel: "更新",
+        hasPreviousData: true,
+      });
     }
   }
 
@@ -888,6 +920,60 @@
     }
   }
 
+  async function showRefreshFailure(error, options) {
+    const refreshSettings = await familyRefreshSettings({ allowFallback: false });
+    const retainedText = options.hasPreviousData
+      ? "\n更新失败，已继续使用上次成功更新的数据。"
+      : "";
+    const helpText = FAMILY_MANAGEMENT_URL ? `\n${FAMILY_MANAGEMENT_URL}` : "";
+    const message = `${friendlyError(error)}${retainedText}${helpText}`;
+    if (!refreshSettings || refreshSettings.refreshInterval === "manual") {
+      await showAlert("家庭库刷新失败", message);
+      return false;
+    }
+
+    const action = await showActionDialog({
+      title: "家庭库刷新失败",
+      message,
+      primaryLabel: "确认",
+      secondaryLabel: "跳过本次",
+    });
+    if (action !== "secondary") return false;
+
+    try {
+      const refreshState = await api.familyLibraryCache.skipRefreshCycle();
+      const nextRefreshAt = api.familyLibraryCache.nextRefreshAt(
+        null,
+        refreshState,
+        refreshIntervalSeconds(refreshSettings)
+      );
+      const button = options.container?.querySelector?.("button");
+      setRefreshButton(button, "idle", options.defaultLabel || "更新");
+      if (button) button.title = "";
+      setStatus(
+        options.container,
+        options.hasPreviousData ? "已跳过本次更新，继续使用上次数据" : "已跳过本次更新"
+      );
+      log?.info?.("family-library-refresh-skipped", "用户已跳过本周期家庭组游戏库更新", pageMeta({
+        source: options.source || "manual",
+        refreshInterval: refreshSettings.refreshInterval,
+        autoRefresh: refreshSettings.autoRefresh === true,
+        skippedAt: refreshState.skippedAt,
+        nextRefreshAt,
+      }));
+      return true;
+    } catch (skipError) {
+      log?.error?.("family-library-refresh-skip-save-failed", "家庭组游戏库跳过本次更新状态保存失败", pageMeta({
+        source: options.source || "manual",
+        refreshInterval: refreshSettings.refreshInterval,
+        reason: String(skipError?.code || skipError?.name || "storage-failed"),
+        error: skipError,
+      }));
+      await showAlert("跳过本次失败", "无法保存跳过状态，请稍后重试。");
+      return false;
+    }
+  }
+
   async function refreshWithUi(options = {}) {
     const button = options.container?.querySelector?.("button");
     const link = options.container?.querySelector?.(".st_family_library_owned_marker__link");
@@ -917,8 +1003,8 @@
       if (button) button.title = friendlyError(error);
       setStatus(options.container, `刷新失败：${friendlyError(error)}`, "error");
       if (link && FAMILY_MANAGEMENT_URL) link.hidden = false;
-      const helpText = FAMILY_MANAGEMENT_URL ? `\n${FAMILY_MANAGEMENT_URL}` : "";
-      await showAlert("家庭库刷新失败", `${friendlyError(error)}${helpText}`);
+      const skipped = await showRefreshFailure(error, options);
+      if (skipped) return;
       throw error;
     }
   }
@@ -1110,9 +1196,10 @@
     if (sharingStatus === "unsupported" || removeDetailForUnsupportedSharing(id, "pre-mount")) {
       return;
     }
-    const [cache, refreshSettings] = await Promise.all([
+    const [cache, refreshSettings, refreshState] = await Promise.all([
       api.familyLibraryCache?.read?.(),
       familyRefreshSettings(),
+      api.familyLibraryCache.readRefreshState(),
     ]);
     if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
     const container = mountCard(id, cache);
@@ -1132,16 +1219,16 @@
       }));
     }
     // 优化: 详情页只在功能启动时做一次缓存年龄判断，不挂到 DOM 观察器或路由重扫。
-    if (cache && cacheRefreshDue(cache, refreshSettings)) {
+    if (cache && cacheRefreshDue(cache, refreshSettings, refreshState)) {
       log?.info?.("family-library-cache-stale", "家庭组游戏库缓存已过期", pageMeta({
         appid: id,
         cacheAgeMs: api.familyLibraryCache.cacheAgeMs(cache),
         refreshInterval: refreshSettings.refreshInterval,
         autoRefresh: refreshSettings.autoRefresh === true,
       }));
-      await maybePromptStale(id, cache, container, refreshSettings);
+      await maybePromptStale(id, cache, container, refreshSettings, refreshState);
     } else if (!cache) {
-      await maybePromptEmpty(id, container, refreshSettings);
+      await maybePromptEmpty(id, container, refreshSettings, refreshState);
     }
     if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
     log?.info?.("family-library-feature-ready", "家庭库检查功能启动完成", pageMeta({

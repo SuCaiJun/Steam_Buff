@@ -13,6 +13,7 @@
 
   const api = window.STStore = window.STStore || {};
   const STORAGE_KEY = "st.store.familyLibraryOwnedMarker.cache.v1";
+  const REFRESH_STATE_KEY = "st.store.familyLibraryOwnedMarker.refreshState.v1";
   const SCHEMA_VERSION = 1;
   const TTL_SECONDS = 24 * 60 * 60;
   const log = window.STLoggerFactory?.createLogger?.("store", "family-library-cache");
@@ -117,6 +118,12 @@
     };
   }
 
+  function normalizeRefreshState(raw) {
+    return {
+      skippedAt: seconds(raw?.skippedAt),
+    };
+  }
+
   async function read() {
     try {
       const data = await getStorage([STORAGE_KEY]);
@@ -138,6 +145,32 @@
     return normalized;
   }
 
+  async function readRefreshState() {
+    try {
+      const data = await getStorage([REFRESH_STATE_KEY]);
+      return normalizeRefreshState(data[REFRESH_STATE_KEY]);
+    } catch (error) {
+      log?.warn?.("family-library-refresh-state-read-failed", "家庭组游戏库刷新跳过状态读取失败", {
+        error,
+      });
+      return null;
+    }
+  }
+
+  async function skipRefreshCycle() {
+    const state = normalizeRefreshState({ skippedAt: nowSeconds() });
+    await setStorage({ [REFRESH_STATE_KEY]: state });
+    return state;
+  }
+
+  function nextRefreshAt(cache, refreshState, intervalSeconds) {
+    const interval = seconds(intervalSeconds);
+    if (interval <= 0) return 0;
+    const lastSuccessfulAt = seconds(cache?.updatedAt);
+    const skippedAt = seconds(refreshState?.skippedAt);
+    return Math.max(lastSuccessfulAt, skippedAt) + interval;
+  }
+
   function appEntry(cache, appId) {
     const key = String(Number(appId) || "");
     return key ? cache?.appsById?.[key] || null : null;
@@ -155,12 +188,17 @@
 
   api.familyLibraryCache = Object.freeze({
     STORAGE_KEY,
+    REFRESH_STATE_KEY,
     SCHEMA_VERSION,
     TTL_SECONDS,
     nowSeconds,
     normalizeCache,
     read,
     write,
+    normalizeRefreshState,
+    readRefreshState,
+    skipRefreshCycle,
+    nextRefreshAt,
     appEntry,
     cacheAgeMs,
     isStale,
