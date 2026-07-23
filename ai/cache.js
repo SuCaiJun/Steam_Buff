@@ -19,14 +19,56 @@
   const STORE_KEY = "st.ai.translate.cache.v1.";
   const KEY_PREFIX = STORE_KEY;
   const INDEX_KEY = "st.ai.translate.index";
-  const ALARM = "ai-cache-sweep";
   const TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const MAX_ITEMS = 1800;
+  const FAILURE_LOG_INTERVAL_MS = 60 * 1000;
+  const log = globalThis.STLoggerFactory?.createLogger?.("translate", "ai-cache") || null;
+  const failureLogAt = new Map();
+  const activeFailures = new Set();
+  let writeTask = Promise.resolve();
+
+  function reportFailure(action, error, meta = {}) {
+    activeFailures.add(action);
+    const current = Date.now();
+    const last = failureLogAt.get(action) || 0;
+    if (current - last < FAILURE_LOG_INTERVAL_MS) {
+      return;
+    }
+    failureLogAt.set(action, current);
+    try {
+      log?.warn?.("ai-cache-storage-failed", "AI 翻译缓存存储操作失败，已降级为无缓存", {
+        action,
+        ...meta,
+        error,
+      });
+    } catch {
+    }
+  }
+
+  function reportRecovery(action) {
+    if (!activeFailures.delete(action)) {
+      return;
+    }
+    try {
+      log?.warn?.("ai-cache-storage-recovered", "AI 翻译缓存存储操作已恢复", {
+        action,
+        recovery: {
+          attempted: true,
+          success: true,
+          strategy: "next-operation-success",
+        },
+      });
+    } catch {
+    }
+  }
 
   function area() {
     try {
-      return chrome.storage.local;
-    } catch {
+      const storage = chrome.storage.local;
+      reportRecovery("storage-area");
+      return storage;
+    } catch (error) {
+      reportFailure("storage-area", error);
       return null;
     }
   }
@@ -39,9 +81,17 @@
     return new Promise((resolve) => {
       try {
         box.get(keys, (rt) => {
-          resolve(chrome.runtime.lastError ? {} : rt || {});
+          const error = chrome.runtime.lastError;
+          if (error) {
+            reportFailure("get", error, { keyCount: Array.isArray(keys) ? keys.length : 0 });
+            resolve({});
+            return;
+          }
+          reportRecovery("get");
+          resolve(rt || {});
         });
-      } catch {
+      } catch (error) {
+        reportFailure("get", error, { keyCount: Array.isArray(keys) ? keys.length : 0 });
         resolve({});
       }
     });
@@ -55,9 +105,17 @@
     return new Promise((resolve) => {
       try {
         box.set(data, () => {
-          resolve(!chrome.runtime.lastError);
+          const error = chrome.runtime.lastError;
+          if (error) {
+            reportFailure("set", error, { keyCount: Object.keys(data || {}).length });
+            resolve(false);
+            return;
+          }
+          reportRecovery("set");
+          resolve(true);
         });
-      } catch {
+      } catch (error) {
+        reportFailure("set", error, { keyCount: Object.keys(data || {}).length });
         resolve(false);
       }
     });
@@ -71,9 +129,17 @@
     return new Promise((resolve) => {
       try {
         box.remove(keys, () => {
-          resolve(!chrome.runtime.lastError);
+          const error = chrome.runtime.lastError;
+          if (error) {
+            reportFailure("remove", error, { keyCount: Array.isArray(keys) ? keys.length : 0 });
+            resolve(false);
+            return;
+          }
+          reportRecovery("remove");
+          resolve(true);
         });
-      } catch {
+      } catch (error) {
+        reportFailure("remove", error, { keyCount: Array.isArray(keys) ? keys.length : 0 });
         resolve(false);
       }
     });
@@ -159,7 +225,7 @@
     return out;
   }
 
-  async function setMany(entries) {
+  async function writeMany(entries) {
     const list = (entries || []).filter((item) => item?.key && typeof item.text === "string");
     if (!list.length) {
       return false;
@@ -175,19 +241,31 @@
       keys.push(item.key);
     }
     const ok = await put(data);
-    if (ok) {
-      const index = await indexKeys();
-      await saveIndex([...index, ...keys]);
+    if (!ok) {
+      return false;
     }
-    scheduleSweep();
-    return ok;
+    const index = await indexKeys();
+    const recent = Array.from(new Set(keys.filter((key) => typeof key === "string" && key.startsWith(KEY_PREFIX))));
+    const recentSet = new Set(recent);
+    const ordered = [...index.filter((key) => !recentSet.has(key)), ...recent];
+    const overflowCount = Math.max(0, ordered.length - MAX_ITEMS);
+    const drop = ordered.slice(0, overflowCount);
+    const keep = ordered.slice(overflowCount);
+    const removed = drop.length ? await remove(drop) : true;
+    const indexed = await saveIndex(keep);
+    if (!removed || !indexed) {
+      return false;
+    }
+    return true;
   }
 
-  function scheduleSweep() {
-    try {
-      chrome.alarms.create(ALARM, { periodInMinutes: 60 });
-    } catch {
-    }
+  function setMany(entries) {
+    const task = writeTask.then(
+      () => writeMany(entries),
+      () => writeMany(entries),
+    );
+    writeTask = task.then(() => undefined, () => undefined);
+    return task;
   }
 
   async function sweep() {
@@ -222,20 +300,6 @@
     await remove([INDEX_KEY]);
     return true;
   }
-
-  function installAlarm() {
-    try {
-      chrome.alarms.create(ALARM, { periodInMinutes: 60 });
-      chrome.alarms.onAlarm.addListener((alarm) => {
-        if (alarm?.name === ALARM) {
-          sweep().catch(() => {});
-        }
-      });
-    } catch {
-    }
-  }
-
-  installAlarm();
 
   Object.assign(api, {
     ready: true,

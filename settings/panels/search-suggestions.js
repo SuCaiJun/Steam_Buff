@@ -24,6 +24,12 @@
       ? options.fieldInput
       : (...args) => root.STSettingsFields?.fieldInput?.(...args) || "";
     const storage = options.storage || root.STSettings?.storage || {};
+    const dialog = typeof options.dialog === "function" ? options.dialog : () => Promise.resolve("");
+    const log = root.STLoggerFactory?.createLogger?.("settings", "search-suggestions-panel") || {
+      info() {},
+      warn() {},
+      error() {},
+    };
     const savePrompt = typeof options.savePrompt === "function" ? options.savePrompt : () => Promise.resolve();
     const onConfigChange = typeof options.onConfigChange === "function" ? options.onConfigChange : () => {};
     const getFields = typeof options.getFields === "function"
@@ -37,6 +43,31 @@
 
     function getConfig() {
       return { ...conf };
+    }
+
+    function syncInputs(shadow) {
+      shadow.querySelectorAll("[data-search-suggestion]").forEach((node) => {
+        const id = node.dataset.searchSuggestion;
+        if (!id) return;
+        node.value = String(conf[id] ?? "");
+      });
+    }
+
+    function setInputsDisabled(shadow, disabled) {
+      shadow.querySelectorAll("[data-search-suggestion]").forEach((node) => {
+        node.disabled = disabled;
+      });
+    }
+
+    function showSavePrompt(shadow, operationId) {
+      void Promise.resolve()
+        .then(() => savePrompt(shadow))
+        .catch((error) => {
+          log.warn("search-suggestions-settings-save-prompt-failed", "搜索联想设置已保存，但成功提示显示失败", {
+            operationId,
+            error,
+          });
+        });
     }
 
     function input(field) {
@@ -121,16 +152,62 @@
       if (!save) {
         return false;
       }
+      if (save.disabled) {
+        return true;
+      }
+      const previous = { ...conf };
       const next = read(shadow);
       conf = { ...conf, ...next };
       onConfigChange(conf);
-      storage.setSearchSuggestions?.(next)?.then?.((saved) => {
-        if (saved) {
-          conf = saved;
+      const startedAt = Date.now();
+      const operationId = root.STLoggerFactory?.createOperationId?.() || "";
+      log.info("search-suggestions-settings-save-start", "开始保存搜索联想设置", { operationId });
+      const oldText = save.textContent || "";
+      save.disabled = true;
+      save.textContent = "保存中...";
+      setInputsDisabled(shadow, true);
+      Promise.resolve()
+        .then(() => typeof storage.setSearchSuggestions === "function"
+          ? storage.setSearchSuggestions(next, { operationId })
+          : false)
+        .then((saved) => {
+          if (!saved || typeof saved !== "object") {
+            conf = { ...previous };
+            onConfigChange(conf);
+            syncInputs(shadow);
+            log.warn("search-suggestions-settings-save-failed", "搜索联想设置保存失败", {
+              operationId,
+              durationMs: Date.now() - startedAt,
+              errorCode: saved === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
+            });
+            dialog(shadow, { title: "保存失败", message: "搜索联想设置未能保存，请稍后重试。" });
+            return;
+          }
+          conf = { ...saved };
           onConfigChange(conf);
-        }
-        savePrompt(shadow);
-      });
+          syncInputs(shadow);
+          log.info("search-suggestions-settings-save-success", "搜索联想设置保存成功", {
+            operationId,
+            durationMs: Date.now() - startedAt,
+          });
+          showSavePrompt(shadow, operationId);
+        })
+        .catch((error) => {
+          conf = { ...previous };
+          onConfigChange(conf);
+          syncInputs(shadow);
+          log.error("search-suggestions-settings-save-failed", "搜索联想设置保存异常", {
+            operationId,
+            durationMs: Date.now() - startedAt,
+            error,
+          });
+          dialog(shadow, { title: "保存失败", message: "搜索联想设置保存异常，请稍后重试。" });
+        })
+        .finally(() => {
+          setInputsDisabled(shadow, false);
+          save.disabled = false;
+          save.textContent = oldText;
+        });
       return true;
     }
 

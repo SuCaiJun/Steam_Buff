@@ -52,7 +52,9 @@
         time: now(),
         ...msg,
       });
-    } catch {
+      return null;
+    } catch (error) {
+      return error;
     }
   }
 
@@ -254,20 +256,42 @@
     el.appendChild(toggle);
 
     input.addEventListener("change", () => {
+      const enabled = input.checked;
       const rid = `${now()}-${Math.random().toString(16).slice(2)}`;
+      const operationId = window.STLoggerFactory?.createOperationId?.() || "";
       s.rid = rid;
+      s.operationId = operationId;
       s.sentAt = now();
-      s.want = input.checked;
-      post(ch, {
+      s.want = enabled;
+      const postError = post(ch, {
         type: "set-enabled",
-        on: input.checked,
+        on: enabled,
         rid,
+        operationId,
       });
-      toast(input.checked ? "正在检查下载任务..." : "已关闭自动关机");
+      if (postError) {
+        log.error("download-auto-shutdown-toggle-failed", "下载完成自动关机开关消息发送失败", {
+          operationId,
+          enabled,
+          error: postError,
+        });
+        s.rid = "";
+        s.operationId = "";
+        s.sentAt = 0;
+        s.want = false;
+        toast("发送失败，请重试", "error");
+        paint(el, s.st || {
+          on: !enabled,
+          mon: false,
+          reason: enabled ? ST.OFF : ST.READY,
+        });
+        return;
+      }
+      toast(enabled ? "正在检查下载任务..." : "已关闭自动关机");
       paint(el, {
-        on: input.checked,
+        on: enabled,
         mon: false,
-        reason: input.checked ? ST.READY : ST.OFF,
+        reason: enabled ? ST.READY : ST.OFF,
       });
     });
 
@@ -512,6 +536,7 @@
         type: "set-enabled",
         on: true,
         rid: s.rid,
+        operationId: s.operationId || "",
       });
     }
 
@@ -534,11 +559,13 @@
         "download-auto-shutdown-frontend-timeout",
         "下载完成自动关机前端等待后台响应超时",
         {
+          operationId: s.operationId || "",
           rid: s.rid,
           elapsedMs: now() - s.sentAt,
         }
       );
       s.rid = "";
+      s.operationId = "";
       s.sentAt = 0;
       s.want = false;
     }
@@ -659,6 +686,7 @@
       if (rid && rid === s.rid) {
         toast(text(data), data.reason === ST.FAIL ? "error" : "info");
         s.rid = "";
+        s.operationId = "";
         s.sentAt = 0;
         s.want = false;
       }

@@ -166,9 +166,23 @@
       ? options.getFields
       : () => options.catalog?.thirdPartyServicesFields?.() || root.STSettings?.catalog?.thirdPartyServicesFields?.() || [];
     let conf = normalize(options.config || {}, getDefaults());
+    let persistedConf = clone(conf);
+    let publishingConfig = false;
 
     function setConfig(next) {
       conf = normalize(next || {}, getDefaults());
+      if (!publishingConfig) {
+        persistedConf = clone(conf);
+      }
+    }
+
+    function publishConfig() {
+      publishingConfig = true;
+      try {
+        onConfigChange(conf);
+      } finally {
+        publishingConfig = false;
+      }
     }
 
     function getConfig() {
@@ -203,12 +217,45 @@
       return normalize(next, getDefaults());
     }
 
+    function restoreInputs(shadow, source) {
+      shadow.querySelectorAll("[data-third-party-services]").forEach((node) => {
+        const id = node.dataset.thirdPartyServices;
+        if (!id) return;
+        const value = getPath(source, id, "");
+        if (node.type === "checkbox") {
+          node.checked = value === true;
+          return;
+        }
+        node.value = String(value ?? "");
+      });
+    }
+
+    function setInputsDisabled(shadow, disabled) {
+      shadow.querySelectorAll("[data-third-party-services]").forEach((node) => {
+        node.disabled = disabled;
+      });
+    }
+
+    function showSavePrompt(shadow, operationId) {
+      void Promise.resolve()
+        .then(() => savePrompt(shadow))
+        .catch((error) => {
+          log.warn("third-party-services-save-prompt-failed", "第三方服务配置已保存，但成功提示显示失败", {
+            operationId,
+            error,
+          });
+        });
+    }
+
     async function save(shadow, button, nextConfig, reason = "save") {
+      const previous = clone(persistedConf);
       const next = normalize(nextConfig || read(shadow), getDefaults());
       conf = next;
-      onConfigChange(conf);
+      publishConfig();
       const startedAt = Date.now();
+      const operationId = root.STLoggerFactory?.createOperationId?.() || "";
       log.info("third-party-services-save-start", "开始保存第三方服务配置", {
+        operationId,
         enabled: next.enabled === true,
         provider: next.defaultProvider,
         hasItadKey: hasItadKey(next),
@@ -217,37 +264,44 @@
       if (button) {
         button.disabled = true;
       }
+      setInputsDisabled(shadow, true);
       try {
-        const saved = await storage.setThirdPartyServices?.(next);
-        if (button) {
-          button.disabled = false;
-        }
-        if (saved === false) {
+        const saved = typeof storage.setThirdPartyServices === "function"
+          ? await storage.setThirdPartyServices(next, { operationId })
+          : false;
+        if (!saved || typeof saved !== "object") {
+          conf = previous;
+          publishConfig();
+          restoreInputs(shadow, conf);
           log.warn("third-party-services-save-failed", "第三方服务配置保存失败", {
+            operationId,
             enabled: next.enabled === true,
             provider: next.defaultProvider,
             hasItadKey: hasItadKey(next),
             durationMs: Date.now() - startedAt,
-            errorCode: "STORAGE_REJECTED",
+            errorCode: saved === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
           });
           dialog(shadow, { title: "保存失败", message: "第三方服务配置保存失败，请稍后重试。" });
           return false;
         }
-        conf = normalize(saved || next, getDefaults());
-        onConfigChange(conf);
+        conf = normalize(saved, getDefaults());
+        persistedConf = clone(conf);
+        publishConfig();
         log.info("third-party-services-save-success", "第三方服务配置保存成功", {
+          operationId,
           enabled: conf.enabled === true,
           provider: conf.defaultProvider,
           hasItadKey: hasItadKey(conf),
           durationMs: Date.now() - startedAt,
         });
-        savePrompt(shadow);
+        showSavePrompt(shadow, operationId);
         return true;
       } catch (error) {
-        if (button) {
-          button.disabled = false;
-        }
+        conf = previous;
+        publishConfig();
+        restoreInputs(shadow, conf);
         log.error("third-party-services-save-failed", "第三方服务配置保存异常", {
+          operationId,
           enabled: next.enabled === true,
           provider: next.defaultProvider,
           hasItadKey: hasItadKey(next),
@@ -257,18 +311,25 @@
         });
         dialog(shadow, { title: "保存失败", message: "第三方服务配置保存异常，请稍后重试。" });
         return false;
+      } finally {
+        setInputsDisabled(shadow, false);
+        if (button) {
+          button.disabled = false;
+        }
       }
     }
 
     async function testConnection(shadow, button) {
       const next = read(shadow);
       conf = next;
-      onConfigChange(conf);
+      publishConfig();
       const key = String(next.isthereanydeal?.key || "").trim();
       const id = requestId();
+      const operationId = root.STLoggerFactory?.createOperationId?.() || "";
 
       if (!key) {
         log.warn("itad-test-failed", "ITAD 连接测试缺少 API Key", {
+          operationId,
           requestId: id,
           status: 0,
           durationMs: 0,
@@ -286,6 +347,7 @@
       }
       const startedAt = Date.now();
       log.info("itad-test-start", "开始测试 ITAD 连接", {
+        operationId,
         requestId: id,
         hasItadKey: true,
       });
@@ -300,11 +362,14 @@
           allowHttpError: true,
           timeoutMs: TEST_TIMEOUT_MS,
           label: "ITAD 测试接口",
+          operationId,
+          requestId: id,
         });
         const status = Number(response?.status) || 0;
         if (response?.ok === false) {
           const failure = testFailureFromStatus(status);
           log.warn("itad-test-failed", "ITAD 连接测试失败", {
+            operationId,
             requestId: id,
             status,
             durationMs: Date.now() - startedAt,
@@ -316,6 +381,7 @@
         }
         parseTestPayload(response);
         log.info("itad-test-success", "ITAD 连接测试成功", {
+          operationId,
           requestId: id,
           status,
           durationMs: Date.now() - startedAt,
@@ -327,6 +393,7 @@
           ? { code: "RESPONSE_SHAPE_INVALID", message: "ITAD 测试接口响应格式异常。", retryable: false }
           : testFailureFromStatus(status);
         log[failure.retryable ? "warn" : "error"]("itad-test-failed", "ITAD 连接测试异常", {
+          operationId,
           requestId: id,
           status,
           durationMs: Date.now() - startedAt,
@@ -388,6 +455,9 @@
       if (!submit) {
         return false;
       }
+      if (submit.disabled) {
+        return true;
+      }
       save(shadow, submit);
       return true;
     }
@@ -398,7 +468,7 @@
         return false;
       }
       conf = read(shadow);
-      onConfigChange(conf);
+      publishConfig();
       return true;
     }
 

@@ -215,6 +215,7 @@
             }
           } else {
             log.warn("settings-bus-write-failed", "设置总线写入失败", {
+              operationId: text(options.operationId || ""),
               owner: ownerOf(options),
               reason: text(options.reason || "write"),
               keyCount: keys.length,
@@ -225,6 +226,7 @@
         });
       } catch (error) {
         log.warn("settings-bus-write-failed", "设置总线写入失败", {
+          operationId: text(options.operationId || ""),
           owner: ownerOf(options),
           reason: text(options.reason || "write"),
           keyCount: keys.length,
@@ -257,6 +259,7 @@
             }
           } else {
             log.warn("settings-bus-remove-failed", "设置总线删除失败", {
+              operationId: text(options.operationId || ""),
               owner: ownerOf(options),
               reason: text(options.reason || "remove"),
               keyCount: cleanKeys.length,
@@ -267,6 +270,7 @@
         });
       } catch (error) {
         log.warn("settings-bus-remove-failed", "设置总线删除失败", {
+          operationId: text(options.operationId || ""),
           owner: ownerOf(options),
           reason: text(options.reason || "remove"),
           keyCount: cleanKeys.length,
@@ -336,6 +340,20 @@
     return keys.some(key => item.keys.includes(key) || item.prefixes.some(prefix => key.startsWith(prefix)));
   }
 
+  function reportSubscriberFailure(item, event, error) {
+    log.warn("settings-bus-subscriber-failed", "设置订阅回调失败", {
+      owner: item.owner,
+      key: item.key,
+      reason: event.reason,
+      keyCount: event.changedKeys.length,
+      error,
+    });
+    runtime()?.markError?.("settings-bus-subscriber-failed", error, {
+      owner: item.owner,
+      key: item.key,
+    });
+  }
+
   function publish(input = {}) {
     const event = {
       type: EVENT,
@@ -366,19 +384,14 @@
         continue;
       }
       try {
-        item.callback(event);
+        const result = item.callback(event);
+        if (result && typeof result.then === "function") {
+          Promise.resolve(result).catch((error) => {
+            reportSubscriberFailure(item, event, error);
+          });
+        }
       } catch (error) {
-        log.warn("settings-bus-subscriber-failed", "设置订阅回调失败", {
-          owner: item.owner,
-          key: item.key,
-          reason: event.reason,
-          keyCount: event.changedKeys.length,
-          error,
-        });
-        runtime()?.markError?.("settings-bus-subscriber-failed", error, {
-          owner: item.owner,
-          key: item.key,
-        });
+        reportSubscriberFailure(item, event, error);
       }
     }
     return event;
@@ -420,12 +433,14 @@
     const owner = ownerOf(options);
     const key = text(options.key || "settings");
     const id = `${owner}:${key}:${now()}:${Math.random().toString(16).slice(2)}`;
+    const keys = list(options.keys);
+    const prefixes = list(options.prefixes);
     const item = {
       id,
       owner,
       key,
-      keys: list(options.keys),
-      prefixes: list(options.prefixes?.length ? options.prefixes : [PREFIX]),
+      keys,
+      prefixes: prefixes.length ? prefixes : (keys.length ? [] : [PREFIX]),
       callback,
       createdAt: now(),
     };

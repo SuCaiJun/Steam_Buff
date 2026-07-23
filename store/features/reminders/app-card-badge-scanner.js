@@ -364,7 +364,7 @@
     if (!target) {
       const candidateCount = targetsFor(scopes).length;
       if (shouldLogMissingTarget(scopes, candidateCount)) {
-        log?.warn?.("app-card-badge-target-missing", "商店 app 卡片角标监听目标缺失", pageMeta({
+        log?.debug?.("app-card-badge-target-missing", "商店 app 卡片角标监听目标缺失", pageMeta({
           scopes: Array.from(scopes).join(","),
           candidateCount,
         }));

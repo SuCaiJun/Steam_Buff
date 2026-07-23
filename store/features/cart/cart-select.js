@@ -33,6 +33,8 @@
   let restorePromptTimer = null;
   let emptyScanRetries = 0;
   let state = {};
+  let pendingSelectionState = null;
+  let selectionSaveTask = null;
   let items = [];
   let meta = {};
   let restoring = false;
@@ -42,6 +44,7 @@
   let lastBulkAnchorMissing = false;
   let lastSideAnchorMissing = false;
   let observerTargetMissingLogged = false;
+  let restoreCleanupFailureLogged = false;
 
   function onCartPage() {
     return MATCH?.isSteamStoreHost?.(location.hostname) === true && /^\/cart\/?$/.test(location.pathname);
@@ -65,17 +68,31 @@
 
   function put(data) {
     const area = box();
-    if (!area) return Promise.resolve(false);
-    return new Promise(resolve => {
-      area.set(data, () => resolve(!chrome.runtime.lastError));
+    if (!area) return Promise.reject(new Error("购物车本地存储不可用"));
+    return new Promise((resolve, reject) => {
+      area.set(data, () => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message || "购物车状态保存失败"));
+          return;
+        }
+        resolve(true);
+      });
     });
   }
 
   function remove(keys) {
     const area = box();
-    if (!area) return Promise.resolve(false);
-    return new Promise(resolve => {
-      area.remove(keys, () => resolve(!chrome.runtime.lastError));
+    if (!area) return Promise.reject(new Error("购物车本地存储不可用"));
+    return new Promise((resolve, reject) => {
+      area.remove(keys, () => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message || "购物车状态清理失败"));
+          return;
+        }
+        resolve(true);
+      });
     });
   }
 
@@ -84,7 +101,20 @@
     state = rt[SEL_KEY] && typeof rt[SEL_KEY] === "object" ? rt[SEL_KEY] : {};
     const restore = validBatches(rt[RESTORE_KEY]);
     if (Array.isArray(rt[RESTORE_KEY]) && restore.length !== rt[RESTORE_KEY].length) {
-      saveBatches(restore).catch(() => {});
+      saveBatches(restore)
+        .then(() => {
+          restoreCleanupFailureLogged = false;
+        })
+        .catch((error) => {
+          if (restoreCleanupFailureLogged) {
+            return;
+          }
+          restoreCleanupFailureLogged = true;
+          log.warn("cart-select-restore-cleanup-failed", "购物车过期暂存数据清理失败", {
+            staleCount: Math.max(0, (rt[RESTORE_KEY] || []).length - restore.length),
+            error,
+          });
+        });
     }
     return {
       selection: state,
@@ -92,8 +122,9 @@
     };
   }
 
-  function saveState() {
-    return put({ [SEL_KEY]: state });
+  async function saveState(nextState) {
+    await put({ [SEL_KEY]: nextState });
+    return true;
   }
 
   function expiredBatch(batch) {
@@ -116,7 +147,43 @@
   }
 
   function checked(item) {
-    return state[item.key] !== false;
+    const current = pendingSelectionState || state;
+    return current[item.key] !== false;
+  }
+
+  function setSelectionControlsDisabled(disabled) {
+    document.querySelectorAll(".st_cart_select_check input[data-st-cart-key], [data-st-cart-bulk]")
+      .forEach(control => {
+        control.disabled = disabled;
+      });
+  }
+
+  function commitSelection(nextState) {
+    if (selectionSaveTask) {
+      const error = new Error("购物车选择状态正在保存");
+      error.code = "CART_SELECTION_SAVE_PENDING";
+      return Promise.reject(error);
+    }
+
+    const snapshot = { ...nextState };
+    pendingSelectionState = snapshot;
+    const task = saveState(snapshot)
+      .then(() => {
+        state = snapshot;
+        return true;
+      })
+      .finally(() => {
+        pendingSelectionState = null;
+        selectionSaveTask = null;
+        if (started && onCartPage()) {
+          renderRows();
+          setSelectionControlsDisabled(false);
+        }
+      });
+    selectionSaveTask = task;
+    renderRows();
+    setSelectionControlsDisabled(true);
+    return task;
   }
 
   function checkoutButtons() {
@@ -321,6 +388,7 @@
     const input = document.createElement("input");
     input.type = "checkbox";
     input.checked = checked(item);
+    input.disabled = !!selectionSaveTask;
     input.dataset.stCartKey = item.key;
 
     const mark = document.createElement("span");
@@ -332,20 +400,40 @@
     row.classList.toggle("st_cart_select_off", !input.checked);
 
     input.addEventListener("change", () => {
-      if (input.checked) {
-        delete state[item.key];
-      } else {
-        state[item.key] = false;
+      if (selectionSaveTask) {
+        syncCheckbox(row, item, input);
+        return;
       }
-      row.classList.toggle("st_cart_select_off", !input.checked);
-      saveState().catch(() => {});
-      updateSideSummary();
-      log.info("cart-select-row-toggle", "用户切换购物车项目支付状态", {
-        checked: input.checked,
-        totalCount: items.length,
-        selectedCount: selectedItems().length,
-        skippedCount: skippedItems().length,
-      });
+      const operationId = window.STLoggerFactory?.createOperationId?.() || "";
+      const next = { ...state };
+      const nextChecked = input.checked;
+      if (nextChecked) {
+        delete next[item.key];
+      } else {
+        next[item.key] = false;
+      }
+      const attemptedSelectedCount = items.filter(candidate => next[candidate.key] !== false).length;
+      commitSelection(next)
+        .then(() => {
+          log.info("cart-select-row-toggle", "用户切换购物车项目支付状态", {
+            operationId,
+            checked: nextChecked,
+            totalCount: items.length,
+            selectedCount: selectedItems().length,
+            skippedCount: skippedItems().length,
+          });
+        })
+        .catch((error) => {
+          log.warn("cart-select-state-save-failed", "购物车项目支付状态保存失败", {
+            operationId,
+            checked: nextChecked,
+            totalCount: items.length,
+            attemptedSelectedCount,
+            restoredSelectedCount: selectedItems().length,
+            error,
+          });
+          toast("购物车选择状态保存失败，已恢复原状态", true);
+        });
     });
   }
 
@@ -355,28 +443,23 @@
   }
 
   async function setAllSelected(value) {
-    state = {};
-    if (value) {
-      await saveState();
-    } else {
+    const next = {};
+    if (!value) {
       for (const item of items) {
-        state[item.key] = false;
+        next[item.key] = false;
       }
-      await saveState();
     }
-    renderRows();
+    return commitSelection(next);
   }
 
   async function invertSelection() {
     const next = {};
     for (const item of items) {
-      if (checked(item)) {
+      if (state[item.key] !== false) {
         next[item.key] = false;
       }
     }
-    state = next;
-    await saveState();
-    renderRows();
+    return commitSelection(next);
   }
 
   function ensureBulkActions() {
@@ -411,15 +494,18 @@
         btn.className = "st_cart_select_bulk_btn";
         btn.dataset.stCartBulk = id;
         btn.textContent = label;
+        btn.disabled = !!selectionSaveTask;
         wrap.appendChild(btn);
       }
 
       wrap.addEventListener("click", event => {
         const btn = event.target.closest("[data-st-cart-bulk]");
-        if (!btn) return;
+        if (!btn || btn.disabled || selectionSaveTask) return;
         const action = btn.dataset.stCartBulk;
         const startedAt = Date.now();
+        const operationId = window.STLoggerFactory?.createOperationId?.() || "";
         log.info("cart-select-bulk-action-start", "开始处理购物车批量选择", {
+          operationId,
           action,
           totalCount: items.length,
           selectedCount: selectedItems().length,
@@ -431,6 +517,7 @@
             : invertSelection();
         run.then(() => {
           log.info("cart-select-bulk-action-success", "购物车批量选择完成", {
+            operationId,
             action,
             totalCount: items.length,
             selectedCount: selectedItems().length,
@@ -438,6 +525,7 @@
           });
         }).catch((error) => {
           log.warn("cart-select-bulk-action-failed", "购物车批量选择失败", {
+            operationId,
             action,
             totalCount: items.length,
             selectedCount: selectedItems().length,
@@ -878,15 +966,24 @@
   }
 
   async function clearSelection(keys) {
+    if (selectionSaveTask) {
+      try {
+        await selectionSaveTask;
+      } catch (error) {
+        // 发起选择事务的用户操作已经记录失败；这里仅等待回滚完成后重新计算清理状态。
+        void error;
+      }
+    }
+    const next = { ...state };
     let changed = false;
     for (const key of keys) {
-      if (Object.prototype.hasOwnProperty.call(state, key)) {
-        delete state[key];
+      if (Object.prototype.hasOwnProperty.call(next, key)) {
+        delete next[key];
         changed = true;
       }
     }
     if (changed) {
-      await saveState();
+      await commitSelection(next);
     }
   }
 
@@ -1115,13 +1212,16 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     const startedAt = Date.now();
+    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
     log.info("cart-remove-all-action-start", "用户点击移除购物车全部项目", {
+      operationId,
       totalCount: items.length,
       path: location.pathname,
     });
     showRemoveAllConfirm().then(ok => {
       if (!ok) {
         log.info("cart-remove-all-action-cancel", "用户取消移除购物车全部项目", {
+          operationId,
           totalCount: items.length,
           durationMs: Date.now() - startedAt,
         });
@@ -1130,6 +1230,7 @@
       btn.dataset.stCartRemoveAllPass = "1";
       btn.click();
       log.info("cart-remove-all-action-success", "已放行 Steam 原生移除全部操作", {
+        operationId,
         totalCount: items.length,
         durationMs: Date.now() - startedAt,
       });
@@ -1138,6 +1239,7 @@
       }, 800);
     }).catch((error) => {
       log.warn("cart-remove-all-action-failed", "移除购物车全部项目确认失败", {
+        operationId,
         totalCount: items.length,
         durationMs: Date.now() - startedAt,
         error,

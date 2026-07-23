@@ -130,16 +130,21 @@
     api.styles?.ensureFeatureStyle?.("game-notes");
   }
 
-  async function authedPost(url, body) {
+  async function authedPost(url, body, diagnostics = {}) {
     if (!authClient) throw new Error("请先在设置中登录");
-    const { body: data, code } = await authClient.authedPost(url, body, { throwOnMissingAuth: true });
+    const { body: data, code } = await authClient.authedPost(url, body, {
+      throwOnMissingAuth: true,
+      operationId: diagnostics.operationId || "",
+    });
     if (code < 200 || code >= 300) throw new Error(data?.message || `请求失败：${code}`);
     return data || {};
   }
 
-  async function authedDelete(url, body) {
+  async function authedDelete(url, body, diagnostics = {}) {
     if (!authClient) throw new Error("请先在设置中登录");
-    const auth = await authClient.readyAuth();
+    const operationId = diagnostics.operationId || "";
+    const requestId = root.STLoggerFactory?.createRequestId?.() || "";
+    const auth = await authClient.readyAuth({ operationId, requestId });
     if (!auth?.access_token) throw new Error("请先在设置中登录");
     const response = await authClient.fetchBg({
       url,
@@ -151,6 +156,8 @@
       },
       data: body || {},
       allowHttpError: true,
+      operationId,
+      requestId,
     });
     const data = authClient.parseJson(response.data);
     const code = Number(data?.code) || response.status || 0;
@@ -508,12 +515,13 @@
     return true;
   }
 
-  async function saveNote(appid, steamName, value) {
+  async function saveNote(appid, steamName, value, diagnostics = {}) {
     const noteText = String(value || "").trim();
     const startedAt = Date.now();
+    const operationId = String(diagnostics.operationId || "");
     const body = noteText
-      ? await authedPost(SAVE_URL, { appid, steam_name: steamName || "", note: noteText })
-      : await authedDelete(SAVE_URL, { appid });
+      ? await authedPost(SAVE_URL, { appid, steam_name: steamName || "", note: noteText }, { operationId })
+      : await authedDelete(SAVE_URL, { appid }, { operationId });
     cache.set(Number(appid), {
       note: String(body.data?.note || ""),
       steamName: String(body.data?.steam_name || steamName || ""),
@@ -521,6 +529,7 @@
     });
     updateVisible(Number(appid));
     log.info("game-notes-save-success", "游戏备注保存完成", {
+      operationId,
       appid: Number(appid),
       noteLength: noteText.length,
       durationMs: Date.now() - startedAt,

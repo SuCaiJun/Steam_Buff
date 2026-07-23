@@ -249,7 +249,7 @@
       return true;
     } catch (error) {
       logRuntime("error", event, "翻译运行失败", {
-        error: errorText(error),
+        error,
       });
       return false;
     }
@@ -2206,9 +2206,11 @@
     const to = langTo(ctx.trans, ctx.conf);
     const service = effectiveSelService(ctx.trans, ctx.conf);
     const startedAt = Date.now();
+    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
     hideSelAction();
     showSelTip("正在翻译...", ctx.point, "loading", ctx.conf);
     logSel("info", "selection-request-start", "划词翻译开始", {
+      operationId,
       service,
       from,
       to,
@@ -2223,6 +2225,7 @@
         if (seq === selSeq) {
           showSelTip(value || "无翻译结果", ctx.point, "", ctx.conf);
           logSel("info", "selection-request-success", "划词翻译完成", {
+            operationId,
             service,
             from,
             to,
@@ -2235,11 +2238,13 @@
         if (seq === selSeq) {
           showSelTip(error?.message || "划词翻译失败", ctx.point, "error", ctx.conf);
           logSel("error", "selection-request-failed", "划词翻译失败", {
+            operationId,
             service,
             from,
             to,
             durationMs: Date.now() - startedAt,
             reason: errorText(error),
+            error,
           });
         }
       });

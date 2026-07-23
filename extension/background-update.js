@@ -207,7 +207,7 @@
     return box;
   }
 
-  async function fetchLatest(manual) {
+  async function fetchLatest(manual, operationId = "") {
     const response = await fetchWithTimeout(CFG.urls.updateLatest, {
       method: "GET",
       headers: { Accept: "application/json" },
@@ -226,6 +226,7 @@
     await writeCache(result);
     if (manual) {
       log("info", "update-manual-check-success", "手动检查更新成功", {
+        operationId,
         current: result.current,
         remote: result.remote,
         hasNew: result.hasNew,
@@ -264,16 +265,18 @@
 
   async function updateCheck(request, sender, sendResponse) {
     const manual = request?.manual === true;
+    const operationId = manual ? root.STLoggerFactory?.createOperationId?.() || "" : "";
     try {
       if (manual) {
-        log("info", "update-manual-check-start", "开始手动检查更新");
-        sendResponse({ success: true, data: await fetchLatest(true) });
+        log("info", "update-manual-check-start", "开始手动检查更新", { operationId });
+        sendResponse({ success: true, data: await fetchLatest(true, operationId) });
         return;
       }
       sendResponse({ success: true, data: await autoCheck() });
     } catch (error) {
       if (manual) {
         log("error", "update-manual-check-failed", "手动检查更新失败", {
+          operationId,
           error,
         });
       }

@@ -156,7 +156,7 @@
     });
   }
 
-  function put(data) {
+  function put(data, diagnostics = {}) {
     const box = area();
     if (!box) {
       return Promise.resolve(false);
@@ -167,6 +167,7 @@
           const ok = !root.chrome?.runtime?.lastError;
           if (!ok) {
             log.warn("i18n-storage-write-failed", "界面语言保存失败", {
+              operationId: String(diagnostics?.operationId || ""),
               keyCount: Object.keys(data || {}).length,
               error: root.chrome.runtime.lastError,
             });
@@ -175,6 +176,7 @@
         });
       } catch (error) {
         log.warn("i18n-storage-write-failed", "界面语言保存失败", {
+          operationId: String(diagnostics?.operationId || ""),
           keyCount: Object.keys(data || {}).length,
           error,
         });
@@ -287,18 +289,28 @@
     }
   }
 
-  async function setLocale(value) {
+  async function setLocaleResult(value, diagnostics = {}) {
     const next = normalizeLocale(value);
+    const operationId = String(diagnostics?.operationId || "");
     await Promise.all([load(DEFAULT_LOCALE), load(next)]);
     current = next;
-    const ok = await put({ [STORAGE_KEY]: next });
+    const ok = await put({ [STORAGE_KEY]: next }, { operationId });
     if (ok === false) {
       log.warn("i18n-locale-save-failed", "界面语言保存失败", {
+        operationId,
         locale: next,
       });
     }
     emitChange(next);
-    return current;
+    return {
+      locale: current,
+      persisted: ok !== false,
+    };
+  }
+
+  async function setLocale(value, diagnostics = {}) {
+    const result = await setLocaleResult(value, diagnostics);
+    return result.locale;
   }
 
   function applySnapshot(value) {
@@ -372,6 +384,7 @@
     normalizeLocale,
     ready: () => readyTask,
     setLocale,
+    setLocaleResult,
     t,
     text,
   });

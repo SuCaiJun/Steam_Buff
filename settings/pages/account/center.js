@@ -90,7 +90,10 @@
         rt.center = cached;
       }
       const startedAt = Date.now();
+      const operationId = String(opts.operationId || "")
+        || (opts.force === true ? root.STLoggerFactory?.createOperationId?.() || "" : "");
       log.info("account-center-sync-start", "开始同步用户中心", {
+        operationId,
         force: opts.force === true,
         hasCached: !!cached,
       });
@@ -99,16 +102,16 @@
       refresh(ctx);
       try {
         const auth = getAuth();
-        let current = await auth.readyAuth(ctx);
-        let res = await api.request("/user/center", null, current.access_token, ctx, "GET");
+        let current = await auth.readyAuth(ctx, { operationId });
+        let res = await api.request("/user/center", null, current.access_token, ctx, "GET", api.urls.steamBuffBase, { operationId });
         let code = Number(res.body?.code) || res.status || 0;
         if (code === 401 && current?.refresh_token) {
-          current = await auth.refreshAuth(ctx);
-          res = await api.request("/user/center", null, current.access_token, ctx, "GET");
+          current = await auth.refreshAuth(ctx, { operationId });
+          res = await api.request("/user/center", null, current.access_token, ctx, "GET", api.urls.steamBuffBase, { operationId });
           code = Number(res.body?.code) || res.status || 0;
         }
         if (code === 401) {
-          await auth.clearAuthState(ctx);
+          await auth.clearAuthState(ctx, { operationId });
           throw new Error(res.body?.message || "登录已过期，请重新登录");
         }
         if (code < 200 || code >= 300) {
@@ -117,13 +120,23 @@
 
         rt.center = res.body || null;
         cacheCenter(rt.center, current);
-        await ctx.storage?.setMembership?.(profile().membershipSnapshot(profile().normalizeData(rt.center, current)));
+        if (typeof ctx.storage?.setMembership !== "function") {
+          throw new Error("会员状态存储未初始化");
+        }
+        const membership = await ctx.storage.setMembership(
+          profile().membershipSnapshot(profile().normalizeData(rt.center, current)),
+          { operationId }
+        );
+        if (!membership) {
+          throw new Error("会员状态保存失败");
+        }
         await auth.storeAuth(ctx, {
           ...current,
           last_used_at: Date.now(),
-        });
+        }, { operationId });
         rt.centerError = "";
         log.info("account-center-sync-success", "用户中心同步成功", {
+          operationId,
           durationMs: Date.now() - startedAt,
           membershipActive: profile().membershipSnapshot(profile().normalizeData(rt.center, current)).active === true,
         });
@@ -134,6 +147,7 @@
           rt.center = null;
         }
         log.warn("account-center-sync-failed", "用户中心同步失败", {
+          operationId,
           error,
           durationMs: Date.now() - startedAt,
           hasAuth: !!(rt.auth?.access_token || rt.auth?.refresh_token),

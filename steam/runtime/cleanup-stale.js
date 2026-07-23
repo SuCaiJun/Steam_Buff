@@ -83,7 +83,7 @@
     if (!api?.runtime) {
       return;
     }
-    // ⚠️ 历史问题：旧版本曾在菜单/Supernav 启动 runtime 等待循环，排除窗口重命中时必须主动清掉。
+    // 历史问题：旧版本曾在菜单/Supernav 启动 runtime 等待循环，排除窗口重命中时必须主动清掉。
     clearTimer(api.runtime.timer);
     api.runtime.timer = 0;
     api.runtime.started = false;

@@ -693,7 +693,14 @@ function claimFreeDLCsBatch(freeDLCs) {
                 durationMs: Date.now() - startedAt,
             });
             setTimeout(() => {
-                refreshDLCSection().catch(() => {});
+                refreshDLCSection().catch(error => {
+                    log.warn("dlc-refresh-after-claim-failed", "领取完成后刷新DLC区块失败", {
+                        count: freeDLCs.length,
+                        successCount,
+                        failCount,
+                        error,
+                    });
+                });
             }, 1200);
             return;
         }
@@ -780,7 +787,8 @@ function addCartButton(dlcSection) {
         }
     }
 
-    link.addEventListener("click", () => {
+    link.addEventListener("click", (event) => {
+        event.preventDefault();
         addSelectedDLCToCart(dlcSection);
     });
 
@@ -841,9 +849,10 @@ function updateCartButton(dlcSection) {
     }
 }
 
-function addSelectedDLCToCart(dlcSection) {
+async function addSelectedDLCToCart(dlcSection) {
     const cartBtn = document.getElementById("es_selected_btn");
     if (!cartBtn || !cartBtn.dataset.selectedSubids) return;
+    if (cartBtn.dataset.adding === "1") return;
 
     updateCartButton(dlcSection);
     const subids = cartBtn.dataset.selectedSubids ? JSON.parse(cartBtn.dataset.selectedSubids) : [];
@@ -853,24 +862,41 @@ function addSelectedDLCToCart(dlcSection) {
     }
 
     const startedAt = Date.now();
+    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
+    const link = document.getElementById("es_add_to_cart_btn");
+    const label = link?.querySelector("span");
+    const originalLabel = label?.textContent || "";
+    cartBtn.dataset.adding = "1";
+    link?.classList.add("es_dlc_option_disabled");
+    link?.setAttribute("aria-disabled", "true");
+    if (label) label.textContent = "正在加入购物车...";
     log.info("dlc-cart-add-start", "开始将已选 DLC 加入购物车", {
+        operationId,
         count: subids.length,
     });
     try {
-        dlcBridge.addToCart(subids);
+        await dlcBridge.addToCart(subids, operationId);
         markCarted(subids);
         updateCartButton(dlcSection);
         log.info("dlc-cart-add-success", "已选 DLC 已加入购物车", {
+            operationId,
             count: subids.length,
             durationMs: Date.now() - startedAt,
         });
     } catch (error) {
         log.error("dlc-cart-add-failed", "已选 DLC 加入购物车失败", {
+            operationId,
             count: subids.length,
             durationMs: Date.now() - startedAt,
             error,
         });
+        showDLCNotice("加入购物车失败", "请稍后重试，或刷新当前商店页后再试。", true, 5200);
         return false;
+    } finally {
+        delete cartBtn.dataset.adding;
+        link?.classList.remove("es_dlc_option_disabled");
+        link?.removeAttribute("aria-disabled");
+        if (label) label.textContent = originalLabel;
     }
 }
 

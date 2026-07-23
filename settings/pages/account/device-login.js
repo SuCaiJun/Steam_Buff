@@ -45,6 +45,12 @@
       const delay = Math.max(1, Number(rt.device.interval) || 3) * 1000;
       rt.pollTimer = window.setTimeout(() => {
         poll(shadow, ctx).catch((error) => {
+          const startedAt = Number(rt.device?.started_at) || Date.now();
+          log.error("device-login-failed", "设备码登录轮询失败", {
+            operationId: rt.device?.operationId || "",
+            error,
+            durationMs: Date.now() - startedAt,
+          });
           rt.busy = false;
           setStatus(shadow, error?.message || String(error));
         });
@@ -56,6 +62,7 @@
         return;
       }
       const startedAt = Date.now();
+      const operationId = root.STLoggerFactory?.createOperationId?.() || "";
       stopPoll();
       rt.busy = true;
       rt.device = null;
@@ -65,10 +72,10 @@
       rt.msg = "正在获取验证码";
       rt.copyMsg = "";
       clearCopyTimer();
-      log.info("device-login-start", "开始设备码登录");
+      log.info("device-login-start", "开始设备码登录", { operationId });
       refresh(ctx);
       try {
-        const res = await api.request("/auth/device/start", { device_name: ctx.deviceName() }, "", ctx, "POST", api.urls.loginAuthBase);
+        const res = await api.request("/auth/device/start", { device_name: ctx.deviceName() }, "", ctx, "POST", api.urls.loginAuthBase, { operationId });
         if (!api.okCode(res) || !res.body?.device_code) {
           throw new Error(res.body?.message || "获取验证码失败");
         }
@@ -79,10 +86,12 @@
           interval: res.body.interval,
           expires_at: Date.now() + Math.max(1, Number(res.body.expires_in) || 600) * 1000,
           started_at: startedAt,
+          operationId,
         };
         rt.busy = false;
         rt.msg = "等待浏览器授权";
         log.info("device-login-code-success", "设备码获取成功", {
+          operationId,
           interval: Number(rt.device.interval) || 0,
           durationMs: Date.now() - startedAt,
         });
@@ -93,6 +102,7 @@
         rt.msg = error?.message || String(error);
         rt.loadError = "数据加载失败，点击重试";
         log.error("device-login-failed", "设备码登录启动失败", {
+          operationId,
           error,
           durationMs: Date.now() - startedAt,
         });
@@ -104,6 +114,7 @@
       if (!rt.device) {
         return;
       }
+      const operationId = rt.device.operationId || "";
       if (Date.now() >= Number(rt.device.expires_at)) {
         const startedAt = Number(rt.device.started_at) || Date.now();
         rt.busy = false;
@@ -112,6 +123,7 @@
         clearCopyTimer();
         rt.device = null;
         log.warn("device-login-failed", "设备码已过期", {
+          operationId,
           durationMs: Date.now() - startedAt,
         });
         refresh(ctx);
@@ -119,7 +131,7 @@
       }
 
       const startedAt = Number(rt.device.started_at) || Date.now();
-      const res = await api.request("/auth/device/token", { device_code: rt.device.device_code }, "", ctx, "POST", api.urls.loginAuthBase);
+      const res = await api.request("/auth/device/token", { device_code: rt.device.device_code }, "", ctx, "POST", api.urls.loginAuthBase, { operationId });
       const code = Number(res.body?.code) || res.status || 0;
       if (code === 202) {
         setStatus(shadow, "等待浏览器授权");
@@ -133,6 +145,7 @@
         clearCopyTimer();
         rt.device = null;
         log.error("device-login-failed", "设备码登录失败", {
+          operationId,
           status: code,
           reason: res.body?.message || "登录失败",
           durationMs: Date.now() - startedAt,
@@ -141,7 +154,11 @@
         return;
       }
 
-      await auth.storeAuth(ctx, root.STSettingsAccountAuth.nextAuth(res.body, rt.auth || {}));
+      await auth.storeAuth(
+        ctx,
+        root.STSettingsAccountAuth.nextAuth(res.body, rt.auth || {}),
+        { operationId }
+      );
       rt.busy = false;
       rt.msg = "登录成功";
       rt.loadError = "";
@@ -149,11 +166,13 @@
       clearCopyTimer();
       rt.device = null;
       log.info("device-login-success", "设备码登录成功", {
+        operationId,
         durationMs: Date.now() - startedAt,
       });
       refresh(ctx);
-      getCenter()?.syncCenter?.(shadow, ctx).catch((error) => {
+      getCenter()?.syncCenter?.(shadow, ctx, { operationId }).catch((error) => {
         log.warn("account-center-sync-unhandled", "用户中心同步兜底失败", {
+          operationId,
           source: "device-login",
           error,
         });

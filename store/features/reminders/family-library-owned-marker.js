@@ -849,12 +849,15 @@
   async function refreshFamilyLibrary(source) {
     if (refreshInFlight) return refreshInFlight;
     const requestId = rid();
+    const operationId = String(source || "").endsWith("-auto-refresh")
+      ? ""
+      : window.STLoggerFactory?.createOperationId?.() || "";
     const startedAt = Date.now();
-    log?.info?.("family-library-refresh-start", "家庭组游戏库刷新开始", pageMeta({ rid: requestId, source }));
+    log?.info?.("family-library-refresh-start", "家庭组游戏库刷新开始", pageMeta({ operationId, rid: requestId, source }));
     refreshInFlight = (async () => {
       const refreshSettings = await familyRefreshSettings();
       const storeUser = readStoreUserConfig();
-      const family = await api.familyLibrary.fetchFamilyGroup({ accessToken: storeUser.accessToken, rid: requestId });
+      const family = await api.familyLibrary.fetchFamilyGroup({ accessToken: storeUser.accessToken, operationId, rid: requestId });
       const groupId = String(family?.response?.family_groupid || "");
       const group = family?.response?.family_group || {};
       if (!groupId || groupId === "0") {
@@ -864,12 +867,13 @@
       }
       const appsData = await api.familyLibrary.fetchSharedLibraryApps({
         accessToken: storeUser.accessToken,
+        operationId,
         familyGroupId: groupId,
         rid: requestId,
       });
       const apps = appsData?.response?.apps || [];
       const members = Array.isArray(group.members) ? group.members : [];
-      const namesBySteamId = await fetchMemberNames(storeUser.accessToken, collectOwnerSteamIds(members, apps), requestId);
+      const namesBySteamId = await fetchMemberNames(storeUser.accessToken, collectOwnerSteamIds(members, apps), requestId, operationId);
       const cache = buildCache({
         accountSteamId: storeUser.accountSteamId,
         familyGroupId: groupId,
@@ -882,6 +886,7 @@
       try {
         const saved = await api.familyLibraryCache.write(cache);
         log?.info?.("family-library-refresh-success", "家庭组游戏库刷新成功", pageMeta({
+          operationId,
           rid: requestId,
           appCount: saved.stats.appCount,
           memberCount: saved.stats.memberCount,
@@ -895,6 +900,7 @@
       }
     })().catch((error) => {
       log?.warn?.("family-library-refresh-failed", "家庭组游戏库刷新失败", pageMeta({
+        operationId,
         rid: requestId,
         durationMs: Date.now() - startedAt,
         reason: String(error?.code || error?.name || "refresh-failed"),
@@ -907,14 +913,16 @@
     return refreshInFlight;
   }
 
-  async function fetchMemberNames(accessToken, steamids, requestId) {
+  async function fetchMemberNames(accessToken, steamids, requestId, operationId = "") {
     try {
-      return accountNames(await api.familyLibrary.fetchPlayerLinkDetails({ accessToken, steamids, rid: requestId }));
+      return accountNames(await api.familyLibrary.fetchPlayerLinkDetails({ accessToken, steamids, operationId, rid: requestId }));
     } catch (error) {
       log?.warn?.("family-library-member-name-failed", "家庭成员名称获取失败，已降级", pageMeta({
+        operationId,
         rid: requestId,
         memberCount: steamids.length,
         reason: String(error?.code || error?.name || "request-failed"),
+        error,
       }));
       return {};
     }
@@ -940,6 +948,7 @@
     });
     if (action !== "secondary") return false;
 
+    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
     try {
       const refreshState = await api.familyLibraryCache.skipRefreshCycle();
       const nextRefreshAt = api.familyLibraryCache.nextRefreshAt(
@@ -955,6 +964,7 @@
         options.hasPreviousData ? "已跳过本次更新，继续使用上次数据" : "已跳过本次更新"
       );
       log?.info?.("family-library-refresh-skipped", "用户已跳过本周期家庭组游戏库更新", pageMeta({
+        operationId,
         source: options.source || "manual",
         refreshInterval: refreshSettings.refreshInterval,
         autoRefresh: refreshSettings.autoRefresh === true,
@@ -964,6 +974,7 @@
       return true;
     } catch (skipError) {
       log?.error?.("family-library-refresh-skip-save-failed", "家庭组游戏库跳过本次更新状态保存失败", pageMeta({
+        operationId,
         source: options.source || "manual",
         refreshInterval: refreshSettings.refreshInterval,
         reason: String(skipError?.code || skipError?.name || "storage-failed"),
@@ -1246,6 +1257,7 @@
       onError(error) {
         log?.warn?.("family-library-badge-scan-failed", "家庭库商店角标扫描失败", pageMeta({
           reason: String(error?.code || error?.name || "scan-failed"),
+          error,
         }));
       },
     });

@@ -103,12 +103,12 @@
     };
   }
 
-  function persistReviewRules(rules, storage = globalThis.STSettings?.storage) {
+  function persistReviewRules(rules, storage = globalThis.STSettings?.storage, diagnostics = {}) {
     if (!storage?.setReviewFilter) {
       return Promise.resolve(false);
     }
     try {
-      return Promise.resolve(storage.setReviewFilter({ rules }));
+      return Promise.resolve(storage.setReviewFilter({ rules }, diagnostics));
     } catch (error) {
       return Promise.reject(error);
     }
@@ -153,10 +153,16 @@
       ? options.getFields
       : () => options.catalog?.reviewFilterFields?.() || globalThis.STSettings?.catalog?.reviewFilterFields?.() || [];
     const storage = options.storage || globalThis.STSettings?.storage || {};
+    const log = globalThis.STLoggerFactory?.createLogger?.("settings", "review-filter-panel") || {
+      info() {},
+      warn() {},
+      error() {},
+    };
     const onConfigChange = typeof options.onConfigChange === "function" ? options.onConfigChange : () => {};
     let conf = normalizeReviewFilter(options.config || {});
     let hiddenReviews = [];
     let activeRuleType = "all";
+    let savePending = false;
 
     function setConfig(next) {
       conf = normalizeReviewFilter(next || {});
@@ -166,6 +172,49 @@
 
     function getConfig() {
       return conf;
+    }
+
+    function setSavePending(shadow, pending) {
+      savePending = pending;
+      shadow.querySelectorAll([
+        ".review-filter-save",
+        ".review-rule-add-btn",
+        ".review-rule-toggle",
+        ".review-rule-edit",
+        ".review-rule-delete",
+        "[data-review-filter]",
+        "[data-review-rule-type]",
+        "[data-review-rule-value]",
+        ".review-rule-dialog-type",
+        ".review-rule-dialog-value",
+        ".review-rule-dialog [data-dialog-action='save']",
+        ".review-rule-dialog [data-dialog-action='cancel']",
+      ].join(", ")).forEach((control) => {
+        control.disabled = pending;
+      });
+    }
+
+    function restoreFilterInputs(shadow, source = conf) {
+      shadow.querySelectorAll("[data-review-filter]").forEach((input) => {
+        const id = input.dataset.reviewFilter;
+        if (!id) return;
+        if (input.type === "checkbox") {
+          input.checked = source[id] === true;
+          return;
+        }
+        input.value = String(source[id] ?? "");
+      });
+    }
+
+    function showSavePrompt(shadow, operationId) {
+      void Promise.resolve()
+        .then(() => savePrompt(shadow))
+        .catch((error) => {
+          log.warn("review-filter-settings-save-prompt-failed", "评测过滤设置已保存，但成功提示显示失败", {
+            operationId,
+            error,
+          });
+        });
     }
 
     function setHiddenReviews(items) {
@@ -363,14 +412,54 @@
       });
     }
 
-    function setRules(shadow, rules) {
+    async function setRules(shadow, rules, { activeType = "" } = {}) {
+      if (savePending) {
+        return false;
+      }
       const next = normalizeReviewRules({ rules });
-      conf = { ...conf, rules: next };
-      onConfigChange(conf);
-      syncRuleList(shadow);
-      persistReviewRules(next, storage).catch(() => {
-        dialog(shadow, { title: "保存失败", message: "屏蔽规则未能保存，请稍后重试。" });
+      const startedAt = Date.now();
+      const operationId = globalThis.STLoggerFactory?.createOperationId?.() || "";
+      log.info("review-filter-rules-save-start", "开始保存评测过滤规则", {
+        operationId,
+        ruleCount: next.length,
       });
+      setSavePending(shadow, true);
+      try {
+        const ok = await persistReviewRules(next, storage, { operationId });
+        if (ok !== true) {
+          log.warn("review-filter-rules-save-failed", "评测过滤规则保存失败", {
+            operationId,
+            ruleCount: next.length,
+            durationMs: Date.now() - startedAt,
+            errorCode: ok === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
+          });
+          dialog(shadow, { title: "保存失败", message: "屏蔽规则未能保存，请稍后重试。" });
+          return false;
+        }
+        conf = { ...conf, rules: next };
+        if (activeType) {
+          activeRuleType = activeType;
+        }
+        onConfigChange(conf);
+        syncRuleList(shadow);
+        log.info("review-filter-rules-save-success", "评测过滤规则保存成功", {
+          operationId,
+          ruleCount: next.length,
+          durationMs: Date.now() - startedAt,
+        });
+        return true;
+      } catch (error) {
+        log.error("review-filter-rules-save-failed", "评测过滤规则保存异常", {
+          operationId,
+          ruleCount: next.length,
+          durationMs: Date.now() - startedAt,
+          error,
+        });
+        dialog(shadow, { title: "保存失败", message: "屏蔽规则未能保存，请稍后重试。" });
+        return false;
+      } finally {
+        setSavePending(shadow, false);
+      }
     }
 
     function addRule(shadow) {
@@ -389,23 +478,23 @@
         value,
         enabled: true,
       });
-      activeRuleType = type;
-      setRules(shadow, rules);
-      if (input) {
-        input.value = "";
-        input.focus();
-      }
+      setRules(shadow, rules, { activeType: type }).then((saved) => {
+        if (saved && input) {
+          input.value = "";
+          input.focus();
+        }
+      });
     }
 
     function updateRule(shadow, id, patch) {
       const rules = normalizeReviewRules(conf).map(rule => (
         rule.id === id ? { ...rule, ...patch } : rule
       ));
-      setRules(shadow, rules);
+      return setRules(shadow, rules);
     }
 
     function removeRule(shadow, id) {
-      setRules(shadow, normalizeReviewRules(conf).filter(rule => rule.id !== id));
+      return setRules(shadow, normalizeReviewRules(conf).filter(rule => rule.id !== id));
     }
 
     function editRule(shadow, id) {
@@ -454,6 +543,9 @@
       }
 
       const close = () => {
+        if (savePending) {
+          return;
+        }
         layer.classList.remove("show");
         window.setTimeout(() => layer.remove(), 120);
       };
@@ -479,8 +571,11 @@
           }
           return;
         }
-        updateRule(shadow, id, { type, value });
-        close();
+        updateRule(shadow, id, { type, value }).then((saved) => {
+          if (saved) {
+            close();
+          }
+        });
       });
       layer.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
@@ -749,12 +844,54 @@
 
       const save = event.target.closest(".review-filter-save");
       if (save) {
+        if (save.disabled || savePending) {
+          return true;
+        }
+        const previous = conf;
         const next = readFilter(shadow);
-        conf = { ...conf, ...next };
-        onConfigChange(conf);
-        storage.setReviewFilter?.(next)?.then?.(() => {
-          savePrompt(shadow);
-        });
+        const savedConfig = normalizeReviewFilter({ ...conf, ...next });
+        const startedAt = Date.now();
+        const operationId = globalThis.STLoggerFactory?.createOperationId?.() || "";
+        log.info("review-filter-settings-save-start", "开始保存评测过滤设置", { operationId });
+        const oldText = save.textContent || "";
+        setSavePending(shadow, true);
+        save.textContent = "保存中...";
+        Promise.resolve()
+          .then(() => typeof storage.setReviewFilter === "function"
+            ? storage.setReviewFilter(next, { operationId })
+            : false)
+          .then((ok) => {
+            if (ok !== true) {
+              log.warn("review-filter-settings-save-failed", "评测过滤设置保存失败", {
+                operationId,
+                durationMs: Date.now() - startedAt,
+                errorCode: ok === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
+              });
+              restoreFilterInputs(shadow, previous);
+              dialog(shadow, { title: "保存失败", message: "评测过滤设置未能保存，请稍后重试。" });
+              return;
+            }
+            conf = savedConfig;
+            onConfigChange(conf);
+            log.info("review-filter-settings-save-success", "评测过滤设置保存成功", {
+              operationId,
+              durationMs: Date.now() - startedAt,
+            });
+            showSavePrompt(shadow, operationId);
+          })
+          .catch((error) => {
+            log.error("review-filter-settings-save-failed", "评测过滤设置保存异常", {
+              operationId,
+              durationMs: Date.now() - startedAt,
+              error,
+            });
+            restoreFilterInputs(shadow, previous);
+            dialog(shadow, { title: "保存失败", message: "评测过滤设置保存异常，请稍后重试。" });
+          })
+          .finally(() => {
+            setSavePending(shadow, false);
+            save.textContent = oldText;
+          });
         return true;
       }
 

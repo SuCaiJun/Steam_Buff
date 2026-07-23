@@ -31,6 +31,9 @@
     const shell = options.shell;
     const deps = options.deps;
     const panels = options.panels;
+    const log = root.STLoggerFactory?.createLogger?.("settings", "menu-events") || {
+      error() {},
+    };
     const getStates = typeof options.getStates === "function" ? options.getStates : () => ({});
     const setState = typeof options.setState === "function"
       ? options.setState
@@ -118,14 +121,31 @@
       syncModule(id);
     }
 
-    async function persistSwitchState(id, enabled, previous, dependents) {
+    async function persistSwitchState(id, enabled, previous, dependents, operationId) {
       try {
-        const ok = await Promise.resolve(api.storage?.set?.(id, enabled));
-        if (ok === false) {
+        if (typeof api.storage?.set !== "function") {
+          throw new Error("设置开关存储未初始化");
+        }
+        const ok = await Promise.resolve(api.storage.set(id, enabled, { operationId }));
+        if (ok !== true) {
+          if (ok !== false) {
+            log.error("setting-save-failed", "设置开关保存结果未确认", {
+              operationId,
+              featureId: id,
+              enabled,
+              error: new Error("设置存储未返回成功结果"),
+            });
+          }
           applySwitchState(id, previous);
           syncDependents(dependents, true);
         }
-      } catch {
+      } catch (error) {
+        log.error("setting-save-failed", "设置开关保存异常", {
+          operationId,
+          featureId: id,
+          enabled,
+          error,
+        });
         applySwitchState(id, previous);
         syncDependents(dependents, true);
       } finally {
@@ -187,11 +207,12 @@
         if (pendingSwitches.has(id)) return;
         const previous = sw.getAttribute("aria-checked") === "true";
         const enabled = !previous;
+        const operationId = root.STLoggerFactory?.createOperationId?.() || "";
         const dependents = deps.dependentIds(id).map(depId => [depId, deps.depAvailable(depId)]);
         pendingSwitches.set(id, enabled);
         applySwitchState(id, enabled);
         syncDependents(dependents);
-        persistSwitchState(id, enabled, previous, dependents);
+        persistSwitchState(id, enabled, previous, dependents, operationId);
         return;
       }
 
@@ -235,11 +256,25 @@
     listen(shadow, "change", (event) => {
       const locale = event.target.closest("[data-ui-locale]");
       if (locale) {
-        api.storage?.setUiLocale?.(locale.value)?.then?.((next) => {
-          if (next) {
+        const operationId = root.STLoggerFactory?.createOperationId?.() || "";
+        const pending = api.storage?.setUiLocale?.(locale.value, { operationId });
+        if (pending?.then) {
+          pending.then(() => shell.render(shadow)).catch((error) => {
+            log.error("setting-save-failed", "界面语言保存异常", {
+              operationId,
+              kind: "ui-locale",
+              error,
+            });
             shell.render(shadow);
-          }
-        });
+          });
+        } else {
+          log.error("setting-save-failed", "界面语言保存失败", {
+            operationId,
+            kind: "ui-locale",
+            error: new Error("界面语言存储未初始化"),
+          });
+          shell.render(shadow);
+        }
         return;
       }
 

@@ -227,10 +227,6 @@
     log?.info?.(event, message, meta);
   }
 
-  function errorText(error, fallback) {
-    return error?.message || String(error || fallback || "");
-  }
-
   /**
    * 上报翻译 boot 阶段错误，避免普通页面控制台刷屏。
    * @param {string} event - kebab-case 错误事件名。
@@ -246,7 +242,7 @@
     });
     log?.error?.(event, message, {
       ...meta,
-      error: errorText(error, message),
+      error: error || new Error(message),
     });
   }
 

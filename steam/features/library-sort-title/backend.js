@@ -26,6 +26,8 @@
   const HOOK_READY_WARN_MS = 45000;
   const SCHEDULE_DEBOUNCE_MS = 1000;
   const BULK_UI_REFRESH_MAX = 50;
+  const PENDING_NOTIFY_RETRY_MS = 1000;
+  const PENDING_NOTIFY_RETRY_MAX = 10;
   // 只隐藏开头连续 [标签]，保留写入 Steam 的完整排序名，避免搜索/排序关键词丢失。
   const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
   // 末尾或夹在名称里的 [#...] 助记符只用于排序/搜索，库列表显示时隐藏。
@@ -214,8 +216,93 @@
   }
 
   // Steam 的 app overview 变更依赖对象替换和 OnAppOverviewChange，直接改原对象有时不会刷新库 UI。
-  function build(store, app) {
+  function syncMeta(rt, extra = {}) {
+    return {
+      operationId: rt?.operationId || undefined,
+      ...extra,
+    };
+  }
+
+  function logSyncError(rt, phase, message, error, extra = {}) {
+    const key = `${phase}:${error?.name || "Error"}:${error?.message || String(error || "")}`;
+    if (rt?.failureKeys?.has(key)) {
+      return;
+    }
+    rt?.failureKeys?.add(key);
+    if (rt) {
+      rt.syncFailed = true;
+      rt.failedPhases.add(phase);
+    }
+    log.error("library-sort-title-sync-failed", message, syncMeta(rt, {
+      phase,
+      ...extra,
+      error,
+    }));
+  }
+
+  function logSyncWarning(rt, phase, message, extra = {}) {
+    const key = `warn:${phase}`;
+    if (rt?.failureKeys?.has(key)) {
+      return;
+    }
+    rt?.failureKeys?.add(key);
+    if (rt) {
+      rt.syncFailed = true;
+      rt.failedPhases.add(phase);
+    }
+    log.warn("library-sort-title-sync-failed", message, syncMeta(rt, {
+      phase,
+      ...extra,
+    }));
+  }
+
+  function appOverviewReady(app) {
+    if (!app || typeof app !== "object") {
+      return false;
+    }
+    return typeof app.BHasStoreTag !== "function"
+      || typeof app.m_setStoreTags?.has === "function";
+  }
+
+  function currentAppOverview(store, appid, rt) {
+    if (typeof store?.GetAppOverviewByAppID !== "function") {
+      return null;
+    }
+    try {
+      return store.GetAppOverviewByAppID(appid) || null;
+    } catch (error) {
+      logSyncError(rt, "app-overview-read", "库排序标题读取当前 AppOverview 失败", error, {
+        appid: Number(appid) || 0,
+      });
+      return null;
+    }
+  }
+
+  function queuePendingNotify(rt, appid) {
+    const id = Number(appid) || 0;
+    if (!rt?.pendingNotify || id <= 0) {
+      return false;
+    }
+    const wasEmpty = rt.pendingNotify.size === 0;
+    rt.pendingNotify.add(id);
+    if (wasEmpty) {
+      rt.pendingRetryAttempt = 0;
+      rt.pendingRetryStartedAt = Date.now();
+      rt.pendingRetryExhausted = false;
+    }
+    startPendingNotifyRetry(rt);
+    return true;
+  }
+
+  function build(store, app, opt = {}) {
     if (!store?.m_mapApps || !app?.appid) {
+      return null;
+    }
+    if (!appOverviewReady(app)) {
+      if (opt.status) {
+        opt.status.incompleteAppCount += 1;
+      }
+      queuePendingNotify(opt.rt || window[RT], app.appid);
       return null;
     }
 
@@ -224,14 +311,28 @@
       Object.defineProperties(repl, Object.getOwnPropertyDescriptors(app));
       saveOrig(repl, app[ORIG] || names().get(app.appid));
       return repl;
-    } catch {
+    } catch (error) {
+      if (opt.status) {
+        opt.status.cloneFailed += 1;
+      }
+      logSyncError(opt.rt || window[RT], "app-overview-clone", "库排序标题创建 AppOverview 副本失败", error);
     }
     return null;
   }
 
   function commit(store, repls, opt = {}) {
+    const result = {
+      ok: true,
+      changed: 0,
+      notifyAvailable: typeof window.collectionStore?.OnAppOverviewChange === "function",
+      notifyAttempted: false,
+      notifySucceeded: false,
+      refreshSkipped: false,
+      failedPhase: "",
+      retryable: false,
+    };
     if (!store?.m_mapApps || !repls?.length) {
-      return 0;
+      return result;
     }
 
     const done = [];
@@ -243,35 +344,71 @@
         store.m_mapApps.set(repl.appid, repl);
         done.push(repl);
       }
-      const canNotify = opt.notify !== false && done.length <= BULK_UI_REFRESH_MAX;
-      if (done.length && canNotify) {
-        const rt = window[RT];
-        const prev = rt?.notifying === true;
-        try {
-          if (rt) {
-            rt.notifying = true;
-          }
-          window.collectionStore?.OnAppOverviewChange?.(done, []);
-        } finally {
-          if (rt) {
-            rt.notifying = prev;
-          }
-        }
-      } else if (done.length) {
-        log.info("library-sort-title-refresh-skipped", "库排序标题跳过大批量库列表刷新", {
-          reason: String(opt.reason || ""),
-          changed: done.length,
-          limit: BULK_UI_REFRESH_MAX,
-        });
-      }
-    } catch {
+    } catch (error) {
+      result.ok = false;
+      result.changed = done.length;
+      result.failedPhase = "app-overview-replace";
+      logSyncError(opt.rt || window[RT], result.failedPhase, "库排序标题替换 AppOverview 失败", error, {
+        changed: done.length,
+      });
+      return result;
     }
-    return done.length;
+
+    result.changed = done.length;
+    const canNotify = opt.notify !== false && done.length <= BULK_UI_REFRESH_MAX;
+    if (done.length && canNotify && result.notifyAvailable) {
+      const rt = window[RT];
+      const prev = rt?.notifying === true;
+      try {
+        result.notifyAttempted = true;
+        if (rt) {
+          rt.notifying = true;
+        }
+        window.collectionStore.OnAppOverviewChange(done, []);
+        result.notifySucceeded = true;
+        for (const repl of done) {
+          rt?.pendingNotify?.delete(repl.appid);
+        }
+      } catch (error) {
+        result.ok = false;
+        result.failedPhase = "library-ui-notify";
+        result.retryable = true;
+        for (const repl of done) {
+          queuePendingNotify(rt, repl.appid);
+        }
+        logSyncError(opt.rt || rt, result.failedPhase, "库排序标题通知 Steam 库列表刷新失败", error, {
+          changed: done.length,
+        });
+      } finally {
+        if (rt) {
+          rt.notifying = prev;
+        }
+      }
+    } else if (done.length && canNotify) {
+      const rt = opt.rt || window[RT];
+      result.ok = false;
+      result.failedPhase = "library-ui-notify-unavailable";
+      result.retryable = true;
+      for (const repl of done) {
+        queuePendingNotify(rt, repl.appid);
+      }
+      logSyncWarning(rt, result.failedPhase, "库排序标题等待 Steam 库列表刷新接口就绪", {
+        changed: done.length,
+      });
+    } else if (done.length) {
+      result.refreshSkipped = true;
+      log.warn("library-sort-title-refresh-skipped", "库排序标题跳过大批量库列表刷新", syncMeta(opt.rt || window[RT], {
+        reason: String(opt.reason || ""),
+        changed: done.length,
+        limit: BULK_UI_REFRESH_MAX,
+      }));
+    }
+    return result;
   }
 
   function refresh(store, app) {
     const repl = build(store, app);
-    return repl ? commit(store, [repl], { reason: "single" }) : 0;
+    return repl ? commit(store, [repl], { reason: "single" }).changed : 0;
   }
 
   function restoreOfficial(app, orig) {
@@ -335,7 +472,7 @@
         repls.push(repl);
       }
     }
-    return commit(store, repls, opt);
+    return commit(store, repls, opt).changed;
   }
 
   function flushBulkState(state, reason) {
@@ -383,17 +520,188 @@
     return cust ? apply(app) : restoreOfficial(app, orig);
   }
 
-  function applyAll(apps) {
+  function applyAll(apps, opt = {}) {
+    const rt = opt.rt || window[RT];
+    const status = {
+      appCount: apps.length,
+      customSortCount: 0,
+      dirtyCount: 0,
+      cloneFailed: 0,
+      incompleteAppCount: 0,
+      pendingNotifyCount: rt?.pendingNotify?.size || 0,
+    };
     const repls = [];
-    for (const app of apps) {
+    const allPendingIds = new Set(rt?.pendingNotify || []);
+    const pendingIds = Array.from(allPendingIds).slice(0, BULK_UI_REFRESH_MAX);
+    for (const appid of pendingIds) {
+      const app = currentAppOverview(window.appStore, appid, rt);
+      if (!appOverviewReady(app)) {
+        status.incompleteAppCount += 1;
+        continue;
+      }
+      const previousDisplayName = app.display_name;
       if (apply(app)) {
-        const repl = build(window.appStore, app);
+        status.dirtyCount += 1;
+      }
+      const repl = build(window.appStore, app, { ...opt, rt, status });
+      if (repl) {
+        repls.push(repl);
+      } else {
+        app.display_name = previousDisplayName;
+      }
+    }
+    for (const app of apps) {
+      if (hasCust(app)) {
+        status.customSortCount += 1;
+      }
+      if (allPendingIds.has(app?.appid) || !isDirty(app)) {
+        continue;
+      }
+      if (!appOverviewReady(app)) {
+        status.incompleteAppCount += 1;
+        queuePendingNotify(rt, app.appid);
+        continue;
+      }
+      const previousDisplayName = app?.display_name;
+      if (apply(app)) {
+        status.dirtyCount += 1;
+        const repl = build(window.appStore, app, { ...opt, rt, status });
         if (repl) {
           repls.push(repl);
+        } else {
+          app.display_name = previousDisplayName;
         }
       }
     }
-    return commit(window.appStore, repls, { reason: "sync-all" });
+    const result = commit(window.appStore, repls, { ...opt, rt, reason: "sync-all" });
+    status.pendingNotifyCount = rt?.pendingNotify?.size || 0;
+    if (status.pendingNotifyCount > 0) {
+      result.retryable = true;
+      if (!result.failedPhase) {
+        result.failedPhase = "app-overview-not-ready";
+      }
+    }
+    return {
+      ...status,
+      ...result,
+      ok: result.ok && status.cloneFailed === 0 && status.pendingNotifyCount === 0,
+      pendingOnlyRetry: result.retryable
+        && status.pendingNotifyCount > 0
+        && status.cloneFailed === 0
+        && result.failedPhase !== "app-overview-replace",
+    };
+  }
+
+  function retryPendingNotifications(rt) {
+    const ids = Array.from(rt?.pendingNotify || []).slice(0, BULK_UI_REFRESH_MAX);
+    const repls = [];
+    let incompleteAppCount = 0;
+    for (const appid of ids) {
+      const app = currentAppOverview(window.appStore, appid, rt);
+      if (!appOverviewReady(app)) {
+        incompleteAppCount += 1;
+        continue;
+      }
+      const previousDisplayName = app.display_name;
+      apply(app);
+      const repl = build(window.appStore, app, { rt });
+      if (repl) {
+        repls.push(repl);
+      } else {
+        app.display_name = previousDisplayName;
+      }
+    }
+    const result = commit(window.appStore, repls, {
+      rt,
+      reason: "pending-notify",
+    });
+    return {
+      ...result,
+      attempted: ids.length,
+      incompleteAppCount,
+      pendingNotifyCount: rt?.pendingNotify?.size || 0,
+    };
+  }
+
+  function runPendingNotifyRetry(rt) {
+    rt.pendingRetryScheduled = false;
+    if (rt.scheduled !== true || rt.pendingNotify.size === 0) {
+      return;
+    }
+    rt.pendingRetryAttempt += 1;
+    const result = retryPendingNotifications(rt);
+    rt.lastSync = result;
+    rt.syncSummary = mergeSyncSummary(rt.syncSummary, result);
+    if (rt.pendingNotify.size === 0) {
+      log.warn("library-sort-title-sync-recovered", "库排序标题待刷新项目已使用当前 AppOverview 恢复", syncMeta(rt, {
+        phase: "pending-notify",
+        attempt: rt.pendingRetryAttempt,
+        attempted: result.attempted,
+        durationMs: Date.now() - rt.pendingRetryStartedAt,
+        recovery: {
+          attempted: true,
+          success: true,
+          strategy: "current-app-overview",
+        },
+      }));
+      rt.pendingRetryAttempt = 0;
+      rt.pendingRetryStartedAt = 0;
+      rt.pendingRetryExhausted = false;
+      rt.pendingRetryWarned = false;
+      rt.syncFailureRecovered = rt.syncFailed || rt.syncFailureRecovered;
+      rt.schedule();
+      return;
+    }
+    if (rt.pendingRetryAttempt >= PENDING_NOTIFY_RETRY_MAX) {
+      rt.pendingRetryExhausted = true;
+      if (!rt.pendingRetryWarned) {
+        rt.pendingRetryWarned = true;
+        log.warn("library-sort-title-sync-failed", "库排序标题等待当前 AppOverview 完整数据超时", syncMeta(rt, {
+          phase: "pending-notify",
+          attempt: rt.pendingRetryAttempt,
+          attempted: result.attempted,
+          incompleteAppCount: result.incompleteAppCount,
+          pendingNotifyCount: rt.pendingNotify.size,
+          durationMs: Date.now() - rt.pendingRetryStartedAt,
+        }));
+      }
+      return;
+    }
+    startPendingNotifyRetry(rt);
+  }
+
+  function startPendingNotifyRetry(rt, { restart = false } = {}) {
+    if (rt?.scheduled !== true || rt.pendingNotify.size === 0 || rt.pendingRetryScheduled) {
+      return false;
+    }
+    if (rt.pendingRetryExhausted) {
+      if (!restart) {
+        return false;
+      }
+      rt.pendingRetryAttempt = 0;
+      rt.pendingRetryStartedAt = Date.now();
+      rt.pendingRetryExhausted = false;
+    }
+    rt.pendingRetryScheduled = true;
+    scheduleRuntimeTimeout(rt, "pending-notify-retry", () => runPendingNotifyRetry(rt), PENDING_NOTIFY_RETRY_MS);
+    return true;
+  }
+
+  function mergeSyncSummary(previous, current) {
+    const prev = previous || {};
+    const next = current || {};
+    return {
+      appCount: next.appCount || prev.appCount || 0,
+      customSortCount: next.customSortCount || prev.customSortCount || 0,
+      dirtyCount: (prev.dirtyCount || 0) + (next.dirtyCount || 0),
+      changed: Math.max(prev.changed || 0, next.changed || 0),
+      cloneFailed: (prev.cloneFailed || 0) + (next.cloneFailed || 0),
+      pendingNotifyCount: Math.max(prev.pendingNotifyCount || 0, next.pendingNotifyCount || 0),
+      notifyAvailable: next.notifyAvailable === true || prev.notifyAvailable === true,
+      notifyAttempted: next.notifyAttempted === true || prev.notifyAttempted === true,
+      notifySucceeded: next.notifySucceeded === true || prev.notifySucceeded === true,
+      refreshSkipped: next.refreshSkipped === true || prev.refreshSkipped === true,
+    };
   }
 
   function applyList(apps) {
@@ -669,8 +977,12 @@
     if (old?.scheduled) {
       return { started: false, reason: "already-started", stop: old.stop };
     }
+    const operationId = window.STLoggerFactory.createOperationId();
     if (!window.STScheduler?.register) {
-      log.warn("library-sort-title-sync-failed", "库排序标题同步缺少统一调度器");
+      log.error("library-sort-title-sync-failed", "库排序标题同步缺少统一调度器", {
+        operationId,
+        phase: "scheduler-register",
+      });
       return { started: false, reason: "scheduler-unavailable" };
     }
 
@@ -681,14 +993,50 @@
       }
       const apps = api.ctx?.apps();
       if (!apps?.length) {
+        const appStoreReady = !!window.appStore;
+        const appMapReady = !!window.appStore?.m_mapApps && typeof window.appStore.m_mapApps.values === "function";
+        if (!rt.waitingLogged) {
+          rt.waitingLogged = true;
+          log.debug("library-sort-title-sync-waiting", "库排序标题同步等待 Steam AppOverview 数据", syncMeta(rt, {
+            phase: "app-data-wait",
+            appStoreReady,
+            appMapReady,
+            appCount: Array.isArray(apps) ? apps.length : null,
+            durationMs: Date.now() - rt.startedAt,
+          }));
+        }
+        if (!rt.appWaitWarned && Date.now() - rt.startedAt > HOOK_READY_WARN_MS) {
+          rt.appWaitWarned = true;
+          log.warn("library-sort-title-sync-failed", "库排序标题同步等待 Steam AppOverview 数据超时", syncMeta(rt, {
+            phase: "app-data-wait",
+            appStoreReady,
+            appMapReady,
+            appCount: Array.isArray(apps) ? apps.length : null,
+            durationMs: Date.now() - rt.startedAt,
+          }));
+        }
         setMs(rt, BOOT_MS);
         return;
       }
+      if (rt.appWaitWarned && !rt.appWaitRecovered) {
+        rt.appWaitRecovered = true;
+        log.warn("library-sort-title-sync-recovered", "库排序标题同步所需 AppOverview 数据已恢复", syncMeta(rt, {
+          phase: "app-data-wait",
+          appCount: apps.length,
+          durationMs: Date.now() - rt.startedAt,
+          recovery: {
+            attempted: true,
+            success: true,
+            strategy: "app-data-ready",
+          },
+        }));
+      }
       if (!rt.loggedStart) {
         rt.loggedStart = true;
-        log.info("library-sort-title-sync-start", "开始同步库排序标题显示", {
+        log.info("library-sort-title-sync-start", "开始同步库排序标题显示", syncMeta(rt, {
           appCount: apps.length,
-        });
+          durationMs: Date.now() - rt.startedAt,
+        }));
       }
       if (!rt.sortOk) {
         rt.sortOk = hookSort(apps);
@@ -700,36 +1048,83 @@
         rt.changeOk = hookChange(window.collectionStore);
       }
       const hooksReady = rt.sortOk && rt.customOk && rt.changeOk;
-      let changed = 0;
-      if (!rt.bootApplied || (hooksReady && !rt.syncedOnce)) {
+      let result = null;
+      const notifyBecameReady = hooksReady && rt.lastSync?.failedPhase === "library-ui-notify-unavailable";
+      const retryReady = !rt.nextSyncAt || Date.now() >= rt.nextSyncAt || notifyBecameReady;
+      if ((!rt.bootApplied || (hooksReady && !rt.syncedOnce)) && retryReady && !rt.syncStopped) {
         // 🚀 性能优化：全库自定义排序名修正只做启动兜底和 hook 就绪后的最终修正；日常变更走局部事件。
-        changed = applyAll(apps);
+        result = applyAll(apps, { rt });
+        rt.lastSync = result;
+        rt.syncSummary = mergeSyncSummary(rt.syncSummary, result);
         rt.bootApplied = true;
-        if (hooksReady) {
+        if (result.pendingOnlyRetry) {
+          rt.nextSyncAt = 0;
+          if (hooksReady) {
+            rt.syncedOnce = true;
+          }
+          startPendingNotifyRetry(rt);
+        } else if (result.ok) {
+          rt.nextSyncAt = 0;
+          if (rt.syncFailed && !rt.syncFailureRecovered) {
+            rt.syncFailureRecovered = true;
+            log.warn("library-sort-title-sync-recovered", "库排序标题同步重试已恢复", syncMeta(rt, {
+              phase: "sync-retry",
+              failedPhases: Array.from(rt.failedPhases),
+              durationMs: Date.now() - rt.startedAt,
+              recovery: {
+                attempted: true,
+                success: true,
+                strategy: "scheduled-retry",
+              },
+            }));
+          }
+        } else {
+          if (result.retryable) {
+            rt.nextSyncAt = Date.now() + SYNC_MS;
+          } else {
+            rt.nextSyncAt = 0;
+            rt.syncStopped = true;
+          }
+        }
+        if (hooksReady && result.ok) {
           rt.syncedOnce = true;
         }
       }
-      if (!rt.loggedSuccess && hooksReady) {
+      if (rt.pendingNotify.size > 0 && !rt.pendingRetryScheduled && rt.pendingRetryExhausted) {
+        startPendingNotifyRetry(rt, { restart: true });
+      }
+      if (!rt.loggedSuccess && hooksReady && rt.syncedOnce && rt.pendingNotify.size === 0) {
         rt.loggedSuccess = true;
-        log.info("library-sort-title-sync-success", "库排序标题同步已就绪", {
+        const summary = rt.syncSummary || result || rt.lastSync || {};
+        log.info("library-sort-title-sync-success", "库排序标题同步已就绪", syncMeta(rt, {
           appCount: apps.length,
-          changed,
+          customSortCount: summary.customSortCount || 0,
+          dirtyCount: summary.dirtyCount || 0,
+          changed: summary.changed || 0,
+          cloneFailed: summary.cloneFailed || 0,
+          pendingNotifyCount: rt.pendingNotify.size,
+          notifyAvailable: summary.notifyAvailable === true,
+          notifyAttempted: summary.notifyAttempted === true,
+          notifySucceeded: summary.notifySucceeded === true,
+          refreshSkipped: summary.refreshSkipped === true,
           sortOk: rt.sortOk,
           customOk: rt.customOk,
           changeOk: rt.changeOk,
-        });
-      } else if (!rt.loggedFailed && !hooksReady && Date.now() - rt.startedAt > HOOK_READY_WARN_MS) {
-        rt.loggedFailed = true;
-        log.warn("library-sort-title-sync-failed", "库排序标题同步 hook 未完全就绪", {
+          durationMs: Date.now() - rt.startedAt,
+        }));
+      } else if (!rt.hookWarned && !hooksReady && Date.now() - rt.startedAt > HOOK_READY_WARN_MS) {
+        rt.hookWarned = true;
+        log.warn("library-sort-title-sync-failed", "库排序标题同步 hook 未完全就绪", syncMeta(rt, {
+          phase: "hook-ready",
           appCount: apps.length,
           sortOk: rt.sortOk,
           customOk: rt.customOk,
           changeOk: rt.changeOk,
           durationMs: Date.now() - rt.startedAt,
-        });
+        }));
       }
 
-      const nextMs = (hooksReady && rt.syncedOnce) || rt.loggedFailed ? SYNC_MS : BOOT_MS;
+      const nextMs = (hooksReady && rt.syncedOnce) || rt.hookWarned || rt.nextSyncAt || rt.syncStopped ? SYNC_MS : BOOT_MS;
       setMs(rt, nextMs);
     };
 
@@ -781,9 +1176,27 @@
       startedAt: Date.now(),
       scope: scope || null,
       timeoutHandles: new Set(),
+      operationId,
+      failureKeys: new Set(),
+      failedPhases: new Set(),
+      pendingNotify: new Set(),
+      pendingRetryAttempt: 0,
+      pendingRetryStartedAt: 0,
+      pendingRetryScheduled: false,
+      pendingRetryExhausted: false,
+      pendingRetryWarned: false,
+      syncFailed: false,
+      syncFailureRecovered: false,
+      syncStopped: false,
       loggedStart: false,
       loggedSuccess: false,
-      loggedFailed: false,
+      waitingLogged: false,
+      appWaitWarned: false,
+      appWaitRecovered: false,
+      hookWarned: false,
+      nextSyncAt: 0,
+      lastSync: null,
+      syncSummary: null,
       notifying: false,
       beginCustomNameBulk,
       recordCustomNameBulk,

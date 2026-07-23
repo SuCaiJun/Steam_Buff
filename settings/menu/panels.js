@@ -62,6 +62,17 @@
       return { ...conf };
     }
 
+    function showSavePrompt(shadow, operationId) {
+      void Promise.resolve()
+        .then(() => savePrompt(shadow))
+        .catch((error) => {
+          log.warn("family-library-settings-save-prompt-failed", "家庭库刷新设置已保存，但成功提示显示失败", {
+            operationId,
+            error,
+          });
+        });
+    }
+
     function switchInput(field) {
       const checked = conf[field.key] === true;
       const label = field.label || "";
@@ -96,37 +107,49 @@
     }
 
     async function save(shadow, nextConfig) {
+      const previous = conf;
       const next = normalize(nextConfig || conf);
       conf = next;
       onConfigChange(conf);
       const startedAt = Date.now();
+      const operationId = root.STLoggerFactory?.createOperationId?.() || "";
       log.info("family-library-settings-save-start", "开始保存家庭库刷新设置", {
+        operationId,
         refreshInterval: next.refreshInterval,
         autoRefresh: next.autoRefresh === true,
       });
       try {
-        const saved = await storage.setFamilyLibrary?.(next);
-        if (saved === false) {
+        const saved = typeof storage.setFamilyLibrary === "function"
+          ? await storage.setFamilyLibrary(next, { operationId })
+          : false;
+        if (!saved || typeof saved !== "object") {
+          conf = previous;
+          onConfigChange(conf);
           log.warn("family-library-settings-save-failed", "家庭库刷新设置保存失败", {
+            operationId,
             refreshInterval: next.refreshInterval,
             autoRefresh: next.autoRefresh === true,
             durationMs: Date.now() - startedAt,
-            errorCode: "STORAGE_REJECTED",
+            errorCode: saved === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
           });
           dialog(shadow, { title: "保存失败", message: "家庭库刷新设置保存失败，请稍后重试。" });
           return false;
         }
-        conf = normalize(saved || next);
+        conf = normalize(saved);
         onConfigChange(conf);
         log.info("family-library-settings-save-success", "家庭库刷新设置保存成功", {
+          operationId,
           refreshInterval: conf.refreshInterval,
           autoRefresh: conf.autoRefresh === true,
           durationMs: Date.now() - startedAt,
         });
-        savePrompt(shadow);
+        showSavePrompt(shadow, operationId);
         return true;
       } catch (error) {
+        conf = previous;
+        onConfigChange(conf);
         log.error("family-library-settings-save-failed", "家庭库刷新设置保存异常", {
+          operationId,
           refreshInterval: next.refreshInterval,
           autoRefresh: next.autoRefresh === true,
           durationMs: Date.now() - startedAt,
@@ -268,6 +291,7 @@
           storage,
           config: getConfig("searchSuggestion"),
           esc,
+          dialog,
           fieldInput,
           savePrompt,
           onConfigChange: (next) => setConfig("searchSuggestion", next),
@@ -319,6 +343,7 @@
           config: getConfig("translate"),
           esc,
           escAttr,
+          dialog,
           savePrompt,
           fieldInput,
           masterItemHtml: deps.masterItemHtml,

@@ -56,6 +56,11 @@
     return api.catalog?.aiDefaults?.() || {};
   }
 
+  function failureOperationMeta(ok, diagnostics = {}) {
+    const operationId = String(diagnostics?.operationId || "");
+    return !ok && operationId ? { operationId } : {};
+  }
+
   function thirdPartyServicesDefaults() {
     return api.catalog?.thirdPartyServicesDefaults?.() || {};
   }
@@ -279,9 +284,10 @@
     });
   }
 
-  function put(data) {
+  function put(data, diagnostics = {}) {
     if (globalThis.STSettingsBus?.rawSet) {
       return globalThis.STSettingsBus.rawSet(data, {
+        operationId: String(diagnostics?.operationId || ""),
         owner: "settings:storage",
         reason: "settings-storage-write",
       });
@@ -347,14 +353,26 @@
     return ok;
   }
 
-  async function set(id, enabled) {
+  async function set(id, enabled, diagnostics = {}) {
     const value = Boolean(enabled);
-    const ok = await put({ [key(id)]: value });
-    log[ok ? "info" : "warn"](ok ? "setting-toggle-success" : "setting-save-failed", ok ? "设置开关已保存" : "设置开关保存失败", {
-      featureId: id,
-      enabled: value,
-    });
-    return ok;
+    const operationId = String(diagnostics?.operationId || "");
+    try {
+      const ok = await put({ [key(id)]: value }, { operationId });
+      log[ok ? "info" : "warn"](ok ? "setting-toggle-success" : "setting-save-failed", ok ? "设置开关已保存" : "设置开关保存失败", {
+        operationId,
+        featureId: id,
+        enabled: value,
+      });
+      return ok;
+    } catch (error) {
+      log.error("setting-save-failed", "设置开关保存异常", {
+        operationId,
+        featureId: id,
+        enabled: value,
+        error,
+      });
+      return false;
+    }
   }
 
   async function getUiLocale() {
@@ -362,19 +380,33 @@
     return normalizeLocale(rt[UI_LOCALE_KEY]);
   }
 
-  async function setUiLocale(value) {
+  async function setUiLocale(value, diagnostics = {}) {
     const locale = normalizeLocale(value);
+    const operationId = String(diagnostics?.operationId || "");
     let ok = true;
     try {
-      if (globalThis.STI18n?.setLocale) {
-        await globalThis.STI18n.setLocale(locale);
+      if (globalThis.STI18n?.setLocaleResult) {
+        const result = await globalThis.STI18n.setLocaleResult(locale, { operationId });
+        ok = result?.persisted === true;
+      } else if (globalThis.STI18n?.setLocale) {
+        await globalThis.STI18n.setLocale(locale, { operationId });
+        ok = null;
       } else {
-        ok = await put({ [UI_LOCALE_KEY]: locale });
+        ok = await put({ [UI_LOCALE_KEY]: locale }, { operationId });
       }
-    } catch {
-      ok = false;
+    } catch (error) {
+      log.error("setting-save-failed", "界面语言保存异常", {
+        operationId,
+        kind: "ui-locale",
+        locale,
+        error,
+      });
+      return null;
     }
-    logSave("ui-locale", ok !== false, { locale });
+    if (ok === null) {
+      return locale;
+    }
+    logSave("ui-locale", ok === true, { operationId, locale });
     return ok !== false ? locale : null;
   }
 
@@ -384,17 +416,24 @@
     return value && typeof value === "object" ? value : null;
   }
 
-  async function setAuth(value) {
+  async function setAuth(value, diagnostics = {}) {
     if (!value || typeof value !== "object") {
-      return clearAuth();
+      return clearAuth(diagnostics);
     }
-    await put({ [AUTH_KEY]: value });
+    const ok = await put({ [AUTH_KEY]: value }, diagnostics);
+    if (!ok) {
+      const error = new Error("登录状态保存失败");
+      error.code = "AUTH_STORAGE_WRITE_FAILED";
+      throw error;
+    }
     return value;
   }
 
-  function clearAuth() {
+  function clearAuth(diagnostics = {}) {
+    const operationId = String(diagnostics?.operationId || "");
     if (globalThis.STSettingsBus?.rawRemove) {
       return globalThis.STSettingsBus.rawRemove([AUTH_KEY, MEMBERSHIP_KEY], {
+        operationId,
         owner: "settings:storage",
         reason: "auth-clear",
       });
@@ -420,12 +459,14 @@
     return normalizeMembership(rt[MEMBERSHIP_KEY], rt[AUTH_KEY]);
   }
 
-  async function setMembership(value) {
+  async function setMembership(value, diagnostics = {}) {
     const rt = await get([AUTH_KEY]);
     const next = normalizeMembership(value, { access_token: "__snapshot__" });
-    const ok = await put({ [MEMBERSHIP_KEY]: next });
+    const operationId = String(diagnostics?.operationId || "");
+    const ok = await put({ [MEMBERSHIP_KEY]: next }, { operationId });
     const visible = normalizeMembership(next, rt[AUTH_KEY]);
     log[ok ? "info" : "warn"](ok ? "membership-save-success" : "membership-save-failed", ok ? "会员状态已同步" : "会员状态同步失败", {
+      operationId,
       active: visible.active,
       features: visible.features,
     });
@@ -460,7 +501,7 @@
     return out;
   }
 
-  async function setTranslate(values) {
+  async function setTranslate(values, diagnostics = {}) {
     const defs = translateDefaults();
     const data = {};
     const src = values?.service === AI_SERVICE
@@ -487,12 +528,12 @@
     }
 
     if (!Object.keys(data).length) {
-      logSave("translate", false, { reason: "empty" });
+      logSave("translate", false, { ...failureOperationMeta(false, diagnostics), reason: "empty" });
       return false;
     }
 
-    const ok = await put(data);
-    logSave("translate", ok, { count: Object.keys(data).length });
+    const ok = await put(data, diagnostics);
+    logSave("translate", ok, { ...failureOperationMeta(ok, diagnostics), count: Object.keys(data).length });
     return ok;
   }
 
@@ -521,7 +562,7 @@
     return out;
   }
 
-  async function setReviewFilter(values) {
+  async function setReviewFilter(values, diagnostics = {}) {
     const defs = reviewFilterDefaults();
     const data = {};
 
@@ -543,12 +584,12 @@
     }
 
     if (!Object.keys(data).length) {
-      logSave("review-filter", false, { reason: "empty" });
+      logSave("review-filter", false, { ...failureOperationMeta(false, diagnostics), reason: "empty" });
       return false;
     }
 
-    const ok = await put(data);
-    logSave("review-filter", ok, { count: Object.keys(data).length });
+    const ok = await put(data, diagnostics);
+    logSave("review-filter", ok, { ...failureOperationMeta(ok, diagnostics), count: Object.keys(data).length });
     return ok;
   }
 
@@ -566,7 +607,7 @@
     return normalizeSearchSuggestions(out);
   }
 
-  async function setSearchSuggestions(values) {
+  async function setSearchSuggestions(values, diagnostics = {}) {
     const next = normalizeSearchSuggestions(values);
     const data = {};
 
@@ -574,9 +615,9 @@
       data[searchSuggestionKey(id)] = next[id];
     }
 
-    const ok = await put(data);
-    logSave("search-suggestions", ok, { count: Object.keys(data).length });
-    return next;
+    const ok = await put(data, diagnostics);
+    logSave("search-suggestions", ok, { ...failureOperationMeta(ok, diagnostics), count: Object.keys(data).length });
+    return ok ? next : false;
   }
 
   async function getFamilyLibrary() {
@@ -593,7 +634,7 @@
     return normalizeFamilyLibrary(out);
   }
 
-  async function setFamilyLibrary(values) {
+  async function setFamilyLibrary(values, diagnostics = {}) {
     const next = normalizeFamilyLibrary(values);
     const data = {};
 
@@ -601,8 +642,9 @@
       data[familyLibraryKey(id)] = next[id];
     }
 
-    const ok = await put(data);
+    const ok = await put(data, diagnostics);
     logSave("family-library", ok, {
+      ...failureOperationMeta(ok, diagnostics),
       refreshInterval: next.refreshInterval,
       autoRefresh: next.autoRefresh === true,
       count: Object.keys(data).length,
@@ -637,7 +679,7 @@
     return globalThis.STAI?.normalize?.(out) || out;
   }
 
-  async function setAi(values) {
+  async function setAi(values, diagnostics = {}) {
     const defs = aiDefaults();
     const data = {};
     const normalized = globalThis.STAI?.normalize?.({ ...defs, ...(values || {}) }) || {};
@@ -658,12 +700,12 @@
     }
 
     if (!Object.keys(data).length) {
-      logSave("ai", false, { reason: "empty" });
+      logSave("ai", false, { ...failureOperationMeta(false, diagnostics), reason: "empty" });
       return false;
     }
 
-    const ok = await put(data);
-    logSave("ai", ok, { count: Object.keys(data).length });
+    const ok = await put(data, diagnostics);
+    logSave("ai", ok, { ...failureOperationMeta(ok, diagnostics), count: Object.keys(data).length });
     return ok;
   }
 
@@ -684,7 +726,7 @@
     return normalizeThirdPartyServices(out);
   }
 
-  async function setThirdPartyServices(values) {
+  async function setThirdPartyServices(values, diagnostics = {}) {
     const next = normalizeThirdPartyServices(values);
     const data = {};
 
@@ -692,8 +734,9 @@
       data[thirdPartyServicesKey(path)] = clone(getPath(next, path, getPath(thirdPartyServicesDefaults(), path, "")));
     }
 
-    const ok = await put(data);
+    const ok = await put(data, diagnostics);
     logSave("third-party-services", ok, {
+      ...failureOperationMeta(ok, diagnostics),
       enabled: next.enabled === true,
       provider: next.defaultProvider,
       hasItadKey: String(next.isthereanydeal?.key || "").trim() !== "",

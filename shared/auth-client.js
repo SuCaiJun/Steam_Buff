@@ -227,23 +227,32 @@
       return cleanAuth(await storage?.getAuth?.());
     }
 
-    async function saveAuth(auth) {
+    async function saveAuth(auth, diagnostics = {}) {
       const next = cleanAuth(auth);
       if (!next) {
-        await storage?.clearAuth?.();
+        await clearAuth(diagnostics);
         return null;
       }
-      await storage?.setAuth?.(next);
+      if (typeof storage?.setAuth !== "function") {
+        throw new Error("登录状态存储未初始化");
+      }
+      const saved = await storage.setAuth(next, diagnostics);
+      if (!saved) {
+        throw new Error("登录状态保存失败");
+      }
       return next;
     }
 
-    async function clearAuth() {
-      await storage?.clearAuth?.();
+    async function clearAuth(diagnostics = {}) {
+      if (typeof storage?.clearAuth !== "function") {
+        return false;
+      }
+      return (await storage.clearAuth(diagnostics)) !== false;
     }
 
-    async function refreshAuth(auth) {
+    async function refreshAuth(auth, diagnostics = {}) {
       if (!auth?.refresh_token || !refreshUrl) {
-        await clearAuth();
+        await clearAuth(diagnostics);
         return null;
       }
       const startedAt = Date.now();
@@ -260,22 +269,31 @@
           },
           allowHttpError: true,
           timeoutMs: DEFAULT_TIMEOUT_MS,
+          operationId: diagnostics.operationId || "",
+          requestId: diagnostics.requestId || "",
         }, { logFailures: false });
         const body = parseJson(response.data);
         const code = Number(body?.code) || response.status || 0;
         if (code < 200 || code >= 300 || !body?.access_token) {
-          await clearAuth();
+          await clearAuth(diagnostics);
+          const error = new Error(`鉴权令牌刷新响应无效（状态 ${code || "未知"}）`);
+          error.status = code;
           log.warn("auth-client-refresh-failed", "鉴权令牌刷新失败", {
+            operationId: diagnostics.operationId || "",
+            requestId: diagnostics.requestId || "",
             response: code ? { status: code } : undefined,
             durationMs: Date.now() - startedAt,
+            error,
           });
           return null;
         }
-        const next = await saveAuth(nextAuth(body, auth));
+        const next = await saveAuth(nextAuth(body, auth), diagnostics);
         return next;
       } catch (error) {
-        await clearAuth();
+        await clearAuth(diagnostics);
         log.warn("auth-client-refresh-failed", "鉴权令牌刷新失败", {
+          operationId: diagnostics.operationId || "",
+          requestId: diagnostics.requestId || "",
           durationMs: Date.now() - startedAt,
           error,
         });
@@ -283,18 +301,18 @@
       }
     }
 
-    async function readyAuth() {
+    async function readyAuth(diagnostics = {}) {
       const auth = await getAuth();
       if (!auth?.access_token && !auth?.refresh_token) {
         return null;
       }
       if (!auth.access_token || expired(auth)) {
-        return refreshAuth(auth);
+        return refreshAuth(auth, diagnostics);
       }
       return auth;
     }
 
-    async function postJson(url, body, auth) {
+    async function postJson(url, body, auth, diagnostics = {}) {
       return fetchBg({
         url,
         method: "POST",
@@ -306,11 +324,15 @@
         data: body,
         allowHttpError: true,
         timeoutMs: DEFAULT_TIMEOUT_MS,
+        operationId: diagnostics.operationId || "",
+        requestId: diagnostics.requestId || "",
       });
     }
 
     async function authedPost(url, body, options = {}) {
-      let auth = await readyAuth();
+      const operationId = String(options.operationId || "");
+      const requestId = String(options.requestId || "") || root.STLoggerFactory?.createRequestId?.() || "";
+      let auth = await readyAuth({ operationId, requestId });
       if (!auth?.access_token) {
         if (options.throwOnMissingAuth) {
           throw new Error(loginMessage);
@@ -318,23 +340,31 @@
         return { auth: null, response: null, body: null, code: 401 };
       }
 
-      let response = await postJson(url, body, auth);
+      let response = await postJson(url, body, auth, { operationId, requestId });
       let data = parseJson(response.data);
       let code = Number(data?.code) || response.status || 0;
       if (code === 401 && auth?.refresh_token) {
-        auth = await refreshAuth(auth);
+        auth = await refreshAuth(auth, { operationId, requestId });
         if (!auth?.access_token) {
           if (options.throwOnMissingAuth) {
             throw new Error(expiredMessage);
           }
           return { auth: null, response, body: data, code: 401 };
         }
-        response = await postJson(url, body, auth);
+        response = await postJson(url, body, auth, { operationId, requestId });
         data = parseJson(response.data);
         code = Number(data?.code) || response.status || 0;
       }
       if (code >= 200 && code < 300 && auth?.access_token) {
-        await saveAuth({ ...auth, last_used_at: Date.now() });
+        try {
+          await saveAuth({ ...auth, last_used_at: Date.now() }, { operationId, requestId });
+        } catch (error) {
+          log.warn("auth-client-last-used-save-failed", "登录状态使用时间保存失败", {
+            operationId,
+            requestId,
+            error,
+          });
+        }
       }
       return { auth, response, body: data, code };
     }

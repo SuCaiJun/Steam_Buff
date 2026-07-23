@@ -40,9 +40,34 @@
       ? options.getFields
       : () => options.catalog?.aiFields?.() || root.STSettings?.catalog?.aiFields?.() || [];
     let conf = normalize(options.config || {});
+    let persistedConf = normalize(conf);
+    let publishingConfig = false;
+
+    function showSavePrompt(shadow, operationId) {
+      void Promise.resolve()
+        .then(() => savePrompt(shadow))
+        .catch((error) => {
+          log.warn("ai-config-save-prompt-failed", "AI 配置已保存，但成功提示显示失败", {
+            operationId,
+            error,
+          });
+        });
+    }
 
     function setConfig(next) {
       conf = normalize(next || {});
+      if (!publishingConfig) {
+        persistedConf = normalize(conf);
+      }
+    }
+
+    function publishConfig() {
+      publishingConfig = true;
+      try {
+        onConfigChange(conf);
+      } finally {
+        publishingConfig = false;
+      }
     }
 
     function getConfig() {
@@ -51,8 +76,41 @@
 
     function setEnabled(enabled) {
       conf = normalize({ ...conf, enabled });
-      onConfigChange(conf);
+      persistedConf = normalize(conf);
+      publishConfig();
       return getConfig();
+    }
+
+    function restoreInputs(shadow) {
+      shadow.querySelectorAll("[data-ai]").forEach((node) => {
+        const id = node.dataset.ai;
+        if (!id) return;
+        if (node.type === "checkbox") {
+          node.checked = conf[id] === true;
+          return;
+        }
+        node.value = String(conf[id] ?? "");
+      });
+    }
+
+    function setInputsDisabled(shadow, disabled) {
+      shadow.querySelectorAll("[data-ai]").forEach((node) => {
+        node.disabled = disabled;
+      });
+    }
+
+    function restoreSavedState(shadow, previous, operationId) {
+      conf = normalize(previous);
+      publishConfig();
+      restoreInputs(shadow);
+      void Promise.resolve()
+        .then(() => onRenderRequest(shadow))
+        .catch((error) => {
+          log.warn("ai-config-restore-render-failed", "AI 配置已回滚，但设置面板刷新失败", {
+            operationId,
+            error,
+          });
+        });
     }
 
     function input(field) {
@@ -129,10 +187,11 @@
       ];
     }
 
-    function sendAiTest(testConf) {
+    function sendAiTest(testConf, operationId = "") {
       if (globalThis.STMessageBus?.send) {
         return globalThis.STMessageBus.send({
           type: "AI_CHAT_COMPLETIONS",
+          operationId,
           ai: testConf,
           messages: aiTestMessages(),
         }, {
@@ -142,6 +201,7 @@
       return new Promise((resolve, reject) => {
         chrome.runtime.sendMessage({
           type: "AI_CHAT_COMPLETIONS",
+          operationId,
           ai: testConf,
           messages: aiTestMessages(),
         }, (response) => {
@@ -173,9 +233,10 @@
         button.textContent = "测试中";
       }
       const started = performance.now();
-      log.info("ai-test-start", "开始测试 AI 连接", { enabled: testConf.enabled === true });
+      const operationId = root.STLoggerFactory?.createOperationId?.() || "";
+      log.info("ai-test-start", "开始测试 AI 连接", { operationId, enabled: testConf.enabled === true });
       try {
-        sendAiTest(testConf).then((response) => {
+        sendAiTest(testConf, operationId).then((response) => {
           const used = ((performance.now() - started) / 1000).toFixed(1);
           if (button) {
             button.disabled = false;
@@ -183,6 +244,7 @@
           }
           if (!response?.success) {
             log.error("ai-test-failed", "AI 连接测试失败", {
+              operationId,
               durationMs: Math.round(performance.now() - started),
               status: Number(response?.status) || 0,
               error: response?.error || "未知错误",
@@ -191,6 +253,7 @@
             return;
           }
           log.info("ai-test-success", "AI 连接测试成功", {
+            operationId,
             durationMs: Math.round(performance.now() - started),
           });
           dialog(shadow, { title: "AI 测试成功", message: `${response.text || "已收到响应"}\n用时 ${used} 秒` });
@@ -201,6 +264,7 @@
             button.textContent = oldText;
           }
           log.error("ai-test-failed", "AI 连接测试异常", {
+            operationId,
             durationMs: Math.round(performance.now() - started),
             error,
           });
@@ -213,6 +277,7 @@
         }
         const used = ((performance.now() - started) / 1000).toFixed(1);
         log.error("ai-test-failed", "AI 连接测试异常", {
+          operationId,
           durationMs: Math.round(performance.now() - started),
           error,
         });
@@ -258,6 +323,9 @@
       if (!save) {
         return false;
       }
+      if (save.disabled) {
+        return true;
+      }
       const next = read(shadow);
       const nextConf = normalize({ ...conf, ...next });
       if (nextConf.enabled !== true) {
@@ -269,40 +337,54 @@
           return true;
         }
       }
+      const previous = normalize(persistedConf);
       conf = nextConf;
-      onConfigChange(conf);
+      publishConfig();
       const startedAt = Date.now();
-      log.info("ai-config-save-start", "开始保存 AI 配置", { enabled: nextConf.enabled === true });
-      try {
-        const job = storage.setAi?.(next);
-        if (job?.then) {
-          job.then((ok) => {
-            log[ok === false ? "warn" : "info"](ok === false ? "ai-config-save-failed" : "ai-config-save-success", ok === false ? "AI 配置保存失败" : "AI 配置保存成功", {
+      const operationId = root.STLoggerFactory?.createOperationId?.() || "";
+      log.info("ai-config-save-start", "开始保存 AI 配置", { operationId, enabled: nextConf.enabled === true });
+      const oldText = save.textContent || "";
+      save.disabled = true;
+      save.textContent = "保存中...";
+      setInputsDisabled(shadow, true);
+      Promise.resolve()
+        .then(() => typeof storage.setAi === "function"
+          ? storage.setAi(next, { operationId })
+          : false)
+        .then((ok) => {
+          if (ok !== true) {
+            restoreSavedState(shadow, previous, operationId);
+            log.warn("ai-config-save-failed", "AI 配置保存失败", {
+              operationId,
               enabled: nextConf.enabled === true,
               durationMs: Date.now() - startedAt,
+              errorCode: ok === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
             });
-            savePrompt(shadow);
-          }).catch((error) => {
-            log.error("ai-config-save-failed", "AI 配置保存失败", {
-              error,
-              durationMs: Date.now() - startedAt,
-            });
-            savePrompt(shadow);
-          });
-        } else {
+            dialog(shadow, { title: "保存失败", message: "AI 配置未能保存，请稍后重试。" });
+            return;
+          }
+          persistedConf = normalize(conf);
           log.info("ai-config-save-success", "AI 配置保存成功", {
+            operationId,
             enabled: nextConf.enabled === true,
             durationMs: Date.now() - startedAt,
           });
-          savePrompt(shadow);
-        }
-      } catch (error) {
-        log.error("ai-config-save-failed", "AI 配置保存异常", {
-          error,
-          durationMs: Date.now() - startedAt,
+          showSavePrompt(shadow, operationId);
+        })
+        .catch((error) => {
+          restoreSavedState(shadow, previous, operationId);
+          log.error("ai-config-save-failed", "AI 配置保存异常", {
+            operationId,
+            error,
+            durationMs: Date.now() - startedAt,
+          });
+          dialog(shadow, { title: "保存失败", message: "AI 配置保存异常，请稍后重试。" });
+        })
+        .finally(() => {
+          setInputsDisabled(shadow, false);
+          save.disabled = false;
+          save.textContent = oldText;
         });
-        savePrompt(shadow);
-      }
       return true;
     }
 
@@ -313,7 +395,7 @@
       }
       if (node.dataset.ai === "keyMode") {
         conf = normalize({ ...conf, ...read(shadow) });
-        onConfigChange(conf);
+        publishConfig();
         onRenderRequest(shadow);
       }
       return true;

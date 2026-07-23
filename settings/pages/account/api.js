@@ -27,7 +27,7 @@
     return `${base}${path}`;
   }
 
-  function request(path, data, token = "", ctx, method = "POST", base = urls.steamBuffBase) {
+  function request(path, data, token = "", ctx, method = "POST", base = urls.steamBuffBase, diagnostics = {}) {
     const headers = {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -47,6 +47,8 @@
       allowHttpError: true,
       label: "用户中心接口",
       timeoutMs: 12_000,
+      operationId: diagnostics.operationId || "",
+      requestId: diagnostics.requestId || "",
       validateResponse(response) {
         return typeof response?.data === "string";
       },

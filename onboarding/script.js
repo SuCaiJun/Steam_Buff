@@ -25,6 +25,11 @@
   const INVALID_TITLE = "当前地址无效";
   const INVALID_COPY = "当前页面可能已失效或不存在，请点击刷新页面或返回首页。";
   const INVALID_NOTE = "当前页面已失效";
+  const log = globalThis.STLoggerFactory?.createLogger?.("onboarding", "local-flow") || {
+    info() {},
+    warn() {},
+    error() {},
+  };
 
   const state = {
     phase: "loading",
@@ -45,6 +50,8 @@
     accountData: null,
     loginMessage: "",
     loginCopy: "",
+    loginOperationId: "",
+    loginPollErrorKey: "",
     completeCelebrated: false,
   };
 
@@ -65,6 +72,10 @@
 
   function chromeApi() {
     return typeof chrome !== "undefined" ? chrome : null;
+  }
+
+  function createOperationId() {
+    return globalThis.STLoggerFactory?.createOperationId?.() || "";
   }
 
   function el(tag, className, text) {
@@ -232,13 +243,31 @@
     }
   }
 
-  function storageSet(key, value) {
+  function storageSet(key, value, diagnostics = {}) {
+    const operationId = String(diagnostics?.operationId || "");
     const api = chromeApi();
     if (api?.storage?.local) {
       return new Promise((resolve) => {
         try {
-          api.storage.local.set({ [key]: value }, () => resolve(!api.runtime?.lastError));
-        } catch {
+          api.storage.local.set({ [key]: value }, () => {
+            const error = api.runtime?.lastError;
+            if (error) {
+              log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
+                operationId,
+                storageKey: key,
+                error,
+              });
+              resolve(false);
+              return;
+            }
+            resolve(true);
+          });
+        } catch (error) {
+          log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
+            operationId,
+            storageKey: key,
+            error,
+          });
           resolve(false);
         }
       });
@@ -246,7 +275,12 @@
     try {
       localStorage.setItem(key, JSON.stringify(value));
       return Promise.resolve(true);
-    } catch {
+    } catch (error) {
+      log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
+        operationId,
+        storageKey: key,
+        error,
+      });
       return Promise.resolve(false);
     }
   }
@@ -269,8 +303,11 @@
     return `${badge} · ${id === "用户 ID 暂无" ? id : `ID: ${id}`}`;
   }
 
-  async function storeMembership(data) {
-    await storageSet(MEMBERSHIP_KEY, accountProfile().membershipSnapshot(data));
+  async function storeMembership(data, operationId = "") {
+    const saved = await storageSet(MEMBERSHIP_KEY, accountProfile().membershipSnapshot(data), { operationId });
+    if (!saved) {
+      throw new Error("会员状态保存失败");
+    }
   }
 
   function stopLoginPoll() {
@@ -359,7 +396,7 @@
     const delay = Math.max(1, Number(state.loginDevice.interval) || 3) * 1000;
     loginPollTimer = window.setTimeout(() => {
       loginPollTimer = 0;
-      pollLogin(false).catch(() => {});
+      pollLogin(false).catch((error) => reportLoginPollFailure(error, false));
     }, delay);
   }
 
@@ -371,12 +408,14 @@
     return centerCode(res) === 401;
   }
 
-  async function refreshStoredAuth(auth, cfg) {
+  async function refreshStoredAuth(auth, cfg, operationId = "") {
     if (!auth?.refresh_token) throw new Error("登录已过期，请重新登录");
     const res = await storeFetch("/auth/refresh", { refresh_token: auth.refresh_token }, "", "POST", cfg.urls.loginAuthBase);
     if (!okCode(res) || !res.body?.access_token) throw new Error(res.body?.message || "登录刷新失败，请重新登录");
     const next = nextAuth(res.body, auth);
-    await storageSet(AUTH_KEY, next);
+    if (!await storageSet(AUTH_KEY, next, { operationId })) {
+      throw new Error("登录令牌保存失败");
+    }
     state.loginAuth = next;
     return next;
   }
@@ -385,19 +424,47 @@
     return storeFetch("/user/center", null, auth.access_token, "GET", cfg.urls.steamBuffBase);
   }
 
-  async function syncAccountData(auth) {
+  async function syncAccountData(auth, operationId = "") {
     const cfg = await sharedConfig();
     let current = auth;
     let res = await fetchUserCenter(current, cfg);
     if (centerExpired(res)) {
-      current = await refreshStoredAuth(current, cfg);
+      current = await refreshStoredAuth(current, cfg, operationId);
       res = await fetchUserCenter(current, cfg);
     }
     if (!okCode(res)) throw new Error(res.body?.message || "获取用户信息失败");
     const profile = normalizeAccount(res.body || {}, current);
     state.accountData = profile;
-    await storeMembership(profile);
+    await storeMembership(profile, operationId);
     return profile;
+  }
+
+  function reportLoginPollFailure(error, manual) {
+    const key = `${error?.name || "Error"}:${error?.message || String(error || "")}`;
+    if (key === state.loginPollErrorKey) {
+      return;
+    }
+    state.loginPollErrorKey = key;
+    log.warn("onboarding-device-login-poll-failed", "安装引导设备登录轮询失败，将继续重试", {
+      operationId: state.loginOperationId || "",
+      manual: manual === true,
+      error,
+    });
+  }
+
+  function reportLoginPollRecovery() {
+    if (!state.loginPollErrorKey) {
+      return;
+    }
+    state.loginPollErrorKey = "";
+    log.warn("onboarding-device-login-poll-recovered", "安装引导设备登录轮询已恢复", {
+      operationId: state.loginOperationId || "",
+      recovery: {
+        attempted: true,
+        success: true,
+        strategy: "next-poll-success",
+      },
+    });
   }
 
   async function startLogin() {
@@ -413,8 +480,14 @@
     }
     state.loginMode = "loading";
     state.loginBusy = true;
+    state.loginOperationId = createOperationId();
+    state.loginPollErrorKey = "";
     state.loginDevice = null;
     state.loginMessage = "正在获取授权码...";
+    const startedAt = Date.now();
+    log.info("onboarding-device-login-start", "安装引导开始设备登录", {
+      operationId: state.loginOperationId,
+    });
     render();
     try {
       const cfg = await sharedConfig();
@@ -432,12 +505,21 @@
       state.loginMode = "device";
       state.loginBusy = false;
       state.loginMessage = "等待完成授权";
+      log.info("onboarding-device-login-code-success", "安装引导设备授权码获取成功", {
+        operationId: state.loginOperationId,
+        durationMs: Date.now() - startedAt,
+      });
       render();
       scheduleLoginPoll();
     } catch (error) {
       state.loginMode = "error";
       state.loginBusy = false;
       state.loginMessage = error?.message || String(error);
+      log.error("onboarding-device-login-failed", "安装引导设备登录启动失败", {
+        operationId: state.loginOperationId,
+        durationMs: Date.now() - startedAt,
+        error,
+      });
       render();
     }
   }
@@ -450,6 +532,10 @@
       state.loginBusy = false;
       state.loginDevice = null;
       state.loginMessage = "授权码已过期，请重新获取。";
+      log.warn("onboarding-device-login-failed", "安装引导设备授权码已过期", {
+        operationId: state.loginOperationId || "",
+        reason: "expired",
+      });
       render();
       return;
     }
@@ -461,6 +547,7 @@
       const res = await storeFetch("/auth/device/token", { device_code: state.loginDevice.device_code }, "", "POST", cfg.urls.loginAuthBase);
       const code = Number(res.body?.code) || Number(res.status) || 0;
       if (code === 202) {
+        reportLoginPollRecovery();
         state.loginBusy = false;
         state.loginMessage = "等待完成授权";
         render();
@@ -470,23 +557,37 @@
       if (!okCode(res) || !res.body?.access_token) {
         throw new Error(res.body?.message || "登录失败，请重新获取授权码。");
       }
+      reportLoginPollRecovery();
       const auth = nextAuth(res.body, state.loginAuth || {});
-      await storageSet(AUTH_KEY, auth);
+      if (!await storageSet(AUTH_KEY, auth, { operationId: state.loginOperationId })) {
+        throw new Error("登录状态保存失败");
+      }
       state.loginAuth = auth;
       state.loginMode = "success";
       state.loginBusy = false;
       state.loginDevice = null;
       state.loginMessage = "登录成功";
+      let accountSyncSucceeded = true;
       try {
-        await syncAccountData(auth);
-      } catch {
+        await syncAccountData(auth, state.loginOperationId);
+      } catch (error) {
+        accountSyncSucceeded = false;
         state.accountData = normalizeAccount({}, auth);
+        log.warn("onboarding-account-sync-failed", "安装引导登录成功，但账号资料同步失败", {
+          operationId: state.loginOperationId || "",
+          error,
+        });
       }
       stopLoginPoll();
+      log.info("onboarding-device-login-success", "安装引导设备登录成功", {
+        operationId: state.loginOperationId || "",
+        accountSyncSucceeded,
+      });
       render();
     } catch (error) {
       state.loginBusy = false;
       state.loginMessage = error?.message || String(error);
+      reportLoginPollFailure(error, manual);
       render();
       scheduleLoginPoll();
     }
@@ -499,6 +600,8 @@
     state.loginBusy = false;
     state.loginDevice = null;
     state.loginMessage = "";
+    state.loginOperationId = "";
+    state.loginPollErrorKey = "";
     render();
   }
 
@@ -506,19 +609,30 @@
     if (state.loginMode !== "idle" || state.loginAuth) return;
     const auth = cleanAuth(await storageGet(AUTH_KEY));
     if (!auth) return;
+    state.loginOperationId = createOperationId();
     state.loginAuth = auth;
     state.loginMode = "syncing";
     state.loginMessage = "正在同步账号信息...";
     state.accountData = null;
+    log.info("onboarding-account-sync-start", "安装引导开始同步账号资料", {
+      operationId: state.loginOperationId,
+    });
     render();
     try {
-      await syncAccountData(auth);
+      await syncAccountData(auth, state.loginOperationId);
       state.loginMode = "success";
       state.loginMessage = "已登录";
+      log.info("onboarding-account-sync-success", "安装引导账号资料同步成功", {
+        operationId: state.loginOperationId,
+      });
     } catch (error) {
       state.accountData = normalizeAccount({}, state.loginAuth || auth);
       state.loginMode = "success";
       state.loginMessage = error?.message ? "已登录，用户信息暂未同步。" : "已登录";
+      log.warn("onboarding-account-sync-failed", "安装引导账号资料同步失败，保留本地登录状态", {
+        operationId: state.loginOperationId,
+        error,
+      });
     }
     render();
   }
@@ -552,7 +666,7 @@
     }
   }
 
-  function saveClientChoices() {
+  function saveClientChoices(operationId = "") {
     return clientFeatureIds().then((ids) => {
       const data = {};
       ids.forEach((id) => {
@@ -563,8 +677,25 @@
       if (api?.storage?.local) {
         return new Promise((resolve) => {
           try {
-            api.storage.local.set(data, () => resolve(!api.runtime?.lastError));
-          } catch {
+            api.storage.local.set(data, () => {
+              const error = api.runtime?.lastError;
+              if (error) {
+                log.warn("onboarding-client-settings-save-failed", "安装引导客户端增强设置保存失败", {
+                  operationId,
+                  settingCount: Object.keys(data).length,
+                  error,
+                });
+                resolve(false);
+                return;
+              }
+              resolve(true);
+            });
+          } catch (error) {
+            log.warn("onboarding-client-settings-save-failed", "安装引导客户端增强设置保存失败", {
+              operationId,
+              settingCount: Object.keys(data).length,
+              error,
+            });
             resolve(false);
           }
         });
@@ -572,7 +703,12 @@
       try {
         Object.entries(data).forEach(([key, value]) => localStorage.setItem(key, String(value)));
         return true;
-      } catch {
+      } catch (error) {
+        log.warn("onboarding-client-settings-save-failed", "安装引导客户端增强设置保存失败", {
+          operationId,
+          settingCount: Object.keys(data).length,
+          error,
+        });
         return false;
       }
     });
@@ -591,35 +727,75 @@
     render();
   }
 
-  function openSettings() {
+  function openSettings(operationId = "", startedAt = Date.now()) {
     const api = chromeApi();
     if (!api?.runtime?.sendMessage) {
       setNote("当前是本地预览模式，安装为扩展后可打开设置中心。", false);
       return;
     }
     setBusy(true, "正在打开设置中心...");
-    api.runtime.sendMessage({ type: OPEN_SETTINGS_MESSAGE }, (res) => {
-      const error = api.runtime.lastError;
-      if (error || !res?.success) {
-        setBusy(false, error?.message || res?.error || "设置中心打开失败，请稍后重试。", true);
-        return;
-      }
-      setBusy(false, "已打开 Steam 商店与设置中心。", false);
-    });
+    try {
+      api.runtime.sendMessage({ type: OPEN_SETTINGS_MESSAGE }, (res) => {
+        const error = api.runtime.lastError;
+        if (error || !res?.success) {
+          const failure = error || new Error(res?.error || "设置中心打开失败，请稍后重试。");
+          log.error("onboarding-finish-failed", "安装引导打开设置中心失败", {
+            operationId,
+            durationMs: Date.now() - startedAt,
+            error: failure,
+          });
+          setBusy(false, failure.message || String(failure), true);
+          return;
+        }
+        log.info("onboarding-finish-success", "安装引导完成并已打开设置中心", {
+          operationId,
+          durationMs: Date.now() - startedAt,
+        });
+        setBusy(false, "已打开 Steam 商店与设置中心。", false);
+      });
+    } catch (error) {
+      log.error("onboarding-finish-failed", "安装引导打开设置中心异常", {
+        operationId,
+        durationMs: Date.now() - startedAt,
+        error,
+      });
+      setBusy(false, error?.message || String(error), true);
+    }
   }
 
   async function finish() {
     if (state.busy || state.loginBusy) return;
-    if (!isSteamClientEnv()) {
-      setBusy(true, "正在保存客户端增强设置...");
-      const ok = await saveClientChoices();
-      if (!ok) {
-        setBusy(false, "客户端增强设置保存失败，请稍后重试。", true);
-        return;
+    const operationId = createOperationId();
+    const startedAt = Date.now();
+    const steamClient = isSteamClientEnv();
+    log.info("onboarding-finish-start", "安装引导开始保存设置并打开设置中心", {
+      operationId,
+      steamClient,
+    });
+    try {
+      if (!steamClient) {
+        setBusy(true, "正在保存客户端增强设置...");
+        const ok = await saveClientChoices(operationId);
+        if (!ok) {
+          log.warn("onboarding-finish-failed", "安装引导客户端增强设置未能保存", {
+            operationId,
+            durationMs: Date.now() - startedAt,
+            errorCode: "STORAGE_REJECTED",
+          });
+          setBusy(false, "客户端增强设置保存失败，请稍后重试。", true);
+          return;
+        }
+        state.busy = false;
       }
-      state.busy = false;
+      openSettings(operationId, startedAt);
+    } catch (error) {
+      log.error("onboarding-finish-failed", "安装引导完成操作异常", {
+        operationId,
+        durationMs: Date.now() - startedAt,
+        error,
+      });
+      setBusy(false, error?.message || String(error), true);
     }
-    openSettings();
   }
 
   function activeStep() {
@@ -773,8 +949,16 @@
       state.step = index;
       setPhase("ready", "", "");
       render();
-      ensureLoginState().catch(() => {});
-    } catch {
+      ensureLoginState().catch((error) => {
+        log.error("onboarding-account-sync-failed", "安装引导账号状态初始化异常", {
+          operationId: state.loginOperationId || "",
+          error,
+        });
+      });
+    } catch (error) {
+      log.error("onboarding-flow-load-failed", "安装引导配置加载失败", {
+        error,
+      });
       setPhase("error", "引导配置加载失败", "无法验证云端页面数量，请刷新页面或返回首页。");
       render();
     } finally {

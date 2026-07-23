@@ -292,22 +292,24 @@
         chrome.runtime.sendMessage(payload, (response) => {
           const err = chrome.runtime.lastError;
           if (err) {
+            const requestError = new Error(err.message || String(err));
             report("error", "ai-chat-request-failed", "AI 翻译请求失败", {
               ...meta,
               durationMs: Date.now() - startedAt,
-              error: errorText(err),
+              error: requestError,
             });
-            reject(new Error(err.message || String(err)));
+            reject(requestError);
             return;
           }
           if (!response?.success) {
+            const requestError = new Error(response?.error || "AI 请求失败");
             report("error", "ai-chat-request-failed", "AI 翻译请求失败", {
               ...meta,
               durationMs: Date.now() - startedAt,
               status: response?.status || 0,
-              error: response?.error || "AI 请求失败",
+              error: requestError,
             });
-            reject(new Error(response?.error || "AI 请求失败"));
+            reject(requestError);
             return;
           }
           report("info", "ai-chat-request-success", "AI 翻译请求完成", {
@@ -322,7 +324,7 @@
         report("error", "ai-chat-request-failed", "AI 翻译请求异常", {
           ...meta,
           durationMs: Date.now() - startedAt,
-          error: errorText(error),
+          error,
         });
         reject(error);
       }
@@ -362,7 +364,7 @@
     } catch (error) {
       reportThrottled("warn", "ai-cache-read-fallback", "AI 翻译缓存读取降级", {
         keyCount: keys.length,
-        error: errorText(error),
+        error,
       });
       return cache?.getMany?.(keys) || {};
     }
@@ -378,7 +380,7 @@
     } catch (error) {
       reportThrottled("warn", "ai-cache-write-fallback", "AI 翻译缓存写入降级", {
         entryCount: entries.length,
-        error: errorText(error),
+        error,
       });
       return cache?.setMany?.(entries) || false;
     }
@@ -477,7 +479,7 @@
 
   function fail(error, data) {
     const info = errorText(error, "AI 翻译失败");
-    report("error", "ai-translate-failed", "AI 翻译失败", dataMeta(data, { error: info }));
+    report("error", "ai-translate-failed", "AI 翻译失败", dataMeta(data, { error }));
     return {
       result: 0,
       info,

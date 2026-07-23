@@ -102,6 +102,7 @@
     steamBatch: null,
     saveAction: "save",
     saveRid: "",
+    operationId: "",
     saveWatchTimer: 0,
     saveStatusMisses: 0,
     // 本地加载和云端获取可能跨多次异步请求，关闭弹窗后用序号让旧结果失效，避免回头重绘。
@@ -456,6 +457,7 @@
 
   function logCommandStart(action) {
     log.info("library-custom-name-command-start", "库自定义名称保存队列命令已触发", {
+      operationId: batch.operationId || "",
       action,
       saving: !!batch.saving,
       paused: !!batch.paused,
@@ -568,6 +570,7 @@
     batch.waitCmd = "";
     batch.steamBatch = null;
     batch.saveRid = "";
+    batch.operationId = "";
     batch.saveStatusMisses = 0;
     batch.cloudQueue = [];
     batch.cloudFlush = null;
@@ -709,6 +712,7 @@
         batch.summary = true;
         batch.message = "Steam 保存队列状态没有响应，请重新打开批量窗口确认结果";
         log.warn("library-custom-name-save-status-timeout", "库自定义名称保存队列状态查询超时", {
+          operationId: batch.operationId || "",
           rid: batch.saveRid || "",
           misses: batch.saveStatusMisses,
           error,
@@ -1897,6 +1901,7 @@
   }
 
   function exportCurrentNames() {
+    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
     const items = batch.localRows
       .map((app) => ({
         appid: Number(app?.appid),
@@ -1913,11 +1918,13 @@
       downloadJson(exportFileName(), { items });
       batch.message = `已导出 ${items.length} 项当前自定义排序名称`;
       log.info("library-custom-name-export-success", "库自定义名称 JSON 导出完成", {
+        operationId,
         exported: items.length,
       });
     } catch (error) {
       batch.message = error?.message || String(error);
       log.error("library-custom-name-export-failed", "库自定义名称 JSON 导出失败", {
+        operationId,
         error,
       });
     }
@@ -2035,6 +2042,7 @@
       return;
     }
     const seq = batch.previewSeq;
+    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
     batch.busy = true;
     batch.message = "正在读取 JSON 文件";
     renderModal();
@@ -2054,6 +2062,7 @@
         ? `覆盖导入完成，匹配 ${result.matched} 项，待写入 ${result.selected} 项`
         : `仅新增与修改导入完成，匹配 ${result.matched} 项，待写入 ${result.selected} 项，已存在 ${result.unchanged} 项`;
       log.info("library-custom-name-import-success", "库自定义名称 JSON 导入完成", {
+        operationId,
         mode,
         imported: names.size,
         matched: result.matched,
@@ -2064,6 +2073,7 @@
     } catch (error) {
       batch.message = error?.message || String(error);
       log.error("library-custom-name-import-failed", "库自定义名称 JSON 导入失败", {
+        operationId,
         error,
       });
     } finally {
@@ -2276,7 +2286,9 @@
     }
     batch.cloudFlush = (async () => {
       const startedAt = now();
+      let terminalError = null;
       log.info("library-custom-name-cloud-upload-start", "开始上传库自定义名称到素材君云端", {
+        operationId: batch.operationId || "",
         queued: batch.cloudQueue.length,
         batchSize: CLOUD_UPLOAD_MAX,
         delayMs: CLOUD_UPLOAD_DELAY_MS,
@@ -2297,6 +2309,7 @@
             batch.stats.cloudFail += count.fail;
             if (count.fail > 0) {
               log.warn("library-custom-name-cloud-upload-batch-failed", "库自定义名称素材君云端上传批次存在失败项", {
+                operationId: batch.operationId || "",
                 size: chunk.length,
                 ok: count.ok,
                 fail: count.fail,
@@ -2306,6 +2319,7 @@
           } catch (error) {
             batch.stats.cloudFail += chunk.length;
             log.warn("library-custom-name-cloud-upload-batch-failed", "库自定义名称素材君云端上传批次失败", {
+              operationId: batch.operationId || "",
               size: chunk.length,
               pending: batch.stats.cloudPending,
               error,
@@ -2316,16 +2330,28 @@
             await waitCloudDelay();
           }
         }
+      } catch (error) {
+        terminalError = error;
       } finally {
         const cancelled = !!batch.cancelled;
         const dropped = batch.cloudQueue.splice(0).length;
         if (dropped) {
           batch.stats.cloudPending = 0;
         }
-        logByLevel(cancelled || batch.stats.cloudFail > 0 ? "warn" : "info", cancelled ? "library-custom-name-cloud-upload-cancelled" : "library-custom-name-cloud-upload-success", cancelled ? "库自定义名称素材君云端上传已取消" : "库自定义名称素材君云端上传完成", {
+        const failed = !!terminalError || batch.stats.cloudFail > 0;
+        const level = terminalError ? "error" : (cancelled || failed ? "warn" : "info");
+        const event = terminalError
+          ? "library-custom-name-cloud-upload-failed"
+          : (cancelled ? "library-custom-name-cloud-upload-cancelled" : (failed ? "library-custom-name-cloud-upload-failed" : "library-custom-name-cloud-upload-success"));
+        const message = terminalError
+          ? "库自定义名称素材君云端上传异常"
+          : (cancelled ? "库自定义名称素材君云端上传已取消" : (failed ? "库自定义名称素材君云端上传完成但存在失败项" : "库自定义名称素材君云端上传完成"));
+        logByLevel(level, event, message, {
+          operationId: batch.operationId || "",
           ...statsMeta(),
           dropped,
           durationMs: now() - startedAt,
+          ...(terminalError ? { error: terminalError } : {}),
         });
         batch.cloudFlush = null;
         batch.cloudFinishing = false;
@@ -2348,7 +2374,13 @@
     }
     batch.cloudFinishing = true;
     batch.message = "正在写入 Steam，素材君云端上传同步进行";
-    flushCloudUploads().catch(() => {});
+    flushCloudUploads().catch((error) => {
+      log.error("library-custom-name-cloud-upload-failed", "库自定义名称素材君云端上传异常", {
+        operationId: batch.operationId || "",
+        ...statsMeta(),
+        error,
+      });
+    });
   }
 
   function cancelCloudUploads(reason) {
@@ -2364,6 +2396,7 @@
       return;
     }
     log.info("library-custom-name-cloud-upload-cancel", "库自定义名称素材君云端上传队列已取消", {
+      operationId: batch.operationId || "",
       reason: reason || "cancel",
       dropped,
       ...statsMeta(),
@@ -3350,7 +3383,14 @@
     cancelCloudUploads("save-cancel");
     closeProgress();
     if (hadSaving) {
-      backend("cancel").catch(() => {});
+      backend("cancel").catch((error) => {
+        log.error("library-custom-name-command-failed", "库自定义名称保存队列取消命令失败", {
+          operationId: batch.operationId || "",
+          action: "cancel",
+          ...statsMeta(),
+          error,
+        });
+      });
     }
   }
 
@@ -3619,6 +3659,8 @@
 
   async function runSaveQueue(items, rows, skipped, opt = {}) {
     const action = opt.action || "save";
+    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
+    batch.operationId = operationId;
     const emptyMessage = opt.emptyMessage || "没有可写入的条目";
     const startMessage = opt.startMessage || `正在启动保存队列，预计写入 ${items.length} 项，跳过 ${skipped} 项`;
     const progressMessage = opt.progressMessage || "正在逐条写入 Steam";
@@ -3627,6 +3669,7 @@
       batch.message = emptyMessage;
       renderModal();
       log.warn("library-custom-name-save-failed", "库自定义名称保存缺少可写入条目", {
+        operationId,
         chosen: Number(opt.chosen) || 0,
         skipped,
         action,
@@ -3640,6 +3683,7 @@
       batch.message = error?.message || String(error);
       renderModal();
       log.error("library-custom-name-save-failed", "库自定义名称保存未启用", {
+        operationId,
         count: items.length,
         skipped,
         action,
@@ -3681,6 +3725,7 @@
     renderModal();
     openProgress(false);
     log.info("library-custom-name-save-start", "开始保存库自定义名称", {
+      operationId,
       count: items.length,
       skipped,
       action,
@@ -3689,7 +3734,7 @@
       cloudSkipped: batch.stats.cloudSkipped,
     });
     try {
-      const started = await backend("save-queue", { items, skipped });
+      const started = await backend("save-queue", { items, skipped, operationId });
       batch.saveRid = text(started.rid || started.queueRid || batch.saveRid);
       batch.saveStatusMisses = 0;
       scheduleSaveWatch();
@@ -3709,6 +3754,7 @@
       batch.message = error?.message || String(error);
       cancelCloudUploads("save-start-failed");
       log.error("library-custom-name-save-failed", "库自定义名称保存队列启动失败", {
+        operationId,
         count: items.length,
         skipped,
         action,
@@ -3816,6 +3862,12 @@
         batch.waitCmd = "";
       }
       batch.message = error?.message || String(error);
+      log.error("library-custom-name-command-failed", "库自定义名称保存队列命令失败", {
+        operationId: batch.operationId || "",
+        action,
+        ...statsMeta(),
+        error,
+      });
       renderProgress();
     }
   }
@@ -3847,6 +3899,7 @@
       clearSaveWatch();
       const hasError = !!data.error || batch.stats.failed > 0 || batch.stats.uploadFail > 0;
       logByLevel(hasError ? "warn" : "info", hasError ? "library-custom-name-save-failed" : "library-custom-name-save-success", hasError ? "库自定义名称保存完成但存在失败项" : "库自定义名称保存完成", {
+        operationId: batch.operationId || "",
         ...statsMeta(),
         durationMs: now() - (batch.saveStartedAt || now()),
         error: data.error || "",

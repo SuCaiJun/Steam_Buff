@@ -70,6 +70,7 @@
       service: "steam-webapi",
       endpointKey: String(options.endpoint || "steam-family"),
       requestUrlPolicy: { allowPath: true },
+      operationId: options.operationId || "",
       rid: options.rid || "",
       timeoutMs: TIMEOUT_MS,
       retries: options.retries ?? 1,
@@ -87,6 +88,7 @@
   function fetchFamilyGroup(options = {}) {
     return requestSteamApi({
       accessToken: options.accessToken,
+      operationId: options.operationId,
       rid: options.rid,
       endpoint: "familyGroupForUser",
       params: {
@@ -102,6 +104,7 @@
   function fetchSharedLibraryApps(options = {}) {
     return requestSteamApi({
       accessToken: options.accessToken,
+      operationId: options.operationId,
       rid: options.rid,
       endpoint: "sharedLibraryApps",
       params: {
@@ -131,6 +134,7 @@
     });
     return requestSteamApi({
       accessToken: options.accessToken,
+      operationId: options.operationId,
       rid: options.rid,
       endpoint: "playerLinkDetails",
       params,

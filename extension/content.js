@@ -640,9 +640,10 @@
     });
   }
 
-  function storageSet(data) {
+  function storageSet(data, diagnostics = {}) {
     if (globalThis.STSettingsBus?.rawSet) {
       return globalThis.STSettingsBus.rawSet(data, {
+        operationId: String(diagnostics?.operationId || ""),
         owner: "extension:content",
         reason: "content-write",
       });
@@ -658,9 +659,10 @@
     });
   }
 
-  function storageRemove(keys) {
+  function storageRemove(keys, diagnostics = {}) {
     if (globalThis.STSettingsBus?.rawRemove) {
       return globalThis.STSettingsBus.rawRemove(keys, {
+        operationId: String(diagnostics?.operationId || ""),
         owner: "extension:content",
         reason: "content-remove",
       });
@@ -1135,6 +1137,20 @@
         },
       });
     } catch (error) {
+      log({
+        level: "error",
+        domain: "steam",
+        feature: NEWS_TRANSLATE_ID,
+        event: "steam-news-translate-failed",
+        message: "Steam 新闻翻译请求失败",
+        requestId: rid,
+        error,
+        meta: pageMeta({
+          durationMs: Date.now() - startedAt,
+          textCount: texts.length,
+          textLength: text.length,
+        }),
+      });
       postNews(NEWS_TRANSLATE_TEXT_RES, {
         rid,
         ok: false,
@@ -1168,7 +1184,17 @@
         return;
       }
       if (data.type === NEWS_TRANSLATE_CONFIG_REQ) {
-        postNewsConfig(data.rid).catch(() => {
+        postNewsConfig(data.rid).catch((error) => {
+          log({
+            level: "warn",
+            domain: "steam",
+            feature: NEWS_TRANSLATE_ID,
+            event: "steam-news-translate-config-failed",
+            message: "Steam 新闻翻译配置读取失败，已返回关闭状态",
+            requestId: safeRid(data.rid),
+            error,
+            meta: pageMeta(),
+          });
           postNews(NEWS_TRANSLATE_CONFIG_RES, {
             rid: safeRid(data.rid),
             config: readNewsTranslateDataset() || { enabled: false },
@@ -1178,6 +1204,16 @@
       }
       if (data.type === NEWS_TRANSLATE_TEXT_REQ) {
         handleNewsTextRequest(data).catch((error) => {
+          log({
+            level: "error",
+            domain: "steam",
+            feature: NEWS_TRANSLATE_ID,
+            event: "steam-news-translate-failed",
+            message: "Steam 新闻翻译请求处理异常",
+            requestId: safeRid(data.rid),
+            error,
+            meta: pageMeta(),
+          });
           postNews(NEWS_TRANSLATE_TEXT_RES, {
             rid: safeRid(data.rid),
             ok: false,
@@ -1235,16 +1271,52 @@
     return cleanAuth(rt[AUTH_KEY]);
   }
 
-  function saveAuth(auth) {
+  async function saveAuth(auth, diagnostics = {}) {
     const next = cleanAuth(auth);
     if (!next) {
-      return clearAuth();
+      await clearAuthOrThrow(diagnostics);
+      return null;
     }
-    return storageSet({ [AUTH_KEY]: next });
+    const saved = await storageSet({ [AUTH_KEY]: next }, diagnostics);
+    if (saved !== true) {
+      const error = new Error("登录状态保存失败");
+      error.code = "AUTH_STORAGE_WRITE_FAILED";
+      throw error;
+    }
+    return next;
   }
 
-  function clearAuth() {
-    return storageRemove([AUTH_KEY]);
+  async function clearAuth(diagnostics = {}) {
+    return (await storageRemove([AUTH_KEY], diagnostics)) === true;
+  }
+
+  async function clearAuthOrThrow(diagnostics = {}) {
+    if (await clearAuth(diagnostics)) {
+      return true;
+    }
+    const error = new Error("本地登录状态清理失败");
+    error.code = "AUTH_STORAGE_REMOVE_FAILED";
+    throw error;
+  }
+
+  async function touchAuth(auth, diagnostics = {}) {
+    try {
+      await saveAuth({ ...auth, last_used_at: Date.now() }, diagnostics);
+      return true;
+    } catch (error) {
+      log({
+        level: "warn",
+        domain: "extension",
+        feature: NAME_ID,
+        event: "library-custom-name-auth-persist-failed",
+        message: "库自定义名称鉴权状态更新失败，但远端操作结果已保留",
+        operationId: diagnostics.operationId || "",
+        requestId: diagnostics.requestId || "",
+        error,
+        meta: pageMeta(),
+      });
+      return false;
+    }
   }
 
   function parseBody(response) {
@@ -1331,9 +1403,9 @@
     });
   }
 
-  async function refreshAuth(auth) {
+  async function refreshAuth(auth, diagnostics = {}) {
     if (!auth?.refresh_token) {
-      await clearAuth();
+      await clearAuthOrThrow(diagnostics);
       throw authError("请先在设置中登录");
     }
 
@@ -1348,26 +1420,28 @@
         refresh_token: auth.refresh_token,
       },
       allowHttpError: true,
+      operationId: diagnostics.operationId || "",
+      requestId: diagnostics.requestId || "",
     });
     const body = parseBody(response);
     const code = Number(body?.code) || response.status || 0;
     if (code < 200 || code >= 300 || !body?.access_token) {
-      await clearAuth();
+      await clearAuthOrThrow(diagnostics);
       throw authError(body?.message || "登录已过期，请重新登录");
     }
 
     const next = nextAuth(body, auth);
-    await saveAuth(next);
+    await saveAuth(next, diagnostics);
     return next;
   }
 
-  async function readyAuth() {
+  async function readyAuth(diagnostics = {}) {
     const auth = await getAuth();
     if (!auth?.access_token && !auth?.refresh_token) {
       throw authError("请先在设置中登录");
     }
     if (authExpired(auth)) {
-      return refreshAuth(auth);
+      return refreshAuth(auth, diagnostics);
     }
     return auth;
   }
@@ -1416,6 +1490,7 @@
 
   async function queryNames(data) {
     const rid = data?.rid || "";
+    const diagnostics = { requestId: rid };
     const payload = queryBody(data?.appids || data?.appid);
     if (!payload) {
       postName({ type: "query-result", rid, ok: false, error: "无效的 AppID" });
@@ -1429,13 +1504,13 @@
     }
 
     try {
-      let auth = await readyAuth();
-      let response = await sendQuery(payload, auth);
+      let auth = await readyAuth(diagnostics);
+      let response = await sendQuery(payload, auth, diagnostics);
       let body = parseBody(response);
       let code = Number(body?.code) || response.status || 0;
       if (code === 401 && auth?.refresh_token) {
-        auth = await refreshAuth(auth);
-        response = await sendQuery(payload, auth);
+        auth = await refreshAuth(auth, diagnostics);
+        response = await sendQuery(payload, auth, diagnostics);
         body = parseBody(response);
         code = Number(body?.code) || response.status || 0;
       }
@@ -1451,7 +1526,7 @@
         });
         return;
       }
-      await saveAuth({ ...auth, last_used_at: Date.now() });
+      await touchAuth(auth, diagnostics);
       postName({ type: "query-result", rid, ok: true, data: body });
     } catch (error) {
       postName({ type: "query-result", rid, ok: false, error: error?.message || String(error) });
@@ -1467,7 +1542,7 @@
     }
   }
 
-  function sendQuery(body, auth) {
+  function sendQuery(body, auth, diagnostics = {}) {
     return fetchBg({
       url: API_GET,
       method: "POST",
@@ -1478,11 +1553,17 @@
       },
       data: body,
       allowHttpError: true,
+      operationId: diagnostics.operationId || "",
+      requestId: diagnostics.requestId || "",
     });
   }
 
   async function submitFeedback(data) {
     const rid = data?.rid || "";
+    const diagnostics = {
+      operationId: data?.operationId || "",
+      requestId: rid,
+    };
     const status = await nameAllowed();
     if (!status.enabled) {
       postName({ type: "feedback-result", rid, ok: false, data: { code: 403, message: "功能已关闭" } });
@@ -1490,12 +1571,12 @@
     }
 
     try {
-      let auth = await readyAuth();
+      let auth = await readyAuth(diagnostics);
       let response = await sendFeedback(data, auth);
       let body = parseBody(response);
       let code = Number(body?.code) || response.status || 0;
       if (code === 401 && auth?.refresh_token) {
-        auth = await refreshAuth(auth);
+        auth = await refreshAuth(auth, diagnostics);
         response = await sendFeedback(data, auth);
         body = parseBody(response);
         code = Number(body?.code) || response.status || 0;
@@ -1508,12 +1589,13 @@
           feature: NAME_ID,
           event: "library-custom-name-bridge-feedback-failed",
           message: "库自定义名称桥接反馈提交失败",
+          operationId: data?.operationId || "",
           meta: bridgeNameMeta(data, { code, status: response.status || 0 }),
         });
         return;
       }
       if (code !== 401) {
-        await saveAuth({ ...auth, last_used_at: Date.now() });
+        await touchAuth(auth, diagnostics);
       }
       postName({ type: "feedback-result", rid, ok: true, data: body });
     } catch (error) {
@@ -1524,6 +1606,7 @@
         feature: NAME_ID,
         event: "library-custom-name-bridge-feedback-failed",
         message: "库自定义名称桥接反馈提交异常",
+        operationId: data?.operationId || "",
         error,
         meta: bridgeNameMeta(data, { code: Number(error?.code) || 0 }),
       });
@@ -1573,6 +1656,8 @@
       },
       data: feedbackPayload(data),
       allowHttpError: true,
+      operationId: data?.operationId || "",
+      requestId: data?.rid || "",
     });
   }
 

@@ -136,7 +136,7 @@
   function queueAutoUpload(rt, payload) {
     const root = document.documentElement;
     if (!root) {
-      return false;
+      return { ok: false, reason: "document-root-unavailable" };
     }
     try {
       rt.autoUploadSeq += 1;
@@ -147,9 +147,9 @@
         rid: `auto-${now()}-${rt.autoUploadSeq}`,
         ...payload,
       }));
-      return true;
-    } catch {
-      return false;
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, reason: "bridge-write-failed", error };
     }
   }
 
@@ -181,12 +181,18 @@
       return;
     }
     const queued = queueAutoUpload(rt, {
+      operationId: intent.operationId || "",
       appid: saved.appid,
       steam_name: steamName,
       custom_name: intent.customName,
     });
-    const meta = { appid: saved.appid };
-    if (queued) {
+    const meta = {
+      operationId: intent.operationId || "",
+      appid: saved.appid,
+      ...(queued.reason ? { reason: queued.reason } : {}),
+      ...(queued.error ? { error: queued.error } : {}),
+    };
+    if (queued.ok) {
       log.info("library-custom-name-auto-upload-queued", "库自定义名称已交由素材君云端提交桥接", meta);
     } else {
       log.warn("library-custom-name-auto-upload-queue-failed", "库自定义名称无法交由素材君云端提交桥接", meta);
@@ -200,6 +206,7 @@
       return false;
     }
     rt.autoUploadIntent = {
+      operationId: window.STLoggerFactory?.createOperationId?.() || "",
       appid,
       sortAs: raw(data?.sortAs),
       customName: text(data?.customName),
@@ -284,6 +291,14 @@
     };
   }
 
+  function operationMeta(q, extra = {}) {
+    return {
+      operationId: q?.operationId || "",
+      ...statsMeta(q),
+      ...extra,
+    };
+  }
+
   function beginSortTitleBulk(q) {
     try {
       const api = window[SORT_TITLE_RT];
@@ -304,9 +319,9 @@
       }) || { enabled: false, reason: "empty-result" };
     } catch (error) {
       q.sortTitleBulk = { enabled: false, reason: "failed", error: error?.message || String(error) };
-      log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列启用排序标题批量抑制失败", {
+      log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列启用排序标题批量抑制失败", operationMeta(q, {
         error,
-      });
+      }));
     }
     return q.sortTitleBulk;
   }
@@ -327,10 +342,9 @@
         ...statsMeta(q),
       });
     } catch (error) {
-      log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列结束排序标题批量抑制失败", {
-        ...statsMeta(q),
+      log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列结束排序标题批量抑制失败", operationMeta(q, {
         error,
-      });
+      }));
       return null;
     }
   }
@@ -357,9 +371,9 @@
       }
       return api.recordCustomNameBulk(changes);
     } catch (error) {
-      log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列记录排序标题刷新失败", {
+      log.warn("library-custom-name-save-queue-bulk-failed", "库自定义名称保存队列记录排序标题刷新失败", operationMeta(q, {
         error,
-      });
+      }));
     }
     return null;
   }
@@ -692,6 +706,13 @@
     return {
       ok: false,
       reason,
+      errorMessage: error ? (error?.message || String(error)) : "",
+    };
+  }
+
+  function fastException(reason, error) {
+    return {
+      ...fastFail(reason, error),
       error,
     };
   }
@@ -950,7 +971,7 @@
         writeMs,
       };
     } catch (error) {
-      return fastFail("entry-bootstrap-failed", error?.message || String(error));
+      return fastException("entry-bootstrap-failed", error);
     }
   }
 
@@ -999,8 +1020,8 @@
   }
 
   function fastUnavailableMessage(result, clear = false) {
-    if (result?.error) {
-      return result.error;
+    if (result?.errorMessage) {
+      return result.errorMessage;
     }
     if (clear) {
       return "清空自定义排序名称需要 Steam CloudStorage 快速写入支持";
@@ -1029,7 +1050,7 @@
     }
   }
 
-  async function writeFastBatch(items) {
+  async function writeFastBatch(items, operationId = "") {
     const rt = fastState();
     if (!rt.ok) {
       return rt;
@@ -1167,6 +1188,7 @@
         rt.callbacks.Dispatch(rt.ns, changedKeys);
       } catch (error) {
         log.warn("library-custom-name-save-queue-fast-callback-failed", "库自定义名称快速写入已落盘但刷新回调失败", {
+          operationId,
           changed: changedKeys.length,
           error,
         });
@@ -1175,6 +1197,7 @@
         rt.state.ScheduleUpload();
       } catch (error) {
         log.warn("library-custom-name-save-queue-fast-upload-failed", "库自定义名称快速写入已落盘但上传调度失败", {
+          operationId,
           changed: changedKeys.length,
           error,
         });
@@ -1194,7 +1217,7 @@
       };
     } catch (error) {
       restoreFast(rt.storage, rt.dirty, backups);
-      return fastFail("fast-write-failed", error?.message || String(error));
+      return fastException("fast-write-failed", error);
     }
   }
 
@@ -1251,19 +1274,20 @@
     const error = fastUnavailableMessage(result, clear);
     q.fast.blocked += 1;
     q.fast.reason = result?.reason || "unknown";
-    q.fast.error = result?.error || "";
+    q.fast.error = result?.errorMessage || "";
+    q.errorCause = result?.error;
     q.error = error;
     recordBatchWriteMs(q, now() - started);
     for (const item of results) {
       applyResult(q, item);
     }
     q.index += items.length;
-    log.warn("library-custom-name-save-queue-fast-unavailable", clear ? "库自定义名称清空需要 CloudStorage 快速写入，保存队列已安全中止" : "库自定义名称快速写入不可用，保存队列已安全中止", {
-      ...statsMeta(q),
+    log.warn("library-custom-name-save-queue-fast-unavailable", clear ? "库自定义名称清空需要 CloudStorage 快速写入，保存队列已安全中止" : "库自定义名称快速写入不可用，保存队列已安全中止", operationMeta(q, {
       count: items.length,
       reason: q.fast.reason,
-      error: q.fast.error,
-    });
+      errorMessage: q.fast.error,
+      ...(q.errorCause !== undefined ? { error: q.errorCause } : {}),
+    }));
     post(rt.ch, {
       type: "save-progress",
       ...stat(q, {
@@ -1281,7 +1305,7 @@
       return false;
     }
     const started = now();
-    const result = await writeFastBatch(items);
+    const result = await writeFastBatch(items, q.operationId || "");
     if (!result.ok) {
       return stopFastUnavailable(rt, q, result, items, started);
     }
@@ -1371,7 +1395,11 @@
     if (q.cancelled) {
       q.cancelled = false;
     }
-    logByLevel(q.stats.failed > 0 ? "warn" : "info", q.stats.failed > 0 ? "library-custom-name-save-queue-failed" : "library-custom-name-save-queue-success", q.stats.failed > 0 ? "库自定义名称保存队列完成但存在失败项" : "库自定义名称保存队列完成", statsMeta(q));
+    const hasFailure = q.stats.failed > 0 || !!q.error;
+    logByLevel(hasFailure ? "warn" : "info", hasFailure ? "library-custom-name-save-queue-failed" : "library-custom-name-save-queue-success", hasFailure ? "库自定义名称保存队列完成但存在失败项" : "库自定义名称保存队列完成", operationMeta(q, q.error ? {
+      errorMessage: q.error,
+      ...(q.errorCause !== undefined ? { error: q.errorCause } : {}),
+    } : {}));
     post(rt.ch, { type: "save-done", ...rememberDone(rt, q, q.error ? { error: q.error } : {}) });
     if (rt.q === q && rt.queueSeq === q.seq) {
       rt.q = null;
@@ -1379,9 +1407,13 @@
   }
 
   // 同一时间只允许一个保存队列，避免并发写入导致 Steam AppOverview 状态互相覆盖。
-  function saveQueue(rt, rid, items, skipped) {
+  function saveQueue(rt, rid, items, skipped, incomingOperationId = "") {
+    const operationId = String(incomingOperationId || "")
+      || window.STLoggerFactory?.createOperationId?.()
+      || "";
     if (rt.q?.running) {
       log.warn("library-custom-name-save-queue-failed", "库自定义名称保存队列已在执行", {
+        operationId: operationId || rt.q.operationId || "",
         reason: "already-running",
       });
       post(rt.ch, { type: "save-result", rid, ok: false, error: "已有保存队列正在执行" });
@@ -1392,6 +1424,7 @@
     const skip = Math.max(0, Number(skipped) || 0);
     const q = {
       rid,
+      operationId,
       seq: rt.queueSeq,
       items: list,
       index: 0,
@@ -1401,6 +1434,7 @@
       running: true,
       startedAt: now(),
       error: "",
+      errorCause: undefined,
       writeMsTotal: 0,
       writeMsMax: 0,
       progressLogged: 0,
@@ -1422,6 +1456,7 @@
     rt.q = q;
     beginSortTitleBulk(q);
     log.info("library-custom-name-save-queue-start", "开始执行库自定义名称保存队列", {
+      operationId,
       total: q.stats.total,
       count: list.length,
       skipped: skip,
@@ -1436,10 +1471,9 @@
     runQueue(rt, q).catch((error) => {
       q.running = false;
       endSortTitleBulk(q, "error");
-      log.error("library-custom-name-save-queue-failed", "库自定义名称保存队列异常", {
-        ...statsMeta(q),
+      log.error("library-custom-name-save-queue-failed", "库自定义名称保存队列异常", operationMeta(q, {
         error,
-      });
+      }));
       post(rt.ch, {
         type: "save-done",
         ...rememberDone(rt, q, { error: error?.message || String(error) }),
@@ -1548,7 +1582,7 @@
           return;
         }
         if (data.type === "save-queue") {
-          saveQueue(rt, rid, data.items, data.skipped);
+          saveQueue(rt, rid, data.items, data.skipped, data.operationId);
           return;
         }
         if (data.type === "save-status") {

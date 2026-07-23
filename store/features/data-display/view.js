@@ -106,11 +106,12 @@
     ];
   }
 
-  function sendAi(conf, messages, id) {
+  function sendAi(conf, messages, id, operationId = "") {
     const payload = {
       type: "AI_CHAT_COMPLETIONS",
       ai: conf,
       messages,
+      operationId,
       requestId: id,
       timeoutMs: AI_TIMEOUT_MS,
     };
@@ -211,6 +212,7 @@
   async function runForecast(root, result = {}, pageInfo = {}, button) {
     if (button?.disabled) return;
     const id = requestId();
+    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
     const startedAt = Date.now();
     let model = "";
     const appid = Number(pageInfo.appId || pageInfo.appid || pageInfo.id) || 0;
@@ -222,6 +224,7 @@
     setForecastStatus(root, "正在准备预测数据...");
     logAi("info", "forecast-ai-action-start", "价格预测用户操作开始", {
       appid,
+      operationId,
       requestId: id,
       model,
     });
@@ -232,6 +235,7 @@
         setForecastStatus(root, AI_NOT_CONFIGURED_TEXT, "warn");
         logAi("warn", "forecast-ai-action-failed", "价格预测 AI 配置不可用", {
           appid,
+          operationId,
           requestId: id,
           model,
           durationMs: Date.now() - startedAt,
@@ -249,6 +253,7 @@
         setForecastStatus(root, packStatus?.userMessage || "价格预测数据暂不可用。", "warn");
         logAi("warn", "forecast-ai-action-failed", "价格预测数据包不可用", {
           appid,
+          operationId,
           requestId: id,
           model,
           durationMs: Date.now() - startedAt,
@@ -257,7 +262,7 @@
         return;
       }
       setForecastStatus(root, "正在调用 AI 服务...");
-      const response = await sendAi(conf, aiMessages(packStatus.data), id);
+      const response = await sendAi(conf, aiMessages(packStatus.data), id, operationId);
       if (!response?.success) {
         throw Object.assign(new Error(response?.error || "AI 请求失败"), {
           code: response?.code || `AI_STATUS_${Number(response?.status) || 0}`,
@@ -267,6 +272,7 @@
       setForecastResult(root, response.text || "AI 已完成预测，但没有返回文本。");
       logAi("info", "forecast-ai-action-success", "价格预测 AI 调用完成", {
         appid,
+        operationId,
         requestId: id,
         model,
         durationMs: Date.now() - startedAt,
@@ -276,10 +282,12 @@
       setForecastResult(root, "AI 预测失败，请检查 AI 服务配置。", "AI 预测结果", "error");
       logAi("error", "forecast-ai-action-failed", "价格预测 AI 调用失败", {
         appid,
+        operationId,
         requestId: id,
         model,
         durationMs: Date.now() - startedAt,
         errorCode: error?.code || error?.name || "AI_REQUEST_FAILED",
+        error,
       });
     } finally {
       if (button) {

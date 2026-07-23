@@ -25,8 +25,6 @@
   const API_SUBMIT = root.STConfig.steamBuff("/submit");
   const ALIAS_QUERY = root.STConfig.steamBuff("/aliases/query");
   const ALIAS_SAVE = root.STConfig.steamBuff("/aliases");
-  const NOTE_QUERY = root.STConfig.steamBuff("/wishlist-notes/query");
-  const NOTE_SAVE = root.STConfig.steamBuff("/wishlist-notes");
   const AUTH_REFRESH = root.STConfig.loginAuth("/auth/refresh");
   const NOTE_MAX = 2000;
   const NAME_BATCH_SIZE = 80;
@@ -85,16 +83,21 @@
   });
   const log = root.STLoggerFactory.createLogger("store", "title-custom-name");
 
-  async function authedPost(url, body) {
+  async function authedPost(url, body, diagnostics = {}) {
     if (!authClient) throw new Error("请先在设置中登录");
-    const { body: data, code } = await authClient.authedPost(url, body, { throwOnMissingAuth: true });
+    const { body: data, code } = await authClient.authedPost(url, body, {
+      throwOnMissingAuth: true,
+      operationId: diagnostics.operationId || "",
+    });
     if (code < 200 || code >= 300) throw new Error(data?.message || `请求失败：${code}`);
     return data || {};
   }
 
-  async function authedDelete(url, body) {
+  async function authedDelete(url, body, diagnostics = {}) {
     if (!authClient) throw new Error("请先在设置中登录");
-    const auth = await authClient.readyAuth();
+    const operationId = diagnostics.operationId || "";
+    const requestId = root.STLoggerFactory?.createRequestId?.() || "";
+    const auth = await authClient.readyAuth({ operationId });
     if (!auth?.access_token) throw new Error("请先在设置中登录");
     const response = await authClient.fetchBg({
       url,
@@ -106,6 +109,8 @@
       },
       data: body || {},
       allowHttpError: true,
+      operationId,
+      requestId,
     });
     const data = authClient.parseJson(response.data);
     const code = Number(data?.code) || response.status || 0;
@@ -122,6 +127,10 @@
 
   function isWishlistPath() {
     return /^\/wishlist(?:\/|$)/i.test(location.pathname);
+  }
+
+  function isDetailPath() {
+    return /^\/app\/\d+(?:\/|$)/i.test(location.pathname);
   }
 
   function isWishlistSortTarget(target) {
@@ -273,11 +282,12 @@
   }
 
   async function modalNote(appid) {
-    if (api.features.gameNotes?.getNote) {
-      return api.features.gameNotes.getNote(appid);
+    if (typeof api.features.gameNotes?.getNote !== "function") {
+      const error = new Error("游戏备注模块未加载");
+      error.code = "GAME_NOTES_API_UNAVAILABLE";
+      throw error;
     }
-    const body = await authedPost(NOTE_QUERY, { appids: [appid] });
-    return body?.data?.[0] || { note: "" };
+    return api.features.gameNotes.getNote(appid);
   }
 
   function setTab(modal, tab) {
@@ -556,24 +566,27 @@
     }
     setMsg(clear ? "正在删除备注..." : "正在保存备注...");
     const startedAt = Date.now();
+    const operationId = root.STLoggerFactory?.createOperationId?.() || "";
+    log.info("title-custom-name-note-save-start", "开始保存游戏备注", {
+      operationId,
+      appid: ctx.appid,
+      noteLength: note.length,
+      status: clear ? "deleted" : "saved",
+    });
     try {
-      if (api.features.gameNotes?.saveNote) {
-        await api.features.gameNotes.saveNote(ctx.appid, ctx.steamTitle, note);
-      } else {
-        await authedPost(NOTE_SAVE, { appid: ctx.appid, steam_name: ctx.steamTitle, note });
+      if (typeof api.features.gameNotes?.saveNote !== "function") {
+        const error = new Error("游戏备注模块未加载");
+        error.code = "GAME_NOTES_API_UNAVAILABLE";
+        throw error;
       }
+      await api.features.gameNotes.saveNote(ctx.appid, ctx.steamTitle, note, { operationId });
       if (textarea) textarea.value = note;
       updateCount(modal);
       setMsg(clear ? "备注已删除" : "备注已保存");
       toast(clear ? "备注已删除" : "备注已保存");
-      log.info("title-custom-name-note-save-success", "游戏备注保存完成", {
-        appid: ctx.appid,
-        noteLength: note.length,
-        durationMs: Date.now() - startedAt,
-        status: clear ? "deleted" : "saved",
-      });
     } catch (error) {
       log.error("title-custom-name-note-save-failed", "游戏备注保存失败", {
+        operationId,
         appid: ctx.appid,
         noteLength: note.length,
         durationMs: Date.now() - startedAt,
@@ -588,18 +601,19 @@
     return body?.data || { alias: "" };
   }
 
-  async function saveAliasFromModal(ctx, alias) {
+  async function saveAliasFromModal(ctx, alias, operationId = "") {
     const startedAt = Date.now();
     if (alias) {
       await authedPost(ALIAS_SAVE, {
         appid: ctx.appid,
         steam_name: ctx.steamTitle,
         alias,
-      });
+      }, { operationId });
     } else {
-      await authedDelete(ALIAS_SAVE, { appid: ctx.appid });
+      await authedDelete(ALIAS_SAVE, { appid: ctx.appid }, { operationId });
     }
     log.info("title-custom-name-alias-save-success", "游戏别名保存完成", {
+      operationId,
       appid: ctx.appid,
       aliasLength: alias.length,
       durationMs: Date.now() - startedAt,
@@ -616,7 +630,9 @@
     const alias = String(aliasInput?.value || "").trim();
     setMsg("正在保存基础信息...");
     const startedAt = Date.now();
+    const operationId = root.STLoggerFactory?.createOperationId?.() || "";
     log.info("title-custom-name-submit-start", "开始提交商店标题中文名", {
+      operationId,
       appid: ctx.appid,
       customNameLength: custom.length,
       steamNameLength: ctx.steamTitle.length,
@@ -629,7 +645,7 @@
           appid: ctx.appid,
           steam_name: ctx.steamTitle,
           custom_name: custom,
-        });
+        }, { operationId });
         item = {
           ...(nameCache.get(ctx.appid) || {}),
           appid: ctx.appid,
@@ -639,7 +655,7 @@
         };
         nameCache.set(ctx.appid, item);
       }
-      await saveAliasFromModal(ctx, alias);
+      await saveAliasFromModal(ctx, alias, operationId);
       if (item && state?.appid === ctx.appid) {
         state.item = item;
         renderTitle();
@@ -648,11 +664,13 @@
       setMsg("基础信息已保存");
       toast("基础信息已保存");
       log.info("title-custom-name-submit-success", "商店标题中文名提交完成", {
+        operationId,
         appid: ctx.appid,
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
       log.error("title-custom-name-submit-failed", "商店标题中文名提交失败", {
+        operationId,
         appid: ctx.appid,
         durationMs: Date.now() - startedAt,
         error,
@@ -924,9 +942,10 @@
     if (!isWishlistPath()) return false;
     const container = wishlistDom?.listContainer?.();
     if (!container) {
-      log.warn("title-custom-name-wishlist-observer-target-missing", "愿望单自定义名称监听目标未找到", {
+      log.debug("title-custom-name-wishlist-observer-target-missing", "愿望单自定义名称监听目标尚未挂载", {
         path: location.pathname,
       });
+      scheduleWishlistSettleCheck();
       return false;
     }
     renderWishlistRows().catch(() => {});
@@ -961,11 +980,17 @@
   }
 
   async function refresh() {
+    if (isWishlistPath()) {
+      startWishlist();
+      return;
+    }
+    if (!isDetailPath()) {
+      return;
+    }
     const seq = ++refreshSeq;
     const info = pageInfo();
     const title = titleEl();
     if (!info || !title) {
-      startWishlist();
       if (info && tries < RETRY_MAX) {
         tries += 1;
         setTimeout(() => {
@@ -1006,7 +1031,7 @@
   }
 
   function observe() {
-    if (observer) return;
+    if (observer || isWishlistPath() || !isDetailPath()) return;
     const target = observeTarget();
     if (!target) {
       log.warn("title-custom-name-observer-target-missing", "商店标题自定义名监听目标未找到", {
@@ -1048,9 +1073,12 @@
       return false;
     }
     if (started) {
-      observe();
-      refresh().catch(() => {});
-      startWishlist();
+      if (isWishlistPath()) {
+        startWishlist();
+      } else if (isDetailPath()) {
+        observe();
+        refresh().catch(() => {});
+      }
       log.info("title-custom-name-start-skipped", "商店标题自定义名已启动，本次只触发刷新", {
         reason: "already-started",
         path: location.pathname,
@@ -1058,9 +1086,12 @@
       return true;
     }
     started = true;
-    observe();
-    refresh().catch(() => {});
-    startWishlist();
+    if (isWishlistPath()) {
+      startWishlist();
+    } else if (isDetailPath()) {
+      observe();
+      refresh().catch(() => {});
+    }
     log.info("title-custom-name-start-success", "商店标题自定义名已启动", {
       path: location.pathname,
       durationMs: Date.now() - startedAt,

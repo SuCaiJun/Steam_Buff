@@ -46,7 +46,9 @@
         time: now(),
         ...msg,
       });
-    } catch {
+      return null;
+    } catch (error) {
+      return error;
     }
   }
 
@@ -168,7 +170,7 @@
     if (reason) {
       s.reason = reason;
     }
-    post(ch, {
+    return post(ch, {
       type: "backend-status",
       on: !!s.on,
       mon: !!s.mon,
@@ -222,8 +224,13 @@
     });
   }
 
-  async function setOn(api, on, rid) {
+  async function setOn(api, on, rid, incomingOperationId = "") {
+    const operationId = String(incomingOperationId || "")
+      || window.STLoggerFactory?.createOperationId?.()
+      || "";
     clearTimers();
+    s.operationId = operationId;
+    s.pollErrorKey = "";
     s.on = !!on;
     s.mon = false;
     s.seen = false;
@@ -233,8 +240,10 @@
     s.idleAt = 0;
 
     if (!on) {
-      pub(api, { rid, reason: ST.OFF });
+      const postError = pub(api, { rid, reason: ST.OFF });
+      if (postError) throw postError;
       log.info("download-auto-shutdown-toggle-success", "下载完成自动关机已关闭", {
+        operationId,
         enabled: false,
         reason: ST.OFF,
       });
@@ -247,8 +256,10 @@
     if (!shot.work) {
       s.mon = false;
       s.seen = false;
-      pub(api, { rid, reason: ST.NO_WORK });
+      const postError = pub(api, { rid, reason: ST.NO_WORK });
+      if (postError) throw postError;
       log.info("download-auto-shutdown-toggle-success", "下载完成自动关机已开启但当前无下载任务", {
+        operationId,
         enabled: true,
         reason: ST.NO_WORK,
         workCount: 0,
@@ -258,8 +269,10 @@
 
     s.mon = true;
     s.seen = true;
-    pub(api, { rid, reason: ST.ARMED });
+    const postError = pub(api, { rid, reason: ST.ARMED });
+    if (postError) throw postError;
     log.info("download-auto-shutdown-toggle-success", "下载完成自动关机已开启并开始监控", {
+      operationId,
       enabled: true,
       reason: ST.ARMED,
       workCount: (Number(shot.actN) || 0) + (Number(shot.queueN) || 0),
@@ -272,8 +285,37 @@
     s.err = String(error?.message || error || "未知错误").replace(/^Error:\s*/, "");
     pub(api, { reason: ST.FAIL, error: s.err });
     log.error("download-auto-shutdown-failed", "下载完成自动关机失败", {
+      operationId: s.operationId || "",
       reason: ST.FAIL,
-      error: s.err,
+      error,
+    });
+  }
+
+  function reportPollFailure(api, error) {
+    const key = `${error?.name || "Error"}:${error?.message || String(error || "")}`;
+    if (key === s.pollErrorKey) {
+      return;
+    }
+    s.pollErrorKey = key;
+    log.error("download-auto-shutdown-monitor-failed", "下载完成自动关机监控失败", {
+      operationId: s.operationId || "",
+      reason: ST.FAIL,
+      error,
+    });
+  }
+
+  function reportPollRecovery() {
+    if (!s.pollErrorKey) {
+      return;
+    }
+    s.pollErrorKey = "";
+    log.warn("download-auto-shutdown-monitor-recovered", "下载完成自动关机监控已恢复", {
+      operationId: s.operationId || "",
+      recovery: {
+        attempted: true,
+        success: true,
+        strategy: "next-poll-success",
+      },
     });
   }
 
@@ -328,6 +370,7 @@
       }
       window.SteamClient.System.ShutdownPC();
       log.info("download-auto-shutdown-success", "下载完成自动关机请求已发送", {
+        operationId: s.operationId || "",
         reason: ST.SHUT,
       });
       return true;
@@ -346,7 +389,8 @@
     s.mon = false;
     s.err = "";
     pub(api, { reason: ST.SHUT });
-    log.warn("download-auto-shutdown-start", "下载完成自动关机已触发", {
+    log.info("download-auto-shutdown-start", "下载完成自动关机已触发", {
+      operationId: s.operationId || "",
       reason: ST.SHUT,
     });
 
@@ -383,6 +427,7 @@
     }
 
     const shot = await snap();
+    reportPollRecovery();
     s.snap = shot;
 
     if (shot.work) {
@@ -467,7 +512,7 @@
     window.STScheduler.register(
       SCHEDULER_TASK,
       () => {
-        poll(api).catch(() => {});
+        poll(api).catch((error) => reportPollFailure(api, error));
       },
       () => s.bOn === true && api.ctx?.settingOn?.(ID) !== false,
       { intervalMs: POLL_MS }
@@ -508,8 +553,23 @@
       if (data.type === "set-enabled") {
         const on = data.on;
         const rid = data.rid;
-        setOn(api, !!on, rid)
-          .catch(() => {});
+        const operationId = String(data.operationId || "")
+          || window.STLoggerFactory?.createOperationId?.()
+          || "";
+        setOn(api, !!on, rid, operationId).catch((error) => {
+          clearTimers();
+          s.on = false;
+          s.mon = false;
+          s.shut = false;
+          s.err = error?.message || String(error);
+          pub(api, { rid, reason: ST.FAIL, error: s.err });
+          log.error("download-auto-shutdown-toggle-failed", "下载完成自动关机开关处理失败", {
+            operationId,
+            enabled: !!on,
+            reason: ST.FAIL,
+            error,
+          });
+        });
       }
     };
     scope?.listener?.("backend-channel-message", ch, "message", s.onMsg);

@@ -27,6 +27,12 @@
       ? options.fieldInput
       : (...args) => root.STSettingsFields?.fieldInput?.(...args) || "";
     const storage = options.storage || root.STSettings?.storage || {};
+    const dialog = typeof options.dialog === "function" ? options.dialog : () => Promise.resolve("");
+    const log = root.STLoggerFactory?.createLogger?.("settings", "translate-panel") || {
+      info() {},
+      warn() {},
+      error() {},
+    };
     const savePrompt = typeof options.savePrompt === "function" ? options.savePrompt : () => Promise.resolve();
     const onConfigChange = typeof options.onConfigChange === "function" ? options.onConfigChange : () => {};
     const getAiConfig = typeof options.getAiConfig === "function" ? options.getAiConfig : () => ({});
@@ -34,9 +40,23 @@
       ? options.getFields
       : () => options.catalog?.translateFields?.() || root.STSettings?.catalog?.translateFields?.() || [];
     let conf = { ...(options.config || {}) };
+    let persistedConf = { ...conf };
+    let publishingConfig = false;
 
     function setConfig(next) {
       conf = { ...(next || {}) };
+      if (!publishingConfig) {
+        persistedConf = { ...conf };
+      }
+    }
+
+    function publishConfig() {
+      publishingConfig = true;
+      try {
+        onConfigChange(conf);
+      } finally {
+        publishingConfig = false;
+      }
     }
 
     function getConfig() {
@@ -104,6 +124,36 @@
       if (select && select.type === "checkbox") {
         select.checked = conf.select !== false;
       }
+    }
+
+    function syncInputs(shadow) {
+      shadow.querySelectorAll("[data-translate]").forEach((node) => {
+        const id = node.dataset.translate;
+        if (!id) return;
+        if (node.type === "checkbox") {
+          node.checked = conf[id] !== false;
+          return;
+        }
+        node.value = String(conf[id] ?? "");
+      });
+      syncFields(shadow);
+    }
+
+    function setInputsDisabled(shadow, disabled) {
+      shadow.querySelectorAll("[data-translate]").forEach((node) => {
+        node.disabled = disabled;
+      });
+    }
+
+    function showSavePrompt(shadow, operationId) {
+      void Promise.resolve()
+        .then(() => savePrompt(shadow))
+        .catch((error) => {
+          log.warn("translate-settings-save-prompt-failed", "翻译设置已保存，但成功提示显示失败", {
+            operationId,
+            error,
+          });
+        });
     }
 
     function read(shadow) {
@@ -199,12 +249,60 @@
       if (!save) {
         return false;
       }
+      if (save.disabled) {
+        return true;
+      }
+      const previous = { ...persistedConf };
       const next = read(shadow);
       conf = { ...conf, ...next };
-      onConfigChange(conf);
-      storage.setTranslate?.(next)?.then?.(() => {
-        savePrompt(shadow);
-      });
+      publishConfig();
+      const startedAt = Date.now();
+      const operationId = root.STLoggerFactory?.createOperationId?.() || "";
+      log.info("translate-settings-save-start", "开始保存翻译设置", { operationId });
+      const oldText = save.textContent || "";
+      save.disabled = true;
+      save.textContent = "保存中...";
+      setInputsDisabled(shadow, true);
+      Promise.resolve()
+        .then(() => typeof storage.setTranslate === "function"
+          ? storage.setTranslate(next, { operationId })
+          : false)
+        .then((ok) => {
+          if (ok !== true) {
+            conf = { ...previous };
+            publishConfig();
+            syncInputs(shadow);
+            log.warn("translate-settings-save-failed", "翻译设置保存失败", {
+              operationId,
+              durationMs: Date.now() - startedAt,
+              errorCode: ok === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
+            });
+            dialog(shadow, { title: "保存失败", message: "翻译设置未能保存，请稍后重试。" });
+            return;
+          }
+          persistedConf = { ...conf };
+          log.info("translate-settings-save-success", "翻译设置保存成功", {
+            operationId,
+            durationMs: Date.now() - startedAt,
+          });
+          showSavePrompt(shadow, operationId);
+        })
+        .catch((error) => {
+          conf = { ...previous };
+          publishConfig();
+          syncInputs(shadow);
+          log.error("translate-settings-save-failed", "翻译设置保存异常", {
+            operationId,
+            durationMs: Date.now() - startedAt,
+            error,
+          });
+          dialog(shadow, { title: "保存失败", message: "翻译设置保存异常，请稍后重试。" });
+        })
+        .finally(() => {
+          setInputsDisabled(shadow, false);
+          save.disabled = false;
+          save.textContent = oldText;
+        });
       return true;
     }
 
@@ -214,7 +312,7 @@
         return false;
       }
       conf = { ...conf, ...read(shadow) };
-      onConfigChange(conf);
+      publishConfig();
       syncFields(shadow);
       return true;
     }
