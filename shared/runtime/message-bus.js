@@ -17,6 +17,7 @@
 
   const DEFAULT_TIMEOUT_MS = 12 * 1000;
   const MAX_IN_FLIGHT = 80;
+  const AI_STREAM_TYPE = "AI_CHAT_COMPLETIONS_STREAM";
   const log = root.STLoggerFactory?.createLogger?.("shared", "message-bus") || {
     warn() {},
   };
@@ -27,6 +28,7 @@
     TRANSLATE_INJECT: { timeoutMs: 12 * 1000, owner: "translate" },
     UPDATE_CHECK: { timeoutMs: 10 * 1000, owner: "settings" },
     AI_CHAT_COMPLETIONS: { timeoutMs: 20 * 1000, owner: "ai" },
+    AI_CHAT_COMPLETIONS_STREAM: { timeoutMs: 120 * 1000, owner: "ai" },
     AI_TRANSLATE_CACHE_GET: { timeoutMs: 8 * 1000, owner: "translate" },
     AI_TRANSLATE_CACHE_SET: { timeoutMs: 8 * 1000, owner: "translate" },
     LOG_APPEND: { timeoutMs: 8 * 1000, owner: "logger" },
@@ -212,6 +214,166 @@
     return job;
   }
 
+  function stream(payload = {}, handlers = {}, options = {}) {
+    const message = payload && typeof payload === "object" ? { ...payload } : {};
+    const type = text(message.type || options.type);
+    const chromeApi = root.chrome?.runtime;
+    if (type !== AI_STREAM_TYPE) {
+      const error = new Error("未知的流式消息类型");
+      return Object.freeze({ done: Promise.reject(error), cancel() {} });
+    }
+    if (!chromeApi?.connect) {
+      const error = new Error("chrome.runtime.connect 不可用");
+      return Object.freeze({ done: Promise.reject(error), cancel() {} });
+    }
+
+    message.type = type;
+    const timeoutMs = timeoutFor(type, {
+      ...options,
+      timeoutMs: options.timeoutMs ?? message.timeoutMs,
+    });
+    const logFailures = options.logFailures !== false;
+    let port = null;
+    let timer = 0;
+    let settled = false;
+    let rejectDone = null;
+
+    const done = new Promise((resolve, reject) => {
+      rejectDone = reject;
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        if (timer) root.clearTimeout(timer);
+        fn(value);
+      };
+
+      try {
+        port = chromeApi.connect({ name: type });
+      } catch (error) {
+        stats.lastError = safeError(error);
+        bump(type, "failed");
+        if (logFailures) {
+          log.warn("message-bus-stream-failed", "运行时流式消息连接失败", messageMeta(type, { error }, message));
+        }
+        finish(reject, error);
+        return;
+      }
+
+      if (timeoutMs > 0) {
+        timer = root.setTimeout(() => {
+          const error = createTimeout(type, timeoutMs);
+          stats.lastError = safeError(error);
+          bump(type, "timedOut");
+          bump(type, "failed");
+          if (logFailures) {
+            log.warn("message-bus-stream-timeout", "运行时流式消息超时", messageMeta(type, {
+              timeoutMs,
+              error,
+            }, message));
+          }
+          finish(reject, error);
+          try {
+            port?.disconnect?.();
+          } catch {
+          }
+        }, timeoutMs);
+      }
+
+      port.onMessage.addListener((event = {}) => {
+        if (settled) return;
+        try {
+          if (event.event === "start") {
+            handlers.onStart?.(event);
+            return;
+          }
+          if (event.event === "delta") {
+            handlers.onDelta?.(text(event.text), event);
+            return;
+          }
+          if (event.event === "done") {
+            handlers.onDone?.(event);
+            bump(type, "resolved");
+            finish(resolve, event);
+            try {
+              port?.disconnect?.();
+            } catch {
+            }
+            return;
+          }
+          if (event.event === "error") {
+            const error = new Error(text(event.error) || "AI 流式请求失败");
+            error.code = text(event.code) || "AI_STREAM_FAILED";
+            error.status = Number(event.status) || 0;
+            stats.lastError = safeError(error);
+            handlers.onError?.(error, event);
+            bump(type, "failed");
+            finish(reject, error);
+            try {
+              port?.disconnect?.();
+            } catch {
+            }
+          }
+        } catch (error) {
+          stats.lastError = safeError(error);
+          bump(type, "failed");
+          if (logFailures) {
+            log.warn("message-bus-stream-failed", "运行时流式消息处理失败", messageMeta(type, { error }, message));
+          }
+          finish(reject, error);
+          try {
+            port?.disconnect?.();
+          } catch {
+          }
+        }
+      });
+
+      port.onDisconnect.addListener(() => {
+        if (settled) return;
+        const runtimeError = chromeApi.lastError;
+        const error = new Error(runtimeError?.message || "AI 流式通道已断开");
+        error.name = "MessageError";
+        stats.lastError = safeError(error);
+        bump(type, "failed");
+        if (logFailures) {
+          log.warn("message-bus-stream-failed", "运行时流式消息意外断开", messageMeta(type, { error }, message));
+        }
+        finish(reject, error);
+      });
+
+      stats.lastSentAt = Date.now();
+      bump(type, "sent");
+      try {
+        port.postMessage(message);
+      } catch (error) {
+        stats.lastError = safeError(error);
+        bump(type, "failed");
+        if (logFailures) {
+          log.warn("message-bus-stream-failed", "运行时流式消息发送失败", messageMeta(type, { error }, message));
+        }
+        finish(reject, error);
+        try {
+          port.disconnect();
+        } catch {
+        }
+      }
+    });
+
+    function cancel() {
+      if (settled) return;
+      const error = new Error("AI 流式请求已取消");
+      error.name = "AbortError";
+      settled = true;
+      if (timer) root.clearTimeout(timer);
+      rejectDone?.(error);
+      try {
+        port?.disconnect?.();
+      } catch {
+      }
+    }
+
+    return Object.freeze({ done, cancel });
+  }
+
   async function request(payload = {}, options = {}) {
     const response = await send(payload, options);
     if (options.expectSuccess === true && response?.success === false) {
@@ -329,6 +491,7 @@
     ready: true,
     routes: ROUTES,
     send,
+    stream,
     request,
     listen,
     clearOwner,

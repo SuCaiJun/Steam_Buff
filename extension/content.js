@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v13";
+  const RUN_VERSION = "steam-buff-runtime-v15";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -70,6 +70,8 @@
   const SETTINGS_ATTR = "steamBuffSettings";
   const RUNTIME_SESSION_ATTR = "steamBuffRuntimeSessionId";
   const RUNTIME_OPERATION_ATTR = "steamBuffRuntimeOperationId";
+  const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
+  const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_FEATURES_DISABLED_MESSAGE = "__steam_buff_features_disabled";
   const NEWS_TRANSLATE_ATTR = "steamBuffNewsTranslate";
   const LOCALE_ATTR = "steamBuffUiLocale";
@@ -103,6 +105,9 @@
   const SEEN_NAME_MAX = 200;
   const BOOT_MS = 250;
   const BOOT_MAX = 480;
+  // 依赖未就绪可等待较久；完整资源包注入失败只做少量、低频重试，避免反复全量注入。
+  const RUNTIME_INJECT_RETRY_DELAYS = Object.freeze([1000, 3000]);
+  const RUNTIME_INJECT_MAX_ATTEMPTS = RUNTIME_INJECT_RETRY_DELAYS.length + 1;
   const TRANSLATE_DEFAULTS = Object.freeze({
     page: false,
     selection: true,
@@ -142,6 +147,9 @@
   const seenLogs = new Set();
   let steamRuntimeOperationId = "";
   let steamRuntimeInjectStartedAt = 0;
+  let steamRuntimeInjectAttempt = 0;
+  let steamRuntimeInjectRetryTimer = 0;
+  let steamRuntimeLastInjectFailurePhase = "";
 
   function log(entry) {
     try {
@@ -190,14 +198,43 @@
   }
 
   function beginSteamRuntimeInjection() {
-    steamRuntimeOperationId = globalThis.STLoggerFactory.createOperationId();
-    steamRuntimeInjectStartedAt = Date.now();
+    if (steamRuntimeInjectRetryTimer) {
+      window.clearTimeout(steamRuntimeInjectRetryTimer);
+      steamRuntimeInjectRetryTimer = 0;
+    }
+    if (steamRuntimeInjectAttempt === 0) {
+      steamRuntimeOperationId = globalThis.STLoggerFactory.createOperationId();
+      steamRuntimeInjectStartedAt = Date.now();
+    }
+    steamRuntimeInjectAttempt += 1;
     const el = root();
     if (el) {
+      clearPageRuntimeReady();
       el.dataset[RUNTIME_SESSION_ATTR] = globalThis.STLogger.sessionId;
       el.dataset[RUNTIME_OPERATION_ATTR] = steamRuntimeOperationId;
     }
-    return steamRuntimeOperationId;
+    return {
+      operationId: steamRuntimeOperationId,
+      attempt: steamRuntimeInjectAttempt,
+    };
+  }
+
+  function scheduleRuntimeInjectionRetry(attempt) {
+    const delay = RUNTIME_INJECT_RETRY_DELAYS[attempt - 1];
+    if (!Number.isFinite(delay) || steamRuntimeInjectRetryTimer) {
+      return null;
+    }
+    steamRuntimeInjectRetryTimer = window.setTimeout(() => {
+      steamRuntimeInjectRetryTimer = 0;
+      run();
+    }, delay);
+    return delay;
+  }
+
+  function runtimeInjectionRetryMeta(attempt) {
+    return attempt > 1
+      ? { retry: { attempt, maxAttempts: RUNTIME_INJECT_MAX_ATTEMPTS } }
+      : {};
   }
 
   function steamRuntimeInjectionMeta(extra = {}) {
@@ -211,6 +248,25 @@
 
   function root() {
     return document.documentElement || document.head;
+  }
+
+  function pageRuntimeReady(operationId = "") {
+    const el = root();
+    const data = el?.dataset;
+    if (data?.[RUNTIME_READY_ATTR] !== RUN_VERSION) {
+      return false;
+    }
+    return !operationId || data[RUNTIME_READY_OPERATION_ATTR] === operationId;
+  }
+
+  function clearPageRuntimeReady(operationId = "") {
+    const el = root();
+    const data = el?.dataset;
+    if (!data || (operationId && data[RUNTIME_READY_OPERATION_ATTR] !== operationId)) {
+      return;
+    }
+    data[RUNTIME_READY_ATTR] = "";
+    data[RUNTIME_READY_OPERATION_ATTR] = "";
   }
 
   function isSteamContentTarget() {
@@ -1785,7 +1841,9 @@
     }
 
     // Steam 主上下文脚本通过 dataset 读取开关快照，避免每次按钮点击都等待内容脚本往返。
+    const onPhase = typeof options.onPhase === "function" ? options.onPhase : () => {};
     const prev = readSteamSettingsSnapshot();
+    onPhase("settings-load");
     const settings = steamSettingsFrom(await loadSettings());
 
     try {
@@ -1797,7 +1855,9 @@
     if (options.notifyDisabled !== false && prev) {
       notifySteamFeaturesDisabled(disabledSteamFeatureIds(prev, settings));
     }
+    onPhase("locale-load");
     await writeUiLocale();
+    onPhase("settings-ready");
   }
 
   async function writeUiLocale() {
@@ -1898,7 +1958,7 @@
 
     const gd = globalThis.STGuard;
     if (isSteamContentTarget()) {
-      globalThis[RUN_MARK] = RUN_VERSION;
+      globalThis[RUN_MARK] = RUN_PENDING;
     }
     // guard.ok() 失败通常表示页面仍是 about:blank 或非目标 frame，继续 retry 才能覆盖后续 ready 的 Steam CEF。
     if (!gd?.ok()) {
@@ -1918,6 +1978,10 @@
     watchNameReq();
 
     if (!gd.lock()) {
+      if (pageRuntimeReady()) {
+        globalThis[RUN_MARK] = RUN_VERSION;
+        return;
+      }
       steamRuntimeLogOnce("steam-runtime-inject-skipped-lock", {
         level: "info",
         domain: "steam",
@@ -1929,19 +1993,28 @@
       return;
     }
 
-    const operationId = beginSteamRuntimeInjection();
-    let injectPhase = "settings-snapshot";
-    steamRuntimeLogOnce(`runtime-inject-start:${operationId}`, {
-      level: "info",
-      domain: "steam",
-      feature: "steam-runtime",
-      event: "runtime-inject-start",
-      message: "开始注入 Steam 运行时",
-      operationId,
-      meta: steamRuntimeInjectionMeta({ phase: injectPhase }),
-    });
+    const injection = beginSteamRuntimeInjection();
+    const operationId = injection.operationId;
+    const attempt = injection.attempt;
+    let injectPhase = "settings-load";
+    if (attempt === 1) {
+      steamRuntimeLogOnce(`runtime-inject-start:${operationId}`, {
+        level: "info",
+        domain: "steam",
+        feature: "steam-runtime",
+        event: "runtime-inject-start",
+        message: "开始注入 Steam 运行时",
+        operationId,
+        meta: steamRuntimeInjectionMeta({ phase: injectPhase }),
+      });
+    }
 
-    writeSteamSettings({ notifyDisabled: false })
+    writeSteamSettings({
+      notifyDisabled: false,
+      onPhase: (phase) => {
+        injectPhase = phase;
+      },
+    })
       .then(() => {
         injectPhase = "resource-load";
         return inj.inject([
@@ -1972,21 +2045,59 @@
         ]);
       })
       .then(() => {
+        injectPhase = "runtime-ready";
+        if (!pageRuntimeReady(operationId)) {
+          const error = new Error("Steam 页面运行时未回写 ready 回执");
+          error.name = "SteamRuntimeReadyError";
+          throw error;
+        }
+        globalThis[RUN_MARK] = RUN_VERSION;
         steamRuntimeLogOnce(`runtime-inject-success:${operationId}`, {
-          level: "info",
+          level: attempt > 1 ? "warn" : "info",
           domain: "steam",
           feature: "steam-runtime",
           event: "runtime-inject-success",
           message: "Steam 运行时注入完成",
           operationId,
           durationMs: Date.now() - steamRuntimeInjectStartedAt,
-          meta: steamRuntimeInjectionMeta({ phase: "resource-load" }),
+          ...runtimeInjectionRetryMeta(attempt),
+          meta: steamRuntimeInjectionMeta({
+            phase: "runtime-ready",
+            ...(attempt > 1 ? { recovered: true } : {}),
+            ...(steamRuntimeLastInjectFailurePhase
+              ? { previousFailurePhase: steamRuntimeLastInjectFailurePhase }
+              : {}),
+          }),
         });
+        steamRuntimeInjectAttempt = 0;
+        steamRuntimeLastInjectFailurePhase = "";
       })
       .catch((error) => {
         globalThis[RUN_MARK] = "";
+        clearPageRuntimeReady(operationId);
         gd.fail();
-        log({
+        steamRuntimeLastInjectFailurePhase = injectPhase;
+        const retryDelay = scheduleRuntimeInjectionRetry(attempt);
+        if (retryDelay !== null) {
+          steamRuntimeLogOnce(`runtime-inject-retry:${operationId}:${attempt}`, {
+            level: "warn",
+            domain: "steam",
+            feature: "steam-runtime",
+            event: "runtime-inject-retry",
+            message: "Steam 运行时注入失败，等待有限重试",
+            operationId,
+            durationMs: Date.now() - steamRuntimeInjectStartedAt,
+            error,
+            retry: {
+              attempt,
+              maxAttempts: RUNTIME_INJECT_MAX_ATTEMPTS,
+              delayMs: retryDelay,
+            },
+            meta: steamRuntimeInjectionMeta({ phase: injectPhase }),
+          });
+          return;
+        }
+        steamRuntimeLogOnce(`runtime-inject-failed:${operationId}`, {
           level: "error",
           domain: "steam",
           feature: "steam-runtime",
@@ -1995,8 +2106,11 @@
           operationId,
           durationMs: Date.now() - steamRuntimeInjectStartedAt,
           error,
+          retry: { attempt, maxAttempts: RUNTIME_INJECT_MAX_ATTEMPTS },
           meta: steamRuntimeInjectionMeta({ phase: injectPhase }),
         });
+        steamRuntimeInjectAttempt = 0;
+        steamRuntimeLastInjectFailurePhase = "";
       });
   }
 
@@ -2056,7 +2170,7 @@
       return;
     }
 
-    globalThis[RUN_MARK] = RUN_VERSION;
+    globalThis[RUN_MARK] = isSteamContentTarget() ? RUN_PENDING : RUN_VERSION;
     if (globalThis.STPageContext?.snapshot?.().domain !== "steam") {
       runLightBoot();
       return;

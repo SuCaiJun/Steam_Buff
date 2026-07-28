@@ -22,9 +22,13 @@
 })(typeof globalThis !== "undefined" ? globalThis : window, () => {
   "use strict";
 
-  const LIST_SEL = ".PU7fdVEQB8s-.Panel, #wishlist_ctn, #wishlist_list";
-  const ROW_SEL = ".wishlist_row, [data-ds-appid], [data-app-id], [data-index]";
-  const TITLE_SEL = ".pOyXxbQoV38-, .title, .contenthub_featured_item_title, a[href*='/app/']";
+  // 注: 2026-07-26 已在 Steam CEF 0.12.28 的新版愿望单实测：虚拟列表行、游戏卡片、
+  // 标题和元数据栏分别使用以下结构。每次刷新只查询当前挂载行，成本为 O(可见行数)；
+  // 如果 Steam 再次替换这些类名，本工具应返回空并等待重新抓取 live DOM，禁止猜测兜底。
+  const ROW_SEL = ".Panel[data-index]";
+  const CARD_SEL = ".PE-3oq-yIvg-.Panel[role='button']";
+  const TITLE_SEL = "a.I8vuMMV-osE-[href*='/app/']";
+  const METADATA_SEL = ".uQ8Li0MwEhQ-";
   const UNSAFE_SHELL_IDS = new Set(["responsive_page_template_content", "StoreTemplate"]);
 
   function isElement(node) {
@@ -35,43 +39,15 @@
     return String(value ?? "").replace(/\s+/g, " ").trim();
   }
 
-  function appidFromValue(value) {
-    const match = String(value || "").match(/(\d{2,})/);
-    return match ? Number(match[1]) || 0 : 0;
-  }
-
   function appidFromHref(value) {
     const match = String(value || "").match(/\/app\/(\d+)/);
     return match ? Number(match[1]) || 0 : 0;
   }
 
-  function datasetAppid(node) {
-    if (!isElement(node)) return 0;
-    if (node.closest?.(".st-title-custom-name-wishlist, .st-game-notes, .st-game-notes-wishlist")) return 0;
-    return appidFromValue(node.dataset?.dsAppid)
-      || appidFromValue(node.dataset?.appid)
-      || appidFromValue(node.dataset?.appId)
-      || appidFromValue(node.getAttribute?.("data-ds-appid"))
-      || appidFromValue(node.getAttribute?.("data-appid"))
-      || appidFromValue(node.getAttribute?.("data-app-id"));
-  }
-
   function rowAppid(row) {
     if (!isElement(row)) return 0;
-    const direct = datasetAppid(row);
-    if (direct) return direct;
-    const holder = row.querySelector("[data-ds-appid], [data-appid]:not(.st-title-custom-name-wishlist):not(.st-game-notes):not(.st-game-notes-wishlist), [data-app-id]");
-    if (holder) {
-      const nested = datasetAppid(holder);
-      if (nested) return nested;
-    }
-    const link = row.querySelector("a[href*='/app/']");
-    return appidFromHref(link?.href || link?.getAttribute?.("href") || "");
-  }
-
-  function titleCandidates(row) {
-    if (!isElement(row)) return [];
-    return Array.from(row.querySelectorAll(TITLE_SEL));
+    const title = titleNode(row);
+    return appidFromHref(title?.href || title?.getAttribute?.("href") || "");
   }
 
   function titleText(node) {
@@ -82,51 +58,63 @@
     return text(own) || text(node?.getAttribute?.("title") || node?.textContent || "");
   }
 
-  function isTextTitle(node) {
-    return isElement(node) && titleText(node) && !node.querySelector?.("img");
-  }
-
   function titleNode(row) {
-    const candidates = titleCandidates(row);
-    return candidates.find(isTextTitle)
-      || candidates.find(node => isElement(node) && titleText(node))
-      || null;
+    if (!isElement(row)) return null;
+    const title = row.querySelector(TITLE_SEL);
+    return isElement(title) && titleText(title) ? title : null;
   }
 
   function titleHost(row) {
     return titleNode(row)?.parentElement || null;
   }
 
-  function normalizeRow(node) {
-    if (!isElement(node)) return null;
-    const explicit = node.closest?.(".wishlist_row, [data-ds-appid], [data-app-id]");
-    if (explicit && rowAppid(explicit) && titleNode(explicit)) return explicit;
-    for (let cur = node; cur && cur !== document.body; cur = cur.parentElement) {
-      if (rowAppid(cur) && titleNode(cur)) return cur;
-    }
-    return rowAppid(node) && titleNode(node) ? node : null;
+  function card(row) {
+    if (!isWishlistRow(row)) return null;
+    const target = row.querySelector(CARD_SEL);
+    const title = titleNode(row);
+    return isElement(target) && title && target.contains(title) ? target : null;
+  }
+
+  function metadataHost(row) {
+    if (!isElement(row)) return null;
+    const host = row.querySelector(METADATA_SEL);
+    return isElement(host) ? host : null;
+  }
+
+  function isMountedRow(node) {
+    if (!isElement(node) || !node.matches?.(ROW_SEL)) return false;
+    return isElement(node.querySelector(CARD_SEL));
+  }
+
+  function isWishlistRow(node) {
+    return isMountedRow(node)
+      && rowAppid(node) > 0
+      && !!titleNode(node);
   }
 
   function rows(root = document) {
     const scope = isElement(root) ? root : document;
     const candidates = [];
-    const own = normalizeRow(scope);
-    if (own) candidates.push(own);
+    if (isWishlistRow(scope)) candidates.push(scope);
     candidates.push(...Array.from(scope.querySelectorAll(ROW_SEL)));
+    return candidates.filter(isWishlistRow);
+  }
 
-    const seen = new Set();
-    const out = [];
-    for (const node of candidates) {
-      const row = normalizeRow(node);
-      if (!row || seen.has(row)) continue;
-      seen.add(row);
-      out.push(row);
-    }
-    return out;
+  function rowFromNode(node) {
+    if (!isElement(node)) return null;
+    const row = node.closest?.(ROW_SEL) || null;
+    return isWishlistRow(row) ? row : null;
   }
 
   function listContainer() {
-    return document.querySelector(LIST_SEL) || null;
+    const firstRow = document.querySelector(ROW_SEL);
+    // 注: 2026-07-26 live 已观察到愿望单顶部可以连续挂载多条“不可用的项目”：它们保留
+    // 行和卡片结构，但链接为 /undefined。容器定位接受这种已确认的占位行，业务 rows()
+    // 仍只返回带真实 /app/<id> 的游戏，避免对不可用项发请求或挂载功能。
+    if (!isMountedRow(firstRow)) return null;
+    const container = firstRow.parentElement;
+    if (!isElement(container)) return null;
+    return Array.from(container.children).some(isMountedRow) ? container : null;
   }
 
   function listShell(container = listContainer()) {
@@ -137,16 +125,36 @@
     return UNSAFE_SHELL_IDS.has(parent.id || "") ? null : parent;
   }
 
+  function listObserverTarget(container = listContainer()) {
+    if (!isElement(container)) return null;
+    const virtualPanel = container.parentElement;
+    const listPanel = virtualPanel?.parentElement || null;
+    const target = listPanel?.parentElement || null;
+    // 注: 2026-07-26 live 排序实测会整体替换行容器及其上方两层 Panel，第三层父容器
+    // 保持连接且只包含愿望单控制区与列表。结构变化时返回空，禁止向整页扩大观察范围。
+    if (!isElement(virtualPanel) || !virtualPanel.matches?.(".Panel")) return null;
+    if (!isElement(listPanel) || !listPanel.matches?.(".Panel")) return null;
+    if (!isElement(target) || target === document.body || target === document.documentElement) return null;
+    if (UNSAFE_SHELL_IDS.has(target.id || "") || !target.contains(container)) return null;
+    return target;
+  }
+
   return {
-    LIST_SEL,
     ROW_SEL,
+    CARD_SEL,
+    TITLE_SEL,
+    METADATA_SEL,
     appidFromHref,
     rowAppid,
     rows,
+    rowFromNode,
+    card,
+    metadataHost,
     titleHost,
     titleNode,
     titleText,
     listContainer,
     listShell,
+    listObserverTarget,
   };
 });

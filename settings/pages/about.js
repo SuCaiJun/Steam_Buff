@@ -993,7 +993,7 @@
       return mergeDetail(info.latest, logDetails.get(current));
     }
 
-    return mergeDetail({ version: current, desc: "正在读取当前版本日志" }, logDetails.get(current));
+    return mergeDetail({ version: current, desc: "正在读取当前版本日志..." }, logDetails.get(current));
   }
 
   function logDesc(item) {
@@ -1224,7 +1224,7 @@
     return list.length ? list.join("、") : "无可识别分区";
   }
 
-  function importSummary(preview, includeSensitiveBackup) {
+  function importSummary(preview) {
     const pkg = preview.package || {};
     const exportedAt = pkg.exportedAt ? fmtTime(pkg.exportedAt) : "未知";
     const version = pkg.extensionVersion || "未知";
@@ -1238,13 +1238,10 @@
       `将恢复默认：${Number(stats.defaulted) || 0} 项`,
       `将跳过：${Number(stats.skipped) || 0} 项`,
       "",
-      `确认后会覆盖当前设置，并先自动导出当前设置备份${includeSensitiveBackup ? "（包含敏感配置）" : ""}。`,
+      "确认后将直接覆盖当前设置并导入。",
     ];
     if (!stats.hasSensitive) {
       lines.push("当前文件不含 AI 密钥等敏感配置，导入后这些字段会按默认空值处理。");
-    }
-    if (!includeSensitiveBackup) {
-      lines.push("自动备份也不会包含当前敏感配置。");
     }
     return lines.join("\n");
   }
@@ -1308,7 +1305,7 @@
     }
   }
 
-  async function importSettingsFile(shadow, ctx, file, options = {}) {
+  async function importSettingsFile(shadow, ctx, file) {
     const backup = backupApi();
     if (!backup?.inspectPackage || !backup?.importPackage) {
       ctx.dialog(shadow, { title: "导入设置失败", message: "设置备份模块未加载。" });
@@ -1323,10 +1320,9 @@
     try {
       const text = await readFileText(file);
       const preview = backup.inspectPackage(text);
-      const includeSensitiveBackup = options.includeSensitiveBackup === true;
       const action = await ctx.dialog(shadow, {
         title: "导入设置备份",
-        message: importSummary(preview, includeSensitiveBackup),
+        message: importSummary(preview),
         actions: [
           { id: "import", label: "确认导入", primary: true },
           { id: "cancel", label: "取消" },
@@ -1337,8 +1333,6 @@
         return;
       }
 
-      const current = await backup.exportPackage({ includeSensitive: includeSensitiveBackup });
-      downloadText(current.filename.replace("steam-buff-settings-", "steam-buff-settings-before-import-"), current.data);
       logSettingsBackup("info", "settings-import-start", "开始导入设置备份", { ...preview.stats, operationId });
       const result = await backup.importPackage(text);
       logSettingsBackup("info", "settings-import-success", "设置备份导入成功", {
@@ -2027,9 +2021,7 @@
       if (input) {
         input.value = "";
         input.onchange = () => {
-          importSettingsFile(shadow, ctx, input.files?.[0], {
-            includeSensitiveBackup: shadow.querySelector(".about-settings-sensitive")?.checked === true,
-          });
+          importSettingsFile(shadow, ctx, input.files?.[0]);
         };
         input.click();
       }

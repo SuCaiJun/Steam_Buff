@@ -11,8 +11,11 @@
 ((root) => {
   "use strict";
 
+  const COMPUTE_SERVICE_URL = "https://www.rainyun.com/Ricky_?s=Steam_Buff";
+
   function create(options = {}) {
     const rt = options.state;
+    const api = options.api;
     const center = options.center;
     const deviceLogin = options.deviceLogin;
 
@@ -26,7 +29,6 @@
       copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
       tag: '<path d="M20 10 12 18 4 10V4h6l10 10Z"/><path d="M7.5 7.5h.01"/>',
       note: '<path d="M6 3h9l3 3v15H6V3Z"/><path d="M14 3v4h4"/><path d="M9 11h6M9 15h6"/>',
-      folder: '<path d="M3 6h7l2 2h9v11H3V6Z"/>',
       search: '<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>',
       download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
       message: '<path d="M4 5h16v11H8l-4 4V5Z"/>',
@@ -138,13 +140,13 @@
             </div>
           </div>
           <div class="feature-section-title">
-            <span class="label">登录后可以使用</span>
+            <span class="label">账号功能与后续规划</span>
             <span class="line"></span>
           </div>
           <div class="feature-grid">
             ${featureCard("自定义名称", "为游戏起个专属称呼，列表里一眼识别", "tag")}
             ${featureCard("游戏备注", "记录你的购买理由、心得，永不忘记", "note")}
-            ${featureCard("游戏分组", "按主题、心情、状态自由整理你的库", "folder", true)}
+            ${featureCard("打折监控", "规划每日检查价格，到达目标价后通过 QQ 或短信提醒", "message", true)}
             ${featureCard("搜索联想词", "智能补全游戏名，快速找到目标", "search", true)}
           </div>
         </div>
@@ -297,13 +299,13 @@
           ${quotaProgress(usage.gameNotes.used, usage.gameNotes.quota)}
           <div class="cell-footer"><span>${ctx.esc(usageFooter(usage.gameNotes.used, usage.gameNotes.quota))}</span><span class="arrow">→</span></div>
         </button>
-        <button class="usage-cell${usage.gameGroups.enabled ? "" : " locked"}" type="button" data-center-action="${usage.gameGroups.enabled ? "soon" : "donate"}">
-          <div class="cell-header">${icon("folder")}<span>游戏分组</span></div>
+        <button class="usage-cell" type="button" data-center-action="soon">
+          <div class="cell-header">${icon("tag")}<span>打折监控</span></div>
           <div class="main-value-area">
-            <div class="status-wrap"><span class="status-pill ${usage.gameGroups.enabled ? "enabled" : "disabled"}">${usage.gameGroups.enabled ? "已开通" : "未开通"}</span></div>
+            <div class="status-wrap"><span class="status-pill disabled">规划中</span></div>
             <div class="stat-bar dashed"><div class="stat-bar-fill"></div></div>
           </div>
-          <div class="cell-footer"><span>${usage.gameGroups.enabled ? `已建 ${ctx.esc(usage.gameGroups.count)} 组` : ""}</span><span class="${usage.gameGroups.enabled ? "arrow" : "unlock-link"}">${usage.gameGroups.enabled ? "→" : `${ctx.esc(data.sponsor.identity)}解锁 →`}</span></div>
+          <div class="cell-footer"><span>目标价提醒</span><span class="arrow">QQ / 短信 →</span></div>
         </button>
         <button class="usage-cell${usage.searchSuggestions.enabled ? "" : " locked"}${searchWarn ? " warn" : ""}" type="button" data-center-action="${usage.searchSuggestions.enabled ? "soon" : "donate"}">
           <div class="cell-header">${icon("search")}<span>搜索联想词</span></div>
@@ -328,12 +330,22 @@
     return data.logged ? `<section class="usage-card">${inner}</section>` : lockedCard("uc-usage-locked", inner);
   }
 
+  function serviceAttribution(ctx) {
+    const href = api.externalUrl(COMPUTE_SERVICE_URL);
+    return `
+      <div class="uc-service-attribution">
+        由<a href="${ctx.esc(href)}" target="_blank" rel="noreferrer noopener">雨云</a>提供计算服务
+      </div>
+    `;
+  }
+
   function html(ctx) {
     const data = center.normalize();
     return `
       <div class="uc-root">
         ${alertHtml(ctx)}
         ${userCard(data, ctx)}
+        ${serviceAttribution(ctx)}
       </div>
     `;
   }

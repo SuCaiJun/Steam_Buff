@@ -21,20 +21,12 @@
   const INDEX_KEY = "st.ai.translate.index";
   const TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const MAX_ITEMS = 1800;
-  const FAILURE_LOG_INTERVAL_MS = 60 * 1000;
   const log = globalThis.STLoggerFactory?.createLogger?.("translate", "ai-cache") || null;
-  const failureLogAt = new Map();
   const activeFailures = new Set();
   let writeTask = Promise.resolve();
 
   function reportFailure(action, error, meta = {}) {
     activeFailures.add(action);
-    const current = Date.now();
-    const last = failureLogAt.get(action) || 0;
-    if (current - last < FAILURE_LOG_INTERVAL_MS) {
-      return;
-    }
-    failureLogAt.set(action, current);
     try {
       log?.warn?.("ai-cache-storage-failed", "AI 翻译缓存存储操作失败，已降级为无缓存", {
         action,

@@ -34,6 +34,7 @@
     familyLibrary: {},
     ai: {},
     thirdPartyServices: {},
+    storePriceChart: {},
   };
   let membership = { active: false, features: {} };
   let railTop = null;
@@ -288,6 +289,7 @@
       familyLibrary: await api.storage?.getFamilyLibrary?.() || api.catalog?.familyLibraryDefaults?.() || {},
       ai: await api.storage?.getAi?.() || api.catalog?.aiDefaults?.() || {},
       thirdPartyServices: await api.storage?.getThirdPartyServices?.() || api.catalog?.thirdPartyServicesDefaults?.() || {},
+      storePriceChart: await api.storage?.getStorePriceChart?.() || api.catalog?.storePriceChartDefaults?.() || {},
     };
   }
 

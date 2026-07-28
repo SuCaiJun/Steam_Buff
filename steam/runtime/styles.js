@@ -533,7 +533,7 @@
         font-size: 12px;
         line-height: 1.5;
         text-align: left;
-        white-space: normal;
+        white-space: pre-line;
         overflow-wrap: anywhere;
         word-break: break-word;
         transform: translateX(-50%) translateY(4px);

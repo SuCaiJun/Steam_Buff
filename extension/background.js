@@ -36,6 +36,7 @@
     CFG.vendors.steamStore.host,
     CFG.vendors.steamApi.host,
     CFG.vendors.isthereanydeal.host,
+    CFG.vendors.frankfurter.host,
     CFG.vendors.augmentedSteam.host,
     CFG.vendors.steampy.host,
     ...CFG.hosts.storeProxy,
@@ -110,6 +111,7 @@
     "shared/runtime/message-bus.js",
     "shared/settings-bus.js",
     "shared/account-profile.js",
+    "shared/price-comparison-catalog.js",
     "settings/catalog.js",
     "settings/membership.js",
     "settings/storage.js",
@@ -163,6 +165,7 @@
     "settings/panels/ai.js",
     "settings/panels/translate.js",
     "settings/panels/third-party-services.js",
+    "settings/panels/store-price-chart.js",
     "settings/menu/dependencies.js",
     "settings/menu/panels.js",
     "settings/menu/shell.js",
@@ -176,6 +179,7 @@
     "shared/utils/dom.js",
     "shared/styles/components.js",
     "shared/utils/format.js",
+    "shared/price-comparison-catalog.js",
     "shared/performance-monitor.js",
     "shared/scheduler.js",
     "shared/observer-utils.js",
@@ -218,13 +222,19 @@
     details: Object.freeze([
       "store/api/subscription-info.js",
       "store/api/family-library.js",
+      "store/api/exchange-rates.js",
       "store/api/providers/isthereanydeal.js",
       "store/api/third-party-data.js",
       "store/features/data-display/forecast-pack.js",
+      "vendor/markdown-it/markdown-it.min.js",
+      "vendor/dompurify/purify.min.js",
+      "store/features/data-display/markdown.js",
+      "store/features/data-display/ai-forecast.js",
       "store/features/data-display/charts.js",
       "store/features/data-display/view.js",
       "store/features/data-display/feature.js",
       "store/features/reminders/app-card-badge-scanner.js",
+      "store/features/price/regional-price-popover.js",
       "store/features/price/price-history.js",
       "store/features/price/steampy-deals.js",
       "store/features/reminders/audio-check.js",
@@ -245,6 +255,9 @@
     ]),
     wishlist: Object.freeze([
       "store/api/subscription-info.js",
+      "store/api/providers/isthereanydeal.js",
+      "store/api/third-party-data.js",
+      "store/features/data-display/charts.js",
       "store/features/reminders/app-card-badge-scanner.js",
       "store/features/price/wishlist-price-history-core.js",
       "store/features/price/wishlist-price-history.js",
@@ -290,8 +303,39 @@
     "store/main.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v13";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v15";
+  const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
+  const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
+  const STEAM_RUNTIME_READY_WAIT_MS = 6000;
+  const STEAM_RUNTIME_READY_POLL_MS = 250;
   const STEAM_LOOPBACK_INJECT_REQUEST = "STEAM_LOOPBACK_INJECT_REQUEST";
+  const STEAM_LOOPBACK_RECOVERY_MARK = "__steamBuffLoopbackRecovery";
+  const STEAM_LOOPBACK_RECOVERY_TARGET_KEY = "steamBuffSteamLoopbackRecoveryTargetV1";
+  const STEAM_LOOPBACK_RECOVERY_ALARM_PREFIX = "steam-buff-loopback-recovery-attempt-";
+  const STEAM_LOOPBACK_RECOVERY_FINAL_ALARM = "steam-buff-loopback-recovery-final";
+  const STEAM_LOOPBACK_RECOVERY_DELAY_MS = 180000;
+  const STEAM_LOOPBACK_RECOVERY_FINAL_GRACE_MS = 30000;
+  const STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS = 4;
+  const STEAM_LOOPBACK_RECOVERY_ATTEMPTS = Object.freeze([2, 3, 4]);
+  const STEAM_LOOPBACK_FAILURE_REASONS = new Set([
+    "callback-timeout",
+    "runtime-last-error",
+    "scope-mismatch",
+    "background-inject-failed",
+    "response-rejected",
+    "send-message-unavailable",
+    "send-message-exception",
+    "scope-not-ready",
+    "shared-context-not-recovered",
+    "page-runtime-not-ready",
+    "content-mark-not-ready",
+  ]);
+  const STEAM_LOOPBACK_BACKGROUND_FAILURE_REASONS = new Set([
+    "scope-mismatch",
+    "background-inject-failed",
+    "page-runtime-not-ready",
+    "content-mark-not-ready",
+  ]);
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
   const ONBOARDING_OPEN_LOCAL_MESSAGE = ONBOARDING.MESSAGES.openLocalPage;
   const ONBOARDING_OPEN_SETTINGS_MESSAGE = ONBOARDING.MESSAGES.openSettings;
@@ -300,9 +344,16 @@
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const TAB_INJECT_DELAYS = Object.freeze([0, 1000]);
   const pendingTabInjects = new Map();
+  const steamFrameInjectionFlights = new Map();
+  let steamLoopbackRecoveryScheduleFlight = null;
+  let steamLoopbackRecoveryFinished = false;
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
   const AI_FETCH_TIMEOUT_MS = 20 * 1000;
   const AI_FETCH_TIMEOUT_MAX_MS = 120 * 1000;
+  const AI_STREAM_PORT = "AI_CHAT_COMPLETIONS_STREAM";
+  const AI_FORECAST_SESSION_STORAGE_PREFIX = "st.aiDiscountForecast.session.v1.";
+  const AI_FORECAST_SESSION_CLEANUP_ALARM = "steam-buff-ai-forecast-session-cleanup";
+  const AI_FORECAST_SESSION_CLEANUP_PERIOD_MINUTES = 24 * 60;
   const SHARED_CONFIG = "shared/config.js";
   const OBSERVER_UTILS = "shared/observer-utils.js";
   const TRANS_VENDOR_WRAPPER = "translate/vendor-wrapper.js";
@@ -497,6 +548,11 @@
       isAllowedSteamLoopbackPath(url));
   }
 
+  function isSteamSharedContext(input = {}) {
+    return String(input.title || "").trim() === "SharedJSContext" ||
+      steamLoopbackCandidateUrls(input).some(hasSteamSharedContextMarker);
+  }
+
   // Steam 客户端内嵌窗口常以 about:blank 起步，后台只补轻 guard；完整 runtime 由 guard 精准申请。
   function ok(tab) {
     if (!tab || typeof tab.id !== "number") {
@@ -524,6 +580,81 @@
     );
   }
 
+  async function readSteamFrameHealth(frameTarget) {
+    const page = await execScript({
+      target: frameTarget,
+      world: "MAIN",
+      func: (version) => {
+        const runtime = globalThis.SteamBuff?.runtime;
+        const status = String(runtime?.status || "");
+        return {
+          present: !!globalThis.SteamBuff,
+          started: runtime?.started === true,
+          status,
+          version: String(runtime?.version || ""),
+          ready: runtime?.started === true
+            && runtime?.version === version
+            && (status === "starting" || status === "running"),
+        };
+      },
+      args: [CONTENT_MARK_VERSION],
+    });
+    const content = await execScript({
+      target: frameTarget,
+      world: "ISOLATED",
+      func: (mark, version, readyAttr) => {
+        const el = document.documentElement || document.head;
+        return {
+          marked: globalThis[mark] === version,
+          pending: globalThis[mark] === `${version}:pending`,
+          ready: el?.dataset?.[readyAttr] === version,
+        };
+      },
+      args: [CONTENT_MARK, CONTENT_MARK_VERSION, RUNTIME_READY_ATTR],
+    });
+    return {
+      page: page?.[0]?.result || {},
+      content: content?.[0]?.result || {},
+    };
+  }
+
+  async function clearStaleSteamFrameState(frameTarget) {
+    await execScript({
+      target: frameTarget,
+      world: "ISOLATED",
+      func: (mark, version, readyAttr, readyOperationAttr) => {
+        if (globalThis[mark] === version || globalThis[mark] === `${version}:pending`) {
+          globalThis[mark] = "";
+        }
+        const el = document.documentElement || document.head;
+        if (el?.dataset?.[readyAttr] === version) {
+          el.dataset[readyAttr] = "";
+          el.dataset[readyOperationAttr] = "";
+        }
+        globalThis.STGuard?.fail?.();
+      },
+      args: [CONTENT_MARK, CONTENT_MARK_VERSION, RUNTIME_READY_ATTR, RUNTIME_READY_OPERATION_ATTR],
+    });
+  }
+
+  // 注:完整资源包通过 script.onload 后还需要主世界 runtime 回执；等待只发生在单个 frame 的启动注入路径，最多 6 秒，每 250ms 做一次 O(1) 健康读取。
+  async function waitForSteamFrameReady(frameTarget) {
+    const deadline = Date.now() + STEAM_RUNTIME_READY_WAIT_MS;
+    let health = null;
+    while (Date.now() <= deadline) {
+      health = await readSteamFrameHealth(frameTarget);
+      if (health.page.ready && health.content.marked && health.content.ready) {
+        return health;
+      }
+      await new Promise((resolve) => globalThis.setTimeout(resolve, STEAM_RUNTIME_READY_POLL_MS));
+    }
+    const reason = health?.page?.ready ? "content-mark-not-ready" : "page-runtime-not-ready";
+    const error = new Error(`Steam CEF 运行时就绪确认失败：${reason}`);
+    error.name = "SteamRuntimeReadyError";
+    error.reason = reason;
+    throw error;
+  }
+
   async function ping(tabId) {
     try {
       const frames = await execScript({
@@ -544,23 +675,59 @@
     inject(tabId);
   }
 
-  async function injectSteamLoopbackFrameIfNeeded(tabId, frameId) {
-    const frameTarget = { tabId, frameIds: [frameId] };
-    const active = await execScript({
-      target: frameTarget,
-      world: "ISOLATED",
-      func: (mark, version) => globalThis[mark] === version,
-      args: [CONTENT_MARK, CONTENT_MARK_VERSION],
-    });
-    if (active?.[0]?.result === true) {
-      return false;
+  function steamFrameInjectionKey(tabId, frameId) {
+    return `${tabId}:${frameId}`;
+  }
+
+  function clearSteamFrameInjectionFlight(key, flight) {
+    if (steamFrameInjectionFlights.get(key) === flight) {
+      steamFrameInjectionFlights.delete(key);
     }
-    await execScript({
-      target: frameTarget,
-      world: "ISOLATED",
-      files: FILES,
-    });
-    return true;
+  }
+
+  function startSteamLoopbackFrameInjection(tabId, frameId, key) {
+    const frameTarget = { tabId, frameIds: [frameId] };
+    const flight = (async () => {
+      const active = await readSteamFrameHealth(frameTarget);
+      if (active.page.ready && active.content.marked && active.content.ready) {
+        return false;
+      }
+      if ((active.content.marked || active.content.pending) && !active.page.ready) {
+        await clearStaleSteamFrameState(frameTarget);
+      }
+      await execScript({
+        target: frameTarget,
+        world: "ISOLATED",
+        files: FILES,
+      });
+      await waitForSteamFrameReady(frameTarget);
+      return true;
+    })();
+    steamFrameInjectionFlights.set(key, flight);
+    flight.then(
+      () => clearSteamFrameInjectionFlight(key, flight),
+      () => clearSteamFrameInjectionFlight(key, flight),
+    );
+    return flight;
+  }
+
+  // 注:Steam CEF reload 会保留 tab/frame 身份但销毁 document。新 document 若撞上旧任务，等待其结束后只允许一个调用方接管并重新注入。
+  async function injectSteamLoopbackFrameIfNeeded(tabId, frameId) {
+    const key = steamFrameInjectionKey(tabId, frameId);
+    const existing = steamFrameInjectionFlights.get(key);
+    if (!existing) {
+      return startSteamLoopbackFrameInjection(tabId, frameId, key);
+    }
+    try {
+      return await existing;
+    } catch {
+      clearSteamFrameInjectionFlight(key, existing);
+      const replacement = steamFrameInjectionFlights.get(key);
+      if (replacement) {
+        return replacement;
+      }
+      return startSteamLoopbackFrameInjection(tabId, frameId, key);
+    }
   }
 
   function tabsQueryAll() {
@@ -583,14 +750,387 @@
   async function injectAll() {
     try {
       const tabs = await tabsQueryAll();
-      for (const tab of tabs) {
-        if (ok(tab)) {
-          injectIfNeeded(tab.id);
-        }
+      const candidates = tabs.filter(ok);
+      if (candidates.length) {
+        startSteamLoopbackRecoveryCampaign();
+      }
+      for (const tab of candidates) {
+        injectIfNeeded(tab.id);
       }
     } catch (error) {
       logError("injection", "tabs-query-failed", "后台读取标签页失败", error);
     }
+  }
+
+  function storageLocalGet(key) {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.get([key], (result) => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message || "读取后台恢复目标失败"));
+          return;
+        }
+        resolve(result?.[key]);
+      });
+    });
+  }
+
+  function storageLocalSet(data) {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.set(data, () => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message || "保存后台恢复目标失败"));
+          return;
+        }
+        resolve();
+      });
+    });
+  }
+
+  function storageLocalRemove(key) {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.remove(key, () => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message || "清理后台恢复目标失败"));
+          return;
+        }
+        resolve();
+      });
+    });
+  }
+
+  function normalizeSteamLoopbackRecoveryTarget(value) {
+    const tabId = Number(value?.tabId);
+    const frameId = Number(value?.frameId);
+    const observedAt = Number(value?.observedAt);
+    if (!Number.isInteger(tabId) || tabId < 0 || !Number.isInteger(frameId) || frameId < 0 || !Number.isFinite(observedAt) || observedAt <= 0) {
+      return null;
+    }
+    return { tabId, frameId, observedAt };
+  }
+
+  async function rememberSteamLoopbackRecoveryTarget(tabId, frameId) {
+    const target = normalizeSteamLoopbackRecoveryTarget({ tabId, frameId, observedAt: Date.now() });
+    if (!target) {
+      return;
+    }
+    await storageLocalSet({ [STEAM_LOOPBACK_RECOVERY_TARGET_KEY]: target });
+  }
+
+  async function readSteamLoopbackRecoveryTarget() {
+    return normalizeSteamLoopbackRecoveryTarget(await storageLocalGet(STEAM_LOOPBACK_RECOVERY_TARGET_KEY));
+  }
+
+  function clearSteamLoopbackRecoveryTarget() {
+    return storageLocalRemove(STEAM_LOOPBACK_RECOVERY_TARGET_KEY);
+  }
+
+  // 注:每轮最多 3 个三分钟级 alarm；优先验证真实 sender，再用 tabs.query 补充，不直接注入 FILES 或启动常驻轮询。
+  function steamLoopbackRecoveryAlarmName(attempt) {
+    return `${STEAM_LOOPBACK_RECOVERY_ALARM_PREFIX}${attempt}`;
+  }
+
+  function steamLoopbackRecoveryAlarmNames() {
+    return [
+      ...STEAM_LOOPBACK_RECOVERY_ATTEMPTS.map(steamLoopbackRecoveryAlarmName),
+      STEAM_LOOPBACK_RECOVERY_FINAL_ALARM,
+    ];
+  }
+
+  function getAlarm(name) {
+    return new Promise((resolve, reject) => {
+      chrome.alarms.get(name, (alarm) => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message || "读取恢复 alarm 失败"));
+          return;
+        }
+        resolve(alarm || null);
+      });
+    });
+  }
+
+  function clearAlarm(name) {
+    return new Promise((resolve, reject) => {
+      chrome.alarms.clear(name, () => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message || "清理恢复 alarm 失败"));
+          return;
+        }
+        resolve();
+      });
+    });
+  }
+
+  async function clearSteamLoopbackRecoveryAlarms() {
+    await Promise.all(steamLoopbackRecoveryAlarmNames().map(clearAlarm));
+  }
+
+  async function ensureSteamLoopbackRecoveryAlarms(replace = false) {
+    const startedAt = Date.now();
+    for (const attempt of STEAM_LOOPBACK_RECOVERY_ATTEMPTS) {
+      if (steamLoopbackRecoveryFinished) {
+        return;
+      }
+      const name = steamLoopbackRecoveryAlarmName(attempt);
+      if (replace) {
+        chrome.alarms.create(name, {
+          when: startedAt + STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1),
+        });
+        continue;
+      }
+      const existing = await getAlarm(name);
+      if (steamLoopbackRecoveryFinished) {
+        return;
+      }
+      if (!existing) {
+        chrome.alarms.create(name, {
+          when: startedAt + STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1),
+        });
+      }
+    }
+  }
+
+  function startSteamLoopbackRecoveryCampaign(replace = false) {
+    if (replace) {
+      steamLoopbackRecoveryFinished = false;
+      const flight = ensureSteamLoopbackRecoveryAlarms(true);
+      flight.catch((error) => {
+        logError("injection", "steam-loopback-recovery-alarm-failed", "Steam CEF 后台恢复 alarm 重建失败", error);
+      });
+      return flight;
+    }
+    if (steamLoopbackRecoveryFinished) {
+      return Promise.resolve();
+    }
+    if (steamLoopbackRecoveryScheduleFlight) {
+      return steamLoopbackRecoveryScheduleFlight;
+    }
+    const flight = ensureSteamLoopbackRecoveryAlarms();
+    steamLoopbackRecoveryScheduleFlight = flight;
+    flight.then(
+      () => {
+        if (steamLoopbackRecoveryScheduleFlight === flight) {
+          steamLoopbackRecoveryScheduleFlight = null;
+        }
+      },
+      (error) => {
+        if (steamLoopbackRecoveryScheduleFlight === flight) {
+          steamLoopbackRecoveryScheduleFlight = null;
+        }
+        logError("injection", "steam-loopback-recovery-alarm-failed", "Steam CEF 后台恢复 alarm 创建失败", error);
+      },
+    );
+    return flight;
+  }
+
+  function stopSteamLoopbackRecoveryCampaign() {
+    if (steamLoopbackRecoveryFinished) {
+      return false;
+    }
+    steamLoopbackRecoveryFinished = true;
+    Promise.all([
+      clearSteamLoopbackRecoveryAlarms(),
+      clearSteamLoopbackRecoveryTarget(),
+    ]).catch((error) => {
+      logError("injection", "steam-loopback-recovery-state-clear-failed", "Steam CEF 后台恢复状态清理失败", error);
+    });
+    return true;
+  }
+
+  function steamLoopbackRecoveryAttempt(name) {
+    if (!String(name || "").startsWith(STEAM_LOOPBACK_RECOVERY_ALARM_PREFIX)) {
+      return 0;
+    }
+    const attempt = Number(String(name).slice(STEAM_LOOPBACK_RECOVERY_ALARM_PREFIX.length));
+    return STEAM_LOOPBACK_RECOVERY_ATTEMPTS.includes(attempt) ? attempt : 0;
+  }
+
+  function steamLoopbackRecoveryScriptTarget(target) {
+    if (typeof target === "number") {
+      return { tabId: target, allFrames: true };
+    }
+    return { tabId: target.tabId, frameIds: [target.frameId] };
+  }
+
+  async function validateSteamLoopbackRecoveryTarget(target) {
+    const results = await execScript({
+      target: steamLoopbackRecoveryScriptTarget(target),
+      world: "ISOLATED",
+      func: () => ({
+        title: String(document.title || ""),
+        url: String(location.href || ""),
+      }),
+    });
+    const frame = results?.[0]?.result;
+    if (!frame || !isSteamSharedContext(frame)) {
+      const error = new Error("保存的 Steam CEF sender 已不再是 SharedJSContext");
+      error.name = "SteamLoopbackRecoveryTargetError";
+      error.reason = "stored-target-scope-mismatch";
+      throw error;
+    }
+  }
+
+  async function injectSteamLoopbackRecoveryGuard(target, recovery) {
+    const scriptTarget = steamLoopbackRecoveryScriptTarget(target);
+    await execScript({
+      target: scriptTarget,
+      world: "ISOLATED",
+      func: (mark, value) => {
+        globalThis[mark] = value;
+      },
+      args: [STEAM_LOOPBACK_RECOVERY_MARK, recovery],
+    });
+    await execScript({
+      target: scriptTarget,
+      world: "ISOLATED",
+      files: [STEAM_LOOPBACK_GUARD_FILE],
+    });
+  }
+
+  async function runSteamLoopbackRecoveryAttempt(alarm, attempt) {
+    if (steamLoopbackRecoveryFinished) {
+      return;
+    }
+    const scheduledTime = Number(alarm?.scheduledTime);
+    const startedAt = Number.isFinite(scheduledTime)
+      ? Math.max(1, scheduledTime - STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1))
+      : Date.now() - STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1);
+    const retry = {
+      attempt,
+      maxAttempts: STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS,
+      delayMs: STEAM_LOOPBACK_RECOVERY_DELAY_MS,
+    };
+    const recovery = {
+      ...retry,
+      startedAt,
+      previousFailureReason: "shared-context-not-recovered",
+    };
+    const failures = [];
+    let storedTarget = null;
+    let storedTargetAgeMs = null;
+    let exactTargetInjected = false;
+    try {
+      storedTarget = await readSteamLoopbackRecoveryTarget();
+      if (storedTarget) {
+        storedTargetAgeMs = Math.max(0, Date.now() - storedTarget.observedAt);
+        await validateSteamLoopbackRecoveryTarget(storedTarget);
+        await injectSteamLoopbackRecoveryGuard(storedTarget, recovery);
+        exactTargetInjected = true;
+      }
+    } catch (error) {
+      failures.push(error);
+    }
+    let candidates = [];
+    try {
+      const tabs = await tabsQueryAll();
+      candidates = tabs.filter(ok);
+      if (exactTargetInjected) {
+        candidates = candidates.filter((tab) => tab.id !== storedTarget.tabId);
+      }
+    } catch (error) {
+      failures.push(error);
+    }
+    backgroundLogger("injection").info(
+      "steam-loopback-runtime-recovery-attempt",
+      "Steam CEF 后台开始有限恢复检查",
+      {
+        retry,
+        context: { execution: "background" },
+        meta: {
+          targetSource: exactTargetInjected ? "sender" : candidates.length ? "query" : "none",
+          storedTarget: !!storedTarget,
+          storedTargetAgeMs,
+          exactTargetInjected,
+          candidateTabs: candidates.length,
+        },
+      },
+    );
+    let injectedTargets = exactTargetInjected ? 1 : 0;
+    for (const tab of candidates) {
+      try {
+        await injectSteamLoopbackRecoveryGuard(tab.id, recovery);
+        injectedTargets += 1;
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (attempt < STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS && (!injectedTargets || failures.length)) {
+      const error = failures[0] || new Error("未发现可注入的 Steam CEF sender 或 tab");
+      backgroundLogger("injection").warn(
+        "steam-loopback-runtime-inject-retry",
+        "Steam CEF 后台恢复检查未能覆盖目标页面，等待下一次有限重试",
+        {
+          error,
+          retry,
+          context: { execution: "background" },
+          meta: {
+            reason: "shared-context-not-recovered",
+            targetSource: exactTargetInjected ? "sender" : candidates.length ? "query" : "none",
+            storedTarget: !!storedTarget,
+            storedTargetAgeMs,
+            exactTargetInjected,
+            candidateTabs: candidates.length,
+            injectedTargets,
+            failedTargets: failures.length,
+          },
+        },
+      );
+    }
+  }
+
+  function failSteamLoopbackRecoveryCampaign() {
+    if (!stopSteamLoopbackRecoveryCampaign()) {
+      return;
+    }
+    const error = new Error("SharedJSContext 未在有限恢复窗口内建立");
+    error.name = "SteamLoopbackRecoveryError";
+    logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF SharedJSContext 后台有限恢复最终失败", error, {
+      retry: {
+        attempt: STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS,
+        maxAttempts: STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS,
+        delayMs: STEAM_LOOPBACK_RECOVERY_DELAY_MS,
+      },
+      context: { execution: "background" },
+      meta: { reason: "shared-context-not-recovered" },
+    });
+  }
+
+  function handleSteamLoopbackRecoveryAlarm(alarm) {
+    if (alarm?.name === STEAM_LOOPBACK_RECOVERY_FINAL_ALARM) {
+      failSteamLoopbackRecoveryCampaign();
+      return;
+    }
+    const attempt = steamLoopbackRecoveryAttempt(alarm?.name);
+    if (!attempt) {
+      return;
+    }
+    if (attempt === STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS) {
+      chrome.alarms.create(STEAM_LOOPBACK_RECOVERY_FINAL_ALARM, {
+        when: Date.now() + STEAM_LOOPBACK_RECOVERY_FINAL_GRACE_MS,
+      });
+    }
+    runSteamLoopbackRecoveryAttempt(alarm, attempt).catch((error) => {
+      if (attempt < STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS) {
+        backgroundLogger("injection").warn(
+          "steam-loopback-runtime-inject-retry",
+          "Steam CEF 后台恢复检查失败，等待下一次有限重试",
+          {
+            error,
+            retry: {
+              attempt,
+              maxAttempts: STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS,
+              delayMs: STEAM_LOOPBACK_RECOVERY_DELAY_MS,
+            },
+            context: { execution: "background" },
+            meta: { reason: "shared-context-not-recovered" },
+          },
+        );
+      }
+    });
   }
 
   function injectSoon() {
@@ -617,6 +1157,7 @@
     if (!ok(tab)) {
       return;
     }
+    startSteamLoopbackRecoveryCampaign();
     const tabId = tab.id;
     clearPendingTabInject(tabId);
     const handles = TAB_INJECT_DELAYS.map((delay, index) => globalThis.setTimeout(() => {
@@ -1050,6 +1591,290 @@
       });
   }
 
+  function validAiStreamMessages(messages) {
+    const roles = new Set(["system", "user", "assistant"]);
+    return Array.isArray(messages)
+      && messages.length > 0
+      && messages.every(message => (
+        message
+        && typeof message === "object"
+        && roles.has(String(message.role || ""))
+        && typeof message.content === "string"
+        && message.content.trim().length > 0
+      ));
+  }
+
+  function streamPortPost(port, payload) {
+    try {
+      port.postMessage(payload);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function parseAiStreamEvent(block) {
+    const dataText = String(block || "")
+      .split(/\r?\n/)
+      .filter(line => line.startsWith("data:"))
+      .map(line => line.slice(5).trimStart())
+      .join("\n")
+      .trim();
+    if (!dataText) return { done: false, text: "" };
+    if (dataText === "[DONE]") return { done: true, text: "" };
+    const data = parseJson(dataText);
+    if (!data) {
+      const error = new Error("AI 流式响应格式异常");
+      error.code = "AI_STREAM_EVENT_INVALID";
+      throw error;
+    }
+    return {
+      done: false,
+      text: globalThis.STAI?.chatDelta?.(data) || "",
+    };
+  }
+
+  async function fetchAiChatStream(url, next, timeoutMs, controller, onDelta) {
+    const timeout = normalizeTimeout(timeoutMs, 0);
+    const timer = timeout > 0
+      ? setTimeout(() => controller.abort(timeoutError(timeout)), timeout)
+      : 0;
+    let reader = null;
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: next.headers,
+        body: JSON.stringify(next.body),
+        cache: "no-cache",
+        credentials: "omit",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const error = new Error(httpError(response.status, ""));
+        error.name = "HttpError";
+        error.code = "HTTP_STATUS_ERROR";
+        error.status = response.status;
+        throw error;
+      }
+      if (!response.body?.getReader) {
+        const error = new Error("AI 服务未返回可读取的流式响应");
+        error.code = "AI_STREAM_BODY_UNAVAILABLE";
+        throw error;
+      }
+
+      reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let content = "";
+      let chunks = 0;
+      let finished = false;
+
+      const consume = (block) => {
+        const event = parseAiStreamEvent(block);
+        if (event.done) {
+          finished = true;
+          return;
+        }
+        if (!event.text) return;
+        content += event.text;
+        chunks += 1;
+        onDelta(event.text);
+      };
+
+      while (!finished) {
+        const part = await reader.read();
+        if (part.done) break;
+        buffer += decoder.decode(part.value, { stream: true });
+        let boundary = /\r?\n\r?\n/.exec(buffer);
+        while (boundary) {
+          consume(buffer.slice(0, boundary.index));
+          buffer = buffer.slice(boundary.index + boundary[0].length);
+          if (finished) break;
+          boundary = /\r?\n\r?\n/.exec(buffer);
+        }
+      }
+      buffer += decoder.decode();
+      if (!finished && buffer.trim()) consume(buffer);
+      if (!content.trim()) {
+        const error = new Error("AI 流式响应没有返回文本");
+        error.code = "AI_STREAM_TEXT_EMPTY";
+        throw error;
+      }
+      if (finished) {
+        try {
+          await reader.cancel();
+        } catch {
+        }
+      }
+      return { content, chunks, status: response.status };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  function aiStreamConnect(port) {
+    if (port?.name !== AI_STREAM_PORT) return;
+    const controller = new AbortController();
+    let started = false;
+    let disconnected = false;
+
+    port.onDisconnect.addListener(() => {
+      disconnected = true;
+      if (!controller.signal.aborted) controller.abort(new Error("AI 流式通道已断开"));
+    });
+
+    port.onMessage.addListener((request = {}) => {
+      if (started) {
+        streamPortPost(port, { event: "error", code: "AI_STREAM_ALREADY_STARTED", error: "流式通道已经开始请求" });
+        return;
+      }
+      started = true;
+      const startedAt = Date.now();
+      const requestId = String(request.requestId || "").trim();
+      const operationId = String(request.operationId || "").trim();
+      const model = String(globalThis.STAI?.normalize?.(request.ai)?.model || "");
+      const fail = (code, error, status = 0) => {
+        if (disconnected) return;
+        streamPortPost(port, {
+          event: "error",
+          code,
+          error,
+          status,
+          requestId,
+          operationId,
+        });
+      };
+
+      if (!aiReady) {
+        fail("AI_CONFIG_LOAD_FAILED", aiLoadError ? `AI 配置脚本加载失败：${aiLoadError}` : "AI 配置脚本未就绪");
+        return;
+      }
+      if (!validAiStreamMessages(request.messages)) {
+        fail("AI_MESSAGES_INVALID", "AI 对话上下文格式无效");
+        return;
+      }
+
+      const next = globalThis.STAI?.chatStreamRequest?.(request.ai, request.messages);
+      if (!next) {
+        fail("AI_CONFIG_INCOMPLETE", "AI 配置不完整");
+        return;
+      }
+      let url;
+      try {
+        url = new URL(next.url);
+      } catch {
+        fail("AI_URL_INVALID", "无效的 AI 网关地址");
+        return;
+      }
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        fail("AI_URL_PROTOCOL_INVALID", "无效的 AI 网关协议");
+        return;
+      }
+
+      const timeoutMs = capTimeout(request.timeoutMs, AI_FETCH_TIMEOUT_MAX_MS, AI_FETCH_TIMEOUT_MAX_MS);
+      const limit = aiLimit(request.ai);
+      backgroundLogger("ai").info("ai-stream-request-start", "AI 流式请求开始", {
+        operationId,
+        requestId,
+        model,
+        messageCount: request.messages.length,
+      });
+      streamPortPost(port, { event: "start", requestId, operationId });
+      runAiLimited(limit, () => fetchAiChatStream(
+        url.toString(),
+        next,
+        timeoutMs,
+        controller,
+        chunk => {
+          if (!streamPortPost(port, { event: "delta", text: chunk, requestId, operationId })) {
+            throw new Error("AI 流式通道已断开");
+          }
+        }
+      )).then((result) => {
+        if (disconnected) return;
+        backgroundLogger("ai").info("ai-stream-request-success", "AI 流式请求完成", {
+          operationId,
+          requestId,
+          model,
+          status: result.status,
+          chunkCount: result.chunks,
+          durationMs: Date.now() - startedAt,
+        });
+        streamPortPost(port, {
+          event: "done",
+          text: result.content,
+          status: result.status,
+          requestId,
+          operationId,
+        });
+      }).catch((error) => {
+        if (disconnected) return;
+        const message = error?.message || String(error);
+        logError("ai", "ai-stream-request-failed", "AI 流式请求失败", error, {
+          operationId,
+          requestId,
+          model,
+          status: Number(error?.status) || 0,
+          durationMs: Date.now() - startedAt,
+        });
+        fail(error?.code || error?.name || "AI_STREAM_FAILED", message, Number(error?.status) || 0);
+      });
+    });
+  }
+
+  function storageLocalEntries() {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.get(null, (entries) => {
+        const error = chrome.runtime.lastError;
+        if (error) reject(new Error(error.message || "读取 AI 预测会话失败"));
+        else resolve(entries || {});
+      });
+    });
+  }
+
+  function storageLocalRemoveMany(keys) {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.remove(keys, () => {
+        const error = chrome.runtime.lastError;
+        if (error) reject(new Error(error.message || "清理 AI 预测会话失败"));
+        else resolve();
+      });
+    });
+  }
+
+  async function cleanupExpiredAiForecastSessions() {
+    const entries = await storageLocalEntries();
+    const now = Date.now();
+    const expiredKeys = Object.entries(entries)
+      .filter(([key, value]) => (
+        key.startsWith(AI_FORECAST_SESSION_STORAGE_PREFIX)
+        && (!Number.isFinite(Number(value?.expiresAt)) || Number(value.expiresAt) <= now)
+      ))
+      .map(([key]) => key);
+    if (!expiredKeys.length) return 0;
+    await storageLocalRemoveMany(expiredKeys);
+    backgroundLogger("ai").info("ai-forecast-session-cleanup-success", "过期 AI 预测会话已清理", {
+      removedCount: expiredKeys.length,
+    });
+    return expiredKeys.length;
+  }
+
+  async function ensureAiForecastSessionCleanupAlarm() {
+    const existing = await getAlarm(AI_FORECAST_SESSION_CLEANUP_ALARM);
+    if (existing) return;
+    chrome.alarms.create(AI_FORECAST_SESSION_CLEANUP_ALARM, {
+      delayInMinutes: 5,
+      periodInMinutes: AI_FORECAST_SESSION_CLEANUP_PERIOD_MINUTES,
+    });
+  }
+
+  function handleAiForecastSessionCleanupAlarm(alarm) {
+    if (alarm?.name !== AI_FORECAST_SESSION_CLEANUP_ALARM) return;
+    cleanupExpiredAiForecastSessions().catch((error) => {
+      logError("ai", "ai-forecast-session-cleanup-failed", "清理过期 AI 预测会话失败", error);
+    });
+  }
+
   function translateTarget(sender) {
     const tabId = sender?.tab?.id;
     const frameId = sender?.frameId;
@@ -1352,6 +2177,42 @@
       return;
     }
 
+    const retryAttempt = Number(request?.retry?.attempt);
+    const retryMaxAttempts = Number(request?.retry?.maxAttempts);
+    const retry = Number.isInteger(retryAttempt) && retryAttempt >= 1
+      && Number.isInteger(retryMaxAttempts) && retryMaxAttempts >= retryAttempt
+      ? { attempt: retryAttempt, maxAttempts: retryMaxAttempts }
+      : undefined;
+    if (retry && Number.isInteger(Number(request?.retry?.delayMs)) && Number(request.retry.delayMs) >= 0) {
+      retry.delayMs = Number(request.retry.delayMs);
+    }
+    const previousFailureReason = STEAM_LOOPBACK_FAILURE_REASONS.has(
+      String(request?.diagnostics?.previousFailureReason || ""),
+    )
+      ? String(request.diagnostics.previousFailureReason)
+      : "";
+    const elapsedMs = Number(request?.diagnostics?.elapsedMs);
+    const requestRetryAttempt = Number(request?.diagnostics?.requestRetry?.attempt);
+    const requestRetryMaxAttempts = Number(request?.diagnostics?.requestRetry?.maxAttempts);
+    const requestRetry = Number.isInteger(requestRetryAttempt) && requestRetryAttempt >= 1
+      && Number.isInteger(requestRetryMaxAttempts) && requestRetryMaxAttempts >= requestRetryAttempt
+      ? { attempt: requestRetryAttempt, maxAttempts: requestRetryMaxAttempts }
+      : undefined;
+    if (requestRetry && Number.isInteger(Number(request?.diagnostics?.requestRetry?.delayMs)) && Number(request.diagnostics.requestRetry.delayMs) >= 0) {
+      requestRetry.delayMs = Number(request.diagnostics.requestRetry.delayMs);
+    }
+    const diagnostics = {
+      ...(previousFailureReason ? { previousFailureReason } : {}),
+      ...(Number.isFinite(elapsedMs) && elapsedMs >= 0 ? { elapsedMs: Math.round(elapsedMs) } : {}),
+      ...(requestRetry ? { requestRetry } : {}),
+    };
+    const recoveredByBackground = Number(retry?.attempt) > 1;
+    const recoveredByRequest = Number(requestRetry?.attempt) > 1;
+    const logRetry = recoveredByBackground ? retry : recoveredByRequest ? requestRetry : retry;
+    const retryScope = recoveredByBackground ? "background-alarm" : recoveredByRequest ? "guard-request" : "";
+    const finalAttempt = !retry || retry.attempt >= retry.maxAttempts;
+    const context = { execution: "background", frameId };
+
     const urls = steamLoopbackCandidateUrls({
       url: request.url,
       senderUrl: sender?.url,
@@ -1364,19 +2225,126 @@
       propertyDialog: request.propertyDialog === true,
       pageHint: String(request.pageHint || ""),
     };
+    const sharedContext = isSteamSharedContext(meta);
+    if (sharedContext) {
+      try {
+        await rememberSteamLoopbackRecoveryTarget(tabId, frameId);
+      } catch (error) {
+        backgroundLogger("injection").warn(
+          "steam-loopback-recovery-target-store-failed",
+          "Steam CEF SharedJSContext 精确恢复目标保存失败",
+          {
+            error,
+            retry: logRetry,
+            context,
+            meta: {
+              reason: "recovery-target-store-failed",
+              ...(retryScope ? { retryScope } : {}),
+            },
+          },
+        );
+      }
+    }
     if (!shouldInjectSteamLoopbackRuntime(meta)) {
+      const error = new Error("steam-loopback-scope-mismatch");
+      error.name = "SteamLoopbackScopeError";
+      const details = {
+        error,
+        retry: logRetry,
+        context,
+        ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
+        meta: {
+          reason: "scope-mismatch",
+          ...(retryScope ? { retryScope } : {}),
+          ...(diagnostics.previousFailureReason ? { previousFailureReason: diagnostics.previousFailureReason } : {}),
+        },
+      };
+      if (finalAttempt) {
+        const shouldLogFinalFailure = !sharedContext || stopSteamLoopbackRecoveryCampaign();
+        if (shouldLogFinalFailure) {
+          logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF 完整运行时注入范围检查最终失败", error, {
+            retry: logRetry,
+            context,
+            ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
+            meta: details.meta,
+          });
+        }
+      } else {
+        backgroundLogger("injection").warn(
+          "steam-loopback-runtime-inject-retry",
+          "Steam CEF 完整运行时注入范围检查失败，等待有限重试",
+          details,
+        );
+        if (sharedContext && retry?.attempt === 1) {
+          startSteamLoopbackRecoveryCampaign(true);
+        }
+      }
       sendResponse({ success: true, skipped: true, reason: "steam-loopback-scope-mismatch" });
       return;
     }
 
     try {
       const injected = await injectSteamLoopbackFrameIfNeeded(tabId, frameId);
+      if (recoveredByBackground || recoveredByRequest) {
+        const logger = backgroundLogger("injection");
+        const recoveryDetails = {
+          context,
+          retry: logRetry,
+          ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
+          meta: {
+            injected,
+            ...(retryScope ? { retryScope } : {}),
+            ...(diagnostics.previousFailureReason ? { previousFailureReason: diagnostics.previousFailureReason } : {}),
+          },
+        };
+        logger.warn(
+          "steam-loopback-runtime-inject-recovered",
+          "Steam CEF 完整运行时注入已在有限重试后恢复",
+          recoveryDetails,
+        );
+      }
+      if (sharedContext) {
+        stopSteamLoopbackRecoveryCampaign();
+      }
       sendResponse({ success: true, injected });
     } catch (error) {
-      logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF 完整运行时按需注入失败", error, {
-        tabId,
-        frameId,
-      });
+      const reason = STEAM_LOOPBACK_BACKGROUND_FAILURE_REASONS.has(String(error?.reason || ""))
+        ? String(error.reason)
+        : "background-inject-failed";
+      if (finalAttempt) {
+        const shouldLogFinalFailure = !sharedContext || stopSteamLoopbackRecoveryCampaign();
+        if (shouldLogFinalFailure) {
+          logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF 完整运行时注入最终失败", error, {
+            retry: logRetry,
+            context,
+            ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
+            meta: {
+              reason,
+              ...(retryScope ? { retryScope } : {}),
+              ...(diagnostics.previousFailureReason ? { previousFailureReason: diagnostics.previousFailureReason } : {}),
+            },
+          });
+        }
+      } else {
+        backgroundLogger("injection").warn(
+          "steam-loopback-runtime-inject-retry",
+          "Steam CEF 完整运行时注入失败，等待有限重试",
+          {
+            error,
+            retry: logRetry,
+            context,
+            ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
+            meta: {
+              reason,
+              ...(retryScope ? { retryScope } : {}),
+              ...(diagnostics.previousFailureReason ? { previousFailureReason: diagnostics.previousFailureReason } : {}),
+            },
+          },
+        );
+        if (sharedContext && retry?.attempt === 1) {
+          startSteamLoopbackRecoveryCampaign(true);
+        }
+      }
       sendResponse({ success: false, error: error?.message || String(error) });
     }
   }
@@ -1467,6 +2435,7 @@
     }
     return false;
   });
+  chrome.runtime.onConnect.addListener(aiStreamConnect);
 
   chrome.runtime.onInstalled.addListener((details) => {
     globalThis.STBackgroundLogger.initialize()
@@ -1478,11 +2447,18 @@
         backgroundLogger("background-runtime").error("background-session-failed", "后台日志存储初始化失败", { error });
       });
   });
-  chrome.runtime.onStartup.addListener(injectSoon);
+  chrome.runtime.onStartup.addListener(() => {
+    injectSoon();
+  });
+  chrome.alarms?.onAlarm?.addListener(handleSteamLoopbackRecoveryAlarm);
+  chrome.alarms?.onAlarm?.addListener(handleAiForecastSessionCleanupAlarm);
   chrome.tabs?.onCreated?.addListener(injectTabSoon);
   chrome.tabs?.onUpdated?.addListener((_tabId, _changeInfo, tab) => injectTabSoon(tab));
   chrome.action?.onClicked?.addListener(openSettings);
   bindGlobalLoggers();
+  ensureAiForecastSessionCleanupAlarm().catch((error) => {
+    logError("ai", "ai-forecast-session-cleanup-alarm-failed", "AI 预测会话清理任务创建失败", error);
+  });
   globalThis.STBackgroundLogger.initialize()
     .then(() => {
       backgroundLogger("background-runtime").info("background-session-ready", "后台日志与消息运行时已就绪");

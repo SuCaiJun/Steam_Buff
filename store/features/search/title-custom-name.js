@@ -40,8 +40,6 @@
   const WISHLIST_OBSERVER_DEBOUNCE_MS = 1000;
   const WISHLIST_SETTLE_RETRY_MS = 300;
   const WISHLIST_SETTLE_MAX = 8;
-  const WISHLIST_SORT_REFRESH_MS = 700;
-  const WISHLIST_SORT_TEXT_RE = /排序|您的排序|名称|价格|折扣|添加日期|最畅销|发行日期|总体评价|sort|your sort|name|price|discount|date added|top sellers|release date|review score/i;
 
   const { text, shouldShowName } = core;
   const wishlistDom = api.wishlistDom;
@@ -54,7 +52,6 @@
   let wishlistShell = null;
   let wishlistTimer = 0;
   let wishlistSettleTimer = 0;
-  let wishlistSortTimer = 0;
   let wishlistSettleChecks = 0;
   let detailSettleTimer = 0;
   let detailSettleChecks = 0;
@@ -131,13 +128,6 @@
 
   function isDetailPath() {
     return /^\/app\/\d+(?:\/|$)/i.test(location.pathname);
-  }
-
-  function isWishlistSortTarget(target) {
-    const button = target?.closest?.("button");
-    if (!button || button.closest?.(`#${MODAL_ID}, .st-title-custom-name-wishlist, #st-settings-root`)) return false;
-    const label = text(button.getAttribute("aria-label") || button.title || button.textContent || "");
-    return WISHLIST_SORT_TEXT_RE.test(label);
   }
 
   function visibleTitleElement(el) {
@@ -430,9 +420,10 @@
     });
   }
 
-  async function openModal(ctx = null) {
+  async function openModal(ctx = null, initialTab = "base") {
     const source = ctx || state;
     if (!source?.appid) return;
+    const activeTab = initialTab === "note" ? "note" : "base";
     const openSeq = ++modalSeq;
     addStyle();
     let item = source.item || nameCache.get(Number(source.appid)) || null;
@@ -464,11 +455,15 @@
     setTrustedTemplate(modal, modalTemplate({ ...source, steamTitle }, current, ""), "title-custom-name-modal-static-template");
     populateModalValues(modal, { ...source, steamTitle }, current, "");
     modal.hidden = false;
-    setTab(modal, "base");
-    modal.querySelector("[data-title-custom-name-input]")?.focus?.();
+    setTab(modal, activeTab);
+    const focusSelector = activeTab === "note"
+      ? "[data-title-custom-name-note]"
+      : "[data-title-custom-name-input]";
+    modal.querySelector(focusSelector)?.focus?.();
     log.info("title-custom-name-modal-open-success", "商店标题自定义名弹窗已打开", {
       appid: source.appid,
       mode: source.mode || "detail",
+      activeTab,
       hasCachedName: !!item?.name,
       path: location.pathname,
     });
@@ -918,26 +913,6 @@
     }, WISHLIST_SETTLE_RETRY_MS);
   }
 
-  function scheduleWishlistSortRefresh() {
-    clearTimeout(wishlistSortTimer);
-    wishlistSortTimer = setTimeout(() => {
-      wishlistSortTimer = 0;
-      if (!started || !isWishlistPath() || !api.settings?.on?.(FEATURE_ID)) return;
-      const container = wishlistDom?.listContainer?.();
-      if (container && container !== wishlistContainer) {
-        bindWishlistObserver(container);
-      }
-      wishlistSettleChecks = 0;
-      scheduleWishlistRender(0);
-      scheduleWishlistSettleCheck();
-    }, WISHLIST_SORT_REFRESH_MS);
-  }
-
-  function onWishlistSortClick(event) {
-    if (!isWishlistPath() || !api.settings?.on?.(FEATURE_ID) || !isWishlistSortTarget(event.target)) return;
-    scheduleWishlistSortRefresh();
-  }
-
   function startWishlist() {
     if (!isWishlistPath()) return false;
     const container = wishlistDom?.listContainer?.();
@@ -950,7 +925,6 @@
     }
     renderWishlistRows().catch(() => {});
     bindWishlistObserver(container);
-    document.addEventListener("click", onWishlistSortClick, true);
     scheduleWishlistSettleCheck();
     return true;
   }
@@ -1114,12 +1088,9 @@
     clearTimeout(detailSettleTimer);
     clearTimeout(wishlistTimer);
     clearTimeout(wishlistSettleTimer);
-    clearTimeout(wishlistSortTimer);
-    document.removeEventListener("click", onWishlistSortClick, true);
     detailSettleTimer = 0;
     wishlistTimer = 0;
     wishlistSettleTimer = 0;
-    wishlistSortTimer = 0;
     detailSettleChecks = 0;
     wishlistSettleChecks = 0;
     state = null;
@@ -1145,6 +1116,7 @@
     start,
     refresh,
     stop,
+    openEditor: openModal,
     shouldShowName,
   });
 })(typeof globalThis !== "undefined" ? globalThis : window, () => {

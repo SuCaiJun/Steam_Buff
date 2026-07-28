@@ -182,6 +182,9 @@
       if (item?.panel === "search-suggestion") {
         return panels.searchSuggestion().html(cat);
       }
+      if (item?.panel === "store-price-chart") {
+        return panels.storePriceChart().html(cat);
+      }
       return "";
     }
 

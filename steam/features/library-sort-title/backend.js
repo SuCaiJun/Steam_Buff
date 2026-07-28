@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : 库排序标题同步逻辑
+ * @File          : 库列表自定义排序名称同步逻辑
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
@@ -28,9 +28,9 @@
   const BULK_UI_REFRESH_MAX = 50;
   const PENDING_NOTIFY_RETRY_MS = 1000;
   const PENDING_NOTIFY_RETRY_MAX = 10;
-  // 只隐藏开头连续 [标签]，保留写入 Steam 的完整排序名，避免搜索/排序关键词丢失。
+  // 只在库列表 display_name 中隐藏开头连续 [标签]，保留 Steam 原生自定义排序名称的完整值。
   const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
-  // 末尾或夹在名称里的 [#...] 助记符只用于排序/搜索，库列表显示时隐藏。
+  // 末尾或夹在名称里的 [#...] 助记符保留在原生自定义排序名称中，库列表显示时隐藏。
   const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Z0-9]{2,})\]\s*/g;
   // SetCustomSortAs 返回后，可能Steam还会通过云存档延迟替换 app overview 对象。
   // 这里需要异步稳定后再确认一次，避免刚同步的显示名被后续替换覆盖。
@@ -125,48 +125,6 @@
 
   function display(cust) {
     return view(cust);
-  }
-
-  function clean(value) {
-    return String(value || "").replace(/\s+/g, " ").trim();
-  }
-
-  function pushSearchToken(list, seen, value) {
-    const item = clean(value);
-    const key = item.toLocaleLowerCase();
-    if (!item || seen.has(key)) {
-      return;
-    }
-    list.push(item);
-    seen.add(key);
-  }
-
-  function sameSearchText(a, b) {
-    return clean(a).toLocaleLowerCase() === clean(b).toLocaleLowerCase();
-  }
-
-  function startsWithSearchText(value, prefix) {
-    const text = clean(value).toLocaleLowerCase();
-    const head = clean(prefix).toLocaleLowerCase();
-    return !!text && !!head && (text === head || text.startsWith(`${head} `));
-  }
-
-  function searchSortKey(app, cust, orig) {
-    const list = [];
-    const seen = new Set();
-    pushSearchToken(list, seen, cust);
-    pushSearchToken(list, seen, orig);
-    pushSearchToken(list, seen, app?.[ORIG]);
-    pushSearchToken(list, seen, app?.original_sort_as);
-    return list.join(" ").toLocaleLowerCase();
-  }
-
-  function originalSort(app, orig, cust) {
-    const saved = clean(app?.original_sort_as);
-    if (saved && !startsWithSearchText(saved, cust)) {
-      return saved;
-    }
-    return clean(app?.[ORIG]) || clean(orig);
   }
 
   function same(app, cust) {
@@ -494,7 +452,6 @@
     }
 
     const had = hasCust(app);
-    const prevCust = had ? app.custom_sort_as_display : "";
     const orig = official(app);
     if (!had || !same(app, app.custom_sort_as_display)) {
       saveOrig(app, orig);
@@ -502,21 +459,12 @@
 
     const cust = typeof sortAs === "string" && sortAs ? sortAs : "";
     if (cust) {
-      // 优化:sort_as 也是 Steam 库搜索索引之一；只在本次写入的单个目标上保留官方名 token，避免启动全库重写。
-      if (!app.original_sort_as && typeof app.sort_as === "string" && !sameSearchText(app.sort_as, cust)) {
-        app.original_sort_as = app.sort_as;
-      }
-      app.sort_as = searchSortKey(app, cust, orig);
       app.custom_sort_as_display = cust;
     } else {
       app.custom_sort_as_display = "";
-      const next = originalSort(app, orig, prevCust);
-      if (next) {
-        app.sort_as = next.toLocaleLowerCase();
-      }
-      app.original_sort_as = undefined;
     }
 
+    // 这里只改变库列表显示状态；不覆盖 sort_as，Steam 搜索继续使用原生维护的数据。
     return cust ? apply(app) : restoreOfficial(app, orig);
   }
 
@@ -784,6 +732,7 @@
     }
   }
 
+  // Steam 原生保存参数和 CloudStorage 仍保留完整自定义排序名称；这里只同步库列表显示。
   // SetCustomSortAs 写入后 Steam 云同步可能延迟覆盖对象，所以立即同步后还要延迟确认一次。
   function onCustomSortAfter(data) {
     const rt = window[RT];

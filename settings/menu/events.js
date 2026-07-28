@@ -163,7 +163,7 @@
       if (!drawer) {
         return false;
       }
-      const drawerToggle = drawer.querySelector("[data-settings-drawer-toggle]");
+      const drawerToggle = drawer.querySelector(":scope > [data-settings-drawer-head] [data-settings-drawer-toggle]");
       drawer.classList.toggle("open", nextOpen);
       drawerToggle?.setAttribute("aria-expanded", nextOpen ? "true" : "false");
       drawerToggle?.setAttribute("title", nextOpen ? "收起" : "展开");
@@ -242,6 +242,10 @@
         return;
       }
 
+      if (panels.storePriceChart().handleClick(event, shadow)) {
+        return;
+      }
+
       if (shell.pageById(shell.getActiveCat())?.handle?.(event, shadow, ctx)) {
         return;
       }
@@ -298,6 +302,10 @@
       }
 
       if (panels.thirdPartyServices().handleChange(event, shadow)) {
+        return;
+      }
+
+      if (panels.storePriceChart().handleChange(event, shadow)) {
         return;
       }
     });

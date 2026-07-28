@@ -27,11 +27,14 @@
   const FAMILY_LIBRARY_PREFIX = `${PREFIX}familyLibrary.`;
   const AI_PREFIX = `${PREFIX}ai.`;
   const THIRD_PARTY_SERVICES_PREFIX = `${PREFIX}thirdPartyServices.`;
+  const STORE_PRICE_CHART_KEY = `${PREFIX}storePriceChart`;
   const UI_LOCALE_KEY = globalThis.STI18n?.STORAGE_KEY || api.catalog?.UI_LOCALE_KEY || "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
   const AI_SERVICE = "steam-buff.ai";
   const log = globalThis.STLoggerFactory.createLogger("settings", "settings-storage");
+  const priceCatalog = globalThis.STPriceComparisonCatalog;
+  let unknownShopMigrationLogged = false;
 
   function logSave(kind, ok, meta = {}) {
     log[ok ? "info" : "warn"](ok ? "setting-save-success" : "setting-save-failed", ok ? "设置保存成功" : "设置保存失败", {
@@ -63,6 +66,15 @@
 
   function thirdPartyServicesDefaults() {
     return api.catalog?.thirdPartyServicesDefaults?.() || {};
+  }
+
+  function storePriceChartDefaults() {
+    return api.catalog?.storePriceChartDefaults?.() || {
+      additionalSteamRegions: [],
+      lowCriterion: "discount",
+      lowReferenceScope: "currentRegular",
+      lineColors: {},
+    };
   }
 
   function transKey(id) {
@@ -199,10 +211,18 @@
     const raw = Array.isArray(value)
       ? value
       : String(value ?? "").split(",");
-    const shops = raw
+    const parsed = raw
       .map(item => Number.parseInt(item, 10))
       .filter(item => Number.isFinite(item) && item > 0);
-    return shops.length ? Array.from(new Set(shops)) : [61];
+    const unknown = parsed.filter(item => !priceCatalog?.getItadPriceShop?.(item));
+    if (unknown.length && !unknownShopMigrationLogged) {
+      unknownShopMigrationLogged = true;
+      log.warn("itad-shop-config-migrated", "已忽略目录外 ITAD 商店配置", {
+        ignoredCount: new Set(unknown).size,
+      });
+    }
+    const shops = parsed.filter(item => !!priceCatalog?.getItadPriceShop?.(item));
+    return [61, ...Array.from(new Set(shops)).filter(item => item !== 61)];
   }
 
   function cleanItadCountry(value, fallbackValue = "auto") {
@@ -235,6 +255,72 @@
         discountForecast: routeValue(routes.discountForecast || "isthereanydeal") || "isthereanydeal",
       },
     };
+  }
+
+  function normalizeStorePriceChart(values, mainCountry = "") {
+    const defs = storePriceChartDefaults();
+    const src = values && typeof values === "object" && !Array.isArray(values) ? values : {};
+    const main = String(mainCountry || "").trim().toUpperCase();
+    const additionalSteamRegions = priceCatalog.limitStorePriceSelection({
+      mainCountry: main,
+      additionalSteamRegions: Array.isArray(src.additionalSteamRegions)
+        ? src.additionalSteamRegions
+        : defs.additionalSteamRegions || [],
+      shops: [priceCatalog.STEAM_SHOP_ID],
+    }).additionalSteamRegions;
+    const lowCriterion = src.lowCriterion === "price" ? "price" : "discount";
+    const lowReferenceScope = ["allRegular", "currentRegular", "recent12Months"].includes(src.lowReferenceScope)
+      ? src.lowReferenceScope
+      : "currentRegular";
+    const lineColors = {};
+    const inputColors = src.lineColors && typeof src.lineColors === "object" && !Array.isArray(src.lineColors)
+      ? src.lineColors
+      : {};
+    for (const [key, value] of Object.entries(inputColors)) {
+      const steamMatch = key.match(/^steam:([A-Z]{2})$/);
+      const shopMatch = key.match(/^shop:(\d+)$/);
+      const validKey = (steamMatch && priceCatalog?.getSteamPriceRegion?.(steamMatch[1]))
+        || (shopMatch && priceCatalog?.getItadPriceShop?.(shopMatch[1]));
+      const color = String(value || "").trim().toUpperCase();
+      if (validKey && /^#[0-9A-F]{6}$/.test(color)) lineColors[key] = color;
+    }
+    return { additionalSteamRegions, lowCriterion, lowReferenceScope, lineColors };
+  }
+
+  function normalizeStorePriceChartSettings(values = {}) {
+    const thirdPartyServices = normalizeThirdPartyServices(values.thirdPartyServices);
+    const chartBeforeShopLimit = normalizeStorePriceChart(
+      values.storePriceChart,
+      thirdPartyServices.isthereanydeal.country,
+    );
+    const selection = priceCatalog.limitStorePriceSelection({
+      mainCountry: thirdPartyServices.isthereanydeal.country,
+      additionalSteamRegions: chartBeforeShopLimit.additionalSteamRegions,
+      shops: thirdPartyServices.isthereanydeal.shops,
+    });
+    const limitedServices = {
+      ...thirdPartyServices,
+      isthereanydeal: {
+        ...thirdPartyServices.isthereanydeal,
+        shops: selection.shops,
+      },
+    };
+    return {
+      thirdPartyServices: limitedServices,
+      storePriceChart: {
+        ...chartBeforeShopLimit,
+        additionalSteamRegions: selection.additionalSteamRegions,
+      },
+    };
+  }
+
+  function thirdPartyServicesData(values) {
+    const next = normalizeThirdPartyServices(values);
+    const data = {};
+    for (const path of thirdPartyServicesPaths()) {
+      data[thirdPartyServicesKey(path)] = clone(getPath(next, path, getPath(thirdPartyServicesDefaults(), path, "")));
+    }
+    return { next, data };
   }
 
   function normalizeMembership(value = {}, auth = {}) {
@@ -727,12 +813,13 @@
   }
 
   async function setThirdPartyServices(values, diagnostics = {}) {
-    const next = normalizeThirdPartyServices(values);
-    const data = {};
-
-    for (const path of thirdPartyServicesPaths()) {
-      data[thirdPartyServicesKey(path)] = clone(getPath(next, path, getPath(thirdPartyServicesDefaults(), path, "")));
-    }
+    const currentChart = await getStorePriceChart();
+    const normalized = normalizeStorePriceChartSettings({
+      thirdPartyServices: values,
+      storePriceChart: currentChart,
+    });
+    const { next, data } = thirdPartyServicesData(normalized.thirdPartyServices);
+    data[STORE_PRICE_CHART_KEY] = normalized.storePriceChart;
 
     const ok = await put(data, diagnostics);
     logSave("third-party-services", ok, {
@@ -743,6 +830,63 @@
       count: Object.keys(data).length,
     });
     return ok ? next : false;
+  }
+
+  async function getStorePriceChart() {
+    const [rt, services] = await Promise.all([
+      get([STORE_PRICE_CHART_KEY]),
+      getThirdPartyServices(),
+    ]);
+    return normalizeStorePriceChart(rt[STORE_PRICE_CHART_KEY], services.isthereanydeal?.country);
+  }
+
+  async function setStorePriceChart(values, diagnostics = {}) {
+    const services = await getThirdPartyServices();
+    const normalized = normalizeStorePriceChartSettings({
+      thirdPartyServices: services,
+      storePriceChart: values,
+    });
+    const { data } = thirdPartyServicesData(normalized.thirdPartyServices);
+    const next = normalized.storePriceChart;
+    data[STORE_PRICE_CHART_KEY] = next;
+    const ok = await put(data, diagnostics);
+    logSave("store-price-chart", ok, {
+      ...failureOperationMeta(ok, diagnostics),
+      additionalRegionCount: next.additionalSteamRegions.length,
+      colorOverrideCount: Object.keys(next.lineColors).length,
+      lowCriterion: next.lowCriterion,
+      lowReferenceScope: next.lowReferenceScope,
+    });
+    return ok ? next : false;
+  }
+
+  async function setStorePriceChartSettings(values = {}, diagnostics = {}) {
+    const rawServices = values.thirdPartyServices || await getThirdPartyServices();
+    const mainCountry = rawServices?.isthereanydeal?.country === "auto"
+      ? "CN"
+      : rawServices?.isthereanydeal?.country;
+    const servicesInput = clone(rawServices);
+    servicesInput.isthereanydeal = {
+      ...(servicesInput.isthereanydeal || {}),
+      country: mainCountry,
+    };
+    const normalized = normalizeStorePriceChartSettings({
+      thirdPartyServices: servicesInput,
+      storePriceChart: values.storePriceChart,
+    });
+    const { next: thirdPartyServices, data } = thirdPartyServicesData(normalized.thirdPartyServices);
+    const storePriceChart = normalized.storePriceChart;
+    data[STORE_PRICE_CHART_KEY] = storePriceChart;
+
+    const ok = await put(data, diagnostics);
+    logSave("store-price-chart-settings", ok, {
+      ...failureOperationMeta(ok, diagnostics),
+      mainCountry: thirdPartyServices.isthereanydeal.country,
+      shopCount: thirdPartyServices.isthereanydeal.shops.length,
+      additionalRegionCount: storePriceChart.additionalSteamRegions.length,
+      colorOverrideCount: Object.keys(storePriceChart.lineColors).length,
+    });
+    return ok ? { thirdPartyServices, storePriceChart } : false;
   }
 
   async function getRailPos() {
@@ -774,6 +918,7 @@
       translate: await getTranslate(),
       ai: await getAi(),
       thirdPartyServices: await getThirdPartyServices(),
+      storePriceChart: await getStorePriceChart(),
       reviewFilter: await getReviewFilter(),
       searchSuggestions: await getSearchSuggestions(),
       familyLibrary: await getFamilyLibrary(),
@@ -785,7 +930,10 @@
       setAll(sections.features || {}),
       setTranslate(sections.translate || {}),
       setAi(sections.ai || {}),
-      setThirdPartyServices(sections.thirdPartyServices || {}),
+      setStorePriceChartSettings({
+        thirdPartyServices: sections.thirdPartyServices || {},
+        storePriceChart: sections.storePriceChart || {},
+      }),
       setReviewFilter(sections.reviewFilter || {}),
       setSearchSuggestions(sections.searchSuggestions || {}),
       setFamilyLibrary(sections.familyLibrary || {}),
@@ -823,6 +971,11 @@
     setAi,
     getThirdPartyServices,
     setThirdPartyServices,
+    STORE_PRICE_CHART_KEY,
+    normalizeStorePriceChart,
+    getStorePriceChart,
+    setStorePriceChart,
+    setStorePriceChartSettings,
     getRailPos,
     setRailPos,
     getBackupSections,

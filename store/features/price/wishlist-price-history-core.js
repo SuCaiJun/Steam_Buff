@@ -44,22 +44,6 @@
     return match ? positiveInt(match[1]) : 0;
   }
 
-  function chunkIds(ids, size = 40) {
-    const chunkSize = Math.max(1, positiveInt(size) || 40);
-    const out = [];
-    const uniq = [];
-    for (const raw of Array.isArray(ids) ? ids : []) {
-      const id = positiveInt(raw);
-      if (id && !uniq.includes(id)) {
-        uniq.push(id);
-      }
-    }
-    for (let i = 0; i < uniq.length; i += chunkSize) {
-      out.push(uniq.slice(i, i + chunkSize));
-    }
-    return out;
-  }
-
   function uniquePositive(values) {
     const out = [];
     for (const raw of Array.isArray(values) ? values : []) {
@@ -71,11 +55,18 @@
     return out;
   }
 
-  function packageIdsFromAppDetails(data, appid) {
-    const root = data?.[appid]?.data || data?.[String(appid)]?.data || data?.data || {};
+  function appDetailsData(data, appid) {
+    const id = positiveInt(appid);
+    if (!id || !data || typeof data !== "object") return null;
+    const entry = data[String(id)];
+    if (entry?.success !== true || !entry.data || typeof entry.data !== "object") return null;
+    return entry.data;
+  }
+
+  function packageIdsFromData(root) {
     const ids = [];
     const groups = Array.isArray(root.package_groups) ? root.package_groups : [];
-    const group = groups.find(item => item?.name === "default") || groups[0];
+    const group = groups.find(item => item?.name === "default");
     if (Array.isArray(group?.subs)) {
       for (const sub of group.subs) {
         ids.push(sub?.packageid);
@@ -83,6 +74,43 @@
     }
     ids.push(...(Array.isArray(root.packages) ? root.packages : []));
     return uniquePositive(ids);
+  }
+
+  function appDetailsInfo(data, appid) {
+    const root = appDetailsData(data, appid);
+    if (!root) return null;
+
+    const packageIds = packageIdsFromData(root);
+    if (!Object.prototype.hasOwnProperty.call(root, "price_overview")) {
+      return {
+        hasPrice: false,
+        current: null,
+        packageIds,
+      };
+    }
+
+    const overview = root.price_overview;
+    const final = Number(overview?.final);
+    const cut = Number(overview?.discount_percent);
+    const currency = String(overview?.currency || "").trim();
+    if (!Number.isInteger(final) || final < 0 || !Number.isFinite(cut) || cut < 0 || cut > 100 || !currency) {
+      return null;
+    }
+
+    return {
+      hasPrice: true,
+      current: {
+        shop: { name: "Steam" },
+        price: {
+          amount: final / 100,
+          currency,
+        },
+        cut,
+        timestamp: "",
+        url: "",
+      },
+      packageIds,
+    };
   }
 
   function shopName(info) {
@@ -140,40 +168,6 @@
     return hasPrice(info) && isSteamShop(info) ? info : null;
   }
 
-  function hasSteamPricePair(info) {
-    return Boolean(pickSteam(info?.current) && pickSteam(info?.lowest));
-  }
-
-  function priceMap(data) {
-    return data?.prices && typeof data.prices === "object" ? data.prices : data || {};
-  }
-
-  function bestSteamInfo(data, appid, packageids = []) {
-    const prices = priceMap(data);
-    const appInfo = prices[`app/${positiveInt(appid)}`] || null;
-    if (hasSteamPricePair(appInfo)) {
-      return appInfo;
-    }
-
-    for (const packageid of uniquePositive(packageids)) {
-      const subInfo = prices[`sub/${packageid}`] || null;
-      if (hasSteamPricePair(subInfo)) {
-        return subInfo;
-      }
-    }
-
-    if (appInfo) {
-      return appInfo;
-    }
-    for (const packageid of uniquePositive(packageids)) {
-      const subInfo = prices[`sub/${packageid}`] || null;
-      if (subInfo) {
-        return subInfo;
-      }
-    }
-    return null;
-  }
-
   function pyPriceText(value, fmt) {
     const amount = money(value) ?? 0;
     return typeof fmt?.formatPrice === "function"
@@ -227,7 +221,7 @@
     return {
       empty: true,
       status: "empty",
-      message: "价格数据不可用",
+      message: "ITAD 暂无可用的 Steam 价格数据",
       steam: null,
       steampy: [],
     };
@@ -237,33 +231,49 @@
     const steamCurrent = pickSteam(steamInfo?.current);
     const steamLowest = pickSteam(steamInfo?.lowest);
 
-    if (!steamCurrent || !steamLowest) {
+    // 注: ITAD 实测可能只返回 Steam 历史最低价而没有当前报价；两项独立展示，不能
+    // 因为当前价缺失而丢掉已确认的史低数据和图表。只有两项都缺失时才进入空状态。
+    if (!steamCurrent && !steamLowest) {
       return emptySummary();
     }
 
-    const currentAmount = money(steamCurrent.price.amount) ?? 0;
-    const lowestAmount = money(steamLowest.price.amount) ?? 0;
-    const diff = Number((currentAmount - lowestAmount).toFixed(2));
-    const cutDiff = Math.abs((Number(steamCurrent.cut) || 0) - (Number(steamLowest.cut) || 0));
-    const isLowest = currentAmount <= lowestAmount;
-    const symbol = symbolText(steamCurrent, fmt);
+    const currentAmount = steamCurrent ? money(steamCurrent.price.amount) : null;
+    const lowestAmount = steamLowest ? money(steamLowest.price.amount) : null;
+    const hasPair = currentAmount !== null && lowestAmount !== null;
+    const diff = hasPair ? Number((currentAmount - lowestAmount).toFixed(2)) : null;
+    const cutDiff = hasPair
+      ? Math.abs((Number(steamCurrent.cut) || 0) - (Number(steamLowest.cut) || 0))
+      : 0;
+    const isLowest = hasPair && currentAmount <= lowestAmount;
+    const symbol = symbolText(steamCurrent || steamLowest, fmt);
+    const statusText = hasPair
+      ? (isLowest
+        ? "当前为 Steam 历史最低"
+        : `比 Steam 历史最低贵${symbol}${diff}(+${cutDiff}%)`)
+      : steamCurrent
+        ? "Steam 历史最低价暂不可用"
+        : "Steam 当前报价暂不可用";
 
     return {
       empty: false,
-      status: isLowest ? "lowest" : "higher",
-      statusText: isLowest
-        ? "当前为 Steam 历史最低"
-        : `比 Steam 历史最低贵${symbol}${diff}(+${cutDiff}%)`,
+      status: hasPair ? (isLowest ? "lowest" : "higher") : "empty",
+      statusText,
       steam: {
-        current: viewPrice(steamCurrent, fmt, {
-          detail: isLowest ? "在 Steam，当前为历史最低" : "在 Steam",
-        }),
-        lowest: viewPrice(steamLowest, fmt, {
-          shopUrl: steamInfo?.urls?.history || "",
-          detail: isLowest
-            ? `在 Steam${dateText(steamLowest.timestamp, fmt) ? ` ${dateText(steamLowest.timestamp, fmt)}` : ""}`
-            : `在 Steam${dateText(steamLowest.timestamp, fmt) ? ` ${dateText(steamLowest.timestamp, fmt)}` : ""}，比当前低${symbol}${diff}`,
-        }),
+        current: steamCurrent
+          ? viewPrice(steamCurrent, fmt, {
+              detail: isLowest ? "在 Steam，当前为历史最低" : "在 Steam",
+            })
+          : null,
+        lowest: steamLowest
+          ? viewPrice(steamLowest, fmt, {
+              shopUrl: steamInfo?.urls?.history || "",
+              detail: isLowest
+                ? `在 Steam${dateText(steamLowest.timestamp, fmt) ? ` ${dateText(steamLowest.timestamp, fmt)}` : ""}`
+                : hasPair
+                  ? `在 Steam${dateText(steamLowest.timestamp, fmt) ? ` ${dateText(steamLowest.timestamp, fmt)}` : ""}，比当前低${symbol}${diff}`
+                  : `在 Steam${dateText(steamLowest.timestamp, fmt) ? ` ${dateText(steamLowest.timestamp, fmt)}` : ""}`,
+            })
+          : null,
       },
       steampy: buildSteamPyRows(pyInfo, fmt, {
         cdk: options.cdk,
@@ -276,11 +286,8 @@
   return {
     isWishlistPath,
     appIdFromHref,
-    chunkIds,
-    packageIdsFromAppDetails,
+    appDetailsInfo,
     isSteamShop,
-    hasSteamPricePair,
-    bestSteamInfo,
     buildSteamPyRows,
     buildPriceSummary,
   };

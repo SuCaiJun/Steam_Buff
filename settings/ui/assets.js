@@ -16,6 +16,7 @@
     "subscription-info": "images/features/subscription-info.svg",
     "family-library-owned-marker": "images/features/family-library-owned-marker.svg",
     "price-related-enhancements": "images/features/price-related-enhancements.svg",
+    "price-history": "images/features/price-history.svg",
     "price-forecast": "images/features/price-forecast.svg",
     "wishlist-price-history": "images/features/wishlist-price-history.svg",
     "data-display-enhancements": "images/features/data-display-enhancements.svg",

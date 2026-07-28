@@ -16,10 +16,8 @@
 
   const charts = api.features?.dataDisplayCharts;
   const forecastPack = api.features?.dataDisplayForecastPack;
-  const AI_NOT_CONFIGURED_TEXT = "预测需要先配置 AI 服务";
-  const AI_TIMEOUT_MS = 30_000;
+  const aiForecast = api.features?.dataDisplayAiForecast;
   const DEFAULT_RANGE_MONTHS = 12;
-  const log = window.STLoggerFactory?.createLogger?.("store", "data-display");
   const RANGE_OPTIONS = Object.freeze([
     { label: "6个月", months: 6 },
     { label: "12个月", months: 12 },
@@ -61,77 +59,6 @@
       return api.format.formatPrice(amount, currency);
     }
     return currency ? `${currency} ${amount}` : String(amount);
-  }
-
-  function requestId() {
-    return `forecast-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-
-  function modelName(conf = {}) {
-    return text(window.STAI?.normalize?.(conf)?.model || conf.model);
-  }
-
-  function aiReady(conf = {}) {
-    const next = window.STAI?.normalize?.(conf) || conf;
-    return next.enabled === true && !!text(next.host) && !!text(next.model);
-  }
-
-  async function loadAiConfig() {
-    const values = await window.STSettings?.storage?.getAi?.();
-    return window.STAI?.normalize?.(values) || values || {};
-  }
-
-  function pageInfoForForecast(pageInfo = {}) {
-    const type = text(pageInfo.type);
-    const id = text(pageInfo.appid || pageInfo.appId || pageInfo.id);
-    if (type === "sub") return { type, subid: id, appId: id, id };
-    if (type === "bundle") return { type, bundleid: id, appId: id, id };
-    return { type: type || "app", appid: id, appId: id, id };
-  }
-
-  function aiMessages(pack) {
-    return [
-      {
-        role: "system",
-        content: "你是 Steam 游戏价格趋势分析助手。只根据结构化价格数据和 festivalAnalysis 输出简短中文建议；不得根据活动名称猜测游戏题材匹配，也不要编造评价、在线人数、游玩时长或媒体评分。",
-      },
-      {
-        role: "user",
-        content: JSON.stringify({
-          task: "discount_forecast",
-          output: "用三句话说明当前是否值得买、festivalAnalysis 推荐的节日窗口与依据、风险提示。",
-          pack,
-        }),
-      },
-    ];
-  }
-
-  function sendAi(conf, messages, id, operationId = "") {
-    const payload = {
-      type: "AI_CHAT_COMPLETIONS",
-      ai: conf,
-      messages,
-      operationId,
-      requestId: id,
-      timeoutMs: AI_TIMEOUT_MS,
-    };
-    if (window.STMessageBus?.send) {
-      return window.STMessageBus.send(payload, { timeoutMs: AI_TIMEOUT_MS });
-    }
-    return new Promise((resolve, reject) => {
-      try {
-        chrome.runtime.sendMessage(payload, (response) => {
-          const err = chrome.runtime.lastError;
-          if (err) {
-            reject(new Error(err.message || String(err)));
-            return;
-          }
-          resolve(response || null);
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
   }
 
   function priceSummary(result = {}, target = {}) {
@@ -179,122 +106,6 @@
     );
     renderLoading(root);
     return root;
-  }
-
-  function setForecastStatus(root, value, kind = "") {
-    const status = root.querySelector(".st-data-display-forecast__status");
-    if (!status) return;
-    status.textContent = value;
-    status.dataset.kind = kind;
-  }
-
-  function setForecastResult(root, value, title = "AI 综合分析", kind = "success") {
-    const box = root.querySelector(".st-data-display-forecast__result");
-    if (!box) return;
-    box.replaceChildren();
-    box.hidden = !value;
-    if (!value) return;
-    const section = el("div", `st-data-display-forecast-model is-${kind}`);
-    section.append(
-      el("div", "st-data-display-forecast-model__title", title),
-      el("div", "st-data-display-forecast-model__body", value)
-    );
-    box.appendChild(section);
-  }
-
-  function logAi(level, event, message, meta = {}) {
-    try {
-      log?.[level]?.(event, message, meta);
-    } catch {
-    }
-  }
-
-  async function runForecast(root, result = {}, pageInfo = {}, button) {
-    if (button?.disabled) return;
-    const id = requestId();
-    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
-    const startedAt = Date.now();
-    let model = "";
-    const appid = Number(pageInfo.appId || pageInfo.appid || pageInfo.id) || 0;
-    if (button) {
-      button.disabled = true;
-      button.textContent = "预测中";
-    }
-    setForecastResult(root, "");
-    setForecastStatus(root, "正在准备预测数据...");
-    logAi("info", "forecast-ai-action-start", "价格预测用户操作开始", {
-      appid,
-      operationId,
-      requestId: id,
-      model,
-    });
-    try {
-      const conf = await loadAiConfig();
-      model = modelName(conf);
-      if (!aiReady(conf)) {
-        setForecastStatus(root, AI_NOT_CONFIGURED_TEXT, "warn");
-        logAi("warn", "forecast-ai-action-failed", "价格预测 AI 配置不可用", {
-          appid,
-          operationId,
-          requestId: id,
-          model,
-          durationMs: Date.now() - startedAt,
-          errorCode: "AI_CONFIG_INCOMPLETE",
-        });
-        return;
-      }
-      const packStatus = await api.thirdPartyData?.buildDiscountForecastPack?.(pageInfoForForecast(pageInfo), {
-        pricePack: result,
-        pageCountry: api.ctx?.country?.(),
-        document,
-        festivalData: result?.festivalData,
-      });
-      if (packStatus?.ok !== true) {
-        setForecastStatus(root, packStatus?.userMessage || "价格预测数据暂不可用。", "warn");
-        logAi("warn", "forecast-ai-action-failed", "价格预测数据包不可用", {
-          appid,
-          operationId,
-          requestId: id,
-          model,
-          durationMs: Date.now() - startedAt,
-          errorCode: packStatus?.code || "FORECAST_PACK_UNAVAILABLE",
-        });
-        return;
-      }
-      setForecastStatus(root, "正在调用 AI 服务...");
-      const response = await sendAi(conf, aiMessages(packStatus.data), id, operationId);
-      if (!response?.success) {
-        throw Object.assign(new Error(response?.error || "AI 请求失败"), {
-          code: response?.code || `AI_STATUS_${Number(response?.status) || 0}`,
-        });
-      }
-      setForecastStatus(root, "AI 预测完成。", "success");
-      setForecastResult(root, response.text || "AI 已完成预测，但没有返回文本。");
-      logAi("info", "forecast-ai-action-success", "价格预测 AI 调用完成", {
-        appid,
-        operationId,
-        requestId: id,
-        model,
-        durationMs: Date.now() - startedAt,
-      });
-    } catch (error) {
-      setForecastStatus(root, "AI 预测失败，请检查 AI 服务配置。", "error");
-      setForecastResult(root, "AI 预测失败，请检查 AI 服务配置。", "AI 预测结果", "error");
-      logAi("error", "forecast-ai-action-failed", "价格预测 AI 调用失败", {
-        appid,
-        operationId,
-        requestId: id,
-        model,
-        durationMs: Date.now() - startedAt,
-        errorCode: error?.code || error?.name || "AI_REQUEST_FAILED",
-        error,
-      });
-    } finally {
-      if (button) {
-        button.disabled = false;
-        button.textContent = "AI 预测";
-      }
-    }
   }
 
   function eventAmount(event = {}) {
@@ -619,10 +430,10 @@
     if (!wrap || !sectionEnabled(root, "forecastEnabled")) return;
     wrap.replaceChildren();
     if (result?.ok !== true) {
+      aiForecast?.render?.(root, wrap, result, pageInfo);
       return;
     }
     const sections = forecastSections(priceSummary(result, pageInfo), result, pageInfo);
-    if (!sections.length) return;
     sections.forEach((section) => {
       const card = el("div", "st-data-display-forecast-model");
       card.append(
@@ -633,15 +444,23 @@
       );
       wrap.appendChild(card);
     });
-    const resultBox = el("div", "st-data-display-forecast__result");
-    resultBox.hidden = true;
-    wrap.appendChild(resultBox);
+    aiForecast?.render?.(root, wrap, result, pageInfo);
   }
 
-  function renderRangeControls(root, events = [], months = DEFAULT_RANGE_MONTHS, enabled = true) {
+  function renderRangeControls(root, months = DEFAULT_RANGE_MONTHS, enabled = true) {
     const controls = root.querySelector(".st-data-display-range");
     if (!sectionEnabled(root, "chartEnabled")) return;
-    controls?.replaceChildren();
+    if (!controls) return;
+    const brandLockup = noTranslate(el("div", "st-data-display-range__brand-lockup"));
+    const brand = api.assets.createBrandMark({ className: "st-data-display-range__brand" });
+    const slogan = el("div", "st-data-display-range__slogan");
+    ["ENHANCE", "TRACK", "SAVE"].forEach((label, index) => {
+      if (index > 0) slogan.appendChild(el("span", "st-data-display-range__slogan-separator", "·"));
+      slogan.appendChild(el("b", "st-data-display-range__slogan-keyword", label));
+    });
+    brandLockup.append(brand, slogan);
+    const actions = el("div", "st-data-display-range__actions");
+    controls.replaceChildren(brandLockup, actions);
     RANGE_OPTIONS.forEach((item) => {
       const button = el("button", "st-data-display-range__button", item.label);
       button.type = "button";
@@ -652,22 +471,54 @@
       button.disabled = !enabled;
       if (enabled) {
         button.addEventListener("click", () => {
-          renderChart(root, events, item.months);
+          void selectChartRange(root, item.months);
         });
       }
-      controls?.appendChild(button);
+      actions.appendChild(button);
     });
   }
 
-  function renderChart(root, events = [], months = DEFAULT_RANGE_MONTHS) {
+  function renderChart(root) {
     if (!sectionEnabled(root, "chartEnabled")) return;
     const row = root.querySelector(".st-data-display__chart-row");
     if (!row) return;
+    const state = root.__stChartState || {};
+    const months = Number.isFinite(Number(state.months)) ? Number(state.months) : DEFAULT_RANGE_MONTHS;
+    const summary = priceSummary(state.result || {}, state.pageInfo || {});
     row.replaceChildren();
-    renderRangeControls(root, events, months, true);
+    renderRangeControls(root, months, true);
     const host = el("div", "st-data-display__chart-host");
-    host.appendChild(charts?.createPriceChart?.(events, { months }) || el("div", "st-data-display-chart--empty", "暂无历史价格数据"));
+    const chart = summary.chartSeries?.length
+      ? charts?.createMultiSeriesChart?.(summary.chartSeries, {
+        months,
+        settings: summary.chartSettings || {},
+        hiddenSeries: state.hiddenSeries,
+      })
+      : charts?.createPriceChart?.(summary.historyEvents, { months });
+    host.appendChild(chart || el("div", "st-data-display-chart--empty", "暂无历史价格数据"));
     row.appendChild(host);
+  }
+
+  async function selectChartRange(root, months) {
+    const state = root?.__stChartState;
+    if (!state) return;
+    state.months = months;
+    const needsAllRates = months === 0
+      && Array.isArray(state.result?.data?.chartSeries)
+      && state.result.data.exchange?.loadedMonths !== 0
+      && state.allAttempted !== true;
+    if (!needsAllRates) {
+      renderChart(root);
+      return;
+    }
+    state.allAttempted = true;
+    const row = root.querySelector(".st-data-display__chart-row");
+    renderRangeControls(root, months, false);
+    row?.replaceChildren(charts?.createSkeleton?.() || el("div", "st-data-display-chart--empty", "正在加载汇率"));
+    const updated = await api.thirdPartyData?.ensureStorePriceChartRates?.(state.result, { months: 0 });
+    if (!root.isConnected || root.__stChartState !== state) return;
+    if (updated) state.result = updated;
+    renderChart(root);
   }
 
   function renderLoading(root) {
@@ -685,7 +536,7 @@
   function renderNonReady(root, state, message) {
     root.dataset.state = state;
     if (sectionEnabled(root, "chartEnabled")) {
-      renderRangeControls(root, [], DEFAULT_RANGE_MONTHS, false);
+      renderRangeControls(root, DEFAULT_RANGE_MONTHS, false);
       const row = root.querySelector(".st-data-display__chart-row");
       row?.replaceChildren(charts?.createEmpty?.(message || "暂无历史价格数据") || el("div", "st-data-display-chart--empty", message || "暂无历史价格数据"));
     }
@@ -696,10 +547,16 @@
 
   function renderReady(root, result, pageInfo = {}) {
     const summary = priceSummary(result, pageInfo);
-    const events = summary.historyEvents;
     root.dataset.state = "ready";
     if (sectionEnabled(root, "chartEnabled")) {
-      renderChart(root, events, DEFAULT_RANGE_MONTHS);
+      root.__stChartState = {
+        result,
+        pageInfo,
+        months: DEFAULT_RANGE_MONTHS,
+        hiddenSeries: new Set(),
+        allAttempted: result?.data?.exchange?.loadedMonths === 0,
+      };
+      renderChart(root);
     }
     if (sectionEnabled(root, "forecastEnabled")) {
       renderForecastReferences(root, result, pageInfo);
@@ -724,7 +581,6 @@
     createShell,
     renderState,
     renderForecastState: renderForecastReferences,
-    runForecast,
     currentDeal,
     lowDeal,
     historyEvents,

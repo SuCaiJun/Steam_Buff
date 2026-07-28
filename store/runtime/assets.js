@@ -17,12 +17,42 @@
     return chrome.runtime.getURL(`images/${imageName}`);
   }
 
+  function createBrandMark(options = {}) {
+    const suffix = String(options.suffix ?? "").trim();
+    const extraClass = String(options.className ?? "").trim();
+    const root = document.createElement("span");
+    root.className = ["st-brand-mark", extraClass].filter(Boolean).join(" ");
+    root.setAttribute("translate", "no");
+    root.setAttribute("aria-label", `Steam Buff${suffix ? ` · ${suffix}` : ""}`);
+
+    const steam = document.createElement("span");
+    steam.className = "st-brand-mark__steam";
+    steam.textContent = "Steam";
+    const buff = document.createElement("span");
+    buff.className = "st-brand-mark__buff";
+    buff.textContent = "Buff";
+    root.append(steam, buff);
+
+    if (suffix) {
+      const separator = document.createElement("span");
+      separator.className = "st-brand-mark__separator";
+      separator.setAttribute("aria-hidden", "true");
+      separator.textContent = "·";
+      const suffixNode = document.createElement("span");
+      suffixNode.className = "st-brand-mark__suffix";
+      suffixNode.textContent = suffix;
+      root.append(separator, suffixNode);
+    }
+    return root;
+  }
+
   const ImageAssets = Object.freeze({
     MC_LOGO: "store/providers/mc-logo.png",
   });
 
   api.assets = Object.freeze({
     getImageUrl,
+    createBrandMark,
     ImageAssets,
   });
 })();

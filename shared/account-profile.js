@@ -130,7 +130,6 @@
       ? `已使用 Steam Buff ${Math.max(0, Math.round(joined))} 天`
       : first(registered && `注册于 ${registered}`, auth?.last_used_at ? `上次使用 ${new Date(auth.last_used_at).toLocaleDateString("zh-CN")}` : "", "已绑定 Steam Buff 账号");
     const gameNotes = usage.game_notes || {};
-    const groups = usage.game_groups || {};
     const suggestions = usage.search_suggestions || {};
     const noteQuota = Object.hasOwn(gameNotes, "quota") ? num(gameNotes.quota, active ? -1 : 100) : (active ? -1 : 100);
     const searchQuota = Object.hasOwn(suggestions, "quota") ? num(suggestions.quota, active ? 500 : 0) : (active ? 500 : 0);
@@ -166,10 +165,6 @@
         gameNotes: {
           used: Math.max(0, num(gameNotes.used, 0)),
           quota: noteQuota,
-        },
-        gameGroups: {
-          enabled: flag(groups.enabled, active),
-          count: Math.max(0, num(groups.count, 0)),
         },
         searchSuggestions: {
           enabled: flag(suggestions.enabled, active),

@@ -35,8 +35,6 @@
   const WISHLIST_OBSERVER_DEBOUNCE_MS = 1000;
   const WISHLIST_SETTLE_RETRY_MS = 300;
   const WISHLIST_SETTLE_MAX = 8;
-  const WISHLIST_SORT_REFRESH_MS = 700;
-  const WISHLIST_SORT_TEXT_RE = /排序|您的排序|名称|价格|折扣|添加日期|最畅销|发行日期|总体评价|sort|your sort|name|price|discount|date added|top sellers|release date|review score/i;
 
   const wishlistDom = api.wishlistDom;
   const dom = root.STDomUtils || {};
@@ -50,7 +48,6 @@
   let wishlistShell = null;
   let wishlistTimer = 0;
   let wishlistSettleTimer = 0;
-  let wishlistSortTimer = 0;
   let wishlistSettleChecks = 0;
   let renderingWishlist = false;
   let detailAppid = 0;
@@ -81,13 +78,6 @@
 
   function isWishlistPath() {
     return /^\/wishlist(?:\/|$)/i.test(location.pathname);
-  }
-
-  function isWishlistSortTarget(target) {
-    const button = target?.closest?.("button");
-    if (!button || button.closest?.(".st-game-notes, .st-game-notes-wishlist, #st-settings-root")) return false;
-    const label = text(button.getAttribute("aria-label") || button.title || button.textContent || "");
-    return WISHLIST_SORT_TEXT_RE.test(label);
   }
 
   function visibleTitleElement(el) {
@@ -226,7 +216,7 @@
   }
 
   function isClamped(body) {
-    return !!body && body.scrollHeight > body.clientHeight + 1;
+    return !!body && (body.scrollHeight > body.clientHeight + 1 || body.scrollWidth > body.clientWidth + 1);
   }
 
   function updateMore(host) {
@@ -236,8 +226,25 @@
     more.style.display = isClamped(body) ? "" : "none";
   }
 
+  function openNoteEditor(appid, steamName) {
+    const openEditor = api.features.titleCustomName?.openEditor;
+    if (typeof openEditor !== "function") {
+      log.error("game-notes-editor-unavailable", "统一游戏信息编辑窗口不可用", {
+        appid: Number(appid) || 0,
+        path: location.pathname,
+      });
+      return;
+    }
+    openEditor({
+      appid: Number(appid) || 0,
+      steamTitle: steamName || "",
+      mode: "wishlist",
+    }, "note");
+  }
+
   function renderNote(host, appid, note, steamName) {
     host.classList.add("st-game-notes");
+    const isWishlist = host.classList.contains("st-game-notes-wishlist");
     const idText = String(appid || "");
     const nameText = steamName || "";
     if (host.hasAttribute("data-appid")) host.removeAttribute("data-appid");
@@ -253,6 +260,17 @@
 
     const line = document.createElement("div");
     line.className = "st-game-notes-line";
+    if (isWishlist) {
+      line.classList.add("st-game-notes-open-editor");
+      line.tabIndex = 0;
+      line.setAttribute("role", "button");
+      line.setAttribute("aria-label", "查看完整备注");
+      line.title = "查看完整备注";
+      const label = document.createElement("span");
+      label.className = "st-game-notes-label";
+      label.textContent = "备注：";
+      line.appendChild(label);
+    }
     const body = document.createElement("span");
     body.className = "st-game-notes-body";
     const value = String(note || "");
@@ -265,6 +283,23 @@
       body.classList.add("st-game-notes-empty");
     }
     line.appendChild(body);
+
+    if (isWishlist) {
+      const activate = () => openNoteEditor(appid, nameText);
+      line.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        activate();
+      });
+      line.addEventListener("keydown", event => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        event.stopPropagation();
+        activate();
+      });
+      host.appendChild(line);
+      return;
+    }
 
     const more = document.createElement("button");
     more.type = "button";
@@ -354,42 +389,30 @@
     return wishlistDom?.rowAppid?.(row) || 0;
   }
 
-  function wishlistTitleHost(row) {
-    return wishlistDom?.titleHost?.(row) || null;
-  }
-
-  function wishlistGrid(row) {
-    const grid = wishlistTitleHost(row)?.parentElement || null;
-    return grid instanceof HTMLElement ? grid : null;
+  function wishlistMetadataHost(row) {
+    return wishlistDom?.metadataHost?.(row) || null;
   }
 
   function wishlistNoteHost(row) {
-    const grid = wishlistGrid(row);
-    const parent = grid || wishlistTitleHost(row) || row.querySelector("[class*='Content'], .content, .wishlist_row") || row;
+    const parent = wishlistMetadataHost(row);
+    if (!parent) return null;
     let host = row.querySelector(".st-game-notes-wishlist");
     if (host) {
       if (host.parentElement !== parent) parent.appendChild(host);
-      if (grid) grid.classList.add("st-game-notes-wishlist-row");
-      host.style.gridArea = "stnote";
       return host;
     }
     host = document.createElement("div");
     host.className = "st-game-notes-wishlist";
-    if (grid) {
-      grid.classList.add("st-game-notes-wishlist-row");
-      host.style.gridArea = "stnote";
-      grid.appendChild(host);
-    } else {
-      parent.appendChild(host);
-    }
+    parent.appendChild(host);
     return host;
   }
 
   function wishlistHostReady(row) {
     const appid = rowAppid(row);
     if (!appid) return true;
+    const parent = wishlistMetadataHost(row);
     const host = row.querySelector(".st-game-notes-wishlist");
-    return !!host && host.dataset.stAppid === String(appid);
+    return !!parent && !!host && host.parentElement === parent && host.dataset.stAppid === String(appid);
   }
 
   function wishlistRowsReady() {
@@ -415,6 +438,7 @@
         if (!appid) continue;
         appids.push(appid);
         const host = wishlistNoteHost(row);
+        if (!host) continue;
         const cached = cache.get(appid) || { note: "", steamName: steamNameForApp(appid, row) };
         renderNote(host, appid, cached.note, cached.steamName || steamNameForApp(appid, row));
       }
@@ -483,34 +507,16 @@
     }, WISHLIST_SETTLE_RETRY_MS);
   }
 
-  function scheduleWishlistSortRefresh() {
-    clearTimeout(wishlistSortTimer);
-    wishlistSortTimer = setTimeout(() => {
-      wishlistSortTimer = 0;
-      if (!api.settings?.on?.(FEATURE_ID) || !isWishlistPath()) return;
-      const container = wishlistDom?.listContainer?.();
-      if (container && container !== wishlistContainer) {
-        bindWishlistObserver(container);
-      }
-      wishlistSettleChecks = 0;
-      scheduleWishlistRender(0);
-      scheduleWishlistSettleCheck();
-    }, WISHLIST_SORT_REFRESH_MS);
-  }
-
-  function onWishlistSortClick(event) {
-    if (!isWishlistPath() || !api.settings?.on?.(FEATURE_ID) || !isWishlistSortTarget(event.target)) return;
-    scheduleWishlistSortRefresh();
-  }
-
   function startWishlist() {
     if (!isWishlistPath()) return false;
     addStyle();
     const container = wishlistDom?.listContainer?.();
-    if (!container) return false;
+    if (!container) {
+      scheduleWishlistSettleCheck();
+      return false;
+    }
     renderWishlistRows();
     bindWishlistObserver(container);
-    document.addEventListener("click", onWishlistSortClick, true);
     scheduleWishlistSettleCheck();
     return true;
   }
@@ -563,12 +569,9 @@
     clearTimeout(detailSettleTimer);
     clearTimeout(wishlistTimer);
     clearTimeout(wishlistSettleTimer);
-    clearTimeout(wishlistSortTimer);
-    document.removeEventListener("click", onWishlistSortClick, true);
     detailTimer = 0;
     detailSettleTimer = 0;
     wishlistSettleTimer = 0;
-    wishlistSortTimer = 0;
     detailRetries = 0;
     detailSettleChecks = 0;
     wishlistSettleChecks = 0;
@@ -578,9 +581,6 @@
     wishlistShell = null;
     wishlistTimer = 0;
     document.querySelectorAll(".st-game-notes").forEach(node => node.remove());
-    document.querySelectorAll(".st-game-notes-wishlist-row").forEach(node => {
-      node.classList.remove("st-game-notes-wishlist-row");
-    });
   }
 
   function start() {

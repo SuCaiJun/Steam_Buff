@@ -169,9 +169,14 @@
     return count % diagnostics.sampleEvery === 1;
   }
 
+  function isNoiseEligible(entry) {
+    return entry?.level === "info";
+  }
+
   function publish(entry) {
-    if (!diagnostics.background) return;
-    if (diagnostics.enabled && (!scopeAllowed(entry) || !sampleAllowed(entry))) return;
+    // 只有普通 info 允许关闭后台传输或按显式诊断范围采样；debug 开启后与 network/warn/error/fatal 一样逐条保存。
+    if (isNoiseEligible(entry) && !diagnostics.background) return;
+    if (diagnostics.enabled && isNoiseEligible(entry) && (!scopeAllowed(entry) || !sampleAllowed(entry))) return;
     const forcePersist = diagnostics.enabled && entry.level === "debug";
     if (!schema.shouldPersist(entry, { forcePersist })) return;
     try {

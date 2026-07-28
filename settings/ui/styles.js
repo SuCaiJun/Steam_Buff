@@ -1092,7 +1092,7 @@
           opacity: 1;
         }
 
-        .settings-drawer.open .settings-drawer-icon {
+        .settings-drawer.open > .settings-drawer-head .settings-drawer-icon {
           transform: rotate(90deg);
         }
 
@@ -1603,6 +1603,192 @@
           background: var(--st-dialog-primary-bg, var(--st-gradient-primary-vertical));
         }
 
+        .store-price-chart-panel {
+          display: grid;
+          gap: 12px;
+          padding: 12px;
+        }
+
+        .store-price-chart-section {
+          min-width: 0;
+          border: 1px solid var(--st-color-border-normal);
+          border-radius: var(--st-radius-md);
+          background: var(--st-color-surface-inset);
+          padding: 14px;
+        }
+
+        .store-price-chart-section h4 {
+          margin: 0 0 12px;
+          color: var(--st-color-text-primary);
+          font-size: var(--st-font-size-body);
+          letter-spacing: 0;
+        }
+
+        .store-price-chart-field strong {
+          color: var(--st-color-text-secondary);
+          font-weight: var(--st-font-weight-medium);
+        }
+
+        .store-price-chart-source-link {
+          width: fit-content;
+          color: var(--st-color-steam-blue);
+          font-weight: var(--st-font-weight-medium);
+          text-decoration: none;
+          transition: color var(--st-motion-fast, .15s ease);
+        }
+
+        .store-price-chart-source-link:hover,
+        .store-price-chart-source-link:focus-visible {
+          color: var(--st-color-text-primary);
+          text-decoration: underline;
+          outline: none;
+        }
+
+        .store-price-chart-field {
+          display: grid;
+          grid-template-columns: minmax(110px, 0.6fr) minmax(0, 1.4fr);
+          align-items: center;
+          gap: 10px;
+          min-height: 38px;
+          color: var(--st-color-text-muted);
+          font-size: var(--st-font-size-body-small);
+        }
+
+        .store-price-chart-field select,
+        .store-price-chart-add input {
+          width: 100%;
+          min-width: 0;
+          height: 34px;
+          border: 1px solid var(--st-color-border-normal);
+          border-radius: var(--st-radius-sm);
+          background: var(--st-color-surface-control);
+          color: var(--st-color-text-primary);
+          padding: 0 10px;
+          box-sizing: border-box;
+        }
+
+        .store-price-chart-list {
+          margin-top: 10px;
+          border-top: 1px solid var(--st-color-border-light);
+        }
+
+        .store-price-chart-entry {
+          display: grid;
+          grid-template-columns: 12px minmax(0, 1fr) 34px 48px;
+          align-items: center;
+          gap: 8px;
+          min-height: 42px;
+          border-bottom: 1px solid var(--st-color-border-light);
+        }
+
+        .store-price-chart-entry__name {
+          min-width: 0;
+          overflow: hidden;
+          color: var(--st-color-text-secondary);
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .store-price-chart-swatch {
+          width: 10px;
+          height: 10px;
+          border: 1px solid var(--st-color-white-alpha-18);
+          border-radius: 50%;
+          box-sizing: border-box;
+        }
+
+        .store-price-chart-color {
+          width: 32px;
+          height: 28px;
+          border: 0;
+          background: transparent;
+          padding: 0;
+          cursor: pointer;
+        }
+
+        .store-price-chart-entry__fixed {
+          color: var(--st-color-text-muted);
+          font-size: var(--st-font-size-caption);
+          text-align: center;
+        }
+
+        .store-price-chart-icon {
+          width: 30px;
+          height: 30px;
+          border: 1px solid transparent;
+          border-radius: var(--st-radius-sm);
+          background: transparent;
+          color: var(--st-color-text-muted);
+          font-size: 20px;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .store-price-chart-icon:hover,
+        .store-price-chart-icon:focus-visible {
+          border-color: var(--st-color-danger-border);
+          color: var(--st-color-danger-text);
+          outline: none;
+        }
+
+        .store-price-chart-add {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
+          margin-top: 12px;
+        }
+
+        .store-price-chart-segment {
+          display: grid;
+          grid-auto-flow: column;
+          grid-auto-columns: minmax(0, 1fr);
+          min-width: 0;
+          border: 1px solid var(--st-color-border-normal);
+          border-radius: var(--st-radius-sm);
+          overflow: hidden;
+        }
+
+        .store-price-chart-segment__item {
+          min-width: 0;
+          background: var(--st-color-surface-control);
+          color: var(--st-color-text-muted);
+          text-align: center;
+          cursor: pointer;
+        }
+
+        .store-price-chart-segment__item + .store-price-chart-segment__item {
+          border-left: 1px solid var(--st-color-border-normal);
+        }
+
+        .store-price-chart-segment__item input {
+          position: absolute;
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .store-price-chart-segment__item span {
+          display: block;
+          min-width: 0;
+          padding: 7px 8px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .store-price-chart-segment__item.is-active {
+          background: var(--st-color-primary-surface-hover);
+          color: var(--st-color-steam-blue);
+        }
+
+        .store-price-chart-segment__item:focus-within {
+          box-shadow: inset 0 0 0 1px var(--st-color-primary);
+        }
+
+        .store-price-chart-actions {
+          display: flex;
+          justify-content: flex-end;
+        }
+
         @media (max-width: 720px) {
           .overlay {
             padding: 16px;
@@ -1671,6 +1857,23 @@
 
           .settings-drawer-body {
             padding: 12px;
+          }
+
+          .store-price-chart-field {
+            grid-template-columns: 1fr;
+          }
+
+          .store-price-chart-segment {
+            grid-auto-flow: row;
+          }
+
+          .store-price-chart-segment__item + .store-price-chart-segment__item {
+            border-top: 1px solid var(--st-color-border-normal);
+            border-left: 0;
+          }
+
+          .store-price-chart-add {
+            grid-template-columns: 1fr;
           }
         }
 

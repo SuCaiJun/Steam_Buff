@@ -244,10 +244,29 @@
     };
   }
 
+  function chatStreamRequest(values, messages) {
+    const request = chatRequest(values, messages);
+    if (!request) {
+      return null;
+    }
+    return {
+      ...request,
+      body: {
+        ...request.body,
+        stream: true,
+      },
+    };
+  }
+
   function chatText(data) {
     const choice = data?.choices?.[0];
     const content = choice?.message?.content ?? choice?.text;
     return typeof content === "string" ? content.trim() : "";
+  }
+
+  function chatDelta(data) {
+    const content = data?.choices?.[0]?.delta?.content;
+    return typeof content === "string" ? content : "";
   }
 
   Object.assign(api, {
@@ -261,7 +280,9 @@
     concurrency,
     endpoint,
     chatRequest,
+    chatStreamRequest,
     chatText,
+    chatDelta,
     requestConfig,
   });
 })();

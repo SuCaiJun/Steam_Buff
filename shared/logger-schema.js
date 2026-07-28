@@ -72,6 +72,7 @@
     "diag-log-export-success",
     "diag-log-clear-success",
     "download-auto-shutdown-start",
+    "steam-loopback-runtime-recovery-attempt",
   ]));
   const NEVER_PERSIST_EVENTS = Object.freeze(new Set([
     "update-auto-check-skipped",
@@ -867,8 +868,10 @@
   }
 
   function shouldPersist(entry, options = {}) {
-    if (!entry || NEVER_PERSIST_EVENTS.has(entry.event)) return false;
+    if (!entry) return false;
     if (entry.level === "debug" && options.forcePersist !== true) return false;
+    // 事件降噪名单只约束普通 info；显式 debug 和真实 network/warn/error/fatal 不按事件名丢弃。
+    if (entry.level === "info" && NEVER_PERSIST_EVENTS.has(entry.event)) return false;
     if (entry.level !== "info") return true;
     if (LIFECYCLE_INFO_EVENTS.has(entry.event) || PERSIST_INFO_EVENTS.has(entry.event)) return true;
     return !!entry.operationId;

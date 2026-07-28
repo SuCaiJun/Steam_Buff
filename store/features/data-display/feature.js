@@ -108,7 +108,9 @@
   }
 
   function removeCurrent() {
-    document.getElementById(ROOT_ID)?.remove?.();
+    const current = document.getElementById(ROOT_ID);
+    api.features?.dataDisplayAiForecast?.dispose?.(current);
+    current?.remove?.();
     activeRoot = null;
   }
 
@@ -160,10 +162,10 @@
   async function load(root, info, ticket, options) {
     const startedAt = Date.now();
     const priceNeeded = options.chartEnabled || options.forecastEnabled;
-    const festivalsNeeded = options.forecastEnabled
-      && (options.discountForecastEnabled || options.seasonalForecastEnabled);
+    const festivalsNeeded = options.forecastEnabled;
     let priceData = null;
     let festivalData = null;
+    let festivalStatus = festivalsNeeded ? "loading" : "disabled";
     const isCurrent = () => ticket === seq && root === activeRoot;
     if (priceNeeded) {
       log?.info?.("data-display-load-start", "数据展示开始加载价格数据", pageMeta({
@@ -178,13 +180,23 @@
         if (!api.thirdPartyData?.getPricePack) {
           throw new Error("第三方数据服务未就绪");
         }
-        return api.thirdPartyData.getPricePack(pageInfoForService(info), {
+        const loadPrice = info.type === "app" && api.thirdPartyData.getStorePriceChartPack
+          ? api.thirdPartyData.getStorePriceChartPack
+          : api.thirdPartyData.getPricePack;
+        return loadPrice(pageInfoForService(info), {
           pageCountry: api.ctx?.country?.(),
+          ...(info.type === "app" ? {} : {
+            items: [{ type: info.type, id: info.appId || info.id }],
+          }),
         });
       }).then((result) => {
         priceData = result;
         if (!isCurrent()) return result;
-        const renderResult = festivalData ? { ...result, festivalData } : result;
+        const renderResult = {
+          ...result,
+          ...(festivalData ? { festivalData } : {}),
+          festivalStatus,
+        };
         const state = stateFromResult(renderResult);
         view?.renderState?.(root, state, renderResult, info);
         log?.[result?.ok === true ? "info" : "warn"]?.(result?.ok === true ? "data-display-load-success" : "data-display-load-failed", result?.ok === true ? "数据展示价格数据加载完成" : "数据展示价格数据不可用", pageMeta({
@@ -217,6 +229,7 @@
         return api.thirdPartyData.getSteamFestivals({ beforeMonths: 36, afterMonths: 12 });
       }).then((result) => {
         festivalData = result;
+        festivalStatus = "ready";
         if (!isCurrent()) return result;
         log?.info?.("steam-festivals-load-success", "Steam 节日数据加载完成", pageMeta({
           pageType: info.type || "",
@@ -227,16 +240,20 @@
           durationMs: Date.now() - startedAt,
         }));
         if (options.forecastEnabled && priceData) {
-          view?.renderForecastState?.(root, { ...priceData, festivalData: result }, info);
+          view?.renderForecastState?.(root, { ...priceData, festivalData: result, festivalStatus }, info);
         }
         return result;
       }, (error) => {
+        festivalStatus = "error";
         if (isCurrent()) {
           log?.warn?.("steam-festivals-load-failed", "Steam 节日数据加载失败", pageMeta({
             pageType: info.type || "",
             durationMs: Date.now() - startedAt,
             error,
           }));
+          if (options.forecastEnabled && priceData) {
+            view?.renderForecastState?.(root, { ...priceData, festivalStatus }, info);
+          }
         }
         return null;
       })

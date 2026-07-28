@@ -15,6 +15,14 @@
 
 const TooltipManager = {
     el: null,
+    defaultZIndex: '',
+    defaultMaxWidth: '',
+    defaultWidth: '',
+    defaultPointerEvents: '',
+    activeOwner: '',
+    interactive: false,
+    hideDelay: 0,
+    hideTimer: 0,
 
     init() {
         if (this.el) return;
@@ -24,6 +32,16 @@ const TooltipManager = {
         api.styles?.applyStyles?.(this.el, {
             display: 'none',
             fontFamily: 'var(--st-font-family-base)',
+        });
+        this.defaultZIndex = this.el.style.zIndex;
+        this.defaultMaxWidth = this.el.style.maxWidth;
+        this.defaultWidth = this.el.style.width;
+        this.defaultPointerEvents = this.el.style.pointerEvents;
+        this.el.addEventListener('pointerenter', () => {
+            if (this.interactive) this.cancelHide(this.activeOwner);
+        });
+        this.el.addEventListener('pointerleave', () => {
+            if (this.interactive) this.scheduleHide(this.activeOwner, this.hideDelay);
         });
         document.body.appendChild(this.el);
     },
@@ -37,9 +55,20 @@ const TooltipManager = {
         } else {
             this.el.textContent = String(content ?? '');
         }
+        this.cancelHide();
+        const isWideChart = content?.querySelector?.('.st-store-chart-tooltip__comparison');
+        const { position = 'mouse', offset = 15, zIndex = '', owner = '', interactive = false } = options;
+        this.activeOwner = String(owner || '');
+        this.interactive = Boolean(interactive);
+        this.hideDelay = Number.isFinite(Number(options.hideDelay)) ? Math.max(0, Number(options.hideDelay)) : 0;
+        this.el.style.maxWidth = options.maxWidth || (isWideChart ? 'calc(100vw - 20px)' : this.defaultMaxWidth);
+        this.el.style.width = options.width || (isWideChart ? 'auto' : this.defaultWidth);
+        this.el.style.pointerEvents = this.interactive ? 'auto' : this.defaultPointerEvents;
         this.el.style.display = 'block';
-        
-        const { position = 'mouse', offset = 15 } = options;
+
+        // 注: 图表可能位于 dialog 层级的悬浮卡片内；仅本次调用可提升 tooltip，
+        // 普通提示框继续使用共享默认层级，避免全局改变既有覆盖关系。
+        this.el.style.zIndex = String(zIndex || this.defaultZIndex);
         let left, top;
 
         const tooltipWidth = this.el.offsetWidth;
@@ -75,13 +104,42 @@ const TooltipManager = {
         this.el.style.top = `${top}px`;
     },
 
-    hide() {
-        if (this.el) {
-            this.el.style.display = 'none';
-            this.el.style.transform = '';
-        }
+    isOwner(owner) {
+        return Boolean(this.el && this.el.style.display !== 'none' && this.activeOwner === String(owner || ''));
+    },
+
+    cancelHide(owner = '') {
+        if (owner && this.activeOwner !== String(owner)) return false;
+        clearTimeout(this.hideTimer);
+        this.hideTimer = 0;
+        return true;
+    },
+
+    scheduleHide(owner = '', delay = 0) {
+        const expectedOwner = String(owner || this.activeOwner || '');
+        if (owner && this.activeOwner !== String(owner)) return false;
+        this.cancelHide();
+        this.hideTimer = setTimeout(() => this.hide(expectedOwner), Math.max(0, Number(delay) || 0));
+        return true;
+    },
+
+    hide(owner = '') {
+        if (!this.el || (owner && this.activeOwner !== String(owner))) return false;
+        this.cancelHide();
+        this.el.style.display = 'none';
+        this.el.style.transform = '';
+        this.el.style.zIndex = this.defaultZIndex;
+        this.el.style.maxWidth = this.defaultMaxWidth;
+        this.el.style.width = this.defaultWidth;
+        this.el.style.pointerEvents = this.defaultPointerEvents;
+        this.activeOwner = '';
+        this.interactive = false;
+        this.hideDelay = 0;
+        return true;
     }
 };
+
+const CHART_TOOLTIP_OWNER = 'store:chart-tooltip';
 
 let chartTipStyleEnsured = false;
 
@@ -111,6 +169,22 @@ function tipLine(className, value) {
 function chartTooltipContent(point = {}, options = {}) {
     const box = document.createElement('div');
     box.className = 'st-store-chart-tooltip';
+    const customContent = typeof options?.content === 'function'
+        ? options.content(point)
+        : options?.content;
+    if (customContent && typeof customContent === 'object' && typeof customContent.nodeType === 'number') {
+        box.appendChild(customContent);
+        return box;
+    }
+    const customLines = typeof options?.lines === 'function'
+        ? options.lines(point)
+        : options?.lines;
+    if (Array.isArray(customLines)) {
+        customLines.map(tipText).filter(Boolean).forEach(value => {
+            box.appendChild(tipLine('st-store-chart-tooltip__line', value));
+        });
+        return box;
+    }
     const date = tipValue(point, options, 'date');
     const price = tipValue(point, options, 'price');
     const discount = tipValue(point, options, 'discount');
@@ -130,7 +204,21 @@ function chartTooltipLabel(point = {}, options = {}) {
     ].filter(Boolean).join(' ');
 }
 
-// 给图表命中区复用的轻量 tooltip 绑定；只响应用户 hover/focus，不监听鼠标移动或 DOM 变化。
+function showChartTooltip(target, point = {}, options = {}) {
+    ensureChartTooltipStyle();
+    TooltipManager.show(chartTooltipContent(point, options), target, {
+        position: options.position || 'top',
+        offset: Number.isFinite(Number(options.offset)) ? Number(options.offset) : 10,
+        zIndex: options.zIndex || '',
+        owner: CHART_TOOLTIP_OWNER,
+    });
+}
+
+function hideChartTooltip() {
+    TooltipManager.hide(CHART_TOOLTIP_OWNER);
+}
+
+// 给图表命中区复用的轻量 tooltip 绑定；只响应用户 hover/focus，不监听 DOM 变化。
 function bindPointTooltip(target, point = {}, options = {}) {
     if (!target?.addEventListener) return null;
     ensureChartTooltipStyle();
@@ -142,12 +230,9 @@ function bindPointTooltip(target, point = {}, options = {}) {
         target.setAttribute('tabindex', '0');
     }
     const showTip = (event) => {
-        TooltipManager.show(chartTooltipContent(point, options), event?.currentTarget || target, {
-            position: options.position || 'top',
-            offset: Number.isFinite(Number(options.offset)) ? Number(options.offset) : 10,
-        });
+        showChartTooltip(event?.currentTarget || target, point, options);
     };
-    const hideTip = () => TooltipManager.hide();
+    const hideTip = hideChartTooltip;
     target.addEventListener('mouseenter', showTip);
     target.addEventListener('focus', showTip);
     target.addEventListener('mouseleave', hideTip);
@@ -487,12 +572,16 @@ function positionImageBadgeHost(target, host, image, placement = "top-left") {
   api.chartTooltip = Object.freeze({
     content: chartTooltipContent,
     label: chartTooltipLabel,
+    show: showChartTooltip,
+    hide: hideChartTooltip,
     bindPointTooltip,
   });
   api.dom = Object.freeze({
     TooltipManager,
     chartTooltipContent,
     chartTooltipLabel,
+    showChartTooltip,
+    hideChartTooltip,
     bindPointTooltip,
     MODULE_CLASSES,
     INSERT_PRIORITIES,

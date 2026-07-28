@@ -299,64 +299,6 @@
     return { logs: fresh, health };
   }
 
-  function fingerprint(entry) {
-    const source = entry?.source || {};
-    const value = JSON.stringify({
-      domain: entry?.domain || "",
-      feature: entry?.feature || "",
-      service: entry?.service || "",
-      event: entry?.event || "",
-      error: { name: entry?.error?.name || "", code: entry?.error?.code || "" },
-      source: { file: source.file || "", function: source.function || "", line: source.line || 0, column: source.column || 0 },
-    });
-    let hash = 2166136261;
-    for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
-    return `fnv1a-${(hash >>> 0).toString(16).padStart(8, "0")}`;
-  }
-
-  function lifecycleSignature(entry) {
-    return JSON.stringify({
-      sessionId: entry?.sessionId || "",
-      operationId: entry?.operationId || "",
-      feature: entry?.feature || "",
-      event: entry?.event || "",
-      route: entry?.context?.route || "",
-      targetKey: entry?.meta?.targetKey || "",
-      meta: entry?.event === "runtime-feature-snapshot" ? entry?.meta?.features || [] : entry?.meta || {},
-    });
-  }
-
-  function aggregationSignature(entry) {
-    return JSON.stringify({
-      sessionId: entry?.sessionId || "",
-      domain: entry?.domain || "",
-      feature: entry?.feature || "",
-      event: entry?.event || "",
-      operationId: entry?.operationId || "",
-      requestId: entry?.requestId || "",
-      fingerprint: entry?.fingerprint || "",
-    });
-  }
-
-  function aggregateStoredEntry(logs, entry) {
-    if (lifecycleInfoEvents.has(entry.event)) {
-      const signature = lifecycleSignature(entry);
-      if (logs.some(item => lifecycleSignature(item) === signature)) return true;
-    }
-    if (entry.error) {
-      entry.fingerprint = entry.fingerprint || fingerprint(entry);
-      const signature = aggregationSignature(entry);
-      const existing = logs.find(item => item.error && aggregationSignature(item) === signature);
-      if (existing) {
-        existing.repeatCount = (Number(existing.repeatCount) || 1) + 1;
-        existing.firstSeen = existing.firstSeen || existing.time;
-        existing.lastSeen = entry.time;
-        return true;
-      }
-    }
-    return false;
-  }
-
   function fallbackSignature(entry) {
     return JSON.stringify({
       time: entry?.time || "",
@@ -554,7 +496,7 @@
     const forcePersist = input?.forcePersist === true;
     let entry;
     try {
-      entry = schema.normalizeEntry(raw, { allowAggregation: true });
+      entry = schema.normalizeEntry(raw);
     } catch (error) {
       const nextHealth = normalizeHealth(prepared.health);
       nextHealth.invalidEntryCount += 1;
@@ -567,9 +509,8 @@
     }
     if (!schema.shouldPersist(entry, { forcePersist })) return commitPrepared(prepared);
     const logs = prepared.logs.slice();
-    const duplicate = aggregateStoredEntry(logs, entry);
-    if (duplicate && !entry.error) return commitPrepared(prepared);
-    if (!duplicate) logs.push(entry);
+    // 每个真实事件按发生顺序独立保存；容量只由统一保留策略处理，不聚合或去重 debug/network/warn/error/fatal。
+    logs.push(entry);
     const compacted = compact(logs, prepared.health);
     const nextHealth = normalizeHealth(compacted.health);
     nextHealth.truncatedFieldCount += schema.countTruncatedFields(entry);

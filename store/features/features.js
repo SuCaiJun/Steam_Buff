@@ -113,6 +113,10 @@
     return api.features.dataDisplay?.start?.(...args);
   }
 
+  function startRegionalPricePopover(...args) {
+    return api.features.regionalPricePopover?.start?.(...args);
+  }
+
   function startPurchaseHistoryClassifier(...args) {
     return api.features.purchaseHistoryClassifier?.start?.(...args);
   }
@@ -142,6 +146,7 @@
       stopFeature(api.features.titleCustomName, "store-title-custom-name"),
       stopFeature(api.features.gameNotes, "game-notes"),
       stopFeature(api.features.dataDisplay, "data-display"),
+      stopFeature(api.features.regionalPricePopover, "regional-price-popover"),
       stopFeature(api.features.purchaseHistoryClassifier, "purchase-history-classifier"),
       stopFeature(api.purchaseRecover, "purchase-recover"),
     ].filter(Boolean).length;
@@ -243,7 +248,7 @@
         const appId = pageInfo.appId;
 
         if (type === "app" || type === "sub" || type === "bundle") {
-            const chartEnabled = canRun("data-display-enhancements");
+            const chartEnabled = canRun("price-history");
             const forecastEnabled = canRun("price-forecast");
             const discountForecastEnabled = canRun("price-forecast-discount");
             const seasonalForecastEnabled = canRun("price-forecast-seasonal");
@@ -259,6 +264,9 @@
         
         if (type === "app") {
             initPurchaseAreaFeatures(appId);
+            if (canRun("price-history")) {
+                void startRegionalPricePopover(appId);
+            }
             
             if (on("dlc-tools")) {
                 waitForElement('.game_area_dlc_section', () => {

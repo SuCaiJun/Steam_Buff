@@ -19,7 +19,10 @@
     operationId: runtimeCorrelation.steamBuffRuntimeOperationId || "",
   });
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
-  const RUNTIME_VERSION = "steam-buff-runtime-v10";
+  const RUNTIME_VERSION = "steam-buff-runtime-v15";
+  const RUNTIME_OPERATION_ATTR = "steamBuffRuntimeOperationId";
+  const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
+  const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const BOOT_MS = 500;
   const UI_WAIT_MS = 1500;
   const BOOT_WAIT_MS = 30000;
@@ -30,6 +33,16 @@
     return;
   }
 
+  function markRuntimeReady() {
+    const el = document.documentElement || document.head;
+    if (!el?.dataset) {
+      return false;
+    }
+    el.dataset[RUNTIME_READY_ATTR] = RUNTIME_VERSION;
+    el.dataset[RUNTIME_READY_OPERATION_ATTR] = el.dataset[RUNTIME_OPERATION_ATTR] || "";
+    return true;
+  }
+
   api.runtimeKernel = runtime || null;
 
   if (api.runtime?.started && api.runtime.version !== RUNTIME_VERSION) {
@@ -37,6 +50,7 @@
   }
 
   if (api.runtime?.started && api.runtime.version === RUNTIME_VERSION) {
+    markRuntimeReady();
     return;
   }
 
@@ -325,6 +339,7 @@
       timeoutLogged: false,
       lastFeatureSnapshotKey: "",
     };
+    markRuntimeReady();
     installFeatureDisabledListener();
     log.debug?.("runtime-start", "Steam 客户端运行时开始启动", {
       route: api.ctx?.route?.() || "",

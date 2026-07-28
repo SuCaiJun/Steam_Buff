@@ -234,6 +234,7 @@
         price: item => moneyText(item.amount, item.currency),
         discount: item => (item.cut > 0 ? `折扣: -${item.cut}%` : ""),
         label: item => `${dateLabel(item.time, true)} ${moneyText(item.amount, item.currency)}${item.cut > 0 ? ` -${item.cut}%` : ""}`,
+        zIndex: "var(--st-z-index-max)",
       });
       svg.appendChild(rect);
     });
@@ -294,6 +295,7 @@
       class: "st-data-display-chart__svg",
       width: "100%",
       height: String(HEIGHT),
+      viewBox: `0 0 1000 ${HEIGHT}`,
       role: "img",
       "aria-label": "历史价格走势图",
       preserveAspectRatio: "none",
@@ -306,11 +308,685 @@
     return box;
   }
 
+  function calendarMonthsAgo(months, stamp = Date.now()) {
+    const current = new Date(stamp);
+    const day = current.getDate();
+    current.setDate(1);
+    current.setMonth(current.getMonth() - months);
+    const lastDay = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
+    current.setDate(Math.min(day, lastDay));
+    return current.getTime();
+  }
+
+  function sameMoney(left, right) {
+    return !!left
+      && !!right
+      && text(left.currency) === text(right.currency)
+      && Number(left.amount) === Number(right.amount);
+  }
+
+  function chartAmount(event) {
+    if (Number.isFinite(Number(event?.cny?.amount))) return Number(event.cny.amount);
+    return text(event?.price?.currency) === "CNY" ? amountOf(event.price) : null;
+  }
+
+  function chartRegularAmount(event) {
+    const amount = amountOf(event?.regular);
+    const currency = text(event?.regular?.currency);
+    if (amount === null || !currency || currency !== text(event?.price?.currency)) return null;
+    if (currency === "CNY") return amount;
+    const rate = Number(event?.cny?.rate);
+    return Number.isFinite(rate) && rate > 0 ? amount / rate : null;
+  }
+
+  function seriesEvents(series) {
+    return (Array.isArray(series?.events) ? series.events : [])
+      .map(event => ({ ...event, time: timeOf(event?.timestamp), chartAmount: chartAmount(event) }))
+      .filter(event => event.time > 0)
+      .sort((left, right) => left.time - right.time);
+  }
+
+  function referenceEvents(events, series, scope, nowStamp) {
+    if (scope === "currentRegular") {
+      const regular = series.current?.regular;
+      if (!regular || !Number.isFinite(Number(regular.amount))) {
+        return { events: [], error: "当前原价范围不可计算" };
+      }
+      return { events: events.filter(event => event.price && sameMoney(event.regular, regular)), error: "" };
+    }
+    if (scope === "recent12Months") {
+      const cutoff = calendarMonthsAgo(12, nowStamp);
+      const previous = events.findLast(event => event.time < cutoff);
+      return {
+        events: [
+          ...(previous?.price ? [previous] : []),
+          ...events.filter(event => event.price && event.time >= cutoff && event.time <= nowStamp),
+        ],
+        error: "",
+      };
+    }
+    return { events: events.filter(event => event.price), error: "" };
+  }
+
+  function lowestEvent(events) {
+    if (!events.length) return { event: null, error: "暂无可计算价格史低" };
+    const currencies = new Set(events.map(event => text(event.price?.currency)).filter(Boolean));
+    if (currencies.size !== 1) return { event: null, error: "暂无可计算价格史低" };
+    return {
+      event: events.reduce((lowest, event) => amountOf(event.price) < amountOf(lowest.price) ? event : lowest),
+      error: "",
+    };
+  }
+
+  function priceBasis(series, eligible, scope) {
+    if (scope !== "allRegular") return lowestEvent(eligible);
+    const low = series.storeLow;
+    if (!low?.price) return { event: null, error: "暂无可计算价格史低" };
+    const event = eligible.find(item => sameMoney(item.price, low.price)) || null;
+    if (!event) return { event: null, error: "暂无可计算价格史低" };
+    return { event: { ...event, cny: event.cny || low.cny || null }, error: "" };
+  }
+
+  function matchingPeriods(events, matches, nowStamp) {
+    const periods = [];
+    let active = null;
+    for (const event of events) {
+      if (matches(event)) {
+        if (!active) active = { start: event.time, end: nowStamp, event };
+      } else if (active) {
+        active.end = event.time;
+        periods.push(active);
+        active = null;
+      }
+    }
+    if (active) periods.push(active);
+    return periods;
+  }
+
+  function prepareSeries(series, settings = {}, nowStamp = Date.now()) {
+    const events = seriesEvents(series);
+    const scope = ["allRegular", "currentRegular", "recent12Months"].includes(settings.lowReferenceScope)
+      ? settings.lowReferenceScope
+      : "currentRegular";
+    const criterion = settings.lowCriterion === "price" ? "price" : "discount";
+    const reference = referenceEvents(events, series, scope, nowStamp);
+    const eligible = reference.events;
+    const cuts = eligible.map(event => Number(event.cut)).filter(value => Number.isFinite(value) && value >= 0);
+    const maxCut = cuts.length ? Math.max(...cuts) : null;
+    const lowest = lowestEvent(eligible);
+    let matcher = () => false;
+    let status = reference.error;
+    let basis = null;
+    const eligibleSet = new Set(eligible);
+
+    if (!status && criterion === "discount") {
+      if (maxCut === null) status = "暂无可计算折扣史低";
+      else matcher = event => !!event.price && eligibleSet.has(event) && Number(event.cut) === maxCut;
+    }
+    if (!status && criterion === "price") {
+      const result = priceBasis(series, eligible, scope);
+      basis = result.event;
+      status = result.error;
+      if (!status) {
+        const currency = text(basis.price?.currency);
+        const baseAmount = amountOf(basis.price);
+        const rate = currency === "CNY" ? 1 : Number(basis.cny?.rate);
+        if (!Number.isFinite(baseAmount) || !Number.isFinite(rate) || rate <= 0) {
+          status = "暂无可计算价格史低";
+        } else {
+          const tolerance = currency === "CNY" ? 1 : rate;
+          matcher = event => !!event.price
+            && eligibleSet.has(event)
+            && text(event.price.currency) === currency
+            && Math.abs(amountOf(event.price) - baseAmount) <= tolerance + 1e-9;
+        }
+      }
+    }
+
+    const periods = status ? [] : matchingPeriods(events, matcher, nowStamp);
+    const yearStart = calendarMonthsAgo(12, nowStamp);
+    const yearCount = status ? null : periods.filter(period => period.start <= nowStamp && period.end >= yearStart).length;
+    return {
+      ...series,
+      events,
+      criterion,
+      scope,
+      stats: {
+        status,
+        maxCut,
+        lowest: lowest.event,
+        basis,
+        yearCount,
+        periods,
+      },
+    };
+  }
+
+  function filterSeriesByMonths(series, months, nowStamp = Date.now()) {
+    if (!months) return series.events.filter(event => event.time <= nowStamp);
+    const cutoff = calendarMonthsAgo(months, nowStamp);
+    return series.events.filter(event => event.time >= cutoff && event.time <= nowStamp);
+  }
+
+  // 绘制锚点延续已知价格状态，但不改变真实事件、悬浮命中或史低统计。
+  function chartEventsByMonths(series, months, nowStamp = Date.now()) {
+    const visibleEvents = filterSeriesByMonths(series, months, nowStamp);
+    if (!months) return visibleEvents;
+    const cutoff = calendarMonthsAgo(months, nowStamp);
+    const previous = series.events.findLast(event => event.time < cutoff);
+    if (previous) {
+      if (!previous.price || previous.chartAmount === null) return visibleEvents;
+      return [{ ...previous, time: cutoff, chartAnchor: true }, ...visibleEvents];
+    }
+    const first = visibleEvents[0];
+    const regularAmount = chartRegularAmount(first);
+    if (!first?.price || first.time <= cutoff || regularAmount === null) return visibleEvents;
+    return [{
+      ...first,
+      time: cutoff,
+      price: first.regular,
+      cut: 0,
+      cny: first.cny ? { ...first.cny, amount: regularAmount } : null,
+      chartAmount: regularAmount,
+      chartAnchor: true,
+    }, ...visibleEvents];
+  }
+
+  function colorFor(seriesId, index, lineColors = {}) {
+    const override = text(lineColors?.[seriesId]).toUpperCase();
+    if (/^#[0-9A-F]{6}$/.test(override)) return override;
+    const colors = globalThis.STTheme?.colors?.chartSeries || ["#66C0F4"];
+    return colors[index % colors.length] || "#66C0F4";
+  }
+
+  function prepareMultiSeries(series, options = {}) {
+    const settings = options.settings || {};
+    const nowStamp = Number.isFinite(Number(options.now)) ? Number(options.now) : Date.now();
+    return (Array.isArray(series) ? series : []).map((item, index) => ({
+      ...prepareSeries(item, settings, nowStamp),
+      color: colorFor(item.id, index, settings.lineColors),
+    }));
+  }
+
+  function formatCny(event) {
+    const amount = chartAmount(event);
+    return amount === null ? "人民币汇率不可用" : globalThis.STFormatUtils?.formatCurrency?.(amount, "CNY") || `CNY ${amount.toFixed(2)}`;
+  }
+
+  function seriesRegionLabel(series) {
+    return globalThis.STPriceComparisonCatalog?.getSteamPriceRegion?.(series?.country)?.label || text(series?.country);
+  }
+
+  function seriesShopLabel(series) {
+    return globalThis.STPriceComparisonCatalog?.shopChartLabel?.(series?.shopId) || text(series?.label);
+  }
+
+  function seriesDisplayLabel(series) {
+    return `${seriesRegionLabel(series)} / ${seriesShopLabel(series)}`;
+  }
+
+  function legendLabels(series) {
+    return Object.freeze({
+      region: seriesRegionLabel(series),
+      shop: seriesShopLabel(series),
+    });
+  }
+
+  function legendGroups(series = []) {
+    const values = Array.isArray(series) ? series : [];
+    const steam = values.filter(item => item?.type === "steam");
+    const shops = values.filter(item => item?.type === "shop");
+    return Object.freeze({
+      regions: Object.freeze(steam.map(item => Object.freeze({
+        kind: "region",
+        label: seriesRegionLabel(item),
+        series: item,
+      }))),
+      shops: Object.freeze(shops.map(item => Object.freeze({
+        kind: "shop",
+        label: seriesShopLabel(item),
+        series: item,
+      }))),
+    });
+  }
+
+  function scopeLabel(scope) {
+    return ({ allRegular: "全部原价", currentRegular: "当前原价", recent12Months: "最近12个月" })[scope] || "当前原价";
+  }
+
+  function criterionLabel(criterion) {
+    return criterion === "price" ? "按到手价" : "按折扣力度";
+  }
+
+  function legendLines(series) {
+    const stats = series.stats;
+    const low = stats.lowest;
+    const mainPrice = low?.mainPrice;
+    const mainPriceText = mainPrice
+      && text(mainPrice.currency) !== text(low?.price?.currency)
+      && Number.isFinite(Number(mainPrice.amount))
+      ? `（${globalThis.STFormatUtils?.formatCurrency?.(mainPrice.amount, mainPrice.currency) || `${mainPrice.currency} ${mainPrice.amount}`}）`
+      : "";
+    return [
+      seriesDisplayLabel(series),
+      `史低判定：${criterionLabel(series.criterion)}`,
+      `参考范围：${scopeLabel(series.scope)}`,
+      stats.maxCut === null ? "历史最大折扣：暂无" : `历史最大折扣：-${stats.maxCut}%`,
+      low?.price ? `历史最低价格：${text(low.price.currency)} ${amountOf(low.price)}${mainPriceText}` : "历史最低价格：暂无",
+      stats.status || `一年内达到 ${stats.yearCount} 次`,
+    ];
+  }
+
+  function pointLines(series, event) {
+    const lines = [
+      `商店类型：${seriesShopLabel(series)}`,
+      `国家区域：${seriesRegionLabel(series)}`,
+      `日期：${dateLabel(event.time, true)}`,
+      `当前金额：${formatCny(event)}`,
+    ];
+    if (Number(event.cut) > 0) lines.push(`折扣：-${Number(event.cut)}%`);
+    return lines;
+  }
+
+  function eventAtTime(events = [], time = 0) {
+    const values = Array.isArray(events) ? events : [];
+    let low = 0;
+    let high = values.length - 1;
+    let found = null;
+    while (low <= high) {
+      const middle = Math.floor((low + high) / 2);
+      if (values[middle].time <= time) {
+        found = values[middle];
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+    return found;
+  }
+
+  function formatCurrency(amount, currency) {
+    if (!Number.isFinite(Number(amount))) return "—";
+    return globalThis.STFormatUtils?.formatCurrency?.(Number(amount), currency)
+      || `${currency} ${Number(amount).toFixed(2)}`;
+  }
+
+  function comparisonText(amount, mainAmount) {
+    if (!Number.isFinite(amount) || !Number.isFinite(mainAmount)) {
+      return Object.freeze({ text: "—", tone: "neutral" });
+    }
+    const amountCents = Math.round(amount * 100);
+    const mainCents = Math.round(mainAmount * 100);
+    if (amountCents === mainCents) {
+      return Object.freeze({ text: "—", tone: "neutral" });
+    }
+    if (mainCents === 0) {
+      return Object.freeze({ text: "—", tone: "neutral" });
+    }
+    const percent = ((amount - mainAmount) / mainAmount) * 100;
+    const rounded = Math.round(percent * 10) / 10;
+    const value = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+    return Object.freeze({
+      text: `${value}%`,
+      tone: rounded > 0 ? "higher" : "lower",
+    });
+  }
+
+  function comparisonPriceText(amount, localAmount, localCurrency, baseCurrency = "CNY") {
+    const localText = Number.isFinite(localAmount) && text(localCurrency)
+      ? formatCurrency(localAmount, localCurrency)
+      : "";
+    if (!Number.isFinite(amount)) return localText ? `— (${localText})` : "—";
+    const baseText = formatCurrency(amount, baseCurrency);
+    return `${baseText}${localText && localCurrency !== baseCurrency ? ` (${localText})` : ""}`;
+  }
+
+  function comparisonRowsAtTime(series = [], time = 0, mainSeries = null, hidden = new Set()) {
+    const mainEvent = eventAtTime(mainSeries?.visibleEvents || mainSeries?.events, time);
+    const mainAmount = chartAmount(mainEvent);
+    return (Array.isArray(series) ? series : [])
+      .filter(item => !hidden.has(item.id))
+      .map((item) => {
+        const event = eventAtTime(item.visibleEvents || item.events, time);
+        const amount = chartAmount(event);
+        const localAmount = amountOf(event?.price);
+        const localCurrency = text(event?.price?.currency);
+        const priceText = comparisonPriceText(amount, localAmount, localCurrency);
+        const comparison = comparisonText(amount, mainAmount);
+        return Object.freeze({
+          id: item.id,
+          label: seriesDisplayLabel(item),
+          color: item.color,
+          event,
+          priceText,
+          discountText: event?.price && Number(event.cut) > 0 ? `-${Number(event.cut)}%` : "—",
+          comparisonText: comparison.text,
+          comparisonTone: comparison.tone,
+        });
+      });
+  }
+
+  function comparisonTooltipContent(time, rows = []) {
+    const content = document.createElement("div");
+    content.className = "st-store-chart-tooltip__comparison";
+    const date = api.assets.createBrandMark({
+      className: "st-store-chart-tooltip__comparison-date",
+      suffix: dateLabel(time, true),
+    });
+    const scroll = document.createElement("div");
+    scroll.className = "st-store-chart-tooltip__comparison-scroll";
+    const table = document.createElement("table");
+    table.className = "st-store-chart-tooltip__comparison-table";
+    const head = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    ["国家 / 商店", "价格", "折扣", "对比"].forEach((value) => {
+      const cell = document.createElement("th");
+      cell.scope = "col";
+      cell.textContent = value;
+      headRow.appendChild(cell);
+    });
+    head.appendChild(headRow);
+    const body = document.createElement("tbody");
+    rows.forEach((row) => {
+      const tableRow = document.createElement("tr");
+      const label = document.createElement("td");
+      const labelWrap = document.createElement("span");
+      labelWrap.className = "st-store-chart-tooltip__comparison-label";
+      const swatch = document.createElement("span");
+      swatch.className = "st-store-chart-tooltip__comparison-swatch";
+      swatch.style.backgroundColor = row.color;
+      const name = document.createElement("span");
+      name.textContent = row.label;
+      labelWrap.append(swatch, name);
+      label.appendChild(labelWrap);
+      const price = document.createElement("td");
+      price.textContent = row.priceText;
+      const discount = document.createElement("td");
+      discount.textContent = row.discountText;
+      const comparison = document.createElement("td");
+      comparison.className = `st-store-chart-tooltip__comparison-value st-price-comparison-value is-${row.comparisonTone}`;
+      comparison.textContent = row.comparisonText;
+      tableRow.append(label, price, discount, comparison);
+      body.appendChild(tableRow);
+    });
+    table.append(head, body);
+    scroll.appendChild(table);
+    content.append(date, scroll);
+    return content;
+  }
+
+  function createMultiSeriesChart(series = [], options = {}) {
+    const months = Number.isFinite(Number(options.months)) ? Number(options.months) : 12;
+    const nowStamp = Number.isFinite(Number(options.now)) ? Number(options.now) : Date.now();
+    const prepared = prepareMultiSeries(series, { ...options, now: nowStamp });
+    const visible = prepared.map(item => {
+      const visibleEvents = chartEventsByMonths(item, months, nowStamp);
+      return {
+        ...item,
+        visibleEvents,
+        hitEvents: visibleEvents.filter(event => !event.chartAnchor && event.price && event.chartAmount !== null),
+      };
+    });
+    const validPoints = visible.flatMap(item => item.visibleEvents.filter(event => event.price && event.chartAmount !== null));
+    const allTimes = visible.flatMap(item => item.visibleEvents.map(event => event.time));
+    const xMin = months
+      ? calendarMonthsAgo(months, nowStamp)
+      : (allTimes.length ? Math.min(...allTimes) : calendarMonthsAgo(12, nowStamp));
+    const xMax = nowStamp;
+    const prices = range(validPoints.map(event => event.chartAmount));
+    const hidden = options.hiddenSeries instanceof Set ? options.hiddenSeries : new Set();
+    const groups = legendGroups(visible);
+    const box = document.createElement("div");
+    box.className = "st-data-display-chart st-data-display-chart--multi";
+    const yAxis = document.createElement("div");
+    yAxis.className = "st-data-display-chart__y-axis";
+    yLabels(validPoints.map(event => ({ amount: event.chartAmount }))).forEach(value => {
+      const label = document.createElement("div");
+      label.className = "st-data-display-chart__y-label";
+      label.textContent = globalThis.STFormatUtils?.formatCurrency?.(value, "CNY", { precision: 0 }) || String(value);
+      yAxis.appendChild(label);
+    });
+    const area = document.createElement("div");
+    area.className = "st-data-display-chart__area";
+    const svg = svgEl("svg", {
+      class: "st-data-display-chart__svg",
+      width: "100%",
+      height: String(HEIGHT),
+      viewBox: `0 0 1000 ${HEIGHT}`,
+      role: "img",
+      "aria-label": "多区域多商店历史价格走势图",
+      preserveAspectRatio: "none",
+    });
+    createGrid(svg);
+    const xOf = time => ((time - xMin) / Math.max(1, xMax - xMin)) * 1000;
+    const yOf = amount => yPos({ amount }, prices);
+
+    for (const item of visible) {
+      const group = svgEl("g", { "data-chart-series": item.id });
+      group.style.display = hidden.has(item.id) ? "none" : "";
+      let previous = null;
+      for (const event of item.visibleEvents) {
+        if (!event.price || event.chartAmount === null) {
+          if (previous) {
+            group.appendChild(svgEl("line", {
+              class: "st-data-display-chart__series-step",
+              x1: xOf(previous.time), y1: yOf(previous.chartAmount),
+              x2: xOf(event.time), y2: yOf(previous.chartAmount),
+              stroke: item.color,
+            }));
+          }
+          previous = null;
+          continue;
+        }
+        if (previous) {
+          group.appendChild(svgEl("line", {
+            class: "st-data-display-chart__series-step",
+            x1: xOf(previous.time), y1: yOf(previous.chartAmount),
+            x2: xOf(event.time), y2: yOf(previous.chartAmount),
+            stroke: item.color,
+          }));
+          group.appendChild(svgEl("line", {
+            class: "st-data-display-chart__series-step",
+            x1: xOf(event.time), y1: yOf(previous.chartAmount),
+            x2: xOf(event.time), y2: yOf(event.chartAmount),
+            stroke: item.color,
+          }));
+        }
+        previous = event;
+      }
+      if (previous) {
+        group.appendChild(svgEl("line", {
+          class: "st-data-display-chart__series-step",
+          x1: xOf(previous.time), y1: yOf(previous.chartAmount),
+          x2: xOf(xMax), y2: yOf(previous.chartAmount),
+          stroke: item.color,
+        }));
+      }
+      for (const period of item.stats.periods) {
+        const event = period.event;
+        if (event.time < xMin || event.time > xMax || event.chartAmount === null) continue;
+        const markerX = xOf(event.time);
+        const markerY = yOf(event.chartAmount);
+        const marker = svgEl("g", {
+          class: "st-data-display-chart__low-marker",
+          "aria-hidden": "true",
+        });
+        marker.append(
+          svgEl("line", {
+            class: "st-data-display-chart__low-marker-ring",
+            x1: markerX,
+            y1: markerY,
+            x2: markerX + 0.01,
+            y2: markerY,
+          }),
+          svgEl("line", {
+            class: "st-data-display-chart__low-marker-dot",
+            x1: markerX,
+            y1: markerY,
+            x2: markerX + 0.01,
+            y2: markerY,
+          })
+        );
+        group.appendChild(marker);
+      }
+      svg.appendChild(group);
+    }
+
+    const xAxis = document.createElement("div");
+    xAxis.className = "st-data-display-chart__x-axis";
+    for (let index = 0; index < 5; index += 1) {
+      const time = xMin + ((xMax - xMin) * index / 4);
+      const label = document.createElement("div");
+      label.className = "st-data-display-chart__x-label";
+      if (index === 0) {
+        label.style.left = "0";
+      } else if (index === 4) {
+        label.style.right = "0";
+      } else {
+        label.style.left = `${index * 25}%`;
+        label.style.transform = "translateX(-50%)";
+      }
+      label.textContent = dateLabel(time);
+      xAxis.appendChild(label);
+    }
+    area.append(svg, xAxis);
+    if (!validPoints.length) {
+      const empty = document.createElement("div");
+      empty.className = "st-data-display-chart__multi-empty";
+      empty.textContent = "当前时间范围暂无历史价格数据";
+      area.appendChild(empty);
+    }
+    box.append(yAxis, area);
+
+    let activePointerKey = "";
+    svg.addEventListener("pointermove", (event) => {
+      const rect = svg.getBoundingClientRect();
+      const targetTime = xMin + Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(1, rect.width))) * (xMax - xMin);
+      let nearest = null;
+      for (const item of visible) {
+        if (hidden.has(item.id)) continue;
+        const values = item.hitEvents;
+        let low = 0;
+        let high = values.length - 1;
+        while (low <= high) {
+          const middle = Math.floor((low + high) / 2);
+          if (values[middle].time < targetTime) low = middle + 1;
+          else high = middle - 1;
+        }
+        for (const index of [low - 1, low]) {
+          const point = values[index];
+          if (!point) continue;
+          const distance = Math.abs(point.time - targetTime);
+          if (!nearest || distance < nearest.distance) nearest = { item, point, distance };
+        }
+      }
+      if (!nearest) {
+        if (activePointerKey) api.chartTooltip?.hide?.();
+        activePointerKey = "";
+        return;
+      }
+      const key = `${nearest.item.id}:${nearest.point.time}`;
+      if (key === activePointerKey) return;
+      activePointerKey = key;
+      const activeSeries = visible.filter(item => !hidden.has(item.id));
+      if (activeSeries.length <= 1) {
+        api.chartTooltip?.show?.(event, nearest.point, {
+          lines: point => pointLines(nearest.item, point),
+          position: "mouse",
+          zIndex: "var(--st-z-index-max)",
+        });
+      } else {
+        const comparison = {
+          time: nearest.point.time,
+          rows: comparisonRowsAtTime(visible, nearest.point.time, visible[0], hidden),
+        };
+        api.chartTooltip?.show?.(event, comparison, {
+          content: value => comparisonTooltipContent(value.time, value.rows),
+          position: "mouse",
+          zIndex: "var(--st-z-index-max)",
+        });
+      }
+    });
+    svg.addEventListener("pointerleave", () => {
+      activePointerKey = "";
+      api.chartTooltip?.hide?.();
+    });
+
+    const legend = document.createElement("div");
+    legend.className = "st-data-display-chart__legend";
+    const syncLegendButtons = (seriesId) => {
+      legend.querySelectorAll(".st-data-display-chart__legend-button").forEach((button) => {
+        if (button.dataset.chartLegendSeries !== seriesId) return;
+        button.setAttribute("aria-pressed", hidden.has(seriesId) ? "false" : "true");
+        button.classList.toggle("is-hidden", hidden.has(seriesId));
+      });
+    };
+    const createLegendButton = (entry) => {
+      const item = entry.series;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `st-data-display-chart__legend-button${item.events.some(event => event.price) ? "" : " is-empty"}`;
+      button.dataset.chartLegendSeries = item.id;
+      button.dataset.chartLegendKind = entry.kind;
+      button.setAttribute("aria-pressed", hidden.has(item.id) ? "false" : "true");
+      const hasData = item.events.some(event => event.price);
+      button.setAttribute("aria-label", `${entry.label}${hasData ? "" : " 暂无数据"} 图表统计`);
+      const swatch = document.createElement("span");
+      swatch.className = "st-data-display-chart__legend-swatch";
+      swatch.style.backgroundColor = item.color;
+      const label = document.createElement("span");
+      label.className = `st-data-display-chart__legend-label st-data-display-chart__legend-${entry.kind}`;
+      label.textContent = entry.label;
+      button.append(swatch, label);
+      api.chartTooltip?.bindPointTooltip?.(button, item, {
+        lines: legendLines,
+        label: value => `${seriesDisplayLabel(value)} 图表统计`,
+        zIndex: "var(--st-z-index-max)",
+      });
+      button.addEventListener("click", () => {
+        if (hidden.has(item.id)) hidden.delete(item.id);
+        else hidden.add(item.id);
+        const group = svg.querySelector(`[data-chart-series="${CSS.escape(item.id)}"]`);
+        if (group) group.style.display = hidden.has(item.id) ? "none" : "";
+        syncLegendButtons(item.id);
+        activePointerKey = "";
+        api.chartTooltip?.hide?.();
+      });
+      button.classList.toggle("is-hidden", hidden.has(item.id));
+      return button;
+    };
+    const appendLegendRow = (items, kind, label) => {
+      if (!items.length) return;
+      const row = document.createElement("div");
+      row.className = `st-data-display-chart__legend-row st-data-display-chart__legend-row--${kind}`;
+      row.setAttribute("aria-label", label);
+      items.forEach(item => row.appendChild(createLegendButton(item)));
+      legend.appendChild(row);
+    };
+    appendLegendRow([...groups.regions, ...groups.shops], "items", "国家和商店");
+    box.appendChild(legend);
+    return box;
+  }
+
   api.features = api.features || {};
   api.features.dataDisplayCharts = Object.freeze({
     createEmpty,
     createSkeleton,
     createPriceChart,
     pointsFromEvents,
+    calendarMonthsAgo,
+    filterSeriesByMonths,
+    chartEventsByMonths,
+    prepareSeries,
+    prepareMultiSeries,
+    pointLines,
+    eventAtTime,
+    comparisonText,
+    comparisonPriceText,
+    comparisonRowsAtTime,
+    comparisonTooltipContent,
+    legendLabels,
+    legendGroups,
+    createMultiSeriesChart,
   });
 })();

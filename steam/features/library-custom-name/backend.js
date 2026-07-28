@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : 库游戏自定义名称后台逻辑
+ * @File          : 库列表自定义排序名称后台逻辑
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
@@ -43,48 +43,6 @@
 
   function raw(value) {
     return typeof value === "string" ? value : "";
-  }
-
-  function clean(value) {
-    return String(value || "").replace(/\s+/g, " ").trim();
-  }
-
-  function pushSearchToken(list, seen, value) {
-    const item = clean(value);
-    const key = item.toLocaleLowerCase();
-    if (!item || seen.has(key)) {
-      return;
-    }
-    list.push(item);
-    seen.add(key);
-  }
-
-  function sameSearchText(a, b) {
-    return clean(a).toLocaleLowerCase() === clean(b).toLocaleLowerCase();
-  }
-
-  function startsWithSearchText(value, prefix) {
-    const text = clean(value).toLocaleLowerCase();
-    const head = clean(prefix).toLocaleLowerCase();
-    return !!text && !!head && (text === head || text.startsWith(`${head} `));
-  }
-
-  function searchSortKey(app, name, fallback) {
-    const list = [];
-    const seen = new Set();
-    pushSearchToken(list, seen, name);
-    pushSearchToken(list, seen, app?.[ORIG]);
-    pushSearchToken(list, seen, fallback);
-    pushSearchToken(list, seen, app?.original_sort_as);
-    return list.join(" ").toLocaleLowerCase();
-  }
-
-  function originalSort(app, fallback, custom) {
-    const saved = clean(app?.original_sort_as);
-    if (saved && !startsWithSearchText(saved, custom)) {
-      return saved;
-    }
-    return clean(app?.[ORIG]) || clean(fallback);
   }
 
   function sleep(ms) {
@@ -396,22 +354,11 @@
         continue;
       }
       try {
-        const prevCust = text(app.custom_sort_as_display);
-        const fallback = text(app[ORIG]) || text(app.display_name);
+        // 快速写入只同步自定义排序显示状态；Steam 原生搜索字段由 Steam 自己维护。
         if (clear) {
           app.custom_sort_as_display = "";
-          const next = originalSort(app, fallback, prevCust);
-          if (next) {
-            app.sort_as = next.toLocaleLowerCase();
-          }
-          app.original_sort_as = undefined;
         } else {
-          if (!app.original_sort_as && typeof app.sort_as === "string" && !sameSearchText(app.sort_as, name)) {
-            app.original_sort_as = app.sort_as;
-          }
           app.custom_sort_as_display = name;
-          // 优化:快速批量写入同步 AppOverview 时，保留官方名 token，避免自定义显示名覆盖英文搜索索引。
-          app.sort_as = searchSortKey(app, name, fallback);
         }
         if (Object.prototype.hasOwnProperty.call(app, "has_custom_sort_as")) {
           app.has_custom_sort_as = !clear;

@@ -272,6 +272,52 @@
     return observedFrom <= endsAt && eventEnd > startsAt;
   }
 
+  // AI 首轮只消费合并后的折扣区间和已校验节日窗口，避免与页面预测维护两套证据口径。
+  function aiForecastEvidence(priceEvents = [], festivalData = null, options = {}) {
+    const now = Number(options.now);
+    const historyStart = Number(options.historyStart);
+    const futureEnd = Number(options.futureEnd);
+    if (
+      !Number.isFinite(now)
+      || !Number.isFinite(historyStart)
+      || !Number.isFinite(futureEnd)
+      || historyStart >= now
+      || futureEnd <= now
+    ) {
+      throw new TypeError("AI 预测时间窗口无效");
+    }
+    const historicalDiscounts = discountEvents(priceEvents)
+      .filter(event => event.start >= historyStart && event.start <= now);
+    const historicalFestivals = festivalWindows(festivalData, "before")
+      .filter(window => {
+        const startsAt = Date.parse(window.startsAt);
+        return startsAt >= historyStart && startsAt < now;
+      })
+      .map((window) => {
+        const startsAt = Date.parse(window.startsAt);
+        const endsAt = Date.parse(window.endsAt);
+        const cuts = historicalDiscounts
+          .filter(event => eventOverlapsWindow(event, startsAt, endsAt))
+          .map(event => event.cut)
+          .filter(cut => Number.isFinite(cut) && cut > 0);
+        return {
+          ...window,
+          coincidentDiscount: cuts.length > 0,
+          maxCoincidentCut: cuts.length ? Math.max(...cuts) : null,
+        };
+      });
+    const futureFestivals = festivalWindows(festivalData, "after")
+      .filter(window => {
+        const startsAt = Date.parse(window.startsAt);
+        return startsAt >= now && startsAt <= futureEnd;
+      });
+    return {
+      historicalDiscounts,
+      historicalFestivals,
+      futureFestivals,
+    };
+  }
+
   function releaseWindow(value) {
     const raw = text(value);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
@@ -1101,6 +1147,7 @@
     discountForecast,
     historicalLowOutlook,
     festivalDiscountForecast,
+    aiForecastEvidence,
     build,
   });
 

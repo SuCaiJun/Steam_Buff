@@ -468,18 +468,18 @@
 
     if (currentAmount <= lowAmount) {
       if ((Number(current?.cut) || 0) > (Number(low?.cut) || 0)) {
-        appendText(parent, " ，比历史最低");
-        appendSpan(parent, `便宜${money({ amount: Math.abs(diff), currency })}(-${Math.abs(cutDiff)}%)`, "", {
+        appendText(parent, "，比该次价格");
+        appendSpan(parent, `便宜 ${money({ amount: Math.abs(diff), currency })}（-${Math.abs(cutDiff)}%）`, "", {
           color: colors.success,
         });
       } else {
-        appendText(parent, " ，与历史最低折扣持平");
+        appendText(parent, "，与该次价格持平");
       }
       return;
     }
 
-    appendText(parent, " ，比历史最低");
-    appendSpan(parent, `贵${money({ amount: diff, currency })}(+${Math.abs(cutDiff)}%)`, "", {
+    appendText(parent, "，比该次价格");
+    appendSpan(parent, `贵 ${money({ amount: diff, currency })}（+${Math.abs(cutDiff)}%）`, "", {
       color: colors.danger,
     });
   }
@@ -487,7 +487,7 @@
   function renderSummary(node, queryId, summary) {
     if (!activeNode(node, queryId)) return false;
     const current = summary.current;
-    const low = summary.historicalLow;
+    const low = currentRegularDiscountLow(summary);
     if (!summary.found) {
       return setActiveMessage(node, queryId, "ITAD 暂未收录当前购买项。");
     }
@@ -497,7 +497,7 @@
 
     node.dataset.stPriceHistoryState = "done";
     clearNode(node);
-    appendText(node, "历史最低折扣在 ");
+    appendText(node, "当前原价下，历史最大折扣在 ");
     appendSpan(node, dateText(low.timestamp), "", { textDecoration: "underline" });
     appendText(node, `${daysText(low.timestamp)} 为 `);
     appendDiscount(node, low.cut);
@@ -523,6 +523,10 @@
     appendText(node, ` ${money(current.price)}`);
     appendCompare(node, current, low);
 
+    if (summary.overviewAvailable) {
+      appendBreak(node);
+      appendText(node, Number.isInteger(summary.bundled) ? `历史进包：${summary.bundled}次` : "历史进包：暂不可用");
+    }
     appendBreak(node);
     appendBreak(node);
     appendText(node, "在");
@@ -531,7 +535,45 @@
     return true;
   }
 
-  function renderDlcSummary(node, queryId, summary) {
+  function sameMoney(left, right) {
+    return !!left
+      && !!right
+      && String(left.currency || "") === String(right.currency || "")
+      && Number(left.amount) === Number(right.amount);
+  }
+
+  function currentRegularDiscountLow(summary = {}) {
+    const regular = summary.current?.regular;
+    if (!regular || !Number.isFinite(Number(regular.amount))) return null;
+    const events = (Array.isArray(summary.historyEvents) ? summary.historyEvents : [])
+      .slice()
+      .sort((left, right) => Date.parse(left.timestamp || 0) - Date.parse(right.timestamp || 0));
+    const eligible = events.filter(event => event?.price && sameMoney(event.regular, regular) && Number.isFinite(Number(event.cut)));
+    if (!eligible.length) return null;
+    const maxCut = Math.max(...eligible.map(event => Number(event.cut)));
+    let inPeriod = false;
+    let latestStart = null;
+    for (const event of events) {
+      const matches = !!event?.price && sameMoney(event.regular, regular) && Number(event.cut) === maxCut;
+      if (matches && !inPeriod) latestStart = event;
+      inPeriod = matches;
+    }
+    return latestStart;
+  }
+
+  function bindDlcRegionalPrice(node, queryId, target, historyLabel) {
+    const bindTarget = api.features.regionalPricePopover?.bindTarget;
+    if (typeof bindTarget !== "function") return;
+    Promise.resolve(bindTarget(node, target.id)).then((result) => {
+      if (!result?.started || !activeNode(node, queryId)) return;
+      node.title = "";
+      node.setAttribute("aria-label", historyLabel);
+    }).catch(() => {
+      // 保留已存在的历史价格 title，区域价格绑定失败时不制造空白悬浮目标。
+    });
+  }
+
+  function renderDlcSummary(node, queryId, summary, target) {
     if (!activeNode(node, queryId)) return false;
     const low = summary.historicalLow;
     if (!summary.found || !low?.price) {
@@ -544,7 +586,9 @@
       appendDlcDiscount(node, low.cut);
     }
     appendText(node, money(low.price));
-    node.title = `历史最低 ${money(low.price)}，${dateText(low.timestamp)}，来源 ${summary.source?.name || PROVIDER_LABEL}`;
+    const historyLabel = `历史最低 ${money(low.price)}，${dateText(low.timestamp)}，来源 ${summary.source?.name || PROVIDER_LABEL}`;
+    node.title = historyLabel;
+    bindDlcRegionalPrice(node, queryId, target, historyLabel);
     return true;
   }
 
@@ -571,7 +615,7 @@
     Object.values(nodes).forEach(({ node, target }) => {
       const summary = api.thirdPartyData?.summarizePricePack?.(result, target) || {};
       if (target.surface === "dlc") {
-        renderDlcSummary(node, queryId, summary);
+        renderDlcSummary(node, queryId, summary, target);
       } else {
         renderSummary(node, queryId, summary);
       }
@@ -582,7 +626,18 @@
     return api.thirdPartyData.getPricePack(pageInfo(appId, type, subIds, bundleids, targets), {
       pageCountry: cc,
       mode: "summary",
-      includeHistory: false,
+      includeHistory: type === "app",
+      overviewSummary: type === "app",
+      items: targets.map(target => ({ type: target.type, id: target.id })),
+      overviewItems: targets
+        .filter(target => target.surface !== "dlc")
+        .map(target => ({ type: target.type, id: target.id })),
+      historyItems: targets
+        .filter(target => target.surface !== "dlc")
+        .map(target => ({ type: target.type, id: target.id })),
+      legacyItems: targets
+        .filter(target => target.surface === "dlc")
+        .map(target => ({ type: target.type, id: target.id })),
     });
   }
 

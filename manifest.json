@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "0.12.19",
+  "version": "0.12.30",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "顾青离",
@@ -28,6 +28,8 @@
     "activeTab"
   ],
   "host_permissions": [
+    "http://*/*",
+    "https://*/*",
     "https://steamloopback.host/*",
     "https://*.steampowered.com/*",
     "https://steampowered.com/*",
@@ -36,11 +38,11 @@
     "https://api.steampowered.com/*",
     "https://api.augmentedsteam.com/*",
     "https://api.isthereanydeal.com/*",
+    "https://api.frankfurter.dev/*",
     "https://steampy.com/*",
     "https://www.sucaijun.com/*",
     "https://api.sucaijun.com/*",
     "https://aligueler.com/*",
-    "https://open.bigmodel.cn/*",
     "https://steam-buff.ai.sucaijun.com/*",
     "https://steam-buff.sucaijun.com/*"
   ],
@@ -300,6 +302,7 @@
         "images/features/subscription-info.svg",
         "images/features/family-library-owned-marker.svg",
         "images/features/price-related-enhancements.svg",
+        "images/features/price-history.svg",
         "images/features/price-forecast.svg",
         "images/features/wishlist-price-history.svg",
         "images/features/data-display-enhancements.svg",

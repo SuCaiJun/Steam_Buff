@@ -16,6 +16,7 @@
 
   const ID = "isthereanydeal";
   const SHOP_STEAM = 61;
+  const priceCatalog = globalThis.STPriceComparisonCatalog;
   const SOURCE = Object.freeze({
     name: "IsThereAnyDeal",
     url: "https://isthereanydeal.com/",
@@ -26,6 +27,8 @@
     historyLow: "stable",
     history: "stable",
     info: "stable",
+    overview: "stable",
+    storeLow: "stable",
   });
   const TTL = Object.freeze({
     lookup: 24 * 60 * 60 * 1000,
@@ -33,6 +36,8 @@
     historyLow: 12 * 60 * 60 * 1000,
     history: 12 * 60 * 60 * 1000,
     info: 24 * 60 * 60 * 1000,
+    overview: 10 * 60 * 1000,
+    storeLow: 12 * 60 * 60 * 1000,
     test: 60 * 1000,
   });
   const FALLBACK_RETRY_AFTER_MS = 60 * 1000;
@@ -81,8 +86,10 @@
 
   function cleanShops(value) {
     const raw = Array.isArray(value) ? value : [SHOP_STEAM];
-    const shops = Array.from(new Set(raw.map(item => parseInt(item, 10)).filter(item => item > 0)));
-    return shops.length ? shops : [SHOP_STEAM];
+    const shops = Array.from(new Set(raw
+      .map(item => parseInt(item, 10))
+      .filter(item => item > 0 && !!priceCatalog?.getItadPriceShop?.(item))));
+    return [SHOP_STEAM, ...shops.filter(item => item !== SHOP_STEAM)];
   }
 
   function vendor() {
@@ -127,6 +134,12 @@
     if (endpointKey === "info") {
       return itad.info?.() || "https://api.isthereanydeal.com/games/info/v2";
     }
+    if (endpointKey === "overview") {
+      return itad.overview?.() || "https://api.isthereanydeal.com/games/overview/v2";
+    }
+    if (endpointKey === "storeLow") {
+      return itad.storeLow?.() || "https://api.isthereanydeal.com/games/storelow/v2";
+    }
     return itad.statsMostPopular?.(1, 0) || "https://api.isthereanydeal.com/stats/most-popular/v1?limit=1&offset=0";
   }
 
@@ -136,9 +149,7 @@
       url.searchParams.set("country", cleanCountry(options.country));
     }
     if (Array.isArray(options.shops) && options.shops.length) {
-      for (const shop of cleanShops(options.shops)) {
-        url.searchParams.append("shops", String(shop));
-      }
+      url.searchParams.set("shops", cleanShops(options.shops).join(","));
     }
     if (options.id) {
       url.searchParams.set("id", cleanId(options.id));
@@ -432,23 +443,34 @@
       && (!integer || Number.isInteger(value));
   }
 
-  function validateDeal(value) {
-    return hasFields(value, [
-      "shop", "price", "regular", "cut", "voucher", "storeLow", "flag",
-      "drm", "platforms", "timestamp", "expiry", "url",
-    ])
+  const DEAL_FIELDS = [
+    "shop", "price", "regular", "cut", "voucher", "storeLow", "flag",
+    "drm", "platforms", "timestamp", "expiry", "url",
+  ];
+  const OVERVIEW_DEAL_FIELDS = DEAL_FIELDS.filter(field => field !== "storeLow");
+
+  function validateDealFields(value, fields) {
+    return hasFields(value, fields)
       && validateShop(value.shop)
       && validateMoney(value.price)
       && validateMoney(value.regular)
       && validateCut(value.cut, true)
       && (value.voucher === null || typeof value.voucher === "string")
-      && (value.storeLow === null || validateMoney(value.storeLow))
       && (value.flag === null || ["H", "N", "S"].includes(value.flag))
       && Array.isArray(value.drm)
       && Array.isArray(value.platforms)
       && validateDateTime(value.timestamp)
       && (value.expiry === null || validateDateTime(value.expiry))
       && !!safeUrl(value.url);
+  }
+
+  function validateDeal(value) {
+    return validateDealFields(value, DEAL_FIELDS)
+      && (value.storeLow === null || validateMoney(value.storeLow));
+  }
+
+  function validateOverviewDeal(value) {
+    return validateDealFields(value, OVERVIEW_DEAL_FIELDS);
   }
 
   function validatePriceHistory(value) {
@@ -483,6 +505,32 @@
       && item.id.trim() !== ""
       && validateHistoryLow(item.low)
     ));
+  }
+
+  function validateStoreLowResponse(data) {
+    return Array.isArray(data) && data.every(item => (
+      hasFields(item, ["id", "lows"])
+      && typeof item.id === "string"
+      && item.id.trim() !== ""
+      && Array.isArray(item.lows)
+      && item.lows.every(validateHistoryLow)
+    ));
+  }
+
+  function validateOverviewResponse(data) {
+    return hasFields(data, ["prices", "bundles"])
+      && Array.isArray(data.prices)
+      && Array.isArray(data.bundles)
+      && data.prices.every(item => (
+        hasFields(item, ["id", "current", "lowest", "bundled", "urls"])
+        && typeof item.id === "string"
+        && item.id.trim() !== ""
+        && (item.current === null || validateOverviewDeal(item.current))
+        && (item.lowest === null || validateHistoryLow(item.lowest))
+        && Number.isInteger(item.bundled)
+        && item.bundled >= 0
+        && validateObject(item.urls)
+      ));
   }
 
   function validateHistoryDeal(value) {
@@ -520,8 +568,7 @@
     };
   }
 
-  function deal(value) {
-    if (!validateDeal(value)) return null;
+  function dealData(value) {
     return {
       shop: shop(value.shop),
       price: money(value.price),
@@ -530,6 +577,14 @@
       url: safeUrl(value.url),
       timestamp: value.timestamp,
     };
+  }
+
+  function deal(value) {
+    return validateDeal(value) ? dealData(value) : null;
+  }
+
+  function overviewDeal(value) {
+    return validateOverviewDeal(value) ? dealData(value) : null;
   }
 
   function priceHistory(value) {
@@ -565,6 +620,24 @@
     return {
       id: value.id,
       low: historyLow(value.low),
+      updatedAt: now(),
+    };
+  }
+
+  function storeLowItem(value) {
+    return {
+      id: value.id,
+      lows: value.lows.map(historyLow),
+      updatedAt: now(),
+    };
+  }
+
+  function overviewItem(value) {
+    return {
+      id: value.id,
+      current: value.current === null ? null : overviewDeal(value.current),
+      lowest: value.lowest === null ? null : historyLow(value.lowest),
+      bundled: value.bundled,
       updatedAt: now(),
     };
   }
@@ -734,6 +807,53 @@
     });
   }
 
+  async function getStoreLow(ids, options = {}, config = {}) {
+    const clean = Array.from(new Set((ids || []).map(cleanId).filter(Boolean)));
+    const country = countryFrom(config, options);
+    const shops = shopsFrom(config, options);
+    const requestData = { ids: clean, country, shops };
+    return withCache("storeLow", requestData, TTL.storeLow, async () => {
+      const res = await requestJson("storeLow", {
+        url: endpointWithQuery("storeLow", { country, shops }),
+        method: "POST",
+        body: clean,
+        requestId: options.requestId,
+      }, config);
+      if (!validateStoreLowResponse(res.data)) throw invalidShape("storeLow", res.status, res.requestId);
+      return {
+        data: res.data.map(storeLowItem),
+        status: res.status,
+        requestId: res.requestId,
+        updatedAt: now(),
+      };
+    });
+  }
+
+  async function getOverview(ids, options = {}, config = {}) {
+    const clean = Array.from(new Set((ids || []).map(cleanId).filter(Boolean)));
+    const country = countryFrom(config, options);
+    const shops = shopsFrom(config, options);
+    const requestData = { ids: clean, country, shops };
+    return withCache("overview", requestData, TTL.overview, async () => {
+      const res = await requestJson("overview", {
+        url: endpointWithQuery("overview", { country, shops }),
+        method: "POST",
+        body: clean,
+        requestId: options.requestId,
+      }, config);
+      if (!validateOverviewResponse(res.data)) throw invalidShape("overview", res.status, res.requestId);
+      return {
+        data: {
+          prices: res.data.prices.map(overviewItem),
+          bundleCount: res.data.bundles.length,
+        },
+        status: res.status,
+        requestId: res.requestId,
+        updatedAt: now(),
+      };
+    });
+  }
+
   async function getInfo(id, options = {}, config = {}) {
     const clean = cleanId(id);
     const requestData = { id: clean };
@@ -787,6 +907,8 @@
       lookupSteamItems,
       getPrices,
       getHistoryLow,
+      getStoreLow,
+      getOverview,
       getHistory,
       getInfo,
       normalizeSteamItems,

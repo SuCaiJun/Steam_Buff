@@ -22,8 +22,8 @@
 
   const FEATURE_ID = "wishlist-price-history";
   const LOADING_MESSAGE = "正在获取数据...";
-  const BATCH_SIZE = 40;
   const STEAM_SHOP_ID = 61;
+  const ITAD_HISTORY_MONTHS = 12;
   const PANEL_GAP = 0;
   const PANEL_OVERLAP = 1;
   const PANEL_EDGE = 16;
@@ -31,32 +31,29 @@
   const CONTENT_LEAVE_MS = 90;
   const ROW_OBSERVER_DEBOUNCE_MS = 1000;
   const CHART_BARS = Object.freeze(["35%", "78%", "52%", "88%", "64%"]);
-  const LIST_SEL = ".PU7fdVEQB8s-.Panel, #wishlist_ctn, #wishlist_list";
-  const ROW_SEL = "[data-index], .wishlist_row";
-  const APPDETAILS_FILTERS = "package_groups,packages";
+  const APPDETAILS_FILTERS = "price_overview,package_groups,packages";
+  const APPDETAILS_LANG = "schinese";
   const FEATURES = Object.freeze({
     cdk: "steampy-cdk-price",
     proxy: "steampy-proxy-price",
   });
   const HOVER_THROUGH_ID = "wishlist-price-history-hover-through";
   const log = window.STLoggerFactory.createLogger("store", FEATURE_ID);
-  const DataIndex = api.dataIndex || window.STDataIndex;
 
   let started = false;
   let observer = null;
-  let rows = [];
-  let chunks = [];
-  let chunkByApp = new Map();
-  let rowDiff = null;
-  let boundContainer = null;
+  let boundObserverTarget = null;
   let boundScroller = null;
-  const steamCache = new Map();
+  const appDetailsCache = new Map();
+  const appDetailsPromises = new Map();
+  const itadCache = new Map();
+  const itadStateCache = new Map();
+  const providerGameIdCache = new Map();
+  const historyCache = new Map();
   const pyCache = new Map();
-  const steamPromises = new Map();
-  const steamPackagePromises = new Map();
+  const itadPromises = new Map();
+  const historyPromises = new Map();
   const pyPromises = new Map();
-  const packageCache = new Map();
-  const packagePromises = new Map();
   let currentRow = null;
   let currentAppid = 0;
   let currentPanel = null;
@@ -68,16 +65,6 @@
 
   function text(value) {
     return String(value ?? "").replace(/\s+/g, " ").trim();
-  }
-
-  function parseResponse(value) {
-    if (!value) return {};
-    if (typeof value !== "string") return value;
-    try {
-      return JSON.parse(value);
-    } catch {
-      return {};
-    }
   }
 
   function country() {
@@ -157,24 +144,23 @@
       imageUrl ? `url("${imageUrl}")` : "none"
     );
 
+    api.styles?.ensureFeatureStyle?.("data-display");
     api.styles?.ensureFeatureStyle?.("wishlist-price-history");
   }
 
+  // 愿望单 bundle 中共享 helper 在本文件之后、features.js 之前加载；功能启动和事件处理
+  // 均发生在全部脚本加载完成后，因此每次从 api 读取，不能在模块初始化时缓存 undefined。
+  function wishlistDom() {
+    return api.wishlistDom || null;
+  }
+
   function appIdFromRow(row) {
-    const link = row?.querySelector?.("a[href*='/app/']");
-    return api.features.wishlistPriceHistoryCore?.appIdFromHref?.(link?.href || link?.getAttribute?.("href") || "") || 0;
+    return wishlistDom()?.rowAppid?.(row) || 0;
   }
 
   /* 悬浮面板定位 */
   function wishlistCard(row) {
-    const reactCard = row?.querySelector?.(".c-Pw-ER6JnA-");
-    if (reactCard) return reactCard;
-    if (!row?.matches?.("[data-index]")) return row;
-    for (const child of Array.from(row.children || [])) {
-      if (child.classList?.contains("st-wishlist-price-history-panel")) continue;
-      if (child.querySelector?.("a[href*='/app/']")) return child;
-    }
-    return row.firstElementChild || row;
+    return wishlistDom()?.card?.(row) || null;
   }
 
   function clamp(value, min, max) {
@@ -304,36 +290,7 @@
     currentPanel.style.top = `${Math.round(top)}px`;
   }
 
-  function findRows() {
-    const seen = new Set();
-    return Array.from(document.querySelectorAll(ROW_SEL)).filter(row => {
-      const appid = appIdFromRow(row);
-      if (!appid || seen.has(appid)) return false;
-      seen.add(appid);
-      return true;
-    });
-  }
-
   function syncRows() {
-    const nextRows = findRows();
-    rowDiff = DataIndex?.diffRows?.(rows, nextRows, {
-      keyOf: appIdFromRow,
-      signatureOf: row => `${appIdFromRow(row)}:${row?.isConnected ? 1 : 0}`,
-    }) || null;
-    rows = nextRows;
-    const ids = rows.map(appIdFromRow).filter(Boolean);
-    chunks = DataIndex?.chunk?.(DataIndex?.uniqueBy?.(ids) || ids, BATCH_SIZE)
-      || api.features.wishlistPriceHistoryCore?.chunkIds?.(ids, BATCH_SIZE)
-      || [];
-    chunkByApp = DataIndex?.indexBy?.(
-      chunks.flatMap((chunk, index) => chunk.map(appid => ({ appid, index }))),
-      "appid"
-    ) || new Map();
-    if (!DataIndex?.indexBy) {
-      chunks.forEach((chunk, index) => {
-        chunk.forEach(appid => chunkByApp.set(appid, { appid, index }));
-      });
-    }
     if (currentRow && !rowVisible(currentRow)) {
       detachPanel();
     } else {
@@ -341,142 +298,182 @@
     }
   }
 
-  function chunkKey(ids) {
-    return Array.from(new Set(Array.isArray(ids) ? ids : []))
-      .map(Number)
-      .filter(Number.isFinite)
-      .sort((left, right) => left - right)
-      .join(",");
+  function steamInfoFromSummary(summary) {
+    if (!summary?.found) return null;
+    return {
+      current: summary.current || null,
+      lowest: summary.historicalLow || null,
+    };
   }
 
-  function priceInfo(data, appid) {
-    const parsed = parseResponse(data);
-    return api.features.wishlistPriceHistoryCore?.bestSteamInfo?.(parsed, appid, []) || null;
+  function stateMessage(state, fallback) {
+    return text(state?.userMessage) || fallback;
   }
 
-  async function loadSteamChunk(appids) {
-    const key = chunkKey(appids);
-    if (steamPromises.has(key)) return steamPromises.get(key);
+  function appDetailsUrl(appid) {
+    const url = new URL(STEAM_STORE.appDetails(appid, APPDETAILS_FILTERS, APPDETAILS_LANG));
+    url.searchParams.set("cc", country().toUpperCase());
+    return url.href;
+  }
 
-    const apps = Array.isArray(appids) ? appids : [];
-    if (!apps.length) return Promise.resolve();
+  function appDetailsCurrent(info, appid) {
+    if (!info?.current) return null;
+    return {
+      ...info.current,
+      url: STEAM_STORE.app(appid),
+    };
+  }
+
+  async function loadAppDetails(appid) {
+    if (appDetailsCache.has(appid)) return appDetailsCache.get(appid);
+    if (appDetailsPromises.has(appid)) return appDetailsPromises.get(appid);
     const startedAt = Date.now();
 
-    const request = api.net.fetchAugmentedSteamPrices({
-      country: country(),
-      apps,
-      protocol: location.protocol,
-      shops: [STEAM_SHOP_ID],
-    }).then(data => {
-      for (const appid of apps) {
-        steamCache.set(appid, priceInfo(data, appid));
-      }
-    }).catch((error) => {
-      for (const appid of apps) {
-        steamCache.set(appid, null);
-      }
-      log.warn("wishlist-price-steam-chunk-failed", "愿望单 Steam 批量价格请求失败", {
-        count: apps.length,
-        durationMs: Date.now() - startedAt,
-        error,
-      });
-    });
-    steamPromises.set(key, request);
-    return request;
-  }
-
-  async function loadSteamPackages(appid, packageids) {
-    const packages = Array.isArray(packageids) ? packageids : [];
-    if (!packages.length) return steamCache.get(appid) || null;
-
-    const key = `${appid}:${chunkKey(packages)}`;
-    if (steamPackagePromises.has(key)) return steamPackagePromises.get(key);
-    const startedAt = Date.now();
-
-    const request = api.net.fetchAugmentedSteamPrices({
-      country: country(),
-      apps: [appid],
-      subs: packages,
-      protocol: location.protocol,
-      shops: [STEAM_SHOP_ID],
-    }).then(data => {
-      const info = api.features.wishlistPriceHistoryCore?.bestSteamInfo?.(parseResponse(data), appid, packages) || null;
-      steamCache.set(appid, info);
-      return info;
-    }).catch((error) => {
-      log.warn("wishlist-price-steam-package-failed", "愿望单 Steam 包价格请求失败", {
-        appid,
-        packageCount: packages.length,
-        durationMs: Date.now() - startedAt,
-        error,
-      });
-      return steamCache.get(appid) || null;
-    });
-    steamPackagePromises.set(key, request);
-    return request;
-  }
-
-  async function loadSteam(appid) {
-    if (!chunkByApp.has(appid)) syncRows();
-    let item = chunkByApp.get(appid);
-    let index = Number(item?.index);
-    if (!Number.isFinite(index)) {
-      chunks.push([appid]);
-      index = chunks.length - 1;
-      chunkByApp.set(appid, { appid, index });
-    }
-    if (!steamCache.has(appid)) {
-      await loadSteamChunk(chunks[index]);
-    }
-    let info = steamCache.get(appid);
-    if (api.features.wishlistPriceHistoryCore?.hasSteamPricePair?.(info)) {
-      return info;
-    }
-    const packages = await loadPackages(appid);
-    if (packages.length) {
-      info = await loadSteamPackages(appid, packages);
-    }
-    return info || steamCache.get(appid);
-  }
-
-  function pyUrl(appid) {
-    return STEAMPY.gameData(0, appid, "appid");
-  }
-
-  function packageUrl(appid) {
-    return STEAM_STORE.appDetails(appid, APPDETAILS_FILTERS, "english");
-  }
-
-  // 愿望单行只有 appid，历史价格和 SteamPY 都需要真实 packageid；先从 Steam appdetails 解析默认购买包。
-  async function loadPackages(appid) {
-    if (packageCache.has(appid)) return packageCache.get(appid);
-    if (packagePromises.has(appid)) return packagePromises.get(appid);
-    const startedAt = Date.now();
-
-    const request = api.net.sendRequest({
+    let request;
+    request = api.net.sendRequest({
       method: "GET",
       headers: { Accept: "application/json" },
-      url: packageUrl(appid),
+      url: appDetailsUrl(appid),
       parseJSON: true,
       timeoutMs: 10 * 1000,
       retries: 1,
       validate(data) {
-        return !!data && typeof data === "object";
+        const entry = data?.[String(appid)];
+        return !!entry
+          && typeof entry === "object"
+          && typeof entry.success === "boolean"
+          && (entry.success !== true || (entry.data && typeof entry.data === "object"));
       },
     }).then(data => {
-      const ids = api.features.wishlistPriceHistoryCore?.packageIdsFromAppDetails?.(data, appid) || [];
-      packageCache.set(appid, ids);
-      return ids;
-    }).catch((error) => {
-      packageCache.set(appid, []);
-      log.warn("wishlist-price-package-load-failed", "愿望单购买包信息加载失败", {
+      const info = api.features.wishlistPriceHistoryCore?.appDetailsInfo?.(data, appid);
+      if (!info) {
+        throw new TypeError("Steam appdetails 响应不符合已验证契约");
+      }
+      const result = {
+        ok: true,
+        hasPrice: info.hasPrice,
+        current: appDetailsCurrent(info, appid),
+        packageIds: info.packageIds,
+      };
+      appDetailsCache.set(appid, result);
+      return result;
+    }).catch(error => {
+      const result = {
+        ok: false,
+        hasPrice: null,
+        current: null,
+        packageIds: [],
+        code: error?.code || "STEAM_APPDETAILS_REQUEST_FAILED",
+        userMessage: "Steam 当前价格查询失败，将继续使用历史价格服务。",
+      };
+      log.warn("wishlist-price-appdetails-failed", "愿望单 Steam 官方价格请求失败", {
         appid,
         durationMs: Date.now() - startedAt,
         error,
       });
-      return [];
+      return result;
+    }).finally(() => {
+      if (appDetailsPromises.get(appid) === request) appDetailsPromises.delete(appid);
     });
-    packagePromises.set(appid, request);
+    appDetailsPromises.set(appid, request);
+    return request;
+  }
+
+  async function loadItad(appid) {
+    if (itadCache.has(appid)) return itadCache.get(appid);
+    if (itadPromises.has(appid)) return itadPromises.get(appid);
+    const startedAt = Date.now();
+
+    const request = api.thirdPartyData.getPricePack({}, {
+      items: [{ type: "app", id: appid }],
+      mode: "summary",
+      includeHistory: false,
+      country: country(),
+      shops: [STEAM_SHOP_ID],
+    }).then(result => {
+      if (result?.ok !== true) {
+        itadCache.set(appid, null);
+        itadStateCache.set(appid, result || null);
+        return null;
+      }
+      const summary = api.thirdPartyData.summarizePricePack(result, { type: "app", id: appid });
+      const info = steamInfoFromSummary(summary);
+      itadCache.set(appid, info);
+      providerGameIdCache.set(appid, summary.providerGameId || "");
+      itadStateCache.set(appid, summary.found
+        ? { ok: true, userMessage: "" }
+        : {
+            ok: false,
+            code: "PROVIDER_GAME_NOT_FOUND",
+            userMessage: "ITAD 暂未收录此游戏。",
+          });
+      return info;
+    }).catch(error => {
+      const state = {
+        ok: false,
+        code: error?.code || "ITAD_PRICE_REQUEST_FAILED",
+        userMessage: "ITAD 价格查询失败，请稍后重试。",
+      };
+      itadCache.set(appid, null);
+      itadStateCache.set(appid, state);
+      log.warn("wishlist-price-itad-failed", "愿望单 ITAD 价格请求失败", {
+        appid,
+        durationMs: Date.now() - startedAt,
+        error,
+      });
+      return null;
+    }).finally(() => {
+      if (itadPromises.get(appid) === request) itadPromises.delete(appid);
+    });
+    itadPromises.set(appid, request);
+    return request;
+  }
+
+  function historySince() {
+    const date = new Date();
+    date.setUTCHours(0, 0, 0, 0);
+    date.setUTCMonth(date.getUTCMonth() - ITAD_HISTORY_MONTHS);
+    // 注: 2026-07-26 live ITAD history/v2 会以 400 拒绝带毫秒的 date-time；官方契约
+    // 示例和现有全量历史实测均使用秒精度的 UTC 格式（YYYY-MM-DDTHH:mm:ssZ）。
+    return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+  }
+
+  async function loadHistory(appid) {
+    if (historyCache.has(appid)) return historyCache.get(appid);
+    if (historyPromises.has(appid)) return historyPromises.get(appid);
+
+    let request;
+    request = (async () => {
+      await loadItad(appid);
+      const providerGameId = providerGameIdCache.get(appid) || "";
+      if (!providerGameId) {
+        return {
+          ok: false,
+          userMessage: stateMessage(itadStateCache.get(appid), "ITAD 暂未收录此游戏。"),
+          data: null,
+        };
+      }
+      return api.thirdPartyData.getPriceHistory(providerGameId, {
+        country: country(),
+        shops: [STEAM_SHOP_ID],
+        since: historySince(),
+      });
+    })().then(result => {
+      historyCache.set(appid, result);
+      return result;
+    }).catch((error) => {
+      const result = {
+        ok: false,
+        code: error?.code || "ITAD_HISTORY_REQUEST_FAILED",
+        userMessage: "ITAD 历史价格查询失败，请稍后重试。",
+        data: null,
+      };
+      historyCache.set(appid, result);
+      return result;
+    }).finally(() => {
+      if (historyPromises.get(appid) === request) historyPromises.delete(appid);
+    });
+    historyPromises.set(appid, request);
     return request;
   }
 
@@ -506,13 +503,14 @@
     });
   }
 
-  async function loadPy(appid) {
+  async function loadPy(appid, appDetails) {
     if (!pyEnabled()) return null;
     if (pyCache.has(appid)) return pyCache.get(appid);
     if (pyPromises.has(appid)) return pyPromises.get(appid);
 
-    const request = (async () => {
-      const packages = await loadPackages(appid);
+    let request;
+    request = (async () => {
+      const packages = appDetails?.ok === true ? appDetails.packageIds : [];
       for (const packageid of packages) {
         const data = await requestPy(appid, pySubUrl(appid, packageid));
         if (data) {
@@ -520,12 +518,13 @@
           return data;
         }
       }
-      const fallback = await requestPy(appid, pyUrl(appid));
-      pyCache.set(appid, fallback);
-      return fallback;
+      pyCache.set(appid, null);
+      return null;
     })().catch(() => {
       pyCache.set(appid, null);
       return null;
+    }).finally(() => {
+      if (pyPromises.get(appid) === request) pyPromises.delete(appid);
     });
     pyPromises.set(appid, request);
     return request;
@@ -559,7 +558,11 @@
     updateStatus(panel, message, "muted");
     const rows = panelRows(panel);
     rows.classList.toggle("is-loading", message === LOADING_MESSAGE);
-    appendSpan(rows, message || "暂无可用价格", "st-wphp-empty");
+    appendSpan(
+      rows,
+      message === LOADING_MESSAGE ? "正在获取价格明细..." : "暂无可显示的价格明细",
+      "st-wphp-empty"
+    );
   }
 
   function appendPriceLine(parent, { label, price, url, sub = "" }) {
@@ -605,9 +608,38 @@
     return "";
   }
 
-  function renderSummary(panel, summary) {
+  function chartContainer(panel) {
+    return panel.querySelector(".st-wphp-chart");
+  }
+
+  function renderHistoryChart(panel, result) {
+    const chart = chartContainer(panel);
+    if (!chart) return;
+    clearNode(chart);
+    const charts = api.features.dataDisplayCharts;
+    const events = result?.ok === true && Array.isArray(result?.data?.events)
+      ? result.data.events
+      : [];
+    if (events.length && typeof charts?.createPriceChart === "function") {
+      chart.setAttribute("aria-label", "最近 12 个月 Steam 历史价格走势图");
+      chart.appendChild(charts.createPriceChart(events, { months: ITAD_HISTORY_MONTHS }));
+      return;
+    }
+    const message = result?.ok === true
+      ? "最近 12 个月暂无 Steam 历史价格数据"
+      : stateMessage(result, "ITAD 历史价格查询失败，请稍后重试。");
+    chart.setAttribute("aria-label", message);
+    if (typeof charts?.createEmpty === "function") {
+      chart.appendChild(charts.createEmpty(message));
+    } else {
+      appendSpan(chart, message, "st-wphp-chart__sub");
+    }
+  }
+
+  function renderSummary(panel, summary, historyResult) {
     if (summary.empty) {
       renderEmpty(panel, summary.message);
+      renderHistoryChart(panel, historyResult);
       return;
     }
 
@@ -616,14 +648,14 @@
     const rows = panelRows(panel);
     appendPriceLine(rows, {
       label: "Steam 当前价",
-      price: summary.steam.current,
-      url: summary.steam.current.shopUrl,
+      price: summary.steam.current || { text: "暂不可用", cut: 0 },
+      url: summary.steam.current?.shopUrl || "",
     });
     appendPriceLine(rows, {
       label: "Steam 历史最低",
-      price: summary.steam.lowest,
-      url: summary.steam.lowest.shopUrl,
-      sub: summary.steam.lowest.date || "",
+      price: summary.steam.lowest || { text: "暂不可用", cut: 0 },
+      url: summary.steam.lowest?.shopUrl || "",
+      sub: summary.steam.lowest?.date || "",
     });
 
     for (const row of summary.steampy || []) {
@@ -633,12 +665,13 @@
         url: steamPyDetail(row),
       });
     }
+    renderHistoryChart(panel, historyResult);
   }
 
   function buildChartPlaceholder() {
     const chart = document.createElement("div");
     chart.className = "st-wphp-chart";
-    chart.setAttribute("aria-label", "价格走势图，开发中");
+    chart.setAttribute("aria-label", "最近 12 个月价格走势，正在加载");
     const skeleton = document.createElement("div");
     skeleton.className = "st-wphp-chart__skeleton";
     for (const height of CHART_BARS) {
@@ -649,24 +682,34 @@
     }
     const label = document.createElement("div");
     label.className = "st-wphp-chart__label";
-    appendSpan(label, "价格走势图", "st-wphp-chart__title");
-    appendSpan(label, "开发中，敬请期待", "st-wphp-chart__sub");
+    appendSpan(label, "最近 12 个月价格", "st-wphp-chart__title");
+    appendSpan(label, "正在获取历史数据...", "st-wphp-chart__sub");
     chart.append(skeleton, label);
     return chart;
   }
 
+  function resetChartLoading(panel) {
+    const chart = chartContainer(panel);
+    if (!chart) return;
+    chart.replaceWith(buildChartPlaceholder());
+  }
+
   function createPanel(row, message) {
     clearDetachTimer();
-    currentRow?.classList?.remove("st-wishlist-price-history-active");
+    currentCard?.classList?.remove("st-wishlist-price-history-active");
+    const card = wishlistCard(row);
+    if (!card) return null;
     currentRow = row;
-    currentCard = wishlistCard(row);
-    currentRow.classList.add("st-wishlist-price-history-active");
+    currentCard = card;
+    currentCard.classList.add("st-wishlist-price-history-active");
 
     let panel = currentPanel;
     const fast = Boolean(panel);
     if (!panel) {
       panel = document.createElement("div");
       panel.className = "itad-pricing st-wishlist-price-history-panel";
+      const header = document.createElement("div");
+      header.className = "st-wphp-header";
       const status = document.createElement("div");
       status.className = "st-wphp-status";
       const icon = document.createElement("span");
@@ -674,12 +717,14 @@
       const statusContent = document.createElement("span");
       statusContent.className = "st-wphp-status__text";
       status.append(icon, statusContent);
+      const brand = api.assets.createBrandMark({ className: "st-wphp-brand" });
+      header.append(status, brand);
       const grid = document.createElement("div");
       grid.className = "st-wphp-grid";
       const rows = document.createElement("div");
       rows.className = "st-wphp-list";
       grid.append(rows, buildChartPlaceholder());
-      panel.append(status, grid);
+      panel.append(header, grid);
       panel.addEventListener("mouseenter", handlePanelMouseEnter);
       panel.addEventListener("mouseleave", handlePanelMouseLeave);
       document.body.appendChild(panel);
@@ -690,6 +735,7 @@
     panel.classList.remove("st-wphp-content-enter", "st-wphp-content-leave", "st-wphp-content-prep", "st-wphp-chart-replay");
     panel.classList.toggle("st-wphp-fast", fast);
     armWillChange(panel);
+    resetChartLoading(panel);
     renderEmpty(panel, message);
     positionPanel(true);
     return panel;
@@ -718,7 +764,7 @@
       }, 160);
     }
     currentPanel = null;
-    currentRow?.classList?.remove("st-wishlist-price-history-active");
+    currentCard?.classList?.remove("st-wishlist-price-history-active");
     currentRow = null;
     currentCard = null;
     currentAppid = 0;
@@ -732,7 +778,18 @@
 
     currentAppid = appid;
     const panel = createPanel(row, LOADING_MESSAGE);
-    const query = !steamCache.has(appid) || (pyEnabled() && !pyCache.has(appid));
+    if (!panel) {
+      currentAppid = 0;
+      return;
+    }
+    const cachedDetails = appDetailsCache.get(appid);
+    const confirmedNoPrice = cachedDetails?.ok === true && cachedDetails.hasPrice === false;
+    const query = !appDetailsCache.has(appid)
+      || (!confirmedNoPrice && (
+        !itadCache.has(appid)
+        || !historyCache.has(appid)
+        || (pyEnabled() && !pyCache.has(appid))
+      ));
     const startedAt = Date.now();
     if (query) {
       log.info("wishlist-price-query-start", "开始查询愿望单价格", {
@@ -741,30 +798,98 @@
       });
     }
     try {
-      const [steamResult, pyResult] = await Promise.allSettled([loadSteam(appid), loadPy(appid)]);
+      const appDetails = await loadAppDetails(appid);
       if (currentAppid !== appid || currentPanel !== panel) return;
 
+      // Steam 已明确返回 success:true 且没有 price_overview 时，当前商店没有可购买
+      // 价格；此分支必须在 ITAD、历史和 SteamPY 之前结束，避免对无价游戏外发请求。
+      if (appDetails.ok === true && appDetails.hasPrice === false) {
+        const summary = {
+          empty: true,
+          status: "empty",
+          message: "Steam 当前未提供价格",
+          steam: null,
+          steampy: [],
+        };
+        const history = {
+          ok: false,
+          code: "STEAM_PRICE_UNAVAILABLE",
+          userMessage: "Steam 当前未提供价格，未查询历史价格。",
+          data: null,
+        };
+        await nextFrame();
+        if (currentAppid !== appid || currentPanel !== panel) return;
+        await swapPanelContent(panel, () => renderSummary(panel, summary, history));
+        positionPanel();
+        if (query) {
+          log.info("wishlist-price-query-success", "Steam 当前未提供价格，已跳过第三方价格请求", {
+            appid,
+            steamPrice: "unavailable",
+            itadStatus: "skipped",
+            steampyStatus: "skipped",
+            historyStatus: "skipped",
+            durationMs: Date.now() - startedAt,
+          });
+        }
+        return;
+      }
+
+      const pyTask = appDetails.ok === true ? loadPy(appid, appDetails) : Promise.resolve(null);
+      const [itadResult, pyResult, historyResult] = await Promise.allSettled([
+        loadItad(appid),
+        pyTask,
+        loadHistory(appid),
+      ]);
+      if (currentAppid !== appid || currentPanel !== panel) return;
+
+      const itadInfo = itadResult.status === "fulfilled" ? itadResult.value : null;
+      const steamInfo = {
+        current: appDetails.ok === true && appDetails.hasPrice === true
+          ? appDetails.current
+          : itadInfo?.current || null,
+        lowest: itadInfo?.lowest || null,
+      };
+
       const summary = api.features.wishlistPriceHistoryCore.buildPriceSummary(
-        steamResult.status === "fulfilled" ? steamResult.value : null,
+        steamInfo,
         pyResult.status === "fulfilled" ? pyResult.value : null,
         api.format,
         pyOptions()
       );
+      if (summary.empty) {
+        summary.message = stateMessage(itadStateCache.get(appid), summary.message);
+      }
+      const history = historyResult.status === "fulfilled"
+        ? historyResult.value
+        : { ok: false, userMessage: "ITAD 历史价格查询失败，请稍后重试。" };
       await nextFrame();
       if (currentAppid !== appid || currentPanel !== panel) return;
-      await swapPanelContent(panel, () => renderSummary(panel, summary));
+      await swapPanelContent(panel, () => renderSummary(panel, summary, history));
       positionPanel();
       if (query) {
-        log.info("wishlist-price-query-success", "愿望单价格查询完成", {
+        const priceState = itadStateCache.get(appid) || null;
+        const meta = {
           appid,
-          steamStatus: steamResult.status,
+          appDetailsStatus: appDetails.ok === true ? "fulfilled" : "fallback",
+          itadStatus: itadResult.status,
           steampyStatus: pyResult.status,
+          historyStatus: historyResult.status,
+          priceCode: text(priceState?.code),
+          historyCode: text(history?.code),
           durationMs: Date.now() - startedAt,
-        });
+        };
+        if (priceState?.ok === true && history?.ok === true) {
+          log.info("wishlist-price-query-success", "愿望单价格查询完成", meta);
+        } else {
+          log.warn("wishlist-price-query-unavailable", "愿望单价格或历史数据不可用", meta);
+        }
       }
     } catch (error) {
       if (currentAppid === appid && currentPanel === panel) {
-        await swapPanelContent(panel, () => renderEmpty(panel, "价格查询失败，请刷新页面后重试"));
+        await swapPanelContent(panel, () => {
+          renderEmpty(panel, "价格查询失败，请刷新页面后重试");
+          renderHistoryChart(panel, { ok: false, userMessage: "ITAD 历史价格查询失败，请稍后重试。" });
+        });
         positionPanel();
       }
       if (query) {
@@ -778,8 +903,7 @@
   }
 
   function rowFromTarget(target) {
-    const row = target?.closest?.(ROW_SEL);
-    return row && appIdFromRow(row) ? row : null;
+    return wishlistDom()?.rowFromNode?.(target) || null;
   }
 
   function replayCurrentPanelOnEnter(event) {
@@ -842,10 +966,10 @@
   function unbind() {
     observer?.disconnect();
     observer = null;
-    if (boundContainer) {
-      boundContainer.removeEventListener("mouseover", handleMouseOver);
-      boundContainer.removeEventListener("mouseout", handleMouseOut);
-      boundContainer = null;
+    if (boundObserverTarget) {
+      boundObserverTarget.removeEventListener("mouseover", handleMouseOver);
+      boundObserverTarget.removeEventListener("mouseout", handleMouseOut);
+      boundObserverTarget = null;
     }
     if (boundScroller) {
       boundScroller.removeEventListener("scroll", handleViewportChange);
@@ -855,29 +979,45 @@
     document.removeEventListener("keydown", handleKeyDown);
   }
 
-  function bind(container) {
-    unbind();
+  function refreshBoundContainer() {
+    const nextContainer = wishlistDom()?.listContainer?.() || null;
+    const nextTarget = wishlistDom()?.listObserverTarget?.(nextContainer) || null;
+    if (!nextContainer || !nextTarget) return;
+    if (nextTarget !== boundObserverTarget) {
+      bind(nextContainer);
+      return;
+    }
     syncRows();
-    boundContainer = container;
+  }
+
+  function bind(container) {
+    const observerTarget = wishlistDom()?.listObserverTarget?.(container) || null;
+    if (!observerTarget) return false;
+    unbind();
+    boundObserverTarget = observerTarget;
+    syncRows();
     boundScroller = scrollContainer();
-    container.addEventListener("mouseover", handleMouseOver);
-    container.addEventListener("mouseout", handleMouseOut);
+    observerTarget.addEventListener("mouseover", handleMouseOver);
+    observerTarget.addEventListener("mouseout", handleMouseOut);
     boundScroller?.addEventListener("scroll", handleViewportChange, { passive: true });
     window.addEventListener("resize", handleViewportChange);
     document.addEventListener("keydown", handleKeyDown);
-    observer = window.STObserverUtils?.createDebouncedObserver?.(() => {
-      syncRows();
-    }, ROW_OBSERVER_DEBOUNCE_MS) || new MutationObserver(() => syncRows());
-    // 只监听愿望单真实列表容器；React 虚拟列表会深层替换行节点，保留 subtree。
-    window.STObserverUtils?.createVisibilityGatedObserver?.(observer, container, { childList: true, subtree: true })
-      || observer.observe(container, { childList: true, subtree: true });
+    observer = window.STObserverUtils?.createDebouncedObserver?.(refreshBoundContainer, ROW_OBSERVER_DEBOUNCE_MS)
+      || new MutationObserver(refreshBoundContainer);
+    // 注: live 排序会替换行容器及两层虚拟 Panel；稳定目标只包围愿望单控制区与列表。
+    // 事件只做精准行命中，观察器保持 1000ms 防抖且每次只同步当前可见行。
+    window.STObserverUtils?.createVisibilityGatedObserver?.(observer, observerTarget, { childList: true, subtree: true })
+      || observer.observe(observerTarget, { childList: true, subtree: true });
+    return true;
   }
 
   function startWhenReady(tries = 0) {
     if (!started) return;
-    const container = document.querySelector(LIST_SEL);
-    if (container) {
-      bind(container);
+    const container = wishlistDom()?.listContainer?.() || null;
+    const observerTarget = wishlistDom()?.listObserverTarget?.(container) || null;
+    if (container && observerTarget) {
+      if (observerTarget !== boundObserverTarget) bind(container);
+      else syncRows();
       return;
     }
     if (tries < 80) {
@@ -888,9 +1028,6 @@
   function stop() {
     unbind();
     detachPanel();
-    rows = [];
-    chunks = [];
-    chunkByApp = new Map();
     started = false;
   }
 

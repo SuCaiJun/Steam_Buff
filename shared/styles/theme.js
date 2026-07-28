@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const THEME_VERSION = 'steam-buff-theme-v9';
+  const THEME_VERSION = 'steam-buff-theme-v11';
 
   if (root.STTheme?.version === THEME_VERSION) {
     return;
@@ -58,6 +58,7 @@
     textSecondary: '#c7d0d6',
     textMuted: '#8f98a0',
     textDisabled: '#5a6470',
+    steamMetadataLabel: '#9dacbc',
 
     white: '#fff',
     black: '#000',
@@ -302,6 +303,21 @@
     focusRing: `0 0 0 3px ${colors.focusShadow}`,
   };
 
+  colors.chartSeries = [
+    '#66C0F4',
+    '#F5C24A',
+    '#63B76C',
+    '#E06C75',
+    '#56B6C2',
+    '#C678DD',
+    '#D19A66',
+    '#98C379',
+    '#E5C07B',
+    '#61AFEF',
+    '#FF8FA3',
+    '#7FD1AE',
+  ];
+
   const zIndex = {
     base: '0',
     raised: '1',
@@ -367,6 +383,7 @@
     '--st-color-text-secondary': colors.textSecondary,
     '--st-color-text-muted': colors.textMuted,
     '--st-color-text-disabled': colors.textDisabled,
+    '--st-color-steam-metadata-label': colors.steamMetadataLabel,
     '--st-color-text-hint': colors.textHint,
     '--st-color-badge-blue-text': colors.badgeBlueText,
     '--st-color-badge-blue-bg': colors.badgeBlueBg,
@@ -721,6 +738,7 @@
     '--font-body-small': fontSizes.bodySmall,
     '--font-caption': fontSizes.caption,
     '--font-tiny': fontSizes.tiny,
+    ...Object.fromEntries(colors.chartSeries.map((color, index) => [`--st-chart-series-${index + 1}`, color])),
   };
 
   /**

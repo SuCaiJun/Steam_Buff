@@ -21,6 +21,7 @@
     api: "api.sucaijun.com",
     subscriptionInfo: "aligueler.com",
     isthereanydeal: "api.isthereanydeal.com",
+    frankfurter: "api.frankfurter.dev",
     steampy: "steampy.com",
     steamDb: "steamdb.info",
     augmentedSteam: "api.augmentedsteam.com",
@@ -62,6 +63,7 @@
     api: origin(HOSTS.api),
     subscriptionInfo: origin(HOSTS.subscriptionInfo),
     isthereanydeal: origin(HOSTS.isthereanydeal),
+    frankfurter: origin(HOSTS.frankfurter),
     steampy: origin(HOSTS.steampy),
     steamDb: origin(HOSTS.steamDb),
     steamStore: origin(HOSTS.steamStore),
@@ -222,6 +224,20 @@
       historyLow: () => join(ORIGINS.isthereanydeal, "/games/historylow/v1"),
       history: () => join(ORIGINS.isthereanydeal, "/games/history/v2"),
       info: () => join(ORIGINS.isthereanydeal, "/games/info/v2"),
+      overview: () => join(ORIGINS.isthereanydeal, "/games/overview/v2"),
+      storeLow: () => join(ORIGINS.isthereanydeal, "/games/storelow/v2"),
+    }),
+    frankfurter: Object.freeze({
+      host: HOSTS.frankfurter,
+      origin: ORIGINS.frankfurter,
+      rates: (base = "CNY", quotes = [], from = "", to = "") => {
+        const url = new URL(join(ORIGINS.frankfurter, "/v2/rates"));
+        url.searchParams.set("base", String(base || "CNY").toUpperCase());
+        url.searchParams.set("quotes", (Array.isArray(quotes) ? quotes : [quotes]).map(value => String(value || "").toUpperCase()).filter(Boolean).join(","));
+        if (from) url.searchParams.set("from", String(from));
+        if (to) url.searchParams.set("to", String(to));
+        return url.toString();
+      },
     }),
     steampy: Object.freeze({
       host: HOSTS.steampy,
@@ -241,7 +257,6 @@
     augmentedSteam: Object.freeze({
       host: HOSTS.augmentedSteam,
       origin: (protocol = PROTOCOL) => origin(HOSTS.augmentedSteam, protocol),
-      prices: (protocol = PROTOCOL) => `${origin(HOSTS.augmentedSteam, protocol)}/prices/v2`,
       app: (appId, protocol = PROTOCOL) => `${origin(HOSTS.augmentedSteam, protocol)}/app/${encoded(appId)}/v2`,
     }),
     steamStore: Object.freeze({
@@ -249,6 +264,7 @@
       origin: ORIGINS.steamStore,
       app: (appId) => join(ORIGINS.steamStore, `/app/${encoded(appId)}/`),
       appDetails: (appId, filters = "basic", lang = "english") => `${join(ORIGINS.steamStore, "/api/appdetails")}?appids=${encoded(appId)}&filters=${encoded(filters)}&l=${encoded(lang)}`,
+      appDetailsForCountry: (appId, cc, filters = "price_overview", lang = "schinese") => `${join(ORIGINS.steamStore, "/api/appdetails")}?appids=${encoded(appId)}&filters=${encoded(filters)}&l=${encoded(lang)}&cc=${encoded(String(cc || "CN").toUpperCase())}`,
       dynamicStoreUserdata,
       dynamicStoreUserdataBase: join(ORIGINS.steamStore, "/dynamicstore/userdata/"),
       familyManagement: () => join(ORIGINS.steamStore, "/account/familymanagement/?tab=library"),

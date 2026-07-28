@@ -18,6 +18,7 @@
   }
 
   const UI_LOCALE_KEY = "SETTING_UI_LOCALE";
+  const priceCatalog = globalThis.STPriceComparisonCatalog;
 
   const SOURCE_TIPS = Object.freeze({
     translate: "数据来源/运行库：xnx3 translate.js 本地库。授权：MIT License",
@@ -25,7 +26,7 @@
     workshop: "数据来源：Steam Store appdetails categories 分类，接口可用性以 Steam 官方返回为准。",
     subscriptionInfo: "数据来源：SubscriptionInfo。授权： MPL-2.0；数据来源以第三方维护方为准。",
     priceHistory: "数据来源：IsThereAnyDeal；购买区紧凑展示复用第三方数据服务价格模型。",
-    wishlistPriceHistory: "数据来源：Augmented Steam Price API 的 Steam 价格数据与 SteamPY 授权价格。",
+    wishlistPriceHistory: "数据来源：Steam Store appdetails 当前价、用户配置的 IsThereAnyDeal API Key 历史价格与 SteamPY 授权价格。",
     steampyCdk: "数据来源：SteamPY。授权/版权：已获得SteamPY官方授权；CDK 价格以 SteamPY 返回为准。",
     steampyProxy: "数据来源：SteamPY。授权/版权：已获得SteamPY官方授权；代购价格以 SteamPY 返回为准。",
     purchaseHistoryClassifier: "功能来源：Steam 消费历史分类器 userscript，作者 SmallFork。授权：MIT License。",
@@ -335,7 +336,7 @@
     defaultProvider: "isthereanydeal",
     isthereanydeal: Object.freeze({
       key: "",
-      country: "auto",
+      country: "CN",
       shops: Object.freeze([61]),
     }),
     routes: Object.freeze({
@@ -370,12 +371,18 @@
       key: "isthereanydeal.country",
       label: "请求地区",
       options: Object.freeze([
-        { value: "auto", label: "跟随 Steam 页面" },
-        { value: "CN", label: "中国大陆" },
-        { value: "US", label: "美国" },
+        { value: "auto", label: "跟随 Steam 页面（旧设置）" },
+        ...(priceCatalog?.STEAM_PRICE_REGIONS || []).map(item => ({ value: item.cc, label: `${item.cc} - ${item.label}` })),
       ]),
     },
   ]);
+
+  const STORE_PRICE_CHART_DEFAULTS = Object.freeze({
+    additionalSteamRegions: Object.freeze([]),
+    lowCriterion: "discount",
+    lowReferenceScope: "currentRegular",
+    lineColors: Object.freeze({}),
+  });
 
   const categories = Object.freeze([
     {
@@ -555,10 +562,11 @@
             {
               id: "price-history",
               name: "历史价格",
-              desc: "显示购买区历史最低价格",
+              desc: "显示商店详情页购买区历史价格和最近 12 个月价格图表",
               sourceTip: SOURCE_TIPS.priceHistory,
               area: "store",
               enabled: true,
+              panel: "store-price-chart",
               deps: depAll(["price-related-enhancements"]),
             },
             {
@@ -1092,6 +1100,15 @@
     return THIRD_PARTY_SERVICES_FIELDS;
   }
 
+  function storePriceChartDefaults() {
+    return {
+      additionalSteamRegions: [...STORE_PRICE_CHART_DEFAULTS.additionalSteamRegions],
+      lowCriterion: STORE_PRICE_CHART_DEFAULTS.lowCriterion,
+      lowReferenceScope: STORE_PRICE_CHART_DEFAULTS.lowReferenceScope,
+      lineColors: { ...STORE_PRICE_CHART_DEFAULTS.lineColors },
+    };
+  }
+
   api.catalog = Object.freeze({
     UI_LOCALE_KEY,
     list,
@@ -1113,5 +1130,6 @@
     aiFields,
     thirdPartyServicesDefaults,
     thirdPartyServicesFields,
+    storePriceChartDefaults,
   });
 })();

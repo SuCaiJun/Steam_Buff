@@ -36,7 +36,7 @@
     auth,
     getCenter: () => center,
   });
-  const view = root.STSettingsAccountView.create({ state: rt, center, deviceLogin });
+  const view = root.STSettingsAccountView.create({ state: rt, api, center, deviceLogin });
   const actions = root.STSettingsAccountActions.create({
     state: rt,
     api,

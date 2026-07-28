@@ -231,6 +231,7 @@
       ai: {},
       translate: {},
       thirdPartyServices: {},
+      storePriceChart: {},
       ...(options.configs || {}),
     };
     const instances = {};
@@ -241,6 +242,7 @@
       ai: "ai",
       translate: "translate",
       thirdPartyServices: "thirdPartyServices",
+      storePriceChart: "storePriceChart",
     };
 
     function getConfig(name) {
@@ -256,6 +258,9 @@
       }
       const instance = instances[names[name]];
       instance?.setConfig?.(value);
+      if ((name === "thirdPartyServices" || name === "storePriceChart") && instances.storePriceChart) {
+        instances.storePriceChart.setConfigs({ [name]: value });
+      }
     }
 
     function syncConfigs(next = {}) {
@@ -370,6 +375,24 @@
       return instances.thirdPartyServices;
     }
 
+    function storePriceChart() {
+      if (!instances.storePriceChart) {
+        instances.storePriceChart = root.STSettingsStorePriceChartPanel.create({
+          catalog,
+          storage,
+          thirdPartyServices: getConfig("thirdPartyServices"),
+          storePriceChart: getConfig("storePriceChart"),
+          esc,
+          escAttr,
+          dialog,
+          savePrompt,
+          onThirdPartyChange: (next) => setConfig("thirdPartyServices", next),
+          onChartChange: (next) => setConfig("storePriceChart", next),
+        });
+      }
+      return instances.storePriceChart;
+    }
+
     return Object.freeze({
       review,
       searchSuggestion,
@@ -377,6 +400,7 @@
       ai,
       translate,
       thirdPartyServices,
+      storePriceChart,
       getConfig,
       setConfig,
       syncConfigs,

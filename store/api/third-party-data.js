@@ -339,60 +339,6 @@
     return { config, provider, state: null };
   }
 
-  function idsFrom(value) {
-    const raw = Array.isArray(value) ? value : [value];
-    return raw.map(item => parseInt(item, 10)).filter(item => item > 0);
-  }
-
-  function pageItemsFromInfo(info = {}) {
-    const items = [];
-    const add = (type, id) => {
-      const parsed = parseInt(id, 10);
-      if (parsed > 0) {
-        items.push({ type, id: parsed });
-      }
-    };
-    add("app", info.appid || info.appId || info.id);
-    idsFrom(info.appids || info.appIds || info.apps).forEach(id => add("app", id));
-    idsFrom(info.subid || info.subId || info.subIds || info.subs || info.packageids || info.packages).forEach(id => add("sub", id));
-    idsFrom(info.bundleid || info.bundleId || info.bundleids || info.bundleIds).forEach(id => add("bundle", id));
-    if (text(info.type).toLowerCase() === "sub") add("sub", info.id || info.appid || info.appId);
-    if (text(info.type).toLowerCase() === "bundle") add("bundle", info.id || info.appid || info.appId);
-    return items;
-  }
-
-  function pageItemsFromLocation() {
-    const path = text(location?.pathname);
-    const match = path.match(/\/(app|sub|bundle)\/(\d+)/);
-    if (!match) return [];
-    return [{ type: match[1] === "app" ? "app" : match[1], id: parseInt(match[2], 10) }];
-  }
-
-  function pageItemsFromPurchaseInputs() {
-    if (!globalThis.document?.querySelectorAll) return [];
-    const nodes = Array.from(document.querySelectorAll([
-      "#game_area_purchase input[name='subid']",
-      "#game_area_purchase input[name='packageid']",
-      "#game_area_purchase input[name='bundleid']",
-      "#game_area_purchase input[name='bundleid[]']",
-    ].join(",")));
-    return nodes.map((node) => {
-      const name = text(node.getAttribute?.("name")).toLowerCase();
-      return {
-        type: name.includes("bundle") ? "bundle" : "sub",
-        id: parseInt(node.value || node.getAttribute?.("value"), 10),
-      };
-    }).filter(item => item.id > 0);
-  }
-
-  function steamItems(pageInfo = {}, provider) {
-    return provider.normalizeSteamItems([
-      ...pageItemsFromInfo(pageInfo),
-      ...pageItemsFromLocation(),
-      ...pageItemsFromPurchaseInputs(),
-    ]);
-  }
-
   function requestOptions(config = {}, options = {}) {
     return {
       country: options.country || config.isthereanydeal?.country,
@@ -443,17 +389,30 @@
   }
 
   function currentDeal(data = {}, id = "") {
+    const overview = dataItem(data.overview, id);
+    if (overview) {
+      return Number(overview.current?.shop?.id) === 61 ? overview.current : null;
+    }
     const item = dataItem(data.prices, id);
     const deals = Array.isArray(item?.deals) ? item.deals : [];
-    return deals.find(deal => Number(deal?.shop?.id) === 61) || deals[0] || null;
+    return deals.find(deal => Number(deal?.shop?.id) === 61) || null;
   }
 
   function historicalLow(data = {}, id = "") {
+    const overview = dataItem(data.overview, id);
+    if (overview) {
+      return Number(overview.lowest?.shop?.id) === 61 ? overview.lowest : null;
+    }
     const item = dataItem(data.historyLow, id);
+    const storeItem = dataItem(data.storeLow, id);
+    if (storeItem) {
+      return (Array.isArray(storeItem.lows) ? storeItem.lows : []).find(low => Number(low?.shop?.id) === 61) || null;
+    }
     return item?.low || null;
   }
 
   function historyEvents(data = {}, id = "") {
+    if (Array.isArray(data.forecastEvents)) return data.forecastEvents;
     const history = data.history && typeof data.history === "object" ? data.history : {};
     const clean = text(id);
     const item = clean ? history[clean] : null;
@@ -485,6 +444,13 @@
       current: id ? currentDeal(data, id) : null,
       historicalLow: id ? historicalLow(data, id) : null,
       historyEvents: id ? historyEvents(data, id) : [],
+      chartSeries: Array.isArray(data.chartSeries) ? data.chartSeries : [],
+      chartSettings: data.chartSettings || null,
+      mainCountry: text(data.mainCountry),
+      bundled: id && Number.isInteger(dataItem(data.overview, id)?.bundled)
+        ? dataItem(data.overview, id).bundled
+        : null,
+      overviewAvailable: !!(id && dataItem(data.overview, id)),
       releaseDate: text(info?.releaseDate),
     };
   }
@@ -528,7 +494,7 @@
     const status = await statusFor("prices", options);
     if (status.state) return status.state;
     const { config, provider } = status;
-    const items = steamItems(pageInfo, provider);
+    const items = provider.normalizeSteamItems(options.items || []);
     if (!items.length) {
       return failure("STEAM_ITEM_MISSING", "当前页面没有可查询的 Steam 商品 ID。", {
         provider: provider.id,
@@ -549,6 +515,44 @@
         });
       }
       const includeHistory = options.includeHistory !== false && text(options.mode).toLowerCase() !== "summary";
+      if (options.overviewSummary === true) {
+        const summaryOptions = { ...opt, shops: [61] };
+        const idsForItems = (selectedItems) => Array.from(new Set(provider.normalizeSteamItems(selectedItems)
+          .map(item => text(lookup.data.mapping?.[item.key]))
+          .filter(id => ids.includes(id))));
+        const overviewIds = idsForItems(Array.isArray(options.overviewItems) ? options.overviewItems : items);
+        const legacyIds = idsForItems(Array.isArray(options.legacyItems) ? options.legacyItems : []);
+        const historyItems = provider.normalizeSteamItems(
+          Array.isArray(options.historyItems) ? options.historyItems : (Array.isArray(options.overviewItems) ? options.overviewItems : items),
+        );
+        const historyIds = options.includeHistory === false
+          ? []
+          : Array.from(new Set(historyItems
+            .map(item => text(lookup.data.mapping?.[item.key]))
+            .filter(id => overviewIds.includes(id))));
+        const [overview, histories, legacyPrices, legacyHistoryLow] = await Promise.all([
+          overviewIds.length ? provider.getOverview(overviewIds, summaryOptions, config) : Promise.resolve(null),
+          Promise.all(historyIds.map(id => provider.getHistory(id, summaryOptions, config))),
+          legacyIds.length ? provider.getPrices(legacyIds, summaryOptions, config) : Promise.resolve(null),
+          legacyIds.length ? provider.getHistoryLow(legacyIds, summaryOptions, config) : Promise.resolve(null),
+        ]);
+        const cacheParts = [lookup, overview, legacyPrices, legacyHistoryLow, ...histories].filter(Boolean);
+        return success("prices", provider, {
+          items,
+          lookup: lookup.data,
+          ids,
+          overview: overview?.data?.prices || [],
+          prices: legacyPrices?.data || [],
+          historyLow: legacyHistoryLow?.data || [],
+          history: histories.reduce((out, item) => {
+            out[item.data.id] = item.data;
+            return out;
+          }, {}),
+        }, {
+          hit: cacheParts.every(item => item.cache?.hit === true),
+          ttlMs: Math.min(...cacheParts.map(item => item.cache?.ttlMs || 0)),
+        });
+      }
       const [prices, historyLow, histories, infos] = await Promise.all([
         provider.getPrices(ids, opt, config),
         provider.getHistoryLow(ids, opt, config),
@@ -581,6 +585,313 @@
       });
     } catch (error) {
       return errorState(error, "prices", provider);
+    }
+  }
+
+  function selectedCurrentDeal(prices, id, shopId) {
+    const item = dataItem(prices, id);
+    return (Array.isArray(item?.deals) ? item.deals : []).find(deal => Number(deal?.shop?.id) === shopId) || null;
+  }
+
+  function selectedStoreLow(storeLow, id, shopId) {
+    const item = dataItem(storeLow, id);
+    return (Array.isArray(item?.lows) ? item.lows : []).find(low => Number(low?.shop?.id) === shopId) || null;
+  }
+
+  function selectedHistoryEvents(history, shopId) {
+    return (Array.isArray(history?.events) ? history.events : []).filter(event => Number(event?.shop?.id) === shopId);
+  }
+
+  async function chartSettings() {
+    const storage = globalThis.STSettings?.storage || {};
+    return typeof storage.getStorePriceChart === "function"
+      ? storage.getStorePriceChart()
+      : globalThis.STSettings?.catalog?.storePriceChartDefaults?.() || {};
+  }
+
+  function calendarMonthsAgo(months, stamp = now()) {
+    const current = new Date(stamp);
+    const day = current.getDate();
+    current.setDate(1);
+    current.setMonth(current.getMonth() - months);
+    const lastDay = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
+    current.setDate(Math.min(day, lastDay));
+    return current.getTime();
+  }
+
+  function eventCurrency(event) {
+    return text(event?.price?.currency).toUpperCase();
+  }
+
+  function leftBoundaryRateEvents(series, cutoff) {
+    const selected = [];
+    for (const item of series) {
+      let previous = null;
+      let previousStamp = -Infinity;
+      for (const event of item.events || []) {
+        const stamp = Date.parse(event?.timestamp || "");
+        if (!Number.isFinite(stamp) || stamp >= cutoff || stamp < previousStamp) continue;
+        previous = event;
+        previousStamp = stamp;
+      }
+      if (previous?.price) selected.push(previous);
+    }
+    return selected;
+  }
+
+  async function enrichChartSeriesRates(series, months = 12, mainCountry = "") {
+    const values = Array.isArray(series) ? series : [];
+    const nowStamp = now();
+    const mainCurrency = globalThis.STPriceComparisonCatalog?.getSteamPriceRegion?.(mainCountry)?.expectedCurrency || "";
+    let minStamp = months > 0 ? calendarMonthsAgo(months, nowStamp) : Infinity;
+    if (!months) {
+      for (const item of values) {
+        for (const event of item.events || []) {
+          const stamp = Date.parse(event?.timestamp || 0);
+          if (event?.price && Number.isFinite(stamp)) minStamp = Math.min(minStamp, stamp);
+        }
+      }
+    }
+    if (!Number.isFinite(minStamp)) return { series: values, exchange: { rates: [], cacheStates: [] } };
+    const boundaryEvents = months > 0 ? leftBoundaryRateEvents(values, minStamp) : [];
+    const selectedEvents = [
+      ...values.flatMap(item => (item.events || []).filter(event => event?.price && Date.parse(event.timestamp || 0) >= minStamp)),
+      ...boundaryEvents,
+    ];
+    const selectedEventSet = new Set(selectedEvents);
+    const currencies = Array.from(new Set([
+      ...selectedEvents.map(eventCurrency),
+      mainCurrency,
+    ].filter(currency => currency && currency !== "CNY")));
+    let exchange = { rates: [], cacheStates: [] };
+    let rateIndex = new Map();
+    if (currencies.length) {
+      const refreshRange = api.exchangeRates.refreshRange(months, nowStamp);
+      const boundaryRequests = boundaryEvents.map(event => ({
+        date: event.timestamp,
+        currencies: [eventCurrency(event), mainCurrency],
+      }));
+      const [rangeExchange, boundaryExchange] = await Promise.all([
+        api.exchangeRates.load(
+          currencies,
+          refreshRange.from || new Date(minStamp),
+          refreshRange.to,
+          { rollingRange: months > 0 },
+        ),
+        api.exchangeRates.loadDates(boundaryRequests),
+      ]);
+      exchange = {
+        rates: [...rangeExchange.rates, ...boundaryExchange.rates],
+        cacheStates: [...rangeExchange.cacheStates, ...boundaryExchange.cacheStates],
+      };
+      rateIndex = api.exchangeRates.index(exchange.rates);
+    }
+    const converted = values.map(item => ({
+      ...item,
+      events: (item.events || []).map(event => {
+        if (!event?.price) return { ...event, cny: null };
+        const stamp = Date.parse(event.timestamp || 0);
+        if (stamp < minStamp && !selectedEventSet.has(event) && eventCurrency(event) !== "CNY") {
+          return { ...event, cny: event.cny || null };
+        }
+        return {
+          ...event,
+          cny: api.exchangeRates.convertToCny(event.price.amount, event.price.currency, event.timestamp, rateIndex),
+          mainPrice: mainCurrency
+            ? api.exchangeRates.convertBetween(event.price.amount, event.price.currency, mainCurrency, event.timestamp, rateIndex)
+            : null,
+        };
+      }),
+      current: item.current ? {
+        ...item.current,
+        cny: api.exchangeRates.convertToCny(item.current.price?.amount, item.current.price?.currency, new Date(nowStamp), rateIndex),
+      } : null,
+      storeLow: item.storeLow ? {
+        ...item.storeLow,
+        cny: api.exchangeRates.convertToCny(item.storeLow.price?.amount, item.storeLow.price?.currency, item.storeLow.timestamp, rateIndex),
+      } : null,
+    }));
+    return { series: converted, exchange };
+  }
+
+  async function ensureStorePriceChartRates(result = {}, options = {}) {
+    if (result?.ok !== true || !Array.isArray(result.data?.chartSeries)) return result;
+    try {
+      const enriched = await enrichChartSeriesRates(
+        result.data.chartSeries,
+        Number(options.months) || 0,
+        text(result.data.mainCountry),
+      );
+      return {
+        ...result,
+        data: {
+          ...result.data,
+          chartSeries: enriched.series,
+          exchange: {
+            ...(result.data.exchange || {}),
+            cacheStates: enriched.exchange.cacheStates,
+            loadedMonths: Number(options.months) || 0,
+          },
+        },
+      };
+    } catch (error) {
+      return {
+        ...result,
+        data: {
+          ...result.data,
+          exchange: {
+            ...(result.data.exchange || {}),
+            errorCode: text(error?.code || error?.name || "EXCHANGE_RATE_UNAVAILABLE"),
+          },
+        },
+      };
+    }
+  }
+
+  async function getStorePriceChartPack(pageInfo = {}, options = {}) {
+    const status = await statusFor("prices", options);
+    if (status.state) return status.state;
+    const { config, provider } = status;
+    const appid = numericPageId(pageInfo);
+    if (text(pageInfo.type).toLowerCase() !== "app" || appid <= 0) {
+      return getPricePack(pageInfo, options);
+    }
+    const items = provider.normalizeSteamItems([{ type: "app", id: appid }]);
+    const mainCountry = text(config.isthereanydeal?.country).toLowerCase() === "auto"
+      ? text(options.pageCountry || "CN").toUpperCase()
+      : text(config.isthereanydeal?.country || "CN").toUpperCase();
+    if (!globalThis.STPriceComparisonCatalog?.getSteamPriceRegion?.(mainCountry)) {
+      return failure("STORE_PRICE_REGION_UNSUPPORTED", "当前主定价区不在价格图表固定目录中，请先在设置里重新选择。", {
+        provider: provider.id,
+        capability: "prices",
+        source: source(provider),
+      });
+    }
+    const settings = await chartSettings();
+    const priceCatalog = globalThis.STPriceComparisonCatalog;
+    const selection = priceCatalog.limitStorePriceSelection({
+      mainCountry,
+      additionalSteamRegions: settings.additionalSteamRegions,
+      shops: config.isthereanydeal?.shops,
+    });
+    const additionalCountries = selection.additionalSteamRegions;
+    const shops = selection.shops;
+    try {
+      const lookupOptions = requestOptions(config, { ...options, country: mainCountry, shops });
+      const lookup = await provider.lookupSteamItems(items, config, lookupOptions);
+      const id = providerGameId({ lookup: lookup.data }, items[0]);
+      if (!id) {
+        return failure("PROVIDER_GAME_NOT_FOUND", "ITAD 暂未收录当前 Steam 商品。", {
+          provider: provider.id,
+          capability: "prices",
+          source: source(provider),
+          data: { lookup: lookup.data },
+        });
+      }
+      const loadCountry = async (country, selectedShops) => {
+        const opt = requestOptions(config, { ...options, country, shops: selectedShops });
+        const [prices, storeLow, history] = await Promise.all([
+          provider.getPrices([id], opt, config),
+          provider.getStoreLow([id], opt, config),
+          provider.getHistory(id, opt, config),
+        ]);
+        return { country, shops: selectedShops, prices, storeLow, history };
+      };
+      const loadAdditional = async () => {
+        const out = new Array(additionalCountries.length);
+        let cursor = 0;
+        async function worker() {
+          while (cursor < additionalCountries.length) {
+            const index = cursor;
+            cursor += 1;
+            out[index] = await loadCountry(additionalCountries[index], [61]);
+          }
+        }
+        await Promise.all(Array.from({ length: Math.min(2, additionalCountries.length) }, worker));
+        return out;
+      };
+      const [main, additional] = await Promise.all([
+        loadCountry(mainCountry, shops),
+        loadAdditional(),
+      ]);
+      const info = await optionalGameInfo(provider, id, lookupOptions, config);
+      const chartSeries = [
+        {
+          id: priceCatalog.steamSeriesId(mainCountry),
+          type: "steam",
+          country: mainCountry,
+          shopId: 61,
+          label: priceCatalog.steamSeriesLabel(mainCountry),
+          current: selectedCurrentDeal(main.prices.data, id, 61),
+          storeLow: selectedStoreLow(main.storeLow.data, id, 61),
+          events: selectedHistoryEvents(main.history.data, 61),
+        },
+        ...additional.map(item => ({
+          id: priceCatalog.steamSeriesId(item.country),
+          type: "steam",
+          country: item.country,
+          shopId: 61,
+          label: priceCatalog.steamSeriesLabel(item.country),
+          current: selectedCurrentDeal(item.prices.data, id, 61),
+          storeLow: selectedStoreLow(item.storeLow.data, id, 61),
+          events: selectedHistoryEvents(item.history.data, 61),
+        })),
+        ...shops.filter(shopId => shopId !== 61).map(shopId => ({
+          id: priceCatalog.shopSeriesId(shopId),
+          type: "shop",
+          country: mainCountry,
+          shopId,
+          label: priceCatalog.shopSeriesLabel(shopId),
+          current: selectedCurrentDeal(main.prices.data, id, shopId),
+          storeLow: selectedStoreLow(main.storeLow.data, id, shopId),
+          events: selectedHistoryEvents(main.history.data, shopId),
+        })),
+      ];
+      const sources = [main, ...additional];
+      const result = success("prices", provider, {
+        items,
+        lookup: lookup.data,
+        ids: [id],
+        mainCountry,
+        chartSettings: settings,
+        chartSeries,
+        forecastEvents: chartSeries[0]?.events || [],
+        prices: main.prices.data,
+        storeLow: main.storeLow.data,
+        history: { [id]: main.history.data },
+        info: info?.data?.id ? { [id]: info.data } : {},
+      }, {
+        hit: lookup.cache?.hit === true
+          && sources.every(item => item.prices.cache?.hit === true && item.storeLow.cache?.hit === true && item.history.cache?.hit === true)
+          && (info === null || info.cache?.hit === true),
+        ttlMs: Math.min(
+          lookup.cache?.ttlMs || 0,
+          ...sources.flatMap(item => [item.prices.cache?.ttlMs || 0, item.storeLow.cache?.ttlMs || 0, item.history.cache?.ttlMs || 0]),
+        ),
+      });
+      return ensureStorePriceChartRates(result, { months: settings.lowCriterion === "price" ? 0 : 12 });
+    } catch (error) {
+      return errorState(error, "prices", provider);
+    }
+  }
+
+  async function getPriceHistory(providerGameId, options = {}) {
+    const status = await statusFor("history", options);
+    if (status.state) return status.state;
+    const { config, provider } = status;
+    const id = text(providerGameId);
+    if (!id) {
+      return failure("PROVIDER_GAME_ID_MISSING", "缺少 ITAD 游戏 ID，无法查询价格历史。", {
+        provider: provider.id,
+        capability: "history",
+        source: source(provider),
+      });
+    }
+    try {
+      const history = await provider.getHistory(id, requestOptions(config, options), config);
+      return success("history", provider, history.data, history.cache);
+    } catch (error) {
+      return errorState(error, "history", provider);
     }
   }
 
@@ -649,6 +960,9 @@
     getProviderStatus,
     testProvider,
     getPricePack,
+    getStorePriceChartPack,
+    ensureStorePriceChartRates,
+    getPriceHistory,
     summarizePricePack,
     getSteamFestivals,
     buildDiscountForecastPack,

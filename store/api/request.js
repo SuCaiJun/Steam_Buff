@@ -371,96 +371,6 @@
     throw lastError || new Error("后台请求失败");
   }
 
-  function cleanIds(values) {
-    return Array.isArray(values)
-      ? values.map(x => parseInt(x, 10)).filter(x => !Number.isNaN(x) && x > 0)
-      : [];
-  }
-
-  function fetchAugmentedSteamPrices(options = {}) {
-    const protocol = options.protocol || "https";
-    const apps = cleanIds(options.apps);
-    const subs = cleanIds(options.subs);
-    const bundles = cleanIds(options.bundles);
-
-    if (!AUGMENTED_STEAM?.prices) {
-      return Promise.reject(new Error("Augmented Steam 配置未初始化"));
-    }
-
-    if (!apps.length && !subs.length && !bundles.length) {
-      return Promise.resolve({ prices: {}, bundles: [] });
-    }
-
-    const requestUrl = AUGMENTED_STEAM.prices(protocol);
-    const requestData = {
-      country: options.country || "cn",
-      apps,
-      subs,
-      bundles,
-      voucher: options.voucher !== false,
-      shops: cleanIds(options.shops),
-    };
-
-    const cached = apiCache.get(requestUrl, requestData);
-    if (cached) {
-      return Promise.resolve(cached);
-    }
-
-    return sendRequest({
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      url: requestUrl,
-      data: JSON.stringify(requestData),
-      requestData,
-      messageType: "QUERY_PRICE",
-      service: "augmented-steam",
-      endpointKey: "augmented-steam-prices",
-      requestUrlPolicy: { allowPath: true },
-      parseJSON: true,
-      timeoutMs: options.timeoutMs ?? 12_000,
-      retries: options.retries ?? 1,
-      retryDelayMs: options.retryDelayMs ?? 500,
-      validate(data) {
-        return !!data && typeof data === "object" && typeof data.prices === "object";
-      },
-    }).then(result => {
-      apiCache.set(requestUrl, result, requestData);
-      return result;
-    });
-  }
-
-  function fetchSteamDBPriceInfo(appId, type, subIds, bundleids, cc, protocol) {
-    type = type || "app";
-    subIds = subIds || [];
-    bundleids = bundleids || [];
-    cc = cc || "cn";
-    protocol = protocol || "https";
-
-    let bundleIds = [];
-    if (type === "bundle") {
-      bundleIds = [appId];
-    } else if (type === "app" || type === "sub") {
-      if (Array.isArray(bundleids) && bundleids.length > 0) {
-        bundleIds = bundleids.map(x => parseInt(x, 10)).filter(x => !Number.isNaN(x));
-      } else {
-        bundleIds = [];
-      }
-    }
-
-    if (!Number.isNaN(appId) && parseInt(appId, 10) > 0) {
-      return fetchAugmentedSteamPrices({
-        country: cc,
-        apps: type === "app" ? [parseInt(appId, 10)] : [],
-        subs: subIds,
-        bundles: bundleIds,
-        protocol,
-        voucher: true,
-        shops: [],
-      });
-    }
-    return Promise.reject(new Error("无效的 appid"));
-  }
-
   function fetchPlayersInfo(appId, protocol) {
     const parsedAppId = parseInt(appId, 10);
     if (!Number.isFinite(parsedAppId) || parsedAppId <= 0) {
@@ -499,8 +409,6 @@
   api.net = Object.assign(api.net || {}, {
     sendRequest,
     send: sendRequest,
-    fetchAugmentedSteamPrices,
-    fetchSteamDBPriceInfo,
     fetchPlayersInfo,
   });
 })();

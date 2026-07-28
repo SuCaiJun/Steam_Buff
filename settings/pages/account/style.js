@@ -21,10 +21,39 @@
       outline-offset: 2px;
     }
 
+    .content-swap[data-active="account"] {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
     .uc-root {
-      display: grid;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
       gap: 16px;
       color: var(--st-color-text-primary);
+    }
+
+    .uc-service-attribution {
+      margin-top: auto;
+      margin-bottom: -18px;
+      padding-top: 24px;
+      color: var(--st-color-text-faint);
+      font-size: 11px;
+      line-height: 1.4;
+      text-align: center;
+    }
+
+    .uc-service-attribution a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .uc-service-attribution a:hover,
+    .uc-service-attribution a:focus-visible {
+      color: inherit;
+      text-decoration: underline;
     }
 
     .uc-card {

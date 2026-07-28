@@ -11,44 +11,51 @@
 ((root) => {
   'use strict';
 
-  const FORMAT_UTILS_VERSION = 'steam-buff-format-utils-v1';
+  const FORMAT_UTILS_VERSION = 'steam-buff-format-utils-v2';
+  const CURRENCY_RULES = Object.freeze({
+    USD: Object.freeze({ symbol: '$', decimal: '.', thousands: ',', position: 'prefix', gap: false, precision: 2 }),
+    CNY: Object.freeze({ symbol: '¥', decimal: '.', thousands: ',', position: 'prefix', gap: false, precision: 2 }),
+    JPY: Object.freeze({ symbol: '¥', decimal: '', thousands: ',', position: 'prefix', gap: false, precision: 0 }),
+    EUR: Object.freeze({ symbol: '€', decimal: ',', thousands: ' ', position: 'suffix', gap: false, precision: 2 }),
+    RUB: Object.freeze({ symbol: 'руб', decimal: ',', thousands: '.', position: 'suffix', gap: true, precision: 2 }),
+    PLN: Object.freeze({ symbol: 'zł', decimal: ',', thousands: ' ', position: 'suffix', gap: true, precision: 2 }),
+    BRL: Object.freeze({ symbol: 'R$', decimal: ',', thousands: '.', position: 'prefix', gap: false, precision: 2 }),
+    VND: Object.freeze({ symbol: '₫', decimal: '', thousands: '.', position: 'suffix', gap: false, precision: 0 }),
+    KRW: Object.freeze({ symbol: '₩', decimal: '', thousands: ',', position: 'prefix', gap: true, precision: 0 }),
+    IDR: Object.freeze({ symbol: 'Rp', decimal: '', thousands: ' ', position: 'prefix', gap: true, precision: 0 }),
+    TWD: Object.freeze({ symbol: 'NT$', decimal: '.', thousands: ',', position: 'prefix', gap: true, precision: 2 }),
+    HKD: Object.freeze({ symbol: 'HK$', decimal: '.', thousands: ',', position: 'prefix', gap: true, precision: 2 }),
+    UAH: Object.freeze({ symbol: '₴', decimal: ',', thousands: ' ', position: 'suffix', gap: false, precision: 2 }),
+    KZT: Object.freeze({ symbol: '₸', decimal: ',', thousands: ' ', position: 'suffix', gap: false, precision: 2 }),
+    GBP: Object.freeze({ symbol: '£', decimal: '.', thousands: ',', position: 'prefix', gap: false, precision: 2 }),
+    CHF: Object.freeze({ symbol: 'CHF', decimal: '.', thousands: ' ', position: 'prefix', gap: true, precision: 2 }),
+    NOK: Object.freeze({ symbol: 'kr', decimal: ',', thousands: '.', position: 'suffix', gap: true, precision: 2 }),
+    THB: Object.freeze({ symbol: '฿', decimal: '.', thousands: ',', position: 'prefix', gap: false, precision: 2 }),
+    PHP: Object.freeze({ symbol: '₱', decimal: '.', thousands: ',', position: 'prefix', gap: false, precision: 2 }),
+    SGD: Object.freeze({ symbol: 'S$', decimal: '.', thousands: ',', position: 'prefix', gap: false, precision: 2 }),
+    MYR: Object.freeze({ symbol: 'RM', decimal: '.', thousands: ',', position: 'prefix', gap: false, precision: 2 }),
+    MXN: Object.freeze({ symbol: 'Mex$', decimal: '.', thousands: ',', position: 'prefix', gap: true, precision: 2 }),
+    CAD: Object.freeze({ symbol: 'C$', decimal: '.', thousands: ',', position: 'prefix', gap: true, precision: 2 }),
+    AUD: Object.freeze({ symbol: 'A$', decimal: '.', thousands: ',', position: 'prefix', gap: true, precision: 2 }),
+    NZD: Object.freeze({ symbol: 'NZ$', decimal: '.', thousands: ',', position: 'prefix', gap: true, precision: 2 }),
+    INR: Object.freeze({ symbol: '₹', decimal: '.', thousands: ',', position: 'prefix', gap: false, precision: 2 }),
+    CLP: Object.freeze({ symbol: 'CLP$', decimal: '', thousands: '.', position: 'prefix', gap: false, precision: 0 }),
+    PEN: Object.freeze({ symbol: 'S/.', decimal: '.', thousands: ',', position: 'prefix', gap: true, precision: 2 }),
+    COP: Object.freeze({ symbol: 'COL$', decimal: ',', thousands: '.', position: 'prefix', gap: true, precision: 2 }),
+    ZAR: Object.freeze({ symbol: 'R', decimal: '.', thousands: ' ', position: 'prefix', gap: true, precision: 2 }),
+    SAR: Object.freeze({ symbol: 'SR', decimal: '.', thousands: ',', position: 'suffix', gap: true, precision: 2 }),
+    AED: Object.freeze({ symbol: 'AED', decimal: '.', thousands: ',', position: 'suffix', gap: true, precision: 2 }),
+    ILS: Object.freeze({ symbol: '₪', decimal: '.', thousands: ',', position: 'prefix', gap: false, precision: 2 }),
+    KWD: Object.freeze({ symbol: 'KD', decimal: '.', thousands: ',', position: 'suffix', gap: true, precision: 2 }),
+    QAR: Object.freeze({ symbol: 'QR', decimal: '.', thousands: ',', position: 'suffix', gap: true, precision: 2 }),
+    CRC: Object.freeze({ symbol: '₡', decimal: ',', thousands: '.', position: 'prefix', gap: false, precision: 2 }),
+    UYU: Object.freeze({ symbol: '$U', decimal: ',', thousands: '.', position: 'prefix', gap: false, precision: 2 }),
+  });
   const CURRENCY_SYMBOLS = Object.freeze({
-    AED: 'DH',
-    AUD: 'A$',
-    BRL: 'R$',
-    CAD: 'CDN$',
-    CHF: 'CHF',
-    CLP: 'CLP$',
-    CNY: '¥',
-    COP: 'COL$',
-    CRC: '₡',
-    EUR: '€',
-    GBP: '£',
-    HKD: 'HK$',
-    IDR: 'Rp',
-    ILS: '₪',
-    INR: '₹',
-    JPY: '¥',
-    KRW: '₩',
-    MXN: 'Mex$',
-    MYR: 'RM',
+    ...Object.fromEntries(Object.entries(CURRENCY_RULES).map(([code, rule]) => [code, rule.symbol])),
     NGN: '₦',
-    NOK: 'kr',
-    NZD: 'NZ$',
-    PEN: 'S/.',
-    PHP: '₱',
-    PLN: 'zł',
     PYG: '₲',
-    RUB: 'pуб',
-    SAR: 'SR',
-    SGD: 'S$',
-    THB: '฿',
     TRY: 'TL',
-    TWD: 'NT$',
-    UAH: '₴',
-    USD: '$',
-    VND: '₫',
-    ZAR: 'R ',
   });
 
   if (root.STFormatUtils?.version === FORMAT_UTILS_VERSION) {
@@ -65,6 +72,10 @@
   function getCurrencySymbol(currency = '') {
     const key = String(currency || '').toUpperCase();
     return Object.prototype.hasOwnProperty.call(CURRENCY_SYMBOLS, key) ? CURRENCY_SYMBOLS[key] : key;
+  }
+
+  function getCurrencyRule(currency = '') {
+    return CURRENCY_RULES[String(currency || '').toUpperCase()] || null;
   }
 
   function toNumber(value) {
@@ -93,6 +104,28 @@
     const value = options.cents ? raw / 100 : raw;
     const precision = Number.isInteger(options.precision) ? options.precision : 4;
     return `${symbol} ${trimFloat(value, precision)}`;
+  }
+
+  function groupedInteger(value, separator) {
+    return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, separator);
+  }
+
+  // 价格图表和详情摘要使用固定规则，避免浏览器 locale 改变同一币种的展示契约。
+  function formatCurrency(amount, currency = 'CNY', options = {}) {
+    const code = String(currency || '').toUpperCase();
+    const rule = getCurrencyRule(code);
+    const raw = toNumber(amount);
+    if (!Number.isFinite(raw)) return options.emptyText || '--';
+    if (!rule) return formatPrice(raw, code, options);
+    const precision = Number.isInteger(options.precision) ? options.precision : rule.precision;
+    const absolute = Math.abs(raw).toFixed(precision);
+    const [integer, fraction = ''] = absolute.split('.');
+    const numeric = `${groupedInteger(integer, rule.thousands)}${precision > 0 ? `${rule.decimal}${fraction}` : ''}`;
+    const sign = raw < 0 ? '-' : '';
+    const gap = rule.gap ? ' ' : '';
+    return rule.position === 'suffix'
+      ? `${sign}${numeric}${gap}${rule.symbol}`
+      : `${sign}${rule.symbol}${gap}${numeric}`;
   }
 
   function toDate(value) {
@@ -164,10 +197,13 @@
 
   root.STFormatUtils = Object.freeze({
     version: FORMAT_UTILS_VERSION,
+    currencyRules: CURRENCY_RULES,
     currencySymbols: CURRENCY_SYMBOLS,
     getCurrencySymbol,
+    getCurrencyRule,
     toNumber,
     formatPrice,
+    formatCurrency,
     formatDate,
     formatDateTime,
     formatNumber,
