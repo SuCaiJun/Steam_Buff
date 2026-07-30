@@ -233,12 +233,12 @@
     "message": "你已经用 Steam Buff 一段时间了,还顺手吗?\n它的大部分功能都能在本地免费运行,而且会一直免费。不过云端服务(CDN、服务器、短信、防护等)会产生持续的运营成本。\n如果它帮到了你,不妨考虑赞助一下——每一份支持都会直接用来分担这些成本,也让我能更专注地维护和更新它。赞助用户还会获赠专属功能,感谢你对开发者的支持。"
   },
   "lifecycle_decline_action": {
-    "message": "我不想捐赠"
+    "message": "我不想赞助"
   },
   "lifecycle_update_donate_action": {
     "message": "我要赞助"
   },
   "lifecycle_support_donate_action": {
-    "message": "我要捐赠"
+    "message": "我要赞助"
   }
 }

@@ -906,6 +906,12 @@
     const paragraph = explanation?.querySelector("p");
     if (!explanation || !paragraph) return;
     const context = monitorModalState;
+    if (context.monitorDenied) {
+      clearNode(paragraph);
+      explanation.classList.add("st-price-monitor-explanation--warning");
+      appendText(paragraph, "该功能仅限赞助者使用。");
+      return;
+    }
     const mode = modal.dataset.monitorMode === "discount" ? "discount" : "amount";
     const valueInput = modal.querySelector(`[name='target_${mode}']`);
     const rawValue = String(valueInput?.value || "").trim();
@@ -1032,9 +1038,7 @@
     setMonitorMode(modal, monitor?.targetMode || "amount");
     updateMonitorExplanation(modal);
 
-    if (context.monitorDenied) {
-      setMonitorModalMessage("该功能仅限会员使用。", true);
-    } else {
+    if (!context.monitorDenied) {
       try {
         if (!await hasMonitorAuth()) {
           setMonitorModalMessage("请先在 Steam Buff 设置中登录。", true);

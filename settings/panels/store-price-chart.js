@@ -362,15 +362,14 @@
     function filterCombo(input, queryValue = input.value) {
       const comboNode = input.closest("[data-store-price-chart-combo]");
       const query = String(queryValue || "").trim().toLowerCase();
-      let visible = 0;
+      let matchCount = 0;
       for (const option of comboNode?.querySelectorAll?.("[data-store-price-chart-combo-option]") || []) {
         const matches = !query || String(option.dataset.storePriceChartComboSearch || "").toLowerCase().includes(query);
-        const show = matches && visible < MAX_STORE_PRICE_SERIES;
-        option.hidden = !show;
-        if (show) visible += 1;
+        option.hidden = !matches;
+        if (matches) matchCount += 1;
       }
       const empty = comboNode?.querySelector?.("[data-store-price-chart-combo-empty]");
-      if (empty) empty.hidden = visible > 0;
+      if (empty) empty.hidden = matchCount > 0;
       return comboNode;
     }
 

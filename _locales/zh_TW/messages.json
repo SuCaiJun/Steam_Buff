@@ -233,12 +233,12 @@
     "message": "你已經使用 Steam Buff 一段時間了，還順手嗎？\n它的大部分功能都能在本機免費執行，而且會一直免費。不過雲端服務（CDN、伺服器、簡訊、防護等）會產生持續的營運成本。\n如果它幫到了你，不妨考慮贊助一下——每一份支持都會直接用來分擔這些成本，也讓我能更專注地維護和更新它。贊助使用者還會獲贈專屬功能，感謝你對開發者的支持。"
   },
   "lifecycle_decline_action": {
-    "message": "我不想捐贈"
+    "message": "我不想贊助"
   },
   "lifecycle_update_donate_action": {
     "message": "我要贊助"
   },
   "lifecycle_support_donate_action": {
-    "message": "我要捐贈"
+    "message": "我要贊助"
   }
 }

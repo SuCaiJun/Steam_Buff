@@ -1754,15 +1754,37 @@
 
         .store-price-chart-combo__options {
           position: absolute;
-          z-index: var(--st-z-index-popover, 1000);
+          z-index: var(--st-z-index-dropdown);
           top: calc(100% + 4px);
           right: 0;
           left: 0;
           border: 1px solid var(--st-color-border-hover);
           border-radius: var(--st-radius-sm);
-          background: var(--st-color-surface-elevated);
-          box-shadow: var(--st-shadow-popover);
+          background: var(--st-color-bg-input);
+          box-shadow: var(--st-shadow-panel-menu);
+          box-sizing: border-box;
+          max-height: 330px;
+          overflow-y: auto;
           padding: 4px;
+          scrollbar-width: thin;
+          scrollbar-color: var(--st-color-white-alpha-10) transparent;
+        }
+
+        .store-price-chart-combo__options::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .store-price-chart-combo__options::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .store-price-chart-combo__options::-webkit-scrollbar-thumb {
+          border-radius: 3px;
+          background: var(--st-color-white-alpha-10);
+        }
+
+        .store-price-chart-combo__options::-webkit-scrollbar-thumb:hover {
+          background: var(--st-color-steam-blue-alpha-50);
         }
 
         .store-price-chart-combo__options[hidden],

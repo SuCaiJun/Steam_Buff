@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "0.12.32",
+  "version": "0.12.36",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "顾青离",

@@ -482,6 +482,14 @@
     log.info("support-prompt-decision", "用户已处理使用反馈与赞助提示", { action: value });
   }
 
+  async function consumeUpdatePrompt() {
+    try {
+      await storageRemove(PENDING_UPDATE_KEY);
+    } catch (error) {
+      log.warn("post-update-prompt-consume-failed", "扩展升级完成提示状态清理失败", { error });
+    }
+  }
+
   function showLayer(host) {
     activeHost = host;
     document.body.appendChild(host);
@@ -569,12 +577,19 @@
         return;
       }
       if (action === "donate") {
-        saveDecision("donate")
-          .catch((error) => log.warn("support-prompt-decision-save-failed", "赞助提示决定保存失败", { error }))
+        Promise.all([
+          saveDecision("donate")
+            .catch((error) => log.warn("support-prompt-decision-save-failed", "赞助提示决定保存失败", { error })),
+          consumeUpdatePrompt(),
+        ])
           .finally(() => {
             openDonate();
             close(currentHost);
           });
+        return;
+      }
+      if (action === "confirm") {
+        consumeUpdatePrompt().finally(() => close(currentHost));
         return;
       }
       close(currentHost);
@@ -582,11 +597,6 @@
     dom.setTrustedHTML(host.shadowRoot.querySelector(".body"), dom.trustedHTML(logHtml, "lifecycle-update-log-sanitized-renderer"));
     showLayer(host);
     window.requestAnimationFrame(() => syncUpdateLogPreview(host));
-    try {
-      await storageRemove(PENDING_UPDATE_KEY);
-    } catch (error) {
-      log.warn("post-update-prompt-consume-failed", "扩展升级完成提示状态清理失败", { error });
-    }
     log.info("post-update-prompt-shown", "扩展升级完成提示已展示", {
       version: currentVersion,
       previousVersion: String(pending?.previousVersion || ""),
@@ -614,8 +624,8 @@
               <img src="${checker.esc(BRAND_ICON_URL)}" alt="">
             </div>
             <div class="actions support-actions">
-              <button class="action" type="button" data-action="decline">${checker.esc(text("lifecycle_decline_action", "我不想捐赠"))}</button>
-              <button class="action primary" type="button" data-action="donate">${checker.esc(text("lifecycle_support_donate_action", "我要捐赠"))}</button>
+              <button class="action" type="button" data-action="decline">${checker.esc(text("lifecycle_decline_action", "我不想赞助"))}</button>
+              <button class="action primary" type="button" data-action="donate">${checker.esc(text("lifecycle_support_donate_action", "我要赞助"))}</button>
             </div>
           </div>
         </section>
