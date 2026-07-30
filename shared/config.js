@@ -256,18 +256,6 @@
     subscriptionInfoGameData: join(ORIGINS.subscriptionInfo, "/SubscriptionInfo/ajax/gamedata.php"),
   });
 
-  const links = Object.freeze({
-    openSourceLibs: Object.freeze([
-      { name: "Augmented Steam", url: join(ORIGINS.github, "/IsThereAnyDeal/AugmentedSteam") },
-      { name: "Steam 消费历史分类器", url: join(ORIGINS.keylol, "/t1035599-1-1") },
-      { name: "SteamDB Extension", url: join(ORIGINS.github, "/SteamDatabase/BrowserExtension") },
-      { name: "SubscriptionInfo", url: join(ORIGINS.github, "/alike03/SubscriptionInfo") },
-      { name: "pinyin-pro", url: join(ORIGINS.github, "/zh-lx/pinyin-pro") },
-      { name: "qrcode-generator", url: join(ORIGINS.github, "/kazuhikoarase/qrcode-generator") },
-      { name: "xnx3 translate.js", url: join(ORIGINS.github, "/xnx3/translate") },
-    ]),
-  });
-
   const vendors = Object.freeze({
     isthereanydeal: Object.freeze({
       host: HOSTS.isthereanydeal,
@@ -435,7 +423,6 @@
     hosts,
     urls,
     vendors,
-    links,
     pages,
     matchers,
     distribution,

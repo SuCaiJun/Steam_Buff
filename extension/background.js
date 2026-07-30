@@ -146,6 +146,7 @@
     "vendor/fflate/fflate.js",
     "settings/diagnostics-export.js",
     "settings/pages/registry.js",
+    "vendor/catalog.js",
     "settings/pages/about.js",
     "settings/update-reminder.js",
     "shared/account-profile.js",

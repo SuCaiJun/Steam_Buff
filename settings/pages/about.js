@@ -23,7 +23,11 @@
   const FEEDBACK_URL = CFG.urls.feedback;
   const DONATIONS_API = CFG.supporter("/donations?limit=100");
   const DONATION_CACHE_MS = 60 * 60 * 1000;
-  const OPEN_SOURCE_LIBS = Object.freeze(Array.from(CFG.links?.openSourceLibs || []));
+  const vendorCatalog = globalThis.STVendorCatalog;
+  if (!Array.isArray(vendorCatalog?.openSourceLibs)) {
+    throw new Error("[Steam Buff] 关于页面依赖 STVendorCatalog 未加载");
+  }
+  const OPEN_SOURCE_LIBS = vendorCatalog.openSourceLibs;
   const sharedCss = globalThis.STComponents?.css;
   if (!sharedCss?.dialog || !sharedCss?.button) {
     throw new Error("[Steam Buff] 关于页面依赖 STComponents 未加载");
