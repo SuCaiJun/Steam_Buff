@@ -51,26 +51,7 @@ Steam Buff 主要補上這些日常缺口：
 
 ## 安裝
 
-1. Clone 或下載本倉庫：
-
-   ```bash
-   git clone https://github.com/sys1em/Steam_Buff.git
-   ```
-
-2. 開啟瀏覽器擴充功能管理頁：
-
-   - Chrome：`chrome://extensions/`
-   - Edge：`edge://extensions/`
-
-3. 開啟**開發人員模式**（頁面右上角開關）
-
-4. 點選**載入未封裝項目**
-
-5. 選擇包含 `manifest.json` 的擴充功能根目錄：下載本擴充功能倉庫或公開原始碼鏡像時選擇倉庫根目錄；下載 `steam-tools` 主倉庫時選擇其中的 `extension/` 子目錄
-
-6. 安裝完成後，造訪 Steam 商店或開啟 Steam 用戶端即可使用
-
-安裝後可開啟設定中心，依需求啟用搜尋、價格、評論篩選、翻譯、AI、第三方服務和用戶端增強等模組。
+請前往 [Steam Buff 官網](https://www.sucaijun.com/25.html) 下載，並依照官網說明安裝。
 
 ## 目錄結構
 

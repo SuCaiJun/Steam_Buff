@@ -52,26 +52,7 @@ Some features depend on Steam page structures, the Steam Buff backend, third-par
 
 ## Installation
 
-1. Clone or download this repository:
-
-   ```bash
-   git clone https://github.com/sys1em/Steam_Buff.git
-   ```
-
-2. Open the browser extension management page:
-
-   - Chrome: `chrome://extensions/`
-   - Edge: `edge://extensions/`
-
-3. Enable **Developer mode** using the switch in the upper-right corner.
-
-4. Click **Load unpacked**.
-
-5. Select the extension root directory containing `manifest.json`: use the repository root when downloading this extension repository or its public source mirror; when downloading the main `steam-tools` repository, select its `extension/` subdirectory.
-
-6. After installation, visit the Steam Store or open the Steam client to use the extension.
-
-After installation, you can open the settings center and enable modules such as search, pricing, review filtering, translation, AI, third-party services, and client enhancements as needed.
+Download Steam Buff from the [official website](https://www.sucaijun.com/25.html) and follow the installation instructions provided there.
 
 ## Directory Structure
 
