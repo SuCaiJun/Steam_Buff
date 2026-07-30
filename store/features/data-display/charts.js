@@ -378,13 +378,15 @@
     };
   }
 
-  function priceBasis(series, eligible, scope) {
-    if (scope !== "allRegular") return lowestEvent(eligible);
-    const low = series.storeLow;
-    if (!low?.price) return { event: null, error: "暂无可计算价格史低" };
-    const event = eligible.find(item => sameMoney(item.price, low.price)) || null;
-    if (!event) return { event: null, error: "暂无可计算价格史低" };
-    return { event: { ...event, cny: event.cny || low.cny || null }, error: "" };
+  function apiLow(series) {
+    const low = series?.storeLow;
+    if (!low?.price || amountOf(low.price) === null || !text(low.price.currency)) {
+      return { event: null, error: "API 暂无可用史低" };
+    }
+    return {
+      event: { ...low, time: timeOf(low.timestamp), chartAmount: chartAmount(low) },
+      error: "",
+    };
   }
 
   function matchingPeriods(events, matches, nowStamp) {
@@ -403,17 +405,11 @@
     return periods;
   }
 
-  function prepareSeries(series, settings = {}, nowStamp = Date.now()) {
-    const events = seriesEvents(series);
-    const scope = ["allRegular", "currentRegular", "recent12Months"].includes(settings.lowReferenceScope)
-      ? settings.lowReferenceScope
-      : "currentRegular";
-    const criterion = settings.lowCriterion === "price" ? "price" : "discount";
+  function manualLow(events, series, criterion, scope, occurrence, nowStamp) {
     const reference = referenceEvents(events, series, scope, nowStamp);
     const eligible = reference.events;
     const cuts = eligible.map(event => Number(event.cut)).filter(value => Number.isFinite(value) && value >= 0);
     const maxCut = cuts.length ? Math.max(...cuts) : null;
-    const lowest = lowestEvent(eligible);
     let matcher = () => false;
     let status = reference.error;
     let basis = null;
@@ -424,7 +420,7 @@
       else matcher = event => !!event.price && eligibleSet.has(event) && Number(event.cut) === maxCut;
     }
     if (!status && criterion === "price") {
-      const result = priceBasis(series, eligible, scope);
+      const result = lowestEvent(eligible);
       basis = result.event;
       status = result.error;
       if (!status) {
@@ -444,20 +440,92 @@
     }
 
     const periods = status ? [] : matchingPeriods(events, matcher, nowStamp);
+    const selectedLow = (occurrence === "earliest" ? periods[0] : periods.at(-1))?.event || null;
+    return { status, maxCut, basis, matcher, periods, selectedLow };
+  }
+
+  function currentMatchesManualLow(series, events, result, nowStamp) {
+    const current = series?.current;
+    const latest = events.at(-1);
+    const activePeriod = result.periods.at(-1);
+    if (!current?.price || Number(current.cut) <= 0 || !latest || !activePeriod || result.status) return false;
+    if (activePeriod.end !== nowStamp || !result.matcher(latest)) return false;
+    if (!sameMoney(current.price, latest.price) || Number(current.cut) !== Number(latest.cut)) return false;
+    return !current.regular || !latest.regular || sameMoney(current.regular, latest.regular);
+  }
+
+  function currentMatchesApiLow(series, low) {
+    const current = series?.current;
+    const currentAmount = amountOf(current?.price);
+    const lowAmount = amountOf(low?.price);
+    return Number(current?.cut) > 0
+      && currentAmount !== null
+      && lowAmount !== null
+      && text(current.price.currency) === text(low.price.currency)
+      && currentAmount <= lowAmount;
+  }
+
+  function prepareSeries(series, settings = {}, nowStamp = Date.now()) {
+    const events = seriesEvents(series);
+    const configuredScope = ["allRegular", "currentRegular", "recent12Months"].includes(settings.lowReferenceScope)
+      ? settings.lowReferenceScope
+      : "currentRegular";
+    const criterion = ["api", "discount", "price"].includes(settings.lowCriterion)
+      ? settings.lowCriterion
+      : "api";
+    const occurrence = settings.lowOccurrence === "earliest" ? "earliest" : "latest";
+    const scope = criterion === "api" ? "api" : configuredScope;
+    let actual;
+    let isCurrentLow = false;
+
+    if (criterion === "api") {
+      const result = apiLow(series);
+      const cuts = events.map(event => Number(event.cut)).filter(value => Number.isFinite(value) && value >= 0);
+      const matcher = result.error
+        ? () => false
+        : event => !!event.price && sameMoney(event.price, result.event.price);
+      actual = {
+        status: result.error,
+        maxCut: cuts.length ? Math.max(...cuts) : null,
+        basis: result.event,
+        matcher,
+        periods: result.error ? [] : matchingPeriods(events, matcher, nowStamp),
+        selectedLow: result.event,
+      };
+      isCurrentLow = !result.error && currentMatchesApiLow(series, result.event);
+    } else {
+      actual = manualLow(events, series, criterion, scope, occurrence, nowStamp);
+      isCurrentLow = currentMatchesManualLow(series, events, actual, nowStamp);
+    }
+
+    let reference = actual;
+    if (criterion !== "api" && occurrence === "latest" && isCurrentLow) {
+      const currentPeriodStart = actual.periods.at(-1)?.start;
+      const previousEvents = events.filter(event => event.time < currentPeriodStart);
+      reference = manualLow(previousEvents, series, criterion, scope, occurrence, nowStamp);
+    }
     const yearStart = calendarMonthsAgo(12, nowStamp);
-    const yearCount = status ? null : periods.filter(period => period.start <= nowStamp && period.end >= yearStart).length;
+    const yearCount = actual.status
+      ? null
+      : actual.periods.filter(period => period.start <= nowStamp && period.end >= yearStart).length;
     return {
       ...series,
       events,
       criterion,
       scope,
+      occurrence,
       stats: {
-        status,
-        maxCut,
-        lowest: lowest.event,
-        basis,
+        status: actual.status,
+        referenceStatus: reference.status,
+        maxCut: actual.maxCut,
+        lowest: actual.selectedLow,
+        selectedLow: actual.selectedLow,
+        actualLow: actual.selectedLow,
+        referenceLow: reference.selectedLow,
+        isCurrentLow,
+        basis: actual.basis,
         yearCount,
-        periods,
+        periods: actual.periods,
       },
     };
   }
@@ -551,11 +619,11 @@
   }
 
   function scopeLabel(scope) {
-    return ({ allRegular: "全部原价", currentRegular: "当前原价", recent12Months: "最近12个月" })[scope] || "当前原价";
+    return ({ api: "不适用", allRegular: "全部原价", currentRegular: "当前原价", recent12Months: "最近12个月" })[scope] || "当前原价";
   }
 
   function criterionLabel(criterion) {
-    return criterion === "price" ? "按到手价" : "按折扣力度";
+    return ({ api: "使用API数据", discount: "按折扣力度", price: "按到手价" })[criterion] || "使用API数据";
   }
 
   function legendLines(series) {
@@ -636,9 +704,9 @@
     const localText = Number.isFinite(localAmount) && text(localCurrency)
       ? formatCurrency(localAmount, localCurrency)
       : "";
-    if (!Number.isFinite(amount)) return localText ? `— (${localText})` : "—";
+    if (!Number.isFinite(amount)) return localText || "—";
     const baseText = formatCurrency(amount, baseCurrency);
-    return `${baseText}${localText && localCurrency !== baseCurrency ? ` (${localText})` : ""}`;
+    return `${localText || baseText}${localText && localCurrency !== baseCurrency ? ` (${baseText})` : ""}`;
   }
 
   function comparisonRowsAtTime(series = [], time = 0, mainSeries = null, hidden = new Set()) {

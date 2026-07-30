@@ -20,6 +20,12 @@
   const DLC_SECTION_SELECTOR = ".game_area_dlc_section";
   const DLC_ROW_SELECTOR = ".game_area_dlc_row";
   const DLC_NODE_CLASS = "st-dlc-lowest-price";
+  const MONITOR_MODAL_ID = "st-price-monitor-modal";
+  const MONITOR_QUERY_URL = window.STConfig.steamBuff("/price-monitors/query");
+  const MONITOR_SAVE_URL = window.STConfig.steamBuff("/price-monitors");
+  const MONITOR_DELETE_URL = window.STConfig.steamBuff("/price-monitors/delete");
+  const MONITOR_DASHBOARD_URL = "https://www.sucaijun.com/user/price-alert";
+  const AUTH_REFRESH_URL = window.STConfig.loginAuth("/auth/refresh");
   const log = window.STLoggerFactory.createLogger("store", "price-history");
   const THEME = window.STTheme || {};
   const colors = THEME.colors || {};
@@ -29,7 +35,19 @@
   const formatPrice = api.format?.formatPrice;
   const formatDate = api.format?.formatDate;
   const calculateDaysDiff = api.format?.calculateDaysDiff;
+  const externalNavigation = globalThis.STConfig.externalNavigation;
   let seq = 0;
+  let monitorModalState = null;
+  const monitorCache = new Map();
+  const monitorHosts = new Map();
+  const monitorItemNameCache = new Map();
+  const monitorItemNamePending = new Map();
+  const monitorAuthClient = window.STAuthClient?.createClient({
+    storage: window.STSettings?.storage || null,
+    refreshUrl: AUTH_REFRESH_URL,
+    loginMessage: "请先在设置中登录",
+    expiredMessage: "登录已过期，请重新登录",
+  });
 
   function normalizeSteamText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -137,9 +155,7 @@
 
   function appendLink(parent, text, url) {
     const link = document.createElement("a");
-    link.href = safeUrl(url);
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
+    externalNavigation.applyToLink(link, safeUrl(url));
     if (typeof applyStyles === "function") {
       applyStyles(link, {
         color: colors.steamBlue,
@@ -171,6 +187,1007 @@
     }
   }
 
+  async function monitorPost(url, body, operationId = "") {
+    if (!monitorAuthClient) throw new Error("打折监控鉴权服务未加载");
+    const response = await monitorAuthClient.authedPost(url, body, {
+      throwOnMissingAuth: true,
+      operationId,
+    });
+    const data = response?.body || {};
+    const code = Number(response?.code) || 0;
+    if (code < 200 || code >= 300) {
+      const error = new Error(data?.message || `请求失败：${code}`);
+      error.status = code;
+      throw error;
+    }
+    return data;
+  }
+
+  async function hasMonitorAuth() {
+    if (!monitorAuthClient) return false;
+    const auth = await monitorAuthClient.readyAuth();
+    return !!auth?.access_token;
+  }
+
+  function monitorTimezone() {
+    try {
+      return String(Intl.DateTimeFormat().resolvedOptions().timeZone || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function monitorItemNameFallback(target) {
+    return `${String(target?.type || "").toUpperCase()} ${Number(target?.id) || 0}`.trim();
+  }
+
+  function loadMonitorItemName(target, cc) {
+    const type = target?.type === "sub" ? "sub" : target?.type === "app" ? "app" : "";
+    const id = Number(target?.id) || 0;
+    if (!type || id <= 0) return Promise.reject(new TypeError("无效的 Steam 商品标识"));
+    const key = `${type}:${id}:${type === "sub" ? String(cc || "CN").toUpperCase() : "basic"}`;
+    if (monitorItemNameCache.has(key)) return Promise.resolve(monitorItemNameCache.get(key));
+    if (monitorItemNamePending.has(key)) return monitorItemNamePending.get(key);
+    const steamStore = globalThis.STConfig?.vendors?.steamStore;
+    const url = type === "sub"
+      ? steamStore?.packageDetailsForCountry?.(id, cc, "schinese")
+      : steamStore?.appDetails?.(id, "basic", "schinese");
+    if (!url || typeof api.net?.sendRequest !== "function") {
+      return Promise.reject(new Error("Steam 商品详情服务不可用"));
+    }
+    let task;
+    task = api.net.sendRequest({
+      url,
+      method: "GET",
+      headers: { Accept: "application/json" },
+      parseJSON: true,
+      timeoutMs: 12_000,
+      retries: 1,
+      messageType: type === "sub" ? "steam-regional-packagedetails" : "steam-regional-appdetails",
+      service: "steam-store",
+      endpointKey: type === "sub" ? "packagedetails-name" : "appdetails-basic-name",
+      logUrl: type === "sub" ? "steam-store://packagedetails-name" : "steam-store://appdetails-basic-name",
+      logParams: { itemType: type, itemId: id },
+    }).then((data) => {
+      const entry = data?.[String(id)];
+      const name = normalizeSteamText(entry?.data?.name);
+      if (entry?.success !== true || !entry.data || typeof entry.data !== "object" || !name) {
+        const error = new Error("Steam 商品详情响应格式异常");
+        error.code = "RESPONSE_SHAPE_INVALID";
+        throw error;
+      }
+      monitorItemNameCache.set(key, name);
+      return name;
+    }).finally(() => {
+      if (monitorItemNamePending.get(key) === task) monitorItemNamePending.delete(key);
+    });
+    monitorItemNamePending.set(key, task);
+    return task;
+  }
+
+  function monitorContext(target, summary, pageAppId, cc) {
+    if (target?.type === "bundle") return null;
+    const regular = summary?.current?.regular;
+    const regularAmount = amountOf(regular);
+    const currency = String(regular?.currency || "").trim().toUpperCase();
+    if (regularAmount === null || regularAmount < 0 || !/^[A-Z]{3}$/.test(currency)) return null;
+    const context = {
+      key: targetKey(target),
+      target: { type: target.type, id: target.id },
+      appid: Number(pageAppId) || 0,
+      itemName: monitorItemNameFallback(target),
+      currency,
+      regularAmount,
+      host: null,
+    };
+    context.itemNameTask = loadMonitorItemName(context.target, cc).then((name) => {
+      context.itemName = name;
+      return name;
+    }).catch((error) => {
+      log.warn("price-monitor-item-name-unavailable", "Steam 商品名称读取失败", {
+        itemType: context.target.type,
+        itemId: context.target.id,
+        errorCode: error?.code || error?.name || "ITEM_NAME_UNAVAILABLE",
+      });
+      return context.itemName;
+    });
+    return context;
+  }
+
+  function normalizeMonitor(value) {
+    if (!value || typeof value !== "object") return null;
+    return {
+      itemType: String(value.item_type || ""),
+      itemId: Number(value.item_id) || 0,
+      appid: Number(value.appid) || 0,
+      itemName: String(value.item_name || ""),
+      currency: String(value.currency || ""),
+      regularAmount: Number(value.regular_amount),
+      targetMode: String(value.target_mode || ""),
+      targetAmount: value.target_amount === null ? null : Number(value.target_amount),
+      targetDiscount: value.target_discount === null ? null : Number(value.target_discount),
+      notifyQq: value.notify_qq === true,
+      notifyEmail: value.notify_email === true,
+      notifyTime: String(value.notify_time || ""),
+      timezone: String(value.timezone || ""),
+      updatedAt: String(value.updated_at || ""),
+    };
+  }
+
+  function monitorChannels(monitor) {
+    const channels = [];
+    if (monitor?.notifyQq) channels.push("QQ");
+    if (monitor?.notifyEmail) channels.push("邮件");
+    return channels.join(" 和 ");
+  }
+
+  function monitorAmountText(amount, currency) {
+    const value = Number(amount);
+    const code = String(currency || "").trim().toUpperCase();
+    if (!Number.isFinite(value) || !/^[A-Z]{3}$/.test(code)) return "--";
+    try {
+      return new Intl.NumberFormat("zh-CN", {
+        style: "currency",
+        currency: code,
+        currencyDisplay: "narrowSymbol",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(value).replace(/\s+/g, "");
+    } catch {
+      return `${code} ${value.toFixed(2)}`;
+    }
+  }
+
+  function monitorSummaryText(monitor) {
+    const channels = monitorChannels(monitor);
+    const time = String(monitor?.notifyTime || "");
+    if (monitor?.targetMode === "amount") {
+      return `当${monitorAmountText(monitor.targetAmount, monitor.currency)} 及以下时，将于当天 ${time} 通过 ${channels} 通知你。`;
+    }
+    return `当折扣达到 ${Number(monitor?.targetDiscount)}% 及以上时，将于当天 ${time} 通过 ${channels} 通知你。`;
+  }
+
+  function monitorTrigger(text, title, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "st-price-monitor-trigger";
+    button.textContent = text;
+    button.title = title;
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onClick();
+    });
+    return button;
+  }
+
+  function renderMonitorHost(host, context, state = "ready") {
+    if (!host?.isConnected) return;
+    clearNode(host);
+    appendSpan(host, "打折监控：", "st-price-monitor-label");
+    const monitor = monitorCache.get(context.key);
+
+    if (state === "loading") {
+      appendSpan(host, "正在读取...", "st-price-monitor-status");
+      return;
+    }
+    if (state === "error") {
+      host.appendChild(monitorTrigger("读取失败，点击重试", "重新读取打折监控", () => {
+        hydrateMonitors([context]);
+      }));
+      return;
+    }
+
+    if (monitor) {
+      host.appendChild(monitorTrigger(
+        monitorSummaryText(monitor),
+        "修改打折监控",
+        () => openMonitorModal(context)
+      ));
+    } else {
+      host.appendChild(monitorTrigger(
+        "未设置提醒",
+        "设置打折监控",
+        () => openMonitorModal(context)
+      ));
+    }
+  }
+
+  function mountMonitorLine(node, context) {
+    api.styles?.ensureFeatureStyle?.("price-monitor");
+    const host = document.createElement("span");
+    host.className = "st-price-monitor-row";
+    host.dataset.stPriceMonitorTarget = context.key;
+    context.host = host;
+    monitorHosts.set(context.key, host);
+    node.appendChild(host);
+    renderMonitorHost(host, context, "ready");
+    return context;
+  }
+
+  function refreshMonitorHost(context, state = "ready") {
+    const host = monitorHosts.get(context.key) || context.host;
+    if (host) renderMonitorHost(host, context, state);
+  }
+
+  async function hydrateMonitors(contexts) {
+    const entries = (contexts || []).filter(context => context?.host?.isConnected);
+    if (!entries.length) return;
+    try {
+      if (!await hasMonitorAuth()) return;
+    } catch (error) {
+      entries.forEach(context => refreshMonitorHost(context, "error"));
+      log.warn("price-monitor-auth-failed", "打折监控鉴权检查失败", {
+        count: entries.length,
+        error,
+      });
+      return;
+    }
+
+    entries.forEach(context => refreshMonitorHost(context, "loading"));
+    const startedAt = Date.now();
+    try {
+      const body = await monitorPost(MONITOR_QUERY_URL, {
+        items: entries.map(context => ({
+          item_type: context.target.type,
+          item_id: context.target.id,
+        })),
+      });
+      if (!Array.isArray(body.data)) throw new Error("打折监控响应格式错误");
+      const found = new Map();
+      body.data.forEach((item) => {
+        const monitor = normalizeMonitor(item);
+        if (monitor?.itemType && monitor.itemId > 0) {
+          found.set(`${monitor.itemType}:${monitor.itemId}`, monitor);
+        }
+      });
+      entries.forEach((context) => {
+        context.monitorDenied = false;
+        monitorCache.set(context.key, found.get(context.key) || null);
+        refreshMonitorHost(context);
+      });
+      log.info("price-monitor-query-success", "打折监控读取完成", {
+        count: entries.length,
+        configuredCount: found.size,
+        durationMs: Date.now() - startedAt,
+      });
+    } catch (error) {
+      entries.forEach((context) => {
+        context.monitorDenied = error?.status === 403;
+        if (context.monitorDenied) monitorCache.set(context.key, null);
+        refreshMonitorHost(context, error?.status === 403 ? "denied" : "error");
+      });
+      log.warn("price-monitor-query-failed", "打折监控读取失败", {
+        count: entries.length,
+        durationMs: Date.now() - startedAt,
+        status: error?.status || 0,
+        error,
+      });
+    }
+  }
+
+  function modalElement(tagName, className = "", text = "") {
+    const element = document.createElement(tagName);
+    if (className) element.className = className;
+    if (text) element.textContent = text;
+    return element;
+  }
+
+  function modalField(labelText, control, hintText = "") {
+    const field = modalElement("div", "st-price-monitor-field");
+    field.appendChild(modalElement("span", "st-price-monitor-field-label", labelText));
+    field.appendChild(control);
+    if (hintText) field.appendChild(modalElement("span", "st-price-monitor-field-hint", hintText));
+    return field;
+  }
+
+  function modalInput(type, name, className = "st-price-monitor-input") {
+    const input = document.createElement("input");
+    input.type = type;
+    if (name) input.name = name;
+    input.className = className;
+    return input;
+  }
+
+  function monitorCurrencySymbol(currency) {
+    const code = String(currency || "").trim().toUpperCase();
+    try {
+      const part = new Intl.NumberFormat("zh-CN", {
+        style: "currency",
+        currency: code,
+        currencyDisplay: "narrowSymbol",
+        maximumFractionDigits: 0,
+      }).formatToParts(0).find(item => item.type === "currency");
+      return part?.value || code;
+    } catch {
+      return code;
+    }
+  }
+
+  function monitorClockIcon() {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "15");
+    svg.setAttribute("height", "15");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("aria-hidden", "true");
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", "12");
+    circle.setAttribute("cy", "12");
+    circle.setAttribute("r", "9");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M12 7v5l3 2");
+    svg.append(circle, path);
+    return svg;
+  }
+
+  function monitorExternalIcon() {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "14");
+    svg.setAttribute("height", "14");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    ["M14 3h7v7", "M21 3l-9 9", "M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"].forEach((value) => {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", value);
+      svg.appendChild(path);
+    });
+    return svg;
+  }
+
+  function clampMonitorControlValue(range, value) {
+    const min = Number(range.min);
+    const max = Number(range.max);
+    return Math.min(max, Math.max(min, Number(value)));
+  }
+
+  function formatMonitorControlValue(value, decimals) {
+    return decimals > 0 ? Number(value).toFixed(decimals) : String(Math.round(Number(value)));
+  }
+
+  function linkMonitorNumericControls(range, numberInput, decimals) {
+    range.addEventListener("input", () => {
+      numberInput.value = formatMonitorControlValue(range.value, decimals);
+      updateMonitorExplanation(range.closest(".st-price-monitor-modal"));
+    });
+    numberInput.addEventListener("input", () => {
+      const value = Number(numberInput.value);
+      if (numberInput.value.trim() !== "" && Number.isFinite(value)) {
+        range.value = String(clampMonitorControlValue(range, value));
+      }
+      updateMonitorExplanation(numberInput.closest(".st-price-monitor-modal"));
+    });
+    numberInput.addEventListener("blur", () => {
+      const value = Number(numberInput.value);
+      const normalized = Number.isFinite(value)
+        ? clampMonitorControlValue(range, value)
+        : Number(range.value);
+      range.value = String(normalized);
+      numberInput.value = formatMonitorControlValue(normalized, decimals);
+      updateMonitorExplanation(numberInput.closest(".st-price-monitor-modal"));
+    });
+  }
+
+  function monitorRangeField(mode, labelText, { min, max, step, decimals, prefix = "", suffix = "" }) {
+    const range = modalInput("range", "", "st-price-monitor-range");
+    range.min = String(min);
+    range.max = String(max);
+    range.step = String(step);
+    range.dataset.monitorRange = mode;
+
+    const numberInput = modalInput("number", `target_${mode}`, "st-price-monitor-number-input");
+    numberInput.min = String(min);
+    numberInput.max = String(max);
+    numberInput.step = String(step);
+
+    const sliderWrap = modalElement("div", "st-price-monitor-slider-wrap");
+    sliderWrap.appendChild(range);
+    const numberBox = modalElement("div", "st-price-monitor-number-box");
+    if (prefix) {
+      const unit = modalElement("span", "st-price-monitor-number-unit", prefix);
+      if (mode === "amount") unit.dataset.monitorCurrencyUnit = "true";
+      numberBox.appendChild(unit);
+    }
+    numberBox.appendChild(numberInput);
+    if (suffix) numberBox.appendChild(modalElement("span", "st-price-monitor-number-unit", suffix));
+    const sliderRow = modalElement("div", "st-price-monitor-slider-row");
+    sliderRow.append(sliderWrap, numberBox);
+    const field = modalField(labelText, sliderRow);
+    field.dataset.monitorField = mode;
+    linkMonitorNumericControls(range, numberInput, decimals);
+    return field;
+  }
+
+  function monitorTimeField() {
+    const wrap = modalElement("div", "st-price-monitor-time-wrap");
+    const valueInput = modalInput("hidden", "notify_time", "");
+    const trigger = modalElement("button", "st-price-monitor-time-trigger st-price-monitor-time-trigger--placeholder");
+    trigger.type = "button";
+    trigger.dataset.monitorTimeTrigger = "true";
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+    const timeText = modalElement("span", "st-price-monitor-time-text", "--:--");
+    const clock = modalElement("span", "st-price-monitor-time-clock");
+    clock.appendChild(monitorClockIcon());
+    trigger.append(timeText, clock);
+
+    const panel = modalElement("div", "st-price-monitor-time-panel");
+    panel.dataset.monitorTimePanel = "true";
+    panel.hidden = true;
+    const columns = modalElement("div", "st-price-monitor-time-columns");
+    const hourColumn = modalElement("div", "st-price-monitor-time-column");
+    hourColumn.dataset.monitorTimeColumn = "hour";
+    hourColumn.setAttribute("role", "listbox");
+    hourColumn.setAttribute("aria-label", "小时");
+    const minuteColumn = modalElement("div", "st-price-monitor-time-column");
+    minuteColumn.dataset.monitorTimeColumn = "minute";
+    minuteColumn.setAttribute("role", "listbox");
+    minuteColumn.setAttribute("aria-label", "分钟");
+    columns.append(hourColumn, minuteColumn);
+
+    const timeActions = modalElement("div", "st-price-monitor-time-actions");
+    const now = modalElement("button", "st-price-monitor-time-now", "此刻");
+    now.type = "button";
+    now.dataset.monitorTimeAction = "now";
+    const confirm = modalElement("button", "st-price-monitor-time-confirm", "确定");
+    confirm.type = "button";
+    confirm.dataset.monitorTimeAction = "confirm";
+    timeActions.append(now, confirm);
+    panel.append(columns, timeActions);
+    wrap.append(valueInput, trigger, panel);
+
+    trigger.addEventListener("click", () => {
+      const modal = trigger.closest(".st-price-monitor-modal");
+      if (!modal) return;
+      if (panel.hidden) openMonitorTimePanel(modal);
+      else closeMonitorTimePanel(modal);
+    });
+    now.addEventListener("click", () => {
+      const modal = now.closest(".st-price-monitor-modal");
+      if (!modal) return;
+      const current = new Date();
+      const value = `${String(current.getHours()).padStart(2, "0")}:${String(current.getMinutes()).padStart(2, "0")}`;
+      setMonitorTimeValue(modal, value);
+      buildMonitorTimeOptions(modal);
+      updateMonitorExplanation(modal);
+    });
+    confirm.addEventListener("click", () => {
+      const modal = confirm.closest(".st-price-monitor-modal");
+      if (!modal) return;
+      const value = `${modal.dataset.monitorHour || "00"}:${modal.dataset.monitorMinute || "00"}`;
+      setMonitorTimeValue(modal, value);
+      closeMonitorTimePanel(modal);
+      updateMonitorExplanation(modal);
+    });
+
+    return wrap;
+  }
+
+  function monitorDashboardButton() {
+    const button = modalElement("button", "st-price-monitor-dashboard");
+    button.type = "button";
+    button.dataset.monitorAction = "dashboard";
+    button.title = "在素材君查看全部监控";
+    button.append(monitorExternalIcon(), modalElement("span", "", "监控列表"));
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      externalNavigation.open(MONITOR_DASHBOARD_URL);
+    });
+    return button;
+  }
+
+  function ensureMonitorModal() {
+    let modal = document.getElementById(MONITOR_MODAL_ID);
+    if (modal) modal.remove();
+
+    modal = modalElement("section", "st-price-monitor-modal");
+    modal.id = MONITOR_MODAL_ID;
+    modal.hidden = true;
+
+    const panel = modalElement("div", "st-price-monitor-dialog");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "st-price-monitor-title");
+
+    const header = modalElement("div", "st-price-monitor-head");
+    const heading = modalElement("div", "st-price-monitor-heading");
+    const title = modalElement("h3", "", "打折监控");
+    title.id = "st-price-monitor-title";
+    heading.appendChild(title);
+    heading.appendChild(modalElement("div", "st-price-monitor-item-name"));
+    const close = modalElement("button", "st-price-monitor-close", "×");
+    close.type = "button";
+    close.title = "关闭";
+    close.dataset.monitorAction = "close";
+    close.addEventListener("click", closeMonitorModal);
+    header.append(heading, close);
+
+    const body = modalElement("div", "st-price-monitor-body");
+    const conditionLabel = modalElement("div", "st-price-monitor-group-label", "监控条件");
+    const modes = modalElement("div", "st-price-monitor-modes");
+    modes.setAttribute("role", "tablist");
+    [["amount", "期望金额"], ["discount", "期望折扣"]].forEach(([mode, label]) => {
+      const button = modalElement("button", "", label);
+      button.type = "button";
+      button.setAttribute("role", "tab");
+      button.dataset.monitorMode = mode;
+      button.addEventListener("click", () => setMonitorMode(modal, mode));
+      modes.appendChild(button);
+    });
+
+    const amountField = monitorRangeField("amount", "期望金额", {
+      min: 1,
+      max: 1,
+      step: 0.01,
+      decimals: 2,
+      prefix: "¥",
+    });
+    const discountField = monitorRangeField("discount", "期望折扣（1-100%）", {
+      min: 1,
+      max: 100,
+      step: 1,
+      decimals: 0,
+      suffix: "%",
+    });
+
+    const notifyLabel = modalElement("div", "st-price-monitor-group-label", "提醒方式");
+    const channels = modalElement("div", "st-price-monitor-channels");
+    [["notify_qq", "QQ"], ["notify_email", "邮件"]].forEach(([name, label]) => {
+      const option = modalElement("label", "st-price-monitor-channel");
+      const checkbox = modalInput("checkbox", name);
+      checkbox.className = "";
+      checkbox.addEventListener("change", () => updateMonitorExplanation(checkbox.closest(".st-price-monitor-modal")));
+      option.append(checkbox, modalElement("span", "", label));
+      channels.appendChild(option);
+    });
+
+    const timeLabel = modalElement("div", "st-price-monitor-group-label", "提醒时间");
+    const timeField = monitorTimeField();
+    const message = modalElement("div", "st-price-monitor-message");
+    message.setAttribute("role", "status");
+    message.setAttribute("aria-live", "polite");
+    const explanation = modalElement("div", "st-price-monitor-explanation");
+    explanation.dataset.monitorExplanation = "true";
+    explanation.setAttribute("role", "status");
+    explanation.setAttribute("aria-live", "polite");
+    explanation.appendChild(modalElement("p"));
+
+    body.append(
+      conditionLabel,
+      modes,
+      amountField,
+      discountField,
+      notifyLabel,
+      channels,
+      timeLabel,
+      timeField,
+      message,
+      explanation
+    );
+
+    const actions = modalElement("div", "st-price-monitor-actions");
+    const remove = modalElement("button", "st-price-monitor-delete", "删除监控");
+    remove.type = "button";
+    remove.dataset.monitorAction = "delete";
+    remove.addEventListener("click", () => deleteMonitorFromModal(modal, remove));
+    const dashboard = monitorDashboardButton();
+    const spacer = modalElement("span", "st-price-monitor-actions-spacer");
+    const cancel = modalElement("button", "st-price-monitor-action", "取消");
+    cancel.type = "button";
+    cancel.dataset.monitorAction = "close";
+    cancel.addEventListener("click", closeMonitorModal);
+    const save = modalElement("button", "st-price-monitor-action st-price-monitor-action--primary", "保存");
+    save.type = "button";
+    save.dataset.monitorAction = "save";
+    save.addEventListener("click", () => saveMonitorFromModal(modal));
+    actions.append(remove, dashboard, spacer, cancel, save);
+
+    panel.append(header, body, actions);
+    modal.appendChild(panel);
+    modal.addEventListener("click", (event) => {
+      if (!event.target?.closest?.(".st-price-monitor-time-wrap")) closeMonitorTimePanel(modal);
+      if (event.target === modal && modal.dataset.busy !== "true") closeMonitorModal();
+    });
+    modal.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      const timePanel = modal.querySelector("[data-monitor-time-panel]");
+      if (timePanel && !timePanel.hidden) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMonitorTimePanel(modal);
+        return;
+      }
+      closeMonitorModal();
+    });
+    document.documentElement.appendChild(modal);
+    return modal;
+  }
+
+  function setMonitorModalMessage(message, isError = false) {
+    const node = document.querySelector(`#${MONITOR_MODAL_ID} .st-price-monitor-message`);
+    if (!node) return;
+    node.textContent = message || "";
+    node.classList.toggle("st-price-monitor-message--error", !!isError);
+  }
+
+  function setMonitorNumericValue(modal, mode, value, fallbackValue) {
+    const range = modal.querySelector(`[data-monitor-range='${mode}']`);
+    const numberInput = modal.querySelector(`[name='target_${mode}']`);
+    if (!range || !numberInput) return;
+    const parsed = Number(value);
+    const hasValue = value !== null && value !== "" && Number.isFinite(parsed);
+    const initial = hasValue ? parsed : fallbackValue;
+    const normalized = clampMonitorControlValue(range, initial);
+    range.value = String(normalized);
+    numberInput.value = formatMonitorControlValue(normalized, mode === "amount" ? 2 : 0);
+  }
+
+  function parseMonitorTime(value) {
+    const match = /^(?:([01]\d|2[0-3])):([0-5]\d)$/.exec(String(value || ""));
+    return match ? { hour: match[1], minute: match[2] } : null;
+  }
+
+  function setMonitorTimeValue(modal, value) {
+    const parsed = parseMonitorTime(value);
+    const input = modal.querySelector("[name='notify_time']");
+    const trigger = modal.querySelector("[data-monitor-time-trigger]");
+    const text = trigger?.querySelector(".st-price-monitor-time-text");
+    if (!input || !trigger || !text) return;
+    input.value = parsed ? `${parsed.hour}:${parsed.minute}` : "";
+    modal.dataset.monitorHour = parsed?.hour || "00";
+    modal.dataset.monitorMinute = parsed?.minute || "00";
+    text.textContent = input.value || "--:--";
+    trigger.classList.toggle("st-price-monitor-time-trigger--placeholder", !parsed);
+  }
+
+  function selectMonitorTimePart(modal, part, value) {
+    if (part === "hour") modal.dataset.monitorHour = value;
+    else modal.dataset.monitorMinute = value;
+    modal.querySelectorAll(`[data-monitor-time-column='${part}'] [role='option']`).forEach((option) => {
+      const selected = option.dataset.monitorTimeValue === value;
+      option.classList.toggle("selected", selected);
+      option.setAttribute("aria-selected", selected ? "true" : "false");
+    });
+  }
+
+  function buildMonitorTimeOptions(modal) {
+    [["hour", 24], ["minute", 60]].forEach(([part, count]) => {
+      const column = modal.querySelector(`[data-monitor-time-column='${part}']`);
+      if (!column) return;
+      clearNode(column);
+      const selectedValue = part === "hour"
+        ? (modal.dataset.monitorHour || "00")
+        : (modal.dataset.monitorMinute || "00");
+      for (let index = 0; index < count; index += 1) {
+        const value = String(index).padStart(2, "0");
+        const option = modalElement("button", "st-price-monitor-time-option", value);
+        option.type = "button";
+        option.dataset.monitorTimeValue = value;
+        option.setAttribute("role", "option");
+        const selected = value === selectedValue;
+        option.classList.toggle("selected", selected);
+        option.setAttribute("aria-selected", selected ? "true" : "false");
+        option.addEventListener("click", () => selectMonitorTimePart(modal, part, value));
+        column.appendChild(option);
+      }
+    });
+  }
+
+  function openMonitorTimePanel(modal) {
+    const panel = modal.querySelector("[data-monitor-time-panel]");
+    const trigger = modal.querySelector("[data-monitor-time-trigger]");
+    if (!panel || !trigger || trigger.disabled) return;
+    panel.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    buildMonitorTimeOptions(modal);
+    panel.querySelectorAll(".st-price-monitor-time-option.selected").forEach((option) => {
+      option.scrollIntoView({ block: "center" });
+    });
+  }
+
+  function closeMonitorTimePanel(modal) {
+    const panel = modal?.querySelector?.("[data-monitor-time-panel]");
+    const trigger = modal?.querySelector?.("[data-monitor-time-trigger]");
+    if (panel) panel.hidden = true;
+    trigger?.setAttribute?.("aria-expanded", "false");
+  }
+
+  function updateMonitorExplanation(modal) {
+    if (!modal || !monitorModalState) return;
+    const explanation = modal.querySelector("[data-monitor-explanation]");
+    const paragraph = explanation?.querySelector("p");
+    if (!explanation || !paragraph) return;
+    const context = monitorModalState;
+    const mode = modal.dataset.monitorMode === "discount" ? "discount" : "amount";
+    const valueInput = modal.querySelector(`[name='target_${mode}']`);
+    const rawValue = String(valueInput?.value || "").trim();
+    const value = Number(rawValue);
+    const valueValid = mode === "amount"
+      ? rawValue !== "" && Number.isFinite(value) && value >= 1 && value <= context.regularAmount
+      : rawValue !== "" && Number.isInteger(value) && value >= 1 && value <= 100;
+    const channels = [];
+    if (modal.querySelector("[name='notify_qq']")?.checked) channels.push("QQ");
+    if (modal.querySelector("[name='notify_email']")?.checked) channels.push("邮件");
+    const notifyTime = String(modal.querySelector("[name='notify_time']")?.value || "");
+    const timeValid = !!parseMonitorTime(notifyTime);
+    const missing = [];
+    if (!valueValid) missing.push(mode === "amount" ? "期望金额" : "期望折扣");
+    if (!channels.length) missing.push("提醒方式");
+    if (!timeValid) missing.push("提醒时间");
+
+    clearNode(paragraph);
+    explanation.classList.toggle("st-price-monitor-explanation--warning", missing.length > 0);
+    if (missing.length) {
+      appendText(paragraph, "请完善 ");
+      appendSpan(paragraph, missing.join("、"), "st-price-monitor-explanation-value");
+      appendText(paragraph, "，以启用本条打折监控。");
+      return;
+    }
+
+    const itemName = context.itemName || `${context.target.type.toUpperCase()} ${context.target.id}`;
+    appendText(paragraph, "当《");
+    appendSpan(paragraph, itemName, "st-price-monitor-explanation-item");
+    appendText(paragraph, "》");
+    if (mode === "amount") {
+      appendText(paragraph, "降至 ");
+      appendSpan(paragraph, monitorAmountText(value, context.currency), "st-price-monitor-explanation-value");
+      appendText(paragraph, " 及以下时，将于当天 ");
+    } else {
+      appendText(paragraph, "折扣达到 ");
+      appendSpan(paragraph, `${Math.round(value)}%`, "st-price-monitor-explanation-value");
+      appendText(paragraph, " 及以上时，将于当天 ");
+    }
+    appendSpan(paragraph, notifyTime, "st-price-monitor-explanation-value");
+    appendText(paragraph, " 通过 ");
+    appendSpan(paragraph, channels.join(" 和 "), "st-price-monitor-explanation-value");
+    appendText(paragraph, " 通知你。");
+  }
+
+  function setMonitorMode(modal, mode) {
+    const selected = mode === "discount" ? "discount" : "amount";
+    modal.dataset.monitorMode = selected;
+    modal.querySelectorAll("[data-monitor-mode]").forEach((button) => {
+      const active = button.dataset.monitorMode === selected;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    modal.querySelectorAll("[data-monitor-field]").forEach((field) => {
+      field.hidden = field.dataset.monitorField !== selected;
+    });
+    updateMonitorExplanation(modal);
+  }
+
+  function setMonitorModalBusy(modal, busy) {
+    modal.dataset.busy = busy ? "true" : "false";
+    modal.querySelectorAll("button, input").forEach((control) => {
+      if (control.dataset.monitorAction === "dashboard") return;
+      control.disabled = !!busy;
+    });
+  }
+
+  function setMonitorModalDenied(modal, denied) {
+    modal.dataset.denied = denied ? "true" : "false";
+    modal.querySelectorAll(
+      "[data-monitor-mode], .st-price-monitor-body input, [data-monitor-time-trigger], [data-monitor-time-action], [data-monitor-action='save'], [data-monitor-action='delete']"
+    ).forEach((control) => {
+      control.disabled = !!denied;
+    });
+  }
+
+  async function openMonitorModal(context) {
+    await context.itemNameTask;
+    const modal = ensureMonitorModal();
+    const monitor = monitorCache.get(context.key) || null;
+    monitorModalState = context;
+    modal.dataset.monitorKey = context.key;
+    modal.hidden = false;
+    setMonitorModalBusy(modal, false);
+    setMonitorModalDenied(modal, !!context.monitorDenied);
+    setMonitorModalMessage("");
+
+    const itemName = modal.querySelector(".st-price-monitor-item-name");
+    if (itemName) itemName.textContent = context.itemName || `${context.target.type.toUpperCase()} ${context.target.id}`;
+
+    const amountInput = modal.querySelector("[name='target_amount']");
+    const discountInput = modal.querySelector("[name='target_discount']");
+    const qqInput = modal.querySelector("[name='notify_qq']");
+    const emailInput = modal.querySelector("[name='notify_email']");
+    const amountRange = modal.querySelector("[data-monitor-range='amount']");
+    const discountRange = modal.querySelector("[data-monitor-range='discount']");
+    const currencyUnit = modal.querySelector("[data-monitor-currency-unit]");
+    amountInput.max = String(context.regularAmount);
+    amountRange.max = String(context.regularAmount);
+    discountRange.max = "100";
+    if (currencyUnit) currencyUnit.textContent = monitorCurrencySymbol(context.currency);
+    const defaultAmount = Number(Math.max(1, context.regularAmount / 2).toFixed(2));
+    setMonitorNumericValue(
+      modal,
+      "amount",
+      monitor?.targetMode === "amount" ? monitor.targetAmount : null,
+      defaultAmount
+    );
+    setMonitorNumericValue(
+      modal,
+      "discount",
+      monitor?.targetMode === "discount" ? monitor.targetDiscount : null,
+      50
+    );
+    qqInput.checked = !!monitor?.notifyQq;
+    emailInput.checked = !!monitor?.notifyEmail;
+    setMonitorTimeValue(modal, monitor?.notifyTime || "");
+    const amountLabel = modal.querySelector("[data-monitor-field='amount'] .st-price-monitor-field-label");
+    if (amountLabel) amountLabel.textContent = `期望金额（最高 ${money({ amount: context.regularAmount, currency: context.currency })}）`;
+    const deleteButton = modal.querySelector("[data-monitor-action='delete']");
+    deleteButton.hidden = !monitor || !!context.monitorDenied;
+    deleteButton.dataset.confirm = "";
+    deleteButton.textContent = "删除监控";
+    setMonitorMode(modal, monitor?.targetMode || "amount");
+    updateMonitorExplanation(modal);
+
+    if (context.monitorDenied) {
+      setMonitorModalMessage("该功能仅限会员使用。", true);
+    } else {
+      try {
+        if (!await hasMonitorAuth()) {
+          setMonitorModalMessage("请先在 Steam Buff 设置中登录。", true);
+        }
+      } catch (error) {
+        setMonitorModalMessage(error?.message || "鉴权检查失败。", true);
+      }
+    }
+    const activeInput = modal.querySelector(`[data-monitor-field='${modal.dataset.monitorMode}'] .st-price-monitor-number-input`);
+    if (!context.monitorDenied) activeInput?.focus?.();
+  }
+
+  function closeMonitorModal() {
+    const modal = document.getElementById?.(MONITOR_MODAL_ID);
+    if (!modal) return;
+    closeMonitorTimePanel(modal);
+    modal.hidden = true;
+    modal.dataset.busy = "false";
+    monitorModalState = null;
+  }
+
+  function monitorPayload(modal, context) {
+    const mode = modal.dataset.monitorMode === "discount" ? "discount" : "amount";
+    const amountText = String(modal.querySelector("[name='target_amount']")?.value || "").trim();
+    const discountText = String(modal.querySelector("[name='target_discount']")?.value || "").trim();
+    const targetAmount = Number(amountText);
+    const targetDiscount = Number(discountText);
+    const notifyQq = !!modal.querySelector("[name='notify_qq']")?.checked;
+    const notifyEmail = !!modal.querySelector("[name='notify_email']")?.checked;
+    const notifyTime = String(modal.querySelector("[name='notify_time']")?.value || "").trim();
+    const timezone = monitorTimezone();
+
+    if (mode === "amount" && (amountText === "" || !Number.isFinite(targetAmount) || targetAmount < 1 || targetAmount > context.regularAmount)) {
+      throw new Error(`期望金额必须在 1 到 ${money({ amount: context.regularAmount, currency: context.currency })} 之间。`);
+    }
+    if (mode === "discount" && (discountText === "" || !Number.isInteger(targetDiscount) || targetDiscount < 1 || targetDiscount > 100)) {
+      throw new Error("期望折扣必须是 1 到 100 之间的整数。");
+    }
+    if (!notifyQq && !notifyEmail) throw new Error("至少选择一种提醒方式。");
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(notifyTime)) throw new Error("请设置提醒时间。");
+    if (!timezone) throw new Error("无法读取当前时区，暂时不能保存。");
+
+    return {
+      item_type: context.target.type,
+      item_id: context.target.id,
+      appid: context.appid,
+      item_name: context.itemName,
+      currency: context.currency,
+      regular_amount: Number(context.regularAmount.toFixed(2)),
+      target_mode: mode,
+      target_amount: mode === "amount" ? Number(targetAmount.toFixed(2)) : null,
+      target_discount: mode === "discount" ? targetDiscount : null,
+      notify_qq: notifyQq,
+      notify_email: notifyEmail,
+      notify_time: notifyTime,
+      timezone,
+    };
+  }
+
+  async function saveMonitorFromModal(modal) {
+    const context = monitorModalState;
+    if (!context || modal.dataset.busy === "true") return;
+    let payload;
+    try {
+      payload = monitorPayload(modal, context);
+    } catch (error) {
+      setMonitorModalMessage(error?.message || String(error), true);
+      return;
+    }
+
+    setMonitorModalBusy(modal, true);
+    setMonitorModalMessage("正在保存...");
+    const startedAt = Date.now();
+    const operationId = window.STLoggerFactory?.createRequestId?.() || "";
+    try {
+      const body = await monitorPost(MONITOR_SAVE_URL, payload, operationId);
+      const monitor = normalizeMonitor(body.data);
+      if (!monitor || `${monitor.itemType}:${monitor.itemId}` !== context.key) {
+        throw new Error("打折监控保存响应不完整");
+      }
+      monitorCache.set(context.key, monitor);
+      refreshMonitorHost(context);
+      closeMonitorModal();
+      log.info("price-monitor-save-success", "打折监控保存完成", {
+        operationId,
+        itemType: context.target.type,
+        itemId: context.target.id,
+        targetMode: monitor.targetMode,
+        notifyQq: monitor.notifyQq,
+        notifyEmail: monitor.notifyEmail,
+        durationMs: Date.now() - startedAt,
+      });
+    } catch (error) {
+      setMonitorModalBusy(modal, false);
+      setMonitorModalMessage(error?.message || "保存失败，请稍后重试。", true);
+      log.warn("price-monitor-save-failed", "打折监控保存失败", {
+        operationId,
+        itemType: context.target.type,
+        itemId: context.target.id,
+        durationMs: Date.now() - startedAt,
+        status: error?.status || 0,
+        error,
+      });
+    }
+  }
+
+  async function deleteMonitorFromModal(modal, button) {
+    const context = monitorModalState;
+    if (!context || modal.dataset.busy === "true") return;
+    if (button.dataset.confirm !== "true") {
+      button.dataset.confirm = "true";
+      button.textContent = "确认删除";
+      clearTimeout(button._stConfirmTimer);
+      button._stConfirmTimer = setTimeout(() => {
+        if (!button.isConnected) return;
+        button.dataset.confirm = "";
+        button.textContent = "删除监控";
+      }, 4000);
+      return;
+    }
+
+    setMonitorModalBusy(modal, true);
+    setMonitorModalMessage("正在删除...");
+    const startedAt = Date.now();
+    const operationId = window.STLoggerFactory?.createRequestId?.() || "";
+    try {
+      await monitorPost(MONITOR_DELETE_URL, {
+        item_type: context.target.type,
+        item_id: context.target.id,
+      }, operationId);
+      monitorCache.set(context.key, null);
+      refreshMonitorHost(context);
+      closeMonitorModal();
+      log.info("price-monitor-delete-success", "打折监控删除完成", {
+        operationId,
+        itemType: context.target.type,
+        itemId: context.target.id,
+        durationMs: Date.now() - startedAt,
+      });
+    } catch (error) {
+      setMonitorModalBusy(modal, false);
+      setMonitorModalMessage(error?.message || "删除失败，请稍后重试。", true);
+      log.warn("price-monitor-delete-failed", "打折监控删除失败", {
+        operationId,
+        itemType: context.target.type,
+        itemId: context.target.id,
+        durationMs: Date.now() - startedAt,
+        status: error?.status || 0,
+        error,
+      });
+    }
+  }
+
   function idsFrom(value) {
     const raw = Array.isArray(value) ? value : [value];
     return raw.map(item => parseInt(item, 10)).filter(item => item > 0);
@@ -180,31 +1197,13 @@
     return `${target.type}:${target.id}`;
   }
 
-  function appidFromValue(value) {
-    const match = String(value || "").match(/\d+/);
-    return match ? parseInt(match[0], 10) : 0;
-  }
-
   function appidFromDlcRow(row) {
-    const own = appidFromValue(row?.dataset?.dsAppid || row?.getAttribute?.("data-ds-appid"));
-    if (own) return own;
-    const holder = row?.querySelector?.("[data-ds-appid], [data-appid], [data-app-id]");
-    const fromHolder = appidFromValue(holder?.dataset?.dsAppid || holder?.dataset?.appid || holder?.dataset?.appId);
-    if (fromHolder) return fromHolder;
-    const link = row?.querySelector?.('a[href*="/app/"]');
-    const match = String(link?.href || "").match(/\/app\/(\d+)/);
-    return match ? parseInt(match[1], 10) : 0;
+    const appid = parseInt(row?.dataset?.dsAppid, 10);
+    return appid > 0 ? appid : 0;
   }
 
   function dlcPriceText(row) {
-    const nodes = row?.querySelectorAll?.([
-      ".discount_final_price",
-      ".discount_original_price",
-      ".game_area_dlc_price",
-      ".dlc_purchase_action",
-    ].join(",")) || [];
-    const text = Array.from(nodes).map(node => node.textContent).join(" ");
-    return normalizeSteamText(text || row?.textContent || "");
+    return normalizeSteamText(row?.querySelector?.(".game_area_dlc_price")?.textContent || "");
   }
 
   function dlcPaid(row) {
@@ -288,36 +1287,13 @@
   }
 
   function dlcPriceAnchor(row) {
-    const selectors = [".game_area_dlc_price", ".dlc_purchase_action", ".discount_block", ".game_purchase_discount"];
-    for (const selector of selectors) {
-      const node = row.querySelector?.(selector);
-      if (node) return node;
-    }
-    const price = row.querySelector?.(".discount_final_price") || row.querySelector?.(".discount_original_price");
-    return price?.closest?.(".discount_block, .game_purchase_discount") || price?.parentNode || price || null;
-  }
-
-  function dlcFallbackNode(row) {
-    const selectors = [".game_area_dlc_name", ".tab_item_name", "h4"];
-    for (const selector of selectors) {
-      const node = row.querySelector?.(selector);
-      if (node) return node;
-    }
-
-    return Array.from(row.children || []).find((child) => {
-      const cls = ` ${String(child?.className || "")} `;
-      return !cls.includes(" game_area_dlc_price ")
-        && !cls.includes(" dlc_purchase_action ")
-        && !cls.includes(" discount_final_price ")
-        && !cls.includes(" discount_original_price ");
-    }) || row;
+    return row?.querySelector?.(".game_area_dlc_price") || null;
   }
 
   function dlcMountPoint(row) {
     if (!row || row.isConnected === false) return null;
     const price = dlcPriceAnchor(row);
-    if (price?.parentNode) return { parent: price.parentNode, before: price };
-    return { parent: dlcFallbackNode(row), before: null };
+    return price?.parentNode ? { parent: price.parentNode, before: price } : null;
   }
 
   function mountPointForTarget(target) {
@@ -340,6 +1316,8 @@
 
   function clearExistingPriceNodes() {
     document.querySelectorAll("#game_area_purchase .game_lowest_price, .game_lowest_price").forEach(node => node.remove());
+    monitorHosts.clear();
+    closeMonitorModal();
   }
 
   function markLoading(node, queryId, target) {
@@ -424,6 +1402,10 @@
     return typeof formatPrice === "function" && currency ? formatPrice(amount, currency) : `${currency} ${amount}`.trim();
   }
 
+  function compactMoney(price) {
+    return money(price).replace(/\s+/g, "");
+  }
+
   function dateText(value) {
     if (typeof formatDate === "function") return formatDate(value);
     const time = Date.parse(String(value || ""));
@@ -466,28 +1448,36 @@
     const diff = Number((currentAmount - lowAmount).toFixed(2));
     const cutDiff = (Number(current?.cut) || 0) - (Number(low?.cut) || 0);
 
-    if (currentAmount <= lowAmount) {
-      if ((Number(current?.cut) || 0) > (Number(low?.cut) || 0)) {
-        appendText(parent, "，比该次价格");
-        appendSpan(parent, `便宜 ${money({ amount: Math.abs(diff), currency })}（-${Math.abs(cutDiff)}%）`, "", {
-          color: colors.success,
-        });
-      } else {
-        appendText(parent, "，与该次价格持平");
-      }
+    if (diff < 0) {
+      appendText(parent, " ，比历史最低");
+      appendSpan(parent, `便宜${compactMoney({ amount: Math.abs(diff), currency })}元(-${Math.abs(cutDiff)}%)。`, "", {
+        color: colors.success,
+      });
       return;
     }
-
-    appendText(parent, "，比该次价格");
-    appendSpan(parent, `贵 ${money({ amount: diff, currency })}（+${Math.abs(cutDiff)}%）`, "", {
+    if (diff === 0) {
+      appendText(parent, " ，与历史最低持平。");
+      return;
+    }
+    appendText(parent, " ，比历史最低");
+    appendSpan(parent, `贵${compactMoney({ amount: diff, currency })}元(+${Math.abs(cutDiff)}%)。`, "", {
       color: colors.danger,
     });
   }
 
-  function renderSummary(node, queryId, summary) {
+  function lowSelection(summary, chartSettings) {
+    return api.features.dataDisplayCharts.prepareSeries({
+      current: summary.current,
+      storeLow: summary.historicalLow,
+      events: summary.historyEvents,
+    }, chartSettings).stats;
+  }
+
+  function renderSummary(node, queryId, summary, target, pageAppId, cc, chartSettings) {
     if (!activeNode(node, queryId)) return false;
     const current = summary.current;
-    const low = currentRegularDiscountLow(summary);
+    const selection = lowSelection(summary, chartSettings);
+    const low = selection.referenceLow;
     if (!summary.found) {
       return setActiveMessage(node, queryId, "ITAD 暂未收录当前购买项。");
     }
@@ -497,16 +1487,15 @@
 
     node.dataset.stPriceHistoryState = "done";
     clearNode(node);
-    appendText(node, "当前原价下，历史最大折扣在 ");
+    appendText(node, "历史最低折扣在 ");
     appendSpan(node, dateText(low.timestamp), "", { textDecoration: "underline" });
     appendText(node, `${daysText(low.timestamp)} 为 `);
     appendDiscount(node, low.cut);
     appendText(node, ` ${money(low.price)}`);
 
     appendBreak(node);
-    const currentAmount = amountOf(current.price);
-    const lowAmount = amountOf(low.price);
-    if (currentAmount !== null && lowAmount !== null && currentAmount <= lowAmount) {
+    const currentIsHistoricalLow = selection.isCurrentLow;
+    if (currentIsHistoricalLow) {
       appendSpan(node, "当前为历史最低折扣", "game_purchase_discount_countdown", {
         color: colors.danger,
       });
@@ -520,45 +1509,28 @@
       appendText(node, " ");
       appendDiscount(node, current.cut);
     }
-    appendText(node, ` ${money(current.price)}`);
+    if (currentIsHistoricalLow) {
+      appendSpan(node, ` ${money(current.price)}`, "", { color: colors.danger });
+    } else {
+      appendText(node, ` ${money(current.price)}`);
+    }
     appendCompare(node, current, low);
 
     if (summary.overviewAvailable) {
+      appendText(node, Number.isInteger(summary.bundled) ? ` 进包：${summary.bundled}次` : " 进包：暂不可用");
+    }
+
+    const context = monitorContext(target, summary, pageAppId, cc);
+    if (context) {
       appendBreak(node);
-      appendText(node, Number.isInteger(summary.bundled) ? `历史进包：${summary.bundled}次` : "历史进包：暂不可用");
+      mountMonitorLine(node, context);
     }
     appendBreak(node);
     appendBreak(node);
     appendText(node, "在");
     appendLink(node, summary.source?.name || PROVIDER_LABEL, current.url || low.url || summary.source?.url);
     appendText(node, "查看详情");
-    return true;
-  }
-
-  function sameMoney(left, right) {
-    return !!left
-      && !!right
-      && String(left.currency || "") === String(right.currency || "")
-      && Number(left.amount) === Number(right.amount);
-  }
-
-  function currentRegularDiscountLow(summary = {}) {
-    const regular = summary.current?.regular;
-    if (!regular || !Number.isFinite(Number(regular.amount))) return null;
-    const events = (Array.isArray(summary.historyEvents) ? summary.historyEvents : [])
-      .slice()
-      .sort((left, right) => Date.parse(left.timestamp || 0) - Date.parse(right.timestamp || 0));
-    const eligible = events.filter(event => event?.price && sameMoney(event.regular, regular) && Number.isFinite(Number(event.cut)));
-    if (!eligible.length) return null;
-    const maxCut = Math.max(...eligible.map(event => Number(event.cut)));
-    let inPeriod = false;
-    let latestStart = null;
-    for (const event of events) {
-      const matches = !!event?.price && sameMoney(event.regular, regular) && Number(event.cut) === maxCut;
-      if (matches && !inPeriod) latestStart = event;
-      inPeriod = matches;
-    }
-    return latestStart;
+    return context;
   }
 
   function bindDlcRegionalPrice(node, queryId, target, historyLabel) {
@@ -611,22 +1583,34 @@
     });
   }
 
-  function renderPack(nodes, queryId, result) {
+  async function renderPack(nodes, queryId, result, pageAppId, cc, chartSettings) {
+    const monitorContexts = [];
     Object.values(nodes).forEach(({ node, target }) => {
       const summary = api.thirdPartyData?.summarizePricePack?.(result, target) || {};
       if (target.surface === "dlc") {
         renderDlcSummary(node, queryId, summary, target);
       } else {
-        renderSummary(node, queryId, summary);
+        const context = renderSummary(node, queryId, summary, target, pageAppId, cc, chartSettings);
+        if (context) monitorContexts.push(context);
       }
     });
+    await Promise.all([
+      hydrateMonitors(monitorContexts),
+      Promise.all(monitorContexts.map(context => context.itemNameTask)),
+    ]);
   }
 
-  async function queryPricePack(appId, type, subIds, bundleids, cc, targets) {
+  async function storePriceChartSettings() {
+    const storage = globalThis.STSettings.storage;
+    if (typeof storage.getStorePriceChart === "function") return storage.getStorePriceChart();
+    return globalThis.STSettings.catalog.storePriceChartDefaults();
+  }
+
+  async function queryPricePack(appId, type, subIds, bundleids, cc, targets, chartSettings) {
     return api.thirdPartyData.getPricePack(pageInfo(appId, type, subIds, bundleids, targets), {
       pageCountry: cc,
       mode: "summary",
-      includeHistory: type === "app",
+      includeHistory: type === "app" && chartSettings.lowCriterion !== "api",
       overviewSummary: type === "app",
       items: targets.map(target => ({ type: target.type, id: target.id })),
       overviewItems: targets
@@ -677,10 +1661,12 @@
       provider: "isthereanydeal",
     });
 
-    return queryPricePack(appId, type, subIds, bundleids, cc, targets)
-      .then((result) => {
+    return storePriceChartSettings()
+      .then(chartSettings => queryPricePack(appId, type, subIds, bundleids, cc, targets, chartSettings)
+        .then(result => ({ chartSettings, result })))
+      .then(async ({ chartSettings, result }) => {
         if (result?.ok === true) {
-          renderPack(nodes, queryId, result);
+          await renderPack(nodes, queryId, result, appId, cc, chartSettings);
         } else {
           renderUnavailable(nodes, queryId, result || {});
         }

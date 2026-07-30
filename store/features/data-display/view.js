@@ -180,7 +180,9 @@
 
   function priceAtCut(base, cut, currency = "") {
     if (!Number.isFinite(Number(base))) return "暂无";
-    return amountMoney(Math.max(0, Number(base) * (1 - Number(cut) / 100)), currency);
+    const amount = Math.max(0, Number(base) * (1 - Number(cut) / 100));
+    const rounded = Math.round((amount + Number.EPSILON) * 100) / 100;
+    return amountMoney(rounded, currency);
   }
 
   function section(settingId, title, body, meta, detail) {
@@ -291,8 +293,6 @@
     const lowEvidence = lowReference && !["unavailable", "free-history"].includes(lowOutlook.state)
       ? historicalLowEvidence(lowOutlook)
       : "";
-    const source = text(result?.source?.name || result?.provider || "IsThereAnyDeal");
-
     const sections = [];
     if (discountAnalysis.state === "free") {
       sections.push(section(
@@ -314,7 +314,7 @@
         "未来折扣推测",
         activeBody,
         lowReference,
-        [lowEvidence, `数据来源 ${source}。`].filter(Boolean).join(" ")
+        lowEvidence
       ));
     } else if (!predictedDays) {
       sections.push(section(
@@ -322,7 +322,7 @@
         "未来折扣推测",
         "样本数据不足，暂时算不出下一次折扣。",
         lowReference,
-        [lowEvidence, `数据来源 ${source}。`].filter(Boolean).join(" ")
+        lowEvidence
       ));
     } else {
       const riskText = correction?.mode === "sparse" || discountAnalysis.state === "limited"
@@ -358,7 +358,7 @@
         [
           riskText,
           lowEvidence,
-          `参考 ${discountAnalysis.eventsCount || discounted.length} 次折扣；数据来源 ${source}。`,
+          `参考 ${discountAnalysis.eventsCount || discounted.length} 次折扣。`,
         ].filter(Boolean).join(" ")
       ));
     }

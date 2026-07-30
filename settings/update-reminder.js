@@ -12,7 +12,7 @@
   "use strict";
 
   const api = globalThis.STUpdateChecker;
-  if (!api || globalThis.__SteamBuffUpdateReminderStarted) {
+  if (!api || api.isGoogleWebStore() || globalThis.__SteamBuffUpdateReminderStarted) {
     return;
   }
   globalThis.__SteamBuffUpdateReminderStarted = true;
@@ -276,6 +276,9 @@
 
   async function start() {
     if (!topHttpPage()) {
+      return;
+    }
+    if (globalThis.STLifecyclePrompts?.isBlocking?.()) {
       return;
     }
     let info = null;

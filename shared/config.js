@@ -16,6 +16,7 @@
   }
 
   const PROTOCOL = "https:";
+  const GOOGLE_WEB_STORE_UPDATE_URL = "https://clients2.google.com/service/update2/crx";
   const HOSTS = Object.freeze({
     site: "www.sucaijun.com",
     api: "api.sucaijun.com",
@@ -90,7 +91,7 @@
   }
 
   function helpSearch(key) {
-    return `${ORIGINS.site}/?s=${encoded(key)}&type=forum&trem=plate_562`;
+    return `${ORIGINS.site}/?s=${encoded(key)}&type=post&trem=19`;
   }
 
   function dynamicStoreUserdata(account, cc = "CN", version = "") {
@@ -164,11 +165,65 @@
     }
   }
 
-  function toSteamExternalUrl(url) {
+  function resolveExternalNavigation(url) {
     const target = String(url || "").trim();
-    if (!target) return "";
-    return isSteamClientPage() ? `steam://openurl_external/${target}` : target;
+    const steamClient = !!target && isSteamClientPage();
+    const href = steamClient ? `steam://openurl_external/${target}` : target;
+    return Object.freeze({
+      href,
+      target: href && !steamClient ? "_blank" : "",
+      rel: "noopener noreferrer",
+    });
   }
+
+  function applyExternalLink(link, url) {
+    if (!link || typeof link !== "object") return false;
+    const navigation = resolveExternalNavigation(url);
+    if (!navigation.href) return false;
+    link.href = navigation.href;
+    link.rel = navigation.rel;
+    if (navigation.target) {
+      link.target = navigation.target;
+    } else if (typeof link.removeAttribute === "function") {
+      link.removeAttribute("target");
+    } else {
+      link.target = "";
+    }
+    return true;
+  }
+
+  function openExternalUrl(url) {
+    const doc = root.document;
+    const parent = doc?.body || doc?.documentElement;
+    const link = doc?.createElement?.("a");
+    if (!parent?.appendChild || !link || typeof link.click !== "function" || !applyExternalLink(link, url)) {
+      return false;
+    }
+    link.style.display = "none";
+    parent.appendChild(link);
+    link.click();
+    link.remove?.();
+    return true;
+  }
+
+  const externalNavigation = Object.freeze({
+    resolve: resolveExternalNavigation,
+    applyToLink: applyExternalLink,
+    open: openExternalUrl,
+  });
+
+  function manifestUpdateUrl() {
+    try {
+      return String(root.chrome?.runtime?.getManifest?.()?.update_url || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  const distribution = Object.freeze({
+    googleWebStoreUpdateUrl: GOOGLE_WEB_STORE_UPDATE_URL,
+    isGoogleWebStore: () => manifestUpdateUrl() === GOOGLE_WEB_STORE_UPDATE_URL,
+  });
 
   const urls = Object.freeze({
     siteOrigin: ORIGINS.site,
@@ -265,6 +320,7 @@
       app: (appId) => join(ORIGINS.steamStore, `/app/${encoded(appId)}/`),
       appDetails: (appId, filters = "basic", lang = "english") => `${join(ORIGINS.steamStore, "/api/appdetails")}?appids=${encoded(appId)}&filters=${encoded(filters)}&l=${encoded(lang)}`,
       appDetailsForCountry: (appId, cc, filters = "price_overview", lang = "schinese") => `${join(ORIGINS.steamStore, "/api/appdetails")}?appids=${encoded(appId)}&filters=${encoded(filters)}&l=${encoded(lang)}&cc=${encoded(String(cc || "CN").toUpperCase())}`,
+      packageDetailsForCountry: (packageId, cc, lang = "schinese") => `${join(ORIGINS.steamStore, "/api/packagedetails")}?packageids=${encoded(packageId)}&l=${encoded(lang)}&cc=${encoded(String(cc || "CN").toUpperCase())}`,
       dynamicStoreUserdata,
       dynamicStoreUserdataBase: join(ORIGINS.steamStore, "/dynamicstore/userdata/"),
       familyManagement: () => join(ORIGINS.steamStore, "/account/familymanagement/?tab=library"),
@@ -382,9 +438,9 @@
     links,
     pages,
     matchers,
-    externalLinks: links,
+    distribution,
     origin,
-    toSteamExternalUrl,
+    externalNavigation,
     site: (path = "") => join(ORIGINS.site, path),
     api: (path = "") => join(ORIGINS.api, path),
     steamBuff: (path = "") => join(STEAM_BUFF_BASE, path),

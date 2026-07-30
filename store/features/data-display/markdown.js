@@ -24,8 +24,9 @@
     "table", "thead", "tbody", "tr", "th", "td",
     "a",
   ]);
-  const ALLOWED_ATTR = Object.freeze(["href", "title", "target", "rel"]);
+  const ALLOWED_ATTR = Object.freeze(["href", "title"]);
   const SAFE_LINK_PROTOCOL = /^https?:\/\//i;
+  const externalNavigation = root.STConfig?.externalNavigation;
   const log = root.STLoggerFactory?.createLogger?.("store", "ai-markdown");
   let parser = null;
   let errorReported = false;
@@ -59,9 +60,6 @@
       const href = hrefIndex >= 0 ? String(token.attrs[hrefIndex][1] || "") : "";
       if (!SAFE_LINK_PROTOCOL.test(href)) {
         if (hrefIndex >= 0) token.attrs.splice(hrefIndex, 1);
-      } else {
-        token.attrSet("target", "_blank");
-        token.attrSet("rel", "noopener noreferrer");
       }
       return defaultLinkOpen
         ? defaultLinkOpen(tokens, index, options, env, self)
@@ -94,8 +92,14 @@
       if (typeof dom?.trustedHTML !== "function" || typeof dom?.setTrustedHTML !== "function") {
         throw new Error("STDomUtils 可信 HTML 能力未加载");
       }
+      if (typeof externalNavigation?.applyToLink !== "function") {
+        throw new Error("外部链接导航能力未加载");
+      }
       const clean = sanitizedHtml(source);
       dom.setTrustedHTML(element, dom.trustedHTML(clean, "ai-markdown-dompurify-sanitized"));
+      element.querySelectorAll("a[href]").forEach(link => {
+        externalNavigation.applyToLink(link, link.href);
+      });
       return true;
     } catch (error) {
       element.textContent = source;

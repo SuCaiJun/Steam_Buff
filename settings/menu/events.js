@@ -252,9 +252,16 @@
     });
 
     listen(shadow, "keydown", (event) => {
+      if (panels.storePriceChart().handleKeydown(event, shadow)) {
+        return;
+      }
       if (!panels.review().handleKeydown(event, shadow)) {
         return;
       }
+    });
+
+    listen(shadow, "input", (event) => {
+      panels.storePriceChart().handleInput(event, shadow);
     });
 
     listen(shadow, "change", (event) => {

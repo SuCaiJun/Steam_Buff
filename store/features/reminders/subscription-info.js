@@ -19,6 +19,7 @@
   const isUsableExistingModule = api.dom.isUsableExistingModule;
   const fetchGames = api.subs?.fetchGames;
   const fetchGame = api.subs?.fetchGame;
+  const externalNavigation = globalThis.STConfig.externalNavigation;
 
   const OWNER = "store:subscription-info";
   const FEATURE_ID = "subscription-info";
@@ -163,9 +164,7 @@
       if (item.sub.link) {
         const link = document.createElement("a");
         link.className = "st_subscription_platform";
-        link.href = item.sub.link;
-        link.target = item.sub.target || "_blank";
-        link.rel = "noopener noreferrer";
+        externalNavigation.applyToLink(link, item.sub.link);
         link.textContent = item.info.name;
         line.appendChild(link);
       } else {

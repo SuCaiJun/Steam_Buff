@@ -17,13 +17,13 @@
   }
 
   const CFG = globalThis.STConfig;
-  const toExternalUrl = typeof CFG.toSteamExternalUrl === "function" ? CFG.toSteamExternalUrl : (url) => String(url || "");
+  const externalNavigation = CFG.externalNavigation;
   const UPDATE_PAGE = CFG.urls.updatePage;
   const DONATE_URL = CFG.urls.donate;
   const FEEDBACK_URL = CFG.urls.feedback;
   const DONATIONS_API = CFG.supporter("/donations?limit=100");
   const DONATION_CACHE_MS = 60 * 60 * 1000;
-  const OPEN_SOURCE_LIBS = Object.freeze(Array.from(CFG.links?.openSourceLibs || CFG.externalLinks?.openSourceLibs || []));
+  const OPEN_SOURCE_LIBS = Object.freeze(Array.from(CFG.links?.openSourceLibs || []));
   const sharedCss = globalThis.STComponents?.css;
   if (!sharedCss?.dialog || !sharedCss?.button) {
     throw new Error("[Steam Buff] 关于页面依赖 STComponents 未加载");
@@ -1039,11 +1039,16 @@
     }
   }
 
-  async function request(ctx) {
-    if (globalThis.STUpdateChecker?.check) {
-      return globalThis.STUpdateChecker.check({ manual: true });
-    }
-    throw new Error("更新检查模块未加载");
+  function isGoogleWebStore() {
+    return globalThis.STUpdateChecker.isGoogleWebStore();
+  }
+
+  function request() {
+    return globalThis.STUpdateChecker.check({ manual: true });
+  }
+
+  function requestStatus() {
+    return globalThis.STUpdateChecker.checkStatus();
   }
 
   async function showCurrentLog(shadow, ctx) {
@@ -1676,7 +1681,7 @@
       }).then((action) => {
         if (action === "open") {
           if (!globalThis.STUpdateChecker?.openDownload?.(next.link || ctx.homepage() || UPDATE_PAGE, { version: verText(next.remote || latest.version) })) {
-            openExternal(next.link || ctx.homepage() || UPDATE_PAGE);
+            externalNavigation.open(next.link || ctx.homepage() || UPDATE_PAGE);
           }
         } else if (action === "mute") {
           globalThis.STUpdateChecker?.muteToday?.(next.remote || latest.version);
@@ -1707,7 +1712,7 @@
     busy = true;
     ctx.refresh("about");
     try {
-      const next = await request(ctx);
+      const next = await request();
       info = next;
       busy = false;
       ctx.refresh("about");
@@ -1726,30 +1731,30 @@
     }
   }
 
+  async function refreshStatus(ctx) {
+    if (busy) {
+      return;
+    }
+
+    busy = true;
+    ctx.refresh("about");
+    try {
+      info = await requestStatus();
+    } catch {
+    } finally {
+      busy = false;
+      ctx.refresh("about");
+    }
+  }
+
   function home(ctx) {
     return ctx.homepage?.() || UPDATE_PAGE;
   }
 
-  function externalUrl(url) {
-    return toExternalUrl(url || "");
-  }
-
-  function externalHref(ctx, url) {
-    return ctx.esc(externalUrl(url));
-  }
-
-  function openExternal(url) {
-    const target = externalUrl(url);
-    if (!target) {
-      return;
-    }
-    const link = document.createElement("a");
-    link.href = target;
-    link.rel = "noreferrer noopener";
-    link.style.display = "none";
-    (document.body || document.documentElement).appendChild(link);
-    link.click();
-    link.remove();
+  function externalAttributes(ctx, url) {
+    const navigation = externalNavigation.resolve(url || "");
+    const target = navigation.target ? ` target="${ctx.esc(navigation.target)}"` : "";
+    return `href="${ctx.esc(navigation.href)}"${target} rel="${ctx.esc(navigation.rel)}"`;
   }
 
   function appIconUrl() {
@@ -1797,7 +1802,7 @@
 
   function updateLink(ctx) {
     const target = info?.link || home(ctx);
-    return `<a class="about-update-link" href="${externalHref(ctx, target)}" rel="noreferrer noopener">立即查看</a>`;
+    return `<a class="about-update-link" ${externalAttributes(ctx, target)}>立即查看</a>`;
   }
 
   function actionCard(ctx, item) {
@@ -1846,7 +1851,7 @@
       return `
         <div class="about-donors-empty">
           <span>成为第一位支持者 ❤</span>
-          <a class="about-action-link gold" href="${externalHref(ctx, DONATE_URL)}" rel="noreferrer noopener">去支持 ↗</a>
+          <a class="about-action-link gold" ${externalAttributes(ctx, DONATE_URL)}>去支持 ↗</a>
         </div>
       `;
     }
@@ -1860,7 +1865,7 @@
 
   function openSourceHtml(ctx) {
     const links = OPEN_SOURCE_LIBS.map(item => `
-      <a class="about-open-source-link" href="${externalHref(ctx, item.url)}" target="_blank" rel="noopener">
+      <a class="about-open-source-link" ${externalAttributes(ctx, item.url)}>
         <span>${ctx.esc(item.name)}</span> ↗
       </a>
     `).join("");
@@ -1885,6 +1890,7 @@
     const appIcon = appIconUrl();
     const current = ctx.version() || "未知版本";
     const state = status(ctx);
+    const googleWebStore = isGoogleWebStore();
     const health = logHealth();
     const quick = [
       actionCard(ctx, {
@@ -1892,14 +1898,14 @@
         icon: "globe",
         title: "项目主页",
         desc: "访问官网获取最新动态",
-        actions: `<a class="about-action-link" href="${externalHref(ctx, url)}" rel="noreferrer noopener">打开官网 ↗</a>`,
+        actions: `<a class="about-action-link" ${externalAttributes(ctx, url)}>打开官网 ↗</a>`,
       }),
       actionCard(ctx, {
         action: "feedback",
         icon: "feedback",
         title: "问题反馈",
         desc: "提交 Bug 或功能建议",
-        actions: `<a class="about-action-link" href="${externalHref(ctx, feedbackUrl)}" rel="noreferrer noopener">提交反馈 ↗</a>`,
+        actions: `<a class="about-action-link" ${externalAttributes(ctx, feedbackUrl)}>提交反馈 ↗</a>`,
       }),
       actionCard(ctx, {
         action: "version-log",
@@ -1937,7 +1943,7 @@
         title: "支持作者",
         desc: "一杯咖啡，让更新更有动力",
         gold: true,
-        actions: `<a class="about-action-link gold" href="${externalHref(ctx, DONATE_URL)}" rel="noreferrer noopener">去支持 ↗</a>`,
+        actions: `<a class="about-action-link gold" ${externalAttributes(ctx, DONATE_URL)}>去支持 ↗</a>`,
       }),
     ];
     return `
@@ -1957,11 +1963,13 @@
           </div>
           <div class="about-hero-actions">
             <span class="about-update-badge ${state.cls}">${ctx.esc(state.text)}</span>
-            ${updateLink(ctx)}
-            <button class="about-check update-check" type="button" ${busy ? "disabled" : ""}>
-              ${busy ? '<span class="about-spinner"></span>' : icon("refresh")}
-              <span>检查更新</span>
-            </button>
+            ${googleWebStore ? "" : updateLink(ctx)}
+            ${googleWebStore ? "" : `
+              <button class="about-check update-check" type="button" ${busy ? "disabled" : ""}>
+                ${busy ? '<span class="about-spinner"></span>' : icon("refresh")}
+                <span>检查更新</span>
+              </button>
+            `}
           </div>
         </section>
 
@@ -2030,33 +2038,27 @@
     return false;
   }
 
-  async function loadCachedUpdate(ctx) {
+  function emptyUpdateInfo(ctx) {
     const current = ctx.version() || "未知版本";
-    try {
-      const cached = await globalThis.STUpdateChecker?.cached?.();
-      info = cached || {
-        current,
-        remote: "",
-        latest: null,
-        link: home(ctx),
-        hasNew: false,
-        checkedAt: 0,
-      };
-    } catch {
-      info = {
-        current,
-        remote: "",
-        latest: null,
-        link: home(ctx),
-        hasNew: false,
-        checkedAt: 0,
-      };
-    }
-    ctx.refresh("about");
+    return {
+      current,
+      remote: "",
+      latest: null,
+      link: home(ctx),
+      hasNew: false,
+      checkedAt: 0,
+    };
+  }
+
+  function onOpen(shadow, ctx) {
+    void shadow;
+    refreshStatus(ctx);
   }
 
   function onPanelOpen(shadow, ctx) {
-    loadCachedUpdate(ctx);
+    void shadow;
+    info = emptyUpdateInfo(ctx);
+    ctx.refresh("about");
     refreshLogStats(ctx);
     loadDonors(ctx);
   }
@@ -2068,6 +2070,7 @@
     order: 910,
     html,
     handle,
+    onOpen,
     onPanelOpen,
     style: STYLE,
   });

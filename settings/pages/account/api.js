@@ -64,12 +64,7 @@
     return code >= 200 && code < 300;
   }
 
-  function externalUrl(target) {
-    const fn = CFG.toSteamExternalUrl;
-    return typeof fn === "function" ? fn(target) : String(target || "");
-  }
-
-  const api = Object.freeze({ urls, url, request, okCode, externalUrl });
+  const api = Object.freeze({ urls, url, request, okCode, externalNavigation: CFG.externalNavigation });
   root.STSettingsAccountApi = api;
 
   if (typeof module === "object" && module.exports) {

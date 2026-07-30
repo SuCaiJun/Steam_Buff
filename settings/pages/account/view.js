@@ -331,10 +331,11 @@
   }
 
   function serviceAttribution(ctx) {
-    const href = api.externalUrl(COMPUTE_SERVICE_URL);
+    const navigation = api.externalNavigation.resolve(COMPUTE_SERVICE_URL);
+    const target = navigation.target ? ` target="${ctx.esc(navigation.target)}"` : "";
     return `
       <div class="uc-service-attribution">
-        由<a href="${ctx.esc(href)}" target="_blank" rel="noreferrer noopener">雨云</a>提供计算服务
+        由<a href="${ctx.esc(navigation.href)}"${target} rel="${ctx.esc(navigation.rel)}">雨云</a>提供计算服务
       </div>
     `;
   }

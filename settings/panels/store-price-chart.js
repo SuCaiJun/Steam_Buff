@@ -13,10 +13,12 @@
 
   const catalog = root.STPriceComparisonCatalog;
   const log = root.STLoggerFactory?.createLogger?.("settings", "store-price-chart");
+  const FRANKFURTER_URL = root.STConfig.vendors.frankfurter.origin;
   const MAX_STORE_PRICE_SERIES = catalog.MAX_STORE_PRICE_SERIES;
   const CHART_SETTING_VALUES = Object.freeze({
-    lowCriterion: Object.freeze(["discount", "price"]),
+    lowCriterion: Object.freeze(["api", "discount", "price"]),
     lowReferenceScope: Object.freeze(["allRegular", "currentRegular", "recent12Months"]),
+    lowOccurrence: Object.freeze(["latest", "earliest"]),
   });
 
   function create(options = {}) {
@@ -52,10 +54,15 @@
       });
       return {
         additionalSteamRegions: selection.additionalSteamRegions,
-        lowCriterion: src.lowCriterion === "price" ? "price" : "discount",
+        lowCriterion: ["api", "discount", "price"].includes(src.lowCriterion)
+          ? src.lowCriterion
+          : "api",
         lowReferenceScope: ["allRegular", "currentRegular", "recent12Months"].includes(src.lowReferenceScope)
           ? src.lowReferenceScope
           : "currentRegular",
+        lowOccurrence: ["latest", "earliest"].includes(src.lowOccurrence)
+          ? src.lowOccurrence
+          : "latest",
         lineColors: src.lineColors && typeof src.lineColors === "object" && !Array.isArray(src.lineColors)
           ? { ...src.lineColors }
           : {},
@@ -161,32 +168,54 @@
       }).join("");
     }
 
-    function regionOptions() {
+    function availableRegions() {
       const used = new Set([activeMainCountry(), ...chart.additionalSteamRegions]);
       return catalog.STEAM_PRICE_REGIONS
-        .filter(item => !used.has(item.cc))
-        .map(item => `<option value="${escAttr(item.cc)}">${esc(`${item.cc} - ${item.label}`)}</option>`)
-        .join("");
+        .filter(item => !used.has(item.cc));
     }
 
-    function shopOptions() {
+    function availableShops() {
       const used = new Set(shops());
       return catalog.ITAD_PRICE_SHOPS
-        .filter(item => !used.has(item.id))
-        .map(item => `<option value="${item.id}">${esc(item.label)}</option>`)
-        .join("");
+        .filter(item => !used.has(item.id));
     }
 
-    function segment(name, value, items) {
-      return `<div class="store-price-chart-segment" role="radiogroup">${items.map(item => `
+    function combo(kind, items, options = {}) {
+      const value = String(options.value || "");
+      const label = String(options.label || "");
+      return `
+        <div class="store-price-chart-combo" data-store-price-chart-combo="${escAttr(kind)}">
+          <div class="store-price-chart-combo__control">
+            <input type="text" role="combobox" aria-autocomplete="list" aria-expanded="false"
+              value="${escAttr(label)}" data-store-price-chart-combo-input="${escAttr(kind)}"
+              data-store-price-chart-combo-value="${escAttr(value)}" placeholder="${escAttr(options.placeholder || "")}" autocomplete="off">
+            <button class="store-price-chart-combo__toggle" type="button" data-store-price-chart-combo-toggle="${escAttr(kind)}"
+              aria-label="展开${escAttr(options.ariaLabel || "选项")}列表" title="展开${escAttr(options.ariaLabel || "选项")}列表"></button>
+          </div>
+          <div class="store-price-chart-combo__options" role="listbox" data-store-price-chart-combo-options hidden>
+            ${items.map(item => `<button type="button" role="option" class="store-price-chart-combo__option"
+              data-store-price-chart-combo-option="${escAttr(item.value)}"
+              data-store-price-chart-combo-search="${escAttr(item.search)}"
+              aria-selected="${String(item.value) === value ? "true" : "false"}">${esc(item.label)}</button>`).join("")}
+            <div class="store-price-chart-combo__empty" data-store-price-chart-combo-empty hidden>没有匹配项</div>
+          </div>
+        </div>`;
+    }
+
+    function segment(name, value, items, options = {}) {
+      const disabled = options.disabled === true;
+      const stateAttribute = options.stateAttribute ? ` ${options.stateAttribute}` : "";
+      return `<div class="store-price-chart-segment${disabled ? " is-disabled" : ""}" role="radiogroup"${disabled ? ' aria-disabled="true"' : ""}${stateAttribute}>${items.map(item => `
         <label class="store-price-chart-segment__item${value === item.value ? " is-active" : ""}">
-          <input type="radio" name="${escAttr(name)}" value="${escAttr(item.value)}" data-store-price-chart-setting="${escAttr(name)}" ${value === item.value ? "checked" : ""}>
+          <input type="radio" name="${escAttr(name)}" value="${escAttr(item.value)}" data-store-price-chart-setting="${escAttr(name)}" ${value === item.value ? "checked" : ""}${disabled ? " disabled" : ""}>
           <span>${esc(item.label)}</span>
         </label>`).join("")}</div>`;
     }
 
     function html() {
       const selectedMain = mainCountry();
+      const sourceNavigation = root.STConfig.externalNavigation.resolve(FRANKFURTER_URL);
+      const sourceTarget = sourceNavigation.target ? ` target="${escAttr(sourceNavigation.target)}"` : "";
       const mainOptions = [
         ...(selectedMain === "auto" ? [{ cc: "auto", label: "跟随 Steam 页面（旧设置）" }] : []),
         ...(selectedMain !== "auto" && !catalog.getSteamPriceRegion(selectedMain)
@@ -194,18 +223,30 @@
           : []),
         ...catalog.STEAM_PRICE_REGIONS,
       ];
+      const selectedMainOption = mainOptions.find(item => item.cc === selectedMain) || mainOptions[0];
       return `
         <div class="store-price-chart-panel" data-store-price-chart-panel>
           <section class="store-price-chart-section">
             <h4>Steam 定价区</h4>
-            <label class="store-price-chart-field">
+            <div class="store-price-chart-field">
               <span>主定价区</span>
-              <select data-store-price-chart-main-country>${mainOptions.map(item => `<option value="${escAttr(item.cc)}" ${selectedMain === item.cc ? "selected" : ""}>${esc(item.cc === "auto" ? item.label : `${item.cc} - ${item.label}`)}</option>`).join("")}</select>
-            </label>
+              ${combo("main-country", mainOptions.map(item => ({
+                value: item.cc,
+                label: item.label,
+                search: `${item.cc} ${item.label}`,
+              })), {
+                value: selectedMain,
+                label: selectedMainOption?.label || "",
+                placeholder: "搜索主定价区",
+                ariaLabel: "主定价区",
+              })}
+            </div>
             <div class="store-price-chart-list">${regionRows()}</div>
             <div class="store-price-chart-add">
-              <input type="text" list="store-price-chart-region-options" data-store-price-chart-region-input placeholder="搜索区域代码或名称" autocomplete="off">
-              <datalist id="store-price-chart-region-options">${regionOptions()}</datalist>
+              ${combo("region", availableRegions().map(item => ({ value: item.cc, label: item.label, search: `${item.cc} ${item.label}` })), {
+                placeholder: "搜索区域名称",
+                ariaLabel: "Steam 定价区",
+              })}
               <button class="btn btn-secondary" type="button" data-store-price-chart-add-region>添加区域</button>
             </div>
           </section>
@@ -213,16 +254,19 @@
             <h4>游戏商店</h4>
             <div class="store-price-chart-list">${shopRows()}</div>
             <div class="store-price-chart-add">
-              <input type="text" list="store-price-chart-shop-options" data-store-price-chart-shop-input placeholder="搜索商店名称" autocomplete="off">
-              <datalist id="store-price-chart-shop-options">${shopOptions()}</datalist>
+              ${combo("shop", availableShops().map(item => ({ value: item.id, label: item.label, search: item.label })), {
+                placeholder: "搜索商店名称",
+                ariaLabel: "游戏商店",
+              })}
               <button class="btn btn-secondary" type="button" data-store-price-chart-add-shop>添加商店</button>
             </div>
           </section>
           <section class="store-price-chart-section">
             <h4>图表</h4>
-            <div class="store-price-chart-field"><span>汇率来源</span><a class="store-price-chart-source-link" href="https://api.frankfurter.dev" target="_blank" rel="noreferrer noopener">Frankfurter</a></div>
-            <div class="store-price-chart-field"><span>史低判定</span>${segment("lowCriterion", chart.lowCriterion, [{ value: "discount", label: "按折扣力度" }, { value: "price", label: "按到手价" }])}</div>
-            <div class="store-price-chart-field"><span>史低参考范围</span>${segment("lowReferenceScope", chart.lowReferenceScope, [{ value: "allRegular", label: "全部原价" }, { value: "currentRegular", label: "当前原价" }, { value: "recent12Months", label: "最近12个月" }])}</div>
+            <div class="store-price-chart-field"><span>汇率来源</span><a class="store-price-chart-source-link" href="${escAttr(sourceNavigation.href)}"${sourceTarget} rel="${escAttr(sourceNavigation.rel)}">Frankfurter</a></div>
+            <div class="store-price-chart-field"><span>史低判定</span>${segment("lowCriterion", chart.lowCriterion, [{ value: "api", label: "使用API数据" }, { value: "discount", label: "按折扣力度" }, { value: "price", label: "按到手价" }])}</div>
+            <div class="store-price-chart-field${chart.lowCriterion === "api" ? " is-disabled" : ""}" data-store-price-chart-reference-field${chart.lowCriterion === "api" ? ' aria-disabled="true"' : ""}><span>史低范围</span>${segment("lowReferenceScope", chart.lowReferenceScope, [{ value: "allRegular", label: "全部原价" }, { value: "currentRegular", label: "当前原价" }, { value: "recent12Months", label: "最近12个月" }], { disabled: chart.lowCriterion === "api", stateAttribute: "data-store-price-chart-reference-scope" })}</div>
+            <div class="store-price-chart-field${chart.lowCriterion === "api" ? " is-disabled" : ""}" data-store-price-chart-occurrence-field${chart.lowCriterion === "api" ? ' aria-disabled="true"' : ""}><span>史低时间</span>${segment("lowOccurrence", chart.lowOccurrence, [{ value: "latest", label: "最近史低" }, { value: "earliest", label: "最先史低" }], { disabled: chart.lowCriterion === "api", stateAttribute: "data-store-price-chart-occurrence" })}</div>
             <button class="btn btn-secondary" type="button" data-store-price-chart-reset-colors>恢复全部默认颜色</button>
           </section>
           <div class="store-price-chart-actions">
@@ -248,6 +292,30 @@
       }
     }
 
+    function updateManualLowSettingsState(shadow) {
+      const disabled = chart.lowCriterion === "api";
+      const controls = [
+        ["[data-store-price-chart-reference-field]", "[data-store-price-chart-reference-scope]", "lowReferenceScope"],
+        ["[data-store-price-chart-occurrence-field]", "[data-store-price-chart-occurrence]", "lowOccurrence"],
+      ];
+      for (const [fieldSelector, segmentSelector, key] of controls) {
+        const field = shadow.querySelector(fieldSelector);
+        const segmentNode = shadow.querySelector(segmentSelector);
+        field?.classList?.toggle?.("is-disabled", disabled);
+        segmentNode?.classList?.toggle?.("is-disabled", disabled);
+        if (disabled) {
+          field?.setAttribute?.("aria-disabled", "true");
+          segmentNode?.setAttribute?.("aria-disabled", "true");
+        } else {
+          field?.removeAttribute?.("aria-disabled");
+          segmentNode?.removeAttribute?.("aria-disabled");
+        }
+        for (const input of shadow.querySelectorAll(`[data-store-price-chart-setting="${key}"]`)) {
+          input.disabled = disabled;
+        }
+      }
+    }
+
     function readColor(node) {
       const key = String(node.dataset.storePriceChartColor || "");
       const color = String(node.value || "").toUpperCase();
@@ -258,17 +326,61 @@
     }
 
     function resolveRegionInput(shadow) {
-      const value = String(shadow.querySelector("[data-store-price-chart-region-input]")?.value || "").trim();
-      const code = value.split(/\s+-\s+/)[0].toUpperCase();
+      const input = shadow.querySelector('[data-store-price-chart-combo-input="region"]');
+      const value = String(input?.value || "").trim();
+      const selected = String(input?.dataset?.storePriceChartComboValue || "").toUpperCase();
+      const code = value.toUpperCase();
+      if (selected) return catalog.getSteamPriceRegion(selected);
       return catalog.getSteamPriceRegion(code)
         || catalog.STEAM_PRICE_REGIONS.find(item => item.label.toLowerCase() === value.toLowerCase())
         || null;
     }
 
     function resolveShopInput(shadow) {
-      const value = String(shadow.querySelector("[data-store-price-chart-shop-input]")?.value || "").trim();
-      const byId = catalog.getItadPriceShop(value.split(/\s+-\s+/)[0]);
-      return byId || catalog.ITAD_PRICE_SHOPS.find(item => item.label.toLowerCase() === value.toLowerCase()) || null;
+      const input = shadow.querySelector('[data-store-price-chart-combo-input="shop"]');
+      const value = String(input?.value || "").trim();
+      const selected = String(input?.dataset?.storePriceChartComboValue || "");
+      if (selected) return catalog.getItadPriceShop(selected);
+      return catalog.ITAD_PRICE_SHOPS.find(item => item.label.toLowerCase() === value.toLowerCase()) || null;
+    }
+
+    function setComboOpen(comboNode, open) {
+      const input = comboNode?.querySelector?.("[data-store-price-chart-combo-input]");
+      const options = comboNode?.querySelector?.("[data-store-price-chart-combo-options]");
+      if (!input || !options) return;
+      comboNode.classList.toggle("is-open", open);
+      input.setAttribute("aria-expanded", open ? "true" : "false");
+      options.hidden = !open;
+    }
+
+    function closeCombos(shadow, except = null) {
+      for (const comboNode of shadow.querySelectorAll("[data-store-price-chart-combo]")) {
+        if (comboNode !== except) setComboOpen(comboNode, false);
+      }
+    }
+
+    function filterCombo(input, queryValue = input.value) {
+      const comboNode = input.closest("[data-store-price-chart-combo]");
+      const query = String(queryValue || "").trim().toLowerCase();
+      let visible = 0;
+      for (const option of comboNode?.querySelectorAll?.("[data-store-price-chart-combo-option]") || []) {
+        const matches = !query || String(option.dataset.storePriceChartComboSearch || "").toLowerCase().includes(query);
+        const show = matches && visible < MAX_STORE_PRICE_SERIES;
+        option.hidden = !show;
+        if (show) visible += 1;
+      }
+      const empty = comboNode?.querySelector?.("[data-store-price-chart-combo-empty]");
+      if (empty) empty.hidden = visible > 0;
+      return comboNode;
+    }
+
+    function selectMainCountry(shadow, next) {
+      const previous = activeMainCountry();
+      thirdPartyServices.isthereanydeal = { ...(thirdPartyServices.isthereanydeal || {}), country: next };
+      chart.additionalSteamRegions = chart.additionalSteamRegions.filter(cc => cc !== activeMainCountry());
+      if (next !== "auto" && previous !== next && catalog.getSteamPriceRegion(previous)) chart.additionalSteamRegions.unshift(previous);
+      chart = normalizeChart(chart);
+      render(shadow, '[data-store-price-chart-combo-input="main-country"]');
     }
 
     async function save(shadow, button) {
@@ -307,6 +419,34 @@
     }
 
     function handleClick(event, shadow) {
+      const comboOption = event.target.closest("[data-store-price-chart-combo-option]");
+      if (comboOption) {
+        const comboNode = comboOption.closest("[data-store-price-chart-combo]");
+        const input = comboNode?.querySelector("[data-store-price-chart-combo-input]");
+        const kind = String(comboNode?.dataset?.storePriceChartCombo || "");
+        const value = String(comboOption.dataset.storePriceChartComboOption || "");
+        if (kind === "main-country") {
+          selectMainCountry(shadow, value);
+        } else if (input) {
+          input.value = String(comboOption.textContent || "").trim();
+          input.dataset.storePriceChartComboValue = value;
+          setComboOpen(comboNode, false);
+          input.focus();
+        }
+        return true;
+      }
+      const comboToggle = event.target.closest("[data-store-price-chart-combo-toggle]");
+      const comboInput = event.target.closest("[data-store-price-chart-combo-input]");
+      if (comboToggle || comboInput) {
+        const comboNode = (comboToggle || comboInput).closest("[data-store-price-chart-combo]");
+        const input = comboNode?.querySelector("[data-store-price-chart-combo-input]");
+        closeCombos(shadow, comboNode);
+        if (input) filterCombo(input, comboToggle ? "" : input.value);
+        setComboOpen(comboNode, !comboNode.classList.contains("is-open") || !!comboInput);
+        input?.focus?.();
+        return true;
+      }
+      closeCombos(shadow);
       const addRegion = event.target.closest("[data-store-price-chart-add-region]");
       if (addRegion) {
         const region = resolveRegionInput(shadow);
@@ -321,7 +461,7 @@
           }
           chart.additionalSteamRegions.push(region.cc);
         }
-        render(shadow, "[data-store-price-chart-region-input]");
+        render(shadow, '[data-store-price-chart-combo-input="region"]');
         return true;
       }
       const addShop = event.target.closest("[data-store-price-chart-add-shop]");
@@ -338,20 +478,20 @@
           }
           thirdPartyServices.isthereanydeal = { ...(thirdPartyServices.isthereanydeal || {}), shops: [...shops(), shop.id] };
         }
-        render(shadow, "[data-store-price-chart-shop-input]");
+        render(shadow, '[data-store-price-chart-combo-input="shop"]');
         return true;
       }
       const removeRegion = event.target.closest("[data-store-price-chart-remove-region]");
       if (removeRegion) {
         chart.additionalSteamRegions = chart.additionalSteamRegions.filter(cc => cc !== removeRegion.dataset.storePriceChartRemoveRegion);
-        render(shadow, "[data-store-price-chart-region-input]");
+        render(shadow, '[data-store-price-chart-combo-input="region"]');
         return true;
       }
       const removeShop = event.target.closest("[data-store-price-chart-remove-shop]");
       if (removeShop) {
         const id = Number(removeShop.dataset.storePriceChartRemoveShop);
         thirdPartyServices.isthereanydeal = { ...(thirdPartyServices.isthereanydeal || {}), shops: shops().filter(shopId => shopId !== id) };
-        render(shadow, "[data-store-price-chart-shop-input]");
+        render(shadow, '[data-store-price-chart-combo-input="shop"]');
         return true;
       }
       if (event.target.closest("[data-store-price-chart-reset-colors]")) {
@@ -368,17 +508,6 @@
     }
 
     function handleChange(event, shadow) {
-      const country = event.target.closest("[data-store-price-chart-main-country]");
-      if (country) {
-        const previous = activeMainCountry();
-        const next = String(country.value || "CN");
-        thirdPartyServices.isthereanydeal = { ...(thirdPartyServices.isthereanydeal || {}), country: next };
-        chart.additionalSteamRegions = chart.additionalSteamRegions.filter(cc => cc !== activeMainCountry());
-        if (next !== "auto" && previous !== next && catalog.getSteamPriceRegion(previous)) chart.additionalSteamRegions.unshift(previous);
-        chart = normalizeChart(chart);
-        render(shadow, "[data-store-price-chart-main-country]");
-        return true;
-      }
       const color = event.target.closest("[data-store-price-chart-color]");
       if (color) {
         readColor(color);
@@ -386,17 +515,54 @@
       }
       const setting = event.target.closest("[data-store-price-chart-setting]");
       if (setting) {
+        if (setting.disabled) return true;
         const key = setting.dataset.storePriceChartSetting;
         const value = String(setting.value || "");
         if (!CHART_SETTING_VALUES[key]?.includes(value)) return true;
         chart = normalizeChart({ ...chart, [key]: value });
         updateSegmentState(shadow, key, chart[key]);
+        if (key === "lowCriterion") updateManualLowSettingsState(shadow);
         return true;
       }
       return false;
     }
 
-    return Object.freeze({ handleChange, handleClick, html, setConfigs });
+    function handleInput(event, shadow) {
+      const input = event.target.closest("[data-store-price-chart-combo-input]");
+      if (!input) return false;
+      input.dataset.storePriceChartComboValue = "";
+      const comboNode = filterCombo(input);
+      closeCombos(shadow, comboNode);
+      setComboOpen(comboNode, true);
+      return true;
+    }
+
+    function handleKeydown(event, shadow) {
+      const input = event.target.closest("[data-store-price-chart-combo-input]");
+      if (!input) return false;
+      const comboNode = input.closest("[data-store-price-chart-combo]");
+      if (event.key === "Escape") {
+        setComboOpen(comboNode, false);
+        event.preventDefault();
+        return true;
+      }
+      if (event.key === "ArrowDown") {
+        const option = Array.from(comboNode.querySelectorAll("[data-store-price-chart-combo-option]")).find(item => !item.hidden);
+        setComboOpen(comboNode, true);
+        option?.focus?.();
+        event.preventDefault();
+        return true;
+      }
+      if (event.key === "Enter") {
+        const option = Array.from(comboNode.querySelectorAll("[data-store-price-chart-combo-option]")).find(item => !item.hidden);
+        if (option && comboNode.classList.contains("is-open")) option.click();
+        event.preventDefault();
+        return true;
+      }
+      return false;
+    }
+
+    return Object.freeze({ handleChange, handleClick, handleInput, handleKeydown, html, setConfigs });
   }
 
   root.STSettingsStorePriceChartPanel = Object.freeze({ create });

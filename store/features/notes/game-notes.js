@@ -277,6 +277,9 @@
     if (value) {
       const rendered = core.renderBBCode(value).html;
       dom.setTrustedHTML(body, dom.trustedHTML(rendered, "game-notes-bbcode-sanitized"));
+      body.querySelectorAll("a[href]").forEach(link => {
+        root.STConfig.externalNavigation.applyToLink(link, link.href);
+      });
     }
     else {
       body.textContent = "暂无备注";
@@ -659,7 +662,7 @@
     });
     html = html.replace(/\[url=([^\]]+)\]([\s\S]*?)\[\/url\]/gi, (_, url, body) => {
       const safe = sanitizeUrl(url);
-      return safe ? `<a href="${attr(safe)}" target="_blank" rel="noopener noreferrer">${body}</a>` : body;
+      return safe ? `<a href="${attr(safe)}" rel="noopener noreferrer">${body}</a>` : body;
     });
     html = html.replace(/\[img\]([\s\S]*?)\[\/img\]/gi, (_, url) => {
       const safe = sanitizeUrl(url);

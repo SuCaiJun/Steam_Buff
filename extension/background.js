@@ -27,6 +27,8 @@
     },
   });
   importScripts(chrome.runtime.getURL("shared/logger-factory.js"));
+  importScripts(chrome.runtime.getURL("shared/lifecycle-prompt-contract.js"));
+  importScripts(chrome.runtime.getURL("extension/background-lifecycle.js"));
   importScripts(chrome.runtime.getURL("extension/background-update.js"));
 
   const CFG = globalThis.STConfig;
@@ -127,6 +129,9 @@
     "settings/api/request.js",
     "settings/update-log-renderer.js",
     "settings/update-checker.js",
+    "shared/lifecycle-prompt-contract.js",
+    "settings/membership.js",
+    "settings/lifecycle-prompts.js",
     "settings/update-reminder.js",
   ]);
   const SETTINGS_UI_SCRIPTS = Object.freeze([
@@ -135,6 +140,8 @@
     "settings/api/request.js",
     "settings/update-log-renderer.js",
     "settings/update-checker.js",
+    "shared/lifecycle-prompt-contract.js",
+    "settings/lifecycle-prompts.js",
     "settings/settings-backup.js",
     "vendor/fflate/fflate.js",
     "settings/diagnostics-export.js",
@@ -2438,8 +2445,19 @@
   chrome.runtime.onConnect.addListener(aiStreamConnect);
 
   chrome.runtime.onInstalled.addListener((details) => {
+    const lifecycleReady = globalThis.STBackgroundLifecycle.initialize(details)
+      .then(() => null)
+      .catch((error) => error);
     globalThis.STBackgroundLogger.initialize()
-      .then(() => {
+      .then(async () => {
+        const lifecycleError = await lifecycleReady;
+        if (lifecycleError) {
+          backgroundLogger("background-runtime").error(
+            "extension-lifecycle-state-failed",
+            "扩展安装与升级提示状态保存失败",
+            { error: lifecycleError },
+          );
+        }
         injectSoon();
         if (details?.reason === "install") openOnboardingPage();
       })

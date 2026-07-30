@@ -201,5 +201,44 @@
   },
   "settings_page_about_name": {
     "message": "关于"
+  },
+  "common_close": {
+    "message": "关闭"
+  },
+  "common_confirm": {
+    "message": "确定"
+  },
+  "lifecycle_update_title": {
+    "message": "Steam Buff 已更新"
+  },
+  "lifecycle_current_version": {
+    "message": "当前版本"
+  },
+  "lifecycle_update_log_label": {
+    "message": "本次更新日志"
+  },
+  "lifecycle_update_log_unavailable": {
+    "message": "更新日志暂时无法加载，请稍后在关于页查看。"
+  },
+  "lifecycle_view_full_log": {
+    "message": "查看完整日志"
+  },
+  "lifecycle_update_support_copy": {
+    "message": "感谢你使用 Steam Buff。如需赞助开发者请点击【我要赞助】，你的赞助会直接用于后续功能开发与持续维护。"
+  },
+  "lifecycle_support_title": {
+    "message": "Steam Buff 使用体验"
+  },
+  "lifecycle_support_copy": {
+    "message": "你已经用 Steam Buff 一段时间了,还顺手吗?\n它的大部分功能都能在本地免费运行,而且会一直免费。不过云端服务(CDN、服务器、短信、防护等)会产生持续的运营成本。\n如果它帮到了你,不妨考虑赞助一下——每一份支持都会直接用来分担这些成本,也让我能更专注地维护和更新它。赞助用户还会获赠专属功能,感谢你对开发者的支持。"
+  },
+  "lifecycle_decline_action": {
+    "message": "我不想捐赠"
+  },
+  "lifecycle_update_donate_action": {
+    "message": "我要赞助"
+  },
+  "lifecycle_support_donate_action": {
+    "message": "我要捐赠"
   }
 }

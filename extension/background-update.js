@@ -17,6 +17,7 @@
 
   const CFG = root.STConfig;
   const CACHE_KEY = "steam_buff_update_check_cache";
+  const ABOUT_STATUS_SOURCE = "about-status";
   const AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
   const UPDATE_FETCH_TIMEOUT_MS = 10 * 1000;
   const logger = root.STLoggerFactory.createLogger("background", "update");
@@ -207,7 +208,11 @@
     return box;
   }
 
-  async function fetchLatest(manual, operationId = "") {
+  async function fetchLatest(options = {}) {
+    const manual = options.manual === true;
+    const operationId = String(options.operationId || "");
+    const persistCache = options.persistCache !== false;
+    const logNewVersion = options.logNewVersion !== false;
     const response = await fetchWithTimeout(CFG.urls.updateLatest, {
       method: "GET",
       headers: { Accept: "application/json" },
@@ -223,7 +228,9 @@
       throw new Error("官网最新版本返回解析失败");
     }
     const result = resultFromLatest(normalizeLatest(data), Date.now(), false);
-    await writeCache(result);
+    if (persistCache) {
+      await writeCache(result);
+    }
     if (manual) {
       log("info", "update-manual-check-success", "手动检查更新成功", {
         operationId,
@@ -231,7 +238,7 @@
         remote: result.remote,
         hasNew: result.hasNew,
       });
-    } else if (result.hasNew) {
+    } else if (logNewVersion && result.hasNew) {
       log("info", "update-new-version-found", "自动检查发现新版本", {
         current: result.current,
         remote: result.remote,
@@ -249,7 +256,7 @@
       return result;
     }
     if (!autoPending) {
-      autoPending = fetchLatest(false)
+      autoPending = fetchLatest()
         .catch((error) => {
           log("error", "update-auto-check-failed", "自动检查更新失败", {
             error,
@@ -265,11 +272,24 @@
 
   async function updateCheck(request, sender, sendResponse) {
     const manual = request?.manual === true;
+    const aboutStatus = request?.source === ABOUT_STATUS_SOURCE;
+    const googleWebStore = CFG.distribution.isGoogleWebStore();
     const operationId = manual ? root.STLoggerFactory?.createOperationId?.() || "" : "";
     try {
+      if (googleWebStore && !aboutStatus) {
+        sendResponse({ success: false, error: "Google 商店版仅允许关于页读取版本状态" });
+        return;
+      }
+      if (aboutStatus) {
+        sendResponse({ success: true, data: await fetchLatest({
+          persistCache: !googleWebStore,
+          logNewVersion: false,
+        }) });
+        return;
+      }
       if (manual) {
         log("info", "update-manual-check-start", "开始手动检查更新", { operationId });
-        sendResponse({ success: true, data: await fetchLatest(true, operationId) });
+        sendResponse({ success: true, data: await fetchLatest({ manual: true, operationId }) });
         return;
       }
       sendResponse({ success: true, data: await autoCheck() });
@@ -277,6 +297,10 @@
       if (manual) {
         log("error", "update-manual-check-failed", "手动检查更新失败", {
           operationId,
+          error,
+        });
+      } else if (aboutStatus) {
+        log("error", "update-about-status-check-failed", "关于页版本状态查询失败", {
           error,
         });
       }
@@ -287,6 +311,7 @@
   root.STBackgroundUpdate = Object.freeze({
     ready: true,
     CACHE_KEY,
+    ABOUT_STATUS_SOURCE,
     AUTO_CHECK_INTERVAL_MS,
     todayKey,
     cacheFresh,

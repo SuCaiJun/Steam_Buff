@@ -201,5 +201,44 @@
   },
   "settings_page_about_name": {
     "message": "About"
+  },
+  "common_close": {
+    "message": "Close"
+  },
+  "common_confirm": {
+    "message": "OK"
+  },
+  "lifecycle_update_title": {
+    "message": "Steam Buff Updated"
+  },
+  "lifecycle_current_version": {
+    "message": "Current version"
+  },
+  "lifecycle_update_log_label": {
+    "message": "What's new"
+  },
+  "lifecycle_update_log_unavailable": {
+    "message": "The update notes are temporarily unavailable. Please check the About page later."
+  },
+  "lifecycle_view_full_log": {
+    "message": "View full update log"
+  },
+  "lifecycle_update_support_copy": {
+    "message": "Thank you for using Steam Buff. To support the developer, click Donate. Your donation will go directly toward future feature development and ongoing maintenance."
+  },
+  "lifecycle_support_title": {
+    "message": "How is Steam Buff working for you?"
+  },
+  "lifecycle_support_copy": {
+    "message": "You've been using Steam Buff for a while. How is it working for you?\nMost of its features run locally at no cost and will always remain free. However, cloud services (CDN, servers, SMS, security, and more) come with ongoing operating costs.\nIf Steam Buff has helped you, please consider supporting it. Every contribution goes directly toward these costs and lets me focus more on maintaining and improving it. Supporters also receive exclusive features. Thank you for supporting the developer."
+  },
+  "lifecycle_decline_action": {
+    "message": "No thanks"
+  },
+  "lifecycle_update_donate_action": {
+    "message": "Donate"
+  },
+  "lifecycle_support_donate_action": {
+    "message": "Donate"
   }
 }

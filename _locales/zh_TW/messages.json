@@ -201,5 +201,44 @@
   },
   "settings_page_about_name": {
     "message": "關於"
+  },
+  "common_close": {
+    "message": "關閉"
+  },
+  "common_confirm": {
+    "message": "確定"
+  },
+  "lifecycle_update_title": {
+    "message": "Steam Buff 已更新"
+  },
+  "lifecycle_current_version": {
+    "message": "目前版本"
+  },
+  "lifecycle_update_log_label": {
+    "message": "本次更新日誌"
+  },
+  "lifecycle_update_log_unavailable": {
+    "message": "更新日誌暫時無法載入，請稍後在關於頁查看。"
+  },
+  "lifecycle_view_full_log": {
+    "message": "查看完整日誌"
+  },
+  "lifecycle_update_support_copy": {
+    "message": "感謝你使用 Steam Buff。如需贊助開發者，請點擊【我要贊助】，你的贊助會直接用於後續功能開發與持續維護。"
+  },
+  "lifecycle_support_title": {
+    "message": "Steam Buff 使用體驗"
+  },
+  "lifecycle_support_copy": {
+    "message": "你已經使用 Steam Buff 一段時間了，還順手嗎？\n它的大部分功能都能在本機免費執行，而且會一直免費。不過雲端服務（CDN、伺服器、簡訊、防護等）會產生持續的營運成本。\n如果它幫到了你，不妨考慮贊助一下——每一份支持都會直接用來分擔這些成本，也讓我能更專注地維護和更新它。贊助使用者還會獲贈專屬功能，感謝你對開發者的支持。"
+  },
+  "lifecycle_decline_action": {
+    "message": "我不想捐贈"
+  },
+  "lifecycle_update_donate_action": {
+    "message": "我要贊助"
+  },
+  "lifecycle_support_donate_action": {
+    "message": "我要捐贈"
   }
 }

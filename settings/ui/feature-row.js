@@ -29,6 +29,7 @@
     const helpIconUrl = options.helpIconUrl;
     const drawerIconUrl = options.drawerIconUrl;
     const featureIconHtml = options.featureIconHtml;
+    const externalNavigation = globalThis.STConfig.externalNavigation;
     const helpUrl = typeof options.helpUrl === "function"
       ? options.helpUrl
       : (item, key) => {
@@ -108,9 +109,11 @@
       if (!meta.key && !meta.url) return "";
       const href = String(meta.url || helpUrl(item, meta.key) || "").trim();
       if (!href) return "";
+      const navigation = externalNavigation.resolve(href);
+      const target = navigation.target ? ` target="${escAttr(navigation.target)}"` : "";
       const label = `查看教程：${meta.key || itemName(item) || "教程"}`;
       return `
-        <a class="feature-tutorial" href="${escAttr(href)}" target="_blank" rel="noreferrer noopener" title="${escAttr(label)}" aria-label="${escAttr(label)}">
+        <a class="feature-tutorial" href="${escAttr(navigation.href)}"${target} rel="${escAttr(navigation.rel)}" title="${escAttr(label)}" aria-label="${escAttr(label)}">
           <img class="feature-tutorial-icon" src="${escAttr(helpIconUrl())}" alt="" aria-hidden="true">
         </a>
       `;

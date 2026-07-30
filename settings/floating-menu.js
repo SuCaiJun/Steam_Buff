@@ -128,11 +128,7 @@
     }
     const fn = globalThis.STConfig?.urls?.helpSearch;
     const href = typeof fn === "function" ? fn(keyword) : "";
-    if (!href) {
-      return "";
-    }
-    const external = globalThis.STConfig?.toSteamExternalUrl;
-    return typeof external === "function" ? external(href) : href;
+    return href || "";
   }
 
   function version() {

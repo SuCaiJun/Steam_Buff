@@ -646,21 +646,12 @@
     }
   }
 
-  function openExternal(url) {
-    const api = chromeApi();
-    if (api?.tabs?.create) {
-      api.tabs.create({ url });
-      return;
-    }
-    window.open(url, "_blank", "noopener");
-  }
-
   async function openTutorial() {
     try {
       const cfg = await sharedConfig();
       const url = cfg.urls.onboardingTutorial;
       if (!url) throw new Error("使用教程地址未配置");
-      openExternal(url);
+      cfg.externalNavigation.open(url);
     } catch (error) {
       setNote(error?.message || String(error), true);
     }

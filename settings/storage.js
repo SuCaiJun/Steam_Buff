@@ -71,8 +71,9 @@
   function storePriceChartDefaults() {
     return api.catalog?.storePriceChartDefaults?.() || {
       additionalSteamRegions: [],
-      lowCriterion: "discount",
+      lowCriterion: "api",
       lowReferenceScope: "currentRegular",
+      lowOccurrence: "latest",
       lineColors: {},
     };
   }
@@ -268,10 +269,15 @@
         : defs.additionalSteamRegions || [],
       shops: [priceCatalog.STEAM_SHOP_ID],
     }).additionalSteamRegions;
-    const lowCriterion = src.lowCriterion === "price" ? "price" : "discount";
+    const lowCriterion = ["api", "discount", "price"].includes(src.lowCriterion)
+      ? src.lowCriterion
+      : "api";
     const lowReferenceScope = ["allRegular", "currentRegular", "recent12Months"].includes(src.lowReferenceScope)
       ? src.lowReferenceScope
       : "currentRegular";
+    const lowOccurrence = ["latest", "earliest"].includes(src.lowOccurrence)
+      ? src.lowOccurrence
+      : "latest";
     const lineColors = {};
     const inputColors = src.lineColors && typeof src.lineColors === "object" && !Array.isArray(src.lineColors)
       ? src.lineColors
@@ -284,7 +290,7 @@
       const color = String(value || "").trim().toUpperCase();
       if (validKey && /^#[0-9A-F]{6}$/.test(color)) lineColors[key] = color;
     }
-    return { additionalSteamRegions, lowCriterion, lowReferenceScope, lineColors };
+    return { additionalSteamRegions, lowCriterion, lowReferenceScope, lowOccurrence, lineColors };
   }
 
   function normalizeStorePriceChartSettings(values = {}) {
@@ -856,6 +862,7 @@
       colorOverrideCount: Object.keys(next.lineColors).length,
       lowCriterion: next.lowCriterion,
       lowReferenceScope: next.lowReferenceScope,
+      lowOccurrence: next.lowOccurrence,
     });
     return ok ? next : false;
   }

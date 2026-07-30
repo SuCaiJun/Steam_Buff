@@ -18,6 +18,7 @@
   const CFG = root.STConfig || {};
   const CACHE_KEY = "steam_buff_update_check_cache";
   const MUTE_KEY = "steam_buff_update_prompt_mute";
+  const ABOUT_STATUS_SOURCE = "about-status";
   const UPDATE_PAGE = CFG.urls?.updatePage || CFG.urls?.homepage || root.chrome?.runtime?.getManifest?.()?.homepage_url || "";
   const detailCache = new Map();
   const log = root.STLoggerFactory.createLogger("settings", "update-reminder");
@@ -124,7 +125,18 @@
   }
 
   async function check(options = {}) {
+    if (isGoogleWebStore()) {
+      throw new Error("Google 商店版已禁用主动更新检查");
+    }
     return send({ type: "UPDATE_CHECK", manual: options.manual === true });
+  }
+
+  async function checkStatus() {
+    return send({ type: "UPDATE_CHECK", manual: false, source: ABOUT_STATUS_SOURCE });
+  }
+
+  function isGoogleWebStore() {
+    return CFG.distribution.isGoogleWebStore();
   }
 
   async function cached() {
@@ -162,28 +174,13 @@
     return mute.date === todayKey() && verText(mute.version) === remote;
   }
 
-  function externalUrl(url) {
-    const value = String(url || UPDATE_PAGE || "").trim();
-    if (!value) {
-      return "";
-    }
-    return typeof CFG.toSteamExternalUrl === "function" ? CFG.toSteamExternalUrl(value) : value;
-  }
-
   function openDownload(url, meta = {}) {
-    const target = externalUrl(url || UPDATE_PAGE);
+    const target = String(url || UPDATE_PAGE || "").trim();
     if (!target) {
       return false;
     }
     log.info("update-prompt-open-download", "用户打开官网下载新版", meta);
-    const link = document.createElement("a");
-    link.href = target;
-    link.rel = "noreferrer noopener";
-    link.style.display = "none";
-    (document.body || document.documentElement).appendChild(link);
-    link.click();
-    link.remove();
-    return true;
+    return CFG.externalNavigation.open(target);
   }
 
   function esc(value) {
@@ -311,11 +308,12 @@
     cmpVer,
     version,
     check,
+    checkStatus,
+    isGoogleWebStore,
     cached,
     muteToday,
     isMuted,
     openDownload,
-    externalUrl,
     latestHtml,
     detail,
     withDetail,

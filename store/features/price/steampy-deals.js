@@ -14,9 +14,7 @@
   const api = window.STStore;
   if (!api) return;
   const STEAMPY = globalThis.STConfig.vendors.steampy;
-  const toExternalUrl = typeof globalThis.STConfig.toSteamExternalUrl === "function"
-    ? globalThis.STConfig.toSteamExternalUrl
-    : (url) => String(url || "");
+  const externalNavigation = globalThis.STConfig.externalNavigation;
 
   const hasHiddenAncestor = api.dom.hasHiddenAncestor;
   const apiCache = api.cache;
@@ -162,16 +160,11 @@
     return `￥${value.toFixed(2)}`;
   }
 
-  function externalUrl(url) {
-    return toExternalUrl(url || "");
-  }
-
   function createRow(name, cut, price, url, extraClass = "") {
     const row = document.createElement(url ? "a" : "div");
     row.className = `${ROOT_CLASS}_row ${extraClass}`.trim();
     if (url) {
-      row.href = externalUrl(url);
-      row.rel = "noopener noreferrer";
+      externalNavigation.applyToLink(row, url);
     }
 
     const nameNode = document.createElement("span");

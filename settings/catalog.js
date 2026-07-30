@@ -25,7 +25,7 @@
     familySharing: "数据来源：Augmented Steam API。授权：GPL-3.0，接口可用性不保证。",
     workshop: "数据来源：Steam Store appdetails categories 分类，接口可用性以 Steam 官方返回为准。",
     subscriptionInfo: "数据来源：SubscriptionInfo。授权： MPL-2.0；数据来源以第三方维护方为准。",
-    priceHistory: "数据来源：IsThereAnyDeal；购买区紧凑展示复用第三方数据服务价格模型。",
+    priceHistory: "数据基于第三方服务实现，使用前请先设置第三方服务。",
     wishlistPriceHistory: "数据来源：Steam Store appdetails 当前价、用户配置的 IsThereAnyDeal API Key 历史价格与 SteamPY 授权价格。",
     steampyCdk: "数据来源：SteamPY。授权/版权：已获得SteamPY官方授权；CDK 价格以 SteamPY 返回为准。",
     steampyProxy: "数据来源：SteamPY。授权/版权：已获得SteamPY官方授权；代购价格以 SteamPY 返回为准。",
@@ -379,8 +379,9 @@
 
   const STORE_PRICE_CHART_DEFAULTS = Object.freeze({
     additionalSteamRegions: Object.freeze([]),
-    lowCriterion: "discount",
+    lowCriterion: "api",
     lowReferenceScope: "currentRegular",
+    lowOccurrence: "latest",
     lineColors: Object.freeze({}),
   });
 
@@ -1105,6 +1106,7 @@
       additionalSteamRegions: [...STORE_PRICE_CHART_DEFAULTS.additionalSteamRegions],
       lowCriterion: STORE_PRICE_CHART_DEFAULTS.lowCriterion,
       lowReferenceScope: STORE_PRICE_CHART_DEFAULTS.lowReferenceScope,
+      lowOccurrence: STORE_PRICE_CHART_DEFAULTS.lowOccurrence,
       lineColors: { ...STORE_PRICE_CHART_DEFAULTS.lineColors },
     };
   }

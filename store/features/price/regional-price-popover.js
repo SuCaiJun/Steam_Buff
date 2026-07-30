@@ -16,6 +16,7 @@
 
   const OWNER = "store:regional-price-popover";
   const SELECTOR = "#game_area_purchase .game_area_purchase_game .game_purchase_action > .game_purchase_action_bg > .game_purchase_price.price";
+  const DISCOUNT_SELECTOR = "#game_area_purchase .game_area_purchase_game .game_purchase_action > .game_purchase_action_bg > .discount_block.game_purchase_discount";
   const HIDE_DELAY_MS = 120;
   const TOOLTIP_OPTIONS = Object.freeze({
     owner: OWNER,
@@ -31,14 +32,34 @@
   const pending = new Map();
   let current = null;
 
-  function appDetails(appid, cc) {
-    const key = `${appid}:${cc}`;
+  function normalizeTargetRef(targetRef) {
+    const type = targetRef?.type === "sub" ? "sub" : "app";
+    const id = Number(targetRef?.id) || 0;
+    return id > 0 ? { type, id } : null;
+  }
+
+  function purchaseSubRef(target) {
+    const input = target.closest?.(".game_area_purchase_game")?.querySelector?.('form input[name="subid"]');
+    const subid = Number(input?.value) || 0;
+    return subid > 0 ? { type: "sub", id: subid } : null;
+  }
+
+  function mainPurchaseRef(target, appid, targetCount) {
+    return purchaseSubRef(target)
+      || (targetCount === 1 ? normalizeTargetRef({ type: "app", id: appid }) : null);
+  }
+
+  function priceDetails(targetRef, cc) {
+    const key = `${targetRef.type}:${targetRef.id}:${cc}`;
     if (cache.has(key)) return Promise.resolve(cache.get(key));
     if (pending.has(key)) return pending.get(key);
     let task;
     task = (async () => {
-      const url = globalThis.STConfig?.vendors?.steamStore?.appDetailsForCountry?.(appid, cc);
-      if (!url) throw new Error("Steam appdetails 配置不可用");
+      const isPackage = targetRef.type === "sub";
+      const url = isPackage
+        ? globalThis.STConfig?.vendors?.steamStore?.packageDetailsForCountry?.(targetRef.id, cc)
+        : globalThis.STConfig?.vendors?.steamStore?.appDetailsForCountry?.(targetRef.id, cc);
+      if (!url) throw new Error(`Steam ${isPackage ? "packagedetails" : "appdetails"} 配置不可用`);
       const data = await api.net.sendRequest({
         url,
         method: "GET",
@@ -46,24 +67,24 @@
         parseJSON: true,
         timeoutMs: 12_000,
         retries: 1,
-        messageType: "steam-regional-appdetails",
+        messageType: isPackage ? "steam-regional-packagedetails" : "steam-regional-appdetails",
         service: "steam-store",
-        endpointKey: "appdetails-price-overview",
-        logUrl: "steam-store://appdetails-price-overview",
-        logParams: { appid, cc },
+        endpointKey: isPackage ? "packagedetails-price" : "appdetails-price-overview",
+        logUrl: isPackage ? "steam-store://packagedetails-price" : "steam-store://appdetails-price-overview",
+        logParams: { targetType: targetRef.type, targetId: targetRef.id, cc },
       });
-      const entry = data?.[String(appid)];
+      const entry = data?.[String(targetRef.id)];
       if (!entry || typeof entry.success !== "boolean" || (entry.success && (!entry.data || typeof entry.data !== "object"))) {
-        const error = new Error("Steam appdetails 响应格式异常");
+        const error = new Error(`Steam ${isPackage ? "packagedetails" : "appdetails"} 响应格式异常`);
         error.code = "RESPONSE_SHAPE_INVALID";
         throw error;
       }
-      const price = entry.success ? entry.data.price_overview || null : null;
+      const price = entry.success ? (isPackage ? entry.data.price : entry.data.price_overview) || null : null;
       if (price && (
         !/^[A-Z]{3}$/.test(String(price.currency || ""))
         || !Number.isInteger(price.final)
       )) {
-        const error = new Error("Steam price_overview 响应格式异常");
+        const error = new Error(`Steam ${isPackage ? "price" : "price_overview"} 响应格式异常`);
         error.code = "RESPONSE_SHAPE_INVALID";
         throw error;
       }
@@ -99,8 +120,8 @@
     return out;
   }
 
-  async function loadRows(appid, regions) {
-    const prices = await runLimited(regions, cc => appDetails(appid, cc));
+  async function loadRows(targetRef, regions) {
+    const prices = await runLimited(regions, cc => priceDetails(targetRef, cc));
     const currencies = Array.from(new Set(prices.map(item => item.currency).filter(currency => currency && currency !== "CNY")));
     let rateIndex = new Map();
     if (currencies.length) {
@@ -185,7 +206,7 @@
     loading.className = "st-regional-price-tooltip__loading";
     loading.textContent = "正在加载区域价格";
     tooltip.show(loading, state.target, TOOLTIP_OPTIONS);
-    if (!state.rowsTask) state.rowsTask = loadRows(state.appid, state.regions);
+    if (!state.rowsTask) state.rowsTask = loadRows(state.targetRef, state.regions);
     const rows = await state.rowsTask;
     if (current !== ownerSession || ownerSession.active !== state || !tooltip.isOwner(OWNER)) return;
     tooltip.show(renderContent(rows), state.target, TOOLTIP_OPTIONS);
@@ -205,9 +226,9 @@
     if (state.session.active === state) state.session.active = null;
   }
 
-  async function bindTargetForSession(ownerSession, target, appid) {
-    const id = Number(appid) || 0;
-    if (id <= 0 || !target?.addEventListener || !target?.removeEventListener) {
+  async function bindTargetForSession(ownerSession, target, targetRef) {
+    const ref = normalizeTargetRef(targetRef);
+    if (!ref || !target?.addEventListener || !target?.removeEventListener) {
       return { started: false, reason: "invalid-target" };
     }
     const configured = await ownerSession.regionsTask;
@@ -215,10 +236,10 @@
     if (!configured.ok) return { started: false, reason: configured.reason };
     if (target.isConnected === false) return { started: false, reason: "target-detached" };
     const existing = ownerSession.bindings.get(target);
-    if (existing?.appid === id) return { started: true };
+    if (existing?.targetRef?.type === ref.type && existing.targetRef.id === ref.id) return { started: true };
     if (existing) disposeBinding(existing);
     const state = {
-      appid: id,
+      targetRef: ref,
       target,
       regions: configured.regions,
       rowsTask: null,
@@ -242,14 +263,33 @@
   function bindTarget(target, appid) {
     const ownerSession = current;
     if (!ownerSession) return Promise.resolve({ started: false, reason: "not-started" });
-    return bindTargetForSession(ownerSession, target, appid);
+    return bindTargetForSession(ownerSession, target, { type: "app", id: appid });
   }
 
   async function start(appid) {
     stop();
     const id = Number(appid) || 0;
     const targets = Array.from(document.querySelectorAll(SELECTOR));
-    if (id <= 0 || targets.length !== 1) return { started: false, reason: targets.length ? "ambiguous-target" : "target-missing" };
+    const discountTargets = Array.from(document.querySelectorAll(DISCOUNT_SELECTOR));
+    if (id <= 0 || (!targets.length && !discountTargets.length)) return { started: false, reason: "target-missing" };
+    const targetRefs = targets.map(target => mainPurchaseRef(target, id, targets.length));
+    if (targetRefs.some(ref => !ref)) return { started: false, reason: "purchase-target-missing" };
+    const discountBindings = discountTargets
+      .map(target => ({ target, targetRef: purchaseSubRef(target) }))
+      .filter(binding => binding.targetRef);
+    if (!targets.length && discountTargets.length === 1 && !discountBindings.length) {
+      discountBindings.push({
+        target: discountTargets[0],
+        targetRef: normalizeTargetRef({ type: "app", id }),
+      });
+    }
+    if (!targets.length && !discountBindings.length) {
+      return { started: false, reason: "purchase-target-missing" };
+    }
+    const bindings = [
+      ...targets.map((target, index) => ({ target, targetRef: targetRefs[index] })),
+      ...discountBindings,
+    ];
     const ownerSession = {
       regionsTask: configuredRegions(),
       bindings: new Map(),
@@ -258,7 +298,8 @@
     current = ownerSession;
     let result;
     try {
-      result = await bindTargetForSession(ownerSession, targets[0], id);
+      const results = await Promise.all(bindings.map(({ target, targetRef }) => bindTargetForSession(ownerSession, target, targetRef)));
+      result = results.find(item => !item.started) || { started: true };
     } catch (error) {
       if (current === ownerSession) stop();
       return { started: false, reason: "settings-unavailable", error };

@@ -2817,6 +2817,595 @@
       }
     `,
     },
+    "price-monitor": {
+      id: "st-price-monitor-style",
+      css: `
+      .st-price-monitor-row {
+        display: inline-flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 0;
+        color: inherit;
+        font: inherit;
+        font-size: inherit;
+        line-height: inherit;
+        letter-spacing: 0;
+      }
+      .st-price-monitor-label {
+        color: inherit;
+        font-size: inherit;
+        font-weight: 700;
+      }
+      .st-price-monitor-status {
+        color: inherit;
+        font: inherit;
+        font-size: inherit;
+      }
+      .st-price-monitor-trigger {
+        display: inline;
+        margin: 0;
+        border: 0;
+        padding: 0;
+        color: inherit;
+        background: transparent;
+        font: inherit;
+        font-size: inherit;
+        line-height: inherit;
+        letter-spacing: 0;
+        text-align: left;
+        cursor: pointer;
+      }
+      .st-price-monitor-trigger:hover {
+        color: inherit;
+        text-decoration: underline;
+      }
+      .st-price-monitor-trigger:focus-visible {
+        outline: 1px solid currentColor;
+        outline-offset: 2px;
+      }
+      .st-price-monitor-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        display: grid;
+        place-items: center;
+        overflow: auto;
+        box-sizing: border-box;
+        padding: 16px;
+        background: var(--st-color-overlay);
+        font-family: Motiva Sans, Arial, Helvetica, sans-serif;
+        letter-spacing: 0;
+      }
+      .st-price-monitor-modal[hidden] {
+        display: none;
+      }
+      .st-price-monitor-dialog {
+        width: min(388px, calc(100vw - 32px));
+        max-height: calc(100vh - 32px);
+        overflow: visible;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: var(--st-radius-md);
+        color: var(--st-color-text-primary);
+        background: var(--st-color-surface-panel);
+        box-shadow: 0 18px 50px var(--st-color-black-alpha-72);
+      }
+      .st-price-monitor-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 13px 16px;
+        border-bottom: 1px solid var(--st-color-border-normal);
+      }
+      .st-price-monitor-heading {
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+      .st-price-monitor-heading h3 {
+        margin: 0;
+        color: var(--st-color-white);
+        font-size: 16px;
+        line-height: 22px;
+        font-weight: 600;
+        letter-spacing: 0;
+      }
+      .st-price-monitor-item-name {
+        overflow: hidden;
+        margin-top: 2px;
+        color: var(--st-color-text-muted);
+        font-size: 12px;
+        line-height: 16px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .st-price-monitor-close {
+        width: 26px;
+        height: 26px;
+        flex: 0 0 26px;
+        box-sizing: border-box;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: var(--st-radius-sm);
+        padding: 0;
+        color: var(--st-color-text-secondary);
+        background: var(--st-color-surface-control);
+        font: inherit;
+        font-size: 18px;
+        line-height: 1;
+        letter-spacing: 0;
+        cursor: pointer;
+      }
+      .st-price-monitor-close:hover {
+        border-color: var(--st-color-border-hover);
+        color: var(--st-color-white);
+        background: var(--st-color-surface-control-hover);
+      }
+      .st-price-monitor-body {
+        display: grid;
+        gap: 9px;
+        padding: 14px 16px;
+      }
+      .st-price-monitor-group-label {
+        margin-bottom: -2px;
+        color: var(--st-color-text-muted);
+        font-size: 12px;
+        line-height: 16px;
+        font-weight: 500;
+      }
+      .st-price-monitor-field-label {
+        color: var(--st-color-text-secondary);
+        font-size: 12px;
+        line-height: 16px;
+      }
+      .st-price-monitor-modes {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        overflow: hidden;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: var(--st-radius-sm);
+        background: var(--st-color-surface-inset);
+      }
+      .st-price-monitor-modes button {
+        min-width: 0;
+        border: 0;
+        border-radius: 0;
+        padding: 7px 10px;
+        color: var(--st-color-text-secondary);
+        background: transparent;
+        font: inherit;
+        font-size: 13px;
+        letter-spacing: 0;
+        cursor: pointer;
+      }
+      .st-price-monitor-modes button + button {
+        border-left: 1px solid var(--st-color-border-normal);
+      }
+      .st-price-monitor-modes button:hover {
+        color: var(--st-color-white);
+      }
+      .st-price-monitor-modes button.active {
+        color: var(--st-color-steam-blue);
+        background: var(--st-color-primary-surface);
+        box-shadow: inset 0 0 0 1px var(--st-color-steam-blue);
+        font-weight: 600;
+      }
+      .st-price-monitor-field {
+        display: grid;
+        gap: 6px;
+      }
+      .st-price-monitor-field[hidden] {
+        display: none;
+      }
+      .st-price-monitor-slider-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .st-price-monitor-slider-wrap {
+        display: flex;
+        flex: 1 1 auto;
+        align-items: center;
+        min-width: 0;
+      }
+      .st-price-monitor-range {
+        width: 100%;
+        height: 4px;
+        margin: 0;
+        border: 0;
+        border-radius: 999px;
+        outline: none;
+        background: var(--st-color-border-hover);
+        appearance: none;
+        -webkit-appearance: none;
+        cursor: pointer;
+      }
+      .st-price-monitor-range::-webkit-slider-runnable-track {
+        height: 4px;
+        border-radius: 999px;
+      }
+      .st-price-monitor-range::-webkit-slider-thumb {
+        width: 15px;
+        height: 15px;
+        margin-top: -5.5px;
+        border: 2px solid var(--st-color-surface-panel-dark);
+        border-radius: 50%;
+        background: var(--st-color-steam-blue);
+        box-shadow: 0 0 0 1px var(--st-color-border-hover);
+        appearance: none;
+        -webkit-appearance: none;
+        cursor: pointer;
+      }
+      .st-price-monitor-range::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+        border: 2px solid var(--st-color-surface-panel-dark);
+        border-radius: 50%;
+        background: var(--st-color-steam-blue);
+        cursor: pointer;
+      }
+      .st-price-monitor-range:focus-visible {
+        outline: 2px solid var(--st-color-steam-blue);
+        outline-offset: 4px;
+      }
+      .st-price-monitor-number-box {
+        display: flex;
+        width: 82px;
+        min-height: 30px;
+        flex: 0 0 82px;
+        align-items: center;
+        box-sizing: border-box;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: var(--st-radius-sm);
+        padding: 0 8px;
+        background: var(--st-color-surface-inset);
+      }
+      .st-price-monitor-number-box:focus-within {
+        border-color: var(--st-color-steam-blue);
+      }
+      .st-price-monitor-number-unit {
+        color: var(--st-color-text-muted);
+        font-size: 12px;
+      }
+      .st-price-monitor-number-unit:first-child {
+        padding-right: 2px;
+      }
+      .st-price-monitor-number-unit:last-child {
+        padding-left: 2px;
+      }
+      .st-price-monitor-number-input {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        padding: 0;
+        color: var(--st-color-white);
+        background: transparent;
+        font: inherit;
+        font-size: 13px;
+        letter-spacing: 0;
+        text-align: right;
+        outline: none;
+        appearance: textfield;
+        -moz-appearance: textfield;
+      }
+      .st-price-monitor-number-input::-webkit-outer-spin-button,
+      .st-price-monitor-number-input::-webkit-inner-spin-button {
+        margin: 0;
+        appearance: none;
+        -webkit-appearance: none;
+      }
+      .st-price-monitor-channels {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .st-price-monitor-channel {
+        display: flex;
+        min-height: 32px;
+        align-items: center;
+        gap: 8px;
+        box-sizing: border-box;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: var(--st-radius-sm);
+        padding: 0 10px;
+        color: var(--st-color-text-primary);
+        background: var(--st-color-surface-control);
+        font-size: 13px;
+        cursor: pointer;
+        user-select: none;
+      }
+      .st-price-monitor-channel input {
+        width: 15px;
+        height: 15px;
+        margin: 0;
+        accent-color: var(--st-color-steam-blue);
+      }
+      .st-price-monitor-channel:has(input:checked) {
+        border-color: var(--st-color-steam-blue);
+        color: var(--st-color-white);
+        background: var(--st-color-primary-surface);
+      }
+      .st-price-monitor-time-wrap {
+        position: relative;
+      }
+      .st-price-monitor-time-trigger {
+        display: flex;
+        width: 100%;
+        min-height: 32px;
+        align-items: center;
+        justify-content: space-between;
+        box-sizing: border-box;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: var(--st-radius-sm);
+        padding: 0 10px;
+        color: var(--st-color-white);
+        background: var(--st-color-surface-inset);
+        font: inherit;
+        font-size: 13px;
+        letter-spacing: 0;
+        text-align: left;
+        cursor: pointer;
+      }
+      .st-price-monitor-time-trigger--placeholder {
+        color: var(--st-color-text-muted);
+      }
+      .st-price-monitor-time-trigger:hover {
+        border-color: var(--st-color-border-hover);
+      }
+      .st-price-monitor-time-clock {
+        display: flex;
+        color: var(--st-color-text-muted);
+      }
+      .st-price-monitor-time-panel {
+        position: absolute;
+        top: calc(100% + 4px);
+        right: 0;
+        left: 0;
+        z-index: 50;
+        overflow: hidden;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: var(--st-radius-sm);
+        background: var(--st-color-surface-panel-dark);
+        box-shadow: 0 12px 30px var(--st-color-black-alpha-72);
+      }
+      .st-price-monitor-time-panel[hidden] {
+        display: none;
+      }
+      .st-price-monitor-time-columns {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        height: 168px;
+      }
+      .st-price-monitor-time-column {
+        overflow-y: auto;
+        scrollbar-width: thin;
+      }
+      .st-price-monitor-time-column + .st-price-monitor-time-column {
+        border-left: 1px solid var(--st-color-border-normal);
+      }
+      .st-price-monitor-time-column::-webkit-scrollbar {
+        width: 6px;
+      }
+      .st-price-monitor-time-column::-webkit-scrollbar-thumb {
+        border-radius: 3px;
+        background: var(--st-color-border-hover);
+      }
+      .st-price-monitor-time-option {
+        width: 100%;
+        border: 0;
+        padding: 8px 0;
+        color: var(--st-color-text-secondary);
+        background: transparent;
+        font: inherit;
+        font-size: 13px;
+        letter-spacing: 0;
+        text-align: center;
+        cursor: pointer;
+      }
+      .st-price-monitor-time-option:hover {
+        color: var(--st-color-white);
+        background: var(--st-color-surface-control-hover);
+      }
+      .st-price-monitor-time-option.selected {
+        color: var(--st-color-steam-blue);
+        background: var(--st-color-primary-surface);
+        font-weight: 600;
+      }
+      .st-price-monitor-time-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 10px;
+        border-top: 1px solid var(--st-color-border-normal);
+      }
+      .st-price-monitor-time-now,
+      .st-price-monitor-time-confirm {
+        border-radius: var(--st-radius-sm);
+        font: inherit;
+        font-size: 12px;
+        letter-spacing: 0;
+        cursor: pointer;
+      }
+      .st-price-monitor-time-now {
+        border: 0;
+        padding: 2px 4px;
+        color: var(--st-color-steam-blue);
+        background: transparent;
+      }
+      .st-price-monitor-time-confirm {
+        border: 1px solid var(--st-color-steam-blue);
+        padding: 4px 14px;
+        color: var(--st-color-surface-inset);
+        background: var(--st-color-steam-blue);
+        font-weight: 600;
+      }
+      .st-price-monitor-message {
+        color: var(--st-color-text-muted);
+        font-size: 12px;
+        line-height: 18px;
+      }
+      .st-price-monitor-message:empty {
+        display: none;
+      }
+      .st-price-monitor-message--error {
+        color: var(--st-color-danger);
+      }
+      .st-price-monitor-explanation {
+        margin-top: 3px;
+        border: 1px solid var(--st-color-border-normal);
+        border-left: 3px solid var(--st-color-steam-blue);
+        border-radius: var(--st-radius-sm);
+        padding: 9px 11px;
+        background: var(--st-color-primary-surface);
+      }
+      .st-price-monitor-explanation p {
+        margin: 0;
+        color: var(--st-color-text-secondary);
+        font-size: 12.5px;
+        line-height: 19px;
+      }
+      .st-price-monitor-explanation-item {
+        color: var(--st-color-white);
+        font-weight: 600;
+      }
+      .st-price-monitor-explanation-value {
+        color: var(--st-color-steam-blue);
+        font-weight: 600;
+      }
+      .st-price-monitor-explanation--warning {
+        border-left-color: var(--st-color-danger);
+        background: var(--st-color-danger-surface);
+      }
+      .st-price-monitor-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 16px;
+        border-top: 1px solid var(--st-color-border-normal);
+      }
+      .st-price-monitor-actions-spacer {
+        flex: 1 1 auto;
+      }
+      .st-price-monitor-action,
+      .st-price-monitor-delete,
+      .st-price-monitor-dashboard {
+        min-height: 31px;
+        box-sizing: border-box;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: var(--st-radius-sm);
+        padding: 0 15px;
+        color: var(--st-color-text-primary);
+        background: var(--st-color-surface-control);
+        font: inherit;
+        font-size: 13px;
+        letter-spacing: 0;
+        cursor: pointer;
+      }
+      .st-price-monitor-action:hover {
+        border-color: var(--st-color-border-hover);
+        background: var(--st-color-surface-control-hover);
+      }
+      .st-price-monitor-action--primary {
+        border-color: var(--st-color-steam-blue);
+        color: var(--st-color-surface-inset);
+        background: var(--st-color-steam-blue);
+        font-weight: 600;
+      }
+      .st-price-monitor-action--primary:hover {
+        background: var(--st-color-steam-blue-light, var(--st-color-steam-blue));
+      }
+      .st-price-monitor-delete {
+        border-color: var(--st-color-danger);
+        color: var(--st-color-danger);
+        background: transparent;
+      }
+      .st-price-monitor-delete:hover {
+        color: var(--st-color-white);
+        background: var(--st-color-danger);
+      }
+      .st-price-monitor-delete[hidden] {
+        display: none;
+      }
+      .st-price-monitor-dashboard {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-color: transparent;
+        padding: 0 8px;
+        color: var(--st-color-steam-blue);
+        background: transparent;
+      }
+      .st-price-monitor-dashboard svg {
+        flex: 0 0 auto;
+        opacity: .85;
+      }
+      .st-price-monitor-dashboard:hover {
+        border-color: var(--st-color-border-hover);
+        color: var(--st-color-white);
+        background: var(--st-color-primary-surface);
+      }
+      .st-price-monitor-action:focus-visible,
+      .st-price-monitor-delete:focus-visible,
+      .st-price-monitor-dashboard:focus-visible,
+      .st-price-monitor-close:focus-visible,
+      .st-price-monitor-modes button:focus-visible,
+      .st-price-monitor-time-trigger:focus-visible,
+      .st-price-monitor-time-option:focus-visible,
+      .st-price-monitor-time-now:focus-visible,
+      .st-price-monitor-time-confirm:focus-visible {
+        outline: 2px solid var(--st-color-steam-blue);
+        outline-offset: 1px;
+      }
+      .st-price-monitor-dialog button:disabled,
+      .st-price-monitor-dialog input:disabled {
+        opacity: .58;
+        cursor: not-allowed;
+      }
+      @media (max-width: 520px) {
+        .st-price-monitor-modal {
+          padding: 8px;
+        }
+        .st-price-monitor-dialog {
+          width: calc(100vw - 16px);
+          max-height: calc(100vh - 16px);
+        }
+        .st-price-monitor-head,
+        .st-price-monitor-body,
+        .st-price-monitor-actions {
+          padding-left: 12px;
+          padding-right: 12px;
+        }
+        .st-price-monitor-actions {
+          flex-wrap: wrap;
+        }
+        .st-price-monitor-slider-row {
+          gap: 9px;
+        }
+        .st-price-monitor-number-box {
+          width: 76px;
+          flex-basis: 76px;
+        }
+      }
+      @media (max-width: 380px) {
+        .st-price-monitor-actions-spacer {
+          order: 3;
+          width: 100%;
+          height: 0;
+          flex: 0 0 100%;
+        }
+        .st-price-monitor-delete {
+          order: 1;
+        }
+        .st-price-monitor-dashboard {
+          order: 2;
+        }
+        .st-price-monitor-action:not(.st-price-monitor-action--primary) {
+          order: 4;
+          margin-left: auto;
+        }
+        .st-price-monitor-action--primary {
+          order: 5;
+        }
+      }
+    `,
+    },
     "game-notes": {
       id: "st-game-notes-style",
       version: "wishlist-metadata-v3",

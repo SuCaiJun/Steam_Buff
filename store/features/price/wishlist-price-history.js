@@ -16,9 +16,7 @@
 
   const STEAMPY = globalThis.STConfig.vendors.steampy;
   const STEAM_STORE = globalThis.STConfig.vendors.steamStore;
-  const toExternalUrl = typeof globalThis.STConfig.toSteamExternalUrl === "function"
-    ? globalThis.STConfig.toSteamExternalUrl
-    : (url) => String(url || "");
+  const externalNavigation = globalThis.STConfig.externalNavigation;
 
   const FEATURE_ID = "wishlist-price-history";
   const LOADING_MESSAGE = "正在获取数据...";
@@ -79,18 +77,10 @@
     if (!raw || raw === "#") return fallback;
     try {
       const url = new URL(raw, location.origin);
-      if (url.protocol === "steam:" && url.href.startsWith("steam://openurl_external/")) {
-        return url.href;
-      }
       return url.protocol === "http:" || url.protocol === "https:" || url.protocol === "chrome-extension:" ? url.href : fallback;
     } catch {
       return fallback;
     }
-  }
-
-  function externalUrl(value) {
-    const raw = text(value);
-    return raw ? toExternalUrl(raw) : "";
   }
 
   function cssUrl(value) {
@@ -570,11 +560,7 @@
     row.className = "st-wphp-row";
     if (url) {
       const href = safeUrl(url);
-      row.href = href;
-      if (!href.startsWith("steam://openurl_external/")) {
-        row.target = "_blank";
-      }
-      row.rel = "noopener noreferrer";
+      externalNavigation.applyToLink(row, href);
       row.setAttribute("aria-label", `${label} ${price.text || ""}`.trim());
     }
     const name = document.createElement("span");
@@ -600,10 +586,10 @@
 
   function steamPyDetail(row) {
     if (row.kind === "cdk" && row.gameId) {
-      return externalUrl(STEAMPY.cdkDetail(row.gameId));
+      return STEAMPY.cdkDetail(row.gameId);
     }
     if (row.kind === "proxy" && row.gameId) {
-      return externalUrl(STEAMPY.proxyDetail(row.gameId));
+      return STEAMPY.proxyDetail(row.gameId);
     }
     return "";
   }
