@@ -3,7 +3,7 @@
     "message": "Steam Buff"
   },
   "extDescription": {
-    "message": "A Steam client enhancement toolkit, also known as Gaben's Smile. This tool is still in early development, with many features still being improved or migrated from the classic extension."
+    "message": "Give your Steam client a Buff! Steam Buff supports custom library list names, shutting down after downloads complete, future sale predictions, regional prices, and more."
   },
   "locale_zh_CN": {
     "message": "Simplified Chinese"
@@ -4247,6 +4247,9 @@
   },
   "settings_account_servicePrefix": {
     "message": "Compute service by "
+  },
+  "settings_account_serviceProviderName": {
+    "message": "RainYun"
   },
   "settings_account_serviceSuffix": {
     "message": ""

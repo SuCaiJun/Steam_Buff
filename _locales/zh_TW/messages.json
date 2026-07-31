@@ -3,7 +3,7 @@
     "message": "Steam Buff"
   },
   "extDescription": {
-    "message": "Steam 用戶端增強小工具重構版，別名 G 胖的微笑，目前小工具仍處於前期開發階段，許多功能仍在開發完善，部分功能尚未從舊版擴充功能移植過來。"
+    "message": "來為 Steam 用戶端加個 Buff 吧！Steam Buff 支援遊戲庫列表自訂名稱、下載完成關機、未來折扣預測、多地區價格等功能。"
   },
   "locale_zh_CN": {
     "message": "簡體中文"
@@ -4247,6 +4247,9 @@
   },
   "settings_account_servicePrefix": {
     "message": "由"
+  },
+  "settings_account_serviceProviderName": {
+    "message": "雨雲"
   },
   "settings_account_serviceSuffix": {
     "message": "提供運算服務"

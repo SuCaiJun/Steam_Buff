@@ -3,7 +3,7 @@
     "message": "Steam Buff"
   },
   "extDescription": {
-    "message": "Steam 客户端增强小工具重构版，别名G胖的微笑，当前小工具仍处于前期开发阶段，很多功能仍在开发完善，部分功能还未从老的扩展中移植过来。"
+    "message": "来给 Steam 客户端加个 Buff 吧！Steam Buff 支持库列表自定义名称、下载完成关机、未来打折预测、多地区价格等功能。"
   },
   "locale_zh_CN": {
     "message": "简体中文"
@@ -4247,6 +4247,9 @@
   },
   "settings_account_servicePrefix": {
     "message": "由"
+  },
+  "settings_account_serviceProviderName": {
+    "message": "雨云"
   },
   "settings_account_serviceSuffix": {
     "message": "提供计算服务"

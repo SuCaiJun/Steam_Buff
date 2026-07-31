@@ -378,7 +378,7 @@
     const target = navigation.target ? ` target="${ctx.esc(navigation.target)}"` : "";
     return `
       <div class="uc-service-attribution">
-        ${t("settings.account.servicePrefix", "由")}<a href="${ctx.esc(navigation.href)}"${target} rel="${ctx.esc(navigation.rel)}">RainYun</a>${t("settings.account.serviceSuffix", "提供计算服务")}
+        ${t("settings.account.servicePrefix", "由")}<a href="${ctx.esc(navigation.href)}"${target} rel="${ctx.esc(navigation.rel)}">${t("settings.account.serviceProviderName", "雨云")}</a>${t("settings.account.serviceSuffix", "提供计算服务")}
       </div>
     `;
   }
