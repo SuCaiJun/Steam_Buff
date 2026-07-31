@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -210,7 +210,12 @@
         return result;
       }, (error) => {
         if (isCurrent()) {
-          view?.renderState?.(root, "error", { userMessage: "第三方价格数据加载失败，请稍后重试。" });
+          view?.renderState?.(root, "error", {
+            userMessage: globalThis.STI18n.text(
+              "store.dataDisplay.thirdPartyLoadFailed",
+              "第三方价格数据加载失败，请稍后重试。",
+            ),
+          });
           log?.error?.("data-display-load-failed", "数据展示价格数据加载异常", pageMeta({
             pageType: info.type || "",
             appid: Number(info.appId) || 0,

@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -19,7 +19,7 @@
     operationId: runtimeCorrelation.steamBuffRuntimeOperationId || "",
   });
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
-  const RUNTIME_VERSION = "steam-buff-runtime-v15";
+  const RUNTIME_VERSION = "steam-buff-runtime-v16";
   const RUNTIME_OPERATION_ATTR = "steamBuffRuntimeOperationId";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
@@ -326,6 +326,7 @@
       return;
     }
 
+    await window.STI18n?.ready?.();
     runtime?.activateAdapter?.("steam", runtimeMeta());
     api.runtime = {
       started: true,

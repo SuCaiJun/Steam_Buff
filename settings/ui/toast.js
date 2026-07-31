@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -16,6 +16,10 @@
     warn() {},
   };
 
+  function text(key, fallback) {
+    return globalThis.STI18n.text(key, fallback);
+  }
+
   function savePrompt(shadow) {
     const dialog = globalThis.STSettingsDialogs?.dialog;
     if (typeof dialog !== "function") {
@@ -29,11 +33,11 @@
       hasShadow: !!shadow,
     });
     return dialog(shadow, {
-      title: "保存成功",
-      message: "刷新页面后生效。",
+      title: text("settings.savePrompt.title", "保存成功"),
+      message: text("settings.savePrompt.message", "刷新页面后生效。"),
       actions: [
-        { id: "refresh", label: "刷新页面" },
-        { id: "ok", label: "确定", primary: true },
+        { id: "refresh", label: text("common.refreshPage", "刷新页面") },
+        { id: "ok", label: text("common.confirm", "确定"), primary: true },
       ],
     }).then((action) => {
       if (action !== "refresh") {

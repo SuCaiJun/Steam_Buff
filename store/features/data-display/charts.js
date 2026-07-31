@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -22,6 +22,10 @@
 
   function text(value) {
     return String(value ?? "").trim();
+  }
+
+  function i18n(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
   }
 
   function amountOf(price) {
@@ -84,7 +88,7 @@
     return node;
   }
 
-  function createEmpty(message = "暂无历史价格数据") {
+  function createEmpty(message = i18n("store.priceChart.emptyHistory", "暂无历史价格数据")) {
     const box = document.createElement("div");
     box.className = "st-data-display-chart st-data-display-chart--empty";
     box.textContent = message;
@@ -232,7 +236,9 @@
       api.chartTooltip?.bindPointTooltip?.(rect, point, {
         date: item => dateLabel(item.time, true),
         price: item => moneyText(item.amount, item.currency),
-        discount: item => (item.cut > 0 ? `折扣: -${item.cut}%` : ""),
+        discount: item => (item.cut > 0
+          ? i18n("store.priceChart.discount", "折扣：-$cut$%", { cut: item.cut })
+          : ""),
         label: item => `${dateLabel(item.time, true)} ${moneyText(item.amount, item.currency)}${item.cut > 0 ? ` -${item.cut}%` : ""}`,
         zIndex: "var(--st-z-index-max)",
       });
@@ -297,7 +303,7 @@
       height: String(HEIGHT),
       viewBox: `0 0 1000 ${HEIGHT}`,
       role: "img",
-      "aria-label": "历史价格走势图",
+      "aria-label": i18n("store.priceChart.historyAria", "历史价格走势图"),
       preserveAspectRatio: "none",
     });
     createGrid(svg);
@@ -350,7 +356,7 @@
     if (scope === "currentRegular") {
       const regular = series.current?.regular;
       if (!regular || !Number.isFinite(Number(regular.amount))) {
-        return { events: [], error: "当前原价范围不可计算" };
+        return { events: [], error: i18n("store.priceChart.currentRegularUnavailable", "当前原价范围不可计算") };
       }
       return { events: events.filter(event => event.price && sameMoney(event.regular, regular)), error: "" };
     }
@@ -369,9 +375,9 @@
   }
 
   function lowestEvent(events) {
-    if (!events.length) return { event: null, error: "暂无可计算价格史低" };
+    if (!events.length) return { event: null, error: i18n("store.priceChart.noCalculablePriceLow", "暂无可计算价格史低") };
     const currencies = new Set(events.map(event => text(event.price?.currency)).filter(Boolean));
-    if (currencies.size !== 1) return { event: null, error: "暂无可计算价格史低" };
+    if (currencies.size !== 1) return { event: null, error: i18n("store.priceChart.noCalculablePriceLow", "暂无可计算价格史低") };
     return {
       event: events.reduce((lowest, event) => amountOf(event.price) < amountOf(lowest.price) ? event : lowest),
       error: "",
@@ -381,7 +387,7 @@
   function apiLow(series) {
     const low = series?.storeLow;
     if (!low?.price || amountOf(low.price) === null || !text(low.price.currency)) {
-      return { event: null, error: "API 暂无可用史低" };
+      return { event: null, error: i18n("store.priceChart.apiLowUnavailable", "API 暂无可用史低") };
     }
     return {
       event: { ...low, time: timeOf(low.timestamp), chartAmount: chartAmount(low) },
@@ -416,7 +422,7 @@
     const eligibleSet = new Set(eligible);
 
     if (!status && criterion === "discount") {
-      if (maxCut === null) status = "暂无可计算折扣史低";
+      if (maxCut === null) status = i18n("store.priceChart.noCalculableDiscountLow", "暂无可计算折扣史低");
       else matcher = event => !!event.price && eligibleSet.has(event) && Number(event.cut) === maxCut;
     }
     if (!status && criterion === "price") {
@@ -428,7 +434,7 @@
         const baseAmount = amountOf(basis.price);
         const rate = currency === "CNY" ? 1 : Number(basis.cny?.rate);
         if (!Number.isFinite(baseAmount) || !Number.isFinite(rate) || rate <= 0) {
-          status = "暂无可计算价格史低";
+          status = i18n("store.priceChart.noCalculablePriceLow", "暂无可计算价格史低");
         } else {
           const tolerance = currency === "CNY" ? 1 : rate;
           matcher = event => !!event.price
@@ -578,11 +584,15 @@
 
   function formatCny(event) {
     const amount = chartAmount(event);
-    return amount === null ? "人民币汇率不可用" : globalThis.STFormatUtils?.formatCurrency?.(amount, "CNY") || `CNY ${amount.toFixed(2)}`;
+    return amount === null
+      ? i18n("store.priceChart.cnyRateUnavailable", "人民币汇率不可用")
+      : globalThis.STFormatUtils?.formatCurrency?.(amount, "CNY") || `CNY ${amount.toFixed(2)}`;
   }
 
   function seriesRegionLabel(series) {
-    return globalThis.STPriceComparisonCatalog?.getSteamPriceRegion?.(series?.country)?.label || text(series?.country);
+    const country = text(series?.country);
+    const fallback = globalThis.STPriceComparisonCatalog?.getSteamPriceRegion?.(country)?.label || country;
+    return i18n(`settings.storePriceChart.region.${country}`, fallback);
   }
 
   function seriesShopLabel(series) {
@@ -619,11 +629,24 @@
   }
 
   function scopeLabel(scope) {
-    return ({ api: "不适用", allRegular: "全部原价", currentRegular: "当前原价", recent12Months: "最近12个月" })[scope] || "当前原价";
+    const values = {
+      api: ["store.priceChart.notApplicable", "不适用"],
+      allRegular: ["settings.storePriceChart.lowReferenceScope.allRegular", "全部原价"],
+      currentRegular: ["settings.storePriceChart.lowReferenceScope.currentRegular", "当前原价"],
+      recent12Months: ["settings.storePriceChart.lowReferenceScope.recent12Months", "最近12个月"],
+    };
+    const entry = values[scope] || values.currentRegular;
+    return i18n(entry[0], entry[1]);
   }
 
   function criterionLabel(criterion) {
-    return ({ api: "使用API数据", discount: "按折扣力度", price: "按到手价" })[criterion] || "使用API数据";
+    const values = {
+      api: ["settings.storePriceChart.lowCriterion.api", "使用API数据"],
+      discount: ["settings.storePriceChart.lowCriterion.discount", "按折扣力度"],
+      price: ["settings.storePriceChart.lowCriterion.price", "按到手价"],
+    };
+    const entry = values[criterion] || values.api;
+    return i18n(entry[0], entry[1]);
   }
 
   function legendLines(series) {
@@ -637,22 +660,28 @@
       : "";
     return [
       seriesDisplayLabel(series),
-      `史低判定：${criterionLabel(series.criterion)}`,
-      `参考范围：${scopeLabel(series.scope)}`,
-      stats.maxCut === null ? "历史最大折扣：暂无" : `历史最大折扣：-${stats.maxCut}%`,
-      low?.price ? `历史最低价格：${text(low.price.currency)} ${amountOf(low.price)}${mainPriceText}` : "历史最低价格：暂无",
-      stats.status || `一年内达到 ${stats.yearCount} 次`,
+      i18n("store.priceChart.lowCriterion", "史低判定：$criterion$", { criterion: criterionLabel(series.criterion) }),
+      i18n("store.priceChart.referenceScope", "参考范围：$scope$", { scope: scopeLabel(series.scope) }),
+      stats.maxCut === null
+        ? i18n("store.priceChart.maxDiscountNone", "历史最大折扣：暂无")
+        : i18n("store.priceChart.maxDiscount", "历史最大折扣：-$cut$%", { cut: stats.maxCut }),
+      low?.price
+        ? i18n("store.priceChart.lowestPrice", "历史最低价格：$price$", { price: `${text(low.price.currency)} ${amountOf(low.price)}${mainPriceText}` })
+        : i18n("store.priceChart.lowestPriceNone", "历史最低价格：暂无"),
+      stats.status || i18n("store.priceChart.yearCount", "一年内达到 $count$ 次", { count: stats.yearCount }),
     ];
   }
 
   function pointLines(series, event) {
     const lines = [
-      `商店类型：${seriesShopLabel(series)}`,
-      `国家区域：${seriesRegionLabel(series)}`,
-      `日期：${dateLabel(event.time, true)}`,
-      `当前金额：${formatCny(event)}`,
+      i18n("store.priceChart.shopType", "商店类型：$shop$", { shop: seriesShopLabel(series) }),
+      i18n("store.priceChart.region", "国家区域：$region$", { region: seriesRegionLabel(series) }),
+      i18n("store.priceChart.date", "日期：$date$", { date: dateLabel(event.time, true) }),
+      i18n("store.priceChart.currentAmount", "当前金额：$amount$", { amount: formatCny(event) }),
     ];
-    if (Number(event.cut) > 0) lines.push(`折扣：-${Number(event.cut)}%`);
+    if (Number(event.cut) > 0) {
+      lines.push(i18n("store.priceChart.discount", "折扣：-$cut$%", { cut: Number(event.cut) }));
+    }
     return lines;
   }
 
@@ -747,7 +776,12 @@
     table.className = "st-store-chart-tooltip__comparison-table";
     const head = document.createElement("thead");
     const headRow = document.createElement("tr");
-    ["国家 / 商店", "价格", "折扣", "对比"].forEach((value) => {
+    [
+      i18n("store.priceChart.table.countryShop", "国家 / 商店"),
+      i18n("store.priceChart.table.price", "价格"),
+      i18n("store.priceChart.table.discount", "折扣"),
+      i18n("store.priceChart.table.comparison", "对比"),
+    ].forEach((value) => {
       const cell = document.createElement("th");
       cell.scope = "col";
       cell.textContent = value;
@@ -822,7 +856,7 @@
       height: String(HEIGHT),
       viewBox: `0 0 1000 ${HEIGHT}`,
       role: "img",
-      "aria-label": "多区域多商店历史价格走势图",
+      "aria-label": i18n("store.priceChart.multiHistoryAria", "多区域多商店历史价格走势图"),
       preserveAspectRatio: "none",
     });
     createGrid(svg);
@@ -921,7 +955,7 @@
     if (!validPoints.length) {
       const empty = document.createElement("div");
       empty.className = "st-data-display-chart__multi-empty";
-      empty.textContent = "当前时间范围暂无历史价格数据";
+      empty.textContent = i18n("store.priceChart.emptyRange", "当前时间范围暂无历史价格数据");
       area.appendChild(empty);
     }
     box.append(yAxis, area);
@@ -998,7 +1032,14 @@
       button.dataset.chartLegendKind = entry.kind;
       button.setAttribute("aria-pressed", hidden.has(item.id) ? "false" : "true");
       const hasData = item.events.some(event => event.price);
-      button.setAttribute("aria-label", `${entry.label}${hasData ? "" : " 暂无数据"} 图表统计`);
+      button.setAttribute("aria-label", i18n(
+        "store.priceChart.legendAria",
+        "$label$$state$ 图表统计",
+        {
+          label: entry.label,
+          state: hasData ? "" : i18n("store.priceChart.legendNoData", " 暂无数据"),
+        },
+      ));
       const swatch = document.createElement("span");
       swatch.className = "st-data-display-chart__legend-swatch";
       swatch.style.backgroundColor = item.color;
@@ -1008,7 +1049,7 @@
       button.append(swatch, label);
       api.chartTooltip?.bindPointTooltip?.(button, item, {
         lines: legendLines,
-        label: value => `${seriesDisplayLabel(value)} 图表统计`,
+        label: value => i18n("store.priceChart.legendStats", "$label$ 图表统计", { label: seriesDisplayLabel(value) }),
         zIndex: "var(--st-z-index-max)",
       });
       button.addEventListener("click", () => {
@@ -1031,7 +1072,11 @@
       items.forEach(item => row.appendChild(createLegendButton(item)));
       legend.appendChild(row);
     };
-    appendLegendRow([...groups.regions, ...groups.shops], "items", "国家和商店");
+    appendLegendRow(
+      [...groups.regions, ...groups.shops],
+      "items",
+      i18n("store.priceChart.countriesAndShops", "国家和商店"),
+    );
     box.appendChild(legend);
     return box;
   }

@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -15,7 +15,7 @@
 
   function profile() {
     if (!root.STAccountProfile?.normalizeData || !root.STAccountProfile?.membershipSnapshot) {
-      throw new Error("账号资料模块未加载");
+      throw new Error(root.STI18n.text("settings.account.profileModuleUnavailable", "账号资料模块未加载"));
     }
     return root.STAccountProfile;
   }
@@ -23,6 +23,7 @@
   function create(options = {}) {
     const rt = options.state;
     const api = options.api || root.STSettingsAccountApi;
+    const t = root.STI18n.text;
     let fallbackAuth = options.auth || null;
     const getAuth = typeof options.getAuth === "function" ? options.getAuth : () => fallbackAuth;
     const log = root.STLoggerFactory?.createLogger?.("settings", "account") || {
@@ -112,23 +113,23 @@
         }
         if (code === 401) {
           await auth.clearAuthState(ctx, { operationId });
-          throw new Error(res.body?.message || "登录已过期，请重新登录");
+          throw new Error(res.body?.message || t("settings.account.loginExpired", "登录已过期，请重新登录"));
         }
         if (code < 200 || code >= 300) {
-          throw new Error(res.body?.message || "获取用户中心失败");
+          throw new Error(res.body?.message || t("settings.account.centerLoadFailed", "获取用户中心失败"));
         }
 
         rt.center = res.body || null;
         cacheCenter(rt.center, current);
         if (typeof ctx.storage?.setMembership !== "function") {
-          throw new Error("会员状态存储未初始化");
+          throw new Error(t("settings.account.membershipStorageUnavailable", "会员状态存储未初始化"));
         }
         const membership = await ctx.storage.setMembership(
           profile().membershipSnapshot(profile().normalizeData(rt.center, current)),
           { operationId }
         );
         if (!membership) {
-          throw new Error("会员状态保存失败");
+          throw new Error(t("settings.account.membershipSaveFailed", "会员状态保存失败"));
         }
         await auth.storeAuth(ctx, {
           ...current,

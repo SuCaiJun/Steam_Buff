@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -12,6 +12,7 @@
   "use strict";
 
   const CFG = root.STConfig || { hosts: {}, urls: {} };
+  const t = root.STI18n.text;
   const urls = Object.freeze({
     siteHost: CFG.hosts?.site || "",
     siteApex: CFG.hosts?.siteApex || "",
@@ -37,7 +38,7 @@
     }
     const requestApi = root.STSettingsApiRequest;
     if (!requestApi?.request) {
-      return Promise.reject(new Error("设置中心请求封装未初始化"));
+      return Promise.reject(new Error(t("settings.account.requestUnavailable", "设置中心请求封装未初始化")));
     }
     return requestApi.request({
       url: url(path, base),
@@ -45,7 +46,7 @@
       headers,
       data: data || {},
       allowHttpError: true,
-      label: "用户中心接口",
+      label: t("settings.account.requestLabel", "用户中心接口"),
       timeoutMs: 12_000,
       operationId: diagnostics.operationId || "",
       requestId: diagnostics.requestId || "",

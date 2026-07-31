@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -13,6 +13,8 @@
 
   const api = window.STStore;
   if (!api) return;
+
+  const t = (key, fallback, params) => globalThis.STI18n?.text?.(key, fallback, params) ?? fallback;
 
   const REQ_EVT = "STStoreCartSelectRequest";
   const RES_EVT = "STStoreCartSelectResponse";
@@ -372,7 +374,7 @@
 
     hold = document.createElement("span");
     hold.className = "st_cart_select_hold";
-    hold.textContent = "本次不支付";
+    hold.textContent = t("store_cartSelect_skipPayment", "本次不支付");
     row.prepend(hold);
     return hold;
   }
@@ -383,7 +385,7 @@
 
     const label = document.createElement("label");
     label.className = "st_cart_select_check";
-    label.title = "本次支付";
+    label.title = t("store_cartSelect_payThisTime", "本次支付");
 
     const input = document.createElement("input");
     input.type = "checkbox";
@@ -432,7 +434,7 @@
             restoredSelectedCount: selectedItems().length,
             error,
           });
-          toast("购物车选择状态保存失败，已恢复原状态", true);
+          toast(t("store_cartSelect_saveFailed", "购物车选择状态保存失败，已恢复原状态"), true);
         });
     });
   }
@@ -484,9 +486,9 @@
       wrap.id = "st_cart_select_bulk_actions";
 
       const actions = [
-        ["all", "全选"],
-        ["invert", "反选"],
-        ["none", "取消全选"],
+        ["all", t("store_cartSelect_selectAll", "全选")],
+        ["invert", t("store_cartSelect_invertSelection", "反选")],
+        ["none", t("store_cartSelect_clearSelection", "取消全选")],
       ];
       for (const [id, label] of actions) {
         const btn = document.createElement("button");
@@ -532,7 +534,7 @@
             durationMs: Date.now() - startedAt,
             error,
           });
-          toast("购物车批量选择失败", true);
+          toast(t("store_cartSelect_bulkFailed", "购物车批量选择失败"), true);
         });
       });
     }
@@ -600,7 +602,7 @@
       log.warn("cart-remove-all-confirm-fallback", "移除全部确认组件不可用，降级为浏览器确认框", {
         path: location.pathname,
       });
-      return window.confirm("确认移除购物车中的所有项目？");
+      return window.confirm(t("store_cartSelect_removeAllConfirm", "确认移除购物车中的所有项目？"));
     }
 
     const { host, shadow } = confirmHost();
@@ -610,11 +612,11 @@
     });
     try {
       const action = await dialog(shadow, {
-        title: "确认移除所有项目",
-        message: "此操作会让 Steam 移除购物车中的所有项目。确认后将继续执行 Steam 原本的移除所有项目操作，取消则不会执行。",
+        title: t("store_cartSelect_removeAllTitle", "确认移除所有项目"),
+        message: t("store_cartSelect_removeAllMessage", "此操作会让 Steam 移除购物车中的所有项目。确认后将继续执行 Steam 原本的移除所有项目操作，取消则不会执行。"),
         actions: [
-          { id: "cancel", label: "继续保留" },
-          { id: "remove", label: "确认移除", primary: true },
+          { id: "cancel", label: t("store_cartSelect_keepItems", "继续保留") },
+          { id: "remove", label: t("store_cartSelect_removeAll", "确认移除"), primary: true },
         ],
       });
       log.info("cart-remove-all-confirm-close", "移除全部确认弹窗已关闭", {
@@ -716,7 +718,7 @@
       const totalRow = document.createElement("div");
       totalRow.className = "st_cart_select_side_row";
       const totalLabel = document.createElement("span");
-      totalLabel.textContent = "所选总额";
+      totalLabel.textContent = t("store_cartSelect_selectedTotal", "所选总额");
       const totalValue = document.createElement("strong");
       totalValue.dataset.stCartSideTotal = "";
       totalRow.append(totalLabel, totalValue);
@@ -724,7 +726,7 @@
       const countRow = document.createElement("div");
       countRow.className = "st_cart_select_side_row";
       const countLabel = document.createElement("span");
-      countLabel.textContent = "购买数量";
+      countLabel.textContent = t("store_cartSelect_purchaseCount", "购买数量");
       const countValue = document.createElement("strong");
       countValue.dataset.stCartSideCount = "";
       countRow.append(countLabel, countValue);
@@ -843,9 +845,9 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "st_cart_restore_btn";
-      btn.textContent = "恢复暂存购物车数据";
+      btn.textContent = t("store_cartSelect_restoreButton", "恢复暂存购物车数据");
       btn.addEventListener("click", () => {
-        manualRestoreMissing().catch(() => setRestorePanel("恢复失败，请重试", "bad"));
+        manualRestoreMissing().catch(() => setRestorePanel(t("store_cartSelect_restoreFailed", "恢复失败，请重试"), "bad"));
       });
       panel.append(text, btn);
     }
@@ -1025,7 +1027,7 @@
       return;
     }
 
-    setRestorePanel(`有 ${need.length} 件暂存购物车数据未恢复`);
+    setRestorePanel(t("store_cartSelect_restoreMissing", "有$count$件暂存购物车数据未恢复", { count: need.length }));
   }
 
   async function manualRestoreMissing() {
@@ -1061,7 +1063,7 @@
         return;
       }
 
-      setRestorePanel(`正在恢复 ${need.length} 件暂存购物车数据...`, "busy");
+      setRestorePanel(t("store_cartSelect_restoring", "正在恢复$count$件暂存购物车数据...", { count: need.length }), "busy");
       const res = await request("restore", { items: need });
       await scan();
 
@@ -1071,7 +1073,7 @@
         await clearSelection(allKeys);
         await remove([RESTORE_KEY]);
         setRestorePanel("");
-        toast("已恢复上次未支付项目");
+        toast(t("store_cartSelect_restored", "已恢复上次未支付项目"));
         log.info("cart-select-restore-success", "暂存购物车数据恢复完成", {
           batchCount: batches.length,
           count: need.length,
@@ -1080,8 +1082,8 @@
         setTimeout(() => location.reload(), 700);
       } else {
         await put({ [RESTORE_KEY]: batches });
-        setRestorePanel(`还有 ${stillMissing.length} 件暂存购物车数据未恢复`, "bad");
-        toast("部分暂存购物车数据未恢复，请稍后重试", true);
+        setRestorePanel(t("store_cartSelect_restoreStillMissing", "还有$count$件暂存购物车数据未恢复", { count: stillMissing.length }), "bad");
+        toast(t("store_cartSelect_restorePartialFailed", "部分暂存购物车数据未恢复，请稍后重试"), true);
         log.warn("cart-select-restore-failed", "暂存购物车数据部分恢复失败", {
           batchCount: batches.length,
           count: need.length,
@@ -1116,7 +1118,7 @@
       });
 
       if (items.length === 0 || sel.length === 0) {
-        toast("请至少选择 1 件本次支付项目", true);
+        toast(t("store_cartSelect_selectAtLeastOne", "请至少选择 1 件本次支付项目"), true);
         log.warn("cart-select-checkout-failed", "购物车选择支付缺少选中项目", {
           totalCount: items.length,
           selectedCount: sel.length,
@@ -1139,14 +1141,14 @@
         return;
       }
 
-      toast(`正在暂时保留 ${skip.length} 件未支付项目...`);
+      toast(t("store_cartSelect_holdingItems", "正在暂时保留$count$件未支付项目...", { count: skip.length }));
       const batch = await saveRestoreBatch(skip);
       const res = await request("remove", { lineIds: skip.map(item => item.lineId) });
 
       if (!res.ok) {
         await scan();
         await showRestorePrompt();
-        toast("临时调整购物车失败，已保留暂存数据，请手动恢复", true);
+        toast(t("store_cartSelect_holdFailed", "临时调整购物车失败，已保留暂存数据，请手动恢复"), true);
         log.warn("cart-select-checkout-failed", "购物车选择支付临时移除失败", {
           totalCount: items.length,
           selectedCount: sel.length,
@@ -1194,7 +1196,7 @@
     event.stopImmediatePropagation();
     goCheckout(btn).catch(() => {
       busy = false;
-      toast("购物车选择处理失败", true);
+      toast(t("store_cartSelect_checkoutFailed", "购物车选择处理失败"), true);
     });
   }
 

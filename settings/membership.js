@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -56,8 +56,8 @@
     return {
       active: false,
       level: "",
-      badge: "普通用户",
-      identity: "赞助者身份",
+      badge: "",
+      identity: "",
       expire: "",
       features: {
         searchSuggestions: false,
@@ -77,12 +77,14 @@
     const searchEnabled = Object.hasOwn(features, "searchSuggestions")
       ? bool(features.searchSuggestions, active)
       : bool(search.enabled, active);
+    const badgeValue = String(sponsor.badge ?? src.badge ?? "");
+    const identityValue = String(sponsor.identity ?? src.identity ?? "");
 
     return {
       active,
       level: String(sponsor.level ?? src.level ?? ""),
-      badge: String(sponsor.badge ?? src.badge ?? (active ? "赞助者" : "普通用户")),
-      identity: String(sponsor.identity ?? src.identity ?? "赞助者身份"),
+      badge: !active && badgeValue === "普通用户" ? "" : badgeValue,
+      identity: identityValue === "赞助者身份" ? "" : identityValue,
       expire,
       features: {
         searchSuggestions: active && searchEnabled,
@@ -105,10 +107,11 @@
 
   function lockText(item, membership) {
     if (item?.disabled === true) {
-      return item.lock || "暂不可用";
+      return item.lock || root.STI18n.text("settings.membership.unavailable", "暂不可用");
     }
     if (item?.member === true && !canUse(item, membership)) {
-      return item.lock || `${membership?.identity || "赞助者身份"}可用`;
+      const identity = membership?.identity || root.STI18n.text("settings.membership.sponsorIdentity", "赞助者身份");
+      return item.lock || root.STI18n.text("settings.membership.identityOnly", "$identity$可用", { identity });
     }
     return item?.lock || "";
   }

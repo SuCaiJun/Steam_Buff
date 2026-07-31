@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -37,6 +37,10 @@
     FAIL: "shutdown-failed",
   });
   const styles = window.SteamBuff?.styles;
+
+  function i18n(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
+  }
 
   const rootState = window.SteamBuff.state = window.SteamBuff.state || {};
   const s = rootState[ID] = rootState[ID] || {};
@@ -182,39 +186,41 @@
 
   function text(st) {
     if (!st) {
-      return "后台初始化中";
+      return i18n("steam.downloadShutdown.backendStarting", "后台初始化中");
     }
     if (shut(st)) {
-      return "下载已完成，正在关机";
+      return i18n("steam.downloadShutdown.shuttingDown", "下载已完成，正在关机");
     }
     switch (st.reason) {
       case ST.ARMED:
-        return "已启用";
+        return i18n("common.enabled", "已启用");
       case ST.WAIT:
-        return "正在等待下载完成";
+        return i18n("steam.downloadShutdown.waitingCompletion", "正在等待下载完成");
       case ST.PAUSED:
-        return "下载已暂停，恢复并完成后关机";
+        return i18n("steam.downloadShutdown.paused", "下载已暂停，恢复并完成后关机");
       case ST.NO_WORK:
-        return "等待下载任务开始";
+        return i18n("steam.downloadShutdown.waitingStart", "等待下载任务开始");
       case ST.OFF:
-        return "已关闭自动关机";
+        return i18n("steam.downloadShutdown.disabled", "已关闭自动关机");
       case ST.SHUT:
-        return "下载已完成，正在关机";
+        return i18n("steam.downloadShutdown.shuttingDown", "下载已完成，正在关机");
       case ST.FAIL:
-        return "关机调用失败，查看日志";
+        return i18n("steam.downloadShutdown.failed", "关机调用失败，查看日志");
       case ST.READY:
-        return on(st) ? "已启用" : "下载完成后自动关机";
+        return on(st) ? i18n("common.enabled", "已启用") : i18n("steam.downloadShutdown.label", "下载完成后自动关机");
       default:
-        return on(st) ? "已启用" : "下载完成后自动关机";
+        return on(st) ? i18n("common.enabled", "已启用") : i18n("steam.downloadShutdown.label", "下载完成后自动关机");
     }
   }
 
   function tip(st) {
-    const rows = [`当前状态：${text(st)}`];
+    const rows = [i18n("steam.downloadShutdown.currentStatus", "当前状态：$status$", { status: text(st) })];
     const err = st?.error || st?.err;
     if (err) {
       const msg = String(err).replace(/^Error:\s*/, "");
-      rows.push(`错误日志：${msg.startsWith(LOG_PREFIX) ? msg : `${LOG_PREFIX} ${msg}`}`);
+      rows.push(i18n("steam.downloadShutdown.errorLog", "错误日志：$message$", {
+        message: msg.startsWith(LOG_PREFIX) ? msg : `${LOG_PREFIX} ${msg}`,
+      }));
     }
     return rows.join("\n");
   }
@@ -225,7 +231,7 @@
     const checked = on(st) || shut(st);
 
     input.checked = checked;
-    label.textContent = "下载完成后关机";
+    label.textContent = i18n("steam.downloadShutdown.shortLabel", "下载完成后关机");
     el.title = tip(st);
 
     if (shut(st)) {
@@ -248,10 +254,10 @@
     toggle.className = "sdas-toggle";
     const input = document.createElement("input");
     input.type = "checkbox";
-    input.setAttribute("aria-label", "下载完成后自动关机");
+    input.setAttribute("aria-label", i18n("steam.downloadShutdown.label", "下载完成后自动关机"));
     const label = document.createElement("span");
     label.className = "sdas-label";
-    label.textContent = "下载完成后关机";
+    label.textContent = i18n("steam.downloadShutdown.shortLabel", "下载完成后关机");
     toggle.append(input, label);
     el.appendChild(toggle);
 
@@ -279,7 +285,7 @@
         s.operationId = "";
         s.sentAt = 0;
         s.want = false;
-        toast("发送失败，请重试", "error");
+        toast(i18n("common.sendFailedRetry", "发送失败，请重试"), "error");
         paint(el, s.st || {
           on: !enabled,
           mon: false,
@@ -287,7 +293,9 @@
         });
         return;
       }
-      toast(enabled ? "正在检查下载任务..." : "已关闭自动关机");
+      toast(enabled
+        ? i18n("steam.downloadShutdown.checking", "正在检查下载任务...")
+        : i18n("steam.downloadShutdown.disabled", "已关闭自动关机"));
       paint(el, {
         on: enabled,
         mon: false,
@@ -550,7 +558,10 @@
         paint(el, {
           on: false,
           reason: ST.FAIL,
-          error: "后台 8 秒内没有响应，请检查下载关机后端是否已注入。",
+          error: i18n(
+            "steam.downloadShutdown.backendTimeout",
+            "后台 8 秒内没有响应，请检查下载关机后端是否已注入。"
+          ),
         });
       }
       logMountState(

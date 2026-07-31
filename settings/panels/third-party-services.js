@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -14,6 +14,10 @@
   const PROVIDER = "isthereanydeal";
   const TEST_TIMEOUT_MS = 12 * 1000;
   const log = root.STLoggerFactory.createLogger("settings", "third-party-services");
+
+  function text(key, fallback, params) {
+    return root.STI18n.text(key, fallback, params);
+  }
 
   function fallback(value, name) {
     if (typeof value === "function") {
@@ -89,48 +93,47 @@
   }
 
   function testUrl() {
-    const vendor = root.STConfig?.vendors?.isthereanydeal;
-    if (typeof vendor?.statsMostPopular === "function") {
-      return vendor.statsMostPopular(1, 0);
+    const endpoint = root.STConfig?.vendors?.isthereanydeal?.statsMostPopular;
+    if (typeof endpoint !== "function") {
+      const error = new Error(text("settings.thirdParty.testEndpointUnavailable", "ITAD 测试接口配置未就绪。"));
+      error.name = "ConfigurationError";
+      throw error;
     }
-    if (typeof vendor?.endpoint === "function") {
-      return `${vendor.endpoint("/stats/most-popular/v1")}?limit=1&offset=0`;
-    }
-    return "https://api.isthereanydeal.com/stats/most-popular/v1?limit=1&offset=0";
+    return endpoint(1, 0);
   }
 
   function testFailureFromStatus(status) {
     if (status === 401 || status === 403) {
       return {
         code: "PROVIDER_AUTH_FAILED",
-        message: "ITAD API Key 验证失败，请检查密钥是否正确或权限是否可用。",
+        message: text("settings.thirdParty.authFailed", "ITAD API Key 验证失败，请检查密钥是否正确或权限是否可用。"),
         retryable: false,
       };
     }
     if (status === 429) {
       return {
         code: "PROVIDER_RATE_LIMITED",
-        message: "ITAD 请求已触发限流，请稍后再试。",
+        message: text("settings.thirdParty.rateLimited", "ITAD 请求已触发限流，请稍后再试。"),
         retryable: true,
       };
     }
     if (status >= 500) {
       return {
         code: "PROVIDER_UNAVAILABLE",
-        message: "ITAD 服务暂时不可用，请稍后重试。",
+        message: text("settings.thirdParty.unavailable", "ITAD 服务暂时不可用，请稍后重试。"),
         retryable: true,
       };
     }
     if (status > 0) {
       return {
         code: "PROVIDER_HTTP_ERROR",
-        message: `ITAD 测试接口返回状态码 ${status}。`,
+        message: text("settings.thirdParty.httpError", "ITAD 测试接口返回状态码 $status$。", { status }),
         retryable: status >= 500,
       };
     }
     return {
       code: "NETWORK_FAILED",
-      message: "网络请求失败，请检查网络连接或稍后重试。",
+      message: text("common.networkFailed", "网络请求失败，请检查网络连接或稍后重试。"),
       retryable: true,
     };
   }
@@ -143,7 +146,7 @@
       }
       return payload;
     } catch (error) {
-      const err = new Error("ITAD 测试接口响应格式异常。");
+      const err = new Error(text("settings.thirdParty.invalidResponse", "ITAD 测试接口响应格式异常。"));
       err.name = "ValidationError";
       err.cause = error;
       throw err;
@@ -281,7 +284,10 @@
             durationMs: Date.now() - startedAt,
             errorCode: saved === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
           });
-          dialog(shadow, { title: "保存失败", message: "第三方服务配置保存失败，请稍后重试。" });
+          dialog(shadow, {
+            title: text("common.saveFailed", "保存失败"),
+            message: text("settings.thirdParty.saveFailed", "第三方服务配置保存失败，请稍后重试。"),
+          });
           return false;
         }
         conf = normalize(saved, getDefaults());
@@ -309,7 +315,10 @@
           errorCode: "STORAGE_THROWN",
           error,
         });
-        dialog(shadow, { title: "保存失败", message: "第三方服务配置保存异常，请稍后重试。" });
+        dialog(shadow, {
+          title: text("common.saveFailed", "保存失败"),
+          message: text("settings.thirdParty.saveException", "第三方服务配置保存异常，请稍后重试。"),
+        });
         return false;
       } finally {
         setInputsDisabled(shadow, false);
@@ -336,14 +345,17 @@
           retryable: false,
           errorCode: "PROVIDER_CONFIG_MISSING",
         });
-        dialog(shadow, { title: "ITAD 测试", message: "请先填写 ITAD API Key。" });
+        dialog(shadow, {
+          title: text("settings.thirdParty.testTitle", "ITAD 测试"),
+          message: text("settings.thirdParty.keyRequired", "请先填写 ITAD API Key。"),
+        });
         return;
       }
 
       const oldText = button?.textContent || "";
       if (button) {
         button.disabled = true;
-        button.textContent = "测试中";
+        button.textContent = text("settings.thirdParty.testing", "测试中");
       }
       const startedAt = Date.now();
       log.info("itad-test-start", "开始测试 ITAD 连接", {
@@ -361,7 +373,7 @@
           },
           allowHttpError: true,
           timeoutMs: TEST_TIMEOUT_MS,
-          label: "ITAD 测试接口",
+          label: text("settings.thirdParty.testRequestLabel", "ITAD 测试接口"),
           operationId,
           requestId: id,
         });
@@ -376,7 +388,7 @@
             retryable: failure.retryable,
             errorCode: failure.code,
           });
-          dialog(shadow, { title: "ITAD 测试失败", message: failure.message });
+          dialog(shadow, { title: text("settings.thirdParty.testFailedTitle", "ITAD 测试失败"), message: failure.message });
           return;
         }
         parseTestPayload(response);
@@ -386,12 +398,17 @@
           status,
           durationMs: Date.now() - startedAt,
         });
-        dialog(shadow, { title: "ITAD 测试成功", message: "已收到 ITAD 测试接口响应。" });
+        dialog(shadow, {
+          title: text("settings.thirdParty.testSucceededTitle", "ITAD 测试成功"),
+          message: text("settings.thirdParty.testSucceededMessage", "已收到 ITAD 测试接口响应。"),
+        });
       } catch (error) {
         const status = Number(error?.status) || 0;
         const failure = error?.name === "ValidationError"
-          ? { code: "RESPONSE_SHAPE_INVALID", message: "ITAD 测试接口响应格式异常。", retryable: false }
-          : testFailureFromStatus(status);
+          ? { code: "RESPONSE_SHAPE_INVALID", message: text("settings.thirdParty.invalidResponse", "ITAD 测试接口响应格式异常。"), retryable: false }
+          : error?.name === "ConfigurationError"
+            ? { code: "TEST_ENDPOINT_UNAVAILABLE", message: error.message, retryable: false }
+            : testFailureFromStatus(status);
         log[failure.retryable ? "warn" : "error"]("itad-test-failed", "ITAD 连接测试异常", {
           operationId,
           requestId: id,
@@ -401,7 +418,7 @@
           errorCode: failure.code,
           error,
         });
-        dialog(shadow, { title: "ITAD 测试失败", message: failure.message });
+        dialog(shadow, { title: text("settings.thirdParty.testFailedTitle", "ITAD 测试失败"), message: failure.message });
       } finally {
         if (button) {
           button.disabled = false;
@@ -418,20 +435,22 @@
           <section class="settings-card section-card">
             <div class="section-header">
               <div class="dot"></div>
-              <div class="title">第三方服务</div>
-              <div class="hint">${hasItadKey(conf) ? "已填写 ITAD Key" : "未填写 ITAD Key"}</div>
+              <div class="title">${text("settings.thirdParty.title", "第三方服务")}</div>
+              <div class="hint">${hasItadKey(conf)
+                ? text("settings.thirdParty.keyConfigured", "已填写 ITAD Key")
+                : text("settings.thirdParty.keyMissing", "未填写 ITAD Key")}</div>
             </div>
             <div class="settings-grid">
               ${fields.map((field) => `
                 <div class="settings-row form-row">
-                  <span class="settings-label label">${esc(field.label)}</span>
+                  <span class="settings-label label">${esc(root.STSettingsFields?.label?.(field) || field.label)}</span>
                   <span class="settings-value control">${input(field)}</span>
                 </div>
               `).join("")}
             </div>
             <div class="settings-actions form-footer">
-              <button class="settings-save third-party-services-test btn btn-secondary" type="button">测试连接</button>
-              <button class="settings-save third-party-services-save btn btn-blue" type="button">保存设置</button>
+              <button class="settings-save third-party-services-test btn btn-secondary" type="button">${text("settings.thirdParty.testConnection", "测试连接")}</button>
+              <button class="settings-save third-party-services-save btn btn-blue" type="button">${text("common.saveSettings", "保存设置")}</button>
             </div>
           </section>
         </div>

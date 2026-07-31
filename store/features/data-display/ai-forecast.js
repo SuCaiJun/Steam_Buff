@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -35,11 +35,15 @@
     "只要存在有效的当前价格或历史折扣记录，就必须给出最佳可用预测。数据较少时降低置信度并解释原因，不能只复述数据或仅以无法预测结束回答。",
     "预测必须由历史折扣频率、间隔、力度、最近一次折扣、当前价格状态、发行时间或节日重合证据支撑。不要因为不确定性而过度保守，也不得为了给出结论脱离数据随意预测。",
     "未来节日只是候选时间窗口，不代表游戏一定参加。历史折扣与节日时间重叠只能作为相关证据，不能表述为确定因果关系。",
-    "必须明确建议现在购买、等待主要预测窗口，或达到什么折扣再购买。使用中文回答，并明确区分事实、推测和不确定性。不要给出没有数据支撑的精确日期或精确概率。",
+    i18n("store.aiForecast.responseInstruction", "必须明确建议现在购买、等待主要预测窗口，或达到什么折扣再购买。使用中文回答，并明确区分事实、推测和不确定性。不要给出没有数据支撑的精确日期或精确概率。"),
   ].join("\n");
 
   function text(value) {
     return String(value ?? "").trim();
+  }
+
+  function i18n(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
   }
 
   function el(tag, className = "", value = "") {
@@ -69,12 +73,12 @@
     return new Promise((resolve, reject) => {
       const box = storage();
       if (!box) {
-        reject(new Error("chrome.storage.local 不可用"));
+        reject(new Error(i18n("store.aiForecast.storageUnavailable", "chrome.storage.local 不可用")));
         return;
       }
       box.get([key], (values) => {
         const error = globalThis.chrome?.runtime?.lastError;
-        if (error) reject(new Error(error.message || "读取 AI 预测会话失败"));
+        if (error) reject(new Error(error.message || i18n("store.aiForecast.sessionReadFailed", "读取 AI 预测会话失败")));
         else resolve(values?.[key] || null);
       });
     });
@@ -84,12 +88,12 @@
     return new Promise((resolve, reject) => {
       const box = storage();
       if (!box) {
-        reject(new Error("chrome.storage.local 不可用"));
+        reject(new Error(i18n("store.aiForecast.storageUnavailable", "chrome.storage.local 不可用")));
         return;
       }
       box.set({ [key]: value }, () => {
         const error = globalThis.chrome?.runtime?.lastError;
-        if (error) reject(new Error(error.message || "保存 AI 预测会话失败"));
+        if (error) reject(new Error(error.message || i18n("store.aiForecast.sessionSaveFailed", "保存 AI 预测会话失败")));
         else resolve();
       });
     });
@@ -99,12 +103,12 @@
     return new Promise((resolve, reject) => {
       const box = storage();
       if (!box) {
-        reject(new Error("chrome.storage.local 不可用"));
+        reject(new Error(i18n("store.aiForecast.storageUnavailable", "chrome.storage.local 不可用")));
         return;
       }
       box.remove(key, () => {
         const error = globalThis.chrome?.runtime?.lastError;
-        if (error) reject(new Error(error.message || "清理 AI 预测会话失败"));
+        if (error) reject(new Error(error.message || i18n("store.aiForecast.sessionClearFailed", "清理 AI 预测会话失败")));
         else resolve();
       });
     });
@@ -360,7 +364,7 @@
       `1. ${CARD_SUMMARY_OPEN} 必须是正文结束后的第一个非空内容。`,
       "2. 开始标签前不得添加“卡片摘要”“预测摘要”等标题、说明、冒号、过渡语或 Markdown 标记。",
       "3. 标签内只能压缩总结正文已有结论，不得补充新数据、新窗口或新判断。",
-      "4. 摘要使用中文纯文本，不使用 Markdown、标题、列表或代码块。",
+      i18n("store.aiForecast.summaryLanguageInstruction", "4. 摘要使用中文纯文本，不使用 Markdown、标题、列表或代码块。"),
       "5. 摘要需包含主要时间窗口、预计折扣范围、购买建议、核心依据和主要风险，不超过 300 个字符。",
       "6. 标签必须完整且各出现一次，不得放入代码块。",
       "7. 结束标签后不得输出其他内容。",
@@ -436,13 +440,13 @@
 
   function cardText(state) {
     if (state.session?.summary) return state.session.summary;
-    if (!state.sessionLoaded) return "正在读取 AI 预测记录...";
-    if (state.phase === "preparing") return "正在准备预测数据...";
-    if (state.phase === "generating") return "AI 正在分析历史折扣与节日数据...";
-    if (state.phase === "error") return state.errorText || "AI 预测失败，请稍后重试。";
-    if (dataState(state) === "error") return "节日数据暂不可用，无法生成 AI 预测。";
-    if (dataState(state) === "loading") return "正在准备历史折扣与节日数据...";
-    return "点击“对话详情”生成 AI 预测。";
+    if (!state.sessionLoaded) return i18n("store.aiForecast.readingSession", "正在读取 AI 预测记录...");
+    if (state.phase === "preparing") return i18n("store.aiForecast.preparing", "正在准备预测数据...");
+    if (state.phase === "generating") return i18n("store.aiForecast.analyzing", "AI 正在分析历史折扣与节日数据...");
+    if (state.phase === "error") return state.errorText || i18n("store.aiForecast.failed", "AI 预测失败，请稍后重试。");
+    if (dataState(state) === "error") return i18n("store.aiForecast.festivalUnavailable", "节日数据暂不可用，无法生成 AI 预测。");
+    if (dataState(state) === "loading") return i18n("store.aiForecast.preparingHistory", "正在准备历史折扣与节日数据...");
+    return i18n("store.aiForecast.openDetailsHint", "点击“对话详情”生成 AI 预测。");
   }
 
   function updateCard(state) {
@@ -474,7 +478,7 @@
   function displayMessage(message, index) {
     if (message.role === "system") return null;
     const item = el("div", `st-ai-forecast-message is-${message.role}`);
-    const label = el("div", "st-ai-forecast-message__label", message.role === "assistant" ? "AI" : "你");
+    const label = el("div", "st-ai-forecast-message__label", message.role === "assistant" ? "AI" : i18n("store.aiForecast.you", "你"));
     let content = message.content;
     if (
       message.role === "user"
@@ -482,7 +486,7 @@
       && message.content.startsWith("# 任务\n")
       && message.content.includes("\n# 未来一年节日信息\n")
     ) {
-      content = "请基于当前页面的价格与节日数据预测未来折扣。";
+      content = i18n("store.aiForecast.initialQuestion", "请基于当前页面的价格与节日数据预测未来折扣。");
     }
     const body = el("div", "st-ai-forecast-message__content");
     setMessageContent(body, message.role, content);
@@ -491,7 +495,7 @@
   }
 
   function dialogStatus(state) {
-    if (state.phase === "error") return state.errorText || "AI 预测失败，请稍后重试。";
+    if (state.phase === "error") return state.errorText || i18n("store.aiForecast.failed", "AI 预测失败，请稍后重试。");
     if (state.persistenceError) return state.persistenceError;
     return "";
   }
@@ -516,7 +520,7 @@
       state.renderedStreamText = "";
       return;
     }
-    const content = streamingAnswer(state.streamText) || "正在思考...";
+    const content = streamingAnswer(state.streamText) || i18n("store.aiForecast.thinking", "正在思考...");
     if (!state.streamMessage || state.streamMessage.parentNode !== messagesBox) {
       state.streamMessage = displayMessage({ role: "assistant", content }, 0);
       state.streamMessage?.classList.add("is-streaming");
@@ -547,7 +551,9 @@
     const canAsk = !!state.session && !generating;
     if (input) {
       input.disabled = !canAsk;
-      input.placeholder = generating ? "AI 正在回复，请稍等..." : "询问未来打折相关问题";
+      input.placeholder = generating
+        ? i18n("store.aiForecast.replying", "AI 正在回复，请稍等...")
+        : i18n("store.aiForecast.questionPlaceholder", "询问未来打折相关问题");
       input.classList.toggle("is-busy", generating);
     }
     if (send) send.disabled = !canAsk || !text(input?.value);
@@ -596,24 +602,24 @@
     const header = el("header", "st-ai-forecast-dialog__header");
     const title = el("h2", "st-ai-forecast-dialog__title");
     title.id = "st-ai-forecast-dialog-title";
-    title.appendChild(api.assets.createBrandMark({ suffix: "AI 预测" }));
+    title.appendChild(api.assets.createBrandMark({ suffix: i18n("store.aiForecast.title", "AI 预测") }));
     const close = el("button", "st-ai-forecast-dialog__close", "×");
     close.type = "button";
-    close.setAttribute("aria-label", "关闭对话");
-    close.title = "关闭";
+    close.setAttribute("aria-label", i18n("store.aiForecast.closeDialog", "关闭对话"));
+    close.title = i18n("common.close", "关闭");
     header.append(title, close);
     const messages = el("div", "st-ai-forecast-dialog__messages");
     const statusRow = el("div", "st-ai-forecast-dialog__status-row");
     const status = el("div", "st-ai-forecast-dialog__status");
-    const retry = el("button", "st-ai-forecast-dialog__retry", "重试");
+    const retry = el("button", "st-ai-forecast-dialog__retry", i18n("common.retry", "重试"));
     retry.type = "button";
     retry.hidden = true;
     statusRow.append(status, retry);
     const form = el("form", "st-ai-forecast-dialog__composer");
     const input = el("textarea", "st-ai-forecast-dialog__input");
     input.rows = 2;
-    input.placeholder = "询问未来打折相关问题";
-    const send = el("button", "st-ai-forecast-dialog__send", "发送");
+    input.placeholder = i18n("store.aiForecast.questionPlaceholder", "询问未来打折相关问题");
+    const send = el("button", "st-ai-forecast-dialog__send", i18n("common.send", "发送"));
     send.type = "submit";
     form.append(input, send);
     panel.append(header, messages, statusRow, form);
@@ -655,7 +661,7 @@
     const streamApi = window.STMessageBus?.stream;
     if (typeof streamApi !== "function") {
       state.phase = "error";
-      state.errorText = "AI 流式通道未就绪。";
+      state.errorText = i18n("store.aiForecast.streamUnavailable", "AI 流式通道未就绪。");
       updateUi(state);
       return false;
     }
@@ -725,7 +731,7 @@
       try {
         await storageSet(state.key, session);
       } catch (error) {
-        state.persistenceError = "回复已完成，但本次对话未能保存。";
+        state.persistenceError = i18n("store.aiForecast.replySaveFailed", "回复已完成，但本次对话未能保存。");
         log?.error?.("ai-forecast-session-save-failed", "AI 未来打折预测会话保存失败", {
           operationId,
           requestId: id,
@@ -747,7 +753,7 @@
     } catch (error) {
       if (state.disposed && error?.name === "AbortError") return false;
       state.phase = "error";
-      state.errorText = text(error?.message) || "AI 预测失败，请稍后重试。";
+      state.errorText = text(error?.message) || i18n("store.aiForecast.failed", "AI 预测失败，请稍后重试。");
       clearStreamRenderTimer(state);
       state.streamText = "";
       state.pendingMessages = null;
@@ -773,8 +779,8 @@
     if (dataState(state) !== "ready") {
       state.phase = "error";
       state.errorText = dataState(state) === "error"
-        ? "节日数据暂不可用，无法生成 AI 预测。"
-        : "预测数据仍在加载，请稍后重试。";
+        ? i18n("store.aiForecast.festivalUnavailable", "节日数据暂不可用，无法生成 AI 预测。")
+        : i18n("store.aiForecast.dataStillLoading", "预测数据仍在加载，请稍后重试。");
       updateUi(state);
       return false;
     }
@@ -785,7 +791,7 @@
       const conf = await loadAiConfig();
       if (!aiReady(conf)) {
         state.phase = "error";
-        state.errorText = "预测需要先配置 AI 服务。";
+        state.errorText = i18n("store.aiForecast.configurationRequired", "预测需要先配置 AI 服务。");
         updateUi(state);
         return false;
       }
@@ -797,7 +803,7 @@
       });
       if (packStatus?.ok !== true) {
         state.phase = "error";
-        state.errorText = packStatus?.userMessage || "AI 预测数据暂不可用。";
+        state.errorText = packStatus?.userMessage || i18n("store.aiForecast.dataUnavailable", "AI 预测数据暂不可用。");
         updateUi(state);
         return false;
       }
@@ -806,7 +812,7 @@
       return streamConversation(state, conf, initial.requestMessages, true, initial.contextMessages);
     } catch (error) {
       state.phase = "error";
-      state.errorText = text(error?.message) || "AI 预测数据准备失败。";
+      state.errorText = text(error?.message) || i18n("store.aiForecast.prepareFailed", "AI 预测数据准备失败。");
       log?.error?.("ai-forecast-prepare-failed", "AI 未来打折预测数据准备失败", {
         appid: Number(state.pageInfo?.appId || state.pageInfo?.appid || state.pageInfo?.id) || 0,
         error,
@@ -822,7 +828,7 @@
       const conf = await loadAiConfig();
       if (!aiReady(conf)) {
         state.phase = "error";
-        state.errorText = "预测需要先配置 AI 服务。";
+        state.errorText = i18n("store.aiForecast.configurationRequired", "预测需要先配置 AI 服务。");
         updateUi(state);
         return false;
       }
@@ -833,7 +839,7 @@
       return streamConversation(state, conf, messages, false);
     } catch (error) {
       state.phase = "error";
-      state.errorText = text(error?.message) || "AI 追问失败，请稍后重试。";
+      state.errorText = text(error?.message) || i18n("store.aiForecast.followupFailed", "AI 追问失败，请稍后重试。");
       updateUi(state);
       return false;
     }
@@ -868,7 +874,7 @@
         if (state.disposed) return null;
         state.sessionLoaded = true;
         state.phase = "idle";
-        state.persistenceError = "AI 预测记录暂时无法读取。";
+        state.persistenceError = i18n("store.aiForecast.sessionUnavailable", "AI 预测记录暂时无法读取。");
         log?.warn?.("ai-forecast-session-load-failed", "AI 未来打折预测会话读取失败", {
           appid: Number(state.pageInfo?.appId || state.pageInfo?.appid || state.pageInfo?.id) || 0,
           error,
@@ -892,8 +898,8 @@
     state.card?.remove?.();
     const card = el("article", "st-data-display-ai-card");
     const header = el("div", "st-data-display-ai-card__header");
-    const title = el("div", "st-data-display-ai-card__title", "AI 预测");
-    const button = el("button", "st-data-display-ai-card__detail-button", "对话详情");
+    const title = el("div", "st-data-display-ai-card__title", i18n("store.aiForecast.title", "AI 预测"));
+    const button = el("button", "st-data-display-ai-card__detail-button", i18n("store.aiForecast.dialogDetails", "对话详情"));
     button.type = "button";
     button.addEventListener("click", () => {
       void openDialog(state, button);

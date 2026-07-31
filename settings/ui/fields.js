@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -19,6 +19,25 @@
     return globalThis.STSettingsHtml?.escAttr?.(value) || String(value ?? "");
   }
 
+  function text(key, fallback) {
+    return globalThis.STI18n.text(key, fallback);
+  }
+
+  function label(field) {
+    return text(field?.labelKey, field?.label || "");
+  }
+
+  function localizedField(field = {}) {
+    return {
+      ...field,
+      label: label(field),
+      placeholder: field.placeholderKey ? text(field.placeholderKey, field.placeholder || "") : field.placeholder,
+      options: Array.isArray(field.options)
+        ? field.options.map(option => ({ ...option, label: text(option.labelKey, option.label || "") }))
+        : field.options,
+    };
+  }
+
   function optionHtml(options, value, disabled) {
     return (options || []).map((opt) => {
       const off = typeof disabled === "function" ? disabled(opt) : false;
@@ -29,7 +48,7 @@
   }
 
   function fieldInput(options = {}) {
-    const field = options.field || {};
+    const field = localizedField(options.field || {});
     const value = options.value ?? "";
     const dataset = options.dataset || "data-field";
     const cls = options.className || "settings-control";
@@ -63,7 +82,7 @@
     return `<input class="${escAttr(cls)}" type="${type}" ${attrs} ${data} value="${escAttr(value)}"${label}>`;
   }
 
-  const api = Object.freeze({ fieldInput, optionHtml });
+  const api = Object.freeze({ fieldInput, label, localizedField, optionHtml });
   globalThis.STSettingsFields = api;
 
   if (typeof module === "object" && module.exports) {

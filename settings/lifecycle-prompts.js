@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -335,7 +335,7 @@
   `;
 
   function text(key, fallback) {
-    return root.STI18n?.text?.(key, fallback) || fallback;
+    return root.STI18n.text(key, fallback);
   }
 
   function supportCopyHtml() {
@@ -525,11 +525,40 @@
     return host;
   }
 
+  function expandUpdateLogPreviewToWholeLine(body) {
+    const clipTolerance = 1;
+    const preview = body.getBoundingClientRect();
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (!String(node.nodeValue || "").trim()) {
+        continue;
+      }
+      range.selectNodeContents(node);
+      const clippedRect = Array.from(range.getClientRects()).find((rect) => (
+        rect.width > 0
+        && rect.height > 0
+        && rect.top < preview.bottom - clipTolerance
+        && rect.bottom > preview.bottom + clipTolerance
+      ));
+      if (!clippedRect) {
+        continue;
+      }
+      body.style.maxHeight = `${Math.ceil(clippedRect.bottom - preview.top + clipTolerance)}px`;
+      return;
+    }
+  }
+
   function syncUpdateLogPreview(host) {
     const body = host?.shadowRoot?.querySelector(".update-main .body");
     const link = host?.shadowRoot?.querySelector(".full-log-link");
     if (!body || !link) {
       return;
+    }
+    body.style.removeProperty("max-height");
+    if (body.scrollHeight > body.clientHeight + 1) {
+      expandUpdateLogPreviewToWholeLine(body);
     }
     const truncated = body.scrollHeight > body.clientHeight + 1;
     body.dataset.truncated = truncated ? "true" : "false";

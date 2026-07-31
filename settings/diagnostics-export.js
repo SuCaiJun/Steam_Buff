@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -23,6 +23,10 @@
   const APP = "Steam Buff";
   const SCHEMA_VERSION = 2;
   const ZIP_LEVEL = 6;
+
+  function text(key, fallback) {
+    return root.STI18n.text(key, fallback);
+  }
 
   function num(value) {
     const next = Number(value);
@@ -337,13 +341,13 @@
     if (typeof TextEncoder === "function") {
       return new TextEncoder().encode(String(text || ""));
     }
-    throw new Error("当前环境不支持 UTF-8 编码");
+    throw new Error(text("about.logs.utf8Unavailable", "当前环境不支持 UTF-8 编码"));
   }
 
   function zipFiles(files) {
     const zip = root.fflate || {};
     if (typeof zip.zipSync !== "function") {
-      throw new Error("诊断包压缩库未加载");
+      throw new Error(text("about.logs.zipUnavailable", "诊断包压缩库未加载"));
     }
     const input = {};
     for (const [name, text] of Object.entries(files)) {

@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -199,6 +199,15 @@
     };
   }
 
+  function translated(options, key, fallback, params = {}) {
+    if (typeof options?.text === "function") {
+      return options.text(key, fallback, params);
+    }
+    return String(fallback).replace(/\$([A-Za-z0-9_]+)\$/g, (match, name) => (
+      Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match
+    ));
+  }
+
   function buildSteamPyRows(pyInfo, fmt = {}, options = {}) {
     const result = pyInfo?.success ? pyInfo.result : null;
     if (!result) {
@@ -207,21 +216,35 @@
 
     const rows = [];
     if (options.cdk !== false) {
-      const row = pyRow("cdk", "SteamPY CDK", result.keyPrice, result, fmt, options.baseAmount);
+      const row = pyRow(
+        "cdk",
+        translated(options, "store.wishlistPrice.steampyCdk", "SteamPY CDK"),
+        result.keyPrice,
+        result,
+        fmt,
+        options.baseAmount
+      );
       if (row) rows.push(row);
     }
     if (options.proxy !== false) {
-      const row = pyRow("proxy", "SteamPY 代购", result.daiPrice, result, fmt, options.baseAmount);
+      const row = pyRow(
+        "proxy",
+        translated(options, "store.wishlistPrice.steampyProxy", "SteamPY 代购"),
+        result.daiPrice,
+        result,
+        fmt,
+        options.baseAmount
+      );
       if (row) rows.push(row);
     }
     return rows;
   }
 
-  function emptySummary() {
+  function emptySummary(options = {}) {
     return {
       empty: true,
       status: "empty",
-      message: "ITAD 暂无可用的 Steam 价格数据",
+      message: translated(options, "store.wishlistPrice.noSteamData", "ITAD 暂无可用的 Steam 价格数据"),
       steam: null,
       steampy: [],
     };
@@ -234,7 +257,7 @@
     // 注: ITAD 实测可能只返回 Steam 历史最低价而没有当前报价；两项独立展示，不能
     // 因为当前价缺失而丢掉已确认的史低数据和图表。只有两项都缺失时才进入空状态。
     if (!steamCurrent && !steamLowest) {
-      return emptySummary();
+      return emptySummary(options);
     }
 
     const currentAmount = steamCurrent ? money(steamCurrent.price.amount) : null;
@@ -246,13 +269,36 @@
       : 0;
     const isLowest = hasPair && currentAmount <= lowestAmount;
     const symbol = symbolText(steamCurrent || steamLowest, fmt);
+    const difference = `${symbol}${diff}`;
     const statusText = hasPair
       ? (isLowest
-        ? "当前为 Steam 历史最低"
-        : `比 Steam 历史最低贵${symbol}${diff}(+${cutDiff}%)`)
+        ? translated(options, "store.wishlistPrice.statusLowest", "当前为 Steam 历史最低")
+        : translated(options, "store.wishlistPrice.statusHigher", "比 Steam 历史最低贵$amount$(+$discount$%)", {
+            amount: difference,
+            discount: cutDiff,
+          }))
       : steamCurrent
-        ? "Steam 历史最低价暂不可用"
-        : "Steam 当前报价暂不可用";
+        ? translated(options, "store.wishlistPrice.lowestUnavailable", "Steam 历史最低价暂不可用")
+        : translated(options, "store.wishlistPrice.currentUnavailable", "Steam 当前报价暂不可用");
+    const lowestDate = steamLowest ? dateText(steamLowest.timestamp, fmt) : "";
+    const lowestDetail = !steamLowest
+      ? ""
+      : isLowest
+        ? (lowestDate
+            ? translated(options, "store.wishlistPrice.detailSteamAt", "在 Steam $date$", { date: lowestDate })
+            : translated(options, "store.wishlistPrice.detailSteam", "在 Steam"))
+        : hasPair
+          ? (lowestDate
+              ? translated(options, "store.wishlistPrice.detailSteamAtLower", "在 Steam $date$，比当前低$amount$", {
+                  date: lowestDate,
+                  amount: difference,
+                })
+              : translated(options, "store.wishlistPrice.detailSteamLower", "在 Steam，比当前低$amount$", {
+                  amount: difference,
+                }))
+          : (lowestDate
+              ? translated(options, "store.wishlistPrice.detailSteamAt", "在 Steam $date$", { date: lowestDate })
+              : translated(options, "store.wishlistPrice.detailSteam", "在 Steam"));
 
     return {
       empty: false,
@@ -261,17 +307,15 @@
       steam: {
         current: steamCurrent
           ? viewPrice(steamCurrent, fmt, {
-              detail: isLowest ? "在 Steam，当前为历史最低" : "在 Steam",
+              detail: isLowest
+                ? translated(options, "store.wishlistPrice.detailCurrentLowest", "在 Steam，当前为历史最低")
+                : translated(options, "store.wishlistPrice.detailSteam", "在 Steam"),
             })
           : null,
         lowest: steamLowest
           ? viewPrice(steamLowest, fmt, {
               shopUrl: steamInfo?.urls?.history || "",
-              detail: isLowest
-                ? `在 Steam${dateText(steamLowest.timestamp, fmt) ? ` ${dateText(steamLowest.timestamp, fmt)}` : ""}`
-                : hasPair
-                  ? `在 Steam${dateText(steamLowest.timestamp, fmt) ? ` ${dateText(steamLowest.timestamp, fmt)}` : ""}，比当前低${symbol}${diff}`
-                  : `在 Steam${dateText(steamLowest.timestamp, fmt) ? ` ${dateText(steamLowest.timestamp, fmt)}` : ""}`,
+              detail: lowestDetail,
             })
           : null,
       },
@@ -279,6 +323,7 @@
         cdk: options.cdk,
         proxy: options.proxy,
         baseAmount: currentAmount,
+        text: options.text,
       }),
     };
   }

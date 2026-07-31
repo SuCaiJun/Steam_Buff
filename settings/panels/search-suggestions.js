@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -36,6 +36,10 @@
       ? options.getFields
       : () => options.catalog?.searchSuggestionFields?.() || root.STSettings?.catalog?.searchSuggestionFields?.() || [];
     let conf = { ...(options.config || {}) };
+
+    function uiText(key, fallback, params) {
+      return root.STI18n.text(key, fallback, params);
+    }
 
     function setConfig(next) {
       conf = { ...(next || {}) };
@@ -128,19 +132,19 @@
           <section class="settings-card section-card">
             <div class="section-header">
               <div class="dot"></div>
-              <div class="title">搜索联想词设置</div>
-              <div class="hint">控制联想条数和 Steam 原生结果显示</div>
+              <div class="title">${esc(uiText("settings.searchSuggestions.title", "搜索联想词设置"))}</div>
+              <div class="hint">${esc(uiText("settings.searchSuggestions.hint", "控制联想条数和 Steam 原生结果显示"))}</div>
             </div>
             <div class="settings-grid">
               ${fields.map((field) => `
                 <div class="settings-row form-row">
-                  <span class="settings-label label">${esc(field.label)}</span>
+                  <span class="settings-label label">${esc(root.STSettingsFields?.label?.(field) || field.label)}</span>
                   <span class="settings-value control">${input(field)}</span>
                 </div>
               `).join("")}
             </div>
             <div class="settings-actions form-footer">
-              <button class="settings-save search-suggestion-save btn btn-blue" type="button">保存设置</button>
+              <button class="settings-save search-suggestion-save btn btn-blue" type="button">${esc(uiText("common.saveSettings", "保存设置"))}</button>
             </div>
           </section>
         </div>
@@ -164,7 +168,7 @@
       log.info("search-suggestions-settings-save-start", "开始保存搜索联想设置", { operationId });
       const oldText = save.textContent || "";
       save.disabled = true;
-      save.textContent = "保存中...";
+      save.textContent = uiText("common.saving", "保存中...");
       setInputsDisabled(shadow, true);
       Promise.resolve()
         .then(() => typeof storage.setSearchSuggestions === "function"
@@ -180,7 +184,10 @@
               durationMs: Date.now() - startedAt,
               errorCode: saved === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
             });
-            dialog(shadow, { title: "保存失败", message: "搜索联想设置未能保存，请稍后重试。" });
+            dialog(shadow, {
+              title: uiText("common.saveFailed", "保存失败"),
+              message: uiText("settings.searchSuggestions.saveFailed", "搜索联想设置未能保存，请稍后重试。"),
+            });
             return;
           }
           conf = { ...saved };
@@ -201,7 +208,10 @@
             durationMs: Date.now() - startedAt,
             error,
           });
-          dialog(shadow, { title: "保存失败", message: "搜索联想设置保存异常，请稍后重试。" });
+          dialog(shadow, {
+            title: uiText("common.saveFailed", "保存失败"),
+            message: uiText("settings.searchSuggestions.saveError", "搜索联想设置保存异常，请稍后重试。"),
+          });
         })
         .finally(() => {
           setInputsDisabled(shadow, false);

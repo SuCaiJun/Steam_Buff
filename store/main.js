@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -35,16 +35,17 @@
     };
   }
 
-  const startedAt = Date.now();
-  const meta = {
-    pageType: pageType(),
-    path: location.pathname,
-  };
-  runtime?.activateAdapter?.("store", meta);
-  log.info("runtime-start", "Steam 商店页运行时开始启动", meta);
-
-  api.reg.start()
-    .then((results) => {
+  async function start() {
+    const startedAt = Date.now();
+    const meta = {
+      pageType: pageType(),
+      path: location.pathname,
+    };
+    try {
+      await window.STI18n?.ready?.();
+      runtime?.activateAdapter?.("store", meta);
+      log.info("runtime-start", "Steam 商店页运行时开始启动", meta);
+      const results = await api.reg.start();
       runtime?.activateAdapter?.("store", {
         ...meta,
         ...summary(results),
@@ -54,13 +55,15 @@
         ...summary(results),
         durationMs: Date.now() - startedAt,
       });
-    })
-    .catch((error) => {
+    } catch (error) {
       runtime?.markError?.("store-runtime-failed", error, meta);
       log.error("runtime-failed", "Steam 商店页运行时启动失败", {
         ...meta,
         durationMs: Date.now() - startedAt,
         error,
       });
-    });
+    }
+  }
+
+  start();
 })();

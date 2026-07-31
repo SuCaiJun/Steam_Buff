@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -35,6 +35,24 @@
     let thirdPartyServices = clone(options.thirdPartyServices);
     let chart = normalizeChart(options.storePriceChart);
     let saving = false;
+
+    function uiText(key, fallback, params) {
+      return root.STI18n.text(key, fallback, params);
+    }
+
+    function regionLabel(regionOrCc) {
+      const region = typeof regionOrCc === "object"
+        ? regionOrCc
+        : catalog.getSteamPriceRegion(regionOrCc);
+      if (!region) return "";
+      return uiText(`settings.storePriceChart.region.${region.cc}`, region.label);
+    }
+
+    function steamSeriesLabel(cc) {
+      return uiText("settings.storePriceChart.series.steam", "Steam（$region$）", {
+        region: regionLabel(cc),
+      });
+    }
 
     function clone(value) {
       try {
@@ -104,8 +122,8 @@
 
     async function showSeriesLimitDialog(shadow) {
       await dialog(shadow, {
-        title: `最多 ${MAX_STORE_PRICE_SERIES} 条价格线`,
-        message: `Steam 定价区和游戏商店合计最多 ${MAX_STORE_PRICE_SERIES} 条，主 Steam 定价区也计入其中。请先删除一个已添加项。`,
+        title: uiText("settings.storePriceChart.seriesLimit.title", "最多 $max$ 条价格线", { max: MAX_STORE_PRICE_SERIES }),
+        message: uiText("settings.storePriceChart.seriesLimit.message", "Steam 定价区和游戏商店合计最多 $max$ 条，主 Steam 定价区也计入其中。请先删除一个已添加项。", { max: MAX_STORE_PRICE_SERIES }),
       });
     }
 
@@ -131,7 +149,8 @@
     }
 
     function colorInput(seriesId, label) {
-      return `<input class="store-price-chart-color" type="color" value="${escAttr(colorValue(seriesId))}" data-store-price-chart-color="${escAttr(seriesId)}" aria-label="${escAttr(`${label}线条颜色`)}">`;
+      const ariaLabel = uiText("settings.storePriceChart.color.ariaLabel", "$name$线条颜色", { name: label });
+      return `<input class="store-price-chart-color" type="color" value="${escAttr(colorValue(seriesId))}" data-store-price-chart-color="${escAttr(seriesId)}" aria-label="${escAttr(ariaLabel)}">`;
     }
 
     function regionRows() {
@@ -140,14 +159,15 @@
       return rows.map(({ cc, fixed }) => {
         const region = catalog.getSteamPriceRegion(cc);
         const id = catalog.steamSeriesId(cc);
+        const label = regionLabel(region);
         return `
           <div class="store-price-chart-entry">
             <span class="store-price-chart-swatch" style="background-color:${escAttr(colorValue(id))}"></span>
-            <span class="store-price-chart-entry__name">${esc(catalog.steamSeriesLabel(cc))}</span>
-            ${colorInput(id, region.label)}
+            <span class="store-price-chart-entry__name">${esc(steamSeriesLabel(cc))}</span>
+            ${colorInput(id, label)}
             ${fixed
-              ? `<span class="store-price-chart-entry__fixed">主区域</span>`
-              : `<button class="store-price-chart-icon" type="button" data-store-price-chart-remove-region="${escAttr(cc)}" title="删除${escAttr(region.label)}" aria-label="删除${escAttr(region.label)}">&times;</button>`}
+              ? `<span class="store-price-chart-entry__fixed">${esc(uiText("settings.storePriceChart.entry.mainRegion", "主区域"))}</span>`
+              : `<button class="store-price-chart-icon" type="button" data-store-price-chart-remove-region="${escAttr(cc)}" title="${escAttr(uiText("settings.storePriceChart.action.remove", "删除$name$", { name: label }))}" aria-label="${escAttr(uiText("settings.storePriceChart.action.remove", "删除$name$", { name: label }))}">&times;</button>`}
           </div>`;
       }).join("");
     }
@@ -162,8 +182,8 @@
             <span class="store-price-chart-entry__name">${esc(shop.label)}</span>
             ${id === 61 ? `<span class="store-price-chart-color-placeholder" aria-hidden="true"></span>` : colorInput(seriesId, shop.label)}
             ${id === 61
-              ? `<span class="store-price-chart-entry__fixed">固定</span>`
-              : `<button class="store-price-chart-icon" type="button" data-store-price-chart-remove-shop="${id}" title="删除${escAttr(shop.label)}" aria-label="删除${escAttr(shop.label)}">&times;</button>`}
+              ? `<span class="store-price-chart-entry__fixed">${esc(uiText("settings.storePriceChart.entry.fixed", "固定"))}</span>`
+              : `<button class="store-price-chart-icon" type="button" data-store-price-chart-remove-shop="${id}" title="${escAttr(uiText("settings.storePriceChart.action.remove", "删除$name$", { name: shop.label }))}" aria-label="${escAttr(uiText("settings.storePriceChart.action.remove", "删除$name$", { name: shop.label }))}">&times;</button>`}
           </div>`;
       }).join("");
     }
@@ -183,6 +203,8 @@
     function combo(kind, items, options = {}) {
       const value = String(options.value || "");
       const label = String(options.label || "");
+      const ariaLabel = String(options.ariaLabel || uiText("settings.storePriceChart.combo.options", "选项"));
+      const expandLabel = uiText("settings.storePriceChart.combo.expand", "展开$name$列表", { name: ariaLabel });
       return `
         <div class="store-price-chart-combo" data-store-price-chart-combo="${escAttr(kind)}">
           <div class="store-price-chart-combo__control">
@@ -190,14 +212,14 @@
               value="${escAttr(label)}" data-store-price-chart-combo-input="${escAttr(kind)}"
               data-store-price-chart-combo-value="${escAttr(value)}" placeholder="${escAttr(options.placeholder || "")}" autocomplete="off">
             <button class="store-price-chart-combo__toggle" type="button" data-store-price-chart-combo-toggle="${escAttr(kind)}"
-              aria-label="展开${escAttr(options.ariaLabel || "选项")}列表" title="展开${escAttr(options.ariaLabel || "选项")}列表"></button>
+              aria-label="${escAttr(expandLabel)}" title="${escAttr(expandLabel)}"></button>
           </div>
           <div class="store-price-chart-combo__options" role="listbox" data-store-price-chart-combo-options hidden>
             ${items.map(item => `<button type="button" role="option" class="store-price-chart-combo__option"
               data-store-price-chart-combo-option="${escAttr(item.value)}"
               data-store-price-chart-combo-search="${escAttr(item.search)}"
               aria-selected="${String(item.value) === value ? "true" : "false"}">${esc(item.label)}</button>`).join("")}
-            <div class="store-price-chart-combo__empty" data-store-price-chart-combo-empty hidden>没有匹配项</div>
+            <div class="store-price-chart-combo__empty" data-store-price-chart-combo-empty hidden>${esc(uiText("settings.storePriceChart.combo.empty", "没有匹配项"))}</div>
           </div>
         </div>`;
     }
@@ -217,19 +239,19 @@
       const sourceNavigation = root.STConfig.externalNavigation.resolve(FRANKFURTER_URL);
       const sourceTarget = sourceNavigation.target ? ` target="${escAttr(sourceNavigation.target)}"` : "";
       const mainOptions = [
-        ...(selectedMain === "auto" ? [{ cc: "auto", label: "跟随 Steam 页面（旧设置）" }] : []),
+        ...(selectedMain === "auto" ? [{ cc: "auto", label: uiText("settings.storePriceChart.legacy.followSteam", "跟随 Steam 页面（旧设置）") }] : []),
         ...(selectedMain !== "auto" && !catalog.getSteamPriceRegion(selectedMain)
-          ? [{ cc: selectedMain, label: `${selectedMain} - 目录外旧设置（请重新选择）` }]
+          ? [{ cc: selectedMain, label: uiText("settings.storePriceChart.legacy.outsideCatalog", "$code$ - 目录外旧设置（请重新选择）", { code: selectedMain }) }]
           : []),
-        ...catalog.STEAM_PRICE_REGIONS,
+        ...catalog.STEAM_PRICE_REGIONS.map(item => ({ ...item, label: regionLabel(item) })),
       ];
       const selectedMainOption = mainOptions.find(item => item.cc === selectedMain) || mainOptions[0];
       return `
         <div class="store-price-chart-panel" data-store-price-chart-panel>
           <section class="store-price-chart-section">
-            <h4>Steam 定价区</h4>
+            <h4>${esc(uiText("settings.storePriceChart.section.steamRegions", "Steam 定价区"))}</h4>
             <div class="store-price-chart-field">
-              <span>主定价区</span>
+              <span>${esc(uiText("settings.storePriceChart.field.mainRegion", "主定价区"))}</span>
               ${combo("main-country", mainOptions.map(item => ({
                 value: item.cc,
                 label: item.label,
@@ -237,40 +259,40 @@
               })), {
                 value: selectedMain,
                 label: selectedMainOption?.label || "",
-                placeholder: "搜索主定价区",
-                ariaLabel: "主定价区",
+                placeholder: uiText("settings.storePriceChart.placeholder.searchMainRegion", "搜索主定价区"),
+                ariaLabel: uiText("settings.storePriceChart.field.mainRegion", "主定价区"),
               })}
             </div>
             <div class="store-price-chart-list">${regionRows()}</div>
             <div class="store-price-chart-add">
-              ${combo("region", availableRegions().map(item => ({ value: item.cc, label: item.label, search: `${item.cc} ${item.label}` })), {
-                placeholder: "搜索区域名称",
-                ariaLabel: "Steam 定价区",
+              ${combo("region", availableRegions().map(item => ({ value: item.cc, label: regionLabel(item), search: `${item.cc} ${item.label} ${regionLabel(item)}` })), {
+                placeholder: uiText("settings.storePriceChart.placeholder.searchRegion", "搜索区域名称"),
+                ariaLabel: uiText("settings.storePriceChart.section.steamRegions", "Steam 定价区"),
               })}
-              <button class="btn btn-secondary" type="button" data-store-price-chart-add-region>添加区域</button>
+              <button class="btn btn-secondary" type="button" data-store-price-chart-add-region>${esc(uiText("settings.storePriceChart.action.addRegion", "添加区域"))}</button>
             </div>
           </section>
           <section class="store-price-chart-section">
-            <h4>游戏商店</h4>
+            <h4>${esc(uiText("settings.storePriceChart.section.shops", "游戏商店"))}</h4>
             <div class="store-price-chart-list">${shopRows()}</div>
             <div class="store-price-chart-add">
               ${combo("shop", availableShops().map(item => ({ value: item.id, label: item.label, search: item.label })), {
-                placeholder: "搜索商店名称",
-                ariaLabel: "游戏商店",
+                placeholder: uiText("settings.storePriceChart.placeholder.searchShop", "搜索商店名称"),
+                ariaLabel: uiText("settings.storePriceChart.section.shops", "游戏商店"),
               })}
-              <button class="btn btn-secondary" type="button" data-store-price-chart-add-shop>添加商店</button>
+              <button class="btn btn-secondary" type="button" data-store-price-chart-add-shop>${esc(uiText("settings.storePriceChart.action.addShop", "添加商店"))}</button>
             </div>
           </section>
           <section class="store-price-chart-section">
-            <h4>图表</h4>
-            <div class="store-price-chart-field"><span>汇率来源</span><a class="store-price-chart-source-link" href="${escAttr(sourceNavigation.href)}"${sourceTarget} rel="${escAttr(sourceNavigation.rel)}">Frankfurter</a></div>
-            <div class="store-price-chart-field"><span>史低判定</span>${segment("lowCriterion", chart.lowCriterion, [{ value: "api", label: "使用API数据" }, { value: "discount", label: "按折扣力度" }, { value: "price", label: "按到手价" }])}</div>
-            <div class="store-price-chart-field${chart.lowCriterion === "api" ? " is-disabled" : ""}" data-store-price-chart-reference-field${chart.lowCriterion === "api" ? ' aria-disabled="true"' : ""}><span>史低范围</span>${segment("lowReferenceScope", chart.lowReferenceScope, [{ value: "allRegular", label: "全部原价" }, { value: "currentRegular", label: "当前原价" }, { value: "recent12Months", label: "最近12个月" }], { disabled: chart.lowCriterion === "api", stateAttribute: "data-store-price-chart-reference-scope" })}</div>
-            <div class="store-price-chart-field${chart.lowCriterion === "api" ? " is-disabled" : ""}" data-store-price-chart-occurrence-field${chart.lowCriterion === "api" ? ' aria-disabled="true"' : ""}><span>史低时间</span>${segment("lowOccurrence", chart.lowOccurrence, [{ value: "latest", label: "最近史低" }, { value: "earliest", label: "最先史低" }], { disabled: chart.lowCriterion === "api", stateAttribute: "data-store-price-chart-occurrence" })}</div>
-            <button class="btn btn-secondary" type="button" data-store-price-chart-reset-colors>恢复全部默认颜色</button>
+            <h4>${esc(uiText("settings.storePriceChart.section.chart", "图表"))}</h4>
+            <div class="store-price-chart-field"><span>${esc(uiText("settings.storePriceChart.field.exchangeRateSource", "汇率来源"))}</span><a class="store-price-chart-source-link" href="${escAttr(sourceNavigation.href)}"${sourceTarget} rel="${escAttr(sourceNavigation.rel)}">Frankfurter</a></div>
+            <div class="store-price-chart-field"><span>${esc(uiText("settings.storePriceChart.field.lowCriterion", "史低判定"))}</span>${segment("lowCriterion", chart.lowCriterion, [{ value: "api", label: uiText("settings.storePriceChart.lowCriterion.api", "使用API数据") }, { value: "discount", label: uiText("settings.storePriceChart.lowCriterion.discount", "按折扣力度") }, { value: "price", label: uiText("settings.storePriceChart.lowCriterion.price", "按到手价") }])}</div>
+            <div class="store-price-chart-field${chart.lowCriterion === "api" ? " is-disabled" : ""}" data-store-price-chart-reference-field${chart.lowCriterion === "api" ? ' aria-disabled="true"' : ""}><span>${esc(uiText("settings.storePriceChart.field.lowReferenceScope", "史低范围"))}</span>${segment("lowReferenceScope", chart.lowReferenceScope, [{ value: "allRegular", label: uiText("settings.storePriceChart.lowReferenceScope.allRegular", "全部原价") }, { value: "currentRegular", label: uiText("settings.storePriceChart.lowReferenceScope.currentRegular", "当前原价") }, { value: "recent12Months", label: uiText("settings.storePriceChart.lowReferenceScope.recent12Months", "最近12个月") }], { disabled: chart.lowCriterion === "api", stateAttribute: "data-store-price-chart-reference-scope" })}</div>
+            <div class="store-price-chart-field${chart.lowCriterion === "api" ? " is-disabled" : ""}" data-store-price-chart-occurrence-field${chart.lowCriterion === "api" ? ' aria-disabled="true"' : ""}><span>${esc(uiText("settings.storePriceChart.field.lowOccurrence", "史低时间"))}</span>${segment("lowOccurrence", chart.lowOccurrence, [{ value: "latest", label: uiText("settings.storePriceChart.lowOccurrence.latest", "最近史低") }, { value: "earliest", label: uiText("settings.storePriceChart.lowOccurrence.earliest", "最先史低") }], { disabled: chart.lowCriterion === "api", stateAttribute: "data-store-price-chart-occurrence" })}</div>
+            <button class="btn btn-secondary" type="button" data-store-price-chart-reset-colors>${esc(uiText("settings.storePriceChart.action.resetColors", "恢复全部默认颜色"))}</button>
           </section>
           <div class="store-price-chart-actions">
-            <button class="btn btn-blue" type="button" data-store-price-chart-save ${saving ? "disabled" : ""}>保存设置</button>
+            <button class="btn btn-blue" type="button" data-store-price-chart-save ${saving ? "disabled" : ""}>${esc(uiText("settings.storePriceChart.action.save", "保存设置"))}</button>
           </div>
         </div>`;
     }
@@ -333,6 +355,7 @@
       if (selected) return catalog.getSteamPriceRegion(selected);
       return catalog.getSteamPriceRegion(code)
         || catalog.STEAM_PRICE_REGIONS.find(item => item.label.toLowerCase() === value.toLowerCase())
+        || catalog.STEAM_PRICE_REGIONS.find(item => regionLabel(item).toLowerCase() === value.toLowerCase())
         || null;
     }
 
@@ -386,7 +409,10 @@
       if (saving) return;
       const selectedMain = mainCountry();
       if (selectedMain !== "auto" && !catalog.getSteamPriceRegion(selectedMain)) {
-        await dialog(shadow, { title: "需要选择主定价区", message: "当前旧设置不在固定目录中，请先选择一个主定价区。" });
+        await dialog(shadow, {
+          title: uiText("settings.storePriceChart.validation.mainRegion.title", "需要选择主定价区"),
+          message: uiText("settings.storePriceChart.validation.mainRegion.message", "当前旧设置不在固定目录中，请先选择一个主定价区。"),
+        });
         return;
       }
       saving = true;
@@ -410,7 +436,10 @@
         render(shadow, "[data-store-price-chart-save]");
       } catch (error) {
         log?.error?.("store-price-chart-settings-save-failed", "商店详情价格图表设置保存失败", { operationId, error });
-        dialog(shadow, { title: "保存失败", message: "价格图表设置保存失败，请稍后重试。" });
+        dialog(shadow, {
+          title: uiText("settings.storePriceChart.saveFailed.title", "保存失败"),
+          message: uiText("settings.storePriceChart.saveFailed.message", "价格图表设置保存失败，请稍后重试。"),
+        });
       } finally {
         saving = false;
         if (button.isConnected) button.disabled = false;
@@ -450,7 +479,10 @@
       if (addRegion) {
         const region = resolveRegionInput(shadow);
         if (!region) {
-          dialog(shadow, { title: "无法添加", message: "请选择固定目录中的 Steam 定价区。" });
+          dialog(shadow, {
+            title: uiText("settings.storePriceChart.addFailed.title", "无法添加"),
+            message: uiText("settings.storePriceChart.addFailed.region", "请选择固定目录中的 Steam 定价区。"),
+          });
           return true;
         }
         if (region.cc !== activeMainCountry() && !chart.additionalSteamRegions.includes(region.cc)) {
@@ -467,7 +499,10 @@
       if (addShop) {
         const shop = resolveShopInput(shadow);
         if (!shop || shop.id === 61) {
-          dialog(shadow, { title: "无法添加", message: "请选择固定目录中的游戏商店。" });
+          dialog(shadow, {
+            title: uiText("settings.storePriceChart.addFailed.title", "无法添加"),
+            message: uiText("settings.storePriceChart.addFailed.shop", "请选择固定目录中的游戏商店。"),
+          });
           return true;
         }
         if (!shops().includes(shop.id)) {

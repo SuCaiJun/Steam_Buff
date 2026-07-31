@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -1466,8 +1466,7 @@
       background: var(--st-color-gold-alpha-10);
     }
 
-    .feature-card.gold::after {
-      content: "赞助者";
+    .feature-badge {
       position: absolute;
       top: 12px;
       right: 12px;
@@ -1882,6 +1881,7 @@
       background: transparent;
       cursor: pointer;
       text-align: left;
+      text-decoration: none;
       font: inherit;
       transition: background-color .2s ease;
     }

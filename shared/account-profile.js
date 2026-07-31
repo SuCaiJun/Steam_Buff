@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -86,81 +86,55 @@
   function sponsorIdentityName(sponsor) {
     return first(
       sponsor.identity_name,
-      sponsor.sponsor_identity_name,
-      sponsor.vip2_name,
       sponsor.level_names?.[2],
-      sponsor.level_names?.vip2
+      sponsor.name
     );
   }
 
-  function identityLabel(name) {
-    return name ? (name.endsWith("身份") ? name : `${name}身份`) : "身份";
-  }
-
-  function sponsorBadgeName(sponsor, active) {
-    if (!active) {
-      return "普通用户";
-    }
-    return first(
-      sponsor.badge,
-      sponsor.name,
-      sponsor.sponsor_name,
-      sponsor.display_name,
-      sponsor.level_name,
-      sponsorIdentityName(sponsor)
-    );
-  }
-
-  // 账号中心和引导页共用同一套字段兜底，避免不同入口展示不一致。
+  // 账号中心和引导页只消费当前 /user/center 契约字段。
   function normalizeData(snapshot = {}, auth = {}) {
     const snap = snapshot || {};
     const user = snap.user || {};
-    const sponsor = snap.sponsor || user.sponsor || {};
-    const usage = snap.usage || user.usage || {};
-    const logged = !!(auth?.refresh_token || auth?.access_token) && user.is_loged_in !== false;
-    const level = first(sponsor.level, user.sponsor_level, user.level, "none");
+    const sponsor = snap.sponsor || {};
+    const usage = snap.usage || {};
+    const logged = !!(auth?.refresh_token || auth?.access_token)
+      && user.is_loged_in !== false
+      && user.is_logged_in !== false;
+    const level = first(sponsor.level, "none");
     const active = logged && (
       sponsorLevel(level)
       || flag(sponsor.active, false)
-      || flag(user.is_sponsor, false)
     );
     const joined = num(user.joined_days, NaN);
-    const registered = dateText(user.registered_at || user.created_at);
-    const joinedText = Number.isFinite(joined)
-      ? `已使用 Steam Buff ${Math.max(0, Math.round(joined))} 天`
-      : first(registered && `注册于 ${registered}`, auth?.last_used_at ? `上次使用 ${new Date(auth.last_used_at).toLocaleDateString("zh-CN")}` : "", "已绑定 Steam Buff 账号");
     const gameNotes = usage.game_notes || {};
     const suggestions = usage.search_suggestions || {};
     const noteQuota = Object.hasOwn(gameNotes, "quota") ? num(gameNotes.quota, active ? -1 : 100) : (active ? -1 : 100);
     const searchQuota = Object.hasOwn(suggestions, "quota") ? num(suggestions.quota, active ? 500 : 0) : (active ? 500 : 0);
-    const expire = dateText(sponsor.expire_at || user.sponsor_expire_at || user.expire_at);
+    const expire = dateText(sponsor.expire_at);
     const remainingDays = remainDays(sponsor);
     const identityName = sponsorIdentityName(sponsor);
-    const identity = identityLabel(identityName);
-    const badge = sponsorBadgeName(sponsor, active);
+    const badge = active ? first(sponsor.name, identityName) : "";
 
     return {
       logged,
       user: {
-        avatar: first(user.avatar, user.avatar_url, user.steam_avatar),
-        name: first(user.nickname, user.name, user.display_name, user.user_login, user.id, "Steam Buff 用户"),
-        id: first(user.steam_id, user.steamid, user.steamId, user.id, user.uid, "用户 ID 暂无"),
-        joinedText,
+        avatar: first(user.avatar),
+        name: first(user.nickname, user.name),
+        id: first(user.steam_id, user.id),
+        joinedDays: Number.isFinite(joined) ? Math.max(0, Math.round(joined)) : null,
       },
       sponsor: {
         active,
         level,
         badge,
         identityName,
-        identity,
         expire,
         remainingDays,
         expiring: active && !!expire && remainingDays <= 30,
-        expiringTitle: active && !!expire && remainingDays <= 30 ? `您的${identity}即将到期` : "",
       },
       usage: {
         customNames: {
-          count: Math.max(0, num(usage.custom_names?.count ?? usage.customNames?.count, 0)),
+          count: Math.max(0, num(usage.custom_names?.count, 0)),
         },
         gameNotes: {
           used: Math.max(0, num(gameNotes.used, 0)),
@@ -180,8 +154,8 @@
     return {
       active: src.sponsor?.active === true,
       level: String(src.sponsor?.level || ""),
-      badge: String(src.sponsor?.badge || (src.sponsor?.active ? "赞助者" : "普通用户")),
-      identity: String(src.sponsor?.identity || "赞助者身份"),
+      badge: String(src.sponsor?.badge || ""),
+      identity: String(src.sponsor?.identityName || ""),
       expire: String(src.sponsor?.expire || ""),
       features: {
         searchSuggestions: src.sponsor?.active === true && src.usage?.searchSuggestions?.enabled !== false,

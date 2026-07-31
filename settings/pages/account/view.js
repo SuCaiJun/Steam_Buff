@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -12,12 +12,18 @@
   "use strict";
 
   const COMPUTE_SERVICE_URL = "https://www.rainyun.com/Ricky_?s=Steam_Buff";
+  const USER_PAGE_URLS = Object.freeze({
+    customNames: "https://www.sucaijun.com/user/game-label",
+    gameNotes: "https://www.sucaijun.com/user/game-note",
+    priceAlerts: "https://www.sucaijun.com/user/price-alert",
+  });
 
   function create(options = {}) {
     const rt = options.state;
     const api = options.api;
     const center = options.center;
     const deviceLogin = options.deviceLogin;
+    const t = root.STI18n.text;
 
     function clamp(value, min, max) {
       return Math.min(Math.max(value, min), max);
@@ -61,14 +67,14 @@
       return `
       <div class="uc-alert">
         <span>${ctx.esc(rt.centerError)}</span>
-        <button type="button" data-center-action="retry-center">重试</button>
+        <button type="button" data-center-action="retry-center">${t("common.retry", "重试")}</button>
       </div>
     `;
     }
     if (rt.centerBusy) {
       return `
       <div class="uc-alert">
-        <span>正在同步用户信息</span>
+        <span>${t("settings.account.syncing", "正在同步用户信息")}</span>
       </div>
     `;
     }
@@ -78,7 +84,7 @@
     return `
       <div class="uc-alert">
         <span>${ctx.esc(rt.loadError)}</span>
-        <button type="button" data-auth-action="login">重试</button>
+        <button type="button" data-auth-action="login">${t("common.retry", "重试")}</button>
       </div>
     `;
   }
@@ -94,6 +100,7 @@
   function featureCard(name, desc, iconName, gold = false) {
     return `
       <div class="feature-card${gold ? " gold" : ""}">
+        ${gold ? `<span class="feature-badge">${t("settings.account.sponsor", "赞助者")}</span>` : ""}
         <div class="feature-icon">${icon(iconName)}</div>
         <div class="feature-info">
           <div class="feature-name">${name}</div>
@@ -101,6 +108,36 @@
         </div>
       </div>
     `;
+  }
+
+  function userName(data) {
+    return data.user.name || t("settings.account.userFallback", "Steam Buff 用户");
+  }
+
+  function userId(data) {
+    return data.user.id || t("settings.account.userIdUnavailable", "用户 ID 暂无");
+  }
+
+  function sponsorIdentity(data) {
+    return data.sponsor.active && data.sponsor.identityName
+      ? data.sponsor.identityName
+      : t("settings.membership.sponsorIdentity", "赞助者身份");
+  }
+
+  function sponsorBadge(data) {
+    return data.sponsor.badge || t("settings.account.normalUser", "普通用户");
+  }
+
+  function joinedText(data) {
+    return Number.isFinite(data.user.joinedDays)
+      ? t("settings.account.joinedDays", "已使用 Steam Buff $days$ 天", { days: data.user.joinedDays })
+      : t("settings.account.bound", "已绑定 Steam Buff 账号");
+  }
+
+  function expiringTitle(data) {
+    return data.sponsor.expiring
+      ? t("settings.account.expiring", "您的$identity$即将到期", { identity: sponsorIdentity(data) })
+      : "";
   }
 
   function userCard(data, ctx) {
@@ -112,13 +149,13 @@
         <div class="welcome-view">
           <div class="welcome-hero">
             <div class="welcome-text">
-              <div class="welcome-eyebrow">Steam Buff 用户中心</div>
+              <div class="welcome-eyebrow">${t("settings.account.welcome.eyebrow", "Steam Buff 用户中心")}</div>
               <div class="welcome-title">
-                欢迎回来，<br>
-                开启你的 <span class="accent">专属体验</span>
+                ${t("settings.account.welcome.back", "欢迎回来，")}<br>
+                ${t("settings.account.welcome.unlock", "开启你的")} <span class="accent">${t("settings.account.welcome.experience", "专属体验")}</span>
               </div>
               <div class="welcome-desc">
-                ${rt.busy ? ctx.esc(rt.msg || "正在处理登录请求") : "登录后查看你的账号信息、功能用量与赞助者权益。所有数据安全保存，随时同步。"}
+                ${rt.busy ? ctx.esc(rt.msg || t("settings.account.processingLogin", "正在处理登录请求")) : t("settings.account.welcome.description", "登录后查看你的账号信息、功能用量与赞助者权益。所有数据安全保存，随时同步。")}
               </div>
               <div class="welcome-actions">
                 <button class="btn-login" type="button" data-auth-action="login" ${rt.busy ? "disabled" : ""}>
@@ -127,7 +164,7 @@
                     <polyline points="10 17 15 12 10 7"/>
                     <line x1="15" y1="12" x2="3" y2="12"/>
                   </svg>
-                  <span>${rt.busy ? "处理中" : "登录 / 绑定账号"}</span>
+                  <span>${rt.busy ? t("common.processing", "处理中") : t("settings.account.loginBind", "登录 / 绑定账号")}</span>
                 </button>
               </div>
               ${rt.busy ? '<span class="uc-skeleton"></span>' : ""}
@@ -140,14 +177,14 @@
             </div>
           </div>
           <div class="feature-section-title">
-            <span class="label">账号功能与后续规划</span>
+            <span class="label">${t("settings.account.roadmap", "账号功能与后续规划")}</span>
             <span class="line"></span>
           </div>
           <div class="feature-grid">
-            ${featureCard("自定义名称", "为游戏起个专属称呼，列表里一眼识别", "tag")}
-            ${featureCard("游戏备注", "记录你的购买理由、心得，永不忘记", "note")}
-            ${featureCard("打折监控", "规划每日检查价格，到达目标价后通过 QQ 或短信提醒", "message", true)}
-            ${featureCard("搜索联想词", "智能补全游戏名，快速找到目标", "search", true)}
+            ${featureCard(t("settings.account.feature.customNames.name", "自定义名称"), t("settings.account.feature.customNames.desc", "为游戏起个专属称呼，列表里一眼识别"), "tag")}
+            ${featureCard(t("settings.account.feature.gameNotes.name", "游戏备注"), t("settings.account.feature.gameNotes.desc", "记录你的购买理由、心得，永不忘记"), "note")}
+            ${featureCard(t("settings.account.feature.priceAlerts.name", "打折监控"), t("settings.account.feature.priceAlerts.desc", "规划每日检查价格，到达目标价后通过 QQ 或短信提醒"), "message", true)}
+            ${featureCard(t("settings.account.feature.searchSuggestions.name", "搜索联想词"), t("settings.account.feature.searchSuggestions.desc", "智能补全游戏名，快速找到目标"), "search", true)}
           </div>
         </div>
       `;
@@ -163,32 +200,32 @@
             </div>
             <div class="user-info">
               <div class="name-row">
-                <span class="nickname">${ctx.esc(data.user.name)}</span>
-                <span class="badge ${data.sponsor.active ? "sponsor" : "normal"}" title="${ctx.esc(data.sponsor.expiringTitle || "")}">${ctx.esc(data.sponsor.badge)}</span>
+                <span class="nickname">${ctx.esc(userName(data))}</span>
+                <span class="badge ${data.sponsor.active ? "sponsor" : "normal"}" title="${ctx.esc(expiringTitle(data))}">${ctx.esc(sponsorBadge(data))}</span>
               </div>
               <div class="meta-row">
-                <button class="meta-copy" type="button" data-user-copy="${ctx.esc(data.user.id)}" title="点击复制">
-                  <span>ID: ${ctx.esc(data.user.id)}</span>
+                <button class="meta-copy" type="button" data-user-copy="${ctx.esc(userId(data))}" title="${t("common.clickToCopy", "点击复制")}">
+                  <span>ID: ${ctx.esc(userId(data))}</span>
                   ${icon("copy")}
                 </button>
               </div>
-              <div class="sub-meta">${ctx.esc(data.user.joinedText)}</div>
+              <div class="sub-meta">${ctx.esc(joinedText(data))}</div>
               <div class="auth-msg" data-auth-note role="status" ${rt.copyMsg ? "" : "hidden"}>${ctx.esc(rt.copyMsg || "")}</div>
             </div>
             <div class="hero-actions">
-              <button class="icon-btn refresh${rt.centerBusy ? " busy" : ""}" type="button" data-center-action="refresh-center" title="${rt.centerBusy ? "正在同步用户信息" : "刷新数据"}" aria-label="刷新数据" aria-busy="${rt.centerBusy ? "true" : "false"}" ${rt.centerBusy ? "disabled" : ""}>
+              <button class="icon-btn refresh${rt.centerBusy ? " busy" : ""}" type="button" data-center-action="refresh-center" title="${rt.centerBusy ? t("settings.account.syncing", "正在同步用户信息") : t("settings.account.refresh", "刷新数据")}" aria-label="${t("settings.account.refresh", "刷新数据")}" aria-busy="${rt.centerBusy ? "true" : "false"}" ${rt.centerBusy ? "disabled" : ""}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M23 4v6h-6"/>
                   <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                 </svg>
               </button>
               <span class="action-menu-wrap">
-                <button class="icon-btn" type="button" data-center-menu="account" title="更多" aria-label="更多" aria-haspopup="menu" aria-expanded="false">
+                <button class="icon-btn" type="button" data-center-menu="account" title="${t("common.more", "更多")}" aria-label="${t("common.more", "更多")}" aria-haspopup="menu" aria-expanded="false">
                   ${iconFilled("more")}
                 </button>
-                <span class="account-menu" role="menu" aria-label="账号操作">
-                  <button type="button" role="menuitem" data-center-action="profile">编辑资料</button>
-                  <button class="danger" type="button" role="menuitem" data-auth-action="logout">退出登录</button>
+                <span class="account-menu" role="menu" aria-label="${t("settings.account.actions", "账号操作")}">
+                  <button type="button" role="menuitem" data-center-action="profile">${t("settings.account.editProfile", "编辑资料")}</button>
+                  <button class="danger" type="button" role="menuitem" data-auth-action="logout">${t("settings.account.logout", "退出登录")}</button>
                 </span>
               </span>
             </div>
@@ -205,23 +242,23 @@
     return `
       <section class="uc-card uc-user-card device">
         <div class="uc-device-box">
-          <div class="uc-device-title">登录 / 绑定账号</div>
+          <div class="uc-device-title">${t("settings.account.loginBind", "登录 / 绑定账号")}</div>
           <div class="auth-status">
-            <span>状态</span>
-            <strong>${ctx.esc(rt.msg || "等待浏览器授权")}</strong>
+            <span>${t("settings.account.status", "状态")}</span>
+            <strong>${ctx.esc(rt.msg || t("settings.account.waitingAuthorization", "等待浏览器授权"))}</strong>
           </div>
           <label class="auth-block auth-field">
-            <span>授权码</span>
-            <input class="auth-code" type="text" readonly value="${ctx.esc(deviceLogin.userCode())}" data-copy-auth="user_code" title="点击复制授权码" aria-label="授权码">
+            <span>${t("settings.account.authorizationCode", "授权码")}</span>
+            <input class="auth-code" type="text" readonly value="${ctx.esc(deviceLogin.userCode())}" data-copy-auth="user_code" title="${t("settings.account.copyAuthorizationCode", "点击复制授权码")}" aria-label="${t("settings.account.authorizationCode", "授权码")}">
           </label>
           <label class="auth-block auth-field">
-            <span>授权页</span>
-            <input class="auth-copy" type="text" readonly value="${ctx.esc(display)}" data-copy-auth="verify_url" data-full-url="${ctx.esc(authUrl)}" title="点击复制完整授权页" aria-label="授权页">
+            <span>${t("settings.account.authorizationPage", "授权页")}</span>
+            <input class="auth-copy" type="text" readonly value="${ctx.esc(display)}" data-copy-auth="verify_url" data-full-url="${ctx.esc(authUrl)}" title="${t("settings.account.copyAuthorizationPage", "点击复制完整授权页")}" aria-label="${t("settings.account.authorizationPage", "授权页")}">
           </label>
           <div class="auth-msg" data-auth-note role="status" ${rt.copyMsg ? "" : "hidden"}>${ctx.esc(rt.copyMsg || "")}</div>
           <div class="uc-user-actions">
-            <button class="uc-btn primary" type="button" data-auth-action="open">打开授权页</button>
-            <button class="uc-btn" type="button" data-auth-action="cancel">取消</button>
+            <button class="uc-btn primary" type="button" data-auth-action="open">${t("settings.account.openAuthorizationPage", "打开授权页")}</button>
+            <button class="uc-btn" type="button" data-auth-action="cancel">${t("common.cancel", "取消")}</button>
           </div>
         </div>
       </section>
@@ -243,8 +280,8 @@
       <section class="uc-card uc-locked-card ${kind}">
         <div class="uc-preview">${inner}</div>
         <div class="uc-lock">
-          <strong>登录后查看</strong>
-          <button class="uc-btn primary" type="button" data-auth-action="login">登录 / 绑定账号</button>
+          <strong>${t("settings.account.loginToView", "登录后查看")}</strong>
+          <button class="uc-btn primary" type="button" data-auth-action="login">${t("settings.account.loginBind", "登录 / 绑定账号")}</button>
         </div>
       </section>
     `;
@@ -266,12 +303,18 @@
 
   function usageFooter(used, quota) {
     if (quota < 0) {
-      return "无限额度";
+      return t("settings.account.unlimited", "无限额度");
     }
     if (quota <= 0) {
       return "";
     }
-    return `已用 ${percent(used, quota)}%`;
+    return t("settings.account.usedPercent", "已用 $percent$%", { percent: percent(used, quota) });
+  }
+
+  function usageLinkAttributes(url, ctx) {
+    const navigation = api.externalNavigation.resolve(url);
+    const target = navigation.target ? ` target="${ctx.esc(navigation.target)}"` : "";
+    return `href="${ctx.esc(navigation.href)}"${target} rel="${ctx.esc(navigation.rel)}"`;
   }
 
   function usageInner(data, ctx) {
@@ -280,45 +323,45 @@
     const searchWarn = percent(usage.searchSuggestions.used, usage.searchSuggestions.quota) >= 80 && usage.searchSuggestions.quota > 0;
     return `
       <div class="usage-header">
-        <div class="usage-title">功能用量</div>
-        <button class="key-link" type="button" data-center-action="donate" title="了解${ctx.esc(data.sponsor.identity)}">
+        <div class="usage-title">${t("settings.account.usageTitle", "功能用量")}</div>
+        <button class="key-link" type="button" data-center-action="donate" title="${ctx.esc(t("settings.account.learnIdentity", "了解$identity$", { identity: sponsorIdentity(data) }))}">
           ${icon("key")}
-          <span class="tooltip">了解${ctx.esc(data.sponsor.identity)}</span>
+          <span class="tooltip">${ctx.esc(t("settings.account.learnIdentity", "了解$identity$", { identity: sponsorIdentity(data) }))}</span>
         </button>
       </div>
       <div class="usage-grid">
-        <button class="usage-cell" type="button" data-center-action="open-cat" data-target="client">
-          <div class="cell-header">${icon("tag")}<span>自定义名称</span></div>
-          <div class="main-value">${ctx.esc(usage.customNames.count)}<span class="unit">条</span></div>
+        <a class="usage-cell" ${usageLinkAttributes(USER_PAGE_URLS.customNames, ctx)}>
+          <div class="cell-header">${icon("tag")}<span>${t("settings.account.feature.customNames.name", "自定义名称")}</span></div>
+          <div class="main-value">${ctx.esc(usage.customNames.count)}<span class="unit">${t("settings.account.itemUnit", "条")}</span></div>
           <div class="stat-bar"><div class="stat-bar-fill" style="width:100%"></div></div>
-          <div class="cell-footer"><span>查看列表</span><span class="arrow">→</span></div>
-        </button>
-        <button class="usage-cell${notesWarn ? " warn" : ""}" type="button" data-center-action="soon">
-          <div class="cell-header">${icon("note")}<span>游戏备注</span></div>
+          <div class="cell-footer"><span>${t("settings.account.viewList", "查看列表")}</span><span class="arrow">→</span></div>
+        </a>
+        <a class="usage-cell${notesWarn ? " warn" : ""}" ${usageLinkAttributes(USER_PAGE_URLS.gameNotes, ctx)}>
+          <div class="cell-header">${icon("note")}<span>${t("settings.account.feature.gameNotes.name", "游戏备注")}</span></div>
           <div class="main-value">${quotaMain(usage.gameNotes.used, usage.gameNotes.quota)}</div>
           ${quotaProgress(usage.gameNotes.used, usage.gameNotes.quota)}
           <div class="cell-footer"><span>${ctx.esc(usageFooter(usage.gameNotes.used, usage.gameNotes.quota))}</span><span class="arrow">→</span></div>
-        </button>
-        <button class="usage-cell" type="button" data-center-action="soon">
-          <div class="cell-header">${icon("tag")}<span>打折监控</span></div>
+        </a>
+        <a class="usage-cell" ${usageLinkAttributes(USER_PAGE_URLS.priceAlerts, ctx)}>
+          <div class="cell-header">${icon("tag")}<span>${t("settings.account.feature.priceAlerts.name", "打折监控")}</span></div>
           <div class="main-value-area">
-            <div class="status-wrap"><span class="status-pill disabled">规划中</span></div>
+            <div class="status-wrap"><span class="status-pill disabled">${t("settings.account.planned", "规划中")}</span></div>
             <div class="stat-bar dashed"><div class="stat-bar-fill"></div></div>
           </div>
-          <div class="cell-footer"><span>目标价提醒</span><span class="arrow">QQ / 短信 →</span></div>
-        </button>
+          <div class="cell-footer"><span>${t("settings.account.targetPriceAlert", "目标价提醒")}</span><span class="arrow">${t("settings.account.qqSms", "QQ / 短信")} →</span></div>
+        </a>
         <button class="usage-cell${usage.searchSuggestions.enabled ? "" : " locked"}${searchWarn ? " warn" : ""}" type="button" data-center-action="${usage.searchSuggestions.enabled ? "soon" : "donate"}">
-          <div class="cell-header">${icon("search")}<span>搜索联想词</span></div>
+          <div class="cell-header">${icon("search")}<span>${t("settings.account.feature.searchSuggestions.name", "搜索联想词")}</span></div>
           ${usage.searchSuggestions.enabled ? `
             <div class="main-value">${quotaMain(usage.searchSuggestions.used, usage.searchSuggestions.quota)}</div>
             ${quotaProgress(usage.searchSuggestions.used, usage.searchSuggestions.quota)}
             <div class="cell-footer"><span>${ctx.esc(usageFooter(usage.searchSuggestions.used, usage.searchSuggestions.quota))}</span><span class="arrow">→</span></div>
           ` : `
             <div class="main-value-area">
-              <div class="status-wrap"><span class="status-pill disabled">未开通</span></div>
+              <div class="status-wrap"><span class="status-pill disabled">${t("settings.account.notEnabled", "未开通")}</span></div>
               <div class="stat-bar dashed"><div class="stat-bar-fill"></div></div>
             </div>
-            <div class="cell-footer"><span></span><span class="unlock-link">${ctx.esc(data.sponsor.identity)}解锁 →</span></div>
+            <div class="cell-footer"><span></span><span class="unlock-link">${ctx.esc(t("settings.account.unlockIdentity", "$identity$解锁", { identity: sponsorIdentity(data) }))} →</span></div>
           `}
         </button>
       </div>
@@ -335,7 +378,7 @@
     const target = navigation.target ? ` target="${ctx.esc(navigation.target)}"` : "";
     return `
       <div class="uc-service-attribution">
-        由<a href="${ctx.esc(navigation.href)}"${target} rel="${ctx.esc(navigation.rel)}">雨云</a>提供计算服务
+        ${t("settings.account.servicePrefix", "由")}<a href="${ctx.esc(navigation.href)}"${target} rel="${ctx.esc(navigation.rel)}">RainYun</a>${t("settings.account.serviceSuffix", "提供计算服务")}
       </div>
     `;
   }

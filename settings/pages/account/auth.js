@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -50,6 +50,7 @@
     const rt = options.state;
     const api = options.api || root.STSettingsAccountApi;
     const center = options.center;
+    const t = root.STI18n.text;
     const log = root.STLoggerFactory?.createLogger?.("settings", "account") || {
       info() {},
       warn() {},
@@ -66,13 +67,13 @@
       const before = authKey(rt.auth);
       const after = authKey(next);
       if (typeof ctx.storage?.setAuth !== "function") {
-        throw new Error("登录状态存储未初始化");
+        throw new Error(t("settings.account.authStorageUnavailable", "登录状态存储未初始化"));
       }
       const saved = await ctx.storage.setAuth(next, {
         operationId: String(options.operationId || ""),
       });
       if (!saved) {
-        throw new Error("登录状态保存失败");
+        throw new Error(t("settings.account.authSaveFailed", "登录状态保存失败"));
       }
       rt.auth = next;
       if (before !== after) {
@@ -84,13 +85,13 @@
 
     async function clearAuthState(ctx, options = {}) {
       if (typeof ctx.storage?.clearAuth !== "function") {
-        throw new Error("登录状态存储未初始化");
+        throw new Error(t("settings.account.authStorageUnavailable", "登录状态存储未初始化"));
       }
       const cleared = await ctx.storage.clearAuth({
         operationId: String(options.operationId || ""),
       });
       if (cleared !== true) {
-        throw new Error("本地登录状态清理失败");
+        throw new Error(t("settings.account.authClearFailed", "本地登录状态清理失败"));
       }
       rt.auth = null;
       rt.center = null;
@@ -100,7 +101,7 @@
     async function refreshAuth(ctx, options = {}) {
       const token = rt.auth?.refresh_token || "";
       if (!token) {
-        throw new Error("请先在设置中登录");
+        throw new Error(t("settings.account.loginRequired", "请先在设置中登录"));
       }
 
       const startedAt = Date.now();
@@ -113,7 +114,7 @@
       const code = Number(res.body?.code) || res.status || 0;
       if (code < 200 || code >= 300 || !res.body?.access_token) {
         await clearAuthState(ctx, { operationId });
-        throw new Error(res.body?.message || "登录已过期，请重新登录");
+        throw new Error(res.body?.message || t("settings.account.loginExpired", "登录已过期，请重新登录"));
       }
 
       await storeAuth(ctx, nextAuth(res.body, rt.auth || {}), { operationId });
@@ -126,7 +127,7 @@
 
     async function readyAuth(ctx, options = {}) {
       if (!rt.auth?.access_token && !rt.auth?.refresh_token) {
-        throw new Error("请先在设置中登录");
+        throw new Error(t("settings.account.loginRequired", "请先在设置中登录"));
       }
       if (!rt.auth?.access_token && rt.auth?.refresh_token) {
         return refreshAuth(ctx, options);
@@ -154,7 +155,7 @@
       const startedAt = Date.now();
       const operationId = root.STLoggerFactory?.createOperationId?.() || "";
       rt.busy = true;
-      rt.msg = "正在退出登录";
+      rt.msg = t("settings.account.loggingOut", "正在退出登录");
       rt.copyMsg = "";
       rt.loadError = "";
       rt.centerError = "";
@@ -167,7 +168,7 @@
           try {
             const response = await api.request("/auth/logout", {}, token, ctx, "POST", api.urls.loginAuthBase, { operationId });
             if (!api.okCode(response)) {
-              throw new Error(response.body?.message || `远端退出登录失败：${Number(response.status) || 0}`);
+              throw new Error(response.body?.message || t("settings.account.remoteLogoutFailed", "远端退出登录失败：$status$", { status: Number(response.status) || 0 }));
             }
             remoteLogoutSucceeded = true;
           } catch (error) {
@@ -179,7 +180,7 @@
         }
         await clearAuthState(ctx, { operationId });
         rt.device = null;
-        rt.msg = "已退出登录";
+        rt.msg = t("settings.account.loggedOut", "已退出登录");
         log.info("account-logout-success", "退出登录成功", {
           operationId,
           remoteLogoutAttempted: !!token,

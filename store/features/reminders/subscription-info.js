@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -46,6 +46,10 @@
   let badgeLogState = { signature: "", time: 0 };
   const activeBadgeScopes = new Set();
   const log = window.STLoggerFactory?.createLogger?.("store", "subscription-info");
+
+  function i18n(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
+  }
 
   function noTranslate(el) {
     if (!el) return el;
@@ -98,24 +102,32 @@
     const name = item.info.name;
     if (item.sub.status === "leaving") {
       const until = dateText(item.sub.date?.until);
-      return until ? `此游戏即将于 ${until} 离开 ${name}` : `此游戏即将离开 ${name}`;
+      return until
+        ? i18n("store.subscription.leavingOn", "此游戏即将于 $date$ 离开 $name$", { date: until, name })
+        : i18n("store.subscription.leaving", "此游戏即将离开 $name$", { name });
     }
     const since = dateText(item.sub.date?.since);
-    return since ? `游戏已于 ${since} 加入 ${name} 订阅库` : `游戏已加入 ${name} 订阅库`;
+    return since
+      ? i18n("store.subscription.joinedOn", "游戏已于 $date$ 加入 $name$ 订阅库", { date: since, name })
+      : i18n("store.subscription.joined", "游戏已加入 $name$ 订阅库", { name });
   }
 
   function detailParts(item) {
     if (item.sub.status === "leaving") {
       const until = dateText(item.sub.date?.until);
       return {
-        prefix: until ? `此游戏即将于 ${until} 离开 ` : "此游戏即将离开 ",
+        prefix: until
+          ? i18n("store.subscription.leavingOnPrefix", "此游戏即将于 $date$ 离开 ", { date: until })
+          : i18n("store.subscription.leavingPrefix", "此游戏即将离开 "),
         tail: "",
       };
     }
     const since = dateText(item.sub.date?.since);
     return {
-      prefix: since ? `游戏已于 ${since} 加入 ` : "游戏已加入 ",
-      tail: " 订阅库",
+      prefix: since
+        ? i18n("store.subscription.joinedOnPrefix", "游戏已于 $date$ 加入 ", { date: since })
+        : i18n("store.subscription.joinedPrefix", "游戏已加入 "),
+      tail: i18n("store.subscription.joinedTail", " 订阅库"),
     };
   }
 
@@ -147,7 +159,7 @@
 
     const title = document.createElement("div");
     title.className = "st_subscription_title";
-    title.textContent = "会员检查";
+    title.textContent = i18n("store.subscription.title", "会员检查");
     container.appendChild(title);
 
     const body = document.createElement("div");

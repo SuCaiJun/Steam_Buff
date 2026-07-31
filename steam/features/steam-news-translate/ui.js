@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -60,6 +60,11 @@
   const TITLE_MIN_FONT_SIZE = 16;
   const TITLE_MAX_TEXT = 220;
   const DEFAULT_CONTENT_TYPE = "新闻/社区公告或更新公告";
+
+  function i18n(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
+  }
+
   const TITLE_META_RE = /^(重大更新|新闻|活动|定期更新|小更新|补丁|公告|来自[:：]?.*|发布于.*|\d{1,2}月\d{1,2}日.*|today|yesterday|posted|from)$/i;
   const CONTROL_SELECTOR = [
     "button",
@@ -881,7 +886,7 @@
     if (!parts.length) {
       return false;
     }
-    setTextNode(parts[0], text || "翻译结果为空");
+    setTextNode(parts[0], text || i18n("steam.newsTranslate.emptyResult", "翻译结果为空"));
     parts.slice(1).forEach((node) => setTextNode(node, ""));
     return true;
   }
@@ -1781,10 +1786,10 @@
   function renderBodyTranslation(card, data, text) {
     const host = data.host?.isConnected ? data.host : textHost(card, { strict: true });
     if (!host || host === card) {
-      throw new Error("未找到可替换的正文区域");
+      throw new Error(i18n("steam.newsTranslate.bodyTargetMissing", "未找到可替换的正文区域"));
     }
-    if (!replaceTextNodes(host, text || "翻译结果为空", bodyTextOptions(host, data.titleHost))) {
-      throw new Error("未找到可替换的正文文本");
+    if (!replaceTextNodes(host, text || i18n("steam.newsTranslate.emptyResult", "翻译结果为空"), bodyTextOptions(host, data.titleHost))) {
+      throw new Error(i18n("steam.newsTranslate.bodyTextMissing", "未找到可替换的正文文本"));
     }
     host.classList.add(TRANSLATED_CLASS, TRANSLATED_BODY_CLASS, "notranslate");
     host.setAttribute("translate", "no");
@@ -1821,7 +1826,7 @@
     const titleHost = needs.title ? renderTitleTranslation(card, data, result.title) : data.titleHost;
     const host = needs.body ? renderBodyTranslation(card, data, result.body) : data.host;
     if (needs.title && !titleHost && !needs.body) {
-      throw new Error("未找到可替换的标题文本");
+      throw new Error(i18n("steam.newsTranslate.titleTextMissing", "未找到可替换的标题文本"));
     }
     rememberTranslation(rt, card, data, titleHost, host);
   }
@@ -1877,7 +1882,7 @@
     }
     button.setAttribute("aria-busy", loading ? "true" : "false");
     button.setAttribute("aria-disabled", loading ? "true" : "false");
-    button.title = message || "Steam Buff 翻译";
+    button.title = message || i18n("steam.newsTranslate.buttonTitle", "Steam Buff 翻译");
     button.setAttribute("aria-label", button.title);
     if (loading) {
       startButtonMotion(button);
@@ -1895,7 +1900,7 @@
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
         cleanup();
-        reject(new Error("翻译请求超时"));
+        reject(new Error(i18n("steam.newsTranslate.requestTimedOut", "翻译请求超时")));
       }, timeoutMs);
       const onMessage = (event) => {
         const data = event.data || {};
@@ -1996,7 +2001,7 @@
   async function requestTranslationText(text, meta = {}) {
     const response = await request(TEXT_REQ, TEXT_RES, { text, meta: requestMeta(meta) });
     if (!response.ok) {
-      throw new Error(response.error || "翻译失败");
+      throw new Error(response.error || i18n("steam.newsTranslate.failed", "翻译失败"));
     }
     return {
       text: String(response.text || "").trim(),
@@ -2031,13 +2036,13 @@
   async function requestTranslationTextBatch(items, meta = {}) {
     const response = await request(TEXT_REQ, TEXT_RES, { texts: items, meta: requestMeta(meta) });
     if (!response.ok) {
-      throw new Error(response.error || "翻译失败");
+      throw new Error(response.error || i18n("steam.newsTranslate.failed", "翻译失败"));
     }
     const out = Array.isArray(response.texts)
       ? response.texts.map((text) => String(text || "").trim())
       : [];
     if (out.length !== items.length) {
-      throw new Error("AI 分块翻译结果数量不一致");
+      throw new Error(i18n("steam.newsTranslate.chunkCountMismatch", "AI 分块翻译结果数量不一致"));
     }
     return {
       texts: out,
@@ -2049,7 +2054,7 @@
   async function requestTranslationTexts(texts, meta = {}) {
     const items = Array.isArray(texts) ? texts.map((text) => String(text || "")) : [];
     if (!items.length) {
-      throw new Error("AI 分块文本为空");
+      throw new Error(i18n("steam.newsTranslate.chunkEmpty", "AI 分块文本为空"));
     }
     const batches = textRequestBatches(items);
     if (batches.length <= 1) {
@@ -2082,13 +2087,13 @@
   }
 
   function staleJobError() {
-    const error = new Error("新闻弹窗已切换");
+    const error = new Error(i18n("steam.newsTranslate.popupChanged", "新闻弹窗已切换"));
     error.staleNewsJob = true;
     return error;
   }
 
   function isStaleJobError(error) {
-    return error?.staleNewsJob === true || error?.message === "新闻弹窗已切换";
+    return error?.staleNewsJob === true || error?.message === i18n("steam.newsTranslate.popupChanged", "新闻弹窗已切换");
   }
 
   async function requestBodyTaskText(task) {
@@ -2183,7 +2188,7 @@
       }
       titleHost = renderTitleTranslation(card, data, title.text);
       if (!titleHost && !needs.body) {
-        throw new Error("未找到可替换的标题文本");
+        throw new Error(i18n("steam.newsTranslate.titleTextMissing", "未找到可替换的标题文本"));
       }
       titleText = title.text;
       titleMeta = title.meta;
@@ -2278,7 +2283,7 @@
       finalFailedCount = Math.max(finalFailedCount, 1);
     }
     if (tasks.length && needs.body && !bodyChanged && !titleText) {
-      throw new Error("AI 正文未产生有效翻译");
+      throw new Error(i18n("steam.newsTranslate.aiBodyEmpty", "AI 正文未产生有效翻译"));
     }
     rememberTranslation(rt, card, data, titleHost, finalFailedCount ? null : host);
     return {
@@ -2309,7 +2314,7 @@
   async function translateCard(rt, card, record) {
     const button = record.button;
     if (rt.pendingCards?.has(card) || record.pending === true) {
-      setButton(button, "loading", "正在翻译...");
+      setButton(button, "loading", i18n("steam.newsTranslate.translating", "正在翻译..."));
       return;
     }
     const data = extract(card, { strict: true });
@@ -2320,7 +2325,7 @@
       return;
     }
     if (!data.text && !data.titleText) {
-      setButton(button, "error", "没有可翻译内容");
+      setButton(button, "error", i18n("steam.newsTranslate.noContent", "没有可翻译内容"));
       return;
     }
     const cached = rt.cache.get(data.hash);
@@ -2329,7 +2334,7 @@
         renderTranslation(rt, card, data, cached, needs);
         setButton(button, "done");
       } catch (error) {
-        setButton(button, "error", error?.message || "翻译失败");
+        setButton(button, "error", error?.message || i18n("steam.newsTranslate.failed", "翻译失败"));
       }
       return;
     }
@@ -2338,7 +2343,7 @@
     record.pending = true;
     const jobId = `${data.hash}:${Date.now().toString(36)}`;
     record.jobId = jobId;
-    setButton(button, "loading", "正在翻译...");
+    setButton(button, "loading", i18n("steam.newsTranslate.translating", "正在翻译..."));
     log.info("news-popup-translate-start", "新闻弹窗翻译开始", {
       textLength: data.length,
       titleLength: data.titleText.length,
@@ -2364,7 +2369,9 @@
         rt.cache.set(data.hash, result);
         trimCache(rt.cache);
       }
-      setButton(button, failedCount ? "error" : "done", failedCount ? "部分内容翻译失败" : "");
+      setButton(button, failedCount ? "error" : "done", failedCount
+        ? i18n("steam.newsTranslate.partialFailed", "部分内容翻译失败")
+        : "");
       log.info("news-popup-translate-success", "新闻弹窗翻译完成", {
         textLength: data.length,
         titleLength: data.titleText.length,
@@ -2386,7 +2393,7 @@
         return;
       }
       if (card.isConnected) {
-        setButton(button, "error", error?.message || "翻译失败");
+        setButton(button, "error", error?.message || i18n("steam.newsTranslate.failed", "翻译失败"));
       }
       logError("news-popup-translate-failed", "新闻弹窗翻译失败", {
         textLength: data.length,
@@ -2423,13 +2430,13 @@
   function activateButton(rt, fallbackCard, button) {
     const card = currentButtonCard(rt, fallbackCard, button);
     if (!card?.isConnected) {
-      setButton(button, "error", "未识别当前新闻卡");
+      setButton(button, "error", i18n("steam.newsTranslate.cardUnrecognized", "未识别当前新闻卡"));
       scheduleScan(rt, FAST_SCAN_DELAY);
       return;
     }
     const existing = mounted.get(card);
     if (button.dataset.busy === "1" || existing?.pending === true || rt.pendingCards?.has(card)) {
-      setButton(button, "loading", "正在翻译...");
+      setButton(button, "loading", i18n("steam.newsTranslate.translating", "正在翻译..."));
       return;
     }
     const target = button.parentElement || mounted.get(card)?.target || null;
@@ -2470,8 +2477,8 @@
     button.className = buttonClass();
     button.setAttribute("role", "button");
     button.setAttribute("tabindex", "0");
-    button.title = "Steam Buff 翻译";
-    button.setAttribute("aria-label", "Steam Buff 翻译");
+    button.title = i18n("steam.newsTranslate.buttonTitle", "Steam Buff 翻译");
+    button.setAttribute("aria-label", button.title);
     button.setAttribute("translate", "no");
     button.classList.add("notranslate");
     const icon = document.createElement("img");

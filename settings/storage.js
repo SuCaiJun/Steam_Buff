@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -330,19 +330,15 @@
   }
 
   function normalizeMembership(value = {}, auth = {}) {
-    return globalThis.STSettingsMembership?.normalize?.(value, auth) || {
-      active: false,
-      level: "",
-      badge: "普通用户",
-      identity: "赞助者身份",
+      return globalThis.STSettingsMembership?.normalize?.(value, auth) || {
+        active: false,
+        level: "",
+        badge: "",
+        identity: "",
       expire: "",
       features: { searchSuggestions: false },
       updatedAt: Date.now(),
     };
-  }
-
-  function normalizeLocale(value) {
-    return globalThis.STI18n?.normalizeLocale?.(value) || (String(value || "") === "en" ? "en" : String(value || "") === "zh_TW" ? "zh_TW" : "zh_CN");
   }
 
   function area() {
@@ -469,11 +465,11 @@
 
   async function getUiLocale() {
     const rt = await get([UI_LOCALE_KEY]);
-    return normalizeLocale(rt[UI_LOCALE_KEY]);
+    return globalThis.STI18n.normalizeLocale(rt[UI_LOCALE_KEY]);
   }
 
   async function setUiLocale(value, diagnostics = {}) {
-    const locale = normalizeLocale(value);
+    const locale = globalThis.STI18n.normalizeLocale(value);
     const operationId = String(diagnostics?.operationId || "");
     let ok = true;
     try {

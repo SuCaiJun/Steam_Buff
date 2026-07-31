@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -17,6 +17,7 @@
     const auth = options.auth;
     const center = options.center;
     const deviceLogin = options.deviceLogin;
+    const t = root.STI18n.text;
     const log = root.STLoggerFactory?.createLogger?.("settings", "account") || {
       warn() {},
     };
@@ -68,8 +69,8 @@
       }
       if (action === "soon") {
         ctx.dialog?.(shadow, {
-          title: "功能入口待接入",
-          message: "当前功能的管理页还未接入设置面板。",
+          title: t("settings.account.soon.title", "功能入口待接入"),
+          message: t("settings.account.soon.message", "当前功能的管理页还未接入设置面板。"),
         });
         return true;
       }
@@ -90,7 +91,9 @@
       const userCopy = event.target.closest("[data-user-copy]");
       if (userCopy) {
         deviceLogin.copyText(userCopy.dataset.userCopy || "").then((ok) => {
-          deviceLogin.setCopyMsg(shadow, ok ? "用户 ID 已复制" : "复制失败，请手动复制");
+          deviceLogin.setCopyMsg(shadow, ok
+            ? t("settings.account.userIdCopied", "用户 ID 已复制")
+            : t("common.copyFailedManual", "复制失败，请手动复制"));
         });
         return true;
       }
@@ -128,7 +131,7 @@
         deviceLogin.stopPoll();
         rt.busy = false;
         rt.device = null;
-        rt.msg = "已取消登录";
+        rt.msg = t("settings.account.loginCancelled", "已取消登录");
         rt.copyMsg = "";
         deviceLogin.clearCopyTimer();
         refresh(ctx);

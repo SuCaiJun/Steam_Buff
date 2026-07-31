@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -23,6 +23,10 @@
   const detailCache = new Map();
   const log = root.STLoggerFactory.createLogger("settings", "update-reminder");
 
+  function text(key, fallback, params) {
+    return root.STI18n.text(key, fallback, params);
+  }
+
   function pad(value) {
     return String(Math.max(0, Number(value) || 0)).padStart(2, "0");
   }
@@ -37,9 +41,10 @@
     return match ? match[0].replace(/^v/i, "") : "";
   }
 
-  function verLabel(value, fallback = "未知版本") {
+  function verLabel(value, fallback = null) {
     const version = verText(value);
-    return version ? `v${version}` : String(value || fallback);
+    const missing = fallback == null ? text("about.common.unknownVersion", "未知版本") : fallback;
+    return version ? `v${version}` : String(value || missing);
   }
 
   function cmpVer(left, right) {
@@ -99,7 +104,7 @@
             timeoutMs: message?.type === "UPDATE_CHECK" ? 10_000 : 12_000,
           }).then((response) => {
             if (!response?.success) {
-              reject(new Error(response?.error || "更新检查失败"));
+              reject(new Error(response?.error || text("about.update.checkFailedTitle", "更新检查失败")));
               return;
             }
             resolve(normalizeCheckResponse(response));
@@ -109,11 +114,11 @@
         root.chrome.runtime.sendMessage(message, (response) => {
           const error = root.chrome?.runtime?.lastError;
           if (error) {
-            reject(new Error(error.message || "后台请求失败"));
+            reject(new Error(error.message || text("about.logs.backgroundFailed", "后台请求失败")));
             return;
           }
           if (!response?.success) {
-            reject(new Error(response?.error || "更新检查失败"));
+            reject(new Error(response?.error || text("about.update.checkFailedTitle", "更新检查失败")));
             return;
           }
           resolve(normalizeCheckResponse(response));
@@ -126,7 +131,7 @@
 
   async function check(options = {}) {
     if (isGoogleWebStore()) {
-      throw new Error("Google 商店版已禁用主动更新检查");
+      throw new Error(text("about.update.googleWebStoreDisabled", "Google 商店版已禁用主动更新检查"));
     }
     return send({ type: "UPDATE_CHECK", manual: options.manual === true });
   }
@@ -230,8 +235,9 @@
     if (html) {
       return html;
     }
-    const text = cleanText(latest?.desc || latest?.summary || latest?.title || "无更新日志");
-    return esc(text || "无更新日志");
+    const empty = text("about.update.noLog", "无更新日志");
+    const contentText = cleanText(latest?.desc || latest?.summary || latest?.title || empty);
+    return esc(contentText || empty);
   }
 
   function normalizeDetail(payload) {

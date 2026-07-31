@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -10,6 +10,10 @@
  */
 (() => {
   "use strict";
+
+  function i18n(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
+  }
 
   const ID = "library-custom-name";
   const CH = "__steam_library_custom_name_Ricky";
@@ -42,12 +46,21 @@
   const IMPORT_MODES = Object.freeze([IMPORT_MODE_COVER, IMPORT_MODE_CHANGES]);
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
-  const STEAM_CUSTOM_LIMIT_TIP = "存储上限和容量上限为 Steam 官方对自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功或无法保存至 steam 云端！";
-  const CLOUD_TIP_TEXT = "将自定义排序名称同步到素材君云端（Steam Buff 云端）。之后可通过【获取云端名称】恢复，并在商店等页面使用。\n\n注意：\n1. 请勿上传违反当地法律法规的名称；违规内容一经发现，可能导致账号被封禁。\n2. 上传的名称可能用于改进社区游戏名称库，帮助更多玩家获得更准确的名称。";
-  const CLOUD_CANCEL_TEXT = "关闭后，本次保存仅写入本地 Steam 库，不会同步到素材君云端。\n\n云端共享可帮助更多玩家获得更准确的自定义名称建议。确认关闭吗？";
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
+
+  function storageLimitTipText() {
+    return i18n("steam.libraryCustomName.storageLimitTip", "存储上限和容量上限为 Steam 官方对自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功或无法保存至 steam 云端！");
+  }
+
+  function cloudTipText() {
+    return i18n("steam.libraryCustomName.cloudTip", "将自定义排序名称同步到素材君云端（Steam Buff 云端）。之后可通过【获取云端名称】恢复，并在商店等页面使用。\n\n注意：\n1. 请勿上传违反当地法律法规的名称；违规内容一经发现，可能导致账号被封禁。\n2. 上传的名称可能用于改进社区游戏名称库，帮助更多玩家获得更准确的名称。");
+  }
+
+  function cloudCancelText() {
+    return i18n("steam.libraryCustomName.cloudCancel", "关闭后，本次保存仅写入本地 Steam 库，不会同步到素材君云端。\n\n云端共享可帮助更多玩家获得更准确的自定义名称建议。确认关闭吗？");
+  }
 
   const root = window.SteamBuff.state = window.SteamBuff.state || {};
   const s = root[ID] = root[ID] || {};
@@ -115,7 +128,7 @@
     progressRestoreFocus: null,
     progressNeedsFocus: false,
     importMode: "",
-    message: "等待查询",
+    message: "",
   };
 
   function now() {
@@ -505,13 +518,14 @@
   }
 
   function backendTimeoutError() {
-    const error = new Error("Steam 客户端后端没有响应");
+    const error = new Error(i18n("steam.libraryCustomName.backendTimeout", "Steam 客户端后端没有响应"));
     error.code = "steam-backend-timeout";
     return error;
   }
 
   function isBackendTimeout(error) {
-    return error?.code === "steam-backend-timeout" || error?.message === "Steam 客户端后端没有响应";
+    return error?.code === "steam-backend-timeout"
+      || error?.message === i18n("steam.libraryCustomName.backendTimeout", "Steam 客户端后端没有响应");
   }
 
   function resetBackendChannel() {
@@ -597,7 +611,7 @@
   function backendOnce(type, data) {
     const ch = chan();
     if (!ch) {
-      return Promise.reject(new Error("通信通道不可用"));
+      return Promise.reject(new Error(i18n("steam.libraryCustomName.channelUnavailable", "通信通道不可用")));
     }
     const id = rid();
     return new Promise((resolve, reject) => {
@@ -710,7 +724,7 @@
         batch.paused = false;
         batch.waitCmd = "";
         batch.summary = true;
-        batch.message = "Steam 保存队列状态没有响应，请重新打开批量窗口确认结果";
+        batch.message = i18n("steam.libraryCustomName.saveStatusTimeout", "Steam 保存队列状态没有响应，请重新打开批量窗口确认结果");
         log.warn("library-custom-name-save-status-timeout", "库自定义名称保存队列状态查询超时", {
           operationId: batch.operationId || "",
           rid: batch.saveRid || "",
@@ -746,7 +760,7 @@
     window.clearTimeout(wait.timer);
     pend.delete(data.rid);
     if (data.ok === false) {
-      wait.reject(new Error(data.error || "操作失败"));
+      wait.reject(new Error(data.error || i18n("common.operationFailed", "操作失败")));
     } else {
       wait.resolve(data);
     }
@@ -765,7 +779,7 @@
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
         qpend.delete(id);
-        reject(new Error("云端名称接口没有响应"));
+        reject(new Error(i18n("steam.libraryCustomName.cloudApiTimeout", "云端名称接口没有响应")));
       }, RESP_MS);
       qpend.set(id, { resolve, reject, timer });
       try {
@@ -798,7 +812,7 @@
   }
 
   function offMsg(st) {
-    return "库自定义名称填充已关闭";
+    return i18n("steam.libraryCustomName.disabled", "库自定义名称填充已关闭");
   }
 
   function ensureOn() {
@@ -836,7 +850,7 @@
     if (data.type === "feedback-result") {
       wait.resolve(data.data || {});
     } else if (data.ok === false) {
-      wait.reject(new Error(data.error || "查询失败"));
+      wait.reject(new Error(data.error || i18n("common.queryFailed", "查询失败")));
     } else {
       wait.resolve(data.data || {});
     }
@@ -1074,7 +1088,7 @@
       };
       script.onerror = () => {
         script.remove();
-        reject(new Error(`依赖加载失败：${path}`));
+        reject(new Error(i18n("steam.libraryCustomName.dependencyFailed", "依赖加载失败：$path$", { path })));
       };
       (document.documentElement || document.head || document.body).appendChild(script);
     }).finally(() => {
@@ -1093,7 +1107,7 @@
     }
     const core = window.SteamBuff?.libraryCustomNameMnemonic;
     if (!core?.withMnemonic || !core?.rebuildMnemonic || !core?.stripMnemonic) {
-      throw new Error("助记符工具加载失败");
+      throw new Error(i18n("steam.libraryCustomName.mnemonicLoadFailed", "助记符工具加载失败"));
     }
     return core;
   }
@@ -1157,7 +1171,10 @@
         ids.push(id);
       }
       if (i > 0 && i % APP_SCAN_YIELD === 0) {
-        batch.message = `正在整理查询队列 ${i}/${apps.length}`;
+        batch.message = i18n("steam.libraryCustomName.preparingQueryQueue", "正在整理查询队列 $current$/$total$", {
+          current: i,
+          total: apps.length,
+        });
         refreshMessage();
         await yieldUI();
         if (seq !== batch.previewSeq) {
@@ -1317,7 +1334,7 @@
     batch.loadingLocal = true;
     clearLocalRows();
     batch.stats = emptyStats();
-    batch.message = "正在读取 Steam 客户端库列表";
+    batch.message = i18n("steam.libraryCustomName.readingLibrary", "正在读取 Steam 客户端库列表");
     renderModal();
     log.info("library-custom-name-preview-start", "开始加载库自定义名称本地列表", {
       policy: batch.policy,
@@ -1354,7 +1371,10 @@
         }
         offset = Number(page.nextOffset) || (offset + apps.length);
         resetRowsForPolicy();
-        batch.message = `正在加载本地列表 ${Math.min(offset, total)}/${total}`;
+        batch.message = i18n("steam.libraryCustomName.loadingLocalList", "正在加载本地列表 $current$/$total$", {
+          current: Math.min(offset, total),
+          total,
+        });
         renderVisibleRows();
         await yieldUI();
         if (seq !== batch.previewSeq) {
@@ -1576,20 +1596,38 @@
   }
 
   function storageLimitTipHtml() {
-    return tipHtml("", STEAM_CUSTOM_LIMIT_TIP, "st-lcn-limit-tip");
+    return tipHtml("", storageLimitTipText(), "st-lcn-limit-tip");
   }
 
   function previewMessageHtml() {
     const skipped = Math.max(0, batch.rows.length - batch.writeCount);
-    const search = searchActive() ? `，搜索 ${activeRows().length}/${batch.rows.length}` : "";
-    return `加载完成${search}，已选 ${batch.selectedCount} 项，待写入 ${batch.writeCount} 项，跳过 ${skipped} 项，上限 ${esc(customLimitLine())} 项，容量 ${esc(capacityLine())}${storageLimitTipHtml()}`;
+    const search = searchActive()
+      ? i18n("steam.libraryCustomName.searchSummary", "，搜索 $visible$/$total$", {
+        visible: activeRows().length,
+        total: batch.rows.length,
+      })
+      : "";
+    const summary = i18n(
+      "steam.libraryCustomName.previewSummary",
+      "加载完成$search$，已选 $selected$ 项，待写入 $write$ 项，跳过 $skipped$ 项，上限 $limit$ 项，容量 $capacity$",
+      {
+        search,
+        selected: batch.selectedCount,
+        write: batch.writeCount,
+        skipped,
+        limit: customLimitLine(),
+        capacity: capacityLine(),
+      },
+    );
+    return `${esc(summary)}${storageLimitTipHtml()}`;
   }
 
   function messageHtml() {
-    if (batch.message === previewMessage()) {
+    const message = batch.message || i18n("steam.libraryCustomName.waitingQuery", "等待查询");
+    if (message === previewMessage()) {
       return previewMessageHtml();
     }
-    return esc(batch.message);
+    return esc(message);
   }
 
   function refreshStorageCapacitySoon(delay = 180) {
@@ -1910,13 +1948,13 @@
       .filter((item) => Number.isFinite(item.appid) && item.appid > 0 && item.name)
       .sort((left, right) => left.appid - right.appid);
     if (!items.length) {
-      batch.message = "当前没有可导出的自定义排序名称";
+      batch.message = i18n("steam.libraryCustomName.exportEmpty", "当前没有可导出的自定义排序名称");
       renderModal();
       return;
     }
     try {
       downloadJson(exportFileName(), { items });
-      batch.message = `已导出 ${items.length} 项当前自定义排序名称`;
+      batch.message = i18n("steam.libraryCustomName.exported", "已导出 $count$ 项当前自定义排序名称", { count: items.length });
       log.info("library-custom-name-export-success", "库自定义名称 JSON 导出完成", {
         operationId,
         exported: items.length,
@@ -1935,7 +1973,7 @@
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("JSON 文件读取失败"));
+      reader.onerror = () => reject(new Error(i18n("steam.libraryCustomName.jsonReadFailed", "JSON 文件读取失败")));
       reader.readAsText(file, "utf-8");
     });
   }
@@ -1952,7 +1990,7 @@
     const data = JSON.parse(raw);
     const items = Array.isArray(data?.items) ? data.items : [];
     if (!items.length) {
-      throw new Error("JSON 格式应包含 items 数组");
+      throw new Error(i18n("steam.libraryCustomName.jsonItemsRequired", "JSON 格式应包含 items 数组"));
     }
     const map = new Map();
     for (const item of items) {
@@ -2019,7 +2057,10 @@
         }
       }
       if (i > 0 && i % IMPORT_SCAN_YIELD === 0) {
-        batch.message = `正在导入 JSON ${i}/${total}`;
+        batch.message = i18n("steam.libraryCustomName.importingJson", "正在导入 JSON $current$/$total$", {
+          current: i,
+          total,
+        });
         refreshMessage();
         await yieldUI();
       }
@@ -2032,35 +2073,35 @@
       return;
     }
     if (!IMPORT_MODES.includes(mode)) {
-      batch.message = "请选择导入方式";
+      batch.message = i18n("steam.libraryCustomName.chooseImportMode", "请选择导入方式");
       renderModal();
       return;
     }
     if (!batch.localRows.length) {
-      batch.message = "请先加载本地列表";
+      batch.message = i18n("steam.libraryCustomName.loadLocalFirst", "请先加载本地列表");
       renderModal();
       return;
     }
     const seq = batch.previewSeq;
     const operationId = window.STLoggerFactory?.createOperationId?.() || "";
     batch.busy = true;
-    batch.message = "正在读取 JSON 文件";
+    batch.message = i18n("steam.libraryCustomName.readingJson", "正在读取 JSON 文件");
     renderModal();
     try {
       const raw = await readJsonFile(file);
       const names = parseImportNames(raw);
       if (!names.size) {
-        throw new Error("JSON 中没有识别到 appid/name");
+        throw new Error(i18n("steam.libraryCustomName.jsonNameMissing", "JSON 中没有识别到 appid/name"));
       }
-      batch.message = `正在匹配 JSON ${names.size} 项`;
+      batch.message = i18n("steam.libraryCustomName.matchingJson", "正在匹配 JSON $count$ 项", { count: names.size });
       refreshMessage();
       const result = await applyImportedNames(names, seq, mode);
       if (result.cancelled) {
         return;
       }
       batch.message = mode === IMPORT_MODE_COVER
-        ? `覆盖导入完成，匹配 ${result.matched} 项，待写入 ${result.selected} 项`
-        : `仅新增与修改导入完成，匹配 ${result.matched} 项，待写入 ${result.selected} 项，已存在 ${result.unchanged} 项`;
+        ? i18n("steam.libraryCustomName.importCoverDone", "覆盖导入完成，匹配 $matched$ 项，待写入 $selected$ 项", result)
+        : i18n("steam.libraryCustomName.importChangesDone", "仅新增与修改导入完成，匹配 $matched$ 项，待写入 $selected$ 项，已存在 $unchanged$ 项", result);
       log.info("library-custom-name-import-success", "库自定义名称 JSON 导入完成", {
         operationId,
         mode,
@@ -2113,8 +2154,24 @@
 
   function previewMessage() {
     const skipped = Math.max(0, batch.rows.length - batch.writeCount);
-    const search = searchActive() ? `，搜索 ${activeRows().length}/${batch.rows.length}` : "";
-    return `加载完成${search}，已选 ${batch.selectedCount} 项，待写入 ${batch.writeCount} 项，跳过 ${skipped} 项，上限 ${customLimitLine()} 项，容量 ${capacityLine()}`;
+    const search = searchActive()
+      ? i18n("steam.libraryCustomName.searchSummary", "，搜索 $visible$/$total$", {
+        visible: activeRows().length,
+        total: batch.rows.length,
+      })
+      : "";
+    return i18n(
+      "steam.libraryCustomName.previewSummary",
+      "加载完成$search$，已选 $selected$ 项，待写入 $write$ 项，跳过 $skipped$ 项，上限 $limit$ 项，容量 $capacity$",
+      {
+        search,
+        selected: batch.selectedCount,
+        write: batch.writeCount,
+        skipped,
+        limit: customLimitLine(),
+        capacity: capacityLine(),
+      },
+    );
   }
 
   function customLimitMeta(pending) {
@@ -2141,10 +2198,14 @@
       return true;
     }
     log.warn("library-custom-name-save-limit-warning", "库自定义名称保存可能超过 Steam 云端存储数量限制", meta);
-    return oneConfirm(`当前自定义名称数量超过1万，无法存储到 Steam 云端，是否继续？当前已有 ${meta.current} 项，本次待写入 ${meta.pending} 项，合计 ${meta.projected} 项。`, {
-      title: "Steam 云端存储风险",
-      cancel: "取消",
-      confirm: "继续保存",
+    return oneConfirm(i18n(
+      "steam.libraryCustomName.limitWarning",
+      "当前自定义名称数量超过1万，无法存储到 Steam 云端，是否继续？当前已有 $current$ 项，本次待写入 $pending$ 项，合计 $projected$ 项。",
+      meta,
+    ), {
+      title: i18n("steam.libraryCustomName.limitWarningTitle", "Steam 云端存储风险"),
+      cancel: i18n("common.cancel", "取消"),
+      confirm: i18n("steam.libraryCustomName.continueSave", "继续保存"),
     });
   }
 
@@ -2206,7 +2267,7 @@
   async function waitCloudResume() {
     while (batch.paused && !batch.cancelled) {
       if (batch.cloudFinishing && !batch.saving) {
-        batch.message = "素材君云端上传已暂停";
+        batch.message = i18n("steam.libraryCustomName.cloudPaused", "素材君云端上传已暂停");
         renderProgressSoon();
       }
       await sleep(200);
@@ -2233,8 +2294,12 @@
       }
       if (batch.cloudFinishing) {
         batch.message = steamBatchStarted()
-          ? `等待 Steam 第 ${batch.steamBatch?.index || 1} 批同步窗口结束，素材君云端上传已暂停`
-          : "等待 Steam 写入批次开始，素材君云端上传准备中";
+          ? i18n(
+            "steam.libraryCustomName.waitingSteamBatch",
+            "等待 Steam 第 $batch$ 批同步窗口结束，素材君云端上传已暂停",
+            { batch: batch.steamBatch?.index || 1 },
+          )
+          : i18n("steam.libraryCustomName.cloudPreparing", "等待 Steam 写入批次开始，素材君云端上传准备中");
         renderProgressSoon();
       }
       await sleep(200);
@@ -2357,7 +2422,9 @@
         batch.cloudFinishing = false;
         if (!batch.saving) {
           batch.summary = true;
-          batch.message = cancelled ? "保存队列已取消" : "保存队列已完成";
+          batch.message = cancelled
+            ? i18n("steam.libraryCustomName.saveCancelled", "保存队列已取消")
+            : i18n("steam.libraryCustomName.saveCompleted", "保存队列已完成");
           renderVisibleRows();
           renderProgressSoon(true);
         } else {
@@ -2373,7 +2440,7 @@
       return;
     }
     batch.cloudFinishing = true;
-    batch.message = "正在写入 Steam，素材君云端上传同步进行";
+    batch.message = i18n("steam.libraryCustomName.savingWithCloud", "正在写入 Steam，素材君云端上传同步进行");
     flushCloudUploads().catch((error) => {
       log.error("library-custom-name-cloud-upload-failed", "库自定义名称素材君云端上传异常", {
         operationId: batch.operationId || "",
@@ -2408,7 +2475,9 @@
     const btn = document.querySelector(`#${BAR} [data-lcn-one]`);
     if (btn) {
       btn.disabled = !!on;
-      btn.textContent = on ? "获取中..." : "获取云端名称";
+      btn.textContent = on
+        ? i18n("steam.libraryCustomName.fetching", "获取中...")
+        : i18n("steam.libraryCustomName.fetchCloud", "获取云端名称");
     }
   }
 
@@ -2436,7 +2505,7 @@
       <div class="st-lcn-one-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-one-title" tabindex="-1">
         <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">${esc(title)}</h3></div>
         <div class="st-lcn-one-body"><div class="st-lcn-one-message">${esc(message)}</div></div>
-        ${done ? `<div class="st-lcn-one-actions"><button class="st-lcn-btn primary" type="button" data-lcn-one="ok">确认</button></div>` : ""}
+        ${done ? `<div class="st-lcn-one-actions"><button class="st-lcn-btn primary" type="button" data-lcn-one="ok">${esc(i18n("common.confirm", "确认"))}</button></div>` : ""}
       </div>
     `, "library-custom-name-one-dialog-template");
     focusElement(box.querySelector("[data-lcn-one='ok']") || box.querySelector(".st-lcn-one-panel"));
@@ -2444,9 +2513,9 @@
 
   function oneConfirm(message, opt = {}) {
     const box = openOneDialog();
-    const title = opt.title || "确认覆盖";
-    const cancel = opt.cancel || "取消";
-    const confirm = opt.confirm || "继续";
+    const title = opt.title || i18n("steam.libraryCustomName.confirmOverwrite", "确认覆盖");
+    const cancel = opt.cancel || i18n("common.cancel", "取消");
+    const confirm = opt.confirm || i18n("common.continue", "继续");
     const note = text(opt.note);
     const noteClass = opt.dangerNote ? " danger" : "";
     return new Promise((resolve) => {
@@ -2477,12 +2546,12 @@
     }
     setTrustedTemplate(box, `
       <div class="st-lcn-one-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-one-title" tabindex="-1">
-        <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">选择导入方式</h3></div>
-        <div class="st-lcn-one-body"><div class="st-lcn-one-message">请选择本次 JSON 文件的处理方式</div></div>
+        <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">${esc(i18n("steam.libraryCustomName.importModeTitle", "选择导入方式"))}</h3></div>
+        <div class="st-lcn-one-body"><div class="st-lcn-one-message">${esc(i18n("steam.libraryCustomName.importModeMessage", "请选择本次 JSON 文件的处理方式"))}</div></div>
         <div class="st-lcn-one-actions">
-          <button class="st-lcn-btn" type="button" data-lcn-one="cancel">取消</button>
-          <button class="st-lcn-btn" type="button" data-lcn-one="import-cover">覆盖导入</button>
-          <button class="st-lcn-btn primary" type="button" data-lcn-one="import-changes">仅新增与修改</button>
+          <button class="st-lcn-btn" type="button" data-lcn-one="cancel">${esc(i18n("common.cancel", "取消"))}</button>
+          <button class="st-lcn-btn" type="button" data-lcn-one="import-cover">${esc(i18n("steam.libraryCustomName.importCover", "覆盖导入"))}</button>
+          <button class="st-lcn-btn primary" type="button" data-lcn-one="import-changes">${esc(i18n("steam.libraryCustomName.importChanges", "仅新增与修改"))}</button>
         </div>
       </div>
     `, "library-custom-name-import-mode-dialog-template");
@@ -2510,7 +2579,11 @@
   }
 
   function oneFail(message) {
-    oneBox("获取失败", message || "操作失败", true);
+    oneBox(
+      i18n("steam.libraryCustomName.fetchFailed", "获取失败"),
+      message || i18n("common.operationFailed", "操作失败"),
+      true,
+    );
   }
 
   function onOneClick(event) {
@@ -2524,7 +2597,7 @@
       const file = document.querySelector(`#${MODAL} [data-lcn-import-file]`);
       if (!file) {
         batch.importMode = "";
-        batch.message = "导入文件选择器不可用";
+        batch.message = i18n("steam.libraryCustomName.filePickerUnavailable", "导入文件选择器不可用");
         renderModal();
         return;
       }
@@ -2549,24 +2622,32 @@
   async function fillOne() {
     const input = sortInput();
     if (!input) {
-      oneFail("未找到自定义排序名称输入框");
+      oneFail(i18n("steam.libraryCustomName.inputMissing", "未找到自定义排序名称输入框"));
       return;
     }
     if (s.oneBusy) {
       const box = document.getElementById(ONE);
       if (box && !box.hidden) {
-        oneBox("获取名称", "正在获取...", false);
+        oneBox(
+          i18n("steam.libraryCustomName.fetchTitle", "获取名称"),
+          i18n("steam.libraryCustomName.fetchingShort", "正在获取..."),
+          false,
+        );
         return;
       }
       s.oneBusy = false;
     }
     const inputName = text(input.value);
-    if (inputName && !(await oneConfirm("当前操作会覆盖当前自定义排序名称，是否继续？"))) {
+    if (inputName && !(await oneConfirm(i18n("steam.libraryCustomName.overwritePrompt", "当前操作会覆盖当前自定义排序名称，是否继续？")))) {
       return;
     }
 
     setOneBusy(true);
-    oneBox("获取名称", "正在获取...", false);
+    oneBox(
+      i18n("steam.libraryCustomName.fetchTitle", "获取名称"),
+      i18n("steam.libraryCustomName.fetchingShort", "正在获取..."),
+      false,
+    );
 
     try {
       ensureOn();
@@ -2578,18 +2659,22 @@
       }
       const appid = Number(cur?.app?.appid) || Number(ctx.appid);
       if (!appid) {
-        throw new Error("未识别当前游戏 AppID");
+        throw new Error(i18n("steam.libraryCustomName.appidMissing", "未识别当前游戏 AppID"));
       }
       const current = text(cur?.app?.current_custom_name);
-      if (!inputName && current && !(await oneConfirm("当前操作会覆盖当前自定义排序名称，是否继续？"))) {
+      if (!inputName && current && !(await oneConfirm(i18n("steam.libraryCustomName.overwritePrompt", "当前操作会覆盖当前自定义排序名称，是否继续？")))) {
         return;
       }
-      oneBox("获取名称", "正在获取...", false);
+      oneBox(
+        i18n("steam.libraryCustomName.fetchTitle", "获取名称"),
+        i18n("steam.libraryCustomName.fetchingShort", "正在获取..."),
+        false,
+      );
 
       const names = await queryMap([appid]);
       const name = text(names.get(appid)?.name);
       if (!name) {
-        throw new Error("云端没有找到当前游戏名称");
+        throw new Error(i18n("steam.libraryCustomName.cloudNameMissing", "云端没有找到当前游戏名称"));
       }
       await backend("save-one", { appid, name });
       setNative(input, name);
@@ -2703,13 +2788,13 @@
     bar.addEventListener("click", onBarClick);
     bar.addEventListener("change", onAutoUploadOptionChange);
     bar.addEventListener("keydown", onTipKeydown);
-    const tip = CLOUD_TIP_TEXT;
+    const tip = cloudTipText();
     setTrustedTemplate(bar, `
-      <button class="st-lcn-btn" type="button" data-lcn-one>获取云端名称</button>
-      <button class="st-lcn-btn" type="button" data-lcn-batch>批量修改名称</button>
+      <button class="st-lcn-btn" type="button" data-lcn-one>${esc(i18n("steam.libraryCustomName.fetchCloud", "获取云端名称"))}</button>
+      <button class="st-lcn-btn" type="button" data-lcn-batch>${esc(i18n("steam.libraryCustomName.batchEdit", "批量修改名称"))}</button>
       <label class="st-lcn-action-option">
         <input type="checkbox" data-lcn-auto-upload ${s.autoUploadChecked !== false ? "checked" : ""} disabled>
-        ${tipHtml("名称上传云端", tip)}
+        ${tipHtml(i18n("steam.libraryCustomName.uploadCloud", "名称上传云端"), tip)}
       </label>
     `, "library-custom-name-toolbar-template");
 
@@ -2958,10 +3043,13 @@
   function progressLine() {
     const st = batch.stats;
     if (batch.saveAction === "clear") {
-      return `总计:${st.total}，已清空:${st.success}，跳过:${st.skipped}，失败:${st.failed}`;
+      return i18n("steam.libraryCustomName.clearProgressLine", "总计:$total$，已清空:$success$，跳过:$skipped$，失败:$failed$", st);
     }
     const synced = batch.saveUploadCloud ? st.cloudOk : 0;
-    return `总计:${st.total}，处理:${st.processed}，跳过:${st.skipped}，失败:${st.failed}，同步:${synced}`;
+    return i18n("steam.libraryCustomName.saveProgressLine", "总计:$total$，处理:$processed$，跳过:$skipped$，失败:$failed$，同步:$synced$", {
+      ...st,
+      synced,
+    });
   }
 
   function progressPct() {
@@ -2978,30 +3066,45 @@
     const cloud = batch.cloudFinishing && !batch.saving;
     const summary = batch.summary || (!batch.saving && !batch.cloudFinishing);
     const clear = batch.saveAction === "clear";
-    const title = summary ? (clear ? "清空结果" : "修改结果") : cloud ? "素材君云端上传" : clear ? "清空进度" : "保存进度";
-    const doneMessage = clear ? "清空完成" : "修改完成";
+    const title = summary
+      ? (clear ? i18n("steam.libraryCustomName.clearResult", "清空结果") : i18n("steam.libraryCustomName.editResult", "修改结果"))
+      : cloud
+        ? i18n("steam.libraryCustomName.cloudUpload", "素材君云端上传")
+        : clear
+          ? i18n("steam.libraryCustomName.clearProgress", "清空进度")
+          : i18n("steam.libraryCustomName.saveProgress", "保存进度");
+    const doneMessage = clear
+      ? i18n("steam.libraryCustomName.clearDone", "清空完成")
+      : i18n("steam.libraryCustomName.editDone", "修改完成");
     const paused = !!batch.paused;
     const action = paused ? "resume" : "pause";
     const cls = paused ? "success" : "danger";
-    const text = batch.waitCmd ? `<span class="st-lcn-spinner" aria-hidden="true"></span>` : (paused ? "继续" : "暂停");
+    const text = batch.waitCmd
+      ? `<span class="st-lcn-spinner" aria-hidden="true"></span>`
+      : esc(paused ? i18n("common.continue", "继续") : i18n("common.pause", "暂停"));
     const disabled = batch.waitCmd ? " disabled" : "";
-    const label = batch.waitCmd ? (paused ? "继续中" : "暂停中") : (paused ? "继续" : "暂停");
+    const label = batch.waitCmd
+      ? (paused ? i18n("steam.libraryCustomName.resuming", "继续中") : i18n("steam.libraryCustomName.pausing", "暂停中"))
+      : (paused ? i18n("common.continue", "继续") : i18n("common.pause", "暂停"));
+    const progressLabel = clear
+      ? i18n("steam.libraryCustomName.clearProgress", "清空进度")
+      : i18n("steam.libraryCustomName.saveProgress", "保存进度");
     return `
       <div class="st-lcn-progress-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-progress-title">
         <div class="st-lcn-progress-head">
-          <h3 id="st-lcn-progress-title">${title}</h3>
+          <h3 id="st-lcn-progress-title">${esc(title)}</h3>
         </div>
         <div class="st-lcn-progress-body">
           <div class="st-lcn-progress-msg">${esc(summary ? doneMessage : batch.message)}</div>
-          <div class="st-lcn-progress-bar" role="progressbar" aria-label="${clear ? "清空进度" : "保存进度"}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${attr(pct)}">
+          <div class="st-lcn-progress-bar" role="progressbar" aria-label="${attr(progressLabel)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${attr(pct)}">
             <div class="st-lcn-progress-fill" data-lcn-progress-value="${attr(pct)}"></div>
           </div>
           <div class="st-lcn-progress-line">${esc(progressLine())}</div>
           <div class="st-lcn-progress-actions">
             ${summary
-              ? `<button class="st-lcn-btn" type="button" data-lcn-progress="hide">关闭</button>`
+              ? `<button class="st-lcn-btn" type="button" data-lcn-progress="hide">${esc(i18n("common.close", "关闭"))}</button>`
               : `
-                <button class="st-lcn-btn" type="button" data-lcn-progress="cancel">关闭</button>
+                <button class="st-lcn-btn" type="button" data-lcn-progress="cancel">${esc(i18n("common.close", "关闭"))}</button>
                 <button class="st-lcn-btn ${cls}" type="button" data-lcn-progress="${attr(action)}" aria-label="${attr(label)}" title="${attr(label)}"${disabled}>${text}</button>
               `}
           </div>
@@ -3012,42 +3115,54 @@
 
   function rowsHtml() {
     if (!batch.rows.length) {
-      return `<div class="st-lcn-empty">${batch.loadingLocal ? "正在加载本地库列表..." : "暂无本地列表数据"}</div>`;
+      return `<div class="st-lcn-empty">${esc(batch.loadingLocal
+        ? i18n("steam.libraryCustomName.localListLoading", "正在加载本地库列表...")
+        : i18n("steam.libraryCustomName.localListEmpty", "暂无本地列表数据"))}</div>`;
     }
     const rows = activeRows();
     const pages = totalPages();
     const range = visibleRange();
     const locked = batch.busy || batch.saving;
-    const countText = searchActive() ? `${rows.length}（总 ${batch.rows.length}）` : `${batch.rows.length}`;
+    const countText = searchActive()
+      ? i18n("steam.libraryCustomName.filteredCount", "$visible$（总 $total$）", { visible: rows.length, total: batch.rows.length })
+      : `${batch.rows.length}`;
     const filterbar = `
       <div class="st-lcn-selectbar">
         <div class="st-lcn-select-actions">
-          <button class="st-lcn-inline-btn" type="button" data-lcn-select="all" ${locked || !rows.length ? "disabled" : ""}>全选</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-select="invert" ${locked || !rows.length ? "disabled" : ""}>反选</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-select="none" ${locked || !rows.length ? "disabled" : ""}>取消全选</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-select="all" ${locked || !rows.length ? "disabled" : ""}>${esc(i18n("common.selectAll", "全选"))}</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-select="invert" ${locked || !rows.length ? "disabled" : ""}>${esc(i18n("common.invertSelection", "反选"))}</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-select="none" ${locked || !rows.length ? "disabled" : ""}>${esc(i18n("common.clearSelection", "取消全选"))}</button>
         </div>
         <div class="st-lcn-filter-actions">
-          <button class="st-lcn-inline-btn" type="button" data-lcn-action="import" ${locked || !batch.localRows.length ? "disabled" : ""}>导入</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-action="export" ${locked || !batch.localRows.length ? "disabled" : ""}>导出</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-action="import" ${locked || !batch.localRows.length ? "disabled" : ""}>${esc(i18n("common.import", "导入"))}</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-action="export" ${locked || !batch.localRows.length ? "disabled" : ""}>${esc(i18n("common.export", "导出"))}</button>
           <input class="st-lcn-file" type="file" data-lcn-import-file accept=".json,application/json">
-          <input class="st-lcn-search" type="search" data-lcn-search value="${attr(batch.searchQuery)}" placeholder="搜索游戏 / AppID / 待写入名" ${batch.saving ? "disabled" : ""}>
+          <input class="st-lcn-search" type="search" data-lcn-search value="${attr(batch.searchQuery)}" placeholder="${attr(i18n("steam.libraryCustomName.searchPlaceholder", "搜索游戏 / AppID / 待写入名"))}" ${batch.saving ? "disabled" : ""}>
         </div>
       </div>
     `;
     if (!rows.length) {
       return `
         ${filterbar}
-        <div class="st-lcn-empty">${batch.searching ? "正在搜索..." : "没有匹配的游戏"}</div>
+        <div class="st-lcn-empty">${esc(batch.searching
+          ? i18n("common.searching", "正在搜索...")
+          : i18n("steam.libraryCustomName.noMatches", "没有匹配的游戏"))}</div>
       `;
     }
     return `
       <div class="st-lcn-pagebar" data-lcn-pagebar>
-        <span>显示 ${range.from}-${range.to} / ${countText}，第 ${batch.page} / ${pages} 页，已选 <span data-lcn-selected-count>${batch.selectedCount}</span> 项</span>
+        <span>${esc(i18n("steam.libraryCustomName.pageSummary", "显示 $from$-$to$ / $count$，第 $page$ / $pages$ 页，已选", {
+          from: range.from,
+          to: range.to,
+          count: countText,
+          page: batch.page,
+          pages,
+        }))} <span data-lcn-selected-count>${batch.selectedCount}</span> ${esc(i18n("common.itemsSuffix", "项"))}</span>
         <div class="st-lcn-page-actions">
-          <button class="st-lcn-inline-btn" type="button" data-lcn-page="first" ${batch.page <= 1 || batch.busy ? "disabled" : ""}>首页</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-page="prev" ${batch.page <= 1 || batch.busy ? "disabled" : ""}>上一页</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-page="next" ${batch.page >= pages || batch.busy ? "disabled" : ""}>下一页</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-page="last" ${batch.page >= pages || batch.busy ? "disabled" : ""}>末页</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-page="first" ${batch.page <= 1 || batch.busy ? "disabled" : ""}>${esc(i18n("common.firstPage", "首页"))}</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-page="prev" ${batch.page <= 1 || batch.busy ? "disabled" : ""}>${esc(i18n("common.previousPage", "上一页"))}</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-page="next" ${batch.page >= pages || batch.busy ? "disabled" : ""}>${esc(i18n("common.nextPage", "下一页"))}</button>
+          <button class="st-lcn-inline-btn" type="button" data-lcn-page="last" ${batch.page >= pages || batch.busy ? "disabled" : ""}>${esc(i18n("common.lastPage", "末页"))}</button>
         </div>
       </div>
       ${filterbar}
@@ -3055,11 +3170,11 @@
         <table>
           <thead>
             <tr>
-              <th>选择</th>
-              <th>官方名称</th>
-              <th>云端名称</th>
-              <th>当前自定义排序名</th>
-              <th>待写入名</th>
+              <th>${esc(i18n("common.select", "选择"))}</th>
+              <th>${esc(i18n("steam.libraryCustomName.officialName", "官方名称"))}</th>
+              <th>${esc(i18n("steam.libraryCustomName.cloudName", "云端名称"))}</th>
+              <th>${esc(i18n("steam.libraryCustomName.currentCustomSortName", "当前自定义排序名"))}</th>
+              <th>${esc(i18n("steam.libraryCustomName.pendingName", "待写入名"))}</th>
             </tr>
           </thead>
           <tbody>
@@ -3084,39 +3199,39 @@
     const queryDisabled = locked || !canQueryCloud();
     const mnemonic = mnemonicAction();
     const mnemonicDisabled = locked || !mnemonic.count;
-    const tip = CLOUD_TIP_TEXT;
+    const tip = cloudTipText();
     return `
       <div class="st-lcn-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-modal-title">
         <div class="st-lcn-head">
-          <h2 id="st-lcn-modal-title">批量修改名称</h2>
-          <button class="st-lcn-close" type="button" data-lcn-close aria-label="关闭" title="关闭">&times;</button>
+          <h2 id="st-lcn-modal-title">${esc(i18n("steam.libraryCustomName.batchTitle", "批量修改名称"))}</h2>
+          <button class="st-lcn-close" type="button" data-lcn-close aria-label="${attr(i18n("common.close", "关闭"))}" title="${attr(i18n("common.close", "关闭"))}">&times;</button>
         </div>
         <div class="st-lcn-body">
           <div class="st-lcn-controls">
             <fieldset>
-              <legend>模式</legend>
-              <label><input type="radio" name="st-lcn-policy" value="cover" ${batch.policy === "cover" ? "checked" : ""} ${locked ? "disabled" : ""}>全部覆盖</label>
-              <label><input type="radio" name="st-lcn-policy" value="hide" ${batch.policy === "hide" ? "checked" : ""} ${locked ? "disabled" : ""}>隐藏已有</label>
-              <label><input type="radio" name="st-lcn-policy" value="skip" ${batch.policy === "skip" ? "checked" : ""} ${locked ? "disabled" : ""}>跳过已有</label>
-              <label><input type="radio" name="st-lcn-policy" value="current-custom" ${isCurrentCustomPolicy() ? "checked" : ""} ${locked ? "disabled" : ""}>当前自定义写入待写</label>
+              <legend>${esc(i18n("steam.libraryCustomName.mode", "模式"))}</legend>
+              <label><input type="radio" name="st-lcn-policy" value="cover" ${batch.policy === "cover" ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.policyCover", "全部覆盖"))}</label>
+              <label><input type="radio" name="st-lcn-policy" value="hide" ${batch.policy === "hide" ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.policyHide", "隐藏已有"))}</label>
+              <label><input type="radio" name="st-lcn-policy" value="skip" ${batch.policy === "skip" ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.policySkip", "跳过已有"))}</label>
+              <label><input type="radio" name="st-lcn-policy" value="current-custom" ${isCurrentCustomPolicy() ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.policyCurrentCustom", "当前自定义写入待写"))}</label>
             </fieldset>
             <fieldset>
-              <legend>类型范围</legend>
-              <label><input type="checkbox" data-lcn-type="game" ${batch.types.game ? "checked" : ""} ${locked ? "disabled" : ""}>游戏</label>
-              <label><input type="checkbox" data-lcn-type="software" ${batch.types.software ? "checked" : ""} ${locked ? "disabled" : ""}>软件</label>
-              <label><input type="checkbox" data-lcn-type="tool" ${batch.types.tool ? "checked" : ""} ${locked ? "disabled" : ""}>工具</label>
-              <label><input type="checkbox" data-lcn-type="other" ${batch.types.other ? "checked" : ""} ${locked ? "disabled" : ""}>其他</label>
+              <legend>${esc(i18n("steam.libraryCustomName.typeScope", "类型范围"))}</legend>
+              <label><input type="checkbox" data-lcn-type="game" ${batch.types.game ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.typeGame", "游戏"))}</label>
+              <label><input type="checkbox" data-lcn-type="software" ${batch.types.software ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.typeSoftware", "软件"))}</label>
+              <label><input type="checkbox" data-lcn-type="tool" ${batch.types.tool ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.typeTool", "工具"))}</label>
+              <label><input type="checkbox" data-lcn-type="other" ${batch.types.other ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.typeOther", "其他"))}</label>
             </fieldset>
           </div>
           <div class="st-lcn-msg">${messageHtml()}</div>
           <div class="st-lcn-actions">
-            <button class="st-lcn-btn" type="button" data-lcn-action="query" title="只获取已勾选游戏的云端名称" ${queryDisabled ? "disabled" : ""}>获取云端名称</button>
-            <button class="st-lcn-btn" type="button" data-lcn-action="mnemonic" ${mnemonicDisabled ? "disabled" : ""}>${mnemonic.on ? "生成助记符" : "取消助记符"}</button>
-            <button class="st-lcn-btn primary" type="button" data-lcn-action="save" ${locked || !write ? "disabled" : ""}>保存修改</button>
-            <button class="st-lcn-btn danger" type="button" data-lcn-action="clear-selected" ${locked || !batch.selectedCount ? "disabled" : ""}>清空已选名称</button>
+            <button class="st-lcn-btn" type="button" data-lcn-action="query" title="${attr(i18n("steam.libraryCustomName.querySelectedCloudTitle", "只获取已勾选游戏的云端名称"))}" ${queryDisabled ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.fetchCloud", "获取云端名称"))}</button>
+            <button class="st-lcn-btn" type="button" data-lcn-action="mnemonic" ${mnemonicDisabled ? "disabled" : ""}>${esc(mnemonic.on ? i18n("steam.libraryCustomName.generateMnemonic", "生成助记符") : i18n("steam.libraryCustomName.cancelMnemonic", "取消助记符"))}</button>
+            <button class="st-lcn-btn primary" type="button" data-lcn-action="save" ${locked || !write ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.saveChanges", "保存修改"))}</button>
+            <button class="st-lcn-btn danger" type="button" data-lcn-action="clear-selected" ${locked || !batch.selectedCount ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.clearSelectedNames", "清空已选名称"))}</button>
             <label class="st-lcn-action-option">
               <input type="checkbox" data-lcn-upload-cloud ${batch.uploadCloud ? "checked" : ""} ${locked ? "disabled" : ""}>
-              ${tipHtml("名称上传云端", tip)}
+              ${tipHtml(i18n("steam.libraryCustomName.uploadCloudLabel", "名称上传云端"), tip)}
             </label>
           </div>
           ${rowsHtml()}
@@ -3193,7 +3308,9 @@
     if (mnemonicBtn) {
       const mnemonic = mnemonicAction();
       mnemonicBtn.disabled = batch.busy || batch.saving || !mnemonic.count;
-      mnemonicBtn.textContent = mnemonic.on ? "生成助记符" : "取消助记符";
+      mnemonicBtn.textContent = mnemonic.on
+        ? i18n("steam.libraryCustomName.generateMnemonic", "生成助记符")
+        : i18n("steam.libraryCustomName.cancelMnemonic", "取消助记符");
     }
     const saveBtn = modal.querySelector("[data-lcn-action='save']");
     if (saveBtn) {
@@ -3379,7 +3496,7 @@
     batch.saving = false;
     batch.paused = false;
     batch.waitCmd = "";
-    batch.message = "保存队列已取消";
+    batch.message = i18n("steam.libraryCustomName.saveCancelled", "保存队列已取消");
     cancelCloudUploads("save-cancel");
     closeProgress();
     if (hadSaving) {
@@ -3395,10 +3512,10 @@
   }
 
   function askStop() {
-    return oneConfirm("当前任务正在进行中，是否中断？", {
-      title: "确认中断",
-      cancel: "否",
-      confirm: "是",
+    return oneConfirm(i18n("steam.libraryCustomName.interruptPrompt", "当前任务正在进行中，是否中断？"), {
+      title: i18n("steam.libraryCustomName.interruptTitle", "确认中断"),
+      cancel: i18n("common.no", "否"),
+      confirm: i18n("common.yes", "是"),
     });
   }
 
@@ -3516,15 +3633,15 @@
     }
     const targets = selectedRows().filter(row => Number(row.appid) > 0);
     if (!targets.length) {
-      batch.message = "请先勾选需要获取云端名称的游戏";
+      batch.message = i18n("steam.libraryCustomName.selectCloudTargets", "请先勾选需要获取云端名称的游戏");
       renderModal();
       return;
     }
     if (hasDirtyRows()) {
-      const ok = await oneConfirm("当前待写入数据已调整，重新获取云端名称将只刷新已勾选且未手动锁定的待写入数据，是否继续？", {
-        title: "确认获取云端名称",
-        cancel: "否",
-        confirm: "是",
+      const ok = await oneConfirm(i18n("steam.libraryCustomName.refreshCloudPrompt", "当前待写入数据已调整，重新获取云端名称将只刷新已勾选且未手动锁定的待写入数据，是否继续？"), {
+        title: i18n("steam.libraryCustomName.refreshCloudTitle", "确认获取云端名称"),
+        cancel: i18n("common.no", "否"),
+        confirm: i18n("common.yes", "是"),
       });
       if (!ok) {
         renderModal();
@@ -3533,7 +3650,7 @@
     }
     batch.previewSeq = seq;
     batch.busy = true;
-    batch.message = "正在整理云端名称请求";
+    batch.message = i18n("steam.libraryCustomName.preparingCloudRequest", "正在整理云端名称请求");
     renderModal();
     log.info("library-custom-name-preview-start", "开始获取库自定义名称云端名称", {
       policy: batch.policy,
@@ -3549,7 +3666,10 @@
         if (!ids || seq !== batch.previewSeq) {
           return;
         }
-        batch.message = `正在获取云端名称 ${Math.min(offset + part.length, total)}/${total}`;
+        batch.message = i18n("steam.libraryCustomName.fetchCloudProgress", "正在获取云端名称 $current$/$total$", {
+          current: Math.min(offset + part.length, total),
+          total,
+        });
         refreshMessage();
         const names = await queryMap(ids);
         if (seq !== batch.previewSeq) {
@@ -3590,14 +3710,16 @@
   async function applyMnemonicToRows(on) {
     const rows = mnemonicRows().filter(row => on ? row.mnemonicOn !== true : row.mnemonicOn === true);
     if (!rows.length) {
-      batch.message = "没有可处理的助记符条目";
+      batch.message = i18n("steam.libraryCustomName.noMnemonicItems", "没有可处理的助记符条目");
       renderModal();
       return;
     }
-    const ok = await oneConfirm("该操作将刷新待写入数据，是否继续？", {
-      title: on ? "确认生成助记符" : "确认取消助记符",
-      cancel: "否",
-      confirm: "是",
+    const ok = await oneConfirm(i18n("steam.libraryCustomName.mnemonicPrompt", "该操作将刷新待写入数据，是否继续？"), {
+      title: on
+        ? i18n("steam.libraryCustomName.generateMnemonicTitle", "确认生成助记符")
+        : i18n("steam.libraryCustomName.cancelMnemonicTitle", "确认取消助记符"),
+      cancel: i18n("common.no", "否"),
+      confirm: i18n("common.yes", "是"),
     });
     if (!ok) {
       renderModal();
@@ -3615,7 +3737,9 @@
       ...emptyStats(),
       total,
     };
-    batch.message = on ? "正在生成助记符" : "正在取消助记符";
+    batch.message = on
+      ? i18n("steam.libraryCustomName.generatingMnemonic", "正在生成助记符")
+      : i18n("steam.libraryCustomName.cancellingMnemonic", "正在取消助记符");
     openProgress(false);
     renderModal();
     try {
@@ -3634,7 +3758,11 @@
         keepRowState(row);
         batch.stats.processed = i + 1;
         if (i % 100 === 0) {
-          batch.message = `${on ? "正在生成助记符" : "正在取消助记符"} ${i + 1}/${total}`;
+          batch.message = i18n(
+            on ? "steam.libraryCustomName.generateMnemonicProgress" : "steam.libraryCustomName.cancelMnemonicProgress",
+            on ? "正在生成助记符 $current$/$total$" : "正在取消助记符 $current$/$total$",
+            { current: i + 1, total },
+          );
           renderProgressSoon();
           await yieldUI();
         }
@@ -3661,9 +3789,12 @@
     const action = opt.action || "save";
     const operationId = window.STLoggerFactory?.createOperationId?.() || "";
     batch.operationId = operationId;
-    const emptyMessage = opt.emptyMessage || "没有可写入的条目";
-    const startMessage = opt.startMessage || `正在启动保存队列，预计写入 ${items.length} 项，跳过 ${skipped} 项`;
-    const progressMessage = opt.progressMessage || "正在逐条写入 Steam";
+    const emptyMessage = opt.emptyMessage || i18n("steam.libraryCustomName.noWritableItems", "没有可写入的条目");
+    const startMessage = opt.startMessage || i18n("steam.libraryCustomName.startSaveQueue", "正在启动保存队列，预计写入 $count$ 项，跳过 $skipped$ 项", {
+      count: items.length,
+      skipped,
+    });
+    const progressMessage = opt.progressMessage || i18n("steam.libraryCustomName.writingSteamItems", "正在逐条写入 Steam");
     const uploadCloud = opt.uploadCloud !== false;
     if (!items.length) {
       batch.message = emptyMessage;
@@ -3788,20 +3919,22 @@
     refreshCounts();
     const data = clearItems();
     if (!data.chosen) {
-      batch.message = "请先勾选需要清空名称的游戏";
+      batch.message = i18n("steam.libraryCustomName.selectClearTargets", "请先勾选需要清空名称的游戏");
       renderModal();
       return;
     }
     if (!data.items.length) {
-      batch.message = "已选游戏没有可清空的自定义排序名称";
+      batch.message = i18n("steam.libraryCustomName.noClearableNames", "已选游戏没有可清空的自定义排序名称");
       renderModal();
       return;
     }
-    const ok = await oneConfirm(`将清空已选游戏中的 ${data.items.length} 个自定义排序名称，是否继续？`, {
-      title: "确认清空已选名称",
-      cancel: "否",
-      confirm: "是",
-      note: "该操作会把对应 Steam 属性中的自定义排序名称改为空。",
+    const ok = await oneConfirm(i18n("steam.libraryCustomName.clearSelectedPrompt", "将清空已选游戏中的 $count$ 个自定义排序名称，是否继续？", {
+      count: data.items.length,
+    }), {
+      title: i18n("steam.libraryCustomName.clearSelectedTitle", "确认清空已选名称"),
+      cancel: i18n("common.no", "否"),
+      confirm: i18n("common.yes", "是"),
+      note: i18n("steam.libraryCustomName.clearSelectedNote", "该操作会把对应 Steam 属性中的自定义排序名称改为空。"),
       dangerNote: true,
     });
     if (!ok) {
@@ -3813,9 +3946,12 @@
       action: "clear",
       chosen: data.chosen,
       uploadCloud: false,
-      emptyMessage: "没有可清空的条目",
-      startMessage: `正在启动清空队列，预计清空 ${data.items.length} 项，跳过 ${data.skipped} 项`,
-      progressMessage: "正在批量清空 Steam 自定义排序名称",
+      emptyMessage: i18n("steam.libraryCustomName.noClearableItems", "没有可清空的条目"),
+      startMessage: i18n("steam.libraryCustomName.startClearQueue", "正在启动清空队列，预计清空 $count$ 项，跳过 $skipped$ 项", {
+        count: data.items.length,
+        skipped: data.skipped,
+      }),
+      progressMessage: i18n("steam.libraryCustomName.clearingSteamNames", "正在批量清空 Steam 自定义排序名称"),
     });
   }
 
@@ -3827,12 +3963,16 @@
       logCommandStart(action);
       if (!batch.saving && batch.cloudFinishing) {
         batch.paused = action === "pause";
-        batch.message = batch.paused ? "素材君云端上传已暂停" : "素材君云端上传继续执行";
+        batch.message = batch.paused
+          ? i18n("steam.libraryCustomName.cloudPaused", "素材君云端上传已暂停")
+          : i18n("steam.libraryCustomName.cloudResumed", "素材君云端上传继续执行");
         renderProgress();
         return;
       }
       batch.waitCmd = action;
-      batch.message = action === "pause" ? "正在暂停保存队列" : "正在继续保存队列";
+      batch.message = action === "pause"
+        ? i18n("steam.libraryCustomName.pausingSaveQueue", "正在暂停保存队列")
+        : i18n("steam.libraryCustomName.resumingSaveQueue", "正在继续保存队列");
       renderProgress();
     } else if (action === "cancel") {
       logCommandStart(action);
@@ -3842,7 +3982,7 @@
       batch.saving = false;
       batch.paused = false;
       batch.waitCmd = "";
-      batch.message = "保存队列已取消";
+      batch.message = i18n("steam.libraryCustomName.saveCancelled", "保存队列已取消");
       cancelCloudUploads("command-cancel");
       if (!hadSaving) {
         renderProgress();
@@ -3854,7 +3994,9 @@
       if (action === "pause" || action === "resume") {
         batch.waitCmd = "";
         batch.paused = action === "pause";
-        batch.message = batch.paused ? "保存队列已暂停" : "保存队列继续执行";
+        batch.message = batch.paused
+          ? i18n("steam.libraryCustomName.savePaused", "保存队列已暂停")
+          : i18n("steam.libraryCustomName.saveResumed", "保存队列继续执行");
         renderProgress();
       }
     } catch (error) {
@@ -3907,21 +4049,53 @@
     }
     const b = data.batch || batch.steamBatch || {};
     const clear = batch.saveAction === "clear";
-    batch.message = done
-      ? (data.error || (batch.cloudFinishing ? "Steam 写入完成，正在等待素材君云端上传完成" : clear ? "清空队列已完成" : "保存队列已完成"))
-      : data.action === "pause"
-        ? (clear ? "清空队列已暂停" : "保存队列已暂停")
-        : data.action === "resume"
-          ? (clear ? "清空队列继续执行" : "保存队列继续执行")
-          : data.batchAction === "fast-unavailable"
-            ? (data.error || "Steam CloudStorage 快速写入不可用，保存队列已安全中止")
-            : data.batchAction === "wait" || b.waiting
-              ? `第 ${b.index || 1} 批${clear ? "清空" : "写入"}完成，等待 Steam 云同步 ${Math.ceil((Number(b.waitMs) || 0) / 1000)} 秒`
-              : b.index
-                ? `正在${clear ? "清空" : "写入"} Steam 第 ${b.index} 批 ${b.written || 0}/${b.max || 500}${batch.cloudFinishing ? "，素材君云端上传同步进行" : ""}`
-                : batch.cloudFinishing
-                  ? "正在写入 Steam，素材君云端上传同步进行"
-                  : clear ? "正在清空 Steam 自定义排序名称" : "正在写入 Steam";
+    if (done) {
+      batch.message = data.error || (batch.cloudFinishing
+        ? i18n("steam.libraryCustomName.steamDoneWaitingCloud", "Steam 写入完成，正在等待素材君云端上传完成")
+        : clear
+          ? i18n("steam.libraryCustomName.clearQueueCompleted", "清空队列已完成")
+          : i18n("steam.libraryCustomName.saveCompleted", "保存队列已完成"));
+    } else if (data.action === "pause") {
+      batch.message = clear
+        ? i18n("steam.libraryCustomName.clearQueuePaused", "清空队列已暂停")
+        : i18n("steam.libraryCustomName.savePaused", "保存队列已暂停");
+    } else if (data.action === "resume") {
+      batch.message = clear
+        ? i18n("steam.libraryCustomName.clearQueueResumed", "清空队列继续执行")
+        : i18n("steam.libraryCustomName.saveResumed", "保存队列继续执行");
+    } else if (data.batchAction === "fast-unavailable") {
+      batch.message = data.error || i18n("steam.libraryCustomName.fastWriteUnavailable", "Steam CloudStorage 快速写入不可用，保存队列已安全中止");
+    } else if (data.batchAction === "wait" || b.waiting) {
+      batch.message = i18n(
+        clear ? "steam.libraryCustomName.clearBatchWaiting" : "steam.libraryCustomName.writeBatchWaiting",
+        clear
+          ? "第 $batch$ 批清空完成，等待 Steam 云同步 $seconds$ 秒"
+          : "第 $batch$ 批写入完成，等待 Steam 云同步 $seconds$ 秒",
+        {
+          batch: b.index || 1,
+          seconds: Math.ceil((Number(b.waitMs) || 0) / 1000),
+        },
+      );
+    } else if (b.index) {
+      batch.message = i18n(
+        clear ? "steam.libraryCustomName.clearingBatch" : "steam.libraryCustomName.writingBatch",
+        clear
+          ? "正在清空 Steam 第 $batch$ 批 $written$/$max$$cloud$"
+          : "正在写入 Steam 第 $batch$ 批 $written$/$max$$cloud$",
+        {
+          batch: b.index,
+          written: b.written || 0,
+          max: b.max || 500,
+          cloud: batch.cloudFinishing ? i18n("steam.libraryCustomName.cloudUploadSuffix", "，素材君云端上传同步进行") : "",
+        },
+      );
+    } else if (batch.cloudFinishing) {
+      batch.message = i18n("steam.libraryCustomName.savingWithCloud", "正在写入 Steam，素材君云端上传同步进行");
+    } else {
+      batch.message = clear
+        ? i18n("steam.libraryCustomName.clearingSteam", "正在清空 Steam 自定义排序名称")
+        : i18n("steam.libraryCustomName.writingSteam", "正在写入 Steam");
+    }
 
     const items = Array.isArray(data.items) ? data.items : (data.item ? [data.item] : []);
     for (const item of items) {
@@ -4062,10 +4236,10 @@
     const upload = event.target.closest("[data-lcn-upload-cloud]");
     if (upload) {
       if (!upload.checked) {
-        const ok = await oneConfirm(CLOUD_CANCEL_TEXT, {
-          title: "确认关闭素材君云端上传",
-          cancel: "继续上传",
-          confirm: "确认关闭",
+        const ok = await oneConfirm(cloudCancelText(), {
+          title: i18n("steam.libraryCustomName.disableCloudTitle", "确认关闭素材君云端上传"),
+          cancel: i18n("steam.libraryCustomName.continueCloudUpload", "继续上传"),
+          confirm: i18n("steam.libraryCustomName.confirmDisableCloud", "确认关闭"),
         });
         if (!ok) {
           batch.uploadCloud = true;

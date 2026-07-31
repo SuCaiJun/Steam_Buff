@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -15,6 +15,10 @@
     info() {},
     warn() {},
   };
+
+  function text(key, fallback) {
+    return globalThis.STI18n.text(key, fallback);
+  }
 
   function focusElement(element) {
     if (!element?.isConnected || typeof element.focus !== "function") {
@@ -67,7 +71,7 @@
     const title = document.createElement("div");
     const message = document.createElement("div");
     const actions = document.createElement("div");
-    const optionActions = options.actions || [{ id: "ok", label: "确定", primary: true }];
+    const optionActions = options.actions || [{ id: "ok", label: text("common.confirm", "确定"), primary: true }];
     layer.className = "settings-dialog-layer";
     layer.tabIndex = -1;
     box.className = "settings-dialog";
@@ -76,7 +80,7 @@
     box.setAttribute("aria-labelledby", "st-settings-dialog-title");
     title.className = "settings-dialog-title";
     title.id = "st-settings-dialog-title";
-    title.textContent = String(options.title || "提示");
+    title.textContent = String(options.title || text("common.notice", "提示"));
     message.className = "settings-dialog-message";
     message.textContent = String(options.message || "");
     actions.className = "settings-dialog-actions";

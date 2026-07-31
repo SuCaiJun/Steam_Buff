@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -80,7 +80,7 @@
   }
 
   function tr(key, fallback, params) {
-    return root.STI18n?.text?.(key, fallback, params) || String(fallback ?? key ?? "");
+    return root.STI18n.text(key, fallback, params);
   }
 
   function addDisposer(dispose) {
@@ -236,7 +236,9 @@
     if (!reviewBtn) {
       return;
     }
-    const title = count ? `查看已过滤评论（${count}）` : tr("settings.shell.filteredReviewsButton", "查看已过滤评论");
+    const title = count
+      ? tr("settings.shell.filteredReviewsButtonWithCount", "查看已过滤评论（$count$）", { count })
+      : tr("settings.shell.filteredReviewsButton", "查看已过滤评论");
     reviewBtn.hidden = count === 0;
     reviewBtn.title = title;
     reviewBtn.setAttribute("aria-label", title);

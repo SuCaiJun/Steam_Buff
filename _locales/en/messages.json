@@ -45,43 +45,19 @@
     "message": "Extension Settings"
   },
   "settings_category_extension_settings_desc": {
-    "message": "Control the settings center display and module entry points."
+    "message": "Settings center appearance and basic preferences."
   },
-  "settings_category_reminders_name": {
-    "message": "Reminder Checks"
+  "settings_category_store_enhancements_name": {
+    "message": "Store Enhancements"
   },
-  "settings_category_reminders_desc": {
-    "message": "Game availability, languages, third-party components, and subscription reminders."
+  "settings_category_store_enhancements_desc": {
+    "message": "Enhancements for Steam store pages, wishlists, carts, search, and data displays."
   },
-  "settings_category_prices_name": {
-    "message": "Price Features"
+  "settings_category_community_enhancements_name": {
+    "message": "Community Enhancements"
   },
-  "settings_category_prices_desc": {
-    "message": "Price history, trends, and sale reminders."
-  },
-  "settings_category_wishlist_name": {
-    "message": "Wishlist"
-  },
-  "settings_category_wishlist_desc": {
-    "message": "Steam wishlist display and price helpers."
-  },
-  "settings_category_data_name": {
-    "message": "Data Display"
-  },
-  "settings_category_data_desc": {
-    "message": "Reviews, online players, playtime, and media scores."
-  },
-  "settings_category_smart_search_name": {
-    "message": "Smart Search"
-  },
-  "settings_category_smart_search_desc": {
-    "message": "Enhance Steam search with Chinese names and result matching."
-  },
-  "settings_category_enhancements_name": {
-    "message": "Enhancements"
-  },
-  "settings_category_enhancements_desc": {
-    "message": "Purchase, inventory, and market enhancements."
+  "settings_category_community_enhancements_desc": {
+    "message": "Reserved for Steam Buff enhancements on Steam Community pages."
   },
   "settings_category_review_filter_name": {
     "message": "Review Filter"
@@ -125,11 +101,53 @@
   "settings_feature_settings_startup_animation_desc": {
     "message": "Play the logo startup animation the first time the settings center opens."
   },
+  "settings_feature_store_detail_reminders_name": {
+    "message": "Store Detail Reminders and Checks"
+  },
+  "settings_feature_store_detail_reminders_desc": {
+    "message": "Control availability, language, and third-party component checks on store detail pages."
+  },
+  "settings_feature_subscription_info_name": {
+    "message": "Third-Party Membership Checks"
+  },
+  "settings_feature_subscription_info_desc": {
+    "message": "Control subscription reminder cards and membership badges across supported pages."
+  },
+  "settings_feature_family_library_owned_marker_name": {
+    "message": "Family Library Ownership Markers"
+  },
+  "settings_feature_family_library_owned_marker_desc": {
+    "message": "Control Steam Family ownership badges and reminder cards on store pages."
+  },
+  "settings_feature_price_related_enhancements_name": {
+    "message": "Price Enhancements"
+  },
+  "settings_feature_price_related_enhancements_desc": {
+    "message": "Control store price history, trend forecasts, and SteamPY price displays."
+  },
+  "settings_feature_data_display_enhancements_name": {
+    "message": "Data Display"
+  },
+  "settings_feature_data_display_enhancements_desc": {
+    "message": "Control review, player count, sales rank, playtime, and media score displays."
+  },
+  "settings_feature_dlc_tools_name": {
+    "message": "DLC Purchase Enhancements"
+  },
+  "settings_feature_dlc_tools_desc": {
+    "message": "Select DLC in bulk, add it to the cart, and claim free DLC."
+  },
+  "settings_feature_cart_select_name": {
+    "message": "Cart Enhancements"
+  },
+  "settings_feature_cart_select_desc": {
+    "message": "Select which cart items to purchase now and restore unpaid items afterward."
+  },
   "settings_feature_search_suggestions_name": {
     "message": "Search Suggestions"
   },
   "settings_feature_search_suggestions_desc": {
-    "message": "Control search suggestion categories and the Steam store search suggestion runtime."
+    "message": "Control Steam store suggestions, Chinese title matching, and search result enhancements."
   },
   "settings_feature_search_suggestions_badge": {
     "message": "Sponsor"
@@ -173,6 +191,36 @@
   "settings_feature_review_filter_desc": {
     "message": "Control the review filter category and Steam store review filtering."
   },
+  "settings_feature_library_sort_title_name": {
+    "message": "Display Custom Library Names"
+  },
+  "settings_feature_library_sort_title_desc": {
+    "message": "Prefer each game's custom sort title in the Steam library list."
+  },
+  "settings_feature_library_custom_name_name": {
+    "message": "Custom Library Name Autofill"
+  },
+  "settings_feature_library_custom_name_desc": {
+    "message": "Look up and fill custom library sort titles from the Steam client customization page."
+  },
+  "settings_feature_download_auto_shutdown_name": {
+    "message": "Shut Down After Downloads"
+  },
+  "settings_feature_download_auto_shutdown_desc": {
+    "message": "Shut down the computer about 30-60 seconds after the download queue finishes."
+  },
+  "settings_feature_steam_news_translate_name": {
+    "message": "Steam News Pop-up Translation"
+  },
+  "settings_feature_steam_news_translate_desc": {
+    "message": "Manually translate the current news article in Steam library news pop-ups."
+  },
+  "settings_feature_purchase_history_classifier_name": {
+    "message": "Purchase History Classifier"
+  },
+  "settings_feature_purchase_history_classifier_desc": {
+    "message": "Classify Steam purchase history into direct purchases, gifts, refunds, in-game purchases, top-ups, buys, and sells."
+  },
   "settings_lock_depOr": {
     "message": " or "
   },
@@ -194,7 +242,7 @@
     }
   },
   "settings_page_account_name": {
-    "message": "User Center"
+    "message": "Account"
   },
   "settings_page_account_desc": {
     "message": "Account, identity, and feature usage."
@@ -210,12 +258,6 @@
   },
   "lifecycle_update_title": {
     "message": "Steam Buff Updated"
-  },
-  "lifecycle_current_version": {
-    "message": "Current version"
-  },
-  "lifecycle_update_log_label": {
-    "message": "What's new"
   },
   "lifecycle_update_log_unavailable": {
     "message": "The update notes are temporarily unavailable. Please check the About page later."
@@ -240,5 +282,4294 @@
   },
   "lifecycle_support_donate_action": {
     "message": "Donate"
-  }
+  },
+  "settings_category_community_enhancements_emptyTitle": {
+    "message": "No standalone Community enhancements yet"
+  },
+  "settings_category_community_enhancements_emptyDesc": {
+    "message": "Future Steam Buff enhancements for Steam Community pages will appear here."
+  },
+  "settings_feature_store_detail_reminders_unsupported_only_name": {
+    "message": "Only show unsupported items"
+  },
+  "settings_feature_store_detail_reminders_unsupported_only_desc": {
+    "message": "Only show dubbing and Workshop checks when the game does not support them."
+  },
+  "settings_feature_audio_check_name": {
+    "message": "Dubbing Check"
+  },
+  "settings_feature_audio_check_desc": {
+    "message": "Show the dubbing languages supported by the game."
+  },
+  "settings_feature_workshop_check_name": {
+    "message": "Workshop Check"
+  },
+  "settings_feature_workshop_check_desc": {
+    "message": "Check whether the game supports Steam Workshop."
+  },
+  "settings_feature_workshop_check_sourceTip": {
+    "message": "Source: the categories field returned by Steam Store appdetails. Availability depends on Steam's official response."
+  },
+  "settings_feature_family_sharing_name": {
+    "message": "Family Sharing Check"
+  },
+  "settings_feature_family_sharing_desc": {
+    "message": "Check whether the game supports Family Sharing."
+  },
+  "settings_feature_family_sharing_sourceTip": {
+    "message": "Source: Augmented Steam API. License: GPL-3.0. API availability is not guaranteed."
+  },
+  "settings_feature_third_party_check_name": {
+    "message": "Third-Party Check"
+  },
+  "settings_feature_third_party_check_desc": {
+    "message": "Check third-party DRM, account, and launcher requirements."
+  },
+  "settings_feature_subscription_info_sourceTip": {
+    "message": "Source: SubscriptionInfo. License: MPL-2.0. Data is maintained by the third-party provider."
+  },
+  "settings_feature_subscription_detail_card_name": {
+    "message": "Store Detail Reminder Card"
+  },
+  "settings_feature_subscription_detail_card_desc": {
+    "message": "Show subscription availability reminders on store detail pages."
+  },
+  "settings_feature_subscription_store_badge_name": {
+    "message": "Store Badge"
+  },
+  "settings_feature_subscription_store_badge_desc": {
+    "message": "Show subscription badges on game covers on the store home page and sale lists."
+  },
+  "settings_feature_subscription_wishlist_badge_name": {
+    "message": "Wishlist Badge"
+  },
+  "settings_feature_subscription_wishlist_badge_desc": {
+    "message": "Show subscription badges on wishlist game covers."
+  },
+  "settings_feature_subscription_cart_badge_name": {
+    "message": "Cart Badge"
+  },
+  "settings_feature_subscription_cart_badge_desc": {
+    "message": "Show a subscription badge in the upper-left corner of matching cart game covers."
+  },
+  "settings_feature_family_library_exclude_self_name": {
+    "message": "Exclude My Games"
+  },
+  "settings_feature_family_library_exclude_self_desc": {
+    "message": "Exclude the current Steam account from Family ownership badges and detail reminder cards."
+  },
+  "settings_feature_family_library_detail_card_name": {
+    "message": "Store Detail Reminder Card"
+  },
+  "settings_feature_family_library_detail_card_desc": {
+    "message": "Show Family ownership on store detail pages and provide a manual Family Library refresh action."
+  },
+  "settings_feature_family_library_store_badge_name": {
+    "message": "Store Badge"
+  },
+  "settings_feature_family_library_store_badge_desc": {
+    "message": "Show the number of Family members who own the game on store home and sale-list covers."
+  },
+  "settings_feature_family_library_wishlist_badge_name": {
+    "message": "Wishlist Badge"
+  },
+  "settings_feature_family_library_wishlist_badge_desc": {
+    "message": "Show the number of Family members who own the game on wishlist covers."
+  },
+  "settings_feature_family_library_cart_badge_name": {
+    "message": "Cart Badge"
+  },
+  "settings_feature_family_library_cart_badge_desc": {
+    "message": "Show the number of Family members who own the game on matching cart covers."
+  },
+  "settings_feature_price_history_name": {
+    "message": "Price History"
+  },
+  "settings_feature_price_history_desc": {
+    "message": "Show historical prices and a 12-month price chart in the store purchase area."
+  },
+  "settings_feature_price_history_sourceTip": {
+    "message": "This data uses third-party services. Configure them before enabling this feature."
+  },
+  "settings_feature_price_forecast_name": {
+    "message": "Price Forecast"
+  },
+  "settings_feature_price_forecast_desc": {
+    "message": "Forecast price trends from historical price data."
+  },
+  "settings_feature_price_forecast_discount_name": {
+    "message": "Future Discount Estimate"
+  },
+  "settings_feature_price_forecast_discount_desc": {
+    "message": "Estimate the next regular sale date, discount, price, and historical-low reference, adjusted by seasonal sale timing when supported by history."
+  },
+  "settings_feature_price_forecast_seasonal_name": {
+    "message": "Seasonal Sale Estimate"
+  },
+  "settings_feature_price_forecast_seasonal_desc": {
+    "message": "Recommend upcoming Steam events that are more likely to include a discount based on historical event windows and prices."
+  },
+  "settings_feature_steampy_cdk_price_name": {
+    "message": "SteamPY CDK"
+  },
+  "settings_feature_steampy_cdk_price_desc": {
+    "message": "Show SteamPY CDK marketplace prices."
+  },
+  "settings_feature_steampy_cdk_price_sourceTip": {
+    "message": "Source: SteamPY. Used with official SteamPY authorization. CDK prices follow SteamPY responses."
+  },
+  "settings_feature_steampy_proxy_price_name": {
+    "message": "SteamPY Purchasing Service"
+  },
+  "settings_feature_steampy_proxy_price_desc": {
+    "message": "Show SteamPY purchasing-service prices."
+  },
+  "settings_feature_steampy_proxy_price_sourceTip": {
+    "message": "Source: SteamPY. Used with official SteamPY authorization. Purchasing-service prices follow SteamPY responses."
+  },
+  "settings_feature_wishlist_price_history_sourceTip": {
+    "message": "Sources: current prices from Steam Store appdetails, historical prices from the user's IsThereAnyDeal API key, and authorized SteamPY prices."
+  },
+  "settings_feature_wishlist_price_history_hover_through_name": {
+    "message": "Click-Through Hover Card"
+  },
+  "settings_feature_wishlist_price_history_hover_through_desc": {
+    "message": "Make wishlist price-history hover cards ignore pointer input so the game card underneath receives clicks and hover events."
+  },
+  "settings_feature_reviews_name": {
+    "message": "Positive Review Data"
+  },
+  "settings_feature_reviews_desc": {
+    "message": "Show detailed review statistics."
+  },
+  "settings_feature_reviews_badge": {
+    "message": "Planned"
+  },
+  "settings_feature_reviews_lock": {
+    "message": "The previous API source is offline. A replacement API is pending."
+  },
+  "settings_feature_player_stats_name": {
+    "message": "Players Online"
+  },
+  "settings_feature_player_stats_desc": {
+    "message": "Show the current online player count."
+  },
+  "settings_feature_player_stats_badge": {
+    "message": "Planned"
+  },
+  "settings_feature_player_stats_lock": {
+    "message": "The previous API source is offline. A replacement API is pending."
+  },
+  "settings_feature_game_sales_rank_name": {
+    "message": "Game Sales Rank"
+  },
+  "settings_feature_game_sales_rank_desc": {
+    "message": "Show sales rank and ranking trends."
+  },
+  "settings_feature_game_sales_rank_badge": {
+    "message": "Planned"
+  },
+  "settings_feature_game_sales_rank_lock": {
+    "message": "The previous API source is offline. A replacement API is pending."
+  },
+  "settings_feature_howlongtobeat_name": {
+    "message": "Playtime Statistics"
+  },
+  "settings_feature_howlongtobeat_desc": {
+    "message": "Show average game completion times."
+  },
+  "settings_feature_howlongtobeat_badge": {
+    "message": "Planned"
+  },
+  "settings_feature_howlongtobeat_lock": {
+    "message": "The previous API source is offline. A replacement API is pending."
+  },
+  "settings_feature_media_score_name": {
+    "message": "Media Scores"
+  },
+  "settings_feature_media_score_desc": {
+    "message": "Aggregate scores from major media platforms."
+  },
+  "settings_feature_media_score_badge": {
+    "message": "Planned"
+  },
+  "settings_feature_media_score_lock": {
+    "message": "The previous API source is offline. A replacement API is pending."
+  },
+  "settings_feature_search_suggestions_user_custom_name": {
+    "message": "Player Custom Names"
+  },
+  "settings_feature_search_suggestions_user_custom_desc": {
+    "message": "Prioritize private custom names saved by the current account."
+  },
+  "settings_feature_search_suggestions_user_alias_name": {
+    "message": "My Aliases"
+  },
+  "settings_feature_search_suggestions_user_alias_desc": {
+    "message": "Match private game aliases saved by the current account."
+  },
+  "settings_feature_search_suggestions_community_name": {
+    "message": "Public Custom Names"
+  },
+  "settings_feature_search_suggestions_community_desc": {
+    "message": "Match approved public custom names from the community."
+  },
+  "settings_feature_search_suggestions_community_alias_name": {
+    "message": "Community Aliases"
+  },
+  "settings_feature_search_suggestions_community_alias_desc": {
+    "message": "Match approved public game aliases from the community."
+  },
+  "settings_feature_search_suggestions_ai_name": {
+    "message": "AI-Translated Names"
+  },
+  "settings_feature_search_suggestions_ai_desc": {
+    "message": "Match the currently enabled primary AI-translated names."
+  },
+  "settings_feature_search_suggestions_pinyin_name": {
+    "message": "Pinyin Search"
+  },
+  "settings_feature_search_suggestions_pinyin_desc": {
+    "message": "Match Chinese names using full Pinyin, for example xiadaoliecheshou."
+  },
+  "settings_feature_search_suggestions_mnemonic_name": {
+    "message": "Initials Search"
+  },
+  "settings_feature_search_suggestions_mnemonic_desc": {
+    "message": "Match Chinese names using Pinyin initials, for example xdlcs."
+  },
+  "settings_feature_game_notes_name": {
+    "message": "Game Notes"
+  },
+  "settings_feature_game_notes_desc": {
+    "message": "View and edit private game notes for the current account on store detail and wishlist pages."
+  },
+  "settings_feature_cart_remove_all_confirm_name": {
+    "message": "Confirm Remove All Cart Items"
+  },
+  "settings_feature_cart_remove_all_confirm_desc": {
+    "message": "Ask for confirmation before Steam removes every item from the cart."
+  },
+  "settings_feature_translate_sourceTip": {
+    "message": "Source/runtime: local xnx3 translate.js library. License: MIT License."
+  },
+  "settings_feature_third_party_services_sourceTip": {
+    "message": "Source: official IsThereAnyDeal API. Users provide their own API key; Steam Buff neither hosts nor shares it."
+  },
+  "settings_feature_purchase_history_classifier_sourceTip": {
+    "message": "Based on the Steam Purchase History Classifier userscript by SmallFork. License: MIT License."
+  },
+  "settings_empty_title": {
+    "message": "No configurable features"
+  },
+  "settings_empty_desc": {
+    "message": "This category does not have standalone features yet."
+  },
+  "settings_tutorial_view": {
+    "message": "View guide: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_tutorial_name": {
+    "message": "Guide"
+  },
+  "settings_drawer_collapse": {
+    "message": "Collapse"
+  },
+  "settings_drawer_expand": {
+    "message": "Expand"
+  },
+  "settings_drawer_collapseChildren": {
+    "message": "Collapse subfeatures"
+  },
+  "settings_drawer_expandChildren": {
+    "message": "Expand subfeatures"
+  },
+  "settings_field_translate_scope_label": {
+    "message": "Scope"
+  },
+  "settings_field_translate_scope_option_steam": {
+    "message": "Steam websites"
+  },
+  "settings_field_translate_scope_option_global": {
+    "message": "All websites"
+  },
+  "settings_field_translate_page_label": {
+    "message": "Automatic webpage translation"
+  },
+  "settings_field_translate_selection_label": {
+    "message": "Selection translation"
+  },
+  "settings_field_translate_selectionTrigger_label": {
+    "message": "Selection trigger"
+  },
+  "settings_field_translate_selectionTrigger_option_direct": {
+    "message": "Translate immediately after selection"
+  },
+  "settings_field_translate_selectionTrigger_option_icon": {
+    "message": "Show translation icon"
+  },
+  "settings_field_translate_selectionTrigger_option_dot": {
+    "message": "Show floating dot"
+  },
+  "settings_field_translate_selectionAction_label": {
+    "message": "Floating control action"
+  },
+  "settings_field_translate_selectionAction_option_click": {
+    "message": "Click to translate"
+  },
+  "settings_field_translate_selectionAction_option_hover": {
+    "message": "Translate on hover"
+  },
+  "settings_field_translate_selectionClose_label": {
+    "message": "Selection pop-up close behavior"
+  },
+  "settings_field_translate_selectionClose_option_auto": {
+    "message": "Close automatically"
+  },
+  "settings_field_translate_selectionClose_option_manual": {
+    "message": "Close manually"
+  },
+  "settings_field_translate_selectionService_label": {
+    "message": "Selection translation service"
+  },
+  "settings_field_translate_selectionService_option_follow": {
+    "message": "Follow Translation Service"
+  },
+  "settings_field_translate_selectionService_option_client_edge": {
+    "message": "Microsoft free translation"
+  },
+  "settings_field_translate_selectionService_option_steam_buff_ai": {
+    "message": "Steam Buff AI"
+  },
+  "settings_field_translate_selectionService_option_translate_service": {
+    "message": "Open-source public translation"
+  },
+  "settings_field_translate_newsPopup_label": {
+    "message": "Steam news pop-up translation"
+  },
+  "settings_field_translate_newsPopupService_label": {
+    "message": "News pop-up translation service"
+  },
+  "settings_field_translate_newsPopupService_option_follow": {
+    "message": "Follow Translation Service"
+  },
+  "settings_field_translate_newsPopupService_option_client_edge": {
+    "message": "Microsoft free translation"
+  },
+  "settings_field_translate_newsPopupService_option_steam_buff_ai": {
+    "message": "Steam Buff AI"
+  },
+  "settings_field_translate_newsPopupService_option_translate_service": {
+    "message": "Open-source public translation"
+  },
+  "settings_field_translate_local_label": {
+    "message": "Source language"
+  },
+  "settings_field_translate_local_option_chinese_simplified": {
+    "message": "Simplified Chinese"
+  },
+  "settings_field_translate_local_option_chinese_traditional": {
+    "message": "Traditional Chinese"
+  },
+  "settings_field_translate_local_option_english": {
+    "message": "English"
+  },
+  "settings_field_translate_local_option_japanese": {
+    "message": "Japanese"
+  },
+  "settings_field_translate_local_option_korean": {
+    "message": "Korean"
+  },
+  "settings_field_translate_local_option_french": {
+    "message": "French"
+  },
+  "settings_field_translate_local_option_italian": {
+    "message": "Italian"
+  },
+  "settings_field_translate_local_option_deutsch": {
+    "message": "German"
+  },
+  "settings_field_translate_local_option_portuguese": {
+    "message": "Portuguese"
+  },
+  "settings_field_translate_local_option_spanish": {
+    "message": "Spanish"
+  },
+  "settings_field_translate_local_option_russian": {
+    "message": "Russian"
+  },
+  "settings_field_translate_to_label": {
+    "message": "Target language"
+  },
+  "settings_field_translate_to_option_chinese_simplified": {
+    "message": "Simplified Chinese"
+  },
+  "settings_field_translate_to_option_chinese_traditional": {
+    "message": "Traditional Chinese"
+  },
+  "settings_field_translate_to_option_english": {
+    "message": "English"
+  },
+  "settings_field_translate_to_option_japanese": {
+    "message": "Japanese"
+  },
+  "settings_field_translate_to_option_korean": {
+    "message": "Korean"
+  },
+  "settings_field_translate_to_option_french": {
+    "message": "French"
+  },
+  "settings_field_translate_to_option_italian": {
+    "message": "Italian"
+  },
+  "settings_field_translate_to_option_deutsch": {
+    "message": "German"
+  },
+  "settings_field_translate_to_option_portuguese": {
+    "message": "Portuguese"
+  },
+  "settings_field_translate_to_option_spanish": {
+    "message": "Spanish"
+  },
+  "settings_field_translate_to_option_russian": {
+    "message": "Russian"
+  },
+  "settings_field_translate_service_label": {
+    "message": "Translation service"
+  },
+  "settings_field_translate_service_option_client_edge": {
+    "message": "Microsoft free translation [Recommended]"
+  },
+  "settings_field_translate_service_option_steam_buff_ai": {
+    "message": "Steam Buff AI"
+  },
+  "settings_field_translate_service_option_translate_service": {
+    "message": "Open-source public translation"
+  },
+  "settings_field_translate_aiPerformance_label": {
+    "message": "Optimize AI translation performance"
+  },
+  "settings_field_translate_force_label": {
+    "message": "Force translation"
+  },
+  "settings_field_translate_select_label": {
+    "message": "Show native language selector"
+  },
+  "settings_field_translate_style_label": {
+    "message": "Translation display style"
+  },
+  "settings_field_translate_style_option_none": {
+    "message": "None"
+  },
+  "settings_field_translate_style_option_blockquote": {
+    "message": "Block quote"
+  },
+  "settings_field_translate_style_option_weakened": {
+    "message": "De-emphasized"
+  },
+  "settings_field_translate_style_option_dashedLine": {
+    "message": "Dashed line"
+  },
+  "settings_field_translate_style_option_wavyLine": {
+    "message": "Wavy line"
+  },
+  "settings_field_translate_style_option_border": {
+    "message": "Border"
+  },
+  "settings_field_translate_style_option_background": {
+    "message": "Background"
+  },
+  "settings_field_translate_hover_label": {
+    "message": "Show original text on hover"
+  },
+  "settings_field_reviewFilter_maxPlaytimeHours_label": {
+    "message": "Hide reviews when total playtime is under"
+  },
+  "settings_field_reviewFilter_maxReviewPlaytimeHours_label": {
+    "message": "Hide reviews when playtime at review is under"
+  },
+  "settings_field_reviewFilter_hideHiddenProfile_label": {
+    "message": "Hide reviews from private profiles"
+  },
+  "settings_field_reviewFilter_minReviewCount_label": {
+    "message": "Hide users with fewer reviews than"
+  },
+  "settings_field_reviewFilter_minGamesOwned_label": {
+    "message": "Hide users owning fewer games than"
+  },
+  "settings_field_searchSuggestions_limit_label": {
+    "message": "Steam Buff suggestion count"
+  },
+  "settings_field_searchSuggestions_nativeMode_label": {
+    "message": "Official Steam search results"
+  },
+  "settings_field_searchSuggestions_nativeMode_option_default": {
+    "message": "Keep unchanged"
+  },
+  "settings_field_searchSuggestions_nativeMode_option_one": {
+    "message": "Show only 1 result"
+  },
+  "settings_field_searchSuggestions_nativeMode_option_hide": {
+    "message": "Hide official results"
+  },
+  "settings_field_familyLibrary_refreshInterval_label": {
+    "message": "Refresh interval"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_1d": {
+    "message": "1 day"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_3d": {
+    "message": "3 days"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_7d": {
+    "message": "7 days"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_30d": {
+    "message": "30 days"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_manual": {
+    "message": "Manual"
+  },
+  "settings_field_familyLibrary_autoRefresh_label": {
+    "message": "Automatic refresh"
+  },
+  "settings_field_ai_enabled_label": {
+    "message": "AI module"
+  },
+  "settings_field_ai_host_label": {
+    "message": "AI gateway URL"
+  },
+  "settings_field_ai_model_label": {
+    "message": "Model"
+  },
+  "settings_field_ai_keyMode_label": {
+    "message": "Credential method"
+  },
+  "settings_field_ai_keyMode_option_none": {
+    "message": "Do not send"
+  },
+  "settings_field_ai_keyMode_option_bearer": {
+    "message": "Authorization Bearer"
+  },
+  "settings_field_ai_keyMode_option_header": {
+    "message": "Custom request header"
+  },
+  "settings_field_ai_keyMode_option_param": {
+    "message": "Request parameter"
+  },
+  "settings_field_ai_key_label": {
+    "message": "Access key"
+  },
+  "settings_field_ai_keyName_label": {
+    "message": "Credential field name"
+  },
+  "settings_field_ai_temperature_label": {
+    "message": "Temperature"
+  },
+  "settings_field_ai_aiConcurrency_label": {
+    "message": "AI concurrency limit"
+  },
+  "settings_field_thirdPartyServices_enabled_label": {
+    "message": "Enable third-party data services"
+  },
+  "settings_field_thirdPartyServices_defaultProvider_label": {
+    "message": "Default price data source"
+  },
+  "settings_field_thirdPartyServices_defaultProvider_option_isthereanydeal": {
+    "message": "IsThereAnyDeal"
+  },
+  "settings_field_thirdPartyServices_isthereanydeal_key_label": {
+    "message": "ITAD API Key"
+  },
+  "settings_field_thirdPartyServices_isthereanydeal_key_placeholder": {
+    "message": "Enter your IsThereAnyDeal API key"
+  },
+  "settings_storePriceChart_seriesLimit_title": {
+    "message": "Up to $max$ price lines",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_seriesLimit_message": {
+    "message": "Steam pricing regions and game stores can have up to $max$ lines in total, including the primary Steam pricing region. Remove an existing item first.",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_color_ariaLabel": {
+    "message": "$name$ line color",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_series_steam": {
+    "message": "Steam ($region$)",
+    "placeholders": {
+      "region": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_entry_mainRegion": {
+    "message": "Primary region"
+  },
+  "settings_storePriceChart_entry_fixed": {
+    "message": "Fixed"
+  },
+  "settings_storePriceChart_action_remove": {
+    "message": "Remove $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_combo_options": {
+    "message": "options"
+  },
+  "settings_storePriceChart_combo_expand": {
+    "message": "Open $name$ list",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_combo_empty": {
+    "message": "No matching items"
+  },
+  "settings_storePriceChart_legacy_followSteam": {
+    "message": "Follow Steam page (legacy setting)"
+  },
+  "settings_storePriceChart_legacy_outsideCatalog": {
+    "message": "$code$ - Legacy setting outside the catalog (select again)",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_section_steamRegions": {
+    "message": "Steam pricing regions"
+  },
+  "settings_storePriceChart_field_mainRegion": {
+    "message": "Primary pricing region"
+  },
+  "settings_storePriceChart_placeholder_searchMainRegion": {
+    "message": "Search primary pricing regions"
+  },
+  "settings_storePriceChart_placeholder_searchRegion": {
+    "message": "Search region names"
+  },
+  "settings_storePriceChart_action_addRegion": {
+    "message": "Add region"
+  },
+  "settings_storePriceChart_section_shops": {
+    "message": "Game stores"
+  },
+  "settings_storePriceChart_placeholder_searchShop": {
+    "message": "Search store names"
+  },
+  "settings_storePriceChart_action_addShop": {
+    "message": "Add store"
+  },
+  "settings_storePriceChart_section_chart": {
+    "message": "Chart"
+  },
+  "settings_storePriceChart_field_exchangeRateSource": {
+    "message": "Exchange-rate source"
+  },
+  "settings_storePriceChart_field_lowCriterion": {
+    "message": "Historical-low criterion"
+  },
+  "settings_storePriceChart_lowCriterion_api": {
+    "message": "Use API data"
+  },
+  "settings_storePriceChart_lowCriterion_discount": {
+    "message": "By discount percentage"
+  },
+  "settings_storePriceChart_lowCriterion_price": {
+    "message": "By final price"
+  },
+  "settings_storePriceChart_field_lowReferenceScope": {
+    "message": "Historical-low scope"
+  },
+  "settings_storePriceChart_lowReferenceScope_allRegular": {
+    "message": "All regular prices"
+  },
+  "settings_storePriceChart_lowReferenceScope_currentRegular": {
+    "message": "Current regular price"
+  },
+  "settings_storePriceChart_lowReferenceScope_recent12Months": {
+    "message": "Last 12 months"
+  },
+  "settings_storePriceChart_field_lowOccurrence": {
+    "message": "Historical-low occurrence"
+  },
+  "settings_storePriceChart_lowOccurrence_latest": {
+    "message": "Most recent historical low"
+  },
+  "settings_storePriceChart_lowOccurrence_earliest": {
+    "message": "Earliest historical low"
+  },
+  "settings_storePriceChart_action_resetColors": {
+    "message": "Restore all default colors"
+  },
+  "settings_storePriceChart_action_save": {
+    "message": "Save settings"
+  },
+  "settings_storePriceChart_validation_mainRegion_title": {
+    "message": "Select a primary pricing region"
+  },
+  "settings_storePriceChart_validation_mainRegion_message": {
+    "message": "The current legacy setting is not in the fixed catalog. Select a primary pricing region first."
+  },
+  "settings_storePriceChart_saveFailed_title": {
+    "message": "Save failed"
+  },
+  "settings_storePriceChart_saveFailed_message": {
+    "message": "Failed to save price chart settings. Try again later."
+  },
+  "settings_storePriceChart_addFailed_title": {
+    "message": "Unable to add"
+  },
+  "settings_storePriceChart_addFailed_region": {
+    "message": "Select a Steam pricing region from the fixed catalog."
+  },
+  "settings_storePriceChart_addFailed_shop": {
+    "message": "Select a game store from the fixed catalog."
+  },
+  "settings_storePriceChart_region_US": {
+    "message": "United States"
+  },
+  "settings_storePriceChart_region_CN": {
+    "message": "Mainland China"
+  },
+  "settings_storePriceChart_region_JP": {
+    "message": "Japan"
+  },
+  "settings_storePriceChart_region_DE": {
+    "message": "Eurozone"
+  },
+  "settings_storePriceChart_region_RU": {
+    "message": "Russia"
+  },
+  "settings_storePriceChart_region_PL": {
+    "message": "Poland"
+  },
+  "settings_storePriceChart_region_BR": {
+    "message": "Brazil"
+  },
+  "settings_storePriceChart_region_VN": {
+    "message": "Vietnam"
+  },
+  "settings_storePriceChart_region_KR": {
+    "message": "South Korea"
+  },
+  "settings_storePriceChart_region_ID": {
+    "message": "Indonesia"
+  },
+  "settings_storePriceChart_region_TW": {
+    "message": "Taiwan"
+  },
+  "settings_storePriceChart_region_HK": {
+    "message": "Hong Kong"
+  },
+  "settings_storePriceChart_region_UA": {
+    "message": "Ukraine"
+  },
+  "settings_storePriceChart_region_KZ": {
+    "message": "Kazakhstan"
+  },
+  "settings_storePriceChart_region_GB": {
+    "message": "United Kingdom"
+  },
+  "settings_storePriceChart_region_CH": {
+    "message": "Switzerland"
+  },
+  "settings_storePriceChart_region_NO": {
+    "message": "Norway"
+  },
+  "settings_storePriceChart_region_TH": {
+    "message": "Thailand"
+  },
+  "settings_storePriceChart_region_PH": {
+    "message": "Philippines"
+  },
+  "settings_storePriceChart_region_SG": {
+    "message": "Singapore"
+  },
+  "settings_storePriceChart_region_MY": {
+    "message": "Malaysia"
+  },
+  "settings_storePriceChart_region_MX": {
+    "message": "Mexico"
+  },
+  "settings_storePriceChart_region_CA": {
+    "message": "Canada"
+  },
+  "settings_storePriceChart_region_AU": {
+    "message": "Australia"
+  },
+  "settings_storePriceChart_region_NZ": {
+    "message": "New Zealand"
+  },
+  "settings_storePriceChart_region_IN": {
+    "message": "India"
+  },
+  "settings_storePriceChart_region_CL": {
+    "message": "Chile"
+  },
+  "settings_storePriceChart_region_PE": {
+    "message": "Peru"
+  },
+  "settings_storePriceChart_region_CO": {
+    "message": "Colombia"
+  },
+  "settings_storePriceChart_region_ZA": {
+    "message": "South Africa"
+  },
+  "settings_storePriceChart_region_SA": {
+    "message": "Saudi Arabia"
+  },
+  "settings_storePriceChart_region_AE": {
+    "message": "United Arab Emirates"
+  },
+  "settings_storePriceChart_region_IL": {
+    "message": "Israel"
+  },
+  "settings_storePriceChart_region_KW": {
+    "message": "Kuwait"
+  },
+  "settings_storePriceChart_region_QA": {
+    "message": "Qatar"
+  },
+  "settings_storePriceChart_region_CR": {
+    "message": "Costa Rica"
+  },
+  "settings_storePriceChart_region_UY": {
+    "message": "Uruguay"
+  },
+  "settings_storePriceChart_region_AM": {
+    "message": "CIS USD region"
+  },
+  "settings_storePriceChart_region_AR": {
+    "message": "LATAM USD region"
+  },
+  "settings_storePriceChart_region_TR": {
+    "message": "MENA USD region"
+  },
+  "settings_storePriceChart_region_PK": {
+    "message": "South Asia USD region"
+  },
+  "common_refreshPage": {
+    "message": "Refresh page"
+  },
+  "common_notice": {
+    "message": "Notice"
+  },
+  "common_saveFailed": {
+    "message": "Save failed"
+  },
+  "settings_savePrompt_title": {
+    "message": "Saved"
+  },
+  "settings_savePrompt_message": {
+    "message": "Refresh the page to apply the changes."
+  },
+  "settings_familyLibrary_saveFailed": {
+    "message": "Failed to save Family Library refresh settings. Try again later."
+  },
+  "settings_familyLibrary_saveError": {
+    "message": "An error occurred while saving Family Library refresh settings. Try again later."
+  },
+  "settings_shell_filteredReviewsButtonWithCount": {
+    "message": "View filtered reviews ($count$)",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "updateReminder_title": {
+    "message": "A new Steam Buff version is available"
+  },
+  "updateReminder_currentVersion": {
+    "message": "Current version: $version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "updateReminder_latestVersion": {
+    "message": "Latest version: $version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "updateReminder_releaseNotes": {
+    "message": "Release notes"
+  },
+  "updateReminder_muteToday": {
+    "message": "Do not remind me again today"
+  },
+  "updateReminder_openDownload": {
+    "message": "Open official download page"
+  },
+  "common_none": {
+    "message": "None"
+  },
+  "common_listSeparator": {
+    "message": ", "
+  },
+  "common_unknown": {
+    "message": "Unknown"
+  },
+  "common_included": {
+    "message": "Included"
+  },
+  "common_notIncluded": {
+    "message": "Not included"
+  },
+  "common_cancel": {
+    "message": "Cancel"
+  },
+  "common_clear": {
+    "message": "Clear"
+  },
+  "common_export": {
+    "message": "Export"
+  },
+  "common_import": {
+    "message": "Import"
+  },
+  "about_common_unknownVersion": {
+    "message": "Unknown version"
+  },
+  "about_update_noLog": {
+    "message": "No release notes"
+  },
+  "about_update_loadingCurrentLog": {
+    "message": "Loading release notes for the current version..."
+  },
+  "about_update_noLogShort": {
+    "message": "No logs"
+  },
+  "about_update_logLoadFailed": {
+    "message": "Failed to load release note details"
+  },
+  "about_update_currentLogTitle": {
+    "message": "Current version release notes"
+  },
+  "about_update_logTitle": {
+    "message": "Release notes"
+  },
+  "about_update_noNewTitle": {
+    "message": "No new version found"
+  },
+  "about_update_latestMessage": {
+    "message": "You are using the latest version."
+  },
+  "about_update_checkTitle": {
+    "message": "Check for updates"
+  },
+  "about_update_checkingMessage": {
+    "message": "Checking for updates. Please wait."
+  },
+  "about_update_checkFailedTitle": {
+    "message": "Update check failed"
+  },
+  "about_update_checking": {
+    "message": "Checking"
+  },
+  "about_update_autoCheck": {
+    "message": "Checks automatically when Settings opens"
+  },
+  "about_update_newVersion": {
+    "message": "New version $version$ available",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_update_latest": {
+    "message": "Up to date"
+  },
+  "about_update_notChecked": {
+    "message": "Not checked yet"
+  },
+  "about_update_fetchingLog": {
+    "message": "Loading release notes from the official site"
+  },
+  "about_update_autoFetchLog": {
+    "message": "Loads automatically when Settings opens"
+  },
+  "about_update_viewMore": {
+    "message": "View more"
+  },
+  "about_update_viewNow": {
+    "message": "View now"
+  },
+  "about_logs_requestFailed": {
+    "message": "Log request failed"
+  },
+  "about_logs_backgroundFailed": {
+    "message": "Background request failed"
+  },
+  "about_logs_statusLoading": {
+    "message": "Loading log status"
+  },
+  "about_logs_statusDetail": {
+    "message": "$count$ entries, $size$, $first$ - $last$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "size": {
+        "content": "$2"
+      },
+      "first": {
+        "content": "$3"
+      },
+      "last": {
+        "content": "$4"
+      }
+    }
+  },
+  "about_logs_healthErrors": {
+    "message": "Recent logs contain $count$ errors",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_logs_healthLarge": {
+    "message": "Many logs are stored. Export and clear them when convenient."
+  },
+  "about_logs_healthElevated": {
+    "message": "Log usage is elevated"
+  },
+  "about_logs_healthOk": {
+    "message": "0 errors in the last hour"
+  },
+  "about_logs_emptySummary": {
+    "message": "No logs · Redacted export enabled"
+  },
+  "about_logs_summary": {
+    "message": "$count$ entries · $size$ · Latest $time$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "size": {
+        "content": "$2"
+      },
+      "time": {
+        "content": "$3"
+      }
+    }
+  },
+  "about_backup_readFailed": {
+    "message": "Failed to read the settings backup file"
+  },
+  "about_backup_section_features": {
+    "message": "Feature toggles"
+  },
+  "about_backup_section_translate": {
+    "message": "Translation settings"
+  },
+  "about_backup_section_ai": {
+    "message": "AI settings"
+  },
+  "about_backup_section_reviewFilter": {
+    "message": "Review filtering"
+  },
+  "about_backup_section_searchSuggestions": {
+    "message": "Search suggestions"
+  },
+  "about_backup_section_familyLibrary": {
+    "message": "Family Library refresh"
+  },
+  "about_backup_noSections": {
+    "message": "No recognized sections"
+  },
+  "about_backup_fileVersion": {
+    "message": "File version: v$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_exportedAt": {
+    "message": "Exported: $time$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_sections": {
+    "message": "Included sections: $sections$",
+    "placeholders": {
+      "sections": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_sensitive": {
+    "message": "Sensitive settings: $state$",
+    "placeholders": {
+      "state": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_willImport": {
+    "message": "Will import: $count$ items",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_willDefault": {
+    "message": "Will reset to defaults: $count$ items",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_willSkip": {
+    "message": "Will skip: $count$ items",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_overwriteWarning": {
+    "message": "Confirming will overwrite the current settings and import this backup."
+  },
+  "about_backup_missingSensitiveWarning": {
+    "message": "This file does not contain sensitive settings such as AI keys. Those fields will use their default empty values after import."
+  },
+  "about_backup_imported": {
+    "message": "Imported: $count$ items",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_defaulted": {
+    "message": "Reset to defaults: $count$ items",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_skipped": {
+    "message": "Skipped: $count$ items",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_importCompleteMessage": {
+    "message": "Settings imported. Refresh the page to apply them."
+  },
+  "about_backup_exportFailedTitle": {
+    "message": "Settings export failed"
+  },
+  "about_backup_importFailedTitle": {
+    "message": "Settings import failed"
+  },
+  "about_backup_moduleMissing": {
+    "message": "The settings backup module is not loaded."
+  },
+  "about_backup_importTitle": {
+    "message": "Import settings backup"
+  },
+  "about_backup_confirmImport": {
+    "message": "Import"
+  },
+  "about_backup_importCompleteTitle": {
+    "message": "Settings imported"
+  },
+  "about_backup_invalidFormat": {
+    "message": "The settings backup file format is invalid."
+  },
+  "about_backup_invalidType": {
+    "message": "This is not a Steam Buff settings backup."
+  },
+  "about_backup_unsupportedVersion": {
+    "message": "Unsupported settings backup version: $version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_writeUnavailable": {
+    "message": "The settings backup write interface is unavailable"
+  },
+  "about_backup_writeFailed": {
+    "message": "Failed to write settings backup"
+  },
+  "about_logs_exportFailedTitle": {
+    "message": "Log export failed"
+  },
+  "about_logs_buildFailed": {
+    "message": "Failed to build the log export"
+  },
+  "about_logs_clearTitle": {
+    "message": "Clear diagnostic logs"
+  },
+  "about_logs_clearWarning": {
+    "message": "After clearing, the current diagnostic evidence cannot be exported. Continue?"
+  },
+  "about_logs_clearFailedTitle": {
+    "message": "Failed to clear diagnostic logs"
+  },
+  "about_support_anonymous": {
+    "message": "Anonymous supporter"
+  },
+  "about_support_thankYou": {
+    "message": "Thank you for supporting Steam Buff"
+  },
+  "about_support_beFirst": {
+    "message": "Become the first supporter ❤"
+  },
+  "about_support_action": {
+    "message": "Support"
+  },
+  "about_support_listTitle": {
+    "message": "Thank you to the following supporters, listed in no particular order."
+  },
+  "about_openSource_title": {
+    "message": "Open-source libraries"
+  },
+  "about_card_home_title": {
+    "message": "Project home"
+  },
+  "about_card_home_desc": {
+    "message": "Visit the official site for the latest news"
+  },
+  "about_card_home_action": {
+    "message": "Open website"
+  },
+  "about_card_feedback_title": {
+    "message": "Feedback"
+  },
+  "about_card_feedback_desc": {
+    "message": "Report a bug or suggest a feature"
+  },
+  "about_card_feedback_action": {
+    "message": "Send feedback"
+  },
+  "about_card_versionLog_title": {
+    "message": "Release notes"
+  },
+  "about_card_versionLog_desc": {
+    "message": "View changes in the current version"
+  },
+  "about_card_versionLog_action": {
+    "message": "View release notes"
+  },
+  "about_card_logs_title": {
+    "message": "Logs"
+  },
+  "about_card_logs_export": {
+    "message": "Export logs"
+  },
+  "about_card_logs_clear": {
+    "message": "Clear logs"
+  },
+  "about_card_backup_title": {
+    "message": "Settings backup"
+  },
+  "about_card_backup_desc": {
+    "message": "Import or export features and personalized settings"
+  },
+  "about_card_backup_sensitiveTitle": {
+    "message": "Include sensitive settings such as AI keys"
+  },
+  "about_card_backup_sensitive": {
+    "message": "Include keys"
+  },
+  "about_card_support_title": {
+    "message": "Support the developer"
+  },
+  "about_card_support_desc": {
+    "message": "A coffee helps keep updates moving"
+  },
+  "about_tagline": {
+    "message": "Give the Steam client a Buff"
+  },
+  "about_footer_personalProject": {
+    "message": "Personal non-commercial project"
+  },
+  "settings_api_parseFailed": {
+    "message": "Failed to parse the API response"
+  },
+  "settings_api_endpoint": {
+    "message": "Website API"
+  },
+  "settings_api_requestFailed": {
+    "message": "$label$ request failed",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_api_responseInvalid": {
+    "message": "$label$ returned an invalid response",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_api_statusCode": {
+    "message": "$label$ returned status code $status$",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "status": {
+        "content": "$2"
+      }
+    }
+  },
+  "about_update_googleWebStoreDisabled": {
+    "message": "Manual update checks are disabled for the Chrome Web Store version"
+  },
+  "about_logs_utf8Unavailable": {
+    "message": "This environment does not support UTF-8 encoding"
+  },
+  "about_logs_zipUnavailable": {
+    "message": "The diagnostic archive library is not loaded"
+  },
+  "store_workshop_statusUnavailable": {
+    "message": "Steam Workshop status is temporarily unavailable"
+  },
+  "store_workshop_supported": {
+    "message": "This game supports Steam Workshop"
+  },
+  "store_workshop_verifiedCategoryIds": {
+    "message": "Verified category IDs: $ids$",
+    "placeholders": {
+      "ids": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_workshop_unsupported": {
+    "message": "This game is not marked as supporting Steam Workshop"
+  },
+  "store_workshop_loading": {
+    "message": "Checking Steam Workshop support..."
+  },
+  "store_audio_supported": {
+    "message": "This game supports Simplified Chinese audio"
+  },
+  "store_audio_unsupported": {
+    "message": "This game does not support Simplified Chinese audio"
+  },
+  "store_gameNotes_loginRequired": {
+    "message": "Sign in from Settings first"
+  },
+  "store_gameNotes_loginExpired": {
+    "message": "Your sign-in has expired. Sign in again."
+  },
+  "store_gameNotes_requestFailed": {
+    "message": "Request failed: $code$",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_gameNotes_openFull": {
+    "message": "View full note"
+  },
+  "store_gameNotes_label": {
+    "message": "Note: "
+  },
+  "store_gameNotes_empty": {
+    "message": "No note"
+  },
+  "store_gameNotes_viewMore": {
+    "message": "[View more]"
+  },
+  "store_searchSuggestions_heading": {
+    "message": "Steam Buff name matches"
+  },
+  "store_reviewFilter_reason_keyword": {
+    "message": "Keyword"
+  },
+  "store_reviewFilter_reason_pattern": {
+    "message": "Regular expression"
+  },
+  "store_reviewFilter_reason_nickname": {
+    "message": "Nickname"
+  },
+  "store_reviewFilter_reason_playtime": {
+    "message": "Total playtime"
+  },
+  "store_reviewFilter_reason_reviewPlaytime": {
+    "message": "Playtime at review"
+  },
+  "store_reviewFilter_reason_hiddenProfile": {
+    "message": "Private profile"
+  },
+  "store_reviewFilter_reason_gamesOwned": {
+    "message": "Games owned"
+  },
+  "store_reviewFilter_reason_reviewCount": {
+    "message": "Review count"
+  },
+  "store_reviewFilter_reason_matched": {
+    "message": "Rule matched"
+  },
+  "store_regionalPrice_loading": {
+    "message": "Loading regional prices"
+  },
+  "store_subscription_title": {
+    "message": "Subscription check"
+  },
+  "store_subscription_leavingOn": {
+    "message": "This game will leave $name$ on $date$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "date": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_subscription_leaving": {
+    "message": "This game will leave $name$ soon",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_joinedOn": {
+    "message": "This game joined $name$ on $date$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "date": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_subscription_joined": {
+    "message": "This game is available with $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_leavingOnPrefix": {
+    "message": "This game will leave on $date$: ",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_leavingPrefix": {
+    "message": "This game will leave soon: "
+  },
+  "store_subscription_joinedOnPrefix": {
+    "message": "Available since $date$ with ",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_joinedPrefix": {
+    "message": "Available with "
+  },
+  "store_subscription_joinedTail": {
+    "message": ""
+  },
+  "common_loading": {
+    "message": "Loading"
+  },
+  "common_retry": {
+    "message": "Retry"
+  },
+  "common_send": {
+    "message": "Send"
+  },
+  "store_priceChart_emptyHistory": {
+    "message": "No price history"
+  },
+  "store_priceChart_discount": {
+    "message": "Discount: -$cut$%",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_historyAria": {
+    "message": "Price history chart"
+  },
+  "store_priceChart_currentRegularUnavailable": {
+    "message": "The current regular-price range cannot be calculated"
+  },
+  "store_priceChart_noCalculablePriceLow": {
+    "message": "No calculable historical low price"
+  },
+  "store_priceChart_apiLowUnavailable": {
+    "message": "No historical low is available from the API"
+  },
+  "store_priceChart_noCalculableDiscountLow": {
+    "message": "No calculable historical discount low"
+  },
+  "store_priceChart_cnyRateUnavailable": {
+    "message": "CNY exchange rate unavailable"
+  },
+  "store_priceChart_notApplicable": {
+    "message": "Not applicable"
+  },
+  "store_priceChart_lowCriterion": {
+    "message": "Historical-low criterion: $criterion$",
+    "placeholders": {
+      "criterion": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_referenceScope": {
+    "message": "Reference range: $scope$",
+    "placeholders": {
+      "scope": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_maxDiscountNone": {
+    "message": "Largest historical discount: None"
+  },
+  "store_priceChart_maxDiscount": {
+    "message": "Largest historical discount: -$cut$%",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_lowestPrice": {
+    "message": "Historical low price: $price$",
+    "placeholders": {
+      "price": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_lowestPriceNone": {
+    "message": "Historical low price: None"
+  },
+  "store_priceChart_yearCount": {
+    "message": "Reached $count$ times within one year",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_shopType": {
+    "message": "Store: $shop$",
+    "placeholders": {
+      "shop": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_region": {
+    "message": "Region: $region$",
+    "placeholders": {
+      "region": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_date": {
+    "message": "Date: $date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_currentAmount": {
+    "message": "Current amount: $amount$",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_table_countryShop": {
+    "message": "Region / Store"
+  },
+  "store_priceChart_table_price": {
+    "message": "Price"
+  },
+  "store_priceChart_table_discount": {
+    "message": "Discount"
+  },
+  "store_priceChart_table_comparison": {
+    "message": "Comparison"
+  },
+  "store_priceChart_multiHistoryAria": {
+    "message": "Multi-region and multi-store price history chart"
+  },
+  "store_priceChart_emptyRange": {
+    "message": "No price history in this time range"
+  },
+  "store_priceChart_legendAria": {
+    "message": "$label$$state$ chart statistics",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "state": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_priceChart_legendNoData": {
+    "message": " no data"
+  },
+  "store_priceChart_legendStats": {
+    "message": "$label$ chart statistics",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_countriesAndShops": {
+    "message": "Regions and stores"
+  },
+  "store_dataDisplay_range6Months": {
+    "message": "6 months"
+  },
+  "store_dataDisplay_range12Months": {
+    "message": "12 months"
+  },
+  "store_dataDisplay_rangeAll": {
+    "message": "All"
+  },
+  "store_dataDisplay_monthDay": {
+    "message": "$month$/$day$",
+    "placeholders": {
+      "month": {
+        "content": "$1"
+      },
+      "day": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_unknownDate": {
+    "message": "Unknown date"
+  },
+  "store_dataDisplay_lowEvidenceStrong": {
+    "message": "Strong repeat-low evidence: $count$ valid historical sales reached or beat this low. This describes historical repetition, not probability.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowEvidenceMedium": {
+    "message": "Moderate repeat-low evidence: $count$ valid historical sales reached or beat this low. This describes historical repetition, not probability.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowEvidenceLow": {
+    "message": "Limited repeat-low evidence: only $count$ valid historical sales reached or beat this low. No probability is reported.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowEvidenceInsufficient": {
+    "message": "Insufficient repeat-low evidence: the price history contains no confirmed repeated historical-low sales. No probability is reported."
+  },
+  "store_dataDisplay_lowUnavailable": {
+    "message": "Historical-low reference: There is not enough price history to forecast."
+  },
+  "store_dataDisplay_lowFreeHistory": {
+    "message": "Historical-low reference: This game has previously been free, which the current model does not support."
+  },
+  "store_dataDisplay_lowCurrentUnavailable": {
+    "message": "Historical-low reference: The current price is unavailable, so it cannot be compared with the historical low of $low$.",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowNew": {
+    "message": "Historical-low reference: The current price is below the previous low of $low$, making it the lowest currently observed price.",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowReached": {
+    "message": "Historical-low reference: The current price has reached the historical low of $low$.",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowRequiredCut": {
+    "message": "A discount of about -$cut$% is needed to match it. ",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowRequiredCutUnavailable": {
+    "message": "A reliable regular price is unavailable, so the required discount cannot be calculated. "
+  },
+  "store_dataDisplay_lowMayReach": {
+    "message": "Historical-low reference: The current price has not reached $low$. $required$The next chance to reach it may be in about $days$ days.",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      },
+      "days": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_lowPredictedBelow": {
+    "message": "Historical-low reference: The current price has not reached $low$. $required$The predicted next discount is still too small to match it, so no next-low date can be estimated.",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_lowRegularUnavailable": {
+    "message": "Historical-low reference: The current price has not reached $low$. A reliable regular price is unavailable, so neither the required discount nor the next-low date can be calculated.",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowStrengthUnavailable": {
+    "message": "Historical-low reference: The current price has not reached $low$. $required$Evidence for the next discount strength is insufficient, so no next-low date can be estimated.",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_lowTimingUnavailable": {
+    "message": "Historical-low reference: The current price has not reached $low$. $required$Discount timing evidence is insufficient, so no next-low date can be estimated.",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceStrong": {
+    "message": "Strong evidence: Discounts occurred in the last $consecutive$ consecutive events with the same name and type; $hits$ of $matched$ matched events had discounts.",
+    "placeholders": {
+      "consecutive": {
+        "content": "$1"
+      },
+      "hits": {
+        "content": "$2"
+      },
+      "matched": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceMedium": {
+    "message": "Moderate evidence: $hits$ of $matched$ events with the same name and type had discounts, but the last two were not consecutive hits.",
+    "placeholders": {
+      "hits": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceLow": {
+    "message": "Limited evidence: Only 1 of $matched$ events with the same name and type had a discount.",
+    "placeholders": {
+      "matched": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceInsufficient": {
+    "message": "There are not enough discount records for events with the same name and type."
+  },
+  "store_dataDisplay_forecastFree": {
+    "message": "This game is currently free, so no discount forecast is needed."
+  },
+  "store_dataDisplay_forecastActive": {
+    "message": "It is currently -$currentCut$% at about $price$. The next sale may be in about $days$ days at roughly -$nextCut$%.",
+    "placeholders": {
+      "currentCut": {
+        "content": "$1"
+      },
+      "price": {
+        "content": "$2"
+      },
+      "days": {
+        "content": "$3"
+      },
+      "nextCut": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastActiveCutUnknown": {
+    "message": "It is currently -$currentCut$% at about $price$. The next sale may be in about $days$ days, but its discount cannot yet be estimated reliably.",
+    "placeholders": {
+      "currentCut": {
+        "content": "$1"
+      },
+      "price": {
+        "content": "$2"
+      },
+      "days": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_forecastActiveInsufficient": {
+    "message": "It is currently -$currentCut$% at about $price$. There is not enough history to estimate the next sale.",
+    "placeholders": {
+      "currentCut": {
+        "content": "$1"
+      },
+      "price": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_forecastInsufficient": {
+    "message": "There is not enough data to estimate the next sale."
+  },
+  "store_dataDisplay_forecastWindow": {
+    "message": "$percent$% within $days$ days",
+    "placeholders": {
+      "percent": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSparseWithCut": {
+    "message": "With limited data, $name$ in $days$ days ($range$) may offer a discount around $cut$.",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      },
+      "cut": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSparse": {
+    "message": "This game rarely goes on sale, so a forecast is not possible. Watch $name$ in $days$ days ($range$) for a possible discount.",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSeasonLimited": {
+    "message": "With limited data, $name$ in $days$ days ($range$) may offer about -$cut$%.",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      },
+      "cut": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSeason": {
+    "message": "$name$ in $days$ days ($range$) may offer about -$cut$%, for an estimated price of $price$.",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      },
+      "cut": {
+        "content": "$4"
+      },
+      "price": {
+        "content": "$5"
+      }
+    }
+  },
+  "store_dataDisplay_forecastLimited": {
+    "message": "With limited data, a discount around -$cut$% may occur in $days$ days ($date$), for an estimated price of $price$.",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "date": {
+        "content": "$3"
+      },
+      "price": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastRegular": {
+    "message": "A discount around -$cut$% may occur in $days$ days ($date$), for an estimated price of $price$.",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "date": {
+        "content": "$3"
+      },
+      "price": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastEventCount": {
+    "message": "Based on $count$ sales.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_festivalNoHistory": {
+    "message": "There are not enough historical event windows to estimate seasonal discounts."
+  },
+  "store_dataDisplay_festivalNoFuture": {
+    "message": "No event data is available for the next year."
+  },
+  "store_dataDisplay_festivalNoEvidence": {
+    "message": "No historical discount evidence was found for this game in upcoming events with the same name and type."
+  },
+  "store_dataDisplay_festivalOngoing": {
+    "message": "$name$, currently underway ($range$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "range": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalUpcoming": {
+    "message": "$name$ in $days$ days ($range$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_festivalStrong": {
+    "message": "$timing$ has about a $probability$% chance of a discount under the current rules. Historical hits were around $cut$, with an estimated median price of $price$.",
+    "placeholders": {
+      "timing": {
+        "content": "$1"
+      },
+      "probability": {
+        "content": "$2"
+      },
+      "cut": {
+        "content": "$3"
+      },
+      "price": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_festivalMedium": {
+    "message": "$timing$ has moderate discount evidence. Historical hits occurred more than once but not consecutively, at around $cut$.",
+    "placeholders": {
+      "timing": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalLow": {
+    "message": "$timing$ has only one historical hit, so this is a low-evidence reminder. That discount was about $cut$.",
+    "placeholders": {
+      "timing": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_loadingRates": {
+    "message": "Loading exchange rates"
+  },
+  "store_dataDisplay_thirdPartyUnavailable": {
+    "message": "Third-party price data is temporarily unavailable."
+  },
+  "store_aiForecast_responseInstruction": {
+    "message": "Clearly recommend buying now, waiting for the primary forecast window, or waiting for a stated discount. Respond in English and distinguish facts, estimates, and uncertainty. Do not give exact dates or probabilities without supporting data."
+  },
+  "store_aiForecast_summaryLanguageInstruction": {
+    "message": "4. Write the summary as plain English text without Markdown, headings, lists, or code blocks."
+  },
+  "store_aiForecast_storageUnavailable": {
+    "message": "chrome.storage.local is unavailable"
+  },
+  "store_aiForecast_sessionReadFailed": {
+    "message": "Failed to read the AI forecast session"
+  },
+  "store_aiForecast_sessionSaveFailed": {
+    "message": "Failed to save the AI forecast session"
+  },
+  "store_aiForecast_sessionClearFailed": {
+    "message": "Failed to clear the AI forecast session"
+  },
+  "store_aiForecast_readingSession": {
+    "message": "Loading the AI forecast history..."
+  },
+  "store_aiForecast_preparing": {
+    "message": "Preparing forecast data..."
+  },
+  "store_aiForecast_analyzing": {
+    "message": "AI is analyzing price history and event data..."
+  },
+  "store_aiForecast_failed": {
+    "message": "AI forecast failed. Try again later."
+  },
+  "store_aiForecast_festivalUnavailable": {
+    "message": "Event data is unavailable, so an AI forecast cannot be generated."
+  },
+  "store_aiForecast_preparingHistory": {
+    "message": "Preparing price history and event data..."
+  },
+  "store_aiForecast_openDetailsHint": {
+    "message": "Open Conversation details to generate an AI forecast."
+  },
+  "store_aiForecast_you": {
+    "message": "You"
+  },
+  "store_aiForecast_initialQuestion": {
+    "message": "Forecast future discounts using the price and event data on this page."
+  },
+  "store_aiForecast_thinking": {
+    "message": "Thinking..."
+  },
+  "store_aiForecast_replying": {
+    "message": "AI is responding. Please wait..."
+  },
+  "store_aiForecast_questionPlaceholder": {
+    "message": "Ask about future discounts"
+  },
+  "store_aiForecast_title": {
+    "message": "AI Forecast"
+  },
+  "store_aiForecast_closeDialog": {
+    "message": "Close conversation"
+  },
+  "store_aiForecast_streamUnavailable": {
+    "message": "The AI streaming channel is unavailable."
+  },
+  "store_aiForecast_replySaveFailed": {
+    "message": "The response is complete, but this conversation could not be saved."
+  },
+  "store_aiForecast_dataStillLoading": {
+    "message": "Forecast data is still loading. Try again shortly."
+  },
+  "store_aiForecast_configurationRequired": {
+    "message": "Configure an AI service before generating a forecast."
+  },
+  "store_aiForecast_dataUnavailable": {
+    "message": "AI forecast data is temporarily unavailable."
+  },
+  "store_aiForecast_prepareFailed": {
+    "message": "Failed to prepare AI forecast data."
+  },
+  "store_aiForecast_followupFailed": {
+    "message": "AI follow-up failed. Try again later."
+  },
+  "store_aiForecast_sessionUnavailable": {
+    "message": "AI forecast history is temporarily unavailable."
+  },
+  "store_aiForecast_dialogDetails": {
+    "message": "Conversation details"
+  },
+  "common_clearSelection": {
+    "message": "Clear selection"
+  },
+  "common_continue": {
+    "message": "Continue"
+  },
+  "common_dateYmd": {
+    "message": "$month$/$day$/$year$",
+    "placeholders": {
+      "month": {
+        "content": "$1"
+      },
+      "day": {
+        "content": "$2"
+      },
+      "year": {
+        "content": "$3"
+      }
+    }
+  },
+  "common_enabled": {
+    "message": "Enabled"
+  },
+  "common_firstPage": {
+    "message": "First"
+  },
+  "common_invertSelection": {
+    "message": "Invert selection"
+  },
+  "common_itemsSuffix": {
+    "message": "items"
+  },
+  "common_lastPage": {
+    "message": "Last"
+  },
+  "common_nextPage": {
+    "message": "Next"
+  },
+  "common_no": {
+    "message": "No"
+  },
+  "common_operationFailed": {
+    "message": "Operation failed"
+  },
+  "common_pause": {
+    "message": "Pause"
+  },
+  "common_previousPage": {
+    "message": "Previous"
+  },
+  "common_queryFailed": {
+    "message": "Query failed"
+  },
+  "common_refresh": {
+    "message": "Refresh"
+  },
+  "common_requestFailedCode": {
+    "message": "Request failed: $code$",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "common_requestTimedOut": {
+    "message": "Request timed out. Try again later."
+  },
+  "common_requestTimedOutMs": {
+    "message": "Request timed out after $timeout$ ms.",
+    "placeholders": {
+      "timeout": {
+        "content": "$1"
+      }
+    }
+  },
+  "common_authResponseParseFailed": {
+    "message": "Failed to parse the authentication API response"
+  },
+  "common_authSaveFailed": {
+    "message": "Failed to save sign-in state"
+  },
+  "common_authStorageUnavailable": {
+    "message": "Sign-in state storage is unavailable"
+  },
+  "common_backgroundRequestFailed": {
+    "message": "Background request failed"
+  },
+  "common_backgroundResponseInvalid": {
+    "message": "The background response has an invalid format"
+  },
+  "common_loginExpired": {
+    "message": "Your sign-in has expired. Sign in again."
+  },
+  "common_loginRequired": {
+    "message": "Sign in from Settings first."
+  },
+  "common_save": {
+    "message": "Save"
+  },
+  "common_searching": {
+    "message": "Searching..."
+  },
+  "common_select": {
+    "message": "Select"
+  },
+  "common_selectAll": {
+    "message": "Select all"
+  },
+  "common_sendFailedRetry": {
+    "message": "Failed to send. Try again."
+  },
+  "common_unavailable": {
+    "message": "Unavailable"
+  },
+  "common_update": {
+    "message": "Update"
+  },
+  "common_yes": {
+    "message": "Yes"
+  },
+  "store_titleCustomName_aliasDescription": {
+    "message": "Aliases only affect Steam Store search. After adding an alias, you can use it to find this game in the Steam Store search box."
+  },
+  "store_titleCustomName_baseSaved": {
+    "message": "Basic information saved"
+  },
+  "store_titleCustomName_baseSaving": {
+    "message": "Saving basic information..."
+  },
+  "store_titleCustomName_baseTab": {
+    "message": "Basic"
+  },
+  "store_titleCustomName_clearNote": {
+    "message": "Clear note"
+  },
+  "store_titleCustomName_customAlias": {
+    "message": "Custom alias"
+  },
+  "store_titleCustomName_customName": {
+    "message": "Custom name"
+  },
+  "store_titleCustomName_dialogTitle": {
+    "message": "Edit game information"
+  },
+  "store_titleCustomName_edit": {
+    "message": "Edit"
+  },
+  "store_titleCustomName_gameNote": {
+    "message": "Game note"
+  },
+  "store_titleCustomName_hideCustomName": {
+    "message": "Hide custom name"
+  },
+  "store_titleCustomName_loginExpired": {
+    "message": "Your session has expired. Sign in again."
+  },
+  "store_titleCustomName_loginRequired": {
+    "message": "Sign in from Settings first"
+  },
+  "store_titleCustomName_noteDeleted": {
+    "message": "Note deleted"
+  },
+  "store_titleCustomName_noteDeleting": {
+    "message": "Deleting note..."
+  },
+  "store_titleCustomName_notePlaceholder": {
+    "message": "Supports BBCode, for example [b]bold[/b] and [url=https://example.com]link[/url]"
+  },
+  "store_titleCustomName_noteSaved": {
+    "message": "Note saved"
+  },
+  "store_titleCustomName_noteSaving": {
+    "message": "Saving note..."
+  },
+  "store_titleCustomName_notesUnavailable": {
+    "message": "The game notes module is not loaded"
+  },
+  "store_titleCustomName_noteTab": {
+    "message": "Notes"
+  },
+  "store_titleCustomName_noteTooLong": {
+    "message": "The note cannot exceed $limit$ characters",
+    "placeholders": {
+      "limit": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_titleCustomName_noteWillClear": {
+    "message": "Saving will clear the note"
+  },
+  "store_titleCustomName_remaining": {
+    "message": "$remaining$ / $limit$ remaining",
+    "placeholders": {
+      "remaining": {
+        "content": "$1"
+      },
+      "limit": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_titleCustomName_reserved": {
+    "message": "Reserved for future use"
+  },
+  "store_titleCustomName_steamName": {
+    "message": "Original Steam name"
+  },
+  "store_wishlistPrice_chartAria": {
+    "message": "Steam price history chart for the last 12 months"
+  },
+  "store_wishlistPrice_chartEmpty": {
+    "message": "No Steam price history is available for the last 12 months"
+  },
+  "store_wishlistPrice_chartLoadingAria": {
+    "message": "Loading the price trend for the last 12 months"
+  },
+  "store_wishlistPrice_chartTitle": {
+    "message": "Prices over the last 12 months"
+  },
+  "store_wishlistPrice_detailsEmpty": {
+    "message": "No price details to display"
+  },
+  "store_wishlistPrice_detailsLoading": {
+    "message": "Loading price details..."
+  },
+  "store_wishlistPrice_currentUnavailable": {
+    "message": "Current Steam price is unavailable"
+  },
+  "store_wishlistPrice_detailCurrentLowest": {
+    "message": "On Steam, currently at the historical low"
+  },
+  "store_wishlistPrice_detailSteam": {
+    "message": "On Steam"
+  },
+  "store_wishlistPrice_detailSteamAt": {
+    "message": "On Steam, $date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_wishlistPrice_detailSteamAtLower": {
+    "message": "On Steam, $date$, $amount$ below the current price",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      },
+      "amount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_wishlistPrice_detailSteamLower": {
+    "message": "On Steam, $amount$ below the current price",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_wishlistPrice_historyLoading": {
+    "message": "Loading price history..."
+  },
+  "store_wishlistPrice_historySkippedNoSteamPrice": {
+    "message": "Steam does not currently provide a price, so price history was not queried."
+  },
+  "store_wishlistPrice_itadHistoryFailed": {
+    "message": "The ITAD price-history request failed. Try again later."
+  },
+  "store_wishlistPrice_itadNotListed": {
+    "message": "This game is not currently listed on ITAD."
+  },
+  "store_wishlistPrice_itadPriceFailed": {
+    "message": "The ITAD price request failed. Try again later."
+  },
+  "store_wishlistPrice_loading": {
+    "message": "Loading data..."
+  },
+  "store_wishlistPrice_lowestUnavailable": {
+    "message": "Steam historical low is unavailable"
+  },
+  "store_wishlistPrice_noSteamData": {
+    "message": "ITAD has no available Steam price data"
+  },
+  "store_wishlistPrice_queryFailed": {
+    "message": "The price request failed. Refresh the page and try again."
+  },
+  "store_wishlistPrice_steamCurrent": {
+    "message": "Current Steam price"
+  },
+  "store_wishlistPrice_steamCurrentFailed": {
+    "message": "The current Steam price request failed. Price-history services will still be used."
+  },
+  "store_wishlistPrice_steamLowest": {
+    "message": "Steam historical low"
+  },
+  "store_wishlistPrice_steamUnavailable": {
+    "message": "Steam does not currently provide a price"
+  },
+  "store_wishlistPrice_statusHigher": {
+    "message": "$amount$ above Steam historical low (+$discount$%)",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      },
+      "discount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_wishlistPrice_statusLowest": {
+    "message": "Current Steam price is at its historical low"
+  },
+  "store_wishlistPrice_steampyCdk": {
+    "message": "SteamPY CDK"
+  },
+  "store_wishlistPrice_steampyProxy": {
+    "message": "SteamPY Assisted Purchase"
+  },
+  "steam_downloadShutdown_backendStarting": {
+    "message": "Initializing background service"
+  },
+  "steam_downloadShutdown_backendTimeout": {
+    "message": "The background service did not respond within 8 seconds. Check whether the download-shutdown backend was injected."
+  },
+  "steam_downloadShutdown_checking": {
+    "message": "Checking download tasks..."
+  },
+  "steam_downloadShutdown_currentStatus": {
+    "message": "Current status: $status$",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadShutdown_disabled": {
+    "message": "Automatic shutdown is off"
+  },
+  "steam_downloadShutdown_errorLog": {
+    "message": "Error log: $message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadShutdown_failed": {
+    "message": "Shutdown failed. Check the logs."
+  },
+  "steam_downloadShutdown_label": {
+    "message": "Shut down automatically after downloads finish"
+  },
+  "steam_downloadShutdown_paused": {
+    "message": "Downloads are paused. Shutdown will occur after they resume and finish."
+  },
+  "steam_downloadShutdown_shortLabel": {
+    "message": "Shut down after downloads finish"
+  },
+  "steam_downloadShutdown_shuttingDown": {
+    "message": "Downloads finished. Shutting down."
+  },
+  "steam_downloadShutdown_waitingCompletion": {
+    "message": "Waiting for downloads to finish"
+  },
+  "steam_downloadShutdown_waitingStart": {
+    "message": "Waiting for a download task to start"
+  },
+  "steam_newsTranslate_aiBodyEmpty": {
+    "message": "AI did not produce a valid body translation"
+  },
+  "steam_newsTranslate_bodyTargetMissing": {
+    "message": "No replaceable body area was found"
+  },
+  "steam_newsTranslate_bodyTextMissing": {
+    "message": "No replaceable body text was found"
+  },
+  "steam_newsTranslate_buttonTitle": {
+    "message": "Steam Buff Translate"
+  },
+  "steam_newsTranslate_cardUnrecognized": {
+    "message": "The current news card was not recognized"
+  },
+  "steam_newsTranslate_chunkCountMismatch": {
+    "message": "The AI chunk translation count does not match"
+  },
+  "steam_newsTranslate_chunkEmpty": {
+    "message": "The AI translation chunk is empty"
+  },
+  "steam_newsTranslate_emptyResult": {
+    "message": "The translation result is empty"
+  },
+  "steam_newsTranslate_failed": {
+    "message": "Translation failed"
+  },
+  "steam_newsTranslate_noContent": {
+    "message": "There is no content to translate"
+  },
+  "steam_newsTranslate_partialFailed": {
+    "message": "Some content could not be translated"
+  },
+  "steam_newsTranslate_popupChanged": {
+    "message": "The news popup changed"
+  },
+  "steam_newsTranslate_requestTimedOut": {
+    "message": "The translation request timed out"
+  },
+  "steam_newsTranslate_titleTextMissing": {
+    "message": "No replaceable title text was found"
+  },
+  "steam_newsTranslate_translating": {
+    "message": "Translating..."
+  },
+  "store_familyLibrary_badgeTitle": {
+    "message": "$count$ members of your Steam Family own this game",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_cachedCount": {
+    "message": "$count$ Family Library game records were saved to the local cache.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_cacheWriteFailed": {
+    "message": "Failed to save the Family Library cache. Check browser storage space."
+  },
+  "store_familyLibrary_disableFeature": {
+    "message": "Disable feature"
+  },
+  "store_familyLibrary_earliestPurchase": {
+    "message": "Earliest purchase: $date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_empty": {
+    "message": "No Family Library game records are available. You can scan the Family Library from this page."
+  },
+  "store_familyLibrary_emptyPrompt": {
+    "message": "No Family Library game records were found. Scan and save them now?"
+  },
+  "store_familyLibrary_groupMissing": {
+    "message": "You are not in a Steam Family. Join one and try again."
+  },
+  "store_familyLibrary_memberFallback": {
+    "message": "Family member $index$",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_moreOwners": {
+    "message": " and $count$ more members",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_notOwned": {
+    "message": "This game is not recorded in the Family Library."
+  },
+  "store_familyLibrary_openManagement": {
+    "message": "Open Steam Family management"
+  },
+  "store_familyLibrary_ownedPrefix": {
+    "message": "$count$ members of your Steam Family own this game: ",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_ownerSeparator": {
+    "message": ", "
+  },
+  "store_familyLibrary_previousDataRetained": {
+    "message": "\nUpdate failed. Data from the last successful update is still in use."
+  },
+  "store_familyLibrary_refreshFailed": {
+    "message": "Refresh failed"
+  },
+  "store_familyLibrary_refreshFailedRetry": {
+    "message": "Refresh failed. Try again later."
+  },
+  "store_familyLibrary_refreshFailedWithReason": {
+    "message": "Refresh failed: $reason$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_refreshFailureTitle": {
+    "message": "Family Library refresh failed"
+  },
+  "store_familyLibrary_scan": {
+    "message": "Scan Family Library"
+  },
+  "store_familyLibrary_scanningMessage": {
+    "message": "Keep the browser open while the scan runs."
+  },
+  "store_familyLibrary_scanningTitle": {
+    "message": "Scanning Steam Family game data..."
+  },
+  "store_familyLibrary_sentenceEnd": {
+    "message": "."
+  },
+  "store_familyLibrary_sharingCheck": {
+    "message": "Steam Buff Family Sharing Check"
+  },
+  "store_familyLibrary_skipFailedMessage": {
+    "message": "Failed to save the skip state. Try again later."
+  },
+  "store_familyLibrary_skipFailedTitle": {
+    "message": "Failed to skip this update"
+  },
+  "store_familyLibrary_skipped": {
+    "message": "This update was skipped"
+  },
+  "store_familyLibrary_skipRetained": {
+    "message": "This update was skipped. Previous data remains in use."
+  },
+  "store_familyLibrary_skipThisTime": {
+    "message": "Skip this time"
+  },
+  "store_familyLibrary_stalePrompt": {
+    "message": "Steam Family Library data has not been updated for more than $interval$. Refresh it now?",
+    "placeholders": {
+      "interval": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_storeConfigMissing": {
+    "message": "Unable to read Steam sign-in information. Refresh the page and try again."
+  },
+  "store_familyLibrary_title": {
+    "message": "Family Library Check"
+  },
+  "store_familyLibrary_tokenMissing": {
+    "message": "No sign-in token was detected. Make sure you are signed in to the Steam Store."
+  },
+  "store_familyLibrary_updated": {
+    "message": "Update complete"
+  },
+  "store_familyLibrary_updatedAt": {
+    "message": "Updated $date$ $time$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_familyLibrary_updating": {
+    "message": "Updating..."
+  },
+  "steam_libraryCustomName_appidMissing": {
+    "message": "The current game's AppID was not recognized"
+  },
+  "steam_libraryCustomName_backendTimeout": {
+    "message": "The Steam client backend did not respond"
+  },
+  "steam_libraryCustomName_batchEdit": {
+    "message": "Edit names in bulk"
+  },
+  "steam_libraryCustomName_batchTitle": {
+    "message": "Edit names in bulk"
+  },
+  "steam_libraryCustomName_cancellingMnemonic": {
+    "message": "Removing mnemonics"
+  },
+  "steam_libraryCustomName_cancelMnemonic": {
+    "message": "Remove mnemonics"
+  },
+  "steam_libraryCustomName_cancelMnemonicProgress": {
+    "message": "Removing mnemonics $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_cancelMnemonicTitle": {
+    "message": "Confirm mnemonic removal"
+  },
+  "steam_libraryCustomName_channelUnavailable": {
+    "message": "The communication channel is unavailable"
+  },
+  "steam_libraryCustomName_chooseImportMode": {
+    "message": "Choose an import mode"
+  },
+  "steam_libraryCustomName_clearBatchWaiting": {
+    "message": "Clear batch $batch$ completed. Waiting $seconds$ seconds for Steam Cloud sync.",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "seconds": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearDone": {
+    "message": "Clear complete"
+  },
+  "steam_libraryCustomName_clearingBatch": {
+    "message": "Clearing Steam batch $batch$ $written$/$max$$cloud$",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "written": {
+        "content": "$2"
+      },
+      "max": {
+        "content": "$3"
+      },
+      "cloud": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearingSteam": {
+    "message": "Clearing Steam custom sort names"
+  },
+  "steam_libraryCustomName_clearingSteamNames": {
+    "message": "Clearing Steam custom sort names in bulk"
+  },
+  "steam_libraryCustomName_clearNeedsFastWrite": {
+    "message": "Clearing custom sort names requires Steam CloudStorage fast-write support"
+  },
+  "steam_libraryCustomName_clearProgress": {
+    "message": "Clear progress"
+  },
+  "steam_libraryCustomName_clearProgressLine": {
+    "message": "Total: $total$, cleared: $success$, skipped: $skipped$, failed: $failed$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "success": {
+        "content": "$2"
+      },
+      "skipped": {
+        "content": "$3"
+      },
+      "failed": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearQueueCompleted": {
+    "message": "The clear queue completed"
+  },
+  "steam_libraryCustomName_clearQueuePaused": {
+    "message": "The clear queue is paused"
+  },
+  "steam_libraryCustomName_clearQueueResumed": {
+    "message": "The clear queue resumed"
+  },
+  "steam_libraryCustomName_clearResult": {
+    "message": "Clear result"
+  },
+  "steam_libraryCustomName_clearSelectedNames": {
+    "message": "Clear selected names"
+  },
+  "steam_libraryCustomName_clearSelectedNote": {
+    "message": "This will set the custom sort name in the corresponding Steam property to an empty value."
+  },
+  "steam_libraryCustomName_clearSelectedPrompt": {
+    "message": "Clear $count$ custom sort names from the selected games?",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearSelectedTitle": {
+    "message": "Confirm clearing selected names"
+  },
+  "steam_libraryCustomName_cloudApiTimeout": {
+    "message": "The cloud name service did not respond"
+  },
+  "steam_libraryCustomName_cloudCancel": {
+    "message": "If disabled, this save will only update the local Steam library and will not sync to SucaiJun Cloud.\n\nCloud sharing helps other players receive more accurate custom-name suggestions. Disable it?"
+  },
+  "steam_libraryCustomName_cloudDiskFailed": {
+    "message": "Steam CloudStorage disk write failed: $result$",
+    "placeholders": {
+      "result": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_cloudDiskTimeout": {
+    "message": "Steam CloudStorage bulk disk write timed out"
+  },
+  "steam_libraryCustomName_cloudName": {
+    "message": "Cloud name"
+  },
+  "steam_libraryCustomName_cloudNameMissing": {
+    "message": "No cloud name was found for the current game"
+  },
+  "steam_libraryCustomName_cloudPaused": {
+    "message": "SucaiJun Cloud upload is paused"
+  },
+  "steam_libraryCustomName_cloudPreparing": {
+    "message": "Waiting for the Steam write batch to start. Preparing the SucaiJun Cloud upload."
+  },
+  "steam_libraryCustomName_cloudResumed": {
+    "message": "SucaiJun Cloud upload resumed"
+  },
+  "steam_libraryCustomName_cloudTip": {
+    "message": "Sync custom sort names to SucaiJun Cloud (Steam Buff Cloud). You can restore them later with Get Cloud Names and use them on Store pages.\n\nNote:\n1. Do not upload names that violate local laws. Violations may result in account suspension.\n2. Uploaded names may be used to improve the community game-name library and provide more accurate names to other players."
+  },
+  "steam_libraryCustomName_cloudUpload": {
+    "message": "SucaiJun Cloud upload"
+  },
+  "steam_libraryCustomName_cloudUploadSuffix": {
+    "message": ", with SucaiJun Cloud upload running in parallel"
+  },
+  "steam_libraryCustomName_confirmDisableCloud": {
+    "message": "Disable"
+  },
+  "steam_libraryCustomName_confirmOverwrite": {
+    "message": "Confirm overwrite"
+  },
+  "steam_libraryCustomName_continueCloudUpload": {
+    "message": "Continue uploading"
+  },
+  "steam_libraryCustomName_continueSave": {
+    "message": "Continue saving"
+  },
+  "steam_libraryCustomName_currentCustomSortName": {
+    "message": "Current custom sort name"
+  },
+  "steam_libraryCustomName_customSortTimeout": {
+    "message": "The Steam custom-sort API timed out"
+  },
+  "steam_libraryCustomName_customSortUnavailable": {
+    "message": "The Steam custom-sort API is unavailable"
+  },
+  "steam_libraryCustomName_dependencyFailed": {
+    "message": "Failed to load dependency: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_disableCloudTitle": {
+    "message": "Disable SucaiJun Cloud upload?"
+  },
+  "steam_libraryCustomName_disabled": {
+    "message": "Library custom-name filling is disabled"
+  },
+  "steam_libraryCustomName_editDone": {
+    "message": "Edit complete"
+  },
+  "steam_libraryCustomName_editResult": {
+    "message": "Edit result"
+  },
+  "steam_libraryCustomName_emptyWriteName": {
+    "message": "The name to write is empty"
+  },
+  "steam_libraryCustomName_entryBootstrapFailed": {
+    "message": "Steam CloudStorage entry bootstrap write failed: $result$",
+    "placeholders": {
+      "result": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_entryBootstrapTimeout": {
+    "message": "Steam CloudStorage entry bootstrap write timed out"
+  },
+  "steam_libraryCustomName_exported": {
+    "message": "Exported $count$ current custom sort names",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_exportEmpty": {
+    "message": "There are no custom sort names to export"
+  },
+  "steam_libraryCustomName_fastWriteNoResult": {
+    "message": "Steam CloudStorage fast write returned no result. The save queue stopped safely."
+  },
+  "steam_libraryCustomName_fastWriteUnavailable": {
+    "message": "Steam CloudStorage fast write is unavailable. The save queue stopped safely."
+  },
+  "steam_libraryCustomName_fastWriteUnavailableReason": {
+    "message": "Steam CloudStorage fast write is unavailable$reason$. The save queue stopped safely.",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_fetchCloud": {
+    "message": "Get cloud names"
+  },
+  "steam_libraryCustomName_fetchCloudProgress": {
+    "message": "Getting cloud names $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_fetchFailed": {
+    "message": "Fetch failed"
+  },
+  "steam_libraryCustomName_fetching": {
+    "message": "Fetching..."
+  },
+  "steam_libraryCustomName_fetchingShort": {
+    "message": "Fetching..."
+  },
+  "steam_libraryCustomName_fetchTitle": {
+    "message": "Get name"
+  },
+  "steam_libraryCustomName_filePickerUnavailable": {
+    "message": "The import file picker is unavailable"
+  },
+  "steam_libraryCustomName_filteredCount": {
+    "message": "$visible$ (total $total$)",
+    "placeholders": {
+      "visible": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_generateMnemonic": {
+    "message": "Generate mnemonics"
+  },
+  "steam_libraryCustomName_generateMnemonicProgress": {
+    "message": "Generating mnemonics $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_generateMnemonicTitle": {
+    "message": "Confirm mnemonic generation"
+  },
+  "steam_libraryCustomName_generatingMnemonic": {
+    "message": "Generating mnemonics"
+  },
+  "steam_libraryCustomName_importChanges": {
+    "message": "Add and update only"
+  },
+  "steam_libraryCustomName_importChangesDone": {
+    "message": "Add-and-update import completed: $matched$ matched, $selected$ pending writes, $unchanged$ unchanged",
+    "placeholders": {
+      "matched": {
+        "content": "$1"
+      },
+      "selected": {
+        "content": "$2"
+      },
+      "unchanged": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_libraryCustomName_importCover": {
+    "message": "Overwrite import"
+  },
+  "steam_libraryCustomName_importCoverDone": {
+    "message": "Overwrite import completed: $matched$ matched, $selected$ pending writes",
+    "placeholders": {
+      "matched": {
+        "content": "$1"
+      },
+      "selected": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importingJson": {
+    "message": "Importing JSON $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importModeMessage": {
+    "message": "Choose how to process this JSON file"
+  },
+  "steam_libraryCustomName_importModeTitle": {
+    "message": "Choose import mode"
+  },
+  "steam_libraryCustomName_inputMissing": {
+    "message": "The custom sort name input was not found"
+  },
+  "steam_libraryCustomName_interruptPrompt": {
+    "message": "A task is currently running. Stop it?"
+  },
+  "steam_libraryCustomName_interruptTitle": {
+    "message": "Confirm stop"
+  },
+  "steam_libraryCustomName_jsonItemsRequired": {
+    "message": "The JSON must contain an items array"
+  },
+  "steam_libraryCustomName_jsonNameMissing": {
+    "message": "No appid/name fields were recognized in the JSON"
+  },
+  "steam_libraryCustomName_jsonReadFailed": {
+    "message": "Failed to read the JSON file"
+  },
+  "steam_libraryCustomName_limitWarning": {
+    "message": "The custom-name count exceeds 10,000 and cannot be stored in Steam Cloud. Continue? Current: $current$, pending: $pending$, projected total: $projected$.",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "pending": {
+        "content": "$2"
+      },
+      "projected": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_libraryCustomName_limitWarningTitle": {
+    "message": "Steam Cloud storage risk"
+  },
+  "steam_libraryCustomName_loadingLocalList": {
+    "message": "Loading local list $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_loadLocalFirst": {
+    "message": "Load the local list first"
+  },
+  "steam_libraryCustomName_localListEmpty": {
+    "message": "No local list data is available"
+  },
+  "steam_libraryCustomName_localListLoading": {
+    "message": "Loading the local library list..."
+  },
+  "steam_libraryCustomName_matchingJson": {
+    "message": "Matching $count$ JSON items",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_mnemonicLoadFailed": {
+    "message": "Failed to load the mnemonic tool"
+  },
+  "steam_libraryCustomName_mnemonicPrompt": {
+    "message": "This will refresh pending write data. Continue?"
+  },
+  "steam_libraryCustomName_mode": {
+    "message": "Mode"
+  },
+  "steam_libraryCustomName_namespaceLimitReached": {
+    "message": "Steam namespace 3 has reached the 10,000 custom-name limit"
+  },
+  "steam_libraryCustomName_noClearableItems": {
+    "message": "There are no items to clear"
+  },
+  "steam_libraryCustomName_noClearableNames": {
+    "message": "The selected games have no custom sort names to clear"
+  },
+  "steam_libraryCustomName_noMatches": {
+    "message": "No matching games"
+  },
+  "steam_libraryCustomName_noMnemonicItems": {
+    "message": "There are no mnemonic items to process"
+  },
+  "steam_libraryCustomName_noSaveRunning": {
+    "message": "No save queue is running"
+  },
+  "steam_libraryCustomName_noWritableItems": {
+    "message": "There are no items to write"
+  },
+  "steam_libraryCustomName_officialName": {
+    "message": "Official name"
+  },
+  "steam_libraryCustomName_overwritePrompt": {
+    "message": "This will overwrite the current custom sort name. Continue?"
+  },
+  "steam_libraryCustomName_pageSummary": {
+    "message": "Showing $from$-$to$ of $count$, page $page$ of $pages$, selected",
+    "placeholders": {
+      "from": {
+        "content": "$1"
+      },
+      "to": {
+        "content": "$2"
+      },
+      "count": {
+        "content": "$3"
+      },
+      "page": {
+        "content": "$4"
+      },
+      "pages": {
+        "content": "$5"
+      }
+    }
+  },
+  "steam_libraryCustomName_pausing": {
+    "message": "Pausing"
+  },
+  "steam_libraryCustomName_pausingSaveQueue": {
+    "message": "Pausing the save queue"
+  },
+  "steam_libraryCustomName_pendingName": {
+    "message": "Pending name"
+  },
+  "steam_libraryCustomName_policyCover": {
+    "message": "Overwrite all"
+  },
+  "steam_libraryCustomName_policyCurrentCustom": {
+    "message": "Use current custom names as pending values"
+  },
+  "steam_libraryCustomName_policyHide": {
+    "message": "Hide existing"
+  },
+  "steam_libraryCustomName_policySkip": {
+    "message": "Skip existing"
+  },
+  "steam_libraryCustomName_preparingCloudRequest": {
+    "message": "Preparing the cloud-name request"
+  },
+  "steam_libraryCustomName_preparingQueryQueue": {
+    "message": "Preparing query queue $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_previewCancelled": {
+    "message": "Bulk preview was cancelled"
+  },
+  "steam_libraryCustomName_previewExpired": {
+    "message": "The bulk preview session has expired"
+  },
+  "steam_libraryCustomName_previewSummary": {
+    "message": "Loaded$search$: $selected$ selected, $write$ pending writes, $skipped$ skipped, limit $limit$, capacity $capacity$",
+    "placeholders": {
+      "search": {
+        "content": "$1"
+      },
+      "selected": {
+        "content": "$2"
+      },
+      "write": {
+        "content": "$3"
+      },
+      "skipped": {
+        "content": "$4"
+      },
+      "limit": {
+        "content": "$5"
+      },
+      "capacity": {
+        "content": "$6"
+      }
+    }
+  },
+  "steam_libraryCustomName_querySelectedCloudTitle": {
+    "message": "Get cloud names only for selected games"
+  },
+  "steam_libraryCustomName_readingJson": {
+    "message": "Reading the JSON file"
+  },
+  "steam_libraryCustomName_readingLibrary": {
+    "message": "Reading the Steam client library list"
+  },
+  "steam_libraryCustomName_reasonSuffix": {
+    "message": " ($reason$)",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_refreshCloudPrompt": {
+    "message": "Pending write data has changed. Fetching cloud names again will refresh only selected pending values that were not manually locked. Continue?"
+  },
+  "steam_libraryCustomName_refreshCloudTitle": {
+    "message": "Confirm cloud-name fetch"
+  },
+  "steam_libraryCustomName_resuming": {
+    "message": "Resuming"
+  },
+  "steam_libraryCustomName_resumingSaveQueue": {
+    "message": "Resuming the save queue"
+  },
+  "steam_libraryCustomName_saveAlreadyRunning": {
+    "message": "A save queue is already running"
+  },
+  "steam_libraryCustomName_saveCancelled": {
+    "message": "The save queue was cancelled"
+  },
+  "steam_libraryCustomName_saveChanges": {
+    "message": "Save changes"
+  },
+  "steam_libraryCustomName_saveCompleted": {
+    "message": "The save queue completed"
+  },
+  "steam_libraryCustomName_savePaused": {
+    "message": "The save queue is paused"
+  },
+  "steam_libraryCustomName_saveProgress": {
+    "message": "Save progress"
+  },
+  "steam_libraryCustomName_saveProgressLine": {
+    "message": "Total: $total$, processed: $processed$, skipped: $skipped$, failed: $failed$, synced: $synced$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "processed": {
+        "content": "$2"
+      },
+      "skipped": {
+        "content": "$3"
+      },
+      "failed": {
+        "content": "$4"
+      },
+      "synced": {
+        "content": "$5"
+      }
+    }
+  },
+  "steam_libraryCustomName_saveResumed": {
+    "message": "The save queue resumed"
+  },
+  "steam_libraryCustomName_saveStatusExpired": {
+    "message": "The save-queue status expired. Reopen the bulk window to confirm the result."
+  },
+  "steam_libraryCustomName_saveStatusTimeout": {
+    "message": "The Steam save queue did not respond. Reopen the bulk window to confirm the result."
+  },
+  "steam_libraryCustomName_savingWithCloud": {
+    "message": "Writing to Steam while uploading to SucaiJun Cloud"
+  },
+  "steam_libraryCustomName_searchPlaceholder": {
+    "message": "Search game / AppID / pending name"
+  },
+  "steam_libraryCustomName_searchSummary": {
+    "message": ", search $visible$/$total$",
+    "placeholders": {
+      "visible": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_selectClearTargets": {
+    "message": "Select the games whose names should be cleared"
+  },
+  "steam_libraryCustomName_selectCloudTargets": {
+    "message": "Select the games whose cloud names should be fetched"
+  },
+  "steam_libraryCustomName_startClearQueue": {
+    "message": "Starting the clear queue: $count$ to clear, $skipped$ to skip",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "skipped": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_startSaveQueue": {
+    "message": "Starting the save queue: $count$ to write, $skipped$ to skip",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "skipped": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_steamDoneWaitingCloud": {
+    "message": "Steam write completed. Waiting for the SucaiJun Cloud upload to finish."
+  },
+  "steam_libraryCustomName_storageLimitTip": {
+    "message": "The item and capacity limits are Steam's official limits for custom sort names. Names beyond these limits may fail to save locally or to Steam Cloud."
+  },
+  "steam_libraryCustomName_typeGame": {
+    "message": "Games"
+  },
+  "steam_libraryCustomName_typeOther": {
+    "message": "Other"
+  },
+  "steam_libraryCustomName_typeScope": {
+    "message": "Type scope"
+  },
+  "steam_libraryCustomName_typeSoftware": {
+    "message": "Software"
+  },
+  "steam_libraryCustomName_typeTool": {
+    "message": "Tools"
+  },
+  "steam_libraryCustomName_uploadCloud": {
+    "message": "Upload names to cloud"
+  },
+  "steam_libraryCustomName_uploadCloudLabel": {
+    "message": "Upload names to cloud"
+  },
+  "steam_libraryCustomName_waitingQuery": {
+    "message": "Waiting for query"
+  },
+  "steam_libraryCustomName_waitingSteamBatch": {
+    "message": "Waiting for the Steam sync window for batch $batch$ to end. SucaiJun Cloud upload is paused.",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_writeBatchWaiting": {
+    "message": "Write batch $batch$ completed. Waiting $seconds$ seconds for Steam Cloud sync.",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "seconds": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_writeRejected": {
+    "message": "Steam rejected the write"
+  },
+  "steam_libraryCustomName_writingBatch": {
+    "message": "Writing Steam batch $batch$ $written$/$max$$cloud$",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "written": {
+        "content": "$2"
+      },
+      "max": {
+        "content": "$3"
+      },
+      "cloud": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_libraryCustomName_writingSteam": {
+    "message": "Writing to Steam"
+  },
+  "steam_libraryCustomName_writingSteamItems": {
+    "message": "Writing items to Steam one by one"
+  },
+  "common_add": {
+    "message": "Add"
+  },
+  "common_all": {
+    "message": "All"
+  },
+  "common_collapse": {
+    "message": "Collapse"
+  },
+  "common_content": {
+    "message": "Content"
+  },
+  "common_delete": {
+    "message": "Delete"
+  },
+  "common_disable": {
+    "message": "Disable"
+  },
+  "common_disabled": {
+    "message": "Disabled"
+  },
+  "common_edit": {
+    "message": "Edit"
+  },
+  "common_elapsedSeconds": {
+    "message": "Took $seconds$ seconds",
+    "placeholders": {
+      "seconds": {
+        "content": "$1"
+      }
+    }
+  },
+  "common_enable": {
+    "message": "Enable"
+  },
+  "common_more": {
+    "message": "More"
+  },
+  "common_saveSettings": {
+    "message": "Save settings"
+  },
+  "common_saving": {
+    "message": "Saving..."
+  },
+  "common_testConnection": {
+    "message": "Test connection"
+  },
+  "common_testing": {
+    "message": "Testing"
+  },
+  "common_type": {
+    "message": "Type"
+  },
+  "common_unknownError": {
+    "message": "Unknown error"
+  },
+  "common_unknownUser": {
+    "message": "Unknown user"
+  },
+  "settings_ai_disableBlocked": {
+    "message": "$users$ are using the AI service, so it cannot be disabled.",
+    "placeholders": {
+      "users": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_disableBlockedTitle": {
+    "message": "Cannot disable AI service"
+  },
+  "settings_ai_hint": {
+    "message": "Used for all AI requests"
+  },
+  "settings_ai_saveError": {
+    "message": "An error occurred while saving the AI configuration. Try again later."
+  },
+  "settings_ai_saveFailed": {
+    "message": "The AI configuration could not be saved. Try again later."
+  },
+  "settings_ai_test_enableFirst": {
+    "message": "Enable the AI module first."
+  },
+  "settings_ai_test_failed": {
+    "message": "AI test failed"
+  },
+  "settings_ai_test_missingConfig": {
+    "message": "Enter the AI gateway URL and model."
+  },
+  "settings_ai_test_responseReceived": {
+    "message": "Response received"
+  },
+  "settings_ai_test_success": {
+    "message": "AI test succeeded"
+  },
+  "settings_ai_test_systemPrompt": {
+    "message": "You are an API connectivity test assistant. Reply with plain text only."
+  },
+  "settings_ai_test_title": {
+    "message": "AI test"
+  },
+  "settings_ai_test_userPrompt": {
+    "message": "Reply only with: Steam Buff AI test succeeded"
+  },
+  "settings_ai_title": {
+    "message": "General AI configuration"
+  },
+  "settings_ai_user_selection": {
+    "message": "Selection translation"
+  },
+  "settings_ai_user_translation": {
+    "message": "Translation"
+  },
+  "settings_reviewFilter_conditions_hint": {
+    "message": "0 disables the numeric condition"
+  },
+  "settings_reviewFilter_conditions_title": {
+    "message": "Additional conditions"
+  },
+  "settings_reviewFilter_filtered_countSuffix": {
+    "message": "reviews"
+  },
+  "settings_reviewFilter_filtered_empty": {
+    "message": "No reviews are filtered on this page"
+  },
+  "settings_reviewFilter_filtered_hiddenPrefix": {
+    "message": "Hidden on this page"
+  },
+  "settings_reviewFilter_filtered_title": {
+    "message": "Filtered reviews"
+  },
+  "settings_reviewFilter_filtered_viewCount": {
+    "message": "View filtered reviews ($count$)",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_noReviewContent": {
+    "message": "No review content"
+  },
+  "settings_reviewFilter_rule_addFailed": {
+    "message": "Could not add the rule"
+  },
+  "settings_reviewFilter_rule_content": {
+    "message": "Blocked content"
+  },
+  "settings_reviewFilter_rule_countSuffix": {
+    "message": "rules"
+  },
+  "settings_reviewFilter_rule_currentCategoryPrefix": {
+    "message": "Rules in this category"
+  },
+  "settings_reviewFilter_rule_editTitle": {
+    "message": "Edit blocking rule"
+  },
+  "settings_reviewFilter_rule_empty": {
+    "message": "No blocking rules"
+  },
+  "settings_reviewFilter_rule_enterContent": {
+    "message": "Enter content to block first."
+  },
+  "settings_reviewFilter_rule_filterType": {
+    "message": "Review filter rule type"
+  },
+  "settings_reviewFilter_rule_hint": {
+    "message": "Line breaks are saved as part of the same rule"
+  },
+  "settings_reviewFilter_rule_invalidRegex": {
+    "message": "Invalid regular expression: $message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_rule_keyword": {
+    "message": "Keyword"
+  },
+  "settings_reviewFilter_rule_listTitle": {
+    "message": "Blocking rules"
+  },
+  "settings_reviewFilter_rule_matched": {
+    "message": "Rule matched"
+  },
+  "settings_reviewFilter_rule_nickname": {
+    "message": "Nickname"
+  },
+  "settings_reviewFilter_rule_placeholder": {
+    "message": "Enter content to block. Multiple lines are saved as one rule after you click Add."
+  },
+  "settings_reviewFilter_rule_regex": {
+    "message": "Regular expression"
+  },
+  "settings_reviewFilter_rule_saveFailed": {
+    "message": "The blocking rule could not be saved. Try again later."
+  },
+  "settings_reviewFilter_rule_title": {
+    "message": "Filter rules"
+  },
+  "settings_reviewFilter_rule_type": {
+    "message": "Rule type"
+  },
+  "settings_reviewFilter_rule_viewAll": {
+    "message": "View more ($count$ total)",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_saveError": {
+    "message": "An error occurred while saving review filter settings. Try again later."
+  },
+  "settings_reviewFilter_saveFailed": {
+    "message": "Review filter settings could not be saved. Try again later."
+  },
+  "settings_searchSuggestions_hint": {
+    "message": "Control suggestion count and native Steam result display"
+  },
+  "settings_searchSuggestions_saveError": {
+    "message": "An error occurred while saving search suggestion settings. Try again later."
+  },
+  "settings_searchSuggestions_saveFailed": {
+    "message": "Search suggestion settings could not be saved. Try again later."
+  },
+  "settings_searchSuggestions_title": {
+    "message": "Search suggestion settings"
+  },
+  "settings_translate_newsPopup": {
+    "message": "Steam news popup translation"
+  },
+  "settings_translate_saveError": {
+    "message": "An error occurred while saving translation settings. Try again later."
+  },
+  "settings_translate_saveFailed": {
+    "message": "Translation settings could not be saved. Try again later."
+  },
+  "settings_translate_scope": {
+    "message": "Translation scope"
+  },
+  "settings_translate_selection": {
+    "message": "Selection translation"
+  },
+  "store_familyLibrary_interval1d": {
+    "message": "1 day"
+  },
+  "store_familyLibrary_interval30d": {
+    "message": "30 days"
+  },
+  "store_familyLibrary_interval3d": {
+    "message": "3 days"
+  },
+  "store_familyLibrary_interval7d": {
+    "message": "7 days"
+  },
+  "store_familyLibrary_intervalManual": {
+    "message": "Manual"
+  },
+  "common_processing": {
+    "message": "Processing"
+  },
+  "common_clickToCopy": {
+    "message": "Click to copy"
+  },
+  "common_copyFailedManual": {
+    "message": "Copy failed. Please copy it manually."
+  },
+  "common_networkFailed": {
+    "message": "The network request failed. Check your connection or try again later."
+  },
+  "settings_membership_unavailable": {
+    "message": "Unavailable"
+  },
+  "settings_membership_sponsorIdentity": {
+    "message": "Sponsor membership"
+  },
+  "settings_membership_identityOnly": {
+    "message": "Available to $identity$",
+    "placeholders": {
+      "identity": { "content": "$1" }
+    }
+  },
+  "settings_account_syncing": {
+    "message": "Syncing account information"
+  },
+  "settings_account_welcome_eyebrow": {
+    "message": "Steam Buff Account"
+  },
+  "settings_account_welcome_back": {
+    "message": "Welcome back."
+  },
+  "settings_account_welcome_unlock": {
+    "message": "Unlock your"
+  },
+  "settings_account_welcome_experience": {
+    "message": "personal experience"
+  },
+  "settings_account_welcome_description": {
+    "message": "Sign in to view account details, feature usage, and sponsor benefits. Your data stays synced securely."
+  },
+  "settings_account_processingLogin": {
+    "message": "Processing sign-in request"
+  },
+  "settings_account_loginBind": {
+    "message": "Sign in / Link account"
+  },
+  "settings_account_roadmap": {
+    "message": "Account features and roadmap"
+  },
+  "settings_account_feature_customNames_name": {
+    "message": "Custom names"
+  },
+  "settings_account_feature_customNames_desc": {
+    "message": "Give games memorable names that stand out in your lists."
+  },
+  "settings_account_feature_gameNotes_name": {
+    "message": "Game notes"
+  },
+  "settings_account_feature_gameNotes_desc": {
+    "message": "Keep purchase reasons and personal notes with each game."
+  },
+  "settings_account_feature_priceAlerts_name": {
+    "message": "Price alerts"
+  },
+  "settings_account_feature_priceAlerts_desc": {
+    "message": "Check prices daily and notify you by QQ or SMS at your target price."
+  },
+  "settings_account_feature_searchSuggestions_name": {
+    "message": "Search suggestions"
+  },
+  "settings_account_feature_searchSuggestions_desc": {
+    "message": "Complete game names intelligently and find titles faster."
+  },
+  "settings_account_sponsor": {
+    "message": "Sponsor"
+  },
+  "settings_account_userFallback": {
+    "message": "Steam Buff user"
+  },
+  "settings_account_userIdUnavailable": {
+    "message": "User ID unavailable"
+  },
+  "settings_account_normalUser": {
+    "message": "Standard user"
+  },
+  "settings_account_joinedDays": {
+    "message": "Using Steam Buff for $days$ days",
+    "placeholders": {
+      "days": { "content": "$1" }
+    }
+  },
+  "settings_account_bound": {
+    "message": "Steam Buff account linked"
+  },
+  "settings_account_expiring": {
+    "message": "Your $identity$ is about to expire",
+    "placeholders": {
+      "identity": { "content": "$1" }
+    }
+  },
+  "settings_account_refresh": {
+    "message": "Refresh data"
+  },
+  "settings_account_actions": {
+    "message": "Account actions"
+  },
+  "settings_account_editProfile": {
+    "message": "Edit profile"
+  },
+  "settings_account_logout": {
+    "message": "Sign out"
+  },
+  "settings_account_status": {
+    "message": "Status"
+  },
+  "settings_account_waitingAuthorization": {
+    "message": "Waiting for browser authorization"
+  },
+  "settings_account_authorizationCode": {
+    "message": "Authorization code"
+  },
+  "settings_account_authorizationPage": {
+    "message": "Authorization page"
+  },
+  "settings_account_copyAuthorizationCode": {
+    "message": "Click to copy the authorization code"
+  },
+  "settings_account_copyAuthorizationPage": {
+    "message": "Click to copy the full authorization page URL"
+  },
+  "settings_account_openAuthorizationPage": {
+    "message": "Open authorization page"
+  },
+  "settings_account_loginToView": {
+    "message": "Sign in to view"
+  },
+  "settings_account_unlimited": {
+    "message": "Unlimited"
+  },
+  "settings_account_usedPercent": {
+    "message": "$percent$% used",
+    "placeholders": {
+      "percent": { "content": "$1" }
+    }
+  },
+  "settings_account_usageTitle": {
+    "message": "Feature usage"
+  },
+  "settings_account_learnIdentity": {
+    "message": "Learn about $identity$",
+    "placeholders": {
+      "identity": { "content": "$1" }
+    }
+  },
+  "settings_account_itemUnit": {
+    "message": "items"
+  },
+  "settings_account_viewList": {
+    "message": "View list"
+  },
+  "settings_account_planned": {
+    "message": "Planned"
+  },
+  "settings_account_targetPriceAlert": {
+    "message": "Target price alert"
+  },
+  "settings_account_qqSms": {
+    "message": "QQ / SMS"
+  },
+  "settings_account_notEnabled": {
+    "message": "Not enabled"
+  },
+  "settings_account_unlockIdentity": {
+    "message": "Unlock with $identity$",
+    "placeholders": {
+      "identity": { "content": "$1" }
+    }
+  },
+  "settings_account_servicePrefix": {
+    "message": "Compute service by "
+  },
+  "settings_account_serviceSuffix": {
+    "message": ""
+  },
+  "settings_account_soon_title": {
+    "message": "Feature page coming later"
+  },
+  "settings_account_soon_message": {
+    "message": "This feature's management page is not available in Settings yet."
+  },
+  "settings_account_userIdCopied": {
+    "message": "User ID copied"
+  },
+  "settings_account_loginCancelled": {
+    "message": "Sign-in cancelled"
+  },
+  "settings_account_authStorageUnavailable": {
+    "message": "Sign-in storage is unavailable"
+  },
+  "settings_account_authSaveFailed": {
+    "message": "Could not save sign-in state"
+  },
+  "settings_account_authClearFailed": {
+    "message": "Could not clear local sign-in state"
+  },
+  "settings_account_loginRequired": {
+    "message": "Sign in from Settings first"
+  },
+  "settings_account_loginExpired": {
+    "message": "Your sign-in has expired. Sign in again."
+  },
+  "settings_account_loggingOut": {
+    "message": "Signing out"
+  },
+  "settings_account_remoteLogoutFailed": {
+    "message": "Remote sign-out failed: $status$",
+    "placeholders": {
+      "status": { "content": "$1" }
+    }
+  },
+  "settings_account_loggedOut": {
+    "message": "Signed out"
+  },
+  "settings_account_profileModuleUnavailable": {
+    "message": "Account profile module is unavailable"
+  },
+  "settings_account_centerLoadFailed": {
+    "message": "Could not load the account center"
+  },
+  "settings_account_membershipStorageUnavailable": {
+    "message": "Membership storage is unavailable"
+  },
+  "settings_account_membershipSaveFailed": {
+    "message": "Could not save membership state"
+  },
+  "settings_account_requestUnavailable": {
+    "message": "Settings request service is unavailable"
+  },
+  "settings_account_requestLabel": {
+    "message": "Account center API"
+  },
+  "settings_account_fetchingCode": {
+    "message": "Requesting authorization code"
+  },
+  "settings_account_fetchCodeFailed": {
+    "message": "Could not get an authorization code"
+  },
+  "settings_account_dataLoadRetry": {
+    "message": "Data could not be loaded. Click to retry."
+  },
+  "settings_account_codeExpired": {
+    "message": "Authorization code expired"
+  },
+  "settings_account_loginFailed": {
+    "message": "Sign-in failed"
+  },
+  "settings_account_loginSucceeded": {
+    "message": "Signed in"
+  },
+  "settings_account_authorizationLinkCopied": {
+    "message": "Full authorization link copied"
+  },
+  "settings_account_authorizationCodeCopied": {
+    "message": "Authorization code copied"
+  },
+  "settings_thirdParty_testEndpointUnavailable": {
+    "message": "The ITAD test endpoint is not configured."
+  },
+  "settings_thirdParty_authFailed": {
+    "message": "ITAD API Key validation failed. Check the key and its permissions."
+  },
+  "settings_thirdParty_rateLimited": {
+    "message": "ITAD rate-limited the request. Try again later."
+  },
+  "settings_thirdParty_unavailable": {
+    "message": "ITAD is temporarily unavailable. Try again later."
+  },
+  "settings_thirdParty_httpError": {
+    "message": "The ITAD test endpoint returned status $status$.",
+    "placeholders": {
+      "status": { "content": "$1" }
+    }
+  },
+  "settings_thirdParty_invalidResponse": {
+    "message": "The ITAD test endpoint returned an invalid response."
+  },
+  "settings_thirdParty_saveFailed": {
+    "message": "Could not save third-party service settings. Try again later."
+  },
+  "settings_thirdParty_saveException": {
+    "message": "An error occurred while saving third-party service settings. Try again later."
+  },
+  "settings_thirdParty_testTitle": {
+    "message": "ITAD test"
+  },
+  "settings_thirdParty_keyRequired": {
+    "message": "Enter an ITAD API Key first."
+  },
+  "settings_thirdParty_testing": {
+    "message": "Testing"
+  },
+  "settings_thirdParty_testRequestLabel": {
+    "message": "ITAD test endpoint"
+  },
+  "settings_thirdParty_testFailedTitle": {
+    "message": "ITAD test failed"
+  },
+  "settings_thirdParty_testSucceededTitle": {
+    "message": "ITAD test succeeded"
+  },
+  "settings_thirdParty_testSucceededMessage": {
+    "message": "Received a response from the ITAD test endpoint."
+  },
+  "settings_thirdParty_title": {
+    "message": "Third-party services"
+  },
+  "settings_thirdParty_keyConfigured": {
+    "message": "ITAD Key configured"
+  },
+  "settings_thirdParty_keyMissing": {
+    "message": "ITAD Key not configured"
+  },
+  "settings_thirdParty_testConnection": {
+    "message": "Test connection"
+  },
+  "store_dataDisplay_thirdPartyLoadFailed": {
+    "message": "Could not load third-party price data. Try again later."
+  },
+  "store_familySharing_title": {
+    "message": "Family Sharing check"
+  },
+  "store_familySharing_unsupported": {
+    "message": "This game does not support Family Sharing"
+  },
+  "store_runtime_featureStartFailed": {
+    "message": "A store enhancement failed to start. Other features will continue loading."
+  },
+  "steam_runtime_featureUnavailable": {
+    "message": "A Steam client feature is temporarily unavailable. Other features will continue loading."
+  },
+  "steam_runtime_featureStartFailed": {
+    "message": "A Steam client feature failed to start. Other features will continue running."
+  },
+  "store_cartSelect_bulkFailed": { "message": "Could not update the cart selection." },
+  "store_cartSelect_checkoutFailed": { "message": "Could not process the cart selection." },
+  "store_cartSelect_clearSelection": { "message": "Clear selection" },
+  "store_cartSelect_holdFailed": { "message": "Could not temporarily update the cart. Saved items are available to restore manually." },
+  "store_cartSelect_holdingItems": { "message": "Temporarily keeping $count$ unpaid item(s)...", "placeholders": { "count": { "content": "$1" } } },
+  "store_cartSelect_invertSelection": { "message": "Invert selection" },
+  "store_cartSelect_keepItems": { "message": "Keep items" },
+  "store_cartSelect_payThisTime": { "message": "Pay for this item" },
+  "store_cartSelect_purchaseCount": { "message": "Items selected" },
+  "store_cartSelect_removeAll": { "message": "Remove all" },
+  "store_cartSelect_removeAllConfirm": { "message": "Remove every item from the cart?" },
+  "store_cartSelect_removeAllMessage": { "message": "Steam will remove every item from the cart. Confirm to continue with Steam's original Remove All action, or cancel to keep the items." },
+  "store_cartSelect_removeAllTitle": { "message": "Remove all cart items" },
+  "store_cartSelect_restoreButton": { "message": "Restore saved cart items" },
+  "store_cartSelect_restored": { "message": "Restored unpaid items from the previous cart." },
+  "store_cartSelect_restoreFailed": { "message": "Could not restore saved cart items. Try again." },
+  "store_cartSelect_restoreMissing": { "message": "$count$ saved cart item(s) have not been restored.", "placeholders": { "count": { "content": "$1" } } },
+  "store_cartSelect_restorePartialFailed": { "message": "Some saved cart items were not restored. Try again later." },
+  "store_cartSelect_restoreStillMissing": { "message": "$count$ saved cart item(s) are still missing.", "placeholders": { "count": { "content": "$1" } } },
+  "store_cartSelect_restoring": { "message": "Restoring $count$ saved cart item(s)...", "placeholders": { "count": { "content": "$1" } } },
+  "store_cartSelect_saveFailed": { "message": "Could not save the cart selection. The previous selection was restored." },
+  "store_cartSelect_selectAll": { "message": "Select all" },
+  "store_cartSelect_selectAtLeastOne": { "message": "Select at least one item to pay for." },
+  "store_cartSelect_selectedTotal": { "message": "Selected total" },
+  "store_cartSelect_skipPayment": { "message": "Do not pay now" },
+  "store_dlc_addingToCart": { "message": "Adding to cart..." },
+  "store_dlc_addSelectedToCart": { "message": "Add selected DLC to cart" },
+  "store_dlc_addToCartFailed": { "message": "Could not add DLC to the cart" },
+  "store_dlc_addToCartFailedDetail": { "message": "Try again later, or refresh this store page and try again." },
+  "store_dlc_batchClaim": { "message": "Batch claim" },
+  "store_dlc_cacheNotice": { "message": "If you claimed or purchased this game, or changed its wishlist status in the last few minutes, Steam may still show stale results. Select Refresh DLC status before using this action." },
+  "store_dlc_cancel": { "message": "Cancel" },
+  "store_dlc_claim": { "message": "Claim" },
+  "store_dlc_claimAllFree": { "message": "Claim all free DLC" },
+  "store_dlc_claimComplete": { "message": "Claim complete!" },
+  "store_dlc_claimConfirm": { "message": "Found $count$ free DLC item(s). Claim them now?", "placeholders": { "count": { "content": "$1" } } },
+  "store_dlc_claimFailedCount": { "message": "Failed: $count$", "placeholders": { "count": { "content": "$1" } } },
+  "store_dlc_claimFailedItems": { "message": "Failed items: $items$", "placeholders": { "items": { "content": "$1" } } },
+  "store_dlc_claimingFree": { "message": "Claiming free DLC..." },
+  "store_dlc_claimSuccessCount": { "message": "Succeeded: $count$", "placeholders": { "count": { "content": "$1" } } },
+  "store_dlc_close": { "message": "Close" },
+  "store_dlc_deselectAll": { "message": "Clear all selections" },
+  "store_dlc_executionFailed": { "message": "Operation failed" },
+  "store_dlc_failedItemSeparator": { "message": "; " },
+  "store_dlc_loadFreeInfoFailed": { "message": "Could not load free DLC information" },
+  "store_dlc_loadingFreeInfo": { "message": "Loading free DLC information..." },
+  "store_dlc_moreFailedItems": { "message": "; ..." },
+  "store_dlc_noFreeDlc": { "message": "No claimable free DLC was found" },
+  "store_dlc_refreshFailed": { "message": "Could not refresh DLC status" },
+  "store_dlc_refreshFailedDetail": { "message": "Error: $error$\nTry again later, or refresh this store page manually.", "placeholders": { "error": { "content": "$1" } } },
+  "store_dlc_refreshing": { "message": "Refreshing status..." },
+  "store_dlc_refreshSectionMissing": { "message": "The refreshed DLC section was not found" },
+  "store_dlc_refreshState": { "message": "Refresh DLC status" },
+  "store_dlc_requestFailed": { "message": "Request failed with HTTP status $status$.", "placeholders": { "status": { "content": "$1" } } },
+  "store_dlc_sameOriginRejected": { "message": "The same-origin DLC request was rejected" },
+  "store_dlc_scriptInjectionFailed": { "message": "Script injection failed" },
+  "store_dlc_selectUnowned": { "message": "Select DLC not owned" },
+  "store_dlc_selectWishlisted": { "message": "Select wishlisted DLC" },
+  "store_dlc_stateNoticeTitle": { "message": "DLC status notice" },
+  "store_dlc_tryLater": { "message": "Try again later" },
+  "store_dlc_unknownError": { "message": "Unknown error" },
+  "store_dlc_unknownItem": { "message": "Unknown item" },
+  "store_priceHistory_bundled": { "message": " Bundled: $count$ time(s)", "placeholders": { "count": { "content": "$1" } } },
+  "store_priceHistory_bundledUnavailable": { "message": " Bundled: unavailable" },
+  "store_priceHistory_cancel": { "message": "Cancel" },
+  "store_priceHistory_capabilityUnsupported": { "message": "Price data is not supported on the current platform." },
+  "store_priceHistory_close": { "message": "Close" },
+  "store_priceHistory_compareCheaper": { "message": "$amount$ lower (-$discount$%).", "placeholders": { "amount": { "content": "$1" }, "discount": { "content": "$2" } } },
+  "store_priceHistory_compareEqual": { "message": " Same as the historical low." },
+  "store_priceHistory_compareLowPrefix": { "message": " Compared with the historical low, " },
+  "store_priceHistory_compareMoreExpensive": { "message": "$amount$ higher (+$discount$%).", "placeholders": { "amount": { "content": "$1" }, "discount": { "content": "$2" } } },
+  "store_priceHistory_confirm": { "message": "Confirm" },
+  "store_priceHistory_currentHistoricalLow": { "message": "Current historical low discount" },
+  "store_priceHistory_currentLowestDiscount": { "message": "Current lowest discount" },
+  "store_priceHistory_currentRegularPrice": { "message": "Current regular price" },
+  "store_priceHistory_daysAgo": { "message": " ($days$ days ago)", "placeholders": { "days": { "content": "$1" } } },
+  "store_priceHistory_dlcHistoricalLow": { "message": "Historical low" },
+  "store_priceHistory_dlcHistoryLabel": { "message": "Historical low $price$, $date$, source: $source$", "placeholders": { "price": { "content": "$1" }, "date": { "content": "$2" }, "source": { "content": "$3" } } },
+  "store_priceHistory_dlcLoading": { "message": "Loading historical low..." },
+  "store_priceHistory_historicalLowAt": { "message": "Historical low discount on " },
+  "store_priceHistory_historicalLowValuePrefix": { "message": "$days$: ", "placeholders": { "days": { "content": "$1" } } },
+  "store_priceHistory_hour": { "message": "Hour" },
+  "store_priceHistory_invalidSteamItem": { "message": "Invalid Steam item identifier" },
+  "store_priceHistory_itadNotListed": { "message": "ITAD has not listed this purchase item." },
+  "store_priceHistory_listSeparator": { "message": ", " },
+  "store_priceHistory_loading": { "message": "Loading historical low price..." },
+  "store_priceHistory_minute": { "message": "Minute" },
+  "store_priceHistory_monitorAmount": { "message": "Target price" },
+  "store_priceHistory_monitorAmountInvalid": { "message": "Target price must be between 1 and $amount$.", "placeholders": { "amount": { "content": "$1" } } },
+  "store_priceHistory_monitorAmountMaximum": { "message": "Target price (maximum $amount$)", "placeholders": { "amount": { "content": "$1" } } },
+  "store_priceHistory_monitorAmountMiddle": { "message": " or lower, notify me at " },
+  "store_priceHistory_monitorAmountPrefix": { "message": " reaches " },
+  "store_priceHistory_monitorAnd": { "message": " and " },
+  "store_priceHistory_monitorAuthFailed": { "message": "Could not verify sign-in status." },
+  "store_priceHistory_monitorAuthUnavailable": { "message": "Price-monitor authentication is unavailable" },
+  "store_priceHistory_monitorCompleteFields": { "message": "Complete " },
+  "store_priceHistory_monitorCondition": { "message": "Monitor condition" },
+  "store_priceHistory_monitorConfirmDelete": { "message": "Confirm delete" },
+  "store_priceHistory_monitorDashboard": { "message": "Monitors" },
+  "store_priceHistory_monitorDashboardTitle": { "message": "View all monitors on Sucaijun" },
+  "store_priceHistory_monitorDelete": { "message": "Delete monitor" },
+  "store_priceHistory_monitorDeleteFailed": { "message": "Could not delete the monitor. Try again later." },
+  "store_priceHistory_monitorDeleting": { "message": "Deleting..." },
+  "store_priceHistory_monitorDiscount": { "message": "Target discount" },
+  "store_priceHistory_monitorDiscountInvalid": { "message": "Target discount must be an integer between 1 and 100." },
+  "store_priceHistory_monitorDiscountMiddle": { "message": " or more, notify me at " },
+  "store_priceHistory_monitorDiscountPrefix": { "message": " reaches " },
+  "store_priceHistory_monitorDiscountRange": { "message": "Target discount (1-100%)" },
+  "store_priceHistory_monitorEditTitle": { "message": "Edit price monitor" },
+  "store_priceHistory_monitorEmail": { "message": "Email" },
+  "store_priceHistory_monitorEnable": { "message": " to enable this price monitor." },
+  "store_priceHistory_monitorGamePrefix": { "message": "When \"" },
+  "store_priceHistory_monitorGameSuffix": { "message": "\"" },
+  "store_priceHistory_monitorInvalidResponse": { "message": "The price-monitor response is invalid" },
+  "store_priceHistory_monitorLabel": { "message": "Price monitor: " },
+  "store_priceHistory_monitorLoginExpired": { "message": "Sign-in has expired. Sign in again." },
+  "store_priceHistory_monitorLoginRequired": { "message": "Sign in from Settings first" },
+  "store_priceHistory_monitorLoginRequiredInSettings": { "message": "Sign in from Steam Buff Settings first." },
+  "store_priceHistory_monitorNotifyMethod": { "message": "Notification method" },
+  "store_priceHistory_monitorNotifyRequired": { "message": "Choose at least one notification method." },
+  "store_priceHistory_monitorNotifySuffix": { "message": "." },
+  "store_priceHistory_monitorNotSet": { "message": "No reminder set" },
+  "store_priceHistory_monitorReading": { "message": "Loading..." },
+  "store_priceHistory_monitorRequestFailed": { "message": "Request failed: $code$", "placeholders": { "code": { "content": "$1" } } },
+  "store_priceHistory_monitorRetry": { "message": "Could not load. Click to retry." },
+  "store_priceHistory_monitorRetryTitle": { "message": "Reload price monitor" },
+  "store_priceHistory_monitorSaveFailed": { "message": "Could not save the monitor. Try again later." },
+  "store_priceHistory_monitorSaveResponseInvalid": { "message": "The saved price-monitor response is incomplete" },
+  "store_priceHistory_monitorSaving": { "message": "Saving..." },
+  "store_priceHistory_monitorSetTitle": { "message": "Set price monitor" },
+  "store_priceHistory_monitorSponsorOnly": { "message": "This feature is available to sponsors only." },
+  "store_priceHistory_monitorSummaryAmount": { "message": "Notify me through $channels$ at $time$ when the price is $amount$ or lower.", "placeholders": { "channels": { "content": "$1" }, "time": { "content": "$2" }, "amount": { "content": "$3" } } },
+  "store_priceHistory_monitorSummaryDiscount": { "message": "Notify me through $channels$ at $time$ when the discount reaches $discount$ or more.", "placeholders": { "channels": { "content": "$1" }, "time": { "content": "$2" }, "discount": { "content": "$3" } } },
+  "store_priceHistory_monitorTime": { "message": "Notification time" },
+  "store_priceHistory_monitorTimeRequired": { "message": "Set a notification time." },
+  "store_priceHistory_monitorTimezoneRequired": { "message": "Could not read the current time zone, so the monitor cannot be saved." },
+  "store_priceHistory_monitorTitle": { "message": "Price monitor" },
+  "store_priceHistory_monitorVia": { "message": " through " },
+  "store_priceHistory_now": { "message": "Now" },
+  "store_priceHistory_priceIncomplete": { "message": "Price data is incomplete." },
+  "store_priceHistory_providerConfigMissing": { "message": "Third-party price data has not been configured." },
+  "store_priceHistory_providerDisabled": { "message": "Third-party data service is disabled." },
+  "store_priceHistory_providerGameNotFound": { "message": "ITAD has not listed this Steam item." },
+  "store_priceHistory_providerUnavailable": { "message": "Third-party price data is temporarily unavailable." },
+  "store_priceHistory_queryFailed": { "message": "Could not query prices. Try again later." },
+  "store_priceHistory_save": { "message": "Save" },
+  "store_priceHistory_steamItemInvalidResponse": { "message": "The Steam item-details response is invalid" },
+  "store_priceHistory_steamItemUnavailable": { "message": "Steam item details are unavailable" },
+  "store_priceHistory_unavailable": { "message": "Unavailable" },
+  "store_priceHistory_unknownDate": { "message": "Unknown date" },
+  "store_priceHistory_viewDetails": { "message": " for details" },
+  "store_priceHistory_viewDetailsPrefix": { "message": "View " },
+  "store_cartCheckout_restoreButton": { "message": "Restore saved cart items" },
+  "store_cartCheckout_restoreFailed": { "message": "Restore failed. Try again." },
+  "store_cartCheckout_restored": { "message": "Saved cart restored" },
+  "store_cartCheckout_restoring": { "message": "Restoring saved cart items..." },
+  "store_cartCheckout_restoreComplete": { "message": "Saved cart items restored" },
+  "store_cartCheckout_empty": { "message": "No saved cart items" },
+  "store_steampy_loading": { "message": "Loading prices..." },
+  "store_steampy_proxyPurchase": { "message": "PY Assisted Purchase" },
+  "store_drmWarning_detected": { "message": "This game uses third-party DRM: $names$", "placeholders": { "names": { "content": "$1" } } },
+  "store_drmWarning_title": { "message": "Third-party check" }
 }

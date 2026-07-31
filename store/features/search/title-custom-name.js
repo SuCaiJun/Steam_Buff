@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -41,6 +41,10 @@
   const WISHLIST_SETTLE_RETRY_MS = 300;
   const WISHLIST_SETTLE_MAX = 8;
 
+  function i18n(key, fallback, params) {
+    return root.STI18n.text(key, fallback, params);
+  }
+
   const { text, shouldShowName } = core;
   const wishlistDom = api.wishlistDom;
   const dom = root.STDomUtils || {};
@@ -72,31 +76,40 @@
     return root.STSettings?.storage || null;
   }
 
-  const authClient = root.STAuthClient?.createClient({
-    storage: storage(),
-    refreshUrl: AUTH_REFRESH,
-    loginMessage: "请先在设置中登录",
-    expiredMessage: "登录已过期，请重新登录",
-  });
+  let authClient = null;
+
+  function getAuthClient() {
+    if (!authClient) {
+      authClient = root.STAuthClient?.createClient({
+        storage: storage(),
+        refreshUrl: AUTH_REFRESH,
+        loginMessage: i18n("store.titleCustomName.loginRequired", "请先在设置中登录"),
+        expiredMessage: i18n("store.titleCustomName.loginExpired", "登录已过期，请重新登录"),
+      }) || null;
+    }
+    return authClient;
+  }
   const log = root.STLoggerFactory.createLogger("store", "title-custom-name");
 
   async function authedPost(url, body, diagnostics = {}) {
-    if (!authClient) throw new Error("请先在设置中登录");
-    const { body: data, code } = await authClient.authedPost(url, body, {
+    const client = getAuthClient();
+    if (!client) throw new Error(i18n("store.titleCustomName.loginRequired", "请先在设置中登录"));
+    const { body: data, code } = await client.authedPost(url, body, {
       throwOnMissingAuth: true,
       operationId: diagnostics.operationId || "",
     });
-    if (code < 200 || code >= 300) throw new Error(data?.message || `请求失败：${code}`);
+    if (code < 200 || code >= 300) throw new Error(data?.message || i18n("common.requestFailedCode", "请求失败：$code$", { code }));
     return data || {};
   }
 
   async function authedDelete(url, body, diagnostics = {}) {
-    if (!authClient) throw new Error("请先在设置中登录");
+    const client = getAuthClient();
+    if (!client) throw new Error(i18n("store.titleCustomName.loginRequired", "请先在设置中登录"));
     const operationId = diagnostics.operationId || "";
     const requestId = root.STLoggerFactory?.createRequestId?.() || "";
-    const auth = await authClient.readyAuth({ operationId });
-    if (!auth?.access_token) throw new Error("请先在设置中登录");
-    const response = await authClient.fetchBg({
+    const auth = await client.readyAuth({ operationId });
+    if (!auth?.access_token) throw new Error(i18n("store.titleCustomName.loginRequired", "请先在设置中登录"));
+    const response = await client.fetchBg({
       url,
       method: "DELETE",
       headers: {
@@ -109,9 +122,9 @@
       operationId,
       requestId,
     });
-    const data = authClient.parseJson(response.data);
+    const data = client.parseJson(response.data);
     const code = Number(data?.code) || response.status || 0;
-    if (code < 200 || code >= 300) throw new Error(data?.message || `请求失败：${code}`);
+    if (code < 200 || code >= 300) throw new Error(data?.message || i18n("common.requestFailedCode", "请求失败：$code$", { code }));
     return data || {};
   }
 
@@ -223,7 +236,7 @@
     const button = document.createElement("button");
     button.className = "st-title-custom-name-btn";
     button.type = "button";
-    button.textContent = "编辑";
+    button.textContent = i18n("store.titleCustomName.edit", "编辑");
     host.replaceChildren(button);
     if (mode === "detail") {
       log.info("title-custom-name-button-mounted", "商店标题自定义名按钮已挂载", {
@@ -273,7 +286,7 @@
 
   async function modalNote(appid) {
     if (typeof api.features.gameNotes?.getNote !== "function") {
-      const error = new Error("游戏备注模块未加载");
+      const error = new Error(i18n("store.titleCustomName.notesUnavailable", "游戏备注模块未加载"));
       error.code = "GAME_NOTES_API_UNAVAILABLE";
       throw error;
     }
@@ -294,7 +307,12 @@
   function updateCount(modal) {
     const textarea = modal.querySelector("[data-title-custom-name-note]");
     const count = modal.querySelector("[data-title-custom-name-count]");
-    if (textarea && count) count.textContent = `剩余 ${Math.max(0, NOTE_MAX - textarea.value.length)} / ${NOTE_MAX}`;
+    if (textarea && count) {
+      count.textContent = i18n("store.titleCustomName.remaining", "剩余 $remaining$ / $limit$", {
+        remaining: Math.max(0, NOTE_MAX - textarea.value.length),
+        limit: NOTE_MAX,
+      });
+    }
   }
 
   function currentModalContext(modal) {
@@ -316,24 +334,24 @@
   function baseFields(ctx, currentName, currentAlias = "") {
     return [
       { id: "appid", label: "APPID", type: "text", value: String(ctx.appid || ""), readonly: true },
-      { id: "steamName", label: "Steam 原名", type: "text", value: ctx.steamTitle || "", readonly: true },
-      { id: "customName", label: "自定义名称", type: "text", value: currentName || "", attr: "data-title-custom-name-input" },
+      { id: "steamName", label: i18n("store.titleCustomName.steamName", "Steam 原名"), type: "text", value: ctx.steamTitle || "", readonly: true },
+      { id: "customName", label: i18n("store.titleCustomName.customName", "自定义名称"), type: "text", value: currentName || "", attr: "data-title-custom-name-input" },
       {
         id: "alias",
-        label: "自定义别名",
+        label: i18n("store.titleCustomName.customAlias", "自定义别名"),
         type: "text",
         value: currentAlias || "",
         attr: "data-title-custom-name-alias",
-        desc: "别名功能只针对steam商店页面搜索生效，添加别名后，可在steam商店搜索框中使用别名查找该游戏。",
+        desc: i18n("store.titleCustomName.aliasDescription", "别名功能只针对steam商店页面搜索生效，添加别名后，可在steam商店搜索框中使用别名查找该游戏。"),
       },
       {
         id: "hideCustomName",
-        label: "隐藏自定义名称",
+        label: i18n("store.titleCustomName.hideCustomName", "隐藏自定义名称"),
         type: "switch",
         checked: false,
         attr: "data-title-custom-name-hide",
         disabled: true,
-        desc: "功能预留，后续接入后可用",
+        desc: i18n("store.titleCustomName.reserved", "功能预留，后续接入后可用"),
       },
     ];
   }
@@ -367,15 +385,19 @@
   }
 
   function modalTemplate(ctx, currentName, currentAlias = "") {
+    const remaining = i18n("store.titleCustomName.remaining", "剩余 $remaining$ / $limit$", {
+      remaining: NOTE_MAX,
+      limit: NOTE_MAX,
+    });
     return `
       <div class="st-title-custom-name-panel">
         <div class="st-title-custom-name-head">
-          <h3>编辑游戏信息</h3>
+          <h3>${esc(i18n("store.titleCustomName.dialogTitle", "编辑游戏信息"))}</h3>
           <div class="st-title-custom-name-tabs">
-            <button type="button" class="active" data-title-custom-name-tab="base">基础</button>
-            <button type="button" data-title-custom-name-tab="note">备注</button>
+            <button type="button" class="active" data-title-custom-name-tab="base">${esc(i18n("store.titleCustomName.baseTab", "基础"))}</button>
+            <button type="button" data-title-custom-name-tab="note">${esc(i18n("store.titleCustomName.noteTab", "备注"))}</button>
           </div>
-          <button type="button" class="st-title-custom-name-close" data-title-custom-name-close title="关闭">×</button>
+          <button type="button" class="st-title-custom-name-close" data-title-custom-name-close title="${attr(i18n("common.close", "关闭"))}">×</button>
         </div>
         <div class="st-title-custom-name-body">
           <div class="st-title-custom-name-card" data-title-custom-name-panel="base">
@@ -383,13 +405,13 @@
           </div>
           <div class="st-title-custom-name-card" data-title-custom-name-panel="note" hidden>
             <label>
-              <span class="st-title-custom-name-field">游戏备注</span>
+              <span class="st-title-custom-name-field">${esc(i18n("store.titleCustomName.gameNote", "游戏备注"))}</span>
               <span class="st-title-custom-name-control">
                 <span class="st-title-custom-name-note-wrap">
-                  <textarea maxlength="${NOTE_MAX}" data-title-custom-name-note placeholder="支持 BBCode，例如 [b]粗体[/b]、[url=https://example.com]链接[/url]"></textarea>
+                  <textarea maxlength="${NOTE_MAX}" data-title-custom-name-note placeholder="${attr(i18n("store.titleCustomName.notePlaceholder", "支持 BBCode，例如 [b]粗体[/b]、[url=https://example.com]链接[/url]"))}"></textarea>
                   <span class="st-title-custom-name-note-meta">
-                    <button type="button" class="st-title-custom-name-clear-note" data-title-custom-name-clear-note title="清空备注">清空</button>
-                    <span class="st-title-custom-name-count" data-title-custom-name-count>剩余 ${NOTE_MAX} / ${NOTE_MAX}</span>
+                    <button type="button" class="st-title-custom-name-clear-note" data-title-custom-name-clear-note title="${attr(i18n("store.titleCustomName.clearNote", "清空备注"))}">${esc(i18n("common.clear", "清空"))}</button>
+                    <span class="st-title-custom-name-count" data-title-custom-name-count>${esc(remaining)}</span>
                   </span>
                 </span>
               </span>
@@ -398,8 +420,8 @@
           <div class="st-title-custom-name-msg"></div>
         </div>
         <div class="st-title-custom-name-actions">
-          <button type="button" data-title-custom-name-close>取消</button>
-          <button type="button" class="primary" data-title-custom-name-save>保存</button>
+          <button type="button" data-title-custom-name-close>${esc(i18n("common.cancel", "取消"))}</button>
+          <button type="button" class="primary" data-title-custom-name-save>${esc(i18n("common.save", "保存"))}</button>
         </div>
       </div>
     `;
@@ -522,7 +544,7 @@
         textarea.setAttribute("data-title-custom-name-user-touched", "1");
       }
       updateCount(modal);
-      setMsg("保存后将清空备注");
+      setMsg(i18n("store.titleCustomName.noteWillClear", "保存后将清空备注"));
       log.info("title-custom-name-note-clear-click", "用户点击清空商店标题备注", {
         appid: Number(modal.dataset.appid) || 0,
       });
@@ -556,10 +578,12 @@
     const textarea = modal.querySelector("[data-title-custom-name-note]");
     const note = clear ? "" : String(textarea?.value || "").trim();
     if (note.length > NOTE_MAX) {
-      setMsg(`备注不能超过 ${NOTE_MAX} 个字符`);
+      setMsg(i18n("store.titleCustomName.noteTooLong", "备注不能超过 $limit$ 个字符", { limit: NOTE_MAX }));
       return;
     }
-    setMsg(clear ? "正在删除备注..." : "正在保存备注...");
+    setMsg(clear
+      ? i18n("store.titleCustomName.noteDeleting", "正在删除备注...")
+      : i18n("store.titleCustomName.noteSaving", "正在保存备注..."));
     const startedAt = Date.now();
     const operationId = root.STLoggerFactory?.createOperationId?.() || "";
     log.info("title-custom-name-note-save-start", "开始保存游戏备注", {
@@ -570,15 +594,18 @@
     });
     try {
       if (typeof api.features.gameNotes?.saveNote !== "function") {
-        const error = new Error("游戏备注模块未加载");
+        const error = new Error(i18n("store.titleCustomName.notesUnavailable", "游戏备注模块未加载"));
         error.code = "GAME_NOTES_API_UNAVAILABLE";
         throw error;
       }
       await api.features.gameNotes.saveNote(ctx.appid, ctx.steamTitle, note, { operationId });
       if (textarea) textarea.value = note;
       updateCount(modal);
-      setMsg(clear ? "备注已删除" : "备注已保存");
-      toast(clear ? "备注已删除" : "备注已保存");
+      const successMessage = clear
+        ? i18n("store.titleCustomName.noteDeleted", "备注已删除")
+        : i18n("store.titleCustomName.noteSaved", "备注已保存");
+      setMsg(successMessage);
+      toast(successMessage);
     } catch (error) {
       log.error("title-custom-name-note-save-failed", "游戏备注保存失败", {
         operationId,
@@ -623,7 +650,7 @@
     const aliasInput = modal?.querySelector("[data-title-custom-name-alias]");
     const custom = String(input?.value || "").trim();
     const alias = String(aliasInput?.value || "").trim();
-    setMsg("正在保存基础信息...");
+    setMsg(i18n("store.titleCustomName.baseSaving", "正在保存基础信息..."));
     const startedAt = Date.now();
     const operationId = root.STLoggerFactory?.createOperationId?.() || "";
     log.info("title-custom-name-submit-start", "开始提交商店标题中文名", {
@@ -656,8 +683,9 @@
         renderTitle();
       }
       renderWishlistName(ctx.appid);
-      setMsg("基础信息已保存");
-      toast("基础信息已保存");
+      const successMessage = i18n("store.titleCustomName.baseSaved", "基础信息已保存");
+      setMsg(successMessage);
+      toast(successMessage);
       log.info("title-custom-name-submit-success", "商店标题中文名提交完成", {
         operationId,
         appid: ctx.appid,

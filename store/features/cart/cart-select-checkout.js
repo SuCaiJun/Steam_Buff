@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -10,6 +10,8 @@
  */
 (() => {
   "use strict";
+
+  const t = (key, fallback, params) => globalThis.STI18n?.text?.(key, fallback, params) ?? fallback;
 
   const RESTORE_KEY = "st.store.cartSelect.restore";
   const SEL_KEY = "st.store.cartSelect.selection";
@@ -148,11 +150,11 @@
       btn.id = "st_cart_restore_checkout";
       btn.className = "btnv6_blue_hoverfade btn_medium";
       const label = document.createElement("span");
-      label.textContent = "恢复暂存购物车数据";
+      label.textContent = t("store_cartCheckout_restoreButton", "恢复暂存购物车数据");
       btn.appendChild(label);
       btn.addEventListener("click", event => {
         event.preventDefault();
-        manualRestore().catch(() => setBtn("恢复失败，重试", "bad"));
+        manualRestore().catch(() => setBtn(t("store_cartCheckout_restoreFailed", "恢复失败，重试"), "bad"));
       });
     }
 
@@ -160,7 +162,7 @@
       back.insertAdjacentElement("afterend", btn);
     }
 
-    if (restored) setBtn("已恢复暂存购物车", "done");
+    if (restored) setBtn(t("store_cartCheckout_restored", "已恢复暂存购物车"), "done");
   }
 
   function donePage() {
@@ -289,7 +291,7 @@
       return false;
     }
     restoring = true;
-    setBtn("正在恢复暂存购物车数据...", "busy");
+    setBtn(t("store_cartCheckout_restoring", "正在恢复暂存购物车数据..."), "busy");
     const startedAt = Date.now();
     log.info("checkout-cart-restore-start", "开始恢复结算页暂存购物车数据", batchMeta(batches));
 
@@ -297,13 +299,13 @@
       const ok = await restore(batches);
       if (ok) {
         restored = true;
-        setBtn("已恢复暂存购物车数据", "done");
+        setBtn(t("store_cartCheckout_restoreComplete", "已恢复暂存购物车数据"), "done");
         log.info("checkout-cart-restore-success", "结算页暂存购物车数据恢复完成", batchMeta(batches, {
           durationMs: Date.now() - startedAt,
         }));
       } else {
         await put({ [RESTORE_KEY]: batches });
-        setBtn("恢复失败，重试", "bad");
+        setBtn(t("store_cartCheckout_restoreFailed", "恢复失败，重试"), "bad");
         log.warn("checkout-cart-restore-failed", "结算页暂存购物车数据恢复失败", batchMeta(batches, {
           durationMs: Date.now() - startedAt,
           reason: "restore-returned-false",
@@ -312,7 +314,7 @@
       return ok;
     } catch (error) {
       await put({ [RESTORE_KEY]: batches });
-      setBtn("恢复失败，重试", "bad");
+      setBtn(t("store_cartCheckout_restoreFailed", "恢复失败，重试"), "bad");
       log.error("checkout-cart-restore-failed", "结算页购物车恢复失败", batchMeta(batches, {
         durationMs: Date.now() - startedAt,
         error,
@@ -326,7 +328,7 @@
   async function manualRestore() {
     const todo = await batches();
     if (todo.length === 0) {
-      setBtn("暂无暂存购物车", "done");
+      setBtn(t("store_cartCheckout_empty", "暂无暂存购物车"), "done");
       logOnce("manual-empty", "info", "checkout-cart-restore-skipped", "结算页没有可恢复的暂存购物车数据", {
         reason: "empty",
         path: location.pathname,

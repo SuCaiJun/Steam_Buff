@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -152,23 +152,27 @@
     return versionText ? `Steam Buff ${versionText}` : "Steam Buff";
   }
 
+  function uiText(key, fallback) {
+    return globalThis.STI18n.text(key, fallback);
+  }
+
   function parseJson(text) {
     try {
       return JSON.parse(text || "{}");
     } catch {
-      return { code: 0, message: "接口返回解析失败" };
+      return { code: 0, message: uiText("settings.api.parseFailed", "接口返回解析失败") };
     }
   }
 
   function timeText(value) {
     const num = Number(value) || 0;
     if (!num) {
-      return "暂无";
+      return uiText("common.none", "暂无");
     }
     try {
-      return new Date(num).toLocaleString("zh-CN", { hour12: false });
+      return new Date(num).toLocaleString(globalThis.STI18n.intlLocale(), { hour12: false });
     } catch {
-      return "暂无";
+      return uiText("common.none", "暂无");
     }
   }
 

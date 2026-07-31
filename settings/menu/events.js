@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -166,8 +166,9 @@
       const drawerToggle = drawer.querySelector(":scope > [data-settings-drawer-head] [data-settings-drawer-toggle]");
       drawer.classList.toggle("open", nextOpen);
       drawerToggle?.setAttribute("aria-expanded", nextOpen ? "true" : "false");
-      drawerToggle?.setAttribute("title", nextOpen ? "收起" : "展开");
-      drawerToggle?.setAttribute("aria-label", nextOpen ? "收起子功能" : "展开子功能");
+      const tr = (key, fallback) => root.STI18n.text(key, fallback);
+      drawerToggle?.setAttribute("title", nextOpen ? tr("settings.drawer.collapse", "收起") : tr("settings.drawer.expand", "展开"));
+      drawerToggle?.setAttribute("aria-label", nextOpen ? tr("settings.drawer.collapseChildren", "收起子功能") : tr("settings.drawer.expandChildren", "展开子功能"));
       return true;
     }
 

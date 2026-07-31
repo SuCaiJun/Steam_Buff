@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -19,16 +19,37 @@
   const DATASET_KEY = "steamBuffUiLocale";
   const CHANGE_EVENT = "SteamBuffI18nLocaleChanged";
   const DEFAULT_LOCALE = "zh_CN";
-  const SUPPORTED = Object.freeze(["zh_CN", "en", "zh_TW"]);
+  const LOCALE_DEFINITIONS = Object.freeze([
+    Object.freeze({
+      id: "zh_CN",
+      tag: "zh-CN",
+      fallbackLabel: "简体中文",
+      inputs: Object.freeze(["zh_cn"]),
+      inputPrefixes: Object.freeze([]),
+    }),
+    Object.freeze({
+      id: "en",
+      tag: "en",
+      fallbackLabel: "English",
+      inputs: Object.freeze(["en"]),
+      inputPrefixes: Object.freeze(["en_"]),
+    }),
+    Object.freeze({
+      id: "zh_TW",
+      tag: "zh-TW",
+      fallbackLabel: "繁體中文",
+      inputs: Object.freeze(["zh_tw"]),
+      inputPrefixes: Object.freeze([]),
+    }),
+  ]);
+  const LOCALE_BY_ID = Object.freeze(Object.fromEntries(
+    LOCALE_DEFINITIONS.map(definition => [definition.id, definition]),
+  ));
+  const SUPPORTED = Object.freeze(LOCALE_DEFINITIONS.map(definition => definition.id));
   const log = root.STLoggerFactory?.createLogger?.("shared", "i18n") || {
     info() {},
     warn() {},
   };
-  const FALLBACK_LABELS = Object.freeze({
-    zh_CN: "简体中文",
-    en: "English",
-    zh_TW: "繁體中文",
-  });
   const messages = {};
   const loading = new Map();
   let current = DEFAULT_LOCALE;
@@ -36,16 +57,11 @@
   function normalizeLocale(value) {
     const raw = String(value || "").trim().replace("-", "_");
     const lower = raw.toLowerCase();
-    if (lower === "zh_cn" || lower === "zh_hans" || lower === "cn") {
-      return "zh_CN";
-    }
-    if (lower === "zh_tw" || lower === "zh_hant" || lower === "tw" || lower === "hk") {
-      return "zh_TW";
-    }
-    if (lower === "en" || lower.startsWith("en_")) {
-      return "en";
-    }
-    return DEFAULT_LOCALE;
+    const definition = LOCALE_DEFINITIONS.find(item => (
+      item.inputs.includes(lower)
+      || item.inputPrefixes.some(prefix => lower.startsWith(prefix))
+    ));
+    return definition?.id || DEFAULT_LOCALE;
   }
 
   function scriptBase() {
@@ -206,6 +222,10 @@
     return typeof item?.message === "string" ? item.message : "";
   }
 
+  function hasRawMessage(locale, key) {
+    return Object.hasOwn(messages[normalizeLocale(locale)] || {}, messageKey(key));
+  }
+
   function syncSnapshot() {
     if (!area()) {
       const next = datasetLocale();
@@ -224,7 +244,7 @@
   function has(key) {
     syncSnapshot();
     const id = String(key || "");
-    return !!(rawMessage(current, id) || rawMessage(DEFAULT_LOCALE, id));
+    return hasRawMessage(current, id) || hasRawMessage(DEFAULT_LOCALE, id);
   }
 
   function paramValue(params, name) {
@@ -248,8 +268,12 @@
   function t(key, params) {
     syncSnapshot();
     const id = String(key || "");
-    const msg = rawMessage(current, id) || rawMessage(DEFAULT_LOCALE, id);
-    return msg ? format(msg, params) : id;
+    const msg = hasRawMessage(current, id)
+      ? rawMessage(current, id)
+      : hasRawMessage(DEFAULT_LOCALE, id)
+        ? rawMessage(DEFAULT_LOCALE, id)
+        : null;
+    return msg === null ? id : format(msg, params);
   }
 
   function text(key, fallback, params) {
@@ -262,16 +286,22 @@
 
   function locales() {
     syncSnapshot();
-    return SUPPORTED.map(id => Object.freeze({
-      id,
-      value: id,
-      label: has(`locale.${id}`) ? t(`locale.${id}`) : FALLBACK_LABELS[id],
+    return LOCALE_DEFINITIONS.map(definition => Object.freeze({
+      id: definition.id,
+      value: definition.id,
+      label: has(`locale.${definition.id}`) ? t(`locale.${definition.id}`) : definition.fallbackLabel,
     }));
   }
 
   function locale() {
     syncSnapshot();
     return current;
+  }
+
+  function intlLocale(value) {
+    syncSnapshot();
+    const id = value == null ? current : normalizeLocale(value);
+    return LOCALE_BY_ID[id]?.tag || LOCALE_BY_ID[DEFAULT_LOCALE].tag;
   }
 
   function emitChange(next) {
@@ -378,6 +408,7 @@
     STORAGE_KEY,
     SUPPORTED,
     has,
+    intlLocale,
     load,
     locale,
     locales,

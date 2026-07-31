@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -16,6 +16,10 @@
       return value;
     }
     return root.STSettingsHtml?.[name] || ((text) => String(text ?? ""));
+  }
+
+  function uiText(key, fallback) {
+    return root.STI18n.text(key, fallback);
   }
 
   function createFamilyLibraryPanel(options = {}) {
@@ -75,7 +79,7 @@
 
     function switchInput(field) {
       const checked = conf[field.key] === true;
-      const label = field.label || "";
+      const label = root.STSettingsFields?.label?.(field) || field.label || "";
       return `
         <label class="switch form-switch${checked ? " checked" : ""}" role="switch" aria-checked="${checked ? "true" : "false"}" title="${escAttr(label)}">
           <input class="switch-input" type="checkbox" data-family-library="${escAttr(field.key)}" aria-label="${escAttr(label)}" ${checked ? "checked" : ""}>
@@ -132,7 +136,10 @@
             durationMs: Date.now() - startedAt,
             errorCode: saved === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
           });
-          dialog(shadow, { title: "保存失败", message: "家庭库刷新设置保存失败，请稍后重试。" });
+          dialog(shadow, {
+            title: uiText("common.saveFailed", "保存失败"),
+            message: uiText("settings.familyLibrary.saveFailed", "家庭库刷新设置保存失败，请稍后重试。"),
+          });
           return false;
         }
         conf = normalize(saved);
@@ -155,7 +162,10 @@
           durationMs: Date.now() - startedAt,
           error,
         });
-        dialog(shadow, { title: "保存失败", message: "家庭库刷新设置保存异常，请稍后重试。" });
+        dialog(shadow, {
+          title: uiText("common.saveFailed", "保存失败"),
+          message: uiText("settings.familyLibrary.saveError", "家庭库刷新设置保存异常，请稍后重试。"),
+        });
         return false;
       }
     }
@@ -174,7 +184,7 @@
             <div class="settings-grid">
               ${fields.map((field) => `
                 <div class="settings-row form-row">
-                  <span class="settings-label label">${esc(field.label)}</span>
+                  <span class="settings-label label">${esc(root.STSettingsFields?.label?.(field) || field.label)}</span>
                   <span class="settings-value control">${input(field)}</span>
                 </div>
               `).join("")}

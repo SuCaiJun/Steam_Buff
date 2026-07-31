@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -13,6 +13,10 @@
 
   const api = window.STStore;
   if (!api) return;
+
+  function i18n(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
+  }
 
   const FEATURE_ID = "family-library-owned-marker";
   const EXCLUDE_SELF_SETTING_ID = "family-library-exclude-self";
@@ -42,12 +46,12 @@
     "30d": 30 * 24 * 60 * 60,
     manual: 0,
   });
-  const REFRESH_INTERVAL_LABELS = Object.freeze({
-    "1d": "1 天",
-    "3d": "3 天",
-    "7d": "7 天",
-    "30d": "30 天",
-    manual: "手动",
+  const REFRESH_INTERVAL_LABEL_KEYS = Object.freeze({
+    "1d": ["store.familyLibrary.interval1d", "1 天"],
+    "3d": ["store.familyLibrary.interval3d", "3 天"],
+    "7d": ["store.familyLibrary.interval7d", "7 天"],
+    "30d": ["store.familyLibrary.interval30d", "30 天"],
+    manual: ["store.familyLibrary.intervalManual", "手动"],
   });
 
   const log = window.STLoggerFactory?.createLogger?.("store", FEATURE_ID);
@@ -96,12 +100,12 @@
 
   function friendlyError(error) {
     const code = String(error?.code || "");
-    if (code === "STORE_CONFIG_MISSING") return "无法读取 Steam 页面登录信息，请刷新页面后重试。";
-    if (code === "STEAM_WEBAPI_TOKEN_MISSING") return "未检测到登录令牌，请确认已登录 Steam 商店。";
-    if (code === "FAMILY_GROUP_MISSING") return "您未加入家庭组，请先加入家庭组后再试。";
-    if (code === "CACHE_WRITE_FAILED") return "家庭组游戏库缓存写入失败，请检查浏览器存储空间。";
-    if (String(error?.name || "") === "TimeoutError") return "请求超时，请稍后重试。";
-    return error?.message || "刷新失败，请稍后重试。";
+    if (code === "STORE_CONFIG_MISSING") return i18n("store.familyLibrary.storeConfigMissing", "无法读取 Steam 页面登录信息，请刷新页面后重试。");
+    if (code === "STEAM_WEBAPI_TOKEN_MISSING") return i18n("store.familyLibrary.tokenMissing", "未检测到登录令牌，请确认已登录 Steam 商店。");
+    if (code === "FAMILY_GROUP_MISSING") return i18n("store.familyLibrary.groupMissing", "您未加入家庭组，请先加入家庭组后再试。");
+    if (code === "CACHE_WRITE_FAILED") return i18n("store.familyLibrary.cacheWriteFailed", "家庭组游戏库缓存写入失败，请检查浏览器存储空间。");
+    if (String(error?.name || "") === "TimeoutError") return i18n("common.requestTimedOut", "请求超时，请稍后重试。");
+    return error?.message || i18n("store.familyLibrary.refreshFailedRetry", "刷新失败，请稍后重试。");
   }
 
   function readJsonAttribute(node, attr) {
@@ -292,7 +296,7 @@
 
   function memberName(cache, steamid, index) {
     const name = cache?.membersBySteamId?.[steamid]?.name;
-    return name ? String(name) : `家庭成员 ${index + 1}`;
+    return name ? String(name) : i18n("store.familyLibrary.memberFallback", "家庭成员 $index$", { index: index + 1 });
   }
 
   function excludeSelfEnabled() {
@@ -335,7 +339,9 @@
   }
 
   function refreshIntervalLabel(settings) {
-    return REFRESH_INTERVAL_LABELS[normalizeRefreshSettings(settings).refreshInterval] || REFRESH_INTERVAL_LABELS["1d"];
+    const entry = REFRESH_INTERVAL_LABEL_KEYS[normalizeRefreshSettings(settings).refreshInterval]
+      || REFRESH_INTERVAL_LABEL_KEYS["1d"];
+    return i18n(entry[0], entry[1]);
   }
 
   function cacheRefreshDue(cache, settings, refreshState) {
@@ -397,29 +403,37 @@
     body.replaceChildren();
     body.removeAttribute("title");
     if (state === "empty") {
-      body.textContent = "暂无家庭库游戏记录，可在当前页面扫描家庭库。";
+      body.textContent = i18n("store.familyLibrary.empty", "暂无家庭库游戏记录，可在当前页面扫描家庭库。");
       return;
     }
     if (state === "miss") {
-      body.textContent = "家庭库未记录此游戏。";
+      body.textContent = i18n("store.familyLibrary.notOwned", "家庭库未记录此游戏。");
       return;
     }
     const summary = ownerSummary(cache, entry);
     if (!summary.count) {
-      body.textContent = "家庭库未记录此游戏。";
+      body.textContent = i18n("store.familyLibrary.notOwned", "家庭库未记录此游戏。");
       return;
     }
-    body.appendChild(document.createTextNode(`你的家庭组中共 ${summary.count} 位成员拥有此游戏：`));
+    body.appendChild(document.createTextNode(i18n(
+      "store.familyLibrary.ownedPrefix",
+      "你的家庭组中共 $count$ 位成员拥有此游戏：",
+      { count: summary.count },
+    )));
     const tooltipText = earliestPurchaseText(entry);
     const visibleItems = summary.items.slice(0, 3);
     visibleItems.forEach((item, index) => {
-      if (index > 0) body.appendChild(document.createTextNode("、"));
+      if (index > 0) body.appendChild(document.createTextNode(i18n("store.familyLibrary.ownerSeparator", "、")));
       appendOwnerName(body, item, tooltipText);
     });
     if (summary.count > visibleItems.length) {
-      body.appendChild(document.createTextNode(` 等 ${summary.count} 位成员`));
+      body.appendChild(document.createTextNode(i18n(
+        "store.familyLibrary.moreOwners",
+        " 等 $count$ 位成员",
+        { count: summary.count },
+      )));
     }
-    body.appendChild(document.createTextNode("。"));
+    body.appendChild(document.createTextNode(i18n("store.familyLibrary.sentenceEnd", "。")));
     body.title = tooltipText || summary.fullText;
   }
 
@@ -451,14 +465,18 @@
     if (value <= 0) return "";
     const date = new Date(value * 1000);
     if (Number.isNaN(date.getTime())) return "";
-    const dateText = `${date.getFullYear()}年${padTime(date.getMonth() + 1)}月${padTime(date.getDate())}日`;
+    const dateText = i18n("common.dateYmd", "$year$年$month$月$day$日", {
+      year: date.getFullYear(),
+      month: padTime(date.getMonth() + 1),
+      day: padTime(date.getDate()),
+    });
     const timeText = `${padTime(date.getHours())}:${padTime(date.getMinutes())}:${padTime(date.getSeconds())}`;
     return `${dateText} ${timeText}`;
   }
 
   function earliestPurchaseText(entry) {
     const text = secondDateText(entry?.acquiredAt);
-    return text ? `最早购买于${text}` : "";
+    return text ? i18n("store.familyLibrary.earliestPurchase", "最早购买于$date$", { date: text }) : "";
   }
 
   function updatedAtText(cache) {
@@ -466,18 +484,22 @@
     if (seconds <= 0) return "";
     const date = new Date(seconds * 1000);
     if (Number.isNaN(date.getTime())) return "";
-    const dateText = `${date.getFullYear()}年${padTime(date.getMonth() + 1)}月${padTime(date.getDate())}日`;
+    const dateText = i18n("common.dateYmd", "$year$年$month$月$day$日", {
+      year: date.getFullYear(),
+      month: padTime(date.getMonth() + 1),
+      day: padTime(date.getDate()),
+    });
     const timeText = `${padTime(date.getHours())}:${padTime(date.getMinutes())}:${padTime(date.getSeconds())}`;
-    return `更新于${dateText} ${timeText}`;
+    return i18n("store.familyLibrary.updatedAt", "更新于$date$ $time$", { date: dateText, time: timeText });
   }
 
   function setRefreshButton(button, state, defaultLabel) {
     if (!button) return;
     const labels = {
       idle: defaultLabel,
-      loading: "正在更新...",
-      success: "更新完成",
-      failed: "刷新失败",
+      loading: i18n("store.familyLibrary.updating", "正在更新..."),
+      success: i18n("store.familyLibrary.updated", "更新完成"),
+      failed: i18n("store.familyLibrary.refreshFailed", "刷新失败"),
     };
     button.textContent = labels[state] || defaultLabel;
     button.disabled = state === "loading";
@@ -492,14 +514,16 @@
 
   function renderCard(appId, cache) {
     const { state, entry } = cardState(cache, appId);
-    const defaultLabel = state === "empty" ? "扫描家庭库" : "更新";
+    const defaultLabel = state === "empty"
+      ? i18n("store.familyLibrary.scan", "扫描家庭库")
+      : i18n("common.update", "更新");
     const container = document.createElement("div");
     container.className = `${MODULE_CLASS} st-store-notice`;
     container.dataset.steamAppId = String(appId || "");
 
     const title = document.createElement("div");
     title.className = "st-store-notice__title";
-    title.textContent = "家庭库检查";
+    title.textContent = i18n("store.familyLibrary.title", "家庭库检查");
 
     const content = document.createElement("div");
     content.className = "st_family_library_owned_marker__content";
@@ -522,7 +546,7 @@
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     link.hidden = true;
-    link.textContent = "打开家庭组管理";
+    link.textContent = i18n("store.familyLibrary.openManagement", "打开家庭组管理");
     actions.append(status, link);
 
     container.append(title, content, actions);
@@ -537,7 +561,7 @@
     });
     if (Date.now() - session.lastRefreshAt < 3000) {
       setRefreshButton(button, "success", defaultLabel);
-      setStatus(container, updatedAtText(cache) || "更新完成");
+      setStatus(container, updatedAtText(cache) || i18n("store.familyLibrary.updated", "更新完成"));
     }
     return container;
   }
@@ -590,11 +614,11 @@
     head.className = "st_family_library_dialog__head";
     const title = document.createElement("div");
     title.className = "st_family_library_dialog__title";
-    title.textContent = options.title || "提示";
+    title.textContent = options.title || i18n("common.notice", "提示");
     const close = document.createElement("button");
     close.className = "st_family_library_dialog__close";
     close.type = "button";
-    close.setAttribute("aria-label", "关闭");
+    close.setAttribute("aria-label", i18n("common.close", "关闭"));
     close.textContent = "×";
     head.append(title, close);
 
@@ -611,8 +635,8 @@
     const modal = createModal(options);
     const actions = document.createElement("div");
     actions.className = "st_family_library_dialog__actions";
-    const primary = createDialogButton(options.primaryLabel || "确定", true);
-    const secondary = createDialogButton(options.secondaryLabel || "取消", false);
+    const primary = createDialogButton(options.primaryLabel || i18n("common.confirm", "确定"), true);
+    const secondary = createDialogButton(options.secondaryLabel || i18n("common.cancel", "取消"), false);
     actions.append(secondary, primary);
     modal.dialog.appendChild(actions);
     return new Promise((resolve) => {
@@ -647,15 +671,18 @@
   function showBlockingWait() {
     if (typeof window.ShowBlockingWaitDialog === "function") {
       try {
-        const dialog = window.ShowBlockingWaitDialog("正在扫描家庭组游戏数据...", "扫描期间不要关闭浏览器，耐心等待！");
+        const dialog = window.ShowBlockingWaitDialog(
+          i18n("store.familyLibrary.scanningTitle", "正在扫描家庭组游戏数据..."),
+          i18n("store.familyLibrary.scanningMessage", "扫描期间不要关闭浏览器，耐心等待！"),
+        );
         const close = trackDisposer(blockingWaitClosers, () => dialog?.Dismiss?.());
         return { close };
       } catch {
       }
     }
     const modal = createModal({
-      title: "正在扫描家庭组游戏数据...",
-      message: "扫描期间不要关闭浏览器，耐心等待！",
+      title: i18n("store.familyLibrary.scanningTitle", "正在扫描家庭组游戏数据..."),
+      message: i18n("store.familyLibrary.scanningMessage", "扫描期间不要关闭浏览器，耐心等待！"),
       danger: true,
     });
     modal.close.hidden = true;
@@ -673,7 +700,7 @@
     const modal = createModal({ title, message });
     const actions = document.createElement("div");
     actions.className = "st_family_library_dialog__actions";
-    const primary = createDialogButton("确定", true);
+    const primary = createDialogButton(i18n("common.confirm", "确定"), true);
     actions.appendChild(primary);
     modal.dialog.appendChild(actions);
     return new Promise((resolve) => {
@@ -711,7 +738,7 @@
         appId,
         container,
         source: "empty-cache-auto-refresh",
-        defaultLabel: "扫描家庭库",
+        defaultLabel: i18n("store.familyLibrary.scan", "扫描家庭库"),
         successAlert: false,
         hasPreviousData: false,
       });
@@ -723,17 +750,17 @@
       autoRefresh: cfg.autoRefresh === true,
     }));
     const action = await showActionDialog({
-      title: "Steam Buff共享检查",
-      message: "似乎没有家庭库的游戏记录，是否现在扫描家庭库游戏并记录？",
-      primaryLabel: "扫描家庭库",
-      secondaryLabel: "关闭功能",
+      title: i18n("store.familyLibrary.sharingCheck", "Steam Buff共享检查"),
+      message: i18n("store.familyLibrary.emptyPrompt", "似乎没有家庭库的游戏记录，是否现在扫描家庭库游戏并记录？"),
+      primaryLabel: i18n("store.familyLibrary.scan", "扫描家庭库"),
+      secondaryLabel: i18n("store.familyLibrary.disableFeature", "关闭功能"),
     });
     if (action === "primary") {
       await refreshWithUi({
         appId,
         container,
         source: "empty-cache-prompt",
-        defaultLabel: "扫描家庭库",
+        defaultLabel: i18n("store.familyLibrary.scan", "扫描家庭库"),
         hasPreviousData: false,
       });
     } else if (action === "secondary") {
@@ -757,7 +784,7 @@
         appId,
         container,
         source: "stale-cache-auto-refresh",
-        defaultLabel: "更新",
+        defaultLabel: i18n("common.update", "更新"),
         successAlert: false,
         hasPreviousData: true,
       });
@@ -765,17 +792,21 @@
     }
     log?.info?.("family-library-stale-cache-prompt", "家庭组游戏库过期刷新提示已显示", pageMeta(meta));
     const action = await showActionDialog({
-      title: "Steam Buff共享检查",
-      message: `家庭组游戏库数据已超过 ${refreshIntervalLabel(cfg)} 未更新，是否现在刷新？`,
-      primaryLabel: "刷新",
-      secondaryLabel: "取消",
+      title: i18n("store.familyLibrary.sharingCheck", "Steam Buff共享检查"),
+      message: i18n(
+        "store.familyLibrary.stalePrompt",
+        "家庭组游戏库数据已超过 $interval$ 未更新，是否现在刷新？",
+        { interval: refreshIntervalLabel(cfg) },
+      ),
+      primaryLabel: i18n("common.refresh", "刷新"),
+      secondaryLabel: i18n("common.cancel", "取消"),
     });
     if (action === "primary") {
       await refreshWithUi({
         appId,
         container,
         source: "stale-cache-prompt",
-        defaultLabel: "更新",
+        defaultLabel: i18n("common.update", "更新"),
         hasPreviousData: true,
       });
     }
@@ -816,7 +847,7 @@
       const steamid = String(member?.steamid || "");
       if (!steamid) return;
       membersBySteamId[steamid] = {
-        name: namesBySteamId[steamid] || `家庭成员 ${index + 1}`,
+        name: namesBySteamId[steamid] || i18n("store.familyLibrary.memberFallback", "家庭成员 $index$", { index: index + 1 }),
         role: Number(member?.role) || 0,
       };
     });
@@ -861,7 +892,7 @@
       const groupId = String(family?.response?.family_groupid || "");
       const group = family?.response?.family_group || {};
       if (!groupId || groupId === "0") {
-        const error = new Error("您未加入家庭组，请先加入家庭组后再试。");
+        const error = new Error(i18n("store.familyLibrary.groupMissing", "您未加入家庭组，请先加入家庭组后再试。"));
         error.code = "FAMILY_GROUP_MISSING";
         throw error;
       }
@@ -931,20 +962,20 @@
   async function showRefreshFailure(error, options) {
     const refreshSettings = await familyRefreshSettings({ allowFallback: false });
     const retainedText = options.hasPreviousData
-      ? "\n更新失败，已继续使用上次成功更新的数据。"
+      ? i18n("store.familyLibrary.previousDataRetained", "\n更新失败，已继续使用上次成功更新的数据。")
       : "";
     const helpText = FAMILY_MANAGEMENT_URL ? `\n${FAMILY_MANAGEMENT_URL}` : "";
     const message = `${friendlyError(error)}${retainedText}${helpText}`;
     if (!refreshSettings || refreshSettings.refreshInterval === "manual") {
-      await showAlert("家庭库刷新失败", message);
+      await showAlert(i18n("store.familyLibrary.refreshFailureTitle", "家庭库刷新失败"), message);
       return false;
     }
 
     const action = await showActionDialog({
-      title: "家庭库刷新失败",
+      title: i18n("store.familyLibrary.refreshFailureTitle", "家庭库刷新失败"),
       message,
-      primaryLabel: "确认",
-      secondaryLabel: "跳过本次",
+      primaryLabel: i18n("common.confirm", "确认"),
+      secondaryLabel: i18n("store.familyLibrary.skipThisTime", "跳过本次"),
     });
     if (action !== "secondary") return false;
 
@@ -957,11 +988,13 @@
         refreshIntervalSeconds(refreshSettings)
       );
       const button = options.container?.querySelector?.("button");
-      setRefreshButton(button, "idle", options.defaultLabel || "更新");
+      setRefreshButton(button, "idle", options.defaultLabel || i18n("common.update", "更新"));
       if (button) button.title = "";
       setStatus(
         options.container,
-        options.hasPreviousData ? "已跳过本次更新，继续使用上次数据" : "已跳过本次更新"
+        options.hasPreviousData
+          ? i18n("store.familyLibrary.skipRetained", "已跳过本次更新，继续使用上次数据")
+          : i18n("store.familyLibrary.skipped", "已跳过本次更新")
       );
       log?.info?.("family-library-refresh-skipped", "用户已跳过本周期家庭组游戏库更新", pageMeta({
         operationId,
@@ -980,7 +1013,10 @@
         reason: String(skipError?.code || skipError?.name || "storage-failed"),
         error: skipError,
       }));
-      await showAlert("跳过本次失败", "无法保存跳过状态，请稍后重试。");
+      await showAlert(
+        i18n("store.familyLibrary.skipFailedTitle", "跳过本次失败"),
+        i18n("store.familyLibrary.skipFailedMessage", "无法保存跳过状态，请稍后重试。"),
+      );
       return false;
     }
   }
@@ -988,8 +1024,8 @@
   async function refreshWithUi(options = {}) {
     const button = options.container?.querySelector?.("button");
     const link = options.container?.querySelector?.(".st_family_library_owned_marker__link");
-    setRefreshButton(button, "loading", options.defaultLabel || "更新");
-    setStatus(options.container, "正在更新...");
+    setRefreshButton(button, "loading", options.defaultLabel || i18n("common.update", "更新"));
+    setStatus(options.container, i18n("store.familyLibrary.updating", "正在更新..."));
     if (link) link.hidden = true;
     const wait = showBlockingWait();
     try {
@@ -1003,16 +1039,21 @@
         mountCard(options.appId, cache);
       }
       if (options.successAlert !== false) {
-        await showAlert("Steam Buff共享检查", `已将 ${cache.stats.appCount} 个家庭库游戏记录到本地缓存。`);
+        await showAlert(
+          i18n("store.familyLibrary.sharingCheck", "Steam Buff共享检查"),
+          i18n("store.familyLibrary.cachedCount", "已将 $count$ 个家庭库游戏记录到本地缓存。", { count: cache.stats.appCount }),
+        );
       }
     } catch (error) {
       wait.close();
       if (!detailActive || String(options.appId || "") !== detailAppId) {
         return;
       }
-      setRefreshButton(button, "failed", options.defaultLabel || "更新");
+      setRefreshButton(button, "failed", options.defaultLabel || i18n("common.update", "更新"));
       if (button) button.title = friendlyError(error);
-      setStatus(options.container, `刷新失败：${friendlyError(error)}`, "error");
+      setStatus(options.container, i18n("store.familyLibrary.refreshFailedWithReason", "刷新失败：$reason$", {
+        reason: friendlyError(error),
+      }), "error");
       if (link && FAMILY_MANAGEMENT_URL) link.hidden = false;
       const skipped = await showRefreshFailure(error, options);
       if (skipped) return;
@@ -1122,7 +1163,7 @@
     const badge = document.createElement("span");
     badge.className = "st_subscription_badge st_family_library_badge";
     badge.textContent = `FG ${count}`;
-    badge.title = `Steam 家庭中有 ${count} 位成员拥有此游戏`;
+    badge.title = i18n("store.familyLibrary.badgeTitle", "Steam 家庭中有 $count$ 位成员拥有此游戏", { count });
     noTranslate(badge);
     host.insertBefore(badge, host.firstElementChild);
     node.dataset.stFgDone = "1";

@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -13,7 +13,7 @@
 
   const MATCH = globalThis.STConfig?.matchers;
   const MARK = "steamBuffInjected";
-  const MARK_VALUE = "steam-buff-runtime-v15";
+  const MARK_VALUE = "steam-buff-runtime-v16";
 
   if (globalThis.STGuard?.ready && globalThis.STGuard.version === MARK_VALUE) {
     return;

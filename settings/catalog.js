@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -18,7 +18,6 @@
   }
 
   const UI_LOCALE_KEY = "SETTING_UI_LOCALE";
-  const priceCatalog = globalThis.STPriceComparisonCatalog;
 
   const SOURCE_TIPS = Object.freeze({
     translate: "数据来源/运行库：xnx3 translate.js 本地库。授权：MIT License",
@@ -365,15 +364,6 @@
       key: "isthereanydeal.key",
       label: "ITAD API Key",
       placeholder: "输入自己的 IsThereAnyDeal API Key",
-    },
-    {
-      type: "select",
-      key: "isthereanydeal.country",
-      label: "请求地区",
-      options: Object.freeze([
-        { value: "auto", label: "跟随 Steam 页面（旧设置）" },
-        ...(priceCatalog?.STEAM_PRICE_REGIONS || []).map(item => ({ value: item.cc, label: `${item.cc} - ${item.label}` })),
-      ]),
     },
   ]);
 
@@ -966,6 +956,15 @@
     if (item.lock && !item.lockKey) {
       out.lockKey = `${prefix}.${item.id}.lock`;
     }
+    if (item.sourceTip && !item.sourceTipKey) {
+      out.sourceTipKey = `${prefix}.${item.id}.sourceTip`;
+    }
+    if (item.emptyTitle && !item.emptyTitleKey) {
+      out.emptyTitleKey = `${prefix}.${item.id}.emptyTitle`;
+    }
+    if (item.emptyDesc && !item.emptyDescKey) {
+      out.emptyDescKey = `${prefix}.${item.id}.emptyDesc`;
+    }
     if (Array.isArray(item.children)) {
       out.children = Object.freeze(item.children.map(child => withI18n(child, prefix)));
     }
@@ -1001,6 +1000,30 @@
 
   function featureItems() {
     return localizedCategories.flatMap(cat => flattenItems(cat.items));
+  }
+
+  function withFieldI18n(field, group) {
+    if (!field || !field.key) {
+      return field;
+    }
+    const prefix = `settings.field.${group}.${field.key}`;
+    return Object.freeze({
+      ...field,
+      labelKey: field.labelKey || `${prefix}.label`,
+      placeholderKey: field.placeholder && /[\u3400-\u9fff]/.test(String(field.placeholder))
+        ? field.placeholderKey || `${prefix}.placeholder`
+        : field.placeholderKey,
+      options: Array.isArray(field.options)
+        ? Object.freeze(field.options.map(option => Object.freeze({
+          ...option,
+          labelKey: option.labelKey || `${prefix}.option.${String(option.value).replace(/[^A-Za-z0-9_]/g, "_")}`,
+        })))
+        : field.options,
+    });
+  }
+
+  function localizedFields(fields, group) {
+    return Object.freeze((fields || []).map(field => withFieldI18n(field, group)));
   }
 
   function featureById(id) {
@@ -1054,7 +1077,7 @@
   }
 
   function translateFields() {
-    return TRANSLATE_FIELDS;
+    return localizedFields(TRANSLATE_FIELDS, "translate");
   }
 
   function reviewFilterDefaults() {
@@ -1062,7 +1085,7 @@
   }
 
   function reviewFilterFields() {
-    return REVIEW_FILTER_FIELDS;
+    return localizedFields(REVIEW_FILTER_FIELDS, "reviewFilter");
   }
 
   function searchSuggestionDefaults() {
@@ -1070,7 +1093,7 @@
   }
 
   function searchSuggestionFields() {
-    return SEARCH_SUGGESTION_FIELDS;
+    return localizedFields(SEARCH_SUGGESTION_FIELDS, "searchSuggestions");
   }
 
   function familyLibraryDefaults() {
@@ -1078,7 +1101,7 @@
   }
 
   function familyLibraryFields() {
-    return FAMILY_LIBRARY_FIELDS;
+    return localizedFields(FAMILY_LIBRARY_FIELDS, "familyLibrary");
   }
 
   function aiDefaults() {
@@ -1086,7 +1109,7 @@
   }
 
   function aiFields() {
-    return globalThis.STAI?.fields?.() || [];
+    return localizedFields(globalThis.STAI?.fields?.() || [], "ai");
   }
 
   function thirdPartyServicesDefaults() {
@@ -1098,7 +1121,7 @@
   }
 
   function thirdPartyServicesFields() {
-    return THIRD_PARTY_SERVICES_FIELDS;
+    return localizedFields(THIRD_PARTY_SERVICES_FIELDS, "thirdPartyServices");
   }
 
   function storePriceChartDefaults() {

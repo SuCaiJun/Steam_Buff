@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -42,6 +42,10 @@
     let conf = { ...(options.config || {}) };
     let persistedConf = { ...conf };
     let publishingConfig = false;
+
+    function uiText(key, fallback) {
+      return root.STI18n.text(key, fallback);
+    }
 
     function setConfig(next) {
       conf = { ...(next || {}) };
@@ -206,7 +210,7 @@
           <div class="translate-grid">
             ${fields.map((field) => `
               <div class="translate-row form-row" data-translate-row="${escAttr(field.key)}" ${fieldVisible(field) ? "" : "hidden"}>
-                <span class="translate-label label">${esc(field.label)}</span>
+                <span class="translate-label label">${esc(root.STSettingsFields?.label?.(field) || field.label)}</span>
                 <span class="translate-value control">${input(field)}</span>
               </div>
             `).join("")}
@@ -234,11 +238,11 @@
       return `
         ${cat.items.map((item) => options.masterItemHtml?.(item) || "").join("")}
         <div class="translate-form">
-          ${section("翻译范围", base)}
-          ${section("划词翻译", selection)}
-          ${section("Steam 新闻弹窗翻译", news)}
+          ${section(uiText("settings.translate.scope", "翻译范围"), base)}
+          ${section(uiText("settings.translate.selection", "划词翻译"), selection)}
+          ${section(uiText("settings.translate.newsPopup", "Steam 新闻弹窗翻译"), news)}
           <div class="translate-actions form-footer">
-            <button class="translate-save btn btn-blue" type="button">保存设置</button>
+            <button class="translate-save btn btn-blue" type="button">${esc(uiText("common.saveSettings", "保存设置"))}</button>
           </div>
         </div>
       `;
@@ -261,7 +265,7 @@
       log.info("translate-settings-save-start", "开始保存翻译设置", { operationId });
       const oldText = save.textContent || "";
       save.disabled = true;
-      save.textContent = "保存中...";
+      save.textContent = uiText("common.saving", "保存中...");
       setInputsDisabled(shadow, true);
       Promise.resolve()
         .then(() => typeof storage.setTranslate === "function"
@@ -277,7 +281,10 @@
               durationMs: Date.now() - startedAt,
               errorCode: ok === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
             });
-            dialog(shadow, { title: "保存失败", message: "翻译设置未能保存，请稍后重试。" });
+            dialog(shadow, {
+              title: uiText("common.saveFailed", "保存失败"),
+              message: uiText("settings.translate.saveFailed", "翻译设置未能保存，请稍后重试。"),
+            });
             return;
           }
           persistedConf = { ...conf };
@@ -296,7 +303,10 @@
             durationMs: Date.now() - startedAt,
             error,
           });
-          dialog(shadow, { title: "保存失败", message: "翻译设置保存异常，请稍后重试。" });
+          dialog(shadow, {
+            title: uiText("common.saveFailed", "保存失败"),
+            message: uiText("settings.translate.saveError", "翻译设置保存异常，请稍后重试。"),
+          });
         })
         .finally(() => {
           setInputsDisabled(shadow, false);

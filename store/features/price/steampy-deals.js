@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -13,6 +13,7 @@
 
   const api = window.STStore;
   if (!api) return;
+  const t = (key, fallback) => globalThis.STI18n?.text?.(key, fallback) ?? fallback;
   const STEAMPY = globalThis.STConfig.vendors.steampy;
   const externalNavigation = globalThis.STConfig.externalNavigation;
 
@@ -194,7 +195,7 @@
   function createLoadingRow() {
     const row = document.createElement("div");
     row.className = `${ROOT_CLASS}_empty`;
-    row.textContent = "正在读取价格...";
+    row.textContent = t("store_steampy_loading", "正在读取价格...");
     return row;
   }
 
@@ -284,7 +285,7 @@
 
     if (on(FEATURES.proxy) && Number.isFinite(daiPrice) && daiPrice > 0) {
       rows.push(createRow(
-        "PY 代购",
+        t("store_steampy_proxyPurchase", "PY 代购"),
         pct(base, daiPrice),
         daiPrice,
         id ? STEAMPY.proxyDetail(id) : null

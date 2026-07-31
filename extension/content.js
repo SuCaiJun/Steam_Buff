@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v15";
+  const RUN_VERSION = "steam-buff-runtime-v16";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -668,10 +668,6 @@
 
   function aiKey(id) {
     return `${AI_PREFIX}${id}`;
-  }
-
-  function normalizeLocale(value) {
-    return globalThis.STI18n?.normalizeLocale?.(value) || (String(value || "") === "en" ? "en" : String(value || "") === "zh_TW" ? "zh_TW" : "zh_CN");
   }
 
   function storageGet(keys) {
@@ -1870,7 +1866,7 @@
       const rt = await storageGet([UI_LOCALE_KEY]);
       locale = rt[UI_LOCALE_KEY];
     }
-    el.dataset[LOCALE_ATTR] = normalizeLocale(locale);
+    el.dataset[LOCALE_ATTR] = globalThis.STI18n.normalizeLocale(locale);
   }
 
   function watchSettingsChanges() {

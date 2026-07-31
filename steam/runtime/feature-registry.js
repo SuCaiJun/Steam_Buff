@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -346,7 +346,10 @@
             phase: "feature-mount",
             event: "feature-start-failed",
             message: "Steam 客户端功能入口不可调用",
-            userMessage: "Steam 客户端功能暂时不可用，其他功能已继续加载",
+            userMessage: window.STI18n.text(
+              "steam.runtime.featureUnavailable",
+              "Steam 客户端功能暂时不可用，其他功能已继续加载",
+            ),
             meta: { context, entry },
           });
           if (!captured) {
@@ -408,7 +411,10 @@
           phase: "feature-mount",
           event: "feature-start-failed",
           message: "Steam 客户端功能启动失败",
-          userMessage: "Steam 客户端功能启动失败，其他功能已继续运行",
+          userMessage: window.STI18n.text(
+            "steam.runtime.featureStartFailed",
+            "Steam 客户端功能启动失败，其他功能已继续运行",
+          ),
           meta: { context, entry },
         });
         if (!captured) {

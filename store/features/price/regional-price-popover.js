@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -31,6 +31,10 @@
   const cache = new Map();
   const pending = new Map();
   let current = null;
+
+  function i18n(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
+  }
 
   function normalizeTargetRef(targetRef) {
     const type = targetRef?.type === "sub" ? "sub" : "app";
@@ -164,7 +168,7 @@
       const item = document.createElement("div");
       item.className = "st-regional-price-tooltip__row";
       const name = document.createElement("strong");
-      name.textContent = region?.label || row.cc;
+      name.textContent = i18n(`settings.storePriceChart.region.${row.cc}`, region?.label || row.cc);
       const price = document.createElement("span");
       price.textContent = charts.comparisonPriceText(amount, row.final, row.currency);
       const comparison = charts.comparisonText(amount, mainAmount);
@@ -204,7 +208,7 @@
     ownerSession.active = state;
     const loading = document.createElement("div");
     loading.className = "st-regional-price-tooltip__loading";
-    loading.textContent = "正在加载区域价格";
+    loading.textContent = i18n("store.regionalPrice.loading", "正在加载区域价格");
     tooltip.show(loading, state.target, TOOLTIP_OPTIONS);
     if (!state.rowsTask) state.rowsTask = loadRows(state.targetRef, state.regions);
     const rows = await state.rowsTask;

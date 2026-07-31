@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -13,6 +13,7 @@
 
   const api = window.STStore;
   if (!api) return;
+  const t = (key, fallback, params) => globalThis.STI18n?.text?.(key, fallback, params) ?? fallback;
 
   const MODULE_CLASSES = api.dom.MODULE_CLASSES;
   const insertModule = api.dom.insertModule;
@@ -152,7 +153,9 @@ function addDRMWarnings() {
 
     let drmString = undefined;
     if (drmNames.length > 0) {
-        drmString = `此游戏使用第三方DRM: ${drmNames.join(", ")}`;
+        drmString = t("store_drmWarning_detected", "此游戏使用第三方DRM: $names$", {
+            names: drmNames.join(", "),
+        });
     } else {
         const regex = /\b(drm|account|steam)\b/i;
 
@@ -170,7 +173,7 @@ function addDRMWarnings() {
         drmContainer.dataset.steamAppId = appIdText;
         const title = document.createElement("div");
         title.className = "es_drm_warning_title";
-        title.textContent = "第三方检查";
+        title.textContent = t("store_drmWarning_title", "第三方检查");
         const text = document.createElement("div");
         text.className = "es_drm_warning_text";
         text.textContent = drmString;

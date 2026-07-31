@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -38,6 +38,10 @@
   let lastSummaryKey = "";
   const hiddenReviews = new Map();
   const log = window.STLoggerFactory.createLogger(logDomain(), "review-filter");
+
+  function i18n(key, fallback) {
+    return globalThis.STI18n.text(key, fallback);
+  }
 
   /* 评测文本识别 */
   function text(el) {
@@ -297,16 +301,17 @@
 
   function reasonText(reason) {
     const map = {
-      keyword: "关键词",
-      pattern: "正则",
-      nickname: "昵称",
-      playtime: "总游戏时间",
-      "review-playtime": "评测时游戏时间",
-      "hidden-profile": "隐藏资料",
-      "games-owned": "游戏数量",
-      "review-count": "评测篇数",
+      keyword: ["store.reviewFilter.reason.keyword", "关键词"],
+      pattern: ["store.reviewFilter.reason.pattern", "正则"],
+      nickname: ["store.reviewFilter.reason.nickname", "昵称"],
+      playtime: ["store.reviewFilter.reason.playtime", "总游戏时间"],
+      "review-playtime": ["store.reviewFilter.reason.reviewPlaytime", "评测时游戏时间"],
+      "hidden-profile": ["store.reviewFilter.reason.hiddenProfile", "隐藏资料"],
+      "games-owned": ["store.reviewFilter.reason.gamesOwned", "游戏数量"],
+      "review-count": ["store.reviewFilter.reason.reviewCount", "评测篇数"],
     };
-    return map[reason] || "规则命中";
+    const entry = map[reason];
+    return entry ? i18n(entry[0], entry[1]) : i18n("store.reviewFilter.reason.matched", "规则命中");
   }
 
   function updatePanel() {

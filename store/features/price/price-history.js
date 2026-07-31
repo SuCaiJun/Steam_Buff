@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -14,9 +14,9 @@
   const api = window.STStore;
   if (!api) return;
 
+  const t = (key, fallback, params) => globalThis.STI18n?.text?.(key, fallback, params) ?? fallback;
+
   const PROVIDER_LABEL = "IsThereAnyDeal";
-  const LOADING_TEXT = "正在读取历史最低价格...";
-  const DLC_LOADING_TEXT = "史低读取中...";
   const DLC_SECTION_SELECTOR = ".game_area_dlc_section";
   const DLC_ROW_SELECTOR = ".game_area_dlc_row";
   const DLC_NODE_CLASS = "st-dlc-lowest-price";
@@ -42,12 +42,19 @@
   const monitorHosts = new Map();
   const monitorItemNameCache = new Map();
   const monitorItemNamePending = new Map();
-  const monitorAuthClient = window.STAuthClient?.createClient({
-    storage: window.STSettings?.storage || null,
-    refreshUrl: AUTH_REFRESH_URL,
-    loginMessage: "请先在设置中登录",
-    expiredMessage: "登录已过期，请重新登录",
-  });
+  let monitorAuthClient = null;
+
+  function getMonitorAuthClient() {
+    if (!monitorAuthClient) {
+      monitorAuthClient = window.STAuthClient?.createClient({
+        storage: window.STSettings?.storage || null,
+        refreshUrl: AUTH_REFRESH_URL,
+        loginMessage: t("store_priceHistory_monitorLoginRequired", "请先在设置中登录"),
+        expiredMessage: t("store_priceHistory_monitorLoginExpired", "登录已过期，请重新登录"),
+      }) || null;
+    }
+    return monitorAuthClient;
+  }
 
   function normalizeSteamText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -188,15 +195,16 @@
   }
 
   async function monitorPost(url, body, operationId = "") {
-    if (!monitorAuthClient) throw new Error("打折监控鉴权服务未加载");
-    const response = await monitorAuthClient.authedPost(url, body, {
+    const authClient = getMonitorAuthClient();
+    if (!authClient) throw new Error(t("store_priceHistory_monitorAuthUnavailable", "打折监控鉴权服务未加载"));
+    const response = await authClient.authedPost(url, body, {
       throwOnMissingAuth: true,
       operationId,
     });
     const data = response?.body || {};
     const code = Number(response?.code) || 0;
     if (code < 200 || code >= 300) {
-      const error = new Error(data?.message || `请求失败：${code}`);
+      const error = new Error(data?.message || t("store_priceHistory_monitorRequestFailed", "请求失败：$code$", { code }));
       error.status = code;
       throw error;
     }
@@ -204,8 +212,9 @@
   }
 
   async function hasMonitorAuth() {
-    if (!monitorAuthClient) return false;
-    const auth = await monitorAuthClient.readyAuth();
+    const authClient = getMonitorAuthClient();
+    if (!authClient) return false;
+    const auth = await authClient.readyAuth();
     return !!auth?.access_token;
   }
 
@@ -224,7 +233,7 @@
   function loadMonitorItemName(target, cc) {
     const type = target?.type === "sub" ? "sub" : target?.type === "app" ? "app" : "";
     const id = Number(target?.id) || 0;
-    if (!type || id <= 0) return Promise.reject(new TypeError("无效的 Steam 商品标识"));
+    if (!type || id <= 0) return Promise.reject(new TypeError(t("store_priceHistory_invalidSteamItem", "无效的 Steam 商品标识")));
     const key = `${type}:${id}:${type === "sub" ? String(cc || "CN").toUpperCase() : "basic"}`;
     if (monitorItemNameCache.has(key)) return Promise.resolve(monitorItemNameCache.get(key));
     if (monitorItemNamePending.has(key)) return monitorItemNamePending.get(key);
@@ -233,7 +242,7 @@
       ? steamStore?.packageDetailsForCountry?.(id, cc, "schinese")
       : steamStore?.appDetails?.(id, "basic", "schinese");
     if (!url || typeof api.net?.sendRequest !== "function") {
-      return Promise.reject(new Error("Steam 商品详情服务不可用"));
+      return Promise.reject(new Error(t("store_priceHistory_steamItemUnavailable", "Steam 商品详情服务不可用")));
     }
     let task;
     task = api.net.sendRequest({
@@ -252,7 +261,7 @@
       const entry = data?.[String(id)];
       const name = normalizeSteamText(entry?.data?.name);
       if (entry?.success !== true || !entry.data || typeof entry.data !== "object" || !name) {
-        const error = new Error("Steam 商品详情响应格式异常");
+        const error = new Error(t("store_priceHistory_steamItemInvalidResponse", "Steam 商品详情响应格式异常"));
         error.code = "RESPONSE_SHAPE_INVALID";
         throw error;
       }
@@ -317,8 +326,8 @@
   function monitorChannels(monitor) {
     const channels = [];
     if (monitor?.notifyQq) channels.push("QQ");
-    if (monitor?.notifyEmail) channels.push("邮件");
-    return channels.join(" 和 ");
+    if (monitor?.notifyEmail) channels.push(t("store_priceHistory_monitorEmail", "邮件"));
+    return channels.join(t("store_priceHistory_monitorAnd", " 和 "));
   }
 
   function monitorAmountText(amount, currency) {
@@ -342,9 +351,17 @@
     const channels = monitorChannels(monitor);
     const time = String(monitor?.notifyTime || "");
     if (monitor?.targetMode === "amount") {
-      return `当${monitorAmountText(monitor.targetAmount, monitor.currency)} 及以下时，将于当天 ${time} 通过 ${channels} 通知你。`;
+      return t("store_priceHistory_monitorSummaryAmount", "当$amount$ 及以下时，将于当天 $time$ 通过 $channels$ 通知你。", {
+        amount: monitorAmountText(monitor.targetAmount, monitor.currency),
+        time,
+        channels,
+      });
     }
-    return `当折扣达到 ${Number(monitor?.targetDiscount)}% 及以上时，将于当天 ${time} 通过 ${channels} 通知你。`;
+    return t("store_priceHistory_monitorSummaryDiscount", "当折扣达到 $discount$ 及以上时，将于当天 $time$ 通过 $channels$ 通知你。", {
+      discount: `${Number(monitor?.targetDiscount)}%`,
+      time,
+      channels,
+    });
   }
 
   function monitorTrigger(text, title, onClick) {
@@ -364,30 +381,32 @@
   function renderMonitorHost(host, context, state = "ready") {
     if (!host?.isConnected) return;
     clearNode(host);
-    appendSpan(host, "打折监控：", "st-price-monitor-label");
+    appendSpan(host, t("store_priceHistory_monitorLabel", "打折监控："), "st-price-monitor-label");
     const monitor = monitorCache.get(context.key);
 
     if (state === "loading") {
-      appendSpan(host, "正在读取...", "st-price-monitor-status");
+      appendSpan(host, t("store_priceHistory_monitorReading", "正在读取..."), "st-price-monitor-status");
       return;
     }
     if (state === "error") {
-      host.appendChild(monitorTrigger("读取失败，点击重试", "重新读取打折监控", () => {
-        hydrateMonitors([context]);
-      }));
+      host.appendChild(monitorTrigger(
+        t("store_priceHistory_monitorRetry", "读取失败，点击重试"),
+        t("store_priceHistory_monitorRetryTitle", "重新读取打折监控"),
+        () => hydrateMonitors([context])
+      ));
       return;
     }
 
     if (monitor) {
       host.appendChild(monitorTrigger(
         monitorSummaryText(monitor),
-        "修改打折监控",
+        t("store_priceHistory_monitorEditTitle", "修改打折监控"),
         () => openMonitorModal(context)
       ));
     } else {
       host.appendChild(monitorTrigger(
-        "未设置提醒",
-        "设置打折监控",
+        t("store_priceHistory_monitorNotSet", "未设置提醒"),
+        t("store_priceHistory_monitorSetTitle", "设置打折监控"),
         () => openMonitorModal(context)
       ));
     }
@@ -433,7 +452,7 @@
           item_id: context.target.id,
         })),
       });
-      if (!Array.isArray(body.data)) throw new Error("打折监控响应格式错误");
+      if (!Array.isArray(body.data)) throw new Error(t("store_priceHistory_monitorInvalidResponse", "打折监控响应格式错误"));
       const found = new Map();
       body.data.forEach((item) => {
         const monitor = normalizeMonitor(item);
@@ -625,18 +644,18 @@
     const hourColumn = modalElement("div", "st-price-monitor-time-column");
     hourColumn.dataset.monitorTimeColumn = "hour";
     hourColumn.setAttribute("role", "listbox");
-    hourColumn.setAttribute("aria-label", "小时");
+    hourColumn.setAttribute("aria-label", t("store_priceHistory_hour", "小时"));
     const minuteColumn = modalElement("div", "st-price-monitor-time-column");
     minuteColumn.dataset.monitorTimeColumn = "minute";
     minuteColumn.setAttribute("role", "listbox");
-    minuteColumn.setAttribute("aria-label", "分钟");
+    minuteColumn.setAttribute("aria-label", t("store_priceHistory_minute", "分钟"));
     columns.append(hourColumn, minuteColumn);
 
     const timeActions = modalElement("div", "st-price-monitor-time-actions");
-    const now = modalElement("button", "st-price-monitor-time-now", "此刻");
+    const now = modalElement("button", "st-price-monitor-time-now", t("store_priceHistory_now", "此刻"));
     now.type = "button";
     now.dataset.monitorTimeAction = "now";
-    const confirm = modalElement("button", "st-price-monitor-time-confirm", "确定");
+    const confirm = modalElement("button", "st-price-monitor-time-confirm", t("store_priceHistory_confirm", "确定"));
     confirm.type = "button";
     confirm.dataset.monitorTimeAction = "confirm";
     timeActions.append(now, confirm);
@@ -674,8 +693,8 @@
     const button = modalElement("button", "st-price-monitor-dashboard");
     button.type = "button";
     button.dataset.monitorAction = "dashboard";
-    button.title = "在素材君查看全部监控";
-    button.append(monitorExternalIcon(), modalElement("span", "", "监控列表"));
+    button.title = t("store_priceHistory_monitorDashboardTitle", "在素材君查看全部监控");
+    button.append(monitorExternalIcon(), modalElement("span", "", t("store_priceHistory_monitorDashboard", "监控列表")));
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -699,22 +718,22 @@
 
     const header = modalElement("div", "st-price-monitor-head");
     const heading = modalElement("div", "st-price-monitor-heading");
-    const title = modalElement("h3", "", "打折监控");
+    const title = modalElement("h3", "", t("store_priceHistory_monitorTitle", "打折监控"));
     title.id = "st-price-monitor-title";
     heading.appendChild(title);
     heading.appendChild(modalElement("div", "st-price-monitor-item-name"));
     const close = modalElement("button", "st-price-monitor-close", "×");
     close.type = "button";
-    close.title = "关闭";
+    close.title = t("store_priceHistory_close", "关闭");
     close.dataset.monitorAction = "close";
     close.addEventListener("click", closeMonitorModal);
     header.append(heading, close);
 
     const body = modalElement("div", "st-price-monitor-body");
-    const conditionLabel = modalElement("div", "st-price-monitor-group-label", "监控条件");
+    const conditionLabel = modalElement("div", "st-price-monitor-group-label", t("store_priceHistory_monitorCondition", "监控条件"));
     const modes = modalElement("div", "st-price-monitor-modes");
     modes.setAttribute("role", "tablist");
-    [["amount", "期望金额"], ["discount", "期望折扣"]].forEach(([mode, label]) => {
+    [["amount", t("store_priceHistory_monitorAmount", "期望金额")], ["discount", t("store_priceHistory_monitorDiscount", "期望折扣")]].forEach(([mode, label]) => {
       const button = modalElement("button", "", label);
       button.type = "button";
       button.setAttribute("role", "tab");
@@ -723,14 +742,14 @@
       modes.appendChild(button);
     });
 
-    const amountField = monitorRangeField("amount", "期望金额", {
+    const amountField = monitorRangeField("amount", t("store_priceHistory_monitorAmount", "期望金额"), {
       min: 1,
       max: 1,
       step: 0.01,
       decimals: 2,
       prefix: "¥",
     });
-    const discountField = monitorRangeField("discount", "期望折扣（1-100%）", {
+    const discountField = monitorRangeField("discount", t("store_priceHistory_monitorDiscountRange", "期望折扣（1-100%）"), {
       min: 1,
       max: 100,
       step: 1,
@@ -738,9 +757,9 @@
       suffix: "%",
     });
 
-    const notifyLabel = modalElement("div", "st-price-monitor-group-label", "提醒方式");
+    const notifyLabel = modalElement("div", "st-price-monitor-group-label", t("store_priceHistory_monitorNotifyMethod", "提醒方式"));
     const channels = modalElement("div", "st-price-monitor-channels");
-    [["notify_qq", "QQ"], ["notify_email", "邮件"]].forEach(([name, label]) => {
+    [["notify_qq", "QQ"], ["notify_email", t("store_priceHistory_monitorEmail", "邮件")]].forEach(([name, label]) => {
       const option = modalElement("label", "st-price-monitor-channel");
       const checkbox = modalInput("checkbox", name);
       checkbox.className = "";
@@ -749,7 +768,7 @@
       channels.appendChild(option);
     });
 
-    const timeLabel = modalElement("div", "st-price-monitor-group-label", "提醒时间");
+    const timeLabel = modalElement("div", "st-price-monitor-group-label", t("store_priceHistory_monitorTime", "提醒时间"));
     const timeField = monitorTimeField();
     const message = modalElement("div", "st-price-monitor-message");
     message.setAttribute("role", "status");
@@ -774,17 +793,17 @@
     );
 
     const actions = modalElement("div", "st-price-monitor-actions");
-    const remove = modalElement("button", "st-price-monitor-delete", "删除监控");
+    const remove = modalElement("button", "st-price-monitor-delete", t("store_priceHistory_monitorDelete", "删除监控"));
     remove.type = "button";
     remove.dataset.monitorAction = "delete";
     remove.addEventListener("click", () => deleteMonitorFromModal(modal, remove));
     const dashboard = monitorDashboardButton();
     const spacer = modalElement("span", "st-price-monitor-actions-spacer");
-    const cancel = modalElement("button", "st-price-monitor-action", "取消");
+    const cancel = modalElement("button", "st-price-monitor-action", t("store_priceHistory_cancel", "取消"));
     cancel.type = "button";
     cancel.dataset.monitorAction = "close";
     cancel.addEventListener("click", closeMonitorModal);
-    const save = modalElement("button", "st-price-monitor-action st-price-monitor-action--primary", "保存");
+    const save = modalElement("button", "st-price-monitor-action st-price-monitor-action--primary", t("store_priceHistory_save", "保存"));
     save.type = "button";
     save.dataset.monitorAction = "save";
     save.addEventListener("click", () => saveMonitorFromModal(modal));
@@ -909,7 +928,7 @@
     if (context.monitorDenied) {
       clearNode(paragraph);
       explanation.classList.add("st-price-monitor-explanation--warning");
-      appendText(paragraph, "该功能仅限赞助者使用。");
+      appendText(paragraph, t("store_priceHistory_monitorSponsorOnly", "该功能仅限赞助者使用。"));
       return;
     }
     const mode = modal.dataset.monitorMode === "discount" ? "discount" : "amount";
@@ -921,40 +940,42 @@
       : rawValue !== "" && Number.isInteger(value) && value >= 1 && value <= 100;
     const channels = [];
     if (modal.querySelector("[name='notify_qq']")?.checked) channels.push("QQ");
-    if (modal.querySelector("[name='notify_email']")?.checked) channels.push("邮件");
+    if (modal.querySelector("[name='notify_email']")?.checked) channels.push(t("store_priceHistory_monitorEmail", "邮件"));
     const notifyTime = String(modal.querySelector("[name='notify_time']")?.value || "");
     const timeValid = !!parseMonitorTime(notifyTime);
     const missing = [];
-    if (!valueValid) missing.push(mode === "amount" ? "期望金额" : "期望折扣");
-    if (!channels.length) missing.push("提醒方式");
-    if (!timeValid) missing.push("提醒时间");
+    if (!valueValid) missing.push(mode === "amount"
+      ? t("store_priceHistory_monitorAmount", "期望金额")
+      : t("store_priceHistory_monitorDiscount", "期望折扣"));
+    if (!channels.length) missing.push(t("store_priceHistory_monitorNotifyMethod", "提醒方式"));
+    if (!timeValid) missing.push(t("store_priceHistory_monitorTime", "提醒时间"));
 
     clearNode(paragraph);
     explanation.classList.toggle("st-price-monitor-explanation--warning", missing.length > 0);
     if (missing.length) {
-      appendText(paragraph, "请完善 ");
-      appendSpan(paragraph, missing.join("、"), "st-price-monitor-explanation-value");
-      appendText(paragraph, "，以启用本条打折监控。");
+      appendText(paragraph, t("store_priceHistory_monitorCompleteFields", "请完善 "));
+      appendSpan(paragraph, missing.join(t("store_priceHistory_listSeparator", "、")), "st-price-monitor-explanation-value");
+      appendText(paragraph, t("store_priceHistory_monitorEnable", "，以启用本条打折监控。"));
       return;
     }
 
     const itemName = context.itemName || `${context.target.type.toUpperCase()} ${context.target.id}`;
-    appendText(paragraph, "当《");
+    appendText(paragraph, t("store_priceHistory_monitorGamePrefix", "当《"));
     appendSpan(paragraph, itemName, "st-price-monitor-explanation-item");
-    appendText(paragraph, "》");
+    appendText(paragraph, t("store_priceHistory_monitorGameSuffix", "》"));
     if (mode === "amount") {
-      appendText(paragraph, "降至 ");
+      appendText(paragraph, t("store_priceHistory_monitorAmountPrefix", "降至 "));
       appendSpan(paragraph, monitorAmountText(value, context.currency), "st-price-monitor-explanation-value");
-      appendText(paragraph, " 及以下时，将于当天 ");
+      appendText(paragraph, t("store_priceHistory_monitorAmountMiddle", " 及以下时，将于当天 "));
     } else {
-      appendText(paragraph, "折扣达到 ");
+      appendText(paragraph, t("store_priceHistory_monitorDiscountPrefix", "折扣达到 "));
       appendSpan(paragraph, `${Math.round(value)}%`, "st-price-monitor-explanation-value");
-      appendText(paragraph, " 及以上时，将于当天 ");
+      appendText(paragraph, t("store_priceHistory_monitorDiscountMiddle", " 及以上时，将于当天 "));
     }
     appendSpan(paragraph, notifyTime, "st-price-monitor-explanation-value");
-    appendText(paragraph, " 通过 ");
-    appendSpan(paragraph, channels.join(" 和 "), "st-price-monitor-explanation-value");
-    appendText(paragraph, " 通知你。");
+    appendText(paragraph, t("store_priceHistory_monitorVia", " 通过 "));
+    appendSpan(paragraph, channels.join(t("store_priceHistory_monitorAnd", " 和 ")), "st-price-monitor-explanation-value");
+    appendText(paragraph, t("store_priceHistory_monitorNotifySuffix", " 通知你。"));
   }
 
   function setMonitorMode(modal, mode) {
@@ -1030,21 +1051,23 @@
     emailInput.checked = !!monitor?.notifyEmail;
     setMonitorTimeValue(modal, monitor?.notifyTime || "");
     const amountLabel = modal.querySelector("[data-monitor-field='amount'] .st-price-monitor-field-label");
-    if (amountLabel) amountLabel.textContent = `期望金额（最高 ${money({ amount: context.regularAmount, currency: context.currency })}）`;
+    if (amountLabel) amountLabel.textContent = t("store_priceHistory_monitorAmountMaximum", "期望金额（最高$amount$）", {
+      amount: money({ amount: context.regularAmount, currency: context.currency }),
+    });
     const deleteButton = modal.querySelector("[data-monitor-action='delete']");
     deleteButton.hidden = !monitor || !!context.monitorDenied;
     deleteButton.dataset.confirm = "";
-    deleteButton.textContent = "删除监控";
+    deleteButton.textContent = t("store_priceHistory_monitorDelete", "删除监控");
     setMonitorMode(modal, monitor?.targetMode || "amount");
     updateMonitorExplanation(modal);
 
     if (!context.monitorDenied) {
       try {
         if (!await hasMonitorAuth()) {
-          setMonitorModalMessage("请先在 Steam Buff 设置中登录。", true);
+          setMonitorModalMessage(t("store_priceHistory_monitorLoginRequiredInSettings", "请先在 Steam Buff 设置中登录。"), true);
         }
       } catch (error) {
-        setMonitorModalMessage(error?.message || "鉴权检查失败。", true);
+        setMonitorModalMessage(error?.message || t("store_priceHistory_monitorAuthFailed", "鉴权检查失败。"), true);
       }
     }
     const activeInput = modal.querySelector(`[data-monitor-field='${modal.dataset.monitorMode}'] .st-price-monitor-number-input`);
@@ -1072,14 +1095,16 @@
     const timezone = monitorTimezone();
 
     if (mode === "amount" && (amountText === "" || !Number.isFinite(targetAmount) || targetAmount < 1 || targetAmount > context.regularAmount)) {
-      throw new Error(`期望金额必须在 1 到 ${money({ amount: context.regularAmount, currency: context.currency })} 之间。`);
+      throw new Error(t("store_priceHistory_monitorAmountInvalid", "期望金额必须在 1 到$amount$之间。", {
+        amount: money({ amount: context.regularAmount, currency: context.currency }),
+      }));
     }
     if (mode === "discount" && (discountText === "" || !Number.isInteger(targetDiscount) || targetDiscount < 1 || targetDiscount > 100)) {
-      throw new Error("期望折扣必须是 1 到 100 之间的整数。");
+      throw new Error(t("store_priceHistory_monitorDiscountInvalid", "期望折扣必须是 1 到 100 之间的整数。"));
     }
-    if (!notifyQq && !notifyEmail) throw new Error("至少选择一种提醒方式。");
-    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(notifyTime)) throw new Error("请设置提醒时间。");
-    if (!timezone) throw new Error("无法读取当前时区，暂时不能保存。");
+    if (!notifyQq && !notifyEmail) throw new Error(t("store_priceHistory_monitorNotifyRequired", "至少选择一种提醒方式。"));
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(notifyTime)) throw new Error(t("store_priceHistory_monitorTimeRequired", "请设置提醒时间。"));
+    if (!timezone) throw new Error(t("store_priceHistory_monitorTimezoneRequired", "无法读取当前时区，暂时不能保存。"));
 
     return {
       item_type: context.target.type,
@@ -1110,14 +1135,14 @@
     }
 
     setMonitorModalBusy(modal, true);
-    setMonitorModalMessage("正在保存...");
+    setMonitorModalMessage(t("store_priceHistory_monitorSaving", "正在保存..."));
     const startedAt = Date.now();
     const operationId = window.STLoggerFactory?.createRequestId?.() || "";
     try {
       const body = await monitorPost(MONITOR_SAVE_URL, payload, operationId);
       const monitor = normalizeMonitor(body.data);
       if (!monitor || `${monitor.itemType}:${monitor.itemId}` !== context.key) {
-        throw new Error("打折监控保存响应不完整");
+        throw new Error(t("store_priceHistory_monitorSaveResponseInvalid", "打折监控保存响应不完整"));
       }
       monitorCache.set(context.key, monitor);
       refreshMonitorHost(context);
@@ -1133,7 +1158,7 @@
       });
     } catch (error) {
       setMonitorModalBusy(modal, false);
-      setMonitorModalMessage(error?.message || "保存失败，请稍后重试。", true);
+      setMonitorModalMessage(error?.message || t("store_priceHistory_monitorSaveFailed", "保存失败，请稍后重试。"), true);
       log.warn("price-monitor-save-failed", "打折监控保存失败", {
         operationId,
         itemType: context.target.type,
@@ -1150,18 +1175,18 @@
     if (!context || modal.dataset.busy === "true") return;
     if (button.dataset.confirm !== "true") {
       button.dataset.confirm = "true";
-      button.textContent = "确认删除";
+      button.textContent = t("store_priceHistory_monitorConfirmDelete", "确认删除");
       clearTimeout(button._stConfirmTimer);
       button._stConfirmTimer = setTimeout(() => {
         if (!button.isConnected) return;
         button.dataset.confirm = "";
-        button.textContent = "删除监控";
+        button.textContent = t("store_priceHistory_monitorDelete", "删除监控");
       }, 4000);
       return;
     }
 
     setMonitorModalBusy(modal, true);
-    setMonitorModalMessage("正在删除...");
+    setMonitorModalMessage(t("store_priceHistory_monitorDeleting", "正在删除..."));
     const startedAt = Date.now();
     const operationId = window.STLoggerFactory?.createRequestId?.() || "";
     try {
@@ -1180,7 +1205,7 @@
       });
     } catch (error) {
       setMonitorModalBusy(modal, false);
-      setMonitorModalMessage(error?.message || "删除失败，请稍后重试。", true);
+      setMonitorModalMessage(error?.message || t("store_priceHistory_monitorDeleteFailed", "删除失败，请稍后重试。"), true);
       log.warn("price-monitor-delete-failed", "打折监控删除失败", {
         operationId,
         itemType: context.target.type,
@@ -1329,7 +1354,9 @@
     node.dataset.stPriceHistoryTarget = targetKey(target);
     node.dataset.stPriceHistoryProvider = "store-data-service";
     node.dataset.stPriceHistoryState = "loading";
-    node.textContent = target.surface === "dlc" ? DLC_LOADING_TEXT : LOADING_TEXT;
+    node.textContent = target.surface === "dlc"
+      ? t("store_priceHistory_dlcLoading", "史低读取中...")
+      : t("store_priceHistory_loading", "正在读取历史最低价格...");
   }
 
   function styleDlcNode(node) {
@@ -1401,7 +1428,7 @@
 
   function money(price) {
     const amount = amountOf(price);
-    if (amount === null) return "暂无";
+    if (amount === null) return t("store_priceHistory_unavailable", "暂无");
     const currency = String(price?.currency || "").trim();
     return typeof formatPrice === "function" && currency ? formatPrice(amount, currency) : `${currency} ${amount}`.trim();
   }
@@ -1413,14 +1440,14 @@
   function dateText(value) {
     if (typeof formatDate === "function") return formatDate(value);
     const time = Date.parse(String(value || ""));
-    if (!Number.isFinite(time)) return "未知日期";
+    if (!Number.isFinite(time)) return t("store_priceHistory_unknownDate", "未知日期");
     return new Date(time).toISOString().slice(0, 10);
   }
 
   function daysText(value) {
     if (typeof calculateDaysDiff !== "function") return "";
     const days = calculateDaysDiff(value);
-    return days > 0 ? `（${days}天前）` : "";
+    return days > 0 ? t("store_priceHistory_daysAgo", "（$days$天前）", { days }) : "";
   }
 
   function appendDiscount(parent, cut) {
@@ -1453,18 +1480,24 @@
     const cutDiff = (Number(current?.cut) || 0) - (Number(low?.cut) || 0);
 
     if (diff < 0) {
-      appendText(parent, " ，比历史最低");
-      appendSpan(parent, `便宜${compactMoney({ amount: Math.abs(diff), currency })}元(-${Math.abs(cutDiff)}%)。`, "", {
+      appendText(parent, t("store_priceHistory_compareLowPrefix", " ，比历史最低"));
+      appendSpan(parent, t("store_priceHistory_compareCheaper", "便宜$amount$元(-$discount$%)。", {
+        amount: compactMoney({ amount: Math.abs(diff), currency }),
+        discount: Math.abs(cutDiff),
+      }), "", {
         color: colors.success,
       });
       return;
     }
     if (diff === 0) {
-      appendText(parent, " ，与历史最低持平。");
+      appendText(parent, t("store_priceHistory_compareEqual", " ，与历史最低持平。"));
       return;
     }
-    appendText(parent, " ，比历史最低");
-    appendSpan(parent, `贵${compactMoney({ amount: diff, currency })}元(+${Math.abs(cutDiff)}%)。`, "", {
+    appendText(parent, t("store_priceHistory_compareLowPrefix", " ，比历史最低"));
+    appendSpan(parent, t("store_priceHistory_compareMoreExpensive", "贵$amount$元(+$discount$%)。", {
+      amount: compactMoney({ amount: diff, currency }),
+      discount: Math.abs(cutDiff),
+    }), "", {
       color: colors.danger,
     });
   }
@@ -1483,30 +1516,30 @@
     const selection = lowSelection(summary, chartSettings);
     const low = selection.referenceLow;
     if (!summary.found) {
-      return setActiveMessage(node, queryId, "ITAD 暂未收录当前购买项。");
+      return setActiveMessage(node, queryId, t("store_priceHistory_itadNotListed", "ITAD 暂未收录当前购买项。"));
     }
     if (!current?.price || !low?.price) {
-      return setActiveMessage(node, queryId, "价格数据不完整。");
+      return setActiveMessage(node, queryId, t("store_priceHistory_priceIncomplete", "价格数据不完整。"));
     }
 
     node.dataset.stPriceHistoryState = "done";
     clearNode(node);
-    appendText(node, "历史最低折扣在 ");
+    appendText(node, t("store_priceHistory_historicalLowAt", "历史最低折扣在 "));
     appendSpan(node, dateText(low.timestamp), "", { textDecoration: "underline" });
-    appendText(node, `${daysText(low.timestamp)} 为 `);
+    appendText(node, t("store_priceHistory_historicalLowValuePrefix", "$days$ 为 ", { days: daysText(low.timestamp) }));
     appendDiscount(node, low.cut);
     appendText(node, ` ${money(low.price)}`);
 
     appendBreak(node);
     const currentIsHistoricalLow = selection.isCurrentLow;
     if (currentIsHistoricalLow) {
-      appendSpan(node, "当前为历史最低折扣", "game_purchase_discount_countdown", {
+      appendSpan(node, t("store_priceHistory_currentHistoricalLow", "当前为历史最低折扣"), "game_purchase_discount_countdown", {
         color: colors.danger,
       });
     } else if ((Number(current.cut) || 0) === 0) {
-      appendSpan(node, "当前为原价");
+      appendSpan(node, t("store_priceHistory_currentRegularPrice", "当前为原价"));
     } else {
-      appendSpan(node, "当前最低折扣");
+      appendSpan(node, t("store_priceHistory_currentLowestDiscount", "当前最低折扣"));
     }
 
     if ((Number(current.cut) || 0) > 0) {
@@ -1521,7 +1554,9 @@
     appendCompare(node, current, low);
 
     if (summary.overviewAvailable) {
-      appendText(node, Number.isInteger(summary.bundled) ? ` 进包：${summary.bundled}次` : " 进包：暂不可用");
+      appendText(node, Number.isInteger(summary.bundled)
+        ? t("store_priceHistory_bundled", " 进包：$count$次", { count: summary.bundled })
+        : t("store_priceHistory_bundledUnavailable", " 进包：暂不可用"));
     }
 
     const context = monitorContext(target, summary, pageAppId, cc);
@@ -1531,9 +1566,9 @@
     }
     appendBreak(node);
     appendBreak(node);
-    appendText(node, "在");
+    appendText(node, t("store_priceHistory_viewDetailsPrefix", "在"));
     appendLink(node, summary.source?.name || PROVIDER_LABEL, current.url || low.url || summary.source?.url);
-    appendText(node, "查看详情");
+    appendText(node, t("store_priceHistory_viewDetails", "查看详情"));
     return context;
   }
 
@@ -1557,12 +1592,16 @@
     }
     node.dataset.stPriceHistoryState = "done";
     clearNode(node);
-    appendSpan(node, "史低", `${DLC_NODE_CLASS}__label`);
+    appendSpan(node, t("store_priceHistory_dlcHistoricalLow", "史低"), `${DLC_NODE_CLASS}__label`);
     if ((Number(low.cut) || 0) > 0) {
       appendDlcDiscount(node, low.cut);
     }
     appendText(node, money(low.price));
-    const historyLabel = `历史最低 ${money(low.price)}，${dateText(low.timestamp)}，来源 ${summary.source?.name || PROVIDER_LABEL}`;
+    const historyLabel = t("store_priceHistory_dlcHistoryLabel", "历史最低 $price$，$date$，来源 $source$", {
+      price: money(low.price),
+      date: dateText(low.timestamp),
+      source: summary.source?.name || PROVIDER_LABEL,
+    });
     node.title = historyLabel;
     bindDlcRegionalPrice(node, queryId, target, historyLabel);
     return true;
@@ -1570,11 +1609,11 @@
 
   function resultMessage(result = {}) {
     if (result.userMessage) return result.userMessage;
-    if (result.code === "PROVIDER_GAME_NOT_FOUND") return "ITAD 暂未收录当前 Steam 商品。";
-    if (result.code === "CAPABILITY_UNSUPPORTED") return "当前平台暂不支持价格能力。";
-    if (result.code === "PROVIDER_DISABLED") return "第三方数据服务已关闭。";
-    if (result.code === "PROVIDER_CONFIG_MISSING") return "第三方价格数据未配置。";
-    return "第三方价格数据暂不可用。";
+    if (result.code === "PROVIDER_GAME_NOT_FOUND") return t("store_priceHistory_providerGameNotFound", "ITAD 暂未收录当前 Steam 商品。");
+    if (result.code === "CAPABILITY_UNSUPPORTED") return t("store_priceHistory_capabilityUnsupported", "当前平台暂不支持价格能力。");
+    if (result.code === "PROVIDER_DISABLED") return t("store_priceHistory_providerDisabled", "第三方数据服务已关闭。");
+    if (result.code === "PROVIDER_CONFIG_MISSING") return t("store_priceHistory_providerConfigMissing", "第三方价格数据未配置。");
+    return t("store_priceHistory_providerUnavailable", "第三方价格数据暂不可用。");
   }
 
   function renderUnavailable(nodes, queryId, result) {
@@ -1690,7 +1729,7 @@
       })
       .catch((error) => {
         Object.values(nodes).forEach(({ node }) => {
-          setActiveMessage(node, queryId, "价格查询失败，请稍后重试。");
+          setActiveMessage(node, queryId, t("store_priceHistory_queryFailed", "价格查询失败，请稍后重试。"));
         });
         log.error("price-history-query-failed", "购买区历史价格查询异常", {
           appid: Number(appId) || 0,

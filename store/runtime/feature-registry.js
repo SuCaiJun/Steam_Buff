@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -163,7 +163,10 @@
             phase: "feature-mount",
             event: "feature-start-failed",
             message: "商店页功能启动失败",
-            userMessage: "商店增强功能启动失败，其他功能已继续加载",
+            userMessage: window.STI18n.text(
+              "store.runtime.featureStartFailed",
+              "商店增强功能启动失败，其他功能已继续加载",
+            ),
             meta: {
               path: location.pathname,
             },

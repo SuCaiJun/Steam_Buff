@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -32,6 +32,10 @@
   const SAVE_DONE_KEEP_MS = 120000;
   const AUTO_UPLOAD_WINDOW_MS = 30000;
   const AUTO_UPLOAD_MESSAGE_LAG_MS = 5000;
+
+  function i18n(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
+  }
 
   function now() {
     return Date.now();
@@ -480,7 +484,7 @@
     try {
       for (const app of appValues()) {
         if (rt.previewToken !== sid) {
-          post(rt.ch, { type: "prepare-list-result", rid, ok: false, error: "批量预览已取消" });
+          post(rt.ch, { type: "prepare-list-result", rid, ok: false, error: i18n("steam.libraryCustomName.previewCancelled", "批量预览已取消") });
           return;
         }
         const item = row(app);
@@ -493,7 +497,7 @@
         }
       }
       if (rt.previewToken !== sid) {
-        post(rt.ch, { type: "prepare-list-result", rid, ok: false, error: "批量预览已取消" });
+        post(rt.ch, { type: "prepare-list-result", rid, ok: false, error: i18n("steam.libraryCustomName.previewCancelled", "批量预览已取消") });
         return;
       }
       rt.preview = {
@@ -517,7 +521,7 @@
     const sid = text(data?.sid);
     const preview = rt.preview;
     if (!preview || preview.sid !== sid) {
-      post(rt.ch, { type: "list-page-result", rid, ok: false, error: "批量预览会话已失效" });
+      post(rt.ch, { type: "list-page-result", rid, ok: false, error: i18n("steam.libraryCustomName.previewExpired", "批量预览会话已失效") });
       return;
     }
     const total = preview.rows.length;
@@ -623,7 +627,7 @@
       running: false,
       queueRid,
       stats: stats(0, 0),
-      error: "保存队列状态已失效，请重新打开批量窗口确认结果",
+      error: i18n("steam.libraryCustomName.saveStatusExpired", "保存队列状态已失效，请重新打开批量窗口确认结果"),
     });
   }
 
@@ -633,18 +637,18 @@
     const name = text(item?.name);
     const store = window.appStore;
     if (item?.mode === "clear") {
-      return { status: "failed", error: "清空自定义排序名称需要 Steam CloudStorage 快速写入支持" };
+      return { status: "failed", error: i18n("steam.libraryCustomName.clearNeedsFastWrite", "清空自定义排序名称需要 Steam CloudStorage 快速写入支持") };
     }
     if (!Number.isFinite(appid) || appid <= 0 || !name) {
-      return { status: "skipped", error: "写入名称为空" };
+      return { status: "skipped", error: i18n("steam.libraryCustomName.emptyWriteName", "写入名称为空") };
     }
     if (typeof store?.SetCustomSortAs !== "function") {
-      throw new Error("Steam 自定义排序接口不可用");
+      throw new Error(i18n("steam.libraryCustomName.customSortUnavailable", "Steam 自定义排序接口不可用"));
     }
 
-    const ret = await withTimeout(store.SetCustomSortAs(appid, name), WRITE_TIMEOUT_MS, "Steam 自定义排序接口响应超时");
+    const ret = await withTimeout(store.SetCustomSortAs(appid, name), WRITE_TIMEOUT_MS, i18n("steam.libraryCustomName.customSortTimeout", "Steam 自定义排序接口响应超时"));
     if (ret === false) {
-      throw new Error("Steam 拒绝写入");
+      throw new Error(i18n("steam.libraryCustomName.writeRejected", "Steam 拒绝写入"));
     }
     return { status: "success" };
   }
@@ -883,16 +887,16 @@
         await withTimeout(
           rt.cloud.StoreObject(seed.key, parseValue({ value: seed.value })),
           WRITE_TIMEOUT_MS,
-          "Steam CloudStorage Entry 引导写入超时",
+          i18n("steam.libraryCustomName.entryBootstrapTimeout", "Steam CloudStorage Entry 引导写入超时"),
         );
       } else if (typeof rt.state?.Upsert === "function") {
         const ret = await withTimeout(
           rt.state.Upsert(rt.ns, seed.key, seed.value),
           WRITE_TIMEOUT_MS,
-          "Steam CloudStorage Entry 引导写入超时",
+          i18n("steam.libraryCustomName.entryBootstrapTimeout", "Steam CloudStorage Entry 引导写入超时"),
         );
         if (ret !== STEAM_OK) {
-          return fastFail("entry-bootstrap-failed", `Steam CloudStorage Entry 引导写入失败: ${ret}`);
+        return fastFail("entry-bootstrap-failed", i18n("steam.libraryCustomName.entryBootstrapFailed", "Steam CloudStorage Entry 引导写入失败: $result$", { result: ret }));
         }
       } else {
         return fastFail("entry-bootstrap-unavailable");
@@ -971,10 +975,10 @@
       return result.errorMessage;
     }
     if (clear) {
-      return "清空自定义排序名称需要 Steam CloudStorage 快速写入支持";
+      return i18n("steam.libraryCustomName.clearNeedsFastWrite", "清空自定义排序名称需要 Steam CloudStorage 快速写入支持");
     }
-    const reason = result?.reason ? `（${result.reason}）` : "";
-    return `Steam CloudStorage 快速写入不可用${reason}，保存队列已安全中止`;
+    const reason = result?.reason ? i18n("steam.libraryCustomName.reasonSuffix", "（$reason$）", { reason: result.reason }) : "";
+    return i18n("steam.libraryCustomName.fastWriteUnavailableReason", "Steam CloudStorage 快速写入不可用$reason$，保存队列已安全中止", { reason });
   }
 
   function fastUnavailableResults(items, result) {
@@ -1011,7 +1015,7 @@
       const name = text(item?.name);
       const clear = item?.mode === "clear";
       if (!Number.isFinite(appid) || appid <= 0 || (!name && !clear)) {
-        results.push(resultItem(item, "skipped", "写入名称为空"));
+        results.push(resultItem(item, "skipped", i18n("steam.libraryCustomName.emptyWriteName", "写入名称为空")));
         continue;
       }
 
@@ -1045,7 +1049,7 @@
       }
       if (!entry) {
         if (projectedSize >= STEAM_CUSTOM_LIMIT) {
-          results.push(resultItem(item, "failed", "Steam namespace 3 自定义名称数量已达到 10000"));
+        results.push(resultItem(item, "failed", i18n("steam.libraryCustomName.namespaceLimitReached", "Steam namespace 3 自定义名称数量已达到 10000")));
           continue;
         }
         projectedSize += 1;
@@ -1123,11 +1127,11 @@
       }
 
       const writeStarted = now();
-      const writeResult = await withTimeout(rt.state.WriteNamespaceToDisk(rt.ns, true), WRITE_TIMEOUT_MS, "Steam CloudStorage 批量写盘超时");
+      const writeResult = await withTimeout(rt.state.WriteNamespaceToDisk(rt.ns, true), WRITE_TIMEOUT_MS, i18n("steam.libraryCustomName.cloudDiskTimeout", "Steam CloudStorage 批量写盘超时"));
       const writeMs = now() - writeStarted;
       if (writeResult !== STEAM_OK) {
         restoreFast(rt.storage, rt.dirty, backups);
-        return fastFail("write-namespace-failed", `Steam CloudStorage 写盘失败: ${writeResult}`);
+        return fastFail("write-namespace-failed", i18n("steam.libraryCustomName.cloudDiskFailed", "Steam CloudStorage 写盘失败: $result$", { result: writeResult }));
       }
 
       const scheduleStarted = now();
@@ -1319,7 +1323,7 @@
       }
       if (!fast) {
         doneReason = "fast-unavailable";
-        q.error = "Steam CloudStorage 快速写入未返回结果，保存队列已安全中止";
+      q.error = i18n("steam.libraryCustomName.fastWriteNoResult", "Steam CloudStorage 快速写入未返回结果，保存队列已安全中止");
         break;
       }
 
@@ -1363,7 +1367,7 @@
         operationId: operationId || rt.q.operationId || "",
         reason: "already-running",
       });
-      post(rt.ch, { type: "save-result", rid, ok: false, error: "已有保存队列正在执行" });
+      post(rt.ch, { type: "save-result", rid, ok: false, error: i18n("steam.libraryCustomName.saveAlreadyRunning", "已有保存队列正在执行") });
       return;
     }
 
@@ -1435,7 +1439,7 @@
   function command(rt, rid, action) {
     const q = rt.q;
     if (!q?.running) {
-      post(rt.ch, { type: "cmd-result", rid, ok: false, error: "没有正在执行的保存队列" });
+      post(rt.ch, { type: "cmd-result", rid, ok: false, error: i18n("steam.libraryCustomName.noSaveRunning", "没有正在执行的保存队列") });
       return;
     }
     if (action === "pause") {

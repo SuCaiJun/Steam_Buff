@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -19,6 +19,11 @@
   const DEFAULT_RETRY_DELAY_MS = 500;
   const FINAL_FAILURE_LOGGED = Symbol("settings-api-final-failure-logged");
   const SUCCESS_ATTEMPT_RECORDED = Symbol("settings-api-success-attempt-recorded");
+
+  function text(key, fallback, params) {
+    return root.STI18n?.text?.(key, fallback, params) ?? fallback;
+  }
+
   function requestLogger(options = {}) {
     return root.STLoggerFactory?.createLogger?.("settings", "api-request", {
       requestUrlPolicy: options.requestUrlPolicy,
@@ -29,15 +34,26 @@
     return root.STLoggerFactory?.safeLogUrl?.(url, policy) || "";
   }
 
+  function responseErrorMessage(response) {
+    if (response?.errorName === "TimeoutError" || response?.errorCode === "REQUEST_TIMEOUT") {
+      return text("common.requestTimedOut", "请求超时，请稍后重试。");
+    }
+    if (response?.errorKind === "transport") {
+      return text("common.backgroundRequestFailed", "后台请求失败");
+    }
+    return String(response?.error || "").trim()
+      || text("common.backgroundRequestFailed", "后台请求失败");
+  }
+
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
   }
 
-  function parseJson(text, message = "官网接口返回解析失败") {
+  function parseJson(source, message = "") {
     try {
-      return JSON.parse(text || "{}");
+      return JSON.parse(source || "{}");
     } catch (error) {
-      const err = new Error(message);
+      const err = new Error(message || text("settings.api.parseFailed", "官网接口返回解析失败"));
       err.name = "ParseError";
       err.cause = error;
       throw err;
@@ -85,7 +101,9 @@
 
       if (timeoutMs > 0) {
         timerId = setTimeout(() => {
-          const error = new Error(`请求超时（${Math.round(timeoutMs)}ms）`);
+          const error = new Error(text("common.requestTimedOutMs", "请求超时（$timeout$ms）", {
+            timeout: Math.round(timeoutMs),
+          }));
           error.name = "TimeoutError";
           error.code = "REQUEST_TIMEOUT";
           finish(reject, error);
@@ -108,7 +126,9 @@
               finish(reject, error);
               return;
             }
-            const requestError = new Error(typeof error === "string" ? error : "后台请求失败");
+            const requestError = new Error(typeof error === "string"
+              ? error
+              : text("common.backgroundRequestFailed", "后台请求失败"));
             requestError.name = "RequestError";
             finish(reject, requestError);
           });
@@ -120,7 +140,7 @@
         }, (response) => {
           const error = root.chrome?.runtime?.lastError;
           if (error) {
-            const err = new Error(error.message || "后台请求失败");
+            const err = new Error(error.message || text("common.backgroundRequestFailed", "后台请求失败"));
             err.name = "RequestError";
             finish(reject, err);
             return;
@@ -136,6 +156,7 @@
   function request(options = {}) {
     const url = String(options.url || "");
     const method = String(options.method || "GET").toUpperCase();
+    const label = String(options.label || text("settings.api.endpoint", "官网接口"));
     const timeoutMs = normalizeTimeout(options);
     const retries = normalizeRetries(options);
     const allowHttpError = options.allowHttpError !== false;
@@ -185,21 +206,24 @@
             service: options.service,
           }, timeoutMs);
           if (!response?.success) {
-            const error = new Error(response?.error || "后台请求失败");
+            const error = new Error(responseErrorMessage(response));
             error.status = Number(response?.status) || 0;
             error.data = response?.data;
             error.response = response;
             throw error;
           }
           if (response.ok === false && allowHttpError === false) {
-            const error = new Error(`${options.label || "官网接口"}返回状态码 ${response.status || 0}`);
+            const error = new Error(text("settings.api.statusCode", "$label$返回状态码 $status$", {
+              label,
+              status: response.status || 0,
+            }));
             error.status = Number(response?.status) || 0;
             error.data = response?.data;
             error.response = response;
             throw error;
           }
           if (validateResponse && !validateResponse(response)) {
-            const error = new Error(options.validateMessage || `${options.label || "官网接口"}返回格式异常`);
+            const error = new Error(options.validateMessage || text("settings.api.responseInvalid", "$label$返回格式异常", { label }));
             error.name = "ValidationError";
             error.status = Number(response?.status) || 0;
             error.data = response?.data;
@@ -250,7 +274,7 @@
   }
 
   async function getJson(url, options = {}) {
-    const label = String(options.label || "官网接口");
+    const label = String(options.label || text("settings.api.endpoint", "官网接口"));
     const requestId = String(options.requestId || "").trim()
       || root.STLoggerFactory?.createRequestId?.()
       || root.STLoggerSchema?.createId?.("request")
@@ -294,15 +318,15 @@
           successAttempt = attempt;
         },
       });
-      const payload = parseJson(response.data, options.parseMessage || "官网接口返回解析失败");
+      const payload = parseJson(response.data, options.parseMessage || text("settings.api.parseFailed", "官网接口返回解析失败"));
       if (options.validate && !options.validate(payload, response)) {
-        const error = new Error(options.validateMessage || `${label}返回格式异常`);
+        const error = new Error(options.validateMessage || text("settings.api.responseInvalid", "$label$返回格式异常", { label }));
         error.name = "ValidationError";
         error.status = Number(response?.status) || 0;
         throw error;
       }
       if (payload?.code && Number(payload.code) !== 200) {
-        const error = new Error(payload.message || `${label}请求失败`);
+        const error = new Error(payload.message || text("settings.api.requestFailed", "$label$请求失败", { label }));
         error.name = "BusinessError";
         error.status = Number(response?.status) || 0;
         throw error;

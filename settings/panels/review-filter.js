@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -20,6 +20,10 @@
     return globalThis.STSettingsHtml?.[name] || ((text) => String(text ?? ""));
   }
 
+  function uiText(key, fallbackText, params) {
+    return globalThis.STI18n.text(key, fallbackText, params);
+  }
+
   function reviewRuleId(type, value) {
     let hash = 0;
     const src = `${type}:${value}:${Date.now()}:${Math.random()}`;
@@ -31,20 +35,20 @@
 
   function reviewRuleLabel(type) {
     if (type === "regex") {
-      return "正则";
+      return uiText("settings.reviewFilter.rule.regex", "正则");
     }
     if (type === "nickname") {
-      return "昵称";
+      return uiText("settings.reviewFilter.rule.nickname", "昵称");
     }
-    return "关键词";
+    return uiText("settings.reviewFilter.rule.keyword", "关键词");
   }
 
   function reviewRuleTypes() {
     return [
-      { value: "all", label: "全部" },
-      { value: "keyword", label: "关键词" },
-      { value: "regex", label: "正则" },
-      { value: "nickname", label: "昵称" },
+      { value: "all", label: uiText("common.all", "全部") },
+      { value: "keyword", label: uiText("settings.reviewFilter.rule.keyword", "关键词") },
+      { value: "regex", label: uiText("settings.reviewFilter.rule.regex", "正则") },
+      { value: "nickname", label: uiText("settings.reviewFilter.rule.nickname", "昵称") },
     ];
   }
 
@@ -73,7 +77,7 @@
   function validateReviewRule(type, value) {
     const text = String(value || "").trim();
     if (!text) {
-      return "请先输入屏蔽内容。";
+      return uiText("settings.reviewFilter.rule.enterContent", "请先输入屏蔽内容。");
     }
     if (type !== "regex") {
       return "";
@@ -87,7 +91,7 @@
       }
       return "";
     } catch (error) {
-      return `正则表达式无效：${error?.message || String(error)}`;
+      return uiText("settings.reviewFilter.rule.invalidRegex", "正则表达式无效：$message$", { message: error?.message || String(error) });
     }
   }
 
@@ -116,12 +120,12 @@
 
   function reviewReasonBadge(item) {
     const value = item.value == null ? "" : ` ${item.value}`;
-    return `${item.reasonText || "规则命中"}${value}`;
+    return `${item.reasonText || uiText("settings.reviewFilter.rule.matched", "规则命中")}${value}`;
   }
 
   function reviewPreview(text, fallbackText) {
     const value = String(text || "").trim();
-    return value || fallbackText || "无评论内容";
+    return value || fallbackText || uiText("settings.reviewFilter.noReviewContent", "无评论内容");
   }
 
   function reviewPreviewParts(text, fallbackText) {
@@ -275,7 +279,7 @@
     }
 
     function ruleFiltersHtml() {
-      return '<div class="review-rule-tabs" role="tablist" aria-label="评论过滤规则类型"></div>';
+      return `<div class="review-rule-tabs" role="tablist" aria-label="${escAttr(uiText("settings.reviewFilter.rule.filterType", "评论过滤规则类型"))}"></div>`;
     }
 
     function renderRuleTabs(tabs) {
@@ -297,15 +301,15 @@
       const main = el("div", "review-rule-main");
       const meta = el("div", "review-rule-meta");
       meta.appendChild(el("span", "review-rule-type", reviewRuleLabel(rule.type)));
-      meta.appendChild(el("span", "review-rule-state", rule.enabled ? "启用" : "停用"));
+      meta.appendChild(el("span", "review-rule-state", rule.enabled ? uiText("common.enabled", "启用") : uiText("common.disabled", "停用")));
       const preview = el("pre", "review-rule-preview", rule.value);
       main.appendChild(meta);
       main.appendChild(preview);
 
       const actions = el("div", "review-rule-actions");
-      actions.appendChild(button("btn btn-secondary review-rule-toggle", rule.enabled ? "停用" : "启用"));
-      actions.appendChild(button("btn btn-secondary review-rule-edit", "编辑"));
-      actions.appendChild(button("btn btn-secondary review-rule-delete", "删除"));
+      actions.appendChild(button("btn btn-secondary review-rule-toggle", rule.enabled ? uiText("common.disable", "停用") : uiText("common.enable", "启用")));
+      actions.appendChild(button("btn btn-secondary review-rule-edit", uiText("common.edit", "编辑")));
+      actions.appendChild(button("btn btn-secondary review-rule-delete", uiText("common.delete", "删除")));
 
       row.appendChild(main);
       row.appendChild(actions);
@@ -316,7 +320,7 @@
       if (!target) return;
       clearNode(target);
       if (!rules.length) {
-        target.appendChild(el("div", "review-rule-empty", "暂无屏蔽规则"));
+        target.appendChild(el("div", "review-rule-empty", uiText("settings.reviewFilter.rule.empty", "暂无屏蔽规则")));
         return;
       }
       rules.forEach(rule => target.appendChild(createRuleRow(rule)));
@@ -335,7 +339,7 @@
       renderRuleRows(target, win.items);
       if (win.limited) {
         const more = el("div", "review-rule-more");
-        more.appendChild(button("btn btn-secondary review-rule-more-btn", `查看更多（共 ${win.total} 条）`));
+        more.appendChild(button("btn btn-secondary review-rule-more-btn", uiText("settings.reviewFilter.rule.viewAll", "查看更多（共 $count$ 条）", { count: win.total })));
         target.appendChild(more);
       }
     }
@@ -368,13 +372,13 @@
       layer.className = "settings-dialog-layer";
       layer.tabIndex = -1;
       setTrustedTemplate(layer, `
-      <div class="settings-dialog review-rule-full-dialog" role="dialog" aria-modal="true" aria-label="屏蔽规则列表">
+      <div class="settings-dialog review-rule-full-dialog" role="dialog" aria-modal="true" aria-label="${escAttr(uiText("settings.reviewFilter.rule.listTitle", "屏蔽规则列表"))}">
         <div class="filtered-review-head">
           <div>
-            <div class="settings-dialog-title">屏蔽规则列表</div>
-            <div class="filtered-review-subtitle">当前分类共有 <span class="review-rule-full-count"></span> 条规则</div>
+            <div class="settings-dialog-title">${esc(uiText("settings.reviewFilter.rule.listTitle", "屏蔽规则列表"))}</div>
+            <div class="filtered-review-subtitle">${esc(uiText("settings.reviewFilter.rule.currentCategoryPrefix", "当前分类共有"))} <span class="review-rule-full-count"></span> ${esc(uiText("settings.reviewFilter.rule.countSuffix", "条规则"))}</div>
           </div>
-          <button class="dialog-btn review-rule-full-close" type="button" data-dialog-action="close">关闭</button>
+          <button class="dialog-btn review-rule-full-close" type="button" data-dialog-action="close">${esc(uiText("common.close", "关闭"))}</button>
         </div>
         <div class="review-rule-full-list"></div>
       </div>
@@ -433,7 +437,7 @@
             durationMs: Date.now() - startedAt,
             errorCode: ok === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
           });
-          dialog(shadow, { title: "保存失败", message: "屏蔽规则未能保存，请稍后重试。" });
+          dialog(shadow, { title: uiText("common.saveFailed", "保存失败"), message: uiText("settings.reviewFilter.rule.saveFailed", "屏蔽规则未能保存，请稍后重试。") });
           return false;
         }
         conf = { ...conf, rules: next };
@@ -455,7 +459,7 @@
           durationMs: Date.now() - startedAt,
           error,
         });
-        dialog(shadow, { title: "保存失败", message: "屏蔽规则未能保存，请稍后重试。" });
+        dialog(shadow, { title: uiText("common.saveFailed", "保存失败"), message: uiText("settings.reviewFilter.rule.saveFailed", "屏蔽规则未能保存，请稍后重试。") });
         return false;
       } finally {
         setSavePending(shadow, false);
@@ -468,7 +472,7 @@
       const value = String(input?.value || "").replace(/\r\n?/g, "\n").trim();
       const error = validateReviewRule(type, value);
       if (error) {
-        dialog(shadow, { title: "无法添加规则", message: error });
+        dialog(shadow, { title: uiText("settings.reviewFilter.rule.addFailed", "无法添加规则"), message: error });
         return;
       }
       const rules = normalizeReviewRules(conf);
@@ -509,26 +513,26 @@
       layer.className = "settings-dialog-layer";
       layer.tabIndex = -1;
       setTrustedTemplate(layer, `
-      <div class="settings-dialog review-rule-dialog" role="dialog" aria-modal="true" aria-label="编辑屏蔽规则">
-        <div class="settings-dialog-title">编辑屏蔽规则</div>
+      <div class="settings-dialog review-rule-dialog" role="dialog" aria-modal="true" aria-label="${escAttr(uiText("settings.reviewFilter.rule.editTitle", "编辑屏蔽规则"))}">
+        <div class="settings-dialog-title">${esc(uiText("settings.reviewFilter.rule.editTitle", "编辑屏蔽规则"))}</div>
         <div class="review-rule-dialog-body">
           <label class="review-rule-dialog-label">
-            <span>类型</span>
+            <span>${esc(uiText("common.type", "类型"))}</span>
             <select class="settings-control review-rule-dialog-type">
-              <option value="keyword">关键词</option>
-              <option value="regex">正则</option>
-              <option value="nickname">昵称</option>
+              <option value="keyword">${esc(uiText("settings.reviewFilter.rule.keyword", "关键词"))}</option>
+              <option value="regex">${esc(uiText("settings.reviewFilter.rule.regex", "正则"))}</option>
+              <option value="nickname">${esc(uiText("settings.reviewFilter.rule.nickname", "昵称"))}</option>
             </select>
           </label>
           <label class="review-rule-dialog-label">
-            <span>内容</span>
+            <span>${esc(uiText("common.content", "内容"))}</span>
             <textarea class="settings-control review-rule-dialog-value"></textarea>
           </label>
           <div class="review-rule-dialog-error" hidden></div>
         </div>
         <div class="settings-dialog-actions">
-          <button class="dialog-btn" type="button" data-dialog-action="cancel">取消</button>
-          <button class="dialog-btn primary" type="button" data-dialog-action="save">保存</button>
+          <button class="dialog-btn" type="button" data-dialog-action="cancel">${esc(uiText("common.cancel", "取消"))}</button>
+          <button class="dialog-btn primary" type="button" data-dialog-action="save">${esc(uiText("common.save", "保存"))}</button>
         </div>
       </div>
     `, "settings-review-filter-rule-editor-template");
@@ -630,13 +634,13 @@
 
       const main = el("div", "filtered-review-main");
       const meta = el("div", "filtered-review-meta");
-      meta.appendChild(el("span", "filtered-review-user", item.nickname || "未知用户"));
+      meta.appendChild(el("span", "filtered-review-user", item.nickname || uiText("common.unknownUser", "未知用户")));
       meta.appendChild(el("span", "filtered-review-reason", reviewReasonBadge(item)));
       meta.appendChild(el("span", "filtered-review-time", item.playtimeText || ""));
       main.appendChild(meta);
       main.appendChild(el("pre", "filtered-review-text", body.text));
       if (body.more) {
-        main.appendChild(button("filtered-review-more", "更多"));
+        main.appendChild(button("filtered-review-more", uiText("common.more", "更多")));
       }
       row.appendChild(main);
       return row;
@@ -646,7 +650,7 @@
       if (!target) return;
       clearNode(target);
       if (!hiddenReviews.length) {
-        target.appendChild(el("div", "filtered-review-empty", "当前页面暂无被过滤的评论"));
+        target.appendChild(el("div", "filtered-review-empty", uiText("settings.reviewFilter.filtered.empty", "当前页面暂无被过滤的评论")));
         return;
       }
       hiddenReviews.forEach(item => target.appendChild(createFilteredRow(item)));
@@ -660,7 +664,9 @@
         return;
       }
       btn.hidden = total === 0;
-      btn.title = total ? `查看已过滤评论（${total}）` : "查看已过滤评论";
+      btn.title = total
+        ? uiText("settings.reviewFilter.filtered.viewCount", "查看已过滤评论（$count$）", { count: total })
+        : uiText("settings.shell.filteredReviewsButton", "查看已过滤评论");
       btn.setAttribute("aria-label", btn.title);
       if (count) {
         count.textContent = reviewCountBadge(total);
@@ -691,13 +697,13 @@
       layer.className = "settings-dialog-layer";
       layer.tabIndex = -1;
       setTrustedTemplate(layer, `
-      <div class="settings-dialog filtered-review-dialog" role="dialog" aria-modal="true" aria-label="已过滤评论">
+      <div class="settings-dialog filtered-review-dialog" role="dialog" aria-modal="true" aria-label="${escAttr(uiText("settings.reviewFilter.filtered.title", "已过滤评论"))}">
         <div class="filtered-review-head">
           <div>
-            <div class="settings-dialog-title">已过滤评论</div>
-            <div class="filtered-review-subtitle">当前页面已隐藏 <span class="filtered-review-count"></span> 条评论</div>
+            <div class="settings-dialog-title">${esc(uiText("settings.reviewFilter.filtered.title", "已过滤评论"))}</div>
+            <div class="filtered-review-subtitle">${esc(uiText("settings.reviewFilter.filtered.hiddenPrefix", "当前页面已隐藏"))} <span class="filtered-review-count"></span> ${esc(uiText("settings.reviewFilter.filtered.countSuffix", "条评论"))}</div>
           </div>
-          <button class="dialog-btn filtered-review-close" type="button" data-dialog-action="close">关闭</button>
+          <button class="dialog-btn filtered-review-close" type="button" data-dialog-action="close">${esc(uiText("common.close", "关闭"))}</button>
         </div>
         <div class="filtered-review-list"></div>
       </div>
@@ -741,7 +747,7 @@
           const item = hiddenReviews.find(review => review.id === row.dataset.filteredReviewId);
           const body = reviewPreviewParts(item?.reviewText, item?.authorText);
           textNode.textContent = expanded ? body.full : body.text;
-          more.textContent = expanded ? "收起" : "更多";
+          more.textContent = expanded ? uiText("common.collapse", "收起") : uiText("common.more", "更多");
         }
       });
       layer.addEventListener("keydown", (event) => {
@@ -765,17 +771,17 @@
         <section class="settings-card section-card review-rule-card">
           <div class="section-header">
             <div class="dot"></div>
-            <div class="title">过滤规则</div>
-            <div class="hint">换行会作为同一条规则保存</div>
+            <div class="title">${esc(uiText("settings.reviewFilter.rule.title", "过滤规则"))}</div>
+            <div class="hint">${esc(uiText("settings.reviewFilter.rule.hint", "换行会作为同一条规则保存"))}</div>
           </div>
           <div class="review-rule-add">
-            <select class="settings-control review-rule-type-select" data-review-rule-type aria-label="规则类型">
-              <option value="keyword">关键词</option>
-              <option value="regex">正则</option>
-              <option value="nickname">昵称</option>
+            <select class="settings-control review-rule-type-select" data-review-rule-type aria-label="${escAttr(uiText("settings.reviewFilter.rule.type", "规则类型"))}">
+              <option value="keyword">${esc(uiText("settings.reviewFilter.rule.keyword", "关键词"))}</option>
+              <option value="regex">${esc(uiText("settings.reviewFilter.rule.regex", "正则"))}</option>
+              <option value="nickname">${esc(uiText("settings.reviewFilter.rule.nickname", "昵称"))}</option>
             </select>
-            <textarea class="settings-control review-rule-input" data-review-rule-value placeholder="输入要屏蔽的内容；可包含多行，点击添加后作为一条规则保存" aria-label="屏蔽内容"></textarea>
-            <button class="settings-save btn btn-blue review-rule-add-btn" type="button">添加</button>
+            <textarea class="settings-control review-rule-input" data-review-rule-value placeholder="${escAttr(uiText("settings.reviewFilter.rule.placeholder", "输入要屏蔽的内容；可包含多行，点击添加后作为一条规则保存"))}" aria-label="${escAttr(uiText("settings.reviewFilter.rule.content", "屏蔽内容"))}"></textarea>
+            <button class="settings-save btn btn-blue review-rule-add-btn" type="button">${esc(uiText("common.add", "添加"))}</button>
           </div>
           <div class="review-rule-toolbar">
             ${ruleFiltersHtml()}
@@ -785,19 +791,19 @@
         <section class="settings-card section-card">
           <div class="section-header">
             <div class="dot"></div>
-            <div class="title">附加条件</div>
-            <div class="hint">0 表示不启用该数字条件</div>
+            <div class="title">${esc(uiText("settings.reviewFilter.conditions.title", "附加条件"))}</div>
+            <div class="hint">${esc(uiText("settings.reviewFilter.conditions.hint", "0 表示不启用该数字条件"))}</div>
           </div>
           <div class="settings-grid">
             ${fields.map((field) => `
               <div class="settings-row form-row">
-                <span class="settings-label label">${esc(field.label)}</span>
+                <span class="settings-label label">${esc(globalThis.STSettingsFields?.label?.(field) || field.label)}</span>
                 <span class="settings-value control">${reviewFilterInput(field)}</span>
               </div>
             `).join("")}
           </div>
           <div class="settings-actions form-footer">
-            <button class="settings-save review-filter-save btn btn-blue" type="button">保存设置</button>
+            <button class="settings-save review-filter-save btn btn-blue" type="button">${esc(uiText("common.saveSettings", "保存设置"))}</button>
           </div>
         </section>
       </div>
@@ -855,7 +861,7 @@
         log.info("review-filter-settings-save-start", "开始保存评测过滤设置", { operationId });
         const oldText = save.textContent || "";
         setSavePending(shadow, true);
-        save.textContent = "保存中...";
+        save.textContent = uiText("common.saving", "保存中...");
         Promise.resolve()
           .then(() => typeof storage.setReviewFilter === "function"
             ? storage.setReviewFilter(next, { operationId })
@@ -868,7 +874,7 @@
                 errorCode: ok === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
               });
               restoreFilterInputs(shadow, previous);
-              dialog(shadow, { title: "保存失败", message: "评测过滤设置未能保存，请稍后重试。" });
+              dialog(shadow, { title: uiText("common.saveFailed", "保存失败"), message: uiText("settings.reviewFilter.saveFailed", "评测过滤设置未能保存，请稍后重试。") });
               return;
             }
             conf = savedConfig;
@@ -886,7 +892,7 @@
               error,
             });
             restoreFilterInputs(shadow, previous);
-            dialog(shadow, { title: "保存失败", message: "评测过滤设置保存异常，请稍后重试。" });
+            dialog(shadow, { title: uiText("common.saveFailed", "保存失败"), message: uiText("settings.reviewFilter.saveError", "评测过滤设置保存异常，请稍后重试。") });
           })
           .finally(() => {
             setSavePending(shadow, false);

@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -31,6 +31,10 @@
 
   function text(value) {
     return String(value ?? "").trim();
+  }
+
+  function i18n(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
   }
 
   function unsupportedOnly() {
@@ -135,19 +139,21 @@
     if (!result?.ok) {
       container?.classList?.add("error");
       line.classList.add("is-error");
-      line.textContent = "创意工坊状态暂时无法获取";
+      line.textContent = i18n("store.workshop.statusUnavailable", "创意工坊状态暂时无法获取");
       return;
     }
     if (result.supported) {
       container?.classList?.add("supported");
       line.classList.add("is-supported");
-      line.textContent = "此游戏支持 Steam 创意工坊";
+      line.textContent = i18n("store.workshop.supported", "此游戏支持 Steam 创意工坊");
       line.dataset.categoryIds = result.ids.join(",");
-      line.title = result.ids.length ? `已验证分类 ID：${result.ids.join(", ")}` : "";
+      line.title = result.ids.length
+        ? i18n("store.workshop.verifiedCategoryIds", "已验证分类 ID：$ids$", { ids: result.ids.join(", ") })
+        : "";
     } else {
       container?.classList?.add("not-supported");
       line.classList.add("is-not-supported");
-      line.textContent = "此游戏未标记支持 Steam 创意工坊";
+      line.textContent = i18n("store.workshop.unsupported", "此游戏未标记支持 Steam 创意工坊");
       line.title = "";
     }
     if (result.unknownSameNameIds?.length) {
@@ -196,7 +202,7 @@
     if (!line) {
       line = document.createElement("div");
       line.className = "es_workshop_check_text es_workshop_check_status is-loading";
-      line.textContent = "正在检查 Steam 创意工坊状态...";
+      line.textContent = i18n("store.workshop.loading", "正在检查 Steam 创意工坊状态...");
       body.appendChild(line);
     }
     return line;
@@ -231,7 +237,7 @@
 
     const title = document.createElement("div");
     title.className = "es_workshop_check_title";
-    title.textContent = "创意工坊检查";
+    title.textContent = i18n("settings.feature.workshop-check.name", "创意工坊检查");
 
     container.appendChild(title);
     const line = ensureWorkshopStatusLine(container);
@@ -331,7 +337,7 @@
 
     const title = document.createElement("div");
     title.className = "es_audio_check_title";
-    title.textContent = "配音检查";
+    title.textContent = i18n("settings.feature.audio-check.name", "配音检查");
 
     const body = document.createElement("div");
     body.className = "es_audio_check_body";
@@ -340,10 +346,10 @@
     text.className = "es_audio_check_text";
     if (hasChineseAudio) {
         audioContainer.classList.add('supported');
-        text.textContent = "👍👍👍此游戏支持简体中文配音👍👍👍";
+        text.textContent = i18n("store.audio.supported", "此游戏支持简体中文配音");
     } else {
         audioContainer.classList.add('not-supported');
-        text.textContent = "此游戏不支持简体中文配音";
+        text.textContent = i18n("store.audio.unsupported", "此游戏不支持简体中文配音");
     }
 
     body.append(text);

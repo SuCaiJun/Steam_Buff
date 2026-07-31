@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -18,8 +18,11 @@
   const STEAM_STORE = globalThis.STConfig.vendors.steamStore;
   const externalNavigation = globalThis.STConfig.externalNavigation;
 
+  function i18n(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
+  }
+
   const FEATURE_ID = "wishlist-price-history";
-  const LOADING_MESSAGE = "正在获取数据...";
   const STEAM_SHOP_ID = 61;
   const ITAD_HISTORY_MONTHS = 12;
   const PANEL_GAP = 0;
@@ -115,7 +118,12 @@
     return {
       cdk: on(FEATURES.cdk),
       proxy: on(FEATURES.proxy),
+      text: i18n,
     };
+  }
+
+  function loadingMessage() {
+    return i18n("store.wishlistPrice.loading", "正在获取数据...");
   }
 
   function refreshInteractionMode(panel = currentPanel) {
@@ -354,7 +362,7 @@
         current: null,
         packageIds: [],
         code: error?.code || "STEAM_APPDETAILS_REQUEST_FAILED",
-        userMessage: "Steam 当前价格查询失败，将继续使用历史价格服务。",
+        userMessage: i18n("store.wishlistPrice.steamCurrentFailed", "Steam 当前价格查询失败，将继续使用历史价格服务。"),
       };
       log.warn("wishlist-price-appdetails-failed", "愿望单 Steam 官方价格请求失败", {
         appid,
@@ -395,14 +403,14 @@
         : {
             ok: false,
             code: "PROVIDER_GAME_NOT_FOUND",
-            userMessage: "ITAD 暂未收录此游戏。",
+            userMessage: i18n("store.wishlistPrice.itadNotListed", "ITAD 暂未收录此游戏。"),
           });
       return info;
     }).catch(error => {
       const state = {
         ok: false,
         code: error?.code || "ITAD_PRICE_REQUEST_FAILED",
-        userMessage: "ITAD 价格查询失败，请稍后重试。",
+        userMessage: i18n("store.wishlistPrice.itadPriceFailed", "ITAD 价格查询失败，请稍后重试。"),
       };
       itadCache.set(appid, null);
       itadStateCache.set(appid, state);
@@ -439,7 +447,7 @@
       if (!providerGameId) {
         return {
           ok: false,
-          userMessage: stateMessage(itadStateCache.get(appid), "ITAD 暂未收录此游戏。"),
+          userMessage: stateMessage(itadStateCache.get(appid), i18n("store.wishlistPrice.itadNotListed", "ITAD 暂未收录此游戏。")),
           data: null,
         };
       }
@@ -455,7 +463,7 @@
       const result = {
         ok: false,
         code: error?.code || "ITAD_HISTORY_REQUEST_FAILED",
-        userMessage: "ITAD 历史价格查询失败，请稍后重试。",
+        userMessage: i18n("store.wishlistPrice.itadHistoryFailed", "ITAD 历史价格查询失败，请稍后重试。"),
         data: null,
       };
       historyCache.set(appid, result);
@@ -547,10 +555,13 @@
     resetPanel(panel);
     updateStatus(panel, message, "muted");
     const rows = panelRows(panel);
-    rows.classList.toggle("is-loading", message === LOADING_MESSAGE);
+    const loading = message === loadingMessage();
+    rows.classList.toggle("is-loading", loading);
     appendSpan(
       rows,
-      message === LOADING_MESSAGE ? "正在获取价格明细..." : "暂无可显示的价格明细",
+      loading
+        ? i18n("store.wishlistPrice.detailsLoading", "正在获取价格明细...")
+        : i18n("store.wishlistPrice.detailsEmpty", "暂无可显示的价格明细"),
       "st-wphp-empty"
     );
   }
@@ -607,13 +618,13 @@
       ? result.data.events
       : [];
     if (events.length && typeof charts?.createPriceChart === "function") {
-      chart.setAttribute("aria-label", "最近 12 个月 Steam 历史价格走势图");
+      chart.setAttribute("aria-label", i18n("store.wishlistPrice.chartAria", "最近 12 个月 Steam 历史价格走势图"));
       chart.appendChild(charts.createPriceChart(events, { months: ITAD_HISTORY_MONTHS }));
       return;
     }
     const message = result?.ok === true
-      ? "最近 12 个月暂无 Steam 历史价格数据"
-      : stateMessage(result, "ITAD 历史价格查询失败，请稍后重试。");
+      ? i18n("store.wishlistPrice.chartEmpty", "最近 12 个月暂无 Steam 历史价格数据")
+      : stateMessage(result, i18n("store.wishlistPrice.itadHistoryFailed", "ITAD 历史价格查询失败，请稍后重试。"));
     chart.setAttribute("aria-label", message);
     if (typeof charts?.createEmpty === "function") {
       chart.appendChild(charts.createEmpty(message));
@@ -633,13 +644,13 @@
     updateStatus(panel, summary.statusText || "", summary.status);
     const rows = panelRows(panel);
     appendPriceLine(rows, {
-      label: "Steam 当前价",
-      price: summary.steam.current || { text: "暂不可用", cut: 0 },
+      label: i18n("store.wishlistPrice.steamCurrent", "Steam 当前价"),
+      price: summary.steam.current || { text: i18n("common.unavailable", "暂不可用"), cut: 0 },
       url: summary.steam.current?.shopUrl || "",
     });
     appendPriceLine(rows, {
-      label: "Steam 历史最低",
-      price: summary.steam.lowest || { text: "暂不可用", cut: 0 },
+      label: i18n("store.wishlistPrice.steamLowest", "Steam 历史最低"),
+      price: summary.steam.lowest || { text: i18n("common.unavailable", "暂不可用"), cut: 0 },
       url: summary.steam.lowest?.shopUrl || "",
       sub: summary.steam.lowest?.date || "",
     });
@@ -657,7 +668,7 @@
   function buildChartPlaceholder() {
     const chart = document.createElement("div");
     chart.className = "st-wphp-chart";
-    chart.setAttribute("aria-label", "最近 12 个月价格走势，正在加载");
+    chart.setAttribute("aria-label", i18n("store.wishlistPrice.chartLoadingAria", "最近 12 个月价格走势，正在加载"));
     const skeleton = document.createElement("div");
     skeleton.className = "st-wphp-chart__skeleton";
     for (const height of CHART_BARS) {
@@ -668,8 +679,8 @@
     }
     const label = document.createElement("div");
     label.className = "st-wphp-chart__label";
-    appendSpan(label, "最近 12 个月价格", "st-wphp-chart__title");
-    appendSpan(label, "正在获取历史数据...", "st-wphp-chart__sub");
+    appendSpan(label, i18n("store.wishlistPrice.chartTitle", "最近 12 个月价格"), "st-wphp-chart__title");
+    appendSpan(label, i18n("store.wishlistPrice.historyLoading", "正在获取历史数据..."), "st-wphp-chart__sub");
     chart.append(skeleton, label);
     return chart;
   }
@@ -763,7 +774,7 @@
     if (!appid || appid === currentAppid) return;
 
     currentAppid = appid;
-    const panel = createPanel(row, LOADING_MESSAGE);
+    const panel = createPanel(row, loadingMessage());
     if (!panel) {
       currentAppid = 0;
       return;
@@ -793,14 +804,14 @@
         const summary = {
           empty: true,
           status: "empty",
-          message: "Steam 当前未提供价格",
+          message: i18n("store.wishlistPrice.steamUnavailable", "Steam 当前未提供价格"),
           steam: null,
           steampy: [],
         };
         const history = {
           ok: false,
           code: "STEAM_PRICE_UNAVAILABLE",
-          userMessage: "Steam 当前未提供价格，未查询历史价格。",
+          userMessage: i18n("store.wishlistPrice.historySkippedNoSteamPrice", "Steam 当前未提供价格，未查询历史价格。"),
           data: null,
         };
         await nextFrame();
@@ -847,7 +858,7 @@
       }
       const history = historyResult.status === "fulfilled"
         ? historyResult.value
-        : { ok: false, userMessage: "ITAD 历史价格查询失败，请稍后重试。" };
+        : { ok: false, userMessage: i18n("store.wishlistPrice.itadHistoryFailed", "ITAD 历史价格查询失败，请稍后重试。") };
       await nextFrame();
       if (currentAppid !== appid || currentPanel !== panel) return;
       await swapPanelContent(panel, () => renderSummary(panel, summary, history));
@@ -873,8 +884,8 @@
     } catch (error) {
       if (currentAppid === appid && currentPanel === panel) {
         await swapPanelContent(panel, () => {
-          renderEmpty(panel, "价格查询失败，请刷新页面后重试");
-          renderHistoryChart(panel, { ok: false, userMessage: "ITAD 历史价格查询失败，请稍后重试。" });
+          renderEmpty(panel, i18n("store.wishlistPrice.queryFailed", "价格查询失败，请刷新页面后重试"));
+          renderHistoryChart(panel, { ok: false, userMessage: i18n("store.wishlistPrice.itadHistoryFailed", "ITAD 历史价格查询失败，请稍后重试。") });
         });
         positionPanel();
       }

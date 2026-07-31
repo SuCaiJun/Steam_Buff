@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -18,6 +18,7 @@
     const api = options.api || root.STSettingsAccountApi;
     const auth = options.auth;
     const getCenter = typeof options.getCenter === "function" ? options.getCenter : () => null;
+    const t = root.STI18n.text;
 
     function refresh(ctx) {
       ctx.refresh("account");
@@ -69,7 +70,7 @@
       rt.center = null;
       rt.loadError = "";
       rt.centerError = "";
-      rt.msg = "正在获取验证码";
+      rt.msg = t("settings.account.fetchingCode", "正在获取验证码");
       rt.copyMsg = "";
       clearCopyTimer();
       log.info("device-login-start", "开始设备码登录", { operationId });
@@ -77,7 +78,7 @@
       try {
         const res = await api.request("/auth/device/start", { device_name: ctx.deviceName() }, "", ctx, "POST", api.urls.loginAuthBase, { operationId });
         if (!api.okCode(res) || !res.body?.device_code) {
-          throw new Error(res.body?.message || "获取验证码失败");
+          throw new Error(res.body?.message || t("settings.account.fetchCodeFailed", "获取验证码失败"));
         }
         rt.device = {
           device_code: res.body.device_code,
@@ -89,7 +90,7 @@
           operationId,
         };
         rt.busy = false;
-        rt.msg = "等待浏览器授权";
+        rt.msg = t("settings.account.waitingAuthorization", "等待浏览器授权");
         log.info("device-login-code-success", "设备码获取成功", {
           operationId,
           interval: Number(rt.device.interval) || 0,
@@ -100,7 +101,7 @@
       } catch (error) {
         rt.busy = false;
         rt.msg = error?.message || String(error);
-        rt.loadError = "数据加载失败，点击重试";
+        rt.loadError = t("settings.account.dataLoadRetry", "数据加载失败，点击重试");
         log.error("device-login-failed", "设备码登录启动失败", {
           operationId,
           error,
@@ -118,7 +119,7 @@
       if (Date.now() >= Number(rt.device.expires_at)) {
         const startedAt = Number(rt.device.started_at) || Date.now();
         rt.busy = false;
-        rt.msg = "验证码已过期";
+        rt.msg = t("settings.account.codeExpired", "验证码已过期");
         rt.copyMsg = "";
         clearCopyTimer();
         rt.device = null;
@@ -134,20 +135,20 @@
       const res = await api.request("/auth/device/token", { device_code: rt.device.device_code }, "", ctx, "POST", api.urls.loginAuthBase, { operationId });
       const code = Number(res.body?.code) || res.status || 0;
       if (code === 202) {
-        setStatus(shadow, "等待浏览器授权");
+        setStatus(shadow, t("settings.account.waitingAuthorization", "等待浏览器授权"));
         schedule(shadow, ctx);
         return;
       }
       if (!api.okCode(res) || !res.body?.access_token) {
         rt.busy = false;
-        rt.msg = res.body?.message || "登录失败";
+        rt.msg = res.body?.message || t("settings.account.loginFailed", "登录失败");
         rt.copyMsg = "";
         clearCopyTimer();
         rt.device = null;
         log.error("device-login-failed", "设备码登录失败", {
           operationId,
           status: code,
-          reason: res.body?.message || "登录失败",
+          reason: res.body?.message || t("settings.account.loginFailed", "登录失败"),
           durationMs: Date.now() - startedAt,
         });
         refresh(ctx);
@@ -160,7 +161,7 @@
         { operationId }
       );
       rt.busy = false;
-      rt.msg = "登录成功";
+      rt.msg = t("settings.account.loginSucceeded", "登录成功");
       rt.loadError = "";
       rt.copyMsg = "";
       clearCopyTimer();
@@ -250,7 +251,7 @@
       rt.msg = message;
       const status = shadow.querySelector(".auth-status strong");
       if (status) {
-        status.textContent = message || "等待浏览器授权";
+        status.textContent = message || t("settings.account.waitingAuthorization", "等待浏览器授权");
       }
     }
 
@@ -298,7 +299,11 @@
       selectText(el);
       copyText(value).then((ok) => {
         selectText(el);
-        setCopyMsg(shadow, ok ? (key === "verify_url" ? "完整授权链接已复制" : "授权码已复制") : "复制失败，请手动复制");
+        setCopyMsg(shadow, ok
+          ? (key === "verify_url"
+            ? t("settings.account.authorizationLinkCopied", "完整授权链接已复制")
+            : t("settings.account.authorizationCodeCopied", "授权码已复制"))
+          : t("common.copyFailedManual", "复制失败，请手动复制"));
       });
     }
 

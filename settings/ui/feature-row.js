@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -38,7 +38,7 @@
         };
 
     function tr(key, fallback, params) {
-      return globalThis.STI18n?.text?.(key, fallback, params) || String(fallback ?? key ?? "");
+      return globalThis.STI18n.text(key, fallback, params);
     }
 
     function itemName(item) {
@@ -66,7 +66,7 @@
     }
 
     function sourceTipHtml(item) {
-      const tip = String(item?.sourceTip || "").trim();
+      const tip = String(tr(item?.sourceTipKey, item?.sourceTip || "")).trim();
       if (!tip) return "";
       return `
         <span class="source-tip" tabindex="0" aria-label="${escAttr(tip)}">
@@ -111,7 +111,7 @@
       if (!href) return "";
       const navigation = externalNavigation.resolve(href);
       const target = navigation.target ? ` target="${escAttr(navigation.target)}"` : "";
-      const label = `查看教程：${meta.key || itemName(item) || "教程"}`;
+      const label = tr("settings.tutorial.view", "查看教程：$name$", { name: meta.key || itemName(item) || tr("settings.tutorial.name", "教程") });
       return `
         <a class="feature-tutorial" href="${escAttr(navigation.href)}"${target} rel="${escAttr(navigation.rel)}" title="${escAttr(label)}" aria-label="${escAttr(label)}">
           <img class="feature-tutorial-icon" src="${escAttr(helpIconUrl())}" alt="" aria-hidden="true">
@@ -174,7 +174,7 @@
               <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(itemDesc(item))}</span></div>
             </div>
             <div class="settings-drawer-actions">
-              <button class="settings-drawer-toggle" type="button" data-settings-drawer-toggle="${escAttr(item.id)}" aria-controls="${escAttr(drawerId)}" aria-expanded="${open ? "true" : "false"}" title="${escAttr(open ? "收起" : "展开")}" aria-label="${escAttr(open ? "收起子功能" : "展开子功能")}">
+              <button class="settings-drawer-toggle" type="button" data-settings-drawer-toggle="${escAttr(item.id)}" aria-controls="${escAttr(drawerId)}" aria-expanded="${open ? "true" : "false"}" title="${escAttr(open ? tr("settings.drawer.collapse", "收起") : tr("settings.drawer.expand", "展开"))}" aria-label="${escAttr(open ? tr("settings.drawer.collapseChildren", "收起子功能") : tr("settings.drawer.expandChildren", "展开子功能"))}">
                 <img class="settings-drawer-icon" src="${escAttr(drawerIconUrl())}" alt="" aria-hidden="true">
               </button>
               ${switchHtml(item)}

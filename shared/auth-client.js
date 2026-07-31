@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -17,11 +17,15 @@
     warn() {},
   };
 
-  function parseJson(text) {
+  function text(key, fallback, params) {
+    return root.STI18n?.text?.(key, fallback, params) ?? fallback;
+  }
+
+  function parseJson(source) {
     try {
-      return JSON.parse(text || "{}");
+      return JSON.parse(source || "{}");
     } catch (error) {
-      const parseError = new Error("鉴权接口响应解析失败", { cause: error });
+      const parseError = new Error(text("common.authResponseParseFailed", "鉴权接口响应解析失败"), { cause: error });
       parseError.name = "ParseError";
       throw parseError;
     }
@@ -59,9 +63,22 @@
   }
 
   function timeoutError(timeoutMs) {
-    const error = new Error(`请求超时（${Math.round(timeoutMs)}ms）`);
+    const error = new Error(text("common.requestTimedOutMs", "请求超时（$timeout$ms）", {
+      timeout: Math.round(timeoutMs),
+    }));
     error.name = "TimeoutError";
     return error;
+  }
+
+  function backgroundRequestMessage(response) {
+    if (response?.errorName === "TimeoutError" || response?.errorCode === "REQUEST_TIMEOUT") {
+      return text("common.requestTimedOut", "请求超时，请稍后重试。");
+    }
+    if (response?.errorKind === "transport") {
+      return text("common.backgroundRequestFailed", "后台请求失败");
+    }
+    return String(response?.error || "").trim()
+      || text("common.backgroundRequestFailed", "后台请求失败");
   }
 
   function validateResponse(response) {
@@ -136,7 +153,7 @@
               return;
             }
             if (!validateResponse(response)) {
-              const error = new Error("后台响应格式异常");
+              const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
               reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
                 reason: "invalid-response",
                 error,
@@ -145,7 +162,7 @@
               return;
             }
             if (!response?.success) {
-              const error = new Error(response?.error || "后台请求失败");
+              const error = new Error(backgroundRequestMessage(response));
               error.status = Number(response?.status) || 0;
               reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
                 response: error.status ? { status: error.status } : undefined,
@@ -180,7 +197,7 @@
           }
           const err = chrome.runtime.lastError;
           if (err) {
-            const error = new Error(err.message || "后台请求失败");
+            const error = new Error(err.message || text("common.backgroundRequestFailed", "后台请求失败"));
             reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
               error,
             }));
@@ -188,7 +205,7 @@
             return;
           }
           if (!validateResponse(response)) {
-            const error = new Error("后台响应格式异常");
+            const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
             reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
               reason: "invalid-response",
               error,
@@ -197,7 +214,7 @@
             return;
           }
           if (!response?.success) {
-            const error = new Error(response?.error || "后台请求失败");
+            const error = new Error(backgroundRequestMessage(response));
             error.status = Number(response?.status) || 0;
             reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
               response: error.status ? { status: error.status } : undefined,
@@ -220,8 +237,8 @@
   function createClient(options = {}) {
     const storage = options.storage || null;
     const refreshUrl = String(options.refreshUrl || "");
-    const loginMessage = options.loginMessage || "请先在设置中登录";
-    const expiredMessage = options.expiredMessage || "登录已过期，请重新登录";
+    const loginMessage = () => options.loginMessage || text("common.loginRequired", "请先在设置中登录");
+    const expiredMessage = () => options.expiredMessage || text("common.loginExpired", "登录已过期，请重新登录");
 
     async function getAuth() {
       return cleanAuth(await storage?.getAuth?.());
@@ -234,11 +251,11 @@
         return null;
       }
       if (typeof storage?.setAuth !== "function") {
-        throw new Error("登录状态存储未初始化");
+        throw new Error(text("common.authStorageUnavailable", "登录状态存储未初始化"));
       }
       const saved = await storage.setAuth(next, diagnostics);
       if (!saved) {
-        throw new Error("登录状态保存失败");
+        throw new Error(text("common.authSaveFailed", "登录状态保存失败"));
       }
       return next;
     }
@@ -335,7 +352,7 @@
       let auth = await readyAuth({ operationId, requestId });
       if (!auth?.access_token) {
         if (options.throwOnMissingAuth) {
-          throw new Error(loginMessage);
+          throw new Error(loginMessage());
         }
         return { auth: null, response: null, body: null, code: 401 };
       }
@@ -347,7 +364,7 @@
         auth = await refreshAuth(auth, { operationId, requestId });
         if (!auth?.access_token) {
           if (options.throwOnMissingAuth) {
-            throw new Error(expiredMessage);
+            throw new Error(expiredMessage());
           }
           return { auth: null, response, body: data, code: 401 };
         }

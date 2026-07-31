@@ -45,43 +45,19 @@
     "message": "扩展设置"
   },
   "settings_category_extension_settings_desc": {
-    "message": "设置中心显示效果和模块入口控制。"
+    "message": "设置中心显示效果和基础偏好。"
   },
-  "settings_category_reminders_name": {
-    "message": "提醒检查"
+  "settings_category_store_enhancements_name": {
+    "message": "商店增强"
   },
-  "settings_category_reminders_desc": {
-    "message": "游戏可用性、语言、第三方组件和订阅提醒。"
+  "settings_category_store_enhancements_desc": {
+    "message": "Steam 商店详情、愿望单、购物车、搜索和数据展示增强。"
   },
-  "settings_category_prices_name": {
-    "message": "价格功能"
+  "settings_category_community_enhancements_name": {
+    "message": "社区增强"
   },
-  "settings_category_prices_desc": {
-    "message": "价格历史、趋势和促销提醒。"
-  },
-  "settings_category_wishlist_name": {
-    "message": "愿望单"
-  },
-  "settings_category_wishlist_desc": {
-    "message": "Steam 愿望单展示和价格辅助。"
-  },
-  "settings_category_data_name": {
-    "message": "数据展示"
-  },
-  "settings_category_data_desc": {
-    "message": "评价、在线人数、时长和媒体评分。"
-  },
-  "settings_category_smart_search_name": {
-    "message": "智能搜索"
-  },
-  "settings_category_smart_search_desc": {
-    "message": "Steam 搜索框中文名称匹配和结果展示增强。"
-  },
-  "settings_category_enhancements_name": {
-    "message": "增强功能"
-  },
-  "settings_category_enhancements_desc": {
-    "message": "购买、库存和市场增强。"
+  "settings_category_community_enhancements_desc": {
+    "message": "预留给 Steam 社区的一方增强功能。"
   },
   "settings_category_review_filter_name": {
     "message": "评论过滤"
@@ -90,7 +66,7 @@
     "message": "按关键词、正则、游戏时间和用户资料过滤 Steam 商店评测。"
   },
   "settings_category_translate_name": {
-    "message": "翻译"
+    "message": "翻译相关"
   },
   "settings_category_translate_desc": {
     "message": "网页翻译设置，基于translate.js实现。"
@@ -125,11 +101,53 @@
   "settings_feature_settings_startup_animation_desc": {
     "message": "开启后，设置中心首次打开时播放 Logo 启动动画"
   },
+  "settings_feature_store_detail_reminders_name": {
+    "message": "商店详情的提醒与检查"
+  },
+  "settings_feature_store_detail_reminders_desc": {
+    "message": "统一控制商店详情页的可用性、语言和第三方组件检查。"
+  },
+  "settings_feature_subscription_info_name": {
+    "message": "第三方会员检查"
+  },
+  "settings_feature_subscription_info_desc": {
+    "message": "统一控制订阅服务提醒卡片和各页面角标。"
+  },
+  "settings_feature_family_library_owned_marker_name": {
+    "message": "家庭组已有游戏标记"
+  },
+  "settings_feature_family_library_owned_marker_desc": {
+    "message": "统一控制 Steam 家庭组已有游戏的商店角标和详情页提醒卡片。"
+  },
+  "settings_feature_price_related_enhancements_name": {
+    "message": "价格相关增强"
+  },
+  "settings_feature_price_related_enhancements_desc": {
+    "message": "统一控制商店价格历史、趋势预测和 SteamPY 价格展示。"
+  },
+  "settings_feature_data_display_enhancements_name": {
+    "message": "数据展示"
+  },
+  "settings_feature_data_display_enhancements_desc": {
+    "message": "统一控制评价、在线人数、销量排名、时长和媒体评分展示。"
+  },
+  "settings_feature_dlc_tools_name": {
+    "message": "DLC购买增强"
+  },
+  "settings_feature_dlc_tools_desc": {
+    "message": "批量选择、加入购物车和领取免费 DLC"
+  },
+  "settings_feature_cart_select_name": {
+    "message": "购物车增强"
+  },
+  "settings_feature_cart_select_desc": {
+    "message": "在购物车中选择本次支付项目，并可恢复未支付项目。"
+  },
   "settings_feature_search_suggestions_name": {
     "message": "搜索联想词"
   },
   "settings_feature_search_suggestions_desc": {
-    "message": "控制搜索联想词分类和 Steam 商店搜索联想运行时"
+    "message": "控制 Steam 商店搜索联想词、中文名称匹配和结果展示增强。"
   },
   "settings_feature_search_suggestions_badge": {
     "message": "赞助者"
@@ -141,7 +159,7 @@
     "message": "翻译模块"
   },
   "settings_feature_translate_desc": {
-    "message": "控制翻译设置分类和网页翻译运行时"
+    "message": "控制翻译设置分类和网页翻译运行时。"
   },
   "settings_feature_wishlist_price_history_name": {
     "message": "愿望单悬浮卡片"
@@ -159,7 +177,7 @@
     "message": "AI模块"
   },
   "settings_feature_ai_desc": {
-    "message": "控制 AI 设置分类和 AI 服务配置是否启用"
+    "message": "控制 AI 设置分类和 AI 服务配置是否启用。"
   },
   "settings_feature_third_party_services_name": {
     "message": "第三方服务配置"
@@ -168,10 +186,40 @@
     "message": "控制第三方数据服务是否启用，以及 IsThereAnyDeal API Key。"
   },
   "settings_feature_review_filter_name": {
-    "message": "评论过滤模块"
+    "message": "评论过滤"
   },
   "settings_feature_review_filter_desc": {
-    "message": "控制评论过滤设置分类和 Steam 商店评测过滤"
+    "message": "控制评论过滤设置分类和 Steam 商店评测过滤。"
+  },
+  "settings_feature_library_sort_title_name": {
+    "message": "库列表显示自定义名称"
+  },
+  "settings_feature_library_sort_title_desc": {
+    "message": "库列表优先显示游戏的自定义排序名称"
+  },
+  "settings_feature_library_custom_name_name": {
+    "message": "库自定义名称填充"
+  },
+  "settings_feature_library_custom_name_desc": {
+    "message": "在 Steam 客户端自定义页查询并填充库自定义排序名称"
+  },
+  "settings_feature_download_auto_shutdown_name": {
+    "message": "下载完成自动关机"
+  },
+  "settings_feature_download_auto_shutdown_desc": {
+    "message": "下载队列完成后约延迟30-60秒后执行关机动作"
+  },
+  "settings_feature_steam_news_translate_name": {
+    "message": "Steam 新闻弹窗翻译"
+  },
+  "settings_feature_steam_news_translate_desc": {
+    "message": "在 Steam 客户端库首页新闻弹窗中手动翻译当前新闻"
+  },
+  "settings_feature_purchase_history_classifier_name": {
+    "message": "消费历史分类器"
+  },
+  "settings_feature_purchase_history_classifier_desc": {
+    "message": "在 Steam 消费历史页按直购、送礼、退款、内购、充值、买入和卖出分类统计。"
   },
   "settings_lock_depOr": {
     "message": " 或 "
@@ -211,12 +259,6 @@
   "lifecycle_update_title": {
     "message": "Steam Buff 已更新"
   },
-  "lifecycle_current_version": {
-    "message": "当前版本"
-  },
-  "lifecycle_update_log_label": {
-    "message": "本次更新日志"
-  },
   "lifecycle_update_log_unavailable": {
     "message": "更新日志暂时无法加载，请稍后在关于页查看。"
   },
@@ -240,5 +282,4294 @@
   },
   "lifecycle_support_donate_action": {
     "message": "我要赞助"
-  }
+  },
+  "settings_category_community_enhancements_emptyTitle": {
+    "message": "暂无独立社区增强功能"
+  },
+  "settings_category_community_enhancements_emptyDesc": {
+    "message": "后续一方社区功能会放在这里。"
+  },
+  "settings_feature_store_detail_reminders_unsupported_only_name": {
+    "message": "仅显示不支持的提醒"
+  },
+  "settings_feature_store_detail_reminders_unsupported_only_desc": {
+    "message": "配音和创意工坊检查仅在不支持时显示"
+  },
+  "settings_feature_audio_check_name": {
+    "message": "配音检查"
+  },
+  "settings_feature_audio_check_desc": {
+    "message": "显示游戏支持的配音语言"
+  },
+  "settings_feature_workshop_check_name": {
+    "message": "创意工坊检查"
+  },
+  "settings_feature_workshop_check_desc": {
+    "message": "检测游戏是否支持 Steam 创意工坊"
+  },
+  "settings_feature_workshop_check_sourceTip": {
+    "message": "数据来源：Steam Store appdetails categories 分类，接口可用性以 Steam 官方返回为准。"
+  },
+  "settings_feature_family_sharing_name": {
+    "message": "家庭共享检查"
+  },
+  "settings_feature_family_sharing_desc": {
+    "message": "检测游戏是否支持家庭共享"
+  },
+  "settings_feature_family_sharing_sourceTip": {
+    "message": "数据来源：Augmented Steam API。授权：GPL-3.0，接口可用性不保证。"
+  },
+  "settings_feature_third_party_check_name": {
+    "message": "第三方检查"
+  },
+  "settings_feature_third_party_check_desc": {
+    "message": "检测第三方 DRM、账号和启动器要求"
+  },
+  "settings_feature_subscription_info_sourceTip": {
+    "message": "数据来源：SubscriptionInfo。授权： MPL-2.0；数据来源以第三方维护方为准。"
+  },
+  "settings_feature_subscription_detail_card_name": {
+    "message": "游戏商店详情提醒卡片"
+  },
+  "settings_feature_subscription_detail_card_desc": {
+    "message": "在游戏商店详情页显示订阅服务收录提醒。"
+  },
+  "settings_feature_subscription_store_badge_name": {
+    "message": "商店角标"
+  },
+  "settings_feature_subscription_store_badge_desc": {
+    "message": "在商店首页和活动列表商品封面显示订阅服务角标。"
+  },
+  "settings_feature_subscription_wishlist_badge_name": {
+    "message": "愿望单角标"
+  },
+  "settings_feature_subscription_wishlist_badge_desc": {
+    "message": "在愿望单商品封面显示订阅服务角标。"
+  },
+  "settings_feature_subscription_cart_badge_name": {
+    "message": "购物车角标"
+  },
+  "settings_feature_subscription_cart_badge_desc": {
+    "message": "在购物车对应游戏封面左上角显示订阅服务角标。"
+  },
+  "settings_feature_family_library_exclude_self_name": {
+    "message": "不统计我的游戏"
+  },
+  "settings_feature_family_library_exclude_self_desc": {
+    "message": "开启后，家庭组角标和详情提醒卡片不统计当前 Steam 账号。"
+  },
+  "settings_feature_family_library_detail_card_name": {
+    "message": "游戏商店详情提醒卡片"
+  },
+  "settings_feature_family_library_detail_card_desc": {
+    "message": "在游戏商店详情页显示家庭组已有提示，并提供手动刷新家庭库入口。"
+  },
+  "settings_feature_family_library_store_badge_name": {
+    "message": "商店角标"
+  },
+  "settings_feature_family_library_store_badge_desc": {
+    "message": "在商店首页和活动列表商品封面显示家庭组拥有成员数量角标。"
+  },
+  "settings_feature_family_library_wishlist_badge_name": {
+    "message": "愿望单角标"
+  },
+  "settings_feature_family_library_wishlist_badge_desc": {
+    "message": "在愿望单商品封面显示家庭组拥有成员数量角标。"
+  },
+  "settings_feature_family_library_cart_badge_name": {
+    "message": "购物车角标"
+  },
+  "settings_feature_family_library_cart_badge_desc": {
+    "message": "在购物车对应游戏封面左上角显示家庭组拥有成员数量角标。"
+  },
+  "settings_feature_price_history_name": {
+    "message": "历史价格"
+  },
+  "settings_feature_price_history_desc": {
+    "message": "显示商店详情页购买区历史价格和最近 12 个月价格图表"
+  },
+  "settings_feature_price_history_sourceTip": {
+    "message": "数据基于第三方服务实现，使用前请先设置第三方服务。"
+  },
+  "settings_feature_price_forecast_name": {
+    "message": "价格预测"
+  },
+  "settings_feature_price_forecast_desc": {
+    "message": "基于历史价格数据预测价格走势"
+  },
+  "settings_feature_price_forecast_discount_name": {
+    "message": "未来折扣推测"
+  },
+  "settings_feature_price_forecast_discount_desc": {
+    "message": "显示下一次常规折扣时间、折扣力度、预计价格和史低参考，并在有历史证据时结合四季特卖时间修正。"
+  },
+  "settings_feature_price_forecast_seasonal_name": {
+    "message": "节日折扣推测"
+  },
+  "settings_feature_price_forecast_seasonal_desc": {
+    "message": "根据历史节日窗口和价格记录，推荐未来更可能打折的 Steam 活动。"
+  },
+  "settings_feature_steampy_cdk_price_name": {
+    "message": "Steam PY CDK"
+  },
+  "settings_feature_steampy_cdk_price_desc": {
+    "message": "显示 SteamPY CDK 商城价"
+  },
+  "settings_feature_steampy_cdk_price_sourceTip": {
+    "message": "数据来源：SteamPY。授权/版权：已获得SteamPY官方授权；CDK 价格以 SteamPY 返回为准。"
+  },
+  "settings_feature_steampy_proxy_price_name": {
+    "message": "Steam PY 代购"
+  },
+  "settings_feature_steampy_proxy_price_desc": {
+    "message": "显示 SteamPY 代购商城价"
+  },
+  "settings_feature_steampy_proxy_price_sourceTip": {
+    "message": "数据来源：SteamPY。授权/版权：已获得SteamPY官方授权；代购价格以 SteamPY 返回为准。"
+  },
+  "settings_feature_wishlist_price_history_sourceTip": {
+    "message": "数据来源：Steam Store appdetails 当前价、用户配置的 IsThereAnyDeal API Key 历史价格与 SteamPY 授权价格。"
+  },
+  "settings_feature_wishlist_price_history_hover_through_name": {
+    "message": "悬浮卡片鼠标穿透"
+  },
+  "settings_feature_wishlist_price_history_hover_through_desc": {
+    "message": "开启后，愿望单历史价格悬浮卡片不响应鼠标点击和悬停，鼠标可直接落到背后的游戏卡片。"
+  },
+  "settings_feature_reviews_name": {
+    "message": "好评数据"
+  },
+  "settings_feature_reviews_desc": {
+    "message": "显示详细的评价统计"
+  },
+  "settings_feature_reviews_badge": {
+    "message": "待开发"
+  },
+  "settings_feature_reviews_lock": {
+    "message": "旧 API 数据源已下线，等待对接新 API"
+  },
+  "settings_feature_player_stats_name": {
+    "message": "当前在线"
+  },
+  "settings_feature_player_stats_desc": {
+    "message": "显示当前在线玩家数"
+  },
+  "settings_feature_player_stats_badge": {
+    "message": "待开发"
+  },
+  "settings_feature_player_stats_lock": {
+    "message": "旧 API 数据源已下线，等待对接新 API"
+  },
+  "settings_feature_game_sales_rank_name": {
+    "message": "游戏销量排名"
+  },
+  "settings_feature_game_sales_rank_desc": {
+    "message": "显示销量排名和排名趋势"
+  },
+  "settings_feature_game_sales_rank_badge": {
+    "message": "待开发"
+  },
+  "settings_feature_game_sales_rank_lock": {
+    "message": "旧 API 数据源已下线，等待对接新 API"
+  },
+  "settings_feature_howlongtobeat_name": {
+    "message": "时长统计"
+  },
+  "settings_feature_howlongtobeat_desc": {
+    "message": "显示平均游戏时长"
+  },
+  "settings_feature_howlongtobeat_badge": {
+    "message": "待开发"
+  },
+  "settings_feature_howlongtobeat_lock": {
+    "message": "旧 API 数据源已下线，等待对接新 API"
+  },
+  "settings_feature_media_score_name": {
+    "message": "媒体平台评分"
+  },
+  "settings_feature_media_score_desc": {
+    "message": "汇总各大媒体评分"
+  },
+  "settings_feature_media_score_badge": {
+    "message": "待开发"
+  },
+  "settings_feature_media_score_lock": {
+    "message": "旧 API 数据源已下线，等待对接新 API"
+  },
+  "settings_feature_search_suggestions_user_custom_name": {
+    "message": "玩家自定义名称"
+  },
+  "settings_feature_search_suggestions_user_custom_desc": {
+    "message": "优先匹配当前账号保存的私有自定义名称"
+  },
+  "settings_feature_search_suggestions_user_alias_name": {
+    "message": "我的别名"
+  },
+  "settings_feature_search_suggestions_user_alias_desc": {
+    "message": "匹配当前账号保存的私有游戏别名"
+  },
+  "settings_feature_search_suggestions_community_name": {
+    "message": "公共自定义名称"
+  },
+  "settings_feature_search_suggestions_community_desc": {
+    "message": "匹配已达标的社区公共自定义名称"
+  },
+  "settings_feature_search_suggestions_community_alias_name": {
+    "message": "社区别名"
+  },
+  "settings_feature_search_suggestions_community_alias_desc": {
+    "message": "匹配已达标的社区公共游戏别名"
+  },
+  "settings_feature_search_suggestions_ai_name": {
+    "message": "AI 翻译名称"
+  },
+  "settings_feature_search_suggestions_ai_desc": {
+    "message": "匹配当前启用的 AI 主翻译名称"
+  },
+  "settings_feature_search_suggestions_pinyin_name": {
+    "message": "拼音搜索"
+  },
+  "settings_feature_search_suggestions_pinyin_desc": {
+    "message": "允许使用完整拼音匹配中文名称，例如 xiadaoliecheshou"
+  },
+  "settings_feature_search_suggestions_mnemonic_name": {
+    "message": "助记符搜索"
+  },
+  "settings_feature_search_suggestions_mnemonic_desc": {
+    "message": "允许使用中文首字母助记符匹配中文名称，例如 xdlcs"
+  },
+  "settings_feature_game_notes_name": {
+    "message": "游戏备注"
+  },
+  "settings_feature_game_notes_desc": {
+    "message": "在商店详情页和愿望单显示并编辑当前账号的私有游戏备注。"
+  },
+  "settings_feature_cart_remove_all_confirm_name": {
+    "message": "购物车[移除所有项目] 增加二次确认"
+  },
+  "settings_feature_cart_remove_all_confirm_desc": {
+    "message": "点击购物车的移除所有项目时先弹出确认框，确认后才继续执行 Steam 原操作。"
+  },
+  "settings_feature_translate_sourceTip": {
+    "message": "数据来源/运行库：xnx3 translate.js 本地库。授权：MIT License"
+  },
+  "settings_feature_third_party_services_sourceTip": {
+    "message": "数据来源：IsThereAnyDeal 官方 API。用户自备 API Key，本扩展不托管、不共享密钥。"
+  },
+  "settings_feature_purchase_history_classifier_sourceTip": {
+    "message": "功能来源：Steam 消费历史分类器 userscript，作者 SmallFork。授权：MIT License。"
+  },
+  "settings_empty_title": {
+    "message": "暂无可配置功能"
+  },
+  "settings_empty_desc": {
+    "message": "此分类暂未接入独立功能。"
+  },
+  "settings_tutorial_view": {
+    "message": "查看教程：$name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_tutorial_name": {
+    "message": "教程"
+  },
+  "settings_drawer_collapse": {
+    "message": "收起"
+  },
+  "settings_drawer_expand": {
+    "message": "展开"
+  },
+  "settings_drawer_collapseChildren": {
+    "message": "收起子功能"
+  },
+  "settings_drawer_expandChildren": {
+    "message": "展开子功能"
+  },
+  "settings_field_translate_scope_label": {
+    "message": "作用范围"
+  },
+  "settings_field_translate_scope_option_steam": {
+    "message": "Steam 网站"
+  },
+  "settings_field_translate_scope_option_global": {
+    "message": "全局网站"
+  },
+  "settings_field_translate_page_label": {
+    "message": "网页自动翻译"
+  },
+  "settings_field_translate_selection_label": {
+    "message": "鼠标划词翻译"
+  },
+  "settings_field_translate_selectionTrigger_label": {
+    "message": "划词触发方式"
+  },
+  "settings_field_translate_selectionTrigger_option_direct": {
+    "message": "划词后直接翻译"
+  },
+  "settings_field_translate_selectionTrigger_option_icon": {
+    "message": "显示翻译图标"
+  },
+  "settings_field_translate_selectionTrigger_option_dot": {
+    "message": "显示悬浮圆点"
+  },
+  "settings_field_translate_selectionAction_label": {
+    "message": "悬浮触发动作"
+  },
+  "settings_field_translate_selectionAction_option_click": {
+    "message": "点击翻译"
+  },
+  "settings_field_translate_selectionAction_option_hover": {
+    "message": "悬浮触发"
+  },
+  "settings_field_translate_selectionClose_label": {
+    "message": "划词弹窗关闭方式"
+  },
+  "settings_field_translate_selectionClose_option_auto": {
+    "message": "自动关闭"
+  },
+  "settings_field_translate_selectionClose_option_manual": {
+    "message": "手动关闭"
+  },
+  "settings_field_translate_selectionService_label": {
+    "message": "划词翻译服务"
+  },
+  "settings_field_translate_selectionService_option_follow": {
+    "message": "跟随[翻译服务]"
+  },
+  "settings_field_translate_selectionService_option_client_edge": {
+    "message": "微软免费翻译"
+  },
+  "settings_field_translate_selectionService_option_steam_buff_ai": {
+    "message": "Steam Buff AI"
+  },
+  "settings_field_translate_selectionService_option_translate_service": {
+    "message": "开源公共免费翻译"
+  },
+  "settings_field_translate_newsPopup_label": {
+    "message": "Steam 新闻弹窗翻译"
+  },
+  "settings_field_translate_newsPopupService_label": {
+    "message": "新闻弹窗翻译服务"
+  },
+  "settings_field_translate_newsPopupService_option_follow": {
+    "message": "跟随[翻译服务]"
+  },
+  "settings_field_translate_newsPopupService_option_client_edge": {
+    "message": "微软免费翻译"
+  },
+  "settings_field_translate_newsPopupService_option_steam_buff_ai": {
+    "message": "Steam Buff AI"
+  },
+  "settings_field_translate_newsPopupService_option_translate_service": {
+    "message": "开源公共免费翻译"
+  },
+  "settings_field_translate_local_label": {
+    "message": "本地语言"
+  },
+  "settings_field_translate_local_option_chinese_simplified": {
+    "message": "简体中文"
+  },
+  "settings_field_translate_local_option_chinese_traditional": {
+    "message": "繁体中文"
+  },
+  "settings_field_translate_local_option_english": {
+    "message": "英语"
+  },
+  "settings_field_translate_local_option_japanese": {
+    "message": "日语"
+  },
+  "settings_field_translate_local_option_korean": {
+    "message": "韩语"
+  },
+  "settings_field_translate_local_option_french": {
+    "message": "法语"
+  },
+  "settings_field_translate_local_option_italian": {
+    "message": "意大利语"
+  },
+  "settings_field_translate_local_option_deutsch": {
+    "message": "德语"
+  },
+  "settings_field_translate_local_option_portuguese": {
+    "message": "葡萄牙语"
+  },
+  "settings_field_translate_local_option_spanish": {
+    "message": "西班牙语"
+  },
+  "settings_field_translate_local_option_russian": {
+    "message": "俄语"
+  },
+  "settings_field_translate_to_label": {
+    "message": "目标语言"
+  },
+  "settings_field_translate_to_option_chinese_simplified": {
+    "message": "简体中文"
+  },
+  "settings_field_translate_to_option_chinese_traditional": {
+    "message": "繁体中文"
+  },
+  "settings_field_translate_to_option_english": {
+    "message": "英语"
+  },
+  "settings_field_translate_to_option_japanese": {
+    "message": "日语"
+  },
+  "settings_field_translate_to_option_korean": {
+    "message": "韩语"
+  },
+  "settings_field_translate_to_option_french": {
+    "message": "法语"
+  },
+  "settings_field_translate_to_option_italian": {
+    "message": "意大利语"
+  },
+  "settings_field_translate_to_option_deutsch": {
+    "message": "德语"
+  },
+  "settings_field_translate_to_option_portuguese": {
+    "message": "葡萄牙语"
+  },
+  "settings_field_translate_to_option_spanish": {
+    "message": "西班牙语"
+  },
+  "settings_field_translate_to_option_russian": {
+    "message": "俄语"
+  },
+  "settings_field_translate_service_label": {
+    "message": "翻译服务"
+  },
+  "settings_field_translate_service_option_client_edge": {
+    "message": "微软免费翻译[推荐]"
+  },
+  "settings_field_translate_service_option_steam_buff_ai": {
+    "message": "Steam Buff AI"
+  },
+  "settings_field_translate_service_option_translate_service": {
+    "message": "开源公共免费翻译"
+  },
+  "settings_field_translate_aiPerformance_label": {
+    "message": "AI 翻译性能优化"
+  },
+  "settings_field_translate_force_label": {
+    "message": "强制翻译"
+  },
+  "settings_field_translate_select_label": {
+    "message": "显示原生语言选择框"
+  },
+  "settings_field_translate_style_label": {
+    "message": "翻译显示样式"
+  },
+  "settings_field_translate_style_option_none": {
+    "message": "无"
+  },
+  "settings_field_translate_style_option_blockquote": {
+    "message": "引用"
+  },
+  "settings_field_translate_style_option_weakened": {
+    "message": "弱化"
+  },
+  "settings_field_translate_style_option_dashedLine": {
+    "message": "虚线"
+  },
+  "settings_field_translate_style_option_wavyLine": {
+    "message": "波浪线"
+  },
+  "settings_field_translate_style_option_border": {
+    "message": "边框"
+  },
+  "settings_field_translate_style_option_background": {
+    "message": "背景"
+  },
+  "settings_field_translate_hover_label": {
+    "message": "悬停显示原文"
+  },
+  "settings_field_reviewFilter_maxPlaytimeHours_label": {
+    "message": "隐藏总游戏时间少于"
+  },
+  "settings_field_reviewFilter_maxReviewPlaytimeHours_label": {
+    "message": "隐藏评测时游戏时间少于"
+  },
+  "settings_field_reviewFilter_hideHiddenProfile_label": {
+    "message": "隐藏资料不可见的评测"
+  },
+  "settings_field_reviewFilter_minReviewCount_label": {
+    "message": "隐藏评测篇数少于"
+  },
+  "settings_field_reviewFilter_minGamesOwned_label": {
+    "message": "隐藏拥有游戏少于"
+  },
+  "settings_field_searchSuggestions_limit_label": {
+    "message": "Steam Buff 联想条数"
+  },
+  "settings_field_searchSuggestions_nativeMode_label": {
+    "message": "Steam 官方搜索结果"
+  },
+  "settings_field_searchSuggestions_nativeMode_option_default": {
+    "message": "保持原样"
+  },
+  "settings_field_searchSuggestions_nativeMode_option_one": {
+    "message": "只显示 1 条"
+  },
+  "settings_field_searchSuggestions_nativeMode_option_hide": {
+    "message": "隐藏官方结果"
+  },
+  "settings_field_familyLibrary_refreshInterval_label": {
+    "message": "更新时间"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_1d": {
+    "message": "1天"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_3d": {
+    "message": "3天"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_7d": {
+    "message": "7天"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_30d": {
+    "message": "30天"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_manual": {
+    "message": "手动"
+  },
+  "settings_field_familyLibrary_autoRefresh_label": {
+    "message": "自动更新"
+  },
+  "settings_field_ai_enabled_label": {
+    "message": "AI模块"
+  },
+  "settings_field_ai_host_label": {
+    "message": "AI 网关地址"
+  },
+  "settings_field_ai_model_label": {
+    "message": "模型"
+  },
+  "settings_field_ai_keyMode_label": {
+    "message": "密钥方式"
+  },
+  "settings_field_ai_keyMode_option_none": {
+    "message": "不传递"
+  },
+  "settings_field_ai_keyMode_option_bearer": {
+    "message": "Authorization Bearer"
+  },
+  "settings_field_ai_keyMode_option_header": {
+    "message": "自定义请求头"
+  },
+  "settings_field_ai_keyMode_option_param": {
+    "message": "表单参数"
+  },
+  "settings_field_ai_key_label": {
+    "message": "访问密钥"
+  },
+  "settings_field_ai_keyName_label": {
+    "message": "密钥字段名"
+  },
+  "settings_field_ai_temperature_label": {
+    "message": "温度"
+  },
+  "settings_field_ai_aiConcurrency_label": {
+    "message": "AI 并发上限"
+  },
+  "settings_field_thirdPartyServices_enabled_label": {
+    "message": "启用第三方数据服务"
+  },
+  "settings_field_thirdPartyServices_defaultProvider_label": {
+    "message": "默认价格数据源"
+  },
+  "settings_field_thirdPartyServices_defaultProvider_option_isthereanydeal": {
+    "message": "IsThereAnyDeal"
+  },
+  "settings_field_thirdPartyServices_isthereanydeal_key_label": {
+    "message": "ITAD API Key"
+  },
+  "settings_field_thirdPartyServices_isthereanydeal_key_placeholder": {
+    "message": "输入自己的 IsThereAnyDeal API Key"
+  },
+  "settings_storePriceChart_seriesLimit_title": {
+    "message": "最多 $max$ 条价格线",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_seriesLimit_message": {
+    "message": "Steam 定价区和游戏商店合计最多 $max$ 条，主 Steam 定价区也计入其中。请先删除一个已添加项。",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_color_ariaLabel": {
+    "message": "$name$线条颜色",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_series_steam": {
+    "message": "Steam（$region$）",
+    "placeholders": {
+      "region": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_entry_mainRegion": {
+    "message": "主区域"
+  },
+  "settings_storePriceChart_entry_fixed": {
+    "message": "固定"
+  },
+  "settings_storePriceChart_action_remove": {
+    "message": "删除$name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_combo_options": {
+    "message": "选项"
+  },
+  "settings_storePriceChart_combo_expand": {
+    "message": "展开$name$列表",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_combo_empty": {
+    "message": "没有匹配项"
+  },
+  "settings_storePriceChart_legacy_followSteam": {
+    "message": "跟随 Steam 页面（旧设置）"
+  },
+  "settings_storePriceChart_legacy_outsideCatalog": {
+    "message": "$code$ - 目录外旧设置（请重新选择）",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_section_steamRegions": {
+    "message": "Steam 定价区"
+  },
+  "settings_storePriceChart_field_mainRegion": {
+    "message": "主定价区"
+  },
+  "settings_storePriceChart_placeholder_searchMainRegion": {
+    "message": "搜索主定价区"
+  },
+  "settings_storePriceChart_placeholder_searchRegion": {
+    "message": "搜索区域名称"
+  },
+  "settings_storePriceChart_action_addRegion": {
+    "message": "添加区域"
+  },
+  "settings_storePriceChart_section_shops": {
+    "message": "游戏商店"
+  },
+  "settings_storePriceChart_placeholder_searchShop": {
+    "message": "搜索商店名称"
+  },
+  "settings_storePriceChart_action_addShop": {
+    "message": "添加商店"
+  },
+  "settings_storePriceChart_section_chart": {
+    "message": "图表"
+  },
+  "settings_storePriceChart_field_exchangeRateSource": {
+    "message": "汇率来源"
+  },
+  "settings_storePriceChart_field_lowCriterion": {
+    "message": "史低判定"
+  },
+  "settings_storePriceChart_lowCriterion_api": {
+    "message": "使用API数据"
+  },
+  "settings_storePriceChart_lowCriterion_discount": {
+    "message": "按折扣力度"
+  },
+  "settings_storePriceChart_lowCriterion_price": {
+    "message": "按到手价"
+  },
+  "settings_storePriceChart_field_lowReferenceScope": {
+    "message": "史低范围"
+  },
+  "settings_storePriceChart_lowReferenceScope_allRegular": {
+    "message": "全部原价"
+  },
+  "settings_storePriceChart_lowReferenceScope_currentRegular": {
+    "message": "当前原价"
+  },
+  "settings_storePriceChart_lowReferenceScope_recent12Months": {
+    "message": "最近12个月"
+  },
+  "settings_storePriceChart_field_lowOccurrence": {
+    "message": "史低时间"
+  },
+  "settings_storePriceChart_lowOccurrence_latest": {
+    "message": "最近史低"
+  },
+  "settings_storePriceChart_lowOccurrence_earliest": {
+    "message": "最先史低"
+  },
+  "settings_storePriceChart_action_resetColors": {
+    "message": "恢复全部默认颜色"
+  },
+  "settings_storePriceChart_action_save": {
+    "message": "保存设置"
+  },
+  "settings_storePriceChart_validation_mainRegion_title": {
+    "message": "需要选择主定价区"
+  },
+  "settings_storePriceChart_validation_mainRegion_message": {
+    "message": "当前旧设置不在固定目录中，请先选择一个主定价区。"
+  },
+  "settings_storePriceChart_saveFailed_title": {
+    "message": "保存失败"
+  },
+  "settings_storePriceChart_saveFailed_message": {
+    "message": "价格图表设置保存失败，请稍后重试。"
+  },
+  "settings_storePriceChart_addFailed_title": {
+    "message": "无法添加"
+  },
+  "settings_storePriceChart_addFailed_region": {
+    "message": "请选择固定目录中的 Steam 定价区。"
+  },
+  "settings_storePriceChart_addFailed_shop": {
+    "message": "请选择固定目录中的游戏商店。"
+  },
+  "settings_storePriceChart_region_US": {
+    "message": "美国"
+  },
+  "settings_storePriceChart_region_CN": {
+    "message": "中国大陆"
+  },
+  "settings_storePriceChart_region_JP": {
+    "message": "日本"
+  },
+  "settings_storePriceChart_region_DE": {
+    "message": "欧元区"
+  },
+  "settings_storePriceChart_region_RU": {
+    "message": "俄罗斯"
+  },
+  "settings_storePriceChart_region_PL": {
+    "message": "波兰"
+  },
+  "settings_storePriceChart_region_BR": {
+    "message": "巴西"
+  },
+  "settings_storePriceChart_region_VN": {
+    "message": "越南"
+  },
+  "settings_storePriceChart_region_KR": {
+    "message": "韩国"
+  },
+  "settings_storePriceChart_region_ID": {
+    "message": "印度尼西亚"
+  },
+  "settings_storePriceChart_region_TW": {
+    "message": "中国台湾"
+  },
+  "settings_storePriceChart_region_HK": {
+    "message": "中国香港"
+  },
+  "settings_storePriceChart_region_UA": {
+    "message": "乌克兰"
+  },
+  "settings_storePriceChart_region_KZ": {
+    "message": "哈萨克斯坦"
+  },
+  "settings_storePriceChart_region_GB": {
+    "message": "英国"
+  },
+  "settings_storePriceChart_region_CH": {
+    "message": "瑞士"
+  },
+  "settings_storePriceChart_region_NO": {
+    "message": "挪威"
+  },
+  "settings_storePriceChart_region_TH": {
+    "message": "泰国"
+  },
+  "settings_storePriceChart_region_PH": {
+    "message": "菲律宾"
+  },
+  "settings_storePriceChart_region_SG": {
+    "message": "新加坡"
+  },
+  "settings_storePriceChart_region_MY": {
+    "message": "马来西亚"
+  },
+  "settings_storePriceChart_region_MX": {
+    "message": "墨西哥"
+  },
+  "settings_storePriceChart_region_CA": {
+    "message": "加拿大"
+  },
+  "settings_storePriceChart_region_AU": {
+    "message": "澳大利亚"
+  },
+  "settings_storePriceChart_region_NZ": {
+    "message": "新西兰"
+  },
+  "settings_storePriceChart_region_IN": {
+    "message": "印度"
+  },
+  "settings_storePriceChart_region_CL": {
+    "message": "智利"
+  },
+  "settings_storePriceChart_region_PE": {
+    "message": "秘鲁"
+  },
+  "settings_storePriceChart_region_CO": {
+    "message": "哥伦比亚"
+  },
+  "settings_storePriceChart_region_ZA": {
+    "message": "南非"
+  },
+  "settings_storePriceChart_region_SA": {
+    "message": "沙特阿拉伯"
+  },
+  "settings_storePriceChart_region_AE": {
+    "message": "阿联酋"
+  },
+  "settings_storePriceChart_region_IL": {
+    "message": "以色列"
+  },
+  "settings_storePriceChart_region_KW": {
+    "message": "科威特"
+  },
+  "settings_storePriceChart_region_QA": {
+    "message": "卡塔尔"
+  },
+  "settings_storePriceChart_region_CR": {
+    "message": "哥斯达黎加"
+  },
+  "settings_storePriceChart_region_UY": {
+    "message": "乌拉圭"
+  },
+  "settings_storePriceChart_region_AM": {
+    "message": "独联体美元区"
+  },
+  "settings_storePriceChart_region_AR": {
+    "message": "拉丁美洲美元区"
+  },
+  "settings_storePriceChart_region_TR": {
+    "message": "中东和北非美元区"
+  },
+  "settings_storePriceChart_region_PK": {
+    "message": "南亚美元区"
+  },
+  "common_refreshPage": {
+    "message": "刷新页面"
+  },
+  "common_notice": {
+    "message": "提示"
+  },
+  "common_saveFailed": {
+    "message": "保存失败"
+  },
+  "settings_savePrompt_title": {
+    "message": "保存成功"
+  },
+  "settings_savePrompt_message": {
+    "message": "刷新页面后生效。"
+  },
+  "settings_familyLibrary_saveFailed": {
+    "message": "家庭库刷新设置保存失败，请稍后重试。"
+  },
+  "settings_familyLibrary_saveError": {
+    "message": "家庭库刷新设置保存异常，请稍后重试。"
+  },
+  "settings_shell_filteredReviewsButtonWithCount": {
+    "message": "查看已过滤评论（$count$）",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "updateReminder_title": {
+    "message": "Steam Buff 发现新版本"
+  },
+  "updateReminder_currentVersion": {
+    "message": "当前版本：$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "updateReminder_latestVersion": {
+    "message": "最新版本：$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "updateReminder_releaseNotes": {
+    "message": "新版日志"
+  },
+  "updateReminder_muteToday": {
+    "message": "今天不再提醒"
+  },
+  "updateReminder_openDownload": {
+    "message": "打开官网下载"
+  },
+  "common_none": {
+    "message": "暂无"
+  },
+  "common_listSeparator": {
+    "message": "、"
+  },
+  "common_unknown": {
+    "message": "未知"
+  },
+  "common_included": {
+    "message": "包含"
+  },
+  "common_notIncluded": {
+    "message": "不包含"
+  },
+  "common_cancel": {
+    "message": "取消"
+  },
+  "common_clear": {
+    "message": "清空"
+  },
+  "common_export": {
+    "message": "导出"
+  },
+  "common_import": {
+    "message": "导入"
+  },
+  "about_common_unknownVersion": {
+    "message": "未知版本"
+  },
+  "about_update_noLog": {
+    "message": "无更新日志"
+  },
+  "about_update_loadingCurrentLog": {
+    "message": "正在读取当前版本日志..."
+  },
+  "about_update_noLogShort": {
+    "message": "暂无日志"
+  },
+  "about_update_logLoadFailed": {
+    "message": "日志详情加载失败"
+  },
+  "about_update_currentLogTitle": {
+    "message": "当前版本日志"
+  },
+  "about_update_logTitle": {
+    "message": "更新日志"
+  },
+  "about_update_noNewTitle": {
+    "message": "未发现新版本"
+  },
+  "about_update_latestMessage": {
+    "message": "当前已是最新版本。"
+  },
+  "about_update_checkTitle": {
+    "message": "检查更新"
+  },
+  "about_update_checkingMessage": {
+    "message": "正在检查更新，请稍候。"
+  },
+  "about_update_checkFailedTitle": {
+    "message": "检查更新失败"
+  },
+  "about_update_checking": {
+    "message": "检查中"
+  },
+  "about_update_autoCheck": {
+    "message": "打开设置页后自动检查"
+  },
+  "about_update_newVersion": {
+    "message": "发现新版本 $version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_update_latest": {
+    "message": "已是最新"
+  },
+  "about_update_notChecked": {
+    "message": "暂未检查"
+  },
+  "about_update_fetchingLog": {
+    "message": "正在获取官网日志"
+  },
+  "about_update_autoFetchLog": {
+    "message": "打开设置页后自动获取"
+  },
+  "about_update_viewMore": {
+    "message": "查看更多"
+  },
+  "about_update_viewNow": {
+    "message": "立即查看"
+  },
+  "about_logs_requestFailed": {
+    "message": "日志请求失败"
+  },
+  "about_logs_backgroundFailed": {
+    "message": "后台请求失败"
+  },
+  "about_logs_statusLoading": {
+    "message": "正在读取日志状态"
+  },
+  "about_logs_statusDetail": {
+    "message": "$count$ 条，$size$，$first$ - $last$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "size": {
+        "content": "$2"
+      },
+      "first": {
+        "content": "$3"
+      },
+      "last": {
+        "content": "$4"
+      }
+    }
+  },
+  "about_logs_healthErrors": {
+    "message": "最近日志包含 $count$ 条错误",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_logs_healthLarge": {
+    "message": "日志较多，建议导出后清理"
+  },
+  "about_logs_healthElevated": {
+    "message": "日志状态偏高"
+  },
+  "about_logs_healthOk": {
+    "message": "最近 1 小时 0 条错误"
+  },
+  "about_logs_emptySummary": {
+    "message": "暂无日志 · 已开启脱敏导出"
+  },
+  "about_logs_summary": {
+    "message": "$count$ 条 · $size$ · 最近 $time$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "size": {
+        "content": "$2"
+      },
+      "time": {
+        "content": "$3"
+      }
+    }
+  },
+  "about_backup_readFailed": {
+    "message": "读取设置备份文件失败"
+  },
+  "about_backup_section_features": {
+    "message": "功能开关"
+  },
+  "about_backup_section_translate": {
+    "message": "翻译参数"
+  },
+  "about_backup_section_ai": {
+    "message": "AI 参数"
+  },
+  "about_backup_section_reviewFilter": {
+    "message": "评论过滤"
+  },
+  "about_backup_section_searchSuggestions": {
+    "message": "搜索联想"
+  },
+  "about_backup_section_familyLibrary": {
+    "message": "家庭库刷新"
+  },
+  "about_backup_noSections": {
+    "message": "无可识别分区"
+  },
+  "about_backup_fileVersion": {
+    "message": "文件版本：v$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_exportedAt": {
+    "message": "导出时间：$time$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_sections": {
+    "message": "包含分区：$sections$",
+    "placeholders": {
+      "sections": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_sensitive": {
+    "message": "敏感配置：$state$",
+    "placeholders": {
+      "state": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_willImport": {
+    "message": "将导入：$count$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_willDefault": {
+    "message": "将恢复默认：$count$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_willSkip": {
+    "message": "将跳过：$count$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_overwriteWarning": {
+    "message": "确认后将直接覆盖当前设置并导入。"
+  },
+  "about_backup_missingSensitiveWarning": {
+    "message": "当前文件不含 AI 密钥等敏感配置，导入后这些字段会按默认空值处理。"
+  },
+  "about_backup_imported": {
+    "message": "已导入：$count$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_defaulted": {
+    "message": "恢复默认：$count$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_skipped": {
+    "message": "已跳过：$count$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_importCompleteMessage": {
+    "message": "设置导入完成，刷新页面后生效。"
+  },
+  "about_backup_exportFailedTitle": {
+    "message": "导出设置失败"
+  },
+  "about_backup_importFailedTitle": {
+    "message": "导入设置失败"
+  },
+  "about_backup_moduleMissing": {
+    "message": "设置备份模块未加载。"
+  },
+  "about_backup_importTitle": {
+    "message": "导入设置备份"
+  },
+  "about_backup_confirmImport": {
+    "message": "确认导入"
+  },
+  "about_backup_importCompleteTitle": {
+    "message": "导入设置完成"
+  },
+  "about_backup_invalidFormat": {
+    "message": "设置备份文件格式无效。"
+  },
+  "about_backup_invalidType": {
+    "message": "不是 Steam Buff 设置备份。"
+  },
+  "about_backup_unsupportedVersion": {
+    "message": "暂不支持的设置备份版本：$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_writeUnavailable": {
+    "message": "设置备份写入接口不可用"
+  },
+  "about_backup_writeFailed": {
+    "message": "设置备份写入失败"
+  },
+  "about_logs_exportFailedTitle": {
+    "message": "导出日志失败"
+  },
+  "about_logs_buildFailed": {
+    "message": "日志生成失败"
+  },
+  "about_logs_clearTitle": {
+    "message": "清空诊断日志"
+  },
+  "about_logs_clearWarning": {
+    "message": "清空后将无法导出当前排查现场，确认要继续吗？"
+  },
+  "about_logs_clearFailedTitle": {
+    "message": "清空诊断日志失败"
+  },
+  "about_support_anonymous": {
+    "message": "匿名支持者"
+  },
+  "about_support_thankYou": {
+    "message": "感谢支持 Steam Buff"
+  },
+  "about_support_beFirst": {
+    "message": "成为第一位支持者 ❤"
+  },
+  "about_support_action": {
+    "message": "去支持"
+  },
+  "about_support_listTitle": {
+    "message": "感谢以下用户捐赠，排名不分先后。"
+  },
+  "about_openSource_title": {
+    "message": "开放源代码库"
+  },
+  "about_card_home_title": {
+    "message": "项目主页"
+  },
+  "about_card_home_desc": {
+    "message": "访问官网获取最新动态"
+  },
+  "about_card_home_action": {
+    "message": "打开官网"
+  },
+  "about_card_feedback_title": {
+    "message": "问题反馈"
+  },
+  "about_card_feedback_desc": {
+    "message": "提交 Bug 或功能建议"
+  },
+  "about_card_feedback_action": {
+    "message": "提交反馈"
+  },
+  "about_card_versionLog_title": {
+    "message": "版本日志"
+  },
+  "about_card_versionLog_desc": {
+    "message": "查看当前版本更新内容"
+  },
+  "about_card_versionLog_action": {
+    "message": "查看日志"
+  },
+  "about_card_logs_title": {
+    "message": "日志"
+  },
+  "about_card_logs_export": {
+    "message": "导出日志"
+  },
+  "about_card_logs_clear": {
+    "message": "清空日志"
+  },
+  "about_card_backup_title": {
+    "message": "设置备份"
+  },
+  "about_card_backup_desc": {
+    "message": "导入导出功能与个性化配置"
+  },
+  "about_card_backup_sensitiveTitle": {
+    "message": "包含 AI 密钥等敏感配置"
+  },
+  "about_card_backup_sensitive": {
+    "message": "含密钥"
+  },
+  "about_card_support_title": {
+    "message": "支持作者"
+  },
+  "about_card_support_desc": {
+    "message": "一杯咖啡，让更新更有动力"
+  },
+  "about_tagline": {
+    "message": "给 Steam 客户端加个 Buff"
+  },
+  "about_footer_personalProject": {
+    "message": "个人非商业项目"
+  },
+  "settings_api_parseFailed": {
+    "message": "接口返回解析失败"
+  },
+  "settings_api_endpoint": {
+    "message": "官网接口"
+  },
+  "settings_api_requestFailed": {
+    "message": "$label$请求失败",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_api_responseInvalid": {
+    "message": "$label$返回格式异常",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_api_statusCode": {
+    "message": "$label$返回状态码 $status$",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "status": {
+        "content": "$2"
+      }
+    }
+  },
+  "about_update_googleWebStoreDisabled": {
+    "message": "Google 商店版已禁用主动更新检查"
+  },
+  "about_logs_utf8Unavailable": {
+    "message": "当前环境不支持 UTF-8 编码"
+  },
+  "about_logs_zipUnavailable": {
+    "message": "诊断包压缩库未加载"
+  },
+  "store_workshop_statusUnavailable": {
+    "message": "创意工坊状态暂时无法获取"
+  },
+  "store_workshop_supported": {
+    "message": "此游戏支持 Steam 创意工坊"
+  },
+  "store_workshop_verifiedCategoryIds": {
+    "message": "已验证分类 ID：$ids$",
+    "placeholders": {
+      "ids": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_workshop_unsupported": {
+    "message": "此游戏未标记支持 Steam 创意工坊"
+  },
+  "store_workshop_loading": {
+    "message": "正在检查 Steam 创意工坊状态..."
+  },
+  "store_audio_supported": {
+    "message": "此游戏支持简体中文配音"
+  },
+  "store_audio_unsupported": {
+    "message": "此游戏不支持简体中文配音"
+  },
+  "store_gameNotes_loginRequired": {
+    "message": "请先在设置中登录"
+  },
+  "store_gameNotes_loginExpired": {
+    "message": "登录已过期，请重新登录"
+  },
+  "store_gameNotes_requestFailed": {
+    "message": "请求失败：$code$",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_gameNotes_openFull": {
+    "message": "查看完整备注"
+  },
+  "store_gameNotes_label": {
+    "message": "备注："
+  },
+  "store_gameNotes_empty": {
+    "message": "暂无备注"
+  },
+  "store_gameNotes_viewMore": {
+    "message": "[查看更多]"
+  },
+  "store_searchSuggestions_heading": {
+    "message": "Steam Buff 中文名称匹配"
+  },
+  "store_reviewFilter_reason_keyword": {
+    "message": "关键词"
+  },
+  "store_reviewFilter_reason_pattern": {
+    "message": "正则"
+  },
+  "store_reviewFilter_reason_nickname": {
+    "message": "昵称"
+  },
+  "store_reviewFilter_reason_playtime": {
+    "message": "总游戏时间"
+  },
+  "store_reviewFilter_reason_reviewPlaytime": {
+    "message": "评测时游戏时间"
+  },
+  "store_reviewFilter_reason_hiddenProfile": {
+    "message": "隐藏资料"
+  },
+  "store_reviewFilter_reason_gamesOwned": {
+    "message": "游戏数量"
+  },
+  "store_reviewFilter_reason_reviewCount": {
+    "message": "评测篇数"
+  },
+  "store_reviewFilter_reason_matched": {
+    "message": "规则命中"
+  },
+  "store_regionalPrice_loading": {
+    "message": "正在加载区域价格"
+  },
+  "store_subscription_title": {
+    "message": "会员检查"
+  },
+  "store_subscription_leavingOn": {
+    "message": "此游戏即将于 $date$ 离开 $name$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      },
+      "name": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_subscription_leaving": {
+    "message": "此游戏即将离开 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_joinedOn": {
+    "message": "游戏已于 $date$ 加入 $name$ 订阅库",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      },
+      "name": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_subscription_joined": {
+    "message": "游戏已加入 $name$ 订阅库",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_leavingOnPrefix": {
+    "message": "此游戏即将于 $date$ 离开 ",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_leavingPrefix": {
+    "message": "此游戏即将离开 "
+  },
+  "store_subscription_joinedOnPrefix": {
+    "message": "游戏已于 $date$ 加入 ",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_joinedPrefix": {
+    "message": "游戏已加入 "
+  },
+  "store_subscription_joinedTail": {
+    "message": " 订阅库"
+  },
+  "common_loading": {
+    "message": "正在加载"
+  },
+  "common_retry": {
+    "message": "重试"
+  },
+  "common_send": {
+    "message": "发送"
+  },
+  "store_priceChart_emptyHistory": {
+    "message": "暂无历史价格数据"
+  },
+  "store_priceChart_discount": {
+    "message": "折扣：-$cut$%",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_historyAria": {
+    "message": "历史价格走势图"
+  },
+  "store_priceChart_currentRegularUnavailable": {
+    "message": "当前原价范围不可计算"
+  },
+  "store_priceChart_noCalculablePriceLow": {
+    "message": "暂无可计算价格史低"
+  },
+  "store_priceChart_apiLowUnavailable": {
+    "message": "API 暂无可用史低"
+  },
+  "store_priceChart_noCalculableDiscountLow": {
+    "message": "暂无可计算折扣史低"
+  },
+  "store_priceChart_cnyRateUnavailable": {
+    "message": "人民币汇率不可用"
+  },
+  "store_priceChart_notApplicable": {
+    "message": "不适用"
+  },
+  "store_priceChart_lowCriterion": {
+    "message": "史低判定：$criterion$",
+    "placeholders": {
+      "criterion": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_referenceScope": {
+    "message": "参考范围：$scope$",
+    "placeholders": {
+      "scope": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_maxDiscountNone": {
+    "message": "历史最大折扣：暂无"
+  },
+  "store_priceChart_maxDiscount": {
+    "message": "历史最大折扣：-$cut$%",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_lowestPrice": {
+    "message": "历史最低价格：$price$",
+    "placeholders": {
+      "price": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_lowestPriceNone": {
+    "message": "历史最低价格：暂无"
+  },
+  "store_priceChart_yearCount": {
+    "message": "一年内达到 $count$ 次",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_shopType": {
+    "message": "商店类型：$shop$",
+    "placeholders": {
+      "shop": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_region": {
+    "message": "国家区域：$region$",
+    "placeholders": {
+      "region": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_date": {
+    "message": "日期：$date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_currentAmount": {
+    "message": "当前金额：$amount$",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_table_countryShop": {
+    "message": "国家 / 商店"
+  },
+  "store_priceChart_table_price": {
+    "message": "价格"
+  },
+  "store_priceChart_table_discount": {
+    "message": "折扣"
+  },
+  "store_priceChart_table_comparison": {
+    "message": "对比"
+  },
+  "store_priceChart_multiHistoryAria": {
+    "message": "多区域多商店历史价格走势图"
+  },
+  "store_priceChart_emptyRange": {
+    "message": "当前时间范围暂无历史价格数据"
+  },
+  "store_priceChart_legendAria": {
+    "message": "$label$$state$ 图表统计",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "state": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_priceChart_legendNoData": {
+    "message": " 暂无数据"
+  },
+  "store_priceChart_legendStats": {
+    "message": "$label$ 图表统计",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_countriesAndShops": {
+    "message": "国家和商店"
+  },
+  "store_dataDisplay_range6Months": {
+    "message": "6个月"
+  },
+  "store_dataDisplay_range12Months": {
+    "message": "12个月"
+  },
+  "store_dataDisplay_rangeAll": {
+    "message": "全部"
+  },
+  "store_dataDisplay_monthDay": {
+    "message": "$month$月$day$号",
+    "placeholders": {
+      "month": {
+        "content": "$1"
+      },
+      "day": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_unknownDate": {
+    "message": "未知日期"
+  },
+  "store_dataDisplay_lowEvidenceStrong": {
+    "message": "史低重复证据较强：历史有效折扣中有 $count$ 场达到或低于该史低价；这里只表示历史重复程度，不是概率。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowEvidenceMedium": {
+    "message": "史低重复证据中等：历史有效折扣中有 $count$ 场达到或低于该史低价；这里只表示历史重复程度，不是概率。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowEvidenceLow": {
+    "message": "史低重复证据较少：历史有效折扣中仅有 $count$ 场达到或低于该史低价；不输出史低概率。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowEvidenceInsufficient": {
+    "message": "史低重复证据不足：当前价格历史中没有可确认的重复史低折扣，不输出史低概率。"
+  },
+  "store_dataDisplay_lowUnavailable": {
+    "message": "史低参考：历史数据样本不足，无法预测。"
+  },
+  "store_dataDisplay_lowFreeHistory": {
+    "message": "史低参考：这款游戏曾经免费过，当前模型不支持预测此游戏。"
+  },
+  "store_dataDisplay_lowCurrentUnavailable": {
+    "message": "史低参考：当前到手价不可用，暂时无法判断是否已经达到史低 $low$。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowNew": {
+    "message": "史低参考：当前到手价已经低于此前记录的史低 $low$，这是当前可观察到的新低价。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowReached": {
+    "message": "史低参考：当前到手价已经达到历史最低价 $low$。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowRequiredCut": {
+    "message": "至少需要约 -$cut$% 才能追平。",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowRequiredCutUnavailable": {
+    "message": "当前可靠原价不足，暂时无法计算追平所需折扣。"
+  },
+  "store_dataDisplay_lowMayReach": {
+    "message": "史低参考：当前到手价尚未达到史低 $low$，$required$下次可能达到史低的时间约在 $days$ 天后。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      },
+      "days": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_lowPredictedBelow": {
+    "message": "史低参考：当前到手价尚未达到史低 $low$，$required$按当前预测的下一次折扣力度仍不足以追平史低，暂时无法给出下一次史低时间。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_lowRegularUnavailable": {
+    "message": "史低参考：当前到手价尚未达到史低 $low$；当前可靠原价不足，暂时无法计算追平所需折扣和下一次史低时间。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowStrengthUnavailable": {
+    "message": "史低参考：当前到手价尚未达到史低 $low$，$required$下一次折扣力度证据不足，暂时无法给出下一次史低时间。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_lowTimingUnavailable": {
+    "message": "史低参考：当前到手价尚未达到史低 $low$，$required$折扣时间证据不足，暂时无法给出下一次史低时间。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceStrong": {
+    "message": "强证据：最近连续 $consecutive$ 届同名同类型活动都出现折扣；共统计 $matched$ 届，命中 $hits$ 届。",
+    "placeholders": {
+      "consecutive": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      },
+      "hits": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceMedium": {
+    "message": "中等证据：同名同类型活动共统计 $matched$ 届，命中 $hits$ 届，但最近未连续命中两届。",
+    "placeholders": {
+      "matched": {
+        "content": "$1"
+      },
+      "hits": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceLow": {
+    "message": "低证据：同名同类型活动共统计 $matched$ 届，仅 1 届出现折扣。",
+    "placeholders": {
+      "matched": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceInsufficient": {
+    "message": "没有足够的同名同类型活动折扣记录。"
+  },
+  "store_dataDisplay_forecastFree": {
+    "message": "当前是免费游戏，不需要预测折扣。"
+  },
+  "store_dataDisplay_forecastActive": {
+    "message": "现在正以 -$currentCut$% 销售，到手约 $price$。下次打折时间约 $days$ 天后，折扣约 -$nextCut$%。",
+    "placeholders": {
+      "currentCut": {
+        "content": "$1"
+      },
+      "price": {
+        "content": "$2"
+      },
+      "days": {
+        "content": "$3"
+      },
+      "nextCut": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastActiveCutUnknown": {
+    "message": "现在正以 -$currentCut$% 销售，到手约 $price$。下次打折时间约 $days$ 天后，但折扣力度暂时无法可靠估计。",
+    "placeholders": {
+      "currentCut": {
+        "content": "$1"
+      },
+      "price": {
+        "content": "$2"
+      },
+      "days": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_forecastActiveInsufficient": {
+    "message": "现在正以 -$currentCut$% 销售，到手约 $price$。历史样本不足，暂时算不出下一次折扣。",
+    "placeholders": {
+      "currentCut": {
+        "content": "$1"
+      },
+      "price": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_forecastInsufficient": {
+    "message": "样本数据不足，暂时算不出下一次折扣。"
+  },
+  "store_dataDisplay_forecastWindow": {
+    "message": "$days$ 天内 $percent$%",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "percent": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSparseWithCut": {
+    "message": "样本数据不足，推测 $days$ 天后的「$name$」（$range$），可能会有 $cut$ 左右折扣。",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "name": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      },
+      "cut": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSparse": {
+    "message": "这款游戏很少打折，无法预测未来打折信息。建议关注 $days$ 天后的「$name$」（$range$），看看是否打折。",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "name": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSeasonLimited": {
+    "message": "样本数据不多，推测 $days$ 天后的「$name$」（$range$）可能出现约 -$cut$% 折扣。",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "name": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      },
+      "cut": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSeason": {
+    "message": "预计 $days$ 天后的「$name$」（$range$）可能出现约 -$cut$% 折扣，到手大约 $price$。",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "name": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      },
+      "cut": {
+        "content": "$4"
+      },
+      "price": {
+        "content": "$5"
+      }
+    }
+  },
+  "store_dataDisplay_forecastLimited": {
+    "message": "当前样本数据不足，预计 $days$ 天后（$date$）有一定概率出现约 -$cut$% 折扣，到手约 $price$。",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "date": {
+        "content": "$2"
+      },
+      "cut": {
+        "content": "$3"
+      },
+      "price": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastRegular": {
+    "message": "预计 $days$ 天后（$date$）可能出现约 -$cut$% 折扣，到手大概 $price$。",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "date": {
+        "content": "$2"
+      },
+      "cut": {
+        "content": "$3"
+      },
+      "price": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastEventCount": {
+    "message": "参考 $count$ 次折扣。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_festivalNoHistory": {
+    "message": "当前返回的历史节日窗口不足，暂时无法推测节日折扣。"
+  },
+  "store_dataDisplay_festivalNoFuture": {
+    "message": "当前没有未来一年的节日数据。"
+  },
+  "store_dataDisplay_festivalNoEvidence": {
+    "message": "未来活动中没有找到该游戏参加同名同类型活动的历史折扣证据。"
+  },
+  "store_dataDisplay_festivalOngoing": {
+    "message": "正在进行的「$name$」（$range$）",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "range": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalUpcoming": {
+    "message": "$days$ 天后的「$name$」（$range$）",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "name": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_festivalStrong": {
+    "message": "$timing$，按当前规则，该活动出现折扣的可能性约 $probability$%；历史命中时折扣约 $cut$，按中位数到手约 $price$。",
+    "placeholders": {
+      "timing": {
+        "content": "$1"
+      },
+      "probability": {
+        "content": "$2"
+      },
+      "cut": {
+        "content": "$3"
+      },
+      "price": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_festivalMedium": {
+    "message": "$timing$ 有中等证据可能打折；历史多次命中但不连续，命中时折扣约 $cut$。",
+    "placeholders": {
+      "timing": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalLow": {
+    "message": "$timing$ 只有一次历史命中，仅作低证据提醒；当次折扣约 $cut$。",
+    "placeholders": {
+      "timing": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_loadingRates": {
+    "message": "正在加载汇率"
+  },
+  "store_dataDisplay_thirdPartyUnavailable": {
+    "message": "第三方价格数据暂不可用。"
+  },
+  "store_aiForecast_responseInstruction": {
+    "message": "必须明确建议现在购买、等待主要预测窗口，或达到什么折扣再购买。使用中文回答，并明确区分事实、推测和不确定性。不要给出没有数据支撑的精确日期或精确概率。"
+  },
+  "store_aiForecast_summaryLanguageInstruction": {
+    "message": "4. 摘要使用中文纯文本，不使用 Markdown、标题、列表或代码块。"
+  },
+  "store_aiForecast_storageUnavailable": {
+    "message": "chrome.storage.local 不可用"
+  },
+  "store_aiForecast_sessionReadFailed": {
+    "message": "读取 AI 预测会话失败"
+  },
+  "store_aiForecast_sessionSaveFailed": {
+    "message": "保存 AI 预测会话失败"
+  },
+  "store_aiForecast_sessionClearFailed": {
+    "message": "清理 AI 预测会话失败"
+  },
+  "store_aiForecast_readingSession": {
+    "message": "正在读取 AI 预测记录..."
+  },
+  "store_aiForecast_preparing": {
+    "message": "正在准备预测数据..."
+  },
+  "store_aiForecast_analyzing": {
+    "message": "AI 正在分析历史折扣与节日数据..."
+  },
+  "store_aiForecast_failed": {
+    "message": "AI 预测失败，请稍后重试。"
+  },
+  "store_aiForecast_festivalUnavailable": {
+    "message": "节日数据暂不可用，无法生成 AI 预测。"
+  },
+  "store_aiForecast_preparingHistory": {
+    "message": "正在准备历史折扣与节日数据..."
+  },
+  "store_aiForecast_openDetailsHint": {
+    "message": "点击“对话详情”生成 AI 预测。"
+  },
+  "store_aiForecast_you": {
+    "message": "你"
+  },
+  "store_aiForecast_initialQuestion": {
+    "message": "请基于当前页面的价格与节日数据预测未来折扣。"
+  },
+  "store_aiForecast_thinking": {
+    "message": "正在思考..."
+  },
+  "store_aiForecast_replying": {
+    "message": "AI 正在回复，请稍等..."
+  },
+  "store_aiForecast_questionPlaceholder": {
+    "message": "询问未来打折相关问题"
+  },
+  "store_aiForecast_title": {
+    "message": "AI 预测"
+  },
+  "store_aiForecast_closeDialog": {
+    "message": "关闭对话"
+  },
+  "store_aiForecast_streamUnavailable": {
+    "message": "AI 流式通道未就绪。"
+  },
+  "store_aiForecast_replySaveFailed": {
+    "message": "回复已完成，但本次对话未能保存。"
+  },
+  "store_aiForecast_dataStillLoading": {
+    "message": "预测数据仍在加载，请稍后重试。"
+  },
+  "store_aiForecast_configurationRequired": {
+    "message": "预测需要先配置 AI 服务。"
+  },
+  "store_aiForecast_dataUnavailable": {
+    "message": "AI 预测数据暂不可用。"
+  },
+  "store_aiForecast_prepareFailed": {
+    "message": "AI 预测数据准备失败。"
+  },
+  "store_aiForecast_followupFailed": {
+    "message": "AI 追问失败，请稍后重试。"
+  },
+  "store_aiForecast_sessionUnavailable": {
+    "message": "AI 预测记录暂时无法读取。"
+  },
+  "store_aiForecast_dialogDetails": {
+    "message": "对话详情"
+  },
+  "common_clearSelection": {
+    "message": "取消全选"
+  },
+  "common_continue": {
+    "message": "继续"
+  },
+  "common_dateYmd": {
+    "message": "$year$年$month$月$day$日",
+    "placeholders": {
+      "year": {
+        "content": "$1"
+      },
+      "month": {
+        "content": "$2"
+      },
+      "day": {
+        "content": "$3"
+      }
+    }
+  },
+  "common_enabled": {
+    "message": "已启用"
+  },
+  "common_firstPage": {
+    "message": "首页"
+  },
+  "common_invertSelection": {
+    "message": "反选"
+  },
+  "common_itemsSuffix": {
+    "message": "项"
+  },
+  "common_lastPage": {
+    "message": "末页"
+  },
+  "common_nextPage": {
+    "message": "下一页"
+  },
+  "common_no": {
+    "message": "否"
+  },
+  "common_operationFailed": {
+    "message": "操作失败"
+  },
+  "common_pause": {
+    "message": "暂停"
+  },
+  "common_previousPage": {
+    "message": "上一页"
+  },
+  "common_queryFailed": {
+    "message": "查询失败"
+  },
+  "common_refresh": {
+    "message": "刷新"
+  },
+  "common_requestFailedCode": {
+    "message": "请求失败：$code$",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "common_requestTimedOut": {
+    "message": "请求超时，请稍后重试。"
+  },
+  "common_requestTimedOutMs": {
+    "message": "请求超时（$timeout$ms）",
+    "placeholders": {
+      "timeout": {
+        "content": "$1"
+      }
+    }
+  },
+  "common_authResponseParseFailed": {
+    "message": "鉴权接口响应解析失败"
+  },
+  "common_authSaveFailed": {
+    "message": "登录状态保存失败"
+  },
+  "common_authStorageUnavailable": {
+    "message": "登录状态存储未初始化"
+  },
+  "common_backgroundRequestFailed": {
+    "message": "后台请求失败"
+  },
+  "common_backgroundResponseInvalid": {
+    "message": "后台响应格式异常"
+  },
+  "common_loginExpired": {
+    "message": "登录已过期，请重新登录"
+  },
+  "common_loginRequired": {
+    "message": "请先在设置中登录"
+  },
+  "common_save": {
+    "message": "保存"
+  },
+  "common_searching": {
+    "message": "正在搜索..."
+  },
+  "common_select": {
+    "message": "选择"
+  },
+  "common_selectAll": {
+    "message": "全选"
+  },
+  "common_sendFailedRetry": {
+    "message": "发送失败，请重试"
+  },
+  "common_unavailable": {
+    "message": "暂不可用"
+  },
+  "common_update": {
+    "message": "更新"
+  },
+  "common_yes": {
+    "message": "是"
+  },
+  "store_titleCustomName_aliasDescription": {
+    "message": "别名功能只针对steam商店页面搜索生效，添加别名后，可在steam商店搜索框中使用别名查找该游戏。"
+  },
+  "store_titleCustomName_baseSaved": {
+    "message": "基础信息已保存"
+  },
+  "store_titleCustomName_baseSaving": {
+    "message": "正在保存基础信息..."
+  },
+  "store_titleCustomName_baseTab": {
+    "message": "基础"
+  },
+  "store_titleCustomName_clearNote": {
+    "message": "清空备注"
+  },
+  "store_titleCustomName_customAlias": {
+    "message": "自定义别名"
+  },
+  "store_titleCustomName_customName": {
+    "message": "自定义名称"
+  },
+  "store_titleCustomName_dialogTitle": {
+    "message": "编辑游戏信息"
+  },
+  "store_titleCustomName_edit": {
+    "message": "编辑"
+  },
+  "store_titleCustomName_gameNote": {
+    "message": "游戏备注"
+  },
+  "store_titleCustomName_hideCustomName": {
+    "message": "隐藏自定义名称"
+  },
+  "store_titleCustomName_loginExpired": {
+    "message": "登录已过期，请重新登录"
+  },
+  "store_titleCustomName_loginRequired": {
+    "message": "请先在设置中登录"
+  },
+  "store_titleCustomName_noteDeleted": {
+    "message": "备注已删除"
+  },
+  "store_titleCustomName_noteDeleting": {
+    "message": "正在删除备注..."
+  },
+  "store_titleCustomName_notePlaceholder": {
+    "message": "支持 BBCode，例如 [b]粗体[/b]、[url=https://example.com]链接[/url]"
+  },
+  "store_titleCustomName_noteSaved": {
+    "message": "备注已保存"
+  },
+  "store_titleCustomName_noteSaving": {
+    "message": "正在保存备注..."
+  },
+  "store_titleCustomName_notesUnavailable": {
+    "message": "游戏备注模块未加载"
+  },
+  "store_titleCustomName_noteTab": {
+    "message": "备注"
+  },
+  "store_titleCustomName_noteTooLong": {
+    "message": "备注不能超过 $limit$ 个字符",
+    "placeholders": {
+      "limit": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_titleCustomName_noteWillClear": {
+    "message": "保存后将清空备注"
+  },
+  "store_titleCustomName_remaining": {
+    "message": "剩余 $remaining$ / $limit$",
+    "placeholders": {
+      "remaining": {
+        "content": "$1"
+      },
+      "limit": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_titleCustomName_reserved": {
+    "message": "功能预留，后续接入后可用"
+  },
+  "store_titleCustomName_steamName": {
+    "message": "Steam 原名"
+  },
+  "store_wishlistPrice_chartAria": {
+    "message": "最近 12 个月 Steam 历史价格走势图"
+  },
+  "store_wishlistPrice_chartEmpty": {
+    "message": "最近 12 个月暂无 Steam 历史价格数据"
+  },
+  "store_wishlistPrice_chartLoadingAria": {
+    "message": "最近 12 个月价格走势，正在加载"
+  },
+  "store_wishlistPrice_chartTitle": {
+    "message": "最近 12 个月价格"
+  },
+  "store_wishlistPrice_detailsEmpty": {
+    "message": "暂无可显示的价格明细"
+  },
+  "store_wishlistPrice_detailsLoading": {
+    "message": "正在获取价格明细..."
+  },
+  "store_wishlistPrice_currentUnavailable": {
+    "message": "Steam 当前报价暂不可用"
+  },
+  "store_wishlistPrice_detailCurrentLowest": {
+    "message": "在 Steam，当前为历史最低"
+  },
+  "store_wishlistPrice_detailSteam": {
+    "message": "在 Steam"
+  },
+  "store_wishlistPrice_detailSteamAt": {
+    "message": "在 Steam $date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_wishlistPrice_detailSteamAtLower": {
+    "message": "在 Steam $date$，比当前低$amount$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      },
+      "amount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_wishlistPrice_detailSteamLower": {
+    "message": "在 Steam，比当前低$amount$",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_wishlistPrice_historyLoading": {
+    "message": "正在获取历史数据..."
+  },
+  "store_wishlistPrice_historySkippedNoSteamPrice": {
+    "message": "Steam 当前未提供价格，未查询历史价格。"
+  },
+  "store_wishlistPrice_itadHistoryFailed": {
+    "message": "ITAD 历史价格查询失败，请稍后重试。"
+  },
+  "store_wishlistPrice_itadNotListed": {
+    "message": "ITAD 暂未收录此游戏。"
+  },
+  "store_wishlistPrice_itadPriceFailed": {
+    "message": "ITAD 价格查询失败，请稍后重试。"
+  },
+  "store_wishlistPrice_loading": {
+    "message": "正在获取数据..."
+  },
+  "store_wishlistPrice_lowestUnavailable": {
+    "message": "Steam 历史最低价暂不可用"
+  },
+  "store_wishlistPrice_noSteamData": {
+    "message": "ITAD 暂无可用的 Steam 价格数据"
+  },
+  "store_wishlistPrice_queryFailed": {
+    "message": "价格查询失败，请刷新页面后重试"
+  },
+  "store_wishlistPrice_steamCurrent": {
+    "message": "Steam 当前价"
+  },
+  "store_wishlistPrice_steamCurrentFailed": {
+    "message": "Steam 当前价格查询失败，将继续使用历史价格服务。"
+  },
+  "store_wishlistPrice_steamLowest": {
+    "message": "Steam 历史最低"
+  },
+  "store_wishlistPrice_steamUnavailable": {
+    "message": "Steam 当前未提供价格"
+  },
+  "store_wishlistPrice_statusHigher": {
+    "message": "比 Steam 历史最低贵$amount$(+$discount$%)",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      },
+      "discount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_wishlistPrice_statusLowest": {
+    "message": "当前为 Steam 历史最低"
+  },
+  "store_wishlistPrice_steampyCdk": {
+    "message": "SteamPY CDK"
+  },
+  "store_wishlistPrice_steampyProxy": {
+    "message": "SteamPY 代购"
+  },
+  "steam_downloadShutdown_backendStarting": {
+    "message": "后台初始化中"
+  },
+  "steam_downloadShutdown_backendTimeout": {
+    "message": "后台 8 秒内没有响应，请检查下载关机后端是否已注入。"
+  },
+  "steam_downloadShutdown_checking": {
+    "message": "正在检查下载任务..."
+  },
+  "steam_downloadShutdown_currentStatus": {
+    "message": "当前状态：$status$",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadShutdown_disabled": {
+    "message": "已关闭自动关机"
+  },
+  "steam_downloadShutdown_errorLog": {
+    "message": "错误日志：$message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadShutdown_failed": {
+    "message": "关机调用失败，查看日志"
+  },
+  "steam_downloadShutdown_label": {
+    "message": "下载完成后自动关机"
+  },
+  "steam_downloadShutdown_paused": {
+    "message": "下载已暂停，恢复并完成后关机"
+  },
+  "steam_downloadShutdown_shortLabel": {
+    "message": "下载完成后关机"
+  },
+  "steam_downloadShutdown_shuttingDown": {
+    "message": "下载已完成，正在关机"
+  },
+  "steam_downloadShutdown_waitingCompletion": {
+    "message": "正在等待下载完成"
+  },
+  "steam_downloadShutdown_waitingStart": {
+    "message": "等待下载任务开始"
+  },
+  "steam_newsTranslate_aiBodyEmpty": {
+    "message": "AI 正文未产生有效翻译"
+  },
+  "steam_newsTranslate_bodyTargetMissing": {
+    "message": "未找到可替换的正文区域"
+  },
+  "steam_newsTranslate_bodyTextMissing": {
+    "message": "未找到可替换的正文文本"
+  },
+  "steam_newsTranslate_buttonTitle": {
+    "message": "Steam Buff 翻译"
+  },
+  "steam_newsTranslate_cardUnrecognized": {
+    "message": "未识别当前新闻卡"
+  },
+  "steam_newsTranslate_chunkCountMismatch": {
+    "message": "AI 分块翻译结果数量不一致"
+  },
+  "steam_newsTranslate_chunkEmpty": {
+    "message": "AI 分块文本为空"
+  },
+  "steam_newsTranslate_emptyResult": {
+    "message": "翻译结果为空"
+  },
+  "steam_newsTranslate_failed": {
+    "message": "翻译失败"
+  },
+  "steam_newsTranslate_noContent": {
+    "message": "没有可翻译内容"
+  },
+  "steam_newsTranslate_partialFailed": {
+    "message": "部分内容翻译失败"
+  },
+  "steam_newsTranslate_popupChanged": {
+    "message": "新闻弹窗已切换"
+  },
+  "steam_newsTranslate_requestTimedOut": {
+    "message": "翻译请求超时"
+  },
+  "steam_newsTranslate_titleTextMissing": {
+    "message": "未找到可替换的标题文本"
+  },
+  "steam_newsTranslate_translating": {
+    "message": "正在翻译..."
+  },
+  "store_familyLibrary_badgeTitle": {
+    "message": "Steam 家庭中有 $count$ 位成员拥有此游戏",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_cachedCount": {
+    "message": "已将 $count$ 个家庭库游戏记录到本地缓存。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_cacheWriteFailed": {
+    "message": "家庭组游戏库缓存写入失败，请检查浏览器存储空间。"
+  },
+  "store_familyLibrary_disableFeature": {
+    "message": "关闭功能"
+  },
+  "store_familyLibrary_earliestPurchase": {
+    "message": "最早购买于$date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_empty": {
+    "message": "暂无家庭库游戏记录，可在当前页面扫描家庭库。"
+  },
+  "store_familyLibrary_emptyPrompt": {
+    "message": "似乎没有家庭库的游戏记录，是否现在扫描家庭库游戏并记录？"
+  },
+  "store_familyLibrary_groupMissing": {
+    "message": "您未加入家庭组，请先加入家庭组后再试。"
+  },
+  "store_familyLibrary_memberFallback": {
+    "message": "家庭成员 $index$",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_moreOwners": {
+    "message": " 等 $count$ 位成员",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_notOwned": {
+    "message": "家庭库未记录此游戏。"
+  },
+  "store_familyLibrary_openManagement": {
+    "message": "打开家庭组管理"
+  },
+  "store_familyLibrary_ownedPrefix": {
+    "message": "你的家庭组中共 $count$ 位成员拥有此游戏：",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_ownerSeparator": {
+    "message": "、"
+  },
+  "store_familyLibrary_previousDataRetained": {
+    "message": "\n更新失败，已继续使用上次成功更新的数据。"
+  },
+  "store_familyLibrary_refreshFailed": {
+    "message": "刷新失败"
+  },
+  "store_familyLibrary_refreshFailedRetry": {
+    "message": "刷新失败，请稍后重试。"
+  },
+  "store_familyLibrary_refreshFailedWithReason": {
+    "message": "刷新失败：$reason$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_refreshFailureTitle": {
+    "message": "家庭库刷新失败"
+  },
+  "store_familyLibrary_scan": {
+    "message": "扫描家庭库"
+  },
+  "store_familyLibrary_scanningMessage": {
+    "message": "扫描期间不要关闭浏览器，耐心等待！"
+  },
+  "store_familyLibrary_scanningTitle": {
+    "message": "正在扫描家庭组游戏数据..."
+  },
+  "store_familyLibrary_sentenceEnd": {
+    "message": "。"
+  },
+  "store_familyLibrary_sharingCheck": {
+    "message": "Steam Buff共享检查"
+  },
+  "store_familyLibrary_skipFailedMessage": {
+    "message": "无法保存跳过状态，请稍后重试。"
+  },
+  "store_familyLibrary_skipFailedTitle": {
+    "message": "跳过本次失败"
+  },
+  "store_familyLibrary_skipped": {
+    "message": "已跳过本次更新"
+  },
+  "store_familyLibrary_skipRetained": {
+    "message": "已跳过本次更新，继续使用上次数据"
+  },
+  "store_familyLibrary_skipThisTime": {
+    "message": "跳过本次"
+  },
+  "store_familyLibrary_stalePrompt": {
+    "message": "家庭组游戏库数据已超过 $interval$ 未更新，是否现在刷新？",
+    "placeholders": {
+      "interval": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_storeConfigMissing": {
+    "message": "无法读取 Steam 页面登录信息，请刷新页面后重试。"
+  },
+  "store_familyLibrary_title": {
+    "message": "家庭库检查"
+  },
+  "store_familyLibrary_tokenMissing": {
+    "message": "未检测到登录令牌，请确认已登录 Steam 商店。"
+  },
+  "store_familyLibrary_updated": {
+    "message": "更新完成"
+  },
+  "store_familyLibrary_updatedAt": {
+    "message": "更新于$date$ $time$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_familyLibrary_updating": {
+    "message": "正在更新..."
+  },
+  "steam_libraryCustomName_appidMissing": {
+    "message": "未识别当前游戏 AppID"
+  },
+  "steam_libraryCustomName_backendTimeout": {
+    "message": "Steam 客户端后端没有响应"
+  },
+  "steam_libraryCustomName_batchEdit": {
+    "message": "批量修改名称"
+  },
+  "steam_libraryCustomName_batchTitle": {
+    "message": "批量修改名称"
+  },
+  "steam_libraryCustomName_cancellingMnemonic": {
+    "message": "正在取消助记符"
+  },
+  "steam_libraryCustomName_cancelMnemonic": {
+    "message": "取消助记符"
+  },
+  "steam_libraryCustomName_cancelMnemonicProgress": {
+    "message": "正在取消助记符 $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_cancelMnemonicTitle": {
+    "message": "确认取消助记符"
+  },
+  "steam_libraryCustomName_channelUnavailable": {
+    "message": "通信通道不可用"
+  },
+  "steam_libraryCustomName_chooseImportMode": {
+    "message": "请选择导入方式"
+  },
+  "steam_libraryCustomName_clearBatchWaiting": {
+    "message": "第 $batch$ 批清空完成，等待 Steam 云同步 $seconds$ 秒",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "seconds": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearDone": {
+    "message": "清空完成"
+  },
+  "steam_libraryCustomName_clearingBatch": {
+    "message": "正在清空 Steam 第 $batch$ 批 $written$/$max$$cloud$",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "written": {
+        "content": "$2"
+      },
+      "max": {
+        "content": "$3"
+      },
+      "cloud": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearingSteam": {
+    "message": "正在清空 Steam 自定义排序名称"
+  },
+  "steam_libraryCustomName_clearingSteamNames": {
+    "message": "正在批量清空 Steam 自定义排序名称"
+  },
+  "steam_libraryCustomName_clearNeedsFastWrite": {
+    "message": "清空自定义排序名称需要 Steam CloudStorage 快速写入支持"
+  },
+  "steam_libraryCustomName_clearProgress": {
+    "message": "清空进度"
+  },
+  "steam_libraryCustomName_clearProgressLine": {
+    "message": "总计:$total$，已清空:$success$，跳过:$skipped$，失败:$failed$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "success": {
+        "content": "$2"
+      },
+      "skipped": {
+        "content": "$3"
+      },
+      "failed": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearQueueCompleted": {
+    "message": "清空队列已完成"
+  },
+  "steam_libraryCustomName_clearQueuePaused": {
+    "message": "清空队列已暂停"
+  },
+  "steam_libraryCustomName_clearQueueResumed": {
+    "message": "清空队列继续执行"
+  },
+  "steam_libraryCustomName_clearResult": {
+    "message": "清空结果"
+  },
+  "steam_libraryCustomName_clearSelectedNames": {
+    "message": "清空已选名称"
+  },
+  "steam_libraryCustomName_clearSelectedNote": {
+    "message": "该操作会把对应 Steam 属性中的自定义排序名称改为空。"
+  },
+  "steam_libraryCustomName_clearSelectedPrompt": {
+    "message": "将清空已选游戏中的 $count$ 个自定义排序名称，是否继续？",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearSelectedTitle": {
+    "message": "确认清空已选名称"
+  },
+  "steam_libraryCustomName_cloudApiTimeout": {
+    "message": "云端名称接口没有响应"
+  },
+  "steam_libraryCustomName_cloudCancel": {
+    "message": "关闭后，本次保存仅写入本地 Steam 库，不会同步到素材君云端。\n\n云端共享可帮助更多玩家获得更准确的自定义名称建议。确认关闭吗？"
+  },
+  "steam_libraryCustomName_cloudDiskFailed": {
+    "message": "Steam CloudStorage 写盘失败: $result$",
+    "placeholders": {
+      "result": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_cloudDiskTimeout": {
+    "message": "Steam CloudStorage 批量写盘超时"
+  },
+  "steam_libraryCustomName_cloudName": {
+    "message": "云端名称"
+  },
+  "steam_libraryCustomName_cloudNameMissing": {
+    "message": "云端没有找到当前游戏名称"
+  },
+  "steam_libraryCustomName_cloudPaused": {
+    "message": "素材君云端上传已暂停"
+  },
+  "steam_libraryCustomName_cloudPreparing": {
+    "message": "等待 Steam 写入批次开始，素材君云端上传准备中"
+  },
+  "steam_libraryCustomName_cloudResumed": {
+    "message": "素材君云端上传继续执行"
+  },
+  "steam_libraryCustomName_cloudTip": {
+    "message": "将自定义排序名称同步到素材君云端（Steam Buff 云端）。之后可通过【获取云端名称】恢复，并在商店等页面使用。\n\n注意：\n1. 请勿上传违反当地法律法规的名称；违规内容一经发现，可能导致账号被封禁。\n2. 上传的名称可能用于改进社区游戏名称库，帮助更多玩家获得更准确的名称。"
+  },
+  "steam_libraryCustomName_cloudUpload": {
+    "message": "素材君云端上传"
+  },
+  "steam_libraryCustomName_cloudUploadSuffix": {
+    "message": "，素材君云端上传同步进行"
+  },
+  "steam_libraryCustomName_confirmDisableCloud": {
+    "message": "确认关闭"
+  },
+  "steam_libraryCustomName_confirmOverwrite": {
+    "message": "确认覆盖"
+  },
+  "steam_libraryCustomName_continueCloudUpload": {
+    "message": "继续上传"
+  },
+  "steam_libraryCustomName_continueSave": {
+    "message": "继续保存"
+  },
+  "steam_libraryCustomName_currentCustomSortName": {
+    "message": "当前自定义排序名"
+  },
+  "steam_libraryCustomName_customSortTimeout": {
+    "message": "Steam 自定义排序接口响应超时"
+  },
+  "steam_libraryCustomName_customSortUnavailable": {
+    "message": "Steam 自定义排序接口不可用"
+  },
+  "steam_libraryCustomName_dependencyFailed": {
+    "message": "依赖加载失败：$path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_disableCloudTitle": {
+    "message": "确认关闭素材君云端上传"
+  },
+  "steam_libraryCustomName_disabled": {
+    "message": "库自定义名称填充已关闭"
+  },
+  "steam_libraryCustomName_editDone": {
+    "message": "修改完成"
+  },
+  "steam_libraryCustomName_editResult": {
+    "message": "修改结果"
+  },
+  "steam_libraryCustomName_emptyWriteName": {
+    "message": "写入名称为空"
+  },
+  "steam_libraryCustomName_entryBootstrapFailed": {
+    "message": "Steam CloudStorage Entry 引导写入失败: $result$",
+    "placeholders": {
+      "result": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_entryBootstrapTimeout": {
+    "message": "Steam CloudStorage Entry 引导写入超时"
+  },
+  "steam_libraryCustomName_exported": {
+    "message": "已导出 $count$ 项当前自定义排序名称",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_exportEmpty": {
+    "message": "当前没有可导出的自定义排序名称"
+  },
+  "steam_libraryCustomName_fastWriteNoResult": {
+    "message": "Steam CloudStorage 快速写入未返回结果，保存队列已安全中止"
+  },
+  "steam_libraryCustomName_fastWriteUnavailable": {
+    "message": "Steam CloudStorage 快速写入不可用，保存队列已安全中止"
+  },
+  "steam_libraryCustomName_fastWriteUnavailableReason": {
+    "message": "Steam CloudStorage 快速写入不可用$reason$，保存队列已安全中止",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_fetchCloud": {
+    "message": "获取云端名称"
+  },
+  "steam_libraryCustomName_fetchCloudProgress": {
+    "message": "正在获取云端名称 $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_fetchFailed": {
+    "message": "获取失败"
+  },
+  "steam_libraryCustomName_fetching": {
+    "message": "获取中..."
+  },
+  "steam_libraryCustomName_fetchingShort": {
+    "message": "正在获取..."
+  },
+  "steam_libraryCustomName_fetchTitle": {
+    "message": "获取名称"
+  },
+  "steam_libraryCustomName_filePickerUnavailable": {
+    "message": "导入文件选择器不可用"
+  },
+  "steam_libraryCustomName_filteredCount": {
+    "message": "$visible$（总 $total$）",
+    "placeholders": {
+      "visible": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_generateMnemonic": {
+    "message": "生成助记符"
+  },
+  "steam_libraryCustomName_generateMnemonicProgress": {
+    "message": "正在生成助记符 $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_generateMnemonicTitle": {
+    "message": "确认生成助记符"
+  },
+  "steam_libraryCustomName_generatingMnemonic": {
+    "message": "正在生成助记符"
+  },
+  "steam_libraryCustomName_importChanges": {
+    "message": "仅新增与修改"
+  },
+  "steam_libraryCustomName_importChangesDone": {
+    "message": "仅新增与修改导入完成，匹配 $matched$ 项，待写入 $selected$ 项，已存在 $unchanged$ 项",
+    "placeholders": {
+      "matched": {
+        "content": "$1"
+      },
+      "selected": {
+        "content": "$2"
+      },
+      "unchanged": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_libraryCustomName_importCover": {
+    "message": "覆盖导入"
+  },
+  "steam_libraryCustomName_importCoverDone": {
+    "message": "覆盖导入完成，匹配 $matched$ 项，待写入 $selected$ 项",
+    "placeholders": {
+      "matched": {
+        "content": "$1"
+      },
+      "selected": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importingJson": {
+    "message": "正在导入 JSON $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importModeMessage": {
+    "message": "请选择本次 JSON 文件的处理方式"
+  },
+  "steam_libraryCustomName_importModeTitle": {
+    "message": "选择导入方式"
+  },
+  "steam_libraryCustomName_inputMissing": {
+    "message": "未找到自定义排序名称输入框"
+  },
+  "steam_libraryCustomName_interruptPrompt": {
+    "message": "当前任务正在进行中，是否中断？"
+  },
+  "steam_libraryCustomName_interruptTitle": {
+    "message": "确认中断"
+  },
+  "steam_libraryCustomName_jsonItemsRequired": {
+    "message": "JSON 格式应包含 items 数组"
+  },
+  "steam_libraryCustomName_jsonNameMissing": {
+    "message": "JSON 中没有识别到 appid/name"
+  },
+  "steam_libraryCustomName_jsonReadFailed": {
+    "message": "JSON 文件读取失败"
+  },
+  "steam_libraryCustomName_limitWarning": {
+    "message": "当前自定义名称数量超过1万，无法存储到 Steam 云端，是否继续？当前已有 $current$ 项，本次待写入 $pending$ 项，合计 $projected$ 项。",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "pending": {
+        "content": "$2"
+      },
+      "projected": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_libraryCustomName_limitWarningTitle": {
+    "message": "Steam 云端存储风险"
+  },
+  "steam_libraryCustomName_loadingLocalList": {
+    "message": "正在加载本地列表 $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_loadLocalFirst": {
+    "message": "请先加载本地列表"
+  },
+  "steam_libraryCustomName_localListEmpty": {
+    "message": "暂无本地列表数据"
+  },
+  "steam_libraryCustomName_localListLoading": {
+    "message": "正在加载本地库列表..."
+  },
+  "steam_libraryCustomName_matchingJson": {
+    "message": "正在匹配 JSON $count$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_mnemonicLoadFailed": {
+    "message": "助记符工具加载失败"
+  },
+  "steam_libraryCustomName_mnemonicPrompt": {
+    "message": "该操作将刷新待写入数据，是否继续？"
+  },
+  "steam_libraryCustomName_mode": {
+    "message": "模式"
+  },
+  "steam_libraryCustomName_namespaceLimitReached": {
+    "message": "Steam namespace 3 自定义名称数量已达到 10000"
+  },
+  "steam_libraryCustomName_noClearableItems": {
+    "message": "没有可清空的条目"
+  },
+  "steam_libraryCustomName_noClearableNames": {
+    "message": "已选游戏没有可清空的自定义排序名称"
+  },
+  "steam_libraryCustomName_noMatches": {
+    "message": "没有匹配的游戏"
+  },
+  "steam_libraryCustomName_noMnemonicItems": {
+    "message": "没有可处理的助记符条目"
+  },
+  "steam_libraryCustomName_noSaveRunning": {
+    "message": "没有正在执行的保存队列"
+  },
+  "steam_libraryCustomName_noWritableItems": {
+    "message": "没有可写入的条目"
+  },
+  "steam_libraryCustomName_officialName": {
+    "message": "官方名称"
+  },
+  "steam_libraryCustomName_overwritePrompt": {
+    "message": "当前操作会覆盖当前自定义排序名称，是否继续？"
+  },
+  "steam_libraryCustomName_pageSummary": {
+    "message": "显示 $from$-$to$ / $count$，第 $page$ / $pages$ 页，已选",
+    "placeholders": {
+      "from": {
+        "content": "$1"
+      },
+      "to": {
+        "content": "$2"
+      },
+      "count": {
+        "content": "$3"
+      },
+      "page": {
+        "content": "$4"
+      },
+      "pages": {
+        "content": "$5"
+      }
+    }
+  },
+  "steam_libraryCustomName_pausing": {
+    "message": "暂停中"
+  },
+  "steam_libraryCustomName_pausingSaveQueue": {
+    "message": "正在暂停保存队列"
+  },
+  "steam_libraryCustomName_pendingName": {
+    "message": "待写入名"
+  },
+  "steam_libraryCustomName_policyCover": {
+    "message": "全部覆盖"
+  },
+  "steam_libraryCustomName_policyCurrentCustom": {
+    "message": "当前自定义写入待写"
+  },
+  "steam_libraryCustomName_policyHide": {
+    "message": "隐藏已有"
+  },
+  "steam_libraryCustomName_policySkip": {
+    "message": "跳过已有"
+  },
+  "steam_libraryCustomName_preparingCloudRequest": {
+    "message": "正在整理云端名称请求"
+  },
+  "steam_libraryCustomName_preparingQueryQueue": {
+    "message": "正在整理查询队列 $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_previewCancelled": {
+    "message": "批量预览已取消"
+  },
+  "steam_libraryCustomName_previewExpired": {
+    "message": "批量预览会话已失效"
+  },
+  "steam_libraryCustomName_previewSummary": {
+    "message": "加载完成$search$，已选 $selected$ 项，待写入 $write$ 项，跳过 $skipped$ 项，上限 $limit$ 项，容量 $capacity$",
+    "placeholders": {
+      "search": {
+        "content": "$1"
+      },
+      "selected": {
+        "content": "$2"
+      },
+      "write": {
+        "content": "$3"
+      },
+      "skipped": {
+        "content": "$4"
+      },
+      "limit": {
+        "content": "$5"
+      },
+      "capacity": {
+        "content": "$6"
+      }
+    }
+  },
+  "steam_libraryCustomName_querySelectedCloudTitle": {
+    "message": "只获取已勾选游戏的云端名称"
+  },
+  "steam_libraryCustomName_readingJson": {
+    "message": "正在读取 JSON 文件"
+  },
+  "steam_libraryCustomName_readingLibrary": {
+    "message": "正在读取 Steam 客户端库列表"
+  },
+  "steam_libraryCustomName_reasonSuffix": {
+    "message": "（$reason$）",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_refreshCloudPrompt": {
+    "message": "当前待写入数据已调整，重新获取云端名称将只刷新已勾选且未手动锁定的待写入数据，是否继续？"
+  },
+  "steam_libraryCustomName_refreshCloudTitle": {
+    "message": "确认获取云端名称"
+  },
+  "steam_libraryCustomName_resuming": {
+    "message": "继续中"
+  },
+  "steam_libraryCustomName_resumingSaveQueue": {
+    "message": "正在继续保存队列"
+  },
+  "steam_libraryCustomName_saveAlreadyRunning": {
+    "message": "已有保存队列正在执行"
+  },
+  "steam_libraryCustomName_saveCancelled": {
+    "message": "保存队列已取消"
+  },
+  "steam_libraryCustomName_saveChanges": {
+    "message": "保存修改"
+  },
+  "steam_libraryCustomName_saveCompleted": {
+    "message": "保存队列已完成"
+  },
+  "steam_libraryCustomName_savePaused": {
+    "message": "保存队列已暂停"
+  },
+  "steam_libraryCustomName_saveProgress": {
+    "message": "保存进度"
+  },
+  "steam_libraryCustomName_saveProgressLine": {
+    "message": "总计:$total$，处理:$processed$，跳过:$skipped$，失败:$failed$，同步:$synced$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "processed": {
+        "content": "$2"
+      },
+      "skipped": {
+        "content": "$3"
+      },
+      "failed": {
+        "content": "$4"
+      },
+      "synced": {
+        "content": "$5"
+      }
+    }
+  },
+  "steam_libraryCustomName_saveResumed": {
+    "message": "保存队列继续执行"
+  },
+  "steam_libraryCustomName_saveStatusExpired": {
+    "message": "保存队列状态已失效，请重新打开批量窗口确认结果"
+  },
+  "steam_libraryCustomName_saveStatusTimeout": {
+    "message": "Steam 保存队列状态没有响应，请重新打开批量窗口确认结果"
+  },
+  "steam_libraryCustomName_savingWithCloud": {
+    "message": "正在写入 Steam，素材君云端上传同步进行"
+  },
+  "steam_libraryCustomName_searchPlaceholder": {
+    "message": "搜索游戏 / AppID / 待写入名"
+  },
+  "steam_libraryCustomName_searchSummary": {
+    "message": "，搜索 $visible$/$total$",
+    "placeholders": {
+      "visible": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_selectClearTargets": {
+    "message": "请先勾选需要清空名称的游戏"
+  },
+  "steam_libraryCustomName_selectCloudTargets": {
+    "message": "请先勾选需要获取云端名称的游戏"
+  },
+  "steam_libraryCustomName_startClearQueue": {
+    "message": "正在启动清空队列，预计清空 $count$ 项，跳过 $skipped$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "skipped": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_startSaveQueue": {
+    "message": "正在启动保存队列，预计写入 $count$ 项，跳过 $skipped$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "skipped": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_steamDoneWaitingCloud": {
+    "message": "Steam 写入完成，正在等待素材君云端上传完成"
+  },
+  "steam_libraryCustomName_storageLimitTip": {
+    "message": "存储上限和容量上限为 Steam 官方对自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功或无法保存至 steam 云端！"
+  },
+  "steam_libraryCustomName_typeGame": {
+    "message": "游戏"
+  },
+  "steam_libraryCustomName_typeOther": {
+    "message": "其他"
+  },
+  "steam_libraryCustomName_typeScope": {
+    "message": "类型范围"
+  },
+  "steam_libraryCustomName_typeSoftware": {
+    "message": "软件"
+  },
+  "steam_libraryCustomName_typeTool": {
+    "message": "工具"
+  },
+  "steam_libraryCustomName_uploadCloud": {
+    "message": "名称上传云端"
+  },
+  "steam_libraryCustomName_uploadCloudLabel": {
+    "message": "名称上传云端"
+  },
+  "steam_libraryCustomName_waitingQuery": {
+    "message": "等待查询"
+  },
+  "steam_libraryCustomName_waitingSteamBatch": {
+    "message": "等待 Steam 第 $batch$ 批同步窗口结束，素材君云端上传已暂停",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_writeBatchWaiting": {
+    "message": "第 $batch$ 批写入完成，等待 Steam 云同步 $seconds$ 秒",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "seconds": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_writeRejected": {
+    "message": "Steam 拒绝写入"
+  },
+  "steam_libraryCustomName_writingBatch": {
+    "message": "正在写入 Steam 第 $batch$ 批 $written$/$max$$cloud$",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "written": {
+        "content": "$2"
+      },
+      "max": {
+        "content": "$3"
+      },
+      "cloud": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_libraryCustomName_writingSteam": {
+    "message": "正在写入 Steam"
+  },
+  "steam_libraryCustomName_writingSteamItems": {
+    "message": "正在逐条写入 Steam"
+  },
+  "common_add": {
+    "message": "添加"
+  },
+  "common_all": {
+    "message": "全部"
+  },
+  "common_collapse": {
+    "message": "收起"
+  },
+  "common_content": {
+    "message": "内容"
+  },
+  "common_delete": {
+    "message": "删除"
+  },
+  "common_disable": {
+    "message": "停用"
+  },
+  "common_disabled": {
+    "message": "停用"
+  },
+  "common_edit": {
+    "message": "编辑"
+  },
+  "common_elapsedSeconds": {
+    "message": "用时 $seconds$ 秒",
+    "placeholders": {
+      "seconds": {
+        "content": "$1"
+      }
+    }
+  },
+  "common_enable": {
+    "message": "启用"
+  },
+  "common_more": {
+    "message": "更多"
+  },
+  "common_saveSettings": {
+    "message": "保存设置"
+  },
+  "common_saving": {
+    "message": "保存中..."
+  },
+  "common_testConnection": {
+    "message": "测试连接"
+  },
+  "common_testing": {
+    "message": "测试中"
+  },
+  "common_type": {
+    "message": "类型"
+  },
+  "common_unknownError": {
+    "message": "未知错误"
+  },
+  "common_unknownUser": {
+    "message": "未知用户"
+  },
+  "settings_ai_disableBlocked": {
+    "message": "$users$正在使用AI服务，无法关闭AI服务。",
+    "placeholders": {
+      "users": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_disableBlockedTitle": {
+    "message": "无法关闭 AI 服务"
+  },
+  "settings_ai_hint": {
+    "message": "用于全局 AI 调用"
+  },
+  "settings_ai_saveError": {
+    "message": "AI 配置保存异常，请稍后重试。"
+  },
+  "settings_ai_saveFailed": {
+    "message": "AI 配置未能保存，请稍后重试。"
+  },
+  "settings_ai_test_enableFirst": {
+    "message": "请先启用 AI模块。"
+  },
+  "settings_ai_test_failed": {
+    "message": "AI 测试失败"
+  },
+  "settings_ai_test_missingConfig": {
+    "message": "请填写 AI 网关地址和模型。"
+  },
+  "settings_ai_test_responseReceived": {
+    "message": "已收到响应"
+  },
+  "settings_ai_test_success": {
+    "message": "AI 测试成功"
+  },
+  "settings_ai_test_systemPrompt": {
+    "message": "你是接口连通性测试助手，只回复纯文本。"
+  },
+  "settings_ai_test_title": {
+    "message": "AI 测试"
+  },
+  "settings_ai_test_userPrompt": {
+    "message": "请只回复：Steam Buff AI 测试成功"
+  },
+  "settings_ai_title": {
+    "message": "AI 通用配置"
+  },
+  "settings_ai_user_selection": {
+    "message": "划词翻译"
+  },
+  "settings_ai_user_translation": {
+    "message": "翻译"
+  },
+  "settings_reviewFilter_conditions_hint": {
+    "message": "0 表示不启用该数字条件"
+  },
+  "settings_reviewFilter_conditions_title": {
+    "message": "附加条件"
+  },
+  "settings_reviewFilter_filtered_countSuffix": {
+    "message": "条评论"
+  },
+  "settings_reviewFilter_filtered_empty": {
+    "message": "当前页面暂无被过滤的评论"
+  },
+  "settings_reviewFilter_filtered_hiddenPrefix": {
+    "message": "当前页面已隐藏"
+  },
+  "settings_reviewFilter_filtered_title": {
+    "message": "已过滤评论"
+  },
+  "settings_reviewFilter_filtered_viewCount": {
+    "message": "查看已过滤评论（$count$）",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_noReviewContent": {
+    "message": "无评论内容"
+  },
+  "settings_reviewFilter_rule_addFailed": {
+    "message": "无法添加规则"
+  },
+  "settings_reviewFilter_rule_content": {
+    "message": "屏蔽内容"
+  },
+  "settings_reviewFilter_rule_countSuffix": {
+    "message": "条规则"
+  },
+  "settings_reviewFilter_rule_currentCategoryPrefix": {
+    "message": "当前分类共有"
+  },
+  "settings_reviewFilter_rule_editTitle": {
+    "message": "编辑屏蔽规则"
+  },
+  "settings_reviewFilter_rule_empty": {
+    "message": "暂无屏蔽规则"
+  },
+  "settings_reviewFilter_rule_enterContent": {
+    "message": "请先输入屏蔽内容。"
+  },
+  "settings_reviewFilter_rule_filterType": {
+    "message": "评论过滤规则类型"
+  },
+  "settings_reviewFilter_rule_hint": {
+    "message": "换行会作为同一条规则保存"
+  },
+  "settings_reviewFilter_rule_invalidRegex": {
+    "message": "正则表达式无效：$message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_rule_keyword": {
+    "message": "关键词"
+  },
+  "settings_reviewFilter_rule_listTitle": {
+    "message": "屏蔽规则列表"
+  },
+  "settings_reviewFilter_rule_matched": {
+    "message": "规则命中"
+  },
+  "settings_reviewFilter_rule_nickname": {
+    "message": "昵称"
+  },
+  "settings_reviewFilter_rule_placeholder": {
+    "message": "输入要屏蔽的内容；可包含多行，点击添加后作为一条规则保存"
+  },
+  "settings_reviewFilter_rule_regex": {
+    "message": "正则"
+  },
+  "settings_reviewFilter_rule_saveFailed": {
+    "message": "屏蔽规则未能保存，请稍后重试。"
+  },
+  "settings_reviewFilter_rule_title": {
+    "message": "过滤规则"
+  },
+  "settings_reviewFilter_rule_type": {
+    "message": "规则类型"
+  },
+  "settings_reviewFilter_rule_viewAll": {
+    "message": "查看更多（共 $count$ 条）",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_saveError": {
+    "message": "评测过滤设置保存异常，请稍后重试。"
+  },
+  "settings_reviewFilter_saveFailed": {
+    "message": "评测过滤设置未能保存，请稍后重试。"
+  },
+  "settings_searchSuggestions_hint": {
+    "message": "控制联想条数和 Steam 原生结果显示"
+  },
+  "settings_searchSuggestions_saveError": {
+    "message": "搜索联想设置保存异常，请稍后重试。"
+  },
+  "settings_searchSuggestions_saveFailed": {
+    "message": "搜索联想设置未能保存，请稍后重试。"
+  },
+  "settings_searchSuggestions_title": {
+    "message": "搜索联想词设置"
+  },
+  "settings_translate_newsPopup": {
+    "message": "Steam 新闻弹窗翻译"
+  },
+  "settings_translate_saveError": {
+    "message": "翻译设置保存异常，请稍后重试。"
+  },
+  "settings_translate_saveFailed": {
+    "message": "翻译设置未能保存，请稍后重试。"
+  },
+  "settings_translate_scope": {
+    "message": "翻译范围"
+  },
+  "settings_translate_selection": {
+    "message": "划词翻译"
+  },
+  "store_familyLibrary_interval1d": {
+    "message": "1 天"
+  },
+  "store_familyLibrary_interval30d": {
+    "message": "30 天"
+  },
+  "store_familyLibrary_interval3d": {
+    "message": "3 天"
+  },
+  "store_familyLibrary_interval7d": {
+    "message": "7 天"
+  },
+  "store_familyLibrary_intervalManual": {
+    "message": "手动"
+  },
+  "common_processing": {
+    "message": "处理中"
+  },
+  "common_clickToCopy": {
+    "message": "点击复制"
+  },
+  "common_copyFailedManual": {
+    "message": "复制失败，请手动复制"
+  },
+  "common_networkFailed": {
+    "message": "网络请求失败，请检查网络连接或稍后重试。"
+  },
+  "settings_membership_unavailable": {
+    "message": "暂不可用"
+  },
+  "settings_membership_sponsorIdentity": {
+    "message": "赞助者身份"
+  },
+  "settings_membership_identityOnly": {
+    "message": "$identity$可用",
+    "placeholders": {
+      "identity": { "content": "$1" }
+    }
+  },
+  "settings_account_syncing": {
+    "message": "正在同步用户信息"
+  },
+  "settings_account_welcome_eyebrow": {
+    "message": "Steam Buff 用户中心"
+  },
+  "settings_account_welcome_back": {
+    "message": "欢迎回来，"
+  },
+  "settings_account_welcome_unlock": {
+    "message": "开启你的"
+  },
+  "settings_account_welcome_experience": {
+    "message": "专属体验"
+  },
+  "settings_account_welcome_description": {
+    "message": "登录后查看你的账号信息、功能用量与赞助者权益。所有数据安全保存，随时同步。"
+  },
+  "settings_account_processingLogin": {
+    "message": "正在处理登录请求"
+  },
+  "settings_account_loginBind": {
+    "message": "登录 / 绑定账号"
+  },
+  "settings_account_roadmap": {
+    "message": "账号功能与后续规划"
+  },
+  "settings_account_feature_customNames_name": {
+    "message": "自定义名称"
+  },
+  "settings_account_feature_customNames_desc": {
+    "message": "为游戏起个专属称呼，列表里一眼识别"
+  },
+  "settings_account_feature_gameNotes_name": {
+    "message": "游戏备注"
+  },
+  "settings_account_feature_gameNotes_desc": {
+    "message": "记录你的购买理由、心得，永不忘记"
+  },
+  "settings_account_feature_priceAlerts_name": {
+    "message": "打折监控"
+  },
+  "settings_account_feature_priceAlerts_desc": {
+    "message": "规划每日检查价格，到达目标价后通过 QQ 或短信提醒"
+  },
+  "settings_account_feature_searchSuggestions_name": {
+    "message": "搜索联想词"
+  },
+  "settings_account_feature_searchSuggestions_desc": {
+    "message": "智能补全游戏名，快速找到目标"
+  },
+  "settings_account_sponsor": {
+    "message": "赞助者"
+  },
+  "settings_account_userFallback": {
+    "message": "Steam Buff 用户"
+  },
+  "settings_account_userIdUnavailable": {
+    "message": "用户 ID 暂无"
+  },
+  "settings_account_normalUser": {
+    "message": "普通用户"
+  },
+  "settings_account_joinedDays": {
+    "message": "已使用 Steam Buff $days$ 天",
+    "placeholders": {
+      "days": { "content": "$1" }
+    }
+  },
+  "settings_account_bound": {
+    "message": "已绑定 Steam Buff 账号"
+  },
+  "settings_account_expiring": {
+    "message": "您的$identity$即将到期",
+    "placeholders": {
+      "identity": { "content": "$1" }
+    }
+  },
+  "settings_account_refresh": {
+    "message": "刷新数据"
+  },
+  "settings_account_actions": {
+    "message": "账号操作"
+  },
+  "settings_account_editProfile": {
+    "message": "编辑资料"
+  },
+  "settings_account_logout": {
+    "message": "退出登录"
+  },
+  "settings_account_status": {
+    "message": "状态"
+  },
+  "settings_account_waitingAuthorization": {
+    "message": "等待浏览器授权"
+  },
+  "settings_account_authorizationCode": {
+    "message": "授权码"
+  },
+  "settings_account_authorizationPage": {
+    "message": "授权页"
+  },
+  "settings_account_copyAuthorizationCode": {
+    "message": "点击复制授权码"
+  },
+  "settings_account_copyAuthorizationPage": {
+    "message": "点击复制完整授权页"
+  },
+  "settings_account_openAuthorizationPage": {
+    "message": "打开授权页"
+  },
+  "settings_account_loginToView": {
+    "message": "登录后查看"
+  },
+  "settings_account_unlimited": {
+    "message": "无限额度"
+  },
+  "settings_account_usedPercent": {
+    "message": "已用 $percent$%",
+    "placeholders": {
+      "percent": { "content": "$1" }
+    }
+  },
+  "settings_account_usageTitle": {
+    "message": "功能用量"
+  },
+  "settings_account_learnIdentity": {
+    "message": "了解$identity$",
+    "placeholders": {
+      "identity": { "content": "$1" }
+    }
+  },
+  "settings_account_itemUnit": {
+    "message": "条"
+  },
+  "settings_account_viewList": {
+    "message": "查看列表"
+  },
+  "settings_account_planned": {
+    "message": "规划中"
+  },
+  "settings_account_targetPriceAlert": {
+    "message": "目标价提醒"
+  },
+  "settings_account_qqSms": {
+    "message": "QQ / 短信"
+  },
+  "settings_account_notEnabled": {
+    "message": "未开通"
+  },
+  "settings_account_unlockIdentity": {
+    "message": "$identity$解锁",
+    "placeholders": {
+      "identity": { "content": "$1" }
+    }
+  },
+  "settings_account_servicePrefix": {
+    "message": "由"
+  },
+  "settings_account_serviceSuffix": {
+    "message": "提供计算服务"
+  },
+  "settings_account_soon_title": {
+    "message": "功能入口待接入"
+  },
+  "settings_account_soon_message": {
+    "message": "当前功能的管理页还未接入设置面板。"
+  },
+  "settings_account_userIdCopied": {
+    "message": "用户 ID 已复制"
+  },
+  "settings_account_loginCancelled": {
+    "message": "已取消登录"
+  },
+  "settings_account_authStorageUnavailable": {
+    "message": "登录状态存储未初始化"
+  },
+  "settings_account_authSaveFailed": {
+    "message": "登录状态保存失败"
+  },
+  "settings_account_authClearFailed": {
+    "message": "本地登录状态清理失败"
+  },
+  "settings_account_loginRequired": {
+    "message": "请先在设置中登录"
+  },
+  "settings_account_loginExpired": {
+    "message": "登录已过期，请重新登录"
+  },
+  "settings_account_loggingOut": {
+    "message": "正在退出登录"
+  },
+  "settings_account_remoteLogoutFailed": {
+    "message": "远端退出登录失败：$status$",
+    "placeholders": {
+      "status": { "content": "$1" }
+    }
+  },
+  "settings_account_loggedOut": {
+    "message": "已退出登录"
+  },
+  "settings_account_profileModuleUnavailable": {
+    "message": "账号资料模块未加载"
+  },
+  "settings_account_centerLoadFailed": {
+    "message": "获取用户中心失败"
+  },
+  "settings_account_membershipStorageUnavailable": {
+    "message": "会员状态存储未初始化"
+  },
+  "settings_account_membershipSaveFailed": {
+    "message": "会员状态保存失败"
+  },
+  "settings_account_requestUnavailable": {
+    "message": "设置中心请求封装未初始化"
+  },
+  "settings_account_requestLabel": {
+    "message": "用户中心接口"
+  },
+  "settings_account_fetchingCode": {
+    "message": "正在获取验证码"
+  },
+  "settings_account_fetchCodeFailed": {
+    "message": "获取验证码失败"
+  },
+  "settings_account_dataLoadRetry": {
+    "message": "数据加载失败，点击重试"
+  },
+  "settings_account_codeExpired": {
+    "message": "验证码已过期"
+  },
+  "settings_account_loginFailed": {
+    "message": "登录失败"
+  },
+  "settings_account_loginSucceeded": {
+    "message": "登录成功"
+  },
+  "settings_account_authorizationLinkCopied": {
+    "message": "完整授权链接已复制"
+  },
+  "settings_account_authorizationCodeCopied": {
+    "message": "授权码已复制"
+  },
+  "settings_thirdParty_testEndpointUnavailable": {
+    "message": "ITAD 测试接口配置未就绪。"
+  },
+  "settings_thirdParty_authFailed": {
+    "message": "ITAD API Key 验证失败，请检查密钥是否正确或权限是否可用。"
+  },
+  "settings_thirdParty_rateLimited": {
+    "message": "ITAD 请求已触发限流，请稍后再试。"
+  },
+  "settings_thirdParty_unavailable": {
+    "message": "ITAD 服务暂时不可用，请稍后重试。"
+  },
+  "settings_thirdParty_httpError": {
+    "message": "ITAD 测试接口返回状态码 $status$。",
+    "placeholders": {
+      "status": { "content": "$1" }
+    }
+  },
+  "settings_thirdParty_invalidResponse": {
+    "message": "ITAD 测试接口响应格式异常。"
+  },
+  "settings_thirdParty_saveFailed": {
+    "message": "第三方服务配置保存失败，请稍后重试。"
+  },
+  "settings_thirdParty_saveException": {
+    "message": "第三方服务配置保存异常，请稍后重试。"
+  },
+  "settings_thirdParty_testTitle": {
+    "message": "ITAD 测试"
+  },
+  "settings_thirdParty_keyRequired": {
+    "message": "请先填写 ITAD API Key。"
+  },
+  "settings_thirdParty_testing": {
+    "message": "测试中"
+  },
+  "settings_thirdParty_testRequestLabel": {
+    "message": "ITAD 测试接口"
+  },
+  "settings_thirdParty_testFailedTitle": {
+    "message": "ITAD 测试失败"
+  },
+  "settings_thirdParty_testSucceededTitle": {
+    "message": "ITAD 测试成功"
+  },
+  "settings_thirdParty_testSucceededMessage": {
+    "message": "已收到 ITAD 测试接口响应。"
+  },
+  "settings_thirdParty_title": {
+    "message": "第三方服务"
+  },
+  "settings_thirdParty_keyConfigured": {
+    "message": "已填写 ITAD Key"
+  },
+  "settings_thirdParty_keyMissing": {
+    "message": "未填写 ITAD Key"
+  },
+  "settings_thirdParty_testConnection": {
+    "message": "测试连接"
+  },
+  "store_dataDisplay_thirdPartyLoadFailed": {
+    "message": "第三方价格数据加载失败，请稍后重试。"
+  },
+  "store_familySharing_title": {
+    "message": "共享检查"
+  },
+  "store_familySharing_unsupported": {
+    "message": "此游戏不支持家庭共享功能"
+  },
+  "store_runtime_featureStartFailed": {
+    "message": "商店增强功能启动失败，其他功能已继续加载"
+  },
+  "steam_runtime_featureUnavailable": {
+    "message": "Steam 客户端功能暂时不可用，其他功能已继续加载"
+  },
+  "steam_runtime_featureStartFailed": {
+    "message": "Steam 客户端功能启动失败，其他功能已继续运行"
+  },
+  "store_cartSelect_bulkFailed": { "message": "购物车批量选择失败" },
+  "store_cartSelect_checkoutFailed": { "message": "购物车选择处理失败" },
+  "store_cartSelect_clearSelection": { "message": "取消全选" },
+  "store_cartSelect_holdFailed": { "message": "临时调整购物车失败，已保留暂存数据，请手动恢复" },
+  "store_cartSelect_holdingItems": { "message": "正在暂时保留$count$件未支付项目...", "placeholders": { "count": { "content": "$1" } } },
+  "store_cartSelect_invertSelection": { "message": "反选" },
+  "store_cartSelect_keepItems": { "message": "继续保留" },
+  "store_cartSelect_payThisTime": { "message": "本次支付" },
+  "store_cartSelect_purchaseCount": { "message": "购买数量" },
+  "store_cartSelect_removeAll": { "message": "确认移除" },
+  "store_cartSelect_removeAllConfirm": { "message": "确认移除购物车中的所有项目？" },
+  "store_cartSelect_removeAllMessage": { "message": "此操作会让 Steam 移除购物车中的所有项目。确认后将继续执行 Steam 原本的移除所有项目操作，取消则不会执行。" },
+  "store_cartSelect_removeAllTitle": { "message": "确认移除所有项目" },
+  "store_cartSelect_restoreButton": { "message": "恢复暂存购物车数据" },
+  "store_cartSelect_restored": { "message": "已恢复上次未支付项目" },
+  "store_cartSelect_restoreFailed": { "message": "恢复失败，请重试" },
+  "store_cartSelect_restoreMissing": { "message": "有$count$件暂存购物车数据未恢复", "placeholders": { "count": { "content": "$1" } } },
+  "store_cartSelect_restorePartialFailed": { "message": "部分暂存购物车数据未恢复，请稍后重试" },
+  "store_cartSelect_restoreStillMissing": { "message": "还有$count$件暂存购物车数据未恢复", "placeholders": { "count": { "content": "$1" } } },
+  "store_cartSelect_restoring": { "message": "正在恢复$count$件暂存购物车数据...", "placeholders": { "count": { "content": "$1" } } },
+  "store_cartSelect_saveFailed": { "message": "购物车选择状态保存失败，已恢复原状态" },
+  "store_cartSelect_selectAll": { "message": "全选" },
+  "store_cartSelect_selectAtLeastOne": { "message": "请至少选择 1 件本次支付项目" },
+  "store_cartSelect_selectedTotal": { "message": "所选总额" },
+  "store_cartSelect_skipPayment": { "message": "本次不支付" },
+  "store_dlc_addingToCart": { "message": "正在加入购物车..." },
+  "store_dlc_addSelectedToCart": { "message": "将选择的DLC加入购物车" },
+  "store_dlc_addToCartFailed": { "message": "加入购物车失败" },
+  "store_dlc_addToCartFailedDetail": { "message": "请稍后重试，或刷新当前商店页后再试。" },
+  "store_dlc_batchClaim": { "message": "批量领取" },
+  "store_dlc_cacheNotice": { "message": "若近几分钟领取、购买过此游戏或调整过愿望单，Steam 页面可能仍是旧结果；建议先点“刷新DLC状态”再操作此功能。" },
+  "store_dlc_cancel": { "message": "取消" },
+  "store_dlc_claim": { "message": "领取" },
+  "store_dlc_claimAllFree": { "message": "一键领取所有免费DLC" },
+  "store_dlc_claimComplete": { "message": "领取完成！" },
+  "store_dlc_claimConfirm": { "message": "找到$count$个免费DLC，是否立即领取？", "placeholders": { "count": { "content": "$1" } } },
+  "store_dlc_claimFailedCount": { "message": "失败: $count$", "placeholders": { "count": { "content": "$1" } } },
+  "store_dlc_claimFailedItems": { "message": "失败项：$items$", "placeholders": { "items": { "content": "$1" } } },
+  "store_dlc_claimingFree": { "message": "正在领取免费DLC..." },
+  "store_dlc_claimSuccessCount": { "message": "成功: $count$", "placeholders": { "count": { "content": "$1" } } },
+  "store_dlc_close": { "message": "关闭" },
+  "store_dlc_deselectAll": { "message": "全部取消选择" },
+  "store_dlc_executionFailed": { "message": "执行失败" },
+  "store_dlc_failedItemSeparator": { "message": "；" },
+  "store_dlc_loadFreeInfoFailed": { "message": "无法获取免费DLC信息" },
+  "store_dlc_loadingFreeInfo": { "message": "正在获取免费DLC信息..." },
+  "store_dlc_moreFailedItems": { "message": "；..." },
+  "store_dlc_noFreeDlc": { "message": "没有找到可领取的免费DLC" },
+  "store_dlc_refreshFailed": { "message": "刷新DLC状态失败" },
+  "store_dlc_refreshFailedDetail": { "message": "错误信息：$error$\n请稍后再试，或手动刷新当前商店页。", "placeholders": { "error": { "content": "$1" } } },
+  "store_dlc_refreshing": { "message": "正在刷新状态..." },
+  "store_dlc_refreshSectionMissing": { "message": "未找到新的DLC区块" },
+  "store_dlc_refreshState": { "message": "刷新DLC状态" },
+  "store_dlc_requestFailed": { "message": "请求失败，HTTP 状态码：$status$", "placeholders": { "status": { "content": "$1" } } },
+  "store_dlc_sameOriginRejected": { "message": "DLC同源请求被拒绝" },
+  "store_dlc_scriptInjectionFailed": { "message": "脚本注入失败" },
+  "store_dlc_selectUnowned": { "message": "选择尚未拥有的DLC" },
+  "store_dlc_selectWishlisted": { "message": "选择愿望单中的DLC" },
+  "store_dlc_stateNoticeTitle": { "message": "DLC 状态提示" },
+  "store_dlc_tryLater": { "message": "请稍后重试" },
+  "store_dlc_unknownError": { "message": "未知错误" },
+  "store_dlc_unknownItem": { "message": "未知项目" },
+  "store_priceHistory_bundled": { "message": " 进包：$count$次", "placeholders": { "count": { "content": "$1" } } },
+  "store_priceHistory_bundledUnavailable": { "message": " 进包：暂不可用" },
+  "store_priceHistory_cancel": { "message": "取消" },
+  "store_priceHistory_capabilityUnsupported": { "message": "当前平台暂不支持价格能力。" },
+  "store_priceHistory_close": { "message": "关闭" },
+  "store_priceHistory_compareCheaper": { "message": "便宜$amount$元(-$discount$%)。", "placeholders": { "amount": { "content": "$1" }, "discount": { "content": "$2" } } },
+  "store_priceHistory_compareEqual": { "message": " ，与历史最低持平。" },
+  "store_priceHistory_compareLowPrefix": { "message": " ，比历史最低" },
+  "store_priceHistory_compareMoreExpensive": { "message": "贵$amount$元(+$discount$%)。", "placeholders": { "amount": { "content": "$1" }, "discount": { "content": "$2" } } },
+  "store_priceHistory_confirm": { "message": "确定" },
+  "store_priceHistory_currentHistoricalLow": { "message": "当前为历史最低折扣" },
+  "store_priceHistory_currentLowestDiscount": { "message": "当前最低折扣" },
+  "store_priceHistory_currentRegularPrice": { "message": "当前为原价" },
+  "store_priceHistory_daysAgo": { "message": "（$days$天前）", "placeholders": { "days": { "content": "$1" } } },
+  "store_priceHistory_dlcHistoricalLow": { "message": "史低" },
+  "store_priceHistory_dlcHistoryLabel": { "message": "历史最低 $price$，$date$，来源 $source$", "placeholders": { "price": { "content": "$1" }, "date": { "content": "$2" }, "source": { "content": "$3" } } },
+  "store_priceHistory_dlcLoading": { "message": "史低读取中..." },
+  "store_priceHistory_historicalLowAt": { "message": "历史最低折扣在 " },
+  "store_priceHistory_historicalLowValuePrefix": { "message": "$days$ 为 ", "placeholders": { "days": { "content": "$1" } } },
+  "store_priceHistory_hour": { "message": "小时" },
+  "store_priceHistory_invalidSteamItem": { "message": "无效的 Steam 商品标识" },
+  "store_priceHistory_itadNotListed": { "message": "ITAD 暂未收录当前购买项。" },
+  "store_priceHistory_listSeparator": { "message": "、" },
+  "store_priceHistory_loading": { "message": "正在读取历史最低价格..." },
+  "store_priceHistory_minute": { "message": "分钟" },
+  "store_priceHistory_monitorAmount": { "message": "期望金额" },
+  "store_priceHistory_monitorAmountInvalid": { "message": "期望金额必须在 1 到$amount$之间。", "placeholders": { "amount": { "content": "$1" } } },
+  "store_priceHistory_monitorAmountMaximum": { "message": "期望金额（最高$amount$）", "placeholders": { "amount": { "content": "$1" } } },
+  "store_priceHistory_monitorAmountMiddle": { "message": " 及以下时，将于当天 " },
+  "store_priceHistory_monitorAmountPrefix": { "message": "降至 " },
+  "store_priceHistory_monitorAnd": { "message": " 和 " },
+  "store_priceHistory_monitorAuthFailed": { "message": "鉴权检查失败。" },
+  "store_priceHistory_monitorAuthUnavailable": { "message": "打折监控鉴权服务未加载" },
+  "store_priceHistory_monitorCompleteFields": { "message": "请完善 " },
+  "store_priceHistory_monitorCondition": { "message": "监控条件" },
+  "store_priceHistory_monitorConfirmDelete": { "message": "确认删除" },
+  "store_priceHistory_monitorDashboard": { "message": "监控列表" },
+  "store_priceHistory_monitorDashboardTitle": { "message": "在素材君查看全部监控" },
+  "store_priceHistory_monitorDelete": { "message": "删除监控" },
+  "store_priceHistory_monitorDeleteFailed": { "message": "删除失败，请稍后重试。" },
+  "store_priceHistory_monitorDeleting": { "message": "正在删除..." },
+  "store_priceHistory_monitorDiscount": { "message": "期望折扣" },
+  "store_priceHistory_monitorDiscountInvalid": { "message": "期望折扣必须是 1 到 100 之间的整数。" },
+  "store_priceHistory_monitorDiscountMiddle": { "message": " 及以上时，将于当天 " },
+  "store_priceHistory_monitorDiscountPrefix": { "message": "折扣达到 " },
+  "store_priceHistory_monitorDiscountRange": { "message": "期望折扣（1-100%）" },
+  "store_priceHistory_monitorEditTitle": { "message": "修改打折监控" },
+  "store_priceHistory_monitorEmail": { "message": "邮件" },
+  "store_priceHistory_monitorEnable": { "message": "，以启用本条打折监控。" },
+  "store_priceHistory_monitorGamePrefix": { "message": "当《" },
+  "store_priceHistory_monitorGameSuffix": { "message": "》" },
+  "store_priceHistory_monitorInvalidResponse": { "message": "打折监控响应格式错误" },
+  "store_priceHistory_monitorLabel": { "message": "打折监控：" },
+  "store_priceHistory_monitorLoginExpired": { "message": "登录已过期，请重新登录" },
+  "store_priceHistory_monitorLoginRequired": { "message": "请先在设置中登录" },
+  "store_priceHistory_monitorLoginRequiredInSettings": { "message": "请先在 Steam Buff 设置中登录。" },
+  "store_priceHistory_monitorNotifyMethod": { "message": "提醒方式" },
+  "store_priceHistory_monitorNotifyRequired": { "message": "至少选择一种提醒方式。" },
+  "store_priceHistory_monitorNotifySuffix": { "message": " 通知你。" },
+  "store_priceHistory_monitorNotSet": { "message": "未设置提醒" },
+  "store_priceHistory_monitorReading": { "message": "正在读取..." },
+  "store_priceHistory_monitorRequestFailed": { "message": "请求失败：$code$", "placeholders": { "code": { "content": "$1" } } },
+  "store_priceHistory_monitorRetry": { "message": "读取失败，点击重试" },
+  "store_priceHistory_monitorRetryTitle": { "message": "重新读取打折监控" },
+  "store_priceHistory_monitorSaveFailed": { "message": "保存失败，请稍后重试。" },
+  "store_priceHistory_monitorSaveResponseInvalid": { "message": "打折监控保存响应不完整" },
+  "store_priceHistory_monitorSaving": { "message": "正在保存..." },
+  "store_priceHistory_monitorSetTitle": { "message": "设置打折监控" },
+  "store_priceHistory_monitorSponsorOnly": { "message": "该功能仅限赞助者使用。" },
+  "store_priceHistory_monitorSummaryAmount": { "message": "当$amount$ 及以下时，将于当天 $time$ 通过 $channels$ 通知你。", "placeholders": { "amount": { "content": "$1" }, "time": { "content": "$2" }, "channels": { "content": "$3" } } },
+  "store_priceHistory_monitorSummaryDiscount": { "message": "当折扣达到 $discount$ 及以上时，将于当天 $time$ 通过 $channels$ 通知你。", "placeholders": { "discount": { "content": "$1" }, "time": { "content": "$2" }, "channels": { "content": "$3" } } },
+  "store_priceHistory_monitorTime": { "message": "提醒时间" },
+  "store_priceHistory_monitorTimeRequired": { "message": "请设置提醒时间。" },
+  "store_priceHistory_monitorTimezoneRequired": { "message": "无法读取当前时区，暂时不能保存。" },
+  "store_priceHistory_monitorTitle": { "message": "打折监控" },
+  "store_priceHistory_monitorVia": { "message": " 通过 " },
+  "store_priceHistory_now": { "message": "此刻" },
+  "store_priceHistory_priceIncomplete": { "message": "价格数据不完整。" },
+  "store_priceHistory_providerConfigMissing": { "message": "第三方价格数据未配置。" },
+  "store_priceHistory_providerDisabled": { "message": "第三方数据服务已关闭。" },
+  "store_priceHistory_providerGameNotFound": { "message": "ITAD 暂未收录当前 Steam 商品。" },
+  "store_priceHistory_providerUnavailable": { "message": "第三方价格数据暂不可用。" },
+  "store_priceHistory_queryFailed": { "message": "价格查询失败，请稍后重试。" },
+  "store_priceHistory_save": { "message": "保存" },
+  "store_priceHistory_steamItemInvalidResponse": { "message": "Steam 商品详情响应格式异常" },
+  "store_priceHistory_steamItemUnavailable": { "message": "Steam 商品详情服务不可用" },
+  "store_priceHistory_unavailable": { "message": "暂无" },
+  "store_priceHistory_unknownDate": { "message": "未知日期" },
+  "store_priceHistory_viewDetails": { "message": "查看详情" },
+  "store_priceHistory_viewDetailsPrefix": { "message": "在" },
+  "store_cartCheckout_restoreButton": { "message": "恢复暂存购物车数据" },
+  "store_cartCheckout_restoreFailed": { "message": "恢复失败，重试" },
+  "store_cartCheckout_restored": { "message": "已恢复暂存购物车" },
+  "store_cartCheckout_restoring": { "message": "正在恢复暂存购物车数据..." },
+  "store_cartCheckout_restoreComplete": { "message": "已恢复暂存购物车数据" },
+  "store_cartCheckout_empty": { "message": "暂无暂存购物车" },
+  "store_steampy_loading": { "message": "正在读取价格..." },
+  "store_steampy_proxyPurchase": { "message": "PY 代购" },
+  "store_drmWarning_detected": { "message": "此游戏使用第三方DRM: $names$", "placeholders": { "names": { "content": "$1" } } },
+  "store_drmWarning_title": { "message": "第三方检查" }
 }

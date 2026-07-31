@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -38,7 +38,7 @@
     };
 
     function tr(key, fallback, params) {
-      return root.STI18n?.text?.(key, fallback, params) || String(fallback ?? key ?? "");
+      return root.STI18n.text(key, fallback, params);
     }
 
     function catName(cat) {
@@ -96,7 +96,7 @@
         version: options.version || (() => ""),
         homepage: options.homepage || (() => ""),
         deviceName: options.deviceName || (() => "Steam Buff"),
-        timeText: options.timeText || (() => "暂无"),
+      timeText: options.timeText || (() => tr("common.none", "暂无")),
         dialog,
         refresh: (id) => refreshCat(shadow, id),
       };
@@ -207,8 +207,8 @@
     }
 
     function emptyHtml(cat) {
-      const title = cat?.emptyTitle || "暂无可配置功能";
-      const desc = cat?.emptyDesc || "此分类暂未接入独立功能。";
+      const title = tr(cat?.emptyTitleKey || "settings.empty.title", cat?.emptyTitle || "暂无可配置功能");
+      const desc = tr(cat?.emptyDescKey || "settings.empty.desc", cat?.emptyDesc || "此分类暂未接入独立功能。");
       return `
         <section class="settings-card section-card settings-empty-card">
           <div class="section-header">
@@ -271,12 +271,8 @@
 
     function uiLocaleHtml() {
       const i18n = root.STI18n;
-      const locale = i18n?.locale?.() || "zh_CN";
-      const options = (i18n?.locales?.() || [
-        { value: "zh_CN", label: "简体中文" },
-        { value: "en", label: "English" },
-        { value: "zh_TW", label: "繁體中文" },
-      ]).map((item) => `
+      const locale = i18n.locale();
+      const options = i18n.locales().map((item) => `
         <option value="${escAttr(item.value || item.id)}" ${String(item.value || item.id) === String(locale) ? "selected" : ""}>${esc(item.label)}</option>
       `).join("");
       return `

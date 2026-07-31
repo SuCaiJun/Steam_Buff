@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -24,6 +24,10 @@
   const sharedCss = globalThis.STComponents?.css;
   if (!sharedCss?.dialog || !sharedCss?.button) {
     throw new Error("[Steam Buff] 更新提醒依赖 STComponents 未加载");
+  }
+
+  function text(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
   }
 
   const SHARED_STYLE = sharedCss.compose(
@@ -229,17 +233,17 @@
       <div class="layer" role="presentation">
         <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="st-update-reminder-title">
           <header class="head">
-            <div class="title" id="st-update-reminder-title">Steam Buff 发现新版本</div>
-            <button class="close" type="button" data-action="close" aria-label="关闭" title="关闭">×</button>
+            <div class="title" id="st-update-reminder-title">${api.esc(text("updateReminder.title", "Steam Buff 发现新版本"))}</div>
+            <button class="close" type="button" data-action="close" aria-label="${api.esc(text("common.close", "关闭"))}" title="${api.esc(text("common.close", "关闭"))}">×</button>
           </header>
           <div class="content">
-            <div class="meta">当前版本：${api.esc(current)}
-最新版本：${api.esc(remote)}</div>
-            <div class="label">新版日志</div>
+            <div class="meta">${api.esc(text("updateReminder.currentVersion", "当前版本：$version$", { version: current }))}
+${api.esc(text("updateReminder.latestVersion", "最新版本：$version$", { version: remote }))}</div>
+            <div class="label">${api.esc(text("updateReminder.releaseNotes", "新版日志"))}</div>
             <div class="body"></div>
             <div class="actions">
-              <button class="action" type="button" data-action="mute">今天不再提醒</button>
-              <button class="action primary" type="button" data-action="open">打开官网下载</button>
+              <button class="action" type="button" data-action="mute">${api.esc(text("updateReminder.muteToday", "今天不再提醒"))}</button>
+              <button class="action primary" type="button" data-action="open">${api.esc(text("updateReminder.openDownload", "打开官网下载"))}</button>
             </div>
           </div>
         </section>

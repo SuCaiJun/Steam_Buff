@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -114,10 +114,13 @@ function addFamilySharingNotice(appId, protocol) {
             familySharingContainer.dataset.steamAppId = appIdText;
             const title = document.createElement("div");
             title.className = "es_family_sharing_warning_title";
-            title.textContent = "共享检查";
+            title.textContent = globalThis.STI18n.text("store.familySharing.title", "共享检查");
             const text = document.createElement("div");
             text.className = "es_family_sharing_warning_text";
-            text.textContent = "此游戏不支持家庭共享功能";
+            text.textContent = globalThis.STI18n.text(
+              "store.familySharing.unsupported",
+              "此游戏不支持家庭共享功能",
+            );
             familySharingContainer.append(title, text);
             
             if (placeholderElement.parentNode) {

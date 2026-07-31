@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -42,6 +42,10 @@
     let conf = normalize(options.config || {});
     let persistedConf = normalize(conf);
     let publishingConfig = false;
+
+    function uiText(key, fallback, params) {
+      return root.STI18n.text(key, fallback, params);
+    }
 
     function showSavePrompt(shadow, operationId) {
       void Promise.resolve()
@@ -166,10 +170,10 @@
       const trans = getTranslateConfig() || {};
       const out = [];
       if (trans.service === AI_SERVICE) {
-        out.push("翻译");
+        out.push(uiText("settings.ai.user.translation", "翻译"));
       }
       if (trans.selectionService === AI_SERVICE) {
-        out.push("划词翻译");
+        out.push(uiText("settings.ai.user.selection", "划词翻译"));
       }
       return out;
     }
@@ -178,11 +182,11 @@
       return [
         {
           role: "system",
-          content: "你是接口连通性测试助手，只回复纯文本。",
+          content: uiText("settings.ai.test.systemPrompt", "你是接口连通性测试助手，只回复纯文本。"),
         },
         {
           role: "user",
-          content: "请只回复：Steam Buff AI 测试成功",
+          content: uiText("settings.ai.test.userPrompt", "请只回复：Steam Buff AI 测试成功"),
         },
       ];
     }
@@ -219,18 +223,24 @@
       const next = read(shadow);
       const testConf = normalize({ ...conf, ...next });
       if (testConf.enabled !== true) {
-        dialog(shadow, { title: "AI 测试", message: "请先启用 AI模块。" });
+        dialog(shadow, {
+          title: uiText("settings.ai.test.title", "AI 测试"),
+          message: uiText("settings.ai.test.enableFirst", "请先启用 AI模块。"),
+        });
         return;
       }
       if (!testConf.host || !testConf.model) {
-        dialog(shadow, { title: "AI 测试", message: "请填写 AI 网关地址和模型。" });
+        dialog(shadow, {
+          title: uiText("settings.ai.test.title", "AI 测试"),
+          message: uiText("settings.ai.test.missingConfig", "请填写 AI 网关地址和模型。"),
+        });
         return;
       }
 
       const oldText = button?.textContent || "";
       if (button) {
         button.disabled = true;
-        button.textContent = "测试中";
+        button.textContent = uiText("common.testing", "测试中");
       }
       const started = performance.now();
       const operationId = root.STLoggerFactory?.createOperationId?.() || "";
@@ -249,14 +259,20 @@
               status: Number(response?.status) || 0,
               error: response?.error || "未知错误",
             });
-            dialog(shadow, { title: "AI 测试失败", message: `${response?.error || "未知错误"}\n用时 ${used} 秒` });
+            dialog(shadow, {
+              title: uiText("settings.ai.test.failed", "AI 测试失败"),
+              message: `${response?.error || uiText("common.unknownError", "未知错误")}\n${uiText("common.elapsedSeconds", "用时 $seconds$ 秒", { seconds: used })}`,
+            });
             return;
           }
           log.info("ai-test-success", "AI 连接测试成功", {
             operationId,
             durationMs: Math.round(performance.now() - started),
           });
-          dialog(shadow, { title: "AI 测试成功", message: `${response.text || "已收到响应"}\n用时 ${used} 秒` });
+          dialog(shadow, {
+            title: uiText("settings.ai.test.success", "AI 测试成功"),
+            message: `${response.text || uiText("settings.ai.test.responseReceived", "已收到响应")}\n${uiText("common.elapsedSeconds", "用时 $seconds$ 秒", { seconds: used })}`,
+          });
         }).catch((error) => {
           const used = ((performance.now() - started) / 1000).toFixed(1);
           if (button) {
@@ -268,7 +284,10 @@
             durationMs: Math.round(performance.now() - started),
             error,
           });
-          dialog(shadow, { title: "AI 测试失败", message: `${error?.message || String(error)}\n用时 ${used} 秒` });
+          dialog(shadow, {
+            title: uiText("settings.ai.test.failed", "AI 测试失败"),
+            message: `${error?.message || String(error)}\n${uiText("common.elapsedSeconds", "用时 $seconds$ 秒", { seconds: used })}`,
+          });
         });
       } catch (error) {
         if (button) {
@@ -281,7 +300,10 @@
           durationMs: Math.round(performance.now() - started),
           error,
         });
-        dialog(shadow, { title: "AI 测试失败", message: `${error?.message || String(error)}\n用时 ${used} 秒` });
+        dialog(shadow, {
+          title: uiText("settings.ai.test.failed", "AI 测试失败"),
+          message: `${error?.message || String(error)}\n${uiText("common.elapsedSeconds", "用时 $seconds$ 秒", { seconds: used })}`,
+        });
       }
     }
 
@@ -292,20 +314,20 @@
           <section class="settings-card section-card">
             <div class="section-header">
               <div class="dot"></div>
-              <div class="title">AI 通用配置</div>
-              <div class="hint">用于全局 AI 调用</div>
+              <div class="title">${esc(uiText("settings.ai.title", "AI 通用配置"))}</div>
+              <div class="hint">${esc(uiText("settings.ai.hint", "用于全局 AI 调用"))}</div>
             </div>
             <div class="settings-grid">
               ${fields.map((field) => `
                 <div class="settings-row form-row">
-                  <span class="settings-label label">${esc(field.label)}</span>
+                  <span class="settings-label label">${esc(root.STSettingsFields?.label?.(field) || field.label)}</span>
                   <span class="settings-value control">${input(field)}</span>
                 </div>
               `).join("")}
             </div>
             <div class="settings-actions form-footer">
-              <button class="settings-save ai-test btn btn-secondary" type="button">测试连接</button>
-              <button class="settings-save ai-save btn btn-blue" type="button">保存设置</button>
+              <button class="settings-save ai-test btn btn-secondary" type="button">${esc(uiText("common.testConnection", "测试连接"))}</button>
+              <button class="settings-save ai-save btn btn-blue" type="button">${esc(uiText("common.saveSettings", "保存设置"))}</button>
             </div>
           </section>
         </div>
@@ -331,8 +353,10 @@
       if (nextConf.enabled !== true) {
         const users = aiUsers();
         if (users.length) {
-          const msg = `${users.join("、")}正在使用AI服务，无法关闭AI服务。`;
-          dialog(shadow, { title: "无法关闭 AI 服务", message: msg });
+          const msg = uiText("settings.ai.disableBlocked", "$users$正在使用AI服务，无法关闭AI服务。", {
+            users: users.join(uiText("common.listSeparator", "、")),
+          });
+          dialog(shadow, { title: uiText("settings.ai.disableBlockedTitle", "无法关闭 AI 服务"), message: msg });
           onRenderRequest(shadow);
           return true;
         }
@@ -345,7 +369,7 @@
       log.info("ai-config-save-start", "开始保存 AI 配置", { operationId, enabled: nextConf.enabled === true });
       const oldText = save.textContent || "";
       save.disabled = true;
-      save.textContent = "保存中...";
+      save.textContent = uiText("common.saving", "保存中...");
       setInputsDisabled(shadow, true);
       Promise.resolve()
         .then(() => typeof storage.setAi === "function"
@@ -360,7 +384,10 @@
               durationMs: Date.now() - startedAt,
               errorCode: ok === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
             });
-            dialog(shadow, { title: "保存失败", message: "AI 配置未能保存，请稍后重试。" });
+            dialog(shadow, {
+              title: uiText("common.saveFailed", "保存失败"),
+              message: uiText("settings.ai.saveFailed", "AI 配置未能保存，请稍后重试。"),
+            });
             return;
           }
           persistedConf = normalize(conf);
@@ -378,7 +405,10 @@
             error,
             durationMs: Date.now() - startedAt,
           });
-          dialog(shadow, { title: "保存失败", message: "AI 配置保存异常，请稍后重试。" });
+          dialog(shadow, {
+            title: uiText("common.saveFailed", "保存失败"),
+            message: uiText("settings.ai.saveError", "AI 配置保存异常，请稍后重试。"),
+          });
         })
         .finally(() => {
           setInputsDisabled(shadow, false);

@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -32,6 +32,10 @@
     ai: Object.freeze(["key"]),
     thirdPartyServices: Object.freeze(["isthereanydeal.key"]),
   });
+
+  function text(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
+  }
 
   function catalog() {
     return api.catalog || {};
@@ -246,13 +250,15 @@
   function inspectPackage(input) {
     const data = parse(input);
     if (!data || typeof data !== "object") {
-      throw new Error("设置备份文件格式无效。");
+      throw new Error(text("about.backup.invalidFormat", "设置备份文件格式无效。"));
     }
     if (data.type !== TYPE) {
-      throw new Error("不是 Steam Buff 设置备份。");
+      throw new Error(text("about.backup.invalidType", "不是 Steam Buff 设置备份。"));
     }
     if (Number(data.schemaVersion) !== SCHEMA_VERSION) {
-      throw new Error(`暂不支持的设置备份版本：${data.schemaVersion || "未知"}`);
+      throw new Error(text("about.backup.unsupportedVersion", "暂不支持的设置备份版本：$version$", {
+        version: data.schemaVersion || text("common.unknown", "未知"),
+      }));
     }
     const normalized = normalizeSettings(data.settings || {});
     return {
@@ -305,11 +311,11 @@
     const preview = inspectPackage(input);
     const target = storage();
     if (typeof target?.setBackupSections !== "function") {
-      throw new Error("设置备份写入接口不可用");
+      throw new Error(text("about.backup.writeUnavailable", "设置备份写入接口不可用"));
     }
     const ok = await target.setBackupSections(preview.normalized);
     if (ok !== true) {
-      throw new Error("设置备份写入失败");
+      throw new Error(text("about.backup.writeFailed", "设置备份写入失败"));
     }
     return {
       ...preview,

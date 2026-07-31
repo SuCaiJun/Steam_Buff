@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -58,12 +58,23 @@
     return root.STSettings?.storage || null;
   }
 
-  const authClient = root.STAuthClient?.createClient({
-    storage: storage(),
-    refreshUrl: AUTH_REFRESH,
-    loginMessage: "请先在设置中登录",
-    expiredMessage: "登录已过期，请重新登录",
-  });
+  function i18n(key, fallback, params) {
+    return root.STI18n.text(key, fallback, params);
+  }
+
+  let authClient = null;
+
+  function getAuthClient() {
+    if (!authClient) {
+      authClient = root.STAuthClient?.createClient({
+        storage: storage(),
+        refreshUrl: AUTH_REFRESH,
+        loginMessage: i18n("store.gameNotes.loginRequired", "请先在设置中登录"),
+        expiredMessage: i18n("store.gameNotes.loginExpired", "登录已过期，请重新登录"),
+      }) || null;
+    }
+    return authClient;
+  }
   const log = root.STLoggerFactory.createLogger("store", FEATURE_ID);
 
   function text(value) {
@@ -121,22 +132,24 @@
   }
 
   async function authedPost(url, body, diagnostics = {}) {
-    if (!authClient) throw new Error("请先在设置中登录");
-    const { body: data, code } = await authClient.authedPost(url, body, {
+    const client = getAuthClient();
+    if (!client) throw new Error(i18n("store.gameNotes.loginRequired", "请先在设置中登录"));
+    const { body: data, code } = await client.authedPost(url, body, {
       throwOnMissingAuth: true,
       operationId: diagnostics.operationId || "",
     });
-    if (code < 200 || code >= 300) throw new Error(data?.message || `请求失败：${code}`);
+    if (code < 200 || code >= 300) throw new Error(data?.message || i18n("store.gameNotes.requestFailed", "请求失败：$code$", { code }));
     return data || {};
   }
 
   async function authedDelete(url, body, diagnostics = {}) {
-    if (!authClient) throw new Error("请先在设置中登录");
+    const client = getAuthClient();
+    if (!client) throw new Error(i18n("store.gameNotes.loginRequired", "请先在设置中登录"));
     const operationId = diagnostics.operationId || "";
     const requestId = root.STLoggerFactory?.createRequestId?.() || "";
-    const auth = await authClient.readyAuth({ operationId, requestId });
-    if (!auth?.access_token) throw new Error("请先在设置中登录");
-    const response = await authClient.fetchBg({
+    const auth = await client.readyAuth({ operationId, requestId });
+    if (!auth?.access_token) throw new Error(i18n("store.gameNotes.loginRequired", "请先在设置中登录"));
+    const response = await client.fetchBg({
       url,
       method: "DELETE",
       headers: {
@@ -149,15 +162,16 @@
       operationId,
       requestId,
     });
-    const data = authClient.parseJson(response.data);
+    const data = client.parseJson(response.data);
     const code = Number(data?.code) || response.status || 0;
-    if (code < 200 || code >= 300) throw new Error(data?.message || `请求失败：${code}`);
+    if (code < 200 || code >= 300) throw new Error(data?.message || i18n("store.gameNotes.requestFailed", "请求失败：$code$", { code }));
     return data || {};
   }
 
   async function hasAuth() {
-    if (!authClient) return false;
-    const auth = await authClient.readyAuth();
+    const client = getAuthClient();
+    if (!client) return false;
+    const auth = await client.readyAuth();
     return !!auth?.access_token;
   }
 
@@ -264,11 +278,11 @@
       line.classList.add("st-game-notes-open-editor");
       line.tabIndex = 0;
       line.setAttribute("role", "button");
-      line.setAttribute("aria-label", "查看完整备注");
-      line.title = "查看完整备注";
+      line.setAttribute("aria-label", i18n("store.gameNotes.openFull", "查看完整备注"));
+      line.title = i18n("store.gameNotes.openFull", "查看完整备注");
       const label = document.createElement("span");
       label.className = "st-game-notes-label";
-      label.textContent = "备注：";
+      label.textContent = i18n("store.gameNotes.label", "备注：");
       line.appendChild(label);
     }
     const body = document.createElement("span");
@@ -282,7 +296,7 @@
       });
     }
     else {
-      body.textContent = "暂无备注";
+      body.textContent = i18n("store.gameNotes.empty", "暂无备注");
       body.classList.add("st-game-notes-empty");
     }
     line.appendChild(body);
@@ -307,7 +321,7 @@
     const more = document.createElement("button");
     more.type = "button";
     more.className = "st-game-notes-more";
-    more.textContent = "[查看更多]";
+    more.textContent = i18n("store.gameNotes.viewMore", "[查看更多]");
     more.addEventListener("click", () => {
       host.classList.toggle("expanded");
       updateMore(host);

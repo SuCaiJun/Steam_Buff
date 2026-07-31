@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -38,7 +38,7 @@
     let rows = null;
 
     function tr(key, fallback, params) {
-      return root.STI18n?.text?.(key, fallback, params) || String(fallback ?? key ?? "");
+      return root.STI18n.text(key, fallback, params);
     }
 
     function itemName(item) {

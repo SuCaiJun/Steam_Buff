@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -61,6 +61,21 @@
     refreshUrl: AUTH_REFRESH,
   });
   const log = root.STLoggerFactory.createLogger("store", "search-suggestions");
+
+  function i18n(key, fallback, params) {
+    return root.STI18n.text(key, fallback, params);
+  }
+
+  function sourceLabel(source) {
+    const key = ({
+      user_custom: "settings.feature.search-suggestions-user-custom.name",
+      user_alias: "settings.feature.search-suggestions-user-alias.name",
+      community: "settings.feature.search-suggestions-community.name",
+      community_alias: "settings.feature.search-suggestions-community-alias.name",
+      ai: "settings.feature.search-suggestions-ai.name",
+    })[source];
+    return key ? i18n(key, source) : source;
+  }
 
   async function loadOptions() {
     const next = core.normalizeOptions(await storage()?.getSearchSuggestions?.());
@@ -372,9 +387,9 @@
     body.appendChild(title);
 
     const subParts = [];
-    const sourceLabel = String(item?.source_label || item?.source || "");
+    const sourceLabelText = sourceLabel(String(item?.source || ""));
     const steamName = String(item?.steam_name || "");
-    if (sourceLabel) subParts.push(sourceLabel);
+    if (sourceLabelText) subParts.push(sourceLabelText);
     if (steamName) subParts.push(steamName);
     if (subParts.length) {
       const sub = document.createElement("div");
@@ -403,7 +418,7 @@
     layer.dataset.keyword = keyword;
     const head = document.createElement("div");
     head.className = "st-search-suggestion-head";
-    head.textContent = "Steam Buff 中文名称匹配";
+    head.textContent = i18n("store.searchSuggestions.heading", "Steam Buff 中文名称匹配");
     const list = document.createElement("div");
     list.className = "st-search-suggestion-list";
     items.forEach((item, index) => {

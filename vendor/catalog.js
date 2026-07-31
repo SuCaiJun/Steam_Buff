@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -27,6 +27,7 @@
     entry({
       id: "steam-purchase-history-classifier",
       name: "Steam 消费历史分类器",
+      nameKey: "settings.feature.purchase-history-classifier.name",
       url: "https://keylol.com/t1035599-1-1",
       license: "MIT",
       kind: "bundled",

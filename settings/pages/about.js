@@ -1,5 +1,5 @@
 /*
- * @Author        : 顾青离
+ * @Author        : Ricky
  * @Url           : sucaijun.com
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
@@ -880,6 +880,10 @@
   let logDetails = new Map();
   const log = globalThis.STLoggerFactory.createLogger("settings", "about");
 
+  function text(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
+  }
+
   function escLogHtml(text) {
     return String(text || "")
       .replace(/&/g, "&amp;")
@@ -908,9 +912,10 @@
     return match ? match[0].replace(/^v/i, "") : "";
   }
 
-  function verLabel(text, fallback = "未知版本") {
-    const value = verText(text);
-    return value ? `v${value}` : String(text || fallback);
+  function verLabel(value, fallback = null) {
+    const version = verText(value);
+    const missing = fallback == null ? text("about.common.unknownVersion", "未知版本") : fallback;
+    return version ? `v${version}` : String(value || missing);
   }
 
   function apiData(payload) {
@@ -952,7 +957,7 @@
     const title = cleanLogText(row.title || "");
     const summary = cleanLogText(row.summary || "");
     const html = contentHtml(row.content);
-    const desc = summary || contentText(row.content) || title || "无更新日志";
+    const desc = summary || contentText(row.content) || title || text("about.update.noLog", "无更新日志");
     return {
       version,
       title,
@@ -982,7 +987,7 @@
       ...(item || {}),
       ...(detail || {}),
       version: detail?.version || item?.version || "",
-      desc: detail?.desc || item?.desc || "无更新日志",
+      desc: detail?.desc || item?.desc || text("about.update.noLog", "无更新日志"),
       html: detail?.html || item?.html || "",
     };
   }
@@ -990,18 +995,19 @@
   function currentLog() {
     const current = verText(info?.current);
     if (!current) {
-      return mergeDetail(info?.latest, logDetails.get(verText(info?.latest?.version))) || { version: "", desc: "无更新日志" };
+      return mergeDetail(info?.latest, logDetails.get(verText(info?.latest?.version))) || { version: "", desc: text("about.update.noLog", "无更新日志") };
     }
 
     if (verText(info.latest?.version) === current) {
       return mergeDetail(info.latest, logDetails.get(current));
     }
 
-    return mergeDetail({ version: current, desc: "正在读取当前版本日志..." }, logDetails.get(current));
+    return mergeDetail({ version: current, desc: text("about.update.loadingCurrentLog", "正在读取当前版本日志...") }, logDetails.get(current));
   }
 
   function logDesc(item) {
-    return cleanLogText(item?.desc || "暂无日志") || "暂无日志";
+    const empty = text("about.update.noLogShort", "暂无日志");
+    return cleanLogText(item?.desc || empty) || empty;
   }
 
   function logDialogHtml(ctx, item) {
@@ -1017,7 +1023,7 @@
   async function loadLogDetail(item, ctx) {
     const version = verText(item?.version);
     if (!version) {
-      return item || { version: "", desc: "无更新日志" };
+      return item || { version: "", desc: text("about.update.noLog", "无更新日志") };
     }
     if (logDetails.has(version)) {
       return mergeDetail(item, logDetails.get(version));
@@ -1025,7 +1031,7 @@
 
     const url = updateDetailUrl(version);
     if (!url) {
-      return item || { version, desc: "无更新日志" };
+      return item || { version, desc: text("about.update.noLog", "无更新日志") };
     }
     const startedAt = Date.now();
     try {
@@ -1039,7 +1045,7 @@
         error,
         durationMs: Date.now() - startedAt,
       });
-      return item || { version, desc: "日志详情加载失败" };
+      return item || { version, desc: text("about.update.logLoadFailed", "日志详情加载失败") };
     }
   }
 
@@ -1058,7 +1064,7 @@
   async function showCurrentLog(shadow, ctx) {
     const item = await loadLogDetail(currentLog(), ctx);
     showLogDialog(shadow, ctx, {
-      title: "当前版本日志",
+      title: text("about.update.currentLogTitle", "当前版本日志"),
       item,
     });
   }
@@ -1071,7 +1077,7 @@
             timeoutMs: type === "LOG_EXPORT" ? 12_000 : 8_000,
           }).then((response) => {
             if (!response?.success) {
-              reject(new Error(response?.error || "日志请求失败"));
+              reject(new Error(response?.error || text("about.logs.requestFailed", "日志请求失败")));
               return;
             }
             resolve(response);
@@ -1081,11 +1087,11 @@
         chrome.runtime.sendMessage({ type, ...(payload || {}) }, (response) => {
           const err = chrome.runtime.lastError;
           if (err) {
-            reject(new Error(err.message || "后台请求失败"));
+            reject(new Error(err.message || text("about.logs.backgroundFailed", "后台请求失败")));
             return;
           }
           if (!response?.success) {
-            reject(new Error(response?.error || "日志请求失败"));
+            reject(new Error(response?.error || text("about.logs.requestFailed", "日志请求失败")));
             return;
           }
           resolve(response);
@@ -1109,35 +1115,40 @@
 
   function fmtTime(value) {
     if (!value) {
-      return "暂无";
+      return text("common.none", "暂无");
     }
     const date = new Date(value);
     if (!Number.isFinite(date.getTime())) {
-      return "暂无";
+      return text("common.none", "暂无");
     }
-    return date.toLocaleString();
+    return date.toLocaleString(globalThis.STI18n.intlLocale());
   }
 
   function logStatusText() {
     if (!logStats) {
-      return "正在读取日志状态";
+      return text("about.logs.statusLoading", "正在读取日志状态");
     }
     const count = Number(logStats.count) || 0;
     if (!count) {
-      return "暂无日志";
+      return text("about.update.noLogShort", "暂无日志");
     }
-    return `${count} 条，${fmtSize(logStats.sizeBytes)}，${fmtTime(logStats.firstTime)} - ${fmtTime(logStats.lastTime)}`;
+    return text("about.logs.statusDetail", "$count$ 条，$size$，$first$ - $last$", {
+      count,
+      size: fmtSize(logStats.sizeBytes),
+      first: fmtTime(logStats.firstTime),
+      last: fmtTime(logStats.lastTime),
+    });
   }
 
   function shortTime(value) {
     if (!value) {
-      return "暂无";
+      return text("common.none", "暂无");
     }
     const date = new Date(value);
     if (!Number.isFinite(date.getTime())) {
-      return "暂无";
+      return text("common.none", "暂无");
     }
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleTimeString(globalThis.STI18n.intlLocale(), { hour: "2-digit", minute: "2-digit" });
   }
 
   function logHealth() {
@@ -1147,30 +1158,36 @@
     if (errors > 0) {
       return {
         cls: "bad",
-        title: `最近日志包含 ${errors} 条错误`,
+        title: text("about.logs.healthErrors", "最近日志包含 $count$ 条错误", { count: errors }),
       };
     }
     if (count >= 100 || size > 1024 * 1024) {
       return {
         cls: "warn",
-        title: count >= 500 || size > 1024 * 1024 ? "日志较多，建议导出后清理" : "日志状态偏高",
+        title: count >= 500 || size > 1024 * 1024
+          ? text("about.logs.healthLarge", "日志较多，建议导出后清理")
+          : text("about.logs.healthElevated", "日志状态偏高"),
       };
     }
     return {
       cls: "",
-      title: "最近 1 小时 0 条错误",
+      title: text("about.logs.healthOk", "最近 1 小时 0 条错误"),
     };
   }
 
   function logSummary() {
     if (!logStats) {
-      return "正在读取日志状态";
+      return text("about.logs.statusLoading", "正在读取日志状态");
     }
     const count = Number(logStats.count) || 0;
     if (!count) {
-      return "暂无日志 · 已开启脱敏导出";
+      return text("about.logs.emptySummary", "暂无日志 · 已开启脱敏导出");
     }
-    return `${count} 条 · ${fmtSize(logStats.sizeBytes)} · 最近 ${shortTime(logStats.lastTime)}`;
+    return text("about.logs.summary", "$count$ 条 · $size$ · 最近 $time$", {
+      count,
+      size: fmtSize(logStats.sizeBytes),
+      time: shortTime(logStats.lastTime),
+    });
   }
 
   function icon(name) {
@@ -1211,7 +1228,7 @@
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("读取设置备份文件失败"));
+      reader.onerror = () => reject(new Error(text("about.backup.readFailed", "读取设置备份文件失败")));
       reader.readAsText(file, "utf-8");
     });
   }
@@ -1222,35 +1239,37 @@
 
   function sectionText(sections) {
     const names = {
-      features: "功能开关",
-      translate: "翻译参数",
-      ai: "AI 参数",
-      reviewFilter: "评论过滤",
-      searchSuggestions: "搜索联想",
-      familyLibrary: "家庭库刷新",
+      features: text("about.backup.section.features", "功能开关"),
+      translate: text("about.backup.section.translate", "翻译参数"),
+      ai: text("about.backup.section.ai", "AI 参数"),
+      reviewFilter: text("about.backup.section.reviewFilter", "评论过滤"),
+      searchSuggestions: text("about.backup.section.searchSuggestions", "搜索联想"),
+      familyLibrary: text("about.backup.section.familyLibrary", "家庭库刷新"),
     };
     const list = (sections || []).map(section => names[section] || section);
-    return list.length ? list.join("、") : "无可识别分区";
+    return list.length ? list.join(text("common.listSeparator", "、")) : text("about.backup.noSections", "无可识别分区");
   }
 
   function importSummary(preview) {
     const pkg = preview.package || {};
-    const exportedAt = pkg.exportedAt ? fmtTime(pkg.exportedAt) : "未知";
-    const version = pkg.extensionVersion || "未知";
+    const exportedAt = pkg.exportedAt ? fmtTime(pkg.exportedAt) : text("common.unknown", "未知");
+    const version = pkg.extensionVersion || text("common.unknown", "未知");
     const stats = preview.stats || {};
     const lines = [
-      `文件版本：v${version}`,
-      `导出时间：${exportedAt}`,
-      `包含分区：${sectionText(preview.sections)}`,
-      `敏感配置：${stats.hasSensitive ? "包含" : "不包含"}`,
-      `将导入：${Number(stats.imported) || 0} 项`,
-      `将恢复默认：${Number(stats.defaulted) || 0} 项`,
-      `将跳过：${Number(stats.skipped) || 0} 项`,
+      text("about.backup.fileVersion", "文件版本：v$version$", { version }),
+      text("about.backup.exportedAt", "导出时间：$time$", { time: exportedAt }),
+      text("about.backup.sections", "包含分区：$sections$", { sections: sectionText(preview.sections) }),
+      text("about.backup.sensitive", "敏感配置：$state$", {
+        state: stats.hasSensitive ? text("common.included", "包含") : text("common.notIncluded", "不包含"),
+      }),
+      text("about.backup.willImport", "将导入：$count$ 项", { count: Number(stats.imported) || 0 }),
+      text("about.backup.willDefault", "将恢复默认：$count$ 项", { count: Number(stats.defaulted) || 0 }),
+      text("about.backup.willSkip", "将跳过：$count$ 项", { count: Number(stats.skipped) || 0 }),
       "",
-      "确认后将直接覆盖当前设置并导入。",
+      text("about.backup.overwriteWarning", "确认后将直接覆盖当前设置并导入。"),
     ];
     if (!stats.hasSensitive) {
-      lines.push("当前文件不含 AI 密钥等敏感配置，导入后这些字段会按默认空值处理。");
+      lines.push(text("about.backup.missingSensitiveWarning", "当前文件不含 AI 密钥等敏感配置，导入后这些字段会按默认空值处理。"));
     }
     return lines.join("\n");
   }
@@ -1258,11 +1277,11 @@
   function resultSummary(result) {
     const stats = result?.stats || {};
     return [
-      `已导入：${Number(stats.imported) || 0} 项`,
-      `恢复默认：${Number(stats.defaulted) || 0} 项`,
-      `已跳过：${Number(stats.skipped) || 0} 项`,
+      text("about.backup.imported", "已导入：$count$ 项", { count: Number(stats.imported) || 0 }),
+      text("about.backup.defaulted", "恢复默认：$count$ 项", { count: Number(stats.defaulted) || 0 }),
+      text("about.backup.skipped", "已跳过：$count$ 项", { count: Number(stats.skipped) || 0 }),
       "",
-      "设置导入完成，刷新页面后生效。",
+      text("about.backup.importCompleteMessage", "设置导入完成，刷新页面后生效。"),
     ].join("\n");
   }
 
@@ -1287,7 +1306,10 @@
   async function exportSettings(shadow, ctx, options = {}) {
     const backup = backupApi();
     if (!backup?.exportPackage) {
-      ctx.dialog(shadow, { title: "导出设置失败", message: "设置备份模块未加载。" });
+      ctx.dialog(shadow, {
+        title: text("about.backup.exportFailedTitle", "导出设置失败"),
+        message: text("about.backup.moduleMissing", "设置备份模块未加载。"),
+      });
       return;
     }
     const includeSensitive = options.includeSensitive === true;
@@ -1310,14 +1332,17 @@
         operationId,
         durationMs: Date.now() - startedAt,
       });
-      ctx.dialog(shadow, { title: "导出设置失败", message: error?.message || String(error) });
+      ctx.dialog(shadow, { title: text("about.backup.exportFailedTitle", "导出设置失败"), message: error?.message || String(error) });
     }
   }
 
   async function importSettingsFile(shadow, ctx, file) {
     const backup = backupApi();
     if (!backup?.inspectPackage || !backup?.importPackage) {
-      ctx.dialog(shadow, { title: "导入设置失败", message: "设置备份模块未加载。" });
+      ctx.dialog(shadow, {
+        title: text("about.backup.importFailedTitle", "导入设置失败"),
+        message: text("about.backup.moduleMissing", "设置备份模块未加载。"),
+      });
       return;
     }
     if (!file) {
@@ -1330,11 +1355,11 @@
       const text = await readFileText(file);
       const preview = backup.inspectPackage(text);
       const action = await ctx.dialog(shadow, {
-        title: "导入设置备份",
+        title: text("about.backup.importTitle", "导入设置备份"),
         message: importSummary(preview),
         actions: [
-          { id: "import", label: "确认导入", primary: true },
-          { id: "cancel", label: "取消" },
+          { id: "import", label: text("about.backup.confirmImport", "确认导入"), primary: true },
+          { id: "cancel", label: text("common.cancel", "取消") },
         ],
       });
       if (action !== "import") {
@@ -1350,11 +1375,11 @@
         durationMs: Date.now() - startedAt,
       });
       ctx.dialog(shadow, {
-        title: "导入设置完成",
+        title: text("about.backup.importCompleteTitle", "导入设置完成"),
         message: resultSummary(result),
         actions: [
-          { id: "refresh", label: "刷新页面" },
-          { id: "ok", label: "确定", primary: true },
+          { id: "refresh", label: text("common.refreshPage", "刷新页面") },
+          { id: "ok", label: text("common.confirm", "确定"), primary: true },
         ],
       }).then((next) => {
         if (next === "refresh") {
@@ -1367,7 +1392,7 @@
         operationId,
         durationMs: Date.now() - startedAt,
       });
-      ctx.dialog(shadow, { title: "导入设置失败", message: error?.message || String(error) });
+      ctx.dialog(shadow, { title: text("about.backup.importFailedTitle", "导入设置失败"), message: error?.message || String(error) });
     }
   }
 
@@ -1456,7 +1481,7 @@
       const response = await sendLogMessage("LOG_EXPORT", { operationId });
       const pack = await globalThis.STSettingsDiagnosticsExport?.build?.(response);
       if (!pack?.blob) {
-        throw new Error("日志生成失败");
+        throw new Error(text("about.logs.buildFailed", "日志生成失败"));
       }
       downloadBlob(pack.filename || response.filename, pack.blob);
       logStats = response.stats || logStats;
@@ -1473,17 +1498,17 @@
         operationId,
         durationMs: Date.now() - startedAt,
       });
-      ctx.dialog(shadow, { title: "导出日志失败", message: error?.message || String(error) });
+      ctx.dialog(shadow, { title: text("about.logs.exportFailedTitle", "导出日志失败"), message: error?.message || String(error) });
     }
   }
 
   async function clearDiagLog(shadow, ctx) {
     const action = await ctx.dialog(shadow, {
-      title: "清空诊断日志",
-      message: "清空后将无法导出当前排查现场，确认要继续吗？",
+      title: text("about.logs.clearTitle", "清空诊断日志"),
+      message: text("about.logs.clearWarning", "清空后将无法导出当前排查现场，确认要继续吗？"),
       actions: [
-        { id: "clear", label: "清空", primary: true },
-        { id: "cancel", label: "取消" },
+        { id: "clear", label: text("common.clear", "清空"), primary: true },
+        { id: "cancel", label: text("common.cancel", "取消") },
       ],
     });
     if (action !== "clear") {
@@ -1505,7 +1530,7 @@
         operationId,
         durationMs: Date.now() - startedAt,
       });
-      ctx.dialog(shadow, { title: "清空诊断日志失败", message: error?.message || String(error) });
+      ctx.dialog(shadow, { title: text("about.logs.clearFailedTitle", "清空诊断日志失败"), message: error?.message || String(error) });
     }
   }
 
@@ -1574,12 +1599,12 @@
     head.className = "about-log-head";
     title.className = "about-log-title";
     title.id = "st-about-log-title";
-    title.textContent = String(options.title || "更新日志");
+    title.textContent = String(options.title || text("about.update.logTitle", "更新日志"));
     closeBtn.className = "about-log-close";
     closeBtn.type = "button";
     closeBtn.dataset.aboutDialogAction = "close";
-    closeBtn.setAttribute("aria-label", "关闭");
-    closeBtn.title = "关闭";
+    closeBtn.setAttribute("aria-label", text("common.close", "关闭"));
+    closeBtn.title = text("common.close", "关闭");
     closeBtn.textContent = "×";
     content.className = "about-log-content";
     logBox.className = "about-log-dialog-body";
@@ -1666,21 +1691,21 @@
 
   async function show(shadow, ctx, next, manual) {
     const latest = next.hasNew
-      ? await loadLogDetail(next.latest || { version: "", desc: "无更新日志" }, ctx)
-      : next.latest || { version: "", desc: "无更新日志" };
+      ? await loadLogDetail(next.latest || { version: "", desc: text("about.update.noLog", "无更新日志") }, ctx)
+      : next.latest || { version: "", desc: text("about.update.noLog", "无更新日志") };
     if (next.hasNew) {
       showLogDialog(shadow, ctx, {
-        title: "Steam Buff 发现新版本",
-        meta: `当前版本：${verLabel(next.current)}\n最新版本：${verLabel(latest.version || next.remote)}`,
-        label: "新版日志",
+        title: text("updateReminder.title", "Steam Buff 发现新版本"),
+        meta: `${text("updateReminder.currentVersion", "当前版本：$version$", { version: verLabel(next.current) })}\n${text("updateReminder.latestVersion", "最新版本：$version$", { version: verLabel(latest.version || next.remote) })}`,
+        label: text("updateReminder.releaseNotes", "新版日志"),
         item: latest,
         actions: manual
           ? [
-              { id: "open", label: "打开官网下载", primary: true },
+              { id: "open", label: text("updateReminder.openDownload", "打开官网下载"), primary: true },
             ]
           : [
-              { id: "mute", label: "今天不再提醒" },
-              { id: "open", label: "打开官网下载", primary: true },
+              { id: "mute", label: text("updateReminder.muteToday", "今天不再提醒") },
+              { id: "open", label: text("updateReminder.openDownload", "打开官网下载"), primary: true },
             ],
       }).then((action) => {
         if (action === "open") {
@@ -1696,10 +1721,10 @@
 
     if (manual) {
       ctx.dialog(shadow, {
-        title: "未发现新版本",
-        message: "当前已是最新版本。",
+        title: text("about.update.noNewTitle", "未发现新版本"),
+        message: text("about.update.latestMessage", "当前已是最新版本。"),
         actions: [
-          { id: "ok", label: "确认", primary: true },
+          { id: "ok", label: text("common.confirm", "确认"), primary: true },
         ],
       });
     }
@@ -1708,7 +1733,10 @@
   async function check(shadow, ctx, manual = false) {
     if (busy) {
       if (manual) {
-        ctx.dialog(shadow, { title: "检查更新", message: "正在检查更新，请稍候。" });
+        ctx.dialog(shadow, {
+          title: text("about.update.checkTitle", "检查更新"),
+          message: text("about.update.checkingMessage", "正在检查更新，请稍候。"),
+        });
       }
       return;
     }
@@ -1730,7 +1758,7 @@
       busy = false;
       ctx.refresh("about");
       if (manual) {
-        ctx.dialog(shadow, { title: "检查更新失败", message: error?.message || String(error) });
+        ctx.dialog(shadow, { title: text("about.update.checkFailedTitle", "检查更新失败"), message: error?.message || String(error) });
       }
     }
   }
@@ -1767,26 +1795,26 @@
 
   function status(ctx) {
     if (busy) {
-      return { text: "检查中", cls: "" };
+      return { text: text("about.update.checking", "检查中"), cls: "" };
     }
     if (!info) {
-      return { text: "打开设置页后自动检查", cls: "" };
+      return { text: text("about.update.autoCheck", "打开设置页后自动检查"), cls: "" };
     }
     if (info.hasNew) {
-      return { text: `发现新版本 ${verLabel(info.latest?.version || info.remote, "")}`.trim(), cls: "warn" };
+      return { text: text("about.update.newVersion", "发现新版本 $version$", { version: verLabel(info.latest?.version || info.remote, "") }).trim(), cls: "warn" };
     }
     if (info.checkedAt) {
-      return { text: "已是最新", cls: "ok" };
+      return { text: text("about.update.latest", "已是最新"), cls: "ok" };
     }
-    return { text: "暂未检查", cls: "" };
+    return { text: text("about.update.notChecked", "暂未检查"), cls: "" };
   }
 
   function logText() {
     if (busy && !info) {
-      return "正在获取官网日志";
+      return text("about.update.fetchingLog", "正在获取官网日志");
     }
     if (!info) {
-      return "打开设置页后自动获取";
+      return text("about.update.autoFetchLog", "打开设置页后自动获取");
     }
     return logDesc(currentLog());
   }
@@ -1794,19 +1822,19 @@
   function logHtml(ctx) {
     const full = logText();
     const lines = logLines(full);
-    const preview = lines.slice(0, 5).join("\n").trim() || "暂无日志";
+    const preview = lines.slice(0, 5).join("\n").trim() || text("about.update.noLogShort", "暂无日志");
     const more = lines.length > 5 || full.length > 180;
     return `
       <span class="about-log-block">
         <span class="about-text about-log-text about-log-preview">${ctx.esc(preview)}</span>
-        ${more ? '<button class="about-log-more" type="button" data-about-log="current">查看更多</button>' : ""}
+        ${more ? `<button class="about-log-more" type="button" data-about-log="current">${ctx.esc(text("about.update.viewMore", "查看更多"))}</button>` : ""}
       </span>
     `;
   }
 
   function updateLink(ctx) {
     const target = info?.link || home(ctx);
-    return `<a class="about-update-link" ${externalAttributes(ctx, target)}>立即查看</a>`;
+    return `<a class="about-update-link" ${externalAttributes(ctx, target)}>${ctx.esc(text("about.update.viewNow", "立即查看"))}</a>`;
   }
 
   function actionCard(ctx, item) {
@@ -1825,7 +1853,8 @@
   }
 
   function donorName(value) {
-    const name = String(value || "匿名支持者").trim() || "匿名支持者";
+    const fallback = text("about.support.anonymous", "匿名支持者");
+    const name = String(value || fallback).trim() || fallback;
     return name.length > 24 ? `${name.slice(0, 24)}...` : name;
   }
 
@@ -1838,7 +1867,7 @@
   function donorChip(ctx, item) {
     const amount = donorAmount(item);
     const message = String(item.message || "").trim();
-    const title = ["感谢支持 Steam Buff", item.createdAt || ""].filter(Boolean).join(" · ");
+    const title = [text("about.support.thankYou", "感谢支持 Steam Buff"), item.createdAt || ""].filter(Boolean).join(" · ");
     return `
       <span class="about-donor-chip" title="${ctx.esc(title)}">
         ${item.avatar ? `<img alt="" src="${ctx.esc(item.avatar)}" loading="lazy">` : "<span>❤</span>"}
@@ -1854,8 +1883,8 @@
     if (!list.length) {
       return `
         <div class="about-donors-empty">
-          <span>成为第一位支持者 ❤</span>
-          <a class="about-action-link gold" ${externalAttributes(ctx, DONATE_URL)}>去支持 ↗</a>
+          <span>${ctx.esc(text("about.support.beFirst", "成为第一位支持者 ❤"))}</span>
+          <a class="about-action-link gold" ${externalAttributes(ctx, DONATE_URL)}>${ctx.esc(text("about.support.action", "去支持"))} ↗</a>
         </div>
       `;
     }
@@ -1870,7 +1899,7 @@
   function openSourceHtml(ctx) {
     const links = OPEN_SOURCE_LIBS.map(item => `
       <a class="about-open-source-link" ${externalAttributes(ctx, item.url)}>
-        <span>${ctx.esc(item.name)}</span> ↗
+        <span>${ctx.esc(text(item.nameKey, item.name))}</span> ↗
       </a>
     `).join("");
     return `
@@ -1878,7 +1907,7 @@
         <div class="about-open-source-head">
           <div class="about-open-source-title">
             <span class="about-card-icon">${icon("code")}</span>
-            <span>开放源代码库</span>
+            <span>${ctx.esc(text("about.openSource.title", "开放源代码库"))}</span>
           </div>
         </div>
         <div class="about-open-source-grid">
@@ -1892,7 +1921,7 @@
     const url = home(ctx);
     const feedbackUrl = FEEDBACK_URL || url;
     const appIcon = appIconUrl();
-    const current = ctx.version() || "未知版本";
+    const current = ctx.version() || text("about.common.unknownVersion", "未知版本");
     const state = status(ctx);
     const googleWebStore = isGoogleWebStore();
     const health = logHealth();
@@ -1900,54 +1929,54 @@
       actionCard(ctx, {
         action: "project-home",
         icon: "globe",
-        title: "项目主页",
-        desc: "访问官网获取最新动态",
-        actions: `<a class="about-action-link" ${externalAttributes(ctx, url)}>打开官网 ↗</a>`,
+        title: text("about.card.home.title", "项目主页"),
+        desc: text("about.card.home.desc", "访问官网获取最新动态"),
+        actions: `<a class="about-action-link" ${externalAttributes(ctx, url)}>${ctx.esc(text("about.card.home.action", "打开官网"))} ↗</a>`,
       }),
       actionCard(ctx, {
         action: "feedback",
         icon: "feedback",
-        title: "问题反馈",
-        desc: "提交 Bug 或功能建议",
-        actions: `<a class="about-action-link" ${externalAttributes(ctx, feedbackUrl)}>提交反馈 ↗</a>`,
+        title: text("about.card.feedback.title", "问题反馈"),
+        desc: text("about.card.feedback.desc", "提交 Bug 或功能建议"),
+        actions: `<a class="about-action-link" ${externalAttributes(ctx, feedbackUrl)}>${ctx.esc(text("about.card.feedback.action", "提交反馈"))} ↗</a>`,
       }),
       actionCard(ctx, {
         action: "version-log",
         icon: "logs",
-        title: "版本日志",
-        desc: "查看当前版本更新内容",
-        actions: '<button class="about-action-link about-log-more" type="button" data-about-log="current">查看日志 ↗</button>',
+        title: text("about.card.versionLog.title", "版本日志"),
+        desc: text("about.card.versionLog.desc", "查看当前版本更新内容"),
+        actions: `<button class="about-action-link about-log-more" type="button" data-about-log="current">${ctx.esc(text("about.card.versionLog.action", "查看日志"))} ↗</button>`,
       }),
       actionCard(ctx, {
         action: "diag-log",
         icon: "pulse",
-        title: `日志 <span class="about-log-health ${health.cls}" title="${ctx.esc(health.title)}"></span>`,
+        title: `${ctx.esc(text("about.card.logs.title", "日志"))} <span class="about-log-health ${health.cls}" title="${ctx.esc(health.title)}"></span>`,
         desc: ctx.esc(logSummary()),
         mono: true,
-        actions: '<button class="about-action-link about-log-export" type="button">导出日志</button><button class="about-action-link danger divider about-log-clear" type="button">清空日志</button>',
+        actions: `<button class="about-action-link about-log-export" type="button">${ctx.esc(text("about.card.logs.export", "导出日志"))}</button><button class="about-action-link danger divider about-log-clear" type="button">${ctx.esc(text("about.card.logs.clear", "清空日志"))}</button>`,
       }),
       actionCard(ctx, {
         action: "settings-backup",
         icon: "backup",
-        title: "设置备份",
-        desc: "导入导出功能与个性化配置",
+        title: text("about.card.backup.title", "设置备份"),
+        desc: text("about.card.backup.desc", "导入导出功能与个性化配置"),
         extra: `
-          <label class="about-settings-toggle-wrap" title="包含 AI 密钥等敏感配置">
-            <span>含密钥</span>
+          <label class="about-settings-toggle-wrap" title="${ctx.esc(text("about.card.backup.sensitiveTitle", "包含 AI 密钥等敏感配置"))}">
+            <span>${ctx.esc(text("about.card.backup.sensitive", "含密钥"))}</span>
             <input class="about-settings-sensitive" type="checkbox">
             <span class="about-settings-sensitive-toggle"></span>
           </label>
           <input class="about-settings-file" type="file" accept="application/json,.json" hidden>
         `,
-        actions: '<button class="about-action-link about-settings-export" type="button">导出</button><button class="about-action-link divider about-settings-import" type="button">导入</button>',
+        actions: `<button class="about-action-link about-settings-export" type="button">${ctx.esc(text("common.export", "导出"))}</button><button class="about-action-link divider about-settings-import" type="button">${ctx.esc(text("common.import", "导入"))}</button>`,
       }),
       actionCard(ctx, {
         action: "support-author",
         icon: "heart",
-        title: "支持作者",
-        desc: "一杯咖啡，让更新更有动力",
+        title: text("about.card.support.title", "支持作者"),
+        desc: text("about.card.support.desc", "一杯咖啡，让更新更有动力"),
         gold: true,
-        actions: `<a class="about-action-link gold" ${externalAttributes(ctx, DONATE_URL)}>去支持 ↗</a>`,
+        actions: `<a class="about-action-link gold" ${externalAttributes(ctx, DONATE_URL)}>${ctx.esc(text("about.support.action", "去支持"))} ↗</a>`,
       }),
     ];
     return `
@@ -1962,7 +1991,7 @@
               <span class="about-version-tag">${ctx.esc(verLabel(current))}</span>
             </div>
             <div class="about-hero-meta">
-              <span>给 Steam 客户端加个 Buff</span>
+              <span>${ctx.esc(text("about.tagline", "给 Steam 客户端加个 Buff"))}</span>
             </div>
           </div>
           <div class="about-hero-actions">
@@ -1971,7 +2000,7 @@
             ${googleWebStore ? "" : `
               <button class="about-check update-check" type="button" ${busy ? "disabled" : ""}>
                 ${busy ? '<span class="about-spinner"></span>' : icon("refresh")}
-                <span>检查更新</span>
+                <span>${ctx.esc(text("about.update.checkTitle", "检查更新"))}</span>
               </button>
             `}
           </div>
@@ -1985,7 +2014,7 @@
           <div class="about-donors-head">
             <div class="about-donors-title">
               ${icon("heart")}
-              <span>感谢以下用户捐赠，排名不分先后。</span>
+              <span>${ctx.esc(text("about.support.listTitle", "感谢以下用户捐赠，排名不分先后。"))}</span>
             </div>
           </div>
           ${donorsHtml(ctx)}
@@ -1993,7 +2022,7 @@
 
         ${openSourceHtml(ctx)}
 
-        <div class="about-footer">Steam Buff · 个人非商业项目 · GPL v3 · © 2026 顾青离</div>
+        <div class="about-footer">Steam Buff · ${ctx.esc(text("about.footer.personalProject", "个人非商业项目"))} · GPL v3 · © 2026 Ricky</div>
       </div>
     `;
   }
@@ -2043,7 +2072,7 @@
   }
 
   function emptyUpdateInfo(ctx) {
-    const current = ctx.version() || "未知版本";
+    const current = ctx.version() || text("about.common.unknownVersion", "未知版本");
     return {
       current,
       remote: "",
