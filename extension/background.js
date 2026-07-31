@@ -358,6 +358,7 @@
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
   const AI_FETCH_TIMEOUT_MS = 20 * 1000;
   const AI_FETCH_TIMEOUT_MAX_MS = 120 * 1000;
+  const AI_GATEWAY_PERMISSION_REQUEST = "AI_GATEWAY_PERMISSION_REQUEST";
   const AI_STREAM_PORT = "AI_CHAT_COMPLETIONS_STREAM";
   const AI_FORECAST_SESSION_STORAGE_PREFIX = "st.aiDiscountForecast.session.v1.";
   const AI_FORECAST_SESSION_CLEANUP_ALARM = "steam-buff-ai-forecast-session-cleanup";
@@ -1511,6 +1512,70 @@
     return Number.isFinite(limit) ? limit : 10;
   }
 
+  function aiGatewayPermissionPattern(value) {
+    return globalThis.STAI?.hostPermissionPattern?.(value) || "";
+  }
+
+  function hasAiGatewayPermission(value) {
+    const origin = aiGatewayPermissionPattern(value);
+    if (!origin) {
+      return Promise.resolve(false);
+    }
+    if (!chrome.permissions?.contains) {
+      const error = new Error("AI 网关权限检查不可用");
+      error.code = "AI_HOST_PERMISSION_UNAVAILABLE";
+      return Promise.reject(error);
+    }
+    return new Promise((resolve, reject) => {
+      chrome.permissions.contains({ origins: [origin] }, (granted) => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          const next = new Error(error.message || "AI 网关权限检查失败");
+          next.code = "AI_HOST_PERMISSION_CHECK_FAILED";
+          reject(next);
+          return;
+        }
+        resolve(granted === true);
+      });
+    });
+  }
+
+  function requestAiGatewayPermission(request, sender, sendResponse) {
+    if (!isSettingsSender(sender)) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SENDER_REJECTED", error: "AI 网关权限申请来源无效" });
+      return;
+    }
+    const origin = aiGatewayPermissionPattern(request?.host);
+    if (!origin) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_INVALID", error: "无效的 AI 网关地址" });
+      return;
+    }
+    if (!chrome.permissions?.request) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_UNAVAILABLE", error: "AI 网关权限申请不可用" });
+      return;
+    }
+    chrome.permissions.request({ origins: [origin] }, (granted) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        sendResponse({
+          success: false,
+          granted: false,
+          code: "AI_HOST_PERMISSION_REQUEST_FAILED",
+          error: error.message || "AI 网关权限申请失败",
+        });
+        return;
+      }
+      sendResponse({
+        success: granted === true,
+        granted: granted === true,
+        ...(granted === true ? {} : {
+          code: "AI_HOST_PERMISSION_DENIED",
+          error: "未获得当前 AI 网关的访问权限",
+        }),
+      });
+    });
+  }
+
   function drainAiQueue() {
     while (aiQueue.length) {
       const task = aiQueue[0];
@@ -1588,14 +1653,22 @@
 
     const timeoutMs = capTimeout(request.timeoutMs, AI_FETCH_TIMEOUT_MS, AI_FETCH_TIMEOUT_MAX_MS);
     const limit = aiLimit(request.ai);
-    runAiLimited(limit, () => fetchAiChat(url.toString(), next, timeoutMs))
+    hasAiGatewayPermission(url.toString())
+      .then((granted) => {
+        if (!granted) {
+          const error = new Error("未获得当前 AI 网关的访问权限，请在设置中心重新保存 AI 配置并允许访问");
+          error.code = "AI_HOST_PERMISSION_REQUIRED";
+          throw error;
+        }
+        return runAiLimited(limit, () => fetchAiChat(url.toString(), next, timeoutMs));
+      })
       .then((res) => {
         sendResponse({ success: true, text: res.content, status: res.status });
       })
       .catch((error) => {
         const msg = error.message || String(error);
         logError("ai", "request-failed", "AI 请求失败", error);
-        sendResponse({ success: false, error: msg });
+        sendResponse({ success: false, code: error?.code || "AI_REQUEST_FAILED", error: msg });
       });
   }
 
@@ -1781,24 +1854,31 @@
 
       const timeoutMs = capTimeout(request.timeoutMs, AI_FETCH_TIMEOUT_MAX_MS, AI_FETCH_TIMEOUT_MAX_MS);
       const limit = aiLimit(request.ai);
-      backgroundLogger("ai").info("ai-stream-request-start", "AI 流式请求开始", {
-        operationId,
-        requestId,
-        model,
-        messageCount: request.messages.length,
-      });
-      streamPortPost(port, { event: "start", requestId, operationId });
-      runAiLimited(limit, () => fetchAiChatStream(
-        url.toString(),
-        next,
-        timeoutMs,
-        controller,
-        chunk => {
-          if (!streamPortPost(port, { event: "delta", text: chunk, requestId, operationId })) {
-            throw new Error("AI 流式通道已断开");
-          }
+      hasAiGatewayPermission(url.toString()).then((granted) => {
+        if (!granted) {
+          const error = new Error("未获得当前 AI 网关的访问权限，请在设置中心重新保存 AI 配置并允许访问");
+          error.code = "AI_HOST_PERMISSION_REQUIRED";
+          throw error;
         }
-      )).then((result) => {
+        backgroundLogger("ai").info("ai-stream-request-start", "AI 流式请求开始", {
+          operationId,
+          requestId,
+          model,
+          messageCount: request.messages.length,
+        });
+        streamPortPost(port, { event: "start", requestId, operationId });
+        return runAiLimited(limit, () => fetchAiChatStream(
+          url.toString(),
+          next,
+          timeoutMs,
+          controller,
+          chunk => {
+            if (!streamPortPost(port, { event: "delta", text: chunk, requestId, operationId })) {
+              throw new Error("AI 流式通道已断开");
+            }
+          }
+        ));
+      }).then((result) => {
         if (disconnected) return;
         backgroundLogger("ai").info("ai-stream-request-success", "AI 流式请求完成", {
           operationId,
@@ -2385,6 +2465,7 @@
     TRANSLATE_INJECT: "翻译 runner 按需注入",
     CONTENT_FILES_INJECT: "当前 frame 内容脚本按需注入",
     [STEAM_LOOPBACK_INJECT_REQUEST]: "Steam CEF 白名单 frame 按需注入",
+    [AI_GATEWAY_PERMISSION_REQUEST]: "用户操作触发的 AI 网关按域名授权",
     AI_CHAT_COMPLETIONS: "AI 网关连接测试与翻译代理",
     AI_TRANSLATE_CACHE_GET: "AI 翻译缓存读取",
     AI_TRANSLATE_CACHE_SET: "AI 翻译缓存写入",
@@ -2402,6 +2483,7 @@
     TRANSLATE_INJECT: translateInject,
     CONTENT_FILES_INJECT: injectContentFiles,
     [STEAM_LOOPBACK_INJECT_REQUEST]: steamLoopbackInjectRequest,
+    [AI_GATEWAY_PERMISSION_REQUEST]: requestAiGatewayPermission,
     AI_CHAT_COMPLETIONS: aiChat,
     AI_TRANSLATE_CACHE_GET: cacheGet,
     AI_TRANSLATE_CACHE_SET: cacheSet,

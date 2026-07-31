@@ -27,6 +27,7 @@
     STORE_FETCH: { timeoutMs: 12 * 1000, owner: "network" },
     TRANSLATE_INJECT: { timeoutMs: 12 * 1000, owner: "translate" },
     UPDATE_CHECK: { timeoutMs: 10 * 1000, owner: "settings" },
+    AI_GATEWAY_PERMISSION_REQUEST: { timeoutMs: 0, owner: "ai" },
     AI_CHAT_COMPLETIONS: { timeoutMs: 20 * 1000, owner: "ai" },
     AI_CHAT_COMPLETIONS_STREAM: { timeoutMs: 120 * 1000, owner: "ai" },
     AI_TRANSLATE_CACHE_GET: { timeoutMs: 8 * 1000, owner: "translate" },

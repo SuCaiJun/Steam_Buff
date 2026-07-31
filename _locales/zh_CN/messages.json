@@ -3885,6 +3885,12 @@
   "settings_ai_saveFailed": {
     "message": "AI 配置未能保存，请稍后重试。"
   },
+  "settings_ai_permissionDenied": {
+    "message": "未获得当前 AI 网关的访问权限，请允许访问后重试。"
+  },
+  "settings_ai_permissionFailed": {
+    "message": "AI 网关访问权限申请失败，请稍后重试。"
+  },
   "settings_ai_test_enableFirst": {
     "message": "请先启用 AI模块。"
   },

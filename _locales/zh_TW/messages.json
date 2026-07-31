@@ -3885,6 +3885,12 @@
   "settings_ai_saveFailed": {
     "message": "AI 設定無法儲存，請稍後再試。"
   },
+  "settings_ai_permissionDenied": {
+    "message": "未取得目前 AI 閘道的存取權限，請允許存取後再試。"
+  },
+  "settings_ai_permissionFailed": {
+    "message": "AI 閘道存取權限申請失敗，請稍後再試。"
+  },
   "settings_ai_test_enableFirst": {
     "message": "請先啟用 AI 模組。"
   },

@@ -28,8 +28,6 @@
     "activeTab"
   ],
   "host_permissions": [
-    "http://*/*",
-    "https://*/*",
     "https://steamloopback.host/*",
     "https://*.steampowered.com/*",
     "https://steampowered.com/*",
@@ -45,6 +43,10 @@
     "https://aligueler.com/*",
     "https://steam-buff.ai.sucaijun.com/*",
     "https://steam-buff.sucaijun.com/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "extension/background.js"

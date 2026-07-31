@@ -12,6 +12,7 @@
   "use strict";
 
   const AI_SERVICE = "steam-buff.ai";
+  const AI_GATEWAY_PERMISSION_REQUEST = "AI_GATEWAY_PERMISSION_REQUEST";
   const log = root.STLoggerFactory.createLogger("settings", "ai");
 
   function fallback(value, name) {
@@ -219,6 +220,43 @@
       });
     }
 
+    function requestAiGatewayPermission(ai, operationId = "") {
+      if (ai?.enabled !== true || !ai?.host) {
+        return Promise.resolve(true);
+      }
+      const payload = {
+        type: AI_GATEWAY_PERMISSION_REQUEST,
+        operationId,
+        host: ai.host,
+      };
+      let job;
+      if (globalThis.STMessageBus?.send) {
+        job = globalThis.STMessageBus.send(payload, { timeoutMs: 0 });
+      } else {
+        job = new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage(payload, (response) => {
+            const error = chrome.runtime.lastError;
+            if (error) {
+              reject(new Error(error.message || String(error)));
+              return;
+            }
+            resolve(response || null);
+          });
+        });
+      }
+      return job.then((response) => {
+        if (response?.granted === true) {
+          return true;
+        }
+        const denied = response?.code === "AI_HOST_PERMISSION_DENIED";
+        const error = new Error(denied
+          ? uiText("settings.ai.permissionDenied", "未获得当前 AI 网关的访问权限，请允许访问后重试。")
+          : uiText("settings.ai.permissionFailed", "AI 网关访问权限申请失败，请稍后重试。"));
+        error.code = response?.code || "AI_HOST_PERMISSION_REQUEST_FAILED";
+        throw error;
+      });
+    }
+
     function testAi(shadow, button) {
       const next = read(shadow);
       const testConf = normalize({ ...conf, ...next });
@@ -246,7 +284,7 @@
       const operationId = root.STLoggerFactory?.createOperationId?.() || "";
       log.info("ai-test-start", "开始测试 AI 连接", { operationId, enabled: testConf.enabled === true });
       try {
-        sendAiTest(testConf, operationId).then((response) => {
+        requestAiGatewayPermission(testConf, operationId).then(() => sendAiTest(testConf, operationId)).then((response) => {
           const used = ((performance.now() - started) / 1000).toFixed(1);
           if (button) {
             button.disabled = false;
@@ -362,16 +400,17 @@
         }
       }
       const previous = normalize(persistedConf);
-      conf = nextConf;
-      publishConfig();
       const startedAt = Date.now();
       const operationId = root.STLoggerFactory?.createOperationId?.() || "";
+      const permissionJob = requestAiGatewayPermission(nextConf, operationId);
+      conf = nextConf;
+      publishConfig();
       log.info("ai-config-save-start", "开始保存 AI 配置", { operationId, enabled: nextConf.enabled === true });
       const oldText = save.textContent || "";
       save.disabled = true;
       save.textContent = uiText("common.saving", "保存中...");
       setInputsDisabled(shadow, true);
-      Promise.resolve()
+      permissionJob
         .then(() => typeof storage.setAi === "function"
           ? storage.setAi(next, { operationId })
           : false)

@@ -245,7 +245,7 @@
     account: join(ORIGINS.site, "/user/data"),
     donate: join(ORIGINS.site, "/supporter/golink/"),
     feedback: join(ORIGINS.site, "/forum/468.html"),
-    onboardingTutorial: join(ORIGINS.site, "/forum/562.html"),
+    onboardingTutorial: join(ORIGINS.site, "/guide/steam-buff-guide"),
     vip: join(ORIGINS.site, "/user/vip/"),
     helpSearch,
     aiTranslateProxy: join(ORIGINS.aiProxy, "/"),

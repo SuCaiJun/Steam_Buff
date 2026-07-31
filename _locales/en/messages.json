@@ -3885,6 +3885,12 @@
   "settings_ai_saveFailed": {
     "message": "The AI configuration could not be saved. Try again later."
   },
+  "settings_ai_permissionDenied": {
+    "message": "Access to the current AI gateway was not granted. Allow access and try again."
+  },
+  "settings_ai_permissionFailed": {
+    "message": "Unable to request access to the current AI gateway. Try again later."
+  },
   "settings_ai_test_enableFirst": {
     "message": "Enable the AI module first."
   },

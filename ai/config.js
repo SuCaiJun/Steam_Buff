@@ -147,6 +147,19 @@
     }
   }
 
+  function hostPermissionPattern(value) {
+    const raw = typeof value === "object" && value !== null ? value.host : value;
+    try {
+      const url = new URL(str(raw));
+      if ((url.protocol !== "http:" && url.protocol !== "https:") || !url.hostname) {
+        return "";
+      }
+      return `${url.protocol}//${url.hostname}/*`;
+    } catch {
+      return "";
+    }
+  }
+
   function temp(value) {
     const num = Number(value);
     return Number.isFinite(num) ? num : null;
@@ -279,6 +292,7 @@
     normalize,
     concurrency,
     endpoint,
+    hostPermissionPattern,
     chatRequest,
     chatStreamRequest,
     chatText,
