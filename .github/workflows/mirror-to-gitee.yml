@@ -1,0 +1,91 @@
+name: Mirror GitHub to Gitee
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "**"
+  delete:
+  release:
+    types:
+      - published
+      - edited
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-github-to-gitee
+  cancel-in-progress: false
+
+env:
+  GITEE_REPOSITORY: sys1em/Steam_Buff
+  GITEE_USER: sys1em
+
+jobs:
+  mirror-git:
+    name: Mirror branches and tags
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Mirror Git refs to Gitee
+        shell: bash
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$GITEE_TOKEN"
+
+          credentials_file="$HOME/.git-credentials"
+          mirror_dir="$RUNNER_TEMP/github-mirror.git"
+          github_refs="$RUNNER_TEMP/github.refs"
+          gitee_refs="$RUNNER_TEMP/gitee.refs"
+          trap 'rm -f "$credentials_file"' EXIT
+
+          encoded_token="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["GITEE_TOKEN"], safe=""))')"
+          printf 'https://%s:%s@gitee.com\n' "$GITEE_USER" "$encoded_token" > "$credentials_file"
+          chmod 600 "$credentials_file"
+          git config --global credential.helper store
+
+          git clone --mirror "https://github.com/${GITHUB_REPOSITORY}.git" "$mirror_dir"
+          git -C "$mirror_dir" push --force --prune "https://gitee.com/${GITEE_REPOSITORY}.git" \
+            'refs/heads/*:refs/heads/*' \
+            'refs/tags/*:refs/tags/*'
+
+          git ls-remote --heads --tags "https://github.com/${GITHUB_REPOSITORY}.git" | sort > "$github_refs"
+          git ls-remote --heads --tags "https://gitee.com/${GITEE_REPOSITORY}.git" | sort > "$gitee_refs"
+          diff -u "$github_refs" "$gitee_refs"
+
+  mirror-release:
+    name: Mirror release metadata and assets
+    if: github.event_name == 'release'
+    needs: mirror-git
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out release sync script
+        uses: actions/checkout@v4
+
+      - name: Download GitHub Release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$RUNNER_TEMP/release-assets" \
+            --clobber
+
+      - name: Create or update Gitee Release
+        shell: pwsh
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          .github/scripts/sync-gitee-release.ps1 `
+            -EventPath $env:GITHUB_EVENT_PATH `
+            -AssetDirectory "$env:RUNNER_TEMP/release-assets"
