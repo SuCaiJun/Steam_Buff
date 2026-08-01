@@ -49,8 +49,8 @@ jobs:
           export GIT_HTTP_LOW_SPEED_LIMIT=1
           export GIT_HTTP_LOW_SPEED_TIME=30
 
-          github_auth_header="AUTHORIZATION: bearer ${GITHUB_TOKEN}"
-          timeout 120s git -c "http.extraheader=${github_auth_header}" clone --mirror "https://github.com/${GITHUB_REPOSITORY}.git" "$mirror_dir"
+          github_repo_url="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          timeout 120s git clone --mirror "$github_repo_url" "$mirror_dir"
           timeout 120s git -C "$mirror_dir" push --force --prune "$gitee_push_url" \
             'refs/heads/*:refs/heads/*' \
             'refs/tags/*:refs/tags/*'
