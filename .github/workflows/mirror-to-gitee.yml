@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out all GitHub refs
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -63,7 +63,9 @@ jobs:
               sed 's# refs/remotes/origin/# refs/heads/#'
             git for-each-ref --format='%(objectname) %(refname)' refs/tags
           } | sort > "$github_refs"
-          timeout 30s git ls-remote --heads --tags "$gitee_push_url" | sort > "$gitee_refs"
+          # Normalize git ls-remote's tab-separated output before comparing refs.
+          timeout 30s git ls-remote --heads --tags "$gitee_push_url" |
+            awk '{ print $1 " " $2 }' | sort > "$gitee_refs"
           diff -u "$github_refs" "$gitee_refs"
 
   mirror-release:
@@ -74,7 +76,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out release sync script
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download GitHub Release assets
         shell: bash
