@@ -38,24 +38,23 @@ jobs:
           set -euo pipefail
           test -n "$GITEE_TOKEN"
 
-          credentials_file="$HOME/.git-credentials"
           mirror_dir="$RUNNER_TEMP/github-mirror.git"
           github_refs="$RUNNER_TEMP/github.refs"
           gitee_refs="$RUNNER_TEMP/gitee.refs"
-          trap 'rm -f "$credentials_file"' EXIT
 
           encoded_token="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["GITEE_TOKEN"], safe=""))')"
-          printf 'https://%s:%s@gitee.com\n' "$GITEE_USER" "$encoded_token" > "$credentials_file"
-          chmod 600 "$credentials_file"
-          git config --global credential.helper store
+          gitee_push_url="https://${GITEE_USER}:${encoded_token}@gitee.com/${GITEE_REPOSITORY}.git"
+          export GIT_TERMINAL_PROMPT=0
+          export GIT_HTTP_LOW_SPEED_LIMIT=1
+          export GIT_HTTP_LOW_SPEED_TIME=30
 
           git clone --mirror "https://github.com/${GITHUB_REPOSITORY}.git" "$mirror_dir"
-          git -C "$mirror_dir" push --force --prune "https://gitee.com/${GITEE_REPOSITORY}.git" \
+          timeout 120s git -C "$mirror_dir" push --force --prune "$gitee_push_url" \
             'refs/heads/*:refs/heads/*' \
             'refs/tags/*:refs/tags/*'
 
           git ls-remote --heads --tags "https://github.com/${GITHUB_REPOSITORY}.git" | sort > "$github_refs"
-          git ls-remote --heads --tags "https://gitee.com/${GITEE_REPOSITORY}.git" | sort > "$gitee_refs"
+          timeout 30s git ls-remote --heads --tags "$gitee_push_url" | sort > "$gitee_refs"
           diff -u "$github_refs" "$gitee_refs"
 
   mirror-release:
