@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   group: mirror-github-to-gitee
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   GITEE_REPOSITORY: sys1em/Steam_Buff
@@ -30,16 +30,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Check out all GitHub refs
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
       - name: Mirror Git refs to Gitee
         shell: bash
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
           set -euo pipefail
           test -n "$GITEE_TOKEN"
 
-          mirror_dir="$RUNNER_TEMP/github-mirror.git"
           github_refs="$RUNNER_TEMP/github.refs"
           gitee_refs="$RUNNER_TEMP/gitee.refs"
 
@@ -49,13 +53,16 @@ jobs:
           export GIT_HTTP_LOW_SPEED_LIMIT=1
           export GIT_HTTP_LOW_SPEED_TIME=30
 
-          github_repo_url="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          timeout 120s git clone --mirror "$github_repo_url" "$mirror_dir"
-          timeout 120s git -C "$mirror_dir" push --force --prune "$gitee_push_url" \
-            'refs/heads/*:refs/heads/*' \
+          git update-ref -d refs/remotes/origin/HEAD || true
+          timeout 600s git push --force --prune "$gitee_push_url" \
+            'refs/remotes/origin/*:refs/heads/*' \
             'refs/tags/*:refs/tags/*'
 
-          git ls-remote --heads --tags "https://github.com/${GITHUB_REPOSITORY}.git" | sort > "$github_refs"
+          {
+            git for-each-ref --format='%(objectname) %(refname)' refs/remotes/origin | \
+              sed 's# refs/remotes/origin/# refs/heads/#'
+            git for-each-ref --format='%(objectname) %(refname)' refs/tags
+          } | sort > "$github_refs"
           timeout 30s git ls-remote --heads --tags "$gitee_push_url" | sort > "$gitee_refs"
           diff -u "$github_refs" "$gitee_refs"
 
