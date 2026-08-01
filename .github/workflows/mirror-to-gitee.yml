@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   group: mirror-github-to-gitee
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   GITEE_REPOSITORY: sys1em/Steam_Buff
