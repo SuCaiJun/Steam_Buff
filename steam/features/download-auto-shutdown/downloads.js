@@ -261,7 +261,7 @@
     s.hostHandle = host.register({
       id: ID,
       element,
-      order: 20,
+      order: 10,
       onActiveChange(active) {
         if (active && s.hostHandle) {
           sync(ch);

@@ -191,7 +191,7 @@
     state.hostHandle = host.register({
       id: ID,
       element,
-      order: 10,
+      order: 20,
       onActiveChange(active) {
         if (active && state.hostHandle) {
           sync();

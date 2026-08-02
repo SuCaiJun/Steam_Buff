@@ -688,10 +688,11 @@
         top: 99px;
         right: 57px;
         z-index: 999999;
-        height: 28px;
+        height: auto;
         display: flex;
-        align-items: center;
-        gap: var(--st-sdas-gap);
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
         font-family: var(--st-sdas-font);
         color: var(--st-sdas-text);
         pointer-events: auto;
@@ -791,7 +792,7 @@
       }
       #${DOWNLOAD_SURFACE_TOAST} {
         position: fixed;
-        top: 132px;
+        top: 164px;
         right: 54px;
         z-index: 1000000;
         max-width: 360px;
