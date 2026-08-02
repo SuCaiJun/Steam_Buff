@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -225,6 +225,8 @@
         "shared/styles/components.js",
         "steam/runtime/paths.js",
         "steam/runtime/steam-context.js",
+        "steam/runtime/context-router.js",
+        "steam/runtime/surface-hosts.js",
         "steam/runtime/cleanup-stale.js",
         "steam/runtime/styles.js",
         "steam/runtime/feature-registry.js",

@@ -18,6 +18,7 @@
   const FEATURE_PAGES = Object.freeze({
     "library-sort-title": Object.freeze(["SharedJSContext", "backend"]),
     "library-custom-name": Object.freeze(["SharedJSContext", "backend", "property-dialog"]),
+    "download-batch-actions": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/downloads", "downloads"]),
     "download-auto-shutdown": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/downloads", "downloads"]),
     "store-enhancements": Object.freeze([
       "store-details",

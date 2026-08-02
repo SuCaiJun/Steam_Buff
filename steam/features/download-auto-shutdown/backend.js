@@ -14,7 +14,6 @@
   const ID = "download-auto-shutdown";
   const SCHEDULER_TASK = "download-auto-shutdown-backend";
   const CH = "__steam_download_auto_shutdown_Ricky";
-  const DOWN = "/library/downloads";
   const POLL_MS = 30000;
   const IDLE_MS = 30000;
   const BIG_WAIT_MS = 10000;
@@ -73,15 +72,6 @@
       !!window.downloadsStore;
   }
 
-  function routeSources(api) {
-    const sources = api?.ctx?.routeSources?.() || {};
-    return {
-      tempNav: String(sources.tempNav || "").slice(0, 160),
-      mainWindowUrlRequested: String(sources.mainWindowUrlRequested || "").slice(0, 220),
-      mainWindowUrl: String(sources.mainWindowUrl || "").slice(0, 220),
-    };
-  }
-
   function readyMeta() {
     return {
       hasShutdownPC: typeof window.SteamClient?.System?.ShutdownPC === "function",
@@ -97,50 +87,97 @@
     return Array.isArray(value) ? value : [];
   }
 
-  function num(value) {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : 0;
+  function requireArray(value, name) {
+    if (!Array.isArray(value)) {
+      throw new TypeError(`Steam 下载状态字段 ${name} 不是数组`);
+    }
+    return value;
+  }
+
+  function requireNumber(value, name, options = {}) {
+    if (!Number.isFinite(value) || (options.integer === true && !Number.isInteger(value))) {
+      throw new TypeError(`Steam 下载状态字段 ${name} 不是有效数字`);
+    }
+    return value;
+  }
+
+  function requireBoolean(value, name) {
+    if (typeof value !== "boolean") {
+      throw new TypeError(`Steam 下载状态字段 ${name} 不是布尔值`);
+    }
+    return value;
+  }
+
+  function requireOverview(value) {
+    if (!value || typeof value !== "object") {
+      throw new TypeError("Steam 下载概览契约不可用");
+    }
+    if (typeof value.update_state !== "string" || !value.update_state) {
+      throw new TypeError("Steam 下载状态字段 update_state 不是有效字符串");
+    }
+    requireNumber(value.update_appid, "update_appid", { integer: true });
+    requireNumber(value.update_network_bytes_per_second, "update_network_bytes_per_second");
+    requireNumber(value.update_disc_bytes_per_second, "update_disc_bytes_per_second");
+    requireNumber(value.update_start_time, "update_start_time");
+    requireNumber(value.overall_percent_complete, "overall_percent_complete");
+    requireBoolean(value.paused, "paused");
+    return value;
+  }
+
+  function requireTransfer(value, index) {
+    if (!value || typeof value !== "object") {
+      throw new TypeError(`Steam 下载项目 ${index} 不是对象`);
+    }
+    requireNumber(value.appid, `AllTransfers[${index}].appid`, { integer: true });
+    requireNumber(value.queue_index, `AllTransfers[${index}].queue_index`, { integer: true });
+    requireNumber(value.completed_time, `AllTransfers[${index}].completed_time`);
+    requireBoolean(value.active, `AllTransfers[${index}].active`);
+    requireBoolean(value.completed, `AllTransfers[${index}].completed`);
+    return value;
   }
 
   function queued(item) {
-    return num(item?.queue_index) >= 0;
+    return item.queue_index >= 0;
   }
 
   function active(item) {
-    return !!item?.active || queued(item);
+    return item.active || queued(item);
   }
 
   function done(item) {
-    return item?.completed === true || num(item?.completed_time) > 0;
+    return item.completed || item.completed_time > 0;
   }
 
   function doneKey(item) {
-    return `${num(item?.appid)}:${num(item?.completed_time)}`;
+    return `${item.appid}:${item.completed_time}`;
   }
 
-  // downloadsStore 字段会随 Steam 版本变化，快照同时看当前任务、队列和已完成记录来判断下载状态。
+  // 这些字段由当前 CEF 对象与 Steam bundle 共同确认；契约失效时停止判断，不能按空队列处理。
   async function snap() {
     const ds = window.downloadsStore;
-    const ov = ds?.CurrentViewingDownloadOverview || ds?.LocalDownloadOverview || {};
-    const list = arr(ds?.AllTransfers);
-    const queue = arr(ds?.QueuedTransfers);
-    const later = arr(ds?.ScheduledTransfers);
+    if (!ds || typeof ds !== "object") {
+      throw new TypeError("Steam 下载状态仓库不可用");
+    }
+    const ov = requireOverview(ds.CurrentViewingDownloadOverview || ds.LocalDownloadOverview);
+    const list = requireArray(ds.AllTransfers, "AllTransfers").map(requireTransfer);
+    const queue = requireArray(ds.QueuedTransfers, "QueuedTransfers");
+    const later = requireArray(ds.ScheduledTransfers, "ScheduledTransfers");
     const act = list.filter(active);
     const finished = list.filter(done);
     const keys = finished.map(doneKey);
-    const actN = act.filter((item) => item?.active).length;
+    const actN = act.filter((item) => item.active).length;
     const queueN = Math.max(queue.length, act.filter(queued).length);
 
-    const upd = String(ov.update_state || "");
+    const upd = ov.update_state;
     const ovWork = !!(
       upd &&
       upd !== "None" &&
       (
-        num(ov.update_appid) > 0 ||
-        num(ov.update_network_bytes_per_second) > 0 ||
-        num(ov.update_disc_bytes_per_second) > 0 ||
-        num(ov.update_start_time) > 0 ||
-        ov.paused === true
+        ov.update_appid > 0 ||
+        ov.update_network_bytes_per_second > 0 ||
+        ov.update_disc_bytes_per_second > 0 ||
+        ov.update_start_time > 0 ||
+        ov.paused
       )
     );
 
@@ -152,12 +189,12 @@
       laterN: later.length,
       doneN: finished.length,
       keys,
-      upd: upd || "None",
-      appid: num(ov.update_appid),
-      paused: ov.paused === true,
-      net: num(ov.update_network_bytes_per_second),
-      disk: num(ov.update_disc_bytes_per_second),
-      pct: num(ov.overall_percent_complete),
+      upd,
+      appid: ov.update_appid,
+      paused: ov.paused,
+      net: ov.update_network_bytes_per_second,
+      disk: ov.update_disc_bytes_per_second,
+      pct: ov.overall_percent_complete,
       source: "downloadsStore",
     };
   }
@@ -165,8 +202,6 @@
   function pub(api, extra = {}) {
     const ch = chan();
     const reason = extra.reason;
-    const route = api.ctx?.route?.() || "";
-    const show = api.ctx?.isDown?.() === true || route === DOWN;
     if (reason) {
       s.reason = reason;
     }
@@ -178,9 +213,6 @@
       shut: !!s.shut,
       error: s.err || "",
       snap: s.snap || null,
-      route,
-      routeSources: routeSources(api),
-      show,
       ...extra,
       reason,
     });

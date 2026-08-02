@@ -19,7 +19,7 @@
     operationId: runtimeCorrelation.steamBuffRuntimeOperationId || "",
   });
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
-  const RUNTIME_VERSION = "steam-buff-runtime-v16";
+  const RUNTIME_VERSION = "steam-buff-runtime-v17";
   const RUNTIME_OPERATION_ATTR = "steamBuffRuntimeOperationId";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
@@ -225,6 +225,7 @@
     clearTimer(api.runtime?.timer, "runtime.timer");
     if (api.ctx?.isShared?.() !== true) {
       stopState("library-custom-name");
+      stopState("download-batch-actions");
       stopState("download-auto-shutdown");
       try {
         window.__SteamBuffNewsTranslate?.stop?.();

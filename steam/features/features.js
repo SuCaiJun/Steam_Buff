@@ -68,6 +68,30 @@
       },
     },
     {
+      id: "download-batch-actions",
+      name: "下载队列批量操作",
+      settingsKey: "download-batch-actions",
+      loadStrategy: "on-demand-entry",
+      modes: ["backend", "downloads"],
+      pageScope: ["SharedJSContext", "main-ui", "/library/downloads", "downloads"],
+      dependencies: ["shared/scheduler.js", "BroadcastChannel"],
+      cost: "user-action",
+      entries: {
+        backend: "backend.js",
+        downloads: "downloads.js",
+      },
+      shouldRun(api, context, ctx = {}) {
+        const on = ctx.settingOn?.("download-batch-actions") ?? api.ctx?.settingOn?.("download-batch-actions");
+        if (on === false) {
+          return false;
+        }
+        if (context === "backend") {
+          return true;
+        }
+        return context === "downloads" && api.ctx?.isMainUi?.() === true;
+      },
+    },
+    {
       id: "download-auto-shutdown",
       name: "下载完成后自动关机",
       settingsKey: "download-auto-shutdown",

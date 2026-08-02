@@ -856,6 +856,14 @@
           ]),
         },
         {
+          id: "download-batch-actions",
+          name: "下载队列批量操作",
+          desc: "在下载管理页提供全部开始、全部暂停和全部移除操作",
+          help: "下载队列批量操作",
+          area: "steam",
+          enabled: true,
+        },
+        {
           id: "download-auto-shutdown",
           name: "下载完成自动关机",
           desc: "下载队列完成后约延迟30-60秒后执行关机动作",

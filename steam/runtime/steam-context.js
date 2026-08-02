@@ -14,29 +14,10 @@
   const api = window.SteamBuff = window.SteamBuff || {};
   const SORT_LABEL_RE = /自定义排序名称|自訂排序名稱|自定義排序名稱|Custom Sort|カスタムソート|カスタム並び替え|사용자 지정 정렬|사용자 정의 정렬/i;
   const PROPERTY_PANEL_SELECTOR = "[role='tabpanel'][id*='/app/'][id*='/properties/']";
-  const DOWNLOAD_ACTION_RE = /^(继续下载|立即下载|恢复下载|暂停下载|resume download|download now|pause download)$/i;
-  const DOWNLOAD_EMPTY_RE = /队列中无下载|no downloads(?:\s+in\s+(?:the\s+)?queue|\s+queued)?|download queue is empty|nothing (?:is )?(?:currently )?downloading/i;
-  const DOWNLOAD_PANEL_RE = /即将进行|已启用自动更新|网络\s*\d|磁盘使用量\s*\d|scheduled|automatic updates|network\s*\d|disk usage\s*\d/i;
-  const DOWNLOAD_HEADER_RE = Object.freeze([
-    /网络\s*\d|network\s*\d/i,
-    /峰值\s*\d|peak\s*\d/i,
-    /磁盘使用量\s*\d|disk usage\s*\d/i,
-  ]);
-  const DOWNLOAD_PANEL_SELECTORS = Object.freeze([
-    "#popup_target [class~='Panel']",
-    "#popup_target [role='main']",
-    "#popup_target main",
-    "#popup_target section",
-  ]);
-  const DOWNLOAD_PANEL_SCAN_LIMIT = 512;
   const SORT_UI_HIT_CACHE_MS = 1200;
   const SORT_UI_MISS_CACHE_MS = 150;
-  const DOWNLOAD_UI_HIT_CACHE_MS = 1200;
-  const DOWNLOAD_UI_MISS_CACHE_MS = 250;
   let sortUiCacheAt = 0;
   let sortUiCacheValue = false;
-  let downloadUiCacheAt = 0;
-  let downloadUiCacheValue = false;
 
   /* Steam 客户端上下文识别 */
   function isShared() {
@@ -116,18 +97,6 @@
     return true;
   }
 
-  function visible(el) {
-    if (!el || !el.isConnected || el.nodeType !== 1) {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    if (rect.width < 2 || rect.height < 2) {
-      return false;
-    }
-    const style = window.getComputedStyle(el);
-    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity || 1) !== 0;
-  }
-
   function nearText(el) {
     let cur = el;
     let out = "";
@@ -167,84 +136,6 @@
     return sortUiCacheValue;
   }
 
-  function detectDownloadsUi() {
-    if (!isMainUi()) {
-      return false;
-    }
-    const buttons = document.querySelectorAll("button[aria-label]");
-    for (const button of buttons) {
-      if (DOWNLOAD_ACTION_RE.test(button.getAttribute("aria-label") || "") && visible(button)) {
-        return true;
-      }
-    }
-    return hasDownloadsHeaderUi() || hasDownloadsEmptyUi();
-  }
-
-  function normalizeText(el) {
-    return String(el?.textContent || "").replace(/\s+/g, " ").trim();
-  }
-
-  function downloadPanelCandidates() {
-    const out = [];
-    const seen = new Set();
-    for (const selector of DOWNLOAD_PANEL_SELECTORS) {
-      let nodes = [];
-      try {
-        nodes = document.querySelectorAll(selector);
-      } catch {
-        continue;
-      }
-      for (const node of nodes) {
-        if (!node || seen.has(node) || node === document.body || node === document.documentElement) {
-          continue;
-        }
-        seen.add(node);
-        out.push(node);
-        if (out.length >= DOWNLOAD_PANEL_SCAN_LIMIT) {
-          return out;
-        }
-      }
-    }
-    return out;
-  }
-
-  function hasDownloadsEmptyUi() {
-    const candidates = downloadPanelCandidates();
-    for (const el of candidates) {
-      const text = normalizeText(el);
-      // 优化: 空队列兜底只在少量 Steam 面板候选命中文字后检查可见性，避免全页 div 回流扫描。
-      if (DOWNLOAD_EMPTY_RE.test(text) && DOWNLOAD_PANEL_RE.test(text) && visible(el)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function hasDownloadsHeaderUi() {
-    const candidates = downloadPanelCandidates();
-    for (const el of candidates) {
-      const text = normalizeText(el);
-      const hits = DOWNLOAD_HEADER_RE.reduce((count, item) => count + (item.test(text) ? 1 : 0), 0);
-      // 优化: 下载页顶部速率指标比队列正文更早渲染，命中两个以上指标才做可见性检查，避免库页下载状态误判。
-      if (hits >= 2 && visible(el)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /* 注: Steam 空下载队列没有继续/暂停按钮，下载管理页识别必须同时覆盖空队列面板。 */
-  function hasDownloadsUi() {
-    const at = Date.now();
-    const cacheMs = downloadUiCacheValue ? DOWNLOAD_UI_HIT_CACHE_MS : DOWNLOAD_UI_MISS_CACHE_MS;
-    if (downloadUiCacheAt && at - downloadUiCacheAt < cacheMs) {
-      return downloadUiCacheValue;
-    }
-    downloadUiCacheAt = at;
-    downloadUiCacheValue = detectDownloadsUi();
-    return downloadUiCacheValue;
-  }
-
   function cleanRoute(value) {
     const raw = String(value || "").trim();
     if (!raw) {
@@ -273,10 +164,7 @@
   }
 
   function browserManager() {
-    return window.MainWindowBrowserManager ||
-      window.SteamUIStore?.MainWindowBrowserManager ||
-      window.SteamUIStore?.WindowStore?.MainWindowBrowserManager ||
-      null;
+    return window.MainWindowBrowserManager || null;
   }
 
   function routeSources() {
@@ -292,16 +180,19 @@
   // Steam 内部路由不总反映在 location 上，下载页在部分客户端只写入 MainWindowBrowserManager 的 data URL。
   function route() {
     const sources = routeSources();
-    return cleanRoute(sources.tempNav) ||
+    const local = cleanRoute(sources.tempNav) ||
       cleanRoute(sources.mainWindowUrlRequested) ||
       cleanRoute(sources.mainWindowUrl) ||
       cleanRoute(sources.href) ||
       "";
+    if (local || isShared()) {
+      return local;
+    }
+    return api.contextRouter?.route?.() || "";
   }
 
   function isDown() {
-    const current = route();
-    return current === "/library/downloads" || (!current && hasDownloadsUi());
+    return route() === "/library/downloads";
   }
 
   function targets() {
@@ -317,7 +208,7 @@
         if (/^\/library\/app\/\d+$/.test(current)) {
           return ["app"];
         }
-        return isDown() ? ["downloads"] : [];
+        return [];
     }
   }
 
@@ -367,6 +258,7 @@
     isMainUi,
     isPropertyDialog,
     hasCustomSortUi,
+    normalizeRoute: cleanRoute,
     route,
     routeSources,
     isDown,

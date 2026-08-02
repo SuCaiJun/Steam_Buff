@@ -203,6 +203,12 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "存在自定义排序名称时，将 Steam 原名加入运行时搜索字段"
   },
+  "settings_feature_download_batch_actions_name": {
+    "message": "下载队列批量操作"
+  },
+  "settings_feature_download_batch_actions_desc": {
+    "message": "在下载管理页提供全部开始、全部暂停和全部移除操作"
+  },
   "settings_feature_download_auto_shutdown_name": {
     "message": "下载完成自动关机"
   },
@@ -2820,6 +2826,56 @@
   },
   "store_wishlistPrice_steampyProxy": {
     "message": "SteamPY 代购"
+  },
+  "steam_downloadBatch_busy": {
+    "message": "已有批量操作正在进行"
+  },
+  "steam_downloadBatch_failed": {
+    "message": "操作失败，请查看日志"
+  },
+  "steam_downloadBatch_itemCount": {
+    "message": "当前 $count$ 项",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "steam_downloadBatch_label": {
+    "message": "下载队列批量操作"
+  },
+  "steam_downloadBatch_partial": {
+    "message": "已完成 $success$ 项，$failed$ 项失败",
+    "placeholders": {
+      "success": { "content": "$1" },
+      "failed": { "content": "$2" }
+    }
+  },
+  "steam_downloadBatch_pauseAll": {
+    "message": "全部暂停"
+  },
+  "steam_downloadBatch_pauseSuccess": {
+    "message": "已发送全部暂停"
+  },
+  "steam_downloadBatch_removeAll": {
+    "message": "全部移除"
+  },
+  "steam_downloadBatch_removeSuccess": {
+    "message": "已移除 $count$ 项",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "steam_downloadBatch_running": {
+    "message": "正在处理下载队列..."
+  },
+  "steam_downloadBatch_startAll": {
+    "message": "全部开始"
+  },
+  "steam_downloadBatch_startCount": {
+    "message": "可开始 $count$ 项",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "steam_downloadBatch_startSuccess": {
+    "message": "已开始 $count$ 项",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "steam_downloadSurface_label": {
+    "message": "下载管理工具"
   },
   "steam_downloadShutdown_backendStarting": {
     "message": "后台初始化中"

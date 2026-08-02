@@ -203,6 +203,12 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "Add the Steam original name to the runtime search field when a custom sort title exists."
   },
+  "settings_feature_download_batch_actions_name": {
+    "message": "Download Queue Batch Actions"
+  },
+  "settings_feature_download_batch_actions_desc": {
+    "message": "Add Start All, Pause All, and Remove All actions to the Downloads page."
+  },
   "settings_feature_download_auto_shutdown_name": {
     "message": "Shut Down After Downloads"
   },
@@ -2820,6 +2826,56 @@
   },
   "store_wishlistPrice_steampyProxy": {
     "message": "SteamPY Assisted Purchase"
+  },
+  "steam_downloadBatch_busy": {
+    "message": "Another batch action is already running"
+  },
+  "steam_downloadBatch_failed": {
+    "message": "The action failed. Check the logs for details."
+  },
+  "steam_downloadBatch_itemCount": {
+    "message": "$count$ items in the list",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "steam_downloadBatch_label": {
+    "message": "Download queue batch actions"
+  },
+  "steam_downloadBatch_partial": {
+    "message": "$success$ completed, $failed$ failed",
+    "placeholders": {
+      "success": { "content": "$1" },
+      "failed": { "content": "$2" }
+    }
+  },
+  "steam_downloadBatch_pauseAll": {
+    "message": "Pause All"
+  },
+  "steam_downloadBatch_pauseSuccess": {
+    "message": "Pause all was sent"
+  },
+  "steam_downloadBatch_removeAll": {
+    "message": "Remove All"
+  },
+  "steam_downloadBatch_removeSuccess": {
+    "message": "Removed $count$ items",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "steam_downloadBatch_running": {
+    "message": "Processing the download queue..."
+  },
+  "steam_downloadBatch_startAll": {
+    "message": "Start All"
+  },
+  "steam_downloadBatch_startCount": {
+    "message": "$count$ items can be started",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "steam_downloadBatch_startSuccess": {
+    "message": "Started $count$ items",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "steam_downloadSurface_label": {
+    "message": "Download management tools"
   },
   "steam_downloadShutdown_backendStarting": {
     "message": "Initializing background service"

@@ -12,7 +12,7 @@
   "use strict";
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v16";
+  const RUN_VERSION = "steam-buff-runtime-v17";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -101,24 +101,28 @@
   const STEAM_SETTING_DEFAULTS = Object.freeze({
     [SORT_TITLE_ID]: true,
     [ORIGINAL_NAME_SEARCH_ID]: false,
+    "download-batch-actions": true,
     "download-auto-shutdown": true,
     [NEWS_TRANSLATE_ID]: true,
   });
   const STEAM_SETTING_IDS = Object.freeze([
     SORT_TITLE_ID,
     ORIGINAL_NAME_SEARCH_ID,
+    "download-batch-actions",
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
   ]);
   const STEAM_FEATURE_IDS = Object.freeze([
     SORT_TITLE_ID,
     NAME_ID,
+    "download-batch-actions",
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
   ]);
   const STEAM_FEATURE_SETTING_IDS = Object.freeze({
     [SORT_TITLE_ID]: SORT_TITLE_ID,
     [NAME_ID]: SORT_TITLE_ID,
+    "download-batch-actions": "download-batch-actions",
     "download-auto-shutdown": "download-auto-shutdown",
     [NEWS_TRANSLATE_ID]: NEWS_TRANSLATE_ID,
   });
@@ -2053,6 +2057,8 @@
           "steam/shared/constants.js",
           "steam/runtime/paths.js",
           "steam/runtime/steam-context.js",
+          "steam/runtime/context-router.js",
+          "steam/runtime/surface-hosts.js",
           "steam/runtime/styles.js",
           "steam/runtime/feature-registry.js",
           "steam/features/features.js",

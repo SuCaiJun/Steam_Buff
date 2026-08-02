@@ -19,8 +19,9 @@
   const LIBRARY_CUSTOM_NAME_ONE = "__RickyLibraryCustomNameOne";
   const LIBRARY_CUSTOM_NAME_MODAL = "__RickyLibraryCustomNameModal";
   const LIBRARY_CUSTOM_NAME_PROGRESS = "__RickyLibraryCustomNameProgress";
+  const DOWNLOAD_SURFACE_ROOT = "__RickyDownloadSurfaceHost";
+  const DOWNLOAD_SURFACE_TOAST = "__RickyDownloadSurfaceToast";
   const DOWNLOAD_AUTO_SHUTDOWN_ROOT = "__Rickydownload-auto-shutdown-root";
-  const DOWNLOAD_AUTO_SHUTDOWN_TOAST = "__Rickydownload-auto-shutdown-toast";
   const NEWS_TRANSLATE_BUTTON_CLASS = "steam-buff-news-translate-button";
   const NEWS_TRANSLATE_ICON_CLASS = "steam-buff-news-translate-icon";
   const NEWS_TRANSLATE_DONE_CLASS = "steam-buff-news-translated";
@@ -129,7 +130,7 @@
     })
   );
 
-  function downloadAutoShutdownVars() {
+  function downloadSurfaceVars() {
     const theme = root.STTheme || {};
     const spacing = theme.spacing || {};
     const typography = theme.typography || {};
@@ -147,6 +148,7 @@
       "--st-sdas-toast-shadow": cssVar("--st-shadow-panel"),
       "--st-sdas-warning": cssVar("--st-color-warning"),
       "--st-sdas-danger": cssVar("--st-color-danger"),
+      "--st-download-action-danger-bg": cssVar("--st-color-danger-alpha-12"),
       "--st-sdas-gap": spacing.sm,
       "--st-sdas-toggle-pad-x": `calc(${spacing.sm} + ${spacing.xxs})`,
       "--st-sdas-toast-pad-y": `calc(${spacing.sm} + ${spacing.xxs})`,
@@ -671,10 +673,10 @@
       vars: libraryCustomNameVars,
       staleText: "max-height: 601px",
     },
-    "download-auto-shutdown": {
-      id: "__Rickydownload-auto-shutdown-style",
+    "download-surface": {
+      id: "__RickyDownloadSurfaceStyle",
       css: `
-      #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} {
+      #${DOWNLOAD_SURFACE_ROOT} {
         position: fixed;
         top: 99px;
         right: 57px;
@@ -682,12 +684,23 @@
         height: 28px;
         display: flex;
         align-items: center;
+        gap: var(--st-sdas-gap);
         font-family: var(--st-sdas-font);
         color: var(--st-sdas-text);
         pointer-events: auto;
       }
-      #${DOWNLOAD_AUTO_SHUTDOWN_ROOT}[hidden] {
+      #${DOWNLOAD_SURFACE_ROOT}[hidden] {
         display: none !important;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} .st-download-surface-slot {
+        display: inline-flex;
+        align-items: center;
+        height: 28px;
+      }
+      #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} {
+        display: inline-flex;
+        align-items: center;
+        height: 28px;
       }
       #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle {
         position: relative;
@@ -730,8 +743,46 @@
       #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-label {
         font-size: var(--st-sdas-font-size);
         line-height: 1;
+        letter-spacing: 0;
       }
-      #${DOWNLOAD_AUTO_SHUTDOWN_TOAST} {
+      #${DOWNLOAD_SURFACE_ROOT} .st-download-batch-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} .st-download-action {
+        box-sizing: border-box;
+        height: 28px;
+        min-width: 68px;
+        padding: 0 10px;
+        border: 1px solid var(--st-sdas-border);
+        background: var(--st-sdas-bg);
+        color: var(--st-sdas-text);
+        box-shadow: var(--st-sdas-shadow);
+        font: inherit;
+        font-size: var(--st-sdas-font-size);
+        line-height: 1;
+        letter-spacing: 0;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} .st-download-action:hover:not(:disabled) {
+        border-color: var(--st-sdas-border-hover);
+        background: var(--st-sdas-bg-hover);
+      }
+      #${DOWNLOAD_SURFACE_ROOT} .st-download-action:focus-visible {
+        outline: 1px solid var(--st-sdas-border-hover);
+        outline-offset: 1px;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} .st-download-action:disabled {
+        cursor: default;
+        opacity: 0.5;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} .st-download-action[data-action="remove-all"]:hover:not(:disabled) {
+        border-color: var(--st-sdas-danger);
+        background: var(--st-download-action-danger-bg);
+      }
+      #${DOWNLOAD_SURFACE_TOAST} {
         position: fixed;
         top: 132px;
         right: 54px;
@@ -750,27 +801,27 @@
         transition: opacity 160ms ease, transform 160ms ease;
         pointer-events: none;
       }
-      #${DOWNLOAD_AUTO_SHUTDOWN_TOAST}.sdas-show {
+      #${DOWNLOAD_SURFACE_TOAST}.st-download-toast-show {
         opacity: 1;
         transform: translateY(0);
       }
-      #${DOWNLOAD_AUTO_SHUTDOWN_TOAST}[data-kind="warn"] {
+      #${DOWNLOAD_SURFACE_TOAST}[data-kind="warn"] {
         border-color: var(--st-sdas-warning);
       }
-      #${DOWNLOAD_AUTO_SHUTDOWN_TOAST}[data-kind="error"] {
+      #${DOWNLOAD_SURFACE_TOAST}[data-kind="error"] {
         border-color: var(--st-sdas-danger);
       }
       @media (max-width: 1250px) {
-        #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} {
+        #${DOWNLOAD_SURFACE_ROOT} {
           top: 139px;
           right: 27px;
         }
-        #${DOWNLOAD_AUTO_SHUTDOWN_TOAST} {
+        #${DOWNLOAD_SURFACE_TOAST} {
           top: 172px;
           right: 24px;
         }
       }`,
-      vars: downloadAutoShutdownVars,
+      vars: downloadSurfaceVars,
     },
     "steam-news-translate": {
       id: "steam-buff-news-translate-style",
