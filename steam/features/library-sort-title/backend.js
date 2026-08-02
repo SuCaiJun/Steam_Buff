@@ -32,7 +32,7 @@
   // 只在库列表 display_name 中隐藏开头连续 [标签]，保留 Steam 原生自定义排序名称的完整值。
   const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
   // 末尾或夹在名称里的 [#...] 助记符保留在原生自定义排序名称中，库列表显示时隐藏。
-  const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Z0-9]{2,})\]\s*/g;
+  const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Za-z0-9]+)\]\s*/g;
   // SetCustomSortAs 返回后，可能Steam还会通过云存档延迟替换 app overview 对象。
   // 这里需要异步稳定后再确认一次，避免刚同步的显示名被后续替换覆盖。
   const AFTER_SAVE_RECHECK_MS = 1000;

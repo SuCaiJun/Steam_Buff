@@ -21,7 +21,7 @@
   "use strict";
 
   const TAG_TOKEN_RE = /\[[^\]\r\n]*\]\s*/g;
-  const MNEMONIC_TAG_RE = /^\[#([A-Z0-9]{2,})\]$/;
+  const MNEMONIC_TAG_RE = /^\[#([A-Za-z0-9]+)\]$/;
   const CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/u;
   const DIGIT_RE = /[0-9]/;
 

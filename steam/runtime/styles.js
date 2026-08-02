@@ -382,8 +382,8 @@
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-controls {
         display: grid;
-        grid-template-columns: minmax(525px, 1fr) minmax(240px, 260px);
-        gap: 16px;
+        grid-template-columns: minmax(500px, 1fr) minmax(280px, 290px);
+        gap: 12px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} fieldset {
         margin: 0;
@@ -430,7 +430,8 @@
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:checked {
         border-color: var(--st-color-steam-blue);
-        background: radial-gradient(circle, var(--st-color-steam-blue) 0 36%, transparent 40%), var(--st-color-steam-blue-alpha-16);
+        background: var(--st-color-steam-blue);
+        box-shadow: inset 0 0 0 3px var(--st-dialog-surface-raised);
       }
       #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"]:checked,
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:checked {
@@ -448,7 +449,8 @@
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:disabled:checked {
         border-color: var(--st-color-text-secondary);
-        background: radial-gradient(circle, var(--st-color-text-secondary) 0 36%, transparent 40%), var(--st-color-white-alpha-12);
+        background: var(--st-color-text-secondary);
+        box-shadow: inset 0 0 0 3px var(--st-dialog-surface-raised);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:disabled:checked {
         border-color: var(--st-color-text-secondary);
@@ -547,6 +549,11 @@
         left: auto;
         right: 0;
         transform: translateY(4px);
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-actions .st-lcn-tip-popover {
+        top: calc(100% + 8px);
+        bottom: auto;
+        z-index: 6;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:hover .st-lcn-tip-popover,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:focus .st-lcn-tip-popover,
@@ -671,7 +678,7 @@
         background: var(--st-lcn-row-fail);
       }`,
       vars: libraryCustomNameVars,
-      staleText: "max-height: 601px",
+      staleText: "grid-template-columns: minmax(500px, 1fr) minmax(280px, 290px)",
     },
     "download-surface": {
       id: "__RickyDownloadSurfaceStyle",

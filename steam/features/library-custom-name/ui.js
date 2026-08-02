@@ -2842,10 +2842,10 @@
     const tip = cloudTipText();
     setTrustedTemplate(bar, `
       <button class="st-lcn-btn" type="button" data-lcn-one>${esc(i18n("steam.libraryCustomName.fetchCloud", "获取云端名称"))}</button>
-      <button class="st-lcn-btn" type="button" data-lcn-batch>${esc(i18n("steam.libraryCustomName.batchEdit", "批量修改名称"))}</button>
       <button class="st-lcn-btn" type="button" data-lcn-generate-mnemonic ${s.singleMnemonicBusy ? "disabled" : ""}>${esc(s.singleMnemonicBusy
         ? i18n("steam.libraryCustomName.generatingSingleMnemonic", "生成中...")
         : i18n("steam.libraryCustomName.generateSingleMnemonic", "生成助记符"))}</button>
+      <button class="st-lcn-btn" type="button" data-lcn-batch>${esc(i18n("steam.libraryCustomName.batchEdit", "批量修改名称"))}</button>
       <label class="st-lcn-action-option">
         <input type="checkbox" data-lcn-auto-upload ${s.autoUploadChecked !== false ? "checked" : ""} disabled>
         ${tipHtml(i18n("steam.libraryCustomName.uploadCloud", "名称上传云端"), tip)}
