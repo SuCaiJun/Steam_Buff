@@ -195,19 +195,13 @@
     "message": "库列表显示自定义名称"
   },
   "settings_feature_library_sort_title_desc": {
-    "message": "库列表优先显示游戏的自定义排序名称"
+    "message": "库列表优先显示自定义排序名称，并在 Steam 自定义页提供名称管理工具"
   },
   "settings_feature_library_sort_title_original_search_name": {
     "message": "优化 Steam 原名搜索"
   },
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "存在自定义排序名称时，将 Steam 原名加入运行时搜索字段"
-  },
-  "settings_feature_library_custom_name_name": {
-    "message": "库自定义名称填充"
-  },
-  "settings_feature_library_custom_name_desc": {
-    "message": "在 Steam 客户端自定义页查询并填充库自定义排序名称"
   },
   "settings_feature_download_auto_shutdown_name": {
     "message": "下载完成自动关机"
@@ -3278,7 +3272,7 @@
     "message": "确认关闭素材君云端上传"
   },
   "steam_libraryCustomName_disabled": {
-    "message": "库自定义名称填充已关闭"
+    "message": "库列表显示自定义名称已关闭"
   },
   "steam_libraryCustomName_editDone": {
     "message": "修改完成"
@@ -3382,8 +3376,17 @@
   "steam_libraryCustomName_generateMnemonicTitle": {
     "message": "确认生成助记符"
   },
+  "steam_libraryCustomName_generateSingleMnemonic": {
+    "message": "生成助记符"
+  },
+  "steam_libraryCustomName_generateSingleMnemonicFailed": {
+    "message": "生成助记符失败"
+  },
   "steam_libraryCustomName_generatingMnemonic": {
     "message": "正在生成助记符"
+  },
+  "steam_libraryCustomName_generatingSingleMnemonic": {
+    "message": "生成中..."
   },
   "steam_libraryCustomName_importChanges": {
     "message": "仅新增与修改"
@@ -3498,6 +3501,12 @@
   },
   "steam_libraryCustomName_mnemonicLoadFailed": {
     "message": "助记符工具加载失败"
+  },
+  "steam_libraryCustomName_mnemonicSourceMissing": {
+    "message": "自定义排序名称为空"
+  },
+  "steam_libraryCustomName_mnemonicSourceUnsupported": {
+    "message": "当前名称没有可生成助记符的中文内容"
   },
   "steam_libraryCustomName_mnemonicPrompt": {
     "message": "该操作将刷新待写入数据，是否继续？"

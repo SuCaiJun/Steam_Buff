@@ -195,19 +195,13 @@
     "message": "收藏庫清單顯示自訂名稱"
   },
   "settings_feature_library_sort_title_desc": {
-    "message": "收藏庫清單優先顯示遊戲的自訂排序名稱"
+    "message": "收藏庫清單優先顯示自訂排序名稱，並在 Steam 自訂頁提供名稱管理工具"
   },
   "settings_feature_library_sort_title_original_search_name": {
     "message": "最佳化 Steam 原名搜尋"
   },
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "存在自訂排序名稱時，將 Steam 原名加入執行階段搜尋欄位"
-  },
-  "settings_feature_library_custom_name_name": {
-    "message": "收藏庫自訂名稱填入"
-  },
-  "settings_feature_library_custom_name_desc": {
-    "message": "在 Steam 用戶端自訂頁查詢並填入收藏庫自訂排序名稱"
   },
   "settings_feature_download_auto_shutdown_name": {
     "message": "下載完成後自動關機"
@@ -3278,7 +3272,7 @@
     "message": "確認關閉素材君雲端上傳"
   },
   "steam_libraryCustomName_disabled": {
-    "message": "遊戲庫自訂名稱填入功能已關閉"
+    "message": "收藏庫清單顯示自訂名稱已關閉"
   },
   "steam_libraryCustomName_editDone": {
     "message": "修改完成"
@@ -3382,8 +3376,17 @@
   "steam_libraryCustomName_generateMnemonicTitle": {
     "message": "確認產生助記符"
   },
+  "steam_libraryCustomName_generateSingleMnemonic": {
+    "message": "產生助記符"
+  },
+  "steam_libraryCustomName_generateSingleMnemonicFailed": {
+    "message": "產生助記符失敗"
+  },
   "steam_libraryCustomName_generatingMnemonic": {
     "message": "正在產生助記符"
+  },
+  "steam_libraryCustomName_generatingSingleMnemonic": {
+    "message": "產生中..."
   },
   "steam_libraryCustomName_importChanges": {
     "message": "僅新增與修改"
@@ -3498,6 +3501,12 @@
   },
   "steam_libraryCustomName_mnemonicLoadFailed": {
     "message": "助記符工具載入失敗"
+  },
+  "steam_libraryCustomName_mnemonicSourceMissing": {
+    "message": "自訂排序名稱為空"
+  },
+  "steam_libraryCustomName_mnemonicSourceUnsupported": {
+    "message": "目前名稱沒有可產生助記符的中文內容"
   },
   "steam_libraryCustomName_mnemonicPrompt": {
     "message": "此操作將重新整理待寫入資料，是否繼續？"

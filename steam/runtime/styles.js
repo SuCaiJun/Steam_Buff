@@ -211,7 +211,7 @@
         align-self: auto;
         justify-content: center;
         width: max-content;
-        max-width: min(360px, calc(100vw - 24px));
+        max-width: min(500px, calc(100vw - 24px));
         margin: 0;
         padding: 0;
         background: transparent;

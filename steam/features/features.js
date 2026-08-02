@@ -24,13 +24,12 @@
       },
       shouldRun(api, context, ctx = {}) {
         const sortOn = ctx.settingOn?.("library-sort-title") ?? api.ctx?.settingOn?.("library-sort-title");
-        const nameOn = ctx.settingOn?.("library-custom-name") ?? api.ctx?.settingOn?.("library-custom-name");
-        return context === "backend" && (sortOn !== false || nameOn !== false);
+        return context === "backend" && sortOn !== false;
       },
     },
     {
       id: "library-sort-title",
-      name: "库标题排序名",
+      name: "库列表自定义排序名称",
       settingsKey: "library-sort-title",
       loadStrategy: "on-demand-entry",
       modes: ["backend"],
@@ -46,8 +45,8 @@
     },
     {
       id: "library-custom-name",
-      name: "库名称填充",
-      settingsKey: "library-custom-name",
+      name: "库列表自定义排序名称管理",
+      settingsKey: "library-sort-title",
       loadStrategy: "on-demand-entry",
       modes: ["backend", "ui"],
       pageScope: ["SharedJSContext", "property-dialog"],
@@ -58,7 +57,7 @@
         ui: "ui.js",
       },
       shouldRun(api, context, ctx = {}) {
-        const on = ctx.settingOn?.("library-custom-name") ?? api.ctx?.settingOn?.("library-custom-name");
+        const on = ctx.settingOn?.("library-sort-title") ?? api.ctx?.settingOn?.("library-sort-title");
         if (on === false) {
           return false;
         }

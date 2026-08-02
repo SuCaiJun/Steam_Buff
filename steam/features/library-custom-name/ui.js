@@ -16,6 +16,7 @@
   }
 
   const ID = "library-custom-name";
+  const SETTING_ID = "library-sort-title";
   const CH = "__steam_library_custom_name_Ricky";
   const BAR = "__RickyLibraryCustomNameBar";
   const BAR_FIXED = "st-lcn-bar-fixed";
@@ -811,17 +812,16 @@
     return settings()[id] !== false;
   }
 
-  function offMsg(st) {
-    return i18n("steam.libraryCustomName.disabled", "库自定义名称填充已关闭");
+  function offMsg() {
+    return i18n("steam.libraryCustomName.disabled", "库列表显示自定义名称已关闭");
   }
 
   function ensureOn() {
     const st = {
-      enabled: settingOn(ID),
-      nameOn: settingOn(ID),
+      enabled: settingOn(SETTING_ID),
     };
     if (!st.enabled) {
-      throw new Error(offMsg(st));
+      throw new Error(offMsg());
     }
     return st;
   }
@@ -1106,7 +1106,7 @@
       await loadLib(MNEMONIC_CORE);
     }
     const core = window.SteamBuff?.libraryCustomNameMnemonic;
-    if (!core?.withMnemonic || !core?.rebuildMnemonic || !core?.stripMnemonic) {
+    if (!core?.mnemonic || !core?.withMnemonic || !core?.rebuildMnemonic || !core?.stripMnemonic) {
       throw new Error(i18n("steam.libraryCustomName.mnemonicLoadFailed", "助记符工具加载失败"));
     }
     return core;
@@ -2481,6 +2481,25 @@
     }
   }
 
+  function setSingleMnemonicBusy(on) {
+    s.singleMnemonicBusy = !!on;
+    const btn = document.querySelector(`#${BAR} [data-lcn-generate-mnemonic]`);
+    if (btn) {
+      btn.disabled = !!on;
+      btn.textContent = on
+        ? i18n("steam.libraryCustomName.generatingSingleMnemonic", "生成中...")
+        : i18n("steam.libraryCustomName.generateSingleMnemonic", "生成助记符");
+    }
+  }
+
+  function singleMnemonicFail(message) {
+    oneBox(
+      i18n("steam.libraryCustomName.generateSingleMnemonicFailed", "生成助记符失败"),
+      message || i18n("common.operationFailed", "操作失败"),
+      true,
+    );
+  }
+
   function openOneDialog() {
     css();
     let box = document.getElementById(ONE);
@@ -2686,6 +2705,38 @@
     }
   }
 
+  async function generateSingleMnemonic() {
+    if (s.singleMnemonicBusy) {
+      return;
+    }
+    const input = sortInput();
+    if (!input) {
+      throw new Error(i18n("steam.libraryCustomName.inputMissing", "未找到自定义排序名称输入框"));
+    }
+    const source = text(input.value);
+    if (!source) {
+      throw new Error(i18n("steam.libraryCustomName.mnemonicSourceMissing", "自定义排序名称为空"));
+    }
+
+    setSingleMnemonicBusy(true);
+    try {
+      ensureOn();
+      const appid = propertyAppid(input);
+      if (!appid) {
+        throw new Error(i18n("steam.libraryCustomName.appidMissing", "未识别当前游戏 AppID"));
+      }
+      const core = await ensureMnemonic();
+      if (!core.mnemonic(source)) {
+        throw new Error(i18n("steam.libraryCustomName.mnemonicSourceUnsupported", "当前名称没有可生成助记符的中文内容"));
+      }
+      const name = text(core.rebuildMnemonic(source));
+      await backend("save-one", { appid, name });
+      setNative(input, name);
+    } finally {
+      setSingleMnemonicBusy(false);
+    }
+  }
+
   function uploadCloudChecked() {
     return document.querySelector(`#${BAR} [data-lcn-auto-upload]`)?.checked === true;
   }
@@ -2792,6 +2843,9 @@
     setTrustedTemplate(bar, `
       <button class="st-lcn-btn" type="button" data-lcn-one>${esc(i18n("steam.libraryCustomName.fetchCloud", "获取云端名称"))}</button>
       <button class="st-lcn-btn" type="button" data-lcn-batch>${esc(i18n("steam.libraryCustomName.batchEdit", "批量修改名称"))}</button>
+      <button class="st-lcn-btn" type="button" data-lcn-generate-mnemonic ${s.singleMnemonicBusy ? "disabled" : ""}>${esc(s.singleMnemonicBusy
+        ? i18n("steam.libraryCustomName.generatingSingleMnemonic", "生成中...")
+        : i18n("steam.libraryCustomName.generateSingleMnemonic", "生成助记符"))}</button>
       <label class="st-lcn-action-option">
         <input type="checkbox" data-lcn-auto-upload ${s.autoUploadChecked !== false ? "checked" : ""} disabled>
         ${tipHtml(i18n("steam.libraryCustomName.uploadCloud", "名称上传云端"), tip)}
@@ -2808,7 +2862,8 @@
     closeTips(event.currentTarget);
     const one = event.target.closest?.("[data-lcn-one]");
     const batchBtn = event.target.closest?.("[data-lcn-batch]");
-    if (!one && !batchBtn) {
+    const mnemonicBtn = event.target.closest?.("[data-lcn-generate-mnemonic]");
+    if (!one && !batchBtn && !mnemonicBtn) {
       return;
     }
 
@@ -2816,6 +2871,10 @@
     event.stopPropagation();
     if (one) {
       fillOne().catch((error) => oneFail(error?.message || String(error)));
+      return;
+    }
+    if (mnemonicBtn) {
+      generateSingleMnemonic().catch((error) => singleMnemonicFail(error?.message || String(error)));
       return;
     }
     openBatch();
@@ -2960,7 +3019,7 @@
     return { ok: false, reason: "host-missing" };
   }
 
-  // tick 是低频兜底扫描，短窗口重试负责在 Steam 属性弹窗 React 重挂输入框后尽快补回三个按钮。
+  // tick 是低频兜底扫描，短窗口重试负责在 Steam 属性弹窗 React 重挂输入框后尽快补回同一组名称工具。
   function tick() {
     css();
     const surface = customSortSurface();
@@ -4305,7 +4364,7 @@
   }
 
   function shouldRunScheduledTick() {
-    return settingOn(ID) && (isCustomSortUi() || hasBar());
+    return settingOn(SETTING_ID) && (isCustomSortUi() || hasBar());
   }
 
   function registerScheduledTick() {

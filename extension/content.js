@@ -75,6 +75,7 @@
   const STEAM_FEATURES_DISABLED_MESSAGE = "__steam_buff_features_disabled";
   const NEWS_TRANSLATE_ATTR = "steamBuffNewsTranslate";
   const LOCALE_ATTR = "steamBuffUiLocale";
+  const SORT_TITLE_ID = "library-sort-title";
   const NAME_ID = "library-custom-name";
   const NEWS_TRANSLATE_ID = "steam-news-translate";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
@@ -98,25 +99,29 @@
   const NEWS_AI_HARD_CHUNK_CHARS = 1800;
   const NEWS_AI_TIMEOUT_MS = 120_000;
   const STEAM_SETTING_DEFAULTS = Object.freeze({
-    "library-sort-title": true,
+    [SORT_TITLE_ID]: true,
     [ORIGINAL_NAME_SEARCH_ID]: false,
-    [NAME_ID]: true,
     "download-auto-shutdown": true,
     [NEWS_TRANSLATE_ID]: true,
   });
   const STEAM_SETTING_IDS = Object.freeze([
-    "library-sort-title",
+    SORT_TITLE_ID,
     ORIGINAL_NAME_SEARCH_ID,
-    NAME_ID,
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
   ]);
   const STEAM_FEATURE_IDS = Object.freeze([
-    "library-sort-title",
+    SORT_TITLE_ID,
     NAME_ID,
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
   ]);
+  const STEAM_FEATURE_SETTING_IDS = Object.freeze({
+    [SORT_TITLE_ID]: SORT_TITLE_ID,
+    [NAME_ID]: SORT_TITLE_ID,
+    "download-auto-shutdown": "download-auto-shutdown",
+    [NEWS_TRANSLATE_ID]: NEWS_TRANSLATE_ID,
+  });
   const SEEN_NAME_MAX = 200;
   const BOOT_MS = 250;
   const BOOT_MAX = 480;
@@ -777,8 +782,7 @@
   }
 
   async function nameAllowed() {
-    const nameOn = await enabled(NAME_ID);
-    return { enabled: nameOn, nameOn };
+    return { enabled: await enabled(SORT_TITLE_ID) };
   }
 
   function aiConcurrency(value) {
@@ -1813,7 +1817,10 @@
   }
 
   function disabledSteamFeatureIds(prev = {}, next = {}) {
-    return STEAM_FEATURE_IDS.filter(id => prev[id] !== false && next[id] === false);
+    return STEAM_FEATURE_IDS.filter((featureId) => {
+      const settingId = STEAM_FEATURE_SETTING_IDS[featureId];
+      return prev[settingId] !== false && next[settingId] === false;
+    });
   }
 
   function notifySteamFeaturesDisabled(keys) {

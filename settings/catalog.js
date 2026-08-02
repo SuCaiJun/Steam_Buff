@@ -840,7 +840,7 @@
         {
           id: "library-sort-title",
           name: "库列表显示自定义名称",
-          desc: "库列表优先显示游戏的自定义排序名称",
+          desc: "库列表优先显示自定义排序名称，并在 Steam 自定义页提供名称管理工具",
           help: "库列表显示自定义名称",
           area: "steam",
           enabled: true,
@@ -854,14 +854,6 @@
               deps: depAll(["library-sort-title"]),
             },
           ]),
-        },
-        {
-          id: "library-custom-name",
-          name: "库自定义名称填充",
-          desc: "在 Steam 客户端自定义页查询并填充库自定义排序名称",
-          help: "库自定义名称填充",
-          area: "steam",
-          enabled: true,
         },
         {
           id: "download-auto-shutdown",

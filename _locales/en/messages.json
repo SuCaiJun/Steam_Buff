@@ -195,19 +195,13 @@
     "message": "Display Custom Library Names"
   },
   "settings_feature_library_sort_title_desc": {
-    "message": "Prefer each game's custom sort title in the Steam library list."
+    "message": "Prefer custom sort names in the Steam library list and provide name management tools on Steam customization pages."
   },
   "settings_feature_library_sort_title_original_search_name": {
     "message": "Improve Steam Original Name Search"
   },
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "Add the Steam original name to the runtime search field when a custom sort title exists."
-  },
-  "settings_feature_library_custom_name_name": {
-    "message": "Custom Library Name Autofill"
-  },
-  "settings_feature_library_custom_name_desc": {
-    "message": "Look up and fill custom library sort titles from the Steam client customization page."
   },
   "settings_feature_download_auto_shutdown_name": {
     "message": "Shut Down After Downloads"
@@ -3278,7 +3272,7 @@
     "message": "Disable SucaiJun Cloud upload?"
   },
   "steam_libraryCustomName_disabled": {
-    "message": "Library custom-name filling is disabled"
+    "message": "Display Custom Library Names is disabled"
   },
   "steam_libraryCustomName_editDone": {
     "message": "Edit complete"
@@ -3382,8 +3376,17 @@
   "steam_libraryCustomName_generateMnemonicTitle": {
     "message": "Confirm mnemonic generation"
   },
+  "steam_libraryCustomName_generateSingleMnemonic": {
+    "message": "Generate mnemonic"
+  },
+  "steam_libraryCustomName_generateSingleMnemonicFailed": {
+    "message": "Failed to generate mnemonic"
+  },
   "steam_libraryCustomName_generatingMnemonic": {
     "message": "Generating mnemonics"
+  },
+  "steam_libraryCustomName_generatingSingleMnemonic": {
+    "message": "Generating..."
   },
   "steam_libraryCustomName_importChanges": {
     "message": "Add and update only"
@@ -3498,6 +3501,12 @@
   },
   "steam_libraryCustomName_mnemonicLoadFailed": {
     "message": "Failed to load the mnemonic tool"
+  },
+  "steam_libraryCustomName_mnemonicSourceMissing": {
+    "message": "The custom sort name is empty"
+  },
+  "steam_libraryCustomName_mnemonicSourceUnsupported": {
+    "message": "The current name has no Chinese text for a mnemonic"
   },
   "steam_libraryCustomName_mnemonicPrompt": {
     "message": "This will refresh pending write data. Continue?"
