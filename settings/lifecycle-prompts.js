@@ -349,12 +349,21 @@
       .join("");
   }
 
+  function steamNewsPopupPage() {
+    const page = root.STPageContext?.snapshot?.() || {};
+    return page.host === "store.steampowered.com" && page.path === "/marketingmessages/list/";
+  }
+
   function topTargetPage() {
     try {
       if (root.top !== root.self) {
         return false;
       }
     } catch {
+      return false;
+    }
+    // Steam 客户端营销消息弹窗复用商店域，不承载扩展级提醒遮罩。
+    if (steamNewsPopupPage()) {
       return false;
     }
     const domain = root.STPageContext?.snapshot?.().domain || "";
@@ -724,7 +733,7 @@
     SUPPORT_DECISION_KEY,
     PENDING_UPDATE_KEY,
     DAY_MS,
-    isBlocking: () => blocking || !!activeHost?.isConnected,
+    isBlocking: () => steamNewsPopupPage() || blocking || !!activeHost?.isConnected,
     start,
   });
   root.STLifecyclePrompts = api;
