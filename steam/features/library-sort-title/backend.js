@@ -12,6 +12,7 @@
   "use strict";
 
   const ID = "library-sort-title";
+  const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
   const SCHEDULER_TASK = "library-sort-title-backend";
   const RT = "__SteamBuffLibrarySortTitle";
   const ORIG = "__RickyStOriginalName";
@@ -111,6 +112,72 @@
     return typeof app?.custom_sort_as_display === "string" && !!app.custom_sort_as_display;
   }
 
+  function cleanName(value) {
+    return typeof value === "string" ? value.trim() : "";
+  }
+
+  function sameName(left, right) {
+    const a = cleanName(left);
+    const b = cleanName(right);
+    return !!a && !!b && a.toLocaleLowerCase() === b.toLocaleLowerCase();
+  }
+
+  function originalSearchName(app) {
+    const cust = cleanName(app?.custom_sort_as_display);
+    if (!cust) {
+      return "";
+    }
+    const visibleCust = view(cust);
+    const candidates = [
+      app?.original_sort_as,
+      app?.[ORIG],
+      app?.appid ? names().get(app.appid) : "",
+    ];
+    for (const value of candidates) {
+      const name = cleanName(value);
+      if (name && !sameName(name, cust) && !sameName(name, visibleCust)) {
+        return name;
+      }
+    }
+    return "";
+  }
+
+  function originalSearchSortAs(app, rt = window[RT]) {
+    if (rt?.originalNameSearch !== true || !hasCust(app)) {
+      return "";
+    }
+    const original = originalSearchName(app);
+    if (!original) {
+      return "";
+    }
+    return `${app.custom_sort_as_display.toLocaleLowerCase()} ${original.toLocaleLowerCase()}`;
+  }
+
+  function restoreOriginalSortAs(app, rt = window[RT]) {
+    const id = Number(app?.appid) || 0;
+    if (!id || !rt?.sortAsOriginals?.has(id)) {
+      return false;
+    }
+    const record = rt.sortAsOriginals.get(id);
+    rt.sortAsOriginals.delete(id);
+    const original = record?.original;
+    const composite = record?.composite;
+    if (app.sort_as === original || app.sort_as !== composite) {
+      return false;
+    }
+    app.sort_as = original;
+    return true;
+  }
+
+  function restoreAllOriginalSortAs(rt = window[RT]) {
+    for (const [appid] of Array.from(rt?.sortAsOriginals || [])) {
+      const app = typeof window.appStore?.GetAppOverviewByAppID === "function"
+        ? window.appStore.GetAppOverviewByAppID(appid)
+        : null;
+      restoreOriginalSortAs(app, rt);
+    }
+  }
+
   function view(name) {
     if (typeof name !== "string") {
       return "";
@@ -135,7 +202,9 @@
     if (!hasCust(app)) {
       return false;
     }
-    return app.display_name !== view(app.custom_sort_as_display);
+    const nextSortAs = originalSearchSortAs(app);
+    return app.display_name !== view(app.custom_sort_as_display)
+      || (!!nextSortAs && app.sort_as !== nextSortAs);
   }
 
   function saveNow(app) {
@@ -168,6 +237,20 @@
     const next = display(cust);
     if (next && app.display_name !== next) {
       app.display_name = next;
+      changed = true;
+    }
+    const nextSortAs = originalSearchSortAs(app);
+    if (nextSortAs && app.sort_as !== nextSortAs) {
+      const id = Number(app.appid) || 0;
+      if (id && !window[RT]?.sortAsOriginals?.has(id)) {
+        window[RT]?.sortAsOriginals?.set(id, {
+          original: app.sort_as,
+          composite: nextSortAs,
+        });
+      }
+      app.sort_as = nextSortAs;
+      changed = true;
+    } else if (!nextSortAs && restoreOriginalSortAs(app)) {
       changed = true;
     }
     return changed;
@@ -464,8 +547,13 @@
       app.custom_sort_as_display = "";
     }
 
-    // 这里只改变库列表显示状态；不覆盖 sort_as，Steam 搜索继续使用原生维护的数据。
-    return cust ? apply(app) : restoreOfficial(app, orig);
+    // sort_as 只在独立子开关开启且有可靠 Steam 原名时追加；保存参数和 CloudStorage 不变。
+    if (cust) {
+      return apply(app);
+    }
+    const restoredDisplay = restoreOfficial(app, orig);
+    const restoredSortAs = restoreOriginalSortAs(app);
+    return restoredDisplay || restoredSortAs;
   }
 
   function applyAll(apps, opt = {}) {
@@ -927,6 +1015,7 @@
       return { started: false, reason: "already-started", stop: old.stop };
     }
     const operationId = window.STLoggerFactory.createOperationId();
+    const originalNameSearch = api.ctx?.settings?.()?.[ORIGINAL_NAME_SEARCH_ID] === true;
     if (!window.STScheduler?.register) {
       log.error("library-sort-title-sync-failed", "库排序标题同步缺少统一调度器", {
         operationId,
@@ -1147,6 +1236,8 @@
       lastSync: null,
       syncSummary: null,
       notifying: false,
+      originalNameSearch,
+      sortAsOriginals: new Map(),
       beginCustomNameBulk,
       recordCustomNameBulk,
       endCustomNameBulk,
@@ -1155,6 +1246,7 @@
       stop() {
         window.STScheduler?.unregister?.(SCHEDULER_TASK);
         rt.scheduled = false;
+        restoreAllOriginalSortAs(rt);
         clearRuntimeTimeouts(rt);
         if (rt.delayHandle) {
           const handle = rt.delayHandle;
@@ -1170,6 +1262,7 @@
         window[ORIGS]?.clear?.();
         delete window[ORIGS];
         rt.bulk = null;
+        rt.sortAsOriginals?.clear?.();
         rt.timeoutHandles?.clear?.();
         for (const event of EVENTS) {
           window.removeEventListener(event, schedule);

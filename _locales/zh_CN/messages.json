@@ -197,6 +197,12 @@
   "settings_feature_library_sort_title_desc": {
     "message": "库列表优先显示游戏的自定义排序名称"
   },
+  "settings_feature_library_sort_title_original_search_name": {
+    "message": "优化 Steam 原名搜索"
+  },
+  "settings_feature_library_sort_title_original_search_desc": {
+    "message": "存在自定义排序名称时，将 Steam 原名加入运行时搜索字段"
+  },
   "settings_feature_library_custom_name_name": {
     "message": "库自定义名称填充"
   },

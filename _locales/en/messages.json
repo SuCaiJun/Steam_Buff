@@ -197,6 +197,12 @@
   "settings_feature_library_sort_title_desc": {
     "message": "Prefer each game's custom sort title in the Steam library list."
   },
+  "settings_feature_library_sort_title_original_search_name": {
+    "message": "Improve Steam Original Name Search"
+  },
+  "settings_feature_library_sort_title_original_search_desc": {
+    "message": "Add the Steam original name to the runtime search field when a custom sort title exists."
+  },
   "settings_feature_library_custom_name_name": {
     "message": "Custom Library Name Autofill"
   },

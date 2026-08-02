@@ -844,6 +844,16 @@
           help: "库列表显示自定义名称",
           area: "steam",
           enabled: true,
+          children: Object.freeze([
+            {
+              id: "library-sort-title-original-search",
+              name: "优化 Steam 原名搜索",
+              desc: "存在自定义排序名称时，将 Steam 原名加入运行时搜索字段",
+              area: "steam",
+              enabled: false,
+              deps: depAll(["library-sort-title"]),
+            },
+          ]),
         },
         {
           id: "library-custom-name",

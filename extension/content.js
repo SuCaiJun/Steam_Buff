@@ -77,6 +77,7 @@
   const LOCALE_ATTR = "steamBuffUiLocale";
   const NAME_ID = "library-custom-name";
   const NEWS_TRANSLATE_ID = "steam-news-translate";
+  const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
   const CFG = globalThis.STConfig;
   const MATCH = CFG.matchers;
   const AUTH_REFRESH = CFG.loginAuth("/auth/refresh");
@@ -96,7 +97,21 @@
   const NEWS_AI_CHUNK_CHARS = 1600;
   const NEWS_AI_HARD_CHUNK_CHARS = 1800;
   const NEWS_AI_TIMEOUT_MS = 120_000;
+  const STEAM_SETTING_DEFAULTS = Object.freeze({
+    "library-sort-title": true,
+    [ORIGINAL_NAME_SEARCH_ID]: false,
+    [NAME_ID]: true,
+    "download-auto-shutdown": true,
+    [NEWS_TRANSLATE_ID]: true,
+  });
   const STEAM_SETTING_IDS = Object.freeze([
+    "library-sort-title",
+    ORIGINAL_NAME_SEARCH_ID,
+    NAME_ID,
+    "download-auto-shutdown",
+    NEWS_TRANSLATE_ID,
+  ]);
+  const STEAM_FEATURE_IDS = Object.freeze([
     "library-sort-title",
     NAME_ID,
     "download-auto-shutdown",
@@ -735,10 +750,7 @@
       return settingsCache;
     }
 
-    const out = {};
-    for (const id of STEAM_SETTING_IDS) {
-      out[id] = true;
-    }
+    const out = { ...STEAM_SETTING_DEFAULTS };
     if (globalThis.STSettingsBus?.loadSettingsSnapshot) {
       settingsCache = await globalThis.STSettingsBus.loadSettingsSnapshot({
         owner: "extension:content",
@@ -753,7 +765,7 @@
     const rt = await storageGet(STEAM_SETTING_IDS.map(settingKey));
     for (const id of STEAM_SETTING_IDS) {
       const value = rt[settingKey(id)];
-      out[id] = typeof value === "boolean" ? value : true;
+      out[id] = typeof value === "boolean" ? value : STEAM_SETTING_DEFAULTS[id];
     }
     settingsCache = out;
     return out;
@@ -1795,13 +1807,13 @@
   function steamSettingsFrom(all = {}) {
     const settings = {};
     for (const id of STEAM_SETTING_IDS) {
-      settings[id] = all[id] !== false;
+      settings[id] = typeof all[id] === "boolean" ? all[id] : STEAM_SETTING_DEFAULTS[id];
     }
     return settings;
   }
 
   function disabledSteamFeatureIds(prev = {}, next = {}) {
-    return STEAM_SETTING_IDS.filter(id => prev[id] !== false && next[id] === false);
+    return STEAM_FEATURE_IDS.filter(id => prev[id] !== false && next[id] === false);
   }
 
   function notifySteamFeaturesDisabled(keys) {

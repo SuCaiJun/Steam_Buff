@@ -197,6 +197,12 @@
   "settings_feature_library_sort_title_desc": {
     "message": "收藏庫清單優先顯示遊戲的自訂排序名稱"
   },
+  "settings_feature_library_sort_title_original_search_name": {
+    "message": "最佳化 Steam 原名搜尋"
+  },
+  "settings_feature_library_sort_title_original_search_desc": {
+    "message": "存在自訂排序名稱時，將 Steam 原名加入執行階段搜尋欄位"
+  },
   "settings_feature_library_custom_name_name": {
     "message": "收藏庫自訂名稱填入"
   },
