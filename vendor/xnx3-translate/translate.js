@@ -1428,12 +1428,6 @@ var translate = {
 
 	//已转为 offline ，这个是对旧版做兼容
 	office:{
-		export:function(){
-			console.log('请使用最新版本的 translate.offline.export , 而不是 translate.office.export');
-		},
-		showPanel:function(){
-			console.log('请使用最新版本的 translate.offline.showPanel , 而不是 translate.office.export');
-		},
 		append:function(to, properties){
 			translate.offline.append(to, properties);
 		},
@@ -1442,103 +1436,6 @@ var translate = {
 		}
 	},
 	offline:{
-		/*
-			网页上翻译之后，自动导出当前页面的术语库
-			
-			需要先指定本地语种，会自动将本地语种进行配置术语库
-			
-		*/
-		export:function(){
-			if(translate.language.getLocal() == translate.language.getCurrent()){
-				alert('本地语种跟要翻译的语种一致，无需导出');
-				return;
-			}
-
-			var text = '';
-			for(var uuid in translate.nodeQueue){
-				if (!translate.nodeQueue.hasOwnProperty(uuid)) {
-		    		continue;
-		    	}
-
-				var queueValue = translate.nodeQueue[uuid];
-				for(var lang in translate.nodeQueue[uuid].list){
-					if (!translate.nodeQueue[uuid].list.hasOwnProperty(lang)) {
-			    		continue;
-			    	}
-					//console.log('------'+lang)
-					if(typeof(lang) != 'string' || lang.length < 1){
-						continue;
-					}
-					//if(translate.language.getLocal() == lang){
-						//console.log(translate.nodeQueue[uuid].list[lang]);
-						for(var hash in translate.nodeQueue[uuid].list[lang]){
-							if (!translate.nodeQueue[uuid].list[lang].hasOwnProperty(hash)) {
-					    		continue;
-					    	}
-					    	
-					    	var result = translate.storage.get('hash_'+translate.language.getCurrent()+'_'+hash);
-							//如果翻译结果不存在，可能是同语种本身就没有翻译，忽略就好了 （因为有个本地语种也强制翻译的能力，所以同语种也放行，在这里进行一次结果判断，免得遗漏同语种也翻译的情况）
-							if(typeof(result) === 'undefined' || result === null || result.length === 0){
-								continue;
-							}
-							
-							//将配置中出现的换行替换为 \n 这个符号
-							var lineText = translate.nodeQueue[uuid].list[lang][hash].original + '='+result;
-							text = text + '\n' + (lineText.replace(/\n/g, '{\\\\n}'));
-						}
-					//}
-				}
-				
-			}
-
-			if(text.length > 0){
-				//有内容
-				text = 'translate.offline.append(\''+translate.language.getCurrent()+'\',`'+text+'\n`);';
-				//console.log(text);
-				translate.util.loadMsgJs();
-				msg.popups({
-				    text:'<textarea id="msgPopupsTextarea" style="width:100%; height:100%; color: black; padding: 8px;">loaing...</textarea>',
-				    width:'750px',
-				    height:'600px',
-				    padding:'1px',
-				});	
-				document.getElementById('msgPopupsTextarea').value = text;
-			}else{
-				msg.alert('无有效内容！');
-			}
-
-
-		},
-		//显示导出面板
-		showPanel:function(){
-			translate.recycle = function(){}; //重写垃圾回收，弃用
-
-			let panel = document.createElement('div');
-			panel.setAttribute('id', 'translate_export');
-			panel.setAttribute('class','ignore');
-
-			//导出按钮
-			let button = document.createElement('button');
-			button.onclick = function() {
-			  translate.offline.export();
-			};
-			button.innerHTML = '导出配置信息';
-			button.setAttribute('style', 'margin-left: 72px; margin-top: 30px; margin-bottom: 20px; font-size: 25px; background-color: blue; padding: 15px; padding-top: 3px; padding-bottom: 3px; border-radius: 3px;');
-			panel.appendChild(button);
-
-			//说明文字
-			let textdiv = document.createElement('div');
-			textdiv.innerHTML = '1. 首先将当前语种切换为你要翻译的语种<br/>2. 点击导出按钮，将翻译的配置信息导出<br/>3. 将导出的配置信息粘贴到代码中，即可完成<br/><a href="http://translate.zvo.cn/4076.html" target="_black" style="color: aliceblue; text-decoration: underline;">点此进行查阅详细使用说明</a>';
-			textdiv.setAttribute('style','font-size: 14px; padding: 12px;');
-
-			panel.appendChild(textdiv);			
-			
-			panel.setAttribute('style', 'background-color: black; color: #fff; width: 320px; height: 206px; position: fixed; bottom: 50px; right: 50px;');
-			//把元素节点添加到body元素节点中成为其子节点，放在body的现有子节点的最后
-			document.body.appendChild(panel);
-
-			translate.util.loadMsgJs();
-		},
 		/*
 			追加离线翻译数据。如果追加的数据重复，会自动去重
 			传入参数：
@@ -7755,61 +7652,6 @@ var translate = {
 		     var r = window.location.search.substr(1).match(reg);
 		     if(r!=null)return  unescape(r[2]); return "";
 		},
-		/**
-		 * 同步加载JS，加载过程中会阻塞，加载完毕后继续执行后面的。
-		 * url: 要加载的js的url
-		 */
-		synchronizesLoadJs:function(url){
-			var  xmlHttp = null;  
-			if(window.ActiveXObject){//IE  
-				try {  
-					//IE6以及以后版本中可以使用  
-					xmlHttp = new ActiveXObject("Msxml2.XMLHTTP");  
-				} catch (e) {  
-					//IE5.5以及以后版本可以使用  
-					xmlHttp = new ActiveXObject("Microsoft.XMLHTTP");  
-				}  
-			}else if(window.XMLHttpRequest){  
-				//Firefox，Opera 8.0+，Safari，Chrome  
-				xmlHttp = new XMLHttpRequest();  
-			}  
-			//采用同步加载  
-			xmlHttp.open("GET",url,false);  
-			//发送同步请求，如果浏览器为Chrome或Opera，必须发布后才能运行，不然会报错  
-			xmlHttp.send(null);  
-			//4代表数据发送完毕  
-			if( xmlHttp.readyState == 4 ){  
-				//0为访问的本地，200到300代表访问服务器成功，304代表没做修改访问的是缓存  
-				if((xmlHttp.status >= 200 && xmlHttp.status <300) || xmlHttp.status == 0 || xmlHttp.status == 304){  
-					var myBody = document.getElementsByTagName("HTML")[0];  
-					var myScript = document.createElement( "script" );  
-					myScript.language = "javascript";  
-					myScript.type = "text/javascript";  
-					try{  
-						//IE8以及以下不支持这种方式，需要通过text属性来设置  
-						myScript.appendChild(document.createTextNode(xmlHttp.responseText));  
-					}catch (ex){  
-						myScript.text = xmlHttp.responseText;  
-					}  
-					myBody.appendChild(myScript);  
-					return true;  
-				}else{  
-					return false;  
-				}  
-			}else{  
-				return false;  
-			}  
-		},
-
-		/*js translate.util.loadMsgJs start*/
-		//加载 msg.js
-		loadMsgJs:function(){
-			if(typeof(msg) != 'undefined'){
-				return;
-			}
-			translate.util.synchronizesLoadJs('https://res.zvo.cn/msg/msg.js');
-		},
-		/*js translate.util.loadMsgJs end*/
 		/*
 			对一个对象，按照对象的key的长度进行排序，越长越在前面
 		*/
@@ -12233,45 +12075,6 @@ var translate = {
 
 	},
 	/*js translate.recycle end*/
-
-	/*js translate.debug start*/
-	debug: {
-
-		loadDebugJs: function(func, debugJsUrl){
-			if(typeof(debugJsUrl) !== 'string' || debugJsUrl.length < 5){
-				debugJsUrl = 'https://translate.zvo.cn/static/debug.min.js';
-			}
-			if(typeof(translate.debug.data) === 'undefined'){
-				//载入 translate_debug.js
-
-				//if(window.location.protocol.toLowerCase() === 'file:'){
-					if(debugJsUrl.indexOf('file') !== 0){
-						//alert('您当前的页面是file协议，请手动下载 https://translate.zvo.cn/static/debug.min.js 这个js文件，然后传入 translate.debug.showUIDialog(\'file://a/b/debug.min.js\'); 使用')
-					}
-					// 1. 创建script标签
-				    const script = document.createElement('script');
-				    script.src = debugJsUrl;
-				    script.onload = script.onreadystatechange = function() {
-				    	func();
-				    }
-				    document.head.appendChild(script);
-				//}else{
-				//	translate.util.synchronizesLoadJs(debugJsUrl);
-				//}
-
-			}
-		},
-
-		/*
-			显示debug 的 UI对话界面
-		*/
-		use: function(debugJsUrl){
-			translate.debug.loadDebugJs(function(){
-				translate.debug.showUIDialog();
-			}, debugJsUrl);
-		}
-	},
-	/*js translate.debug end*/
 
 	/*js translate.init start*/
 	/*
