@@ -120,7 +120,7 @@
       user: {
         avatar: first(user.avatar),
         name: first(user.nickname, user.name),
-        id: first(user.steam_id, user.id),
+        id: first(user.id),
         joinedDays: Number.isFinite(joined) ? Math.max(0, Math.round(joined)) : null,
       },
       sponsor: {
