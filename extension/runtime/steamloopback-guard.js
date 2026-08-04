@@ -13,8 +13,15 @@
 
   const MARK = "__steamBuffLoopbackGuard";
   const RECOVERY_MARK = "__steamBuffLoopbackRecovery";
-  const VERSION = "steam-loopback-guard-v12";
+  const VERSION = "steam-loopback-guard-v13";
   const REQUEST_TYPE = "STEAM_LOOPBACK_INJECT_REQUEST";
+  const ROOT_MENU_TITLE = "Steam Root Menu";
+  const ROOT_MENU_TARGET_SELECTOR = "#popup_target";
+  const ROOT_MENU_OPEN_TYPE = "STEAM_ROOT_MENU_OPEN_CHROMIUM";
+  const ROOT_MENU_ACTION_BROWSER = "browser";
+  const ROOT_MENU_ACTION_EXTENSIONS = "extensions";
+  const ROOT_MENU_BROWSER_LABEL = "steamRootMenu_chromiumBrowser";
+  const ROOT_MENU_EXTENSIONS_LABEL = "steamRootMenu_extensionManagement";
   const WAIT_MS = 100;
   const MAX_TRIES = 60;
   const REQUEST_TIMEOUT_MS = 7000;
@@ -71,6 +78,10 @@
   let requestSequence = 0;
   let requestLocalAttempt = 0;
   let requestLocalRetryDelay = 0;
+  let rootMenuObserver = null;
+  let rootMenuTarget = null;
+  let rootMenuRequestPending = false;
+  let rootMenuVisibilityBound = false;
   const requestStartedAt = recovery?.startedAt || Date.now();
   const requestAttempt = recovery?.attempt || 1;
   let requestLastFailureReason = recovery?.previousFailureReason || "";
@@ -86,6 +97,168 @@
 
   function href() {
     return text(location.href);
+  }
+
+  function rootMenuLabel(key) {
+    try {
+      return text(chrome.i18n?.getMessage?.(key));
+    } catch {
+      return "";
+    }
+  }
+
+  function requestRootMenuAction(action) {
+    if (rootMenuRequestPending) {
+      return;
+    }
+    const sendMessage = chrome.runtime?.sendMessage;
+    if (typeof sendMessage !== "function") {
+      return;
+    }
+    rootMenuRequestPending = true;
+    try {
+      sendMessage.call(chrome.runtime, {
+        type: ROOT_MENU_OPEN_TYPE,
+        action,
+      }, (response) => {
+        const runtimeError = chrome.runtime?.lastError;
+        rootMenuRequestPending = false;
+        if (!runtimeError && response?.success === true) {
+          try {
+            window.close();
+          } catch {
+            // Root Menu 已完成动作，关闭失败不影响 Chromium 窗口。
+          }
+        }
+      });
+    } catch {
+      rootMenuRequestPending = false;
+    }
+  }
+
+  function rootMenuItem(template, action, label) {
+    const item = template.cloneNode(false);
+    item.removeAttribute("id");
+    item.textContent = label;
+    item.dataset.steamBuffRootMenuAction = action;
+    item.setAttribute("aria-label", label);
+    item.tabIndex = 0;
+    item.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      requestRootMenuAction(action);
+    });
+    item.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      requestRootMenuAction(action);
+    });
+    return item;
+  }
+
+  function rootMenuNodes(root) {
+    return Array.from(root.querySelectorAll(
+      "[data-steam-buff-root-menu-action], [data-steam-buff-root-menu-separator]",
+    ));
+  }
+
+  function hasCompleteRootMenu(root) {
+    return !!root.querySelector(`[data-steam-buff-root-menu-action="${ROOT_MENU_ACTION_BROWSER}"]`)
+      && !!root.querySelector(`[data-steam-buff-root-menu-action="${ROOT_MENU_ACTION_EXTENSIONS}"]`)
+      && !!root.querySelector("[data-steam-buff-root-menu-separator='settings']");
+  }
+
+  function ensureRootMenu(root) {
+    if (!root?.isConnected || document.hidden) {
+      return false;
+    }
+    if (hasCompleteRootMenu(root)) {
+      return true;
+    }
+    rootMenuNodes(root).forEach((node) => node.remove());
+
+    const firstItem = root.querySelector("[role='menuitem']");
+    const container = firstItem?.parentElement;
+    if (!container || !root.contains(container)) {
+      return false;
+    }
+    const children = Array.from(container.children);
+    const tail = children.slice(-5);
+    if (tail.length !== 5
+      || tail[0].getAttribute("role") !== "menuitem"
+      || tail[1].tagName !== "HR"
+      || tail[2].getAttribute("role") !== "menuitem"
+      || tail[3].tagName !== "HR"
+      || tail[4].getAttribute("role") !== "menuitem") {
+      return false;
+    }
+
+    const browserLabel = rootMenuLabel(ROOT_MENU_BROWSER_LABEL);
+    const extensionsLabel = rootMenuLabel(ROOT_MENU_EXTENSIONS_LABEL);
+    if (!browserLabel || !extensionsLabel) {
+      return false;
+    }
+    const settingsItem = tail[2];
+    const settingsSeparator = tail[3];
+    const browserItem = rootMenuItem(settingsItem, ROOT_MENU_ACTION_BROWSER, browserLabel);
+    const extensionsItem = rootMenuItem(settingsItem, ROOT_MENU_ACTION_EXTENSIONS, extensionsLabel);
+    const separator = settingsSeparator.cloneNode(false);
+    separator.removeAttribute("id");
+    separator.dataset.steamBuffRootMenuSeparator = "settings";
+    const fragment = document.createDocumentFragment();
+    fragment.append(browserItem, extensionsItem, separator);
+    container.insertBefore(fragment, settingsItem);
+    return true;
+  }
+
+  function observeRootMenu(root) {
+    if (!rootMenuObserver) {
+      rootMenuObserver = new MutationObserver((mutations) => {
+        if (document.hidden || !mutations.some((mutation) => mutation.type === "childList")) {
+          return;
+        }
+        ensureRootMenu(rootMenuTarget);
+      });
+    }
+    rootMenuObserver.disconnect();
+    if (!document.hidden) {
+      rootMenuObserver.observe(root, { childList: true, subtree: true });
+    }
+  }
+
+  function syncRootMenuVisibility() {
+    if (!rootMenuTarget?.isConnected) {
+      return;
+    }
+    if (document.hidden) {
+      rootMenuObserver?.disconnect();
+      return;
+    }
+    ensureRootMenu(rootMenuTarget);
+    observeRootMenu(rootMenuTarget);
+  }
+
+  function initRootMenu(tries = 0) {
+    if (title() !== ROOT_MENU_TITLE) {
+      return;
+    }
+    const root = document.querySelector(ROOT_MENU_TARGET_SELECTOR);
+    if (!root) {
+      if (tries < MAX_TRIES) {
+        window.setTimeout(() => initRootMenu(tries + 1), WAIT_MS);
+      }
+      return;
+    }
+    rootMenuTarget = root;
+    ensureRootMenu(root);
+    observeRootMenu(root);
+    if (!rootMenuVisibilityBound) {
+      rootMenuVisibilityBound = true;
+      document.addEventListener("visibilitychange", syncRootMenuVisibility);
+    }
   }
 
   function excludedTitle(value = title()) {
@@ -263,6 +436,10 @@
   function check(tries = 0) {
     const currentTitle = title();
     const currentHref = href();
+    if (currentTitle === ROOT_MENU_TITLE) {
+      initRootMenu();
+      return;
+    }
     const propertyDialog = isPropertyDialogShell();
     if (shouldRequestRuntime(propertyDialog)) {
       requestRuntime(propertyDialog);
