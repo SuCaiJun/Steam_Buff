@@ -48,8 +48,6 @@
   const BUTTON_SWEEP_FRAME_MS = 32;
   const BUTTON_SWEEP_FROM = 160;
   const BUTTON_SWEEP_TO = -160;
-  const TITLE_MIN_TEXT = 3;
-  const TITLE_MIN_FONT_SIZE = 16;
   const TITLE_MAX_TEXT = 220;
   const DEFAULT_CONTENT_TYPE = "新闻/社区公告或更新公告";
 
@@ -57,7 +55,6 @@
     return globalThis.STI18n.text(key, fallback, params);
   }
 
-  const TITLE_META_RE = /^(重大更新|新闻|活动|定期更新|小更新|补丁|公告|来自[:：]?.*|发布于.*|\d{1,2}月\d{1,2}日.*|today|yesterday|posted|from)$/i;
   const CONTROL_SELECTOR = [
     "button",
     "a",
@@ -70,53 +67,13 @@
     `.${BOX_CLASS}`,
   ].join(",");
   const BLOCK_TEXT_SELECTOR = "p,li,tr,[role='row'],blockquote,pre,dd,dt,h1,h2,h3,h4,h5,h6";
-  const BODY_SKIP_SELECTOR = [
-    "[class*='EventHeader']",
-    "[class*='eventheader']",
-    "[class*='EventFooter']",
-    "[class*='eventfooter']",
-    "[class*='EventShare']",
-    "[class*='eventshare']",
-    "[class*='EventAuthor']",
-    "[class*='eventauthor']",
-    "[class*='Byline']",
-    "[class*='byline']",
-    "[class*='DateAndTime']",
-    "[class*='dateandtime']",
-    "[class*='Social']",
-    "[class*='social']",
-  ].join(",");
   const NEWS_ENTRY_SELECTOR = "a[href^='steam://openurl/https://store.steampowered.com/news/app/']";
   const APP_ICON_SELECTOR = "img[src*='/community_assets/images/apps/']";
-  const BODY_SELECTORS = [
-    "[class*='EventBodyText']",
-    "[class*='EventBody']",
-    "[class*='eventbody']",
-    "[class*='EventContents']",
-    "[class*='eventcontents']",
-    "[class*='EventDescription']",
-    "[class*='eventdescription']",
-    "[class*='ArticleContent']",
-    "[class*='articlecontent']",
-    "[class*='PostContent']",
-    "[class*='postcontent']",
-    "[class*='PatchNotes']",
-    "[class*='patchnotes']",
-    "[class*='Description']",
-    "[class*='description']",
-    "[class*='Summary']",
-    "[class*='summary']",
-    "[class*='Body']",
-    "[class*='body']",
-    "[class*='Content']",
-    "[class*='content']",
-  ];
-  const BODY_FALLBACK_SELECTORS = [
-    "article",
-    "[role='article']",
-    "main",
-    "section",
-  ];
+  const LIBRARY_EVENT_TITLE_CONTAINER_CLASS = "ZHAfj0MPg1zDLXRnCzSsx";
+  const EVENT_TYPE_CLASS = "Udzrpqr8534T5DvVZveNP";
+  const LIBRARY_EVENT_BODY_CONTAINER_CLASS = "_32mHvRSmD7AVK9OIOPlaFu";
+  const EVENT_DETAILS_BODY_CLASS = "A_A2B6fTn_MPLlGCmsLtd";
+  const LIBRARY_EVENT_DETAILS_BODY_CLASS = "_3NW5vEM9HgfQrgR4W-Xy_s";
   const mounted = new WeakMap();
   const buttonMotion = new WeakMap();
   const styles = window.SteamBuff?.styles;
@@ -197,63 +154,6 @@
     return window.SteamBuff?.path?.url ? window.SteamBuff.path.url(path) : path;
   }
 
-  function firstClean(values) {
-    for (const value of values) {
-      const text = clean(value);
-      if (text) {
-        return text;
-      }
-    }
-    return "";
-  }
-
-  function routeAppid() {
-    const sources = [
-      window.SteamBuff?.ctx?.route?.(),
-      window.tempNavStore?.m_locationPathname,
-      window.MainWindowBrowserManager?.m_URLRequested,
-      window.MainWindowBrowserManager?.m_URL,
-      window.location?.href,
-    ];
-    for (const source of sources) {
-      const match = String(source || "").match(/\/(?:library|app)\/app\/(\d+)|\/app\/(\d+)|[?&]appid=(\d+)/i);
-      const id = Number(match?.[1] || match?.[2] || match?.[3] || 0);
-      if (Number.isFinite(id) && id > 0) {
-        return String(id);
-      }
-    }
-    return "";
-  }
-
-  function appById(appid) {
-    const id = Number(appid);
-    if (!Number.isFinite(id) || id <= 0) {
-      return null;
-    }
-    try {
-      if (typeof window.appStore?.GetAppOverviewByAppID === "function") {
-        return window.appStore.GetAppOverviewByAppID(id);
-      }
-    } catch {
-    }
-    try {
-      return window.appStore?.m_mapApps?.get?.(id) || null;
-    } catch {
-    }
-    return null;
-  }
-
-  function appNameFromStore(appid) {
-    const app = appById(appid);
-    return firstClean([
-      app?.__RickyStOriginalName,
-      app?.originalDisplayName,
-      app?.english_name,
-      app?.name,
-      app?.display_name,
-    ]);
-  }
-
   function newsEntryMeta(el) {
     const raw = String(el?.getAttribute?.("href") || el?.href || "");
     const news = raw.match(/^steam:\/\/openurl\/https:\/\/store\.steampowered\.com\/news\/app\/(\d+)\/view\/([^/?#]+)(?:[/?#].*)?$/i);
@@ -303,37 +203,46 @@
     return Object.freeze({ card, link: links[cards.indexOf(card)], panel, root, target });
   }
 
-  function newsMetaFromCard(card) {
-    const link = card?.querySelector?.(NEWS_ENTRY_SELECTOR) || null;
-    const meta = newsEntryMeta(link);
-    return meta ? {
-      appid: meta.appid,
-      gid: meta.gid,
-      newsHref: meta.href,
-      title: nodeText(link),
-    } : {};
-  }
-
-  function steamHeaderText(card) {
-    const text = nodeText(card).slice(0, 360);
-    return clean(text.split(/(?:来自[:：]?|from[:：]?|发布于|发表于|posted|published|开始时间|结束时间)/i)[0] || "");
-  }
-
-  function steamNewsLabelsFromCard(card) {
-    const statusLabels = new Set(["进行中", "已结束", "即将开始", "现已推出", "免费开玩"]);
-    const tokens = steamHeaderText(card).split(/\s+/).map(clean).filter(Boolean);
-    const type = tokens.find((item) => !statusLabels.has(item)) || "";
-    const status = tokens.find((item) => statusLabels.has(item)) || "";
+  function newsContentResult(valid, reason, nodes = {}) {
     return {
-      type,
-      status,
+      valid,
+      reason,
+      link: nodes.link || null,
+      titleContainer: nodes.titleContainer || null,
+      bodyContainer: nodes.bodyContainer || null,
+      bodyHost: nodes.bodyHost || null,
+      typeHost: nodes.typeHost || null,
     };
   }
 
-  function gameNameFromCard(card) {
-    const text = nodeText(card).slice(0, 520);
-    const match = text.match(/(?:来自|from)[:：]?\s*(.+?)\s*(?:发布于|发表于|posted|published|开始时间|结束时间|$)/i);
-    return clean(match?.[1] || "");
+  function newsContentSurface(card) {
+    if (!card?.isConnected) {
+      return newsContentResult(false, "card-disconnected");
+    }
+    const link = card.querySelector?.(NEWS_ENTRY_SELECTOR) || null;
+    if (!newsEntryMeta(link)) {
+      return newsContentResult(false, "news-link-missing", { link });
+    }
+    const titleContainer = link.parentElement?.parentElement || null;
+    if (titleContainer?.parentElement !== card ||
+        !titleContainer.classList?.contains(LIBRARY_EVENT_TITLE_CONTAINER_CLASS)) {
+      return newsContentResult(false, "title-container-mismatch", { link, titleContainer });
+    }
+    const bodyContainer = titleContainer.nextElementSibling || null;
+    if (!bodyContainer?.classList?.contains(LIBRARY_EVENT_BODY_CONTAINER_CLASS)) {
+      return newsContentResult(false, "body-container-mismatch", { link, titleContainer, bodyContainer });
+    }
+    const bodyHost = bodyContainer.firstElementChild || null;
+    if (!bodyHost?.classList?.contains(EVENT_DETAILS_BODY_CLASS) ||
+        !bodyHost.classList.contains(LIBRARY_EVENT_DETAILS_BODY_CLASS)) {
+      return newsContentResult(false, "body-host-mismatch", { link, titleContainer, bodyContainer, bodyHost });
+    }
+    const typeHost = titleContainer.querySelector?.(`.${EVENT_TYPE_CLASS}`) || null;
+    return newsContentResult(true, "", { link, titleContainer, bodyContainer, bodyHost, typeHost });
+  }
+
+  function classSignature(el) {
+    return clean(el?.getAttribute?.("class") || "").slice(0, 240);
   }
 
   function skipTextParent(el) {
@@ -347,36 +256,21 @@
     if (el.closest?.("[aria-hidden='true'],[hidden]")) {
       return true;
     }
-    if (el.closest?.(BODY_SKIP_SELECTOR)) {
-      return true;
-    }
     return !visible(el);
   }
 
-  function excludedTextParent(parent, exclude) {
-    return exclude.some((el) => el?.isConnected && (el === parent || el.contains?.(parent)));
+  function collectText(root) {
+    return textParts(root).map((part) => part.text).join("\n").slice(0, MAX_TEXT).trim();
   }
 
-  function textPartOptions(options = {}) {
-    const exclude = Array.isArray(options.exclude)
-      ? options.exclude.filter(Boolean)
-      : [];
-    return { exclude };
-  }
-
-  function collectText(root, options = {}) {
-    return textParts(root, options).map((part) => part.text).join("\n").slice(0, MAX_TEXT).trim();
-  }
-
-  function textParts(root, options = {}) {
-    const opts = textPartOptions(options);
+  function textParts(root) {
     const parts = [];
     let length = 0;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         const parent = node.parentElement;
         const text = clean(node.nodeValue);
-        if (!text || text.length < 2 || skipTextParent(parent) || excludedTextParent(parent, opts.exclude)) {
+        if (!text || text.length < 2 || skipTextParent(parent)) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
@@ -391,142 +285,6 @@
       }
     }
     return parts;
-  }
-
-  function pxNumber(value) {
-    const number = Number.parseFloat(String(value || ""));
-    return Number.isFinite(number) ? number : 0;
-  }
-
-  function skipTitleParent(el, bodyHost) {
-    if (!el || el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS},.${BUTTON_CLASS}`)) {
-      return true;
-    }
-    const tag = el.tagName;
-    if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "IFRAME" || tag === "VIDEO" || tag === "IMG") {
-      return true;
-    }
-    if (el.closest?.("[aria-hidden='true'],[hidden]")) {
-      return true;
-    }
-    if (tag !== "A" && (el.matches?.("button,input,select,textarea,[role='button']") || el.closest?.("button,input,select,textarea"))) {
-      return true;
-    }
-    if (bodyHost && (bodyHost === el || bodyHost.contains(el))) {
-      return true;
-    }
-    return !visible(el);
-  }
-
-  function firstTextNode(el) {
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      if (clean(walker.currentNode.nodeValue)) {
-        return walker.currentNode;
-      }
-    }
-    return null;
-  }
-
-  function newsTitleTextNode(card) {
-    const link = card?.querySelector?.(NEWS_ENTRY_SELECTOR) || null;
-    const text = nodeText(link).slice(0, TITLE_MAX_TEXT);
-    if (!link || text.length < TITLE_MIN_TEXT || skipTitleParent(link, null)) {
-      return null;
-    }
-    return {
-      node: firstTextNode(link),
-      parent: link,
-      text,
-      rect: link.getBoundingClientRect(),
-      fontSize: pxNumber(window.getComputedStyle(link).fontSize),
-    };
-  }
-
-  function titleNodeScore(item, bodyTop) {
-    const metaPenalty = TITLE_META_RE.test(item.text) ? 600 : 0;
-    const tagBonus = item.parent.tagName === "A" ? 80 : 0;
-    const headingBonus = item.parent.matches?.("h1,h2,h3,[role='heading'],[class*='Title'],[class*='title'],[class*='Headline'],[class*='headline']") ? 120 : 0;
-    const distancePenalty = Math.abs(item.rect.top - bodyTop) * 0.35;
-    return item.fontSize * 100 + item.rect.height * 4 + Math.min(item.text.length, 80) + tagBonus + headingBonus - metaPenalty - distancePenalty;
-  }
-
-  function titleTextNode(card, bodyHost) {
-    if (!card?.isConnected) {
-      return null;
-    }
-    const cardRect = card.getBoundingClientRect();
-    const bodyRect = bodyHost && bodyHost !== card ? bodyHost.getBoundingClientRect() : null;
-    const bodyTop = bodyRect?.top || cardRect.top + Math.min(cardRect.height, 280);
-    const candidates = [];
-    const seenParents = new WeakSet();
-    const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      const parent = node.parentElement;
-      if (!parent || seenParents.has(parent)) {
-        continue;
-      }
-      seenParents.add(parent);
-      const text = nodeText(parent).slice(0, TITLE_MAX_TEXT) || clean(node.nodeValue).slice(0, TITLE_MAX_TEXT);
-      if (text.length < TITLE_MIN_TEXT || skipTitleParent(parent, bodyHost)) {
-        continue;
-      }
-      const rect = parent.getBoundingClientRect();
-      if (rect.top < cardRect.top - 4 || rect.top >= bodyTop || rect.width < 40 || rect.height < 12) {
-        continue;
-      }
-      if (bodyRect) {
-        const bodyCenter = (bodyRect.left + bodyRect.right) / 2;
-        const titleCenter = (rect.left + rect.right) / 2;
-        const centerLimit = Math.max(180, bodyRect.width * 0.38);
-        if (rect.right < bodyRect.left - 80 ||
-            rect.left > bodyRect.right + 80 ||
-            rect.left > bodyRect.left + bodyRect.width * 0.62 ||
-            Math.abs(titleCenter - bodyCenter) > centerLimit) {
-          continue;
-        }
-      }
-      const style = window.getComputedStyle(parent);
-      const fontSize = pxNumber(style.fontSize);
-      if (fontSize < TITLE_MIN_FONT_SIZE && rect.height < 22) {
-        continue;
-      }
-      candidates.push({
-        node,
-        parent,
-        text,
-        rect,
-        fontSize,
-      });
-    }
-    return candidates
-      .sort((a, b) => titleNodeScore(b, bodyTop) - titleNodeScore(a, bodyTop))[0] || null;
-  }
-
-  function ancestorTitleTextNode(card) {
-    const popup = card?.closest?.("#popup_target") || null;
-    let current = card?.parentElement || null;
-    while (current && current !== popup && popup?.contains(current)) {
-      const title = titleTextNode(current, card);
-      if (title) {
-        return title;
-      }
-      current = current.parentElement;
-    }
-    return null;
-  }
-
-  function findTitleTextNode(card, bodyHost) {
-    const linked = newsTitleTextNode(card);
-    if (linked) {
-      return linked;
-    }
-    const direct = titleTextNode(card, bodyHost);
-    if (direct && !card?.closest?.(`.${TRANSLATED_BODY_CLASS}`)) {
-      return direct;
-    }
-    return ancestorTitleTextNode(card) || direct;
   }
 
   function replaceTitleText(host, text) {
@@ -601,8 +359,8 @@
   }
 
   /* 正文原位翻译：只替换文本节点，保留 Steam 原文里的视频、图片、链接卡片和其它交互 DOM。 */
-  function replaceTextNodes(host, text, options = {}) {
-    const parts = textParts(host, options).filter((part) => part.node?.isConnected);
+  function replaceTextNodes(host, text) {
+    const parts = textParts(host).filter((part) => part.node?.isConnected);
     const lines = translatedLines(text);
     if (!parts.length || !lines.length) {
       return false;
@@ -637,23 +395,15 @@
     return block && root?.contains?.(block) ? block : parent;
   }
 
-  function bodyTextOptions(host, titleHost) {
-    // 注: Steam 新闻标题有时落在正文 host 内；正文采集和渲染必须排除标题，避免标题翻译让正文任务过期或误判成功。
-    return {
-      exclude: host?.contains?.(titleHost) ? [titleHost] : [],
-    };
-  }
-
   function collectBodyText(data) {
-    return data?.host ? collectText(data.host, bodyTextOptions(data.host, data.titleHost)) : "";
+    return data?.host ? collectText(data.host) : "";
   }
 
   function bodyUnits(source) {
     const host = source?.host || source;
-    const titleHost = source?.host ? source.titleHost : null;
     const units = [];
     let current = null;
-    for (const part of textParts(host, bodyTextOptions(host, titleHost)).filter((item) => item.node?.isConnected)) {
+    for (const part of textParts(host).filter((item) => item.node?.isConnected)) {
       const unitHost = bodyUnitHost(part, host);
       if (!current || current.host !== unitHost) {
         current = { host: unitHost, parts: [] };
@@ -1054,180 +804,54 @@
     await Promise.all(Array.from({ length: size }, () => runWorker()));
   }
 
-  function bodyHostCandidate(el) {
-    if (!visible(el) || el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) || el.matches?.(BODY_SKIP_SELECTOR)) {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    if (rect.width < 220 || rect.height < 24) {
-      return false;
-    }
-    return nodeText(el).length >= MIN_TEXT;
-  }
-
-  function topMetaHostLike(card, el) {
-    if (!card || !el || !card.contains(el)) {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    const cardRect = card.getBoundingClientRect();
-    if (rect.top > cardRect.top + 140 || rect.height > 180) {
-      return false;
-    }
-    const text = nodeText(el).slice(0, 260);
-    const metaSignals = [
-      /新闻|news/i,
-      /来自[:：]?|from[:：]?/i,
-      /发布于|posted|published/i,
-    ].filter((re) => re.test(text)).length;
-    return metaSignals >= 2;
-  }
-
-  function bodyHostCandidates(card, selectors) {
-    const candidates = Array.from(new Set(
-      selectors.flatMap((selector) => Array.from(card.querySelectorAll(selector)))
-    )).filter(bodyHostCandidate);
-    const content = candidates.filter((el) => !topMetaHostLike(card, el));
-    return content.length ? content : candidates;
-  }
-
-  function bodyBlockCount(el) {
-    return Array.from(el.querySelectorAll(BLOCK_TEXT_SELECTOR))
-      .filter((item) => visible(item) && !item.closest?.(BODY_SKIP_SELECTOR))
-      .length;
-  }
-
-  function bodyHostScore(card, el, textLength, blockCount) {
-    const rect = el.getBoundingClientRect();
-    const cardRect = card.getBoundingClientRect();
-    const name = `${el.id || ""} ${el.className || ""}`;
-    const specificBonus = /eventbody|eventcontents|eventdescription|articlecontent|postcontent|patchnotes|description|summary|body/i.test(name) ? 1200 : 0;
-    const broadPenalty = /^(ARTICLE|SECTION|MAIN)$/.test(el.tagName) || el.getAttribute("role") === "article" ? 700 : 0;
-    const topPenalty = Math.max(0, rect.top - cardRect.top) * 0.12;
-    return specificBonus + Math.min(textLength, MAX_TEXT) + blockCount * 160 + Math.min(rect.height, 900) * 0.2 - broadPenalty - topPenalty;
-  }
-
-  function pickBodyHost(card, candidates) {
-    const textCache = new WeakMap();
-    const blockCache = new WeakMap();
-    const scoreCache = new WeakMap();
-    const textLength = (el) => {
-      if (!textCache.has(el)) {
-        textCache.set(el, nodeText(el).length);
-      }
-      return textCache.get(el);
-    };
-    const blockCount = (el) => {
-      if (!blockCache.has(el)) {
-        blockCache.set(el, bodyBlockCount(el));
-      }
-      return blockCache.get(el);
-    };
-    const score = (el) => {
-      if (!scoreCache.has(el)) {
-        scoreCache.set(el, bodyHostScore(card, el, textLength(el), blockCount(el)));
-      }
-      return scoreCache.get(el);
-    };
-    return candidates
-      .filter((el) => !candidates.some((other) => {
-        if (other === el || !el.contains(other)) {
-          return false;
-        }
-        return textLength(other) >= Math.max(MIN_TEXT, textLength(el) * 0.72);
-      }))
-      .sort((a, b) => score(b) - score(a))[0] || null;
-  }
-
-  function inferredTextHosts(card) {
-    const cardRect = card.getBoundingClientRect();
-    const candidates = Array.from(card.querySelectorAll(":scope > *"))
-      .filter((el) => {
-        if (!visible(el) || el.closest(`.${TOOL_CLASS},.${BOX_CLASS}`) || el.matches?.(BODY_SKIP_SELECTOR)) {
-          return false;
-        }
-        const tag = el.tagName;
-        if (tag === "IMG" || tag === "SVG" || tag === "VIDEO" || tag === "IFRAME") {
-          return false;
-        }
-        const rect = el.getBoundingClientRect();
-        if (rect.width < Math.min(360, cardRect.width * 0.48) || rect.height < 40) {
-          return false;
-        }
-        if (nodeText(el).length < MIN_TEXT) {
-          return false;
-        }
-        return true;
-      })
-      .sort((a, b) => nodeText(b).length - nodeText(a).length);
-    /* 注: Steam 普通 DIV 新闻卡片的首个子节点常是标题/来源/日期头部，不是正文；选中它会让按钮因正文过短而不挂载。 */
-    const content = candidates.filter((el) => !topMetaHostLike(card, el));
-    return content.length ? content : candidates;
-  }
-
-  function shouldPreferInferredBodyHost(card, direct, inferred) {
-    if (!card || !direct || !inferred || direct === inferred || direct.contains(inferred) || inferred.contains(direct)) {
-      return false;
-    }
-    const directRect = direct.getBoundingClientRect();
-    const inferredRect = inferred.getBoundingClientRect();
-    if (inferredRect.top >= directRect.top - 24) {
-      return false;
-    }
-    const directText = nodeText(direct).length;
-    const inferredText = nodeText(inferred).length;
-    if (inferredText < MIN_TEXT || inferredText < Math.max(MIN_TEXT, directText * 0.45)) {
-      return false;
-    }
-    const name = `${direct.id || ""} ${direct.className || ""}`;
-    return !/eventbody|eventcontents|eventdescription|articlecontent|postcontent|patchnotes/i.test(name);
-  }
-
-  function textHost(card, options = {}) {
-    const direct = pickBodyHost(card, bodyHostCandidates(card, BODY_SELECTORS));
-    const inferred = inferredTextHosts(card)[0] || null;
-    const fallback = pickBodyHost(card, bodyHostCandidates(card, BODY_FALLBACK_SELECTORS));
-    const preferred = shouldPreferInferredBodyHost(card, direct, inferred) ? inferred : direct;
-    return preferred ||
-      inferred ||
-      fallback ||
-      (options.strict ? null : card);
-  }
-
-  function extract(card, options = {}) {
-    const host = textHost(card, options);
-    const title = findTitleTextNode(card, host && host !== card ? host : null);
-    const titleText = title?.text || "";
-    const titleHost = title?.parent || null;
-    const text = host ? collectText(host, bodyTextOptions(host, titleHost)) : "";
-    const routeId = routeAppid();
-    const newsMeta = newsMetaFromCard(card);
-    const appid = routeId || newsMeta.appid || "";
-    const labels = steamNewsLabelsFromCard(card);
+  function extract(card) {
+    const contract = newsContentSurface(card);
+    const host = contract.valid ? contract.bodyHost : null;
+    const titleHost = contract.valid ? contract.link : null;
+    const titleText = titleHost ? nodeText(titleHost).slice(0, TITLE_MAX_TEXT) : "";
+    const text = host ? collectText(host) : "";
+    const newsMeta = contract.valid ? newsEntryMeta(contract.link) : null;
+    const steamTypeLabel = contract.valid ? nodeText(contract.typeHost) : "";
     return {
+      contractValid: contract.valid,
+      contractReason: contract.reason,
+      contract,
       host,
       text,
       titleHost,
-      titleNode: title?.node || null,
       titleText,
       meta: {
         title: titleText,
-        gameName: appNameFromStore(appid) || gameNameFromCard(card),
-        appid,
-        gid: newsMeta.gid || "",
-        newsHref: newsMeta.newsHref || "",
-        steamTypeLabel: labels.type,
-        steamStatusLabel: labels.status,
-        contentType: labels.type || DEFAULT_CONTENT_TYPE,
+        gameName: "",
+        appid: newsMeta?.appid || "",
+        gid: newsMeta?.gid || "",
+        newsHref: newsMeta?.href || "",
+        steamTypeLabel,
+        steamStatusLabel: "",
+        contentType: steamTypeLabel || DEFAULT_CONTENT_TYPE,
       },
       titleHash: hashText(titleText),
-      hash: hashText(`${newsMeta.gid || ""}\n---steam-buff-news-id---\n${titleText}\n---steam-buff-news---\n${text}`),
+      hash: hashText(`${newsMeta?.gid || ""}\n---steam-buff-news-id---\n${titleText}\n---steam-buff-news---\n${text}`),
       length: titleText.length + text.length,
     };
   }
 
   function mountableData(data) {
-    return !!data.titleText || data.text.length >= MIN_TEXT;
+    return data.contractValid && (!!data.titleText || data.text.length >= MIN_TEXT);
+  }
+
+  function logContentContractMismatch(rt, card, data) {
+    if (data.contractValid || !card || rt.contractMismatchCards.has(card)) {
+      return;
+    }
+    rt.contractMismatchCards.add(card);
+    log.warn("news-popup-content-contract-mismatch", "新闻弹窗正文结构与已验证契约不一致", {
+      reason: data.contractReason,
+      cardChildCount: card.children?.length || 0,
+      titleContainerClass: classSignature(data.contract?.titleContainer),
+      bodyContainerClass: classSignature(data.contract?.bodyContainer),
+      bodyHostClass: classSignature(data.contract?.bodyHost),
+    });
   }
 
   function hashText(text) {
@@ -1284,8 +908,7 @@
     if (!data.titleText) {
       return null;
     }
-    const current = data.titleHost?.isConnected ? { parent: data.titleHost } : findTitleTextNode(card, data.host);
-    const host = current?.parent || null;
+    const host = data.titleHost;
     if (!host?.isConnected || !replaceTitleText(host, text)) {
       return null;
     }
@@ -1298,11 +921,11 @@
   }
 
   function renderBodyTranslation(card, data, text) {
-    const host = data.host?.isConnected ? data.host : textHost(card, { strict: true });
-    if (!host || host === card) {
+    const host = data.host;
+    if (!host?.isConnected) {
       throw new Error(i18n("steam.newsTranslate.bodyTargetMissing", "未找到可替换的正文区域"));
     }
-    if (!replaceTextNodes(host, text || i18n("steam.newsTranslate.emptyResult", "翻译结果为空"), bodyTextOptions(host, data.titleHost))) {
+    if (!replaceTextNodes(host, text || i18n("steam.newsTranslate.emptyResult", "翻译结果为空"))) {
       throw new Error(i18n("steam.newsTranslate.bodyTextMissing", "未找到可替换的正文文本"));
     }
     host.classList.add(TRANSLATED_CLASS, TRANSLATED_BODY_CLASS, "notranslate");
@@ -1831,7 +1454,12 @@
       setButton(button, "loading", i18n("steam.newsTranslate.translating", "正在翻译..."));
       return;
     }
-    const data = extract(card, { strict: true });
+    const data = extract(card);
+    if (!data.contractValid) {
+      logContentContractMismatch(rt, card, data);
+      setButton(button, "error", i18n("steam.newsTranslate.bodyTargetMissing", "未找到可替换的正文区域"));
+      return;
+    }
     const existing = rt.translated.get(card);
     const needs = translationNeeds(data, existing);
     if (!hasTranslationNeeds(needs)) {
@@ -1970,13 +1598,14 @@
   function mount(rt, surface) {
     const { card, target } = surface;
     const existing = mounted.get(card);
+    const data = extract(card);
+    if (!mountableData(data)) {
+      logContentContractMismatch(rt, card, data);
+      return false;
+    }
     if (existing?.button?.isConnected && existing.target === target) {
       rt.activeCard = card;
       return true;
-    }
-    const data = extract(card, { strict: true });
-    if (!mountableData(data)) {
-      return false;
     }
 
     clearLegacyBoxes(card);
@@ -2217,6 +1846,7 @@
       cache: new Map(),
       pendingCards: new WeakSet(),
       translated: new WeakMap(),
+      contractMismatchCards: new WeakSet(),
       activeCard: null,
       popupRoot: null,
       surfaceHandle: null,
