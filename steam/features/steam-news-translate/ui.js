@@ -14,7 +14,6 @@
   const ID = "steam-news-translate";
   const RT = "__SteamBuffNewsTranslate";
   const SCHEDULER_TASK = "steam-news-translate-config";
-  const POPUP_WATCH_TASK = "steam-news-translate-popup-watch";
   const BUTTON_CLASS = "steam-buff-news-translate-button";
   const ICON_CLASS = "steam-buff-news-translate-icon";
   const TOOL_CLASS = "steam-buff-news-translate-tools";
@@ -29,14 +28,7 @@
   const TEXT_RES = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_RESPONSE";
   const MIN_TEXT = 24;
   const MAX_TEXT = 20000;
-  const FAST_SCAN_DELAY = 20;
-  const SCAN_DELAY = 300;
-  const MUTATION_SCAN_DELAY = 1000;
-  const SCROLL_SCAN_DELAY = 500;
   const CONFIG_REFRESH_MS = 15000;
-  const POPUP_WATCH_MS = 1500;
-  // 优化: 弹窗 DOM 分阶段渲染时只开启短窗口补扫，避免把全量候选扫描挂成长驻轮询。
-  const POPUP_SETTLE_MS = 3200;
   const REQUEST_TIMEOUT_MS = 120_000;
   const AI_SERVICE = "steam-buff.ai";
   const AI_BODY_FIRST_TASK_COUNT = 3;
@@ -94,46 +86,8 @@
     "[class*='Social']",
     "[class*='social']",
   ].join(",");
-  const POPUP_FRAME_SELECTOR = [
-    "[role='dialog']",
-    "[aria-modal='true']",
-    "[class*='Modal']",
-    "[class*='modal']",
-    "[class*='Popup']",
-    "[class*='popup']",
-  ].join(",");
-  const APP_ENTRY_SELECTOR = [
-    "a[href^='steam://nav/games/details/']",
-    "a[href^='steam://openurl/https://store.steampowered.com/app/']",
-    "a[href^='steam://openurl/http://store.steampowered.com/app/']",
-    "a[href^='https://store.steampowered.com/app/']",
-    "a[href^='http://store.steampowered.com/app/']",
-  ].join(",");
-  const NEWS_ENTRY_SELECTOR = [
-    "a[href^='steam://openurl/https://store.steampowered.com/news/app/']",
-    "a[href^='steam://openurl/http://store.steampowered.com/news/app/']",
-    "a[href^='https://store.steampowered.com/news/app/']",
-    "a[href^='http://store.steampowered.com/news/app/']",
-  ].join(",");
+  const NEWS_ENTRY_SELECTOR = "a[href^='steam://openurl/https://store.steampowered.com/news/app/']";
   const APP_ICON_SELECTOR = "img[src*='/community_assets/images/apps/']";
-  const POPUP_SIGNAL_SELECTOR = [
-    "article",
-    "[role='article']",
-    "[role='dialog']",
-    "[class*='Dialog']",
-    "[class*='dialog']",
-    "[class*='Modal']",
-    "[class*='modal']",
-    "[class*='PartnerEvent']",
-    "[class*='partnerevent']",
-    "[class*='EventDisplay']",
-    "[class*='eventdisplay']",
-    "[class*='GameNews']",
-    "[class*='gamenews']",
-    "[class*='News']",
-    "[class*='news']",
-  ].join(",");
-  const POPUP_MUTATION_SIGNAL_SELECTOR = `${POPUP_FRAME_SELECTOR},${POPUP_SIGNAL_SELECTOR},${APP_ENTRY_SELECTOR},${NEWS_ENTRY_SELECTOR},${APP_ICON_SELECTOR}`;
   const BODY_SELECTORS = [
     "[class*='EventBodyText']",
     "[class*='EventBody']",
@@ -300,147 +254,57 @@
     ]);
   }
 
-  function appEntryMeta(el) {
-    const raw = String(el?.getAttribute?.("href") || el?.href || "");
-    if (!raw) {
-      return null;
-    }
-    const library = raw.match(/^steam:\/\/nav\/games\/details\/(\d+)(?:[/?#].*)?$/i);
-    if (library) {
-      return { appid: library[1], kind: "library", href: raw };
-    }
-    const value = raw.replace(/^steam:\/\/openurl\//i, "");
-    let url = null;
-    try {
-      url = new URL(value, location.href);
-    } catch {
-      return null;
-    }
-    if (!/^https?:$/i.test(url.protocol) || url.hostname.toLowerCase() !== "store.steampowered.com") {
-      return null;
-    }
-    const store = url.pathname.match(/^\/app\/(\d+)(?:\/|$)/i);
-    return store ? { appid: store[1], kind: "store", href: raw } : null;
-  }
-
   function newsEntryMeta(el) {
     const raw = String(el?.getAttribute?.("href") || el?.href || "");
-    if (!raw) {
-      return null;
-    }
-    const value = raw.replace(/^steam:\/\/openurl\//i, "");
-    let url = null;
-    try {
-      url = new URL(value, location.href);
-    } catch {
-      return null;
-    }
-    if (!/^https?:$/i.test(url.protocol) || url.hostname.toLowerCase() !== "store.steampowered.com") {
-      return null;
-    }
-    const news = url.pathname.match(/^\/news\/app\/(\d+)\/view\/([^/?#]+)/i);
+    const news = raw.match(/^steam:\/\/openurl\/https:\/\/store\.steampowered\.com\/news\/app\/(\d+)\/view\/([^/?#]+)(?:[/?#].*)?$/i);
     return news ? { appid: news[1], gid: news[2], kind: "news", href: raw } : null;
   }
 
-  function appIconMeta(el) {
-    const raw = String(el?.currentSrc || el?.src || el?.getAttribute?.("src") || "");
-    if (!raw) {
+  function newsEntryLinks(root) {
+    return Array.from(root?.querySelectorAll?.(NEWS_ENTRY_SELECTOR) || []).filter((link) => !!newsEntryMeta(link));
+  }
+
+  function newsCardFromLink(link) {
+    return link?.parentElement?.parentElement?.parentElement || null;
+  }
+
+  function newsPanelFromCard(card) {
+    return card?.parentElement?.parentElement || null;
+  }
+
+  function newsToolbarFromPanel(panel) {
+    const icons = Array.from(panel?.querySelectorAll?.(APP_ICON_SELECTOR) || []);
+    if (icons.length !== 1) {
       return null;
     }
-    let url = null;
-    try {
-      url = new URL(raw, location.href);
-    } catch {
+    const toolbar = icons[0].parentElement?.parentElement || null;
+    return toolbar?.isConnected && panel.contains(toolbar) ? toolbar : null;
+  }
+
+  function activeNewsSurface(root) {
+    if (!root?.isConnected || root.id !== "popup_target") {
       return null;
     }
-    if (!/^https?:$/i.test(url.protocol)) {
+    const links = newsEntryLinks(root);
+    if (!links.length) {
       return null;
     }
-    const icon = url.pathname.match(/\/community_assets\/images\/apps\/(\d+)\//i);
-    return icon ? { appid: icon[1], kind: "icon", href: raw } : null;
-  }
-
-  function popupAppEntryLinks(root) {
-    const seen = new Set();
-    return Array.from(root?.querySelectorAll?.(APP_ENTRY_SELECTOR) || []).filter((link) => {
-      if (seen.has(link) ||
-          link.classList?.contains(BUTTON_CLASS) ||
-          link.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
-          !appEntryMeta(link) ||
-          !visible(link)) {
-        return false;
-      }
-      seen.add(link);
-      return true;
-    });
-  }
-
-  function popupNewsEntryLinks(root) {
-    const seen = new Set();
-    return Array.from(root?.querySelectorAll?.(NEWS_ENTRY_SELECTOR) || []).filter((link) => {
-      const meta = newsEntryMeta(link);
-      const key = meta ? `${meta.appid}:${meta.gid}` : "";
-      if (!key ||
-          seen.has(key) ||
-          link.classList?.contains(BUTTON_CLASS) ||
-          link.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
-          !visible(link)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
-  }
-
-  function popupNewsEntry(root) {
-    return popupNewsEntryLinks(root)[0] || null;
-  }
-
-  function popupAppEntry(root) {
-    return popupAppEntryLinks(root)[0] || null;
-  }
-
-  function popupAppIcons(root) {
-    const seen = new Set();
-    return Array.from(root?.querySelectorAll?.(APP_ICON_SELECTOR) || []).filter((icon) => {
-      if (seen.has(icon) ||
-          icon.classList?.contains(BUTTON_CLASS) ||
-          icon.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
-          !appIconMeta(icon) ||
-          !visible(icon)) {
-        return false;
-      }
-      seen.add(icon);
-      return true;
-    });
-  }
-
-  function popupAppIcon(root) {
-    return popupAppIcons(root).find((icon) => !!appIconMountTarget(icon, null, root)) || null;
-  }
-
-  function appMetaFromLinks(root) {
-    const links = popupAppEntryLinks(root);
-    for (const link of links) {
-      const meta = appEntryMeta(link);
-      return {
-        appid: meta.appid,
-        gameName: clean(link.getAttribute("aria-label") || link.getAttribute("title") || nodeText(link)),
-      };
+    const cards = links.map(newsCardFromLink);
+    const panel = newsPanelFromCard(cards[0]);
+    if (!panel?.isConnected || cards.some((card) => !card?.isConnected || newsPanelFromCard(card) !== panel)) {
+      return null;
     }
-    const icon = popupAppIcon(root);
-    const meta = appIconMeta(icon);
-    if (meta) {
-      return {
-        appid: meta.appid,
-        gameName: "",
-      };
+    const panelTop = panel.getBoundingClientRect().top;
+    const card = cards.find((candidate) => candidate.getBoundingClientRect().bottom > panelTop + 1) || null;
+    const target = newsToolbarFromPanel(panel);
+    if (!card || !target) {
+      return null;
     }
-    return {};
+    return Object.freeze({ card, link: links[cards.indexOf(card)], panel, root, target });
   }
 
   function newsMetaFromCard(card) {
-    const link = popupNewsEntryLinks(card)[0] || null;
+    const link = card?.querySelector?.(NEWS_ENTRY_SELECTOR) || null;
     const meta = newsEntryMeta(link);
     return meta ? {
       appid: meta.appid,
@@ -470,212 +334,6 @@
     const text = nodeText(card).slice(0, 520);
     const match = text.match(/(?:来自|from)[:：]?\s*(.+?)\s*(?:发布于|发表于|posted|published|开始时间|结束时间|$)/i);
     return clean(match?.[1] || "");
-  }
-
-  function rectArea(el) {
-    const rect = el.getBoundingClientRect();
-    return Math.max(0, rect.width) * Math.max(0, rect.height);
-  }
-
-  function newsEntryCardLike(el, link, root) {
-    if (!visible(el) || !root?.contains?.(el) || !el.contains(link) || el.closest(`.${TOOL_CLASS},.${BOX_CLASS}`)) {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
-    const maxWidth = Math.min(1120, viewportWidth * 0.9);
-    if (rect.width < 420 || rect.width > maxWidth || rect.height < 120) {
-      return false;
-    }
-    if (rect.left < viewportWidth * 0.18 || rect.right > viewportWidth * 0.92) {
-      return false;
-    }
-    return !!newsEntryMeta(link);
-  }
-
-  function newsEntryCard(link, root) {
-    for (let el = link?.parentElement, depth = 0; el && root?.contains?.(el) && depth < 10; depth += 1, el = el.parentElement) {
-      if (newsEntryCardLike(el, link, root)) {
-        return el;
-      }
-    }
-    return null;
-  }
-
-  function popupFrameLike(el) {
-    if (!visible(el)) {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
-    const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
-    if (rect.width < 260 || rect.height < 120) {
-      return false;
-    }
-    return rect.right > 0 && rect.bottom > 0 && rect.left < viewportWidth && rect.top < viewportHeight;
-  }
-
-  function popupFrameSignal(root) {
-    if (!root?.isConnected) {
-      return false;
-    }
-    if (root.matches?.(POPUP_FRAME_SELECTOR) && popupFrameLike(root)) {
-      return true;
-    }
-    return Array.from(root.querySelectorAll?.(POPUP_FRAME_SELECTOR) || []).some(popupFrameLike);
-  }
-
-  function popupSignal(root) {
-    if (!root?.isConnected) {
-      return false;
-    }
-    return !!(popupNewsEntry(root) || popupAppEntry(root) || popupAppIcon(root)) && !!root.querySelector(POPUP_SIGNAL_SELECTOR);
-  }
-
-  function popupCandidates() {
-    const root = observeTarget();
-    if (!root || !popupSignal(root)) {
-      return [];
-    }
-    const details = popupTargetDetailCandidates(root);
-    return details.slice(0, 8);
-  }
-
-  function nodeHasPopupSignal(node) {
-    return node?.nodeType === 1 && (
-      node.matches?.(POPUP_MUTATION_SIGNAL_SELECTOR) ||
-      node.closest?.(POPUP_MUTATION_SIGNAL_SELECTOR) ||
-      node.querySelector?.(POPUP_MUTATION_SIGNAL_SELECTOR)
-    );
-  }
-
-  function mutationHasPopupSignal(items) {
-    return Array.from(items || []).some((item) => {
-      if (nodeHasPopupSignal(item.target)) {
-        return true;
-      }
-      const nodes = Array.from(item.addedNodes || []);
-      return nodes.some(nodeHasPopupSignal);
-    });
-  }
-
-  function compactCandidates(found) {
-    const out = [];
-    for (const el of found) {
-      if (out.some((parent) => parent.contains(el))) {
-        continue;
-      }
-      out.push(el);
-      if (out.length >= 8) {
-        break;
-      }
-    }
-    return out;
-  }
-
-  function cardVisibilityScore(card) {
-    const rect = card.getBoundingClientRect();
-    const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
-    const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
-    const visibleX = Math.max(0, Math.min(rect.right, viewportWidth) - Math.max(rect.left, 0));
-    const visibleY = Math.max(0, Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0));
-    if (!visibleX || !visibleY) {
-      return -Infinity;
-    }
-    const focusY = viewportHeight * 0.36;
-    const focusInside = rect.top <= focusY && rect.bottom >= focusY ? 1600 : 0;
-    const focusDistance = focusInside ? 0 : Math.min(Math.abs(rect.top - focusY), Math.abs(rect.bottom - focusY));
-    const widthPenalty = rect.width > 1120 ? (rect.width - 1120) * 1.5 : 0;
-    const centerPenalty = Math.abs((rect.left + rect.right) / 2 - viewportWidth * 0.56);
-    return focusInside + visibleY * 3 + visibleX * 0.08 - focusDistance * 4 - widthPenalty - centerPenalty * 0.3;
-  }
-
-  function rankedPopupCards(candidates) {
-    return candidates
-      .map((card) => ({ card, score: cardVisibilityScore(card) }))
-      .filter((item) => Number.isFinite(item.score))
-      .sort((a, b) => b.score - a.score)
-      .map((item) => item.card);
-  }
-
-  function activeMountableCard(candidates, target = null) {
-    const ranked = rankedPopupCards(candidates);
-    for (const card of ranked) {
-      const mountTarget = findAppLinkMountTarget(card);
-      if (mountTarget && (!target || mountTarget === target)) {
-        return card;
-      }
-    }
-    return target ? null : (ranked[0] || null);
-  }
-
-  function addUniqueElement(out, el) {
-    if (el?.isConnected && !out.includes(el)) {
-      out.push(el);
-    }
-  }
-
-  function addUniquePanel(out, el) {
-    if (el?.isConnected && !out.some((item) => item.contains(el) || el.contains(item))) {
-      out.push(el);
-    }
-  }
-
-  function popupNativeMountTargets(root) {
-    const out = [];
-    for (const link of popupAppEntryLinks(root)) {
-      addUniqueElement(out, appLinkMountTarget(link, null, root));
-    }
-    addUniqueElement(out, popupAppIconMountTarget(root, null));
-    return out;
-  }
-
-  function anchoredPopupPanelLike(el, root) {
-    if (!visible(el) || !root?.contains?.(el) || el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`)) {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
-    const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
-    return rect.width >= 420 &&
-      rect.width <= viewportWidth * 0.92 &&
-      rect.height >= 120 &&
-      rect.height <= viewportHeight * 1.15 &&
-      rect.left >= viewportWidth * 0.08 &&
-      rect.right <= viewportWidth + 2 &&
-      nodeText(el).length >= MIN_TEXT;
-  }
-
-  function anchoredPopupPanels(root) {
-    const out = [];
-    for (const target of popupNativeMountTargets(root)) {
-      for (let el = target?.parentElement, depth = 0; el && el !== root && root?.contains?.(el) && depth < 8; depth += 1, el = el.parentElement) {
-        if (anchoredPopupPanelLike(el, root)) {
-          addUniquePanel(out, el);
-        }
-      }
-      if (out.length >= 4) {
-        break;
-      }
-    }
-    return out;
-  }
-
-  function popupTargetDetailCandidates(root = observeTarget()) {
-    if (!root) {
-      return [];
-    }
-    const found = [];
-    for (const panel of anchoredPopupPanels(root)) {
-      for (const link of popupNewsEntryLinks(panel)) {
-        addUniqueElement(found, newsEntryCard(link, root));
-      }
-      if (found.length >= 16) {
-        break;
-      }
-    }
-    return compactCandidates(found)
-      .sort((a, b) => rectArea(b) - rectArea(a));
   }
 
   function skipTextParent(el) {
@@ -771,7 +429,7 @@
   }
 
   function newsTitleTextNode(card) {
-    const link = popupNewsEntryLinks(card)[0] || null;
+    const link = card?.querySelector?.(NEWS_ENTRY_SELECTOR) || null;
     const text = nodeText(link).slice(0, TITLE_MAX_TEXT);
     if (!link || text.length < TITLE_MIN_TEXT || skipTitleParent(link, null)) {
       return null;
@@ -1544,8 +1202,7 @@
     const text = host ? collectText(host, bodyTextOptions(host, titleHost)) : "";
     const routeId = routeAppid();
     const newsMeta = newsMetaFromCard(card);
-    const linkMeta = appMetaFromLinks(card.closest("#popup_target") || card);
-    const appid = routeId || newsMeta.appid || linkMeta.appid || "";
+    const appid = routeId || newsMeta.appid || "";
     const labels = steamNewsLabelsFromCard(card);
     return {
       host,
@@ -1555,7 +1212,7 @@
       titleText,
       meta: {
         title: titleText,
-        gameName: appNameFromStore(appid) || linkMeta.gameName || gameNameFromCard(card),
+        gameName: appNameFromStore(appid) || gameNameFromCard(card),
         appid,
         gid: newsMeta.gid || "",
         newsHref: newsMeta.newsHref || "",
@@ -1581,149 +1238,6 @@
       hash = Math.imul(hash, 16777619);
     }
     return (hash >>> 0).toString(16);
-  }
-
-  function findAppLinkMountTarget(card) {
-    const root = card.closest("#popup_target") || observeTarget() || card.parentElement || card;
-    const body = textHost(card, { strict: true });
-    for (const link of popupAppEntryLinks(root)) {
-      if (body?.contains?.(link)) {
-        continue;
-      }
-      const target = appLinkMountTarget(link, card, root);
-      if (target) {
-        return target;
-      }
-    }
-    return popupAppIconMountTarget(root, card);
-  }
-
-  function appEntryHref(el) {
-    return appEntryMeta(el)?.href || "";
-  }
-
-  function nativeAppEntryLike(el) {
-    if (!visible(el) ||
-        el.classList?.contains(BUTTON_CLASS) ||
-        el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
-        !appEntryHref(el)) {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    return rect.width >= 24 &&
-      rect.width <= 260 &&
-      rect.height >= 24 &&
-      rect.height <= 140 &&
-      nodeText(el).length <= 80;
-  }
-
-  function appLinkMountTarget(link, card, root = link?.closest("#popup_target")) {
-    if (!nativeAppEntryLike(link)) {
-      return null;
-    }
-    for (let el = link.parentElement, depth = 0; el && depth < 6 && root?.contains?.(el); depth += 1, el = el.parentElement) {
-      if (appLinkMountContainerLike(el, link, card)) {
-        return el;
-      }
-    }
-    return null;
-  }
-
-  function appLinkMountContainerLike(el, link, card) {
-    if (!visible(el) ||
-        !el.contains(link) ||
-        el.classList?.contains(BUTTON_CLASS) ||
-        el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
-        el.matches?.("a,button,input,select,textarea") ||
-        el.getAttribute?.("role") === "button") {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    if (rect.width < 28 || rect.width > 320 || rect.height < 28 || rect.height > 420) {
-      return false;
-    }
-    if (nodeText(el).length > 120) {
-      return false;
-    }
-    const cardRect = card?.getBoundingClientRect?.();
-    return !cardRect || rect.top <= cardRect.bottom + 24;
-  }
-
-  function popupAppIconMountTarget(root, card = null) {
-    for (const icon of popupAppIcons(root)) {
-      const target = appIconMountTarget(icon, card, root);
-      if (target) {
-        return target;
-      }
-    }
-    return null;
-  }
-
-  function nativeAppIconLike(icon) {
-    if (!visible(icon) ||
-        icon.classList?.contains(BUTTON_CLASS) ||
-        icon.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
-        !appIconMeta(icon)) {
-      return false;
-    }
-    const rect = icon.getBoundingClientRect();
-    return rect.width >= 24 &&
-      rect.width <= 80 &&
-      rect.height >= 24 &&
-      rect.height <= 80 &&
-      nodeText(icon).length <= 8;
-  }
-
-  function appIconMountTarget(icon, card, root = icon?.closest("#popup_target")) {
-    if (!nativeAppIconLike(icon)) {
-      return null;
-    }
-    for (let el = icon.parentElement, depth = 0; el && depth < 6 && root?.contains?.(el); depth += 1, el = el.parentElement) {
-      if (appIconMountContainerLike(el, icon, card)) {
-        return el;
-      }
-    }
-    return null;
-  }
-
-  function toolbarItemLike(el) {
-    if (!visible(el) ||
-        el.classList?.contains(BUTTON_CLASS) ||
-        el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`)) {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    return rect.width >= 24 &&
-      rect.width <= 84 &&
-      rect.height >= 20 &&
-      rect.height <= 84 &&
-      nodeText(el).length <= 12;
-  }
-
-  function appIconMountContainerLike(el, icon, card) {
-    if (!visible(el) ||
-        !el.contains(icon) ||
-        el.classList?.contains(BUTTON_CLASS) ||
-        el.closest?.(`.${TOOL_CLASS},.${BOX_CLASS}`) ||
-        el.matches?.("a,button,input,select,textarea") ||
-        el.getAttribute?.("role") === "button") {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
-    if (rect.left < viewportWidth * 0.7 ||
-        rect.width < 40 ||
-        rect.width > 96 ||
-        rect.height < 100 ||
-        rect.height > 420 ||
-        nodeText(el).length > 120) {
-      return false;
-    }
-    const cardRect = card?.getBoundingClientRect?.();
-    if (cardRect && (rect.top < cardRect.top - 80 || rect.top > cardRect.bottom + 24)) {
-      return false;
-    }
-    return Array.from(el.children || []).filter(toolbarItemLike).length >= 3;
   }
 
   function buttonClass() {
@@ -2388,7 +1902,7 @@
       if (isStaleJobError(error)) {
         if (card.isConnected) {
           setButton(button, "idle");
-          scheduleScan(rt, FAST_SCAN_DELAY);
+          refreshMountedSurface(rt);
         }
         return;
       }
@@ -2411,9 +1925,9 @@
 
   function currentButtonCard(rt, fallbackCard, button) {
     const target = button?.parentElement || null;
-    const active = activeMountableCard(popupCandidates(), target);
-    if (active?.isConnected) {
-      return active;
+    const surface = activeNewsSurface(rt.popupRoot);
+    if (surface?.card?.isConnected && surface.target === target) {
+      return surface.card;
     }
     if (fallbackCard?.isConnected) {
       const record = mounted.get(fallbackCard);
@@ -2431,8 +1945,15 @@
     const card = currentButtonCard(rt, fallbackCard, button);
     if (!card?.isConnected) {
       setButton(button, "error", i18n("steam.newsTranslate.cardUnrecognized", "未识别当前新闻卡"));
-      scheduleScan(rt, FAST_SCAN_DELAY);
+      refreshMountedSurface(rt);
       return;
+    }
+    if (card !== fallbackCard) {
+      const fallbackRecord = mounted.get(fallbackCard);
+      if (fallbackRecord?.button === button) {
+        mounted.delete(fallbackCard);
+        rt.cards.delete(fallbackCard);
+      }
     }
     const existing = mounted.get(card);
     if (button.dataset.busy === "1" || existing?.pending === true || rt.pendingCards?.has(card)) {
@@ -2446,19 +1967,11 @@
     translateCard(rt, card, mounted.get(card) || { button }).catch(() => {});
   }
 
-  function mount(rt, card) {
+  function mount(rt, surface) {
+    const { card, target } = surface;
     const existing = mounted.get(card);
-    const target = findAppLinkMountTarget(card);
-    if (!target) {
-      if (existing?.button?.isConnected && existing.target?.isConnected && visible(existing.target) && card.isConnected) {
-        return true;
-      }
-      if (existing?.button?.isConnected) {
-        removeButtonRecord(rt, card);
-      }
-      return false;
-    }
     if (existing?.button?.isConnected && existing.target === target) {
+      rt.activeCard = card;
       return true;
     }
     const data = extract(card, { strict: true });
@@ -2470,7 +1983,7 @@
     if (existing?.button?.isConnected) {
       removeButtonRecord(rt, card);
     }
-    /* 优化: 只复用 app 入口链接所在的本地控制容器，避免几何扫描误挂到其他弹窗区域。 */
+    // 当前 Steam 新闻面板的 app 图标固定向上两级即原生右侧工具栏。
     clearTargetButtons(rt, target, card);
     const button = document.createElement("button");
     button.type = "button";
@@ -2526,71 +2039,63 @@
       mounted.delete(card);
     }
     rt.cards.clear();
+    rt.activeCard = null;
   }
 
-  function mountedAlive(rt) {
-    const card = rt.activeCard;
-    const record = card ? mounted.get(card) : null;
-    return !!(
-      card?.isConnected &&
-      record?.button?.isConnected &&
-      record.target?.isConnected &&
-      visible(record.target)
+  function nodeHasNewsSurfaceSignal(node) {
+    return node?.nodeType === 1 && (
+      node.matches?.(NEWS_ENTRY_SELECTOR) ||
+      node.matches?.(APP_ICON_SELECTOR) ||
+      node.querySelector?.(NEWS_ENTRY_SELECTOR) ||
+      node.querySelector?.(APP_ICON_SELECTOR)
     );
   }
 
-  function markPopupSettling(rt) {
-    rt.popupSettleUntil = Date.now() + POPUP_SETTLE_MS;
+  function newsSurfaceMutation(records) {
+    return Array.from(records || []).some((record) => {
+      if (record.type !== "childList") {
+        return false;
+      }
+      return Array.from(record.addedNodes || []).some(nodeHasNewsSurfaceSignal) ||
+        Array.from(record.removedNodes || []).some(nodeHasNewsSurfaceSignal);
+    });
   }
 
-  function popupSettling(rt) {
-    return Date.now() < (rt.popupSettleUntil || 0);
-  }
-
-  function hasMountedSurface(rt) {
-    return mountedAlive(rt) || rt.cards?.size > 0 || !!document.querySelector(`.${BUTTON_CLASS}`);
-  }
-
-  function shouldScanPopup(rt, root = observeTarget()) {
-    if (hasMountedSurface(rt)) {
-      return true;
-    }
-    return !!root?.isConnected && (popupSettling(rt) || popupSignal(root));
-  }
-
-  function shouldObservePopupTarget(rt, target = observeTarget()) {
-    return !!target?.isConnected;
-  }
-
-  function popupObserverMode(rt, target = observeTarget()) {
-    if (!target?.isConnected) {
-      return "";
-    }
-    return (popupFrameSignal(target) || popupSignal(target) || popupSettling(rt) || hasMountedSurface(rt)) ? "popup" : "root";
-  }
-
-  function detachObserver(rt) {
-    rt.observer?.disconnect?.();
-    rt.observer = null;
-    rt.observerTarget = null;
-    rt.observerMode = "";
-  }
-
-  function needsPopupRecoveryScan(rt, root) {
-    if (!root?.isConnected || mountedAlive(rt) || popupSettling(rt) || !popupSignal(root)) {
+  function refreshMountedSurface(rt) {
+    if (rt.stopped || rt.config?.enabled !== true) {
+      clearMounted(rt);
       return false;
     }
+    const surface = activeNewsSurface(rt.popupRoot);
+    if (!surface) {
+      clearMounted(rt);
+      return false;
+    }
+    if (!mount(rt, surface)) {
+      clearMounted(rt);
+      return false;
+    }
+    pruneMounted(rt, new Set([surface.card]));
+    rt.activeCard = surface.card;
     return true;
   }
 
-  function popupRecoveryEnabled(rt) {
-    if (rt.config?.enabled === true) {
-      return true;
+  function onMainPopupSurface(rt, active, context) {
+    rt.popupRoot = active ? context?.root || null : null;
+    if (!active || !rt.popupRoot?.isConnected) {
+      clearMounted(rt);
+      return;
     }
-    if (rt.config?.featureEnabled === false || rt.config?.translateEnabled === false || rt.config?.newsPopup === false) {
-      return false;
+    if (context?.reason === "scroll" && !rt.activeCard) {
+      return;
     }
-    return localConfig(rt, "popup-recovery").enabled === true;
+    if (context?.reason === "mutation" &&
+        rt.activeCard?.isConnected &&
+        mounted.get(rt.activeCard)?.button?.isConnected &&
+        !newsSurfaceMutation(context.records)) {
+      return;
+    }
+    refreshMountedSurface(rt);
   }
 
   function configStateKey(config) {
@@ -2636,21 +2141,11 @@
       clearMounted(rt);
       return;
     }
-    if (!shouldScanPopup(rt)) {
-      return;
-    }
-    scheduleScan(rt, FAST_SCAN_DELAY);
+    refreshMountedSurface(rt);
   }
 
   function hasNewsPopupContext(rt) {
-    const target = observeTarget();
-    if (!target) {
-      return false;
-    }
-    if (rt.cards?.size > 0 || document.querySelector(`.${BUTTON_CLASS}`)) {
-      return true;
-    }
-    return popupSignal(target);
+    return rt.cards?.size > 0 || !!rt.popupRoot?.querySelector?.(NEWS_ENTRY_SELECTOR);
   }
 
   async function refreshConfig(rt, options = {}) {
@@ -2683,228 +2178,10 @@
     });
   }
 
-  function scan(rt) {
-    rt.scanTimer = 0;
-    if (rt.stopped || rt.config?.enabled !== true) {
-      return;
-    }
-    const root = observeTarget();
-    if (!shouldScanPopup(rt, root)) {
-      detachObserver(rt);
-      return;
-    }
-    attachObserver(rt);
-    const candidates = popupCandidates();
-    const activeCards = rankedPopupCards(candidates);
-    let activeCard = null;
-    /* 扫描候选时要等真实挂到 Steam 原生侧边列后再清理旧按钮，避免外层容器误命中导致滚动中段按钮消失。 */
-    for (const card of activeCards) {
-      if (mount(rt, card)) {
-        activeCard = card;
-        rt.activeCard = card;
-        break;
-      }
-    }
-    if (!activeCard && rt.activeCard?.isConnected) {
-      const record = mounted.get(rt.activeCard);
-      if (record?.button?.isConnected && record.target?.isConnected && visible(record.target)) {
-        activeCard = rt.activeCard;
-      }
-    }
-    pruneMounted(rt, activeCard ? new Set([activeCard]) : new Set());
-    if (!activeCard) {
-      if (popupSettling(rt)) {
-        scheduleScan(rt, SCAN_DELAY);
-      }
-      if (!rt.skipLogged && Date.now() - rt.startedAt > 2500) {
-        rt.skipLogged = true;
-        logNewsMountMiss(rt, candidates);
-      }
-      return;
-    }
-    rt.popupSettleUntil = 0;
-  }
-
-  function rectMeta(el) {
-    if (!el) {
-      return null;
-    }
-    const rect = el.getBoundingClientRect();
-    return {
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
-      top: Math.round(rect.top),
-      left: Math.round(rect.left),
-      right: Math.round(rect.right),
-      bottom: Math.round(rect.bottom),
-    };
-  }
-
-  function logNewsMountMiss(rt, candidates) {
-    const at = Date.now();
-    if (at - (rt.mountWarnAt || 0) < 30000) {
-      return;
-    }
-    rt.mountWarnAt = at;
-    const firstCard = candidates[0] || null;
-    const hasCandidates = candidates.length > 0;
-    log[hasCandidates ? "warn" : "info"](
-      hasCandidates ? "news-popup-app-entry-mount-missing" : "news-popup-dom-skip",
-      hasCandidates ? "新闻弹窗已识别但未找到 app 入口挂载容器" : "未识别到可翻译的新闻弹窗",
-      {
-        hasPopupTarget: !!observeTarget(),
-        candidateCount: candidates.length,
-        firstCardRect: rectMeta(firstCard),
-        viewport: {
-          width: window.innerWidth,
-          height: window.innerHeight,
-          dpr: window.devicePixelRatio,
-        },
-      }
-    );
-  }
-
-  function scheduleScan(rt, delay = SCAN_DELAY) {
-    if (rt.stopped) {
-      return;
-    }
-    const wait = Math.max(0, Number(delay) || 0);
-    const dueAt = Date.now() + wait;
-    if (rt.scanTimer) {
-      if ((rt.scanDueAt || 0) <= dueAt) {
-        return;
-      }
-      if (rt.scanHandle) {
-        const handle = rt.scanHandle;
-        rt.scanHandle = null;
-        handle.dispose();
-      } else {
-        window.clearTimeout(rt.scanTimer);
-        rt.scanTimer = 0;
-      }
-    }
-    rt.scanDueAt = dueAt;
-    rt.scanTimer = window.setTimeout(() => {
-      rt.scanTimer = 0;
-      rt.scanDueAt = 0;
-      const handle = rt.scanHandle;
-      rt.scanHandle = null;
-      handle?.dispose?.();
-      scan(rt);
-    }, wait);
-    rt.scanHandle = rt.scope?.resource?.({
-      key: "scan-delay",
-      type: "timer",
-      dispose() {
-        if (rt.scanTimer) {
-          window.clearTimeout(rt.scanTimer);
-          rt.scanTimer = 0;
-        }
-        rt.scanDueAt = 0;
-        rt.scanHandle = null;
-      },
-    }) || null;
-  }
-
-  function scheduleScrollScan(rt) {
-    if (mountedAlive(rt) || (!rt.cards?.size && !document.querySelector(`.${BUTTON_CLASS}`))) {
-      return;
-    }
-    scheduleScan(rt, SCROLL_SCAN_DELAY);
-  }
-
   function onBridgeConfig(rt, event) {
     const data = event.data || {};
     if (data.source === "steam-buff-content" && data.type === CONFIG_RES && !data.rid) {
       applyConfig(rt, data.config);
-    }
-  }
-
-  function observeTarget() {
-    return document.getElementById("popup_target") || null;
-  }
-
-  function observeOptions(target, mode = "popup") {
-    if (target?.id === "popup_target") {
-      if (mode === "root") {
-        return {
-          childList: true,
-          subtree: true,
-        };
-      }
-      return {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["class", "style", "hidden", "aria-hidden"],
-      };
-    }
-    return {
-      childList: true,
-      subtree: true,
-    };
-  }
-
-  function attachObserver(rt) {
-    const target = observeTarget();
-    if (!shouldObservePopupTarget(rt, target)) {
-      detachObserver(rt);
-      return;
-    }
-    const mode = popupObserverMode(rt, target);
-    if (rt.observer && rt.observerTarget === target && rt.observerMode === mode) {
-      return;
-    }
-    rt.observer?.disconnect?.();
-    rt.observerTarget = target;
-    rt.observerMode = mode;
-    const onMutation = (items = []) => {
-      const latest = observeTarget();
-      if (latest && latest !== rt.observerTarget && latest.id === "popup_target") {
-        attachObserver(rt);
-      }
-      const hasPopupSignal = mutationHasPopupSignal(items);
-      if (hasPopupSignal) {
-        markPopupSettling(rt);
-        if (rt.observerMode !== "popup") {
-          attachObserver(rt);
-        }
-        scheduleScan(rt, FAST_SCAN_DELAY);
-        return;
-      }
-      if (!mountedAlive(rt) && !hasPopupSignal && !popupSettling(rt)) {
-        return;
-      }
-      scheduleScan(rt);
-    };
-    /* 优化: #popup_target 是 Steam 弹窗专用根；非弹窗期只看新增节点信号，命中后立刻切回 1000ms 深度 debounce，避免按钮首帧被 debounce 拖慢。 */
-    rt.observer = mode === "root"
-      ? new MutationObserver(onMutation)
-      : window.STObserverUtils?.createDebouncedObserver?.(onMutation, MUTATION_SCAN_DELAY)
-      || new MutationObserver(onMutation);
-    rt.observer.observe(target, observeOptions(target, mode));
-    rt.scope?.observer?.("popup-target", rt.observer);
-  }
-
-  function watchPopupTarget(rt) {
-    if (rt.stopped) {
-      return;
-    }
-    const latest = observeTarget();
-    const changed = latest && latest !== rt.observerTarget;
-    const canObserve = shouldObservePopupTarget(rt, latest);
-    if (changed && canObserve) {
-      attachObserver(rt);
-    } else if (!canObserve) {
-      detachObserver(rt);
-    }
-    const recoverEnabled = popupRecoveryEnabled(rt);
-    const recover = recoverEnabled && needsPopupRecoveryScan(rt, latest);
-    if (recover) {
-      markPopupSettling(rt);
-    }
-    if (recoverEnabled && (recover || (changed && shouldScanPopup(rt, latest)) || mountedAlive(rt) || popupSettling(rt))) {
-      scheduleScan(rt);
     }
   }
 
@@ -2925,17 +2202,15 @@
       log.warn("news-popup-config-scheduler-missing", "新闻翻译缺少统一调度器", {});
       return { started: false, reason: "scheduler-unavailable" };
     }
+    const popupHost = api.surfaces?.mainPopup;
+    if (!popupHost?.register) {
+      log.warn("news-popup-surface-host-missing", "新闻翻译缺少主窗口弹窗 Surface Host", {});
+      return { started: false, reason: "surface-host-unavailable" };
+    }
 
     css();
     const rt = {
-      startedAt: Date.now(),
-      scope: scope || null,
       stopped: false,
-      scanTimer: 0,
-      scanDueAt: 0,
-      scanHandle: null,
-      refreshTimer: 0,
-      skipLogged: false,
       api,
       config: { enabled: false },
       cards: new Set(),
@@ -2943,34 +2218,19 @@
       pendingCards: new WeakSet(),
       translated: new WeakMap(),
       activeCard: null,
-      observer: null,
-      observerTarget: null,
-      observerMode: "",
+      popupRoot: null,
+      surfaceHandle: null,
       configWarnAt: 0,
-      mountWarnAt: 0,
-      popupSettleUntil: 0,
       stop() {
         log.info("news-popup-ui-stop", "新闻弹窗翻译界面已停止", {
           cardCount: rt.cards.size,
-          hadObserver: !!rt.observer,
-          hadScanTimer: !!rt.scanTimer,
         });
         rt.stopped = true;
-        if (rt.scanHandle) {
-          const handle = rt.scanHandle;
-          rt.scanHandle = null;
-          handle.dispose();
-        } else {
-          window.clearTimeout(rt.scanTimer);
-          rt.scanTimer = 0;
-        }
-        rt.scanDueAt = 0;
         window.STScheduler?.unregister?.(SCHEDULER_TASK);
-        window.STScheduler?.unregister?.(POPUP_WATCH_TASK);
-        rt.refreshTimer = 0;
-        rt.observer?.disconnect?.();
+        rt.surfaceHandle?.dispose?.();
+        rt.surfaceHandle = null;
+        rt.popupRoot = null;
         window.removeEventListener("message", rt.onMessage);
-        window.removeEventListener("scroll", rt.onScroll, true);
         clearMounted(rt);
         if (window[RT] === rt) {
           window[RT] = null;
@@ -2978,14 +2238,21 @@
       },
     };
     rt.onMessage = (event) => onBridgeConfig(rt, event);
-    rt.onScroll = () => scheduleScrollScan(rt);
     window[RT] = rt;
 
     scope?.listener?.("bridge-config-message", window, "message", rt.onMessage);
-    scope?.listener?.("window-scroll", window, "scroll", rt.onScroll, true);
-    /* 只在弹窗根节点启用属性监听；根节点尚未出现时依靠调度扫描等待。 */
-    attachObserver(rt);
     applyConfig(rt, localConfig(rt, "startup"));
+    rt.surfaceHandle = popupHost.register({
+      id: ID,
+      order: 10,
+      onSurfaceChange(active, context) {
+        onMainPopupSurface(rt, active, context);
+      },
+      onDispose() {
+        rt.popupRoot = null;
+        clearMounted(rt);
+      },
+    });
     // 配置刷新迁移到统一调度器，避免新闻弹窗功能持有独立巡检。
     window.STScheduler.register(
       SCHEDULER_TASK,
@@ -2994,18 +2261,10 @@
       { intervalMs: CONFIG_REFRESH_MS }
     );
     scope?.schedulerTask?.("config-refresh", SCHEDULER_TASK);
-    window.STScheduler.register(
-      POPUP_WATCH_TASK,
-      () => watchPopupTarget(rt),
-      () => !rt.stopped,
-      { intervalMs: POPUP_WATCH_MS }
-    );
-    scope?.schedulerTask?.("popup-target-watch", POPUP_WATCH_TASK);
     log.info("news-popup-ui-start", "新闻弹窗翻译界面已启动", {
-      hasPopupTarget: !!observeTarget(),
-      hasObserver: !!rt.observer,
+      hasPopupTarget: !!rt.popupRoot,
+      surfaceHostId: popupHost.hostId,
       refreshMs: CONFIG_REFRESH_MS,
-      popupWatchMs: POPUP_WATCH_MS,
     });
     refreshConfig(rt).catch(() => {});
     return { started: true, stop: rt.stop };

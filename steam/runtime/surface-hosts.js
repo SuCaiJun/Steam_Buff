@@ -12,7 +12,7 @@
   "use strict";
 
   const api = window.SteamBuff = window.SteamBuff || {};
-  const VERSION = "steam-buff-surface-hosts-v2";
+  const VERSION = "steam-buff-surface-hosts-v3";
   const DOWNLOAD_HOST_ID = "download-toolbar";
   const DOWNLOAD_ROUTE = "/library/downloads";
   const DOWNLOAD_ROOT = "__RickyDownloadSurfaceHost";
@@ -22,6 +22,11 @@
   const PROPERTY_SCAN_MS = 1000;
   const PROPERTY_PANEL_SELECTOR = "[role='tabpanel'][id$='/properties/customization_Content']";
   const PROPERTY_PANEL_ID_RE = /\/app\/\d+\/properties\/customization_Content$/;
+  const MAIN_POPUP_HOST_ID = "main-popup";
+  const MAIN_POPUP_TASK = "surface-host-main-popup";
+  const MAIN_POPUP_ROOT_ID = "popup_target";
+  const MAIN_POPUP_SCAN_MS = 1000;
+  const MAIN_POPUP_SCROLL_DEBOUNCE_MS = 120;
   const TOAST_MS = 4200;
   const manager = globalThis.STSurfaceManager;
 
@@ -42,6 +47,11 @@
   const propertyState = {
     schedulerStarted: false,
     signature: "",
+  };
+  const mainPopupState = {
+    root: null,
+    schedulerStarted: false,
+    scrollTimer: 0,
   };
   const propertyNodeIds = new WeakMap();
   let propertyNodeSequence = 0;
@@ -283,6 +293,138 @@
     });
   }
 
+  function mainPopupContext(reason, records = []) {
+    return Object.freeze({
+      reason,
+      records: Object.freeze(Array.from(records)),
+      root: mainPopupState.root,
+    });
+  }
+
+  function publishMainPopup(reason, records = []) {
+    const root = mainPopupState.root;
+    mainPopupHost.setContext(mainPopupContext(reason, records), !!root?.isConnected);
+  }
+
+  function clearMainPopupScrollTimer() {
+    if (!mainPopupState.scrollTimer) {
+      return;
+    }
+    window.clearTimeout(mainPopupState.scrollTimer);
+    mainPopupState.scrollTimer = 0;
+  }
+
+  function onMainPopupScroll(event) {
+    if (!mainPopupState.root?.contains?.(event.target)) {
+      return;
+    }
+    clearMainPopupScrollTimer();
+    mainPopupState.scrollTimer = window.setTimeout(() => {
+      mainPopupState.scrollTimer = 0;
+      if (mainPopupState.root?.isConnected) {
+        publishMainPopup("scroll");
+      }
+    }, MAIN_POPUP_SCROLL_DEBOUNCE_MS);
+  }
+
+  function detachMainPopupRoot() {
+    clearMainPopupScrollTimer();
+    mainPopupState.root?.removeEventListener?.("scroll", onMainPopupScroll, true);
+    mainPopupHost.disconnectObserver();
+    mainPopupState.root = null;
+  }
+
+  function setMainPopupRoot(root) {
+    if (mainPopupState.root === root && root?.isConnected) {
+      return;
+    }
+    detachMainPopupRoot();
+    if (!root?.isConnected || root.id !== MAIN_POPUP_ROOT_ID) {
+      publishMainPopup("root-missing");
+      return;
+    }
+    mainPopupState.root = root;
+    mainPopupHost.observe(
+      root,
+      (records) => publishMainPopup("mutation", records),
+      { childList: true, subtree: true }
+    );
+    root.addEventListener("scroll", onMainPopupScroll, true);
+    publishMainPopup("root");
+  }
+
+  function refreshMainPopupHost() {
+    const root = mainUi() ? document.getElementById(MAIN_POPUP_ROOT_ID) : null;
+    if (root !== mainPopupState.root || !root?.isConnected) {
+      setMainPopupRoot(root);
+    }
+  }
+
+  function shouldRunMainPopupHost() {
+    return mainPopupHost.diagnostics().entryCount > 0 && mainUi();
+  }
+
+  function startMainPopupHost() {
+    if (mainPopupState.schedulerStarted) {
+      refreshMainPopupHost();
+      return true;
+    }
+    if (!window.STScheduler?.register || !mainUi()) {
+      return false;
+    }
+    window.STScheduler.register(
+      MAIN_POPUP_TASK,
+      refreshMainPopupHost,
+      shouldRunMainPopupHost,
+      { intervalMs: MAIN_POPUP_SCAN_MS }
+    );
+    mainPopupState.schedulerStarted = true;
+    refreshMainPopupHost();
+    return true;
+  }
+
+  function stopMainPopupHost() {
+    if (mainPopupState.schedulerStarted) {
+      window.STScheduler?.unregister?.(MAIN_POPUP_TASK);
+      mainPopupState.schedulerStarted = false;
+    }
+    detachMainPopupRoot();
+  }
+
+  const mainPopupHost = manager.createHost({
+    id: MAIN_POPUP_HOST_ID,
+    onStop: stopMainPopupHost,
+  });
+
+  function registerMainPopup(input = {}) {
+    const id = String(input.id || "").trim();
+    if (!id || typeof input.onSurfaceChange !== "function") {
+      throw new TypeError("主窗口弹窗 Surface 注册参数无效");
+    }
+    if (!startMainPopupHost()) {
+      throw new Error("MainPopupHost 当前不可用");
+    }
+    const handle = mainPopupHost.register({
+      id,
+      order: input.order,
+      value: input.value,
+      onActiveChange(active, context) {
+        input.onSurfaceChange(active, context);
+      },
+      onDispose: input.onDispose,
+    });
+    return Object.freeze({
+      id,
+      active: handle.active,
+      dispose() {
+        handle.dispose();
+        if (mainPopupHost.diagnostics().entryCount === 0) {
+          stopMainPopupHost();
+        }
+      },
+    });
+  }
+
   function stop() {
     downloadState.routeHandle?.dispose?.();
     downloadState.routeHandle = null;
@@ -292,8 +434,10 @@
       downloadState.toastTimer = 0;
     }
     stopPropertyScheduler();
+    stopMainPopupHost();
     downloadHost.stop();
     propertyHost.stop();
+    mainPopupHost.stop();
   }
 
   const download = Object.freeze({
@@ -314,11 +458,19 @@
     hostId: PROPERTY_HOST_ID,
     register: registerPropertyCustomization,
   });
+  const mainPopup = Object.freeze({
+    active() {
+      return mainPopupHost.diagnostics().active;
+    },
+    hostId: MAIN_POPUP_HOST_ID,
+    register: registerMainPopup,
+  });
 
   api.surfaces = Object.freeze({
     version: VERSION,
     diagnostics: manager.diagnostics,
     download,
+    mainPopup,
     propertyCustomization,
     stop,
   });

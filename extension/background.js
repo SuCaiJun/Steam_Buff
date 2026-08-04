@@ -319,7 +319,7 @@
     "store/main.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v18";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v19";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_RUNTIME_READY_WAIT_MS = 6000;
@@ -1655,13 +1655,6 @@
     openChromiumWindow(request?.url, sendResponse);
   }
 
-  function isSteamRootMenuSender(sender) {
-    return sender?.id === chrome.runtime.id
-      && sender?.tab?.title === STEAM_ROOT_MENU_TITLE
-      && !!senderTarget(sender)
-      && isSteamLoopbackUrl(senderUrl(sender));
-  }
-
   function steamRootMenuWebUrl(value) {
     const target = String(value || "").trim();
     try {
@@ -1672,19 +1665,24 @@
     }
   }
 
-  async function steamRootMenuBrowserTarget(sender) {
+  async function steamRootMenuContext(sender) {
+    if (sender?.id !== chrome.runtime.id) {
+      return null;
+    }
     const target = senderTarget(sender);
     if (!target) {
-      return { url: STEAM_ROOT_MENU_BROWSER_FALLBACK, source: "fallback" };
+      return null;
     }
     try {
       const results = await execScript({
         target,
         world: "MAIN",
-        func: (rootMenuTitle, sharedContextTitle, settingKey) => {
+        func: (settingKey) => {
+          let openerUrl = "";
           let openerTitle = "";
           let configuredUrl = "";
           try {
+            openerUrl = String(window.opener?.location?.href || "");
             openerTitle = String(window.opener?.document?.title || "");
             const value = window.opener?.settingsStore?.clientSettings?.[settingKey];
             configuredUrl = typeof value === "string" ? value.trim() : "";
@@ -1694,42 +1692,46 @@
           return {
             title: String(document.title || ""),
             url: String(location.href || ""),
+            openerUrl,
             openerTitle,
             configuredUrl,
-            validRootMenu: document.title === rootMenuTitle,
-            validOpener: openerTitle === sharedContextTitle,
           };
         },
-        args: [STEAM_ROOT_MENU_TITLE, "SharedJSContext", STEAM_ROOT_MENU_BROWSER_HOME_SETTING],
+        args: [STEAM_ROOT_MENU_BROWSER_HOME_SETTING],
       });
       const frame = results?.[0]?.result;
-      const configuredUrl = frame?.validRootMenu === true
-        && frame?.validOpener === true
-        && isSteamLoopbackUrl(frame?.url)
-        ? steamRootMenuWebUrl(frame.configuredUrl)
-        : "";
-      if (configuredUrl) {
-        return { url: configuredUrl, source: "steam-setting" };
+      if (frame?.title !== STEAM_ROOT_MENU_TITLE
+          || frame?.openerTitle !== "SharedJSContext"
+          || !isSteamLoopbackUrl(frame?.url)
+          || !isSteamLoopbackUrl(frame?.openerUrl)) {
+        return null;
       }
+      return Object.freeze({ configuredUrl: steamRootMenuWebUrl(frame.configuredUrl) });
     } catch {
-      // 已验证 Root Menu sender 读取主页失败时，使用用户指定的单一固定兜底。
+      return null;
     }
-    return { url: STEAM_ROOT_MENU_BROWSER_FALLBACK, source: "fallback" };
+  }
+
+  function steamRootMenuBrowserTarget(context) {
+    return context?.configuredUrl
+      ? { url: context.configuredUrl, source: "steam-setting" }
+      : { url: STEAM_ROOT_MENU_BROWSER_FALLBACK, source: "fallback" };
   }
 
   async function openSteamRootMenuChromiumRequest(request, sender, sendResponse) {
-    if (!isSteamRootMenuSender(sender)) {
-      sendResponse({ success: false, code: "STEAM_ROOT_MENU_SENDER_REJECTED", error: "Steam Root Menu 来源无效" });
-      return;
-    }
     const action = String(request?.action || "");
     if (action !== "browser" && action !== "extensions") {
       sendResponse({ success: false, code: "STEAM_ROOT_MENU_ACTION_INVALID", error: "Steam Root Menu 操作无效" });
       return;
     }
+    const context = await steamRootMenuContext(sender);
+    if (!context) {
+      sendResponse({ success: false, code: "STEAM_ROOT_MENU_SENDER_REJECTED", error: "Steam Root Menu 来源无效" });
+      return;
+    }
     const target = action === "extensions"
       ? { url: STEAM_ROOT_MENU_EXTENSIONS_URL, source: "fixed" }
-      : await steamRootMenuBrowserTarget(sender);
+      : steamRootMenuBrowserTarget(context);
     openChromiumWindow(target.url, (response) => {
       sendResponse({
         ...response,
