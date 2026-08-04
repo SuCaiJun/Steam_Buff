@@ -770,9 +770,6 @@
 
     const timeLabel = modalElement("div", "st-price-monitor-group-label", t("store_priceHistory_monitorTime", "提醒时间"));
     const timeField = monitorTimeField();
-    const message = modalElement("div", "st-price-monitor-message");
-    message.setAttribute("role", "status");
-    message.setAttribute("aria-live", "polite");
     const explanation = modalElement("div", "st-price-monitor-explanation");
     explanation.dataset.monitorExplanation = "true";
     explanation.setAttribute("role", "status");
@@ -788,7 +785,6 @@
       channels,
       timeLabel,
       timeField,
-      message,
       explanation
     );
 
@@ -810,7 +806,40 @@
     actions.append(remove, dashboard, spacer, cancel, save);
 
     panel.append(header, body, actions);
-    modal.appendChild(panel);
+    const errorLayer = modalElement("div", "st-price-monitor-error-layer");
+    errorLayer.hidden = true;
+    errorLayer.dataset.monitorErrorDialog = "true";
+    const errorDialog = modalElement("section", "st-price-monitor-error-dialog");
+    errorDialog.setAttribute("role", "alertdialog");
+    errorDialog.setAttribute("aria-modal", "true");
+    errorDialog.setAttribute("aria-labelledby", "st-price-monitor-error-title");
+    errorDialog.setAttribute("aria-describedby", "st-price-monitor-error-message");
+    const errorTitle = modalElement("h4", "st-price-monitor-error-title");
+    errorTitle.id = "st-price-monitor-error-title";
+    const errorMessage = modalElement("p", "st-price-monitor-error-message");
+    errorMessage.id = "st-price-monitor-error-message";
+    const errorActions = modalElement("div", "st-price-monitor-error-actions");
+    const errorConfirm = modalElement("button", "st-price-monitor-error-confirm", t("store_priceHistory_confirm", "确定"));
+    errorConfirm.type = "button";
+    errorConfirm.dataset.monitorErrorAction = "confirm";
+    errorConfirm.addEventListener("click", () => closeMonitorErrorDialog(modal));
+    errorActions.appendChild(errorConfirm);
+    errorDialog.append(errorTitle, errorMessage, errorActions);
+    errorLayer.appendChild(errorDialog);
+    errorLayer.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMonitorErrorDialog(modal);
+        return;
+      }
+      if (event.key === "Tab") {
+        event.preventDefault();
+        errorConfirm.focus();
+      }
+    });
+
+    modal.append(panel, errorLayer);
     modal.addEventListener("click", (event) => {
       if (!event.target?.closest?.(".st-price-monitor-time-wrap")) closeMonitorTimePanel(modal);
       if (event.target === modal && modal.dataset.busy !== "true") closeMonitorModal();
@@ -830,11 +859,36 @@
     return modal;
   }
 
-  function setMonitorModalMessage(message, isError = false) {
-    const node = document.querySelector(`#${MONITOR_MODAL_ID} .st-price-monitor-message`);
-    if (!node) return;
-    node.textContent = message || "";
-    node.classList.toggle("st-price-monitor-message--error", !!isError);
+  function closeMonitorErrorDialog(modal, restoreFocus = true) {
+    const layer = modal?.querySelector?.("[data-monitor-error-dialog]");
+    if (!layer || layer.hidden) return;
+    const returnFocus = layer._stReturnFocus;
+    layer._stReturnFocus = null;
+    layer.hidden = true;
+    modal.querySelector(".st-price-monitor-dialog")?.removeAttribute("aria-hidden");
+    if (!restoreFocus) return;
+    if (returnFocus?.isConnected) returnFocus.focus?.();
+    else modal.querySelector("[data-monitor-action='save']")?.focus?.();
+  }
+
+  function showMonitorErrorDialog(modal, title, message) {
+    const layer = modal?.querySelector?.("[data-monitor-error-dialog]");
+    const titleNode = layer?.querySelector?.(".st-price-monitor-error-title");
+    const messageNode = layer?.querySelector?.(".st-price-monitor-error-message");
+    const confirm = layer?.querySelector?.("[data-monitor-error-action='confirm']");
+    if (!layer || !titleNode || !messageNode || !confirm) return;
+    if (layer.hidden) layer._stReturnFocus = document.activeElement;
+    titleNode.textContent = String(title || "");
+    messageNode.textContent = String(message || "");
+    modal.querySelector(".st-price-monitor-dialog")?.setAttribute("aria-hidden", "true");
+    layer.hidden = false;
+    confirm.focus();
+  }
+
+  function setMonitorExplanationStatus(modal, message = "") {
+    if (!modal) return;
+    modal._stMonitorStatusMessage = String(message || "");
+    updateMonitorExplanation(modal);
   }
 
   function setMonitorNumericValue(modal, mode, value, fallbackValue) {
@@ -931,6 +985,19 @@
       appendText(paragraph, t("store_priceHistory_monitorSponsorOnly", "该功能仅限赞助者使用。"));
       return;
     }
+    if (context.monitorLoginRequired) {
+      clearNode(paragraph);
+      explanation.classList.add("st-price-monitor-explanation--warning");
+      appendText(paragraph, t("store_priceHistory_monitorLoginRequiredInSettings", "请先在 Steam Buff 设置中登录。"));
+      return;
+    }
+    const statusMessage = String(modal._stMonitorStatusMessage || "");
+    if (statusMessage) {
+      clearNode(paragraph);
+      explanation.classList.remove("st-price-monitor-explanation--warning");
+      appendText(paragraph, statusMessage);
+      return;
+    }
     const mode = modal.dataset.monitorMode === "discount" ? "discount" : "amount";
     const valueInput = modal.querySelector(`[name='target_${mode}']`);
     const rawValue = String(valueInput?.value || "").trim();
@@ -1018,7 +1085,7 @@
     modal.hidden = false;
     setMonitorModalBusy(modal, false);
     setMonitorModalDenied(modal, !!context.monitorDenied);
-    setMonitorModalMessage("");
+    modal._stMonitorStatusMessage = "";
 
     const itemName = modal.querySelector(".st-price-monitor-item-name");
     if (itemName) itemName.textContent = context.itemName || `${context.target.type.toUpperCase()} ${context.target.id}`;
@@ -1058,16 +1125,22 @@
     deleteButton.hidden = !monitor || !!context.monitorDenied;
     deleteButton.dataset.confirm = "";
     deleteButton.textContent = t("store_priceHistory_monitorDelete", "删除监控");
+    context.monitorLoginRequired = false;
     setMonitorMode(modal, monitor?.targetMode || "amount");
     updateMonitorExplanation(modal);
 
     if (!context.monitorDenied) {
       try {
         if (!await hasMonitorAuth()) {
-          setMonitorModalMessage(t("store_priceHistory_monitorLoginRequiredInSettings", "请先在 Steam Buff 设置中登录。"), true);
+          context.monitorLoginRequired = true;
+          updateMonitorExplanation(modal);
         }
       } catch (error) {
-        setMonitorModalMessage(error?.message || t("store_priceHistory_monitorAuthFailed", "鉴权检查失败。"), true);
+        showMonitorErrorDialog(
+          modal,
+          t("store_priceHistory_monitorAuthErrorTitle", "鉴权检查失败"),
+          error?.message || t("store_priceHistory_monitorAuthFailed", "鉴权检查失败。")
+        );
       }
     }
     const activeInput = modal.querySelector(`[data-monitor-field='${modal.dataset.monitorMode}'] .st-price-monitor-number-input`);
@@ -1077,9 +1150,11 @@
   function closeMonitorModal() {
     const modal = document.getElementById?.(MONITOR_MODAL_ID);
     if (!modal) return;
+    closeMonitorErrorDialog(modal, false);
     closeMonitorTimePanel(modal);
     modal.hidden = true;
     modal.dataset.busy = "false";
+    modal._stMonitorStatusMessage = "";
     monitorModalState = null;
   }
 
@@ -1130,12 +1205,16 @@
     try {
       payload = monitorPayload(modal, context);
     } catch (error) {
-      setMonitorModalMessage(error?.message || String(error), true);
+      showMonitorErrorDialog(
+        modal,
+        t("store_priceHistory_monitorValidationErrorTitle", "无法保存"),
+        error?.message || String(error)
+      );
       return;
     }
 
     setMonitorModalBusy(modal, true);
-    setMonitorModalMessage(t("store_priceHistory_monitorSaving", "正在保存..."));
+    setMonitorExplanationStatus(modal, t("store_priceHistory_monitorSaving", "正在保存..."));
     const startedAt = Date.now();
     const operationId = window.STLoggerFactory?.createRequestId?.() || "";
     try {
@@ -1158,7 +1237,12 @@
       });
     } catch (error) {
       setMonitorModalBusy(modal, false);
-      setMonitorModalMessage(error?.message || t("store_priceHistory_monitorSaveFailed", "保存失败，请稍后重试。"), true);
+      setMonitorExplanationStatus(modal, "");
+      showMonitorErrorDialog(
+        modal,
+        t("store_priceHistory_monitorSaveErrorTitle", "保存失败"),
+        error?.message || t("store_priceHistory_monitorSaveFailed", "保存失败，请稍后重试。")
+      );
       log.warn("price-monitor-save-failed", "打折监控保存失败", {
         operationId,
         itemType: context.target.type,
@@ -1186,7 +1270,7 @@
     }
 
     setMonitorModalBusy(modal, true);
-    setMonitorModalMessage(t("store_priceHistory_monitorDeleting", "正在删除..."));
+    setMonitorExplanationStatus(modal, t("store_priceHistory_monitorDeleting", "正在删除..."));
     const startedAt = Date.now();
     const operationId = window.STLoggerFactory?.createRequestId?.() || "";
     try {
@@ -1205,7 +1289,12 @@
       });
     } catch (error) {
       setMonitorModalBusy(modal, false);
-      setMonitorModalMessage(error?.message || t("store_priceHistory_monitorDeleteFailed", "删除失败，请稍后重试。"), true);
+      setMonitorExplanationStatus(modal, "");
+      showMonitorErrorDialog(
+        modal,
+        t("store_priceHistory_monitorDeleteErrorTitle", "删除失败"),
+        error?.message || t("store_priceHistory_monitorDeleteFailed", "删除失败，请稍后重试。")
+      );
       log.warn("price-monitor-delete-failed", "打折监控删除失败", {
         operationId,
         itemType: context.target.type,
