@@ -12,7 +12,12 @@
   "use strict";
 
   const AI_SERVICE = "steam-buff.ai";
+  const AI_GATEWAY_PERMISSION_CHECK = "AI_GATEWAY_PERMISSION_CHECK";
   const AI_GATEWAY_PERMISSION_REQUEST = "AI_GATEWAY_PERMISSION_REQUEST";
+  const AI_GATEWAY_PERMISSION_RESULT = "AI_GATEWAY_PERMISSION_RESULT";
+  const CHROMIUM_WINDOW_OPEN = "CHROMIUM_WINDOW_OPEN";
+  const AI_PERMISSION_PAGE = "permissions/ai/index.html";
+  const AI_PERMISSION_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
   const log = root.STLoggerFactory.createLogger("settings", "ai");
 
   function fallback(value, name) {
@@ -220,40 +225,155 @@
       });
     }
 
-    function requestAiGatewayPermission(ai, operationId = "") {
+    function sendPermissionMessage(payload, timeoutMs) {
+      if (globalThis.STMessageBus?.send) {
+        return globalThis.STMessageBus.send(payload, { timeoutMs });
+      }
+      return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(payload, (response) => {
+          const error = chrome.runtime.lastError;
+          if (error) {
+            reject(new Error(error.message || String(error)));
+            return;
+          }
+          resolve(response || null);
+        });
+      });
+    }
+
+    function permissionError(response, fallbackKey = "settings.ai.permissionFailed") {
+      const denied = response?.code === "AI_HOST_PERMISSION_DENIED";
+      const error = new Error(response?.error || (denied
+        ? uiText("settings.ai.permissionDenied", "未获得当前 AI 网关的访问权限，请允许访问后重试。")
+        : uiText(fallbackKey, "AI 网关访问权限申请失败，请稍后重试。")));
+      error.code = response?.code || "AI_HOST_PERMISSION_REQUEST_FAILED";
+      return error;
+    }
+
+    function permissionResultWaiter(operationId, origin) {
+      let subscription = null;
+      let timer = 0;
+      let settled = false;
+      let resolvePromise;
+      let rejectPromise;
+      const promise = new Promise((resolve, reject) => {
+        resolvePromise = resolve;
+        rejectPromise = reject;
+      });
+      const dispose = () => {
+        if (timer) {
+          root.clearTimeout(timer);
+          timer = 0;
+        }
+        subscription?.dispose?.();
+        subscription = null;
+      };
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
+        dispose();
+        if (error) rejectPromise(error);
+        else resolvePromise(true);
+      };
+      subscription = globalThis.STMessageBus?.listen?.(AI_GATEWAY_PERMISSION_RESULT, (message, _sender, sendResponse) => {
+        if (String(message?.operationId || "") !== operationId || String(message?.origin || "") !== origin) {
+          return false;
+        }
+        sendResponse?.({ success: true, received: true });
+        finish(message?.granted === true ? null : permissionError(message));
+        return false;
+      }, {
+        owner: "settings-ai",
+        key: `permission-result:${operationId}`,
+      });
+      if (!subscription) {
+        const error = new Error(uiText("settings.ai.permissionFailed", "AI 网关访问权限申请失败，请稍后重试。"));
+        error.code = "AI_HOST_PERMISSION_RESULT_UNAVAILABLE";
+        finish(error);
+      } else {
+        timer = root.setTimeout(() => {
+          const error = new Error(uiText("settings.ai.permissionTimeout", "等待授权超时，请重新操作。"));
+          error.code = "AI_HOST_PERMISSION_TIMEOUT";
+          finish(error);
+        }, AI_PERMISSION_WAIT_TIMEOUT_MS);
+      }
+      return Object.freeze({
+        promise,
+        cancel() {
+          if (settled) return;
+          settled = true;
+          dispose();
+          resolvePromise(false);
+        },
+      });
+    }
+
+    function requestAiGatewayPermission(ai, shadow, operationId = "") {
       if (ai?.enabled !== true || !ai?.host) {
         return Promise.resolve(true);
       }
-      const payload = {
-        type: AI_GATEWAY_PERMISSION_REQUEST,
+      const host = ai.host;
+      return sendPermissionMessage({
+        type: AI_GATEWAY_PERMISSION_CHECK,
         operationId,
-        host: ai.host,
-      };
-      let job;
-      if (globalThis.STMessageBus?.send) {
-        job = globalThis.STMessageBus.send(payload, { timeoutMs: 0 });
-      } else {
-        job = new Promise((resolve, reject) => {
-          chrome.runtime.sendMessage(payload, (response) => {
-            const error = chrome.runtime.lastError;
-            if (error) {
-              reject(new Error(error.message || String(error)));
-              return;
-            }
-            resolve(response || null);
-          });
-        });
-      }
-      return job.then((response) => {
-        if (response?.granted === true) {
+        host,
+      }, 5_000).then((check) => {
+        if (check?.success !== true) {
+          throw permissionError(check);
+        }
+        if (check.granted === true) {
           return true;
         }
-        const denied = response?.code === "AI_HOST_PERMISSION_DENIED";
-        const error = new Error(denied
-          ? uiText("settings.ai.permissionDenied", "未获得当前 AI 网关的访问权限，请允许访问后重试。")
-          : uiText("settings.ai.permissionFailed", "AI 网关访问权限申请失败，请稍后重试。"));
-        error.code = response?.code || "AI_HOST_PERMISSION_REQUEST_FAILED";
-        throw error;
+        if (root.STClientEnvironment.isSteamClientPage() !== true) {
+          return sendPermissionMessage({
+            type: AI_GATEWAY_PERMISSION_REQUEST,
+            operationId,
+            host,
+          }, 0).then((response) => {
+            if (response?.granted !== true) throw permissionError(response);
+            return true;
+          });
+        }
+        return dialog(shadow, {
+          title: uiText("settings.ai.permissionBrowserTitle", "需要浏览器授权"),
+          message: uiText("settings.ai.permissionBrowserMessage", "该操作需要授权，需打开 Chromium 浏览器进行授权操作。是否继续？"),
+          actions: [
+            { id: "cancel", label: uiText("common.cancel", "取消") },
+            { id: "continue", label: uiText("common.continue", "继续"), primary: true },
+          ],
+        }).then((action) => {
+          if (action !== "continue") {
+            const error = new Error("");
+            error.code = "AI_HOST_PERMISSION_CANCELLED";
+            throw error;
+          }
+          const origin = String(check.origin || "");
+          const sourceTabId = Number(check.sourceTabId);
+          const sourceFrameId = Number(check.sourceFrameId);
+          if (!origin || !Number.isInteger(sourceTabId) || sourceTabId < 0 || !Number.isInteger(sourceFrameId) || sourceFrameId < 0) {
+            throw permissionError({ code: "AI_HOST_PERMISSION_SOURCE_INVALID", error: "AI 设置页上下文无效" });
+          }
+          const permissionUrl = new URL(chrome.runtime.getURL(AI_PERMISSION_PAGE));
+          permissionUrl.searchParams.set("origin", origin);
+          permissionUrl.searchParams.set("sourceTabId", String(sourceTabId));
+          permissionUrl.searchParams.set("sourceFrameId", String(sourceFrameId));
+          permissionUrl.searchParams.set("operationId", operationId.slice(0, 120));
+          const waiter = permissionResultWaiter(operationId, origin);
+          return sendPermissionMessage({
+            type: CHROMIUM_WINDOW_OPEN,
+            url: permissionUrl.toString(),
+          }, 10_000).then((response) => {
+            if (response?.opened !== true) {
+              const error = permissionError(response);
+              waiter.cancel();
+              throw error;
+            }
+            return waiter.promise;
+          }, (error) => {
+            waiter.cancel();
+            throw error;
+          });
+        });
       });
     }
 
@@ -284,7 +404,7 @@
       const operationId = root.STLoggerFactory?.createOperationId?.() || "";
       log.info("ai-test-start", "开始测试 AI 连接", { operationId, enabled: testConf.enabled === true });
       try {
-        requestAiGatewayPermission(testConf, operationId).then(() => sendAiTest(testConf, operationId)).then((response) => {
+        requestAiGatewayPermission(testConf, shadow, operationId).then(() => sendAiTest(testConf, operationId)).then((response) => {
           const used = ((performance.now() - started) / 1000).toFixed(1);
           if (button) {
             button.disabled = false;
@@ -316,6 +436,13 @@
           if (button) {
             button.disabled = false;
             button.textContent = oldText;
+          }
+          if (error?.code === "AI_HOST_PERMISSION_CANCELLED") {
+            log.info("ai-test-permission-cancelled", "AI 连接测试授权已取消", {
+              operationId,
+              durationMs: Math.round(performance.now() - started),
+            });
+            return;
           }
           log.error("ai-test-failed", "AI 连接测试异常", {
             operationId,
@@ -402,18 +529,22 @@
       const previous = normalize(persistedConf);
       const startedAt = Date.now();
       const operationId = root.STLoggerFactory?.createOperationId?.() || "";
-      const permissionJob = requestAiGatewayPermission(nextConf, operationId);
-      conf = nextConf;
-      publishConfig();
+      const permissionJob = requestAiGatewayPermission(nextConf, shadow, operationId);
+      let permissionGranted = false;
       log.info("ai-config-save-start", "开始保存 AI 配置", { operationId, enabled: nextConf.enabled === true });
       const oldText = save.textContent || "";
       save.disabled = true;
       save.textContent = uiText("common.saving", "保存中...");
       setInputsDisabled(shadow, true);
       permissionJob
-        .then(() => typeof storage.setAi === "function"
-          ? storage.setAi(next, { operationId })
-          : false)
+        .then(() => {
+          permissionGranted = true;
+          conf = nextConf;
+          publishConfig();
+          return typeof storage.setAi === "function"
+            ? storage.setAi(next, { operationId })
+            : false;
+        })
         .then((ok) => {
           if (ok !== true) {
             restoreSavedState(shadow, previous, operationId);
@@ -438,6 +569,25 @@
           showSavePrompt(shadow, operationId);
         })
         .catch((error) => {
+          if (error?.code === "AI_HOST_PERMISSION_CANCELLED") {
+            log.info("ai-config-save-permission-cancelled", "AI 配置保存授权已取消", {
+              operationId,
+              durationMs: Date.now() - startedAt,
+            });
+            return;
+          }
+          if (!permissionGranted) {
+            log.warn("ai-config-save-permission-failed", "AI 配置保存前授权未完成", {
+              operationId,
+              error,
+              durationMs: Date.now() - startedAt,
+            });
+            dialog(shadow, {
+              title: uiText("common.saveFailed", "保存失败"),
+              message: error?.message || uiText("settings.ai.permissionFailed", "AI 网关访问权限申请失败，请稍后重试。"),
+            });
+            return;
+          }
           restoreSavedState(shadow, previous, operationId);
           log.error("ai-config-save-failed", "AI 配置保存异常", {
             operationId,

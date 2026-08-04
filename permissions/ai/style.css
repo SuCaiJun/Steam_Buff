@@ -1,0 +1,198 @@
+/*
+ * @Author        : Ricky
+ * @Url           : sucaijun.com
+ * @Email         : Ricky@LiHai.La
+ * @Project       : Steam Buff
+ * @Description   : Steam 客户端增强小工具
+ * @File          : AI 网关授权页样式
+ * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+ * @Remind        : 二次开发请保留原版权信息，谢谢。
+ */
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: #f3f5f7;
+  color: #17202a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: #f3f5f7;
+}
+
+button,
+code {
+  font: inherit;
+}
+
+.authorization-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+}
+
+.authorization-panel {
+  width: min(560px, 100%);
+  overflow: hidden;
+  border: 1px solid #d7dde3;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 42px rgb(24 38 52 / 12%);
+}
+
+.product-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e4e8ec;
+  background: #172331;
+  color: #ffffff;
+}
+
+.product-icon {
+  flex: 0 0 auto;
+  border-radius: 8px;
+}
+
+.product-name {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.product-section {
+  margin-top: 2px;
+  color: #b9c6d2;
+  font-size: 13px;
+}
+
+.authorization-content {
+  padding: 32px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #477287;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.authorization-copy {
+  margin: 14px 0 24px;
+  color: #53616f;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.permission-target {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #dce3e8;
+  border-left: 4px solid #1f8aa8;
+  border-radius: 6px;
+  background: #f7fafb;
+}
+
+.target-label {
+  color: #62717e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#permission-origin {
+  overflow-wrap: anywhere;
+  color: #17202a;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.authorization-status {
+  min-height: 22px;
+  margin: 18px 0 0;
+  color: #53616f;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.authorization-status.is-error {
+  color: #b3261e;
+}
+
+.authorization-status.is-success {
+  color: #237347;
+}
+
+.authorization-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.authorize-button {
+  min-width: 132px;
+  min-height: 42px;
+  padding: 10px 18px;
+  border: 1px solid #176f8a;
+  border-radius: 6px;
+  background: #1f8aa8;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.authorize-button:hover:not(:disabled) {
+  background: #176f8a;
+}
+
+.authorize-button:focus-visible {
+  outline: 3px solid rgb(31 138 168 / 28%);
+  outline-offset: 2px;
+}
+
+.authorize-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+@media (max-width: 520px) {
+  .authorization-shell {
+    align-items: start;
+    padding: 16px 12px;
+  }
+
+  .authorization-content {
+    padding: 24px 20px;
+  }
+
+  h1 {
+    font-size: 23px;
+  }
+
+  .authorization-actions,
+  .authorize-button {
+    width: 100%;
+  }
+}

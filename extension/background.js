@@ -55,6 +55,7 @@
     "retry-after",
   ]));
   const FILES = Object.freeze([
+    "shared/client-environment.js",
     "shared/config.js",
     "shared/performance-monitor.js",
     "shared/page-context.js",
@@ -71,6 +72,7 @@
   ]);
   const STEAM_LOOPBACK_GUARD_FILE = "extension/runtime/steamloopback-guard.js";
   const WEB_BOOT_FILES = Object.freeze([
+    "shared/client-environment.js",
     "shared/config.js",
     "extension/runtime/injector.js",
     "shared/logger-schema.js",
@@ -84,6 +86,7 @@
     "extension/content.js",
   ]);
   const STEAM_CONTENT_SHARED_SCRIPTS = Object.freeze([
+    "shared/client-environment.js",
     "shared/config.js",
     "shared/i18n.js",
     "shared/performance-monitor.js",
@@ -99,6 +102,7 @@
   ]);
   const SETTINGS_SHARED_SCRIPTS = Object.freeze([
     "ai/config.js",
+    "shared/client-environment.js",
     "shared/config.js",
     "shared/logger-schema.js",
     "extension/runtime/logger.js",
@@ -182,6 +186,7 @@
     "settings/floating-menu.js",
   ]);
   const STORE_BASE_SCRIPTS = Object.freeze([
+    "shared/client-environment.js",
     "shared/styles/theme.js",
     "shared/errors.js",
     "shared/utils/dom.js",
@@ -358,7 +363,17 @@
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
   const AI_FETCH_TIMEOUT_MS = 20 * 1000;
   const AI_FETCH_TIMEOUT_MAX_MS = 120 * 1000;
+  const AI_GATEWAY_PERMISSION_CHECK = "AI_GATEWAY_PERMISSION_CHECK";
   const AI_GATEWAY_PERMISSION_REQUEST = "AI_GATEWAY_PERMISSION_REQUEST";
+  const AI_GATEWAY_PERMISSION_COMPLETE = "AI_GATEWAY_PERMISSION_COMPLETE";
+  const AI_GATEWAY_PERMISSION_RESULT = "AI_GATEWAY_PERMISSION_RESULT";
+  const CHROMIUM_WINDOW_OPEN = "CHROMIUM_WINDOW_OPEN";
+  const STEAM_ROOT_MENU_OPEN_CHROMIUM = "STEAM_ROOT_MENU_OPEN_CHROMIUM";
+  const STEAM_ROOT_MENU_TITLE = "Steam Root Menu";
+  const STEAM_ROOT_MENU_BROWSER_HOME_SETTING = "web_browser_home";
+  const STEAM_ROOT_MENU_BROWSER_FALLBACK = "https://sucaijun.com/";
+  const STEAM_ROOT_MENU_EXTENSIONS_URL = "chrome://extensions/";
+  const AI_PERMISSION_PAGE = "permissions/ai/index.html";
   const AI_STREAM_PORT = "AI_CHAT_COMPLETIONS_STREAM";
   const AI_FORECAST_SESSION_STORAGE_PREFIX = "st.aiDiscountForecast.session.v1.";
   const AI_FORECAST_SESSION_CLEANUP_ALARM = "steam-buff-ai-forecast-session-cleanup";
@@ -1540,6 +1555,32 @@
     });
   }
 
+  function checkAiGatewayPermission(request, sender, sendResponse) {
+    if (!isSettingsSender(sender)) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SENDER_REJECTED", error: "AI 网关权限检查来源无效" });
+      return;
+    }
+    const origin = aiGatewayPermissionPattern(request?.host);
+    const sourceTabId = sender?.tab?.id;
+    const sourceFrameId = sender?.frameId;
+    if (!origin) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_INVALID", error: "无效的 AI 网关地址" });
+      return;
+    }
+    if (!Number.isInteger(sourceTabId) || sourceTabId < 0 || !Number.isInteger(sourceFrameId) || sourceFrameId < 0) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SOURCE_INVALID", error: "AI 设置页上下文无效" });
+      return;
+    }
+    hasAiGatewayPermission(origin)
+      .then((granted) => sendResponse({ success: true, granted, origin, sourceTabId, sourceFrameId }))
+      .catch((error) => sendResponse({
+        success: false,
+        granted: false,
+        code: error?.code || "AI_HOST_PERMISSION_CHECK_FAILED",
+        error: error?.message || "AI 网关权限检查失败",
+      }));
+  }
+
   function requestAiGatewayPermission(request, sender, sendResponse) {
     if (!isSettingsSender(sender)) {
       sendResponse({ success: false, code: "AI_HOST_PERMISSION_SENDER_REJECTED", error: "AI 网关权限申请来源无效" });
@@ -1568,12 +1609,203 @@
       sendResponse({
         success: granted === true,
         granted: granted === true,
+        origin,
         ...(granted === true ? {} : {
           code: "AI_HOST_PERMISSION_DENIED",
           error: "未获得当前 AI 网关的访问权限",
         }),
       });
     });
+  }
+
+  function openChromiumWindow(url, sendResponse) {
+    const targetUrl = String(url || "").trim();
+    try {
+      new URL(targetUrl);
+    } catch {
+      sendResponse({ success: false, code: "CHROMIUM_WINDOW_URL_INVALID", error: "Chromium 打开地址无效" });
+      return;
+    }
+    if (!chrome.windows?.create) {
+      sendResponse({ success: false, code: "CHROMIUM_WINDOW_UNAVAILABLE", error: "Chromium 窗口打开能力不可用" });
+      return;
+    }
+    chrome.windows.create({ url: targetUrl, type: "normal", focused: true }, (createdWindow) => {
+      const error = chrome.runtime.lastError;
+      if (error || !Number.isInteger(createdWindow?.id)) {
+        sendResponse({
+          success: false,
+          code: "CHROMIUM_WINDOW_OPEN_FAILED",
+          error: error?.message || "Chromium 窗口打开失败",
+        });
+        return;
+      }
+      sendResponse({ success: true, opened: true, windowId: createdWindow.id });
+    });
+  }
+
+  function openChromiumWindowRequest(request, sender, sendResponse) {
+    if (sender?.id !== chrome.runtime.id) {
+      sendResponse({ success: false, code: "CHROMIUM_WINDOW_SENDER_REJECTED", error: "Chromium 窗口打开来源无效" });
+      return;
+    }
+    openChromiumWindow(request?.url, sendResponse);
+  }
+
+  function isSteamRootMenuSender(sender) {
+    return sender?.id === chrome.runtime.id
+      && sender?.tab?.title === STEAM_ROOT_MENU_TITLE
+      && !!senderTarget(sender)
+      && isSteamLoopbackUrl(senderUrl(sender));
+  }
+
+  function steamRootMenuWebUrl(value) {
+    const target = String(value || "").trim();
+    try {
+      const url = new URL(target);
+      return url.protocol === "http:" || url.protocol === "https:" ? target : "";
+    } catch {
+      return "";
+    }
+  }
+
+  async function steamRootMenuBrowserTarget(sender) {
+    const target = senderTarget(sender);
+    if (!target) {
+      return { url: STEAM_ROOT_MENU_BROWSER_FALLBACK, source: "fallback" };
+    }
+    try {
+      const results = await execScript({
+        target,
+        world: "MAIN",
+        func: (rootMenuTitle, sharedContextTitle, settingKey) => {
+          let openerTitle = "";
+          let configuredUrl = "";
+          try {
+            openerTitle = String(window.opener?.document?.title || "");
+            const value = window.opener?.settingsStore?.clientSettings?.[settingKey];
+            configuredUrl = typeof value === "string" ? value.trim() : "";
+          } catch {
+            configuredUrl = "";
+          }
+          return {
+            title: String(document.title || ""),
+            url: String(location.href || ""),
+            openerTitle,
+            configuredUrl,
+            validRootMenu: document.title === rootMenuTitle,
+            validOpener: openerTitle === sharedContextTitle,
+          };
+        },
+        args: [STEAM_ROOT_MENU_TITLE, "SharedJSContext", STEAM_ROOT_MENU_BROWSER_HOME_SETTING],
+      });
+      const frame = results?.[0]?.result;
+      const configuredUrl = frame?.validRootMenu === true
+        && frame?.validOpener === true
+        && isSteamLoopbackUrl(frame?.url)
+        ? steamRootMenuWebUrl(frame.configuredUrl)
+        : "";
+      if (configuredUrl) {
+        return { url: configuredUrl, source: "steam-setting" };
+      }
+    } catch {
+      // 已验证 Root Menu sender 读取主页失败时，使用用户指定的单一固定兜底。
+    }
+    return { url: STEAM_ROOT_MENU_BROWSER_FALLBACK, source: "fallback" };
+  }
+
+  async function openSteamRootMenuChromiumRequest(request, sender, sendResponse) {
+    if (!isSteamRootMenuSender(sender)) {
+      sendResponse({ success: false, code: "STEAM_ROOT_MENU_SENDER_REJECTED", error: "Steam Root Menu 来源无效" });
+      return;
+    }
+    const action = String(request?.action || "");
+    if (action !== "browser" && action !== "extensions") {
+      sendResponse({ success: false, code: "STEAM_ROOT_MENU_ACTION_INVALID", error: "Steam Root Menu 操作无效" });
+      return;
+    }
+    const target = action === "extensions"
+      ? { url: STEAM_ROOT_MENU_EXTENSIONS_URL, source: "fixed" }
+      : await steamRootMenuBrowserTarget(sender);
+    openChromiumWindow(target.url, (response) => {
+      sendResponse({
+        ...response,
+        action,
+        source: target.source,
+      });
+    });
+  }
+
+  function isAiPermissionPageSender(sender) {
+    const url = senderUrlObject(sender);
+    return !!url
+      && url.protocol === "chrome-extension:"
+      && url.hostname === chrome.runtime.id
+      && url.pathname.replace(/^\/+/, "") === AI_PERMISSION_PAGE
+      && sender?.frameId === 0
+      && Number.isInteger(sender?.tab?.id);
+  }
+
+  function closeAiPermissionTab(tabId) {
+    globalThis.setTimeout(() => {
+      chrome.tabs.remove(tabId, () => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          logError("ai", "ai-permission-tab-close-failed", "AI 授权页关闭失败", error, { tabId });
+        }
+      });
+    }, 0);
+  }
+
+  function completeAiGatewayPermission(request, sender, sendResponse) {
+    if (!isAiPermissionPageSender(sender)) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_PAGE_REJECTED", error: "AI 网关授权页来源无效" });
+      return;
+    }
+    const requestedOrigin = String(request?.origin || "");
+    const origin = aiGatewayPermissionPattern(requestedOrigin);
+    const sourceTabId = Number(request?.sourceTabId);
+    const sourceFrameId = Number(request?.sourceFrameId);
+    const operationId = String(request?.operationId || "").slice(0, 120);
+    if (!origin || origin !== requestedOrigin) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_INVALID", error: "AI 网关授权域名无效" });
+      return;
+    }
+    if (!Number.isInteger(sourceTabId) || sourceTabId < 0 || !Number.isInteger(sourceFrameId) || sourceFrameId < 0) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SOURCE_INVALID", error: "AI 设置页上下文无效" });
+      return;
+    }
+    hasAiGatewayPermission(origin)
+      .then((granted) => {
+        const result = {
+          type: AI_GATEWAY_PERMISSION_RESULT,
+          operationId,
+          origin,
+          granted,
+          ...(granted ? {} : {
+            code: "AI_HOST_PERMISSION_DENIED",
+            error: "未获得当前 AI 网关的访问权限",
+          }),
+        };
+        chrome.tabs.sendMessage(sourceTabId, result, { frameId: sourceFrameId }, () => {
+          const notifyError = chrome.runtime.lastError;
+          sendResponse({
+            success: granted,
+            granted,
+            notified: !notifyError,
+            ...(notifyError ? { notifyError: notifyError.message || String(notifyError) } : {}),
+          });
+          if (granted) {
+            closeAiPermissionTab(sender.tab.id);
+          }
+        });
+      })
+      .catch((error) => sendResponse({
+        success: false,
+        granted: false,
+        code: error?.code || "AI_HOST_PERMISSION_CHECK_FAILED",
+        error: error?.message || "AI 网关权限检查失败",
+      }));
   }
 
   function drainAiQueue() {
@@ -2465,7 +2697,11 @@
     TRANSLATE_INJECT: "翻译 runner 按需注入",
     CONTENT_FILES_INJECT: "当前 frame 内容脚本按需注入",
     [STEAM_LOOPBACK_INJECT_REQUEST]: "Steam CEF 白名单 frame 按需注入",
+    [AI_GATEWAY_PERMISSION_CHECK]: "AI 设置页检查当前网关精确域名权限",
     [AI_GATEWAY_PERMISSION_REQUEST]: "用户操作触发的 AI 网关按域名授权",
+    [CHROMIUM_WINDOW_OPEN]: "扩展内部 URL 的 Chromium 窗口打开",
+    [STEAM_ROOT_MENU_OPEN_CHROMIUM]: "Steam Root Menu 打开主页或扩展管理",
+    [AI_GATEWAY_PERMISSION_COMPLETE]: "扩展授权页回传 AI 网关授权结果",
     AI_CHAT_COMPLETIONS: "AI 网关连接测试与翻译代理",
     AI_TRANSLATE_CACHE_GET: "AI 翻译缓存读取",
     AI_TRANSLATE_CACHE_SET: "AI 翻译缓存写入",
@@ -2483,7 +2719,11 @@
     TRANSLATE_INJECT: translateInject,
     CONTENT_FILES_INJECT: injectContentFiles,
     [STEAM_LOOPBACK_INJECT_REQUEST]: steamLoopbackInjectRequest,
+    [AI_GATEWAY_PERMISSION_CHECK]: checkAiGatewayPermission,
     [AI_GATEWAY_PERMISSION_REQUEST]: requestAiGatewayPermission,
+    [CHROMIUM_WINDOW_OPEN]: openChromiumWindowRequest,
+    [STEAM_ROOT_MENU_OPEN_CHROMIUM]: openSteamRootMenuChromiumRequest,
+    [AI_GATEWAY_PERMISSION_COMPLETE]: completeAiGatewayPermission,
     AI_CHAT_COMPLETIONS: aiChat,
     AI_TRANSLATE_CACHE_GET: cacheGet,
     AI_TRANSLATE_CACHE_SET: cacheSet,

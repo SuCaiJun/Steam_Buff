@@ -3962,6 +3962,57 @@
   "settings_ai_permissionFailed": {
     "message": "AI 网关访问权限申请失败，请稍后重试。"
   },
+  "settings_ai_permissionBrowserTitle": {
+    "message": "需要浏览器授权"
+  },
+  "steamRootMenu_chromiumBrowser": {
+    "message": "Chromium 浏览器"
+  },
+  "steamRootMenu_extensionManagement": {
+    "message": "扩展管理"
+  },
+  "settings_ai_permissionBrowserMessage": {
+    "message": "该操作需要授权，需打开 Chromium 浏览器进行授权操作。是否继续？"
+  },
+  "settings_ai_permissionTimeout": {
+    "message": "等待授权超时，请重新操作。"
+  },
+  "aiPermissionPageTitle": {
+    "message": "Steam Buff - AI 网关授权"
+  },
+  "aiPermissionPageSection": {
+    "message": "AI 网关授权"
+  },
+  "aiPermissionPageEyebrow": {
+    "message": "访问权限"
+  },
+  "aiPermissionPageHeading": {
+    "message": "允许访问 AI 网关"
+  },
+  "aiPermissionPageDescription": {
+    "message": "Steam Buff 需要访问以下域名，才能保存 AI 设置或测试连接。"
+  },
+  "aiPermissionPageOriginLabel": {
+    "message": "授权域名"
+  },
+  "aiPermissionPageAction": {
+    "message": "申请授权"
+  },
+  "aiPermissionPageRequesting": {
+    "message": "正在申请..."
+  },
+  "aiPermissionPageSuccess": {
+    "message": "授权成功，正在返回设置页。"
+  },
+  "aiPermissionPageDenied": {
+    "message": "未获得访问权限，请再次申请或关闭本页。"
+  },
+  "aiPermissionPageFailed": {
+    "message": "授权失败，请稍后重试。"
+  },
+  "aiPermissionPageInvalid": {
+    "message": "授权请求无效，请返回设置页重新操作。"
+  },
   "settings_ai_test_enableFirst": {
     "message": "请先启用 AI模块。"
   },

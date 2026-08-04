@@ -637,15 +637,6 @@
     render();
   }
 
-  function isSteamClientEnv() {
-    try {
-      if (window.SteamClient || window.SharedJSContext || document.title === "SharedJSContext") return true;
-      return /Valve\s+Steam|Steam\s+Client|SteamClient|SteamTenfoot|ValveSteam/i.test(String(navigator.userAgent || ""));
-    } catch {
-      return false;
-    }
-  }
-
   async function openTutorial() {
     try {
       const cfg = await sharedConfig();
@@ -758,7 +749,7 @@
     if (state.busy || state.loginBusy) return;
     const operationId = createOperationId();
     const startedAt = Date.now();
-    const steamClient = isSteamClientEnv();
+    const steamClient = window.STClientEnvironment.isSteamClientPage();
     log.info("onboarding-finish-start", "安装引导开始保存设置并打开设置中心", {
       operationId,
       steamClient,
@@ -980,7 +971,7 @@
     const account = $("#complete-account");
     const client = $("#complete-client");
     account.textContent = state.loginMode === "success" || state.loginAuth ? "已登录" : "未登录";
-    client.textContent = isSteamClientEnv()
+    client.textContent = window.STClientEnvironment.isSteamClientPage()
       ? "需重启客户端"
       : state.clientEnabled
         ? "已开启"
@@ -1093,7 +1084,7 @@
     const title = $("#client-state-title");
     const detail = $("#client-state-detail");
     const toggle = $("#client-toggle");
-    const inClient = isSteamClientEnv();
+    const inClient = window.STClientEnvironment.isSteamClientPage();
     control.classList.toggle("is-client-context", inClient);
     if (inClient) {
       title.textContent = "需要重启 Steam 客户端";

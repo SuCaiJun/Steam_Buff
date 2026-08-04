@@ -3962,6 +3962,57 @@
   "settings_ai_permissionFailed": {
     "message": "Unable to request access to the current AI gateway. Try again later."
   },
+  "settings_ai_permissionBrowserTitle": {
+    "message": "Browser authorization required"
+  },
+  "steamRootMenu_chromiumBrowser": {
+    "message": "Chromium Browser"
+  },
+  "steamRootMenu_extensionManagement": {
+    "message": "Extension Management"
+  },
+  "settings_ai_permissionBrowserMessage": {
+    "message": "This action requires authorization in a Chromium browser. Continue?"
+  },
+  "settings_ai_permissionTimeout": {
+    "message": "Authorization timed out. Try again."
+  },
+  "aiPermissionPageTitle": {
+    "message": "Steam Buff - AI gateway authorization"
+  },
+  "aiPermissionPageSection": {
+    "message": "AI gateway authorization"
+  },
+  "aiPermissionPageEyebrow": {
+    "message": "Access permission"
+  },
+  "aiPermissionPageHeading": {
+    "message": "Allow access to the AI gateway"
+  },
+  "aiPermissionPageDescription": {
+    "message": "Steam Buff needs access to this domain to save AI settings or test the connection."
+  },
+  "aiPermissionPageOriginLabel": {
+    "message": "Domain to authorize"
+  },
+  "aiPermissionPageAction": {
+    "message": "Request access"
+  },
+  "aiPermissionPageRequesting": {
+    "message": "Requesting..."
+  },
+  "aiPermissionPageSuccess": {
+    "message": "Access granted. Returning to settings."
+  },
+  "aiPermissionPageDenied": {
+    "message": "Access was not granted. Request access again or close this page."
+  },
+  "aiPermissionPageFailed": {
+    "message": "Authorization failed. Try again later."
+  },
+  "aiPermissionPageInvalid": {
+    "message": "This authorization request is invalid. Return to settings and try again."
+  },
   "settings_ai_test_enableFirst": {
     "message": "Enable the AI module first."
   },

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steam Buff - AI 网关授权</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="authorization-shell">
+    <section class="authorization-panel" aria-labelledby="authorization-title">
+      <header class="product-header">
+        <img class="product-icon" src="../../images/icon.png" alt="" width="44" height="44">
+        <div>
+          <div class="product-name">Steam Buff</div>
+          <div class="product-section" id="product-section">AI 网关授权</div>
+        </div>
+      </header>
+
+      <div class="authorization-content">
+        <p class="eyebrow" id="authorization-eyebrow">访问权限</p>
+        <h1 id="authorization-title">允许访问 AI 网关</h1>
+        <p class="authorization-copy" id="authorization-copy">Steam Buff 需要访问以下域名，才能保存 AI 设置或测试连接。</p>
+
+        <div class="permission-target" aria-label="AI gateway origin">
+          <span class="target-label" id="target-label">授权域名</span>
+          <code id="permission-origin">-</code>
+        </div>
+
+        <p class="authorization-status" id="authorization-status" role="status" aria-live="polite"></p>
+
+        <div class="authorization-actions">
+          <button class="authorize-button" id="authorize-button" type="button">申请授权</button>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="./script.js"></script>
+</body>
+</html>

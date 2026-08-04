@@ -155,19 +155,9 @@
     },
   });
 
-  function isSteamClientPage() {
-    try {
-      if (matchers.isSteamLoopbackHost(root.location?.hostname)) return true;
-      if (root.SteamClient || root.SharedJSContext || root.document?.title === "SharedJSContext") return true;
-      return /Valve\s+Steam|Steam\s+Client|SteamClient|SteamTenfoot|ValveSteam/i.test(String(root.navigator?.userAgent || ""));
-    } catch {
-      return false;
-    }
-  }
-
   function resolveExternalNavigation(url) {
     const target = String(url || "").trim();
-    const steamClient = !!target && isSteamClientPage();
+    const steamClient = !!target && root.STClientEnvironment.isSteamClientPage();
     const href = steamClient ? `steam://openurl_external/${target}` : target;
     return Object.freeze({
       href,

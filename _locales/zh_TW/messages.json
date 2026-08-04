@@ -3962,6 +3962,57 @@
   "settings_ai_permissionFailed": {
     "message": "AI 閘道存取權限申請失敗，請稍後再試。"
   },
+  "settings_ai_permissionBrowserTitle": {
+    "message": "需要瀏覽器授權"
+  },
+  "steamRootMenu_chromiumBrowser": {
+    "message": "Chromium 瀏覽器"
+  },
+  "steamRootMenu_extensionManagement": {
+    "message": "擴充功能管理"
+  },
+  "settings_ai_permissionBrowserMessage": {
+    "message": "此操作需要授權，必須開啟 Chromium 瀏覽器完成授權。是否繼續？"
+  },
+  "settings_ai_permissionTimeout": {
+    "message": "等待授權逾時，請重新操作。"
+  },
+  "aiPermissionPageTitle": {
+    "message": "Steam Buff - AI 閘道授權"
+  },
+  "aiPermissionPageSection": {
+    "message": "AI 閘道授權"
+  },
+  "aiPermissionPageEyebrow": {
+    "message": "存取權限"
+  },
+  "aiPermissionPageHeading": {
+    "message": "允許存取 AI 閘道"
+  },
+  "aiPermissionPageDescription": {
+    "message": "Steam Buff 需要存取以下網域，才能儲存 AI 設定或測試連線。"
+  },
+  "aiPermissionPageOriginLabel": {
+    "message": "授權網域"
+  },
+  "aiPermissionPageAction": {
+    "message": "申請授權"
+  },
+  "aiPermissionPageRequesting": {
+    "message": "正在申請..."
+  },
+  "aiPermissionPageSuccess": {
+    "message": "授權成功，正在返回設定頁。"
+  },
+  "aiPermissionPageDenied": {
+    "message": "未取得存取權限，請再次申請或關閉此頁。"
+  },
+  "aiPermissionPageFailed": {
+    "message": "授權失敗，請稍後再試。"
+  },
+  "aiPermissionPageInvalid": {
+    "message": "授權請求無效，請返回設定頁重新操作。"
+  },
   "settings_ai_test_enableFirst": {
     "message": "請先啟用 AI 模組。"
   },
