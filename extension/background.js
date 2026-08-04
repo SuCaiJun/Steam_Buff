@@ -70,7 +70,10 @@
     "shared/settings-bus.js",
     "extension/content.js",
   ]);
-  const STEAM_LOOPBACK_GUARD_FILE = "extension/runtime/steamloopback-guard.js";
+  const STEAM_LOOPBACK_GUARD_FILES = Object.freeze([
+    "shared/runtime/surface-manager.js",
+    "extension/runtime/steamloopback-guard.js",
+  ]);
   const WEB_BOOT_FILES = Object.freeze([
     "shared/client-environment.js",
     "shared/config.js",
@@ -316,7 +319,7 @@
     "store/main.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v17";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v18";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_RUNTIME_READY_WAIT_MS = 6000;
@@ -593,7 +596,7 @@
       {
         target: { tabId, allFrames: true },
         world: "ISOLATED",
-        files: [STEAM_LOOPBACK_GUARD_FILE],
+        files: STEAM_LOOPBACK_GUARD_FILES,
       },
       () => {
         const err = chrome.runtime.lastError;
@@ -1011,7 +1014,7 @@
     await execScript({
       target: scriptTarget,
       world: "ISOLATED",
-      files: [STEAM_LOOPBACK_GUARD_FILE],
+      files: STEAM_LOOPBACK_GUARD_FILES,
     });
   }
 

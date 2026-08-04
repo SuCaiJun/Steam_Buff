@@ -25,11 +25,8 @@
   const PROGRESS = "__RickyLibraryCustomNameProgress";
   const REQ_ATTR = "data-steam-buff-name-request";
   const RES_ATTR = "data-steam-buff-name-response";
-  const SCHEDULER_TASK = "library-custom-name-ui";
   const MOUNT_LOG_MS = 60000;
   const RESP_MS = 12000;
-  const BAR_CLEANUP_CHECK_DELAYS = Object.freeze([80, 240, 640, 1200]);
-  const BAR_MOUNT_RETRY_DELAYS = Object.freeze([0, 80, 180, 360, 700, 1200, 1800]);
   const SAVE_STATUS_MS = 3000;
   const SAVE_STATUS_MAX_MISSES = 3;
   const QUERY_MAX = 100;
@@ -347,7 +344,6 @@
       return;
     }
     closeTips(document);
-    scheduleBarCleanupCheck();
   }
 
   function onDocumentKeydown(event) {
@@ -904,11 +900,6 @@
     return out.replace(/\s+/g, " ").trim();
   }
 
-  function customSortPanel() {
-    const panels = Array.from(document.querySelectorAll("[role='tabpanel'][id$='/properties/customization_Content']"));
-    return panels.find(panel => /\/app\/\d+\/properties\/customization_Content$/.test(String(panel.id || ""))) || null;
-  }
-
   function inputMeta(input) {
     return {
       placeholder: String(input?.placeholder || "").slice(0, 80),
@@ -928,16 +919,11 @@
   }
 
   function customSortSurface() {
-    const panel = customSortPanel();
-    const inputs = panel ? Array.from(panel.querySelectorAll("input[type='text']")).filter(visible) : [];
-    // 2026-07-17 live CEF：该 tabpanel 有四个隐藏 file input 和唯一一个 text input；数量变化时停止，不猜目标。
-    const input = inputs.length === 1 ? inputs[0] : null;
-    return {
-      inputs,
-      input,
-      panel,
-      active: !!input,
-    };
+    const surface = s.propertySurface;
+    if (surface?.panel?.isConnected && (!surface.input || surface.input.isConnected)) {
+      return surface;
+    }
+    return { active: false, input: null, inputs: [], panel: null, reason: "surface-disconnected" };
   }
 
   function setNative(input, value) {
@@ -2892,107 +2878,6 @@
     return !!document.getElementById(BAR);
   }
 
-  function isPropertyDialog() {
-    return window.SteamBuff?.ctx?.isPropertyDialog?.() === true;
-  }
-
-  function isCustomSortUi() {
-    return window.SteamBuff?.ctx?.hasCustomSortUi?.() === true;
-  }
-
-  function hasActiveCustomSortInput() {
-    return customSortSurface().active;
-  }
-
-  function clearBarCleanupCheck() {
-    clearRuntimeTimer(s, "barCleanupTimer", "barCleanupHandle");
-  }
-
-  function clearBarMountRetry() {
-    clearRuntimeTimer(s, "barMountTimer", "barMountHandle");
-  }
-
-  function scheduleBarMountRetry(attempt = 0) {
-    clearBarMountRetry();
-    const nextAttempt = Math.max(0, Number(attempt) || 0);
-    if (nextAttempt >= BAR_MOUNT_RETRY_DELAYS.length) {
-      return;
-    }
-    const delay = BAR_MOUNT_RETRY_DELAYS[nextAttempt];
-    s.barMountTimer = window.setTimeout(() => {
-      const handle = s.barMountHandle;
-      s.barMountHandle = null;
-      s.barMountTimer = 0;
-      handle?.dispose?.();
-      const before = hasBar();
-      tick();
-      if (!hasBar() && (s.barMountRetryArmed || isPropertyDialog() || before) && nextAttempt + 1 < BAR_MOUNT_RETRY_DELAYS.length) {
-        scheduleBarMountRetry(nextAttempt + 1);
-      }
-    }, Math.max(0, delay));
-    s.barMountHandle = s.scope?.resource?.({
-      key: "bar-mount-retry",
-      type: "timer",
-      dispose() {
-        if (s.barMountTimer) {
-          window.clearTimeout(s.barMountTimer);
-          s.barMountTimer = 0;
-        }
-        s.barMountHandle = null;
-      },
-    }) || null;
-  }
-
-  function scheduleBarCleanupCheck(attempt = 0) {
-    clearBarCleanupCheck();
-    const nextAttempt = Math.max(0, Number(attempt) || 0);
-    const delay = BAR_CLEANUP_CHECK_DELAYS[Math.min(nextAttempt, BAR_CLEANUP_CHECK_DELAYS.length - 1)];
-    s.barCleanupTimer = window.setTimeout(() => {
-      const handle = s.barCleanupHandle;
-      s.barCleanupHandle = null;
-      s.barCleanupTimer = 0;
-      handle?.dispose?.();
-      const active = hasActiveCustomSortInput();
-      const propertyDialog = isPropertyDialog();
-      if (!active) {
-        unbindAutoUpload();
-        if (hasBar()) {
-          clearBars(null);
-          closeTips(document);
-          logMountState(
-            `bar-cleanup:${document.title}`,
-            "info",
-            "library-custom-name-bar-cleanup",
-            "库自定义名称底部按钮已随属性页分类切换隐藏",
-            { repeatMs: MOUNT_LOG_MS }
-          );
-        }
-        if (propertyDialog && nextAttempt + 1 < BAR_CLEANUP_CHECK_DELAYS.length) {
-          scheduleBarCleanupCheck(nextAttempt + 1);
-        }
-        return;
-      }
-      tick();
-      if (active && !hasBar()) {
-        scheduleBarMountRetry();
-      }
-      if ((hasBar() || active || propertyDialog) && nextAttempt + 1 < BAR_CLEANUP_CHECK_DELAYS.length) {
-        scheduleBarCleanupCheck(nextAttempt + 1);
-      }
-    }, Math.max(0, delay));
-    s.barCleanupHandle = s.scope?.resource?.({
-      key: "bar-cleanup-check",
-      type: "timer",
-      dispose() {
-        if (s.barCleanupTimer) {
-          window.clearTimeout(s.barCleanupTimer);
-          s.barCleanupTimer = 0;
-        }
-        s.barCleanupHandle = null;
-      },
-    }) || null;
-  }
-
   function insertBar(input) {
     const host = barHost(input);
     let bar = document.getElementById(BAR);
@@ -3019,10 +2904,8 @@
     return { ok: false, reason: "host-missing" };
   }
 
-  // tick 是低频兜底扫描，短窗口重试负责在 Steam 属性弹窗 React 重挂输入框后尽快补回同一组名称工具。
-  function tick() {
+  function tick(surface = customSortSurface()) {
     css();
-    const surface = customSortSurface();
     const inputs = surface.inputs;
     const input = surface.input;
     const active = surface.active;
@@ -3097,6 +2980,11 @@
         bar: nodeMeta(result.bar),
       }
     );
+  }
+
+  function onPropertySurface(surface) {
+    s.propertySurface = surface;
+    tick(surface);
   }
 
   function progressLine() {
@@ -4363,27 +4251,14 @@
     refreshLive(row);
   }
 
-  function shouldRunScheduledTick() {
-    return settingOn(SETTING_ID) && (isCustomSortUi() || hasBar());
-  }
-
-  function registerScheduledTick() {
-    if (!window.STScheduler?.register) {
-      log.warn("library-custom-name-scheduler-missing", "库自定义名称统一调度器不可用");
-      return;
-    }
-    // 迁移到统一调度器：后续巡检只在真实自定义排序名称弹窗运行，避免普通库页常驻 DOM 扫描。
-    window.STScheduler.register(SCHEDULER_TASK, () => tick(), shouldRunScheduledTick);
-    s.scope?.schedulerTask?.("ui-mount", SCHEDULER_TASK);
-  }
-
-  function unregisterScheduledTick() {
-    window.STScheduler?.unregister?.(SCHEDULER_TASK);
-  }
-
   function start(_api, _feature, _context, scope) {
     if (s.started) {
       return { started: false, reason: "already-started" };
+    }
+    const propertyHost = window.SteamBuff?.surfaces?.propertyCustomization;
+    if (!propertyHost?.register) {
+      log.warn("library-custom-name-surface-host-missing", "库自定义名称缺少属性自定义 Surface Host");
+      return { started: false, reason: "surface-host-missing" };
     }
     s.started = true;
     s.scope = scope || null;
@@ -4391,7 +4266,7 @@
       s.autoUploadChecked = true;
     }
     s.uploadReady = false;
-    s.barMountRetryArmed = isPropertyDialog();
+    s.propertySurface = null;
     s.resObs = new MutationObserver((items) => {
       for (const item of items) {
         onQuery(item);
@@ -4406,14 +4281,18 @@
     onQuery();
     scope?.listener?.("document-click", document, "click", onDocumentClick, true);
     scope?.listener?.("document-keydown", document, "keydown", onDocumentKeydown);
-    scheduleBarMountRetry();
-    registerScheduledTick();
+    s.surfaceHandle = propertyHost.register({
+      id: ID,
+      order: 10,
+      onSurfaceChange: onPropertySurface,
+    });
     s.stop = () => {
       if (s.resObs) {
         s.resObs.disconnect();
         s.resObs = null;
       }
-      unregisterScheduledTick();
+      s.surfaceHandle?.dispose?.();
+      s.surfaceHandle = null;
       if (s.ch && typeof s.ch.close === "function") {
         if (s.channelHandle) {
           const handle = s.channelHandle;
@@ -4429,8 +4308,6 @@
       clearSaveWatch();
       clearRuntimeTimer(batch, "capacityTimer", "capacityHandle");
       clearSearchTimer();
-      clearBarCleanupCheck();
-      clearBarMountRetry();
       unbindAutoUpload();
       clearBatchAsyncState();
       document.removeEventListener("click", onDocumentClick, true);
@@ -4446,7 +4323,7 @@
       document.getElementById(PROGRESS)?.remove();
       s.started = false;
       s.scope = null;
-      s.barMountRetryArmed = false;
+      s.propertySurface = null;
     };
     return { started: true, stop: s.stop };
   }

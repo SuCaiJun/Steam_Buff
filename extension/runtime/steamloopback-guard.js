@@ -13,10 +13,11 @@
 
   const MARK = "__steamBuffLoopbackGuard";
   const RECOVERY_MARK = "__steamBuffLoopbackRecovery";
-  const VERSION = "steam-loopback-guard-v13";
+  const VERSION = "steam-loopback-guard-v14";
   const REQUEST_TYPE = "STEAM_LOOPBACK_INJECT_REQUEST";
   const ROOT_MENU_TITLE = "Steam Root Menu";
   const ROOT_MENU_TARGET_SELECTOR = "#popup_target";
+  const ROOT_MENU_HOST_ID = "root-menu";
   const ROOT_MENU_OPEN_TYPE = "STEAM_ROOT_MENU_OPEN_CHROMIUM";
   const ROOT_MENU_ACTION_BROWSER = "browser";
   const ROOT_MENU_ACTION_EXTENSIONS = "extensions";
@@ -78,7 +79,7 @@
   let requestSequence = 0;
   let requestLocalAttempt = 0;
   let requestLocalRetryDelay = 0;
-  let rootMenuObserver = null;
+  let rootMenuHost = null;
   let rootMenuTarget = null;
   let rootMenuRequestPending = false;
   let rootMenuVisibilityBound = false;
@@ -136,7 +137,9 @@
     }
   }
 
-  function rootMenuItem(template, action, label) {
+  function rootMenuItem(template, entry) {
+    const action = entry.value.action;
+    const label = rootMenuLabel(entry.value.labelKey);
     const item = template.cloneNode(false);
     item.removeAttribute("id");
     item.textContent = label;
@@ -160,14 +163,15 @@
   }
 
   function rootMenuNodes(root) {
-    return Array.from(root.querySelectorAll(
+    return Array.from(root?.querySelectorAll?.(
       "[data-steam-buff-root-menu-action], [data-steam-buff-root-menu-separator]",
-    ));
+    ) || []);
   }
 
   function hasCompleteRootMenu(root) {
-    return !!root.querySelector(`[data-steam-buff-root-menu-action="${ROOT_MENU_ACTION_BROWSER}"]`)
-      && !!root.querySelector(`[data-steam-buff-root-menu-action="${ROOT_MENU_ACTION_EXTENSIONS}"]`)
+    return rootMenuHost?.entries?.().every((entry) => (
+      !!root.querySelector(`[data-steam-buff-root-menu-action="${entry.value.action}"]`)
+    )) === true
       && !!root.querySelector("[data-steam-buff-root-menu-separator='settings']");
   }
 
@@ -196,36 +200,33 @@
       return false;
     }
 
-    const browserLabel = rootMenuLabel(ROOT_MENU_BROWSER_LABEL);
-    const extensionsLabel = rootMenuLabel(ROOT_MENU_EXTENSIONS_LABEL);
-    if (!browserLabel || !extensionsLabel) {
+    const entries = rootMenuHost?.entries?.() || [];
+    if (!entries.length || entries.some((entry) => !rootMenuLabel(entry.value.labelKey))) {
       return false;
     }
     const settingsItem = tail[2];
     const settingsSeparator = tail[3];
-    const browserItem = rootMenuItem(settingsItem, ROOT_MENU_ACTION_BROWSER, browserLabel);
-    const extensionsItem = rootMenuItem(settingsItem, ROOT_MENU_ACTION_EXTENSIONS, extensionsLabel);
     const separator = settingsSeparator.cloneNode(false);
     separator.removeAttribute("id");
     separator.dataset.steamBuffRootMenuSeparator = "settings";
     const fragment = document.createDocumentFragment();
-    fragment.append(browserItem, extensionsItem, separator);
+    fragment.append(...entries.map((entry) => rootMenuItem(settingsItem, entry)), separator);
     container.insertBefore(fragment, settingsItem);
     return true;
   }
 
   function observeRootMenu(root) {
-    if (!rootMenuObserver) {
-      rootMenuObserver = new MutationObserver((mutations) => {
+    if (!rootMenuHost) {
+      return;
+    }
+    rootMenuHost.disconnectObserver();
+    if (!document.hidden) {
+      rootMenuHost.observe(root, (mutations) => {
         if (document.hidden || !mutations.some((mutation) => mutation.type === "childList")) {
           return;
         }
         ensureRootMenu(rootMenuTarget);
-      });
-    }
-    rootMenuObserver.disconnect();
-    if (!document.hidden) {
-      rootMenuObserver.observe(root, { childList: true, subtree: true });
+      }, { childList: true, subtree: true });
     }
   }
 
@@ -234,7 +235,7 @@
       return;
     }
     if (document.hidden) {
-      rootMenuObserver?.disconnect();
+      rootMenuHost?.disconnectObserver?.();
       return;
     }
     ensureRootMenu(rootMenuTarget);
@@ -244,6 +245,31 @@
   function initRootMenu(tries = 0) {
     if (title() !== ROOT_MENU_TITLE) {
       return;
+    }
+    if (!rootMenuHost) {
+      const manager = globalThis.STSurfaceManager;
+      if (!manager?.createHost) {
+        return;
+      }
+      rootMenuHost = manager.createHost({
+        id: ROOT_MENU_HOST_ID,
+        onEntriesChange() {
+          ensureRootMenu(rootMenuTarget);
+        },
+        onStop() {
+          rootMenuNodes(rootMenuTarget).forEach((node) => node.remove());
+        },
+      });
+      rootMenuHost.register({
+        id: ROOT_MENU_ACTION_BROWSER,
+        order: 10,
+        value: Object.freeze({ action: ROOT_MENU_ACTION_BROWSER, labelKey: ROOT_MENU_BROWSER_LABEL }),
+      });
+      rootMenuHost.register({
+        id: ROOT_MENU_ACTION_EXTENSIONS,
+        order: 20,
+        value: Object.freeze({ action: ROOT_MENU_ACTION_EXTENSIONS, labelKey: ROOT_MENU_EXTENSIONS_LABEL }),
+      });
     }
     const root = document.querySelector(ROOT_MENU_TARGET_SELECTOR);
     if (!root) {

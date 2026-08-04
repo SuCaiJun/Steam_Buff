@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : Steam 客户端 Surface Host 管理器
+ * @File          : Steam 客户端 Surface Host 适配器
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
@@ -12,32 +12,45 @@
   "use strict";
 
   const api = window.SteamBuff = window.SteamBuff || {};
-  const VERSION = "steam-buff-surface-hosts-v1";
+  const VERSION = "steam-buff-surface-hosts-v2";
+  const DOWNLOAD_HOST_ID = "download-toolbar";
   const DOWNLOAD_ROUTE = "/library/downloads";
   const DOWNLOAD_ROOT = "__RickyDownloadSurfaceHost";
   const DOWNLOAD_TOAST = "__RickyDownloadSurfaceToast";
+  const PROPERTY_HOST_ID = "property-customization";
+  const PROPERTY_TASK = "surface-host-property-customization";
+  const PROPERTY_SCAN_MS = 1000;
+  const PROPERTY_PANEL_SELECTOR = "[role='tabpanel'][id$='/properties/customization_Content']";
+  const PROPERTY_PANEL_ID_RE = /\/app\/\d+\/properties\/customization_Content$/;
   const TOAST_MS = 4200;
-  const log = window.STLoggerFactory.createLogger("steam", "surface-hosts");
+  const manager = globalThis.STSurfaceManager;
 
   if (api.surfaces?.version === VERSION) {
     return;
   }
   api.surfaces?.stop?.();
+  if (!manager?.createHost) {
+    throw new Error("SurfaceManager 当前不可用");
+  }
 
-  const state = {
-    entries: new Map(),
-    active: false,
+  const downloadState = {
     route: "",
     routeHandle: null,
-    toastTimer: 0,
     started: false,
+    toastTimer: 0,
   };
+  const propertyState = {
+    schedulerStarted: false,
+    signature: "",
+  };
+  const propertyNodeIds = new WeakMap();
+  let propertyNodeSequence = 0;
 
   function mainUi() {
     return api.ctx?.isMainUi?.() === true;
   }
 
-  function ensureRoot() {
+  function ensureDownloadRoot() {
     if (!mainUi() || !document.body) {
       return null;
     }
@@ -48,99 +61,84 @@
       root.id = DOWNLOAD_ROOT;
       root.setAttribute("role", "toolbar");
       root.setAttribute("aria-label", window.STI18n.text("steam.downloadSurface.label", "下载管理工具"));
-      root.hidden = !state.active;
       document.body.appendChild(root);
     }
     return root;
   }
 
-  function render() {
-    if (!state.entries.size) {
+  function renderDownload(entries = downloadHost.entries()) {
+    if (!entries.length) {
       document.getElementById(DOWNLOAD_ROOT)?.remove();
       return;
     }
-    const root = ensureRoot();
+    const root = ensureDownloadRoot();
     if (!root) {
       return;
     }
-    const ordered = Array.from(state.entries.values()).sort((left, right) => left.order - right.order);
-    for (const entry of ordered) {
-      root.appendChild(entry.element);
+    for (const entry of entries) {
+      root.appendChild(entry.value.element);
     }
-    root.hidden = !state.active;
+    root.hidden = downloadHost.diagnostics().active !== true;
   }
 
-  function setRoute(route) {
+  const downloadHost = manager.createHost({
+    id: DOWNLOAD_HOST_ID,
+    onContextChange() {
+      renderDownload();
+    },
+    onEntriesChange(entries) {
+      renderDownload(entries);
+    },
+    onStop() {
+      document.getElementById(DOWNLOAD_ROOT)?.remove();
+      document.getElementById(DOWNLOAD_TOAST)?.remove();
+    },
+  });
+
+  function setDownloadRoute(route) {
     const nextRoute = String(route || "");
-    const nextActive = nextRoute === DOWNLOAD_ROUTE;
-    const changed = state.route !== nextRoute || state.active !== nextActive;
-    state.route = nextRoute;
-    state.active = nextActive;
-    render();
-    if (!changed) {
+    if (downloadState.route === nextRoute) {
       return;
     }
-    for (const entry of state.entries.values()) {
-      try {
-        entry.onActiveChange?.(nextActive, nextRoute);
-      } catch (error) {
-        log.error("download-surface-listener-failed", "下载 Surface 状态回调失败", {
-          featureId: entry.id,
-          error,
-        });
-      }
-    }
+    downloadState.route = nextRoute;
+    downloadHost.setContext(Object.freeze({ route: nextRoute }), nextRoute === DOWNLOAD_ROUTE);
   }
 
-  function start() {
-    if (state.started) {
+  function startDownloadHost() {
+    if (downloadState.started) {
       return true;
     }
     if (!mainUi() || !api.contextRouter?.subscribe) {
       return false;
     }
-    state.routeHandle = api.contextRouter.subscribe(setRoute);
-    state.started = true;
+    downloadState.routeHandle = api.contextRouter.subscribe(setDownloadRoute);
+    downloadState.started = true;
     return true;
   }
 
-  function register(input = {}) {
+  function registerDownload(input = {}) {
     const id = String(input.id || "").trim();
     const element = input.element;
     if (!id || !element || element.nodeType !== 1) {
       throw new TypeError("下载 Surface 注册参数无效");
     }
-    if (!start()) {
-      throw new Error("下载 Surface Host 当前不可用");
+    if (!startDownloadHost()) {
+      throw new Error("DownloadToolbarHost 当前不可用");
     }
-    state.entries.get(id)?.element?.remove?.();
-    const entry = {
+    return downloadHost.register({
       id,
-      element,
-      order: Number.isFinite(Number(input.order)) ? Number(input.order) : 100,
-      onActiveChange: typeof input.onActiveChange === "function" ? input.onActiveChange : null,
-    };
-    state.entries.set(id, entry);
-    render();
-    entry.onActiveChange?.(state.active, state.route);
-    return Object.freeze({
-      id,
-      active() {
-        return state.active;
+      order: input.order,
+      value: Object.freeze({ element }),
+      onActiveChange(active, context) {
+        input.onActiveChange?.(active, context?.route || "");
       },
-      dispose() {
-        const current = state.entries.get(id);
-        if (current !== entry) {
-          return;
-        }
-        state.entries.delete(id);
+      onDispose() {
         element.remove();
-        render();
       },
     });
   }
 
-  function notify(message, kind = "info") {
+  function notifyDownload(message, kind = "info") {
     if (!mainUi() || !document.body) {
       return false;
     }
@@ -155,45 +153,174 @@
     toast.textContent = String(message || "");
     toast.dataset.kind = kind;
     toast.classList.add("st-download-toast-show");
-    if (state.toastTimer) {
-      window.clearTimeout(state.toastTimer);
+    if (downloadState.toastTimer) {
+      window.clearTimeout(downloadState.toastTimer);
     }
-    state.toastTimer = window.setTimeout(() => {
-      state.toastTimer = 0;
+    downloadState.toastTimer = window.setTimeout(() => {
+      downloadState.toastTimer = 0;
       toast.classList.remove("st-download-toast-show");
     }, TOAST_MS);
     return true;
   }
 
-  function stop() {
-    state.routeHandle?.dispose?.();
-    state.routeHandle = null;
-    if (state.toastTimer) {
-      window.clearTimeout(state.toastTimer);
-      state.toastTimer = 0;
+  function visibleTextInput(input) {
+    const rect = input?.getBoundingClientRect?.();
+    return !!rect && rect.width > 30 && rect.height > 12;
+  }
+
+  function propertySurface() {
+    if (api.ctx?.isPropertyDialog?.() !== true) {
+      return Object.freeze({ active: false, input: null, inputs: Object.freeze([]), panel: null, reason: "not-property-dialog" });
     }
-    document.getElementById(DOWNLOAD_ROOT)?.remove();
-    document.getElementById(DOWNLOAD_TOAST)?.remove();
-    state.entries.clear();
-    state.active = false;
-    state.route = "";
-    state.started = false;
+    const panels = Array.from(document.querySelectorAll(PROPERTY_PANEL_SELECTOR))
+      .filter((panel) => PROPERTY_PANEL_ID_RE.test(String(panel.id || "")));
+    if (panels.length !== 1) {
+      return Object.freeze({ active: false, input: null, inputs: Object.freeze([]), panel: null, reason: "panel-count" });
+    }
+    const panel = panels[0];
+    const inputs = Array.from(panel.querySelectorAll("input[type='text']")).filter(visibleTextInput);
+    const input = inputs.length === 1 ? inputs[0] : null;
+    return Object.freeze({
+      active: !!input,
+      input,
+      inputs: Object.freeze(inputs),
+      panel,
+      reason: input ? "ready" : "input-count",
+    });
+  }
+
+  function propertySignature(surface) {
+    const rect = surface.panel?.getBoundingClientRect?.();
+    const nodeId = (node) => {
+      if (!node) {
+        return 0;
+      }
+      if (!propertyNodeIds.has(node)) {
+        propertyNodeIds.set(node, ++propertyNodeSequence);
+      }
+      return propertyNodeIds.get(node);
+    };
+    return [
+      surface.reason,
+      nodeId(surface.panel),
+      nodeId(surface.input),
+      surface.inputs.length,
+      Math.round(rect?.left || 0),
+      Math.round(rect?.top || 0),
+      Math.round(rect?.width || 0),
+      Math.round(rect?.height || 0),
+    ].join("|");
+  }
+
+  function refreshPropertyHost() {
+    const surface = propertySurface();
+    const signature = propertySignature(surface);
+    if (propertyState.signature === signature) {
+      return;
+    }
+    propertyState.signature = signature;
+    propertyHost.setContext(surface, surface.active);
+  }
+
+  function shouldRunPropertyHost() {
+    return propertyHost.diagnostics().entryCount > 0 && api.ctx?.isPropertyDialog?.() === true;
+  }
+
+  function startPropertyHost() {
+    if (propertyState.schedulerStarted) {
+      refreshPropertyHost();
+      return true;
+    }
+    if (!window.STScheduler?.register) {
+      return false;
+    }
+    window.STScheduler.register(PROPERTY_TASK, refreshPropertyHost, shouldRunPropertyHost, { intervalMs: PROPERTY_SCAN_MS });
+    propertyState.schedulerStarted = true;
+    refreshPropertyHost();
+    return true;
+  }
+
+  function stopPropertyScheduler() {
+    if (!propertyState.schedulerStarted) {
+      return;
+    }
+    window.STScheduler?.unregister?.(PROPERTY_TASK);
+    propertyState.schedulerStarted = false;
+    propertyState.signature = "";
+  }
+
+  const propertyHost = manager.createHost({
+    id: PROPERTY_HOST_ID,
+    onStop: stopPropertyScheduler,
+  });
+
+  function registerPropertyCustomization(input = {}) {
+    const id = String(input.id || "").trim();
+    if (!id || typeof input.onSurfaceChange !== "function") {
+      throw new TypeError("属性自定义 Surface 注册参数无效");
+    }
+    if (!startPropertyHost()) {
+      throw new Error("PropertyCustomizationHost 当前不可用");
+    }
+    const handle = propertyHost.register({
+      id,
+      order: input.order,
+      value: input.value,
+      onActiveChange(_active, surface) {
+        input.onSurfaceChange(surface);
+      },
+      onDispose: input.onDispose,
+    });
+    return Object.freeze({
+      id,
+      active: handle.active,
+      dispose() {
+        handle.dispose();
+        if (propertyHost.diagnostics().entryCount === 0) {
+          stopPropertyScheduler();
+        }
+      },
+    });
+  }
+
+  function stop() {
+    downloadState.routeHandle?.dispose?.();
+    downloadState.routeHandle = null;
+    downloadState.started = false;
+    if (downloadState.toastTimer) {
+      window.clearTimeout(downloadState.toastTimer);
+      downloadState.toastTimer = 0;
+    }
+    stopPropertyScheduler();
+    downloadHost.stop();
+    propertyHost.stop();
   }
 
   const download = Object.freeze({
     active() {
-      return state.active;
+      return downloadHost.diagnostics().active;
     },
-    notify,
-    register,
+    hostId: DOWNLOAD_HOST_ID,
+    notify: notifyDownload,
+    register: registerDownload,
     route() {
-      return state.route;
+      return downloadState.route;
     },
+  });
+  const propertyCustomization = Object.freeze({
+    active() {
+      return propertyHost.diagnostics().active;
+    },
+    hostId: PROPERTY_HOST_ID,
+    register: registerPropertyCustomization,
   });
 
   api.surfaces = Object.freeze({
     version: VERSION,
+    diagnostics: manager.diagnostics,
     download,
+    propertyCustomization,
     stop,
   });
+
 })();

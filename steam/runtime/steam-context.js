@@ -12,12 +12,7 @@
   "use strict";
 
   const api = window.SteamBuff = window.SteamBuff || {};
-  const SORT_LABEL_RE = /自定义排序名称|自訂排序名稱|自定義排序名稱|Custom Sort|カスタムソート|カスタム並び替え|사용자 지정 정렬|사용자 정의 정렬/i;
   const PROPERTY_PANEL_SELECTOR = "[role='tabpanel'][id*='/app/'][id*='/properties/']";
-  const SORT_UI_HIT_CACHE_MS = 1200;
-  const SORT_UI_MISS_CACHE_MS = 150;
-  let sortUiCacheAt = 0;
-  let sortUiCacheValue = false;
 
   /* Steam 客户端上下文识别 */
   function isShared() {
@@ -79,61 +74,6 @@
     }
     // 优化:属性窗口落地到 steamloopback 后会丢失 about:blank 参数，用属性页 tabpanel 续判。
     return isPropertyDialogShell();
-  }
-
-  function likelyVisible(el) {
-    if (!el || !el.isConnected || el.nodeType !== 1) {
-      return false;
-    }
-    if (el.type === "hidden") {
-      return false;
-    }
-    // 优化: 这里处在候选批量扫描路径，只读显式隐藏属性，避免任何布局测量 API 触发 Steam CEF 回流。
-    for (let cur = el; cur && cur !== document.body && cur !== document.documentElement; cur = cur.parentElement) {
-      if (cur.hidden || cur.inert || cur.getAttribute?.("aria-hidden") === "true") {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  function nearText(el) {
-    let cur = el;
-    let out = "";
-    for (let i = 0; cur && i < 6; i += 1, cur = cur.parentElement) {
-      if (cur === document.body || cur === document.documentElement) {
-        break;
-      }
-      out += ` ${cur.textContent || ""}`;
-    }
-    return out.replace(/\s+/g, " ").trim();
-  }
-
-  function detectCustomSortUi() {
-    if (!isUi()) {
-      return false;
-    }
-    const inputs = Array.from(document.querySelectorAll("input[type='text'], input:not([type])"));
-    for (const input of inputs) {
-      const inputMeta = `${input.placeholder || ""} ${input.getAttribute("aria-label") || ""}`;
-      const hasSortSignal = SORT_LABEL_RE.test(nearText(input)) || /排序|sort/i.test(inputMeta);
-      if (hasSortSignal && likelyVisible(input)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /* 非主窗口收窄：只让真实库属性弹窗进入 ui 上下文，避免菜单/好友列表常驻扫描。 */
-  function hasCustomSortUi() {
-    const at = Date.now();
-    const cacheMs = sortUiCacheValue ? SORT_UI_HIT_CACHE_MS : SORT_UI_MISS_CACHE_MS;
-    if (sortUiCacheAt && at - sortUiCacheAt < cacheMs) {
-      return sortUiCacheValue;
-    }
-    sortUiCacheAt = at;
-    sortUiCacheValue = detectCustomSortUi();
-    return sortUiCacheValue;
   }
 
   function cleanRoute(value) {
@@ -257,7 +197,6 @@
     isUi,
     isMainUi,
     isPropertyDialog,
-    hasCustomSortUi,
     normalizeRoute: cleanRoute,
     route,
     routeSources,
