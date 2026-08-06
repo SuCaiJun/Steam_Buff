@@ -1453,7 +1453,7 @@
     const method = String(request.method || "GET").toUpperCase();
     const init = {
       method,
-      headers: cleanHeaders(request.headers),
+      headers: CFG.client.versionedHeaders(url, cleanHeaders(request.headers)),
       cache: "no-cache",
       credentials: "omit",
     };

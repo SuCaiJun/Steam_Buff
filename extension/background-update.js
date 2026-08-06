@@ -215,7 +215,7 @@
     const logNewVersion = options.logNewVersion !== false;
     const response = await fetchWithTimeout(CFG.urls.updateLatest, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers: CFG.client.versionedHeaders(CFG.urls.updateLatest, { Accept: "application/json" }),
       cache: "no-cache",
       credentials: "omit",
     }, UPDATE_FETCH_TIMEOUT_MS);

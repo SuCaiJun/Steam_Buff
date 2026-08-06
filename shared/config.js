@@ -81,6 +81,13 @@
   const STEAM_FESTIVALS_BASE = join(ORIGINS.site, "/wp-json/steam-festivals/v1");
   const SUPPORTER_BASE = join(ORIGINS.site, "/wp-json/supporter/v1");
   const LOGIN_AUTH_BASE = join(ORIGINS.site, "/wp-json/login-auth/v1");
+  const CLIENT_VERSION_HEADER = "X-Steam-Buff-Version";
+  const OWNED_WORDPRESS_API_PATHS = Object.freeze([
+    "/wp-json/steam-buff/v1",
+    "/wp-json/steam-festivals/v1",
+    "/wp-json/supporter/v1",
+    "/wp-json/login-auth/v1",
+  ]);
 
   function nexusSearch(keyword) {
     return `${join(ORIGINS.api, "/nexus/")}?keyword=${encodeURIComponent(String(keyword || ""))}`;
@@ -133,6 +140,51 @@
     const base = host(suffix);
     return !!name && !!base && (name === base || name.endsWith(`.${base}`));
   }
+
+  function runtimeVersion() {
+    try {
+      return String(root.chrome?.runtime?.getManifest?.()?.version || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function ownedWordPressApiUrl(value) {
+    let url;
+    try {
+      url = value instanceof URL ? value : new URL(String(value || ""));
+    } catch {
+      return false;
+    }
+    if (url.protocol !== "https:" || !isHost(url.hostname, HOSTS.site)) {
+      return false;
+    }
+    return OWNED_WORDPRESS_API_PATHS.some(path => url.pathname === path || url.pathname.startsWith(`${path}/`));
+  }
+
+  function versionedHeaders(url, headers = {}) {
+    const out = {};
+    for (const [name, value] of Object.entries(headers || {})) {
+      if (String(name).toLowerCase() === CLIENT_VERSION_HEADER.toLowerCase()) {
+        continue;
+      }
+      out[name] = value;
+    }
+    if (ownedWordPressApiUrl(url)) {
+      const version = runtimeVersion();
+      if (version) {
+        out[CLIENT_VERSION_HEADER] = version;
+      }
+    }
+    return out;
+  }
+
+  const client = Object.freeze({
+    versionHeader: CLIENT_VERSION_HEADER,
+    version: runtimeVersion,
+    isOwnedWordPressApi: ownedWordPressApiUrl,
+    versionedHeaders,
+  });
 
   const matchers = Object.freeze({
     host,
@@ -416,6 +468,7 @@
     pages,
     matchers,
     distribution,
+    client,
     origin,
     externalNavigation,
     site: (path = "") => join(ORIGINS.site, path),
