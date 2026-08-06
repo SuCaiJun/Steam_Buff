@@ -14,10 +14,15 @@
   const AI_SERVICE = "steam-buff.ai";
   const AI_GATEWAY_PERMISSION_CHECK = "AI_GATEWAY_PERMISSION_CHECK";
   const AI_GATEWAY_PERMISSION_REQUEST = "AI_GATEWAY_PERMISSION_REQUEST";
+  const AI_GATEWAY_PERMISSION_OPEN = "AI_GATEWAY_PERMISSION_OPEN";
+  const AI_GATEWAY_PERMISSION_CANCEL = "AI_GATEWAY_PERMISSION_CANCEL";
   const AI_GATEWAY_PERMISSION_RESULT = "AI_GATEWAY_PERMISSION_RESULT";
-  const CHROMIUM_WINDOW_OPEN = "CHROMIUM_WINDOW_OPEN";
-  const AI_PERMISSION_PAGE = "permissions/ai/index.html";
   const AI_PERMISSION_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
+  const RETRYABLE_PERMISSION_ERRORS = new Set([
+    "AI_HOST_PERMISSION_PAGE_CLOSED",
+    "AI_HOST_PERMISSION_DENIED",
+    "AI_HOST_PERMISSION_TIMEOUT",
+  ]);
   const log = root.STLoggerFactory.createLogger("settings", "ai");
 
   function fallback(value, name) {
@@ -250,7 +255,30 @@
       return error;
     }
 
-    function permissionResultWaiter(operationId, origin) {
+    function beginPermissionWait(shadow) {
+      const card = shadow.querySelector("[data-ai-card]");
+      const overlay = card?.querySelector("[data-ai-permission-wait]");
+      if (!card || !overlay) return () => {};
+      const controls = Array.from(card.querySelectorAll("button, input, select, textarea"));
+      const disabled = controls.map(node => node.disabled === true);
+      const previousBusy = card.getAttribute("aria-busy");
+      controls.forEach((node) => { node.disabled = true; });
+      card.setAttribute("aria-busy", "true");
+      overlay.hidden = false;
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        controls.forEach((node, index) => {
+          if (node.isConnected) node.disabled = disabled[index];
+        });
+        if (previousBusy === null) card.removeAttribute("aria-busy");
+        else card.setAttribute("aria-busy", previousBusy);
+        overlay.hidden = true;
+      };
+    }
+
+    function permissionResultWaiter(requestId) {
       let subscription = null;
       let timer = 0;
       let settled = false;
@@ -276,7 +304,7 @@
         else resolvePromise(true);
       };
       subscription = globalThis.STMessageBus?.listen?.(AI_GATEWAY_PERMISSION_RESULT, (message, _sender, sendResponse) => {
-        if (String(message?.operationId || "") !== operationId || String(message?.origin || "") !== origin) {
+        if (String(message?.requestId || "") !== requestId) {
           return false;
         }
         sendResponse?.({ success: true, received: true });
@@ -284,7 +312,7 @@
         return false;
       }, {
         owner: "settings-ai",
-        key: `permission-result:${operationId}`,
+        key: `permission-result:${requestId}`,
       });
       if (!subscription) {
         const error = new Error(uiText("settings.ai.permissionFailed", "AI 网关访问权限申请失败，请稍后重试。"));
@@ -308,73 +336,107 @@
       });
     }
 
-    function requestAiGatewayPermission(ai, shadow, operationId = "") {
+    function cancelPermissionRequest(requestId, operationId) {
+      return sendPermissionMessage({
+        type: AI_GATEWAY_PERMISSION_CANCEL,
+        requestId,
+        operationId,
+      }, 5_000).then((response) => {
+        if (response?.success !== true) throw permissionError(response);
+        return response;
+      });
+    }
+
+    function retryPermission(shadow, error) {
+      return dialog(shadow, {
+        title: uiText("settings.ai.permissionRetryTitle", "授权失败"),
+        message: uiText("settings.ai.permissionRetryMessage", "原因：$reason$\n是否重试？", {
+          reason: error?.message || uiText("common.unknownError", "未知错误"),
+        }),
+        actions: [
+          { id: "cancel", label: uiText("common.cancel", "取消") },
+          { id: "retry", label: uiText("common.retry", "重试"), primary: true },
+        ],
+      });
+    }
+
+    async function requestAiGatewayPermission(ai, shadow, operationId = "") {
       if (ai?.enabled !== true || !ai?.host) {
-        return Promise.resolve(true);
+        return true;
       }
       const host = ai.host;
-      return sendPermissionMessage({
+      const check = await sendPermissionMessage({
         type: AI_GATEWAY_PERMISSION_CHECK,
         operationId,
         host,
-      }, 5_000).then((check) => {
-        if (check?.success !== true) {
-          throw permissionError(check);
-        }
-        if (check.granted === true) {
-          return true;
-        }
-        if (root.STClientEnvironment.isSteamClientPage() !== true) {
-          return sendPermissionMessage({
-            type: AI_GATEWAY_PERMISSION_REQUEST,
+      }, 5_000);
+      if (check?.success !== true) throw permissionError(check);
+      if (check.granted === true) return true;
+      if (root.STClientEnvironment.isSteamClientPage() !== true) {
+        const response = await sendPermissionMessage({
+          type: AI_GATEWAY_PERMISSION_REQUEST,
+          operationId,
+          host,
+        }, 0);
+        if (response?.granted !== true) throw permissionError(response);
+        return true;
+      }
+
+      const action = await dialog(shadow, {
+        title: uiText("settings.ai.permissionBrowserTitle", "需要浏览器授权"),
+        message: uiText("settings.ai.permissionBrowserMessage", "该操作需要授权，需打开 Chromium 浏览器进行授权操作。是否继续？"),
+        actions: [
+          { id: "cancel", label: uiText("common.cancel", "取消") },
+          { id: "continue", label: uiText("common.continue", "继续"), primary: true },
+        ],
+      });
+      if (action !== "continue") {
+        const error = new Error("");
+        error.code = "AI_HOST_PERMISSION_CANCELLED";
+        throw error;
+      }
+
+      let attempt = 0;
+      while (true) {
+        attempt += 1;
+        const requestId = root.STLoggerFactory.createRequestId();
+        const waiter = permissionResultWaiter(requestId);
+        const releaseWait = beginPermissionWait(shadow);
+        let opened = false;
+        try {
+          const response = await sendPermissionMessage({
+            type: AI_GATEWAY_PERMISSION_OPEN,
+            requestId,
             operationId,
             host,
-          }, 0).then((response) => {
-            if (response?.granted !== true) throw permissionError(response);
-            return true;
+          }, 10_000);
+          if (response?.opened !== true) throw permissionError(response);
+          opened = true;
+          await waiter.promise;
+          return true;
+        } catch (error) {
+          waiter.cancel();
+          if (opened && error?.code === "AI_HOST_PERMISSION_TIMEOUT") {
+            await cancelPermissionRequest(requestId, operationId);
+          }
+          if (!RETRYABLE_PERMISSION_ERRORS.has(error?.code)) throw error;
+          releaseWait();
+          const retry = await retryPermission(shadow, error);
+          if (retry !== "retry") {
+            const cancelled = new Error("");
+            cancelled.code = "AI_HOST_PERMISSION_CANCELLED";
+            throw cancelled;
+          }
+          log.warn("ai-permission-retry", "用户重试 AI 网关授权", {
+            operationId,
+            requestId,
+            attempt,
+            errorCode: error.code,
           });
+        } finally {
+          releaseWait();
         }
-        return dialog(shadow, {
-          title: uiText("settings.ai.permissionBrowserTitle", "需要浏览器授权"),
-          message: uiText("settings.ai.permissionBrowserMessage", "该操作需要授权，需打开 Chromium 浏览器进行授权操作。是否继续？"),
-          actions: [
-            { id: "cancel", label: uiText("common.cancel", "取消") },
-            { id: "continue", label: uiText("common.continue", "继续"), primary: true },
-          ],
-        }).then((action) => {
-          if (action !== "continue") {
-            const error = new Error("");
-            error.code = "AI_HOST_PERMISSION_CANCELLED";
-            throw error;
-          }
-          const origin = String(check.origin || "");
-          const sourceTabId = Number(check.sourceTabId);
-          const sourceFrameId = Number(check.sourceFrameId);
-          if (!origin || !Number.isInteger(sourceTabId) || sourceTabId < 0 || !Number.isInteger(sourceFrameId) || sourceFrameId < 0) {
-            throw permissionError({ code: "AI_HOST_PERMISSION_SOURCE_INVALID", error: "AI 设置页上下文无效" });
-          }
-          const permissionUrl = new URL(chrome.runtime.getURL(AI_PERMISSION_PAGE));
-          permissionUrl.searchParams.set("origin", origin);
-          permissionUrl.searchParams.set("sourceTabId", String(sourceTabId));
-          permissionUrl.searchParams.set("sourceFrameId", String(sourceFrameId));
-          permissionUrl.searchParams.set("operationId", operationId.slice(0, 120));
-          const waiter = permissionResultWaiter(operationId, origin);
-          return sendPermissionMessage({
-            type: CHROMIUM_WINDOW_OPEN,
-            url: permissionUrl.toString(),
-          }, 10_000).then((response) => {
-            if (response?.opened !== true) {
-              const error = permissionError(response);
-              waiter.cancel();
-              throw error;
-            }
-            return waiter.promise;
-          }, (error) => {
-            waiter.cancel();
-            throw error;
-          });
-        });
-      });
+      }
     }
 
     function testAi(shadow, button) {
@@ -476,7 +538,7 @@
       const fields = getFields().filter((field) => field.key !== "enabled").filter(fieldVisible);
       return `
         <div class="settings-form">
-          <section class="settings-card section-card">
+          <section class="settings-card section-card ai-settings-card" data-ai-card>
             <div class="section-header">
               <div class="dot"></div>
               <div class="title">${esc(uiText("settings.ai.title", "AI 通用配置"))}</div>
@@ -493,6 +555,9 @@
             <div class="settings-actions form-footer">
               <button class="settings-save ai-test btn btn-secondary" type="button">${esc(uiText("common.testConnection", "测试连接"))}</button>
               <button class="settings-save ai-save btn btn-blue" type="button">${esc(uiText("common.saveSettings", "保存设置"))}</button>
+            </div>
+            <div class="ai-permission-wait" data-ai-permission-wait role="status" aria-label="${esc(uiText("settings.ai.permissionWaiting", "等待浏览器授权"))}" hidden>
+              <span class="ai-permission-spinner" aria-hidden="true"></span>
             </div>
           </section>
         </div>

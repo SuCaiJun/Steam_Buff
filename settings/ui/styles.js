@@ -1170,6 +1170,40 @@
           overflow: hidden;
         }
 
+        .ai-settings-card {
+          position: relative;
+        }
+
+        .ai-permission-wait {
+          position: absolute;
+          inset: 48px 0 61px;
+          z-index: 2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: var(--st-color-overlay-soft);
+          cursor: wait;
+        }
+
+        .ai-permission-wait[hidden] {
+          display: none;
+        }
+
+        .ai-permission-spinner {
+          width: 28px;
+          height: 28px;
+          border: 3px solid var(--st-color-white-alpha-18);
+          border-top-color: var(--st-color-primary);
+          border-radius: 50%;
+          animation: ai-permission-spin .8s linear infinite;
+        }
+
+        @keyframes ai-permission-spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
         .settings-card-note {
           border-top: 1px solid var(--st-color-white-alpha-04);
           padding: 11px 22px 13px;

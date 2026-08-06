@@ -368,6 +368,9 @@
   const AI_FETCH_TIMEOUT_MAX_MS = 120 * 1000;
   const AI_GATEWAY_PERMISSION_CHECK = "AI_GATEWAY_PERMISSION_CHECK";
   const AI_GATEWAY_PERMISSION_REQUEST = "AI_GATEWAY_PERMISSION_REQUEST";
+  const AI_GATEWAY_PERMISSION_OPEN = "AI_GATEWAY_PERMISSION_OPEN";
+  const AI_GATEWAY_PERMISSION_CONTEXT = "AI_GATEWAY_PERMISSION_CONTEXT";
+  const AI_GATEWAY_PERMISSION_CANCEL = "AI_GATEWAY_PERMISSION_CANCEL";
   const AI_GATEWAY_PERMISSION_COMPLETE = "AI_GATEWAY_PERMISSION_COMPLETE";
   const AI_GATEWAY_PERMISSION_RESULT = "AI_GATEWAY_PERMISSION_RESULT";
   const CHROMIUM_WINDOW_OPEN = "CHROMIUM_WINDOW_OPEN";
@@ -376,7 +379,12 @@
   const STEAM_ROOT_MENU_BROWSER_HOME_SETTING = "web_browser_home";
   const STEAM_ROOT_MENU_BROWSER_FALLBACK = "https://sucaijun.com/";
   const STEAM_ROOT_MENU_EXTENSIONS_URL = "chrome://extensions/";
+  const STEAM_ROOT_MENU_REFOCUS_DELAY_MS = 0;
   const AI_PERMISSION_PAGE = "permissions/ai/index.html";
+  const AI_PERMISSION_SESSION_PREFIX = "st.aiGatewayPermission.session.v1.";
+  const AI_PERMISSION_TAB_PREFIX = "st.aiGatewayPermission.tab.v1.";
+  const AI_PERMISSION_WINDOW_PREFIX = "st.aiGatewayPermission.window.v1.";
+  const AI_PERMISSION_SESSION_TTL_MS = 5 * 60 * 1000;
   const AI_STREAM_PORT = "AI_CHAT_COMPLETIONS_STREAM";
   const AI_FORECAST_SESSION_STORAGE_PREFIX = "st.aiDiscountForecast.session.v1.";
   const AI_FORECAST_SESSION_CLEANUP_ALARM = "steam-buff-ai-forecast-session-cleanup";
@@ -401,6 +409,10 @@
   let aiLoadError = "";
   let aiActive = 0;
   const aiQueue = [];
+  const aiPermissionSessions = new Map();
+  const aiPermissionTabs = new Map();
+  const aiPermissionWindows = new Map();
+  const aiPermissionSettling = new Set();
 
   /* 后台脚本依赖 */
   try {
@@ -1621,6 +1633,379 @@
     });
   }
 
+  // 一次性会话由后台持有；URL 只携带 requestId，来源 tab/frame 和授权目标始终从会话读取。
+  // tab/window 索引写入 storage.session，确保 MV3 Service Worker 重启后仍能处理真实关闭事件。
+  function aiPermissionRequestId(value) {
+    const requestId = String(value || "");
+    return /^request-[0-9a-f-]{36}$/iu.test(requestId) ? requestId : "";
+  }
+
+  function aiPermissionSessionKey(requestId) {
+    return `${AI_PERMISSION_SESSION_PREFIX}${requestId}`;
+  }
+
+  function aiPermissionTabKey(tabId) {
+    return `${AI_PERMISSION_TAB_PREFIX}${tabId}`;
+  }
+
+  function aiPermissionWindowKey(windowId) {
+    return `${AI_PERMISSION_WINDOW_PREFIX}${windowId}`;
+  }
+
+  function sessionStorageGet(key) {
+    return new Promise((resolve, reject) => {
+      chrome.storage.session.get(key, (entries) => {
+        const error = chrome.runtime.lastError;
+        if (error) reject(new Error(error.message || "读取 AI 授权会话失败"));
+        else resolve(entries?.[key]);
+      });
+    });
+  }
+
+  function sessionStorageSet(entries) {
+    return new Promise((resolve, reject) => {
+      chrome.storage.session.set(entries, () => {
+        const error = chrome.runtime.lastError;
+        if (error) reject(new Error(error.message || "保存 AI 授权会话失败"));
+        else resolve();
+      });
+    });
+  }
+
+  function sessionStorageRemove(keys) {
+    return new Promise((resolve, reject) => {
+      chrome.storage.session.remove(keys, () => {
+        const error = chrome.runtime.lastError;
+        if (error) reject(new Error(error.message || "清理 AI 授权会话失败"));
+        else resolve();
+      });
+    });
+  }
+
+  function cacheAiPermissionSession(session) {
+    aiPermissionSessions.set(session.requestId, session);
+    if (Number.isInteger(session.authTabId)) {
+      aiPermissionTabs.set(session.authTabId, session.requestId);
+    }
+    if (Number.isInteger(session.authWindowId)) {
+      aiPermissionWindows.set(session.authWindowId, session.requestId);
+    }
+    return session;
+  }
+
+  async function writeAiPermissionSession(session) {
+    const entries = {
+      [aiPermissionSessionKey(session.requestId)]: session,
+    };
+    if (Number.isInteger(session.authTabId)) {
+      entries[aiPermissionTabKey(session.authTabId)] = session.requestId;
+    }
+    if (Number.isInteger(session.authWindowId)) {
+      entries[aiPermissionWindowKey(session.authWindowId)] = session.requestId;
+    }
+    await sessionStorageSet(entries);
+    return cacheAiPermissionSession(session);
+  }
+
+  async function readAiPermissionSession(requestId) {
+    const cached = aiPermissionSessions.get(requestId);
+    if (cached) return cached.state === "pending" ? cached : null;
+    const stored = await sessionStorageGet(aiPermissionSessionKey(requestId));
+    if (!stored || stored.requestId !== requestId || stored.state !== "pending") return null;
+    return cacheAiPermissionSession(stored);
+  }
+
+  async function removeAiPermissionSession(session) {
+    session.state = "settled";
+    cacheAiPermissionSession(session);
+    const keys = [aiPermissionSessionKey(session.requestId)];
+    if (Number.isInteger(session.authTabId)) {
+      keys.push(aiPermissionTabKey(session.authTabId));
+    }
+    if (Number.isInteger(session.authWindowId)) {
+      keys.push(aiPermissionWindowKey(session.authWindowId));
+    }
+    await sessionStorageRemove(keys);
+    aiPermissionSessions.delete(session.requestId);
+    if (Number.isInteger(session.authTabId)) aiPermissionTabs.delete(session.authTabId);
+    if (Number.isInteger(session.authWindowId)) aiPermissionWindows.delete(session.authWindowId);
+  }
+
+  function claimAiPermissionSession(requestId) {
+    if (aiPermissionSettling.has(requestId)) return false;
+    aiPermissionSettling.add(requestId);
+    return true;
+  }
+
+  function releaseAiPermissionSession(requestId) {
+    aiPermissionSettling.delete(requestId);
+  }
+
+  function aiPermissionSessionExpired(session) {
+    return !Number.isFinite(Number(session?.expiresAt)) || Number(session.expiresAt) <= Date.now();
+  }
+
+  function aiPermissionSessionMatchesPage(session, sender) {
+    const tabId = sender?.tab?.id;
+    const windowId = sender?.tab?.windowId;
+    return (!Number.isInteger(session.authTabId) || session.authTabId === tabId)
+      && (!Number.isInteger(session.authWindowId) || session.authWindowId === windowId);
+  }
+
+  function aiPermissionResult(session, details = {}) {
+    return {
+      type: AI_GATEWAY_PERMISSION_RESULT,
+      requestId: session.requestId,
+      operationId: session.operationId,
+      origin: session.origin,
+      granted: details.granted === true,
+      ...(details.code ? { code: details.code } : {}),
+      ...(details.error ? { error: details.error } : {}),
+    };
+  }
+
+  function notifyAiPermissionSource(session, result) {
+    return new Promise((resolve) => {
+      chrome.tabs.sendMessage(session.sourceTabId, result, { frameId: session.sourceFrameId }, () => {
+        const error = chrome.runtime.lastError;
+        resolve(error ? String(error.message || error) : "");
+      });
+    });
+  }
+
+  async function consumeAiPermissionSession(session, details) {
+    if (!claimAiPermissionSession(session.requestId)) {
+      return { consumed: false, notifyError: "" };
+    }
+    try {
+      await removeAiPermissionSession(session);
+      const notifyError = await notifyAiPermissionSource(session, aiPermissionResult(session, details));
+      return { consumed: true, notifyError };
+    } finally {
+      releaseAiPermissionSession(session.requestId);
+    }
+  }
+
+  function bindAiPermissionPage(session, sender) {
+    const tabId = sender?.tab?.id;
+    const windowId = sender?.tab?.windowId;
+    if (!Number.isInteger(tabId) || !Number.isInteger(windowId)) return false;
+    if (!aiPermissionSessionMatchesPage(session, sender)) return false;
+    session.authTabId = tabId;
+    session.authWindowId = windowId;
+    cacheAiPermissionSession(session);
+    return true;
+  }
+
+  function aiPermissionPageUrl(requestId) {
+    const url = new URL(chrome.runtime.getURL(AI_PERMISSION_PAGE));
+    url.searchParams.set("requestId", requestId);
+    return url.toString();
+  }
+
+  async function openAiGatewayPermission(request, sender, sendResponse) {
+    if (!isSettingsSender(sender)) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SENDER_REJECTED", error: "AI 网关授权页打开来源无效" });
+      return;
+    }
+    const requestId = aiPermissionRequestId(request?.requestId);
+    const operationId = String(request?.operationId || "").slice(0, 120);
+    const origin = aiGatewayPermissionPattern(request?.host);
+    const sourceTabId = sender?.tab?.id;
+    const sourceFrameId = sender?.frameId;
+    if (!requestId) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_REQUEST_INVALID", error: "AI 网关授权请求无效" });
+      return;
+    }
+    if (!origin) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_INVALID", error: "无效的 AI 网关地址" });
+      return;
+    }
+    if (!Number.isInteger(sourceTabId) || sourceTabId < 0 || !Number.isInteger(sourceFrameId) || sourceFrameId < 0) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SOURCE_INVALID", error: "AI 设置页上下文无效" });
+      return;
+    }
+    let existingSession;
+    try {
+      existingSession = await readAiPermissionSession(requestId);
+    } catch (error) {
+      logError("ai", "ai-permission-session-read-failed", "AI 授权会话读取失败", error, { operationId, requestId });
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SESSION_READ_FAILED", error: "AI 授权会话状态读取失败" });
+      return;
+    }
+    if (existingSession) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_REQUEST_DUPLICATE", error: "AI 网关授权请求已存在" });
+      return;
+    }
+    const createdAt = Date.now();
+    const session = {
+      state: "pending",
+      requestId,
+      operationId,
+      origin,
+      sourceTabId,
+      sourceFrameId,
+      authTabId: null,
+      authWindowId: null,
+      createdAt,
+      expiresAt: createdAt + AI_PERMISSION_SESSION_TTL_MS,
+    };
+    try {
+      await writeAiPermissionSession(session);
+    } catch (error) {
+      logError("ai", "ai-permission-session-save-failed", "AI 授权会话保存失败", error, { operationId, requestId });
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SESSION_SAVE_FAILED", error: "AI 授权会话创建失败" });
+      return;
+    }
+    openChromiumWindow(aiPermissionPageUrl(requestId), async (response) => {
+      if (response?.opened !== true || !Number.isInteger(response.windowId)) {
+        try {
+          await removeAiPermissionSession(session);
+        } catch (error) {
+          logError("ai", "ai-permission-session-cleanup-failed", "AI 授权会话清理失败", error, { operationId, requestId });
+        }
+        sendResponse(response);
+        return;
+      }
+      session.authWindowId = response.windowId;
+      cacheAiPermissionSession(session);
+      try {
+        await writeAiPermissionSession(session);
+        if (session.state !== "pending") {
+          try {
+            await removeAiPermissionSession(session);
+          } catch (cleanupError) {
+            logError("ai", "ai-permission-session-cleanup-failed", "AI 授权会话清理失败", cleanupError, { operationId, requestId });
+          }
+          sendResponse({ success: false, code: "AI_HOST_PERMISSION_PAGE_CLOSED", error: "授权网页已关闭，未完成 AI 网关授权" });
+          return;
+        }
+        sendResponse({ success: true, opened: true, requestId });
+      } catch (error) {
+        logError("ai", "ai-permission-session-bind-failed", "AI 授权窗口绑定失败", error, { operationId, requestId });
+        try {
+          await removeAiPermissionSession(session);
+        } catch (cleanupError) {
+          logError("ai", "ai-permission-session-cleanup-failed", "AI 授权会话清理失败", cleanupError, { operationId, requestId });
+        }
+        closeAiPermissionPage(session);
+        sendResponse({ success: false, code: "AI_HOST_PERMISSION_SESSION_BIND_FAILED", error: "AI 授权窗口状态保存失败" });
+      }
+    });
+  }
+
+  async function getAiGatewayPermissionContext(request, sender, sendResponse) {
+    if (!isAiPermissionPageSender(sender)) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_PAGE_REJECTED", error: "AI 网关授权页来源无效" });
+      return;
+    }
+    const requestId = aiPermissionRequestId(request?.requestId);
+    let session;
+    try {
+      session = requestId ? await readAiPermissionSession(requestId) : null;
+    } catch (error) {
+      logError("ai", "ai-permission-session-read-failed", "AI 授权会话读取失败", error, { requestId });
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SESSION_READ_FAILED", error: "AI 授权会话状态读取失败" });
+      return;
+    }
+    if (!session || aiPermissionSessionExpired(session) || !bindAiPermissionPage(session, sender)) {
+      if (session && aiPermissionSessionExpired(session) && claimAiPermissionSession(requestId)) {
+        try {
+          await removeAiPermissionSession(session);
+        } catch (error) {
+          logError("ai", "ai-permission-session-cleanup-failed", "过期 AI 授权会话清理失败", error, {
+            operationId: session.operationId,
+            requestId,
+          });
+        } finally {
+          releaseAiPermissionSession(requestId);
+        }
+      }
+      backgroundLogger("ai").warn("ai-permission-session-rejected", "AI 授权页面会话已失效", {
+        requestId,
+        reason: !session ? "missing" : aiPermissionSessionExpired(session) ? "expired" : "page-mismatch",
+      });
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SESSION_EXPIRED", error: "授权请求已失效，请返回设置中心重新发起" });
+      return;
+    }
+    try {
+      await writeAiPermissionSession(session);
+      if (session.state !== "pending") {
+        sendResponse({ success: false, code: "AI_HOST_PERMISSION_SESSION_EXPIRED", error: "授权请求已失效，请返回设置中心重新发起" });
+        return;
+      }
+      sendResponse({ success: true, requestId, origin: session.origin, expiresAt: session.expiresAt });
+    } catch (error) {
+      logError("ai", "ai-permission-session-bind-failed", "AI 授权页面绑定失败", error, {
+        operationId: session.operationId,
+        requestId,
+      });
+      const details = {
+        granted: false,
+        code: "AI_HOST_PERMISSION_SESSION_BIND_FAILED",
+        error: "AI 授权页面状态确认失败",
+      };
+      if (claimAiPermissionSession(requestId)) {
+        try {
+          try {
+            await removeAiPermissionSession(session);
+          } catch (cleanupError) {
+            logError("ai", "ai-permission-session-cleanup-failed", "AI 授权会话清理失败", cleanupError, {
+              operationId: session.operationId,
+              requestId,
+            });
+          }
+          await notifyAiPermissionSource(session, aiPermissionResult(session, details));
+        } finally {
+          releaseAiPermissionSession(requestId);
+        }
+      }
+      closeAiPermissionPage(session);
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SESSION_BIND_FAILED", error: "AI 授权页面状态确认失败" });
+    }
+  }
+
+  async function cancelAiGatewayPermission(request, sender, sendResponse) {
+    if (!isSettingsSender(sender)) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SENDER_REJECTED", error: "AI 网关授权取消来源无效" });
+      return;
+    }
+    const requestId = aiPermissionRequestId(request?.requestId);
+    let session;
+    try {
+      session = requestId ? await readAiPermissionSession(requestId) : null;
+    } catch (error) {
+      logError("ai", "ai-permission-session-read-failed", "AI 授权会话读取失败", error, { requestId });
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SESSION_READ_FAILED", error: "AI 授权会话状态读取失败" });
+      return;
+    }
+    if (!session) {
+      sendResponse({ success: true, cancelled: false });
+      return;
+    }
+    if (session.sourceTabId !== sender?.tab?.id || session.sourceFrameId !== sender?.frameId) {
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SOURCE_INVALID", error: "AI 设置页上下文无效" });
+      return;
+    }
+    if (!claimAiPermissionSession(requestId)) {
+      sendResponse({ success: true, cancelled: false });
+      return;
+    }
+    try {
+      await removeAiPermissionSession(session);
+      closeAiPermissionPage(session);
+      sendResponse({ success: true, cancelled: true });
+    } catch (error) {
+      logError("ai", "ai-permission-session-cancel-failed", "AI 授权会话取消失败", error, {
+        operationId: session.operationId,
+        requestId,
+      });
+      sendResponse({ success: false, code: "AI_HOST_PERMISSION_CANCEL_FAILED", error: "AI 授权会话取消失败" });
+    } finally {
+      releaseAiPermissionSession(requestId);
+    }
+  }
+
   function openChromiumWindow(url, sendResponse) {
     const targetUrl = String(url || "").trim();
     try {
@@ -1762,55 +2147,135 @@
     }, 0);
   }
 
-  function completeAiGatewayPermission(request, sender, sendResponse) {
+  function closeAiPermissionPage(session) {
+    if (Number.isInteger(session?.authTabId)) {
+      closeAiPermissionTab(session.authTabId);
+      return;
+    }
+    if (!Number.isInteger(session?.authWindowId)) return;
+    globalThis.setTimeout(() => {
+      chrome.windows.remove(session.authWindowId, () => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          logError("ai", "ai-permission-window-close-failed", "AI 授权窗口关闭失败", error, {
+            windowId: session.authWindowId,
+          });
+        }
+      });
+    }, 0);
+  }
+
+  async function completeAiGatewayPermission(request, sender, sendResponse) {
     if (!isAiPermissionPageSender(sender)) {
       sendResponse({ success: false, code: "AI_HOST_PERMISSION_PAGE_REJECTED", error: "AI 网关授权页来源无效" });
       return;
     }
-    const requestedOrigin = String(request?.origin || "");
-    const origin = aiGatewayPermissionPattern(requestedOrigin);
-    const sourceTabId = Number(request?.sourceTabId);
-    const sourceFrameId = Number(request?.sourceFrameId);
-    const operationId = String(request?.operationId || "").slice(0, 120);
-    if (!origin || origin !== requestedOrigin) {
-      sendResponse({ success: false, code: "AI_HOST_PERMISSION_INVALID", error: "AI 网关授权域名无效" });
+    const requestId = aiPermissionRequestId(request?.requestId);
+    let session;
+    try {
+      session = requestId ? await readAiPermissionSession(requestId) : null;
+    } catch (error) {
+      logError("ai", "ai-permission-session-read-failed", "AI 授权会话读取失败", error, { requestId });
+      sendResponse({ success: false, granted: false, code: "AI_HOST_PERMISSION_SESSION_READ_FAILED", error: "AI 授权会话状态读取失败" });
       return;
     }
-    if (!Number.isInteger(sourceTabId) || sourceTabId < 0 || !Number.isInteger(sourceFrameId) || sourceFrameId < 0) {
-      sendResponse({ success: false, code: "AI_HOST_PERMISSION_SOURCE_INVALID", error: "AI 设置页上下文无效" });
+    if (!session || aiPermissionSessionExpired(session)) {
+      sendResponse({ success: false, granted: false, code: "AI_HOST_PERMISSION_SESSION_EXPIRED", error: "授权请求已失效，请返回设置中心重新发起" });
       return;
     }
-    hasAiGatewayPermission(origin)
-      .then((granted) => {
-        const result = {
-          type: AI_GATEWAY_PERMISSION_RESULT,
-          operationId,
-          origin,
-          granted,
-          ...(granted ? {} : {
-            code: "AI_HOST_PERMISSION_DENIED",
-            error: "未获得当前 AI 网关的访问权限",
-          }),
-        };
-        chrome.tabs.sendMessage(sourceTabId, result, { frameId: sourceFrameId }, () => {
-          const notifyError = chrome.runtime.lastError;
-          sendResponse({
-            success: granted,
-            granted,
-            notified: !notifyError,
-            ...(notifyError ? { notifyError: notifyError.message || String(notifyError) } : {}),
-          });
-          if (granted) {
-            closeAiPermissionTab(sender.tab.id);
-          }
+    if (!bindAiPermissionPage(session, sender)) {
+      sendResponse({ success: false, granted: false, code: "AI_HOST_PERMISSION_SESSION_EXPIRED", error: "授权请求已失效，请返回设置中心重新发起" });
+      return;
+    }
+    // 先抢占终态再检查权限，避免用户点击授权后立即关页时同时回传成功和关闭失败。
+    if (!claimAiPermissionSession(requestId)) {
+      sendResponse({ success: false, granted: false, code: "AI_HOST_PERMISSION_SESSION_SETTLED", error: "授权请求已经结束" });
+      return;
+    }
+    try {
+      const granted = await hasAiGatewayPermission(session.origin);
+      const details = granted
+        ? { granted: true }
+        : { granted: false, code: "AI_HOST_PERMISSION_DENIED", error: "未获得当前 AI 网关的访问权限" };
+      await removeAiPermissionSession(session);
+      const notifyError = await notifyAiPermissionSource(session, aiPermissionResult(session, details));
+      sendResponse({
+        success: !notifyError,
+        granted,
+        notified: !notifyError,
+        ...(details.code ? { code: details.code } : {}),
+        ...(details.error ? { error: details.error } : {}),
+        ...(notifyError ? { code: "AI_HOST_PERMISSION_RESULT_UNDELIVERED", error: "原设置页已关闭，无法继续授权操作" } : {}),
+      });
+      if (!notifyError) closeAiPermissionTab(sender.tab.id);
+    } catch (error) {
+      const code = error?.code || (session.state === "settled"
+        ? "AI_HOST_PERMISSION_SESSION_CLEANUP_FAILED"
+        : "AI_HOST_PERMISSION_CHECK_FAILED");
+      const message = error?.message || "AI 网关权限检查失败";
+      try {
+        await removeAiPermissionSession(session);
+      } catch (cleanupError) {
+        logError("ai", "ai-permission-session-cleanup-failed", "AI 授权会话清理失败", cleanupError, {
+          operationId: session.operationId,
+          requestId,
         });
-      })
-      .catch((error) => sendResponse({
+      }
+      const notifyError = await notifyAiPermissionSource(session, aiPermissionResult(session, {
+        granted: false,
+        code,
+        error: message,
+      }));
+      sendResponse({
         success: false,
         granted: false,
-        code: error?.code || "AI_HOST_PERMISSION_CHECK_FAILED",
-        error: error?.message || "AI 网关权限检查失败",
-      }));
+        notified: !notifyError,
+        code,
+        error: message,
+      });
+      closeAiPermissionPage(session);
+    } finally {
+      releaseAiPermissionSession(requestId);
+    }
+  }
+
+  async function aiPermissionRequestIdForTab(tabId) {
+    return aiPermissionTabs.get(tabId) || await sessionStorageGet(aiPermissionTabKey(tabId)) || "";
+  }
+
+  async function aiPermissionRequestIdForWindow(windowId) {
+    return aiPermissionWindows.get(windowId) || await sessionStorageGet(aiPermissionWindowKey(windowId)) || "";
+  }
+
+  async function finishClosedAiPermissionPage(requestId, source, id) {
+    const session = requestId ? await readAiPermissionSession(requestId) : null;
+    if (!session) return;
+    if (source === "tab" && session.authTabId !== id) return;
+    if (source === "window" && session.authWindowId !== id) return;
+    const result = await consumeAiPermissionSession(session, {
+      granted: false,
+      code: "AI_HOST_PERMISSION_PAGE_CLOSED",
+      error: "授权网页已关闭，未完成 AI 网关授权",
+    });
+    if (!result.consumed) return;
+    backgroundLogger("ai").warn("ai-permission-page-closed", "AI 授权页面在完成前被关闭", {
+      operationId: session.operationId,
+      requestId,
+      durationMs: Date.now() - session.createdAt,
+      notified: !result.notifyError,
+    });
+  }
+
+  function handleAiPermissionTabRemoved(tabId) {
+    aiPermissionRequestIdForTab(tabId)
+      .then((requestId) => finishClosedAiPermissionPage(requestId, "tab", tabId))
+      .catch((error) => logError("ai", "ai-permission-tab-close-handle-failed", "AI 授权标签关闭处理失败", error, { tabId }));
+  }
+
+  function handleAiPermissionWindowRemoved(windowId) {
+    aiPermissionRequestIdForWindow(windowId)
+      .then((requestId) => finishClosedAiPermissionPage(requestId, "window", windowId))
+      .catch((error) => logError("ai", "ai-permission-window-close-handle-failed", "AI 授权窗口关闭处理失败", error, { windowId }));
   }
 
   function drainAiQueue() {
@@ -2704,6 +3169,9 @@
     [STEAM_LOOPBACK_INJECT_REQUEST]: "Steam CEF 白名单 frame 按需注入",
     [AI_GATEWAY_PERMISSION_CHECK]: "AI 设置页检查当前网关精确域名权限",
     [AI_GATEWAY_PERMISSION_REQUEST]: "用户操作触发的 AI 网关按域名授权",
+    [AI_GATEWAY_PERMISSION_OPEN]: "Steam 设置页创建一次性 AI 网关授权会话",
+    [AI_GATEWAY_PERMISSION_CONTEXT]: "扩展授权页读取后台持有的一次性授权上下文",
+    [AI_GATEWAY_PERMISSION_CANCEL]: "AI 设置页取消未完成的一次性授权会话",
     [CHROMIUM_WINDOW_OPEN]: "扩展内部 URL 的 Chromium 窗口打开",
     [STEAM_ROOT_MENU_OPEN_CHROMIUM]: "Steam Root Menu 打开主页或扩展管理",
     [AI_GATEWAY_PERMISSION_COMPLETE]: "扩展授权页回传 AI 网关授权结果",
@@ -2726,6 +3194,9 @@
     [STEAM_LOOPBACK_INJECT_REQUEST]: steamLoopbackInjectRequest,
     [AI_GATEWAY_PERMISSION_CHECK]: checkAiGatewayPermission,
     [AI_GATEWAY_PERMISSION_REQUEST]: requestAiGatewayPermission,
+    [AI_GATEWAY_PERMISSION_OPEN]: openAiGatewayPermission,
+    [AI_GATEWAY_PERMISSION_CONTEXT]: getAiGatewayPermissionContext,
+    [AI_GATEWAY_PERMISSION_CANCEL]: cancelAiGatewayPermission,
     [CHROMIUM_WINDOW_OPEN]: openChromiumWindowRequest,
     [STEAM_ROOT_MENU_OPEN_CHROMIUM]: openSteamRootMenuChromiumRequest,
     [AI_GATEWAY_PERMISSION_COMPLETE]: completeAiGatewayPermission,
@@ -2800,6 +3271,8 @@
   chrome.alarms?.onAlarm?.addListener(handleAiForecastSessionCleanupAlarm);
   chrome.tabs?.onCreated?.addListener(injectTabSoon);
   chrome.tabs?.onUpdated?.addListener((_tabId, _changeInfo, tab) => injectTabSoon(tab));
+  chrome.tabs?.onRemoved?.addListener(handleAiPermissionTabRemoved);
+  chrome.windows?.onRemoved?.addListener(handleAiPermissionWindowRemoved);
   chrome.action?.onClicked?.addListener(openSettings);
   bindGlobalLoggers();
   ensureAiForecastSessionCleanupAlarm().catch((error) => {

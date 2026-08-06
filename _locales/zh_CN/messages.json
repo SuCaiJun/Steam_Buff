@@ -3977,6 +3977,20 @@
   "settings_ai_permissionTimeout": {
     "message": "等待授权超时，请重新操作。"
   },
+  "settings_ai_permissionWaiting": {
+    "message": "等待浏览器授权"
+  },
+  "settings_ai_permissionRetryTitle": {
+    "message": "授权失败"
+  },
+  "settings_ai_permissionRetryMessage": {
+    "message": "原因：$reason$\n是否重试？",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
   "aiPermissionPageTitle": {
     "message": "Steam Buff - AI 网关授权"
   },
@@ -3998,6 +4012,9 @@
   "aiPermissionPageAction": {
     "message": "申请授权"
   },
+  "aiPermissionPageChecking": {
+    "message": "正在确认..."
+  },
   "aiPermissionPageRequesting": {
     "message": "正在申请..."
   },
@@ -4005,13 +4022,16 @@
     "message": "授权成功，正在返回设置页。"
   },
   "aiPermissionPageDenied": {
-    "message": "未获得访问权限，请再次申请或关闭本页。"
+    "message": "未获得访问权限，请返回设置页重试。"
   },
   "aiPermissionPageFailed": {
     "message": "授权失败，请稍后重试。"
   },
   "aiPermissionPageInvalid": {
     "message": "授权请求无效，请返回设置页重新操作。"
+  },
+  "aiPermissionPageExpired": {
+    "message": "授权请求已失效，请返回设置中心重新发起。"
   },
   "settings_ai_test_enableFirst": {
     "message": "请先启用 AI模块。"

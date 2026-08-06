@@ -3977,6 +3977,20 @@
   "settings_ai_permissionTimeout": {
     "message": "Authorization timed out. Try again."
   },
+  "settings_ai_permissionWaiting": {
+    "message": "Waiting for browser authorization"
+  },
+  "settings_ai_permissionRetryTitle": {
+    "message": "Authorization failed"
+  },
+  "settings_ai_permissionRetryMessage": {
+    "message": "Reason: $reason$\nRetry?",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
   "aiPermissionPageTitle": {
     "message": "Steam Buff - AI gateway authorization"
   },
@@ -3998,6 +4012,9 @@
   "aiPermissionPageAction": {
     "message": "Request access"
   },
+  "aiPermissionPageChecking": {
+    "message": "Checking..."
+  },
   "aiPermissionPageRequesting": {
     "message": "Requesting..."
   },
@@ -4005,13 +4022,16 @@
     "message": "Access granted. Returning to settings."
   },
   "aiPermissionPageDenied": {
-    "message": "Access was not granted. Request access again or close this page."
+    "message": "Access was not granted. Return to settings to retry."
   },
   "aiPermissionPageFailed": {
     "message": "Authorization failed. Try again later."
   },
   "aiPermissionPageInvalid": {
     "message": "This authorization request is invalid. Return to settings and try again."
+  },
+  "aiPermissionPageExpired": {
+    "message": "This authorization request has expired. Return to settings and start again."
   },
   "settings_ai_test_enableFirst": {
     "message": "Enable the AI module first."

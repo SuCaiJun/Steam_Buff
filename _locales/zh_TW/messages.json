@@ -3977,6 +3977,20 @@
   "settings_ai_permissionTimeout": {
     "message": "等待授權逾時，請重新操作。"
   },
+  "settings_ai_permissionWaiting": {
+    "message": "等待瀏覽器授權"
+  },
+  "settings_ai_permissionRetryTitle": {
+    "message": "授權失敗"
+  },
+  "settings_ai_permissionRetryMessage": {
+    "message": "原因：$reason$\n是否重試？",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
   "aiPermissionPageTitle": {
     "message": "Steam Buff - AI 閘道授權"
   },
@@ -3998,6 +4012,9 @@
   "aiPermissionPageAction": {
     "message": "申請授權"
   },
+  "aiPermissionPageChecking": {
+    "message": "正在確認..."
+  },
   "aiPermissionPageRequesting": {
     "message": "正在申請..."
   },
@@ -4005,13 +4022,16 @@
     "message": "授權成功，正在返回設定頁。"
   },
   "aiPermissionPageDenied": {
-    "message": "未取得存取權限，請再次申請或關閉此頁。"
+    "message": "未取得存取權限，請返回設定頁重試。"
   },
   "aiPermissionPageFailed": {
     "message": "授權失敗，請稍後再試。"
   },
   "aiPermissionPageInvalid": {
     "message": "授權請求無效，請返回設定頁重新操作。"
+  },
+  "aiPermissionPageExpired": {
+    "message": "授權請求已失效，請返回設定中心重新發起。"
   },
   "settings_ai_test_enableFirst": {
     "message": "請先啟用 AI 模組。"
