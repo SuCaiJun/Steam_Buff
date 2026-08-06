@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam 消费历史分类器
 // @namespace    http://tampermonkey.net/
-// @version      2.1.21
+// @version      2.1.24
 // @description  对Steam消费历史记录进行分类：直购、送礼、退款、内购、充值、买入、卖出；自动识别主货币；新增转区CD查询功能
 // @author       SmallFork
 // @match        https://store.steampowered.com/account/history*
@@ -52,13 +52,13 @@
         { id: 'AUD', label: '澳元', match: /A\$\s*[\d,. ]+/, symbol: 'A$' },
         { id: 'CAD', label: '加元', match: /CDN\$\s*[\d,. ]+/, symbol: 'CDN$' },
         { id: 'NZD', label: '新西兰元', match: /NZ\$\s*[\d,. ]+/, symbol: 'NZ$' },
-        { id: 'ARS', label: '阿根廷比索', match: /ARS\$\s*[\d,. ]+/, symbol: 'ARS$' },
+        { id: 'ARS', label: '阿根廷比索', match: /ARS\$\s*[\d,. ]+/, symbol: 'ARS$', dc: true },
         { id: 'SGD', label: '新加坡元', match: /(?<![A-Z])S\$\s*[\d,. ]+/, symbol: 'S$' },
         { id: 'COL', label: '哥伦比亚比索', match: /COL\$\s*[\d,. ]+/, symbol: 'COL$' },
         { id: 'CLP', label: '智利比索', match: /CLP\$\s*[\d,. ]+/, symbol: 'CLP$' },
         { id: 'MexP', label: '墨西哥比索', match: /Mex\$\s*[\d,. ]+/, symbol: 'Mex$' },
-        { id: 'BRL', label: '巴西雷亚尔', match: /R\$\s*[\d,. ]+/, symbol: 'R$' },
-        { id: 'UYU', label: '乌拉圭比索', match: /\$U\s*[\d,. ]+/, symbol: '$U' },
+        { id: 'BRL', label: '巴西雷亚尔', match: /R\$\s*[\d,. ]+/, symbol: 'R$', dc: true },
+        { id: 'UYU', label: '乌拉圭比索', match: /\$U\s*[\d,. ]+/, symbol: '$U', dc: true },
         { id: 'USD', label: '美元', match: /(?<![A-Za-z])\$\s*[\d,. ]+|[\d,. ]+\s*USD/i, symbol: '$' },
         { id: 'CNY', label: '人民币', match: /¥\s*[\d,. ]+/, symbol: '¥' },
         { id: 'JPY', label: '日元', match: /JP¥\s*[\d,. ]+|[\d,. ]+\s*JPY/i, symbol: '¥' },
@@ -77,7 +77,7 @@
         { id: 'MYR', label: '马来西亚林吉特', match: /RM\s*[\d,. ]+/i, symbol: 'RM' },
         { id: 'CRC', label: '哥斯达黎加科朗', match: /₡\s*[\d,. ]+/, symbol: '₡' },
         { id: 'PEN', label: '秘鲁索尔', match: /S\/\.\s*[\d,. ]+/, symbol: 'S/.' },
-        { id: 'PLN', label: '波兰兹罗提', match: /[\d,. ]+\s*zł/i, symbol: 'zł' },
+        { id: 'PLN', label: '波兰兹罗提', match: /[\d,. ]+\s*zł/i, symbol: 'zł', dc: true },
         { id: 'NOK', label: '挪威克朗', match: /[\d,. ]+\s*kr\b/i, symbol: 'kr' },
         { id: 'CHF', label: '瑞士法郎', match: /CHF\s*[\d,. ]+/i, symbol: 'CHF' },
         { id: 'ILS', label: '以色列新谢克尔', match: /₪\s*[\d,. ]+/, symbol: '₪' },
@@ -262,6 +262,7 @@
     const fmtDate = d => d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : '';
     const MS_PER_DAY = 864e5;
     const fmtAmt = v => v < 0 ? `-${primaryCurrency.symbol}${Math.abs(v).toFixed(2)}` : `${primaryCurrency.symbol}${v.toFixed(2)}`;
+    const fmtAmtHtml = v => { const neg = v < 0; const abs = Math.abs(v).toFixed(2); return `${neg ? '-' : ''}<span class="shc-amt-symbol">${primaryCurrency.symbol}</span><span class="shc-amt-num">${abs}</span>`; };
     const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
     const curFlagHtml = (id, w = 18, h = 13, mr = 4) => FLAGS[id] ? `<span class="shc-currency-flag" style="display:inline-block;width:${w}px;height:${h}px;vertical-align:middle;flex-shrink:0${mr ? `;margin-right:${mr}px` : ''}">${FLAGS[id]}</span>` : '';
     const primaryCurHintHtml = () => `${t('primaryCurrencyHint')}${curFlagHtml(primaryCurrency.id)}${primaryCurrency.symbol}${primaryCurrency.id}(${primaryCurrency.label})`;
@@ -1010,7 +1011,6 @@
         const EXPEND_IDS = ['store', 'ingame', 'gift', 'market_buy'], INCOME_IDS = ['market_sell', 'convert', 'refund'];
         const catAmounts = ids => ids.map(id => { const c = CATEGORIES.find(x => x.id === id); return { ...c, amount: state.amounts.get(id) || 0 }; }).filter(d => d.amount > 0);
         const expendData = catAmounts(EXPEND_IDS), incomeData = catAmounts(INCOME_IDS);
-        if (!expendData.length && !incomeData.length) { showToast(t('noChartData'), 'info'); return; }
         const allMax = Math.max(...[...expendData, ...incomeData].map(d => d.amount), 1);
         renderModal('barRefs', 'barchart', ICONS.mBarChart, modalTitle('barTitle'), () => {
             const barPair = (data, title) => data.length ? buildBarSvg(data, title, allMax) : '';
@@ -1028,12 +1028,13 @@
     // ==================== 转区 CD ====================
     const RegionCD = (() => {
         const cellText = el => el ? normText(el.innerText || el.textContent) : '';
-        const RE_PURCHASE = /购买|purchase/i, RE_MARKET = /市场|market/i, RE_RETAIL = /零售|retail/i;
+        const RE_PURCHASE = /购买|購買|purchase/i, RE_MARKET = /市场|market/i, RE_RETAIL = /零售|retail/i;
         const RE_WALLET_FUNDS = /钱包资金|wallet funds?|wallet credit/i;
         const RE_CONVERT = /货币转换|貨幣轉換|Currency\s+Conversion/i;
         const RE_GIFT_CARD = /兑换数字礼物卡|兌換數字禮物卡|Redeem\s+Digital\s+Gift\s+Card/i;
         const RE_CONVERT_TO = /(?:货币转换至|貨幣轉換至|Currency\s+Conversion\s+to)\s*([A-Z]{3})/i;
-        const isStorePurchase = t => RE_PURCHASE.test(t) && !RE_MARKET.test(t);
+        const RE_INGAME = /游戏内购买|遊戲內物品購買|In-Game\s*Purchase/i;
+        const isStorePurchase = t => RE_PURCHASE.test(t) && !RE_MARKET.test(t) && !RE_INGAME.test(t);
 
         function extractCurrency(text) {
             for (const line of normText(text).split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean)) {
@@ -1402,11 +1403,6 @@
             info.count += quantity; info.totalSpent += amt;
         }
 
-        if (gameMap.size === 0) {
-            renderModal('ingameRefs', 'ingame', ICONS.ingame, modalTitle('ingameTitle'), () => `<div style="text-align:center;padding:40px;color:#64748b">${escapeHtml(t('ingameNoData'))}</div>`);
-            return;
-        }
-
         const gameStats = [...gameMap.entries()].map(([game, items]) => {
             const itemList = [...items.entries()].sort((a, b) => b[1].totalSpent - a[1].totalSpent);
             const totalSpent = itemList.reduce((s, [, v]) => s + v.totalSpent, 0);
@@ -1418,7 +1414,7 @@
         const totalGames = gameStats.length;
         const totalCount = gameStats.reduce((s, g) => s + g.totalCount, 0);
         const totalSpent = gameStats.reduce((s, g) => s + g.totalSpent, 0);
-        const maxGameSpent = gameStats[0].totalSpent;
+        const maxGameSpent = gameStats[0]?.totalSpent || 0;
 
         renderModal('ingameRefs', 'ingame', ICONS.ingame, modalTitle('ingameTitle'), () => {
             const summaryCard = (iconCls, icon, label, value, unit = '', accent = false) =>
@@ -1475,7 +1471,9 @@
                 <div style="flex:1;min-width:100px"></div>
             </div>`;
 
-            return `${summaryHtml}${headerHtml}<div class="ingame-list-container">${gameListHtml}</div><div class="shc-ingame-footer shc-mn">${ICONS.info}<span class="shc-ingame-footer-text shc-mnt">${escapeHtml(t('ingameNote'))}</span></div>`;
+            const emptyPlaceholder = gameStats.length === 0 ? `<div style="display:flex;align-items:center;justify-content:center;height:400px;color:#64748b;font-size:14px">${escapeHtml(t('ingameNoData'))}</div>` : '';
+
+            return `${summaryHtml}${headerHtml}<div class="ingame-list-container">${gameListHtml}${emptyPlaceholder}</div><div class="shc-ingame-footer shc-mn">${ICONS.info}<span class="shc-ingame-footer-text shc-mnt">${escapeHtml(t('ingameNote'))}</span></div>`;
         }, chartEl => {
             chartEl.querySelectorAll('.ingame-game-header').forEach(header => {
                 header.addEventListener('click', () => {
@@ -1507,8 +1505,8 @@
     // ==================== 商店折扣统计 ====================
     let cachedFullPriceItems = [];
     // 折扣统计卡片构建器
-    const discountCard = (iconSvg, iconCls, label, value, valueCls = '', unit = '') =>
-        `<div class="shc-discount-stat-card shc-card"><div class="shc-discount-stat-icon ${iconCls}">${iconSvg}</div><div class="shc-discount-stat-text"><div class="shc-discount-stat-label">${escapeHtml(label)}</div><div class="shc-discount-stat-value ${valueCls}">${escapeHtml(value)}<span class="unit">${escapeHtml(unit)}</span></div></div></div>`;
+    const discountCard = (iconSvg, iconCls, label, value, valueCls = '', unit = '', raw = false) =>
+        `<div class="shc-discount-stat-card shc-card"><div class="shc-discount-stat-icon ${iconCls}">${iconSvg}</div><div class="shc-discount-stat-text"><div class="shc-discount-stat-label">${escapeHtml(label)}</div><div class="shc-discount-stat-value ${valueCls}">${raw ? value : escapeHtml(value)}<span class="unit">${escapeHtml(unit)}</span></div></div></div>`;
 
     const BUCKET_LABELS = ['≥0%', '≥10%', '≥20%', '≥30%', '≥40%', '≥50%', '≥60%', '≥70%', '≥80%', '≥90%'];
     const BUCKET_COLORS = ['#bbf7d0','#a7f3d0','#86efac','#6ee7b7','#4ade80','#34d399','#22c55e','#16a34a','#15803d','#166534'];
@@ -1577,8 +1575,8 @@
                     ${discountCard(ICONS.mShoppingBag, 'blue', t('discountCount'), totalCount, '', t('countUnit'))}
                     <div class="shc-discount-stat-card shc-discount-clickable shc-card" data-action="fullprice"><div class="shc-discount-stat-icon orange">${ICONS.mCheck}</div><div class="shc-discount-stat-text"><div class="shc-discount-stat-label">${escapeHtml(t('discountFullPrice'))}</div><div class="shc-discount-stat-value">${fullPriceCount}<span class="unit">${escapeHtml(t('countUnit'))}</span></div></div></div>
                     ${discountCard(ICONS.mPercent, 'purple', t('discountAvgOff'), `-${avgPctStr}%`, '', 'off')}
-                    ${discountCard(ICONS.mStorefront, 'blue', t('discountStorePaid'), fmtAmt(totalPaid))}
-                    ${discountCard(ICONS.mWallet, 'green', t('discountSaved'), fmtAmt(totalSaved), 'green')}
+                    ${discountCard(ICONS.mStorefront, 'blue', t('discountStorePaid'), fmtAmtHtml(totalPaid), '', '', true)}
+                    ${discountCard(ICONS.mWallet, 'green', t('discountSaved'), fmtAmtHtml(totalSaved), 'green', '', true)}
                 </div>
                 <div class="shc-discount-right">
                     <div class="shc-discount-progress-card shc-card">
@@ -1610,7 +1608,7 @@
             `<tr class="shc-fp-row${idx & 1 ? ' shc-fp-row-alt' : ''}${item.refunded ? ' shc-fp-refunded' : ''}"><td class="shc-fp-idx">${idx + 1}</td><td class="shc-fp-name">${escapeHtml(item.name)}${item.refunded ? '<span class="shc-fp-refund-tag">' + escapeHtml(t('fpRefunded')) + '</span>' : ''}</td><td class="shc-fp-price">${fmtAmt(item.price)}</td><td class="shc-fp-date">${escapeHtml(item.date)}</td></tr>`
         ).join('');
         renderModal('fullPriceRefs', 'fullprice', ICONS.discount, `${t('discountFullPriceTitle')} (${curFlagHtml(primaryCurrency.id, 24, 18, 4)}${primaryCurrency.symbol}${primaryCurrency.id})`, () => {
-            return `<div class="shc-fp-summary"><div class="shc-discount-stat-card shc-discount-clickable shc-card shc-fp-filter-active-blue" data-action="fp-fullprice-filter"><div class="shc-discount-stat-icon blue">${ICONS.mShoppingBag}</div><div class="shc-discount-stat-text"><div class="shc-discount-stat-label">${escapeHtml(t('discountFullPrice'))}</div><div class="shc-discount-stat-value">${items.length}<span class="unit">${escapeHtml(t('countUnit'))}</span></div></div></div><div class="shc-discount-stat-card shc-discount-clickable shc-card" data-action="fp-refund-filter"><div class="shc-discount-stat-icon orange">${ICONS.mRefund}</div><div class="shc-discount-stat-text"><div class="shc-discount-stat-label">${escapeHtml(t('fpRefundCount'))}</div><div class="shc-discount-stat-value">${refundCount}<span class="unit">${escapeHtml(t('countUnit'))}</span></div></div></div>${discountCard(ICONS.mWallet, 'green', t('discountStorePaid'), fmtAmt(totalAmt), 'green')}${discountCard(ICONS.mRefund, 'red', t('fpRefundAmt'), fmtAmt(refundAmt), 'red')}</div>` +
+            return `<div class="shc-fp-summary"><div class="shc-discount-stat-card shc-discount-clickable shc-card shc-fp-filter-active-blue" data-action="fp-fullprice-filter"><div class="shc-discount-stat-icon blue">${ICONS.mShoppingBag}</div><div class="shc-discount-stat-text"><div class="shc-discount-stat-label">${escapeHtml(t('discountFullPrice'))}</div><div class="shc-discount-stat-value">${items.length}<span class="unit">${escapeHtml(t('countUnit'))}</span></div></div></div><div class="shc-discount-stat-card shc-discount-clickable shc-card" data-action="fp-refund-filter"><div class="shc-discount-stat-icon orange">${ICONS.mRefund}</div><div class="shc-discount-stat-text"><div class="shc-discount-stat-label">${escapeHtml(t('fpRefundCount'))}</div><div class="shc-discount-stat-value">${refundCount}<span class="unit">${escapeHtml(t('countUnit'))}</span></div></div></div>${discountCard(ICONS.mWallet, 'green', t('discountStorePaid'), fmtAmtHtml(totalAmt), 'green', '', true)}${discountCard(ICONS.mRefund, 'red', t('fpRefundAmt'), fmtAmtHtml(refundAmt), 'red', '', true)}</div>` +
                 `<div class="shc-fp-table-wrap"><table class="shc-fp-table"><thead><tr><th class="shc-fp-idx">#</th><th class="shc-fp-name">${escapeHtml(t('discountFullPriceName'))}</th><th class="shc-fp-price">${escapeHtml(t('discountFullPricePrice'))}</th><th class="shc-fp-date">${escapeHtml(t('discountFullPriceDate'))}</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>` +
                 modalNote('fullprice', t('discountFooter'));
         }, chartEl => {
@@ -1634,12 +1632,12 @@
         });
     }
 
-    // ==================== 主货币切换下拉 ====================
+    // ==================== 主货币切换下拉（向下弹出） ====================
     function showCurrencyDropdown(anchorEl) {
         document.querySelectorAll('.shc-currency-dropdown').forEach(el => el.remove());
         const dd = document.createElement('div');
         dd.className = 'shc-currency-dropdown';
-        dd.style.cssText = `position:absolute;z-index:${DROPDOWN_Z_INDEX};background:#1e293b;border:1px solid #334155;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px;min-width:200px;max-height:300px;overflow-y:auto;right:0;bottom:100%;margin-bottom:4px`;
+        dd.style.cssText = `position:fixed;z-index:2147483646;background:#1e293b;border:1px solid #334155;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px;min-width:200px;max-height:300px;overflow-y:auto`;
         const activeCurIds = new Set([...state.amountsByCurrency.keys()].filter(id => hasNonZero(state.amountsByCurrency, id) || hasNonZero(state.countsByCurrency, id)));
         const curList = [...activeCurIds];
         if (!curList.length) {
@@ -1655,9 +1653,27 @@
                 dd.appendChild(item);
             }
         }
-        anchorEl.parentElement.appendChild(dd);
-        const close = e => { if (!dd.contains(e.target) && e.target !== anchorEl) { dd.remove(); document.removeEventListener('click', close); } };
-        setTimeout(() => { document.addEventListener('click', close); }, 0);
+        document.body.appendChild(dd);
+        // 向下弹出：定位到锚点正下方，与锚点左对齐，自动避开视口边界
+        const rect = anchorEl.getBoundingClientRect();
+        const ddRect = dd.getBoundingClientRect();
+        let left = rect.left;
+        let top = rect.bottom + 4;
+        // 下方空间不足时改为向上弹出
+        if (top + ddRect.height > window.innerHeight - 8) {
+            top = rect.top - ddRect.height - 4;
+        }
+        // 仍然超出下方则贴底
+        if (top + ddRect.height > window.innerHeight - 8) top = window.innerHeight - ddRect.height - 8;
+        if (top < 8) top = 8;
+        // 水平方向贴边处理
+        if (left + ddRect.width > window.innerWidth - 8) left = window.innerWidth - ddRect.width - 8;
+        if (left < 8) left = 8;
+        dd.style.left = `${left}px`;
+        dd.style.top = `${top}px`;
+        const close = e => { if (!dd.contains(e.target) && e.target !== anchorEl) { dd.remove(); document.removeEventListener('click', close); window.removeEventListener('scroll', onScroll, true); window.removeEventListener('resize', onScroll); } };
+        const onScroll = () => { dd.remove(); document.removeEventListener('click', close); window.removeEventListener('scroll', onScroll, true); window.removeEventListener('resize', onScroll); };
+        setTimeout(() => { document.addEventListener('click', close); window.addEventListener('scroll', onScroll, true); window.addEventListener('resize', onScroll); }, 0);
     }
 
     function switchPrimaryCurrency(curId) {
@@ -1746,6 +1762,7 @@ td.wht_base_price .wht_discounted_price{display:block;margin-top:2px}
 .shc-mnt{font-size:13px;color:#64748b;line-height:1.5}
 /* ===== 各模态框尺寸 ===== */
 .shc-donut-content,.shc-barchart-content,.shc-regioncd-content,.shc-ingame-content,.shc-gift-allowance-content,.shc-discount-content,.shc-fullprice-content{max-width:${MODAL_WIDTH}px}
+.shc-ingame-content{height:650px}
 .shc-gift-allowance-content{padding:24px}
 /* ===== 各模态框 header icon 颜色 ===== */
 .shc-donut-header-icon,.shc-regioncd-header-icon{background:var(--stroke-blue)}
@@ -1791,10 +1808,12 @@ button.icon-btn svg{width:18px;height:18px}
 ${iconColorCSS('.shc-discount-stat-icon', ['blue','purple','green','orange','red'])}
 .shc-discount-stat-text{min-width:0}
 .shc-discount-stat-label{font-size:14px;color:#94a3b8}
-.shc-discount-stat-value{font-size:28px;font-weight:700;color:#f8fafc;margin-top:2px;display:flex;align-items:baseline;gap:4px}
+.shc-discount-stat-value{font-size:28px;font-weight:700;color:#f8fafc;margin-top:2px;display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;overflow-wrap:anywhere}
 .shc-discount-stat-value .unit{font-size:14px;color:#64748b;font-weight:400}
 .shc-discount-stat-value.green{color:var(--stroke-green)}
 .shc-discount-stat-value.red{color:var(--stroke-red)}
+.shc-amt-symbol{font-size:16px;font-weight:600;color:#94a3b8;flex-shrink:0}
+.shc-amt-num{word-break:break-all}
 .shc-discount-progress-card{padding:24px;margin-top:16px}
 .shc-discount-progress-title{font-size:15px;font-weight:700;color:#f8fafc;margin-bottom:12px}
 .shc-discount-progress-track{height:24px;background:#0f172a;border-radius:10px;overflow:hidden;position:relative}
@@ -1803,7 +1822,7 @@ ${iconColorCSS('.shc-discount-stat-icon', ['blue','purple','green','orange','red
 .shc-discount-progress-scale{display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#64748b}
 .shc-discount-body{display:flex;gap:16px;align-items:stretch}
 .shc-discount-left{display:flex;flex-direction:column;gap:12px;flex:0 0 260px;min-width:0}
-.shc-discount-left .shc-discount-stat-card{flex:none}
+.shc-discount-left .shc-discount-stat-card{flex:none;padding:20px 16px;gap:10px}
 .shc-discount-right{display:flex;flex-direction:column;gap:12px;flex:1;min-width:0}
 .shc-discount-right .shc-discount-progress-card{margin-top:0;padding:12px 20px;flex:none}
 .shc-discount-right .shc-discount-progress-title{font-size:13px;margin-bottom:8px}
@@ -1868,7 +1887,7 @@ ${iconColorCSS('.shc-ingame-summary-icon', ['blue','purple','cyan'])}
 .ingame-list-header{flex-shrink:0}
 .shc-ingame-footer{flex-shrink:0}
 /* 内购列表容器（滚动） */
-.ingame-list-container{max-height:400px;flex:1;min-height:0;overflow-y:auto;border:1px solid var(--card-border);border-radius:var(--card-radius);background:var(--card-bg)}
+.ingame-list-container{height:400px;overflow-y:auto;border:1px solid var(--card-border);border-radius:var(--card-radius);background:var(--card-bg)}
 .ingame-list-container::-webkit-scrollbar{width:8px}
 .ingame-list-container::-webkit-scrollbar-track{background:#0f172a;border-radius:4px}
 .ingame-list-container::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
@@ -2142,7 +2161,7 @@ ${iconColorCSS('.shc-regioncd-row-icon', ['blue','cyan','purple','orange'])}
         if (!currentSpan || currentSpan.dataset.breadcrumbAdded) return;
         currentSpan.dataset.breadcrumbAdded = 'true';
         const sep = document.createElement('span'); sep.className = 'breadcrumb_separator'; sep.textContent = '>';
-        const link = document.createElement('a'); link.href = 'https://store.steampowered.com/account/licenses/'; link.target = '_blank'; link.textContent = t('breadcrumbLicenses'); link.dataset.panel = '{"noFocusRing":true}';
+        const link = document.createElement('a'); link.href = 'https://store.steampowered.com/account/licenses/'; link.textContent = t('breadcrumbLicenses'); link.dataset.panel = '{"noFocusRing":true}';
         const parent = currentSpan.parentElement; parent.appendChild(sep); parent.appendChild(link);
     }
 
@@ -2175,11 +2194,7 @@ ${iconColorCSS('.shc-regioncd-row-icon', ['blue','cyan','purple','orange'])}
 
         const tableEl = document.querySelector('table.wallet_history_table');
         if (tableEl) {
-            const rowClickHandler = e => {
-                const row = e.target.closest('tr.wallet_table_row'); if (!row) return;
-                const m = row.getAttribute('onclick')?.match(/location\.href='([^']+)'/); if (m) { e.preventDefault(); e.stopPropagation(); window.open(m[1], '_blank'); }
-            };
-            tableEl.addEventListener('click', rowClickHandler, true); state.disposers.push(() => tableEl.removeEventListener('click', rowClickHandler, true));
+            // 已移除行点击新标签打开功能
         }
 
         try { await waitFor('table.wallet_history_table tbody tr'); buildUI(); } catch (e) { console.warn('[消费历史分类器] 初始化失败:', e.message); }
