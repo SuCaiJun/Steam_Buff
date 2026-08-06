@@ -2040,6 +2040,29 @@
     openChromiumWindow(request?.url, sendResponse);
   }
 
+  function refocusSteamRootMenuChromiumWindow(windowId) {
+    if (!Number.isInteger(windowId) || !chrome.windows?.update) {
+      return;
+    }
+    try {
+      chrome.windows.update(windowId, { focused: true }, () => {
+        void chrome.runtime.lastError;
+      });
+    } catch {
+      // Root Menu 关闭后的焦点恢复失败不应覆盖已经成功创建的 Chromium 窗口。
+    }
+  }
+
+  function scheduleSteamRootMenuChromiumRefocus(windowId) {
+    if (!Number.isInteger(windowId)) {
+      return;
+    }
+    globalThis.setTimeout(
+      () => refocusSteamRootMenuChromiumWindow(windowId),
+      STEAM_ROOT_MENU_REFOCUS_DELAY_MS,
+    );
+  }
+
   function steamRootMenuWebUrl(value) {
     const target = String(value || "").trim();
     try {
@@ -2123,6 +2146,9 @@
         action,
         source: target.source,
       });
+      if (response?.opened === true && Number.isInteger(response.windowId)) {
+        scheduleSteamRootMenuChromiumRefocus(response.windowId);
+      }
     });
   }
 
