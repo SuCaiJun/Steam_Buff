@@ -45,6 +45,7 @@
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
+  const CUSTOM_NAME_SOURCES = new Set(["user_custom", "community", "ai"]);
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
 
@@ -79,6 +80,8 @@
     localRows: [],
     localMap: new Map(),
     cloudMap: new Map(),
+    syncMap: new Map(),
+    syncingCount: 0,
     stateMap: new Map(),
     rows: [],
     rowMap: new Map(),
@@ -590,6 +593,8 @@
     batch.localRows = [];
     batch.localMap = new Map();
     batch.cloudMap = new Map();
+    batch.syncMap = new Map();
+    batch.syncingCount = 0;
     batch.stateMap = new Map();
     batch.rows = [];
     batch.rowMap = new Map();
@@ -1044,17 +1049,32 @@
     return data?.data ? [data.data] : [];
   }
 
-  function apiMap(parts) {
-    const map = new Map();
+  function apiResult(parts) {
+    const names = new Map();
+    const statuses = new Map();
     for (const data of parts) {
       for (const row of apiRows(data)) {
         const appid = Number(row?.appid);
         if (Number.isFinite(appid) && appid > 0) {
-          map.set(appid, row);
+          const source = String(row?.name_source || "");
+          if (CUSTOM_NAME_SOURCES.has(source) && text(row?.name)) {
+            names.set(appid, row);
+          } else if (source === "steam") {
+            statuses.set(appid, "synced");
+          }
         }
       }
+      for (const appid of Array.isArray(data?.syncing_appids) ? data.syncing_appids : []) {
+        statuses.set(Number(appid), "syncing");
+      }
+      for (const appid of Array.isArray(data?.not_found_appids) ? data.not_found_appids : []) {
+        statuses.set(Number(appid), "unavailable");
+      }
+      for (const appid of Array.isArray(data?.sync_failed_appids) ? data.sync_failed_appids : []) {
+        statuses.set(Number(appid), "failed");
+      }
     }
-    return map;
+    return { names, statuses };
   }
 
   function loadLib(path) {
@@ -1098,20 +1118,59 @@
     return core;
   }
 
-  // 云端名称按 100 个 AppID 分片，和后端 /get 的批量限制保持一致，失败分片不阻断其它分片。
+  // 云端名称按 100 个 AppID 分片，和后端 /get 的批量限制保持一致。
   async function queryMap(appids) {
     const parts = [];
     for (let i = 0; i < appids.length; i += QUERY_MAX) {
       const ids = appids.slice(i, i + QUERY_MAX);
-      try {
-        parts.push(await queryNames(ids));
-      } catch (error) {
-        if (!String(error?.message || error).includes("404")) {
-          throw error;
-        }
-      }
+      parts.push(await queryNames(ids));
     }
-    return apiMap(parts);
+    return apiResult(parts);
+  }
+
+  function syncStatusText(status) {
+    if (status === "syncing") {
+      return i18n("steam.libraryCustomName.officialSyncing", "正在同步 Steam 官方数据");
+    }
+    if (status === "synced") {
+      return i18n("steam.libraryCustomName.officialSyncedNoCustom", "官方数据已同步，暂无云端自定义名称");
+    }
+    if (status === "unavailable") {
+      return i18n("steam.libraryCustomName.officialUnavailable", "Steam 官方暂未返回可用英文名称");
+    }
+    if (status === "failed") {
+      return i18n("steam.libraryCustomName.officialSyncFailed", "Steam 官方数据同步暂不可用");
+    }
+    return "";
+  }
+
+  function setSyncStatus(appid, status) {
+    const previous = batch.syncMap.get(appid) || "";
+    if (previous === status) {
+      return;
+    }
+    if (previous === "syncing") {
+      batch.syncingCount = Math.max(0, batch.syncingCount - 1);
+    }
+    if (status === "syncing") {
+      batch.syncingCount += 1;
+    }
+    if (status) {
+      batch.syncMap.set(appid, status);
+    } else {
+      batch.syncMap.delete(appid);
+    }
+  }
+
+  function syncingSummary() {
+    if (batch.syncingCount <= 0) {
+      return "";
+    }
+    return i18n(
+      "steam.libraryCustomName.officialSyncSummary",
+      "；有 $count$ 个游戏正在同步 Steam 官方数据，请稍后重新获取",
+      { count: batch.syncingCount },
+    );
   }
 
   function stripCloudName(name) {
@@ -1206,6 +1265,7 @@
     const appid = Number(app.appid);
     const custom = text(app.current_custom_name);
     const cloud = batch.cloudMap.get(appid) || "";
+    const syncStatus = batch.syncMap.get(appid) || "";
     const manual = !!old?.manual;
     const cloudTouched = !!old?.cloudTouched;
     const mnemonicTouched = !!old?.mnemonicTouched;
@@ -1219,6 +1279,10 @@
       want = custom;
       checked = stored ? !!old.checked : false;
       source = "local";
+    } else if (!manual && syncStatus) {
+      want = text(old.want);
+      checked = !!old.checked;
+      source = old.cloudSource || "";
     } else if (!manual && batch.policy === "skip" && !hasCustom(app)) {
       want = cloud;
       checked = true;
@@ -1240,6 +1304,7 @@
       official: text(app.official_name),
       custom,
       apiName: cloud,
+      syncStatus,
       want,
       checked,
       manual,
@@ -1293,7 +1358,9 @@
       if (!localRowVisible(app)) {
         continue;
       }
-      rows.push(makeRow(app, batch.stateMap.get(Number(app.appid))));
+      const appid = Number(app.appid);
+      const old = batch.stateMap.get(appid);
+      rows.push(makeRow(app, old));
     }
     setRows(rows);
     if (options.preservePage === true) {
@@ -1429,7 +1496,7 @@
     if (!row) {
       return "";
     }
-    row.searchText = searchText(`${row.appid} ${row.official} ${row.apiName} ${row.custom} ${row.want}`);
+    row.searchText = searchText(`${row.appid} ${row.official} ${row.apiName} ${syncStatusText(row.syncStatus)} ${row.custom} ${row.want}`);
     return row.searchText;
   }
 
@@ -1605,7 +1672,7 @@
         capacity: capacityLine(),
       },
     );
-    return `${esc(summary)}${storageLimitTipHtml()}`;
+    return `${esc(summary + syncingSummary())}${storageLimitTipHtml()}`;
   }
 
   function messageHtml() {
@@ -1716,6 +1783,8 @@
     batch.localRows = [];
     batch.localMap = new Map();
     batch.cloudMap = new Map();
+    batch.syncMap = new Map();
+    batch.syncingCount = 0;
     batch.stateMap = new Map();
     batch.searchQuery = "";
     batch.searchNeedle = "";
@@ -2157,7 +2226,7 @@
         limit: customLimitLine(),
         capacity: capacityLine(),
       },
-    );
+    ) + syncingSummary();
   }
 
   function customLimitMeta(pending) {
@@ -2676,10 +2745,15 @@
         false,
       );
 
-      const names = await queryMap([appid]);
-      const name = text(names.get(appid)?.name);
+      const result = await queryMap([appid]);
+      const name = text(result.names.get(appid)?.name);
       if (!name) {
-        throw new Error(i18n("steam.libraryCustomName.cloudNameMissing", "云端没有找到当前游戏名称"));
+        const status = result.statuses.get(appid) || "";
+        const message = status === "syncing"
+          ? i18n("steam.libraryCustomName.officialSyncingRetry", "正在同步 Steam 官方数据，请稍后重新获取")
+          : syncStatusText(status) || i18n("steam.libraryCustomName.cloudNameMissing", "云端没有找到当前游戏名称");
+        oneBox(i18n("steam.libraryCustomName.fetchTitle", "获取名称"), message, true);
+        return;
       }
       await backend("save-one", { appid, name });
       setNative(input, name);
@@ -3129,7 +3203,7 @@
               <tr data-appid="${attr(row.appid)}" class="${row.state === "success" ? "ok" : row.state === "failed" ? "fail" : ""}">
                 <td><input type="checkbox" data-lcn-check="${attr(row.appid)}" ${row.checked ? "checked" : ""} ${batch.saving || batch.busy ? "disabled" : ""}></td>
                 <td>${esc(row.official)}<span class="st-lcn-appid">${esc(row.appid)}</span></td>
-                <td>${esc(row.apiName)}</td>
+                <td>${esc(row.apiName || syncStatusText(row.syncStatus))}</td>
                 <td>${esc(row.custom)}</td>
                 <td><input class="st-lcn-input" data-lcn-name="${attr(row.appid)}" value="${attr(row.want)}" ${batch.saving || batch.busy ? "disabled" : ""}></td>
               </tr>
@@ -3618,14 +3692,23 @@
           total,
         });
         refreshMessage();
-        const names = await queryMap(ids);
+        const result = await queryMap(ids);
         if (seq !== batch.previewSeq) {
           return;
         }
-        for (const [appid, got] of names) {
+        for (const appid of ids) {
+          const id = Number(appid);
+          const got = result.names.get(id);
+          batch.cloudMap.delete(id);
           const name = text(got?.name);
           if (name) {
-            batch.cloudMap.set(Number(appid), name);
+            batch.cloudMap.set(id, name);
+          }
+          if (got) {
+            setSyncStatus(id, "");
+          } else {
+            const status = result.statuses.get(id) || "";
+            setSyncStatus(id, status);
           }
         }
         resetRowsForPolicy({ preservePage: true });
