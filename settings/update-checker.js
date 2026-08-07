@@ -130,8 +130,8 @@
   }
 
   async function check(options = {}) {
-    if (isGoogleWebStore()) {
-      throw new Error(text("about.update.googleWebStoreDisabled", "Google 商店版已禁用主动更新检查"));
+    if (isStoreVersion()) {
+      throw new Error(text("about.update.storeVersionDisabled", "商店版已禁用主动更新检查"));
     }
     return send({ type: "UPDATE_CHECK", manual: options.manual === true });
   }
@@ -140,8 +140,8 @@
     return send({ type: "UPDATE_CHECK", manual: false, source: ABOUT_STATUS_SOURCE });
   }
 
-  function isGoogleWebStore() {
-    return CFG.distribution.isGoogleWebStore();
+  function isStoreVersion() {
+    return CFG.distribution.isStoreVersion();
   }
 
   async function cached() {
@@ -315,7 +315,7 @@
     version,
     check,
     checkStatus,
-    isGoogleWebStore,
+    isStoreVersion,
     cached,
     muteToday,
     isMuted,

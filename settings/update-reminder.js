@@ -12,7 +12,7 @@
   "use strict";
 
   const api = globalThis.STUpdateChecker;
-  if (!api || api.isGoogleWebStore() || globalThis.__SteamBuffUpdateReminderStarted) {
+  if (!api || api.isStoreVersion() || globalThis.__SteamBuffUpdateReminderStarted) {
     return;
   }
   globalThis.__SteamBuffUpdateReminderStarted = true;

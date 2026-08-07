@@ -1667,8 +1667,8 @@
       }
     }
   },
-  "about_update_googleWebStoreDisabled": {
-    "message": "Google 商店版已禁用主动更新检查"
+  "about_update_storeVersionDisabled": {
+    "message": "商店版已禁用主动更新检查"
   },
   "about_logs_utf8Unavailable": {
     "message": "当前环境不支持 UTF-8 编码"

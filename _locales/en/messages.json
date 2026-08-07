@@ -1667,8 +1667,8 @@
       }
     }
   },
-  "about_update_googleWebStoreDisabled": {
-    "message": "Manual update checks are disabled for the Chrome Web Store version"
+  "about_update_storeVersionDisabled": {
+    "message": "Manual update checks are disabled for store versions"
   },
   "about_logs_utf8Unavailable": {
     "message": "This environment does not support UTF-8 encoding"

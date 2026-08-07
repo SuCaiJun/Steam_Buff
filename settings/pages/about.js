@@ -1049,8 +1049,8 @@
     }
   }
 
-  function isGoogleWebStore() {
-    return globalThis.STUpdateChecker.isGoogleWebStore();
+  function isStoreVersion() {
+    return globalThis.STUpdateChecker.isStoreVersion();
   }
 
   function request() {
@@ -1923,7 +1923,7 @@
     const appIcon = appIconUrl();
     const current = ctx.version() || text("about.common.unknownVersion", "未知版本");
     const state = status(ctx);
-    const googleWebStore = isGoogleWebStore();
+    const storeVersion = isStoreVersion();
     const health = logHealth();
     const quick = [
       actionCard(ctx, {
@@ -1996,8 +1996,8 @@
           </div>
           <div class="about-hero-actions">
             <span class="about-update-badge ${state.cls}">${ctx.esc(state.text)}</span>
-            ${googleWebStore ? "" : updateLink(ctx)}
-            ${googleWebStore ? "" : `
+            ${storeVersion ? "" : updateLink(ctx)}
+            ${storeVersion ? "" : `
               <button class="about-check update-check" type="button" ${busy ? "disabled" : ""}>
                 ${busy ? '<span class="about-spinner"></span>' : icon("refresh")}
                 <span>${ctx.esc(text("about.update.checkTitle", "检查更新"))}</span>

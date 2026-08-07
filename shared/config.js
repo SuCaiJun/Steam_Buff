@@ -16,7 +16,6 @@
   }
 
   const PROTOCOL = "https:";
-  const GOOGLE_WEB_STORE_UPDATE_URL = "https://clients2.google.com/service/update2/crx";
   const HOSTS = Object.freeze({
     site: "www.sucaijun.com",
     api: "api.sucaijun.com",
@@ -254,17 +253,22 @@
     open: openExternalUrl,
   });
 
-  function manifestUpdateUrl() {
+  function hasNonEmptyString(value) {
+    return typeof value === "string" && value.trim() !== "";
+  }
+
+  // 商店包同时提供 key 与 update_url；非商店包可能只保留 key。
+  function isStoreVersion() {
     try {
-      return String(root.chrome?.runtime?.getManifest?.()?.update_url || "").trim();
+      const manifest = root.chrome?.runtime?.getManifest?.();
+      return hasNonEmptyString(manifest?.key) && hasNonEmptyString(manifest?.update_url);
     } catch {
-      return "";
+      return false;
     }
   }
 
   const distribution = Object.freeze({
-    googleWebStoreUpdateUrl: GOOGLE_WEB_STORE_UPDATE_URL,
-    isGoogleWebStore: () => manifestUpdateUrl() === GOOGLE_WEB_STORE_UPDATE_URL,
+    isStoreVersion,
   });
 
   const urls = Object.freeze({

@@ -273,16 +273,16 @@
   async function updateCheck(request, sender, sendResponse) {
     const manual = request?.manual === true;
     const aboutStatus = request?.source === ABOUT_STATUS_SOURCE;
-    const googleWebStore = CFG.distribution.isGoogleWebStore();
+    const storeVersion = CFG.distribution.isStoreVersion();
     const operationId = manual ? root.STLoggerFactory?.createOperationId?.() || "" : "";
     try {
-      if (googleWebStore && !aboutStatus) {
-        sendResponse({ success: false, error: "Google 商店版仅允许关于页读取版本状态" });
+      if (storeVersion && !aboutStatus) {
+        sendResponse({ success: false, error: "商店版仅允许关于页读取版本状态" });
         return;
       }
       if (aboutStatus) {
         sendResponse({ success: true, data: await fetchLatest({
-          persistCache: !googleWebStore,
+          persistCache: !storeVersion,
           logNewVersion: false,
         }) });
         return;

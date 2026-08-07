@@ -1667,8 +1667,8 @@
       }
     }
   },
-  "about_update_googleWebStoreDisabled": {
-    "message": "Google 線上應用程式商店版本已停用主動更新檢查"
+  "about_update_storeVersionDisabled": {
+    "message": "商店版本已停用主動更新檢查"
   },
   "about_logs_utf8Unavailable": {
     "message": "目前環境不支援 UTF-8 編碼"
