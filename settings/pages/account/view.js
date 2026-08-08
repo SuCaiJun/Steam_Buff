@@ -124,8 +124,64 @@
       : t("settings.membership.sponsorIdentity", "赞助者身份");
   }
 
-  function sponsorBadge(data) {
-    return data.sponsor.badge || t("settings.account.normalUser", "普通用户");
+  function medalTooltip(data, ctx) {
+    const medal = data.user.medal;
+    const lines = [`<strong class="account-medal-tooltip-name">${ctx.esc(medal.name)}</strong>`];
+    if (medal.category) {
+      lines.push(`<span class="account-medal-tooltip-category">${ctx.esc(medal.category)}</span>`);
+    }
+    if (medal.description) {
+      lines.push(`<span class="account-medal-tooltip-description">${ctx.esc(medal.description)}</span>`);
+    }
+    if (medal.acquiredAt) {
+      lines.push(`<span class="account-medal-tooltip-acquired">${ctx.esc(t("settings.account.medalAcquiredAt", "获得日期：$date$", { date: medal.acquiredAt }))}</span>`);
+    }
+    return lines.join("");
+  }
+
+  function medalAriaLabel(data) {
+    const medal = data.user.medal;
+    return [medal.name, medal.category, medal.description, medal.acquiredAt].filter(Boolean).join("，");
+  }
+
+  function memberChips(data, ctx) {
+    const chips = [];
+    if (data.sponsor.active && data.sponsor.name) {
+      chips.push(`<span class="badge sponsor" title="${ctx.esc(expiringTitle(data))}"><span class="badge-label">${ctx.esc(data.sponsor.name)}</span></span>`);
+    }
+    if (data.user.medal?.worn === true && data.user.medal.name) {
+      chips.push(`
+        <span class="source-tip account-medal-tip" tabindex="0" role="button" aria-label="${ctx.esc(medalAriaLabel(data))}">
+          <span class="badge medal">
+            ${data.user.medal.icon ? `<img src="${ctx.esc(data.user.medal.icon)}" alt="">` : ""}
+            <span class="badge-label">${ctx.esc(data.user.medal.name)}</span>
+          </span>
+          <span class="source-tip-popover account-medal-popover" role="tooltip">${medalTooltip(data, ctx)}</span>
+        </span>
+      `);
+    }
+    if (!chips.length) {
+      chips.push(`<span class="badge normal"><span class="badge-label">${t("settings.account.normalUser", "普通用户")}</span></span>`);
+    }
+    return chips.join("");
+  }
+
+  function vipExpiry(data, ctx) {
+    if (!data.sponsor.active) {
+      return "";
+    }
+    const expiry = data.sponsor.expire
+      ? t("settings.account.vipValidUntil", "VIP 有效期至 $date$", { date: data.sponsor.expire })
+      : t("settings.account.vipExpiryUnavailable", "VIP 有效期：未提供");
+    const remaining = Number.isFinite(data.sponsor.remainingDays)
+      ? t("settings.account.remainingDays", "剩余 $days$ 天", { days: data.sponsor.remainingDays })
+      : "";
+    return `
+      <div class="vip-meta-row">
+        <span>${ctx.esc(expiry)}</span>
+        ${remaining ? `<span class="vip-remaining">${ctx.esc(remaining)}</span>` : ""}
+      </div>
+    `;
   }
 
   function joinedText(data) {
@@ -201,7 +257,7 @@
             <div class="user-info">
               <div class="name-row">
                 <span class="nickname">${ctx.esc(userName(data))}</span>
-                <span class="badge ${data.sponsor.active ? "sponsor" : "normal"}" title="${ctx.esc(expiringTitle(data))}">${ctx.esc(sponsorBadge(data))}</span>
+                <span class="member-chips">${memberChips(data, ctx)}</span>
               </div>
               <div class="meta-row">
                 <button class="meta-copy" type="button" data-user-copy="${ctx.esc(userId(data))}" title="${t("common.clickToCopy", "点击复制")}">
@@ -209,6 +265,7 @@
                   ${icon("copy")}
                 </button>
               </div>
+              ${vipExpiry(data, ctx)}
               <div class="sub-meta">${ctx.esc(joinedText(data))}</div>
               <div class="auth-msg" data-auth-note role="status" ${rt.copyMsg ? "" : "hidden"}>${ctx.esc(rt.copyMsg || "")}</div>
             </div>

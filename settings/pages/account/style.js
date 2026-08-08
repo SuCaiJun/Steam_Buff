@@ -1499,10 +1499,11 @@
 
     .hero {
       position: relative;
-      height: 140px;
+      box-sizing: border-box;
+      min-height: 140px;
       border: 1px solid var(--st-color-white-alpha-04);
       border-radius: 8px;
-      padding: 0 28px;
+      padding: 20px 28px;
       margin-bottom: 20px;
       display: flex;
       align-items: center;
@@ -1528,6 +1529,7 @@
       position: relative;
       z-index: 1;
       width: 100%;
+      min-width: 0;
       display: flex;
       align-items: center;
     }
@@ -1590,14 +1592,16 @@
     }
 
     .name-row {
+      min-width: 0;
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 10px;
       margin-bottom: 6px;
     }
 
     .nickname {
-      max-width: 240px;
+      max-width: min(240px, 100%);
       overflow: hidden;
       color: var(--st-color-white);
       font-size: 22px;
@@ -1607,15 +1611,31 @@
     }
 
     .badge {
-      height: 22px;
+      box-sizing: border-box;
+      min-height: 22px;
+      max-width: 100%;
       border-radius: 11px;
-      padding: 0 10px;
+      padding: 2px 10px;
       display: inline-flex;
       align-items: center;
       gap: 4px;
       font-size: 11px;
       font-weight: 500;
-      flex-shrink: 0;
+      line-height: 16px;
+    }
+
+    .member-chips {
+      min-width: 0;
+      max-width: 100%;
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .badge-label {
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .badge.normal {
@@ -1635,7 +1655,92 @@
       font-size: 8px;
     }
 
+    .badge.medal {
+      border: 1px solid var(--st-color-primary-alpha-55);
+      color: var(--st-color-text-secondary-alt);
+      background: var(--st-color-primary-alpha-08);
+    }
+
+    .badge.medal img {
+      width: 16px;
+      height: 16px;
+      display: block;
+      object-fit: contain;
+      flex: 0 0 auto;
+    }
+
+    .account-medal-tip {
+      width: auto;
+      height: auto;
+      min-width: 0;
+      flex: 0 1 auto;
+      margin: 0;
+      vertical-align: middle;
+    }
+
+    .account-medal-tip .account-medal-popover {
+      left: auto;
+      right: 0;
+      top: calc(100% + 8px);
+      bottom: auto;
+      width: 280px;
+      max-width: min(280px, calc(100vw - 32px));
+      display: grid;
+      gap: 5px;
+      padding: 10px 12px;
+      color: var(--st-color-text-secondary-alt);
+      text-align: left;
+      white-space: normal;
+    }
+
+    .account-medal-tip:hover .account-medal-popover,
+    .account-medal-tip:focus .account-medal-popover {
+      transform: translateY(0);
+    }
+
+    .account-medal-tip .account-medal-popover::before,
+    .account-medal-tip .account-medal-popover::after {
+      left: auto;
+      top: auto;
+      transform: none;
+    }
+
+    .account-medal-tip .account-medal-popover::before {
+      right: 11px;
+      bottom: 100%;
+      border-width: 0 6px 6px;
+      border-color: transparent transparent var(--st-color-steam-blue-alpha-38);
+    }
+
+    .account-medal-tip .account-medal-popover::after {
+      right: 12px;
+      bottom: calc(100% - 1px);
+      border-width: 0 5px 5px;
+      border-color: transparent transparent var(--st-color-bg-input-focus-alt);
+    }
+
+    .account-medal-tooltip-name {
+      color: var(--st-color-white);
+      font-size: 13px;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .account-medal-tooltip-category {
+      color: var(--st-color-primary);
+      font-size: 11px;
+    }
+
+    .account-medal-tooltip-description,
+    .account-medal-tooltip-acquired {
+      color: var(--st-color-text-secondary-alt);
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
     .meta-row,
+    .vip-meta-row,
     .sub-meta {
       color: var(--st-color-text-muted);
       font-size: 13px;
@@ -1648,6 +1753,21 @@
       gap: 6px;
       font-family: "SF Mono", Consolas, monospace;
       margin-bottom: 4px;
+    }
+
+    .vip-meta-row {
+      min-width: 0;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      color: var(--st-color-gold);
+      font-size: 12px;
+    }
+
+    .vip-remaining {
+      color: var(--st-color-text-muted);
     }
 
     .meta-copy {

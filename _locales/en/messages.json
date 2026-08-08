@@ -4300,6 +4300,27 @@
   "settings_account_normalUser": {
     "message": "Standard user"
   },
+  "settings_account_vipValidUntil": {
+    "message": "VIP valid until $date$",
+    "placeholders": {
+      "date": { "content": "$1" }
+    }
+  },
+  "settings_account_vipExpiryUnavailable": {
+    "message": "VIP validity period unavailable"
+  },
+  "settings_account_remainingDays": {
+    "message": "$days$ days remaining",
+    "placeholders": {
+      "days": { "content": "$1" }
+    }
+  },
+  "settings_account_medalAcquiredAt": {
+    "message": "Acquired: $date$",
+    "placeholders": {
+      "date": { "content": "$1" }
+    }
+  },
   "settings_account_joinedDays": {
     "message": "Using Steam Buff for $days$ days",
     "placeholders": {
