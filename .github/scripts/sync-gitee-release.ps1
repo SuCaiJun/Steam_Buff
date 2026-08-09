@@ -110,14 +110,19 @@ try {
   }
 
   $existingNames = @($giteeRelease.assets | ForEach-Object { [string]$_.name })
-  if (Test-Path -LiteralPath $AssetDirectory) {
-    foreach ($asset in @(Get-ChildItem -LiteralPath $AssetDirectory -File | Sort-Object Name)) {
-      if ($existingNames -contains $asset.Name) {
-        Write-Host "Gitee Release asset already exists: $($asset.Name)"
-        continue
-      }
-      Upload-GiteeReleaseAsset $api $token $giteeRelease.id $asset.FullName
+  if (-not (Test-Path -LiteralPath $AssetDirectory -PathType Container)) {
+    throw "正式 Release 附件目录不存在：$AssetDirectory"
+  }
+  $assets = @(Get-ChildItem -LiteralPath $AssetDirectory -File -Filter "*.zip" | Sort-Object Name)
+  if ($assets.Count -ne 2) {
+    throw "正式 Release 必须包含两个 zip 附件，当前为 $($assets.Count) 个。"
+  }
+  foreach ($asset in $assets) {
+    if ($existingNames -contains $asset.Name) {
+      Write-Host "Gitee Release asset already exists: $($asset.Name)"
+      continue
     }
+    Upload-GiteeReleaseAsset $api $token $giteeRelease.id $asset.FullName
   }
 } catch {
   $message = [string]$_.Exception.Message

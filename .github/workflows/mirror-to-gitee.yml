@@ -12,24 +12,27 @@
 name: Mirror GitHub to Gitee
 
 on:
-  push:
-    branches:
-      - "**"
-    tags:
-      - "**"
-  delete:
-  release:
-    types:
-      - published
-      - edited
-      - deleted
+  workflow_call:
+    inputs:
+      release_tag:
+        description: 正式 GitHub Release 标签，例如 v1.0.24
+        required: true
+        type: string
+    secrets:
+      GITEE_TOKEN:
+        required: true
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 正式 GitHub Release 标签，例如 v1.0.24
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: mirror-github-to-gitee
+  group: mirror-formal-github-to-gitee
   cancel-in-progress: false
 
 env:
@@ -38,17 +41,18 @@ env:
 
 jobs:
   mirror-git:
-    name: Mirror branches and tags
+    name: 同步正式 Git refs
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Check out all GitHub refs
+      - name: 检出正式分支和标签
         uses: actions/checkout@v5
         with:
+          ref: main
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Mirror Git refs to Gitee
+      - name: 同步 main 和正式标签到 Gitee
         shell: bash
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
@@ -69,9 +73,10 @@ jobs:
           git update-ref -d refs/remotes/origin/HEAD || true
           : > "$push_specs"
           : > "$github_refs"
+
           while read -r object ref; do
             branch="${ref#refs/remotes/origin/}"
-            if [[ "$branch" == "HEAD" || "$branch" == "beta" ]]; then
+            if [[ "$branch" != "main" ]]; then
               continue
             fi
             printf '%s:%s\n' "$ref" "refs/heads/$branch" >> "$push_specs"
@@ -80,7 +85,7 @@ jobs:
 
           while read -r object ref; do
             tag="${ref#refs/tags/}"
-            if [[ "$tag" == "beta" ]]; then
+            if [[ "$tag" != v* ]]; then
               continue
             fi
             printf '%s:%s\n' "$ref" "refs/tags/$tag" >> "$push_specs"
@@ -95,7 +100,6 @@ jobs:
           fi
           timeout 600s git push --force "$gitee_push_url" "${push_refspecs[@]}"
 
-          # Normalize git ls-remote's tab-separated output before comparing refs.
           timeout 30s git ls-remote --heads --tags "$gitee_push_url" |
             awk '{ print $1 " " $2 }' | sort > "$gitee_refs"
 
@@ -115,38 +119,71 @@ jobs:
           diff -u "$github_refs" "$gitee_refs"
 
   mirror-release:
-    name: Mirror release metadata and assets
-    if: >-
-      github.event_name == 'release' &&
-      (github.event.action == 'deleted' ||
-       (github.event.release.tag_name != 'beta' && github.event.release.prerelease != true))
+    name: 同步正式 Release 和附件
     needs: mirror-git
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
     steps:
-      - name: Check out release sync script
+      - name: 检出正式分支脚本
         uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 1
 
-      - name: Download GitHub Release assets
-        if: github.event.action != 'deleted' && github.event.release.tag_name != 'beta'
+      - name: 下载并验证正式 Release 附件
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/release-assets"
+          if [[ "$RELEASE_TAG" != v* ]]; then
+            echo "拒绝同步非正式标签：$RELEASE_TAG" >&2
+            exit 1
+          fi
+          asset_directory="$RUNNER_TEMP/release-assets"
+          mkdir -p "$asset_directory"
           gh release download "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --dir "$RUNNER_TEMP/release-assets" \
+            --dir "$asset_directory" \
             --clobber
+          zip_count="$(find "$asset_directory" -maxdepth 1 -type f -name '*.zip' | wc -l | tr -d ' ')"
+          if [[ "$zip_count" != "2" ]]; then
+            echo "正式 Release 必须包含两个 zip 附件，实际为 $zip_count 个。" >&2
+            exit 1
+          fi
 
-      - name: Create or update Gitee Release
+      - name: 获取并验证正式 Release 元数据
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_EVENT_PATH: ${{ runner.temp }}\github-release-event.json
+        run: |
+          $ErrorActionPreference = "Stop"
+          $json = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:RELEASE_TAG" | Out-String
+          if ($LASTEXITCODE -ne 0) {
+            throw "无法读取正式 GitHub Release：$env:RELEASE_TAG"
+          }
+          $release = $json | ConvertFrom-Json
+          if ([string]$release.tag_name -ne $env:RELEASE_TAG) {
+            throw "GitHub Release 标签不一致。"
+          }
+          if ([bool]$release.draft -or [bool]$release.prerelease) {
+            throw "拒绝同步草稿或预发布 Release：$env:RELEASE_TAG"
+          }
+          $event = @{ release = $release } | ConvertTo-Json -Depth 20
+          $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllText($env:RELEASE_EVENT_PATH, $event, $utf8NoBom)
+
+      - name: 调用 Gitee 正式 Release 同步服务
         shell: pwsh
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          EVENT_PATH: ${{ runner.temp }}\github-release-event.json
         run: |
+          $ErrorActionPreference = "Stop"
           .github/scripts/sync-gitee-release.ps1 `
-            -EventPath $env:GITHUB_EVENT_PATH `
-            -AssetDirectory "$env:RUNNER_TEMP/release-assets" `
-            -EventAction "${{ github.event.action }}"
+            -EventPath $env:EVENT_PATH `
+            -AssetDirectory "$env:RUNNER_TEMP\release-assets" `
+            -EventAction "published"

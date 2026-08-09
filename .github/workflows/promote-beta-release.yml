@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   promote:
-    name: 发布正式版本并清理 Beta
+    name: 创建正式版本
     if: >-
       (github.event_name == 'pull_request' &&
        github.event.pull_request.merged == true &&
@@ -36,6 +36,8 @@ jobs:
        github.event.pull_request.head.ref == 'beta' &&
        github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    outputs:
+      release_tag: ${{ steps.release_version.outputs.release_tag }}
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -68,6 +70,7 @@ jobs:
           "STEAM_BUFF_CHROME_PATH=$chrome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: 读取正式版本和主分支提交
+        id: release_version
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -79,6 +82,7 @@ jobs:
           $sha = (git rev-parse HEAD).Trim()
           "STEAM_BUFF_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "STEAM_BUFF_TARGET_SHA=$sha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "release_tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: 读取并保存 Beta 累计日志
         shell: pwsh
@@ -118,6 +122,32 @@ jobs:
             -BodyPath "$env:RUNNER_TEMP\steam-buff-beta-notes.md" `
             -AssetDirectory "$env:RUNNER_TEMP\steam-buff-formal-artifacts" `
             -TargetCommit $env:STEAM_BUFF_TARGET_SHA
+
+  sync-gitee:
+    name: 正式 Release 完成后同步 Gitee
+    needs: promote
+    if: needs.promote.result == 'success'
+    uses: ./.github/workflows/mirror-to-gitee.yml
+    with:
+      release_tag: ${{ needs.promote.outputs.release_tag }}
+    secrets: inherit
+
+  cleanup-beta:
+    name: Gitee 同步成功后清理 Beta
+    needs: sync-gitee
+    if: needs.sync-gitee.result == 'success'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: 检出主分支脚本
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 1
 
       - name: 删除 Beta Release 和标签
         shell: pwsh
