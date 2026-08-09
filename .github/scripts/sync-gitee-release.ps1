@@ -1,6 +1,18 @@
+<#
+ * @Author        : 顾青离
+ * @Url           : sucaijun.com
+ * @Email         : Ricky@LiHai.La
+ * @Project       : Steam Buff
+ * @Description   : GitHub 正式 Release 到 Gitee 的同步与 Beta 清理
+ * @File          : sync-gitee-release.ps1
+ * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+ * @Remind        : 二次开发请保留原版权信息，谢谢。
+#>
+
 param(
   [Parameter(Mandatory = $true)][string]$EventPath,
-  [Parameter(Mandatory = $true)][string]$AssetDirectory
+  [Parameter(Mandatory = $true)][string]$AssetDirectory,
+  [string]$EventAction = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,6 +58,13 @@ function Upload-GiteeReleaseAsset($api, $token, $releaseId, $asset) {
   $output | ConvertFrom-Json | Out-Null
 }
 
+function Remove-GiteeRelease($api, $token, $release) {
+  if ($release) {
+    Invoke-GiteeApi "DELETE" "$api/releases/$($release.id)" $token | Out-Null
+    Write-Host "Removed Gitee Release: $($release.tag_name)"
+  }
+}
+
 $token = ([string]$env:GITEE_TOKEN).Trim()
 if (-not $token) {
   throw "GITEE_TOKEN is not configured."
@@ -66,6 +85,14 @@ try {
     throw "GitHub Release tag is empty."
   }
 
+  $giteeRelease = Find-GiteeRelease $api $token $tag
+  $isBeta = $tag -eq "beta" -or [bool]$githubRelease.prerelease
+  if ($EventAction -eq "deleted" -or $isBeta) {
+    Remove-GiteeRelease $api $token $giteeRelease
+    Write-Host "Skipped Gitee Release for non-formal tag: $tag"
+    exit 0
+  }
+
   $payload = @{
     tag_name = $tag
     target_commitish = ([string]$githubRelease.target_commitish).Trim()
@@ -74,7 +101,6 @@ try {
     prerelease = ([bool]$githubRelease.prerelease).ToString().ToLowerInvariant()
   }
 
-  $giteeRelease = Find-GiteeRelease $api $token $tag
   if ($giteeRelease) {
     Write-Host "Updating Gitee Release: $tag"
     $giteeRelease = Invoke-GiteeApi "PATCH" "$api/releases/$($giteeRelease.id)" $token $payload

@@ -1,0 +1,129 @@
+#
+# @Author        : 顾青离
+# @Url           : sucaijun.com
+# @Email         : Ricky@LiHai.La
+# @Project       : Steam Buff
+# @Description   : Beta 合并主分支后的正式发布
+# @File          : promote-beta-release.yml
+# @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+# @Remind        : 二次开发请保留原版权信息，谢谢。
+#
+
+name: Beta 晋级正式版
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: steam-buff-formal-release
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: 发布正式版本并清理 Beta
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.merged == true &&
+       github.event.pull_request.base.ref == 'main' &&
+       github.event.pull_request.head.ref == 'beta' &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      GITHUB_REPOSITORY: ${{ github.repository }}
+
+    steps:
+      - name: 检出最新主分支
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: 安装并定位 Chrome
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $candidates = @(
+            "C:\Program Files\Google\Chrome\Application\chrome.exe",
+            "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+          )
+          $chrome = @($candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+          if (-not $chrome) {
+            choco install googlechrome --no-progress -y
+            $chrome = @($candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+          }
+          if (-not $chrome) {
+            throw "找不到 Chrome，无法生成 CRX。"
+          }
+          "STEAM_BUFF_CHROME_PATH=$chrome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: 读取正式版本和主分支提交
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $manifest = Get-Content -LiteralPath manifest.json -Raw | ConvertFrom-Json
+          $version = ([string]$manifest.version).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "manifest.json 版本号不是三段式版本：$version"
+          }
+          $sha = (git rev-parse HEAD).Trim()
+          "STEAM_BUFF_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "STEAM_BUFF_TARGET_SHA=$sha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: 读取并保存 Beta 累计日志
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          pwsh -NoProfile -File .github/scripts/github-release.ps1 `
+            -Action ExportNotes `
+            -Tag beta `
+            -OutputBodyPath "$env:RUNNER_TEMP\steam-buff-beta-notes.md"
+
+      - name: 构建两个正式版压缩包
+        shell: pwsh
+        env:
+          STEAM_BUFF_PEM_BASE64: ${{ secrets.STEAM_BUFF_PEM_BASE64 }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          pwsh -NoProfile -File .github/scripts/build-release-artifacts.ps1 `
+            -RepositoryRoot $env:GITHUB_WORKSPACE `
+            -OutputDirectory "$env:RUNNER_TEMP\steam-buff-formal-artifacts" `
+            -Version $env:STEAM_BUFF_VERSION `
+            -Channel formal `
+            -ChromePath $env:STEAM_BUFF_CHROME_PATH
+
+      - name: 创建正式 Release
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          pwsh -NoProfile -File .github/scripts/github-release.ps1 `
+            -Action Publish `
+            -Tag "v$env:STEAM_BUFF_VERSION" `
+            -Name "Steam Buff v$env:STEAM_BUFF_VERSION 正式版" `
+            -BodyPath "$env:RUNNER_TEMP\steam-buff-beta-notes.md" `
+            -AssetDirectory "$env:RUNNER_TEMP\steam-buff-formal-artifacts" `
+            -TargetCommit $env:STEAM_BUFF_TARGET_SHA
+
+      - name: 删除 Beta Release 和标签
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          pwsh -NoProfile -File .github/scripts/github-release.ps1 `
+            -Action Delete `
+            -Tag beta

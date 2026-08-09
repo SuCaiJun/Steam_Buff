@@ -1,3 +1,14 @@
+#
+# @Author        : 顾青离
+# @Url           : sucaijun.com
+# @Email         : Ricky@LiHai.La
+# @Project       : Steam Buff
+# @Description   : GitHub 正式内容到 Gitee 的镜像工作流
+# @File          : mirror-to-gitee.yml
+# @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+# @Remind        : 二次开发请保留原版权信息，谢谢。
+#
+
 name: Mirror GitHub to Gitee
 
 on:
@@ -11,6 +22,7 @@ on:
     types:
       - published
       - edited
+      - deleted
   workflow_dispatch:
 
 permissions:
@@ -46,6 +58,7 @@ jobs:
 
           github_refs="$RUNNER_TEMP/github.refs"
           gitee_refs="$RUNNER_TEMP/gitee.refs"
+          push_specs="$RUNNER_TEMP/gitee.push-specs"
 
           encoded_token="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["GITEE_TOKEN"], safe=""))')"
           gitee_push_url="https://${GITEE_USER}:${encoded_token}@gitee.com/${GITEE_REPOSITORY}.git"
@@ -54,23 +67,59 @@ jobs:
           export GIT_HTTP_LOW_SPEED_TIME=30
 
           git update-ref -d refs/remotes/origin/HEAD || true
-          timeout 600s git push --force --prune "$gitee_push_url" \
-            'refs/remotes/origin/*:refs/heads/*' \
-            'refs/tags/*:refs/tags/*'
+          : > "$push_specs"
+          : > "$github_refs"
+          while read -r object ref; do
+            branch="${ref#refs/remotes/origin/}"
+            if [[ "$branch" == "HEAD" || "$branch" == "beta" ]]; then
+              continue
+            fi
+            printf '%s:%s\n' "$ref" "refs/heads/$branch" >> "$push_specs"
+            printf '%s refs/heads/%s\n' "$object" "$branch" >> "$github_refs"
+          done < <(git for-each-ref --format='%(objectname) %(refname)' refs/remotes/origin)
 
-          {
-            git for-each-ref --format='%(objectname) %(refname)' refs/remotes/origin | \
-              sed 's# refs/remotes/origin/# refs/heads/#'
-            git for-each-ref --format='%(objectname) %(refname)' refs/tags
-          } | sort > "$github_refs"
+          while read -r object ref; do
+            tag="${ref#refs/tags/}"
+            if [[ "$tag" == "beta" ]]; then
+              continue
+            fi
+            printf '%s:%s\n' "$ref" "refs/tags/$tag" >> "$push_specs"
+            printf '%s refs/tags/%s\n' "$object" "$tag" >> "$github_refs"
+          done < <(git for-each-ref --format='%(objectname) %(refname)' refs/tags)
+
+          sort -o "$github_refs" "$github_refs"
+          mapfile -t push_refspecs < "$push_specs"
+          if [[ "${#push_refspecs[@]}" -eq 0 ]]; then
+            echo "没有可同步的正式分支或标签。" >&2
+            exit 1
+          fi
+          timeout 600s git push --force "$gitee_push_url" "${push_refspecs[@]}"
+
           # Normalize git ls-remote's tab-separated output before comparing refs.
+          timeout 30s git ls-remote --heads --tags "$gitee_push_url" |
+            awk '{ print $1 " " $2 }' | sort > "$gitee_refs"
+
+          mapfile -t stale_refs < <(comm -23 \
+            <(awk '{ print $2 }' "$gitee_refs" | sort) \
+            <(awk '{ print $2 }' "$github_refs" | sort))
+          if [[ "${#stale_refs[@]}" -gt 0 ]]; then
+            delete_refspecs=()
+            for ref in "${stale_refs[@]}"; do
+              delete_refspecs+=(":$ref")
+            done
+            timeout 600s git push "$gitee_push_url" "${delete_refspecs[@]}"
+          fi
+
           timeout 30s git ls-remote --heads --tags "$gitee_push_url" |
             awk '{ print $1 " " $2 }' | sort > "$gitee_refs"
           diff -u "$github_refs" "$gitee_refs"
 
   mirror-release:
     name: Mirror release metadata and assets
-    if: github.event_name == 'release'
+    if: >-
+      github.event_name == 'release' &&
+      (github.event.action == 'deleted' ||
+       (github.event.release.tag_name != 'beta' && github.event.release.prerelease != true))
     needs: mirror-git
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -79,6 +128,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Download GitHub Release assets
+        if: github.event.action != 'deleted' && github.event.release.tag_name != 'beta'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -98,4 +148,5 @@ jobs:
         run: |
           .github/scripts/sync-gitee-release.ps1 `
             -EventPath $env:GITHUB_EVENT_PATH `
-            -AssetDirectory "$env:RUNNER_TEMP/release-assets"
+            -AssetDirectory "$env:RUNNER_TEMP/release-assets" `
+            -EventAction "${{ github.event.action }}"
