@@ -37,28 +37,95 @@ if ($manifestVersion -ne $Version.Trim()) {
   throw "传入版本与 manifest.json 不一致：$Version / $manifestVersion"
 }
 
+function Get-CommitTitle([string]$subject) {
+  $text = $subject.Trim()
+  if ($text -match '^(?<title>[^\s:：]{1,3})\s*[:：]') {
+    return $Matches.title
+  }
+  if ($text -match '^(?<title>修复|fix)(?:\s+|$)') {
+    return $Matches.title
+  }
+  if ($text -match '^(?<title>新增|功能|完善|重构|优化|移除|调整|文档)(?:\s+|$)') {
+    return $Matches.title
+  }
+  return ""
+}
+
+function Get-CommitCategory([string]$title) {
+  switch ($title) {
+    "新增" { return "新增" }
+    "功能" { return "新增" }
+    "完善" { return "新增" }
+    "重构" { return "重构" }
+    "优化" { return "优化" }
+    "修复" { return "修复" }
+    "fix" { return "修复" }
+    "移除" { return "移除" }
+    "调整" { return "调整" }
+    "文档" { return "文档" }
+    "其他" { return "其他" }
+    default {
+      if ($title) {
+        return $title
+      }
+      return "其他"
+    }
+  }
+}
+
 $range = "$baseCommit..$headCommit"
 $commits = @(Invoke-Git @("log", "--first-parent", "--reverse", "--format=%h%x09%s", $range))
-$title = if ($Channel -eq "beta") { "Steam Buff Beta 更新日志" } else { "Steam Buff v$Version 更新日志" }
+$title = if ($Channel -eq "beta") { "Beta 更新日志" } else { "v$Version 更新日志" }
+$categoryOrder = @("新增", "重构", "优化", "修复", "移除", "调整")
+$dynamicCategories = [System.Collections.Generic.List[string]]::new()
+$groups = @{}
+foreach ($category in @($categoryOrder + @("文档", "其他"))) {
+  $groups[$category] = [System.Collections.Generic.List[string]]::new()
+}
+
+foreach ($commit in $commits) {
+  $parts = $commit -split "`t", 2
+  $subject = if ($parts.Count -gt 1) { $parts[1].Trim() } else { "未读取到提交标题" }
+  $commitTitle = Get-CommitTitle $subject
+  $category = Get-CommitCategory $commitTitle
+  if (-not $groups.ContainsKey($category)) {
+    $groups[$category] = [System.Collections.Generic.List[string]]::new()
+    if (-not $dynamicCategories.Contains($category)) {
+      $dynamicCategories.Add($category)
+    }
+  }
+  $groups[$category].Add($subject)
+}
+
+$renderOrder = @($categoryOrder + $dynamicCategories.ToArray() + @("文档", "其他"))
 $lines = [System.Collections.Generic.List[string]]::new()
-$lines.Add("# $title")
+$lines.Add("**$title**")
 $lines.Add("")
-$lines.Add("- 版本：$Version")
-$lines.Add("- 构建提交：$headCommit")
-$lines.Add("- 生成时间：$((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss')) UTC")
+$lines.Add("版本：$Version  ")
+$lines.Add("构建提交：$headCommit  ")
+$lines.Add("生成时间：$((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss')) UTC")
 $lines.Add("")
-$lines.Add("## 累计变更")
+$lines.Add("---")
 $lines.Add("")
 
-if ($commits.Count -eq 0) {
-  $lines.Add("- 本次范围内没有新的提交记录")
-} else {
-  foreach ($commit in $commits) {
-    $parts = $commit -split "`t", 2
-    $shortHash = $parts[0].Trim()
-    $subject = if ($parts.Count -gt 1) { $parts[1].Trim() } else { "未读取到提交标题" }
-    $lines.Add(('- ' + '`' + $shortHash + '` ' + $subject))
+$hasChanges = $false
+foreach ($category in $renderOrder) {
+  if ($groups[$category].Count -eq 0) {
+    continue
   }
+  $hasChanges = $true
+  $lines.Add("## $category")
+  $lines.Add("")
+  foreach ($subject in $groups[$category]) {
+    $lines.Add("- $subject")
+  }
+  $lines.Add("")
+}
+
+if (-not $hasChanges) {
+  $lines.Add("## 其他")
+  $lines.Add("")
+  $lines.Add("- 本次范围内没有新的提交记录")
 }
 
 $outputParent = Split-Path -Parent $OutputPath

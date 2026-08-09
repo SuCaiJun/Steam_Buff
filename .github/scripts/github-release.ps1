@@ -15,6 +15,7 @@ param(
   [string]$Name = "",
   [string]$BodyPath = "",
   [string]$OutputBodyPath = "",
+  [string]$Title = "",
   [string]$AssetDirectory = "",
   [string]$TargetCommit = "",
   [switch]$Prerelease
@@ -153,12 +154,38 @@ function Export-ReleaseNotes {
   if ($Tag -eq "beta" -and -not [bool]$release.prerelease) {
     throw "beta Release 不是预发布状态，拒绝作为正式日志来源。"
   }
+  $body = [string]$release.body
+  if ($Title) {
+    $bodyLines = @($body -split "`r?`n")
+    $firstContentIndex = -1
+    for ($index = 0; $index -lt $bodyLines.Count; $index++) {
+      if (-not [string]::IsNullOrWhiteSpace($bodyLines[$index])) {
+        $firstContentIndex = $index
+        break
+      }
+    }
+    $hasRecognizedTitle = $firstContentIndex -ge 0 -and $bodyLines[$firstContentIndex] -match '^\s*(?:#\s+.+|\*\*.+\*\*)\s*$'
+    if ($hasRecognizedTitle) {
+      $bodyLines[$firstContentIndex] = "**$Title**"
+      $body = (($bodyLines -join [Environment]::NewLine).TrimEnd() + [Environment]::NewLine)
+    } else {
+      $fallbackLines = @(
+        "**$Title**",
+        "",
+        "---",
+        "",
+        "## 其他",
+        ""
+      ) + $bodyLines
+      $body = (($fallbackLines -join [Environment]::NewLine).TrimEnd() + [Environment]::NewLine)
+    }
+  }
   $parent = Split-Path -Parent $OutputBodyPath
   if (-not (Test-Path -LiteralPath $parent)) {
     New-Item -ItemType Directory -Path $parent -Force | Out-Null
   }
   $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-  [System.IO.File]::WriteAllText($OutputBodyPath, ([string]$release.body), $utf8NoBom)
+  [System.IO.File]::WriteAllText($OutputBodyPath, $body, $utf8NoBom)
   Write-Output "已导出 Release 日志：$OutputBodyPath"
 }
 

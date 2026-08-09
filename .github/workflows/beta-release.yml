@@ -107,7 +107,7 @@ jobs:
           pwsh -NoProfile -File .github/scripts/github-release.ps1 `
             -Action Publish `
             -Tag beta `
-            -Name "Steam Buff Beta 开发版" `
+            -Name "Beta" `
             -BodyPath "$env:RUNNER_TEMP\steam-buff-beta-notes.md" `
             -AssetDirectory "$env:RUNNER_TEMP\steam-buff-beta-artifacts" `
             -TargetCommit $env:GITHUB_SHA `
