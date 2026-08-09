@@ -112,12 +112,13 @@ foreach ($commit in $commits) {
 }
 
 $renderOrder = @($categoryOrder + $dynamicCategories.ToArray() + @("文档", "其他"))
+$beijingTime = [DateTimeOffset]::UtcNow.ToOffset([TimeSpan]::FromHours(8))
 $lines = [System.Collections.Generic.List[string]]::new()
-$lines.Add("**$title**")
+$lines.Add("# $title")
 $lines.Add("")
 $lines.Add("版本：$Version  ")
 $lines.Add("构建提交：$headCommit  ")
-$lines.Add("生成时间：$((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss')) UTC")
+$lines.Add("生成时间：$($beijingTime.ToString('yyyy-MM-dd HH:mm:ss')) UTC+8")
 $lines.Add("")
 $lines.Add("---")
 $lines.Add("")

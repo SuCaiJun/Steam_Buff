@@ -247,8 +247,8 @@
     return roundedPrice(amount / (1 - percent / 100));
   }
 
-  function pageGameName(documentRef, itemType) {
-    if (text(itemType) !== "app") return "";
+  function pageGameName(documentRef, itemType, pageInfo = {}) {
+    if (text(itemType) !== "app" && !text(pageInfo.parentAppId)) return "";
     return text(documentRef?.querySelector?.("#appHubAppName_responsive")?.textContent);
   }
 
@@ -315,7 +315,7 @@
     return {
       game: {
         "APPID": text(pack.appid || item.id),
-        "游戏名称": pageGameName(documentRef, item.type),
+        "游戏名称": pageGameName(documentRef, item.type, pageInfo),
         "商品类型": item.type,
         "发行日期": text(pack.releaseDate),
         "预测生成时间": beijingTime(now),

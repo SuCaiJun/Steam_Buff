@@ -517,20 +517,66 @@
     aiForecast?.render?.(root, wrap, result, pageInfo);
   }
 
-  function renderRangeControls(root, months = DEFAULT_RANGE_MONTHS, enabled = true) {
-    const controls = root.querySelector(".st-data-display-range");
-    if (!sectionEnabled(root, "chartEnabled")) return;
-    if (!controls) return;
-    const brandLockup = noTranslate(el("div", "st-data-display-range__brand-lockup"));
-    const brand = api.assets.createBrandMark({ className: "st-data-display-range__brand" });
-    const slogan = el("div", "st-data-display-range__slogan");
-    ["ENHANCE", "TRACK", "SAVE"].forEach((label, index) => {
-      if (index > 0) slogan.appendChild(el("span", "st-data-display-range__slogan-separator", "·"));
-      slogan.appendChild(el("b", "st-data-display-range__slogan-keyword", label));
+  function productOptionsState(root) {
+    const state = root?.__stProductOptionsState;
+    if (!state || !Array.isArray(state.options)) return null;
+    return state;
+  }
+
+  function renderProductSelector(root, enabled = true) {
+    const state = productOptionsState(root);
+    if (!state || !state.options.length) return null;
+    const select = el("select", "st-data-display-range__product-select");
+    select.setAttribute("aria-label", i18n("store.dataDisplay.productSelector", "选择 Steam 商品版本"));
+    state.options.forEach((item) => {
+      const option = el("option", "", text(item.name));
+      option.value = String(item.id);
+      option.title = text(item.name);
+      option.selected = String(item.id) === String(state.selectedId);
+      select.appendChild(option);
     });
-    brandLockup.append(brand, slogan);
-    const actions = el("div", "st-data-display-range__actions");
-    controls.replaceChildren(brandLockup, actions);
+    select.value = String(state.selectedId);
+    select.title = text(state.options.find(item => String(item.id) === String(state.selectedId))?.name);
+    select.disabled = !enabled || state.options.length <= 1;
+    select.addEventListener("change", () => {
+      root.__stDataDisplaySelectProduct?.(select.value);
+    });
+    return select;
+  }
+
+  function renderProductOptions(root, options = [], selectedId = "", onChange = null) {
+    const normalized = (Array.isArray(options) ? options : [])
+      .map(item => ({ id: String(item?.id || ""), name: text(item?.name) }))
+      .filter(item => /^\d+$/.test(item.id) && item.name);
+    root.__stProductOptionsState = {
+      options: normalized,
+      selectedId: String(selectedId || normalized[0]?.id || ""),
+    };
+    root.__stDataDisplaySelectProduct = typeof onChange === "function" ? onChange : null;
+    const state = root.__stChartState || {};
+    if (sectionEnabled(root, "chartEnabled") && root.querySelector(".st-data-display-range")) {
+      renderRangeControls(
+        root,
+        Number.isFinite(Number(state.months)) ? Number(state.months) : DEFAULT_RANGE_MONTHS,
+        root.dataset.state === "ready",
+      );
+    }
+  }
+
+  function chartRangeContainer(root) {
+    const row = root.querySelector(".st-data-display__chart-row");
+    if (!row) return null;
+    let container = row.querySelector(".st-data-display__chart-range");
+    if (!container) {
+      container = el("div", "st-data-display__chart-range");
+      row.appendChild(container);
+    }
+    return container;
+  }
+
+  function renderChartRangeControls(container, root, months, enabled) {
+    if (!container) return;
+    container.replaceChildren();
     RANGE_OPTIONS.forEach((item) => {
       const button = el("button", "st-data-display-range__button", i18n(item.key, item.fallback));
       button.type = "button";
@@ -544,8 +590,32 @@
           void selectChartRange(root, item.months);
         });
       }
-      actions.appendChild(button);
+      container.appendChild(button);
     });
+  }
+
+  function renderRangeControls(root, months = DEFAULT_RANGE_MONTHS, enabled = true) {
+    const controls = root.querySelector(".st-data-display-range");
+    if (!sectionEnabled(root, "chartEnabled")) return;
+    if (!controls) return;
+    const brandLockup = noTranslate(el("div", "st-data-display-range__brand-lockup"));
+    const brand = api.assets.createBrandMark({ className: "st-data-display-range__brand" });
+    const slogan = el("div", "st-data-display-range__slogan");
+    ["ENHANCE", "TRACK", "SAVE"].forEach((label, index) => {
+      if (index > 0) slogan.appendChild(el("span", "st-data-display-range__slogan-separator", "·"));
+      slogan.appendChild(el("b", "st-data-display-range__slogan-keyword", label));
+    });
+    brandLockup.append(brand, slogan);
+    const actions = el("div", "st-data-display-range__actions");
+    const productSelector = renderProductSelector(
+      root,
+      productOptionsState(root)?.options.length > 1
+        && root.dataset.state !== "unsupported"
+        && root.dataset.state !== "error",
+    );
+    if (productSelector) actions.appendChild(productSelector);
+    controls.replaceChildren(brandLockup, actions);
+    renderChartRangeControls(chartRangeContainer(root), root, months, enabled);
   }
 
   function renderChart(root) {
@@ -556,7 +626,6 @@
     const months = Number.isFinite(Number(state.months)) ? Number(state.months) : DEFAULT_RANGE_MONTHS;
     const summary = priceSummary(state.result || {}, state.pageInfo || {});
     row.replaceChildren();
-    renderRangeControls(root, months, true);
     const host = el("div", "st-data-display__chart-host");
     const chart = summary.chartSeries?.length
       ? charts?.createMultiSeriesChart?.(summary.chartSeries, {
@@ -567,6 +636,7 @@
       : charts?.createPriceChart?.(summary.historyEvents, { months });
     host.appendChild(chart || el("div", "st-data-display-chart--empty", i18n("store.priceChart.emptyHistory", "暂无历史价格数据")));
     row.appendChild(host);
+    renderRangeControls(root, months, true);
   }
 
   async function selectChartRange(root, months) {
@@ -583,8 +653,8 @@
     }
     state.allAttempted = true;
     const row = root.querySelector(".st-data-display__chart-row");
-    renderRangeControls(root, months, false);
     row?.replaceChildren(charts?.createSkeleton?.() || el("div", "st-data-display-chart--empty", i18n("store.dataDisplay.loadingRates", "正在加载汇率")));
+    renderRangeControls(root, months, false);
     const updated = await api.thirdPartyData?.ensureStorePriceChartRates?.(state.result, { months: 0 });
     if (!root.isConnected || root.__stChartState !== state) return;
     if (updated) state.result = updated;
@@ -594,9 +664,10 @@
   function renderLoading(root) {
     root.dataset.state = "loading";
     if (sectionEnabled(root, "chartEnabled")) {
-      root.querySelector(".st-data-display-range")?.replaceChildren();
+      const state = root.__stChartState || {};
       const row = root.querySelector(".st-data-display__chart-row");
       row?.replaceChildren(charts?.createSkeleton?.() || el("div", "st-data-display-chart--empty", i18n("common.loading", "正在加载")));
+      renderRangeControls(root, Number.isFinite(Number(state.months)) ? Number(state.months) : DEFAULT_RANGE_MONTHS, false);
     }
     if (sectionEnabled(root, "forecastEnabled")) {
       renderForecastReferences(root, {}, {});
@@ -606,10 +677,11 @@
   function renderNonReady(root, state, message) {
     root.dataset.state = state;
     if (sectionEnabled(root, "chartEnabled")) {
-      renderRangeControls(root, DEFAULT_RANGE_MONTHS, false);
+      const chartState = root.__stChartState || {};
       const row = root.querySelector(".st-data-display__chart-row");
       const fallback = i18n("store.priceChart.emptyHistory", "暂无历史价格数据");
       row?.replaceChildren(charts?.createEmpty?.(message || fallback) || el("div", "st-data-display-chart--empty", message || fallback));
+      renderRangeControls(root, Number.isFinite(Number(chartState.months)) ? Number(chartState.months) : DEFAULT_RANGE_MONTHS, false);
     }
     if (sectionEnabled(root, "forecastEnabled")) {
       renderForecastReferences(root, {}, {});
@@ -620,14 +692,21 @@
     const summary = priceSummary(result, pageInfo);
     root.dataset.state = "ready";
     if (sectionEnabled(root, "chartEnabled")) {
+      const previous = root.__stChartState || {};
       root.__stChartState = {
         result,
         pageInfo,
-        months: DEFAULT_RANGE_MONTHS,
-        hiddenSeries: new Set(),
+        months: Number.isFinite(Number(previous.months)) ? Number(previous.months) : DEFAULT_RANGE_MONTHS,
+        hiddenSeries: previous.hiddenSeries instanceof Set ? previous.hiddenSeries : new Set(),
         allAttempted: result?.data?.exchange?.loadedMonths === 0,
       };
       renderChart(root);
+      if (
+        root.__stChartState.months === 0
+        && root.__stChartState.result?.data?.exchange?.loadedMonths !== 0
+      ) {
+        void selectChartRange(root, 0);
+      }
     }
     if (sectionEnabled(root, "forecastEnabled")) {
       renderForecastReferences(root, result, pageInfo);
@@ -651,6 +730,7 @@
   api.features.dataDisplayView = Object.freeze({
     createShell,
     renderState,
+    renderProductOptions,
     renderForecastState: renderForecastReferences,
     currentDeal,
     lowDeal,

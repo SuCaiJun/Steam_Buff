@@ -27,6 +27,9 @@
   const FESTIVAL_DEFAULT_AFTER_MONTHS = 12;
   const FESTIVAL_MAX_MONTHS = 60;
   const FESTIVAL_CACHE_TTL_MS = 5 * 60 * 1000;
+  const STEAM_PRODUCT_OPTIONS_CACHE = new Map();
+  const STEAM_PRODUCT_OPTIONS_PENDING = new Map();
+  const STEAM_PRODUCT_OPTIONS_MAX_CACHE = 32;
   const log = globalThis.STLoggerFactory?.createLogger?.("store", "third-party-data") || null;
 
   function text(value) {
@@ -490,6 +493,136 @@
     }
   }
 
+  function steamCountry(options = {}) {
+    const raw = text(options.country || options.pageCountry || "CN").toUpperCase();
+    return /^[A-Z]{2}$/.test(raw) ? raw : "CN";
+  }
+
+  function steamProductOptionsKey(appid, country) {
+    return `${appid}:${country}`;
+  }
+
+  function steamProductOptionsError(code, message) {
+    const error = new Error(message);
+    error.code = code;
+    error.retryable = false;
+    return error;
+  }
+
+  function steamProductOptionsResponse(data, appid) {
+    const entry = data?.[String(appid)];
+    if (
+      !entry
+      || entry.success !== true
+      || !entry.data
+      || typeof entry.data !== "object"
+      || Array.isArray(entry.data)
+      || !Array.isArray(entry.data.package_groups)
+      || !entry.data.package_groups.every(group => group && typeof group === "object" && !Array.isArray(group))
+    ) {
+      throw steamProductOptionsError("STEAM_PRODUCT_OPTIONS_RESPONSE_INVALID", "Steam 商品版本响应格式异常。");
+    }
+    const groups = entry.data.package_groups;
+    const defaultGroups = groups.filter(group => text(group.name) === "default");
+    if (defaultGroups.length !== 1 || !Array.isArray(defaultGroups[0].subs)) {
+      throw steamProductOptionsError("STEAM_PRODUCT_OPTIONS_RESPONSE_INVALID", "Steam 商品版本组响应格式异常。");
+    }
+    const seen = new Set();
+    const subs = defaultGroups[0].subs.map((item) => {
+      const id = Number(item?.packageid);
+      if (!Number.isInteger(id) || id <= 0 || seen.has(id)) {
+        throw steamProductOptionsError("STEAM_PRODUCT_OPTIONS_RESPONSE_INVALID", "Steam 商品版本 ID 响应格式异常。");
+      }
+      seen.add(id);
+      return id;
+    });
+    if (!subs.length) {
+      throw steamProductOptionsError("STEAM_PRODUCT_OPTIONS_EMPTY", "Steam 页面没有可选择的商品版本。");
+    }
+    return subs;
+  }
+
+  async function steamProductDetails(subid, country) {
+    const url = globalThis.STConfig?.vendors?.steamStore?.packageDetailsForCountry?.(subid, country, "schinese");
+    if (!url || typeof api.net?.sendRequest !== "function") {
+      throw steamProductOptionsError("STEAM_PRODUCT_OPTIONS_UNAVAILABLE", "Steam 商品详情服务未初始化。");
+    }
+    const data = await api.net.sendRequest({
+      url,
+      method: "GET",
+      headers: { Accept: "application/json" },
+      parseJSON: true,
+      timeoutMs: 12_000,
+      retries: 1,
+      messageType: "steam-product-options-packagedetails",
+      service: "steam-store",
+      endpointKey: "packagedetails-product-options",
+      logUrl: "steam-store://packagedetails-product-options",
+      logParams: { itemType: "sub", itemId: subid, country },
+    });
+    const entry = data?.[String(subid)];
+    const name = text(entry?.data?.name);
+    if (entry?.success !== true || !entry.data || typeof entry.data !== "object" || Array.isArray(entry.data) || !name) {
+      throw steamProductOptionsError("STEAM_PRODUCT_OPTIONS_RESPONSE_INVALID", "Steam 商品版本名称响应格式异常。");
+    }
+    return { type: "sub", id: subid, name };
+  }
+
+  async function getSteamProductOptions(pageInfo = {}, options = {}) {
+    const appid = numericPageId(pageInfo);
+    if (text(pageInfo.type).toLowerCase() !== "app" || appid <= 0) {
+      throw steamProductOptionsError("STEAM_PRODUCT_OPTIONS_PAGE_INVALID", "当前页面不是有效的 Steam App 页面。");
+    }
+    const country = steamCountry(options);
+    const key = steamProductOptionsKey(appid, country);
+    const cached = STEAM_PRODUCT_OPTIONS_CACHE.get(key);
+    if (cached) return cached;
+    const active = STEAM_PRODUCT_OPTIONS_PENDING.get(key);
+    if (active) return active;
+    const task = (async () => {
+      const url = globalThis.STConfig?.vendors?.steamStore?.appDetailsForCountry?.(
+        appid,
+        country,
+        "price_overview,package_groups,packages",
+        "schinese",
+      );
+      if (!url || typeof api.net?.sendRequest !== "function") {
+        throw steamProductOptionsError("STEAM_PRODUCT_OPTIONS_UNAVAILABLE", "Steam 商品版本服务未初始化。");
+      }
+      const data = await api.net.sendRequest({
+        url,
+        method: "GET",
+        headers: { Accept: "application/json" },
+        parseJSON: true,
+        timeoutMs: 12_000,
+        retries: 1,
+        messageType: "steam-product-options-appdetails",
+        service: "steam-store",
+        endpointKey: "appdetails-product-options",
+        logUrl: "steam-store://appdetails-product-options",
+        logParams: { itemType: "app", itemId: appid, country },
+      });
+      const subs = steamProductOptionsResponse(data, appid);
+      const items = [];
+      for (let offset = 0; offset < subs.length; offset += 3) {
+        const batch = await Promise.all(subs.slice(offset, offset + 3).map(subid => steamProductDetails(subid, country)));
+        items.push(...batch);
+      }
+      const result = Object.freeze({ appid, country, items: Object.freeze(items) });
+      STEAM_PRODUCT_OPTIONS_CACHE.set(key, result);
+      while (STEAM_PRODUCT_OPTIONS_CACHE.size > STEAM_PRODUCT_OPTIONS_MAX_CACHE) {
+        STEAM_PRODUCT_OPTIONS_CACHE.delete(STEAM_PRODUCT_OPTIONS_CACHE.keys().next().value);
+      }
+      return result;
+    })();
+    STEAM_PRODUCT_OPTIONS_PENDING.set(key, task);
+    try {
+      return await task;
+    } finally {
+      if (STEAM_PRODUCT_OPTIONS_PENDING.get(key) === task) STEAM_PRODUCT_OPTIONS_PENDING.delete(key);
+    }
+  }
+
   async function getPricePack(pageInfo = {}, options = {}) {
     const status = await statusFor("prices", options);
     if (status.state) return status.state;
@@ -756,7 +889,10 @@
     if (text(pageInfo.type).toLowerCase() !== "app" || appid <= 0) {
       return getPricePack(pageInfo, options);
     }
-    const items = provider.normalizeSteamItems([{ type: "app", id: appid }]);
+    const requestedItems = Array.isArray(options.items) && options.items.length
+      ? options.items
+      : [{ type: "app", id: appid }];
+    const items = provider.normalizeSteamItems(requestedItems);
     const mainCountry = text(config.isthereanydeal?.country).toLowerCase() === "auto"
       ? text(options.pageCountry || "CN").toUpperCase()
       : text(config.isthereanydeal?.country || "CN").toUpperCase();
@@ -960,6 +1096,7 @@
     getProviderStatus,
     testProvider,
     getPricePack,
+    getSteamProductOptions,
     getStorePriceChartPack,
     ensureStorePriceChartRates,
     getPriceHistory,
