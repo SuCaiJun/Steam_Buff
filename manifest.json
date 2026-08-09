@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "1.0.21",
+  "version": "1.0.24",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -314,6 +314,7 @@
         "images/features/data-display-enhancements.svg",
         "images/features/search-suggestions.svg",
         "images/features/store-title-custom-name.svg",
+        "images/features/library-group-labels.svg",
         "images/features/cart-select.svg",
         "images/features/review-filter.svg",
         "images/features/translate.svg",

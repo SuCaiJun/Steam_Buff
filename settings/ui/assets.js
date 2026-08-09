@@ -22,6 +22,7 @@
     "data-display-enhancements": "images/features/data-display-enhancements.svg",
     "search-suggestions": "images/features/search-suggestions.svg",
     "library-sort-title": "images/features/store-title-custom-name.svg",
+    "library-group-labels": "images/features/library-group-labels.svg",
     "store-title-custom-name": "images/features/store-title-custom-name.svg",
     "cart-select": "images/features/cart-select.svg",
     "review-filter": "images/features/review-filter.svg",

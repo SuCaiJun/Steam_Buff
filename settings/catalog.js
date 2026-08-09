@@ -853,6 +853,14 @@
               enabled: false,
               deps: depAll(["library-sort-title"]),
             },
+            {
+              id: "library-sort-title-hover-custom-name",
+              name: "悬停提示显示自定义名称",
+              desc: "开启后，鼠标悬停库列表项目时的 Steam 原生提示框显示自定义名称和分组标签；关闭时恢复 Steam 原始名称",
+              area: "steam",
+              enabled: false,
+              deps: depAll(["library-sort-title"]),
+            },
           ]),
         },
         {

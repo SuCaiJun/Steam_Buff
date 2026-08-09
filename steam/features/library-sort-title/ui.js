@@ -28,6 +28,7 @@
   const REPAIR_MAX_ATTEMPTS = 3;
   const REPAIR_WINDOW_MS = 1000;
   const REPAIR_SUSPEND_MS = 5000;
+  const HOVER_SYNC_MAX_ATTEMPTS = 2;
   const GRID_SELECTOR = "div[role='grid'].ReactVirtualized__List";
   const CONTAINER_SELECTOR = ".ReactVirtualized__Grid__innerScrollContainer";
   const CELL_SELECTOR = ":scope > div[role='gridcell']";
@@ -256,7 +257,7 @@
     removeInjected(container, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}]), [${HEADER_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
   }
 
-  function applyEntry(row, entry, appid, appliedIds) {
+  function applyEntry(row, entry, appid, appliedIds, customTitleEnabled = false) {
     if (!row) return false;
     removeInjected(row, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
     const name = nameSpan(row);
@@ -281,7 +282,7 @@
       String(entry.appid),
       entry.officialName,
     );
-    applyRowTitle(row, expected === clean(entry.officialName) ? "" : expected);
+    applyRowTitle(row, customTitleEnabled ? expected : "");
     const managed = name?.hasAttribute?.(DISPLAY_ATTR) === true
       && clean(name.textContent) === expected;
     if (managed) appliedIds?.add?.(appid);
@@ -362,6 +363,14 @@
       repairIds: new Set(),
       repairState: new Map(),
       appliedIds: new Set(),
+      hoveredAppid: 0,
+      hoverFrame: 0,
+      hoverAttempts: 0,
+      hoverRows: new Map(),
+      hoverOverHandle: null,
+      hoverOutHandle: null,
+      hoverOverDirect: false,
+      hoverOutDirect: false,
       rid: 0,
       revision: 0,
     };
@@ -383,6 +392,143 @@
       if (typeof window.cancelAnimationFrame === "function") window.cancelAnimationFrame(state.repairFrame);
       else window.clearTimeout(state.repairFrame);
       state.repairFrame = 0;
+    }
+
+    function cancelHoverFrame() {
+      if (!state.hoverFrame) return;
+      if (typeof window.cancelAnimationFrame === "function") window.cancelAnimationFrame(state.hoverFrame);
+      else window.clearTimeout(state.hoverFrame);
+      state.hoverFrame = 0;
+    }
+
+    function restoreHoverRow(row) {
+      if (!row) return;
+      restoreText(nameSpan(row));
+      restoreRowTitle(row);
+    }
+
+    function restoreHoverRows() {
+      for (const row of state.hoverRows.keys()) restoreHoverRow(row);
+      state.hoverRows.clear();
+    }
+
+    function sameHoverPosition(row, source) {
+      if (!row || !source || row === source) return false;
+      const current = row.getBoundingClientRect?.();
+      const origin = source.getBoundingClientRect?.();
+      if (!current || !origin || current.width <= 0 || current.height <= 0) return false;
+      return Math.abs(current.left - origin.left) <= 2
+        && Math.abs(current.top - origin.top) <= 2
+        && Math.abs(current.height - origin.height) <= 2;
+    }
+
+    // Steam 悬停副本位于库容器外，只按真实行位置和 Fiber AppID 精确匹配
+    function hoverRowsFor(appid, source) {
+      const id = Number(appid) || 0;
+      if (!id || !source || !state.container || !document.contains(source)) return [];
+      const rows = [];
+      for (const row of Array.from(document.querySelectorAll(ROW_SELECTOR))) {
+        if (state.container.contains(row)) continue;
+        if (getComputedStyle(row).pointerEvents !== "none") continue;
+        if (!sameHoverPosition(row, source)) continue;
+        if (Number(rowItem(row)?.appid) !== id) continue;
+        rows.push(row);
+      }
+      return rows;
+    }
+
+    function syncHoverRows(appid, source) {
+      const id = Number(appid) || 0;
+      const entry = state.entries.get(id);
+      if (!id || !source || !entry || state.hoveredAppid !== id) return false;
+      const matches = hoverRowsFor(id, source);
+      const matched = new Set(matches);
+      for (const row of matches) {
+        applyEntry(row, entry, id, null, state.settings.customTitleEnabled === true);
+        state.hoverRows.set(row, id);
+      }
+      for (const [row, rowId] of state.hoverRows) {
+        if (rowId !== id || (matched.has(row) && row.isConnected)) continue;
+        restoreHoverRow(row);
+        state.hoverRows.delete(row);
+      }
+      return matches.length > 0;
+    }
+
+    function scheduleHoverSync(appid = state.hoveredAppid) {
+      const id = Number(appid) || 0;
+      const source = state.rows.get(id);
+      if (!id || !source || state.hoverFrame || !state.started) return;
+      state.hoverFrame = raf(() => {
+        state.hoverFrame = 0;
+        if (state.hoveredAppid !== id) return;
+        if (syncHoverRows(id, source)) {
+          state.hoverAttempts = 0;
+          return;
+        }
+        if (state.hoverAttempts >= HOVER_SYNC_MAX_ATTEMPTS) return;
+        state.hoverAttempts += 1;
+        scheduleHoverSync(id);
+      });
+    }
+
+    function hoveredRowFromEvent(event) {
+      const target = event?.target;
+      const row = target?.closest?.(ROW_SELECTOR);
+      if (!row || !state.container?.contains(row)) return null;
+      return row;
+    }
+
+    function relatedInside(row, relatedTarget) {
+      return Boolean(relatedTarget?.nodeType && row?.contains?.(relatedTarget));
+    }
+
+    function onMouseOver(event) {
+      const row = hoveredRowFromEvent(event);
+      if (!row || relatedInside(row, event.relatedTarget)) return;
+      const id = Number(rowItem(row)?.appid) || 0;
+      if (!id || state.hoveredAppid === id) return;
+      restoreHoverRows();
+      cancelHoverFrame();
+      state.hoveredAppid = id;
+      state.hoverAttempts = 0;
+      scheduleHoverSync(id);
+    }
+
+    function onMouseOut(event) {
+      const row = hoveredRowFromEvent(event);
+      if (!row || relatedInside(row, event.relatedTarget)) return;
+      const id = Number(rowItem(row)?.appid) || 0;
+      if (!id || state.hoveredAppid !== id) return;
+      state.hoveredAppid = 0;
+      state.hoverAttempts = 0;
+      cancelHoverFrame();
+      restoreHoverRows();
+    }
+
+    function detachHoverListeners() {
+      if (state.hoverOverDirect && state.container) state.container.removeEventListener("mouseover", onMouseOver, true);
+      if (state.hoverOutDirect && state.container) state.container.removeEventListener("mouseout", onMouseOut, true);
+      state.hoverOverHandle?.dispose?.();
+      state.hoverOutHandle?.dispose?.();
+      state.hoverOverHandle = null;
+      state.hoverOutHandle = null;
+      state.hoverOverDirect = false;
+      state.hoverOutDirect = false;
+    }
+
+    function attachHoverListeners() {
+      if (!state.container || state.hoverOverHandle || state.hoverOverDirect) return;
+      state.hoverOverHandle = state.scope?.listener?.("library-hover-over", state.container, "mouseover", onMouseOver, true) || null;
+      state.hoverOutHandle = state.scope?.listener?.("library-hover-out", state.container, "mouseout", onMouseOut, true) || null;
+      if (!state.hoverOverHandle) {
+        state.container.addEventListener("mouseover", onMouseOver, true);
+        state.hoverOverDirect = true;
+      }
+      if (!state.hoverOutHandle) {
+        state.container.addEventListener("mouseout", onMouseOut, true);
+        state.hoverOutDirect = true;
+      }
     }
 
     function repairSuspended(appid) {
@@ -445,7 +591,7 @@
           const entry = state.entries.get(id);
           const name = nameSpan(row);
           if (!row || !entry || !name || clean(name.textContent) === clean(entry.finalDisplayName)) continue;
-          if (applyEntry(row, entry, id, state.appliedIds)) next.push(id);
+          if (applyEntry(row, entry, id, state.appliedIds, state.settings.customTitleEnabled === true)) next.push(id);
         }
         if (next.length) queueRepair(next);
       });
@@ -455,10 +601,11 @@
       const repairs = [];
       for (const [appid, row] of state.rows) {
         if (repairSuspended(appid)) continue;
-        if (applyEntry(row, state.entries.get(appid), appid, state.appliedIds)) repairs.push(appid);
+        if (applyEntry(row, state.entries.get(appid), appid, state.appliedIds, state.settings.customTitleEnabled === true)) repairs.push(appid);
       }
       applyHeaders(state.container, state.headers, state.settings.hideCollectionTags === true);
       queueRepair(repairs);
+      scheduleHoverSync();
     }
 
     function queueRefresh(ids = [], all = false) {
@@ -543,6 +690,7 @@
         state.root = found.grid;
         state.container = found.container;
       }
+      attachHoverListeners();
       if (!state.observer) {
         state.observer = new MutationObserver(() => schedule());
         state.observer.observe(state.container, {
@@ -580,12 +728,17 @@
     function pause() {
       cancelFrame();
       cancelRepairFrame();
+      cancelHoverFrame();
       state.observer?.disconnect?.();
       state.observer = null;
       state.observerHandle = null;
+      state.hoveredAppid = 0;
+      state.hoverAttempts = 0;
+      restoreHoverRows();
     }
 
     function detach() {
+      detachHoverListeners();
       pause();
       if (state.container) restoreContainer(state.container);
       state.root = null;

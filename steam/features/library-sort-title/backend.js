@@ -16,6 +16,7 @@
 
   const ID = "library-sort-title";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
+  const HOVER_TITLE_ID = "library-sort-title-hover-custom-name";
   const GROUP_LABELS_ID = "library-group-labels";
   const GROUPED_MODE_ID = "library-group-labels-grouped-mode";
   const HIDE_COLLECTION_TAGS_ID = "library-group-labels-hide-collection-tags";
@@ -455,6 +456,7 @@
       groupedModeEnabled: rt.groupedModeEnabled,
       groupedByCollection: groupedMode(),
       hideCollectionTags: rt.hideCollectionTags,
+      customTitleEnabled: rt.customTitleEnabled,
     };
   }
 
@@ -580,11 +582,13 @@
     const groupLabelsEnabled = settingsValue(api, GROUP_LABELS_ID, true) !== false;
     const groupedModeEnabled = settingsValue(api, GROUPED_MODE_ID, false) === true;
     const hideCollectionTags = groupLabelsEnabled && settingsValue(api, HIDE_COLLECTION_TAGS_ID, true) !== false;
+    const customTitleEnabled = customSortEnabled && settingsValue(api, HOVER_TITLE_ID, false) === true;
     const originalNameSearch = customSortEnabled && settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true;
     const changed = rt.customSortEnabled !== customSortEnabled
       || rt.groupLabelsEnabled !== groupLabelsEnabled
       || rt.groupedModeEnabled !== groupedModeEnabled
       || rt.hideCollectionTags !== hideCollectionTags
+      || rt.customTitleEnabled !== customTitleEnabled
       || rt.originalNameSearch !== originalNameSearch;
     if (!changed) return false;
     const groupChanged = rt.groupLabelsEnabled !== groupLabelsEnabled;
@@ -592,6 +596,7 @@
     rt.groupLabelsEnabled = groupLabelsEnabled;
     rt.groupedModeEnabled = groupedModeEnabled;
     rt.hideCollectionTags = hideCollectionTags;
+    rt.customTitleEnabled = customTitleEnabled;
     rt.originalNameSearch = originalNameSearch;
     if (!groupLabelsEnabled) {
       rt.groupTagsByApp.clear();
@@ -860,6 +865,7 @@
       groupedModeEnabled: settingsValue(api, GROUPED_MODE_ID, false) === true,
       lastGroupedMode: null,
       hideCollectionTags: settingsValue(api, HIDE_COLLECTION_TAGS_ID, true) !== false,
+      customTitleEnabled: settingsValue(api, HOVER_TITLE_ID, false) === true,
       originalNameSearch: settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true,
       sortAsOriginals: new Map(),
       customEventsOff: null,
