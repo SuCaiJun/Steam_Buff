@@ -101,6 +101,9 @@
   const STEAM_SETTING_DEFAULTS = Object.freeze({
     [SORT_TITLE_ID]: true,
     [ORIGINAL_NAME_SEARCH_ID]: false,
+    "library-group-labels": true,
+    "library-group-labels-grouped-mode": false,
+    "library-group-labels-hide-collection-tags": true,
     "download-batch-actions": true,
     "download-auto-shutdown": true,
     [NEWS_TRANSLATE_ID]: true,
@@ -108,6 +111,9 @@
   const STEAM_SETTING_IDS = Object.freeze([
     SORT_TITLE_ID,
     ORIGINAL_NAME_SEARCH_ID,
+    "library-group-labels",
+    "library-group-labels-grouped-mode",
+    "library-group-labels-hide-collection-tags",
     "download-batch-actions",
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
@@ -129,7 +135,7 @@
   const SEEN_NAME_MAX = 200;
   const BOOT_MS = 250;
   const BOOT_MAX = 480;
-  // 依赖未就绪可等待较久；完整资源包注入失败只做少量、低频重试，避免反复全量注入。
+  // 依赖未就绪可等待较久；完整资源包注入失败只做少量、低频重试，避免反复全量注入
   const RUNTIME_INJECT_RETRY_DELAYS = Object.freeze([1000, 3000]);
   const RUNTIME_INJECT_MAX_ATTEMPTS = RUNTIME_INJECT_RETRY_DELAYS.length + 1;
   const TRANSLATE_DEFAULTS = Object.freeze({
@@ -672,7 +678,7 @@
     }
   }
 
-  // Steam CEF 常先进入 about:blank 或脚本半就绪状态；依赖未齐时必须继续排队重试，不能直接终止注入链路。
+  // Steam CEF 常先进入 about:blank 或脚本半就绪状态；依赖未齐时必须继续排队重试，不能直接终止注入链路
   function retryRun() {
     if (bootTries >= BOOT_MAX) {
       return false;
@@ -1337,7 +1343,7 @@
     }
   }
 
-  // 页面主上下文无法直接调用 chrome API，标题/库自定义名统一走 DOM 属性桥接到内容脚本。
+  // 页面主上下文无法直接调用 chrome API，标题/库自定义名统一走 DOM 属性桥接到内容脚本
   async function getAuth() {
     const rt = await storageGet([AUTH_KEY]);
     return cleanAuth(rt[AUTH_KEY]);
@@ -1742,7 +1748,7 @@
     if (seenNameReqs.has(key)) {
       return true;
     }
-    // MutationObserver 可能重复读到同一个 rid，短缓存只用于去重，不影响后续新的页面请求。
+    // MutationObserver 可能重复读到同一个 rid，短缓存只用于去重，不影响后续新的页面请求
     while (seenNameReqs.size >= SEEN_NAME_MAX) {
       const old = seenNameReqs.keys().next().value;
       window.clearTimeout(seenNameReqs.get(old));
@@ -1801,7 +1807,7 @@
           }
         }
       });
-      // 只监听 documentElement 上的请求属性，用于隔离上下文桥接，不观察 DOM 子树。
+    // 只监听 documentElement 上的请求属性，用于隔离上下文桥接，不观察 DOM 子树
       obs.observe(el, {
         attributes: true,
         attributeFilter: [NAME_REQ_ATTR],
@@ -1823,6 +1829,11 @@
   function disabledSteamFeatureIds(prev = {}, next = {}) {
     return STEAM_FEATURE_IDS.filter((featureId) => {
       const settingId = STEAM_FEATURE_SETTING_IDS[featureId];
+      if (featureId === SORT_TITLE_ID) {
+        const wasActive = prev[SORT_TITLE_ID] !== false || prev["library-group-labels"] !== false;
+        const isActive = next[SORT_TITLE_ID] !== false || next["library-group-labels"] !== false;
+        return wasActive && !isActive;
+      }
       return prev[settingId] !== false && next[settingId] === false;
     });
   }
@@ -1859,7 +1870,7 @@
       return;
     }
 
-    // Steam 主上下文脚本通过 dataset 读取开关快照，避免每次按钮点击都等待内容脚本往返。
+    // Steam 主上下文脚本通过 dataset 读取开关快照，避免每次按钮点击都等待内容脚本往返
     const onPhase = typeof options.onPhase === "function" ? options.onPhase : () => {};
     const prev = readSteamSettingsSnapshot();
     onPhase("settings-load");
@@ -1961,7 +1972,7 @@
     });
     const inj = globalThis.STInject;
 
-    // ⚠️ 历史问题：Steam CEF 复用旧窗口时可能只拿到半套内容脚本，必须先补齐共享依赖再启动页面运行时。
+    // ⚠️ 历史问题：Steam CEF 复用旧窗口时可能只拿到半套内容脚本，必须先补齐共享依赖再启动页面运行时
     if (isSteamContentTarget() && !readySteamDeps()) {
       steamRuntimeLogOnce("steam-runtime-deps-waiting", {
         level: "info",
@@ -1979,7 +1990,7 @@
     if (isSteamContentTarget()) {
       globalThis[RUN_MARK] = RUN_PENDING;
     }
-    // guard.ok() 失败通常表示页面仍是 about:blank 或非目标 frame，继续 retry 才能覆盖后续 ready 的 Steam CEF。
+    // guard.ok() 失败通常表示页面仍是 about:blank 或非目标 frame，继续 retry 才能覆盖后续 ready 的 Steam CEF
     if (!gd?.ok()) {
       steamRuntimeLogOnce("steam-runtime-inject-skipped-guard", {
         level: "info",
@@ -2179,7 +2190,7 @@
           return;
         }
       }
-      // 被排除页面也标记为已处理，避免后台补注入反复命中 Steam CEF 菜单页。
+      // 被排除页面也标记为已处理，避免后台补注入反复命中 Steam CEF 菜单页
       globalThis[RUN_MARK] = RUN_VERSION;
       runLightBoot();
       cleanupExcludedSteamRuntime();

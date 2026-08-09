@@ -856,6 +856,32 @@
           ]),
         },
         {
+          id: "library-group-labels",
+          name: "分组显示在名称后面",
+          desc: "在 Steam 库列表中隐藏收藏分组名称末尾的 []，并在库项目名称后追加所属分组标签",
+          help: "分组显示在名称后面",
+          area: "steam",
+          enabled: true,
+          children: Object.freeze([
+            {
+              id: "library-group-labels-grouped-mode",
+              name: "按收藏分组时也显示",
+              desc: "开启 Steam 原生“按收藏分组”后，库项目名称仍继续追加所有分组标签",
+              area: "steam",
+              enabled: false,
+              deps: depAll(["library-group-labels"]),
+            },
+            {
+              id: "library-group-labels-hide-collection-tags",
+              name: "隐藏分组名称中的 []",
+              desc: "在 Steam 库列表可见的收藏分组名称中隐藏末尾连续的 [] 标签；不修改 Steam 原始分组数据",
+              area: "steam",
+              enabled: true,
+              deps: depAll(["library-group-labels"]),
+            },
+          ]),
+        },
+        {
           id: "download-batch-actions",
           name: "下载队列批量操作",
           desc: "在下载管理页提供全部开始、全部暂停和全部移除操作",

@@ -115,7 +115,7 @@
     }
   }
 
-  // 属性弹窗可能在 Steam 异步保存返回前销毁；意图和保存结果都在 SharedJSContext 暂存并按精确值配对。
+  // 属性弹窗可能在 Steam 异步保存返回前销毁；意图和保存结果都在 SharedJSContext 暂存并按精确值配对
   function settleAutoUpload(rt) {
     const intent = rt.autoUploadIntent;
     const saved = rt.lastNativeSave;
@@ -358,13 +358,12 @@
         continue;
       }
       try {
-        // 快速写入只同步自定义排序显示状态；Steam 原生搜索字段由 Steam 自己维护。
-        if (clear) {
-          app.custom_sort_as_display = "";
-        } else {
-          app.custom_sort_as_display = name;
+        // 快速写入只同步自定义排序显示状态；Steam 原生搜索字段由 Steam 自己维护
+        const nextName = clear ? "" : name;
+        if (app.custom_sort_as_display !== nextName) {
+          app.custom_sort_as_display = nextName;
         }
-        if (Object.prototype.hasOwnProperty.call(app, "has_custom_sort_as")) {
+        if (Object.prototype.hasOwnProperty.call(app, "has_custom_sort_as") && app.has_custom_sort_as !== !clear) {
           app.has_custom_sort_as = !clear;
         }
         synced += 1;
@@ -631,7 +630,7 @@
     });
   }
 
-  // 单游戏保存仍走 Steam 原生接口；批量保存只走 CloudStorage 快路径。
+  // 单游戏保存仍走 Steam 原生接口；批量保存只走 CloudStorage 快路径
   async function writeOne(item) {
     const appid = Number(item?.appid);
     const name = text(item?.name);
@@ -1292,7 +1291,7 @@
     return true;
   }
 
-  // 保存队列保持串行写入，但按 Steam CloudStorage 的 dirty key 合并节奏分批执行。
+  // 保存队列保持串行写入，但按 Steam CloudStorage 的 dirty key 合并节奏分批执行
   async function runQueue(rt, q) {
     if (q.stats.skipped > 0) {
       post(rt.ch, { type: "save-progress", ...stat(q, {}) });
@@ -1357,7 +1356,7 @@
     }
   }
 
-  // 同一时间只允许一个保存队列，避免并发写入导致 Steam AppOverview 状态互相覆盖。
+  // 同一时间只允许一个保存队列，避免并发写入导致 Steam AppOverview 状态互相覆盖
   function saveQueue(rt, rid, items, skipped, incomingOperationId = "") {
     const operationId = String(incomingOperationId || "")
       || window.STLoggerFactory?.createOperationId?.()
@@ -1435,7 +1434,7 @@
     });
   }
 
-  // UI 的暂停、继续和取消通过 BroadcastChannel 到后台队列，执行结果再回传进度弹窗。
+  // UI 的暂停、继续和取消通过 BroadcastChannel 到后台队列，执行结果再回传进度弹窗
   function command(rt, rid, action) {
     const q = rt.q;
     if (!q?.running) {

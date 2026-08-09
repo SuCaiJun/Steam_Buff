@@ -8,43 +8,86 @@
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
+
+// SharedJSContext 只维护库列表名称显示快照；UI 通过 BroadcastChannel 请求当前挂载行
+// 后台不改写 display_name、不克隆 AppOverview，也不主动触发全库刷新
 (() => {
   "use strict";
 
   const ID = "library-sort-title";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
+  const GROUP_LABELS_ID = "library-group-labels";
+  const GROUPED_MODE_ID = "library-group-labels-grouped-mode";
+  const HIDE_COLLECTION_TAGS_ID = "library-group-labels-hide-collection-tags";
+  const SETTINGS_ATTRIBUTE = "data-steam-buff-settings";
   const SCHEDULER_TASK = "library-sort-title-backend";
   const RT = "__SteamBuffLibrarySortTitle";
+  const CHANNEL = "__steam_library_display_model_Ricky";
   const ORIG = "__RickyStOriginalName";
   const ORIGS = "__RickyStOriginalNames";
   const PATCHES = "__RickyStPatchedMethods";
   const CUSTOM_SORT_EVENTS = "__SteamBuffNativeCustomSortEvents";
   const S_FLAG = "__RickyStSetSortAsPatched";
   const O_FLAG = "__RickyStOverviewChangePatched";
+  const COLLECTION_FLAG = "__RickyStCollectionEventsPatched";
+  const G_FLAG = "__RickyStGroupedModePatched";
   const SYNC_MS = 5 * 60 * 1000;
-  // Steam 启动初期 app overview 会分批到达，hook 未齐前短轮询，齐全后只做低频健康检查。
   const BOOT_MS = 1000;
   const HOOK_READY_WARN_MS = 45000;
-  const SCHEDULE_DEBOUNCE_MS = 1000;
-  const BULK_UI_REFRESH_MAX = 50;
-  const PENDING_NOTIFY_RETRY_MS = 1000;
-  const PENDING_NOTIFY_RETRY_MAX = 10;
-  // 只在库列表 display_name 中隐藏开头连续 [标签]，保留 Steam 原生自定义排序名称的完整值。
-  const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
-  // 末尾或夹在名称里的 [#...] 助记符保留在原生自定义排序名称中，库列表显示时隐藏。
-  const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Za-z0-9]+)\]\s*/g;
-  // SetCustomSortAs 返回后，可能Steam还会通过云存档延迟替换 app overview 对象。
-  // 这里需要异步稳定后再确认一次，避免刚同步的显示名被后续替换覆盖。
+  const SETTINGS_DEBOUNCE_MS = 1000;
   const AFTER_SAVE_RECHECK_MS = 1000;
+  const BULK_INVALIDATION_LIMIT = 200;
   const EVENTS = Object.freeze(["focus", "pageshow"]);
+
+  // Steam 收藏分组只识别名称末尾连续的 ASCII 方括号
+  const COLLECTION_TAG_SUFFIX_RE = /(?:\[([^\]\r\n]*)\]\s*)+$/;
+  // 这是自定义排序名称的既有显示规则，不改变 Steam 保存值
+  const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
+  const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Za-z0-9]+)\]\s*/g;
 
   const log = window.STLoggerFactory.createLogger("steam", ID);
 
-  function names() {
-    if (!window[ORIGS]) {
-      window[ORIGS] = new Map();
+  function raw(value) {
+    return typeof value === "string" ? value : "";
+  }
+
+  function clean(value) {
+    return raw(value).trim();
+  }
+
+  function parseCollectionName(value) {
+    const source = raw(value);
+    const match = source.match(COLLECTION_TAG_SUFFIX_RE);
+    if (!match) {
+      return { base: source, tags: [] };
     }
-    return window[ORIGS];
+    const tags = [];
+    const pattern = /\[([^\]\r\n]*)\]/g;
+    let item;
+    while ((item = pattern.exec(match[0]))) {
+      const label = clean(item[1]);
+      if (label) {
+        tags.push(label);
+      }
+    }
+    if (!tags.length) {
+      return { base: source, tags: [] };
+    }
+    return { base: source.slice(0, match.index).trimEnd(), tags: uniqueLabels(tags) };
+  }
+
+  function uniqueLabels(values = []) {
+    const result = [];
+    const seen = new Set();
+    for (const value of values) {
+      const label = clean(value);
+      if (!label || seen.has(label)) {
+        continue;
+      }
+      seen.add(label);
+      result.push(label);
+    }
+    return result;
   }
 
   function patches() {
@@ -55,9 +98,15 @@
   }
 
   function restorePatches() {
-    const list = patches();
-    for (const item of list.splice(0)) {
+    for (const item of patches().splice(0)) {
       try {
+        if (item?.descriptor) {
+          const current = Object.getOwnPropertyDescriptor(item.obj, item.name);
+          if (current?.get === item.fn) {
+            Object.defineProperty(item.obj, item.name, item.descriptor);
+          }
+          continue;
+        }
         if (item?.obj?.[item.name] === item.fn) {
           item.obj[item.name] = item.orig;
         }
@@ -66,76 +115,130 @@
     }
   }
 
-  function official(app, arg) {
-    try {
-      if (arg && typeof arg.display_name === "function") {
-        return arg.display_name();
-      }
-      if (app?.[ORIG]) {
-        return app[ORIG];
-      }
-      if (app?.appid && names().has(app.appid)) {
-        return names().get(app.appid);
-      }
-      return app?.display_name || "";
-    } catch {
+  function patch(obj, name, flag, wrap) {
+    const original = obj?.[name];
+    if (typeof original !== "function") {
+      return false;
     }
-    return "";
+    if (original[flag] === true) {
+      return true;
+    }
+    const wrapped = wrap(original);
+    if (typeof wrapped !== "function") {
+      return false;
+    }
+    try {
+      Object.defineProperty(wrapped, flag, { value: true });
+      wrapped.toString = () => original.toString();
+      obj[name] = wrapped;
+      patches().push({ obj, name, fn: wrapped, orig: original });
+      return obj[name] === wrapped;
+    } catch {
+      return false;
+    }
   }
 
-  // 原名必须挂在 AppOverview 副本上保存，否则后续隐藏 [标签] 时会丢失 Steam 官方标题。
-  function saveOrig(app, name) {
-    if (!app || !name) {
+  function prototypeOwner(obj, name) {
+    if (!obj || (typeof obj !== "object" && typeof obj !== "function")) {
+      return null;
+    }
+    for (let current = Object.getPrototypeOf(obj); current; current = Object.getPrototypeOf(current)) {
+      if (Object.prototype.hasOwnProperty.call(current, name)) {
+        return current;
+      }
+    }
+    return null;
+  }
+
+  function names() {
+    if (!window[ORIGS]) {
+      window[ORIGS] = new Map();
+    }
+    return window[ORIGS];
+  }
+
+  function hasCustomName(app) {
+    return !!clean(app?.custom_sort_as_display);
+  }
+
+  function sameName(left, right) {
+    const a = clean(left);
+    const b = clean(right);
+    return !!a && !!b && a.toLocaleLowerCase() === b.toLocaleLowerCase();
+  }
+
+  function saveOriginalName(app, name) {
+    const value = clean(name);
+    if (!app || !value) {
       return;
     }
-    if (app.appid) {
-      const map = names();
-      if (map.get(app.appid) !== name) {
-        map.set(app.appid, name);
-      }
+    const id = Number(app.appid) || 0;
+    if (id) {
+      names().set(id, value);
     }
     if (app[ORIG]) {
       return;
     }
     try {
       Object.defineProperty(app, ORIG, {
-        value: name,
+        value,
         writable: true,
         configurable: true,
       });
     } catch {
-      app[ORIG] = name;
+      try {
+        app[ORIG] = value;
+      } catch {
+      }
     }
   }
 
-  function hasCust(app) {
-    return typeof app?.custom_sort_as_display === "string" && !!app.custom_sort_as_display;
+  function officialName(app, argument) {
+    if (!app || typeof app !== "object") {
+      return "";
+    }
+    if (app[ORIG]) {
+      return clean(app[ORIG]);
+    }
+    const id = Number(app.appid) || 0;
+    if (id && names().has(id)) {
+      return names().get(id);
+    }
+    try {
+      if (argument && typeof argument.display_name === "function") {
+        const value = clean(argument.display_name());
+        if (value) {
+          return value;
+        }
+      }
+    } catch {
+    }
+    return clean(app.display_name);
   }
 
-  function cleanName(value) {
-    return typeof value === "string" ? value.trim() : "";
-  }
-
-  function sameName(left, right) {
-    const a = cleanName(left);
-    const b = cleanName(right);
-    return !!a && !!b && a.toLocaleLowerCase() === b.toLocaleLowerCase();
+  function viewCustomName(value) {
+    const source = raw(value);
+    if (!source) {
+      return "";
+    }
+    const visible = source
+      .replace(MNEMONIC_TAG_RE, " ")
+      .replace(/\s{2,}/g, " ")
+      .replace(TAG_RE, "")
+      .trim();
+    return visible || source;
   }
 
   function originalSearchName(app) {
-    const cust = cleanName(app?.custom_sort_as_display);
-    if (!cust) {
+    const custom = clean(app?.custom_sort_as_display);
+    if (!custom) {
       return "";
     }
-    const visibleCust = view(cust);
-    const candidates = [
-      app?.original_sort_as,
-      app?.[ORIG],
-      app?.appid ? names().get(app.appid) : "",
-    ];
+    const visible = viewCustomName(custom);
+    const candidates = [app?.original_sort_as, app?.[ORIG], Number(app?.appid) ? names().get(Number(app.appid)) : ""];
     for (const value of candidates) {
-      const name = cleanName(value);
-      if (name && !sameName(name, cust) && !sameName(name, visibleCust)) {
+      const name = clean(value);
+      if (name && !sameName(name, custom) && !sameName(name, visible)) {
         return name;
       }
     }
@@ -143,29 +246,24 @@
   }
 
   function originalSearchSortAs(app, rt = window[RT]) {
-    if (rt?.originalNameSearch !== true || !hasCust(app)) {
+    if (rt?.originalNameSearch !== true || !hasCustomName(app)) {
       return "";
     }
     const original = originalSearchName(app);
-    if (!original) {
-      return "";
-    }
-    return `${app.custom_sort_as_display.toLocaleLowerCase()} ${original.toLocaleLowerCase()}`;
+    return original ? `${clean(app.custom_sort_as_display).toLocaleLowerCase()} ${original.toLocaleLowerCase()}` : "";
   }
 
   function restoreOriginalSortAs(app, rt = window[RT]) {
     const id = Number(app?.appid) || 0;
-    if (!id || !rt?.sortAsOriginals?.has(id)) {
+    const record = rt?.sortAsOriginals?.get(id);
+    if (!id || !record) {
       return false;
     }
-    const record = rt.sortAsOriginals.get(id);
     rt.sortAsOriginals.delete(id);
-    const original = record?.original;
-    const composite = record?.composite;
-    if (app.sort_as === original || app.sort_as !== composite) {
+    if (app.sort_as === record.original || app.sort_as !== record.composite) {
       return false;
     }
-    app.sort_as = original;
+    app.sort_as = record.original;
     return true;
   }
 
@@ -178,1111 +276,668 @@
     }
   }
 
-  function view(name) {
-    if (typeof name !== "string") {
-      return "";
-    }
-    const text = name
-      .replace(MNEMONIC_TAG_RE, " ")
-      .replace(/\s{2,}/g, " ")
-      .replace(TAG_RE, "")
-      .trim();
-    return text || name;
-  }
-
-  function display(cust) {
-    return view(cust);
-  }
-
-  function same(app, cust) {
-    return !!cust && (app?.display_name === cust || app?.display_name === view(cust));
-  }
-
-  function isDirty(app) {
-    if (!hasCust(app)) {
-      return false;
-    }
-    const nextSortAs = originalSearchSortAs(app);
-    return app.display_name !== view(app.custom_sort_as_display)
-      || (!!nextSortAs && app.sort_as !== nextSortAs);
-  }
-
-  function saveNow(app) {
-    if (!app) {
-      return;
-    }
-    const cust = hasCust(app) ? app.custom_sort_as_display : "";
-    if (same(app, cust)) {
-      return;
-    }
-    saveOrig(app, official(app));
-  }
-
-  function apply(app, arg) {
+  function syncSortAs(app, rt = window[RT]) {
     if (!app || typeof app !== "object") {
       return false;
     }
-
-    const cust = hasCust(app) ? app.custom_sort_as_display : "";
-    if (!cust) {
-      return false;
-    }
-    const orig = official(app, arg);
-    if (arg || !same(app, cust)) {
-      saveOrig(app, orig);
-    }
-
-    // 注:只清洗自定义排序名，官方 display_name 可能真实以 [标签] 开头，不能作为 fallback 走 view()。
-    let changed = false;
-    const next = display(cust);
-    if (next && app.display_name !== next) {
-      app.display_name = next;
-      changed = true;
-    }
-    const nextSortAs = originalSearchSortAs(app);
-    if (nextSortAs && app.sort_as !== nextSortAs) {
-      const id = Number(app.appid) || 0;
-      if (id && !window[RT]?.sortAsOriginals?.has(id)) {
-        window[RT]?.sortAsOriginals?.set(id, {
-          original: app.sort_as,
-          composite: nextSortAs,
-        });
+    const next = originalSearchSortAs(app, rt);
+    const id = Number(app.appid) || 0;
+    if (next && app.sort_as !== next) {
+      if (id && !rt.sortAsOriginals.has(id)) {
+        rt.sortAsOriginals.set(id, { original: app.sort_as, composite: next });
       }
-      app.sort_as = nextSortAs;
-      changed = true;
-    } else if (!nextSortAs && restoreOriginalSortAs(app)) {
-      changed = true;
-    }
-    return changed;
-  }
-
-  // Steam 的 app overview 变更依赖对象替换和 OnAppOverviewChange，直接改原对象有时不会刷新库 UI。
-  function syncMeta(rt, extra = {}) {
-    return {
-      operationId: rt?.operationId || undefined,
-      ...extra,
-    };
-  }
-
-  function logSyncError(rt, phase, message, error, extra = {}) {
-    const key = `${phase}:${error?.name || "Error"}:${error?.message || String(error || "")}`;
-    if (rt?.failureKeys?.has(key)) {
-      return;
-    }
-    rt?.failureKeys?.add(key);
-    if (rt) {
-      rt.syncFailed = true;
-      rt.failedPhases.add(phase);
-    }
-    log.error("library-sort-title-sync-failed", message, syncMeta(rt, {
-      phase,
-      ...extra,
-      error,
-    }));
-  }
-
-  function logSyncWarning(rt, phase, message, extra = {}) {
-    const key = `warn:${phase}`;
-    if (rt?.failureKeys?.has(key)) {
-      return;
-    }
-    rt?.failureKeys?.add(key);
-    if (rt) {
-      rt.syncFailed = true;
-      rt.failedPhases.add(phase);
-    }
-    log.warn("library-sort-title-sync-failed", message, syncMeta(rt, {
-      phase,
-      ...extra,
-    }));
-  }
-
-  function appOverviewReady(app) {
-    if (!app || typeof app !== "object") {
-      return false;
-    }
-    return typeof app.BHasStoreTag !== "function"
-      || typeof app.m_setStoreTags?.has === "function";
-  }
-
-  function currentAppOverview(store, appid, rt) {
-    if (typeof store?.GetAppOverviewByAppID !== "function") {
-      return null;
-    }
-    try {
-      return store.GetAppOverviewByAppID(appid) || null;
-    } catch (error) {
-      logSyncError(rt, "app-overview-read", "库排序标题读取当前 AppOverview 失败", error, {
-        appid: Number(appid) || 0,
-      });
-      return null;
-    }
-  }
-
-  function queuePendingNotify(rt, appid) {
-    const id = Number(appid) || 0;
-    if (!rt?.pendingNotify || id <= 0) {
-      return false;
-    }
-    const wasEmpty = rt.pendingNotify.size === 0;
-    rt.pendingNotify.add(id);
-    if (wasEmpty) {
-      rt.pendingRetryAttempt = 0;
-      rt.pendingRetryStartedAt = Date.now();
-      rt.pendingRetryExhausted = false;
-    }
-    startPendingNotifyRetry(rt);
-    return true;
-  }
-
-  function build(store, app, opt = {}) {
-    if (!store?.m_mapApps || !app?.appid) {
-      return null;
-    }
-    if (!appOverviewReady(app)) {
-      if (opt.status) {
-        opt.status.incompleteAppCount += 1;
-      }
-      queuePendingNotify(opt.rt || window[RT], app.appid);
-      return null;
-    }
-
-    try {
-      const repl = Object.create(Object.getPrototypeOf(app));
-      Object.defineProperties(repl, Object.getOwnPropertyDescriptors(app));
-      saveOrig(repl, app[ORIG] || names().get(app.appid));
-      return repl;
-    } catch (error) {
-      if (opt.status) {
-        opt.status.cloneFailed += 1;
-      }
-      logSyncError(opt.rt || window[RT], "app-overview-clone", "库排序标题创建 AppOverview 副本失败", error);
-    }
-    return null;
-  }
-
-  function commit(store, repls, opt = {}) {
-    const result = {
-      ok: true,
-      changed: 0,
-      notifyAvailable: typeof window.collectionStore?.OnAppOverviewChange === "function",
-      notifyAttempted: false,
-      notifySucceeded: false,
-      refreshSkipped: false,
-      failedPhase: "",
-      retryable: false,
-    };
-    if (!store?.m_mapApps || !repls?.length) {
-      return result;
-    }
-
-    const done = [];
-    try {
-      for (const repl of repls) {
-        if (!repl?.appid) {
-          continue;
-        }
-        store.m_mapApps.set(repl.appid, repl);
-        done.push(repl);
-      }
-    } catch (error) {
-      result.ok = false;
-      result.changed = done.length;
-      result.failedPhase = "app-overview-replace";
-      logSyncError(opt.rt || window[RT], result.failedPhase, "库排序标题替换 AppOverview 失败", error, {
-        changed: done.length,
-      });
-      return result;
-    }
-
-    result.changed = done.length;
-    const canNotify = opt.notify !== false && done.length <= BULK_UI_REFRESH_MAX;
-    if (done.length && canNotify && result.notifyAvailable) {
-      const rt = window[RT];
-      const prev = rt?.notifying === true;
-      try {
-        result.notifyAttempted = true;
-        if (rt) {
-          rt.notifying = true;
-        }
-        window.collectionStore.OnAppOverviewChange(done, []);
-        result.notifySucceeded = true;
-        for (const repl of done) {
-          rt?.pendingNotify?.delete(repl.appid);
-        }
-      } catch (error) {
-        result.ok = false;
-        result.failedPhase = "library-ui-notify";
-        result.retryable = true;
-        for (const repl of done) {
-          queuePendingNotify(rt, repl.appid);
-        }
-        logSyncError(opt.rt || rt, result.failedPhase, "库排序标题通知 Steam 库列表刷新失败", error, {
-          changed: done.length,
-        });
-      } finally {
-        if (rt) {
-          rt.notifying = prev;
-        }
-      }
-    } else if (done.length && canNotify) {
-      const rt = opt.rt || window[RT];
-      result.ok = false;
-      result.failedPhase = "library-ui-notify-unavailable";
-      result.retryable = true;
-      for (const repl of done) {
-        queuePendingNotify(rt, repl.appid);
-      }
-      logSyncWarning(rt, result.failedPhase, "库排序标题等待 Steam 库列表刷新接口就绪", {
-        changed: done.length,
-      });
-    } else if (done.length) {
-      result.refreshSkipped = true;
-      log.warn("library-sort-title-refresh-skipped", "库排序标题跳过大批量库列表刷新", syncMeta(opt.rt || window[RT], {
-        reason: String(opt.reason || ""),
-        changed: done.length,
-        limit: BULK_UI_REFRESH_MAX,
-      }));
-    }
-    return result;
-  }
-
-  function refresh(store, app) {
-    const repl = build(store, app);
-    return repl ? commit(store, [repl], { reason: "single" }).changed : 0;
-  }
-
-  function restoreOfficial(app, orig) {
-    const next = app?.[ORIG] || orig || "";
-    if (next && app.display_name !== next) {
-      app.display_name = next;
+      app.sort_as = next;
       return true;
     }
-    return false;
+    return !next && restoreOriginalSortAs(app, rt);
   }
 
-  // 库自定义名称批量保存会连续调用 SetCustomSortAs；这里先收集变化，结束后统一刷新库 UI。
-  function bulkOn(rt = window[RT]) {
-    return !!rt?.bulk?.active;
+  function collectionName(collection) {
+    return typeof collection?.m_strName === "string" ? collection.m_strName : "";
   }
 
-  function recordBulk(rt, appid, sortAs, force) {
-    const bulk = rt?.bulk;
-    const id = Number(appid);
-    if (!bulk?.active || !Number.isFinite(id) || id <= 0) {
-      return false;
+  function collectionApps(collection) {
+    if (!collection?.m_setApps || typeof collection.m_setApps[Symbol.iterator] !== "function") {
+      return [];
     }
-    const name = typeof sortAs === "string" ? sortAs : "";
-    const prev = bulk.map.get(id);
-    if (force || name || prev === undefined) {
-      bulk.map.set(id, name);
-    }
-    bulk.changed += 1;
-    return true;
-  }
-
-  function recordCustomNameBulk(items = []) {
-    const rt = window[RT];
-    const list = Array.isArray(items) ? items : [];
-    let recorded = 0;
-    for (const item of list) {
-      const sortAs = typeof item?.sortAs === "string" ? item.sortAs : item?.name;
-      if (recordBulk(rt, item?.appid, sortAs, true)) {
-        recorded += 1;
-      }
-    }
-    if (recorded) {
-      log.info("library-sort-title-bulk-record", "库排序标题已记录快速批量写入变化", {
-        count: list.length,
-        recorded,
-      });
-    }
-    return { enabled: !!rt?.bulk?.active, count: list.length, recorded };
-  }
-
-  function flushBulkMap(store, items, opt = {}) {
-    const repls = [];
-    for (const [appid, sortAs] of items || []) {
-      const app = typeof store?.GetAppOverviewByAppID === "function" ? store.GetAppOverviewByAppID(appid) : null;
-      if (!app) {
-        continue;
-      }
-      setCust(app, sortAs);
-      const repl = build(store, app);
-      if (repl) {
-        repls.push(repl);
-      }
-    }
-    return commit(store, repls, opt).changed;
-  }
-
-  function flushBulkState(state, reason) {
-    const entries = Array.from(state?.map || []);
-    const changed = flushBulkMap(window.appStore, entries, { reason: `bulk:${reason}` });
-    log.info("library-sort-title-bulk-flush", "库排序标题批量刷新完成", {
-      reason,
-      queued: entries.length,
-      changed,
-      refreshSkipped: changed > BULK_UI_REFRESH_MAX,
-      durationMs: Date.now() - (state?.startedAt || Date.now()),
-    });
-    return { queued: entries.length, changed };
-  }
-
-  function setCust(app, sortAs) {
-    if (!app || typeof app !== "object") {
-      return false;
-    }
-
-    const had = hasCust(app);
-    const orig = official(app);
-    if (!had || !same(app, app.custom_sort_as_display)) {
-      saveOrig(app, orig);
-    }
-
-    const cust = typeof sortAs === "string" && sortAs ? sortAs : "";
-    if (cust) {
-      app.custom_sort_as_display = cust;
-    } else {
-      app.custom_sort_as_display = "";
-    }
-
-    // sort_as 只在独立子开关开启且有可靠 Steam 原名时追加；保存参数和 CloudStorage 不变。
-    if (cust) {
-      return apply(app);
-    }
-    const restoredDisplay = restoreOfficial(app, orig);
-    const restoredSortAs = restoreOriginalSortAs(app);
-    return restoredDisplay || restoredSortAs;
-  }
-
-  function applyAll(apps, opt = {}) {
-    const rt = opt.rt || window[RT];
-    const status = {
-      appCount: apps.length,
-      customSortCount: 0,
-      dirtyCount: 0,
-      cloneFailed: 0,
-      incompleteAppCount: 0,
-      pendingNotifyCount: rt?.pendingNotify?.size || 0,
-    };
-    const repls = [];
-    const allPendingIds = new Set(rt?.pendingNotify || []);
-    const pendingIds = Array.from(allPendingIds).slice(0, BULK_UI_REFRESH_MAX);
-    for (const appid of pendingIds) {
-      const app = currentAppOverview(window.appStore, appid, rt);
-      if (!appOverviewReady(app)) {
-        status.incompleteAppCount += 1;
-        continue;
-      }
-      const previousDisplayName = app.display_name;
-      if (apply(app)) {
-        status.dirtyCount += 1;
-      }
-      const repl = build(window.appStore, app, { ...opt, rt, status });
-      if (repl) {
-        repls.push(repl);
-      } else {
-        app.display_name = previousDisplayName;
-      }
-    }
-    for (const app of apps) {
-      if (hasCust(app)) {
-        status.customSortCount += 1;
-      }
-      if (allPendingIds.has(app?.appid) || !isDirty(app)) {
-        continue;
-      }
-      if (!appOverviewReady(app)) {
-        status.incompleteAppCount += 1;
-        queuePendingNotify(rt, app.appid);
-        continue;
-      }
-      const previousDisplayName = app?.display_name;
-      if (apply(app)) {
-        status.dirtyCount += 1;
-        const repl = build(window.appStore, app, { ...opt, rt, status });
-        if (repl) {
-          repls.push(repl);
-        } else {
-          app.display_name = previousDisplayName;
-        }
-      }
-    }
-    const result = commit(window.appStore, repls, { ...opt, rt, reason: "sync-all" });
-    status.pendingNotifyCount = rt?.pendingNotify?.size || 0;
-    if (status.pendingNotifyCount > 0) {
-      result.retryable = true;
-      if (!result.failedPhase) {
-        result.failedPhase = "app-overview-not-ready";
-      }
-    }
-    return {
-      ...status,
-      ...result,
-      ok: result.ok && status.cloneFailed === 0 && status.pendingNotifyCount === 0,
-      pendingOnlyRetry: result.retryable
-        && status.pendingNotifyCount > 0
-        && status.cloneFailed === 0
-        && result.failedPhase !== "app-overview-replace",
-    };
-  }
-
-  function retryPendingNotifications(rt) {
-    const ids = Array.from(rt?.pendingNotify || []).slice(0, BULK_UI_REFRESH_MAX);
-    const repls = [];
-    let incompleteAppCount = 0;
-    for (const appid of ids) {
-      const app = currentAppOverview(window.appStore, appid, rt);
-      if (!appOverviewReady(app)) {
-        incompleteAppCount += 1;
-        continue;
-      }
-      const previousDisplayName = app.display_name;
-      apply(app);
-      const repl = build(window.appStore, app, { rt });
-      if (repl) {
-        repls.push(repl);
-      } else {
-        app.display_name = previousDisplayName;
-      }
-    }
-    const result = commit(window.appStore, repls, {
-      rt,
-      reason: "pending-notify",
-    });
-    return {
-      ...result,
-      attempted: ids.length,
-      incompleteAppCount,
-      pendingNotifyCount: rt?.pendingNotify?.size || 0,
-    };
-  }
-
-  function runPendingNotifyRetry(rt) {
-    rt.pendingRetryScheduled = false;
-    if (rt.scheduled !== true || rt.pendingNotify.size === 0) {
-      return;
-    }
-    rt.pendingRetryAttempt += 1;
-    const result = retryPendingNotifications(rt);
-    rt.lastSync = result;
-    rt.syncSummary = mergeSyncSummary(rt.syncSummary, result);
-    if (rt.pendingNotify.size === 0) {
-      log.warn("library-sort-title-sync-recovered", "库排序标题待刷新项目已使用当前 AppOverview 恢复", syncMeta(rt, {
-        phase: "pending-notify",
-        attempt: rt.pendingRetryAttempt,
-        attempted: result.attempted,
-        durationMs: Date.now() - rt.pendingRetryStartedAt,
-        recovery: {
-          attempted: true,
-          success: true,
-          strategy: "current-app-overview",
-        },
-      }));
-      rt.pendingRetryAttempt = 0;
-      rt.pendingRetryStartedAt = 0;
-      rt.pendingRetryExhausted = false;
-      rt.pendingRetryWarned = false;
-      rt.syncFailureRecovered = rt.syncFailed || rt.syncFailureRecovered;
-      rt.schedule();
-      return;
-    }
-    if (rt.pendingRetryAttempt >= PENDING_NOTIFY_RETRY_MAX) {
-      rt.pendingRetryExhausted = true;
-      if (!rt.pendingRetryWarned) {
-        rt.pendingRetryWarned = true;
-        log.warn("library-sort-title-sync-failed", "库排序标题等待当前 AppOverview 完整数据超时", syncMeta(rt, {
-          phase: "pending-notify",
-          attempt: rt.pendingRetryAttempt,
-          attempted: result.attempted,
-          incompleteAppCount: result.incompleteAppCount,
-          pendingNotifyCount: rt.pendingNotify.size,
-          durationMs: Date.now() - rt.pendingRetryStartedAt,
-        }));
-      }
-      return;
-    }
-    startPendingNotifyRetry(rt);
-  }
-
-  function startPendingNotifyRetry(rt, { restart = false } = {}) {
-    if (rt?.scheduled !== true || rt.pendingNotify.size === 0 || rt.pendingRetryScheduled) {
-      return false;
-    }
-    if (rt.pendingRetryExhausted) {
-      if (!restart) {
-        return false;
-      }
-      rt.pendingRetryAttempt = 0;
-      rt.pendingRetryStartedAt = Date.now();
-      rt.pendingRetryExhausted = false;
-    }
-    rt.pendingRetryScheduled = true;
-    scheduleRuntimeTimeout(rt, "pending-notify-retry", () => runPendingNotifyRetry(rt), PENDING_NOTIFY_RETRY_MS);
-    return true;
-  }
-
-  function mergeSyncSummary(previous, current) {
-    const prev = previous || {};
-    const next = current || {};
-    return {
-      appCount: next.appCount || prev.appCount || 0,
-      customSortCount: next.customSortCount || prev.customSortCount || 0,
-      dirtyCount: (prev.dirtyCount || 0) + (next.dirtyCount || 0),
-      changed: Math.max(prev.changed || 0, next.changed || 0),
-      cloneFailed: (prev.cloneFailed || 0) + (next.cloneFailed || 0),
-      pendingNotifyCount: Math.max(prev.pendingNotifyCount || 0, next.pendingNotifyCount || 0),
-      notifyAvailable: next.notifyAvailable === true || prev.notifyAvailable === true,
-      notifyAttempted: next.notifyAttempted === true || prev.notifyAttempted === true,
-      notifySucceeded: next.notifySucceeded === true || prev.notifySucceeded === true,
-      refreshSkipped: next.refreshSkipped === true || prev.refreshSkipped === true,
-    };
-  }
-
-  function applyList(apps) {
-    let changed = 0;
-    for (const app of apps) {
-      if (apply(app)) {
-        changed += 1;
-      }
-    }
-    return changed;
-  }
-
-  // Steam 原型方法可能被多次扫描命中，flag 用于防止重复 hook 同一个函数。
-  function patch(obj, name, flag, wrap) {
-    const orig = obj?.[name];
-    if (typeof orig !== "function") {
-      return false;
-    }
-    if (orig[flag]) {
-      return true;
-    }
-
-    const fn = wrap(orig);
-    if (typeof fn !== "function") {
-      return false;
-    }
-
     try {
-      Object.defineProperty(fn, flag, { value: true });
-      fn.toString = () => orig.toString();
-      obj[name] = fn;
-      patches().push({ obj, name, flag, fn, orig });
+      return Array.from(collection.m_setApps, (appid) => Number(appid) || 0).filter(Boolean);
     } catch {
-      return false;
+      return [];
     }
-
-    return obj[name] === fn;
   }
 
-  function sortBase(apps) {
-    for (const app of apps) {
-      for (let proto = Object.getPrototypeOf(app); proto && proto !== Object.prototype; proto = Object.getPrototypeOf(proto)) {
-        if (Object.prototype.hasOwnProperty.call(proto, "SetSortAs") && typeof proto.SetSortAs === "function") {
-          return proto;
-        }
+  function userCollections(store = window.collectionStore) {
+    if (!store || (typeof store !== "object" && typeof store !== "function")) {
+      return null;
+    }
+    let descriptor;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(store), "userCollections");
+    } catch {
+      return null;
+    }
+    if (typeof descriptor?.get !== "function") {
+      return null;
+    }
+    try {
+      const collections = descriptor.get.call(store);
+      return Array.isArray(collections) ? collections : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function groupIndex(rt) {
+    const map = new Map();
+    const headers = [];
+    const collections = userCollections();
+    if (!Array.isArray(collections)) {
+      return null;
+    }
+    for (const collection of collections) {
+      const rawName = collectionName(collection);
+      const parsed = parseCollectionName(rawName);
+      headers.push({
+        name: rawName,
+        displayName: rt.hideCollectionTags ? parsed.base : rawName,
+      });
+      if (!parsed.tags.length) {
+        continue;
       }
+      for (const appid of collectionApps(collection)) {
+        map.set(appid, uniqueLabels([...(map.get(appid) || []), ...parsed.tags]));
+      }
+    }
+    return { map, headers };
+  }
+
+  function sameLabels(left = [], right = []) {
+    return left.length === right.length && left.every((value, index) => value === right[index]);
+  }
+
+  function sameHeaders(left = [], right = []) {
+    return left.length === right.length && left.every((item, index) => {
+      const other = right[index] || {};
+      return item?.name === other.name && item?.displayName === other.displayName;
+    });
+  }
+
+  function applyGroupIndex(rt, next) {
+    const previous = rt.groupTagsByApp;
+    const changed = new Set([...previous.keys(), ...next.map.keys()]);
+    for (const appid of Array.from(changed)) {
+      if (sameLabels(previous.get(appid) || [], next.map.get(appid) || [])) {
+        changed.delete(appid);
+      }
+    }
+    const headersChanged = !sameHeaders(rt.collectionHeaders, next.headers);
+    rt.groupTagsByApp = next.map;
+    rt.collectionHeaders = next.headers;
+    rt.groupIndexReady = true;
+    for (const appid of changed) rt.model.delete(appid);
+    return { changed: Array.from(changed), headersChanged };
+  }
+
+  function ensureGroupIndex(rt) {
+    if (!rt.groupLabelsEnabled) {
+      return [];
+    }
+    const next = groupIndex(rt);
+    if (!next) {
+      return [];
+    }
+    return applyGroupIndex(rt, next).changed;
+  }
+
+  function labelsForApp(appid) {
+    const id = Number(appid) || 0;
+    if (!id || typeof window.collectionStore?.GetCollectionListForAppID !== "function") {
+      return [];
+    }
+    try {
+      const result = window.collectionStore.GetCollectionListForAppID(id);
+      const labels = [];
+      for (const collection of Array.isArray(result) ? result : []) {
+        labels.push(...parseCollectionName(collectionName(collection)).tags);
+      }
+      return uniqueLabels(labels);
+    } catch {
+      return [];
+    }
+  }
+
+  function refreshTargetLabels(rt, appids, reason) {
+    if (!rt.groupLabelsEnabled || !rt.groupIndexReady) {
+      return false;
+    }
+    const changed = [];
+    for (const rawId of Array.from(appids || [])) {
+      const id = Number(rawId) || 0;
+      if (!id) continue;
+      const next = labelsForApp(id);
+      const previous = rt.groupTagsByApp.get(id) || [];
+      if (sameLabels(previous, next)) continue;
+      if (next.length) rt.groupTagsByApp.set(id, next);
+      else rt.groupTagsByApp.delete(id);
+      rt.model.delete(id);
+      changed.push(id);
+    }
+    if (changed.length) {
+      invalidate(rt, changed, reason);
+    }
+    return changed.length > 0;
+  }
+
+  function groupedMode() {
+    const value = window.uiStore?.bIsGameListGroupedByCollection;
+    return typeof value === "boolean" ? value : null;
+  }
+
+  function labelsActive(rt) {
+    if (!rt.groupLabelsEnabled) return false;
+    const grouped = groupedMode();
+    // 分组状态未就绪时不追加标签，避免把未知状态当成未分组
+    if (grouped === null) return false;
+    return grouped !== true || rt.groupedModeEnabled === true;
+  }
+
+  function appendLabels(name, labels) {
+    const base = clean(name);
+    const list = uniqueLabels(labels);
+    return list.length ? `${base}【${list.join("、")}】` : base;
+  }
+
+  function settingsSnapshot(rt) {
+    return {
+      customSortEnabled: rt.customSortEnabled,
+      groupLabelsEnabled: rt.groupLabelsEnabled,
+      groupedModeEnabled: rt.groupedModeEnabled,
+      groupedByCollection: groupedMode(),
+      hideCollectionTags: rt.hideCollectionTags,
+    };
+  }
+
+  function appOverview(appid) {
+    if (typeof window.appStore?.GetAppOverviewByAppID !== "function") {
+      return null;
+    }
+    try {
+      return window.appStore.GetAppOverviewByAppID(Number(appid) || 0) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function modelEntry(rt, appid) {
+    const id = Number(appid) || 0;
+    if (!id) return null;
+    const app = appOverview(id);
+    if (!app) return null;
+    if (rt.groupLabelsEnabled && !rt.groupIndexReady) {
+      ensureGroupIndex(rt);
+    }
+    const official = officialName(app);
+    const customName = rt.customSortEnabled ? clean(app.custom_sort_as_display) : "";
+    const visibleCustomName = customName ? viewCustomName(customName) : "";
+    const base = visibleCustomName || official;
+    const labels = rt.groupTagsByApp.get(id) || [];
+    const finalDisplayName = labelsActive(rt) ? appendLabels(base, labels) : base;
+    const signature = JSON.stringify([
+      official,
+      customName,
+      labels,
+      labelsActive(rt),
+      rt.customSortEnabled,
+      rt.groupLabelsEnabled,
+      rt.groupedModeEnabled,
+      groupedMode(),
+    ]);
+    const previous = rt.model.get(id);
+    if (previous?.signature === signature) {
+      return previous;
+    }
+    const entry = {
+      appid: id,
+      officialName: official,
+      customName,
+      groupTags: labels.slice(),
+      finalDisplayName,
+      signature,
+    };
+    rt.model.set(id, entry);
+    return entry;
+  }
+
+  function post(rt, message) {
+    try {
+      rt.channel?.postMessage({ script: ID, side: "backend", revision: rt.revision, ...message });
+    } catch {
+    }
+  }
+
+  function invalidate(rt, appids, reason = "change") {
+    const ids = Array.from(new Set(Array.from(appids || []).map((appid) => Number(appid) || 0).filter(Boolean)));
+    if (ids.length > BULK_INVALIDATION_LIMIT) {
+      // 模型只缓存当前可见行；大批量变化直接丢弃小缓存，避免遍历后台事件携带的全库 AppID
+      rt.model.clear();
+    } else {
+      for (const id of ids) rt.model.delete(id);
+    }
+    rt.revision += 1;
+    post(rt, {
+      type: "invalidate",
+      appids: ids.length <= BULK_INVALIDATION_LIMIT ? ids : [],
+      visibleOnly: true,
+      reason: String(reason),
+    });
+  }
+
+  function sendSnapshot(rt, data) {
+    const ids = Array.from(new Set((Array.isArray(data?.appids) ? data.appids : [])
+      .map((appid) => Number(appid) || 0).filter(Boolean))).slice(0, 200);
+    if (rt.groupLabelsEnabled && !rt.groupIndexReady) ensureGroupIndex(rt);
+    post(rt, {
+      type: "snapshot",
+      rid: String(data?.rid || ""),
+      clientId: String(data?.clientId || ""),
+      entries: ids.map((appid) => modelEntry(rt, appid)).filter(Boolean),
+      headers: rt.collectionHeaders.slice(),
+      settings: settingsSnapshot(rt),
+    });
+  }
+
+  function openChannel(rt) {
+    if (typeof BroadcastChannel !== "function") return false;
+    try {
+      rt.channel = new BroadcastChannel(CHANNEL);
+      rt.onMessage = (event) => {
+        const data = event?.data || {};
+        if (data.script !== ID || data.side !== "ui") return;
+        if (data.type === "snapshot-request") sendSnapshot(rt, data);
+      };
+      rt.channel.addEventListener("message", rt.onMessage);
+      return true;
+    } catch (error) {
+      log.warn("library-sort-title-channel-unavailable", "库列表名称共享模型无法建立跨上下文通道", { error });
+      return false;
+    }
+  }
+
+  function settingsValue(api, id, fallback) {
+    const snapshot = api.ctx?.settings?.() || {};
+    return Object.prototype.hasOwnProperty.call(snapshot, id) ? snapshot[id] : fallback;
+  }
+
+  function broadcastSettings(rt) {
+    rt.model.clear();
+    rt.revision += 1;
+    post(rt, { type: "settings", settings: settingsSnapshot(rt), headers: rt.collectionHeaders.slice() });
+  }
+
+  function syncSettings(api, rt) {
+    const customSortEnabled = settingsValue(api, ID, true) !== false;
+    const groupLabelsEnabled = settingsValue(api, GROUP_LABELS_ID, true) !== false;
+    const groupedModeEnabled = settingsValue(api, GROUPED_MODE_ID, false) === true;
+    const hideCollectionTags = groupLabelsEnabled && settingsValue(api, HIDE_COLLECTION_TAGS_ID, true) !== false;
+    const originalNameSearch = customSortEnabled && settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true;
+    const changed = rt.customSortEnabled !== customSortEnabled
+      || rt.groupLabelsEnabled !== groupLabelsEnabled
+      || rt.groupedModeEnabled !== groupedModeEnabled
+      || rt.hideCollectionTags !== hideCollectionTags
+      || rt.originalNameSearch !== originalNameSearch;
+    if (!changed) return false;
+    const groupChanged = rt.groupLabelsEnabled !== groupLabelsEnabled;
+    rt.customSortEnabled = customSortEnabled;
+    rt.groupLabelsEnabled = groupLabelsEnabled;
+    rt.groupedModeEnabled = groupedModeEnabled;
+    rt.hideCollectionTags = hideCollectionTags;
+    rt.originalNameSearch = originalNameSearch;
+    if (!groupLabelsEnabled) {
+      rt.groupTagsByApp.clear();
+      rt.collectionHeaders = [];
+      rt.groupIndexReady = false;
+    } else {
+      const changedApps = ensureGroupIndex(rt);
+      if (changedApps.length && !groupChanged) invalidate(rt, changedApps, "settings-index");
+    }
+    if (rt.originalNameSearch) syncSortAsAll(rt);
+    else restoreAllOriginalSortAs(rt);
+    broadcastSettings(rt);
+    return true;
+  }
+
+  function scheduleTimeout(rt, key, callback, delay) {
+    if (!rt.scheduled || typeof callback !== "function") return 0;
+    let handle = null;
+    const timer = window.setTimeout(() => {
+      handle?.dispose?.();
+      if (rt.scheduled) callback();
+    }, Math.max(0, Number(delay) || 0));
+    handle = rt.scope?.resource?.({
+      key,
+      type: "timer",
+      dispose() { window.clearTimeout(timer); rt.timers.delete(handle || timer); },
+    }) || null;
+    rt.timers.add(handle || timer);
+    return timer;
+  }
+
+  function syncSortAsAll(rt) {
+    const apps = window.appStore?.m_mapApps && typeof window.appStore.m_mapApps.values === "function"
+      ? Array.from(window.appStore.m_mapApps.values()).filter(Boolean)
+      : [];
+    for (const app of apps) syncSortAs(app, rt);
+  }
+
+  function findSortOwner() {
+    const map = window.appStore?.m_mapApps;
+    if (!map || typeof map.values !== "function") return null;
+    for (const app of map.values()) {
+      const owner = prototypeOwner(app, "SetSortAs");
+      if (owner) return owner;
     }
     return null;
   }
 
-  function hookSort(apps) {
-    const proto = sortBase(apps);
-    if (!proto) {
-      return false;
-    }
-
-    return patch(proto, "SetSortAs", S_FLAG, (orig) => {
-      return function sortHook(...args) {
-        if (window[RT]?.scheduled !== true) {
-          return orig.apply(this, args);
-        }
-        const arg = args[0];
-        const name = official(this, arg);
-        if (name) {
-          saveOrig(this, name);
-        }
-
-        const ret = orig.apply(this, args);
-        if (apply(this, arg)) {
-          refresh(window.appStore, this);
-        }
-        return ret;
-      };
+  function hookSort(rt) {
+    const owner = findSortOwner();
+    if (!owner) return false;
+    return patch(owner, "SetSortAs", S_FLAG, (original) => function sortHook(...args) {
+      const result = original.apply(this, args);
+      if (window[RT]?.scheduled !== true) return result;
+      const name = officialName(this, args[0]);
+      if (name && !this[ORIG]) saveOriginalName(this, name);
+      syncSortAs(this, window[RT]);
+      invalidate(window[RT], [this.appid], "custom-sort");
+      return result;
     });
   }
 
   function onCustomSortBefore(data) {
-    if (window[RT]?.scheduled === true) {
-      saveNow(data?.app);
-    }
+    const rt = window[RT];
+    if (rt?.scheduled === true && data?.app) saveOriginalName(data.app, officialName(data.app));
   }
 
-  // Steam 原生保存参数和 CloudStorage 仍保留完整自定义排序名称；这里只同步库列表显示。
-  // SetCustomSortAs 写入后 Steam 云同步可能延迟覆盖对象，所以立即同步后还要延迟确认一次。
+  function setCustomName(app, sortAs, rt) {
+    if (!app || typeof app !== "object") return false;
+    const name = clean(sortAs);
+    if (name && !app[ORIG]) saveOriginalName(app, officialName(app));
+    // 该字段是 Steam 原生 AppOverview 的当前同步值，保存协议仍由 Steam 负责
+    if (app.custom_sort_as_display !== name) {
+      app.custom_sort_as_display = name;
+    }
+    syncSortAs(app, rt);
+    return true;
+  }
+
   function onCustomSortAfter(data) {
     const rt = window[RT];
-    if (rt?.scheduled !== true || data?.ok !== true) {
-      return;
-    }
-    const store = data.store;
+    if (rt?.scheduled !== true || data?.ok !== true) return;
     const appid = Number(data.appid) || 0;
-    const sortAs = typeof data.sortAs === "string" ? data.sortAs : "";
-    const first = data.app || null;
-    if (recordBulk(rt, appid, sortAs, true)) {
-      return;
-    }
-    const sync = () => {
-      const app = typeof store?.GetAppOverviewByAppID === "function" ? store.GetAppOverviewByAppID(appid) : first;
-      if (!app) {
-        return;
-      }
-      setCust(app, sortAs);
-      refresh(store, app);
-    };
-    sync();
-    scheduleRuntimeTimeout(rt, "custom-sort-recheck", sync, AFTER_SAVE_RECHECK_MS);
+    if (!appid) return;
+    if (recordBulk(rt, appid, data.sortAs, true)) return;
+    const app = appOverview(appid) || data.app;
+    if (app) setCustomName(app, data.sortAs, rt);
+    invalidate(rt, [appid], "custom-sort-save");
+    scheduleTimeout(rt, "custom-sort-recheck", () => {
+      const current = appOverview(appid);
+      if (current) setCustomName(current, data.sortAs, rt);
+      invalidate(rt, [appid], "custom-sort-recheck");
+    }, AFTER_SAVE_RECHECK_MS);
   }
 
   function bindCustomSortEvents(rt, store) {
     const events = window[CUSTOM_SORT_EVENTS];
-    if (!events?.subscribe || !events?.ensure) {
-      return false;
-    }
+    if (!events?.subscribe || !events?.ensure) return false;
     if (!rt.customEventsOff) {
-      rt.customEventsOff = events.subscribe(ID, {
-        before: onCustomSortBefore,
-        after: onCustomSortAfter,
-      });
+      rt.customEventsOff = events.subscribe(ID, { before: onCustomSortBefore, after: onCustomSortAfter });
     }
     return typeof rt.customEventsOff === "function" && events.ensure(store) === true;
   }
 
-  function hookChange(store) {
-    return patch(store, "OnAppOverviewChange", O_FLAG, (orig) => {
-      return function changeHook(...args) {
-        const apps = Array.isArray(args[0]) ? args[0] : [];
-        const rt = window[RT];
-        if (rt?.scheduled !== true) {
-          return orig.apply(this, args);
-        }
-        if (apps.length && bulkOn(rt)) {
-          for (const app of apps) {
-            recordBulk(rt, app?.appid, app?.custom_sort_as_display);
-          }
-          return undefined;
-        }
-        if (rt?.notifying) {
-          return orig.apply(this, args);
-        }
-        if (!rt?.syncedOnce) {
-          applyList(apps);
-        } else {
-          const dirty = apps.filter(isDirty);
-          if (dirty.length) {
-            applyList(dirty);
-          }
-        }
-        return orig.apply(this, args);
-      };
+  function hookOverviewChange(rt, store) {
+    return patch(store, "OnAppOverviewChange", O_FLAG, (original) => function overviewChangeHook(...args) {
+      const result = original.apply(this, args);
+      if (window[RT]?.scheduled !== true) return result;
+      const apps = Array.isArray(args[0]) ? args[0] : [];
+      const ids = apps.map((app) => Number(app?.appid) || 0).filter(Boolean);
+      for (const id of ids) {
+        const current = appOverview(id);
+        if (current) syncSortAs(current, window[RT]);
+      }
+      if (ids.length) invalidate(window[RT], ids, "overview-change");
+      return result;
     });
+  }
+
+  function refreshGroupIndex(rt, reason) {
+    const previousHeaders = rt.collectionHeaders.slice();
+    const changed = ensureGroupIndex(rt);
+    if (!sameHeaders(previousHeaders, rt.collectionHeaders)) broadcastSettings(rt);
+    if (changed.length) invalidate(rt, changed, reason);
+  }
+
+  function hookCollectionEvents(rt) {
+    const store = window.collectionStore;
+    if (!store) return false;
+    const membershipReady = patch(store, "AddOrRemoveApp", COLLECTION_FLAG, (original) => function addOrRemoveHook(...args) {
+      const result = original.apply(this, args);
+      if (window[RT]?.scheduled === true) refreshTargetLabels(window[RT], args[0], "collection-membership");
+      return result;
+    });
+    // 当前 Steam 版本实测只有以下收藏分组变化入口可写；不保留未取证的
+    // collection.Save / collectionStore.SaveCollection 兼容路径
+    let ready = membershipReady;
+    const map = store.m_mapCollectionsFromStorage;
+    ready = patch(map, "set", COLLECTION_FLAG, (original) => function cloudSetHook(...args) {
+      const result = original.apply(this, args);
+      scheduleTimeout(window[RT], "collection-cloud-refresh", () => {
+        refreshGroupIndex(window[RT], "collection-cloud");
+      }, 0);
+      return result;
+    }) && ready;
+    ready = patch(map, "delete", COLLECTION_FLAG, (original) => function cloudDeleteHook(...args) {
+      const result = original.apply(this, args);
+      scheduleTimeout(window[RT], "collection-cloud-refresh", () => {
+        refreshGroupIndex(window[RT], "collection-cloud");
+      }, 0);
+      return result;
+    }) && ready;
+    const uiOwner = prototypeOwner(window.uiStore, "UpdateGameListSelection");
+    ready = patch(uiOwner, "UpdateGameListSelection", G_FLAG, (original) => function groupedModeHook(...args) {
+      const before = groupedMode();
+      const result = original.apply(this, args);
+      const after = groupedMode();
+      if (before !== after) {
+        window[RT].lastGroupedMode = after;
+        broadcastSettings(window[RT]);
+      }
+      return result;
+    }) && ready;
+    return ready;
+  }
+
+  function observeSettings(api, rt) {
+    if (!document.documentElement || typeof MutationObserver !== "function") return false;
+    const observer = new MutationObserver(() => {
+      if (rt.settingsTimer) return;
+      rt.settingsTimer = scheduleTimeout(rt, "settings-sync", () => {
+        rt.settingsTimer = 0;
+        if (syncSettings(api, rt)) rt.schedule();
+      }, SETTINGS_DEBOUNCE_MS);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: [SETTINGS_ATTRIBUTE] });
+    rt.settingsObserver = observer;
+    return true;
+  }
+
+  function bulkOn(rt = window[RT]) {
+    return rt?.bulk?.active === true;
+  }
+
+  function recordBulk(rt, appid, sortAs, force = false) {
+    const id = Number(appid) || 0;
+    if (!rt?.bulk?.active || !id) return false;
+    if (force || !rt.bulk.map.has(id)) rt.bulk.map.set(id, raw(sortAs));
+    rt.bulk.changed += 1;
+    return true;
   }
 
   function beginCustomNameBulk(data = {}) {
     const rt = window[RT];
-    if (!rt) {
-      return { enabled: false, reason: "runtime-missing" };
-    }
-    if (!rt.customOk || !rt.changeOk) {
-      return { enabled: false, reason: "hook-not-ready", customOk: !!rt.customOk, changeOk: !!rt.changeOk };
-    }
+    if (!rt) return { enabled: false, reason: "runtime-missing" };
     if (rt.bulk?.active) {
       rt.bulk.depth += 1;
-      rt.bulk.total += Math.max(0, Number(data.total) || 0);
       return { enabled: true, reason: "nested", depth: rt.bulk.depth };
     }
     rt.bulk = {
       active: true,
       depth: 1,
-      source: String(data.source || ""),
-      seq: Number(data.seq) || 0,
+      source: clean(data.source),
       total: Math.max(0, Number(data.total) || 0),
-      intervalMs: Math.max(0, Number(data.intervalMs) || 0),
-      startedAt: Date.now(),
       changed: 0,
       map: new Map(),
     };
-    log.info("library-sort-title-bulk-start", "库排序标题进入批量刷新抑制", {
-      source: rt.bulk.source,
-      seq: rt.bulk.seq,
-      total: rt.bulk.total,
-      intervalMs: rt.bulk.intervalMs,
-      customOk: !!rt.customOk,
-      changeOk: !!rt.changeOk,
-    });
-    return { enabled: true, reason: "", depth: 1, customOk: !!rt.customOk, changeOk: !!rt.changeOk };
+    return { enabled: true, reason: "", depth: 1 };
+  }
+
+  function recordCustomNameBulk(items = []) {
+    const rt = window[RT];
+    let recorded = 0;
+    for (const item of Array.isArray(items) ? items : []) {
+      if (recordBulk(rt, item?.appid, item?.sortAs ?? item?.name, true)) recorded += 1;
+    }
+    return { enabled: bulkOn(rt), count: Array.isArray(items) ? items.length : 0, recorded };
   }
 
   function endCustomNameBulk(data = {}) {
     const rt = window[RT];
-    const state = rt?.bulk;
-    if (!state?.active) {
-      return { enabled: false, reason: "bulk-missing" };
-    }
-    state.depth -= 1;
-    if (state.depth > 0) {
-      return { enabled: true, reason: "nested", depth: state.depth };
-    }
-    state.active = false;
+    if (!rt?.bulk?.active) return { enabled: false, reason: "bulk-missing" };
+    rt.bulk.depth -= 1;
+    if (rt.bulk.depth > 0) return { enabled: true, reason: "nested", depth: rt.bulk.depth };
+    const state = rt.bulk;
     rt.bulk = null;
-    const reason = String(data.reason || "done");
-    const result = flushBulkState(state, reason);
-    const delayed = Array.from(state.map || []);
-    // 🚀 性能优化：大批量 AppOverviewChange 会让 Steam 库列表同步重排，批量保存只写数据，不主动接管整库刷新。
-    if (delayed.length <= BULK_UI_REFRESH_MAX) {
-      scheduleRuntimeTimeout(rt, "bulk-delayed-flush", () => {
-        const changed = flushBulkMap(window.appStore, delayed, { reason: "bulk:delayed" });
-        log.info("library-sort-title-bulk-flush", "库排序标题批量延迟复查完成", {
-          reason: "delayed",
-          queued: delayed.length,
-          changed,
-          durationMs: Date.now() - (state.startedAt || Date.now()),
-        });
-      }, AFTER_SAVE_RECHECK_MS);
-    } else {
-      log.info("library-sort-title-bulk-delayed-skip", "库排序标题跳过大批量延迟刷新", {
-        reason,
-        queued: delayed.length,
-        limit: BULK_UI_REFRESH_MAX,
-        durationMs: Date.now() - (state.startedAt || Date.now()),
-      });
+    const ids = Array.from(state.map.keys());
+    for (const [appid, sortAs] of state.map) {
+      const app = appOverview(appid);
+      if (app) setCustomName(app, sortAs, rt);
     }
-    return { enabled: true, reason, ...result };
+    if (ids.length) invalidate(rt, ids, `custom-name-bulk:${clean(data.reason) || "done"}`);
+    return { enabled: true, reason: clean(data.reason) || "done", queued: ids.length, changed: ids.length };
   }
 
-  function setMs(rt, ms) {
-    if (rt.ms === ms) {
-      return;
-    }
-    rt.ms = ms;
-    window.STScheduler?.reschedule?.(SCHEDULER_TASK, { intervalMs: ms });
+  function setSchedulerInterval(rt, intervalMs) {
+    if (rt.intervalMs === intervalMs) return;
+    rt.intervalMs = intervalMs;
+    window.STScheduler?.reschedule?.(SCHEDULER_TASK, { intervalMs });
   }
 
-  function scheduleRuntimeTimeout(rt, key, callback, delay) {
-    if (rt?.scheduled !== true || typeof callback !== "function") {
-      return 0;
+  function clearTimers(rt) {
+    for (const item of Array.from(rt.timers)) {
+      if (item?.dispose) item.dispose();
+      else window.clearTimeout(item);
     }
-    let handle = null;
-    const timer = window.setTimeout(() => {
-      if (handle) {
-        handle.dispose();
-      } else {
-        rt.timeoutHandles?.delete(timer);
-      }
-      if (rt.scheduled === true) {
-        callback();
-      }
-    }, Math.max(0, Number(delay) || 0));
-    handle = rt.scope?.resource?.({
-      key,
-      type: "timer",
-      dispose() {
-        window.clearTimeout(timer);
-        rt.timeoutHandles?.delete(handle || timer);
-      },
-    }) || null;
-    rt.timeoutHandles?.add(handle || timer);
-    return timer;
+    rt.timers.clear();
   }
 
-  function clearRuntimeTimeouts(rt) {
-    for (const item of Array.from(rt?.timeoutHandles || [])) {
-      if (item?.dispose) {
-        item.dispose();
-      } else {
-        window.clearTimeout(item);
-      }
-    }
-    rt?.timeoutHandles?.clear?.();
-  }
-
-  // 客户端启动初期 appStore 分批就绪，启动阶段短轮询，hook 齐全后降到低频巡检。
   function start(api, _feature, _context, scope) {
     const old = window[RT];
-    if (old?.scheduled) {
-      return { started: false, reason: "already-started", stop: old.stop };
-    }
-    const operationId = window.STLoggerFactory.createOperationId();
-    const originalNameSearch = api.ctx?.settings?.()?.[ORIGINAL_NAME_SEARCH_ID] === true;
-    if (!window.STScheduler?.register) {
-      log.error("library-sort-title-sync-failed", "库排序标题同步缺少统一调度器", {
-        operationId,
-        phase: "scheduler-register",
-      });
-      return { started: false, reason: "scheduler-unavailable" };
-    }
-
-    const run = () => {
-      const rt = window[RT];
-      if (!rt) {
-        return;
-      }
-      const apps = api.ctx?.apps();
-      if (!apps?.length) {
-        const appStoreReady = !!window.appStore;
-        const appMapReady = !!window.appStore?.m_mapApps && typeof window.appStore.m_mapApps.values === "function";
-        if (!rt.waitingLogged) {
-          rt.waitingLogged = true;
-          log.debug("library-sort-title-sync-waiting", "库排序标题同步等待 Steam AppOverview 数据", syncMeta(rt, {
-            phase: "app-data-wait",
-            appStoreReady,
-            appMapReady,
-            appCount: Array.isArray(apps) ? apps.length : null,
-            durationMs: Date.now() - rt.startedAt,
-          }));
-        }
-        if (!rt.appWaitWarned && Date.now() - rt.startedAt > HOOK_READY_WARN_MS) {
-          rt.appWaitWarned = true;
-          log.warn("library-sort-title-sync-failed", "库排序标题同步等待 Steam AppOverview 数据超时", syncMeta(rt, {
-            phase: "app-data-wait",
-            appStoreReady,
-            appMapReady,
-            appCount: Array.isArray(apps) ? apps.length : null,
-            durationMs: Date.now() - rt.startedAt,
-          }));
-        }
-        setMs(rt, BOOT_MS);
-        return;
-      }
-      if (rt.appWaitWarned && !rt.appWaitRecovered) {
-        rt.appWaitRecovered = true;
-        log.warn("library-sort-title-sync-recovered", "库排序标题同步所需 AppOverview 数据已恢复", syncMeta(rt, {
-          phase: "app-data-wait",
-          appCount: apps.length,
-          durationMs: Date.now() - rt.startedAt,
-          recovery: {
-            attempted: true,
-            success: true,
-            strategy: "app-data-ready",
-          },
-        }));
-      }
-      if (!rt.loggedStart) {
-        rt.loggedStart = true;
-        log.info("library-sort-title-sync-start", "开始同步库排序标题显示", syncMeta(rt, {
-          appCount: apps.length,
-          durationMs: Date.now() - rt.startedAt,
-        }));
-      }
-      if (!rt.sortOk) {
-        rt.sortOk = hookSort(apps);
-      }
-      if (!rt.customOk) {
-        rt.customOk = bindCustomSortEvents(rt, window.appStore);
-      }
-      if (!rt.changeOk) {
-        rt.changeOk = hookChange(window.collectionStore);
-      }
-      const hooksReady = rt.sortOk && rt.customOk && rt.changeOk;
-      let result = null;
-      const notifyBecameReady = hooksReady && rt.lastSync?.failedPhase === "library-ui-notify-unavailable";
-      const retryReady = !rt.nextSyncAt || Date.now() >= rt.nextSyncAt || notifyBecameReady;
-      if ((!rt.bootApplied || (hooksReady && !rt.syncedOnce)) && retryReady && !rt.syncStopped) {
-        // 🚀 性能优化：全库自定义排序名修正只做启动兜底和 hook 就绪后的最终修正；日常变更走局部事件。
-        result = applyAll(apps, { rt });
-        rt.lastSync = result;
-        rt.syncSummary = mergeSyncSummary(rt.syncSummary, result);
-        rt.bootApplied = true;
-        if (result.pendingOnlyRetry) {
-          rt.nextSyncAt = 0;
-          if (hooksReady) {
-            rt.syncedOnce = true;
-          }
-          startPendingNotifyRetry(rt);
-        } else if (result.ok) {
-          rt.nextSyncAt = 0;
-          if (rt.syncFailed && !rt.syncFailureRecovered) {
-            rt.syncFailureRecovered = true;
-            log.warn("library-sort-title-sync-recovered", "库排序标题同步重试已恢复", syncMeta(rt, {
-              phase: "sync-retry",
-              failedPhases: Array.from(rt.failedPhases),
-              durationMs: Date.now() - rt.startedAt,
-              recovery: {
-                attempted: true,
-                success: true,
-                strategy: "scheduled-retry",
-              },
-            }));
-          }
-        } else {
-          if (result.retryable) {
-            rt.nextSyncAt = Date.now() + SYNC_MS;
-          } else {
-            rt.nextSyncAt = 0;
-            rt.syncStopped = true;
-          }
-        }
-        if (hooksReady && result.ok) {
-          rt.syncedOnce = true;
-        }
-      }
-      if (rt.pendingNotify.size > 0 && !rt.pendingRetryScheduled && rt.pendingRetryExhausted) {
-        startPendingNotifyRetry(rt, { restart: true });
-      }
-      if (!rt.loggedSuccess && hooksReady && rt.syncedOnce && rt.pendingNotify.size === 0) {
-        rt.loggedSuccess = true;
-        const summary = rt.syncSummary || result || rt.lastSync || {};
-        log.info("library-sort-title-sync-success", "库排序标题同步已就绪", syncMeta(rt, {
-          appCount: apps.length,
-          customSortCount: summary.customSortCount || 0,
-          dirtyCount: summary.dirtyCount || 0,
-          changed: summary.changed || 0,
-          cloneFailed: summary.cloneFailed || 0,
-          pendingNotifyCount: rt.pendingNotify.size,
-          notifyAvailable: summary.notifyAvailable === true,
-          notifyAttempted: summary.notifyAttempted === true,
-          notifySucceeded: summary.notifySucceeded === true,
-          refreshSkipped: summary.refreshSkipped === true,
-          sortOk: rt.sortOk,
-          customOk: rt.customOk,
-          changeOk: rt.changeOk,
-          durationMs: Date.now() - rt.startedAt,
-        }));
-      } else if (!rt.hookWarned && !hooksReady && Date.now() - rt.startedAt > HOOK_READY_WARN_MS) {
-        rt.hookWarned = true;
-        log.warn("library-sort-title-sync-failed", "库排序标题同步 hook 未完全就绪", syncMeta(rt, {
-          phase: "hook-ready",
-          appCount: apps.length,
-          sortOk: rt.sortOk,
-          customOk: rt.customOk,
-          changeOk: rt.changeOk,
-          durationMs: Date.now() - rt.startedAt,
-        }));
-      }
-
-      const nextMs = (hooksReady && rt.syncedOnce) || rt.hookWarned || rt.nextSyncAt || rt.syncStopped ? SYNC_MS : BOOT_MS;
-      setMs(rt, nextMs);
-    };
-
-    const schedule = () => {
-      const rt = window[RT];
-      if (!rt) {
-        return;
-      }
-      if (rt.delay) {
-        return;
-      }
-      rt.delay = window.setTimeout(() => {
-        const handle = rt.delayHandle;
-        rt.delayHandle = null;
-        rt.delay = 0;
-        handle?.dispose?.();
-        run();
-      }, SCHEDULE_DEBOUNCE_MS);
-      rt.delayHandle = scope?.resource?.({
-        key: "schedule-delay",
-        type: "timer",
-        dispose() {
-          if (rt.delay) {
-            window.clearTimeout(rt.delay);
-            rt.delay = 0;
-          }
-          rt.delayHandle = null;
-        },
-      }) || null;
-    };
-
-    const onVisible = () => {
-      if (!document.hidden) {
-        schedule();
-      }
-    };
-
+    if (old?.scheduled) return { started: false, reason: "already-started", stop: old.stop };
+    if (!window.STScheduler?.register) return { started: false, reason: "scheduler-unavailable" };
     const rt = {
       scheduled: true,
-      ms: SYNC_MS,
-      delay: 0,
-      delayHandle: null,
-      sortOk: false,
-      customOk: false,
-      customEventsOff: null,
-      changeOk: false,
-      bootApplied: false,
-      syncedOnce: false,
-      startedAt: Date.now(),
       scope: scope || null,
-      timeoutHandles: new Set(),
-      operationId,
-      failureKeys: new Set(),
-      failedPhases: new Set(),
-      pendingNotify: new Set(),
-      pendingRetryAttempt: 0,
-      pendingRetryStartedAt: 0,
-      pendingRetryScheduled: false,
-      pendingRetryExhausted: false,
-      pendingRetryWarned: false,
-      syncFailed: false,
-      syncFailureRecovered: false,
-      syncStopped: false,
-      loggedStart: false,
-      loggedSuccess: false,
-      waitingLogged: false,
-      appWaitWarned: false,
-      appWaitRecovered: false,
-      hookWarned: false,
-      nextSyncAt: 0,
-      lastSync: null,
-      syncSummary: null,
-      notifying: false,
-      originalNameSearch,
+      channel: null,
+      onMessage: null,
+      revision: 0,
+      model: new Map(),
+      groupTagsByApp: new Map(),
+      collectionHeaders: [],
+      groupIndexReady: false,
+      customSortEnabled: settingsValue(api, ID, true) !== false,
+      groupLabelsEnabled: settingsValue(api, GROUP_LABELS_ID, true) !== false,
+      groupedModeEnabled: settingsValue(api, GROUPED_MODE_ID, false) === true,
+      lastGroupedMode: null,
+      hideCollectionTags: settingsValue(api, HIDE_COLLECTION_TAGS_ID, true) !== false,
+      originalNameSearch: settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true,
       sortAsOriginals: new Map(),
+      customEventsOff: null,
+      sortOk: false,
+      changeOk: false,
+      collectionOk: false,
+      settingsObserver: null,
+      settingsTimer: 0,
+      timers: new Set(),
+      intervalMs: BOOT_MS,
+      startedAt: Date.now(),
+      failureKeys: new Set(),
+      bulk: null,
       beginCustomNameBulk,
       recordCustomNameBulk,
       endCustomNameBulk,
-      run,
-      schedule,
-      stop() {
-        window.STScheduler?.unregister?.(SCHEDULER_TASK);
-        rt.scheduled = false;
-        restoreAllOriginalSortAs(rt);
-        clearRuntimeTimeouts(rt);
-        if (rt.delayHandle) {
-          const handle = rt.delayHandle;
-          rt.delayHandle = null;
-          handle.dispose();
-        } else if (rt.delay) {
-          window.clearTimeout(rt.delay);
-          rt.delay = 0;
-        }
-        rt.customEventsOff?.();
-        rt.customEventsOff = null;
-        restorePatches();
-        window[ORIGS]?.clear?.();
-        delete window[ORIGS];
-        rt.bulk = null;
-        rt.sortAsOriginals?.clear?.();
-        rt.timeoutHandles?.clear?.();
-        for (const event of EVENTS) {
-          window.removeEventListener(event, schedule);
-        }
-        document.removeEventListener("visibilitychange", onVisible);
-        if (window[RT] === rt) {
-          window[RT] = null;
-        }
-        rt.scope = null;
-      },
+      run: null,
+      schedule: null,
+      stop: null,
+    };
+
+    const run = () => {
+      if (!rt.scheduled) return;
+      syncSettings(api, rt);
+      const currentGroupedMode = groupedMode();
+      if (currentGroupedMode !== null && currentGroupedMode !== rt.lastGroupedMode) {
+        rt.lastGroupedMode = currentGroupedMode;
+        broadcastSettings(rt);
+      }
+      if (rt.groupLabelsEnabled && !rt.groupIndexReady) ensureGroupIndex(rt);
+      if (rt.customSortEnabled && !rt.sortOk) rt.sortOk = hookSort(rt);
+      if (rt.customSortEnabled && !rt.customEventsOff) bindCustomSortEvents(rt, window.appStore);
+      if (!rt.changeOk) rt.changeOk = hookOverviewChange(rt, window.collectionStore);
+      if (!rt.collectionOk) rt.collectionOk = hookCollectionEvents(rt);
+      if (rt.originalNameSearch && !rt.sortAsBootstrapped
+        && Number(window.appStore?.m_mapApps?.size || 0) > 0) {
+        syncSortAsAll(rt);
+        rt.sortAsBootstrapped = true;
+      }
+      const groupIndexReady = !rt.groupLabelsEnabled || rt.groupIndexReady;
+      const ready = groupIndexReady && rt.changeOk && (!rt.customSortEnabled || rt.sortOk);
+      setSchedulerInterval(rt, ready ? SYNC_MS : BOOT_MS);
+    };
+    const schedule = () => {
+      if (!rt.scheduled || rt.delay) return;
+      rt.delay = scheduleTimeout(rt, "schedule", () => { rt.delay = 0; run(); }, 1000);
+    };
+    rt.run = run;
+    rt.schedule = schedule;
+    rt.stop = () => {
+      window.STScheduler?.unregister?.(SCHEDULER_TASK);
+      rt.scheduled = false;
+      clearTimers(rt);
+      restoreAllOriginalSortAs(rt);
+      rt.customEventsOff?.();
+      rt.customEventsOff = null;
+      rt.settingsObserver?.disconnect?.();
+      rt.settingsObserver = null;
+      if (rt.channel && rt.onMessage) rt.channel.removeEventListener("message", rt.onMessage);
+      rt.channel?.close?.();
+      restorePatches();
+      rt.model.clear();
+      rt.groupTagsByApp.clear();
+      names().clear();
+      for (const event of EVENTS) window.removeEventListener(event, schedule);
+      document.removeEventListener("visibilitychange", schedule);
+      if (window[RT] === rt) delete window[RT];
+      rt.scope = null;
     };
     window[RT] = rt;
-    // 库排序标题巡检迁移到统一调度器；稳定后只做低频 hook 健康检查，避免日常全库重扫。
-    window.STScheduler.register(SCHEDULER_TASK, run, () => api.ctx?.settingOn?.(ID) !== false, { intervalMs: SYNC_MS });
+    openChannel(rt);
+    observeSettings(api, rt);
+    window.STScheduler.register(SCHEDULER_TASK, run, () => (
+      api.ctx?.settingOn?.(ID) !== false || api.ctx?.settingOn?.(GROUP_LABELS_ID) !== false
+    ), { intervalMs: BOOT_MS });
     scope?.schedulerTask?.("backend-sync", SCHEDULER_TASK);
-
-    for (const event of EVENTS) {
-      scope?.listener?.(`window-${event}`, window, event, schedule);
-    }
-    scope?.listener?.("document-visibilitychange", document, "visibilitychange", onVisible);
+    for (const event of EVENTS) scope?.listener?.(`window-${event}`, window, event, schedule);
+    scope?.listener?.("document-visibilitychange", document, "visibilitychange", schedule);
     run();
     return { started: true, stop: rt.stop };
   }

@@ -30,17 +30,26 @@
     {
       id: "library-sort-title",
       name: "库列表自定义排序名称",
-      settingsKey: "library-sort-title",
+      // 共享入口由两个独立设置共同控制，不能让 FeatureRegistry 只按其中一个设置 gate
+      settingsKey: "library-sort-title-display-model",
       loadStrategy: "on-demand-entry",
-      modes: ["backend"],
-      pageScope: ["SharedJSContext"],
-      dependencies: ["shared/scheduler.js"],
-      cost: "background-sync",
+      modes: ["backend", "ui"],
+      dependencies: ["shared/scheduler.js", "BroadcastChannel"],
+      cost: "lazy-visible-list",
       entries: {
         backend: "backend.js",
+        ui: "ui.js",
       },
       shouldRun(api, context, ctx = {}) {
-        return context === "backend" && (ctx.settingOn?.("library-sort-title") ?? api.ctx?.settingOn?.("library-sort-title")) !== false;
+        const sortOn = ctx.settingOn?.("library-sort-title") ?? api.ctx?.settingOn?.("library-sort-title");
+        const groupOn = ctx.settingOn?.("library-group-labels") ?? api.ctx?.settingOn?.("library-group-labels");
+        if (sortOn === false && groupOn === false) {
+          return false;
+        }
+        if (context === "backend") {
+          return true;
+        }
+        return context === "ui" && api.ctx?.isMainUi?.() === true;
       },
     },
     {
