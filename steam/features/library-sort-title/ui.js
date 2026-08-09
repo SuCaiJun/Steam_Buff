@@ -21,6 +21,7 @@
   const ORIGINAL_TEXT_ATTR = "data-steam-buff-original-text";
   const ORIGINAL_DISPLAY_ATTR = "data-steam-buff-original-display";
   const ORIGINAL_OWNER_ATTR = "data-steam-buff-original-owner";
+  const ORIGINAL_TITLE_ATTR = "data-steam-buff-original-title";
   const HEADER_ATTR = "data-steam-buff-library-header";
   // BroadcastChannel 不缓存建立前的消息，超时后由现有低频调度重新请求当前可见行
   const SNAPSHOT_REQUEST_TIMEOUT_MS = 3000;
@@ -32,6 +33,7 @@
   const CELL_SELECTOR = ":scope > div[role='gridcell']";
   const ROW_SELECTOR = "[draggable='true']";
   const SETTINGS_ATTRIBUTE = "data-steam-buff-settings";
+  const reactTextState = new WeakMap();
 
   const log = window.STLoggerFactory.createLogger("steam", `${ID}-ui`);
 
@@ -41,6 +43,18 @@
 
   function clean(value) {
     return typeof value === "string" ? value.trim() : "";
+  }
+
+  function setAttributeIfChanged(node, name, value) {
+    if (!node) return;
+    const next = String(value);
+    if (node.getAttribute(name) === next) return;
+    node.setAttribute(name, next);
+  }
+
+  function removeAttributeIfPresent(node, name) {
+    if (!node?.hasAttribute?.(name)) return;
+    node.removeAttribute(name);
   }
 
   function route(api) {
@@ -92,6 +106,51 @@
     return null;
   }
 
+  // 当前 Steam 库行名称 host Fiber 的 children 是官方名称字符串
+  function syncReactText(span, value, baseline = "") {
+    const key = fiberKey(span);
+    if (!key) return false;
+    const fiber = span[key];
+    const next = clean(value);
+    const original = clean(baseline);
+    if (!fiber || !next) return false;
+    try {
+      const memoizedProps = fiber.memoizedProps;
+      const pendingProps = fiber.pendingProps;
+      const memoizedText = typeof memoizedProps?.children === "string"
+        ? memoizedProps.children
+        : "";
+      const pendingText = typeof pendingProps?.children === "string"
+        ? pendingProps.children
+        : "";
+      const cached = reactTextState.get(span);
+      if (cached?.fiber === fiber
+        && cached.value === next
+        && memoizedText === next
+        && (!pendingText || pendingText === next)) return false;
+      let changed = false;
+      const props = memoizedProps;
+      if (props && typeof props.children === "string"
+        && (!original || props.children === original || props.children === next)) {
+        if (props.children !== next) {
+          props.children = next;
+          changed = true;
+        }
+      }
+      if (pendingProps && typeof pendingProps.children === "string"
+        && (!original || pendingProps.children === original || pendingProps.children === next)) {
+        if (pendingProps.children !== next) {
+          pendingProps.children = next;
+          changed = true;
+        }
+      }
+      reactTextState.set(span, { fiber, value: next });
+      return changed;
+    } catch (_error) {
+      return false;
+    }
+  }
+
   function locate() {
     const grids = Array.from(document.querySelectorAll(GRID_SELECTOR));
     if (grids.length !== 1) return null;
@@ -103,8 +162,8 @@
     if (!span) return;
     const originalDisplay = span.getAttribute(ORIGINAL_DISPLAY_ATTR);
     if (originalDisplay !== null) {
-      span.style.display = originalDisplay;
-      span.removeAttribute(ORIGINAL_DISPLAY_ATTR);
+      if (span.style.display !== originalDisplay) span.style.display = originalDisplay;
+      removeAttributeIfPresent(span, ORIGINAL_DISPLAY_ATTR);
     }
   }
 
@@ -112,12 +171,13 @@
     if (!span) return;
     const originalText = span.getAttribute(ORIGINAL_TEXT_ATTR);
     if (originalText !== null) {
+      syncReactText(span, originalText, originalText);
       if (span.textContent !== originalText) span.textContent = originalText;
-      span.removeAttribute(ORIGINAL_TEXT_ATTR);
+      removeAttributeIfPresent(span, ORIGINAL_TEXT_ATTR);
     }
-    span.removeAttribute(DISPLAY_ATTR);
-    span.removeAttribute(HEADER_ATTR);
-    span.removeAttribute(ORIGINAL_OWNER_ATTR);
+    removeAttributeIfPresent(span, DISPLAY_ATTR);
+    removeAttributeIfPresent(span, HEADER_ATTR);
+    removeAttributeIfPresent(span, ORIGINAL_OWNER_ATTR);
     restoreOriginal(span);
   }
 
@@ -127,11 +187,13 @@
     const previousOwner = span.getAttribute(ORIGINAL_OWNER_ATTR);
     if (previousOwner === null || previousOwner === String(owner)) return;
     restoreOriginal(span);
-    span.removeAttribute(ORIGINAL_TEXT_ATTR);
-    span.removeAttribute(DISPLAY_ATTR);
-    span.removeAttribute(HEADER_ATTR);
-    span.removeAttribute(ORIGINAL_OWNER_ATTR);
-    if (clean(baseline)) span.textContent = baseline;
+    const originalText = span.getAttribute(ORIGINAL_TEXT_ATTR);
+    if (originalText !== null) syncReactText(span, originalText, originalText);
+    removeAttributeIfPresent(span, ORIGINAL_TEXT_ATTR);
+    removeAttributeIfPresent(span, DISPLAY_ATTR);
+    removeAttributeIfPresent(span, HEADER_ATTR);
+    removeAttributeIfPresent(span, ORIGINAL_OWNER_ATTR);
+    if (clean(baseline) && span.textContent !== baseline) span.textContent = baseline;
   }
 
   function removeInjected(parent, selector) {
@@ -153,12 +215,32 @@
       return false;
     }
     if (savedText === null) {
-      original.setAttribute(ORIGINAL_TEXT_ATTR, baseline);
+      setAttributeIfChanged(original, ORIGINAL_TEXT_ATTR, baseline);
     }
     if (original.textContent !== text) original.textContent = text;
-    original.setAttribute(attr, marker);
-    original.setAttribute(ORIGINAL_OWNER_ATTR, String(marker));
+    syncReactText(original, text, baseline);
+    setAttributeIfChanged(original, attr, marker);
+    setAttributeIfChanged(original, ORIGINAL_OWNER_ATTR, marker);
     return true;
+  }
+
+  function restoreRowTitle(row) {
+    if (!row) return;
+    const originalTitle = row.getAttribute(ORIGINAL_TITLE_ATTR);
+    if (originalTitle === null) return;
+    if (originalTitle) setAttributeIfChanged(row, "title", originalTitle);
+    else removeAttributeIfPresent(row, "title");
+    removeAttributeIfPresent(row, ORIGINAL_TITLE_ATTR);
+  }
+
+  function applyRowTitle(row, value) {
+    if (!row) return;
+    if (!row.hasAttribute(ORIGINAL_TITLE_ATTR)) {
+      setAttributeIfChanged(row, ORIGINAL_TITLE_ATTR, row.getAttribute("title") || "");
+    }
+    const title = clean(value);
+    if (title) setAttributeIfChanged(row, "title", title);
+    else restoreRowTitle(row);
   }
 
   function restoreContainer(container) {
@@ -168,6 +250,9 @@
     for (const original of Array.from(container?.querySelectorAll?.(`[${ORIGINAL_TEXT_ATTR}]`) || [])) {
       restoreText(original);
     }
+    for (const row of Array.from(container?.querySelectorAll?.(`[${ORIGINAL_TITLE_ATTR}]`) || [])) {
+      restoreRowTitle(row);
+    }
     removeInjected(container, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}]), [${HEADER_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
   }
 
@@ -175,9 +260,12 @@
     if (!row) return false;
     removeInjected(row, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
     const name = nameSpan(row);
+    const previousOwner = name?.getAttribute?.(ORIGINAL_OWNER_ATTR);
+    if (previousOwner !== null && previousOwner !== String(appid)) restoreRowTitle(row);
     if (!entry || Number(entry.appid) <= 0) {
       appliedIds?.delete?.(appid);
       resetTracking(name, appid);
+      restoreRowTitle(row);
       removeInjected(row, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
       return false;
     }
@@ -193,6 +281,7 @@
       String(entry.appid),
       entry.officialName,
     );
+    applyRowTitle(row, expected === clean(entry.officialName) ? "" : expected);
     const managed = name?.hasAttribute?.(DISPLAY_ATTR) === true
       && clean(name.textContent) === expected;
     if (managed) appliedIds?.add?.(appid);
@@ -456,7 +545,11 @@
       }
       if (!state.observer) {
         state.observer = new MutationObserver(() => schedule());
-        state.observer.observe(state.container, { childList: true, subtree: true });
+        state.observer.observe(state.container, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
         state.observerHandle = scope?.observer?.("library-list", state.observer) || null;
       }
       state.rows = visibleRows(state.container);
