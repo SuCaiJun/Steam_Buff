@@ -92,7 +92,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           pwsh -NoProfile -File .github/scripts/github-release.ps1 `
             -Action ExportNotes `
-            -Tag beta `
+            -Tag beta-release `
             -OutputBodyPath "$env:RUNNER_TEMP\steam-buff-beta-notes.md" `
             -Title "v$env:STEAM_BUFF_VERSION 更新日志"
 
@@ -157,4 +157,4 @@ jobs:
           $ErrorActionPreference = "Stop"
           pwsh -NoProfile -File .github/scripts/github-release.ps1 `
             -Action Delete `
-            -Tag beta
+            -Tag beta-release

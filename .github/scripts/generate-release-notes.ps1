@@ -73,6 +73,20 @@ function Get-CommitCategory([string]$title) {
   }
 }
 
+function Get-CommitDetail([string]$subject, [string]$title) {
+  $text = $subject.Trim()
+  if (-not $title) {
+    return $text
+  }
+  if ($text -match '^[^\s:：]{1,3}\s*[:：]\s*') {
+    return ($text -replace '^[^\s:：]{1,3}\s*[:：]\s*', '').Trim()
+  }
+  if ($text -match '^(?:修复|fix|新增|功能|完善|重构|优化|移除|调整|文档)(?:\s+|$)') {
+    return ($text -replace '^(?:修复|fix|新增|功能|完善|重构|优化|移除|调整|文档)\s*', '').Trim()
+  }
+  return $text
+}
+
 $range = "$baseCommit..$headCommit"
 $commits = @(Invoke-Git @("log", "--first-parent", "--reverse", "--format=%h%x09%s", $range))
 $title = if ($Channel -eq "beta") { "Beta 更新日志" } else { "v$Version 更新日志" }
@@ -94,7 +108,7 @@ foreach ($commit in $commits) {
       $dynamicCategories.Add($category)
     }
   }
-  $groups[$category].Add($subject)
+  $groups[$category].Add((Get-CommitDetail $subject $commitTitle))
 }
 
 $renderOrder = @($categoryOrder + $dynamicCategories.ToArray() + @("文档", "其他"))

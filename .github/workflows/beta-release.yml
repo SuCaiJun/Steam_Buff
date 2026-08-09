@@ -106,7 +106,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           pwsh -NoProfile -File .github/scripts/github-release.ps1 `
             -Action Publish `
-            -Tag beta `
+            -Tag beta-release `
             -Name "Beta" `
             -BodyPath "$env:RUNNER_TEMP\steam-buff-beta-notes.md" `
             -AssetDirectory "$env:RUNNER_TEMP\steam-buff-beta-artifacts" `

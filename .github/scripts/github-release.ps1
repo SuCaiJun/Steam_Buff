@@ -109,7 +109,7 @@ function Publish-Release {
     throw "Release 资产必须恰好包含两个 zip 文件，当前为 $($assets.Count) 个。"
   }
 
-  $allowMove = $Tag -eq "beta"
+  $allowMove = $Tag -eq "beta-release"
   Ensure-Tag $Tag $TargetCommit $allowMove
   $body = Get-Content -LiteralPath $BodyPath -Raw
   $payload = @{
@@ -132,7 +132,7 @@ function Publish-Release {
 
   $existingAssets = @(Invoke-GitHub "GET" "releases/$($release.id)/assets?per_page=100")
   foreach ($existing in $existingAssets) {
-    if ($Tag -eq "beta" -or ($assets.Name -contains [string]$existing.name)) {
+    if ($Tag -eq "beta-release" -or ($assets.Name -contains [string]$existing.name)) {
       Invoke-GitHub "DELETE" "releases/assets/$($existing.id)" | Out-Null
     }
   }
@@ -151,7 +151,7 @@ function Export-ReleaseNotes {
   if (-not $release) {
     throw "找不到 GitHub Release：$Tag"
   }
-  if ($Tag -eq "beta" -and -not [bool]$release.prerelease) {
+  if ($Tag -eq "beta-release" -and -not [bool]$release.prerelease) {
     throw "beta Release 不是预发布状态，拒绝作为正式日志来源。"
   }
   $body = [string]$release.body

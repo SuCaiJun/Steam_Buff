@@ -86,7 +86,7 @@ try {
   }
 
   $giteeRelease = Find-GiteeRelease $api $token $tag
-  $isBeta = $tag -eq "beta" -or [bool]$githubRelease.prerelease
+  $isBeta = $tag -eq "beta-release" -or [bool]$githubRelease.prerelease
   if ($EventAction -eq "deleted" -or $isBeta) {
     Remove-GiteeRelease $api $token $giteeRelease
     Write-Host "Skipped Gitee Release for non-formal tag: $tag"
