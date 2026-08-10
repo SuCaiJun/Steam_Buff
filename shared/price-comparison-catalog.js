@@ -11,7 +11,7 @@
 ((root) => {
   "use strict";
 
-  const VERSION = "steam-buff-price-comparison-catalog-v3";
+  const VERSION = "steam-buff-price-comparison-catalog-v4";
   if (root.STPriceComparisonCatalog?.version === VERSION) return;
 
   // 主 Steam 定价区、额外 Steam 定价区和非 Steam 商店合计的图表序列上限。
@@ -87,6 +87,23 @@
   const regionByCc = new Map(STEAM_PRICE_REGIONS.map(item => [item.cc, item]));
   const shopById = new Map(ITAD_PRICE_SHOPS.map(item => [item.id, item]));
 
+  // Provider 区域档案只描述该 Provider 的请求国家和响应币种契约；
+  // 不能把 ITAD 的 country / expectedCurrency 语义当成其他价格源的接口参数。
+  const PRICE_SOURCE_REGIONS = Object.freeze({
+    isthereanydeal: freezeItems(STEAM_PRICE_REGIONS.map(region => ({
+      provider: "isthereanydeal",
+      region: region.cc,
+      country: region.cc,
+      expectedCurrency: region.expectedCurrency,
+    }))),
+  });
+  const priceSourceRegionByProvider = new Map(
+    Object.entries(PRICE_SOURCE_REGIONS).map(([provider, regions]) => [
+      provider,
+      new Map(regions.map(region => [region.region, region])),
+    ]),
+  );
+
   function cleanCc(value) {
     return String(value || "").trim().toUpperCase();
   }
@@ -102,6 +119,12 @@
 
   function getItadPriceShop(id) {
     return shopById.get(cleanShopId(id)) || null;
+  }
+
+  function getPriceSourceRegion(providerId, steamRegion) {
+    const provider = String(providerId || "").trim().toLowerCase();
+    const region = cleanCc(steamRegion);
+    return priceSourceRegionByProvider.get(provider)?.get(region) || null;
   }
 
   function steamSeriesId(cc) {
@@ -150,10 +173,12 @@
   const api = Object.freeze({
     version: VERSION,
     STEAM_PRICE_REGIONS,
+    PRICE_SOURCE_REGIONS,
     ITAD_PRICE_SHOPS,
     STEAM_SHOP_ID,
     MAX_STORE_PRICE_SERIES,
     getSteamPriceRegion,
+    getPriceSourceRegion,
     getItadPriceShop,
     steamSeriesId,
     shopSeriesId,

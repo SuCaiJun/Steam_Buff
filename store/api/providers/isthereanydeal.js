@@ -117,6 +117,14 @@
     return cleanShops(options.shops || providerConfig(config).shops || [SHOP_STEAM]);
   }
 
+  function expectedCurrencyFrom(country, options = {}) {
+    const mapped = text(priceCatalog?.getPriceSourceRegion?.(ID, country)?.expectedCurrency).toUpperCase();
+    if (/^[A-Z]{3}$/.test(mapped)) return mapped;
+    const explicit = text(options.expectedCurrency).toUpperCase();
+    if (/^[A-Z]{3}$/.test(explicit)) return explicit;
+    return "";
+  }
+
   function endpointUrl(endpointKey, options = {}) {
     const itad = vendor();
     if (endpointKey === "lookup") {
@@ -148,7 +156,9 @@
     if (options.country) {
       url.searchParams.set("country", cleanCountry(options.country));
     }
-    if (Array.isArray(options.shops) && options.shops.length) {
+    if (["prices", "history", "overview", "storeLow"].includes(endpointKey)
+      && Array.isArray(options.shops)
+      && options.shops.length) {
       url.searchParams.set("shops", cleanShops(options.shops).join(","));
     }
     if (options.id) {
@@ -157,7 +167,7 @@
     if (options.since) {
       url.searchParams.set("since", text(options.since));
     }
-    if (options.until) {
+    if (options.until && endpointKey !== "history") {
       url.searchParams.set("until", text(options.until));
     }
     return url.toString();
@@ -197,6 +207,9 @@
     error.retryAfterMs = Math.max(0, number(options.retryAfterMs, 0));
     error.endpointKey = text(options.endpointKey);
     error.requestId = text(options.requestId);
+    error.country = text(options.country);
+    error.expectedCurrency = text(options.expectedCurrency).toUpperCase();
+    error.actualCurrency = text(options.actualCurrency).toUpperCase();
     return error;
   }
 
@@ -709,6 +722,93 @@
     });
   }
 
+  function currencyMismatch(endpointKey, country, expectedCurrency, actualCurrency, status, id) {
+    const expected = text(expectedCurrency).toUpperCase();
+    const actual = text(actualCurrency).toUpperCase();
+    logEvent("error", "provider-currency-mismatch", "ITAD 返回币种与区域预期不一致", {
+      ...safeMeta({ endpointKey, status, requestId: id }),
+      country: text(country),
+      expectedCurrency: expected,
+      actualCurrency: actual,
+    });
+    return providerError(
+      "PROVIDER_CURRENCY_MISMATCH",
+      `ITAD ${text(country)} 区域价格币种不一致：预期 ${expected}，实际 ${actual}。`,
+      {
+        status,
+        retryable: false,
+        endpointKey,
+        requestId: id,
+        country,
+        expectedCurrency: expected,
+        actualCurrency: actual,
+      },
+    );
+  }
+
+  function validateExpectedMoney(value, context) {
+    if (!value || value.currency === context.expectedCurrency) return;
+    throw currencyMismatch(
+      context.endpointKey,
+      context.country,
+      context.expectedCurrency,
+      value.currency,
+      context.status,
+      context.requestId,
+    );
+  }
+
+  function validateExpectedCurrencies(endpointKey, data, country, expectedCurrency, status, requestIdValue) {
+    if (!expectedCurrency) return;
+    const context = { endpointKey, country, expectedCurrency, status, requestId: requestIdValue };
+    if (endpointKey === "prices") {
+      for (const item of data) {
+        for (const value of [item.historyLow.all, item.historyLow.y1, item.historyLow.m3]) {
+          validateExpectedMoney(value, context);
+        }
+        for (const deal of item.deals) {
+          validateExpectedMoney(deal.price, context);
+          validateExpectedMoney(deal.regular, context);
+          validateExpectedMoney(deal.storeLow, context);
+        }
+      }
+      return;
+    }
+    if (endpointKey === "historyLow") {
+      for (const item of data) {
+        validateExpectedMoney(item.low.price, context);
+        validateExpectedMoney(item.low.regular, context);
+      }
+      return;
+    }
+    if (endpointKey === "storeLow") {
+      for (const item of data) {
+        for (const low of item.lows) {
+          validateExpectedMoney(low.price, context);
+          validateExpectedMoney(low.regular, context);
+        }
+      }
+      return;
+    }
+    if (endpointKey === "overview") {
+      for (const item of data.prices) {
+        for (const deal of [item.current, item.lowest]) {
+          if (!deal) continue;
+          validateExpectedMoney(deal.price, context);
+          validateExpectedMoney(deal.regular, context);
+        }
+      }
+      return;
+    }
+    if (endpointKey === "history") {
+      for (const item of data) {
+        if (!item.deal) continue;
+        validateExpectedMoney(item.deal.price, context);
+        validateExpectedMoney(item.deal.regular, context);
+      }
+    }
+  }
+
   async function lookupSteamItems(items, config = {}, options = {}) {
     const clean = normalizeSteamItems(items);
     if (!clean.length) {
@@ -739,8 +839,9 @@
   async function getPrices(ids, options = {}, config = {}) {
     const clean = Array.from(new Set((ids || []).map(cleanId).filter(Boolean)));
     const country = countryFrom(config, options);
+    const expectedCurrency = expectedCurrencyFrom(country, options);
     const shops = shopsFrom(config, options);
-    const requestData = { ids: clean, country, shops };
+    const requestData = { ids: clean, country, expectedCurrency, shops };
     return withCache("prices", requestData, TTL.prices, async () => {
       const res = await requestJson("prices", {
         url: endpointWithQuery("prices", { country, shops }),
@@ -751,6 +852,7 @@
       if (!validatePricesResponse(res.data)) {
         throw invalidShape("prices", res.status, res.requestId);
       }
+      validateExpectedCurrencies("prices", res.data, country, expectedCurrency, res.status, res.requestId);
       return {
         data: res.data.map(priceItem),
         status: res.status,
@@ -763,8 +865,9 @@
   async function getHistoryLow(ids, options = {}, config = {}) {
     const clean = Array.from(new Set((ids || []).map(cleanId).filter(Boolean)));
     const country = countryFrom(config, options);
+    const expectedCurrency = expectedCurrencyFrom(country, options);
     const shops = shopsFrom(config, options);
-    const requestData = { ids: clean, country, shops };
+    const requestData = { ids: clean, country, expectedCurrency, shops };
     return withCache("historyLow", requestData, TTL.historyLow, async () => {
       const res = await requestJson("historyLow", {
         url: endpointWithQuery("historyLow", { country, shops }),
@@ -775,6 +878,7 @@
       if (!validateHistoryLowResponse(res.data)) {
         throw invalidShape("historyLow", res.status, res.requestId);
       }
+      validateExpectedCurrencies("historyLow", res.data, country, expectedCurrency, res.status, res.requestId);
       return {
         data: res.data.map(historyLowItem),
         status: res.status,
@@ -787,8 +891,9 @@
   async function getHistory(id, options = {}, config = {}) {
     const clean = cleanId(id);
     const country = countryFrom(config, options);
+    const expectedCurrency = expectedCurrencyFrom(country, options);
     const shops = shopsFrom(config, options);
-    const requestData = { id: clean, country, shops, since: text(options.since), until: text(options.until) };
+    const requestData = { id: clean, country, expectedCurrency, shops, since: text(options.since), until: text(options.until) };
     return withCache("history", requestData, TTL.history, async () => {
       const res = await requestJson("history", {
         url: endpointWithQuery("history", { id: clean, country, shops, since: options.since, until: options.until }),
@@ -798,6 +903,7 @@
       if (!validateHistoryResponse(res.data)) {
         throw invalidShape("history", res.status, res.requestId);
       }
+      validateExpectedCurrencies("history", res.data, country, expectedCurrency, res.status, res.requestId);
       return {
         data: historyData(clean, res.data),
         status: res.status,
@@ -810,8 +916,9 @@
   async function getStoreLow(ids, options = {}, config = {}) {
     const clean = Array.from(new Set((ids || []).map(cleanId).filter(Boolean)));
     const country = countryFrom(config, options);
+    const expectedCurrency = expectedCurrencyFrom(country, options);
     const shops = shopsFrom(config, options);
-    const requestData = { ids: clean, country, shops };
+    const requestData = { ids: clean, country, expectedCurrency, shops };
     return withCache("storeLow", requestData, TTL.storeLow, async () => {
       const res = await requestJson("storeLow", {
         url: endpointWithQuery("storeLow", { country, shops }),
@@ -820,6 +927,7 @@
         requestId: options.requestId,
       }, config);
       if (!validateStoreLowResponse(res.data)) throw invalidShape("storeLow", res.status, res.requestId);
+      validateExpectedCurrencies("storeLow", res.data, country, expectedCurrency, res.status, res.requestId);
       return {
         data: res.data.map(storeLowItem),
         status: res.status,
@@ -832,8 +940,9 @@
   async function getOverview(ids, options = {}, config = {}) {
     const clean = Array.from(new Set((ids || []).map(cleanId).filter(Boolean)));
     const country = countryFrom(config, options);
+    const expectedCurrency = expectedCurrencyFrom(country, options);
     const shops = shopsFrom(config, options);
-    const requestData = { ids: clean, country, shops };
+    const requestData = { ids: clean, country, expectedCurrency, shops };
     return withCache("overview", requestData, TTL.overview, async () => {
       const res = await requestJson("overview", {
         url: endpointWithQuery("overview", { country, shops }),
@@ -842,6 +951,7 @@
         requestId: options.requestId,
       }, config);
       if (!validateOverviewResponse(res.data)) throw invalidShape("overview", res.status, res.requestId);
+      validateExpectedCurrencies("overview", res.data, country, expectedCurrency, res.status, res.requestId);
       return {
         data: {
           prices: res.data.prices.map(overviewItem),

@@ -364,6 +364,9 @@
         requestId: text(error?.requestId),
         endpointKey: text(error?.endpointKey),
         status: Number(error?.status) || 0,
+        country: text(error?.country),
+        expectedCurrency: text(error?.expectedCurrency),
+        actualCurrency: text(error?.actualCurrency),
       },
     });
   }
@@ -926,12 +929,17 @@
       }
       const loadCountry = async (country, selectedShops) => {
         const opt = requestOptions(config, { ...options, country, shops: selectedShops });
-        const [prices, storeLow, history] = await Promise.all([
-          provider.getPrices([id], opt, config),
-          provider.getStoreLow([id], opt, config),
-          provider.getHistory(id, opt, config),
-        ]);
-        return { country, shops: selectedShops, prices, storeLow, history };
+        try {
+          const [prices, storeLow, history] = await Promise.all([
+            provider.getPrices([id], opt, config),
+            provider.getStoreLow([id], opt, config),
+            provider.getHistory(id, opt, config),
+          ]);
+          return { ok: true, country, shops: selectedShops, prices, storeLow, history };
+        } catch (error) {
+          if (error?.code !== "PROVIDER_CURRENCY_MISMATCH") throw error;
+          return { ok: false, country, shops: selectedShops, error };
+        }
       };
       const loadAdditional = async () => {
         const out = new Array(additionalCountries.length);
@@ -950,7 +958,29 @@
         loadCountry(mainCountry, shops),
         loadAdditional(),
       ]);
+      if (!main.ok) throw main.error;
       const info = await optionalGameInfo(provider, id, lookupOptions, config);
+      const unavailableSeries = (item) => {
+        const profile = priceCatalog.getPriceSourceRegion(provider.id, item.country);
+        const error = item.error;
+        return {
+          id: priceCatalog.steamSeriesId(item.country),
+          type: "steam",
+          country: item.country,
+          shopId: 61,
+          label: priceCatalog.steamSeriesLabel(item.country),
+          current: null,
+          storeLow: null,
+          events: [],
+          availability: {
+            status: "unavailable",
+            code: text(error?.code || "PROVIDER_CURRENCY_MISMATCH"),
+            message: text(error?.message || "区域价格币种不匹配，暂不可用。"),
+            expectedCurrency: text(error?.expectedCurrency || profile?.expectedCurrency),
+            actualCurrency: text(error?.actualCurrency),
+          },
+        };
+      };
       const chartSeries = [
         {
           id: priceCatalog.steamSeriesId(mainCountry),
@@ -961,17 +991,21 @@
           current: selectedCurrentDeal(main.prices.data, id, 61),
           storeLow: selectedStoreLow(main.storeLow.data, id, 61),
           events: selectedHistoryEvents(main.history.data, 61),
+          availability: { status: "available" },
         },
-        ...additional.map(item => ({
-          id: priceCatalog.steamSeriesId(item.country),
-          type: "steam",
-          country: item.country,
-          shopId: 61,
-          label: priceCatalog.steamSeriesLabel(item.country),
-          current: selectedCurrentDeal(item.prices.data, id, 61),
-          storeLow: selectedStoreLow(item.storeLow.data, id, 61),
-          events: selectedHistoryEvents(item.history.data, 61),
-        })),
+        ...additional.map(item => item.ok
+          ? {
+            id: priceCatalog.steamSeriesId(item.country),
+            type: "steam",
+            country: item.country,
+            shopId: 61,
+            label: priceCatalog.steamSeriesLabel(item.country),
+            current: selectedCurrentDeal(item.prices.data, id, 61),
+            storeLow: selectedStoreLow(item.storeLow.data, id, 61),
+            events: selectedHistoryEvents(item.history.data, 61),
+            availability: { status: "available" },
+          }
+          : unavailableSeries(item)),
         ...shops.filter(shopId => shopId !== 61).map(shopId => ({
           id: priceCatalog.shopSeriesId(shopId),
           type: "shop",
@@ -981,9 +1015,10 @@
           current: selectedCurrentDeal(main.prices.data, id, shopId),
           storeLow: selectedStoreLow(main.storeLow.data, id, shopId),
           events: selectedHistoryEvents(main.history.data, shopId),
+          availability: { status: "available" },
         })),
       ];
-      const sources = [main, ...additional];
+      const sources = [main, ...additional.filter(item => item.ok)];
       const result = success("prices", provider, {
         items,
         lookup: lookup.data,
@@ -998,6 +1033,7 @@
         info: info?.data?.id ? { [id]: info.data } : {},
       }, {
         hit: lookup.cache?.hit === true
+          && additional.every(item => item.ok)
           && sources.every(item => item.prices.cache?.hit === true && item.storeLow.cache?.hit === true && item.history.cache?.hit === true)
           && (info === null || info.cache?.hit === true),
         ttlMs: Math.min(

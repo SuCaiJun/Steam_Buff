@@ -1032,12 +1032,15 @@
       button.dataset.chartLegendKind = entry.kind;
       button.setAttribute("aria-pressed", hidden.has(item.id) ? "false" : "true");
       const hasData = item.events.some(event => event.price);
+      const unavailable = item.availability?.status === "unavailable";
       button.setAttribute("aria-label", i18n(
         "store.priceChart.legendAria",
         "$label$$state$ 图表统计",
         {
           label: entry.label,
-          state: hasData ? "" : i18n("store.priceChart.legendNoData", " 暂无数据"),
+          state: unavailable
+            ? i18n("store.priceChart.legendUnavailable", " 区域价格不可用")
+            : (hasData ? "" : i18n("store.priceChart.legendNoData", " 暂无数据")),
         },
       ));
       const swatch = document.createElement("span");
