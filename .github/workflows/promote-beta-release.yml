@@ -96,7 +96,7 @@ jobs:
             -OutputBodyPath "$env:RUNNER_TEMP\steam-buff-beta-notes.md" `
             -Title "v$env:STEAM_BUFF_VERSION 更新日志"
 
-      - name: 构建两个正式版压缩包
+      - name: 构建正式版 Release 压缩包
         shell: pwsh
         env:
           STEAM_BUFF_PEM_BASE64: ${{ secrets.STEAM_BUFF_PEM_BASE64 }}

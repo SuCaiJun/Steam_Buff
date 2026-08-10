@@ -87,11 +87,8 @@ $buildRoot = Join-Path $OutputDirectory "build"
 $sourceRoot = Join-Path $buildRoot "extension"
 Copy-ExtensionTree $root $sourceRoot
 
-$sourceName = "SteamBuff_${Version}_SourceCode.zip"
 $releaseName = "SteamBuff_${Version}_Release.zip"
-$sourceZipPath = Join-Path $OutputDirectory $sourceName
 $releaseZipPath = Join-Path $OutputDirectory $releaseName
-Compress-Archive -Path (Join-Path $sourceRoot "*") -DestinationPath $sourceZipPath -Force
 
 if (-not $PemBase64) {
   $PemBase64 = ([string]$env:STEAM_BUFF_PEM_BASE64).Trim()
@@ -119,5 +116,4 @@ $releaseCrxPath = Join-Path $buildRoot "SteamBuff_${Version}.crx"
 Move-Item -LiteralPath $packedCrxPath -Destination $releaseCrxPath -Force
 Compress-Archive -LiteralPath $releaseCrxPath -DestinationPath $releaseZipPath -Force
 
-Write-Output "已生成：$sourceZipPath"
 Write-Output "已生成：$releaseZipPath"

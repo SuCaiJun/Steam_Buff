@@ -114,8 +114,8 @@ try {
     throw "正式 Release 附件目录不存在：$AssetDirectory"
   }
   $assets = @(Get-ChildItem -LiteralPath $AssetDirectory -File -Filter "*.zip" | Sort-Object Name)
-  if ($assets.Count -ne 2) {
-    throw "正式 Release 必须包含两个 zip 附件，当前为 $($assets.Count) 个。"
+  if ($assets.Count -ne 1) {
+    throw "正式 Release 必须包含一个 zip 附件，当前为 $($assets.Count) 个。"
   }
   foreach ($asset in $assets) {
     if ($existingNames -contains $asset.Name) {

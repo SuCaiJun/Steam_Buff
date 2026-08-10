@@ -105,8 +105,8 @@ function Publish-Release {
     throw "Release 资产目录不存在：$AssetDirectory"
   }
   $assets = @(Get-ChildItem -LiteralPath $AssetDirectory -File -Filter "*.zip" | Sort-Object Name)
-  if ($assets.Count -ne 2) {
-    throw "Release 资产必须恰好包含两个 zip 文件，当前为 $($assets.Count) 个。"
+  if ($assets.Count -ne 1) {
+    throw "Release 资产必须恰好包含一个 zip 文件，当前为 $($assets.Count) 个。"
   }
 
   $allowMove = $Tag -eq "beta-release"
