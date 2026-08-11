@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -104,6 +104,7 @@
         "shared/runtime/kernel.js",
         "shared/runtime/message-bus.js",
         "shared/settings-bus.js",
+        "shared/auth-session.js",
         "extension/content.js"
       ],
       "run_at": "document_end",
@@ -140,6 +141,7 @@
         "shared/page-context.js",
         "shared/settings-bus.js",
         "shared/runtime/message-bus.js",
+        "shared/auth-session.js",
         "extension/content.js"
       ],
       "run_at": "document_end"

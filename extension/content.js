@@ -11,6 +11,12 @@
 (() => {
   "use strict";
 
+  const authSession = globalThis.STAuthSession;
+  if (!authSession) {
+    throw new Error("shared/auth-session.js must load before extension/content.js");
+  }
+  const { cleanAuth, nextAuth } = authSession;
+
   const RUN_MARK = "steamBuffContentStarted";
   const RUN_VERSION = "steam-buff-runtime-v20";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
@@ -1447,41 +1453,10 @@
     });
   }
 
-  function authExpired(auth) {
-    const expires = Number(auth?.expires_at) || 0;
-    return !expires || Date.now() + 60000 >= expires;
-  }
-
   function authError(message) {
     const error = new Error(message);
     error.code = 401;
     return error;
-  }
-
-  function cleanAuth(value) {
-    if (!value || typeof value !== "object") {
-      return null;
-    }
-    const access = String(value.access_token || "");
-    const refresh = String(value.refresh_token || "");
-    if (!access && !refresh) {
-      return null;
-    }
-    return {
-      access_token: access,
-      refresh_token: refresh,
-      expires_at: Number(value.expires_at) || 0,
-      last_used_at: Number(value.last_used_at) || 0,
-    };
-  }
-
-  function nextAuth(body, oldAuth = {}) {
-    return cleanAuth({
-      access_token: body?.access_token || oldAuth.access_token || "",
-      refresh_token: body?.refresh_token || oldAuth.refresh_token || "",
-      expires_at: Date.now() + Math.max(1, Number(body?.expires_in) || 600) * 1000,
-      last_used_at: Date.now(),
-    });
   }
 
   async function refreshAuth(auth, diagnostics = {}) {
@@ -1521,7 +1496,7 @@
     if (!auth?.access_token && !auth?.refresh_token) {
       throw authError("请先在设置中登录");
     }
-    if (authExpired(auth)) {
+    if (authSession.expired(auth)) {
       return refreshAuth(auth, diagnostics);
     }
     return auth;

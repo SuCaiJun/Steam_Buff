@@ -11,40 +11,14 @@
 ((root) => {
   "use strict";
 
-  function cleanAuth(value) {
-    if (!value || typeof value !== "object") {
-      return null;
-    }
-    const access = String(value.access_token || "");
-    const refresh = String(value.refresh_token || "");
-    if (!access && !refresh) {
-      return null;
-    }
-    return {
-      access_token: access,
-      refresh_token: refresh,
-      expires_at: Number(value.expires_at) || 0,
-      last_used_at: Number(value.last_used_at) || 0,
-    };
+  const authSession = root.STAuthSession
+    || (typeof module === "object" && module.exports && typeof require === "function"
+      ? require("../../../shared/auth-session.js")
+      : null);
+  if (!authSession) {
+    throw new Error("shared/auth-session.js must load before settings account auth");
   }
-
-  function expired(value) {
-    const time = Number(value?.expires_at) || 0;
-    return time > 0 && Date.now() >= time;
-  }
-
-  function authKey(value) {
-    return value?.refresh_token || value?.access_token || "";
-  }
-
-  function nextAuth(body, old = {}) {
-    return cleanAuth({
-      access_token: body?.access_token || old.access_token || "",
-      refresh_token: body?.refresh_token || old.refresh_token || "",
-      expires_at: Date.now() + Math.max(1, Number(body?.expires_in) || 600) * 1000,
-      last_used_at: Date.now(),
-    });
-  }
+  const { cleanAuth, expired, authKey, nextAuth } = authSession;
 
   function create(options = {}) {
     const rt = options.state;

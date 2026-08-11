@@ -4280,7 +4280,7 @@
     "message": "Price alerts"
   },
   "settings_account_feature_priceAlerts_desc": {
-    "message": "Check prices daily and notify you by QQ or SMS at your target price."
+    "message": "Check prices daily and notify you by QQ or email at your target price."
   },
   "settings_account_feature_searchSuggestions_name": {
     "message": "Search suggestions"
@@ -4299,6 +4299,15 @@
   },
   "settings_account_normalUser": {
     "message": "Standard user"
+  },
+  "settings_account_entitlementUnavailable": {
+    "message": "Entitlement status unavailable"
+  },
+  "settings_account_entitlementSources": {
+    "message": "Current valid entitlement sources"
+  },
+  "settings_account_entitlementCatalog": {
+    "message": "Configured entitlement sources"
   },
   "settings_account_vipValidUntil": {
     "message": "VIP valid until $date$",
@@ -4381,6 +4390,15 @@
       "percent": { "content": "$1" }
     }
   },
+  "settings_account_todayUsedPercent": {
+    "message": "$percent$% used today",
+    "placeholders": {
+      "percent": { "content": "$1" }
+    }
+  },
+  "settings_account_quotaUnavailable": {
+    "message": "Quota unavailable"
+  },
   "settings_account_usageTitle": {
     "message": "Feature usage"
   },
@@ -4396,14 +4414,14 @@
   "settings_account_viewList": {
     "message": "View list"
   },
-  "settings_account_planned": {
-    "message": "Planned"
+  "settings_account_available": {
+    "message": "Available"
   },
   "settings_account_targetPriceAlert": {
     "message": "Target price alert"
   },
-  "settings_account_qqSms": {
-    "message": "QQ / SMS"
+  "settings_account_qqEmail": {
+    "message": "QQ / Email"
   },
   "settings_account_notEnabled": {
     "message": "Not enabled"

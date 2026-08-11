@@ -1661,15 +1661,7 @@
       background: var(--st-color-primary-alpha-08);
     }
 
-    .badge.medal img {
-      width: 16px;
-      height: 16px;
-      display: block;
-      object-fit: contain;
-      flex: 0 0 auto;
-    }
-
-    .account-medal-tip {
+    .account-entitlement-tip {
       width: auto;
       height: auto;
       min-width: 0;
@@ -1678,13 +1670,9 @@
       vertical-align: middle;
     }
 
-    .account-medal-tip .account-medal-popover {
-      left: auto;
-      right: 0;
-      top: calc(100% + 8px);
-      bottom: auto;
-      width: 280px;
-      max-width: min(280px, calc(100vw - 32px));
+    .account-entitlement-popover {
+      width: 260px;
+      max-width: min(260px, calc(100vw - 32px));
       display: grid;
       gap: 5px;
       padding: 10px 12px;
@@ -1693,46 +1681,84 @@
       white-space: normal;
     }
 
-    .account-medal-tip:hover .account-medal-popover,
-    .account-medal-tip:focus .account-medal-popover {
+    .account-active-entitlement .account-entitlement-popover {
+      left: auto;
+      right: 0;
+      top: calc(100% + 8px);
+      bottom: auto;
+    }
+
+    .account-source-icon .account-entitlement-popover {
+      left: 50%;
+      right: auto;
+      top: calc(100% + 8px);
+      bottom: auto;
+      transform: translate(-50%, 4px);
+    }
+
+    .account-entitlement-tip:hover .account-entitlement-popover,
+    .account-entitlement-tip:focus .account-entitlement-popover {
       transform: translateY(0);
     }
 
-    .account-medal-tip .account-medal-popover::before,
-    .account-medal-tip .account-medal-popover::after {
+    .account-source-icon:hover .account-entitlement-popover,
+    .account-source-icon:focus .account-entitlement-popover {
+      transform: translate(-50%, 0);
+    }
+
+    .account-active-entitlement .account-entitlement-popover::before,
+    .account-active-entitlement .account-entitlement-popover::after,
+    .account-source-icon .account-entitlement-popover::before,
+    .account-source-icon .account-entitlement-popover::after {
       left: auto;
       top: auto;
       transform: none;
     }
 
-    .account-medal-tip .account-medal-popover::before {
+    .account-active-entitlement .account-entitlement-popover::before {
       right: 11px;
       bottom: 100%;
       border-width: 0 6px 6px;
       border-color: transparent transparent var(--st-color-steam-blue-alpha-38);
     }
 
-    .account-medal-tip .account-medal-popover::after {
+    .account-active-entitlement .account-entitlement-popover::after {
       right: 12px;
       bottom: calc(100% - 1px);
       border-width: 0 5px 5px;
       border-color: transparent transparent var(--st-color-bg-input-focus-alt);
     }
 
-    .account-medal-tooltip-name {
+    .account-source-icon .account-entitlement-popover::before {
+      left: 50%;
+      bottom: 100%;
+      transform: translateX(-50%);
+      border-width: 0 6px 6px;
+      border-color: transparent transparent var(--st-color-steam-blue-alpha-38);
+    }
+
+    .account-source-icon .account-entitlement-popover::after {
+      left: 50%;
+      bottom: calc(100% - 1px);
+      transform: translateX(-50%);
+      border-width: 0 5px 5px;
+      border-color: transparent transparent var(--st-color-bg-input-focus-alt);
+    }
+
+    .account-entitlement-tooltip-name {
       color: var(--st-color-white);
       font-size: 13px;
       font-weight: 700;
       overflow-wrap: anywhere;
     }
 
-    .account-medal-tooltip-category {
+    .account-entitlement-tooltip-category {
       color: var(--st-color-primary);
       font-size: 11px;
     }
 
-    .account-medal-tooltip-description,
-    .account-medal-tooltip-acquired {
+    .account-entitlement-tooltip-description,
+    .account-entitlement-tooltip-meta {
       color: var(--st-color-text-secondary-alt);
       font-size: 12px;
       line-height: 1.5;
@@ -1747,6 +1773,19 @@
       line-height: 1.5;
     }
 
+    .vip-meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      margin-bottom: 4px;
+      color: var(--st-color-gold);
+      font-size: 12px;
+    }
+
+    .vip-remaining {
+      color: var(--st-color-text-muted);
+    }
+
     .meta-row {
       display: flex;
       align-items: center;
@@ -1755,19 +1794,50 @@
       margin-bottom: 4px;
     }
 
-    .vip-meta-row {
+    .entitlement-sources {
       min-width: 0;
-      margin-bottom: 4px;
+      min-height: 28px;
+      margin: 2px 0 4px;
       display: flex;
       align-items: center;
       flex-wrap: wrap;
-      gap: 4px 10px;
-      color: var(--st-color-gold);
-      font-size: 12px;
+      gap: 6px;
     }
 
-    .vip-remaining {
-      color: var(--st-color-text-muted);
+    .account-source-icon {
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
+    }
+
+    .entitlement-source-mark {
+      box-sizing: border-box;
+      width: 26px;
+      height: 26px;
+      border: 1px solid var(--st-color-white-alpha-08);
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      color: var(--st-color-text-secondary-alt);
+      background: var(--st-color-white-alpha-04);
+      font-size: 8px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .entitlement-source-mark img {
+      width: 22px;
+      height: 22px;
+      display: block;
+      object-fit: contain;
+    }
+
+    .account-source-icon.active .entitlement-source-mark {
+      border-color: var(--st-color-gold);
+      background: var(--st-color-gold-alpha-10);
+      box-shadow: 0 0 0 1px var(--st-color-gold-alpha-18);
     }
 
     .meta-copy {
@@ -2057,6 +2127,13 @@
       color: var(--st-color-gold);
       font-size: 24px;
       font-weight: 400;
+    }
+
+    .main-value .quota-unavailable {
+      color: var(--st-color-text-muted);
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.4;
     }
 
     .stat-bar {

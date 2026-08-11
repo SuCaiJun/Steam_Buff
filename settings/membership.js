@@ -13,6 +13,7 @@
 
   const settings = root.STSettings = root.STSettings || {};
   const KEY = "steam_buff_membership";
+  const PERMISSION_KEYS = ["customNames", "gameNotes", "priceMonitor", "searchSuggestions"];
   const log = root.STLoggerFactory?.createLogger?.("settings", "membership") || {
     warn() {},
   };
@@ -40,16 +41,46 @@
     return !!(value && typeof value === "object" && (String(value.access_token || "") || String(value.refresh_token || "")));
   }
 
-  function expiredDate(value) {
-    const text = String(value || "").trim();
-    if (!text) {
-      return false;
+  function normalizePermissions(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const result = {};
+    for (const key of PERMISSION_KEYS) {
+      if (typeof source[key] === "boolean") {
+        result[key] = source[key];
+      }
     }
-    const time = new Date(text).getTime();
-    if (!Number.isFinite(time)) {
-      return false;
+    return result;
+  }
+
+  function quotaPermission(source, key) {
+    if (!source || typeof source !== "object" || !Object.hasOwn(source, key)) {
+      return undefined;
     }
-    return time < Date.now();
+    const quota = source[key];
+    return typeof quota === "number" && Number.isInteger(quota) && quota >= -1
+      ? quota !== 0
+      : undefined;
+  }
+
+  function permissionMap(src, usage, auth) {
+    const explicit = normalizePermissions(src.permissions);
+    const legacy = normalizePermissions(src.features);
+    const search = usage.searchSuggestions || usage.search_suggestions || {};
+    const customNames = usage.customNames || usage.custom_names || {};
+    const gameNotes = usage.gameNotes || usage.game_notes || {};
+    // 旧版用户中心契约只提供 usage.search_suggestions.enabled 和额度字段；不从 active 推测权限。
+    const usageValues = {
+      customNames: quotaPermission(customNames, "quota"),
+      gameNotes: quotaPermission(gameNotes, "quota"),
+      priceMonitor: undefined,
+      searchSuggestions: typeof search.enabled === "boolean" ? search.enabled : undefined,
+    };
+    return Object.fromEntries(PERMISSION_KEYS.map((key) => [
+      key,
+      auth && (Object.hasOwn(explicit, key)
+        ? explicit[key]
+        : (Object.hasOwn(legacy, key) ? legacy[key] : usageValues[key] === true)),
+    ]));
   }
 
   function empty() {
@@ -59,9 +90,8 @@
       badge: "",
       identity: "",
       expire: "",
-      features: {
-        searchSuggestions: false,
-      },
+      permissions: Object.fromEntries(PERMISSION_KEYS.map((key) => [key, false])),
+      features: Object.fromEntries(PERMISSION_KEYS.map((key) => [key, false])),
       updatedAt: Date.now(),
     };
   }
@@ -70,27 +100,29 @@
     const src = value && typeof value === "object" ? value : {};
     const sponsor = src.sponsor && typeof src.sponsor === "object" ? src.sponsor : src;
     const usage = src.usage && typeof src.usage === "object" ? src.usage : {};
-    const features = src.features && typeof src.features === "object" ? src.features : {};
     const expire = String(sponsor.expire ?? src.expire ?? "");
-    const active = bool(sponsor.active ?? src.active, false) && authReady(auth) && !expiredDate(expire);
-    const search = usage.searchSuggestions || usage.search_suggestions || {};
-    const searchEnabled = Object.hasOwn(features, "searchSuggestions")
-      ? bool(features.searchSuggestions, active)
-      : bool(search.enabled, active);
+    const logged = authReady(auth);
+    const active = bool(sponsor.active ?? src.active, false) && logged;
+    const permissions = permissionMap(src, usage, logged);
     const badgeValue = String(sponsor.badge ?? src.badge ?? "");
     const identityValue = String(sponsor.identity ?? src.identity ?? "");
 
     return {
       active,
       level: String(sponsor.level ?? src.level ?? ""),
-      badge: !active && badgeValue === "普通用户" ? "" : badgeValue,
+      badge: active ? badgeValue : "",
       identity: identityValue === "赞助者身份" ? "" : identityValue,
       expire,
-      features: {
-        searchSuggestions: active && searchEnabled,
-      },
+      permissions,
+      // 兼容现有设置页和旧存储快照；新代码通过 permission/canUse 读取 permissions。
+      features: permissions,
       updatedAt: Number(src.updatedAt) || Date.now(),
     };
+  }
+
+  function permission(name, membership) {
+    const key = String(name || "");
+    return PERMISSION_KEYS.includes(key) && membership?.permissions?.[key] === true;
   }
 
   function canUse(item, membership) {
@@ -98,11 +130,8 @@
       return true;
     }
     const value = membership || empty();
-    if (value.active !== true) {
-      return false;
-    }
     const feature = item.memberFeature;
-    return !feature || value.features?.[feature] !== false;
+    return feature ? permission(feature, value) : value.active === true;
   }
 
   function lockText(item, membership) {
@@ -170,8 +199,11 @@
 
   const api = Object.freeze({
     KEY,
+    PERMISSION_KEYS,
     empty,
+    normalizePermissions,
     normalize,
+    permission,
     canUse,
     lockText,
     isChange,

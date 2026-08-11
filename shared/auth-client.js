@@ -12,6 +12,11 @@
   "use strict";
 
   const DEFAULT_TIMEOUT_MS = 12 * 1000;
+  const authSession = root.STAuthSession;
+  if (!authSession) {
+    throw new Error("shared/auth-session.js must load before shared/auth-client.js");
+  }
+  const { cleanAuth, expired, nextAuth } = authSession;
   const log = root.STLoggerFactory?.createLogger?.("shared", "auth-client") || {
     info() {},
     warn() {},
@@ -29,37 +34,6 @@
       parseError.name = "ParseError";
       throw parseError;
     }
-  }
-
-  function cleanAuth(value) {
-    if (!value || typeof value !== "object") {
-      return null;
-    }
-    const access = String(value.access_token || "");
-    const refresh = String(value.refresh_token || "");
-    if (!access && !refresh) {
-      return null;
-    }
-    return {
-      access_token: access,
-      refresh_token: refresh,
-      expires_at: Number(value.expires_at) || 0,
-      last_used_at: Number(value.last_used_at) || 0,
-    };
-  }
-
-  function expired(auth, skewMs = 60000) {
-    const time = Number(auth?.expires_at) || 0;
-    return !time || Date.now() + skewMs >= time;
-  }
-
-  function nextAuth(body, old = {}) {
-    return cleanAuth({
-      access_token: body?.access_token || old.access_token || "",
-      refresh_token: body?.refresh_token || old.refresh_token || "",
-      expires_at: Date.now() + Math.max(1, Number(body?.expires_in) || 600) * 1000,
-      last_used_at: Date.now(),
-    });
   }
 
   function timeoutError(timeoutMs) {

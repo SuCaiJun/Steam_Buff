@@ -330,13 +330,24 @@
   }
 
   function normalizeMembership(value = {}, auth = {}) {
-      return globalThis.STSettingsMembership?.normalize?.(value, auth) || {
-        active: false,
-        level: "",
-        badge: "",
-        identity: "",
+    return globalThis.STSettingsMembership?.normalize?.(value, auth) || {
+      active: false,
+      level: "",
+      badge: "",
+      identity: "",
       expire: "",
-      features: { searchSuggestions: false },
+      permissions: {
+        customNames: false,
+        gameNotes: false,
+        priceMonitor: false,
+        searchSuggestions: false,
+      },
+      features: {
+        customNames: false,
+        gameNotes: false,
+        priceMonitor: false,
+        searchSuggestions: false,
+      },
       updatedAt: Date.now(),
     };
   }
@@ -556,7 +567,7 @@
     log[ok ? "info" : "warn"](ok ? "membership-save-success" : "membership-save-failed", ok ? "会员状态已同步" : "会员状态同步失败", {
       operationId,
       active: visible.active,
-      features: visible.features,
+      permissions: visible.permissions,
     });
     return ok ? visible : null;
   }

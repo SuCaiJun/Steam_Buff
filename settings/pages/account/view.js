@@ -124,50 +124,84 @@
       : t("settings.membership.sponsorIdentity", "赞助者身份");
   }
 
-  function medalTooltip(data, ctx) {
-    const medal = data.user.medal;
-    const lines = [`<strong class="account-medal-tooltip-name">${ctx.esc(medal.name)}</strong>`];
-    if (medal.category) {
-      lines.push(`<span class="account-medal-tooltip-category">${ctx.esc(medal.category)}</span>`);
+  function entitlementTooltip(source, ctx, showVipStatus = false) {
+    const lines = [`<strong class="account-entitlement-tooltip-name">${ctx.esc(source.name)}</strong>`];
+    if (source.category) {
+      lines.push(`<span class="account-entitlement-tooltip-category">${ctx.esc(source.category)}</span>`);
     }
-    if (medal.description) {
-      lines.push(`<span class="account-medal-tooltip-description">${ctx.esc(medal.description)}</span>`);
+    if (source.description) {
+      lines.push(`<span class="account-entitlement-tooltip-description">${ctx.esc(source.description)}</span>`);
     }
-    if (medal.acquiredAt) {
-      lines.push(`<span class="account-medal-tooltip-acquired">${ctx.esc(t("settings.account.medalAcquiredAt", "获得日期：$date$", { date: medal.acquiredAt }))}</span>`);
+    if (showVipStatus && source.type === "vip") {
+      const expiry = source.expire
+        ? t("settings.account.vipValidUntil", "VIP 有效期至 $date$", { date: source.expire })
+        : t("settings.account.vipExpiryUnavailable", "VIP 有效期：未提供");
+      lines.push(`<span class="account-entitlement-tooltip-meta">${ctx.esc(expiry)}</span>`);
+      if (Number.isFinite(source.remainingDays)) {
+        lines.push(`<span class="account-entitlement-tooltip-meta">${ctx.esc(t("settings.account.remainingDays", "剩余 $days$ 天", { days: source.remainingDays }))}</span>`);
+      }
+    }
+    if (source.acquiredAt) {
+      lines.push(`<span class="account-entitlement-tooltip-meta">${ctx.esc(t("settings.account.medalAcquiredAt", "获得日期：$date$", { date: source.acquiredAt }))}</span>`);
     }
     return lines.join("");
   }
 
-  function medalAriaLabel(data) {
-    const medal = data.user.medal;
-    return [medal.name, medal.category, medal.description, medal.acquiredAt].filter(Boolean).join("，");
+  function entitlementAriaLabel(source, showVipStatus = false) {
+    const expiry = showVipStatus && source.type === "vip"
+      ? (source.expire || t("settings.account.vipExpiryUnavailable", "VIP 有效期：未提供"))
+      : "";
+    return [source.name, source.category, source.description, expiry, source.acquiredAt].filter(Boolean).join("，");
   }
 
-  function memberChips(data, ctx) {
-    const chips = [];
-    if (data.sponsor.active && data.sponsor.name) {
-      chips.push(`<span class="badge sponsor" title="${ctx.esc(expiringTitle(data))}"><span class="badge-label">${ctx.esc(data.sponsor.name)}</span></span>`);
+  function activeEntitlementChip(data, ctx) {
+    const source = data.entitlement?.active;
+    if (!source) {
+      return `<span class="badge normal"><span class="badge-label">${t("settings.account.entitlementUnavailable", "权益状态未提供")}</span></span>`;
     }
-    if (data.user.medal?.worn === true && data.user.medal.name) {
-      chips.push(`
-        <span class="source-tip account-medal-tip" tabindex="0" role="button" aria-label="${ctx.esc(medalAriaLabel(data))}">
-          <span class="badge medal">
-            ${data.user.medal.icon ? `<img src="${ctx.esc(data.user.medal.icon)}" alt="">` : ""}
-            <span class="badge-label">${ctx.esc(data.user.medal.name)}</span>
+    const badgeClass = source.type === "vip" ? "sponsor" : source.type;
+    const badge = `<span class="badge ${badgeClass}"><span class="badge-label">${ctx.esc(source.name)}</span></span>`;
+    if (source.type === "normal") {
+      return badge;
+    }
+    return `
+      <span class="source-tip account-entitlement-tip account-active-entitlement" tabindex="0" role="button" aria-label="${ctx.esc(entitlementAriaLabel(source))}">
+        ${badge}
+        <span class="source-tip-popover account-entitlement-popover" role="tooltip">${entitlementTooltip(source, ctx, true)}</span>
+      </span>
+    `;
+  }
+
+  function entitlementFallback(source) {
+    if (source.type === "vip" && source.vipLevel > 0) {
+      return `VIP${source.vipLevel}`;
+    }
+    return Array.from(source.name || "?")[0] || "?";
+  }
+
+  function entitlementSources(data, ctx) {
+    const sources = data.entitlement?.catalog || [];
+    if (!sources.length) {
+      return "";
+    }
+    const activeKey = data.entitlement?.active?.sourceKey || "";
+    const items = sources.map((source) => {
+      const isActive = source.sourceKey === activeKey;
+      const details = isActive ? data.entitlement.active : source;
+      return `
+        <span class="source-tip account-entitlement-tip account-source-icon${isActive ? " active" : ""}" tabindex="0" role="listitem" aria-label="${ctx.esc(entitlementAriaLabel(details, isActive))}">
+          <span class="entitlement-source-mark">
+            ${source.icon ? `<img src="${ctx.esc(source.icon)}" alt="">` : `<span>${ctx.esc(entitlementFallback(source))}</span>`}
           </span>
-          <span class="source-tip-popover account-medal-popover" role="tooltip">${medalTooltip(data, ctx)}</span>
+          <span class="source-tip-popover account-entitlement-popover" role="tooltip">${entitlementTooltip(details, ctx, isActive)}</span>
         </span>
-      `);
-    }
-    if (!chips.length) {
-      chips.push(`<span class="badge normal"><span class="badge-label">${t("settings.account.normalUser", "普通用户")}</span></span>`);
-    }
-    return chips.join("");
+      `;
+    }).join("");
+    return `<div class="entitlement-sources" role="list" aria-label="${t("settings.account.entitlementCatalog", "后台配置的权益来源")}">${items}</div>`;
   }
 
-  function vipExpiry(data, ctx) {
-    if (!data.sponsor.active) {
+  function vipExpirySummary(data, ctx) {
+    if (!data.sponsor.active || !data.sponsor.name) {
       return "";
     }
     const expiry = data.sponsor.expire
@@ -188,12 +222,6 @@
     return Number.isFinite(data.user.joinedDays)
       ? t("settings.account.joinedDays", "已使用 Steam Buff $days$ 天", { days: data.user.joinedDays })
       : t("settings.account.bound", "已绑定 Steam Buff 账号");
-  }
-
-  function expiringTitle(data) {
-    return data.sponsor.expiring
-      ? t("settings.account.expiring", "您的$identity$即将到期", { identity: sponsorIdentity(data) })
-      : "";
   }
 
   function userCard(data, ctx) {
@@ -239,7 +267,7 @@
           <div class="feature-grid">
             ${featureCard(t("settings.account.feature.customNames.name", "自定义名称"), t("settings.account.feature.customNames.desc", "为游戏起个专属称呼，列表里一眼识别"), "tag")}
             ${featureCard(t("settings.account.feature.gameNotes.name", "游戏备注"), t("settings.account.feature.gameNotes.desc", "记录你的购买理由、心得，永不忘记"), "note")}
-            ${featureCard(t("settings.account.feature.priceAlerts.name", "打折监控"), t("settings.account.feature.priceAlerts.desc", "规划每日检查价格，到达目标价后通过 QQ 或短信提醒"), "message", true)}
+            ${featureCard(t("settings.account.feature.priceAlerts.name", "打折监控"), t("settings.account.feature.priceAlerts.desc", "每日检查价格，到达目标价后通过 QQ 或邮件提醒"), "message", true)}
             ${featureCard(t("settings.account.feature.searchSuggestions.name", "搜索联想词"), t("settings.account.feature.searchSuggestions.desc", "智能补全游戏名，快速找到目标"), "search", true)}
           </div>
         </div>
@@ -257,7 +285,7 @@
             <div class="user-info">
               <div class="name-row">
                 <span class="nickname">${ctx.esc(userName(data))}</span>
-                <span class="member-chips">${memberChips(data, ctx)}</span>
+                <span class="member-chips">${activeEntitlementChip(data, ctx)}</span>
               </div>
               <div class="meta-row">
                 <button class="meta-copy" type="button" data-user-copy="${ctx.esc(userId(data))}" title="${t("common.clickToCopy", "点击复制")}">
@@ -265,7 +293,8 @@
                   ${icon("copy")}
                 </button>
               </div>
-              ${vipExpiry(data, ctx)}
+              ${vipExpirySummary(data, ctx)}
+              ${entitlementSources(data, ctx)}
               <div class="sub-meta">${ctx.esc(joinedText(data))}</div>
               <div class="auth-msg" data-auth-note role="status" ${rt.copyMsg ? "" : "hidden"}>${ctx.esc(rt.copyMsg || "")}</div>
             </div>
@@ -323,6 +352,9 @@
   }
 
   function percent(used, quota) {
+    if (!Number.isFinite(used) || !Number.isFinite(quota)) {
+      return null;
+    }
     if (quota < 0) {
       return 100;
     }
@@ -345,6 +377,9 @@
   }
 
   function quotaMain(used, quota) {
+    if (!Number.isFinite(used) || !Number.isFinite(quota)) {
+      return `<span class="quota-unavailable">${t("settings.account.quotaUnavailable", "额度未提供")}</span>`;
+    }
     if (quota < 0) {
       return `${used}<span class="infinity">∞</span>`;
     }
@@ -353,12 +388,18 @@
 
   function quotaProgress(used, quota) {
     const pct = percent(used, quota);
+    if (!Number.isFinite(pct)) {
+      return `<div class="stat-bar dashed"><div class="stat-bar-fill"></div></div>`;
+    }
     const warn = quota > 0 && pct >= 80;
     const cls = `stat-bar-fill${warn ? " warn" : ""}${quota < 0 ? " gold" : ""}`;
     return `<div class="stat-bar"><div class="${cls}" style="width:${pct}%"></div></div>`;
   }
 
   function usageFooter(used, quota) {
+    if (!Number.isFinite(used) || !Number.isFinite(quota)) {
+      return t("settings.account.quotaUnavailable", "额度未提供");
+    }
     if (quota < 0) {
       return t("settings.account.unlimited", "无限额度");
     }
@@ -366,6 +407,19 @@
       return "";
     }
     return t("settings.account.usedPercent", "已用 $percent$%", { percent: percent(used, quota) });
+  }
+
+  function dailyUsageFooter(used, quota) {
+    if (!Number.isFinite(used) || !Number.isFinite(quota)) {
+      return t("settings.account.quotaUnavailable", "额度未提供");
+    }
+    if (quota < 0) {
+      return t("settings.account.unlimited", "无限额度");
+    }
+    if (quota <= 0) {
+      return "";
+    }
+    return t("settings.account.todayUsedPercent", "今日已用 $percent$%", { percent: percent(used, quota) });
   }
 
   function usageLinkAttributes(url, ctx) {
@@ -376,8 +430,14 @@
 
   function usageInner(data, ctx) {
     const usage = data.usage;
-    const notesWarn = percent(usage.gameNotes.used, usage.gameNotes.quota) >= 80 && usage.gameNotes.quota > 0;
-    const searchWarn = percent(usage.searchSuggestions.used, usage.searchSuggestions.quota) >= 80 && usage.searchSuggestions.quota > 0;
+    const customPercent = percent(usage.customNames.count, usage.customNames.quota);
+    const notesPercent = percent(usage.gameNotes.used, usage.gameNotes.quota);
+    const searchUsed = usage.searchSuggestions.dailyUsed;
+    const searchQuota = usage.searchSuggestions.dailyQuota;
+    const searchPercent = percent(searchUsed, searchQuota);
+    const customWarn = Number.isFinite(customPercent) && customPercent >= 80 && usage.customNames.quota > 0;
+    const notesWarn = Number.isFinite(notesPercent) && notesPercent >= 80 && usage.gameNotes.quota > 0;
+    const searchWarn = Number.isFinite(searchPercent) && searchPercent >= 80 && searchQuota > 0;
     return `
       <div class="usage-header">
         <div class="usage-title">${t("settings.account.usageTitle", "功能用量")}</div>
@@ -387,11 +447,11 @@
         </button>
       </div>
       <div class="usage-grid">
-        <a class="usage-cell" ${usageLinkAttributes(USER_PAGE_URLS.customNames, ctx)}>
+        <a class="usage-cell${customWarn ? " warn" : ""}" ${usageLinkAttributes(USER_PAGE_URLS.customNames, ctx)}>
           <div class="cell-header">${icon("tag")}<span>${t("settings.account.feature.customNames.name", "自定义名称")}</span></div>
-          <div class="main-value">${ctx.esc(usage.customNames.count)}<span class="unit">${t("settings.account.itemUnit", "条")}</span></div>
-          <div class="stat-bar"><div class="stat-bar-fill" style="width:100%"></div></div>
-          <div class="cell-footer"><span>${t("settings.account.viewList", "查看列表")}</span><span class="arrow">→</span></div>
+          <div class="main-value">${quotaMain(usage.customNames.count, usage.customNames.quota)}</div>
+          ${quotaProgress(usage.customNames.count, usage.customNames.quota)}
+          <div class="cell-footer"><span>${ctx.esc(usageFooter(usage.customNames.count, usage.customNames.quota))}</span><span class="arrow">${t("settings.account.viewList", "查看列表")} →</span></div>
         </a>
         <a class="usage-cell${notesWarn ? " warn" : ""}" ${usageLinkAttributes(USER_PAGE_URLS.gameNotes, ctx)}>
           <div class="cell-header">${icon("note")}<span>${t("settings.account.feature.gameNotes.name", "游戏备注")}</span></div>
@@ -402,17 +462,17 @@
         <a class="usage-cell" ${usageLinkAttributes(USER_PAGE_URLS.priceAlerts, ctx)}>
           <div class="cell-header">${icon("tag")}<span>${t("settings.account.feature.priceAlerts.name", "打折监控")}</span></div>
           <div class="main-value-area">
-            <div class="status-wrap"><span class="status-pill disabled">${t("settings.account.planned", "规划中")}</span></div>
+            <div class="status-wrap"><span class="status-pill enabled">${t("settings.account.available", "已支持")}</span></div>
             <div class="stat-bar dashed"><div class="stat-bar-fill"></div></div>
           </div>
-          <div class="cell-footer"><span>${t("settings.account.targetPriceAlert", "目标价提醒")}</span><span class="arrow">${t("settings.account.qqSms", "QQ / 短信")} →</span></div>
+          <div class="cell-footer"><span>${t("settings.account.targetPriceAlert", "目标价提醒")}</span><span class="arrow">${t("settings.account.qqEmail", "QQ / 邮件")} →</span></div>
         </a>
         <button class="usage-cell${usage.searchSuggestions.enabled ? "" : " locked"}${searchWarn ? " warn" : ""}" type="button" data-center-action="${usage.searchSuggestions.enabled ? "soon" : "donate"}">
           <div class="cell-header">${icon("search")}<span>${t("settings.account.feature.searchSuggestions.name", "搜索联想词")}</span></div>
           ${usage.searchSuggestions.enabled ? `
-            <div class="main-value">${quotaMain(usage.searchSuggestions.used, usage.searchSuggestions.quota)}</div>
-            ${quotaProgress(usage.searchSuggestions.used, usage.searchSuggestions.quota)}
-            <div class="cell-footer"><span>${ctx.esc(usageFooter(usage.searchSuggestions.used, usage.searchSuggestions.quota))}</span><span class="arrow">→</span></div>
+            <div class="main-value">${quotaMain(searchUsed, searchQuota)}</div>
+            ${quotaProgress(searchUsed, searchQuota)}
+            <div class="cell-footer"><span>${ctx.esc(dailyUsageFooter(searchUsed, searchQuota))}</span><span class="arrow">→</span></div>
           ` : `
             <div class="main-value-area">
               <div class="status-wrap"><span class="status-pill disabled">${t("settings.account.notEnabled", "未开通")}</span></div>

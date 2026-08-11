@@ -4280,7 +4280,7 @@
     "message": "折扣監控"
   },
   "settings_account_feature_priceAlerts_desc": {
-    "message": "規劃每日檢查價格，到達目標價後透過 QQ 或簡訊提醒"
+    "message": "每日檢查價格，到達目標價後透過 QQ 或電子郵件提醒"
   },
   "settings_account_feature_searchSuggestions_name": {
     "message": "搜尋聯想詞"
@@ -4299,6 +4299,15 @@
   },
   "settings_account_normalUser": {
     "message": "一般使用者"
+  },
+  "settings_account_entitlementUnavailable": {
+    "message": "權益狀態未提供"
+  },
+  "settings_account_entitlementSources": {
+    "message": "目前有效權益來源"
+  },
+  "settings_account_entitlementCatalog": {
+    "message": "後台設定的權益來源"
   },
   "settings_account_vipValidUntil": {
     "message": "VIP 有效期至 $date$",
@@ -4381,6 +4390,15 @@
       "percent": { "content": "$1" }
     }
   },
+  "settings_account_todayUsedPercent": {
+    "message": "今日已用 $percent$%",
+    "placeholders": {
+      "percent": { "content": "$1" }
+    }
+  },
+  "settings_account_quotaUnavailable": {
+    "message": "未提供額度"
+  },
   "settings_account_usageTitle": {
     "message": "功能用量"
   },
@@ -4396,14 +4414,14 @@
   "settings_account_viewList": {
     "message": "查看清單"
   },
-  "settings_account_planned": {
-    "message": "規劃中"
+  "settings_account_available": {
+    "message": "已支援"
   },
   "settings_account_targetPriceAlert": {
     "message": "目標價提醒"
   },
-  "settings_account_qqSms": {
-    "message": "QQ / 簡訊"
+  "settings_account_qqEmail": {
+    "message": "QQ / 電子郵件"
   },
   "settings_account_notEnabled": {
     "message": "未開通"

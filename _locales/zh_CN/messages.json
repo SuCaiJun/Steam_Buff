@@ -4280,7 +4280,7 @@
     "message": "打折监控"
   },
   "settings_account_feature_priceAlerts_desc": {
-    "message": "规划每日检查价格，到达目标价后通过 QQ 或短信提醒"
+    "message": "每日检查价格，到达目标价后通过 QQ 或邮件提醒"
   },
   "settings_account_feature_searchSuggestions_name": {
     "message": "搜索联想词"
@@ -4299,6 +4299,15 @@
   },
   "settings_account_normalUser": {
     "message": "普通用户"
+  },
+  "settings_account_entitlementUnavailable": {
+    "message": "权益状态未提供"
+  },
+  "settings_account_entitlementSources": {
+    "message": "当前有效权益来源"
+  },
+  "settings_account_entitlementCatalog": {
+    "message": "后台配置的权益来源"
   },
   "settings_account_vipValidUntil": {
     "message": "VIP 有效期至 $date$",
@@ -4381,6 +4390,15 @@
       "percent": { "content": "$1" }
     }
   },
+  "settings_account_todayUsedPercent": {
+    "message": "今日已用 $percent$%",
+    "placeholders": {
+      "percent": { "content": "$1" }
+    }
+  },
+  "settings_account_quotaUnavailable": {
+    "message": "额度未提供"
+  },
   "settings_account_usageTitle": {
     "message": "功能用量"
   },
@@ -4396,14 +4414,14 @@
   "settings_account_viewList": {
     "message": "查看列表"
   },
-  "settings_account_planned": {
-    "message": "规划中"
+  "settings_account_available": {
+    "message": "已支持"
   },
   "settings_account_targetPriceAlert": {
     "message": "目标价提醒"
   },
-  "settings_account_qqSms": {
-    "message": "QQ / 短信"
+  "settings_account_qqEmail": {
+    "message": "QQ / 邮件"
   },
   "settings_account_notEnabled": {
     "message": "未开通"

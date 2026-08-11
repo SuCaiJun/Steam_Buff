@@ -68,6 +68,7 @@
     "shared/error-boundary.js",
     "shared/runtime/message-bus.js",
     "shared/settings-bus.js",
+    "shared/auth-session.js",
     "extension/content.js",
   ]);
   const STEAM_LOOPBACK_GUARD_FILES = Object.freeze([
@@ -86,6 +87,7 @@
     "shared/page-context.js",
     "shared/runtime/message-bus.js",
     "shared/settings-bus.js",
+    "shared/auth-session.js",
     "extension/content.js",
   ]);
   const STEAM_CONTENT_SHARED_SCRIPTS = Object.freeze([
@@ -102,6 +104,7 @@
     "shared/page-context.js",
     "shared/runtime/message-bus.js",
     "shared/settings-bus.js",
+    "shared/auth-session.js",
   ]);
   const SETTINGS_SHARED_SCRIPTS = Object.freeze([
     "ai/config.js",
@@ -119,6 +122,7 @@
     "shared/runtime/kernel.js",
     "shared/runtime/message-bus.js",
     "shared/settings-bus.js",
+    "shared/auth-session.js",
     "shared/account-profile.js",
     "shared/price-comparison-catalog.js",
     "settings/catalog.js",
@@ -224,6 +228,7 @@
     "store/runtime/purchase-recover.js",
     "shared/config.js",
     "shared/i18n.js",
+    "shared/auth-session.js",
     "shared/auth-client.js",
     "settings/catalog.js",
     "settings/membership.js",
