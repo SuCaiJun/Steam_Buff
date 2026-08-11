@@ -110,8 +110,13 @@
     if (!type || !sourceKey || !name) {
       return null;
     }
-    const remainingDays = Number.isInteger(value.remaining_days)
-      ? Math.max(0, value.remaining_days)
+    const rawValidity = value.validity;
+    const validityType = rawValidity && typeof rawValidity === "object" && rawValidity.type === "limited"
+      ? "limited"
+      : "permanent";
+    const expiresAt = validityType === "limited" ? dateText(rawValidity.expires_at) : "";
+    const remainingDays = validityType === "limited" && Number.isInteger(rawValidity.remaining_days)
+      ? Math.max(0, rawValidity.remaining_days)
       : null;
     return {
       sourceKey,
@@ -124,8 +129,11 @@
       description: first(value.description),
       category: first(value.category),
       acquiredAt: dateText(value.acquired_at),
-      expire: type === "vip" ? dateText(value.expire_at) : "",
-      remainingDays: type === "vip" ? remainingDays : null,
+      validity: {
+        type: validityType,
+        expiresAt,
+        remainingDays,
+      },
     };
   }
 
@@ -156,10 +164,9 @@
       ? Math.max(0, sponsor.remaining_days)
       : null;
     const activeEntitlement = entitlementSource(entitlement.active);
-    const rawCatalog = Array.isArray(entitlement.catalog)
-      ? entitlement.catalog
-      : (Array.isArray(entitlement.sources) ? entitlement.sources : []);
-    const entitlementCatalog = rawCatalog.map(entitlementSource).filter(Boolean);
+    const entitlementOwned = Array.isArray(entitlement.owned)
+      ? entitlement.owned.map(entitlementSource).filter(Boolean)
+      : [];
 
     return {
       logged,
@@ -167,6 +174,8 @@
         avatar: first(user.avatar),
         name: first(user.nickname, user.name),
         id: first(user.id),
+        levelName: first(user.level_name),
+        levelIcon: first(user.level_icon),
         joinedDays: Number.isFinite(joined) ? Math.max(0, Math.round(joined)) : null,
       },
       sponsor: {
@@ -183,9 +192,7 @@
       entitlement: {
         available: activeEntitlement !== null,
         active: activeEntitlement,
-        catalog: entitlementCatalog,
-        // 旧设置页契约别名；展示主路径使用 catalog。
-        sources: entitlementCatalog,
+        owned: entitlementOwned,
       },
       permissions,
       usage: {
@@ -222,7 +229,9 @@
       level: activeSource?.type === "vip" ? String(src.sponsor?.level || "") : String(activeSource?.type || ""),
       badge: String(activeSource?.name || ""),
       identity: String(activeSource?.name || ""),
-      expire: activeSource?.type === "vip" ? String(activeSource.expire || "") : "",
+      expire: activeSource?.type === "vip" && activeSource.validity?.type === "limited"
+        ? String(activeSource.validity.expiresAt || "")
+        : "",
       permissions: normalizedPermissions,
       // 兼容旧设置页读取路径；新代码统一读取 permissions。
       features: normalizedPermissions,

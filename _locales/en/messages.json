@@ -4303,8 +4303,44 @@
   "settings_account_entitlementUnavailable": {
     "message": "Entitlement status unavailable"
   },
+  "settings_account_entitlementDescriptionUnavailable": {
+    "message": "Entitlement description unavailable"
+  },
+  "settings_account_profileTooltip": {
+    "message": "View account details"
+  },
+  "settings_account_profileId": {
+    "message": "ID"
+  },
+  "settings_account_profileUsername": {
+    "message": "Nickname"
+  },
+  "settings_account_profileLevel": {
+    "message": "Level"
+  },
+  "settings_account_profileEntitlement": {
+    "message": "Entitlement"
+  },
+  "settings_account_profileUsageTime": {
+    "message": "Time"
+  },
+  "settings_account_levelUnavailable": {
+    "message": "Level unavailable"
+  },
+  "settings_account_copyUserId": {
+    "message": "Copy user ID"
+  },
   "settings_account_entitlementSources": {
     "message": "Current valid entitlement sources"
+  },
+  "settings_account_viewEntitlements": {
+    "message": "View entitlements"
+  },
+  "settings_account_entitlementsTitle": {
+    "message": "My entitlements"
+  },
+  "settings_account_entitlementsEmpty": {
+    "message": "No VIP or badges to display"
   },
   "settings_account_entitlementCatalog": {
     "message": "Configured entitlement sources"
@@ -4314,6 +4350,16 @@
     "placeholders": {
       "date": { "content": "$1" }
     }
+  },
+  "settings_account_vipPermanent": {
+    "message": "VIP permanent"
+  },
+  "settings_account_entitlementValidUntil": {
+    "message": "Valid until $date$",
+    "placeholders": { "date": { "content": "$1" } }
+  },
+  "settings_account_entitlementPermanent": {
+    "message": "Permanent"
   },
   "settings_account_vipExpiryUnavailable": {
     "message": "VIP validity period unavailable"

@@ -67,6 +67,16 @@
         openUrl(api.urls.account);
         return true;
       }
+      if (action === "view-entitlements") {
+        rt.entitlementsOpen = true;
+        refresh(ctx);
+        return true;
+      }
+      if (action === "close-entitlements") {
+        rt.entitlementsOpen = false;
+        refresh(ctx);
+        return true;
+      }
       if (action === "soon") {
         ctx.dialog?.(shadow, {
           title: t("settings.account.soon.title", "功能入口待接入"),
@@ -139,6 +149,7 @@
       }
       if (action === "logout") {
         closeMenus(shadow);
+        rt.entitlementsOpen = false;
         auth.logout(shadow, ctx, {
           stopPoll: deviceLogin.stopPoll,
           clearCopyTimer: deviceLogin.clearCopyTimer,

@@ -40,6 +40,7 @@
       message: '<path d="M4 5h16v11H8l-4 4V5Z"/>',
       help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.7 2.7 0 0 1 5 1.4c0 1.8-2 2.2-2.4 3.6"/><path d="M12 17h.01"/>',
       key: '<circle cx="8" cy="15" r="4"/><path d="M10.85 12.15 19 4"/><path d="m18 5 2 2"/><path d="m15 8 2 2"/>',
+      close: '<path d="m6 6 12 12"/><path d="M18 6 6 18"/>',
     }[name] || "";
     return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
   }
@@ -118,6 +119,14 @@
     return data.user.id || t("settings.account.userIdUnavailable", "用户 ID 暂无");
   }
 
+  function userLevelBadge(data, ctx) {
+    const name = data.user.levelName || t("settings.account.levelUnavailable", "等级未提供");
+    const content = data.user.levelIcon
+      ? `<img src="${ctx.esc(data.user.levelIcon)}" alt="">`
+      : `<span>${ctx.esc(name)}</span>`;
+    return `<span class="account-level-badge" role="img" aria-label="${ctx.esc(name)}" title="${ctx.esc(name)}">${content}</span>`;
+  }
+
   function sponsorIdentity(data) {
     return data.sponsor.active && data.sponsor.identityName
       ? data.sponsor.identityName
@@ -132,13 +141,13 @@
     if (source.description) {
       lines.push(`<span class="account-entitlement-tooltip-description">${ctx.esc(source.description)}</span>`);
     }
-    if (showVipStatus && source.type === "vip") {
-      const expiry = source.expire
-        ? t("settings.account.vipValidUntil", "VIP 有效期至 $date$", { date: source.expire })
-        : t("settings.account.vipExpiryUnavailable", "VIP 有效期：未提供");
+    if (source.validity) {
+      const expiry = source.validity.type === "limited" && source.validity.expiresAt
+        ? t(source.type === "vip" ? "settings.account.vipValidUntil" : "settings.account.entitlementValidUntil", source.type === "vip" ? "VIP 有效期至 $date$" : "有效期至 $date$", { date: source.validity.expiresAt })
+        : t(source.type === "vip" ? "settings.account.vipPermanent" : "settings.account.entitlementPermanent", source.type === "vip" ? "VIP 永久有效" : "永久有效");
       lines.push(`<span class="account-entitlement-tooltip-meta">${ctx.esc(expiry)}</span>`);
-      if (Number.isFinite(source.remainingDays)) {
-        lines.push(`<span class="account-entitlement-tooltip-meta">${ctx.esc(t("settings.account.remainingDays", "剩余 $days$ 天", { days: source.remainingDays }))}</span>`);
+      if (Number.isFinite(source.validity?.remainingDays)) {
+        lines.push(`<span class="account-entitlement-tooltip-meta">${ctx.esc(t("settings.account.remainingDays", "剩余 $days$ 天", { days: source.validity.remainingDays }))}</span>`);
       }
     }
     if (source.acquiredAt) {
@@ -148,28 +157,12 @@
   }
 
   function entitlementAriaLabel(source, showVipStatus = false) {
-    const expiry = showVipStatus && source.type === "vip"
-      ? (source.expire || t("settings.account.vipExpiryUnavailable", "VIP 有效期：未提供"))
+    const expiry = source.validity
+      ? (source.validity.type === "limited" && source.validity.expiresAt
+        ? source.validity.expiresAt
+        : t(source.type === "vip" ? "settings.account.vipPermanent" : "settings.account.entitlementPermanent", source.type === "vip" ? "VIP 永久有效" : "永久有效"))
       : "";
     return [source.name, source.category, source.description, expiry, source.acquiredAt].filter(Boolean).join("，");
-  }
-
-  function activeEntitlementChip(data, ctx) {
-    const source = data.entitlement?.active;
-    if (!source) {
-      return `<span class="badge normal"><span class="badge-label">${t("settings.account.entitlementUnavailable", "权益状态未提供")}</span></span>`;
-    }
-    const badgeClass = source.type === "vip" ? "sponsor" : source.type;
-    const badge = `<span class="badge ${badgeClass}"><span class="badge-label">${ctx.esc(source.name)}</span></span>`;
-    if (source.type === "normal") {
-      return badge;
-    }
-    return `
-      <span class="source-tip account-entitlement-tip account-active-entitlement" tabindex="0" role="button" aria-label="${ctx.esc(entitlementAriaLabel(source))}">
-        ${badge}
-        <span class="source-tip-popover account-entitlement-popover" role="tooltip">${entitlementTooltip(source, ctx, true)}</span>
-      </span>
-    `;
   }
 
   function entitlementFallback(source) {
@@ -179,8 +172,19 @@
     return Array.from(source.name || "?")[0] || "?";
   }
 
+  function entitlementSourceItem(source, details, ctx, isActive = false, extraClass = "") {
+    return `
+      <span class="source-tip account-entitlement-tip account-source-icon account-source-${ctx.esc(source.type)}${isActive ? " active" : ""}${extraClass ? ` ${extraClass}` : ""}" tabindex="0" role="listitem" aria-label="${ctx.esc(entitlementAriaLabel(details, isActive))}">
+        <span class="entitlement-source-mark">
+          ${source.icon ? `<img src="${ctx.esc(source.icon)}" alt="">` : `<span>${ctx.esc(entitlementFallback(source))}</span>`}
+        </span>
+        <span class="source-tip-popover account-entitlement-popover" role="tooltip">${entitlementTooltip(details, ctx, isActive)}</span>
+      </span>
+    `;
+  }
+
   function entitlementSources(data, ctx) {
-    const sources = data.entitlement?.catalog || [];
+    const sources = data.entitlement?.owned || [];
     if (!sources.length) {
       return "";
     }
@@ -189,32 +193,37 @@
       const isActive = source.sourceKey === activeKey;
       const details = isActive ? data.entitlement.active : source;
       return `
-        <span class="source-tip account-entitlement-tip account-source-icon${isActive ? " active" : ""}" tabindex="0" role="listitem" aria-label="${ctx.esc(entitlementAriaLabel(details, isActive))}">
-          <span class="entitlement-source-mark">
-            ${source.icon ? `<img src="${ctx.esc(source.icon)}" alt="">` : `<span>${ctx.esc(entitlementFallback(source))}</span>`}
-          </span>
-          <span class="source-tip-popover account-entitlement-popover" role="tooltip">${entitlementTooltip(details, ctx, isActive)}</span>
-        </span>
+        <div class="account-entitlement-gallery-item">
+          ${entitlementSourceItem(source, details, ctx, isActive, "account-entitlement-panel-icon")}
+          <span class="account-entitlement-gallery-name">${ctx.esc(source.name)}</span>
+        </div>
       `;
     }).join("");
-    return `<div class="entitlement-sources" role="list" aria-label="${t("settings.account.entitlementCatalog", "后台配置的权益来源")}">${items}</div>`;
+    return `<div class="entitlement-sources account-entitlement-panel-list" role="list" aria-label="${t("settings.account.entitlementSources", "当前拥有的权益来源")}">${items}</div>`;
   }
 
-  function vipExpirySummary(data, ctx) {
-    if (!data.sponsor.active || !data.sponsor.name) {
+  function activeEntitlementBadge(data, ctx) {
+    const active = data.entitlement?.active;
+    if (!active || active.type === "normal") {
       return "";
     }
-    const expiry = data.sponsor.expire
-      ? t("settings.account.vipValidUntil", "VIP 有效期至 $date$", { date: data.sponsor.expire })
-      : t("settings.account.vipExpiryUnavailable", "VIP 有效期：未提供");
-    const remaining = Number.isFinite(data.sponsor.remainingDays)
-      ? t("settings.account.remainingDays", "剩余 $days$ 天", { days: data.sponsor.remainingDays })
-      : "";
+    const source = (data.entitlement?.owned || []).find((item) => item.sourceKey === active.sourceKey) || active;
+    return entitlementSourceItem(source, active, ctx, true, "account-avatar-entitlement");
+  }
+
+  function entitlementPanel(data, ctx) {
+    if (!rt.entitlementsOpen) {
+      return "";
+    }
+    const sources = entitlementSources(data, ctx);
     return `
-      <div class="vip-meta-row">
-        <span>${ctx.esc(expiry)}</span>
-        ${remaining ? `<span class="vip-remaining">${ctx.esc(remaining)}</span>` : ""}
-      </div>
+      <section class="account-entitlements-panel" role="dialog" aria-label="${ctx.esc(t("settings.account.entitlementsTitle", "我的权益"))}">
+        <header class="account-entitlements-panel-header">
+          <strong>${t("settings.account.entitlementsTitle", "我的权益")}</strong>
+          <button type="button" data-center-action="close-entitlements" title="${ctx.esc(t("common.close", "关闭"))}" aria-label="${ctx.esc(t("common.close", "关闭"))}">${icon("close")}</button>
+        </header>
+        ${sources || `<div class="account-entitlements-empty">${t("settings.account.entitlementsEmpty", "当前没有可展示的 VIP 或徽章")}</div>`}
+      </section>
     `;
   }
 
@@ -222,6 +231,29 @@
     return Number.isFinite(data.user.joinedDays)
       ? t("settings.account.joinedDays", "已使用 Steam Buff $days$ 天", { days: data.user.joinedDays })
       : t("settings.account.bound", "已绑定 Steam Buff 账号");
+  }
+
+  function profileTooltip(data, ctx) {
+    const active = data.entitlement?.active;
+    const level = data.user.levelName || t("settings.account.levelUnavailable", "等级未提供");
+    const entitlement = active?.name || t("settings.account.entitlementUnavailable", "权益状态未提供");
+    const validity = active?.type !== "normal" && active?.validity?.type === "limited" && active.validity.expiresAt
+      ? t(active.type === "vip" ? "settings.account.vipValidUntil" : "settings.account.entitlementValidUntil", active.type === "vip" ? "VIP 有效期至 $date$" : "有效期至 $date$", { date: active.validity.expiresAt })
+      : active?.type !== "normal" && active?.validity
+        ? t(active.type === "vip" ? "settings.account.vipPermanent" : "settings.account.entitlementPermanent", active.type === "vip" ? "VIP 永久有效" : "永久有效")
+        : "";
+    return [
+      [t("settings.account.profileId", "ID"), userId(data)],
+      [t("settings.account.profileUsername", "昵称"), userName(data)],
+      [t("settings.account.profileLevel", "等级"), level],
+      [t("settings.account.profileEntitlement", "权益"), `${entitlement}${validity ? `（${validity}）` : ""}`],
+      [t("settings.account.profileUsageTime", "时间"), joinedText(data)],
+    ].map(([label, value]) => `
+      <span class="account-profile-tooltip-row">
+        <strong>${ctx.esc(label)}</strong>
+        <span>${ctx.esc(value)}</span>
+      </span>
+    `).join("");
   }
 
   function userCard(data, ctx) {
@@ -280,22 +312,18 @@
           <div class="hero-content">
             <div class="avatar-wrap">
               ${heroAvatar(data, ctx)}
-              <div class="online-dot"></div>
+              ${activeEntitlementBadge(data, ctx)}
             </div>
             <div class="user-info">
-              <div class="name-row">
-                <span class="nickname">${ctx.esc(userName(data))}</span>
-                <span class="member-chips">${activeEntitlementChip(data, ctx)}</span>
-              </div>
-              <div class="meta-row">
-                <button class="meta-copy" type="button" data-user-copy="${ctx.esc(userId(data))}" title="${t("common.clickToCopy", "点击复制")}">
-                  <span>ID: ${ctx.esc(userId(data))}</span>
-                  ${icon("copy")}
-                </button>
-              </div>
-              ${vipExpirySummary(data, ctx)}
-              ${entitlementSources(data, ctx)}
-              <div class="sub-meta">${ctx.esc(joinedText(data))}</div>
+                <div class="name-row">
+                  <span class="source-tip account-profile-tip" tabindex="0" role="button" aria-label="${ctx.esc(t("settings.account.profileTooltip", "查看账号信息"))}">
+                    <span class="nickname">${ctx.esc(userName(data))}</span>
+                    <span class="source-tip-popover account-profile-popover" role="tooltip">${profileTooltip(data, ctx)}</span>
+                  </span>
+                  ${userLevelBadge(data, ctx)}
+                </div>
+              <button class="profile-id-copy profile-meta-line" type="button" data-user-copy="${ctx.esc(userId(data))}" title="${ctx.esc(t("settings.account.copyUserId", "复制用户 ID"))}" aria-label="${ctx.esc(t("settings.account.copyUserId", "复制用户 ID"))}">ID：${ctx.esc(userId(data))}</button>
+              <div class="profile-joined">${ctx.esc(joinedText(data))}</div>
               <div class="auth-msg" data-auth-note role="status" ${rt.copyMsg ? "" : "hidden"}>${ctx.esc(rt.copyMsg || "")}</div>
             </div>
             <div class="hero-actions">
@@ -305,15 +333,17 @@
                   <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                 </svg>
               </button>
-              <span class="action-menu-wrap">
+              <div class="action-menu-wrap">
                 <button class="icon-btn" type="button" data-center-menu="account" title="${t("common.more", "更多")}" aria-label="${t("common.more", "更多")}" aria-haspopup="menu" aria-expanded="false">
                   ${iconFilled("more")}
                 </button>
                 <span class="account-menu" role="menu" aria-label="${t("settings.account.actions", "账号操作")}">
+                  <button type="button" role="menuitem" data-center-action="view-entitlements">${t("settings.account.viewEntitlements", "查看权益")}</button>
                   <button type="button" role="menuitem" data-center-action="profile">${t("settings.account.editProfile", "编辑资料")}</button>
                   <button class="danger" type="button" role="menuitem" data-auth-action="logout">${t("settings.account.logout", "退出登录")}</button>
                 </span>
-              </span>
+                ${entitlementPanel(data, ctx)}
+              </div>
             </div>
           </div>
         </div>

@@ -1575,17 +1575,6 @@
       object-fit: cover;
     }
 
-    .online-dot {
-      position: absolute;
-      right: 2px;
-      bottom: 2px;
-      width: 16px;
-      height: 16px;
-      border: 2px solid var(--st-color-surface-hero);
-      border-radius: 50%;
-      background: var(--st-color-success-soft);
-    }
-
     .user-info {
       flex: 1;
       min-width: 0;
@@ -1594,10 +1583,125 @@
     .name-row {
       min-width: 0;
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 6px;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .account-profile-tip {
+      width: auto;
+      height: auto;
+      max-width: 100%;
+      flex: 0 1 auto;
+      margin: 0;
+      vertical-align: middle;
+    }
+
+    .account-profile-popover {
+      left: 0;
+      top: calc(100% + 8px);
+      bottom: auto;
+      width: 260px;
+      max-width: min(260px, calc(100vw - 32px));
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr);
+      column-gap: 8px;
+      row-gap: 5px;
+      padding: 9px 10px;
+      transform: translateY(4px);
+    }
+
+    .account-profile-tip:hover .account-profile-popover,
+    .account-profile-tip:focus .account-profile-popover {
+      transform: translateY(0);
+    }
+
+    .account-profile-popover::before,
+    .account-profile-popover::after {
+      left: 14px;
+      top: auto;
+      transform: none;
+    }
+
+    .account-profile-popover::before {
+      bottom: 100%;
+      border-width: 0 6px 6px;
+      border-color: transparent transparent var(--st-color-steam-blue-alpha-38);
+    }
+
+    .account-profile-popover::after {
+      bottom: calc(100% - 1px);
+      border-width: 0 5px 5px;
+      border-color: transparent transparent var(--st-color-bg-input-focus-alt);
+    }
+
+    .account-profile-tooltip-row {
+      display: contents;
+      color: var(--st-color-text-secondary-alt);
+      font-size: 11px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .account-profile-tooltip-row > span {
+      min-width: 0;
+    }
+
+    .account-profile-tooltip-row strong {
+      color: var(--st-color-primary);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .profile-id-copy {
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      color: var(--st-color-text-secondary);
+      background: transparent;
+      font: inherit;
+      font-size: 11px;
+      line-height: 1.4;
+      cursor: pointer;
+    }
+
+    .profile-meta-line {
+      display: block;
+      width: fit-content;
+      margin-bottom: 3px;
+    }
+
+    .profile-joined {
+      color: var(--st-color-text-muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .account-level-badge {
+      min-width: 0;
+      min-height: 18px;
+      display: inline-flex;
+      align-items: center;
+      color: var(--st-color-primary);
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 18px;
+    }
+
+    .account-level-badge img {
+      width: auto;
+      height: 18px;
+      max-width: 52px;
+      display: block;
+      object-fit: contain;
+    }
+
+    .profile-id-copy:hover,
+    .profile-id-copy:focus-visible {
+      color: var(--st-color-steam-blue);
+      text-decoration: underline;
     }
 
     .nickname {
@@ -1796,8 +1900,8 @@
 
     .entitlement-sources {
       min-width: 0;
-      min-height: 28px;
-      margin: 2px 0 4px;
+      min-height: 34px;
+      margin: 4px 0 2px;
       display: flex;
       align-items: center;
       flex-wrap: wrap;
@@ -1805,15 +1909,15 @@
     }
 
     .account-source-icon {
-      width: 28px;
-      height: 28px;
-      flex: 0 0 28px;
+      width: 34px;
+      height: 34px;
+      flex: 0 0 34px;
     }
 
     .entitlement-source-mark {
       box-sizing: border-box;
-      width: 26px;
-      height: 26px;
+      width: 32px;
+      height: 32px;
       border: 1px solid var(--st-color-white-alpha-08);
       border-radius: 5px;
       display: flex;
@@ -1822,14 +1926,14 @@
       overflow: hidden;
       color: var(--st-color-text-secondary-alt);
       background: var(--st-color-white-alpha-04);
-      font-size: 8px;
+      font-size: 9px;
       font-weight: 700;
       line-height: 1;
     }
 
     .entitlement-source-mark img {
-      width: 22px;
-      height: 22px;
+      width: 28px;
+      height: 28px;
       display: block;
       object-fit: contain;
     }
@@ -1838,6 +1942,62 @@
       border-color: var(--st-color-gold);
       background: var(--st-color-gold-alpha-10);
       box-shadow: 0 0 0 1px var(--st-color-gold-alpha-18);
+    }
+
+    .account-source-icon.account-source-medal .entitlement-source-mark,
+    .account-source-icon.account-source-medal.active .entitlement-source-mark {
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .account-avatar-entitlement {
+      position: absolute;
+      right: -6px;
+      bottom: -6px;
+      z-index: 4;
+      width: 40px;
+      height: 40px;
+      flex: 0 0 40px;
+    }
+
+    .account-avatar-entitlement .entitlement-source-mark,
+    .account-avatar-entitlement.account-source-medal .entitlement-source-mark {
+      width: 38px;
+      height: 38px;
+      border: 2px solid var(--st-color-surface-hero);
+      border-radius: 50%;
+      background: var(--st-color-surface-hero);
+      box-shadow: 0 3px 10px var(--st-color-black-alpha-38);
+    }
+
+    .account-avatar-entitlement .entitlement-source-mark img {
+      width: 32px;
+      height: 32px;
+    }
+
+    .account-avatar-entitlement .account-entitlement-popover {
+      left: 0;
+      transform: translateY(4px);
+    }
+
+    .account-avatar-entitlement:hover .account-entitlement-popover,
+    .account-avatar-entitlement:focus .account-entitlement-popover {
+      transform: translateY(0);
+    }
+
+    .account-avatar-entitlement .account-entitlement-popover::before,
+    .account-avatar-entitlement .account-entitlement-popover::after {
+      transform: none;
+    }
+
+    .account-avatar-entitlement .account-entitlement-popover::before {
+      left: 10px;
+    }
+
+    .account-avatar-entitlement .account-entitlement-popover::after {
+      left: 11px;
     }
 
     .meta-copy {
@@ -1987,6 +2147,118 @@
 
     .account-menu button.danger:hover {
       background: var(--st-color-danger-alpha-14);
+    }
+
+    .account-entitlements-panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      z-index: 25;
+      width: 420px;
+      max-width: min(420px, calc(100vw - 32px));
+      border: 1px solid var(--st-color-white-alpha-08);
+      border-radius: 6px;
+      background: var(--st-color-bg-input);
+      box-shadow: 0 16px 36px var(--st-color-black-alpha-38);
+    }
+
+    .account-entitlements-panel::before {
+      content: "";
+      position: absolute;
+      top: -5px;
+      right: 12px;
+      width: 8px;
+      height: 8px;
+      border-left: 1px solid var(--st-color-white-alpha-08);
+      border-top: 1px solid var(--st-color-white-alpha-08);
+      background: var(--st-color-bg-input);
+      transform: rotate(45deg);
+    }
+
+    .account-entitlements-panel-header {
+      min-height: 42px;
+      border-bottom: 1px solid var(--st-color-white-alpha-06);
+      padding: 0 8px 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--st-color-white);
+      font-size: 13px;
+    }
+
+    .account-entitlements-panel-header button {
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 4px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--st-color-text-muted);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .account-entitlements-panel-header button:hover,
+    .account-entitlements-panel-header button:focus-visible {
+      color: var(--st-color-white);
+      background: var(--st-color-white-alpha-06);
+    }
+
+    .account-entitlements-panel-header svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .account-entitlement-panel-list {
+      min-height: 98px;
+      margin: 0;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+      align-items: start;
+      gap: 16px 12px;
+    }
+
+    .account-entitlement-gallery-item {
+      min-width: 0;
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+    }
+
+    .account-entitlement-panel-icon {
+      width: 58px;
+      height: 58px;
+      flex: 0 0 58px;
+    }
+
+    .account-entitlement-panel-icon .entitlement-source-mark {
+      width: 56px;
+      height: 56px;
+      border-radius: 7px;
+    }
+
+    .account-entitlement-panel-icon .entitlement-source-mark img {
+      width: 50px;
+      height: 50px;
+    }
+
+    .account-entitlement-gallery-name {
+      max-width: 100%;
+      color: var(--st-color-text-secondary-alt);
+      font-size: 11px;
+      line-height: 1.4;
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+
+    .account-entitlements-empty {
+      padding: 18px 12px;
+      color: var(--st-color-text-muted);
+      font-size: 12px;
+      text-align: center;
     }
 
     .usage-card {
@@ -2269,6 +2541,16 @@
       .hero-actions {
         width: 100%;
         justify-content: flex-start;
+      }
+
+      .account-entitlements-panel {
+        left: 0;
+        right: auto;
+      }
+
+      .account-entitlements-panel::before {
+        left: 12px;
+        right: auto;
       }
 
       .feature-grid,

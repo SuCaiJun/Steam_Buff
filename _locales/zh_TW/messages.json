@@ -4303,8 +4303,44 @@
   "settings_account_entitlementUnavailable": {
     "message": "權益狀態未提供"
   },
+  "settings_account_entitlementDescriptionUnavailable": {
+    "message": "權益說明未提供"
+  },
+  "settings_account_profileTooltip": {
+    "message": "查看帳號資訊"
+  },
+  "settings_account_profileId": {
+    "message": "ID"
+  },
+  "settings_account_profileUsername": {
+    "message": "暱稱"
+  },
+  "settings_account_profileLevel": {
+    "message": "等級"
+  },
+  "settings_account_profileEntitlement": {
+    "message": "權益"
+  },
+  "settings_account_profileUsageTime": {
+    "message": "時間"
+  },
+  "settings_account_levelUnavailable": {
+    "message": "未提供等級"
+  },
+  "settings_account_copyUserId": {
+    "message": "複製使用者 ID"
+  },
   "settings_account_entitlementSources": {
     "message": "目前有效權益來源"
+  },
+  "settings_account_viewEntitlements": {
+    "message": "查看權益"
+  },
+  "settings_account_entitlementsTitle": {
+    "message": "我的權益"
+  },
+  "settings_account_entitlementsEmpty": {
+    "message": "目前沒有可展示的 VIP 或徽章"
   },
   "settings_account_entitlementCatalog": {
     "message": "後台設定的權益來源"
@@ -4314,6 +4350,16 @@
     "placeholders": {
       "date": { "content": "$1" }
     }
+  },
+  "settings_account_vipPermanent": {
+    "message": "VIP 永久有效"
+  },
+  "settings_account_entitlementValidUntil": {
+    "message": "有效期至 $date$",
+    "placeholders": { "date": { "content": "$1" } }
+  },
+  "settings_account_entitlementPermanent": {
+    "message": "永久有效"
   },
   "settings_account_vipExpiryUnavailable": {
     "message": "VIP 有效期：未提供"

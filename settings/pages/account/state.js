@@ -26,6 +26,7 @@
       copyTimer: 0,
       busy: false,
       centerBusy: false,
+      entitlementsOpen: false,
       pollTimer: 0,
     };
   }
