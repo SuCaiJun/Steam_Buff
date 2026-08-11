@@ -21,7 +21,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: steam-buff-beta-release
+  group: steam-buff-release
   cancel-in-progress: false
 
 jobs:

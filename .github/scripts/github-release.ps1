@@ -61,13 +61,74 @@ function Invoke-GitHub($method, $path, $body = $null, $inFile = "", $contentType
     return Invoke-RestMethod @params
   } catch {
     $status = 0
+    $responseBody = [string]$_.ErrorDetails.Message
     if ($_.Exception.Response) {
       $status = [int]$_.Exception.Response.StatusCode
+      if (-not $responseBody) {
+        $stream = $_.Exception.Response.GetResponseStream()
+        if ($stream) {
+          try {
+            $reader = [System.IO.StreamReader]::new($stream)
+            $responseBody = $reader.ReadToEnd()
+          } finally {
+            if ($reader) {
+              $reader.Dispose()
+            }
+            $stream.Dispose()
+          }
+        }
+      }
     }
     if ($status -eq 404) {
       return $null
     }
-    throw "GitHub API $method $path 失败：$($_.Exception.Message)"
+    $detail = if ($responseBody) { "；响应：$responseBody" } else { "" }
+    throw "GitHub API $method $path 失败（HTTP $status）：$($_.Exception.Message)$detail"
+  }
+}
+
+function Get-ReleaseAssets($releaseId) {
+  return @(Invoke-GitHub "GET" "releases/$releaseId/assets?per_page=100")
+}
+
+function Wait-ReleaseAssetsAbsent($releaseId, $assetNames, $maxAttempts = 10, $delaySeconds = 1) {
+  $names = @($assetNames | ForEach-Object { [string]$_ } | Where-Object { $_ })
+  if ($names.Count -eq 0) {
+    return
+  }
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    $remaining = @(Get-ReleaseAssets $releaseId | Where-Object { $names -contains [string]$_.name })
+    if ($remaining.Count -eq 0) {
+      return
+    }
+    if ($attempt -lt $maxAttempts) {
+      Start-Sleep -Seconds $delaySeconds
+    }
+  }
+  $remainingNames = @($remaining | ForEach-Object { [string]$_.name } | Sort-Object -Unique)
+  throw "等待 GitHub Release 资产删除超时，仍存在：$($remainingNames -join ', ')"
+}
+
+function Publish-ReleaseAsset($releaseId, $asset, $maxAttempts = 3) {
+  $uploadPath = "https://uploads.github.com/repos/$repository/releases/$releaseId/assets?name=$([uri]::EscapeDataString($asset.Name))"
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    try {
+      Invoke-GitHub "POST" $uploadPath $null $asset.FullName "application/zip" | Out-Null
+      return
+    } catch {
+      $message = [string]$_.Exception.Message
+      $isAlreadyExists = $message -match '(?i)HTTP\s+422' -and $message -match '(?i)already_exists|already exists'
+      if (-not $isAlreadyExists -or $attempt -eq $maxAttempts) {
+        throw
+      }
+
+      Write-Warning "GitHub Release 资产 $($asset.Name) 已存在，正在清理并重试（第 $attempt/$maxAttempts 次）。"
+      $conflictingAssets = @(Get-ReleaseAssets $releaseId | Where-Object { [string]$_.name -eq [string]$asset.Name })
+      foreach ($existing in $conflictingAssets) {
+        Invoke-GitHub "DELETE" "releases/assets/$($existing.id)" | Out-Null
+      }
+      Wait-ReleaseAssetsAbsent $releaseId @($asset.Name)
+    }
   }
 }
 
@@ -130,15 +191,17 @@ function Publish-Release {
     throw "GitHub Release 创建或更新后没有返回 Release ID。"
   }
 
-  $existingAssets = @(Invoke-GitHub "GET" "releases/$($release.id)/assets?per_page=100")
+  $existingAssets = @(Get-ReleaseAssets $release.id)
+  $removedAssetNames = @()
   foreach ($existing in $existingAssets) {
     if ($Tag -eq "beta-release" -or ($assets.Name -contains [string]$existing.name)) {
       Invoke-GitHub "DELETE" "releases/assets/$($existing.id)" | Out-Null
+      $removedAssetNames += [string]$existing.name
     }
   }
+  Wait-ReleaseAssetsAbsent $release.id $removedAssetNames
   foreach ($asset in $assets) {
-    $uploadPath = "https://uploads.github.com/repos/$repository/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($asset.Name))"
-    Invoke-GitHub "POST" $uploadPath $null $asset.FullName "application/zip" | Out-Null
+    Publish-ReleaseAsset $release.id $asset
   }
   Write-Output "GitHub Release 已更新：$Tag"
 }

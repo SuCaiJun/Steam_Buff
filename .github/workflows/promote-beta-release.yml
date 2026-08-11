@@ -23,7 +23,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: steam-buff-formal-release
+  group: steam-buff-release
   cancel-in-progress: false
 
 jobs:
