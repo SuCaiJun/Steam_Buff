@@ -18,6 +18,7 @@ param(
   [string]$Title = "",
   [string]$AssetDirectory = "",
   [string]$TargetCommit = "",
+  [string]$Version = "",
   [switch]$Prerelease
 )
 
@@ -156,8 +157,12 @@ function Ensure-Tag($tag, $target, $allowMove) {
 }
 
 function Publish-Release {
-  if (-not $Name -or -not $BodyPath -or -not $AssetDirectory -or -not $TargetCommit) {
-    throw "Publish 需要 Name、BodyPath、AssetDirectory 和 TargetCommit。"
+  if (-not $Name -or -not $BodyPath -or -not $AssetDirectory -or -not $TargetCommit -or -not $Version) {
+    throw "Publish 需要 Name、BodyPath、AssetDirectory、TargetCommit 和 Version。"
+  }
+  $releaseVersion = $Version.Trim()
+  if ($releaseVersion -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Release 版本号不是三段式版本：$releaseVersion"
   }
   if (-not (Test-Path -LiteralPath $BodyPath -PathType Leaf)) {
     throw "Release 正文不存在：$BodyPath"
@@ -166,8 +171,16 @@ function Publish-Release {
     throw "Release 资产目录不存在：$AssetDirectory"
   }
   $assets = @(Get-ChildItem -LiteralPath $AssetDirectory -File -Filter "*.zip" | Sort-Object Name)
-  if ($assets.Count -ne 1) {
-    throw "Release 资产必须恰好包含一个 zip 文件，当前为 $($assets.Count) 个。"
+  $expectedAssetNames = @(
+    "SteamBuff_${releaseVersion}_Release.zip",
+    "SteamBuff_${releaseVersion}_SourceCode.zip"
+  ) | Sort-Object
+  $actualAssetNames = @($assets | ForEach-Object { [string]$_.Name } | Sort-Object)
+  if ($assets.Count -ne 2) {
+    throw "Release 资产必须恰好包含两个 zip 文件，当前为 $($assets.Count) 个。"
+  }
+  if ((Compare-Object -ReferenceObject $expectedAssetNames -DifferenceObject $actualAssetNames).Count -ne 0) {
+    throw "Release 资产名称不符合版本契约，必须为：$($expectedAssetNames -join '、')。"
   }
 
   $allowMove = $Tag -eq "beta-release"

@@ -149,10 +149,12 @@ jobs:
             --dir "$asset_directory" \
             --clobber
           zip_count="$(find "$asset_directory" -maxdepth 1 -type f -name '*.zip' | wc -l | tr -d ' ')"
-          if [[ "$zip_count" != "1" ]]; then
-            echo "正式 Release 必须包含一个 zip 附件，实际为 $zip_count 个。" >&2
+          if [[ "$zip_count" != "2" ]]; then
+            echo "正式 Release 必须包含两个 zip 附件，实际为 $zip_count 个。" >&2
             exit 1
           fi
+          test -f "$asset_directory/SteamBuff_${RELEASE_TAG#v}_Release.zip"
+          test -f "$asset_directory/SteamBuff_${RELEASE_TAG#v}_SourceCode.zip"
 
       - name: 获取并验证正式 Release 元数据
         shell: pwsh

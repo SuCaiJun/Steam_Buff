@@ -85,7 +85,7 @@ jobs:
             -Version $env:STEAM_BUFF_VERSION `
             -Channel beta
 
-      - name: 构建 Beta Release 压缩包
+      - name: 构建两个 Beta 压缩包
         shell: pwsh
         env:
           STEAM_BUFF_PEM_BASE64: ${{ secrets.STEAM_BUFF_PEM_BASE64 }}
@@ -111,4 +111,5 @@ jobs:
             -BodyPath "$env:RUNNER_TEMP\steam-buff-beta-notes.md" `
             -AssetDirectory "$env:RUNNER_TEMP\steam-buff-beta-artifacts" `
             -TargetCommit $env:GITHUB_SHA `
+            -Version $env:STEAM_BUFF_VERSION `
             -Prerelease

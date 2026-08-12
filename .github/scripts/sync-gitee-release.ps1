@@ -114,8 +114,17 @@ try {
     throw "正式 Release 附件目录不存在：$AssetDirectory"
   }
   $assets = @(Get-ChildItem -LiteralPath $AssetDirectory -File -Filter "*.zip" | Sort-Object Name)
-  if ($assets.Count -ne 1) {
-    throw "正式 Release 必须包含一个 zip 附件，当前为 $($assets.Count) 个。"
+  $version = $tag -replace '^v', ''
+  $expectedAssetNames = @(
+    "SteamBuff_${version}_Release.zip",
+    "SteamBuff_${version}_SourceCode.zip"
+  ) | Sort-Object
+  $actualAssetNames = @($assets | ForEach-Object { [string]$_.Name } | Sort-Object)
+  if ($assets.Count -ne 2) {
+    throw "正式 Release 必须包含两个 zip 附件，当前为 $($assets.Count) 个。"
+  }
+  if ((Compare-Object -ReferenceObject $expectedAssetNames -DifferenceObject $actualAssetNames).Count -ne 0) {
+    throw "正式 Release 附件名称不符合版本契约，必须为：$($expectedAssetNames -join '、')。"
   }
   foreach ($asset in $assets) {
     if ($existingNames -contains $asset.Name) {

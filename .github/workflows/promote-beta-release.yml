@@ -96,7 +96,7 @@ jobs:
             -OutputBodyPath "$env:RUNNER_TEMP\steam-buff-beta-notes.md" `
             -Title "v$env:STEAM_BUFF_VERSION 更新日志"
 
-      - name: 构建正式版 Release 压缩包
+      - name: 构建两个正式版压缩包
         shell: pwsh
         env:
           STEAM_BUFF_PEM_BASE64: ${{ secrets.STEAM_BUFF_PEM_BASE64 }}
@@ -121,7 +121,8 @@ jobs:
             -Name "v$env:STEAM_BUFF_VERSION" `
             -BodyPath "$env:RUNNER_TEMP\steam-buff-beta-notes.md" `
             -AssetDirectory "$env:RUNNER_TEMP\steam-buff-formal-artifacts" `
-            -TargetCommit $env:STEAM_BUFF_TARGET_SHA
+            -TargetCommit $env:STEAM_BUFF_TARGET_SHA `
+            -Version $env:STEAM_BUFF_VERSION
 
   sync-gitee:
     name: 正式 Release 完成后同步 Gitee
