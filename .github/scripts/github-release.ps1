@@ -161,6 +161,47 @@ function Get-Release($tag) {
   return Invoke-GitHub "GET" "releases/tags/$([uri]::EscapeDataString($tag))"
 }
 
+function Wait-ReleaseAbsent($tag, $maxAttempts = 10, $delaySeconds = 1) {
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    if (-not (Get-Release $tag)) {
+      return
+    }
+    if ($attempt -lt $maxAttempts) {
+      Start-Sleep -Seconds $delaySeconds
+    }
+  }
+  throw "等待 GitHub Release 删除超时：$tag"
+}
+
+function Wait-TagAbsent($tag, $maxAttempts = 10, $delaySeconds = 1) {
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    $ref = Invoke-GitHub "GET" "git/ref/tags/$([uri]::EscapeDataString($tag))"
+    if (-not $ref) {
+      return
+    }
+    if ($attempt -lt $maxAttempts) {
+      Start-Sleep -Seconds $delaySeconds
+    }
+  }
+  throw "等待 GitHub 标签删除超时：$tag"
+}
+
+function Remove-BetaReleaseAndTag($tag) {
+  if ($tag -ne "beta-release") {
+    throw "拒绝用 Beta 重建流程删除非 Beta Release：$tag"
+  }
+  $release = Get-Release $tag
+  if ($release) {
+    Invoke-GitHub "DELETE" "releases/$($release.id)" | Out-Null
+    Wait-ReleaseAbsent $tag
+  }
+  $ref = Invoke-GitHub "GET" "git/ref/tags/$([uri]::EscapeDataString($tag))"
+  if ($ref) {
+    Invoke-GitHub "DELETE" "git/refs/tags/$([uri]::EscapeDataString($tag))" | Out-Null
+    Wait-TagAbsent $tag
+  }
+}
+
 function Ensure-Tag($tag, $target, $allowMove) {
   if (-not $target) {
     throw "发布 $tag 缺少目标提交。"
@@ -207,8 +248,7 @@ function Publish-Release {
     throw "Release 资产名称不符合版本契约，必须为：$($expectedAssetNames -join '、')。"
   }
 
-  $allowMove = $Tag -eq "beta-release"
-  Ensure-Tag $Tag $TargetCommit $allowMove
+  $isBeta = $Tag -eq "beta-release"
   $body = Get-Content -LiteralPath $BodyPath -Raw
   $payload = @{
     tag_name = $Tag
@@ -218,18 +258,25 @@ function Publish-Release {
     draft = $false
     prerelease = [bool]$Prerelease
   }
-  $release = Get-Release $Tag
-  if ($release) {
-    $release = Invoke-GitHub "PATCH" "releases/$($release.id)" $payload
-  } else {
+  if ($isBeta) {
+    Remove-BetaReleaseAndTag $Tag
+    Ensure-Tag $Tag $TargetCommit $true
     $release = Invoke-GitHub "POST" "releases" $payload
+  } else {
+    Ensure-Tag $Tag $TargetCommit $false
+    $release = Get-Release $Tag
+    if ($release) {
+      $release = Invoke-GitHub "PATCH" "releases/$($release.id)" $payload
+    } else {
+      $release = Invoke-GitHub "POST" "releases" $payload
+    }
   }
   if (-not $release.id) {
     throw "GitHub Release 创建或更新后没有返回 Release ID。"
   }
 
   $existingAssets = @(Get-ReleaseAssets $release.id)
-  $assetsToRemove = @($existingAssets | Where-Object { $Tag -eq "beta-release" -or ($assets.Name -contains [string]$_.name) })
+  $assetsToRemove = @($existingAssets | Where-Object { $assets.Name -contains [string]$_.name })
   Remove-ReleaseAssets $release.id $assetsToRemove
   foreach ($asset in $assets) {
     Publish-ReleaseAsset $release.id $asset
