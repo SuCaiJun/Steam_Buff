@@ -32,8 +32,8 @@ function Copy-ExtensionTree($source, $destination) {
   }
   New-Item -ItemType Directory -Path $destination -Force | Out-Null
 
-  $excludeDirs = @(".git", ".githooks", "node_modules", ".temp")
-  $excludeFiles = @("*.pem", "*.crx", "*.zip", "*.log", "*.tmp")
+  $excludeDirs = @(".git", ".githooks", ".github", "node_modules", ".temp")
+  $excludeFiles = @(".gitignore", "*.pem", "*.crx", "*.zip", "*.log", "*.tmp")
   foreach ($item in @(Get-ChildItem -LiteralPath $source -Force)) {
     if ($item.PSIsContainer -and ($excludeDirs -contains $item.Name)) {
       continue

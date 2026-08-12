@@ -58,6 +58,16 @@ function Upload-GiteeReleaseAsset($api, $token, $releaseId, $asset) {
   $output | ConvertFrom-Json | Out-Null
 }
 
+function Remove-GiteeReleaseAsset($api, $token, $releaseId, $asset) {
+  $name = [string]$asset.name
+  $assetId = [string]$asset.id
+  if (-not $assetId) {
+    throw "Gitee Release asset ID is missing: $name"
+  }
+  Invoke-GiteeApi "DELETE" "$api/releases/$releaseId/attach_files/$assetId" $token | Out-Null
+  Write-Host "Removed Gitee Release asset: $name"
+}
+
 function Remove-GiteeRelease($api, $token, $release) {
   if ($release) {
     Invoke-GiteeApi "DELETE" "$api/releases/$($release.id)" $token | Out-Null
@@ -109,7 +119,7 @@ try {
     $giteeRelease = Invoke-GiteeApi "POST" "$api/releases" $token $payload
   }
 
-  $existingNames = @($giteeRelease.assets | ForEach-Object { [string]$_.name })
+  $existingAssets = @(Invoke-GiteeApi "GET" "$api/releases/$($giteeRelease.id)/attach_files" $token)
   if (-not (Test-Path -LiteralPath $AssetDirectory -PathType Container)) {
     throw "正式 Release 附件目录不存在：$AssetDirectory"
   }
@@ -127,9 +137,12 @@ try {
     throw "正式 Release 附件名称不符合版本契约，必须为：$($expectedAssetNames -join '、')。"
   }
   foreach ($asset in $assets) {
-    if ($existingNames -contains $asset.Name) {
-      Write-Host "Gitee Release asset already exists: $($asset.Name)"
-      continue
+    $matchingAssets = @($existingAssets | Where-Object { [string]$_.name -eq $asset.Name })
+    if ($matchingAssets.Count -gt 1) {
+      throw "Gitee Release 存在多个同名附件，拒绝自动替换：$($asset.Name)"
+    }
+    if ($matchingAssets.Count -eq 1) {
+      Remove-GiteeReleaseAsset $api $token $giteeRelease.id $matchingAssets[0]
     }
     Upload-GiteeReleaseAsset $api $token $giteeRelease.id $asset.FullName
   }
