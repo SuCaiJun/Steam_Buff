@@ -119,7 +119,11 @@ try {
     $giteeRelease = Invoke-GiteeApi "POST" "$api/releases" $token $payload
   }
 
-  $existingAssets = @(Invoke-GiteeApi "GET" "$api/releases/$($giteeRelease.id)/attach_files" $token)
+  $existingAssetsResponse = Invoke-GiteeApi "GET" "$api/releases/$($giteeRelease.id)/attach_files" $token
+  $existingAssets = @()
+  foreach ($existingAsset in $existingAssetsResponse) {
+    $existingAssets += $existingAsset
+  }
   if (-not (Test-Path -LiteralPath $AssetDirectory -PathType Container)) {
     throw "正式 Release 附件目录不存在：$AssetDirectory"
   }
@@ -138,11 +142,8 @@ try {
   }
   foreach ($asset in $assets) {
     $matchingAssets = @($existingAssets | Where-Object { [string]$_.name -eq $asset.Name })
-    if ($matchingAssets.Count -gt 1) {
-      throw "Gitee Release 存在多个同名附件，拒绝自动替换：$($asset.Name)"
-    }
-    if ($matchingAssets.Count -eq 1) {
-      Remove-GiteeReleaseAsset $api $token $giteeRelease.id $matchingAssets[0]
+    foreach ($matchingAsset in $matchingAssets) {
+      Remove-GiteeReleaseAsset $api $token $giteeRelease.id $matchingAsset
     }
     Upload-GiteeReleaseAsset $api $token $giteeRelease.id $asset.FullName
   }
