@@ -1945,7 +1945,9 @@
     }
 
     .account-source-icon.account-source-medal .entitlement-source-mark,
-    .account-source-icon.account-source-medal.active .entitlement-source-mark {
+    .account-source-icon.account-source-medal.active .entitlement-source-mark,
+    .account-source-icon.account-source-vip .entitlement-source-mark,
+    .account-source-icon.account-source-vip.active .entitlement-source-mark {
       border: 0;
       border-radius: 0;
       background: transparent;
@@ -1970,6 +1972,13 @@
       border-radius: 50%;
       background: var(--st-color-surface-hero);
       box-shadow: 0 3px 10px var(--st-color-black-alpha-38);
+    }
+
+    .account-avatar-entitlement.account-source-vip .entitlement-source-mark {
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
     }
 
     .account-avatar-entitlement .entitlement-source-mark img {
