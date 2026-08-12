@@ -1700,7 +1700,7 @@
     if (result.userMessage) return result.userMessage;
     if (result.code === "PROVIDER_GAME_NOT_FOUND") return t("store_priceHistory_providerGameNotFound", "ITAD 暂未收录当前 Steam 商品。");
     if (result.code === "CAPABILITY_UNSUPPORTED") return t("store_priceHistory_capabilityUnsupported", "当前平台暂不支持价格能力。");
-    if (result.code === "PROVIDER_DISABLED") return t("store_priceHistory_providerDisabled", "第三方数据服务已关闭。");
+    if (result.code === "PROVIDER_DISABLED") return t("store_priceHistory_providerDisabled", "第三方数据服务已关闭");
     if (result.code === "PROVIDER_CONFIG_MISSING") return t("store_priceHistory_providerConfigMissing", "第三方价格数据未配置。");
     return t("store_priceHistory_providerUnavailable", "第三方价格数据暂不可用。");
   }
@@ -1711,7 +1711,13 @@
         removeActiveNode(node, queryId);
         return;
       }
-      setActiveMessage(node, queryId, resultMessage(result));
+      if (!setActiveMessage(node, queryId, resultMessage(result))) return;
+      if (result.code === "PROVIDER_DISABLED") {
+        const help = api.assets?.createThirdPartyDisabledHelpLink?.(
+          t("store_thirdPartyDisabled_help", "查看第三方数据服务关闭说明"),
+        );
+        if (help) node.appendChild(help);
+      }
     });
   }
 
