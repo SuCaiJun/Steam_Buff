@@ -1,0 +1,5341 @@
+{
+  "extName": {
+    "message": "Steam Buff"
+  },
+  "extDescription": {
+    "message": "Steamクライアントを強化！Steam Buffは、ライブラリリスト名のカスタマイズ、ダウンロード完了後のシャットダウン、今後のセール予測、地域別価格などに対応しています。"
+  },
+  "locale_zh_CN": {
+    "message": "簡体字中国語"
+  },
+  "locale_en": {
+    "message": "英語"
+  },
+  "locale_zh_TW": {
+    "message": "繁体字中国語"
+  },
+  "locale_ja": {
+    "message": "日本語"
+  },
+  "locale_ko": {
+    "message": "韓国語"
+  },
+  "settings_shell_settingsButton": {
+    "message": "設定"
+  },
+  "settings_shell_filteredReviewsButton": {
+    "message": "フィルター済みレビューを表示"
+  },
+  "settings_shell_topButton": {
+    "message": "トップに戻る"
+  },
+  "settings_shell_title": {
+    "message": "拡張機能の設定"
+  },
+  "settings_shell_close": {
+    "message": "閉じる"
+  },
+  "settings_shell_navLabel": {
+    "message": "設定カテゴリ"
+  },
+  "settings_uiLocale_title": {
+    "message": "インターフェース言語"
+  },
+  "settings_uiLocale_desc": {
+    "message": "Steam Buff拡張機能のUIで使用する言語を選択します。トラブルシューティングのため、診断ログは中国語のままです。"
+  },
+  "settings_uiLocale_label": {
+    "message": "表示言語"
+  },
+  "settings_category_extension_settings_name": {
+    "message": "拡張機能設定"
+  },
+  "settings_category_extension_settings_desc": {
+    "message": "設定センターの外観と基本設定です。"
+  },
+  "settings_category_store_enhancements_name": {
+    "message": "ストア拡張"
+  },
+  "settings_category_store_enhancements_desc": {
+    "message": "Steamストアページ、ウィッシュリスト、カート、検索、データ表示を拡張します。"
+  },
+  "settings_category_community_enhancements_name": {
+    "message": "コミュニティ拡張"
+  },
+  "settings_category_community_enhancements_desc": {
+    "message": "Steamコミュニティページ向けのSteam Buff拡張機能用に予約されています。"
+  },
+  "settings_category_review_filter_name": {
+    "message": "レビューのフィルター"
+  },
+  "settings_category_review_filter_desc": {
+    "message": "キーワード、正規表現、プレイ時間、プロフィールデータでSteamストアのレビューを絞り込みます。"
+  },
+  "settings_category_translate_name": {
+    "message": "翻訳"
+  },
+  "settings_category_translate_desc": {
+    "message": "translate.jsを利用したウェブページ翻訳の設定です。"
+  },
+  "settings_category_ai_name": {
+    "message": "AIサービス"
+  },
+  "settings_category_ai_desc": {
+    "message": "モデルゲートウェイ、モデル、APIキーを設定します。"
+  },
+  "settings_category_third_party_services_name": {
+    "message": "サードパーティサービス"
+  },
+  "settings_category_third_party_services_desc": {
+    "message": "外部データサービスのキーと接続テストを管理します。"
+  },
+  "settings_category_third_party_name": {
+    "message": "サードパーティ連携"
+  },
+  "settings_category_third_party_desc": {
+    "message": "サードパーティ連携、オープンソーススクリプト、外部サービスの拡張機能です。"
+  },
+  "settings_category_client_name": {
+    "message": "クライアント拡張"
+  },
+  "settings_category_client_desc": {
+    "message": "Steamクライアントのライブラリとダウンロードページを拡張します。このページで機能を有効または無効にした後は、Steamを再起動してください。"
+  },
+  "settings_feature_settings_startup_animation_name": {
+    "message": "設定センター起動アニメーション"
+  },
+  "settings_feature_settings_startup_animation_desc": {
+    "message": "初めて設定センターを開いたときに、ロゴの起動アニメーションを再生します。"
+  },
+  "settings_feature_store_detail_reminders_name": {
+    "message": "ストア詳細のリマインダーとチェック"
+  },
+  "settings_feature_store_detail_reminders_desc": {
+    "message": "ストア詳細ページでの利用可否、言語、サードパーティコンポーネントのチェックを管理します。"
+  },
+  "settings_feature_subscription_info_name": {
+    "message": "サードパーティメンバーシップの確認"
+  },
+  "settings_feature_subscription_info_desc": {
+    "message": "サポート対象ページ全体で、サブスクリプションのリマインダーカードとメンバーシップバッジを管理します。"
+  },
+  "settings_feature_family_library_owned_marker_name": {
+    "message": "ファミリーライブラリ所有権マーカー"
+  },
+  "settings_feature_family_library_owned_marker_desc": {
+    "message": "Steamストアページに表示されるファミリーライブラリの所有権バッジとリマインダーカードを管理します。"
+  },
+  "settings_feature_price_related_enhancements_name": {
+    "message": "価格機能強化"
+  },
+  "settings_feature_price_related_enhancements_desc": {
+    "message": "ストアの価格履歴、価格動向予測、SteamPYの価格表示を管理します。"
+  },
+  "settings_feature_data_display_enhancements_name": {
+    "message": "データ表示"
+  },
+  "settings_feature_data_display_enhancements_desc": {
+    "message": "レビュー、プレイヤー数、売上ランキング、プレイ時間、メディアスコアの表示を管理します。"
+  },
+  "settings_feature_dlc_tools_name": {
+    "message": "DLC購入機能強化"
+  },
+  "settings_feature_dlc_tools_desc": {
+    "message": "DLCを一括選択してカートに追加したり、無料DLCを受け取ったりできます。"
+  },
+  "settings_feature_cart_select_name": {
+    "message": "カート機能強化"
+  },
+  "settings_feature_cart_select_desc": {
+    "message": "今すぐ購入するカート内の商品を選択し、未購入の商品を後で復元します。"
+  },
+  "settings_feature_search_suggestions_name": {
+    "message": "検索候補"
+  },
+  "settings_feature_search_suggestions_desc": {
+    "message": "Steamストアの検索候補、中国語タイトルの照合、検索結果の機能強化を管理します。"
+  },
+  "settings_feature_search_suggestions_badge": {
+    "message": "スポンサー"
+  },
+  "settings_feature_search_suggestions_lock": {
+    "message": "スポンサーのみ利用できます。有効化後、保存済みの状態が復元されます。"
+  },
+  "settings_feature_translate_name": {
+    "message": "翻訳モジュール"
+  },
+  "settings_feature_translate_desc": {
+    "message": "翻訳設定カテゴリーとウェブページ翻訳ランタイムを管理します。"
+  },
+  "settings_feature_wishlist_price_history_name": {
+    "message": "ウィッシュリストホバーカード"
+  },
+  "settings_feature_wishlist_price_history_desc": {
+    "message": "Steamのウィッシュリストに登録したゲームに価格ホバーカードを表示します。Steamの現在価格、過去最安値、SteamPYの価格を確認できます。"
+  },
+  "settings_feature_store_title_custom_name_name": {
+    "message": "ストアゲーム中国語タイトル"
+  },
+  "settings_feature_store_title_custom_name_desc": {
+    "message": "Steamストアのゲームタイトルの横にSteam Buffの中国語タイトルを表示し、自分で中国語タイトルを投稿できるようにします。"
+  },
+  "settings_feature_ai_name": {
+    "message": "AIモジュール"
+  },
+  "settings_feature_ai_desc": {
+    "message": "AI設定カテゴリーとAIサービス設定を有効にするかどうかを管理します。"
+  },
+  "settings_feature_third_party_services_name": {
+    "message": "サードパーティサービス設定"
+  },
+  "settings_feature_third_party_services_desc": {
+    "message": "サードパーティのデータサービスを有効にするかどうかを管理し、IsThereAnyDeal APIキーを設定します。"
+  },
+  "settings_feature_review_filter_name": {
+    "message": "レビューフィルターモジュール"
+  },
+  "settings_feature_review_filter_desc": {
+    "message": "レビューフィルターカテゴリーとSteamストアのレビュー絞り込みを管理します。"
+  },
+  "settings_feature_library_sort_title_name": {
+    "message": "カスタムライブラリ名を表示"
+  },
+  "settings_feature_library_sort_title_desc": {
+    "message": "Steamライブラリの一覧でカスタム並べ替え名を優先し、Steamのカスタマイズページに名前管理ツールを追加します。"
+  },
+  "settings_feature_library_sort_title_original_search_name": {
+    "message": "Steamの元の名前の検索を改善"
+  },
+  "settings_feature_library_sort_title_original_search_desc": {
+    "message": "カスタム並べ替えタイトルがある場合、Steamの元の名前をランタイムの検索欄に追加します。"
+  },
+  "settings_feature_download_batch_actions_name": {
+    "message": "ダウンロードキューの一括操作"
+  },
+  "settings_feature_download_batch_actions_desc": {
+    "message": "ダウンロードページに「すべて開始」「すべて一時停止」「すべて削除」の操作を追加します。"
+  },
+  "settings_feature_download_auto_shutdown_name": {
+    "message": "ダウンロード完了後にシャットダウン"
+  },
+  "settings_feature_download_auto_shutdown_desc": {
+    "message": "ダウンロードキューの完了後、約30～60秒でコンピューターをシャットダウンします。"
+  },
+  "settings_feature_steam_news_translate_name": {
+    "message": "Steamニュースポップアップ翻訳"
+  },
+  "settings_feature_steam_news_translate_desc": {
+    "message": "Steamライブラリのニュースポップアップで、現在のニュース記事を手動で翻訳します。"
+  },
+  "settings_feature_purchase_history_classifier_name": {
+    "message": "購入履歴分類"
+  },
+  "settings_feature_purchase_history_classifier_desc": {
+    "message": "Steamの購入履歴を、直接購入、ギフト、返金、ゲーム内購入、チャージ、買い注文、売り注文に分類します。"
+  },
+  "settings_lock_depOr": {
+    "message": " または "
+  },
+  "settings_lock_depAnd": {
+    "message": " および "
+  },
+  "settings_lock_parentSwitch": {
+    "message": "親スイッチ"
+  },
+  "settings_lock_disabled": {
+    "message": "現在利用できません"
+  },
+  "settings_lock_depRequired": {
+    "message": "$names$ が必要です",
+    "placeholders": {
+      "names": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_page_account_name": {
+    "message": "アカウント"
+  },
+  "settings_page_account_desc": {
+    "message": "アカウント、識別情報、機能の利用状況。"
+  },
+  "settings_page_about_name": {
+    "message": "Steam Buffについて"
+  },
+  "common_close": {
+    "message": "閉じる"
+  },
+  "common_confirm": {
+    "message": "OK"
+  },
+  "lifecycle_update_title": {
+    "message": "Steam Buffが更新されました"
+  },
+  "lifecycle_update_log_unavailable": {
+    "message": "更新履歴は一時的に利用できません。後ほど「Steam Buffについて」ページをご確認ください。"
+  },
+  "lifecycle_view_full_log": {
+    "message": "更新履歴をすべて見る"
+  },
+  "lifecycle_update_support_copy": {
+    "message": "Steam Buffをご利用いただきありがとうございます。開発者を支援するには、「寄付」をクリックしてください。寄付金は今後の機能開発と継続的なメンテナンスに直接活用されます。"
+  },
+  "lifecycle_support_title": {
+    "message": "Steam Buffの使い心地はいかがですか？"
+  },
+  "lifecycle_support_copy": {
+    "message": "Steam Buffをしばらくご利用いただいていますが、使い心地はいかがですか？\n機能の大半は無料でローカル動作し、今後も常に無料で提供されます。ただし、クラウドサービス（CDN、サーバー、SMS、セキュリティなど）には継続的な運用費がかかります。\nSteam Buffがお役に立っている場合は、ぜひご支援をご検討ください。皆さまからのご支援はこれらの費用に直接充てられ、開発者がメンテナンスや改善により集中できるようになります。支援者には限定機能も提供されます。開発者へのご支援に感謝いたします。"
+  },
+  "lifecycle_decline_action": {
+    "message": "結構です"
+  },
+  "lifecycle_update_donate_action": {
+    "message": "寄付する"
+  },
+  "lifecycle_support_donate_action": {
+    "message": "寄付する"
+  },
+  "settings_category_community_enhancements_emptyTitle": {
+    "message": "スタンドアロンのCommunity拡張機能はまだありません"
+  },
+  "settings_category_community_enhancements_emptyDesc": {
+    "message": "Steam Communityページ向けの今後のSteam Buff拡張機能がここに表示されます。"
+  },
+  "settings_feature_store_detail_reminders_unsupported_only_name": {
+    "message": "未対応の項目のみ表示"
+  },
+  "settings_feature_store_detail_reminders_unsupported_only_desc": {
+    "message": "ゲームが対応していない場合にのみ、音声言語とWorkshopのチェックを表示します。"
+  },
+  "settings_feature_audio_check_name": {
+    "message": "音声言語チェック"
+  },
+  "settings_feature_audio_check_desc": {
+    "message": "ゲームが対応している音声言語を表示します。"
+  },
+  "settings_feature_workshop_check_name": {
+    "message": "Workshopチェック"
+  },
+  "settings_feature_workshop_check_desc": {
+    "message": "ゲームがSteam Workshopに対応しているか確認します。"
+  },
+  "settings_feature_workshop_check_sourceTip": {
+    "message": "ソース: Steam Store appdetailsが返すcategoriesフィールド。利用可否はSteamの公式レスポンスに依存します。"
+  },
+  "settings_feature_family_sharing_name": {
+    "message": "ファミリー共有チェック"
+  },
+  "settings_feature_family_sharing_desc": {
+    "message": "ゲームがSteamファミリー共有に対応しているか確認します。"
+  },
+  "settings_feature_family_sharing_sourceTip": {
+    "message": "ソース: Augmented Steam API。ライセンス: GPL-3.0。APIの利用可否は保証されません。"
+  },
+  "settings_feature_third_party_check_name": {
+    "message": "サードパーティチェック"
+  },
+  "settings_feature_third_party_check_desc": {
+    "message": "サードパーティ製DRM、アカウント、ランチャーの要件を確認します。"
+  },
+  "settings_feature_subscription_info_sourceTip": {
+    "message": "ソース: SubscriptionInfo。ライセンス: MPL-2.0。データはサードパーティの提供元によって管理されています。"
+  },
+  "settings_feature_subscription_detail_card_name": {
+    "message": "ストア詳細リマインダーカード"
+  },
+  "settings_feature_subscription_detail_card_desc": {
+    "message": "ストア詳細ページにサブスクリプションの利用可否に関するリマインダーを表示します。"
+  },
+  "settings_feature_subscription_store_badge_name": {
+    "message": "ストアバッジ"
+  },
+  "settings_feature_subscription_store_badge_desc": {
+    "message": "ストアのホームページとセールリストにあるゲームカバーにサブスクリプションバッジを表示します。"
+  },
+  "settings_feature_subscription_wishlist_badge_name": {
+    "message": "ウィッシュリストバッジ"
+  },
+  "settings_feature_subscription_wishlist_badge_desc": {
+    "message": "ウィッシュリストのゲームカバーにサブスクリプションバッジを表示します。"
+  },
+  "settings_feature_subscription_cart_badge_name": {
+    "message": "カートバッジ"
+  },
+  "settings_feature_subscription_cart_badge_desc": {
+    "message": "対象となるカート内ゲームのカバーの左上にサブスクリプションバッジを表示します。"
+  },
+  "settings_feature_family_library_exclude_self_name": {
+    "message": "自分のゲームを除外"
+  },
+  "settings_feature_family_library_exclude_self_desc": {
+    "message": "ファミリー所有バッジと詳細リマインダーカードで、現在のSteamアカウントを除外します。"
+  },
+  "settings_feature_family_library_detail_card_name": {
+    "message": "ストア詳細リマインダーカード"
+  },
+  "settings_feature_family_library_detail_card_desc": {
+    "message": "ストアの詳細ページにファミリー所有情報を表示し、ファミリーライブラリを手動で更新できるようにします。"
+  },
+  "settings_feature_family_library_store_badge_name": {
+    "message": "ストアバッジ"
+  },
+  "settings_feature_family_library_store_badge_desc": {
+    "message": "ストアホームとセールリストのカバーに、そのゲームを所有しているファリーメンバーの人数を表示します。"
+  },
+  "settings_feature_family_library_wishlist_badge_name": {
+    "message": "ウィッシュリストバッジ"
+  },
+  "settings_feature_family_library_wishlist_badge_desc": {
+    "message": "ウィッシュリストのカバーに、そのゲームを所有しているファミリーメンバーの人数を表示します。"
+  },
+  "settings_feature_family_library_cart_badge_name": {
+    "message": "カートバッジ"
+  },
+  "settings_feature_family_library_cart_badge_desc": {
+    "message": "該当するカートのカバーに、そのゲームを所有しているファミリーメンバーの人数を表示します。"
+  },
+  "settings_feature_price_history_name": {
+    "message": "価格履歴"
+  },
+  "settings_feature_price_history_desc": {
+    "message": "ストアの購入エリアに過去の価格と12か月間の価格推移グラフを表示します。"
+  },
+  "settings_feature_price_history_sourceTip": {
+    "message": "このデータはサードパーティサービスを使用します。この機能を有効にする前に、サービスを設定してください。"
+  },
+  "settings_feature_price_forecast_name": {
+    "message": "価格予測"
+  },
+  "settings_feature_price_forecast_desc": {
+    "message": "過去の価格データから今後の価格推移を予測します。"
+  },
+  "settings_feature_price_forecast_discount_name": {
+    "message": "今後の割引予測"
+  },
+  "settings_feature_price_forecast_discount_desc": {
+    "message": "次回通常セールの開催日、割引率、価格、過去最安値の目安を予測します。履歴がある場合は、季節セールの開催時期も考慮します。"
+  },
+  "settings_feature_price_forecast_seasonal_name": {
+    "message": "季節セール予測"
+  },
+  "settings_feature_price_forecast_seasonal_desc": {
+    "message": "過去のイベント開催時期と価格に基づき、割引が含まれる可能性の高い今後のSteamイベントをおすすめします。"
+  },
+  "settings_feature_steampy_cdk_price_name": {
+    "message": "SteamPY CDK"
+  },
+  "settings_feature_steampy_cdk_price_desc": {
+    "message": "SteamPYのCDKマーケットプレイス価格を表示します。"
+  },
+  "settings_feature_steampy_cdk_price_sourceTip": {
+    "message": "提供元：SteamPY。SteamPYの公式認証を使用します。CDK価格はSteamPYのレスポンスに従います。"
+  },
+  "settings_feature_steampy_proxy_price_name": {
+    "message": "SteamPY購入サービス"
+  },
+  "settings_feature_steampy_proxy_price_desc": {
+    "message": "SteamPY購入サービスの価格を表示します。"
+  },
+  "settings_feature_steampy_proxy_price_sourceTip": {
+    "message": "提供元：SteamPY。SteamPYの公式認証を使用します。購入サービスの価格はSteamPYのレスポンスに従います。"
+  },
+  "settings_feature_wishlist_price_history_sourceTip": {
+    "message": "提供元：Steam Store appdetailsの現在価格、ユーザーのIsThereAnyDeal APIキーによる過去の価格、認証済みSteamPY価格。"
+  },
+  "settings_feature_wishlist_price_history_hover_through_name": {
+    "message": "クリック透過ホバーカード"
+  },
+  "settings_feature_wishlist_price_history_hover_through_desc": {
+    "message": "ウィッシュリストの価格履歴ホバーカードがポインター入力を無視するようにし、下にあるゲームカードでクリックやホバーイベントを受け取れるようにします。"
+  },
+  "settings_feature_reviews_name": {
+    "message": "好評レビュー情報"
+  },
+  "settings_feature_reviews_desc": {
+    "message": "詳細なレビュー統計を表示します。"
+  },
+  "settings_feature_reviews_badge": {
+    "message": "予定"
+  },
+  "settings_feature_reviews_lock": {
+    "message": "以前のAPI提供元はオフラインです。代替APIは準備中です。"
+  },
+  "settings_feature_player_stats_name": {
+    "message": "オンラインプレイヤー数"
+  },
+  "settings_feature_player_stats_desc": {
+    "message": "現在オンラインのプレイヤー数を表示します。"
+  },
+  "settings_feature_player_stats_badge": {
+    "message": "予定"
+  },
+  "settings_feature_player_stats_lock": {
+    "message": "以前のAPI提供元はオフラインです。代替APIは準備中です。"
+  },
+  "settings_feature_game_sales_rank_name": {
+    "message": "ゲーム売上ランキング"
+  },
+  "settings_feature_game_sales_rank_desc": {
+    "message": "売上ランキングとランキングの推移を表示します。"
+  },
+  "settings_feature_game_sales_rank_badge": {
+    "message": "予定"
+  },
+  "settings_feature_game_sales_rank_lock": {
+    "message": "以前のAPI提供元はオフラインです。代替APIは準備中です。"
+  },
+  "settings_feature_howlongtobeat_name": {
+    "message": "プレイ時間統計"
+  },
+  "settings_feature_howlongtobeat_desc": {
+    "message": "ゲームの平均クリア時間を表示します。"
+  },
+  "settings_feature_howlongtobeat_badge": {
+    "message": "予定"
+  },
+  "settings_feature_howlongtobeat_lock": {
+    "message": "以前のAPIソースはオフラインです。代替APIは準備中です。"
+  },
+  "settings_feature_media_score_name": {
+    "message": "メディア評価"
+  },
+  "settings_feature_media_score_desc": {
+    "message": "大手メディアプラットフォームのスコアを集計します。"
+  },
+  "settings_feature_media_score_badge": {
+    "message": "予定"
+  },
+  "settings_feature_media_score_lock": {
+    "message": "以前のAPIソースはオフラインです。代替APIは準備中です。"
+  },
+  "settings_feature_search_suggestions_user_custom_name": {
+    "message": "プレイヤーのカスタム名"
+  },
+  "settings_feature_search_suggestions_user_custom_desc": {
+    "message": "現在のアカウントが保存した非公開カスタム名を優先します。"
+  },
+  "settings_feature_search_suggestions_user_alias_name": {
+    "message": "自分の別名"
+  },
+  "settings_feature_search_suggestions_user_alias_desc": {
+    "message": "現在のアカウントが保存した非公開ゲーム別名に一致させます。"
+  },
+  "settings_feature_search_suggestions_community_name": {
+    "message": "公開カスタム名"
+  },
+  "settings_feature_search_suggestions_community_desc": {
+    "message": "承認済みのコミュニティ公開カスタム名に一致させます。"
+  },
+  "settings_feature_search_suggestions_community_alias_name": {
+    "message": "コミュニティの別名"
+  },
+  "settings_feature_search_suggestions_community_alias_desc": {
+    "message": "承認済みのコミュニティ公開ゲーム別名に一致させます。"
+  },
+  "settings_feature_search_suggestions_ai_name": {
+    "message": "AI翻訳名"
+  },
+  "settings_feature_search_suggestions_ai_desc": {
+    "message": "現在有効なメインのAI翻訳名に一致させます。"
+  },
+  "settings_feature_search_suggestions_pinyin_name": {
+    "message": "ピンイン検索"
+  },
+  "settings_feature_search_suggestions_pinyin_desc": {
+    "message": "中国語の名前をピンインの完全表記で照合します。例: xiadaoliecheshou。"
+  },
+  "settings_feature_search_suggestions_mnemonic_name": {
+    "message": "頭文字検索"
+  },
+  "settings_feature_search_suggestions_mnemonic_desc": {
+    "message": "中国語の名前をピンインの頭文字で照合します。例: xdlcs。"
+  },
+  "settings_feature_game_notes_name": {
+    "message": "ゲームメモ"
+  },
+  "settings_feature_game_notes_desc": {
+    "message": "ストア詳細ページとウィッシュリストページで、現在のアカウントの非公開ゲームメモを表示・編集します。"
+  },
+  "settings_feature_cart_remove_all_confirm_name": {
+    "message": "カート内の商品をすべて削除する前に確認"
+  },
+  "settings_feature_cart_remove_all_confirm_desc": {
+    "message": "Steamがカート内のすべての商品を削除する前に確認を求めます。"
+  },
+  "settings_feature_translate_sourceTip": {
+    "message": "ソース/ランタイム: ローカルの xnx3 translate.js ライブラリ。ライセンス: MIT License。"
+  },
+  "settings_feature_third_party_services_sourceTip": {
+    "message": "ソース: 公式 IsThereAnyDeal API。ユーザー自身のAPIキーを提供します。Steam Buffはキーをホストも共有もしません。"
+  },
+  "settings_feature_purchase_history_classifier_sourceTip": {
+    "message": "SmallForkのSteam Purchase History Classifierユーザースクリプトに基づきます。ライセンス: MIT License。"
+  },
+  "settings_empty_title": {
+    "message": "設定可能な機能はありません"
+  },
+  "settings_empty_desc": {
+    "message": "このカテゴリには、まだ単独で設定できる機能がありません。"
+  },
+  "settings_tutorial_view": {
+    "message": "ガイドを表示: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_tutorial_name": {
+    "message": "ガイド"
+  },
+  "settings_drawer_collapse": {
+    "message": "折りたたむ"
+  },
+  "settings_drawer_expand": {
+    "message": "展開"
+  },
+  "settings_drawer_collapseChildren": {
+    "message": "サブ機能を折りたたむ"
+  },
+  "settings_drawer_expandChildren": {
+    "message": "サブ機能を展開"
+  },
+  "settings_field_translate_scope_label": {
+    "message": "対象範囲"
+  },
+  "settings_field_translate_scope_option_steam": {
+    "message": "Steamのウェブサイト"
+  },
+  "settings_field_translate_scope_option_global": {
+    "message": "すべてのウェブサイト"
+  },
+  "settings_field_translate_page_label": {
+    "message": "ウェブページの自動翻訳"
+  },
+  "settings_field_translate_selection_label": {
+    "message": "選択範囲の翻訳"
+  },
+  "settings_field_translate_selectionTrigger_label": {
+    "message": "選択範囲翻訳の起動方法"
+  },
+  "settings_field_translate_selectionTrigger_option_direct": {
+    "message": "選択後すぐに翻訳"
+  },
+  "settings_field_translate_selectionTrigger_option_icon": {
+    "message": "翻訳アイコンを表示"
+  },
+  "settings_field_translate_selectionTrigger_option_dot": {
+    "message": "フローティングドットを表示"
+  },
+  "settings_field_translate_selectionAction_label": {
+    "message": "フローティングコントロールの操作"
+  },
+  "settings_field_translate_selectionAction_option_click": {
+    "message": "クリックして翻訳"
+  },
+  "settings_field_translate_selectionAction_option_hover": {
+    "message": "ホバーで翻訳"
+  },
+  "settings_field_translate_selectionClose_label": {
+    "message": "選択範囲翻訳ポップアップの閉じ方"
+  },
+  "settings_field_translate_selectionClose_option_auto": {
+    "message": "自動的に閉じる"
+  },
+  "settings_field_translate_selectionClose_option_manual": {
+    "message": "手動で閉じる"
+  },
+  "settings_field_translate_selectionService_label": {
+    "message": "選択範囲翻訳サービス"
+  },
+  "settings_field_translate_selectionService_option_follow": {
+    "message": "翻訳サービスに従う"
+  },
+  "settings_field_translate_selectionService_option_client_edge": {
+    "message": "Microsoft無料翻訳"
+  },
+  "settings_field_translate_selectionService_option_steam_buff_ai": {
+    "message": "Steam Buff AI"
+  },
+  "settings_field_translate_selectionService_option_translate_service": {
+    "message": "オープンソースの公開翻訳"
+  },
+  "settings_field_translate_newsPopup_label": {
+    "message": "Steamニュースポップアップの翻訳"
+  },
+  "settings_field_translate_newsPopupService_label": {
+    "message": "ニュースポップアップ翻訳サービス"
+  },
+  "settings_field_translate_newsPopupService_option_follow": {
+    "message": "翻訳サービスに従う"
+  },
+  "settings_field_translate_newsPopupService_option_client_edge": {
+    "message": "Microsoft無料翻訳"
+  },
+  "settings_field_translate_newsPopupService_option_steam_buff_ai": {
+    "message": "Steam Buff AI"
+  },
+  "settings_field_translate_newsPopupService_option_translate_service": {
+    "message": "オープンソースの公開翻訳"
+  },
+  "settings_field_translate_local_label": {
+    "message": "原文の言語"
+  },
+  "settings_field_translate_local_option_chinese_simplified": {
+    "message": "簡体字中国語"
+  },
+  "settings_field_translate_local_option_chinese_traditional": {
+    "message": "繁体字中国語"
+  },
+  "settings_field_translate_local_option_english": {
+    "message": "英語"
+  },
+  "settings_field_translate_local_option_japanese": {
+    "message": "日本語"
+  },
+  "settings_field_translate_local_option_korean": {
+    "message": "韓国語"
+  },
+  "settings_field_translate_local_option_french": {
+    "message": "フランス語"
+  },
+  "settings_field_translate_local_option_italian": {
+    "message": "イタリア語"
+  },
+  "settings_field_translate_local_option_deutsch": {
+    "message": "ドイツ語"
+  },
+  "settings_field_translate_local_option_portuguese": {
+    "message": "ポルトガル語"
+  },
+  "settings_field_translate_local_option_spanish": {
+    "message": "スペイン語"
+  },
+  "settings_field_translate_local_option_russian": {
+    "message": "ロシア語"
+  },
+  "settings_field_translate_to_label": {
+    "message": "翻訳先の言語"
+  },
+  "settings_field_translate_to_option_chinese_simplified": {
+    "message": "簡体字中国語"
+  },
+  "settings_field_translate_to_option_chinese_traditional": {
+    "message": "繁体字中国語"
+  },
+  "settings_field_translate_to_option_english": {
+    "message": "英語"
+  },
+  "settings_field_translate_to_option_japanese": {
+    "message": "日本語"
+  },
+  "settings_field_translate_to_option_korean": {
+    "message": "韓国語"
+  },
+  "settings_field_translate_to_option_french": {
+    "message": "フランス語"
+  },
+  "settings_field_translate_to_option_italian": {
+    "message": "イタリア語"
+  },
+  "settings_field_translate_to_option_deutsch": {
+    "message": "ドイツ語"
+  },
+  "settings_field_translate_to_option_portuguese": {
+    "message": "ポルトガル語"
+  },
+  "settings_field_translate_to_option_spanish": {
+    "message": "スペイン語"
+  },
+  "settings_field_translate_to_option_russian": {
+    "message": "ロシア語"
+  },
+  "settings_field_translate_service_label": {
+    "message": "翻訳サービス"
+  },
+  "settings_field_translate_service_option_client_edge": {
+    "message": "Microsoft 無料翻訳 [推奨]"
+  },
+  "settings_field_translate_service_option_steam_buff_ai": {
+    "message": "Steam Buff AI"
+  },
+  "settings_field_translate_service_option_translate_service": {
+    "message": "オープンソースの公開翻訳"
+  },
+  "settings_field_translate_aiPerformance_label": {
+    "message": "AI翻訳のパフォーマンスを最適化"
+  },
+  "settings_field_translate_force_label": {
+    "message": "強制翻訳"
+  },
+  "settings_field_translate_select_label": {
+    "message": "母語セレクターを表示"
+  },
+  "settings_field_translate_style_label": {
+    "message": "翻訳の表示スタイル"
+  },
+  "settings_field_translate_style_option_none": {
+    "message": "なし"
+  },
+  "settings_field_translate_style_option_blockquote": {
+    "message": "ブロック引用"
+  },
+  "settings_field_translate_style_option_weakened": {
+    "message": "控えめに表示"
+  },
+  "settings_field_translate_style_option_dashedLine": {
+    "message": "破線"
+  },
+  "settings_field_translate_style_option_wavyLine": {
+    "message": "波線"
+  },
+  "settings_field_translate_style_option_border": {
+    "message": "枠線"
+  },
+  "settings_field_translate_style_option_background": {
+    "message": "背景"
+  },
+  "settings_field_translate_hover_label": {
+    "message": "ホバー時に原文を表示"
+  },
+  "settings_field_reviewFilter_maxPlaytimeHours_label": {
+    "message": "総プレイ時間が次の時間未満のレビューを非表示"
+  },
+  "settings_field_reviewFilter_maxReviewPlaytimeHours_label": {
+    "message": "レビュー投稿時のプレイ時間が次の時間未満のレビューを非表示"
+  },
+  "settings_field_reviewFilter_hideHiddenProfile_label": {
+    "message": "非公開プロフィールのレビューを非表示"
+  },
+  "settings_field_reviewFilter_minReviewCount_label": {
+    "message": "レビュー数が次の数未満のユーザーを非表示"
+  },
+  "settings_field_reviewFilter_minGamesOwned_label": {
+    "message": "所有ゲーム数が次の数未満のユーザーを非表示"
+  },
+  "settings_field_searchSuggestions_limit_label": {
+    "message": "Steam Buff の候補数"
+  },
+  "settings_field_searchSuggestions_nativeMode_label": {
+    "message": "Steam 公式の検索結果"
+  },
+  "settings_field_searchSuggestions_nativeMode_option_default": {
+    "message": "変更しない"
+  },
+  "settings_field_searchSuggestions_nativeMode_option_one": {
+    "message": "結果を1件のみ表示"
+  },
+  "settings_field_searchSuggestions_nativeMode_option_hide": {
+    "message": "公式の検索結果を非表示"
+  },
+  "settings_field_familyLibrary_refreshInterval_label": {
+    "message": "更新間隔"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_1d": {
+    "message": "1日"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_3d": {
+    "message": "3日"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_7d": {
+    "message": "7日"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_30d": {
+    "message": "30日"
+  },
+  "settings_field_familyLibrary_refreshInterval_option_manual": {
+    "message": "手動"
+  },
+  "settings_field_familyLibrary_autoRefresh_label": {
+    "message": "自動更新"
+  },
+  "settings_field_ai_enabled_label": {
+    "message": "AIモジュール"
+  },
+  "settings_field_ai_host_label": {
+    "message": "AIゲートウェイURL"
+  },
+  "settings_field_ai_model_label": {
+    "message": "モデル"
+  },
+  "settings_field_ai_keyMode_label": {
+    "message": "認証情報の送信方法"
+  },
+  "settings_field_ai_keyMode_option_none": {
+    "message": "送信しない"
+  },
+  "settings_field_ai_keyMode_option_bearer": {
+    "message": "Authorization Bearer"
+  },
+  "settings_field_ai_keyMode_option_header": {
+    "message": "カスタムリクエストヘッダー"
+  },
+  "settings_field_ai_keyMode_option_param": {
+    "message": "リクエストパラメータ"
+  },
+  "settings_field_ai_key_label": {
+    "message": "アクセスキー"
+  },
+  "settings_field_ai_keyName_label": {
+    "message": "認証情報フィールド名"
+  },
+  "settings_field_ai_temperature_label": {
+    "message": "温度"
+  },
+  "settings_field_ai_aiConcurrency_label": {
+    "message": "AI同時実行数の上限"
+  },
+  "settings_field_thirdPartyServices_enabled_label": {
+    "message": "サードパーティのデータサービスを有効にする"
+  },
+  "settings_field_thirdPartyServices_defaultProvider_label": {
+    "message": "既定の価格データソース"
+  },
+  "settings_field_thirdPartyServices_defaultProvider_option_isthereanydeal": {
+    "message": "IsThereAnyDeal"
+  },
+  "settings_field_thirdPartyServices_isthereanydeal_key_label": {
+    "message": "ITAD APIキー"
+  },
+  "settings_field_thirdPartyServices_isthereanydeal_key_placeholder": {
+    "message": "IsThereAnyDeal APIキーを入力"
+  },
+  "settings_storePriceChart_seriesLimit_title": {
+    "message": "価格ラインは最大$max$本",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_seriesLimit_message": {
+    "message": "Steamの価格地域とゲームストアは、主要なSteam価格地域を含めて、合計$max$系列まで設定できます。先に既存の項目を削除してください。",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_color_ariaLabel": {
+    "message": "$name$のラインの色",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_series_steam": {
+    "message": "Steam ($region$)",
+    "placeholders": {
+      "region": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_entry_mainRegion": {
+    "message": "主要地域"
+  },
+  "settings_storePriceChart_entry_fixed": {
+    "message": "固定"
+  },
+  "settings_storePriceChart_action_remove": {
+    "message": "$name$を削除",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_combo_options": {
+    "message": "オプション"
+  },
+  "settings_storePriceChart_combo_expand": {
+    "message": "$name$のリストを開く",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_combo_empty": {
+    "message": "一致する項目がありません"
+  },
+  "settings_storePriceChart_legacy_followSteam": {
+    "message": "Steamページに従う（旧設定）"
+  },
+  "settings_storePriceChart_legacy_outsideCatalog": {
+    "message": "$code$ - カタログ外の旧設定（再選択してください）",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_storePriceChart_section_steamRegions": {
+    "message": "Steam価格地域"
+  },
+  "settings_storePriceChart_field_mainRegion": {
+    "message": "主要価格地域"
+  },
+  "settings_storePriceChart_placeholder_searchMainRegion": {
+    "message": "主要価格地域を検索"
+  },
+  "settings_storePriceChart_placeholder_searchRegion": {
+    "message": "地域名を検索"
+  },
+  "settings_storePriceChart_action_addRegion": {
+    "message": "地域を追加"
+  },
+  "settings_storePriceChart_section_shops": {
+    "message": "ゲームストア"
+  },
+  "settings_storePriceChart_placeholder_searchShop": {
+    "message": "ストア名を検索"
+  },
+  "settings_storePriceChart_action_addShop": {
+    "message": "ストアを追加"
+  },
+  "settings_storePriceChart_section_chart": {
+    "message": "グラフ"
+  },
+  "settings_storePriceChart_field_exchangeRateSource": {
+    "message": "為替レートのソース"
+  },
+  "settings_storePriceChart_field_lowCriterion": {
+    "message": "過去最安値の判定基準"
+  },
+  "settings_storePriceChart_lowCriterion_api": {
+    "message": "APIデータを使用"
+  },
+  "settings_storePriceChart_lowCriterion_discount": {
+    "message": "割引率で判定"
+  },
+  "settings_storePriceChart_lowCriterion_price": {
+    "message": "最終価格で判定"
+  },
+  "settings_storePriceChart_field_lowReferenceScope": {
+    "message": "過去最安値の対象範囲"
+  },
+  "settings_storePriceChart_lowReferenceScope_allRegular": {
+    "message": "すべての通常価格"
+  },
+  "settings_storePriceChart_lowReferenceScope_currentRegular": {
+    "message": "現在の通常価格"
+  },
+  "settings_storePriceChart_lowReferenceScope_recent12Months": {
+    "message": "過去12か月間"
+  },
+  "settings_storePriceChart_field_lowOccurrence": {
+    "message": "過去最安値の発生時点"
+  },
+  "settings_storePriceChart_lowOccurrence_latest": {
+    "message": "最新の過去最安値"
+  },
+  "settings_storePriceChart_lowOccurrence_earliest": {
+    "message": "最初の過去最安値"
+  },
+  "settings_storePriceChart_action_resetColors": {
+    "message": "すべてのデフォルト色に戻す"
+  },
+  "settings_storePriceChart_action_save": {
+    "message": "設定を保存"
+  },
+  "settings_storePriceChart_validation_mainRegion_title": {
+    "message": "主な価格地域を選択してください"
+  },
+  "settings_storePriceChart_validation_mainRegion_message": {
+    "message": "現在のレガシー設定は固定カタログに含まれていません。先に主な価格地域を選択してください。"
+  },
+  "settings_storePriceChart_saveFailed_title": {
+    "message": "保存に失敗しました"
+  },
+  "settings_storePriceChart_saveFailed_message": {
+    "message": "価格チャートの設定を保存できませんでした。後でもう一度お試しください。"
+  },
+  "settings_storePriceChart_addFailed_title": {
+    "message": "追加できません"
+  },
+  "settings_storePriceChart_addFailed_region": {
+    "message": "固定カタログからSteamの価格地域を選択してください。"
+  },
+  "settings_storePriceChart_addFailed_shop": {
+    "message": "固定カタログからゲームストアを選択してください。"
+  },
+  "settings_storePriceChart_region_US": {
+    "message": "米国"
+  },
+  "settings_storePriceChart_region_CN": {
+    "message": "中国本土"
+  },
+  "settings_storePriceChart_region_JP": {
+    "message": "日本"
+  },
+  "settings_storePriceChart_region_DE": {
+    "message": "ユーロ圏"
+  },
+  "settings_storePriceChart_region_RU": {
+    "message": "ロシア"
+  },
+  "settings_storePriceChart_region_PL": {
+    "message": "ポーランド"
+  },
+  "settings_storePriceChart_region_BR": {
+    "message": "ブラジル"
+  },
+  "settings_storePriceChart_region_VN": {
+    "message": "ベトナム"
+  },
+  "settings_storePriceChart_region_KR": {
+    "message": "韓国"
+  },
+  "settings_storePriceChart_region_ID": {
+    "message": "インドネシア"
+  },
+  "settings_storePriceChart_region_TW": {
+    "message": "台湾"
+  },
+  "settings_storePriceChart_region_HK": {
+    "message": "香港"
+  },
+  "settings_storePriceChart_region_UA": {
+    "message": "ウクライナ"
+  },
+  "settings_storePriceChart_region_KZ": {
+    "message": "カザフスタン"
+  },
+  "settings_storePriceChart_region_GB": {
+    "message": "英国"
+  },
+  "settings_storePriceChart_region_CH": {
+    "message": "スイス"
+  },
+  "settings_storePriceChart_region_NO": {
+    "message": "ノルウェー"
+  },
+  "settings_storePriceChart_region_TH": {
+    "message": "タイ"
+  },
+  "settings_storePriceChart_region_PH": {
+    "message": "フィリピン"
+  },
+  "settings_storePriceChart_region_SG": {
+    "message": "シンガポール"
+  },
+  "settings_storePriceChart_region_MY": {
+    "message": "マレーシア"
+  },
+  "settings_storePriceChart_region_MX": {
+    "message": "メキシコ"
+  },
+  "settings_storePriceChart_region_CA": {
+    "message": "カナダ"
+  },
+  "settings_storePriceChart_region_AU": {
+    "message": "オーストラリア"
+  },
+  "settings_storePriceChart_region_NZ": {
+    "message": "ニュージーランド"
+  },
+  "settings_storePriceChart_region_IN": {
+    "message": "インド"
+  },
+  "settings_storePriceChart_region_CL": {
+    "message": "チリ"
+  },
+  "settings_storePriceChart_region_PE": {
+    "message": "ペルー"
+  },
+  "settings_storePriceChart_region_CO": {
+    "message": "コロンビア"
+  },
+  "settings_storePriceChart_region_ZA": {
+    "message": "南アフリカ"
+  },
+  "settings_storePriceChart_region_SA": {
+    "message": "サウジアラビア"
+  },
+  "settings_storePriceChart_region_AE": {
+    "message": "アラブ首長国連邦"
+  },
+  "settings_storePriceChart_region_IL": {
+    "message": "イスラエル"
+  },
+  "settings_storePriceChart_region_KW": {
+    "message": "クウェート"
+  },
+  "settings_storePriceChart_region_QA": {
+    "message": "カタール"
+  },
+  "settings_storePriceChart_region_CR": {
+    "message": "コスタリカ"
+  },
+  "settings_storePriceChart_region_UY": {
+    "message": "ウルグアイ"
+  },
+  "settings_storePriceChart_region_AM": {
+    "message": "CIS USD地域"
+  },
+  "settings_storePriceChart_region_AR": {
+    "message": "LATAM USD地域"
+  },
+  "settings_storePriceChart_region_TR": {
+    "message": "MENA USD地域"
+  },
+  "settings_storePriceChart_region_PK": {
+    "message": "南アジア USD地域"
+  },
+  "common_refreshPage": {
+    "message": "ページを更新"
+  },
+  "common_notice": {
+    "message": "お知らせ"
+  },
+  "common_saveFailed": {
+    "message": "保存に失敗しました"
+  },
+  "settings_savePrompt_title": {
+    "message": "保存しました"
+  },
+  "settings_savePrompt_message": {
+    "message": "変更を適用するには、ページを更新してください。"
+  },
+  "settings_familyLibrary_saveFailed": {
+    "message": "ファミリーライブラリの更新設定の保存に失敗しました。後でもう一度お試しください。"
+  },
+  "settings_familyLibrary_saveError": {
+    "message": "ファミリーライブラリの更新設定の保存中にエラーが発生しました。後でもう一度お試しください。"
+  },
+  "settings_shell_filteredReviewsButtonWithCount": {
+    "message": "絞り込んだレビューを表示（$count$）",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "updateReminder_title": {
+    "message": "新しいSteam Buffのバージョンが利用可能です"
+  },
+  "updateReminder_currentVersion": {
+    "message": "現在のバージョン：$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "updateReminder_latestVersion": {
+    "message": "最新バージョン：$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "updateReminder_releaseNotes": {
+    "message": "リリースノート"
+  },
+  "updateReminder_muteToday": {
+    "message": "今日は今後通知しない"
+  },
+  "updateReminder_openDownload": {
+    "message": "公式ダウンロードページを開く"
+  },
+  "common_none": {
+    "message": "なし"
+  },
+  "common_listSeparator": {
+    "message": ", "
+  },
+  "common_unknown": {
+    "message": "不明"
+  },
+  "common_included": {
+    "message": "含まれる"
+  },
+  "common_notIncluded": {
+    "message": "含まれない"
+  },
+  "common_cancel": {
+    "message": "キャンセル"
+  },
+  "common_clear": {
+    "message": "クリア"
+  },
+  "common_export": {
+    "message": "エクスポート"
+  },
+  "common_import": {
+    "message": "インポート"
+  },
+  "about_common_unknownVersion": {
+    "message": "不明なバージョン"
+  },
+  "about_update_noLog": {
+    "message": "リリースノートはありません"
+  },
+  "about_update_loadingCurrentLog": {
+    "message": "現在のバージョンのリリースノートを読み込んでいます..."
+  },
+  "about_update_noLogShort": {
+    "message": "ログはありません"
+  },
+  "about_update_logLoadFailed": {
+    "message": "リリースノートの詳細を読み込めませんでした"
+  },
+  "about_update_currentLogTitle": {
+    "message": "現在のバージョンのリリースノート"
+  },
+  "about_update_logTitle": {
+    "message": "リリースノート"
+  },
+  "about_update_noNewTitle": {
+    "message": "新しいバージョンは見つかりませんでした"
+  },
+  "about_update_latestMessage": {
+    "message": "最新のバージョンを使用しています。"
+  },
+  "about_update_checkTitle": {
+    "message": "更新を確認"
+  },
+  "about_update_checkingMessage": {
+    "message": "更新を確認しています。しばらくお待ちください。"
+  },
+  "about_update_checkFailedTitle": {
+    "message": "更新の確認に失敗しました"
+  },
+  "about_update_checking": {
+    "message": "確認中"
+  },
+  "about_update_autoCheck": {
+    "message": "設定を開くと自動的に確認"
+  },
+  "about_update_newVersion": {
+    "message": "新しいバージョン $version$ が利用可能です",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_update_latest": {
+    "message": "最新の状態"
+  },
+  "about_update_notChecked": {
+    "message": "未確認"
+  },
+  "about_update_fetchingLog": {
+    "message": "公式サイトからリリースノートを読み込んでいます"
+  },
+  "about_update_autoFetchLog": {
+    "message": "設定を開くと自動的に読み込み"
+  },
+  "about_update_viewMore": {
+    "message": "さらに表示"
+  },
+  "about_update_viewNow": {
+    "message": "今すぐ表示"
+  },
+  "about_logs_requestFailed": {
+    "message": "ログのリクエストに失敗しました"
+  },
+  "about_logs_backgroundFailed": {
+    "message": "バックグラウンドリクエストに失敗しました"
+  },
+  "about_logs_statusLoading": {
+    "message": "ログの状態を読み込んでいます"
+  },
+  "about_logs_statusDetail": {
+    "message": "$count$件、$size$、$first$ - $last$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "size": {
+        "content": "$2"
+      },
+      "first": {
+        "content": "$3"
+      },
+      "last": {
+        "content": "$4"
+      }
+    }
+  },
+  "about_logs_healthErrors": {
+    "message": "最近のログに$count$件のエラーがあります",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_logs_healthLarge": {
+    "message": "多数のログが保存されています。都合のよいときにエクスポートしてクリアしてください。"
+  },
+  "about_logs_healthElevated": {
+    "message": "ログ使用量が増加しています"
+  },
+  "about_logs_healthOk": {
+    "message": "過去1時間にエラーはありません"
+  },
+  "about_logs_emptySummary": {
+    "message": "ログはありません · 匿名化エクスポートが有効"
+  },
+  "about_logs_summary": {
+    "message": "$count$件 · $size$ · 最新 $time$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "size": {
+        "content": "$2"
+      },
+      "time": {
+        "content": "$3"
+      }
+    }
+  },
+  "about_backup_readFailed": {
+    "message": "設定のバックアップファイルを読み込めませんでした"
+  },
+  "about_backup_section_features": {
+    "message": "機能のオン/オフ"
+  },
+  "about_backup_section_translate": {
+    "message": "翻訳設定"
+  },
+  "about_backup_section_ai": {
+    "message": "AI設定"
+  },
+  "about_backup_section_reviewFilter": {
+    "message": "レビューのフィルタリング"
+  },
+  "about_backup_section_searchSuggestions": {
+    "message": "検索候補"
+  },
+  "about_backup_section_familyLibrary": {
+    "message": "ファミリーライブラリの更新"
+  },
+  "about_backup_noSections": {
+    "message": "認識されたセクションはありません"
+  },
+  "about_backup_fileVersion": {
+    "message": "ファイルバージョン: v$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_exportedAt": {
+    "message": "エクスポート日時: $time$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_sections": {
+    "message": "含まれるセクション: $sections$",
+    "placeholders": {
+      "sections": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_sensitive": {
+    "message": "機密設定: $state$",
+    "placeholders": {
+      "state": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_willImport": {
+    "message": "インポート対象: $count$ 件",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_willDefault": {
+    "message": "デフォルトにリセット: $count$ 件",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_willSkip": {
+    "message": "スキップ: $count$ 件",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_overwriteWarning": {
+    "message": "確認すると、現在の設定が上書きされ、このバックアップがインポートされます。"
+  },
+  "about_backup_missingSensitiveWarning": {
+    "message": "このファイルには、AIキーなどの機密設定が含まれていません。これらの項目はインポート後、デフォルトの空の値になります。"
+  },
+  "about_backup_imported": {
+    "message": "インポート済み: $count$ 件",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_defaulted": {
+    "message": "デフォルトにリセット済み: $count$ 件",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_skipped": {
+    "message": "スキップ済み: $count$ 件",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_importCompleteMessage": {
+    "message": "設定をインポートしました。ページを更新して適用してください。"
+  },
+  "about_backup_exportFailedTitle": {
+    "message": "設定のエクスポートに失敗しました"
+  },
+  "about_backup_importFailedTitle": {
+    "message": "設定のインポートに失敗しました"
+  },
+  "about_backup_moduleMissing": {
+    "message": "設定バックアップモジュールが読み込まれていません。"
+  },
+  "about_backup_importTitle": {
+    "message": "設定バックアップをインポート"
+  },
+  "about_backup_confirmImport": {
+    "message": "インポート"
+  },
+  "about_backup_importCompleteTitle": {
+    "message": "設定をインポートしました"
+  },
+  "about_backup_invalidFormat": {
+    "message": "設定バックアップファイルの形式が無効です。"
+  },
+  "about_backup_invalidType": {
+    "message": "これはSteam Buffの設定バックアップではありません。"
+  },
+  "about_backup_unsupportedVersion": {
+    "message": "サポートされていない設定バックアップのバージョンです: $version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "about_backup_writeUnavailable": {
+    "message": "設定バックアップの書き込みインターフェースを利用できません"
+  },
+  "about_backup_writeFailed": {
+    "message": "設定バックアップの書き込みに失敗しました"
+  },
+  "about_logs_exportFailedTitle": {
+    "message": "ログのエクスポートに失敗しました"
+  },
+  "about_logs_buildFailed": {
+    "message": "ログのエクスポートの作成に失敗しました"
+  },
+  "about_logs_clearTitle": {
+    "message": "診断ログを消去"
+  },
+  "about_logs_clearWarning": {
+    "message": "消去すると、現在の診断証拠をエクスポートできなくなります。続行しますか？"
+  },
+  "about_logs_clearFailedTitle": {
+    "message": "診断ログの消去に失敗しました"
+  },
+  "about_support_anonymous": {
+    "message": "匿名のサポーター"
+  },
+  "about_support_thankYou": {
+    "message": "Steam Buffをサポートしていただきありがとうございます"
+  },
+  "about_support_beFirst": {
+    "message": "最初のサポーターになる ❤"
+  },
+  "about_support_action": {
+    "message": "サポート"
+  },
+  "about_support_listTitle": {
+    "message": "以下のサポーターの皆様に感謝いたします。掲載順に意味はありません。"
+  },
+  "about_openSource_title": {
+    "message": "オープンソースライブラリ"
+  },
+  "about_card_home_title": {
+    "message": "プロジェクトホーム"
+  },
+  "about_card_home_desc": {
+    "message": "公式サイトで最新ニュースをご覧ください"
+  },
+  "about_card_home_action": {
+    "message": "ウェブサイトを開く"
+  },
+  "about_card_feedback_title": {
+    "message": "フィードバック"
+  },
+  "about_card_feedback_desc": {
+    "message": "バグを報告したり、機能を提案したりできます"
+  },
+  "about_card_feedback_action": {
+    "message": "フィードバックを送信"
+  },
+  "about_card_versionLog_title": {
+    "message": "リリースノート"
+  },
+  "about_card_versionLog_desc": {
+    "message": "現在のバージョンでの変更内容を確認できます"
+  },
+  "about_card_versionLog_action": {
+    "message": "リリースノートを表示"
+  },
+  "about_card_logs_title": {
+    "message": "ログ"
+  },
+  "about_card_logs_export": {
+    "message": "ログをエクスポート"
+  },
+  "about_card_logs_clear": {
+    "message": "ログを消去"
+  },
+  "about_card_backup_title": {
+    "message": "設定のバックアップ"
+  },
+  "about_card_backup_desc": {
+    "message": "機能と個人設定をインポートまたはエクスポートします"
+  },
+  "about_card_backup_sensitiveTitle": {
+    "message": "AIキーなどの機密設定を含める"
+  },
+  "about_card_backup_sensitive": {
+    "message": "キーを含める"
+  },
+  "about_card_support_title": {
+    "message": "開発者を支援"
+  },
+  "about_card_support_desc": {
+    "message": "コーヒー1杯がアップデートの継続を支えます"
+  },
+  "about_tagline": {
+    "message": "SteamクライアントにBuffを"
+  },
+  "about_footer_personalProject": {
+    "message": "個人による非商用プロジェクト"
+  },
+  "settings_api_parseFailed": {
+    "message": "APIレスポンスの解析に失敗しました"
+  },
+  "settings_api_endpoint": {
+    "message": "ウェブサイトAPI"
+  },
+  "settings_api_requestFailed": {
+    "message": "$label$のリクエストに失敗しました",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_api_responseInvalid": {
+    "message": "$label$から無効なレスポンスが返されました",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_api_statusCode": {
+    "message": "$label$からステータスコード$status$が返されました",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "status": {
+        "content": "$2"
+      }
+    }
+  },
+  "about_update_storeVersionDisabled": {
+    "message": "ストア版では手動更新チェックが無効です"
+  },
+  "about_logs_utf8Unavailable": {
+    "message": "この環境ではUTF-8エンコードがサポートされていません"
+  },
+  "about_logs_zipUnavailable": {
+    "message": "診断アーカイブライブラリが読み込まれていません"
+  },
+  "store_workshop_statusUnavailable": {
+    "message": "Steam Workshopの状態を一時的に取得できません"
+  },
+  "store_workshop_supported": {
+    "message": "このゲームはSteam Workshopに対応しています"
+  },
+  "store_workshop_verifiedCategoryIds": {
+    "message": "確認済みカテゴリID: $ids$",
+    "placeholders": {
+      "ids": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_workshop_unsupported": {
+    "message": "このゲームはSteam Workshop対応としてマークされていません"
+  },
+  "store_workshop_loading": {
+    "message": "Steam Workshopへの対応状況を確認中..."
+  },
+  "store_audio_supported": {
+    "message": "このゲームは簡体字中国語音声に対応しています"
+  },
+  "store_audio_unsupported": {
+    "message": "このゲームは簡体字中国語音声に対応していません"
+  },
+  "store_gameNotes_loginRequired": {
+    "message": "まず設定からサインインしてください"
+  },
+  "store_gameNotes_loginExpired": {
+    "message": "サインインの有効期限が切れています。もう一度サインインしてください。"
+  },
+  "store_gameNotes_requestFailed": {
+    "message": "リクエストに失敗しました: $code$",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_gameNotes_openFull": {
+    "message": "メモ全体を表示"
+  },
+  "store_gameNotes_label": {
+    "message": "メモ: "
+  },
+  "store_gameNotes_empty": {
+    "message": "メモなし"
+  },
+  "store_gameNotes_viewMore": {
+    "message": "[もっと見る]"
+  },
+  "store_searchSuggestions_heading": {
+    "message": "Steam Buff名の一致"
+  },
+  "store_reviewFilter_reason_keyword": {
+    "message": "キーワード"
+  },
+  "store_reviewFilter_reason_pattern": {
+    "message": "正規表現"
+  },
+  "store_reviewFilter_reason_nickname": {
+    "message": "ニックネーム"
+  },
+  "store_reviewFilter_reason_playtime": {
+    "message": "総プレイ時間"
+  },
+  "store_reviewFilter_reason_reviewPlaytime": {
+    "message": "レビュー時のプレイ時間"
+  },
+  "store_reviewFilter_reason_hiddenProfile": {
+    "message": "非公開プロフィール"
+  },
+  "store_reviewFilter_reason_gamesOwned": {
+    "message": "所有ゲーム数"
+  },
+  "store_reviewFilter_reason_reviewCount": {
+    "message": "レビュー数"
+  },
+  "store_reviewFilter_reason_matched": {
+    "message": "ルール一致"
+  },
+  "store_regionalPrice_loading": {
+    "message": "地域別価格を読み込み中"
+  },
+  "store_subscription_title": {
+    "message": "サブスクリプション確認"
+  },
+  "store_subscription_leavingOn": {
+    "message": "このゲームは$date$に$name$の対象外になります",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "date": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_subscription_leaving": {
+    "message": "このゲームはまもなく$name$の対象外になります",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_joinedOn": {
+    "message": "このゲームは$date$に$name$の対象になりました",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "date": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_subscription_joined": {
+    "message": "$name$でこのゲームをプレイできます",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_leavingOnPrefix": {
+    "message": "このゲームは$date$に対象外になります: ",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_leavingPrefix": {
+    "message": "このゲームはまもなく対象外になります: "
+  },
+  "store_subscription_joinedOnPrefix": {
+    "message": "$date$以降、次のサービスで利用可能: ",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_subscription_joinedPrefix": {
+    "message": "次のサービスで利用可能: "
+  },
+  "store_subscription_joinedTail": {
+    "message": ""
+  },
+  "common_loading": {
+    "message": "読み込み中"
+  },
+  "common_retry": {
+    "message": "再試行"
+  },
+  "common_send": {
+    "message": "送信"
+  },
+  "store_priceChart_emptyHistory": {
+    "message": "価格履歴なし"
+  },
+  "store_priceChart_discount": {
+    "message": "割引: -$cut$%",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_historyAria": {
+    "message": "価格履歴チャート"
+  },
+  "store_priceChart_currentRegularUnavailable": {
+    "message": "現在の通常価格の範囲を計算できません"
+  },
+  "store_priceChart_noCalculablePriceLow": {
+    "message": "計算可能な過去最安値なし"
+  },
+  "store_priceChart_apiLowUnavailable": {
+    "message": "APIから過去最安値を取得できません"
+  },
+  "store_priceChart_noCalculableDiscountLow": {
+    "message": "計算可能な過去最安割引価格なし"
+  },
+  "store_priceChart_cnyRateUnavailable": {
+    "message": "CNY為替レートを利用できません"
+  },
+  "store_priceChart_notApplicable": {
+    "message": "該当なし"
+  },
+  "store_priceChart_lowCriterion": {
+    "message": "過去最安値の基準: $criterion$",
+    "placeholders": {
+      "criterion": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_referenceScope": {
+    "message": "参照範囲: $scope$",
+    "placeholders": {
+      "scope": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_maxDiscountNone": {
+    "message": "過去最大割引: なし"
+  },
+  "store_priceChart_maxDiscount": {
+    "message": "過去最大割引: -$cut$%",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_lowestPrice": {
+    "message": "過去最安価格: $price$",
+    "placeholders": {
+      "price": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_lowestPriceNone": {
+    "message": "過去最安価格: なし"
+  },
+  "store_priceChart_yearCount": {
+    "message": "1年以内に$count$回到達",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_shopType": {
+    "message": "ストア: $shop$",
+    "placeholders": {
+      "shop": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_region": {
+    "message": "地域: $region$",
+    "placeholders": {
+      "region": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_date": {
+    "message": "日付: $date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_currentAmount": {
+    "message": "現在の金額: $amount$",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_table_countryShop": {
+    "message": "地域 / ストア"
+  },
+  "store_priceChart_table_price": {
+    "message": "価格"
+  },
+  "store_priceChart_table_discount": {
+    "message": "割引"
+  },
+  "store_priceChart_table_comparison": {
+    "message": "比較"
+  },
+  "store_priceChart_multiHistoryAria": {
+    "message": "複数地域・複数ストアの価格履歴グラフ"
+  },
+  "store_priceChart_emptyRange": {
+    "message": "この期間に価格履歴はありません"
+  },
+  "store_priceChart_legendAria": {
+    "message": "$label$$state$ グラフ統計",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "state": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_priceChart_legendNoData": {
+    "message": " データなし"
+  },
+  "store_priceChart_legendStats": {
+    "message": "$label$ グラフ統計",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceChart_countriesAndShops": {
+    "message": "地域とストア"
+  },
+  "store_dataDisplay_range6Months": {
+    "message": "6か月"
+  },
+  "store_dataDisplay_range12Months": {
+    "message": "12か月"
+  },
+  "store_dataDisplay_rangeAll": {
+    "message": "すべて"
+  },
+  "store_dataDisplay_monthDay": {
+    "message": "$month$/$day$",
+    "placeholders": {
+      "month": {
+        "content": "$1"
+      },
+      "day": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_unknownDate": {
+    "message": "不明な日付"
+  },
+  "store_dataDisplay_lowEvidenceStrong": {
+    "message": "強い繰り返し最安値の証拠: 有効な過去の販売記録のうち$count$件がこの最安値に到達または下回っています。これは過去の繰り返しを示すものであり、確率ではありません。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowEvidenceMedium": {
+    "message": "中程度の繰り返し最安値の証拠: 有効な過去の販売記録のうち$count$件がこの最安値に到達または下回っています。これは過去の繰り返しを示すものであり、確率ではありません。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowEvidenceLow": {
+    "message": "限定的な繰り返し最安値の証拠: この最安値に到達または下回った有効な過去の販売記録は$count$件のみです。確率は報告されません。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowEvidenceInsufficient": {
+    "message": "繰り返し最安値の証拠が不十分です: 価格履歴に、過去の最安値を繰り返し記録した販売例は確認されていません。確率は報告されません。"
+  },
+  "store_dataDisplay_lowUnavailable": {
+    "message": "過去最安値の参考: 予測に十分な価格履歴がありません。"
+  },
+  "store_dataDisplay_lowFreeHistory": {
+    "message": "過去最安値の参考: このゲームは過去に無料になっており、現在のモデルでは対応していません。"
+  },
+  "store_dataDisplay_lowCurrentUnavailable": {
+    "message": "過去最安値の参考: 現在価格を取得できないため、過去最安値の$low$と比較できません。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowNew": {
+    "message": "過去最安値の参考: 現在価格は以前の最安値$low$を下回っており、現在確認されている価格の中で最も安い価格です。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowReached": {
+    "message": "過去最安値の参考: 現在価格は過去最安値の$low$に達しています。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowRequiredCut": {
+    "message": "一致させるには約-$cut$%の割引が必要です。 ",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowRequiredCutUnavailable": {
+    "message": "信頼できる通常価格を取得できないため、必要な割引率を計算できません。 "
+  },
+  "store_dataDisplay_lowMayReach": {
+    "message": "過去最安値の参考: 現在価格は$low$に達していません。 $required$次に到達できる機会は約$days$日後になる可能性があります。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      },
+      "days": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_lowPredictedBelow": {
+    "message": "過去最安値の参考: 現在価格は$low$に達していません。 $required$次回の予測割引ではまだ価格が足りないため、次に最安値に達する日付を推定できません。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_lowRegularUnavailable": {
+    "message": "過去最安値の参考: 現在価格は$low$に達していません。信頼できる通常価格を取得できないため、必要な割引率も次に最安値に達する日付も計算できません。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_lowStrengthUnavailable": {
+    "message": "過去最安値の参考: 現在価格は$low$に達していません。 $required$次回の割引率に関する証拠が不十分なため、次に最安値に達する日付を推定できません。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_lowTimingUnavailable": {
+    "message": "過去最安値の参考: 現在価格は$low$に達していません。 $required$割引のタイミングに関する証拠が不十分なため、次に最安値に達する日付を推定できません。",
+    "placeholders": {
+      "low": {
+        "content": "$1"
+      },
+      "required": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceStrong": {
+    "message": "強い証拠: 同じ名前と種類の直近$consecutive$回連続したイベントで割引が発生しており、一致したイベント$matched$件のうち$hits$件に割引がありました。",
+    "placeholders": {
+      "consecutive": {
+        "content": "$1"
+      },
+      "hits": {
+        "content": "$2"
+      },
+      "matched": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceMedium": {
+    "message": "中程度の証拠: 同じ名前と種類のイベント$matched$件のうち$hits$件に割引がありましたが、直近2回は連続して割引が発生していません。",
+    "placeholders": {
+      "hits": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceLow": {
+    "message": "限定的な証拠: 同じ名前と種類のイベントで、割引があったのは$matched$件中1件のみです。",
+    "placeholders": {
+      "matched": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_festivalEvidenceInsufficient": {
+    "message": "同じ名前と種類のイベントについて、割引記録が十分にありません。"
+  },
+  "store_dataDisplay_forecastFree": {
+    "message": "このゲームは現在無料のため、割引予測は必要ありません。"
+  },
+  "store_dataDisplay_forecastActive": {
+    "message": "現在は約$price$で-$currentCut$%割引中です。次回セールは約$days$日後に、割引率はおよそ-$nextCut$%になる可能性があります。",
+    "placeholders": {
+      "currentCut": {
+        "content": "$1"
+      },
+      "price": {
+        "content": "$2"
+      },
+      "days": {
+        "content": "$3"
+      },
+      "nextCut": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastActiveCutUnknown": {
+    "message": "現在は約 $price$ で -$currentCut$% の割引中です。次のセールは約 $days$ 日後になる可能性がありますが、割引率はまだ信頼性をもって推定できません。",
+    "placeholders": {
+      "currentCut": {
+        "content": "$1"
+      },
+      "price": {
+        "content": "$2"
+      },
+      "days": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_forecastActiveInsufficient": {
+    "message": "現在は約 $price$ で -$currentCut$% の割引中です。次のセールを推定するには履歴が不足しています。",
+    "placeholders": {
+      "currentCut": {
+        "content": "$1"
+      },
+      "price": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_forecastInsufficient": {
+    "message": "次のセールを推定するにはデータが不足しています。"
+  },
+  "store_dataDisplay_forecastWindow": {
+    "message": "$days$ 日以内に $percent$%",
+    "placeholders": {
+      "percent": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSparseWithCut": {
+    "message": "限られたデータに基づくと、$days$ 日後の $name$（$range$）では約 $cut$ の割引が行われる可能性があります。",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      },
+      "cut": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSparse": {
+    "message": "このゲームはセールになる頻度が低いため、予測できません。割引の可能性がある $days$ 日後の $name$（$range$）を確認してください。",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSeasonLimited": {
+    "message": "限られたデータに基づくと、$days$ 日後の $name$（$range$）では約 -$cut$% の割引が行われる可能性があります。",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      },
+      "cut": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastSeason": {
+    "message": "$days$ 日後の $name$（$range$）では約 -$cut$% の割引が行われ、価格は $price$ になると予測されます。",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      },
+      "cut": {
+        "content": "$4"
+      },
+      "price": {
+        "content": "$5"
+      }
+    }
+  },
+  "store_dataDisplay_forecastLimited": {
+    "message": "$days$ 日後（$date$）に約 -$cut$% の割引が行われ、価格は $price$ になる可能性があります（データが限られているため推定）。",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "date": {
+        "content": "$3"
+      },
+      "price": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastRegular": {
+    "message": "$days$ 日後（$date$）に約 -$cut$% の割引が行われ、価格は $price$ になる可能性があります。",
+    "placeholders": {
+      "cut": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "date": {
+        "content": "$3"
+      },
+      "price": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_forecastEventCount": {
+    "message": "$count$ 回のセールに基づく予測です。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dataDisplay_festivalNoHistory": {
+    "message": "季節割引を推定するには、過去のイベント期間のデータが不足しています。"
+  },
+  "store_dataDisplay_festivalNoFuture": {
+    "message": "今後1年間のイベントデータはありません。"
+  },
+  "store_dataDisplay_festivalNoEvidence": {
+    "message": "今後開催される同名・同タイプのイベントについて、このゲームの過去の割引実績は見つかりませんでした。"
+  },
+  "store_dataDisplay_festivalOngoing": {
+    "message": "$name$、現在開催中（$range$）",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "range": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalUpcoming": {
+    "message": "$days$ 日後の $name$（$range$）",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      },
+      "range": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_dataDisplay_festivalStrong": {
+    "message": "現在のルールでは、$timing$ に割引が行われる確率は約 $probability$% です。過去の実績では約 $cut$ の割引が行われ、価格の推定中央値は $price$ でした。",
+    "placeholders": {
+      "timing": {
+        "content": "$1"
+      },
+      "probability": {
+        "content": "$2"
+      },
+      "cut": {
+        "content": "$3"
+      },
+      "price": {
+        "content": "$4"
+      }
+    }
+  },
+  "store_dataDisplay_festivalMedium": {
+    "message": "$timing$ には中程度の割引の根拠があります。過去に複数回実績がありますが、連続してはいません。割引率は約 $cut$ でした。",
+    "placeholders": {
+      "timing": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_festivalLow": {
+    "message": "$timing$ で過去に確認された実績は1回 בלבדのため、根拠の弱いリマインダーです。そのときの割引率は約 $cut$ でした。",
+    "placeholders": {
+      "timing": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_dataDisplay_loadingRates": {
+    "message": "為替レートを読み込んでいます"
+  },
+  "store_dataDisplay_thirdPartyUnavailable": {
+    "message": "第三者の価格データは一時的に利用できません。"
+  },
+  "store_aiForecast_responseInstruction": {
+    "message": "今すぐ購入する、主な予測期間まで待つ、または提示された割引を待つ、のいずれかを明確に推奨してください。英語で回答し、事実、推定、不確実性を区別してください。裏付けとなるデータなしに正確な日付や確率を示さないでください。"
+  },
+  "store_aiForecast_summaryLanguageInstruction": {
+    "message": "4. Markdown、見出し、リスト、コードブロックを使わず、概要を平易な英語の文章で書いてください。"
+  },
+  "store_aiForecast_storageUnavailable": {
+    "message": "chrome.storage.local は利用できません"
+  },
+  "store_aiForecast_sessionReadFailed": {
+    "message": "AI予測セッションの読み込みに失敗しました"
+  },
+  "store_aiForecast_sessionSaveFailed": {
+    "message": "AI予測セッションの保存に失敗しました"
+  },
+  "store_aiForecast_sessionClearFailed": {
+    "message": "AI予測セッションの消去に失敗しました"
+  },
+  "store_aiForecast_readingSession": {
+    "message": "AI予測の履歴を読み込んでいます..."
+  },
+  "store_aiForecast_preparing": {
+    "message": "予測データを準備しています..."
+  },
+  "store_aiForecast_analyzing": {
+    "message": "AIが価格履歴とイベントデータを分析しています..."
+  },
+  "store_aiForecast_failed": {
+    "message": "AI予測に失敗しました。後でもう一度お試しください。"
+  },
+  "store_aiForecast_festivalUnavailable": {
+    "message": "イベントデータを利用できないため、AI予測を生成できません。"
+  },
+  "store_aiForecast_preparingHistory": {
+    "message": "価格履歴とイベントデータを準備しています..."
+  },
+  "store_aiForecast_openDetailsHint": {
+    "message": "会話の詳細を開くと、AI予測を生成できます。"
+  },
+  "store_aiForecast_you": {
+    "message": "あなた"
+  },
+  "store_aiForecast_initialQuestion": {
+    "message": "このページの価格データとイベントデータを使って、今後の割引を予測してください。"
+  },
+  "store_aiForecast_thinking": {
+    "message": "考えています..."
+  },
+  "store_aiForecast_replying": {
+    "message": "AIが回答しています。お待ちください..."
+  },
+  "store_aiForecast_questionPlaceholder": {
+    "message": "今後の割引について質問する"
+  },
+  "store_aiForecast_title": {
+    "message": "AI Forecast"
+  },
+  "store_aiForecast_closeDialog": {
+    "message": "会話を閉じる"
+  },
+  "store_aiForecast_streamUnavailable": {
+    "message": "AIストリーミングチャネルを利用できません。"
+  },
+  "store_aiForecast_replySaveFailed": {
+    "message": "応答は完了しましたが、この会話を保存できませんでした。"
+  },
+  "store_aiForecast_dataStillLoading": {
+    "message": "予測データを読み込んでいます。しばらくしてからもう一度お試しください。"
+  },
+  "store_aiForecast_configurationRequired": {
+    "message": "予測を生成する前に、AIサービスを設定してください。"
+  },
+  "store_aiForecast_dataUnavailable": {
+    "message": "AI予測データを一時的に利用できません。"
+  },
+  "store_aiForecast_prepareFailed": {
+    "message": "AI予測データの準備に失敗しました。"
+  },
+  "store_aiForecast_followupFailed": {
+    "message": "AIの追加質問に失敗しました。後でもう一度お試しください。"
+  },
+  "store_aiForecast_sessionUnavailable": {
+    "message": "AI予測履歴を一時的に利用できません。"
+  },
+  "store_aiForecast_dialogDetails": {
+    "message": "会話の詳細"
+  },
+  "common_clearSelection": {
+    "message": "選択を解除"
+  },
+  "common_continue": {
+    "message": "続行"
+  },
+  "common_dateYmd": {
+    "message": "$month$/$day$/$year$",
+    "placeholders": {
+      "month": {
+        "content": "$1"
+      },
+      "day": {
+        "content": "$2"
+      },
+      "year": {
+        "content": "$3"
+      }
+    }
+  },
+  "common_enabled": {
+    "message": "有効"
+  },
+  "common_firstPage": {
+    "message": "最初"
+  },
+  "common_invertSelection": {
+    "message": "選択を反転"
+  },
+  "common_itemsSuffix": {
+    "message": "件"
+  },
+  "common_lastPage": {
+    "message": "最後"
+  },
+  "common_nextPage": {
+    "message": "次へ"
+  },
+  "common_no": {
+    "message": "いいえ"
+  },
+  "common_operationFailed": {
+    "message": "操作に失敗しました"
+  },
+  "common_pause": {
+    "message": "一時停止"
+  },
+  "common_previousPage": {
+    "message": "前へ"
+  },
+  "common_queryFailed": {
+    "message": "クエリに失敗しました"
+  },
+  "common_refresh": {
+    "message": "更新"
+  },
+  "common_requestFailedCode": {
+    "message": "リクエストに失敗しました: $code$",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "common_requestTimedOut": {
+    "message": "リクエストがタイムアウトしました。後でもう一度お試しください。"
+  },
+  "common_requestTimedOutMs": {
+    "message": "リクエストは $timeout$ ms 後にタイムアウトしました。",
+    "placeholders": {
+      "timeout": {
+        "content": "$1"
+      }
+    }
+  },
+  "common_authResponseParseFailed": {
+    "message": "認証APIの応答の解析に失敗しました"
+  },
+  "common_authSaveFailed": {
+    "message": "サインイン状態の保存に失敗しました"
+  },
+  "common_authStorageUnavailable": {
+    "message": "サインイン状態のストレージを利用できません"
+  },
+  "common_backgroundRequestFailed": {
+    "message": "バックグラウンドリクエストに失敗しました"
+  },
+  "common_backgroundResponseInvalid": {
+    "message": "バックグラウンドからの応答の形式が無効です"
+  },
+  "common_loginExpired": {
+    "message": "サインインの有効期限が切れました。もう一度サインインしてください。"
+  },
+  "common_loginRequired": {
+    "message": "まず「設定」からサインインしてください。"
+  },
+  "common_save": {
+    "message": "保存"
+  },
+  "common_searching": {
+    "message": "検索中..."
+  },
+  "common_select": {
+    "message": "選択"
+  },
+  "common_selectAll": {
+    "message": "すべて選択"
+  },
+  "common_sendFailedRetry": {
+    "message": "送信に失敗しました。もう一度お試しください。"
+  },
+  "common_unavailable": {
+    "message": "利用できません"
+  },
+  "common_update": {
+    "message": "更新"
+  },
+  "common_yes": {
+    "message": "はい"
+  },
+  "store_titleCustomName_aliasDescription": {
+    "message": "エイリアスはSteamストアの検索にのみ影響します。エイリアスを追加すると、Steamストアの検索ボックスでそのエイリアスを使ってこのゲームを検索できます。"
+  },
+  "store_titleCustomName_baseSaved": {
+    "message": "基本情報を保存しました"
+  },
+  "store_titleCustomName_baseSaving": {
+    "message": "基本情報を保存中..."
+  },
+  "store_titleCustomName_baseTab": {
+    "message": "基本"
+  },
+  "store_titleCustomName_clearNote": {
+    "message": "メモをクリア"
+  },
+  "store_titleCustomName_customAlias": {
+    "message": "カスタムエイリアス"
+  },
+  "store_titleCustomName_customName": {
+    "message": "カスタム名"
+  },
+  "store_titleCustomName_dialogTitle": {
+    "message": "ゲーム情報を編集"
+  },
+  "store_titleCustomName_edit": {
+    "message": "編集"
+  },
+  "store_titleCustomName_gameNote": {
+    "message": "ゲームメモ"
+  },
+  "store_titleCustomName_hideCustomName": {
+    "message": "カスタム名を非表示"
+  },
+  "store_titleCustomName_loginExpired": {
+    "message": "セッションの有効期限が切れました。もう一度サインインしてください。"
+  },
+  "store_titleCustomName_loginRequired": {
+    "message": "先に設定からサインインしてください"
+  },
+  "store_titleCustomName_noteDeleted": {
+    "message": "メモを削除しました"
+  },
+  "store_titleCustomName_noteDeleting": {
+    "message": "メモを削除中..."
+  },
+  "store_titleCustomName_notePlaceholder": {
+    "message": "BBCodeに対応しています。例: [b]太字[/b] と [url=https://example.com]リンク[/url]"
+  },
+  "store_titleCustomName_noteSaved": {
+    "message": "メモを保存しました"
+  },
+  "store_titleCustomName_noteSaving": {
+    "message": "メモを保存中..."
+  },
+  "store_titleCustomName_notesUnavailable": {
+    "message": "ゲームメモモジュールが読み込まれていません"
+  },
+  "store_titleCustomName_noteTab": {
+    "message": "メモ"
+  },
+  "store_titleCustomName_noteTooLong": {
+    "message": "メモは$limit$文字を超えることができません",
+    "placeholders": {
+      "limit": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_titleCustomName_noteWillClear": {
+    "message": "保存するとメモがクリアされます"
+  },
+  "store_titleCustomName_remaining": {
+    "message": "$remaining$ / $limit$ 文字残り",
+    "placeholders": {
+      "remaining": {
+        "content": "$1"
+      },
+      "limit": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_titleCustomName_reserved": {
+    "message": "将来の使用のために予約済み"
+  },
+  "store_titleCustomName_steamName": {
+    "message": "Steamの元の名前"
+  },
+  "store_wishlistPrice_chartAria": {
+    "message": "Steamの過去12か月の価格履歴グラフ"
+  },
+  "store_wishlistPrice_chartEmpty": {
+    "message": "Steamの過去12か月の価格履歴はありません"
+  },
+  "store_wishlistPrice_chartLoadingAria": {
+    "message": "過去12か月の価格推移を読み込んでいます"
+  },
+  "store_wishlistPrice_chartTitle": {
+    "message": "過去12か月の価格"
+  },
+  "store_wishlistPrice_detailsEmpty": {
+    "message": "表示する価格の詳細はありません"
+  },
+  "store_wishlistPrice_detailsLoading": {
+    "message": "価格の詳細を読み込んでいます..."
+  },
+  "store_wishlistPrice_currentUnavailable": {
+    "message": "現在のSteam価格は利用できません"
+  },
+  "store_wishlistPrice_detailCurrentLowest": {
+    "message": "Steamでは現在、過去最安値です"
+  },
+  "store_wishlistPrice_detailSteam": {
+    "message": "Steamでは"
+  },
+  "store_wishlistPrice_detailSteamAt": {
+    "message": "Steamでは$date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_wishlistPrice_detailSteamAtLower": {
+    "message": "Steamでは$date$、現在の価格より$amount$安い",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      },
+      "amount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_wishlistPrice_detailSteamLower": {
+    "message": "Steamでは、現在の価格より$amount$安い",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_wishlistPrice_historyLoading": {
+    "message": "価格履歴を読み込み中..."
+  },
+  "store_wishlistPrice_historySkippedNoSteamPrice": {
+    "message": "現在Steamから価格が提供されていないため、価格履歴は取得しませんでした。"
+  },
+  "store_wishlistPrice_itadHistoryFailed": {
+    "message": "ITADの価格履歴リクエストに失敗しました。後でもう一度お試しください。"
+  },
+  "store_wishlistPrice_itadNotListed": {
+    "message": "このゲームは現在ITADに掲載されていません。"
+  },
+  "store_wishlistPrice_itadPriceFailed": {
+    "message": "ITADの価格リクエストに失敗しました。後でもう一度お試しください。"
+  },
+  "store_wishlistPrice_loading": {
+    "message": "データを読み込み中..."
+  },
+  "store_wishlistPrice_lowestUnavailable": {
+    "message": "Steamの過去最安値は利用できません"
+  },
+  "store_wishlistPrice_noSteamData": {
+    "message": "ITADに利用可能なSteam価格データがありません"
+  },
+  "store_wishlistPrice_queryFailed": {
+    "message": "価格の取得に失敗しました。ページを更新して、もう一度お試しください。"
+  },
+  "store_wishlistPrice_steamCurrent": {
+    "message": "現在のSteam価格"
+  },
+  "store_wishlistPrice_steamCurrentFailed": {
+    "message": "現在のSteam価格のリクエストに失敗しました。価格履歴サービスは引き続き使用されます。"
+  },
+  "store_wishlistPrice_steamLowest": {
+    "message": "Steamの過去最安値"
+  },
+  "store_wishlistPrice_steamUnavailable": {
+    "message": "Steamから現在価格が提供されていません"
+  },
+  "store_wishlistPrice_statusHigher": {
+    "message": "Steamの過去最安値より$amount$高い（+$discount$%）",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      },
+      "discount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_wishlistPrice_statusLowest": {
+    "message": "現在のSteam価格は過去最安値です"
+  },
+  "store_wishlistPrice_steampyCdk": {
+    "message": "SteamPY CDK"
+  },
+  "store_wishlistPrice_steampyProxy": {
+    "message": "SteamPY代理購入"
+  },
+  "steam_downloadBatch_busy": {
+    "message": "別の一括操作がすでに実行中です"
+  },
+  "steam_downloadBatch_failed": {
+    "message": "操作に失敗しました。詳細はログを確認してください。"
+  },
+  "steam_downloadBatch_itemCount": {
+    "message": "リストに$count$件のアイテム",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadBatch_label": {
+    "message": "ダウンロードキューの一括操作"
+  },
+  "steam_downloadBatch_partial": {
+    "message": "$success$件完了、$failed$件失敗",
+    "placeholders": {
+      "success": {
+        "content": "$1"
+      },
+      "failed": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_downloadBatch_pauseAll": {
+    "message": "すべて一時停止"
+  },
+  "steam_downloadBatch_pauseSuccess": {
+    "message": "すべての一時停止を指示しました"
+  },
+  "steam_downloadBatch_removeAll": {
+    "message": "すべて削除"
+  },
+  "steam_downloadBatch_removeSuccess": {
+    "message": "$count$件を削除しました",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadBatch_running": {
+    "message": "ダウンロードキューを処理中..."
+  },
+  "steam_downloadBatch_startAll": {
+    "message": "すべて開始"
+  },
+  "steam_downloadBatch_startCount": {
+    "message": "$count$件のアイテムを開始できます",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadBatch_startSuccess": {
+    "message": "$count$件のアイテムを開始しました",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadSurface_label": {
+    "message": "ダウンロード管理ツール"
+  },
+  "steam_downloadShutdown_backendStarting": {
+    "message": "バックグラウンドサービスを初期化中"
+  },
+  "steam_downloadShutdown_backendTimeout": {
+    "message": "バックグラウンドサービスが8秒以内に応答しませんでした。download-shutdownバックエンドが注入されているか確認してください。"
+  },
+  "steam_downloadShutdown_checking": {
+    "message": "ダウンロードタスクを確認中..."
+  },
+  "steam_downloadShutdown_currentStatus": {
+    "message": "現在のステータス: $status$",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadShutdown_disabled": {
+    "message": "自動シャットダウンはオフです"
+  },
+  "steam_downloadShutdown_errorLog": {
+    "message": "エラーログ: $message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadShutdown_failed": {
+    "message": "シャットダウンに失敗しました。ログを確認してください。"
+  },
+  "steam_downloadShutdown_label": {
+    "message": "ダウンロード完了後に自動的にシャットダウン"
+  },
+  "steam_downloadShutdown_paused": {
+    "message": "ダウンロードは一時停止中です。再開して完了した後にシャットダウンします。"
+  },
+  "steam_downloadShutdown_shortLabel": {
+    "message": "ダウンロード完了後にシャットダウン"
+  },
+  "steam_downloadShutdown_shuttingDown": {
+    "message": "ダウンロードが完了しました。シャットダウンしています。"
+  },
+  "steam_downloadShutdown_waitingCompletion": {
+    "message": "ダウンロードの完了を待機中"
+  },
+  "steam_downloadShutdown_waitingStart": {
+    "message": "ダウンロードタスクの開始を待機中"
+  },
+  "steam_newsTranslate_aiBodyEmpty": {
+    "message": "AIが有効な本文翻訳を生成しませんでした"
+  },
+  "steam_newsTranslate_bodyTargetMissing": {
+    "message": "置換可能な本文領域が見つかりませんでした"
+  },
+  "steam_newsTranslate_bodyTextMissing": {
+    "message": "置換可能な本文テキストが見つかりませんでした"
+  },
+  "steam_newsTranslate_buttonTitle": {
+    "message": "Steam Buff 翻訳"
+  },
+  "steam_newsTranslate_cardUnrecognized": {
+    "message": "現在のニュースカードを認識できませんでした"
+  },
+  "steam_newsTranslate_chunkCountMismatch": {
+    "message": "AIによるチャンク翻訳の数が一致しません"
+  },
+  "steam_newsTranslate_chunkEmpty": {
+    "message": "AI翻訳チャンクが空です"
+  },
+  "steam_newsTranslate_emptyResult": {
+    "message": "翻訳結果が空です"
+  },
+  "steam_newsTranslate_failed": {
+    "message": "翻訳に失敗しました"
+  },
+  "steam_newsTranslate_noContent": {
+    "message": "翻訳するコンテンツがありません"
+  },
+  "steam_newsTranslate_partialFailed": {
+    "message": "一部のコンテンツを翻訳できませんでした"
+  },
+  "steam_newsTranslate_popupChanged": {
+    "message": "ニュースポップアップが変更されました"
+  },
+  "steam_newsTranslate_requestTimedOut": {
+    "message": "翻訳リクエストがタイムアウトしました"
+  },
+  "steam_newsTranslate_titleTextMissing": {
+    "message": "置換可能なタイトルテキストが見つかりませんでした"
+  },
+  "steam_newsTranslate_translating": {
+    "message": "翻訳中..."
+  },
+  "store_familyLibrary_badgeTitle": {
+    "message": "Steamファミリーの$count$人がこのゲームを所有しています",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_cachedCount": {
+    "message": "ファミリーライブラリのゲーム記録$count$件をローカルキャッシュに保存しました。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_cacheWriteFailed": {
+    "message": "ファミリーライブラリのキャッシュを保存できませんでした。ブラウザのストレージ容量を確認してください。"
+  },
+  "store_familyLibrary_disableFeature": {
+    "message": "機能を無効にする"
+  },
+  "store_familyLibrary_earliestPurchase": {
+    "message": "最初の購入日: $date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_empty": {
+    "message": "ファミリーライブラリのゲーム記録はありません。このページからファミリーライブラリをスキャンできます。"
+  },
+  "store_familyLibrary_emptyPrompt": {
+    "message": "ファミリーライブラリのゲーム記録が見つかりませんでした。今すぐスキャンして保存しますか？"
+  },
+  "store_familyLibrary_groupMissing": {
+    "message": "Steamファミリーに参加していません。ファミリーに参加してから、もう一度お試しください。"
+  },
+  "store_familyLibrary_memberFallback": {
+    "message": "ファミリーメンバー $index$",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_moreOwners": {
+    "message": " さらに$count$人",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_notOwned": {
+    "message": "このゲームはファミリーライブラリに記録されていません。"
+  },
+  "store_familyLibrary_openManagement": {
+    "message": "Steamファミリー管理を開く"
+  },
+  "store_familyLibrary_ownedPrefix": {
+    "message": "Steamファミリーの$count$人がこのゲームを所有しています: ",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_ownerSeparator": {
+    "message": "、 "
+  },
+  "store_familyLibrary_previousDataRetained": {
+    "message": "\n更新に失敗しました。最後に成功した更新のデータを引き続き使用しています。"
+  },
+  "store_familyLibrary_refreshFailed": {
+    "message": "更新に失敗しました"
+  },
+  "store_familyLibrary_refreshFailedRetry": {
+    "message": "更新に失敗しました。後でもう一度お試しください。"
+  },
+  "store_familyLibrary_refreshFailedWithReason": {
+    "message": "更新に失敗しました: $reason$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_refreshFailureTitle": {
+    "message": "ファミリーライブラリの更新に失敗しました"
+  },
+  "store_familyLibrary_scan": {
+    "message": "ファミリーライブラリをスキャン"
+  },
+  "store_familyLibrary_scanningMessage": {
+    "message": "スキャン中はブラウザを開いたままにしてください。"
+  },
+  "store_familyLibrary_scanningTitle": {
+    "message": "Steamファミリーのゲームデータをスキャン中..."
+  },
+  "store_familyLibrary_sentenceEnd": {
+    "message": "."
+  },
+  "store_familyLibrary_sharingCheck": {
+    "message": "Steam Buff ファミリー共有チェック"
+  },
+  "store_familyLibrary_skipFailedMessage": {
+    "message": "スキップ状態の保存に失敗しました。後でもう一度お試しください。"
+  },
+  "store_familyLibrary_skipFailedTitle": {
+    "message": "この更新をスキップできませんでした"
+  },
+  "store_familyLibrary_skipped": {
+    "message": "この更新はスキップされました"
+  },
+  "store_familyLibrary_skipRetained": {
+    "message": "この更新はスキップされました。以前のデータを引き続き使用します。"
+  },
+  "store_familyLibrary_skipThisTime": {
+    "message": "今回はスキップ"
+  },
+  "store_familyLibrary_stalePrompt": {
+    "message": "Steamファミリーライブラリのデータは$interval$以上更新されていません。今すぐ更新しますか？",
+    "placeholders": {
+      "interval": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_familyLibrary_storeConfigMissing": {
+    "message": "Steamのログイン情報を読み取れません。ページを更新してから、もう一度お試しください。"
+  },
+  "store_familyLibrary_title": {
+    "message": "ファミリーライブラリチェック"
+  },
+  "store_familyLibrary_tokenMissing": {
+    "message": "ログイントークンが検出されませんでした。Steamストアにログインしていることを確認してください。"
+  },
+  "store_familyLibrary_updated": {
+    "message": "更新完了"
+  },
+  "store_familyLibrary_updatedAt": {
+    "message": "$date$ $time$ に更新",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_familyLibrary_updating": {
+    "message": "更新中..."
+  },
+  "steam_libraryCustomName_appidMissing": {
+    "message": "現在のゲームのAppIDを認識できませんでした"
+  },
+  "steam_libraryCustomName_backendTimeout": {
+    "message": "Steamクライアントのバックエンドから応答がありませんでした"
+  },
+  "steam_libraryCustomName_batchEdit": {
+    "message": "名前を一括編集"
+  },
+  "steam_libraryCustomName_batchTitle": {
+    "message": "名前を一括編集"
+  },
+  "steam_libraryCustomName_cancellingMnemonic": {
+    "message": "ニーモニックを削除中"
+  },
+  "steam_libraryCustomName_cancelMnemonic": {
+    "message": "ニーモニックを削除"
+  },
+  "steam_libraryCustomName_cancelMnemonicProgress": {
+    "message": "ニーモニックを削除中 $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_cancelMnemonicTitle": {
+    "message": "ニーモニックの削除を確認"
+  },
+  "steam_libraryCustomName_channelUnavailable": {
+    "message": "通信チャンネルを利用できません"
+  },
+  "steam_libraryCustomName_chooseImportMode": {
+    "message": "インポートモードを選択"
+  },
+  "steam_libraryCustomName_clearBatchWaiting": {
+    "message": "バッチ $batch$ のクリアが完了しました。Steam Cloudの同期を$seconds$秒待機しています。",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "seconds": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearDone": {
+    "message": "クリア完了"
+  },
+  "steam_libraryCustomName_clearingBatch": {
+    "message": "Steamバッチ $batch$ をクリア中 $written$/$max$$cloud$",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "written": {
+        "content": "$2"
+      },
+      "max": {
+        "content": "$3"
+      },
+      "cloud": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearingSteam": {
+    "message": "Steamのカスタム並べ替え名をクリア中"
+  },
+  "steam_libraryCustomName_clearingSteamNames": {
+    "message": "Steamのカスタム並べ替え名を一括クリア中"
+  },
+  "steam_libraryCustomName_clearNeedsFastWrite": {
+    "message": "カスタム並べ替え名のクリアには、Steam CloudStorageの高速書き込みサポートが必要です"
+  },
+  "steam_libraryCustomName_clearProgress": {
+    "message": "クリアの進行状況"
+  },
+  "steam_libraryCustomName_clearProgressLine": {
+    "message": "合計: $total$、クリア済み: $success$、スキップ: $skipped$、失敗: $failed$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "success": {
+        "content": "$2"
+      },
+      "skipped": {
+        "content": "$3"
+      },
+      "failed": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearQueueCompleted": {
+    "message": "クリアキューが完了しました"
+  },
+  "steam_libraryCustomName_clearQueuePaused": {
+    "message": "クリアキューは一時停止中です"
+  },
+  "steam_libraryCustomName_clearQueueResumed": {
+    "message": "クリアキューを再開しました"
+  },
+  "steam_libraryCustomName_clearResult": {
+    "message": "クリア結果"
+  },
+  "steam_libraryCustomName_clearSelectedNames": {
+    "message": "選択した名前をクリア"
+  },
+  "steam_libraryCustomName_clearSelectedNote": {
+    "message": "対応するSteamプロパティのカスタム並べ替え名が空の値に設定されます。"
+  },
+  "steam_libraryCustomName_clearSelectedPrompt": {
+    "message": "選択したゲームからカスタム並べ替え名を$count$件クリアしますか？",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_clearSelectedTitle": {
+    "message": "選択した名前を消去しますか"
+  },
+  "steam_libraryCustomName_cloudApiTimeout": {
+    "message": "クラウドの名前サービスから応答がありませんでした"
+  },
+  "steam_libraryCustomName_cloudCancel": {
+    "message": "無効にすると、この保存ではローカルの Steam ライブラリのみが更新され、SucaiJun Cloud には同期されません。\n\nクラウド共有により、他のプレイヤーがより正確なカスタム名の候補を受け取れるようになります。無効にしますか？"
+  },
+  "steam_libraryCustomName_cloudDiskFailed": {
+    "message": "Steam CloudStorage のディスク書き込みに失敗しました: $result$",
+    "placeholders": {
+      "result": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_cloudDiskTimeout": {
+    "message": "Steam CloudStorage の一括ディスク書き込みがタイムアウトしました"
+  },
+  "steam_libraryCustomName_cloudName": {
+    "message": "クラウド名"
+  },
+  "steam_libraryCustomName_cloudNameMissing": {
+    "message": "現在のゲームのクラウド名が見つかりませんでした"
+  },
+  "steam_libraryCustomName_cloudPaused": {
+    "message": "SucaiJun Cloud へのアップロードは一時停止しています"
+  },
+  "steam_libraryCustomName_cloudPreparing": {
+    "message": "Steam の書き込みバッチが開始されるのを待っています。SucaiJun Cloud へのアップロードを準備しています。"
+  },
+  "steam_libraryCustomName_cloudResumed": {
+    "message": "SucaiJun Cloud へのアップロードを再開しました"
+  },
+  "steam_libraryCustomName_cloudTip": {
+    "message": "カスタム並べ替え名を SucaiJun Cloud（Steam Buff Cloud）に同期します。後で「クラウド名を取得」を使って復元し、ストアページで使用できます。\n\n注:\n1. 現地の法律に違反する名前をアップロードしないでください。違反するとアカウントが停止される場合があります。\n2. アップロードされた名前は、コミュニティのゲーム名ライブラリの改善や、他のプレイヤーへのより正確な名前の提供に使用される場合があります。"
+  },
+  "steam_libraryCustomName_cloudUpload": {
+    "message": "SucaiJun Cloud へのアップロード"
+  },
+  "steam_libraryCustomName_cloudUploadSuffix": {
+    "message": ", SucaiJun Cloud へのアップロードも並行して実行中"
+  },
+  "steam_libraryCustomName_confirmDisableCloud": {
+    "message": "無効にする"
+  },
+  "steam_libraryCustomName_confirmOverwrite": {
+    "message": "上書きを確認"
+  },
+  "steam_libraryCustomName_continueCloudUpload": {
+    "message": "アップロードを続行"
+  },
+  "steam_libraryCustomName_continueSave": {
+    "message": "保存を続行"
+  },
+  "steam_libraryCustomName_currentCustomSortName": {
+    "message": "現在のカスタム並べ替え名"
+  },
+  "steam_libraryCustomName_customSortTimeout": {
+    "message": "Steam custom-sort API がタイムアウトしました"
+  },
+  "steam_libraryCustomName_customSortUnavailable": {
+    "message": "Steam custom-sort API を利用できません"
+  },
+  "steam_libraryCustomName_dependencyFailed": {
+    "message": "依存関係の読み込みに失敗しました: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_disableCloudTitle": {
+    "message": "SucaiJun Cloud へのアップロードを無効にしますか？"
+  },
+  "steam_libraryCustomName_disabled": {
+    "message": "「カスタムライブラリ名を表示」は無効です"
+  },
+  "steam_libraryCustomName_editDone": {
+    "message": "編集完了"
+  },
+  "steam_libraryCustomName_editResult": {
+    "message": "編集結果"
+  },
+  "steam_libraryCustomName_emptyWriteName": {
+    "message": "書き込む名前が空です"
+  },
+  "steam_libraryCustomName_entryBootstrapFailed": {
+    "message": "Steam CloudStorage エントリのブートストラップ書き込みに失敗しました: $result$",
+    "placeholders": {
+      "result": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_entryBootstrapTimeout": {
+    "message": "Steam CloudStorage エントリのブートストラップ書き込みがタイムアウトしました"
+  },
+  "steam_libraryCustomName_exported": {
+    "message": "現在のカスタム並べ替え名を$count$件エクスポートしました",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_exportEmpty": {
+    "message": "エクスポートするカスタム並べ替え名がありません"
+  },
+  "steam_libraryCustomName_fastWriteNoResult": {
+    "message": "Steam CloudStorage の高速書き込みから結果が返されませんでした。保存キューを安全に停止しました。"
+  },
+  "steam_libraryCustomName_fastWriteUnavailable": {
+    "message": "Steam CloudStorage の高速書き込みを利用できません。保存キューを安全に停止しました。"
+  },
+  "steam_libraryCustomName_fastWriteUnavailableReason": {
+    "message": "Steam CloudStorage の高速書き込みを利用できません$reason$。保存キューを安全に停止しました。",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_fetchCloud": {
+    "message": "クラウド名を取得"
+  },
+  "steam_libraryCustomName_fetchCloudProgress": {
+    "message": "クラウド名を取得中 $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_fetchFailed": {
+    "message": "取得に失敗しました"
+  },
+  "steam_libraryCustomName_fetching": {
+    "message": "取得中..."
+  },
+  "steam_libraryCustomName_fetchingShort": {
+    "message": "取得中..."
+  },
+  "steam_libraryCustomName_fetchTitle": {
+    "message": "名前を取得"
+  },
+  "steam_libraryCustomName_filePickerUnavailable": {
+    "message": "インポート用ファイル選択ダイアログを利用できません"
+  },
+  "steam_libraryCustomName_filteredCount": {
+    "message": "$visible$ (合計 $total$)",
+    "placeholders": {
+      "visible": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_generateMnemonic": {
+    "message": "語呂合わせを生成"
+  },
+  "steam_libraryCustomName_generateMnemonicProgress": {
+    "message": "語呂合わせを生成中 $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_generateMnemonicTitle": {
+    "message": "語呂合わせ生成の確認"
+  },
+  "steam_libraryCustomName_generateSingleMnemonic": {
+    "message": "語呂合わせを生成"
+  },
+  "steam_libraryCustomName_generateSingleMnemonicFailed": {
+    "message": "語呂合わせの生成に失敗しました"
+  },
+  "steam_libraryCustomName_generatingMnemonic": {
+    "message": "語呂合わせを生成中"
+  },
+  "steam_libraryCustomName_generatingSingleMnemonic": {
+    "message": "生成中..."
+  },
+  "steam_libraryCustomName_importChanges": {
+    "message": "追加と更新のみ"
+  },
+  "steam_libraryCustomName_importChangesDone": {
+    "message": "追加・更新インポートが完了しました: $matched$ 件一致、$selected$ 件が書き込み待ち、$unchanged$ 件変更なし",
+    "placeholders": {
+      "matched": {
+        "content": "$1"
+      },
+      "selected": {
+        "content": "$2"
+      },
+      "unchanged": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_libraryCustomName_importCover": {
+    "message": "上書きインポート"
+  },
+  "steam_libraryCustomName_importCoverDone": {
+    "message": "上書きインポートが完了しました: $matched$ 件一致、$selected$ 件が書き込み待ち",
+    "placeholders": {
+      "matched": {
+        "content": "$1"
+      },
+      "selected": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importingJson": {
+    "message": "JSON をインポート中 $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importModeMessage": {
+    "message": "この JSON ファイルの処理方法を選択してください"
+  },
+  "steam_libraryCustomName_importModeTitle": {
+    "message": "インポートモードを選択"
+  },
+  "steam_libraryCustomName_inputMissing": {
+    "message": "カスタム並べ替え名の入力欄が見つかりませんでした"
+  },
+  "steam_libraryCustomName_interruptPrompt": {
+    "message": "現在タスクが実行中です。停止しますか？"
+  },
+  "steam_libraryCustomName_interruptTitle": {
+    "message": "停止の確認"
+  },
+  "steam_libraryCustomName_jsonItemsRequired": {
+    "message": "JSON には items 配列が必要です"
+  },
+  "steam_libraryCustomName_jsonNameMissing": {
+    "message": "JSON 内で appid/name フィールドを認識できませんでした"
+  },
+  "steam_libraryCustomName_jsonReadFailed": {
+    "message": "JSON ファイルの読み取りに失敗しました"
+  },
+  "steam_libraryCustomName_limitWarning": {
+    "message": "カスタム名の件数が10,000件を超えるため、Steam Cloudに保存できません。続行しますか？ 現在: $current$、保留中: $pending$、予測合計: $projected$。",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "pending": {
+        "content": "$2"
+      },
+      "projected": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_libraryCustomName_limitWarningTitle": {
+    "message": "Steam Cloudの保存容量リスク"
+  },
+  "steam_libraryCustomName_loadingLocalList": {
+    "message": "ローカルリストを読み込み中 $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_loadLocalFirst": {
+    "message": "先にローカルリストを読み込んでください"
+  },
+  "steam_libraryCustomName_localListEmpty": {
+    "message": "利用可能なローカルリストデータがありません"
+  },
+  "steam_libraryCustomName_localListLoading": {
+    "message": "ローカルライブラリリストを読み込み中..."
+  },
+  "steam_libraryCustomName_matchingJson": {
+    "message": "JSON の $count$ 件の項目を照合中",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_mnemonicLoadFailed": {
+    "message": "語呂合わせツールの読み込みに失敗しました"
+  },
+  "steam_libraryCustomName_mnemonicSourceMissing": {
+    "message": "カスタム並べ替え名が空です"
+  },
+  "steam_libraryCustomName_mnemonicSourceUnsupported": {
+    "message": "現在の名前に語呂合わせの対象となる中国語テキストがありません"
+  },
+  "steam_libraryCustomName_mnemonicPrompt": {
+    "message": "保留中の書き込みデータを更新します。続行しますか？"
+  },
+  "steam_libraryCustomName_mode": {
+    "message": "モード"
+  },
+  "steam_libraryCustomName_namespaceLimitReached": {
+    "message": "Steam namespace 3 のカスタム名が上限の10,000件に達しました"
+  },
+  "steam_libraryCustomName_noClearableItems": {
+    "message": "クリアする項目がありません"
+  },
+  "steam_libraryCustomName_noClearableNames": {
+    "message": "選択したゲームにはクリアするカスタム並べ替え名がありません"
+  },
+  "steam_libraryCustomName_noMatches": {
+    "message": "一致するゲームがありません"
+  },
+  "steam_libraryCustomName_noMnemonicItems": {
+    "message": "処理する語呂合わせ項目がありません"
+  },
+  "steam_libraryCustomName_noSaveRunning": {
+    "message": "実行中の保存キューがありません"
+  },
+  "steam_libraryCustomName_noWritableItems": {
+    "message": "書き込み対象の項目がありません"
+  },
+  "steam_libraryCustomName_officialName": {
+    "message": "正式名称"
+  },
+  "steam_libraryCustomName_overwritePrompt": {
+    "message": "現在のカスタム並べ替え名を上書きします。続行しますか？"
+  },
+  "steam_libraryCustomName_pageSummary": {
+    "message": "全$count$件中 $from$-$to$件を表示、$pages$ページ中$page$ページ、選択済み",
+    "placeholders": {
+      "from": {
+        "content": "$1"
+      },
+      "to": {
+        "content": "$2"
+      },
+      "count": {
+        "content": "$3"
+      },
+      "page": {
+        "content": "$4"
+      },
+      "pages": {
+        "content": "$5"
+      }
+    }
+  },
+  "steam_libraryCustomName_pausing": {
+    "message": "一時停止中"
+  },
+  "steam_libraryCustomName_pausingSaveQueue": {
+    "message": "保存キューを一時停止中"
+  },
+  "steam_libraryCustomName_pendingName": {
+    "message": "保留中の名前"
+  },
+  "steam_libraryCustomName_policyCover": {
+    "message": "すべて上書き"
+  },
+  "steam_libraryCustomName_policyCurrentCustom": {
+    "message": "現在のカスタム名を保留値として使用"
+  },
+  "steam_libraryCustomName_policyHide": {
+    "message": "既存の項目を非表示"
+  },
+  "steam_libraryCustomName_policySkip": {
+    "message": "既存の項目をスキップ"
+  },
+  "steam_libraryCustomName_preparingCloudRequest": {
+    "message": "クラウド名のリクエストを準備中"
+  },
+  "steam_libraryCustomName_preparingQueryQueue": {
+    "message": "クエリキューを準備中 $current$/$total$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_previewCancelled": {
+    "message": "一括プレビューがキャンセルされました"
+  },
+  "steam_libraryCustomName_previewExpired": {
+    "message": "一括プレビューセッションの有効期限が切れました"
+  },
+  "steam_libraryCustomName_previewSummary": {
+    "message": "読み込み済み$search$: $selected$件選択、書き込み待ち $write$件、$skipped$件スキップ、上限 $limit$、容量 $capacity$",
+    "placeholders": {
+      "search": {
+        "content": "$1"
+      },
+      "selected": {
+        "content": "$2"
+      },
+      "write": {
+        "content": "$3"
+      },
+      "skipped": {
+        "content": "$4"
+      },
+      "limit": {
+        "content": "$5"
+      },
+      "capacity": {
+        "content": "$6"
+      }
+    }
+  },
+  "steam_libraryCustomName_querySelectedCloudTitle": {
+    "message": "選択したゲームのみクラウド名を取得"
+  },
+  "steam_libraryCustomName_readingJson": {
+    "message": "JSONファイルを読み込み中"
+  },
+  "steam_libraryCustomName_readingLibrary": {
+    "message": "Steamクライアントのライブラリ一覧を読み込み中"
+  },
+  "steam_libraryCustomName_reasonSuffix": {
+    "message": " ($reason$)",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_refreshCloudPrompt": {
+    "message": "保留中の書き込みデータが変更されました。クラウド名を再取得すると、手動でロックされていない、選択した保留中の値のみが更新されます。続行しますか？"
+  },
+  "steam_libraryCustomName_refreshCloudTitle": {
+    "message": "クラウド名の取得を確認"
+  },
+  "steam_libraryCustomName_resuming": {
+    "message": "再開中"
+  },
+  "steam_libraryCustomName_resumingSaveQueue": {
+    "message": "保存キューを再開中"
+  },
+  "steam_libraryCustomName_saveAlreadyRunning": {
+    "message": "保存キューはすでに実行中です"
+  },
+  "steam_libraryCustomName_saveCancelled": {
+    "message": "保存キューがキャンセルされました"
+  },
+  "steam_libraryCustomName_saveChanges": {
+    "message": "変更を保存"
+  },
+  "steam_libraryCustomName_saveCompleted": {
+    "message": "保存キューが完了しました"
+  },
+  "steam_libraryCustomName_savePaused": {
+    "message": "保存キューは一時停止中です"
+  },
+  "steam_libraryCustomName_saveProgress": {
+    "message": "保存の進捗状況"
+  },
+  "steam_libraryCustomName_saveProgressLine": {
+    "message": "合計: $total$、処理済み: $processed$、スキップ: $skipped$、失敗: $failed$、同期済み: $synced$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "processed": {
+        "content": "$2"
+      },
+      "skipped": {
+        "content": "$3"
+      },
+      "failed": {
+        "content": "$4"
+      },
+      "synced": {
+        "content": "$5"
+      }
+    }
+  },
+  "steam_libraryCustomName_saveResumed": {
+    "message": "保存キューが再開されました"
+  },
+  "steam_libraryCustomName_saveStatusExpired": {
+    "message": "保存キューのステータスの有効期限が切れました。結果を確認するには一括ウィンドウを再度開いてください。"
+  },
+  "steam_libraryCustomName_saveStatusTimeout": {
+    "message": "Steamの保存キューが応答しませんでした。結果を確認するには一括ウィンドウを再度開いてください。"
+  },
+  "steam_libraryCustomName_savingWithCloud": {
+    "message": "SucaiJun CloudにアップロードしながらSteamに書き込み中"
+  },
+  "steam_libraryCustomName_searchPlaceholder": {
+    "message": "ゲーム / AppID / 保留中の名前を検索"
+  },
+  "steam_libraryCustomName_searchSummary": {
+    "message": ", 検索 $visible$/$total$",
+    "placeholders": {
+      "visible": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_selectClearTargets": {
+    "message": "名前を消去するゲームを選択"
+  },
+  "steam_libraryCustomName_selectCloudTargets": {
+    "message": "クラウド名を取得するゲームを選択"
+  },
+  "steam_libraryCustomName_startClearQueue": {
+    "message": "消去キューを開始中: $count$件を消去、$skipped$件をスキップ",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "skipped": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_startSaveQueue": {
+    "message": "保存キューを開始中: $count$件を書き込み、$skipped$件をスキップ",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "skipped": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_steamDoneWaitingCloud": {
+    "message": "Steamへの書き込みが完了しました。SucaiJun Cloudへのアップロード完了を待っています。"
+  },
+  "steam_libraryCustomName_storageLimitTip": {
+    "message": "項目数と容量の上限は、カスタム並べ替え名に対するSteam公式の制限です。これらの上限を超える名前は、ローカルまたはSteam Cloudへの保存に失敗する場合があります。"
+  },
+  "steam_libraryCustomName_typeGame": {
+    "message": "ゲーム"
+  },
+  "steam_libraryCustomName_typeOther": {
+    "message": "その他"
+  },
+  "steam_libraryCustomName_typeScope": {
+    "message": "種類の範囲"
+  },
+  "steam_libraryCustomName_typeSoftware": {
+    "message": "ソフトウェア"
+  },
+  "steam_libraryCustomName_typeTool": {
+    "message": "ツール"
+  },
+  "steam_libraryCustomName_uploadCloud": {
+    "message": "名前をクラウドにアップロード"
+  },
+  "steam_libraryCustomName_uploadCloudLabel": {
+    "message": "名前をクラウドにアップロード"
+  },
+  "steam_libraryCustomName_waitingQuery": {
+    "message": "クエリを待っています"
+  },
+  "steam_libraryCustomName_waitingSteamBatch": {
+    "message": "Steamの同期ウィンドウでバッチ $batch$ が終了するのを待っています。SucaiJun Cloudへのアップロードは一時停止しています。",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_writeBatchWaiting": {
+    "message": "書き込みバッチ $batch$ が完了しました。Steam Cloudとの同期のため、$seconds$秒待っています。",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "seconds": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_writeRejected": {
+    "message": "Steamに書き込みを拒否されました"
+  },
+  "steam_libraryCustomName_writingBatch": {
+    "message": "Steamの書き込みバッチ $batch$ を処理中 $written$/$max$$cloud$",
+    "placeholders": {
+      "batch": {
+        "content": "$1"
+      },
+      "written": {
+        "content": "$2"
+      },
+      "max": {
+        "content": "$3"
+      },
+      "cloud": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_libraryCustomName_writingSteam": {
+    "message": "Steamに書き込み中"
+  },
+  "steam_libraryCustomName_writingSteamItems": {
+    "message": "項目を1つずつSteamに書き込み中"
+  },
+  "common_add": {
+    "message": "追加"
+  },
+  "common_all": {
+    "message": "すべて"
+  },
+  "common_collapse": {
+    "message": "折りたたむ"
+  },
+  "common_content": {
+    "message": "コンテンツ"
+  },
+  "common_delete": {
+    "message": "削除"
+  },
+  "common_disable": {
+    "message": "無効化"
+  },
+  "common_disabled": {
+    "message": "無効"
+  },
+  "common_edit": {
+    "message": "編集"
+  },
+  "common_elapsedSeconds": {
+    "message": "$seconds$秒かかりました",
+    "placeholders": {
+      "seconds": {
+        "content": "$1"
+      }
+    }
+  },
+  "common_enable": {
+    "message": "有効化"
+  },
+  "common_more": {
+    "message": "その他"
+  },
+  "common_saveSettings": {
+    "message": "設定を保存"
+  },
+  "common_saving": {
+    "message": "保存中..."
+  },
+  "common_testConnection": {
+    "message": "接続をテスト"
+  },
+  "common_testing": {
+    "message": "テスト中"
+  },
+  "common_type": {
+    "message": "種類"
+  },
+  "common_unknownError": {
+    "message": "不明なエラー"
+  },
+  "common_unknownUser": {
+    "message": "不明なユーザー"
+  },
+  "settings_ai_disableBlocked": {
+    "message": "$users$人がAIサービスを使用中のため、無効化できません。",
+    "placeholders": {
+      "users": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_disableBlockedTitle": {
+    "message": "AIサービスを無効化できません"
+  },
+  "settings_ai_hint": {
+    "message": "すべてのAIリクエストに使用されます"
+  },
+  "settings_ai_saveError": {
+    "message": "AI設定の保存中にエラーが発生しました。後でもう一度お試しください。"
+  },
+  "settings_ai_saveFailed": {
+    "message": "AI設定を保存できませんでした。後でもう一度お試しください。"
+  },
+  "settings_ai_permissionDenied": {
+    "message": "現在のAIゲートウェイへのアクセスが許可されていません。アクセスを許可してから、もう一度お試しください。"
+  },
+  "settings_ai_permissionFailed": {
+    "message": "現在のAIゲートウェイへのアクセスをリクエストできません。後でもう一度お試しください。"
+  },
+  "settings_ai_permissionBrowserTitle": {
+    "message": "ブラウザでの認証が必要です"
+  },
+  "steamRootMenu_chromiumBrowser": {
+    "message": "ブラウザ"
+  },
+  "steamRootMenu_extensionManagement": {
+    "message": "拡張機能の管理"
+  },
+  "steamRootMenu_settingsCenter": {
+    "message": "Steam Buff設定センター"
+  },
+  "settings_ai_permissionBrowserMessage": {
+    "message": "この操作にはChromiumブラウザでの認証が必要です。続行しますか？"
+  },
+  "settings_ai_permissionTimeout": {
+    "message": "認証がタイムアウトしました。もう一度お試しください。"
+  },
+  "settings_ai_permissionWaiting": {
+    "message": "ブラウザでの認証を待機中"
+  },
+  "settings_ai_permissionRetryTitle": {
+    "message": "認証に失敗しました"
+  },
+  "settings_ai_permissionRetryMessage": {
+    "message": "理由: $reason$\n再試行しますか？",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiPermissionPageTitle": {
+    "message": "Steam Buff - AIゲートウェイの認証"
+  },
+  "aiPermissionPageSection": {
+    "message": "AIゲートウェイの認証"
+  },
+  "aiPermissionPageEyebrow": {
+    "message": "アクセス許可"
+  },
+  "aiPermissionPageHeading": {
+    "message": "AIゲートウェイへのアクセスを許可"
+  },
+  "aiPermissionPageDescription": {
+    "message": "AI設定を保存したり接続をテストしたりするには、Steam Buffにこのドメインへのアクセスを許可する必要があります。"
+  },
+  "aiPermissionPageOriginLabel": {
+    "message": "認証するドメイン"
+  },
+  "aiPermissionPageAction": {
+    "message": "アクセスをリクエスト"
+  },
+  "aiPermissionPageChecking": {
+    "message": "確認中..."
+  },
+  "aiPermissionPageRequesting": {
+    "message": "リクエスト中..."
+  },
+  "aiPermissionPageSuccess": {
+    "message": "アクセスが許可されました。設定に戻ります。"
+  },
+  "aiPermissionPageDenied": {
+    "message": "アクセスは許可されませんでした。設定に戻って再試行してください。"
+  },
+  "aiPermissionPageFailed": {
+    "message": "認証に失敗しました。後でもう一度お試しください。"
+  },
+  "aiPermissionPageInvalid": {
+    "message": "この認証リクエストは無効です。設定に戻ってもう一度お試しください。"
+  },
+  "aiPermissionPageExpired": {
+    "message": "この認証リクエストの有効期限が切れています。設定に戻り、もう一度開始してください。"
+  },
+  "settings_ai_test_enableFirst": {
+    "message": "先にAIモジュールを有効にしてください。"
+  },
+  "settings_ai_test_failed": {
+    "message": "AIテストに失敗しました"
+  },
+  "settings_ai_test_missingConfig": {
+    "message": "AIゲートウェイのURLとモデルを入力してください。"
+  },
+  "settings_ai_test_responseReceived": {
+    "message": "応答を受信しました"
+  },
+  "settings_ai_test_success": {
+    "message": "AIテストに成功しました"
+  },
+  "settings_ai_test_systemPrompt": {
+    "message": "あなたはAPI接続テスト用のアシスタントです。プレーンテキストのみで応答してください。"
+  },
+  "settings_ai_test_title": {
+    "message": "AIテスト"
+  },
+  "settings_ai_test_userPrompt": {
+    "message": "次の文だけを返してください: Steam Buff AIテストに成功しました"
+  },
+  "settings_ai_title": {
+    "message": "AIの一般設定"
+  },
+  "settings_ai_user_selection": {
+    "message": "選択範囲の翻訳"
+  },
+  "settings_ai_user_translation": {
+    "message": "翻訳"
+  },
+  "settings_reviewFilter_conditions_hint": {
+    "message": "0にすると数値条件が無効になります"
+  },
+  "settings_reviewFilter_conditions_title": {
+    "message": "追加条件"
+  },
+  "settings_reviewFilter_filtered_countSuffix": {
+    "message": "件のレビュー"
+  },
+  "settings_reviewFilter_filtered_empty": {
+    "message": "このページでは非表示にするレビューはありません"
+  },
+  "settings_reviewFilter_filtered_hiddenPrefix": {
+    "message": "このページで非表示"
+  },
+  "settings_reviewFilter_filtered_title": {
+    "message": "フィルタリング済みのレビュー"
+  },
+  "settings_reviewFilter_filtered_viewCount": {
+    "message": "フィルタリング済みのレビューを表示 ($count$)",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_noReviewContent": {
+    "message": "レビュー内容なし"
+  },
+  "settings_reviewFilter_rule_addFailed": {
+    "message": "ルールを追加できませんでした"
+  },
+  "settings_reviewFilter_rule_content": {
+    "message": "ブロック対象の内容"
+  },
+  "settings_reviewFilter_rule_countSuffix": {
+    "message": "ルール"
+  },
+  "settings_reviewFilter_rule_currentCategoryPrefix": {
+    "message": "このカテゴリのルール"
+  },
+  "settings_reviewFilter_rule_editTitle": {
+    "message": "ブロックルールを編集"
+  },
+  "settings_reviewFilter_rule_empty": {
+    "message": "ブロックルールはありません"
+  },
+  "settings_reviewFilter_rule_enterContent": {
+    "message": "先にブロックする内容を入力してください。"
+  },
+  "settings_reviewFilter_rule_filterType": {
+    "message": "レビューフィルタールールの種類"
+  },
+  "settings_reviewFilter_rule_hint": {
+    "message": "改行は同じルールの一部として保存されます"
+  },
+  "settings_reviewFilter_rule_invalidRegex": {
+    "message": "無効な正規表現: $message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_rule_keyword": {
+    "message": "キーワード"
+  },
+  "settings_reviewFilter_rule_listTitle": {
+    "message": "ブロックルール"
+  },
+  "settings_reviewFilter_rule_matched": {
+    "message": "ルールに一致しました"
+  },
+  "settings_reviewFilter_rule_nickname": {
+    "message": "ニックネーム"
+  },
+  "settings_reviewFilter_rule_placeholder": {
+    "message": "ブロックする内容を入力してください。追加をクリックすると、複数行が1つのルールとして保存されます。"
+  },
+  "settings_reviewFilter_rule_regex": {
+    "message": "正規表現"
+  },
+  "settings_reviewFilter_rule_saveFailed": {
+    "message": "ブロックルールを保存できませんでした。後でもう一度お試しください。"
+  },
+  "settings_reviewFilter_rule_title": {
+    "message": "フィルタールール"
+  },
+  "settings_reviewFilter_rule_type": {
+    "message": "ルールの種類"
+  },
+  "settings_reviewFilter_rule_viewAll": {
+    "message": "さらに表示（合計$count$件）",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_saveError": {
+    "message": "レビューフィルター設定の保存中にエラーが発生しました。後でもう一度お試しください。"
+  },
+  "settings_reviewFilter_saveFailed": {
+    "message": "レビューフィルター設定を保存できませんでした。後でもう一度お試しください。"
+  },
+  "settings_searchSuggestions_hint": {
+    "message": "候補の表示件数とSteam標準の検索結果表示を制御します"
+  },
+  "settings_searchSuggestions_saveError": {
+    "message": "検索候補設定の保存中にエラーが発生しました。後でもう一度お試しください。"
+  },
+  "settings_searchSuggestions_saveFailed": {
+    "message": "検索候補設定を保存できませんでした。後でもう一度お試しください。"
+  },
+  "settings_searchSuggestions_title": {
+    "message": "検索候補設定"
+  },
+  "settings_translate_newsPopup": {
+    "message": "Steamニュースポップアップの翻訳"
+  },
+  "settings_translate_saveError": {
+    "message": "翻訳設定の保存中にエラーが発生しました。後でもう一度お試しください。"
+  },
+  "settings_translate_saveFailed": {
+    "message": "翻訳設定を保存できませんでした。後でもう一度お試しください。"
+  },
+  "settings_translate_scope": {
+    "message": "翻訳範囲"
+  },
+  "settings_translate_selection": {
+    "message": "選択範囲の翻訳"
+  },
+  "store_familyLibrary_interval1d": {
+    "message": "1日"
+  },
+  "store_familyLibrary_interval30d": {
+    "message": "30日"
+  },
+  "store_familyLibrary_interval3d": {
+    "message": "3日"
+  },
+  "store_familyLibrary_interval7d": {
+    "message": "7日"
+  },
+  "store_familyLibrary_intervalManual": {
+    "message": "手動"
+  },
+  "common_processing": {
+    "message": "処理中"
+  },
+  "common_clickToCopy": {
+    "message": "クリックしてコピー"
+  },
+  "common_copyFailedManual": {
+    "message": "コピーに失敗しました。手動でコピーしてください。"
+  },
+  "common_networkFailed": {
+    "message": "ネットワークリクエストに失敗しました。接続を確認するか、後でもう一度お試しください。"
+  },
+  "settings_membership_unavailable": {
+    "message": "利用できません"
+  },
+  "settings_membership_sponsorIdentity": {
+    "message": "スポンサー会員"
+  },
+  "settings_membership_identityOnly": {
+    "message": "$identity$で利用可能",
+    "placeholders": {
+      "identity": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_syncing": {
+    "message": "アカウント情報を同期中"
+  },
+  "settings_account_welcome_eyebrow": {
+    "message": "Steam Buffアカウント"
+  },
+  "settings_account_welcome_back": {
+    "message": "おかえりなさい。"
+  },
+  "settings_account_welcome_unlock": {
+    "message": "あなた専用の"
+  },
+  "settings_account_welcome_experience": {
+    "message": "パーソナルな体験"
+  },
+  "settings_account_welcome_description": {
+    "message": "サインインすると、アカウントの詳細、機能の利用状況、スポンサー特典を確認できます。データは安全に同期されます。"
+  },
+  "settings_account_processingLogin": {
+    "message": "サインインリクエストを処理中"
+  },
+  "settings_account_loginBind": {
+    "message": "サインイン / アカウントをリンク"
+  },
+  "settings_account_roadmap": {
+    "message": "アカウント機能とロードマップ"
+  },
+  "settings_account_feature_customNames_name": {
+    "message": "カスタム名"
+  },
+  "settings_account_feature_customNames_desc": {
+    "message": "ゲームに印象に残る名前を付けて、リスト上で見つけやすくします。"
+  },
+  "settings_account_feature_gameNotes_name": {
+    "message": "ゲームメモ"
+  },
+  "settings_account_feature_gameNotes_desc": {
+    "message": "各ゲームに購入理由や個人的なメモを残せます。"
+  },
+  "settings_account_feature_priceAlerts_name": {
+    "message": "価格アラート"
+  },
+  "settings_account_feature_priceAlerts_desc": {
+    "message": "毎日価格を確認し、設定した目標価格になるとQQまたはメールで通知します。"
+  },
+  "settings_account_feature_searchSuggestions_name": {
+    "message": "検索候補"
+  },
+  "settings_account_feature_searchSuggestions_desc": {
+    "message": "ゲーム名をインテリジェントに補完し、タイトルをより早く見つけられます。"
+  },
+  "settings_account_sponsor": {
+    "message": "スポンサー"
+  },
+  "settings_account_userFallback": {
+    "message": "Steam Buffユーザー"
+  },
+  "settings_account_userIdUnavailable": {
+    "message": "ユーザーIDを利用できません"
+  },
+  "settings_account_normalUser": {
+    "message": "標準ユーザー"
+  },
+  "settings_account_entitlementUnavailable": {
+    "message": "利用権限のステータスを取得できません"
+  },
+  "settings_account_entitlementDescriptionUnavailable": {
+    "message": "利用権限の説明を取得できません"
+  },
+  "settings_account_profileTooltip": {
+    "message": "アカウントの詳細を表示"
+  },
+  "settings_account_profileId": {
+    "message": "ID"
+  },
+  "settings_account_profileUsername": {
+    "message": "ニックネーム"
+  },
+  "settings_account_profileLevel": {
+    "message": "レベル"
+  },
+  "settings_account_profileEntitlement": {
+    "message": "利用権限"
+  },
+  "settings_account_profileUsageTime": {
+    "message": "利用時間"
+  },
+  "settings_account_levelUnavailable": {
+    "message": "レベルを利用できません"
+  },
+  "settings_account_copyUserId": {
+    "message": "ユーザーIDをコピー"
+  },
+  "settings_account_entitlementSources": {
+    "message": "現在有効な利用権限の取得元"
+  },
+  "settings_account_viewEntitlements": {
+    "message": "利用権限を表示"
+  },
+  "settings_account_entitlementsTitle": {
+    "message": "自分の利用権限"
+  },
+  "settings_account_entitlementsEmpty": {
+    "message": "表示できるVIPまたはバッジはありません"
+  },
+  "settings_account_entitlementCatalog": {
+    "message": "設定済みの権利情報ソース"
+  },
+  "settings_account_vipValidUntil": {
+    "message": "VIPの有効期限: $date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_vipPermanent": {
+    "message": "VIPは無期限です"
+  },
+  "settings_account_entitlementValidUntil": {
+    "message": "有効期限: $date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_entitlementPermanent": {
+    "message": "無期限"
+  },
+  "settings_account_vipExpiryUnavailable": {
+    "message": "VIPの有効期間を取得できません"
+  },
+  "settings_account_remainingDays": {
+    "message": "残り$days$日",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_medalAcquiredAt": {
+    "message": "取得日: $date$",
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_joinedDays": {
+    "message": "Steam Buffを$days$日間利用中",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_bound": {
+    "message": "Steam Buffアカウント連携済み"
+  },
+  "settings_account_expiring": {
+    "message": "$identity$の有効期限がまもなく切れます",
+    "placeholders": {
+      "identity": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_refresh": {
+    "message": "データを更新"
+  },
+  "settings_account_actions": {
+    "message": "アカウント操作"
+  },
+  "settings_account_editProfile": {
+    "message": "プロフィールを編集"
+  },
+  "settings_account_logout": {
+    "message": "サインアウト"
+  },
+  "settings_account_status": {
+    "message": "ステータス"
+  },
+  "settings_account_waitingAuthorization": {
+    "message": "ブラウザでの認証を待機中"
+  },
+  "settings_account_authorizationCode": {
+    "message": "認証コード"
+  },
+  "settings_account_authorizationPage": {
+    "message": "認証ページ"
+  },
+  "settings_account_copyAuthorizationCode": {
+    "message": "クリックして認証コードをコピー"
+  },
+  "settings_account_copyAuthorizationPage": {
+    "message": "クリックして認証ページの完全なURLをコピー"
+  },
+  "settings_account_openAuthorizationPage": {
+    "message": "認証ページを開く"
+  },
+  "settings_account_loginToView": {
+    "message": "ログインして表示"
+  },
+  "settings_account_unlimited": {
+    "message": "無制限"
+  },
+  "settings_account_usedPercent": {
+    "message": "$percent$%使用済み",
+    "placeholders": {
+      "percent": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_todayUsedPercent": {
+    "message": "本日$percent$%使用済み",
+    "placeholders": {
+      "percent": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_quotaUnavailable": {
+    "message": "クォータを取得できません"
+  },
+  "settings_account_usageTitle": {
+    "message": "機能の利用状況"
+  },
+  "settings_account_learnIdentity": {
+    "message": "$identity$について詳しく見る",
+    "placeholders": {
+      "identity": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_itemUnit": {
+    "message": "件"
+  },
+  "settings_account_viewList": {
+    "message": "一覧を表示"
+  },
+  "settings_account_available": {
+    "message": "利用可能"
+  },
+  "settings_account_targetPriceAlert": {
+    "message": "目標価格アラート"
+  },
+  "settings_account_qqEmail": {
+    "message": "QQ / メール"
+  },
+  "settings_account_notEnabled": {
+    "message": "有効になっていません"
+  },
+  "settings_account_unlockIdentity": {
+    "message": "$identity$でロック解除",
+    "placeholders": {
+      "identity": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_servicePrefix": {
+    "message": "計算サービス提供元: "
+  },
+  "settings_account_serviceProviderName": {
+    "message": "RainYun"
+  },
+  "settings_account_serviceSuffix": {
+    "message": ""
+  },
+  "settings_account_soon_title": {
+    "message": "機能ページは後日提供予定"
+  },
+  "settings_account_soon_message": {
+    "message": "この機能の管理ページは、まだ設定にありません。"
+  },
+  "settings_account_userIdCopied": {
+    "message": "ユーザーIDをコピーしました"
+  },
+  "settings_account_loginCancelled": {
+    "message": "サインインをキャンセルしました"
+  },
+  "settings_account_authStorageUnavailable": {
+    "message": "サインイン情報の保存領域を利用できません"
+  },
+  "settings_account_authSaveFailed": {
+    "message": "サインイン状態を保存できませんでした"
+  },
+  "settings_account_authClearFailed": {
+    "message": "ローカルのサインイン状態を消去できませんでした"
+  },
+  "settings_account_loginRequired": {
+    "message": "先に設定からサインインしてください"
+  },
+  "settings_account_loginExpired": {
+    "message": "サインインの有効期限が切れました。もう一度サインインしてください。"
+  },
+  "settings_account_loggingOut": {
+    "message": "サインアウト中"
+  },
+  "settings_account_remoteLogoutFailed": {
+    "message": "リモートサインアウトに失敗しました: $status$",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_account_loggedOut": {
+    "message": "サインアウトしました"
+  },
+  "settings_account_profileModuleUnavailable": {
+    "message": "アカウントプロフィールモジュールを利用できません"
+  },
+  "settings_account_centerLoadFailed": {
+    "message": "アカウントセンターを読み込めませんでした"
+  },
+  "settings_account_membershipStorageUnavailable": {
+    "message": "メンバーシップの保存領域を利用できません"
+  },
+  "settings_account_membershipSaveFailed": {
+    "message": "メンバーシップの状態を保存できませんでした"
+  },
+  "settings_account_requestUnavailable": {
+    "message": "設定リクエストサービスを利用できません"
+  },
+  "settings_account_requestLabel": {
+    "message": "アカウントセンター API"
+  },
+  "settings_account_fetchingCode": {
+    "message": "認証コードをリクエスト中"
+  },
+  "settings_account_fetchCodeFailed": {
+    "message": "認証コードを取得できませんでした"
+  },
+  "settings_account_dataLoadRetry": {
+    "message": "データを読み込めませんでした。クリックして再試行してください。"
+  },
+  "settings_account_codeExpired": {
+    "message": "認証コードの有効期限が切れました"
+  },
+  "settings_account_loginFailed": {
+    "message": "サインインに失敗しました"
+  },
+  "settings_account_loginSucceeded": {
+    "message": "サインインしました"
+  },
+  "settings_account_authorizationLinkCopied": {
+    "message": "認証リンク全体をコピーしました"
+  },
+  "settings_account_authorizationCodeCopied": {
+    "message": "認証コードをコピーしました"
+  },
+  "settings_thirdParty_testEndpointUnavailable": {
+    "message": "ITADテストエンドポイントが設定されていません。"
+  },
+  "settings_thirdParty_authFailed": {
+    "message": "ITAD APIキーの検証に失敗しました。キーと権限を確認してください。"
+  },
+  "settings_thirdParty_rateLimited": {
+    "message": "ITADによってリクエストがレート制限されました。後でもう一度お試しください。"
+  },
+  "settings_thirdParty_unavailable": {
+    "message": "ITADを一時的に利用できません。後でもう一度お試しください。"
+  },
+  "settings_thirdParty_httpError": {
+    "message": "ITADテストエンドポイントがステータス $status$ を返しました。",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_thirdParty_invalidResponse": {
+    "message": "ITADテストエンドポイントが無効なレスポンスを返しました。"
+  },
+  "settings_thirdParty_saveFailed": {
+    "message": "サードパーティサービスの設定を保存できませんでした。後でもう一度お試しください。"
+  },
+  "settings_thirdParty_saveException": {
+    "message": "サードパーティサービスの設定の保存中にエラーが発生しました。後でもう一度お試しください。"
+  },
+  "settings_thirdParty_testTitle": {
+    "message": "ITADテスト"
+  },
+  "settings_thirdParty_keyRequired": {
+    "message": "先にITAD APIキーを入力してください。"
+  },
+  "settings_thirdParty_testing": {
+    "message": "テスト中"
+  },
+  "settings_thirdParty_testRequestLabel": {
+    "message": "ITADテストエンドポイント"
+  },
+  "settings_thirdParty_testFailedTitle": {
+    "message": "ITADテストに失敗しました"
+  },
+  "settings_thirdParty_testSucceededTitle": {
+    "message": "ITADテストに成功しました"
+  },
+  "settings_thirdParty_testSucceededMessage": {
+    "message": "ITADテストエンドポイントから応答を受信しました。"
+  },
+  "settings_thirdParty_title": {
+    "message": "第三者サービス"
+  },
+  "settings_thirdParty_keyConfigured": {
+    "message": "ITADキーは設定済みです"
+  },
+  "settings_thirdParty_keyMissing": {
+    "message": "ITADキーは設定されていません"
+  },
+  "settings_thirdParty_testConnection": {
+    "message": "接続をテスト"
+  },
+  "store_dataDisplay_thirdPartyLoadFailed": {
+    "message": "第三者価格データを読み込めませんでした。後でもう一度お試しください。"
+  },
+  "store_familySharing_title": {
+    "message": "ファミリーシェアリングの確認"
+  },
+  "store_familySharing_unsupported": {
+    "message": "このゲームはファミリーシェアリングに対応していません"
+  },
+  "store_runtime_featureStartFailed": {
+    "message": "ストア拡張機能の開始に失敗しました。他の機能は引き続き読み込まれます。"
+  },
+  "steam_runtime_featureUnavailable": {
+    "message": "Steamクライアントの機能を一時的に利用できません。他の機能は引き続き読み込まれます。"
+  },
+  "steam_runtime_featureStartFailed": {
+    "message": "Steamクライアントの機能の開始に失敗しました。他の機能は引き続き動作します。"
+  },
+  "store_cartSelect_bulkFailed": {
+    "message": "カートの選択を更新できませんでした。"
+  },
+  "store_cartSelect_checkoutFailed": {
+    "message": "カートの選択を処理できませんでした。"
+  },
+  "store_cartSelect_clearSelection": {
+    "message": "選択を解除"
+  },
+  "store_cartSelect_holdFailed": {
+    "message": "カートを一時的に更新できませんでした。保存したアイテムは手動で復元できます。"
+  },
+  "store_cartSelect_holdingItems": {
+    "message": "未払いのアイテムを$count$件、一時的に保持しています...",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_invertSelection": {
+    "message": "選択を反転"
+  },
+  "store_cartSelect_keepItems": {
+    "message": "アイテムを保持"
+  },
+  "store_cartSelect_payThisTime": {
+    "message": "このアイテムを支払う"
+  },
+  "store_cartSelect_purchaseCount": {
+    "message": "選択中のアイテム"
+  },
+  "store_cartSelect_removeAll": {
+    "message": "すべて削除"
+  },
+  "store_cartSelect_removeAllConfirm": {
+    "message": "カートからすべてのアイテムを削除しますか？"
+  },
+  "store_cartSelect_removeAllMessage": {
+    "message": "Steamによりカートからすべてのアイテムが削除されます。Steam本来の「すべて削除」操作を続行するには確認し、アイテムを残すにはキャンセルしてください。"
+  },
+  "store_cartSelect_removeAllTitle": {
+    "message": "カートのアイテムをすべて削除"
+  },
+  "store_cartSelect_restoreButton": {
+    "message": "保存したカートアイテムを復元"
+  },
+  "store_cartSelect_restored": {
+    "message": "前回のカートから未払いのアイテムを復元しました。"
+  },
+  "store_cartSelect_restoreFailed": {
+    "message": "保存したカートアイテムを復元できませんでした。もう一度お試しください。"
+  },
+  "store_cartSelect_restoreMissing": {
+    "message": "保存したカートアイテム$count$件を復元できませんでした。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_restorePartialFailed": {
+    "message": "一部の保存したカートアイテムを復元できませんでした。後でもう一度お試しください。"
+  },
+  "store_cartSelect_restoreStillMissing": {
+    "message": "保存したカートアイテム$count$件がまだ見つかりません。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_restoring": {
+    "message": "保存したカートアイテム$count$件を復元しています...",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_saveFailed": {
+    "message": "カートの選択を保存できませんでした。前回の選択を復元しました。"
+  },
+  "store_cartSelect_selectAll": {
+    "message": "すべて選択"
+  },
+  "store_cartSelect_selectAtLeastOne": {
+    "message": "支払うアイテムを1つ以上選択してください。"
+  },
+  "store_cartSelect_selectedTotal": {
+    "message": "選択したアイテムの合計"
+  },
+  "store_cartSelect_skipPayment": {
+    "message": "今は支払わない"
+  },
+  "store_dlc_addingToCart": {
+    "message": "カートに追加しています..."
+  },
+  "store_dlc_addSelectedToCart": {
+    "message": "選択したDLCをカートに追加"
+  },
+  "store_dlc_addToCartFailed": {
+    "message": "DLCをカートに追加できませんでした"
+  },
+  "store_dlc_addToCartFailedDetail": {
+    "message": "後でもう一度お試しいただくか、このストアページを更新してから再度お試しください。"
+  },
+  "store_dlc_batchClaim": {
+    "message": "一括受け取り"
+  },
+  "store_dlc_cacheNotice": {
+    "message": "直近数分以内にこのゲームを受け取った、購入した、またはウィッシュリストの状態を変更した場合、Steamに古い結果が表示される可能性があります。この操作を使用する前に「DLCの状態を更新」を選択してください。"
+  },
+  "store_dlc_cancel": {
+    "message": "キャンセル"
+  },
+  "store_dlc_claim": {
+    "message": "受け取る"
+  },
+  "store_dlc_claimAllFree": {
+    "message": "無料DLCをすべて受け取る"
+  },
+  "store_dlc_claimComplete": {
+    "message": "受け取り完了！"
+  },
+  "store_dlc_claimConfirm": {
+    "message": "$count$件の無料DLCが見つかりました。今すぐ受け取りますか？",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_claimFailedCount": {
+    "message": "失敗: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_claimFailedItems": {
+    "message": "失敗した項目: $items$",
+    "placeholders": {
+      "items": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_claimingFree": {
+    "message": "無料DLCを受け取り中..."
+  },
+  "store_dlc_claimSuccessCount": {
+    "message": "成功: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_close": {
+    "message": "閉じる"
+  },
+  "store_dlc_deselectAll": {
+    "message": "すべての選択を解除"
+  },
+  "store_dlc_executionFailed": {
+    "message": "操作に失敗しました"
+  },
+  "store_dlc_failedItemSeparator": {
+    "message": "; "
+  },
+  "store_dlc_loadFreeInfoFailed": {
+    "message": "無料DLC情報を読み込めませんでした"
+  },
+  "store_dlc_loadingFreeInfo": {
+    "message": "無料DLC情報を読み込み中..."
+  },
+  "store_dlc_moreFailedItems": {
+    "message": "; ..."
+  },
+  "store_dlc_noFreeDlc": {
+    "message": "受け取り可能な無料DLCは見つかりませんでした"
+  },
+  "store_dlc_refreshFailed": {
+    "message": "DLCの状態を更新できませんでした"
+  },
+  "store_dlc_refreshFailedDetail": {
+    "message": "エラー: $error$\n後でもう一度試すか、このストアページを手動で更新してください。",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_refreshing": {
+    "message": "状態を更新中..."
+  },
+  "store_dlc_refreshSectionMissing": {
+    "message": "更新後のDLCセクションが見つかりませんでした"
+  },
+  "store_dlc_refreshState": {
+    "message": "DLCの状態を更新"
+  },
+  "store_dlc_requestFailed": {
+    "message": "HTTPステータス $status$ でリクエストに失敗しました。",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_sameOriginRejected": {
+    "message": "同一オリジンのDLCリクエストが拒否されました"
+  },
+  "store_dlc_scriptInjectionFailed": {
+    "message": "スクリプトの注入に失敗しました"
+  },
+  "store_dlc_selectUnowned": {
+    "message": "未所有のDLCを選択"
+  },
+  "store_dlc_selectWishlisted": {
+    "message": "ウィッシュリストに追加済みのDLCを選択"
+  },
+  "store_dlc_stateNoticeTitle": {
+    "message": "DLCの状態に関する通知"
+  },
+  "store_dlc_tryLater": {
+    "message": "後でもう一度試す"
+  },
+  "store_dlc_unknownError": {
+    "message": "不明なエラー"
+  },
+  "store_dlc_unknownItem": {
+    "message": "不明な項目"
+  },
+  "store_priceHistory_bundled": {
+    "message": " バンドル収録: $count$回",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_bundledUnavailable": {
+    "message": " バンドル収録: 利用不可"
+  },
+  "store_priceHistory_cancel": {
+    "message": "キャンセル"
+  },
+  "store_priceHistory_capabilityUnsupported": {
+    "message": "現在のプラットフォームでは価格データに対応していません。"
+  },
+  "store_priceHistory_close": {
+    "message": "閉じる"
+  },
+  "store_priceHistory_compareCheaper": {
+    "message": "$amount$安い（-$discount$%）。",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      },
+      "discount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_priceHistory_compareEqual": {
+    "message": " 過去の最安値と同じです。"
+  },
+  "store_priceHistory_compareLowPrefix": {
+    "message": " 過去最安値と比べて、"
+  },
+  "store_priceHistory_compareMoreExpensive": {
+    "message": "$amount$ 高い（+$discount$%）。",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      },
+      "discount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_priceHistory_confirm": {
+    "message": "確認"
+  },
+  "store_priceHistory_currentHistoricalLow": {
+    "message": "現在の過去最安値割引率"
+  },
+  "store_priceHistory_currentLowestDiscount": {
+    "message": "現在の最安割引率"
+  },
+  "store_priceHistory_currentRegularPrice": {
+    "message": "現在の通常価格"
+  },
+  "store_priceHistory_daysAgo": {
+    "message": " ($days$日前)",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_dlcHistoricalLow": {
+    "message": "過去最安値"
+  },
+  "store_priceHistory_dlcHistoryLabel": {
+    "message": "過去最安値 $price$、$date$、出典：$source$",
+    "placeholders": {
+      "price": {
+        "content": "$1"
+      },
+      "date": {
+        "content": "$2"
+      },
+      "source": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_priceHistory_dlcLoading": {
+    "message": "過去最安値を読み込み中..."
+  },
+  "store_priceHistory_historicalLowAt": {
+    "message": "過去最安値の割引率： "
+  },
+  "store_priceHistory_historicalLowValuePrefix": {
+    "message": "$days$: ",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_hour": {
+    "message": "時間"
+  },
+  "store_priceHistory_invalidSteamItem": {
+    "message": "無効なSteamアイテム識別子"
+  },
+  "store_priceHistory_itadNotListed": {
+    "message": "ITADにはこの購入アイテムが掲載されていません。"
+  },
+  "store_priceHistory_listSeparator": {
+    "message": "、 "
+  },
+  "store_priceHistory_loading": {
+    "message": "過去最安値価格を読み込み中..."
+  },
+  "store_priceHistory_minute": {
+    "message": "分"
+  },
+  "store_priceHistory_monitorAmount": {
+    "message": "目標価格"
+  },
+  "store_priceHistory_monitorAmountInvalid": {
+    "message": "目標価格は1～$amount$の範囲で指定してください。",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_monitorAmountMaximum": {
+    "message": "目標価格（上限 $amount$）",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_monitorAmountMiddle": {
+    "message": " 以下になったら、次の宛先に通知： "
+  },
+  "store_priceHistory_monitorAmountPrefix": {
+    "message": " に達したら "
+  },
+  "store_priceHistory_monitorAnd": {
+    "message": " と "
+  },
+  "store_priceHistory_monitorAuthErrorTitle": {
+    "message": "認証確認に失敗しました"
+  },
+  "store_priceHistory_monitorAuthFailed": {
+    "message": "ログイン状態を確認できませんでした。"
+  },
+  "store_priceHistory_monitorAuthUnavailable": {
+    "message": "価格監視の認証を利用できません"
+  },
+  "store_priceHistory_monitorCompleteFields": {
+    "message": "入力を完了してください "
+  },
+  "store_priceHistory_monitorCondition": {
+    "message": "監視条件"
+  },
+  "store_priceHistory_monitorConfirmDelete": {
+    "message": "削除の確認"
+  },
+  "store_priceHistory_monitorDashboard": {
+    "message": "監視一覧"
+  },
+  "store_priceHistory_monitorDashboardTitle": {
+    "message": "Sucaijunですべての監視を表示"
+  },
+  "store_priceHistory_monitorDelete": {
+    "message": "監視を削除"
+  },
+  "store_priceHistory_monitorDeleteErrorTitle": {
+    "message": "削除に失敗しました"
+  },
+  "store_priceHistory_monitorDeleteFailed": {
+    "message": "監視を削除できませんでした。後でもう一度お試しください。"
+  },
+  "store_priceHistory_monitorDeleting": {
+    "message": "削除中..."
+  },
+  "store_priceHistory_monitorDiscount": {
+    "message": "目標割引率"
+  },
+  "store_priceHistory_monitorDiscountInvalid": {
+    "message": "目標割引率は1～100の整数で指定してください。"
+  },
+  "store_priceHistory_monitorDiscountMiddle": {
+    "message": " 以上になったら、次の宛先に通知： "
+  },
+  "store_priceHistory_monitorDiscountPrefix": {
+    "message": " に達したら "
+  },
+  "store_priceHistory_monitorDiscountRange": {
+    "message": "目標割引率 (1-100%)"
+  },
+  "store_priceHistory_monitorEditTitle": {
+    "message": "価格モニターを編集"
+  },
+  "store_priceHistory_monitorEmail": {
+    "message": "メール"
+  },
+  "store_priceHistory_monitorEnable": {
+    "message": " この価格モニターを有効にします。"
+  },
+  "store_priceHistory_monitorGamePrefix": {
+    "message": "「"
+  },
+  "store_priceHistory_monitorGameSuffix": {
+    "message": "」のとき"
+  },
+  "store_priceHistory_monitorInvalidResponse": {
+    "message": "価格モニターの応答が無効です"
+  },
+  "store_priceHistory_monitorLabel": {
+    "message": "価格モニター: "
+  },
+  "store_priceHistory_monitorLoginExpired": {
+    "message": "サインインの有効期限が切れています。もう一度サインインしてください。"
+  },
+  "store_priceHistory_monitorLoginRequired": {
+    "message": "先に設定からサインインしてください"
+  },
+  "store_priceHistory_monitorLoginRequiredInSettings": {
+    "message": "先にSteam Buffの設定からサインインしてください。"
+  },
+  "store_priceHistory_monitorNotifyMethod": {
+    "message": "通知方法"
+  },
+  "store_priceHistory_monitorNotifyRequired": {
+    "message": "通知方法を1つ以上選択してください。"
+  },
+  "store_priceHistory_monitorNotifySuffix": {
+    "message": "。"
+  },
+  "store_priceHistory_monitorNotSet": {
+    "message": "リマインダー未設定"
+  },
+  "store_priceHistory_monitorReading": {
+    "message": "読み込み中..."
+  },
+  "store_priceHistory_monitorRequestFailed": {
+    "message": "リクエストに失敗しました: $code$",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_monitorRetry": {
+    "message": "読み込めませんでした。クリックして再試行してください。"
+  },
+  "store_priceHistory_monitorRetryTitle": {
+    "message": "価格モニターを再読み込み"
+  },
+  "store_priceHistory_monitorSaveFailed": {
+    "message": "モニターを保存できませんでした。後でもう一度お試しください。"
+  },
+  "store_priceHistory_monitorSaveErrorTitle": {
+    "message": "保存に失敗しました"
+  },
+  "store_priceHistory_monitorSaveResponseInvalid": {
+    "message": "保存した価格モニターの応答が不完全です"
+  },
+  "store_priceHistory_monitorSaving": {
+    "message": "保存中..."
+  },
+  "store_priceHistory_monitorSetTitle": {
+    "message": "価格モニターを設定"
+  },
+  "store_priceHistory_monitorSponsorOnly": {
+    "message": "この機能はスポンサーのみ利用できます。"
+  },
+  "store_priceHistory_monitorSummaryAmount": {
+    "message": "価格が $amount$ 以下になったら、$time$ に $channels$ 経由で通知します。",
+    "placeholders": {
+      "channels": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      },
+      "amount": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_priceHistory_monitorSummaryDiscount": {
+    "message": "割引率が $discount$ 以上になったら、$time$ に $channels$ 経由で通知します。",
+    "placeholders": {
+      "channels": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      },
+      "discount": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_priceHistory_monitorTime": {
+    "message": "通知時刻"
+  },
+  "store_priceHistory_monitorTimeRequired": {
+    "message": "通知時刻を設定してください。"
+  },
+  "store_priceHistory_monitorTimezoneRequired": {
+    "message": "現在のタイムゾーンを読み取れないため、モニターを保存できません。"
+  },
+  "store_priceHistory_monitorTitle": {
+    "message": "価格モニター"
+  },
+  "store_priceHistory_monitorValidationErrorTitle": {
+    "message": "保存できません"
+  },
+  "store_priceHistory_monitorVia": {
+    "message": " 経由で "
+  },
+  "store_priceHistory_now": {
+    "message": "現在"
+  },
+  "store_priceHistory_priceIncomplete": {
+    "message": "価格データが不完全です。"
+  },
+  "store_priceHistory_providerConfigMissing": {
+    "message": "サードパーティの価格データが設定されていません。"
+  },
+  "store_priceHistory_providerDisabled": {
+    "message": "サードパーティのデータサービスは無効になっています"
+  },
+  "store_thirdPartyDisabled_help": {
+    "message": "サードパーティのデータサービスが無効になっている理由を確認"
+  },
+  "store_priceHistory_providerGameNotFound": {
+    "message": "ITADにこのSteamアイテムは掲載されていません。"
+  },
+  "store_priceHistory_providerUnavailable": {
+    "message": "サードパーティの価格データは一時的に利用できません。"
+  },
+  "store_priceHistory_queryFailed": {
+    "message": "価格を取得できませんでした。しばらくしてからもう一度お試しください。"
+  },
+  "store_priceHistory_save": {
+    "message": "保存"
+  },
+  "store_priceHistory_steamItemInvalidResponse": {
+    "message": "Steamアイテム詳細のレスポンスが無効です"
+  },
+  "store_priceHistory_steamItemUnavailable": {
+    "message": "Steamアイテムの詳細を利用できません"
+  },
+  "store_priceHistory_unavailable": {
+    "message": "利用できません"
+  },
+  "store_priceHistory_unknownDate": {
+    "message": "日付不明"
+  },
+  "store_priceHistory_viewDetails": {
+    "message": " 詳細"
+  },
+  "store_priceHistory_viewDetailsPrefix": {
+    "message": "表示 "
+  },
+  "store_cartCheckout_restoreButton": {
+    "message": "保存したカートの商品を復元"
+  },
+  "store_cartCheckout_restoreFailed": {
+    "message": "復元に失敗しました。もう一度お試しください。"
+  },
+  "store_cartCheckout_restored": {
+    "message": "保存したカートを復元しました"
+  },
+  "store_cartCheckout_restoring": {
+    "message": "保存したカートの商品を復元中..."
+  },
+  "store_cartCheckout_restoreComplete": {
+    "message": "保存したカートの商品を復元しました"
+  },
+  "store_cartCheckout_empty": {
+    "message": "保存したカートの商品はありません"
+  },
+  "store_steampy_loading": {
+    "message": "価格を読み込み中..."
+  },
+  "store_steampy_proxyPurchase": {
+    "message": "PYアシスト購入"
+  },
+  "store_drmWarning_detected": {
+    "message": "このゲームはサードパーティ製DRMを使用しています: $names$",
+    "placeholders": {
+      "names": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_drmWarning_title": {
+    "message": "サードパーティチェック"
+  }
+}
