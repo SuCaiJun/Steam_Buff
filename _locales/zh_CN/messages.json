@@ -14,6 +14,12 @@
   "locale_zh_TW": {
     "message": "繁體中文"
   },
+  "locale_ja": {
+    "message": "日语"
+  },
+  "locale_ko": {
+    "message": "韩语"
+  },
   "settings_shell_settingsButton": {
     "message": "设置"
   },
@@ -2835,7 +2841,11 @@
   },
   "steam_downloadBatch_itemCount": {
     "message": "当前 $count$ 项",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "steam_downloadBatch_label": {
     "message": "下载队列批量操作"
@@ -2843,8 +2853,12 @@
   "steam_downloadBatch_partial": {
     "message": "已完成 $success$ 项，$failed$ 项失败",
     "placeholders": {
-      "success": { "content": "$1" },
-      "failed": { "content": "$2" }
+      "success": {
+        "content": "$1"
+      },
+      "failed": {
+        "content": "$2"
+      }
     }
   },
   "steam_downloadBatch_pauseAll": {
@@ -2858,7 +2872,11 @@
   },
   "steam_downloadBatch_removeSuccess": {
     "message": "已移除 $count$ 项",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "steam_downloadBatch_running": {
     "message": "正在处理下载队列..."
@@ -2868,11 +2886,19 @@
   },
   "steam_downloadBatch_startCount": {
     "message": "可开始 $count$ 项",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "steam_downloadBatch_startSuccess": {
     "message": "已开始 $count$ 项",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "steam_downloadSurface_label": {
     "message": "下载管理工具"
@@ -3966,7 +3992,7 @@
     "message": "需要浏览器授权"
   },
   "steamRootMenu_chromiumBrowser": {
-    "message": "Chromium 浏览器"
+    "message": "浏览器"
   },
   "steamRootMenu_extensionManagement": {
     "message": "扩展管理"
@@ -4237,7 +4263,9 @@
   "settings_membership_identityOnly": {
     "message": "$identity$可用",
     "placeholders": {
-      "identity": { "content": "$1" }
+      "identity": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_syncing": {
@@ -4351,7 +4379,9 @@
   "settings_account_vipValidUntil": {
     "message": "VIP 有效期至 $date$",
     "placeholders": {
-      "date": { "content": "$1" }
+      "date": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_vipPermanent": {
@@ -4359,7 +4389,11 @@
   },
   "settings_account_entitlementValidUntil": {
     "message": "有效期至 $date$",
-    "placeholders": { "date": { "content": "$1" } }
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
   },
   "settings_account_entitlementPermanent": {
     "message": "永久有效"
@@ -4370,19 +4404,25 @@
   "settings_account_remainingDays": {
     "message": "剩余 $days$ 天",
     "placeholders": {
-      "days": { "content": "$1" }
+      "days": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_medalAcquiredAt": {
     "message": "获得日期：$date$",
     "placeholders": {
-      "date": { "content": "$1" }
+      "date": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_joinedDays": {
     "message": "已使用 Steam Buff $days$ 天",
     "placeholders": {
-      "days": { "content": "$1" }
+      "days": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_bound": {
@@ -4391,7 +4431,9 @@
   "settings_account_expiring": {
     "message": "您的$identity$即将到期",
     "placeholders": {
-      "identity": { "content": "$1" }
+      "identity": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_refresh": {
@@ -4436,13 +4478,17 @@
   "settings_account_usedPercent": {
     "message": "已用 $percent$%",
     "placeholders": {
-      "percent": { "content": "$1" }
+      "percent": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_todayUsedPercent": {
     "message": "今日已用 $percent$%",
     "placeholders": {
-      "percent": { "content": "$1" }
+      "percent": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_quotaUnavailable": {
@@ -4454,7 +4500,9 @@
   "settings_account_learnIdentity": {
     "message": "了解$identity$",
     "placeholders": {
-      "identity": { "content": "$1" }
+      "identity": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_itemUnit": {
@@ -4478,7 +4526,9 @@
   "settings_account_unlockIdentity": {
     "message": "$identity$解锁",
     "placeholders": {
-      "identity": { "content": "$1" }
+      "identity": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_servicePrefix": {
@@ -4523,7 +4573,9 @@
   "settings_account_remoteLogoutFailed": {
     "message": "远端退出登录失败：$status$",
     "placeholders": {
-      "status": { "content": "$1" }
+      "status": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_loggedOut": {
@@ -4586,7 +4638,9 @@
   "settings_thirdParty_httpError": {
     "message": "ITAD 测试接口返回状态码 $status$。",
     "placeholders": {
-      "status": { "content": "$1" }
+      "status": {
+        "content": "$1"
+      }
     }
   },
   "settings_thirdParty_invalidResponse": {
@@ -4649,171 +4703,639 @@
   "steam_runtime_featureStartFailed": {
     "message": "Steam 客户端功能启动失败，其他功能已继续运行"
   },
-  "store_cartSelect_bulkFailed": { "message": "购物车批量选择失败" },
-  "store_cartSelect_checkoutFailed": { "message": "购物车选择处理失败" },
-  "store_cartSelect_clearSelection": { "message": "取消全选" },
-  "store_cartSelect_holdFailed": { "message": "临时调整购物车失败，已保留暂存数据，请手动恢复" },
-  "store_cartSelect_holdingItems": { "message": "正在暂时保留$count$件未支付项目...", "placeholders": { "count": { "content": "$1" } } },
-  "store_cartSelect_invertSelection": { "message": "反选" },
-  "store_cartSelect_keepItems": { "message": "继续保留" },
-  "store_cartSelect_payThisTime": { "message": "本次支付" },
-  "store_cartSelect_purchaseCount": { "message": "购买数量" },
-  "store_cartSelect_removeAll": { "message": "确认移除" },
-  "store_cartSelect_removeAllConfirm": { "message": "确认移除购物车中的所有项目？" },
-  "store_cartSelect_removeAllMessage": { "message": "此操作会让 Steam 移除购物车中的所有项目。确认后将继续执行 Steam 原本的移除所有项目操作，取消则不会执行。" },
-  "store_cartSelect_removeAllTitle": { "message": "确认移除所有项目" },
-  "store_cartSelect_restoreButton": { "message": "恢复暂存购物车数据" },
-  "store_cartSelect_restored": { "message": "已恢复上次未支付项目" },
-  "store_cartSelect_restoreFailed": { "message": "恢复失败，请重试" },
-  "store_cartSelect_restoreMissing": { "message": "有$count$件暂存购物车数据未恢复", "placeholders": { "count": { "content": "$1" } } },
-  "store_cartSelect_restorePartialFailed": { "message": "部分暂存购物车数据未恢复，请稍后重试" },
-  "store_cartSelect_restoreStillMissing": { "message": "还有$count$件暂存购物车数据未恢复", "placeholders": { "count": { "content": "$1" } } },
-  "store_cartSelect_restoring": { "message": "正在恢复$count$件暂存购物车数据...", "placeholders": { "count": { "content": "$1" } } },
-  "store_cartSelect_saveFailed": { "message": "购物车选择状态保存失败，已恢复原状态" },
-  "store_cartSelect_selectAll": { "message": "全选" },
-  "store_cartSelect_selectAtLeastOne": { "message": "请至少选择 1 件本次支付项目" },
-  "store_cartSelect_selectedTotal": { "message": "所选总额" },
-  "store_cartSelect_skipPayment": { "message": "本次不支付" },
-  "store_dlc_addingToCart": { "message": "正在加入购物车..." },
-  "store_dlc_addSelectedToCart": { "message": "将选择的DLC加入购物车" },
-  "store_dlc_addToCartFailed": { "message": "加入购物车失败" },
-  "store_dlc_addToCartFailedDetail": { "message": "请稍后重试，或刷新当前商店页后再试。" },
-  "store_dlc_batchClaim": { "message": "批量领取" },
-  "store_dlc_cacheNotice": { "message": "若近几分钟领取、购买过此游戏或调整过愿望单，Steam 页面可能仍是旧结果；建议先点“刷新DLC状态”再操作此功能。" },
-  "store_dlc_cancel": { "message": "取消" },
-  "store_dlc_claim": { "message": "领取" },
-  "store_dlc_claimAllFree": { "message": "一键领取所有免费DLC" },
-  "store_dlc_claimComplete": { "message": "领取完成！" },
-  "store_dlc_claimConfirm": { "message": "找到$count$个免费DLC，是否立即领取？", "placeholders": { "count": { "content": "$1" } } },
-  "store_dlc_claimFailedCount": { "message": "失败: $count$", "placeholders": { "count": { "content": "$1" } } },
-  "store_dlc_claimFailedItems": { "message": "失败项：$items$", "placeholders": { "items": { "content": "$1" } } },
-  "store_dlc_claimingFree": { "message": "正在领取免费DLC..." },
-  "store_dlc_claimSuccessCount": { "message": "成功: $count$", "placeholders": { "count": { "content": "$1" } } },
-  "store_dlc_close": { "message": "关闭" },
-  "store_dlc_deselectAll": { "message": "全部取消选择" },
-  "store_dlc_executionFailed": { "message": "执行失败" },
-  "store_dlc_failedItemSeparator": { "message": "；" },
-  "store_dlc_loadFreeInfoFailed": { "message": "无法获取免费DLC信息" },
-  "store_dlc_loadingFreeInfo": { "message": "正在获取免费DLC信息..." },
-  "store_dlc_moreFailedItems": { "message": "；..." },
-  "store_dlc_noFreeDlc": { "message": "没有找到可领取的免费DLC" },
-  "store_dlc_refreshFailed": { "message": "刷新DLC状态失败" },
-  "store_dlc_refreshFailedDetail": { "message": "错误信息：$error$\n请稍后再试，或手动刷新当前商店页。", "placeholders": { "error": { "content": "$1" } } },
-  "store_dlc_refreshing": { "message": "正在刷新状态..." },
-  "store_dlc_refreshSectionMissing": { "message": "未找到新的DLC区块" },
-  "store_dlc_refreshState": { "message": "刷新DLC状态" },
-  "store_dlc_requestFailed": { "message": "请求失败，HTTP 状态码：$status$", "placeholders": { "status": { "content": "$1" } } },
-  "store_dlc_sameOriginRejected": { "message": "DLC同源请求被拒绝" },
-  "store_dlc_scriptInjectionFailed": { "message": "脚本注入失败" },
-  "store_dlc_selectUnowned": { "message": "选择尚未拥有的DLC" },
-  "store_dlc_selectWishlisted": { "message": "选择愿望单中的DLC" },
-  "store_dlc_stateNoticeTitle": { "message": "DLC 状态提示" },
-  "store_dlc_tryLater": { "message": "请稍后重试" },
-  "store_dlc_unknownError": { "message": "未知错误" },
-  "store_dlc_unknownItem": { "message": "未知项目" },
-  "store_priceHistory_bundled": { "message": " 进包：$count$次", "placeholders": { "count": { "content": "$1" } } },
-  "store_priceHistory_bundledUnavailable": { "message": " 进包：暂不可用" },
-  "store_priceHistory_cancel": { "message": "取消" },
-  "store_priceHistory_capabilityUnsupported": { "message": "当前平台暂不支持价格能力。" },
-  "store_priceHistory_close": { "message": "关闭" },
-  "store_priceHistory_compareCheaper": { "message": "便宜$amount$元(-$discount$%)。", "placeholders": { "amount": { "content": "$1" }, "discount": { "content": "$2" } } },
-  "store_priceHistory_compareEqual": { "message": " ，与历史最低持平。" },
-  "store_priceHistory_compareLowPrefix": { "message": " ，比历史最低" },
-  "store_priceHistory_compareMoreExpensive": { "message": "贵$amount$元(+$discount$%)。", "placeholders": { "amount": { "content": "$1" }, "discount": { "content": "$2" } } },
-  "store_priceHistory_confirm": { "message": "确定" },
-  "store_priceHistory_currentHistoricalLow": { "message": "当前为历史最低折扣" },
-  "store_priceHistory_currentLowestDiscount": { "message": "当前最低折扣" },
-  "store_priceHistory_currentRegularPrice": { "message": "当前为原价" },
-  "store_priceHistory_daysAgo": { "message": "（$days$天前）", "placeholders": { "days": { "content": "$1" } } },
-  "store_priceHistory_dlcHistoricalLow": { "message": "史低" },
-  "store_priceHistory_dlcHistoryLabel": { "message": "历史最低 $price$，$date$，来源 $source$", "placeholders": { "price": { "content": "$1" }, "date": { "content": "$2" }, "source": { "content": "$3" } } },
-  "store_priceHistory_dlcLoading": { "message": "史低读取中..." },
-  "store_priceHistory_historicalLowAt": { "message": "历史最低折扣在 " },
-  "store_priceHistory_historicalLowValuePrefix": { "message": "$days$ 为 ", "placeholders": { "days": { "content": "$1" } } },
-  "store_priceHistory_hour": { "message": "小时" },
-  "store_priceHistory_invalidSteamItem": { "message": "无效的 Steam 商品标识" },
-  "store_priceHistory_itadNotListed": { "message": "ITAD 暂未收录当前购买项。" },
-  "store_priceHistory_listSeparator": { "message": "、" },
-  "store_priceHistory_loading": { "message": "正在读取历史最低价格..." },
-  "store_priceHistory_minute": { "message": "分钟" },
-  "store_priceHistory_monitorAmount": { "message": "期望金额" },
-  "store_priceHistory_monitorAmountInvalid": { "message": "期望金额必须在 1 到$amount$之间。", "placeholders": { "amount": { "content": "$1" } } },
-  "store_priceHistory_monitorAmountMaximum": { "message": "期望金额（最高$amount$）", "placeholders": { "amount": { "content": "$1" } } },
-  "store_priceHistory_monitorAmountMiddle": { "message": " 及以下时，将于当天 " },
-  "store_priceHistory_monitorAmountPrefix": { "message": "降至 " },
-  "store_priceHistory_monitorAnd": { "message": " 和 " },
-  "store_priceHistory_monitorAuthErrorTitle": { "message": "鉴权检查失败" },
-  "store_priceHistory_monitorAuthFailed": { "message": "鉴权检查失败。" },
-  "store_priceHistory_monitorAuthUnavailable": { "message": "打折监控鉴权服务未加载" },
-  "store_priceHistory_monitorCompleteFields": { "message": "请完善 " },
-  "store_priceHistory_monitorCondition": { "message": "监控条件" },
-  "store_priceHistory_monitorConfirmDelete": { "message": "确认删除" },
-  "store_priceHistory_monitorDashboard": { "message": "监控列表" },
-  "store_priceHistory_monitorDashboardTitle": { "message": "在素材君查看全部监控" },
-  "store_priceHistory_monitorDelete": { "message": "删除监控" },
-  "store_priceHistory_monitorDeleteErrorTitle": { "message": "删除失败" },
-  "store_priceHistory_monitorDeleteFailed": { "message": "删除失败，请稍后重试。" },
-  "store_priceHistory_monitorDeleting": { "message": "正在删除..." },
-  "store_priceHistory_monitorDiscount": { "message": "期望折扣" },
-  "store_priceHistory_monitorDiscountInvalid": { "message": "期望折扣必须是 1 到 100 之间的整数。" },
-  "store_priceHistory_monitorDiscountMiddle": { "message": " 及以上时，将于当天 " },
-  "store_priceHistory_monitorDiscountPrefix": { "message": "折扣达到 " },
-  "store_priceHistory_monitorDiscountRange": { "message": "期望折扣（1-100%）" },
-  "store_priceHistory_monitorEditTitle": { "message": "修改打折监控" },
-  "store_priceHistory_monitorEmail": { "message": "邮件" },
-  "store_priceHistory_monitorEnable": { "message": "，以启用本条打折监控。" },
-  "store_priceHistory_monitorGamePrefix": { "message": "当《" },
-  "store_priceHistory_monitorGameSuffix": { "message": "》" },
-  "store_priceHistory_monitorInvalidResponse": { "message": "打折监控响应格式错误" },
-  "store_priceHistory_monitorLabel": { "message": "打折监控：" },
-  "store_priceHistory_monitorLoginExpired": { "message": "登录已过期，请重新登录" },
-  "store_priceHistory_monitorLoginRequired": { "message": "请先在设置中登录" },
-  "store_priceHistory_monitorLoginRequiredInSettings": { "message": "请先在 Steam Buff 设置中登录。" },
-  "store_priceHistory_monitorNotifyMethod": { "message": "提醒方式" },
-  "store_priceHistory_monitorNotifyRequired": { "message": "至少选择一种提醒方式。" },
-  "store_priceHistory_monitorNotifySuffix": { "message": " 通知你。" },
-  "store_priceHistory_monitorNotSet": { "message": "未设置提醒" },
-  "store_priceHistory_monitorReading": { "message": "正在读取..." },
-  "store_priceHistory_monitorRequestFailed": { "message": "请求失败：$code$", "placeholders": { "code": { "content": "$1" } } },
-  "store_priceHistory_monitorRetry": { "message": "读取失败，点击重试" },
-  "store_priceHistory_monitorRetryTitle": { "message": "重新读取打折监控" },
-  "store_priceHistory_monitorSaveFailed": { "message": "保存失败，请稍后重试。" },
-  "store_priceHistory_monitorSaveErrorTitle": { "message": "保存失败" },
-  "store_priceHistory_monitorSaveResponseInvalid": { "message": "打折监控保存响应不完整" },
-  "store_priceHistory_monitorSaving": { "message": "正在保存..." },
-  "store_priceHistory_monitorSetTitle": { "message": "设置打折监控" },
-  "store_priceHistory_monitorSponsorOnly": { "message": "该功能仅限赞助者使用。" },
-  "store_priceHistory_monitorSummaryAmount": { "message": "当$amount$ 及以下时，将于当天 $time$ 通过 $channels$ 通知你。", "placeholders": { "amount": { "content": "$1" }, "time": { "content": "$2" }, "channels": { "content": "$3" } } },
-  "store_priceHistory_monitorSummaryDiscount": { "message": "当折扣达到 $discount$ 及以上时，将于当天 $time$ 通过 $channels$ 通知你。", "placeholders": { "discount": { "content": "$1" }, "time": { "content": "$2" }, "channels": { "content": "$3" } } },
-  "store_priceHistory_monitorTime": { "message": "提醒时间" },
-  "store_priceHistory_monitorTimeRequired": { "message": "请设置提醒时间。" },
-  "store_priceHistory_monitorTimezoneRequired": { "message": "无法读取当前时区，暂时不能保存。" },
-  "store_priceHistory_monitorTitle": { "message": "打折监控" },
-  "store_priceHistory_monitorValidationErrorTitle": { "message": "无法保存" },
-  "store_priceHistory_monitorVia": { "message": " 通过 " },
-  "store_priceHistory_now": { "message": "此刻" },
-  "store_priceHistory_priceIncomplete": { "message": "价格数据不完整。" },
-  "store_priceHistory_providerConfigMissing": { "message": "第三方价格数据未配置。" },
-  "store_priceHistory_providerDisabled": { "message": "第三方数据服务已关闭" },
-  "store_thirdPartyDisabled_help": { "message": "查看第三方数据服务关闭说明" },
-  "store_priceHistory_providerGameNotFound": { "message": "ITAD 暂未收录当前 Steam 商品。" },
-  "store_priceHistory_providerUnavailable": { "message": "第三方价格数据暂不可用。" },
-  "store_priceHistory_queryFailed": { "message": "价格查询失败，请稍后重试。" },
-  "store_priceHistory_save": { "message": "保存" },
-  "store_priceHistory_steamItemInvalidResponse": { "message": "Steam 商品详情响应格式异常" },
-  "store_priceHistory_steamItemUnavailable": { "message": "Steam 商品详情服务不可用" },
-  "store_priceHistory_unavailable": { "message": "暂无" },
-  "store_priceHistory_unknownDate": { "message": "未知日期" },
-  "store_priceHistory_viewDetails": { "message": "查看详情" },
-  "store_priceHistory_viewDetailsPrefix": { "message": "在" },
-  "store_cartCheckout_restoreButton": { "message": "恢复暂存购物车数据" },
-  "store_cartCheckout_restoreFailed": { "message": "恢复失败，重试" },
-  "store_cartCheckout_restored": { "message": "已恢复暂存购物车" },
-  "store_cartCheckout_restoring": { "message": "正在恢复暂存购物车数据..." },
-  "store_cartCheckout_restoreComplete": { "message": "已恢复暂存购物车数据" },
-  "store_cartCheckout_empty": { "message": "暂无暂存购物车" },
-  "store_steampy_loading": { "message": "正在读取价格..." },
-  "store_steampy_proxyPurchase": { "message": "PY 代购" },
-  "store_drmWarning_detected": { "message": "此游戏使用第三方DRM: $names$", "placeholders": { "names": { "content": "$1" } } },
-  "store_drmWarning_title": { "message": "第三方检查" }
+  "store_cartSelect_bulkFailed": {
+    "message": "购物车批量选择失败"
+  },
+  "store_cartSelect_checkoutFailed": {
+    "message": "购物车选择处理失败"
+  },
+  "store_cartSelect_clearSelection": {
+    "message": "取消全选"
+  },
+  "store_cartSelect_holdFailed": {
+    "message": "临时调整购物车失败，已保留暂存数据，请手动恢复"
+  },
+  "store_cartSelect_holdingItems": {
+    "message": "正在暂时保留$count$件未支付项目...",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_invertSelection": {
+    "message": "反选"
+  },
+  "store_cartSelect_keepItems": {
+    "message": "继续保留"
+  },
+  "store_cartSelect_payThisTime": {
+    "message": "本次支付"
+  },
+  "store_cartSelect_purchaseCount": {
+    "message": "购买数量"
+  },
+  "store_cartSelect_removeAll": {
+    "message": "确认移除"
+  },
+  "store_cartSelect_removeAllConfirm": {
+    "message": "确认移除购物车中的所有项目？"
+  },
+  "store_cartSelect_removeAllMessage": {
+    "message": "此操作会让 Steam 移除购物车中的所有项目。确认后将继续执行 Steam 原本的移除所有项目操作，取消则不会执行。"
+  },
+  "store_cartSelect_removeAllTitle": {
+    "message": "确认移除所有项目"
+  },
+  "store_cartSelect_restoreButton": {
+    "message": "恢复暂存购物车数据"
+  },
+  "store_cartSelect_restored": {
+    "message": "已恢复上次未支付项目"
+  },
+  "store_cartSelect_restoreFailed": {
+    "message": "恢复失败，请重试"
+  },
+  "store_cartSelect_restoreMissing": {
+    "message": "有$count$件暂存购物车数据未恢复",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_restorePartialFailed": {
+    "message": "部分暂存购物车数据未恢复，请稍后重试"
+  },
+  "store_cartSelect_restoreStillMissing": {
+    "message": "还有$count$件暂存购物车数据未恢复",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_restoring": {
+    "message": "正在恢复$count$件暂存购物车数据...",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_saveFailed": {
+    "message": "购物车选择状态保存失败，已恢复原状态"
+  },
+  "store_cartSelect_selectAll": {
+    "message": "全选"
+  },
+  "store_cartSelect_selectAtLeastOne": {
+    "message": "请至少选择 1 件本次支付项目"
+  },
+  "store_cartSelect_selectedTotal": {
+    "message": "所选总额"
+  },
+  "store_cartSelect_skipPayment": {
+    "message": "本次不支付"
+  },
+  "store_dlc_addingToCart": {
+    "message": "正在加入购物车..."
+  },
+  "store_dlc_addSelectedToCart": {
+    "message": "将选择的DLC加入购物车"
+  },
+  "store_dlc_addToCartFailed": {
+    "message": "加入购物车失败"
+  },
+  "store_dlc_addToCartFailedDetail": {
+    "message": "请稍后重试，或刷新当前商店页后再试。"
+  },
+  "store_dlc_batchClaim": {
+    "message": "批量领取"
+  },
+  "store_dlc_cacheNotice": {
+    "message": "若近几分钟领取、购买过此游戏或调整过愿望单，Steam 页面可能仍是旧结果；建议先点“刷新DLC状态”再操作此功能。"
+  },
+  "store_dlc_cancel": {
+    "message": "取消"
+  },
+  "store_dlc_claim": {
+    "message": "领取"
+  },
+  "store_dlc_claimAllFree": {
+    "message": "一键领取所有免费DLC"
+  },
+  "store_dlc_claimComplete": {
+    "message": "领取完成！"
+  },
+  "store_dlc_claimConfirm": {
+    "message": "找到$count$个免费DLC，是否立即领取？",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_claimFailedCount": {
+    "message": "失败: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_claimFailedItems": {
+    "message": "失败项：$items$",
+    "placeholders": {
+      "items": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_claimingFree": {
+    "message": "正在领取免费DLC..."
+  },
+  "store_dlc_claimSuccessCount": {
+    "message": "成功: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_close": {
+    "message": "关闭"
+  },
+  "store_dlc_deselectAll": {
+    "message": "全部取消选择"
+  },
+  "store_dlc_executionFailed": {
+    "message": "执行失败"
+  },
+  "store_dlc_failedItemSeparator": {
+    "message": "；"
+  },
+  "store_dlc_loadFreeInfoFailed": {
+    "message": "无法获取免费DLC信息"
+  },
+  "store_dlc_loadingFreeInfo": {
+    "message": "正在获取免费DLC信息..."
+  },
+  "store_dlc_moreFailedItems": {
+    "message": "；..."
+  },
+  "store_dlc_noFreeDlc": {
+    "message": "没有找到可领取的免费DLC"
+  },
+  "store_dlc_refreshFailed": {
+    "message": "刷新DLC状态失败"
+  },
+  "store_dlc_refreshFailedDetail": {
+    "message": "错误信息：$error$\n请稍后再试，或手动刷新当前商店页。",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_refreshing": {
+    "message": "正在刷新状态..."
+  },
+  "store_dlc_refreshSectionMissing": {
+    "message": "未找到新的DLC区块"
+  },
+  "store_dlc_refreshState": {
+    "message": "刷新DLC状态"
+  },
+  "store_dlc_requestFailed": {
+    "message": "请求失败，HTTP 状态码：$status$",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_sameOriginRejected": {
+    "message": "DLC同源请求被拒绝"
+  },
+  "store_dlc_scriptInjectionFailed": {
+    "message": "脚本注入失败"
+  },
+  "store_dlc_selectUnowned": {
+    "message": "选择尚未拥有的DLC"
+  },
+  "store_dlc_selectWishlisted": {
+    "message": "选择愿望单中的DLC"
+  },
+  "store_dlc_stateNoticeTitle": {
+    "message": "DLC 状态提示"
+  },
+  "store_dlc_tryLater": {
+    "message": "请稍后重试"
+  },
+  "store_dlc_unknownError": {
+    "message": "未知错误"
+  },
+  "store_dlc_unknownItem": {
+    "message": "未知项目"
+  },
+  "store_priceHistory_bundled": {
+    "message": " 进包：$count$次",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_bundledUnavailable": {
+    "message": " 进包：暂不可用"
+  },
+  "store_priceHistory_cancel": {
+    "message": "取消"
+  },
+  "store_priceHistory_capabilityUnsupported": {
+    "message": "当前平台暂不支持价格能力。"
+  },
+  "store_priceHistory_close": {
+    "message": "关闭"
+  },
+  "store_priceHistory_compareCheaper": {
+    "message": "便宜$amount$元(-$discount$%)。",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      },
+      "discount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_priceHistory_compareEqual": {
+    "message": " ，与历史最低持平。"
+  },
+  "store_priceHistory_compareLowPrefix": {
+    "message": " ，比历史最低"
+  },
+  "store_priceHistory_compareMoreExpensive": {
+    "message": "贵$amount$元(+$discount$%)。",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      },
+      "discount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_priceHistory_confirm": {
+    "message": "确定"
+  },
+  "store_priceHistory_currentHistoricalLow": {
+    "message": "当前为历史最低折扣"
+  },
+  "store_priceHistory_currentLowestDiscount": {
+    "message": "当前最低折扣"
+  },
+  "store_priceHistory_currentRegularPrice": {
+    "message": "当前为原价"
+  },
+  "store_priceHistory_daysAgo": {
+    "message": "（$days$天前）",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_dlcHistoricalLow": {
+    "message": "史低"
+  },
+  "store_priceHistory_dlcHistoryLabel": {
+    "message": "历史最低 $price$，$date$，来源 $source$",
+    "placeholders": {
+      "price": {
+        "content": "$1"
+      },
+      "date": {
+        "content": "$2"
+      },
+      "source": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_priceHistory_dlcLoading": {
+    "message": "史低读取中..."
+  },
+  "store_priceHistory_historicalLowAt": {
+    "message": "历史最低折扣在 "
+  },
+  "store_priceHistory_historicalLowValuePrefix": {
+    "message": "$days$ 为 ",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_hour": {
+    "message": "小时"
+  },
+  "store_priceHistory_invalidSteamItem": {
+    "message": "无效的 Steam 商品标识"
+  },
+  "store_priceHistory_itadNotListed": {
+    "message": "ITAD 暂未收录当前购买项。"
+  },
+  "store_priceHistory_listSeparator": {
+    "message": "、"
+  },
+  "store_priceHistory_loading": {
+    "message": "正在读取历史最低价格..."
+  },
+  "store_priceHistory_minute": {
+    "message": "分钟"
+  },
+  "store_priceHistory_monitorAmount": {
+    "message": "期望金额"
+  },
+  "store_priceHistory_monitorAmountInvalid": {
+    "message": "期望金额必须在 1 到$amount$之间。",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_monitorAmountMaximum": {
+    "message": "期望金额（最高$amount$）",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_monitorAmountMiddle": {
+    "message": " 及以下时，将于当天 "
+  },
+  "store_priceHistory_monitorAmountPrefix": {
+    "message": "降至 "
+  },
+  "store_priceHistory_monitorAnd": {
+    "message": " 和 "
+  },
+  "store_priceHistory_monitorAuthErrorTitle": {
+    "message": "鉴权检查失败"
+  },
+  "store_priceHistory_monitorAuthFailed": {
+    "message": "鉴权检查失败。"
+  },
+  "store_priceHistory_monitorAuthUnavailable": {
+    "message": "打折监控鉴权服务未加载"
+  },
+  "store_priceHistory_monitorCompleteFields": {
+    "message": "请完善 "
+  },
+  "store_priceHistory_monitorCondition": {
+    "message": "监控条件"
+  },
+  "store_priceHistory_monitorConfirmDelete": {
+    "message": "确认删除"
+  },
+  "store_priceHistory_monitorDashboard": {
+    "message": "监控列表"
+  },
+  "store_priceHistory_monitorDashboardTitle": {
+    "message": "在素材君查看全部监控"
+  },
+  "store_priceHistory_monitorDelete": {
+    "message": "删除监控"
+  },
+  "store_priceHistory_monitorDeleteErrorTitle": {
+    "message": "删除失败"
+  },
+  "store_priceHistory_monitorDeleteFailed": {
+    "message": "删除失败，请稍后重试。"
+  },
+  "store_priceHistory_monitorDeleting": {
+    "message": "正在删除..."
+  },
+  "store_priceHistory_monitorDiscount": {
+    "message": "期望折扣"
+  },
+  "store_priceHistory_monitorDiscountInvalid": {
+    "message": "期望折扣必须是 1 到 100 之间的整数。"
+  },
+  "store_priceHistory_monitorDiscountMiddle": {
+    "message": " 及以上时，将于当天 "
+  },
+  "store_priceHistory_monitorDiscountPrefix": {
+    "message": "折扣达到 "
+  },
+  "store_priceHistory_monitorDiscountRange": {
+    "message": "期望折扣（1-100%）"
+  },
+  "store_priceHistory_monitorEditTitle": {
+    "message": "修改打折监控"
+  },
+  "store_priceHistory_monitorEmail": {
+    "message": "邮件"
+  },
+  "store_priceHistory_monitorEnable": {
+    "message": "，以启用本条打折监控。"
+  },
+  "store_priceHistory_monitorGamePrefix": {
+    "message": "当《"
+  },
+  "store_priceHistory_monitorGameSuffix": {
+    "message": "》"
+  },
+  "store_priceHistory_monitorInvalidResponse": {
+    "message": "打折监控响应格式错误"
+  },
+  "store_priceHistory_monitorLabel": {
+    "message": "打折监控："
+  },
+  "store_priceHistory_monitorLoginExpired": {
+    "message": "登录已过期，请重新登录"
+  },
+  "store_priceHistory_monitorLoginRequired": {
+    "message": "请先在设置中登录"
+  },
+  "store_priceHistory_monitorLoginRequiredInSettings": {
+    "message": "请先在 Steam Buff 设置中登录。"
+  },
+  "store_priceHistory_monitorNotifyMethod": {
+    "message": "提醒方式"
+  },
+  "store_priceHistory_monitorNotifyRequired": {
+    "message": "至少选择一种提醒方式。"
+  },
+  "store_priceHistory_monitorNotifySuffix": {
+    "message": " 通知你。"
+  },
+  "store_priceHistory_monitorNotSet": {
+    "message": "未设置提醒"
+  },
+  "store_priceHistory_monitorReading": {
+    "message": "正在读取..."
+  },
+  "store_priceHistory_monitorRequestFailed": {
+    "message": "请求失败：$code$",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_monitorRetry": {
+    "message": "读取失败，点击重试"
+  },
+  "store_priceHistory_monitorRetryTitle": {
+    "message": "重新读取打折监控"
+  },
+  "store_priceHistory_monitorSaveFailed": {
+    "message": "保存失败，请稍后重试。"
+  },
+  "store_priceHistory_monitorSaveErrorTitle": {
+    "message": "保存失败"
+  },
+  "store_priceHistory_monitorSaveResponseInvalid": {
+    "message": "打折监控保存响应不完整"
+  },
+  "store_priceHistory_monitorSaving": {
+    "message": "正在保存..."
+  },
+  "store_priceHistory_monitorSetTitle": {
+    "message": "设置打折监控"
+  },
+  "store_priceHistory_monitorSponsorOnly": {
+    "message": "该功能仅限赞助者使用。"
+  },
+  "store_priceHistory_monitorSummaryAmount": {
+    "message": "当$amount$ 及以下时，将于当天 $time$ 通过 $channels$ 通知你。",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      },
+      "channels": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_priceHistory_monitorSummaryDiscount": {
+    "message": "当折扣达到 $discount$ 及以上时，将于当天 $time$ 通过 $channels$ 通知你。",
+    "placeholders": {
+      "discount": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      },
+      "channels": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_priceHistory_monitorTime": {
+    "message": "提醒时间"
+  },
+  "store_priceHistory_monitorTimeRequired": {
+    "message": "请设置提醒时间。"
+  },
+  "store_priceHistory_monitorTimezoneRequired": {
+    "message": "无法读取当前时区，暂时不能保存。"
+  },
+  "store_priceHistory_monitorTitle": {
+    "message": "打折监控"
+  },
+  "store_priceHistory_monitorValidationErrorTitle": {
+    "message": "无法保存"
+  },
+  "store_priceHistory_monitorVia": {
+    "message": " 通过 "
+  },
+  "store_priceHistory_now": {
+    "message": "此刻"
+  },
+  "store_priceHistory_priceIncomplete": {
+    "message": "价格数据不完整。"
+  },
+  "store_priceHistory_providerConfigMissing": {
+    "message": "第三方价格数据未配置。"
+  },
+  "store_priceHistory_providerDisabled": {
+    "message": "第三方数据服务已关闭"
+  },
+  "store_thirdPartyDisabled_help": {
+    "message": "查看第三方数据服务关闭说明"
+  },
+  "store_priceHistory_providerGameNotFound": {
+    "message": "ITAD 暂未收录当前 Steam 商品。"
+  },
+  "store_priceHistory_providerUnavailable": {
+    "message": "第三方价格数据暂不可用。"
+  },
+  "store_priceHistory_queryFailed": {
+    "message": "价格查询失败，请稍后重试。"
+  },
+  "store_priceHistory_save": {
+    "message": "保存"
+  },
+  "store_priceHistory_steamItemInvalidResponse": {
+    "message": "Steam 商品详情响应格式异常"
+  },
+  "store_priceHistory_steamItemUnavailable": {
+    "message": "Steam 商品详情服务不可用"
+  },
+  "store_priceHistory_unavailable": {
+    "message": "暂无"
+  },
+  "store_priceHistory_unknownDate": {
+    "message": "未知日期"
+  },
+  "store_priceHistory_viewDetails": {
+    "message": "查看详情"
+  },
+  "store_priceHistory_viewDetailsPrefix": {
+    "message": "在"
+  },
+  "store_cartCheckout_restoreButton": {
+    "message": "恢复暂存购物车数据"
+  },
+  "store_cartCheckout_restoreFailed": {
+    "message": "恢复失败，重试"
+  },
+  "store_cartCheckout_restored": {
+    "message": "已恢复暂存购物车"
+  },
+  "store_cartCheckout_restoring": {
+    "message": "正在恢复暂存购物车数据..."
+  },
+  "store_cartCheckout_restoreComplete": {
+    "message": "已恢复暂存购物车数据"
+  },
+  "store_cartCheckout_empty": {
+    "message": "暂无暂存购物车"
+  },
+  "store_steampy_loading": {
+    "message": "正在读取价格..."
+  },
+  "store_steampy_proxyPurchase": {
+    "message": "PY 代购"
+  },
+  "store_drmWarning_detected": {
+    "message": "此游戏使用第三方DRM: $names$",
+    "placeholders": {
+      "names": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_drmWarning_title": {
+    "message": "第三方检查"
+  }
 }

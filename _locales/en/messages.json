@@ -14,6 +14,12 @@
   "locale_zh_TW": {
     "message": "Traditional Chinese"
   },
+  "locale_ja": {
+    "message": "日本語"
+  },
+  "locale_ko": {
+    "message": "한국어"
+  },
   "settings_shell_settingsButton": {
     "message": "Settings"
   },
@@ -2835,7 +2841,11 @@
   },
   "steam_downloadBatch_itemCount": {
     "message": "$count$ items in the list",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "steam_downloadBatch_label": {
     "message": "Download queue batch actions"
@@ -2843,8 +2853,12 @@
   "steam_downloadBatch_partial": {
     "message": "$success$ completed, $failed$ failed",
     "placeholders": {
-      "success": { "content": "$1" },
-      "failed": { "content": "$2" }
+      "success": {
+        "content": "$1"
+      },
+      "failed": {
+        "content": "$2"
+      }
     }
   },
   "steam_downloadBatch_pauseAll": {
@@ -2858,7 +2872,11 @@
   },
   "steam_downloadBatch_removeSuccess": {
     "message": "Removed $count$ items",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "steam_downloadBatch_running": {
     "message": "Processing the download queue..."
@@ -2868,11 +2886,19 @@
   },
   "steam_downloadBatch_startCount": {
     "message": "$count$ items can be started",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "steam_downloadBatch_startSuccess": {
     "message": "Started $count$ items",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "steam_downloadSurface_label": {
     "message": "Download management tools"
@@ -3966,7 +3992,7 @@
     "message": "Browser authorization required"
   },
   "steamRootMenu_chromiumBrowser": {
-    "message": "Chromium Browser"
+    "message": "Browser"
   },
   "steamRootMenu_extensionManagement": {
     "message": "Extension Management"
@@ -4237,7 +4263,9 @@
   "settings_membership_identityOnly": {
     "message": "Available to $identity$",
     "placeholders": {
-      "identity": { "content": "$1" }
+      "identity": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_syncing": {
@@ -4351,7 +4379,9 @@
   "settings_account_vipValidUntil": {
     "message": "VIP valid until $date$",
     "placeholders": {
-      "date": { "content": "$1" }
+      "date": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_vipPermanent": {
@@ -4359,7 +4389,11 @@
   },
   "settings_account_entitlementValidUntil": {
     "message": "Valid until $date$",
-    "placeholders": { "date": { "content": "$1" } }
+    "placeholders": {
+      "date": {
+        "content": "$1"
+      }
+    }
   },
   "settings_account_entitlementPermanent": {
     "message": "Permanent"
@@ -4370,19 +4404,25 @@
   "settings_account_remainingDays": {
     "message": "$days$ days remaining",
     "placeholders": {
-      "days": { "content": "$1" }
+      "days": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_medalAcquiredAt": {
     "message": "Acquired: $date$",
     "placeholders": {
-      "date": { "content": "$1" }
+      "date": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_joinedDays": {
     "message": "Using Steam Buff for $days$ days",
     "placeholders": {
-      "days": { "content": "$1" }
+      "days": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_bound": {
@@ -4391,7 +4431,9 @@
   "settings_account_expiring": {
     "message": "Your $identity$ is about to expire",
     "placeholders": {
-      "identity": { "content": "$1" }
+      "identity": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_refresh": {
@@ -4436,13 +4478,17 @@
   "settings_account_usedPercent": {
     "message": "$percent$% used",
     "placeholders": {
-      "percent": { "content": "$1" }
+      "percent": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_todayUsedPercent": {
     "message": "$percent$% used today",
     "placeholders": {
-      "percent": { "content": "$1" }
+      "percent": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_quotaUnavailable": {
@@ -4454,7 +4500,9 @@
   "settings_account_learnIdentity": {
     "message": "Learn about $identity$",
     "placeholders": {
-      "identity": { "content": "$1" }
+      "identity": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_itemUnit": {
@@ -4478,7 +4526,9 @@
   "settings_account_unlockIdentity": {
     "message": "Unlock with $identity$",
     "placeholders": {
-      "identity": { "content": "$1" }
+      "identity": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_servicePrefix": {
@@ -4523,7 +4573,9 @@
   "settings_account_remoteLogoutFailed": {
     "message": "Remote sign-out failed: $status$",
     "placeholders": {
-      "status": { "content": "$1" }
+      "status": {
+        "content": "$1"
+      }
     }
   },
   "settings_account_loggedOut": {
@@ -4586,7 +4638,9 @@
   "settings_thirdParty_httpError": {
     "message": "The ITAD test endpoint returned status $status$.",
     "placeholders": {
-      "status": { "content": "$1" }
+      "status": {
+        "content": "$1"
+      }
     }
   },
   "settings_thirdParty_invalidResponse": {
@@ -4649,171 +4703,639 @@
   "steam_runtime_featureStartFailed": {
     "message": "A Steam client feature failed to start. Other features will continue running."
   },
-  "store_cartSelect_bulkFailed": { "message": "Could not update the cart selection." },
-  "store_cartSelect_checkoutFailed": { "message": "Could not process the cart selection." },
-  "store_cartSelect_clearSelection": { "message": "Clear selection" },
-  "store_cartSelect_holdFailed": { "message": "Could not temporarily update the cart. Saved items are available to restore manually." },
-  "store_cartSelect_holdingItems": { "message": "Temporarily keeping $count$ unpaid item(s)...", "placeholders": { "count": { "content": "$1" } } },
-  "store_cartSelect_invertSelection": { "message": "Invert selection" },
-  "store_cartSelect_keepItems": { "message": "Keep items" },
-  "store_cartSelect_payThisTime": { "message": "Pay for this item" },
-  "store_cartSelect_purchaseCount": { "message": "Items selected" },
-  "store_cartSelect_removeAll": { "message": "Remove all" },
-  "store_cartSelect_removeAllConfirm": { "message": "Remove every item from the cart?" },
-  "store_cartSelect_removeAllMessage": { "message": "Steam will remove every item from the cart. Confirm to continue with Steam's original Remove All action, or cancel to keep the items." },
-  "store_cartSelect_removeAllTitle": { "message": "Remove all cart items" },
-  "store_cartSelect_restoreButton": { "message": "Restore saved cart items" },
-  "store_cartSelect_restored": { "message": "Restored unpaid items from the previous cart." },
-  "store_cartSelect_restoreFailed": { "message": "Could not restore saved cart items. Try again." },
-  "store_cartSelect_restoreMissing": { "message": "$count$ saved cart item(s) have not been restored.", "placeholders": { "count": { "content": "$1" } } },
-  "store_cartSelect_restorePartialFailed": { "message": "Some saved cart items were not restored. Try again later." },
-  "store_cartSelect_restoreStillMissing": { "message": "$count$ saved cart item(s) are still missing.", "placeholders": { "count": { "content": "$1" } } },
-  "store_cartSelect_restoring": { "message": "Restoring $count$ saved cart item(s)...", "placeholders": { "count": { "content": "$1" } } },
-  "store_cartSelect_saveFailed": { "message": "Could not save the cart selection. The previous selection was restored." },
-  "store_cartSelect_selectAll": { "message": "Select all" },
-  "store_cartSelect_selectAtLeastOne": { "message": "Select at least one item to pay for." },
-  "store_cartSelect_selectedTotal": { "message": "Selected total" },
-  "store_cartSelect_skipPayment": { "message": "Do not pay now" },
-  "store_dlc_addingToCart": { "message": "Adding to cart..." },
-  "store_dlc_addSelectedToCart": { "message": "Add selected DLC to cart" },
-  "store_dlc_addToCartFailed": { "message": "Could not add DLC to the cart" },
-  "store_dlc_addToCartFailedDetail": { "message": "Try again later, or refresh this store page and try again." },
-  "store_dlc_batchClaim": { "message": "Batch claim" },
-  "store_dlc_cacheNotice": { "message": "If you claimed or purchased this game, or changed its wishlist status in the last few minutes, Steam may still show stale results. Select Refresh DLC status before using this action." },
-  "store_dlc_cancel": { "message": "Cancel" },
-  "store_dlc_claim": { "message": "Claim" },
-  "store_dlc_claimAllFree": { "message": "Claim all free DLC" },
-  "store_dlc_claimComplete": { "message": "Claim complete!" },
-  "store_dlc_claimConfirm": { "message": "Found $count$ free DLC item(s). Claim them now?", "placeholders": { "count": { "content": "$1" } } },
-  "store_dlc_claimFailedCount": { "message": "Failed: $count$", "placeholders": { "count": { "content": "$1" } } },
-  "store_dlc_claimFailedItems": { "message": "Failed items: $items$", "placeholders": { "items": { "content": "$1" } } },
-  "store_dlc_claimingFree": { "message": "Claiming free DLC..." },
-  "store_dlc_claimSuccessCount": { "message": "Succeeded: $count$", "placeholders": { "count": { "content": "$1" } } },
-  "store_dlc_close": { "message": "Close" },
-  "store_dlc_deselectAll": { "message": "Clear all selections" },
-  "store_dlc_executionFailed": { "message": "Operation failed" },
-  "store_dlc_failedItemSeparator": { "message": "; " },
-  "store_dlc_loadFreeInfoFailed": { "message": "Could not load free DLC information" },
-  "store_dlc_loadingFreeInfo": { "message": "Loading free DLC information..." },
-  "store_dlc_moreFailedItems": { "message": "; ..." },
-  "store_dlc_noFreeDlc": { "message": "No claimable free DLC was found" },
-  "store_dlc_refreshFailed": { "message": "Could not refresh DLC status" },
-  "store_dlc_refreshFailedDetail": { "message": "Error: $error$\nTry again later, or refresh this store page manually.", "placeholders": { "error": { "content": "$1" } } },
-  "store_dlc_refreshing": { "message": "Refreshing status..." },
-  "store_dlc_refreshSectionMissing": { "message": "The refreshed DLC section was not found" },
-  "store_dlc_refreshState": { "message": "Refresh DLC status" },
-  "store_dlc_requestFailed": { "message": "Request failed with HTTP status $status$.", "placeholders": { "status": { "content": "$1" } } },
-  "store_dlc_sameOriginRejected": { "message": "The same-origin DLC request was rejected" },
-  "store_dlc_scriptInjectionFailed": { "message": "Script injection failed" },
-  "store_dlc_selectUnowned": { "message": "Select DLC not owned" },
-  "store_dlc_selectWishlisted": { "message": "Select wishlisted DLC" },
-  "store_dlc_stateNoticeTitle": { "message": "DLC status notice" },
-  "store_dlc_tryLater": { "message": "Try again later" },
-  "store_dlc_unknownError": { "message": "Unknown error" },
-  "store_dlc_unknownItem": { "message": "Unknown item" },
-  "store_priceHistory_bundled": { "message": " Bundled: $count$ time(s)", "placeholders": { "count": { "content": "$1" } } },
-  "store_priceHistory_bundledUnavailable": { "message": " Bundled: unavailable" },
-  "store_priceHistory_cancel": { "message": "Cancel" },
-  "store_priceHistory_capabilityUnsupported": { "message": "Price data is not supported on the current platform." },
-  "store_priceHistory_close": { "message": "Close" },
-  "store_priceHistory_compareCheaper": { "message": "$amount$ lower (-$discount$%).", "placeholders": { "amount": { "content": "$1" }, "discount": { "content": "$2" } } },
-  "store_priceHistory_compareEqual": { "message": " Same as the historical low." },
-  "store_priceHistory_compareLowPrefix": { "message": " Compared with the historical low, " },
-  "store_priceHistory_compareMoreExpensive": { "message": "$amount$ higher (+$discount$%).", "placeholders": { "amount": { "content": "$1" }, "discount": { "content": "$2" } } },
-  "store_priceHistory_confirm": { "message": "Confirm" },
-  "store_priceHistory_currentHistoricalLow": { "message": "Current historical low discount" },
-  "store_priceHistory_currentLowestDiscount": { "message": "Current lowest discount" },
-  "store_priceHistory_currentRegularPrice": { "message": "Current regular price" },
-  "store_priceHistory_daysAgo": { "message": " ($days$ days ago)", "placeholders": { "days": { "content": "$1" } } },
-  "store_priceHistory_dlcHistoricalLow": { "message": "Historical low" },
-  "store_priceHistory_dlcHistoryLabel": { "message": "Historical low $price$, $date$, source: $source$", "placeholders": { "price": { "content": "$1" }, "date": { "content": "$2" }, "source": { "content": "$3" } } },
-  "store_priceHistory_dlcLoading": { "message": "Loading historical low..." },
-  "store_priceHistory_historicalLowAt": { "message": "Historical low discount on " },
-  "store_priceHistory_historicalLowValuePrefix": { "message": "$days$: ", "placeholders": { "days": { "content": "$1" } } },
-  "store_priceHistory_hour": { "message": "Hour" },
-  "store_priceHistory_invalidSteamItem": { "message": "Invalid Steam item identifier" },
-  "store_priceHistory_itadNotListed": { "message": "ITAD has not listed this purchase item." },
-  "store_priceHistory_listSeparator": { "message": ", " },
-  "store_priceHistory_loading": { "message": "Loading historical low price..." },
-  "store_priceHistory_minute": { "message": "Minute" },
-  "store_priceHistory_monitorAmount": { "message": "Target price" },
-  "store_priceHistory_monitorAmountInvalid": { "message": "Target price must be between 1 and $amount$.", "placeholders": { "amount": { "content": "$1" } } },
-  "store_priceHistory_monitorAmountMaximum": { "message": "Target price (maximum $amount$)", "placeholders": { "amount": { "content": "$1" } } },
-  "store_priceHistory_monitorAmountMiddle": { "message": " or lower, notify me at " },
-  "store_priceHistory_monitorAmountPrefix": { "message": " reaches " },
-  "store_priceHistory_monitorAnd": { "message": " and " },
-  "store_priceHistory_monitorAuthErrorTitle": { "message": "Authentication check failed" },
-  "store_priceHistory_monitorAuthFailed": { "message": "Could not verify sign-in status." },
-  "store_priceHistory_monitorAuthUnavailable": { "message": "Price-monitor authentication is unavailable" },
-  "store_priceHistory_monitorCompleteFields": { "message": "Complete " },
-  "store_priceHistory_monitorCondition": { "message": "Monitor condition" },
-  "store_priceHistory_monitorConfirmDelete": { "message": "Confirm delete" },
-  "store_priceHistory_monitorDashboard": { "message": "Monitors" },
-  "store_priceHistory_monitorDashboardTitle": { "message": "View all monitors on Sucaijun" },
-  "store_priceHistory_monitorDelete": { "message": "Delete monitor" },
-  "store_priceHistory_monitorDeleteErrorTitle": { "message": "Delete failed" },
-  "store_priceHistory_monitorDeleteFailed": { "message": "Could not delete the monitor. Try again later." },
-  "store_priceHistory_monitorDeleting": { "message": "Deleting..." },
-  "store_priceHistory_monitorDiscount": { "message": "Target discount" },
-  "store_priceHistory_monitorDiscountInvalid": { "message": "Target discount must be an integer between 1 and 100." },
-  "store_priceHistory_monitorDiscountMiddle": { "message": " or more, notify me at " },
-  "store_priceHistory_monitorDiscountPrefix": { "message": " reaches " },
-  "store_priceHistory_monitorDiscountRange": { "message": "Target discount (1-100%)" },
-  "store_priceHistory_monitorEditTitle": { "message": "Edit price monitor" },
-  "store_priceHistory_monitorEmail": { "message": "Email" },
-  "store_priceHistory_monitorEnable": { "message": " to enable this price monitor." },
-  "store_priceHistory_monitorGamePrefix": { "message": "When \"" },
-  "store_priceHistory_monitorGameSuffix": { "message": "\"" },
-  "store_priceHistory_monitorInvalidResponse": { "message": "The price-monitor response is invalid" },
-  "store_priceHistory_monitorLabel": { "message": "Price monitor: " },
-  "store_priceHistory_monitorLoginExpired": { "message": "Sign-in has expired. Sign in again." },
-  "store_priceHistory_monitorLoginRequired": { "message": "Sign in from Settings first" },
-  "store_priceHistory_monitorLoginRequiredInSettings": { "message": "Sign in from Steam Buff Settings first." },
-  "store_priceHistory_monitorNotifyMethod": { "message": "Notification method" },
-  "store_priceHistory_monitorNotifyRequired": { "message": "Choose at least one notification method." },
-  "store_priceHistory_monitorNotifySuffix": { "message": "." },
-  "store_priceHistory_monitorNotSet": { "message": "No reminder set" },
-  "store_priceHistory_monitorReading": { "message": "Loading..." },
-  "store_priceHistory_monitorRequestFailed": { "message": "Request failed: $code$", "placeholders": { "code": { "content": "$1" } } },
-  "store_priceHistory_monitorRetry": { "message": "Could not load. Click to retry." },
-  "store_priceHistory_monitorRetryTitle": { "message": "Reload price monitor" },
-  "store_priceHistory_monitorSaveFailed": { "message": "Could not save the monitor. Try again later." },
-  "store_priceHistory_monitorSaveErrorTitle": { "message": "Save failed" },
-  "store_priceHistory_monitorSaveResponseInvalid": { "message": "The saved price-monitor response is incomplete" },
-  "store_priceHistory_monitorSaving": { "message": "Saving..." },
-  "store_priceHistory_monitorSetTitle": { "message": "Set price monitor" },
-  "store_priceHistory_monitorSponsorOnly": { "message": "This feature is available to sponsors only." },
-  "store_priceHistory_monitorSummaryAmount": { "message": "Notify me through $channels$ at $time$ when the price is $amount$ or lower.", "placeholders": { "channels": { "content": "$1" }, "time": { "content": "$2" }, "amount": { "content": "$3" } } },
-  "store_priceHistory_monitorSummaryDiscount": { "message": "Notify me through $channels$ at $time$ when the discount reaches $discount$ or more.", "placeholders": { "channels": { "content": "$1" }, "time": { "content": "$2" }, "discount": { "content": "$3" } } },
-  "store_priceHistory_monitorTime": { "message": "Notification time" },
-  "store_priceHistory_monitorTimeRequired": { "message": "Set a notification time." },
-  "store_priceHistory_monitorTimezoneRequired": { "message": "Could not read the current time zone, so the monitor cannot be saved." },
-  "store_priceHistory_monitorTitle": { "message": "Price monitor" },
-  "store_priceHistory_monitorValidationErrorTitle": { "message": "Unable to save" },
-  "store_priceHistory_monitorVia": { "message": " through " },
-  "store_priceHistory_now": { "message": "Now" },
-  "store_priceHistory_priceIncomplete": { "message": "Price data is incomplete." },
-  "store_priceHistory_providerConfigMissing": { "message": "Third-party price data has not been configured." },
-  "store_priceHistory_providerDisabled": { "message": "Third-party data service is disabled" },
-  "store_thirdPartyDisabled_help": { "message": "View why the third-party data service is disabled" },
-  "store_priceHistory_providerGameNotFound": { "message": "ITAD has not listed this Steam item." },
-  "store_priceHistory_providerUnavailable": { "message": "Third-party price data is temporarily unavailable." },
-  "store_priceHistory_queryFailed": { "message": "Could not query prices. Try again later." },
-  "store_priceHistory_save": { "message": "Save" },
-  "store_priceHistory_steamItemInvalidResponse": { "message": "The Steam item-details response is invalid" },
-  "store_priceHistory_steamItemUnavailable": { "message": "Steam item details are unavailable" },
-  "store_priceHistory_unavailable": { "message": "Unavailable" },
-  "store_priceHistory_unknownDate": { "message": "Unknown date" },
-  "store_priceHistory_viewDetails": { "message": " for details" },
-  "store_priceHistory_viewDetailsPrefix": { "message": "View " },
-  "store_cartCheckout_restoreButton": { "message": "Restore saved cart items" },
-  "store_cartCheckout_restoreFailed": { "message": "Restore failed. Try again." },
-  "store_cartCheckout_restored": { "message": "Saved cart restored" },
-  "store_cartCheckout_restoring": { "message": "Restoring saved cart items..." },
-  "store_cartCheckout_restoreComplete": { "message": "Saved cart items restored" },
-  "store_cartCheckout_empty": { "message": "No saved cart items" },
-  "store_steampy_loading": { "message": "Loading prices..." },
-  "store_steampy_proxyPurchase": { "message": "PY Assisted Purchase" },
-  "store_drmWarning_detected": { "message": "This game uses third-party DRM: $names$", "placeholders": { "names": { "content": "$1" } } },
-  "store_drmWarning_title": { "message": "Third-party check" }
+  "store_cartSelect_bulkFailed": {
+    "message": "Could not update the cart selection."
+  },
+  "store_cartSelect_checkoutFailed": {
+    "message": "Could not process the cart selection."
+  },
+  "store_cartSelect_clearSelection": {
+    "message": "Clear selection"
+  },
+  "store_cartSelect_holdFailed": {
+    "message": "Could not temporarily update the cart. Saved items are available to restore manually."
+  },
+  "store_cartSelect_holdingItems": {
+    "message": "Temporarily keeping $count$ unpaid item(s)...",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_invertSelection": {
+    "message": "Invert selection"
+  },
+  "store_cartSelect_keepItems": {
+    "message": "Keep items"
+  },
+  "store_cartSelect_payThisTime": {
+    "message": "Pay for this item"
+  },
+  "store_cartSelect_purchaseCount": {
+    "message": "Items selected"
+  },
+  "store_cartSelect_removeAll": {
+    "message": "Remove all"
+  },
+  "store_cartSelect_removeAllConfirm": {
+    "message": "Remove every item from the cart?"
+  },
+  "store_cartSelect_removeAllMessage": {
+    "message": "Steam will remove every item from the cart. Confirm to continue with Steam's original Remove All action, or cancel to keep the items."
+  },
+  "store_cartSelect_removeAllTitle": {
+    "message": "Remove all cart items"
+  },
+  "store_cartSelect_restoreButton": {
+    "message": "Restore saved cart items"
+  },
+  "store_cartSelect_restored": {
+    "message": "Restored unpaid items from the previous cart."
+  },
+  "store_cartSelect_restoreFailed": {
+    "message": "Could not restore saved cart items. Try again."
+  },
+  "store_cartSelect_restoreMissing": {
+    "message": "$count$ saved cart item(s) have not been restored.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_restorePartialFailed": {
+    "message": "Some saved cart items were not restored. Try again later."
+  },
+  "store_cartSelect_restoreStillMissing": {
+    "message": "$count$ saved cart item(s) are still missing.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_restoring": {
+    "message": "Restoring $count$ saved cart item(s)...",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_saveFailed": {
+    "message": "Could not save the cart selection. The previous selection was restored."
+  },
+  "store_cartSelect_selectAll": {
+    "message": "Select all"
+  },
+  "store_cartSelect_selectAtLeastOne": {
+    "message": "Select at least one item to pay for."
+  },
+  "store_cartSelect_selectedTotal": {
+    "message": "Selected total"
+  },
+  "store_cartSelect_skipPayment": {
+    "message": "Do not pay now"
+  },
+  "store_dlc_addingToCart": {
+    "message": "Adding to cart..."
+  },
+  "store_dlc_addSelectedToCart": {
+    "message": "Add selected DLC to cart"
+  },
+  "store_dlc_addToCartFailed": {
+    "message": "Could not add DLC to the cart"
+  },
+  "store_dlc_addToCartFailedDetail": {
+    "message": "Try again later, or refresh this store page and try again."
+  },
+  "store_dlc_batchClaim": {
+    "message": "Batch claim"
+  },
+  "store_dlc_cacheNotice": {
+    "message": "If you claimed or purchased this game, or changed its wishlist status in the last few minutes, Steam may still show stale results. Select Refresh DLC status before using this action."
+  },
+  "store_dlc_cancel": {
+    "message": "Cancel"
+  },
+  "store_dlc_claim": {
+    "message": "Claim"
+  },
+  "store_dlc_claimAllFree": {
+    "message": "Claim all free DLC"
+  },
+  "store_dlc_claimComplete": {
+    "message": "Claim complete!"
+  },
+  "store_dlc_claimConfirm": {
+    "message": "Found $count$ free DLC item(s). Claim them now?",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_claimFailedCount": {
+    "message": "Failed: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_claimFailedItems": {
+    "message": "Failed items: $items$",
+    "placeholders": {
+      "items": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_claimingFree": {
+    "message": "Claiming free DLC..."
+  },
+  "store_dlc_claimSuccessCount": {
+    "message": "Succeeded: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_close": {
+    "message": "Close"
+  },
+  "store_dlc_deselectAll": {
+    "message": "Clear all selections"
+  },
+  "store_dlc_executionFailed": {
+    "message": "Operation failed"
+  },
+  "store_dlc_failedItemSeparator": {
+    "message": "; "
+  },
+  "store_dlc_loadFreeInfoFailed": {
+    "message": "Could not load free DLC information"
+  },
+  "store_dlc_loadingFreeInfo": {
+    "message": "Loading free DLC information..."
+  },
+  "store_dlc_moreFailedItems": {
+    "message": "; ..."
+  },
+  "store_dlc_noFreeDlc": {
+    "message": "No claimable free DLC was found"
+  },
+  "store_dlc_refreshFailed": {
+    "message": "Could not refresh DLC status"
+  },
+  "store_dlc_refreshFailedDetail": {
+    "message": "Error: $error$\nTry again later, or refresh this store page manually.",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_refreshing": {
+    "message": "Refreshing status..."
+  },
+  "store_dlc_refreshSectionMissing": {
+    "message": "The refreshed DLC section was not found"
+  },
+  "store_dlc_refreshState": {
+    "message": "Refresh DLC status"
+  },
+  "store_dlc_requestFailed": {
+    "message": "Request failed with HTTP status $status$.",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_dlc_sameOriginRejected": {
+    "message": "The same-origin DLC request was rejected"
+  },
+  "store_dlc_scriptInjectionFailed": {
+    "message": "Script injection failed"
+  },
+  "store_dlc_selectUnowned": {
+    "message": "Select DLC not owned"
+  },
+  "store_dlc_selectWishlisted": {
+    "message": "Select wishlisted DLC"
+  },
+  "store_dlc_stateNoticeTitle": {
+    "message": "DLC status notice"
+  },
+  "store_dlc_tryLater": {
+    "message": "Try again later"
+  },
+  "store_dlc_unknownError": {
+    "message": "Unknown error"
+  },
+  "store_dlc_unknownItem": {
+    "message": "Unknown item"
+  },
+  "store_priceHistory_bundled": {
+    "message": " Bundled: $count$ time(s)",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_bundledUnavailable": {
+    "message": " Bundled: unavailable"
+  },
+  "store_priceHistory_cancel": {
+    "message": "Cancel"
+  },
+  "store_priceHistory_capabilityUnsupported": {
+    "message": "Price data is not supported on the current platform."
+  },
+  "store_priceHistory_close": {
+    "message": "Close"
+  },
+  "store_priceHistory_compareCheaper": {
+    "message": "$amount$ lower (-$discount$%).",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      },
+      "discount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_priceHistory_compareEqual": {
+    "message": " Same as the historical low."
+  },
+  "store_priceHistory_compareLowPrefix": {
+    "message": " Compared with the historical low, "
+  },
+  "store_priceHistory_compareMoreExpensive": {
+    "message": "$amount$ higher (+$discount$%).",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      },
+      "discount": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_priceHistory_confirm": {
+    "message": "Confirm"
+  },
+  "store_priceHistory_currentHistoricalLow": {
+    "message": "Current historical low discount"
+  },
+  "store_priceHistory_currentLowestDiscount": {
+    "message": "Current lowest discount"
+  },
+  "store_priceHistory_currentRegularPrice": {
+    "message": "Current regular price"
+  },
+  "store_priceHistory_daysAgo": {
+    "message": " ($days$ days ago)",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_dlcHistoricalLow": {
+    "message": "Historical low"
+  },
+  "store_priceHistory_dlcHistoryLabel": {
+    "message": "Historical low $price$, $date$, source: $source$",
+    "placeholders": {
+      "price": {
+        "content": "$1"
+      },
+      "date": {
+        "content": "$2"
+      },
+      "source": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_priceHistory_dlcLoading": {
+    "message": "Loading historical low..."
+  },
+  "store_priceHistory_historicalLowAt": {
+    "message": "Historical low discount on "
+  },
+  "store_priceHistory_historicalLowValuePrefix": {
+    "message": "$days$: ",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_hour": {
+    "message": "Hour"
+  },
+  "store_priceHistory_invalidSteamItem": {
+    "message": "Invalid Steam item identifier"
+  },
+  "store_priceHistory_itadNotListed": {
+    "message": "ITAD has not listed this purchase item."
+  },
+  "store_priceHistory_listSeparator": {
+    "message": ", "
+  },
+  "store_priceHistory_loading": {
+    "message": "Loading historical low price..."
+  },
+  "store_priceHistory_minute": {
+    "message": "Minute"
+  },
+  "store_priceHistory_monitorAmount": {
+    "message": "Target price"
+  },
+  "store_priceHistory_monitorAmountInvalid": {
+    "message": "Target price must be between 1 and $amount$.",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_monitorAmountMaximum": {
+    "message": "Target price (maximum $amount$)",
+    "placeholders": {
+      "amount": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_monitorAmountMiddle": {
+    "message": " or lower, notify me at "
+  },
+  "store_priceHistory_monitorAmountPrefix": {
+    "message": " reaches "
+  },
+  "store_priceHistory_monitorAnd": {
+    "message": " and "
+  },
+  "store_priceHistory_monitorAuthErrorTitle": {
+    "message": "Authentication check failed"
+  },
+  "store_priceHistory_monitorAuthFailed": {
+    "message": "Could not verify sign-in status."
+  },
+  "store_priceHistory_monitorAuthUnavailable": {
+    "message": "Price-monitor authentication is unavailable"
+  },
+  "store_priceHistory_monitorCompleteFields": {
+    "message": "Complete "
+  },
+  "store_priceHistory_monitorCondition": {
+    "message": "Monitor condition"
+  },
+  "store_priceHistory_monitorConfirmDelete": {
+    "message": "Confirm delete"
+  },
+  "store_priceHistory_monitorDashboard": {
+    "message": "Monitors"
+  },
+  "store_priceHistory_monitorDashboardTitle": {
+    "message": "View all monitors on Sucaijun"
+  },
+  "store_priceHistory_monitorDelete": {
+    "message": "Delete monitor"
+  },
+  "store_priceHistory_monitorDeleteErrorTitle": {
+    "message": "Delete failed"
+  },
+  "store_priceHistory_monitorDeleteFailed": {
+    "message": "Could not delete the monitor. Try again later."
+  },
+  "store_priceHistory_monitorDeleting": {
+    "message": "Deleting..."
+  },
+  "store_priceHistory_monitorDiscount": {
+    "message": "Target discount"
+  },
+  "store_priceHistory_monitorDiscountInvalid": {
+    "message": "Target discount must be an integer between 1 and 100."
+  },
+  "store_priceHistory_monitorDiscountMiddle": {
+    "message": " or more, notify me at "
+  },
+  "store_priceHistory_monitorDiscountPrefix": {
+    "message": " reaches "
+  },
+  "store_priceHistory_monitorDiscountRange": {
+    "message": "Target discount (1-100%)"
+  },
+  "store_priceHistory_monitorEditTitle": {
+    "message": "Edit price monitor"
+  },
+  "store_priceHistory_monitorEmail": {
+    "message": "Email"
+  },
+  "store_priceHistory_monitorEnable": {
+    "message": " to enable this price monitor."
+  },
+  "store_priceHistory_monitorGamePrefix": {
+    "message": "When \""
+  },
+  "store_priceHistory_monitorGameSuffix": {
+    "message": "\""
+  },
+  "store_priceHistory_monitorInvalidResponse": {
+    "message": "The price-monitor response is invalid"
+  },
+  "store_priceHistory_monitorLabel": {
+    "message": "Price monitor: "
+  },
+  "store_priceHistory_monitorLoginExpired": {
+    "message": "Sign-in has expired. Sign in again."
+  },
+  "store_priceHistory_monitorLoginRequired": {
+    "message": "Sign in from Settings first"
+  },
+  "store_priceHistory_monitorLoginRequiredInSettings": {
+    "message": "Sign in from Steam Buff Settings first."
+  },
+  "store_priceHistory_monitorNotifyMethod": {
+    "message": "Notification method"
+  },
+  "store_priceHistory_monitorNotifyRequired": {
+    "message": "Choose at least one notification method."
+  },
+  "store_priceHistory_monitorNotifySuffix": {
+    "message": "."
+  },
+  "store_priceHistory_monitorNotSet": {
+    "message": "No reminder set"
+  },
+  "store_priceHistory_monitorReading": {
+    "message": "Loading..."
+  },
+  "store_priceHistory_monitorRequestFailed": {
+    "message": "Request failed: $code$",
+    "placeholders": {
+      "code": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_priceHistory_monitorRetry": {
+    "message": "Could not load. Click to retry."
+  },
+  "store_priceHistory_monitorRetryTitle": {
+    "message": "Reload price monitor"
+  },
+  "store_priceHistory_monitorSaveFailed": {
+    "message": "Could not save the monitor. Try again later."
+  },
+  "store_priceHistory_monitorSaveErrorTitle": {
+    "message": "Save failed"
+  },
+  "store_priceHistory_monitorSaveResponseInvalid": {
+    "message": "The saved price-monitor response is incomplete"
+  },
+  "store_priceHistory_monitorSaving": {
+    "message": "Saving..."
+  },
+  "store_priceHistory_monitorSetTitle": {
+    "message": "Set price monitor"
+  },
+  "store_priceHistory_monitorSponsorOnly": {
+    "message": "This feature is available to sponsors only."
+  },
+  "store_priceHistory_monitorSummaryAmount": {
+    "message": "Notify me through $channels$ at $time$ when the price is $amount$ or lower.",
+    "placeholders": {
+      "channels": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      },
+      "amount": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_priceHistory_monitorSummaryDiscount": {
+    "message": "Notify me through $channels$ at $time$ when the discount reaches $discount$ or more.",
+    "placeholders": {
+      "channels": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      },
+      "discount": {
+        "content": "$3"
+      }
+    }
+  },
+  "store_priceHistory_monitorTime": {
+    "message": "Notification time"
+  },
+  "store_priceHistory_monitorTimeRequired": {
+    "message": "Set a notification time."
+  },
+  "store_priceHistory_monitorTimezoneRequired": {
+    "message": "Could not read the current time zone, so the monitor cannot be saved."
+  },
+  "store_priceHistory_monitorTitle": {
+    "message": "Price monitor"
+  },
+  "store_priceHistory_monitorValidationErrorTitle": {
+    "message": "Unable to save"
+  },
+  "store_priceHistory_monitorVia": {
+    "message": " through "
+  },
+  "store_priceHistory_now": {
+    "message": "Now"
+  },
+  "store_priceHistory_priceIncomplete": {
+    "message": "Price data is incomplete."
+  },
+  "store_priceHistory_providerConfigMissing": {
+    "message": "Third-party price data has not been configured."
+  },
+  "store_priceHistory_providerDisabled": {
+    "message": "Third-party data service is disabled"
+  },
+  "store_thirdPartyDisabled_help": {
+    "message": "View why the third-party data service is disabled"
+  },
+  "store_priceHistory_providerGameNotFound": {
+    "message": "ITAD has not listed this Steam item."
+  },
+  "store_priceHistory_providerUnavailable": {
+    "message": "Third-party price data is temporarily unavailable."
+  },
+  "store_priceHistory_queryFailed": {
+    "message": "Could not query prices. Try again later."
+  },
+  "store_priceHistory_save": {
+    "message": "Save"
+  },
+  "store_priceHistory_steamItemInvalidResponse": {
+    "message": "The Steam item-details response is invalid"
+  },
+  "store_priceHistory_steamItemUnavailable": {
+    "message": "Steam item details are unavailable"
+  },
+  "store_priceHistory_unavailable": {
+    "message": "Unavailable"
+  },
+  "store_priceHistory_unknownDate": {
+    "message": "Unknown date"
+  },
+  "store_priceHistory_viewDetails": {
+    "message": " for details"
+  },
+  "store_priceHistory_viewDetailsPrefix": {
+    "message": "View "
+  },
+  "store_cartCheckout_restoreButton": {
+    "message": "Restore saved cart items"
+  },
+  "store_cartCheckout_restoreFailed": {
+    "message": "Restore failed. Try again."
+  },
+  "store_cartCheckout_restored": {
+    "message": "Saved cart restored"
+  },
+  "store_cartCheckout_restoring": {
+    "message": "Restoring saved cart items..."
+  },
+  "store_cartCheckout_restoreComplete": {
+    "message": "Saved cart items restored"
+  },
+  "store_cartCheckout_empty": {
+    "message": "No saved cart items"
+  },
+  "store_steampy_loading": {
+    "message": "Loading prices..."
+  },
+  "store_steampy_proxyPurchase": {
+    "message": "PY Assisted Purchase"
+  },
+  "store_drmWarning_detected": {
+    "message": "This game uses third-party DRM: $names$",
+    "placeholders": {
+      "names": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_drmWarning_title": {
+    "message": "Third-party check"
+  }
 }
