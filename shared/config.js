@@ -460,7 +460,7 @@
       browserType: "4",
     }),
     settings: Object.freeze({
-      webProtocols: Object.freeze(["http:", "https:"]),
+      webProtocols: Object.freeze(["http:", "https:", "chrome-extension:"]),
       topFrameOnly: true,
     }),
   });

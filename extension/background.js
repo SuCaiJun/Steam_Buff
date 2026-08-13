@@ -361,7 +361,6 @@
   const ONBOARDING_OPEN_LOCAL_MESSAGE = ONBOARDING.MESSAGES.openLocalPage;
   const ONBOARDING_OPEN_SETTINGS_MESSAGE = ONBOARDING.MESSAGES.openSettings;
   const ONBOARDING_PAGE = "onboarding/index.html";
-  const ONBOARDING_STORE_URL = "https://store.steampowered.com/";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const TAB_INJECT_DELAYS = Object.freeze([0, 1000]);
   const pendingTabInjects = new Map();
@@ -384,6 +383,7 @@
   const STEAM_ROOT_MENU_BROWSER_HOME_SETTING = "web_browser_home";
   const STEAM_ROOT_MENU_BROWSER_FALLBACK = "https://sucaijun.com/";
   const STEAM_ROOT_MENU_EXTENSIONS_URL = "chrome://extensions/";
+  const STEAM_ROOT_MENU_SETTINGS_PAGE = "settings/center.html";
   const STEAM_ROOT_MENU_REFOCUS_DELAY_MS = 0;
   const AI_PERMISSION_PAGE = "permissions/ai/index.html";
   const AI_PERMISSION_SESSION_PREFIX = "st.aiGatewayPermission.session.v1.";
@@ -1290,7 +1290,7 @@
       sendResponse({ success: false, error: "引导页来源无效" });
       return;
     }
-    chrome.tabs.create({ url: ONBOARDING_STORE_URL }, (tab) => {
+    chrome.tabs.create({ url: chrome.runtime.getURL(STEAM_ROOT_MENU_SETTINGS_PAGE) }, (tab) => {
       const err = chrome.runtime.lastError;
       const tabId = tab?.id;
       if (err || typeof tabId !== "number") {
@@ -1298,30 +1298,7 @@
         return;
       }
 
-      let done = false;
-      const finish = (targetTab, timedOut = false) => {
-        if (done) return;
-        done = true;
-        chrome.tabs.onUpdated.removeListener(listener);
-        openSettings(targetTab || tab);
-        sendResponse({ success: true, tabId, timedOut });
-      };
-      const listener = (updatedTabId, changeInfo, updatedTab) => {
-        if (updatedTabId === tabId && changeInfo.status === "complete") {
-          finish(updatedTab);
-        }
-      };
-
-      chrome.tabs.onUpdated.addListener(listener);
-      if (tab.status === "complete") {
-        finish(tab);
-        return;
-      }
-      globalThis.setTimeout(() => {
-        chrome.tabs.get(tabId, (current) => {
-          finish(chrome.runtime.lastError ? tab : current || tab, true);
-        });
-      }, 8000);
+      sendResponse({ success: true, tabId });
     });
   }
 
@@ -2133,7 +2110,7 @@
 
   async function openSteamRootMenuChromiumRequest(request, sender, sendResponse) {
     const action = String(request?.action || "");
-    if (action !== "browser" && action !== "extensions") {
+    if (!["browser", "extensions", "settings"].includes(action)) {
       sendResponse({ success: false, code: "STEAM_ROOT_MENU_ACTION_INVALID", error: "Steam Root Menu 操作无效" });
       return;
     }
@@ -2144,7 +2121,9 @@
     }
     const target = action === "extensions"
       ? { url: STEAM_ROOT_MENU_EXTENSIONS_URL, source: "fixed" }
-      : steamRootMenuBrowserTarget(context);
+      : action === "settings"
+        ? { url: chrome.runtime.getURL(STEAM_ROOT_MENU_SETTINGS_PAGE), source: "fixed" }
+        : steamRootMenuBrowserTarget(context);
     openChromiumWindow(target.url, (response) => {
       sendResponse({
         ...response,
@@ -2793,7 +2772,14 @@
 
   function isSettingsSender(sender) {
     const url = senderUrlObject(sender);
-    if (!url || !["http:", "https:"].includes(url.protocol)) {
+    if (!url) {
+      return false;
+    }
+    if (url.protocol === "chrome-extension:") {
+      return url.hostname === chrome.runtime.id
+        && url.pathname.replace(/^\/+/, "") === STEAM_ROOT_MENU_SETTINGS_PAGE;
+    }
+    if (!["http:", "https:"].includes(url.protocol)) {
       return false;
     }
     return MATCH.isSteamPoweredLikeHost?.(url.hostname) === true ||

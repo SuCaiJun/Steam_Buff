@@ -3971,6 +3971,9 @@
   "steamRootMenu_extensionManagement": {
     "message": "Extension Management"
   },
+  "steamRootMenu_settingsCenter": {
+    "message": "Steam Buff Settings Center"
+  },
   "settings_ai_permissionBrowserMessage": {
     "message": "This action requires authorization in a Chromium browser. Continue?"
   },

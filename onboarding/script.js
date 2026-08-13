@@ -717,7 +717,7 @@
           operationId,
           durationMs: Date.now() - startedAt,
         });
-        setBusy(false, "已打开 Steam 商店与设置中心。", false);
+        setBusy(false, "已打开 Steam Buff 设置中心。", false);
       });
     } catch (error) {
       log.error("onboarding-finish-failed", "安装引导打开设置中心异常", {

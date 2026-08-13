@@ -21,8 +21,10 @@
   const ROOT_MENU_OPEN_TYPE = "STEAM_ROOT_MENU_OPEN_CHROMIUM";
   const ROOT_MENU_ACTION_BROWSER = "browser";
   const ROOT_MENU_ACTION_EXTENSIONS = "extensions";
+  const ROOT_MENU_ACTION_SETTINGS = "settings";
   const ROOT_MENU_BROWSER_LABEL = "steamRootMenu_chromiumBrowser";
   const ROOT_MENU_EXTENSIONS_LABEL = "steamRootMenu_extensionManagement";
+  const ROOT_MENU_SETTINGS_LABEL = "steamRootMenu_settingsCenter";
   const WAIT_MS = 100;
   const MAX_TRIES = 60;
   const REQUEST_TIMEOUT_MS = 7000;
@@ -269,6 +271,11 @@
         id: ROOT_MENU_ACTION_EXTENSIONS,
         order: 20,
         value: Object.freeze({ action: ROOT_MENU_ACTION_EXTENSIONS, labelKey: ROOT_MENU_EXTENSIONS_LABEL }),
+      });
+      rootMenuHost.register({
+        id: ROOT_MENU_ACTION_SETTINGS,
+        order: 30,
+        value: Object.freeze({ action: ROOT_MENU_ACTION_SETTINGS, labelKey: ROOT_MENU_SETTINGS_LABEL }),
       });
     }
     const root = document.querySelector(ROOT_MENU_TARGET_SELECTOR);

@@ -3971,6 +3971,9 @@
   "steamRootMenu_extensionManagement": {
     "message": "扩展管理"
   },
+  "steamRootMenu_settingsCenter": {
+    "message": "Steam Buff 设置中心"
+  },
   "settings_ai_permissionBrowserMessage": {
     "message": "该操作需要授权，需打开 Chromium 浏览器进行授权操作。是否继续？"
   },

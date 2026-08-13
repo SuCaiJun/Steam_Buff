@@ -408,6 +408,9 @@
     if (isSteamLoopbackHost()) {
       return "";
     }
+    if (loc().protocol === "chrome-extension:" && path() === "/settings/center.html") {
+      return "settings-web";
+    }
     if (!isSteamWebHost() || !isHtmlPage()) {
       return "";
     }
