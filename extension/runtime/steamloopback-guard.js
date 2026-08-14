@@ -13,13 +13,12 @@
 
   const MARK = "__steamBuffLoopbackGuard";
   const RECOVERY_MARK = "__steamBuffLoopbackRecovery";
-  const VERSION = "steam-loopback-guard-v19";
+  const VERSION = "steam-loopback-guard-v20";
   const REQUEST_TYPE = "STEAM_LOOPBACK_INJECT_REQUEST";
   const ROOT_MENU_TITLE = "Steam Root Menu";
   const ROOT_MENU_TARGET_SELECTOR = "#popup_target";
   const ROOT_MENU_HOST_ID = "root-menu";
   const ROOT_MENU_OPEN_TYPE = "STEAM_ROOT_MENU_OPEN_CHROMIUM";
-  const ROOT_MENU_AFTER_CLOSE_EVENT_TYPE = "STEAM_BUFF_ROOT_MENU_AFTER_CLOSE";
   const ROOT_MENU_ACTION_BROWSER = "browser";
   const ROOT_MENU_ACTION_EXTENSIONS = "extensions";
   const ROOT_MENU_ACTION_SETTINGS = "settings";
@@ -86,7 +85,6 @@
   let rootMenuTarget = null;
   let rootMenuRequestPending = false;
   let rootMenuVisibilityBound = false;
-  let sharedContextMessageBound = false;
   const requestStartedAt = recovery?.startedAt || Date.now();
   const requestAttempt = recovery?.attempt || 1;
   let requestLastFailureReason = recovery?.previousFailureReason || "";
@@ -116,51 +114,28 @@
     if (rootMenuRequestPending) {
       return;
     }
-    if (typeof window.close !== "function" || typeof window.opener?.postMessage !== "function") {
+    const sendMessage = chrome.runtime?.sendMessage;
+    if (typeof sendMessage !== "function") {
       return;
     }
     rootMenuRequestPending = true;
     try {
-      window.close();
-      window.opener.postMessage({
-        type: ROOT_MENU_AFTER_CLOSE_EVENT_TYPE,
-        action,
-      }, location.origin);
-    } catch {
-      rootMenuRequestPending = false;
-    }
-  }
-
-  function handleRootMenuAfterCloseEvent(event) {
-    if (event.origin !== location.origin || event.source === window) {
-      return;
-    }
-    const payload = event.data;
-    if (payload?.type !== ROOT_MENU_AFTER_CLOSE_EVENT_TYPE
-        || ![ROOT_MENU_ACTION_BROWSER, ROOT_MENU_ACTION_EXTENSIONS, ROOT_MENU_ACTION_SETTINGS].includes(payload.action)) {
-      return;
-    }
-    let sourceTitle = "";
-    let sourceUrl = "";
-    try {
-      sourceTitle = text(event.source?.document?.title);
-      sourceUrl = text(event.source?.location?.href);
-    } catch {
-      return;
-    }
-    if (sourceTitle !== ROOT_MENU_TITLE || sourceUrl !== href()) {
-      return;
-    }
-    try {
-      chrome.runtime?.sendMessage?.({
+      sendMessage.call(chrome.runtime, {
         type: ROOT_MENU_OPEN_TYPE,
-        phase: "after-close",
-        action: payload.action,
-      }, () => {
-        void chrome.runtime?.lastError;
+        action,
+      }, (response) => {
+        const runtimeError = chrome.runtime?.lastError;
+        rootMenuRequestPending = false;
+        if (!runtimeError && response?.success === true) {
+          try {
+            window.close();
+          } catch {
+            // Chromium 窗口已经创建，Root Menu 关闭失败不覆盖打开结果。
+          }
+        }
       });
     } catch {
-      // SharedJSContext 转发失败时不影响菜单关闭动作。
+      rootMenuRequestPending = false;
     }
   }
 
@@ -495,10 +470,6 @@
   function check(tries = 0) {
     const currentTitle = title();
     const currentHref = href();
-    if (currentTitle === "SharedJSContext" && !sharedContextMessageBound) {
-      sharedContextMessageBound = true;
-      window.addEventListener("message", handleRootMenuAfterCloseEvent);
-    }
     if (currentTitle === ROOT_MENU_TITLE) {
       initRootMenu();
       return;

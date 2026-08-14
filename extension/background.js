@@ -2055,7 +2055,7 @@
     }
   }
 
-  async function steamSharedContext(sender) {
+  async function steamRootMenuContext(sender) {
     if (sender?.id !== chrome.runtime.id) {
       return null;
     }
@@ -2068,9 +2068,13 @@
         target,
         world: "MAIN",
         func: (settingKey) => {
+          let openerUrl = "";
+          let openerTitle = "";
           let configuredUrl = "";
           try {
-            const value = window.settingsStore?.clientSettings?.[settingKey];
+            openerUrl = String(window.opener?.location?.href || "");
+            openerTitle = String(window.opener?.document?.title || "");
+            const value = window.opener?.settingsStore?.clientSettings?.[settingKey];
             configuredUrl = typeof value === "string" ? value.trim() : "";
           } catch {
             configuredUrl = "";
@@ -2078,13 +2082,18 @@
           return {
             title: String(document.title || ""),
             url: String(location.href || ""),
+            openerUrl,
+            openerTitle,
             configuredUrl,
           };
         },
         args: [STEAM_ROOT_MENU_BROWSER_HOME_SETTING],
       });
       const frame = results?.[0]?.result;
-      if (frame?.title !== "SharedJSContext" || !isSteamLoopbackUrl(frame?.url)) {
+      if (frame?.title !== STEAM_ROOT_MENU_TITLE
+          || frame?.openerTitle !== "SharedJSContext"
+          || !isSteamLoopbackUrl(frame?.url)
+          || !isSteamLoopbackUrl(frame?.openerUrl)) {
         return null;
       }
       return Object.freeze({ configuredUrl: steamRootMenuWebUrl(frame.configuredUrl) });
@@ -2100,16 +2109,12 @@
   }
 
   async function openSteamRootMenuChromiumRequest(request, sender, sendResponse) {
-    if (String(request?.phase || "") !== "after-close") {
-      sendResponse({ success: false, code: "STEAM_ROOT_MENU_PHASE_INVALID", error: "Steam Root Menu 操作阶段无效" });
-      return;
-    }
     const action = String(request?.action || "");
     if (!["browser", "extensions", "settings"].includes(action)) {
       sendResponse({ success: false, code: "STEAM_ROOT_MENU_ACTION_INVALID", error: "Steam Root Menu 操作无效" });
       return;
     }
-    const context = await steamSharedContext(sender);
+    const context = await steamRootMenuContext(sender);
     if (!context) {
       sendResponse({ success: false, code: "STEAM_ROOT_MENU_SENDER_REJECTED", error: "Steam Root Menu 来源无效" });
       return;
