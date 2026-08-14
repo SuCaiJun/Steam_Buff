@@ -384,7 +384,7 @@
   const STEAM_ROOT_MENU_BROWSER_FALLBACK = "https://sucaijun.com/";
   const STEAM_ROOT_MENU_EXTENSIONS_URL = "chrome://extensions/";
   const STEAM_ROOT_MENU_SETTINGS_PAGE = "settings/center.html";
-  const STEAM_ROOT_MENU_REFOCUS_DELAY_MS = 0;
+  const STEAM_ROOT_MENU_REFOCUS_DELAY_MS = 200;
   const AI_PERMISSION_PAGE = "permissions/ai/index.html";
   const AI_PERMISSION_SESSION_PREFIX = "st.aiGatewayPermission.session.v1.";
   const AI_PERMISSION_TAB_PREFIX = "st.aiGatewayPermission.tab.v1.";
@@ -2031,7 +2031,7 @@
         void chrome.runtime.lastError;
       });
     } catch {
-      // Root Menu 关闭后的焦点恢复失败不应覆盖已经成功创建的 Chromium 窗口。
+      // 已创建的窗口仍可使用，延后聚焦失败不覆盖打开结果。
     }
   }
 
@@ -2055,7 +2055,7 @@
     }
   }
 
-  async function steamRootMenuContext(sender) {
+  async function steamSharedContext(sender) {
     if (sender?.id !== chrome.runtime.id) {
       return null;
     }
@@ -2068,13 +2068,9 @@
         target,
         world: "MAIN",
         func: (settingKey) => {
-          let openerUrl = "";
-          let openerTitle = "";
           let configuredUrl = "";
           try {
-            openerUrl = String(window.opener?.location?.href || "");
-            openerTitle = String(window.opener?.document?.title || "");
-            const value = window.opener?.settingsStore?.clientSettings?.[settingKey];
+            const value = window.settingsStore?.clientSettings?.[settingKey];
             configuredUrl = typeof value === "string" ? value.trim() : "";
           } catch {
             configuredUrl = "";
@@ -2082,18 +2078,13 @@
           return {
             title: String(document.title || ""),
             url: String(location.href || ""),
-            openerUrl,
-            openerTitle,
             configuredUrl,
           };
         },
         args: [STEAM_ROOT_MENU_BROWSER_HOME_SETTING],
       });
       const frame = results?.[0]?.result;
-      if (frame?.title !== STEAM_ROOT_MENU_TITLE
-          || frame?.openerTitle !== "SharedJSContext"
-          || !isSteamLoopbackUrl(frame?.url)
-          || !isSteamLoopbackUrl(frame?.openerUrl)) {
+      if (frame?.title !== "SharedJSContext" || !isSteamLoopbackUrl(frame?.url)) {
         return null;
       }
       return Object.freeze({ configuredUrl: steamRootMenuWebUrl(frame.configuredUrl) });
@@ -2109,12 +2100,16 @@
   }
 
   async function openSteamRootMenuChromiumRequest(request, sender, sendResponse) {
+    if (String(request?.phase || "") !== "after-close") {
+      sendResponse({ success: false, code: "STEAM_ROOT_MENU_PHASE_INVALID", error: "Steam Root Menu 操作阶段无效" });
+      return;
+    }
     const action = String(request?.action || "");
     if (!["browser", "extensions", "settings"].includes(action)) {
       sendResponse({ success: false, code: "STEAM_ROOT_MENU_ACTION_INVALID", error: "Steam Root Menu 操作无效" });
       return;
     }
-    const context = await steamRootMenuContext(sender);
+    const context = await steamSharedContext(sender);
     if (!context) {
       sendResponse({ success: false, code: "STEAM_ROOT_MENU_SENDER_REJECTED", error: "Steam Root Menu 来源无效" });
       return;
@@ -2125,14 +2120,14 @@
         ? { url: chrome.runtime.getURL(STEAM_ROOT_MENU_SETTINGS_PAGE), source: "fixed" }
         : steamRootMenuBrowserTarget(context);
     openChromiumWindow(target.url, (response) => {
+      if (response?.opened === true && Number.isInteger(response.windowId)) {
+        scheduleSteamRootMenuChromiumRefocus(response.windowId);
+      }
       sendResponse({
         ...response,
         action,
         source: target.source,
       });
-      if (response?.opened === true && Number.isInteger(response.windowId)) {
-        scheduleSteamRootMenuChromiumRefocus(response.windowId);
-      }
     });
   }
 
