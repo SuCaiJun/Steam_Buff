@@ -3378,6 +3378,23 @@
   "steam_libraryCustomName_currentCustomSortName": {
     "message": "当前自定义排序名"
   },
+  "steam_libraryCustomName_currentName": {
+    "message": "当前名称"
+  },
+  "steam_libraryCustomName_customSortName": {
+    "message": "自定义排序名称"
+  },
+  "steam_libraryCustomName_selectedCount": {
+    "message": "已选 $count$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_steamOriginalName": {
+    "message": "Steam 原名"
+  },
   "steam_libraryCustomName_customSortTimeout": {
     "message": "Steam 自定义排序接口响应超时"
   },

@@ -3378,6 +3378,23 @@
   "steam_libraryCustomName_currentCustomSortName": {
     "message": "Current custom sort name"
   },
+  "steam_libraryCustomName_currentName": {
+    "message": "Current name"
+  },
+  "steam_libraryCustomName_customSortName": {
+    "message": "Custom sort name"
+  },
+  "steam_libraryCustomName_selectedCount": {
+    "message": "$count$ selected",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_steamOriginalName": {
+    "message": "Steam original name"
+  },
   "steam_libraryCustomName_customSortTimeout": {
     "message": "The Steam custom-sort API timed out"
   },

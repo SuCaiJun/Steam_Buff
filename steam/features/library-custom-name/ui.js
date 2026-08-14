@@ -30,7 +30,11 @@
   const SAVE_STATUS_MS = 3000;
   const SAVE_STATUS_MAX_MISSES = 3;
   const QUERY_MAX = 100;
-  const BATCH_PAGE_SIZE = 120;
+  const VIRTUAL_ROW_HEIGHT = 54;
+  const VIRTUAL_VIEWPORT_HEIGHT = 360;
+  const VIRTUAL_OVERSCAN = 12;
+  const VIRTUAL_REBUFFER = 4;
+  const SELECTION_SCAN_YIELD = 2000;
   const BACKEND_PAGE_SIZE = 1000;
   const BACKEND_PAGE_RETRY = 1;
   const APP_SCAN_YIELD = 2000;
@@ -94,8 +98,16 @@
     searchComposing: false,
     searchScanned: 0,
     searching: false,
-    page: 1,
-    pager: VIRTUAL_LIST?.createPager?.({ pageSize: BATCH_PAGE_SIZE }) || null,
+    virtualScrollTop: 0,
+    virtualViewportHeight: VIRTUAL_VIEWPORT_HEIGHT,
+    virtualRange: emptyVirtualRange(),
+    virtualWindow: VIRTUAL_LIST?.createVirtualWindow?.({
+      rowHeight: VIRTUAL_ROW_HEIGHT,
+      viewportHeight: VIRTUAL_VIEWPORT_HEIGHT,
+      overscan: VIRTUAL_OVERSCAN,
+    }) || null,
+    virtualFrame: 0,
+    selecting: false,
     selectedCount: 0,
     writeCount: 0,
     mnemonicEligibleCount: 0,
@@ -174,7 +186,6 @@
     const attrs = [
       "data-lcn-close",
       "data-lcn-action",
-      "data-lcn-page",
       "data-lcn-select",
       "data-lcn-search",
       "data-lcn-check",
@@ -572,6 +583,7 @@
   }
 
   function clearBatchAsyncState() {
+    cancelVirtualFrame();
     rejectPendingRequests(pend, "feature stopped");
     rejectPendingRequests(qpend, "feature stopped");
     batch.previewSeq += 1;
@@ -606,8 +618,8 @@
     batch.writeCount = 0;
     batch.storageCapacity = emptyCapacity();
     batch.stats = emptyStats();
-    batch.page = 1;
-    batch.pager?.setPage?.(1);
+    batch.selecting = false;
+    resetVirtualScroll();
   }
 
   function backendOnce(type, data) {
@@ -1369,7 +1381,7 @@
   }
 
   function resetRowsForPolicy(options = {}) {
-    const currentPage = batch.page;
+    const currentScrollTop = batch.virtualScrollTop;
     for (const row of batch.rows) {
       keepRowState(row);
     }
@@ -1383,9 +1395,8 @@
       rows.push(makeRow(app, old));
     }
     setRows(rows);
-    if (options.preservePage === true) {
-      batch.page = currentPage;
-      clampPage();
+    if (options.preserveScroll === true) {
+      setVirtualScrollTop(currentScrollTop);
     }
     batch.message = previewMessage();
   }
@@ -1528,11 +1539,49 @@
     return searchActive() ? batch.searchRows : batch.rows;
   }
 
-  function pager() {
-    if (!batch.pager && VIRTUAL_LIST?.createPager) {
-      batch.pager = VIRTUAL_LIST.createPager({ pageSize: BATCH_PAGE_SIZE });
+  function emptyVirtualRange() {
+    return { start: 0, end: 0, before: 0, after: 0, total: 0 };
+  }
+
+  function virtualWindow() {
+    if (!batch.virtualWindow && VIRTUAL_LIST?.createVirtualWindow) {
+      batch.virtualWindow = VIRTUAL_LIST.createVirtualWindow({
+        rowHeight: VIRTUAL_ROW_HEIGHT,
+        viewportHeight: batch.virtualViewportHeight,
+        overscan: VIRTUAL_OVERSCAN,
+      });
     }
-    return batch.pager;
+    return batch.virtualWindow;
+  }
+
+  function invalidateVirtualRange() {
+    batch.virtualRange = emptyVirtualRange();
+  }
+
+  function setVirtualScrollTop(value) {
+    batch.virtualScrollTop = Math.max(0, Number(value) || 0);
+    virtualWindow()?.update?.({ scrollTop: batch.virtualScrollTop });
+    invalidateVirtualRange();
+  }
+
+  function resetVirtualScroll() {
+    setVirtualScrollTop(0);
+  }
+
+  function virtualRange(rows = activeRows()) {
+    const list = Array.isArray(rows) ? rows : [];
+    const controller = virtualWindow();
+    if (!controller) {
+      throw new Error("STVirtualList.createVirtualWindow unavailable");
+    }
+    controller.update({
+      rowHeight: VIRTUAL_ROW_HEIGHT,
+      viewportHeight: batch.virtualViewportHeight,
+      overscan: VIRTUAL_OVERSCAN,
+      scrollTop: batch.virtualScrollTop,
+    });
+    batch.virtualRange = controller.range(list.length);
+    return batch.virtualRange;
   }
 
   function rowMatchesSearch(row, needle = batch.searchNeedle) {
@@ -1553,37 +1602,8 @@
     return activeRows().some(row => row.checked);
   }
 
-  function totalPages() {
-    return pager()?.pageInfo(activeRows()).totalPages || Math.max(1, Math.ceil(activeRows().length / BATCH_PAGE_SIZE));
-  }
-
-  function clampPage() {
-    batch.page = pager()?.setPage(batch.page) || Math.min(Math.max(1, Number(batch.page) || 1), totalPages());
-    batch.page = totalPages() ? Math.min(batch.page, totalPages()) : 1;
-    pager()?.setPage(batch.page);
-  }
-
-  function visibleRows() {
-    clampPage();
-    const rows = activeRows();
-    const start = (batch.page - 1) * BATCH_PAGE_SIZE;
-    return pager()?.visible(rows) || rows.slice(start, start + BATCH_PAGE_SIZE);
-  }
-
-  function visibleRange() {
-    const info = pager()?.pageInfo(activeRows());
-    if (info) {
-      return { from: info.from, to: info.to };
-    }
-    const rows = activeRows();
-    if (!rows.length) {
-      return { from: 0, to: 0 };
-    }
-    const from = (batch.page - 1) * BATCH_PAGE_SIZE + 1;
-    return {
-      from,
-      to: Math.min(rows.length, from + BATCH_PAGE_SIZE - 1),
-    };
+  function visibleRows(rows = activeRows(), range = virtualRange(rows)) {
+    return rows.slice(range.start, range.end);
   }
 
   function emptyCapacity() {
@@ -1779,7 +1799,7 @@
     batch.writeCount = write;
     batch.mnemonicEligibleCount = mnemonicEligibleRows;
     batch.mnemonicPendingCount = mnemonicPendingRows;
-    clampPage();
+    invalidateVirtualRange();
     refreshSkip();
     refreshStorageCapacitySoon();
   }
@@ -1791,7 +1811,7 @@
     batch.searchIndex = null;
     batch.searchScanned = 0;
     batch.searching = false;
-    batch.page = 1;
+    resetVirtualScroll();
     batch.selectedCount = 0;
     batch.writeCount = 0;
     batch.mnemonicEligibleCount = 0;
@@ -1816,8 +1836,7 @@
 
   function setRows(rows) {
     batch.rows = Array.isArray(rows) ? rows : [];
-    batch.page = 1;
-    pager()?.setPage(1);
+    resetVirtualScroll();
     refreshCounts();
     if (searchActive()) {
       batch.searchIndex = null;
@@ -1848,7 +1867,7 @@
       }
     }
     batch.searchIndex = null;
-    clampPage();
+    invalidateVirtualRange();
     refreshSkip();
     refreshStorageCapacitySoon();
     if (searchActive()) {
@@ -1873,7 +1892,7 @@
     batch.searchRows = list;
     batch.searchScanned = Math.max(0, Number(scanned) || 0);
     batch.searching = !!searching;
-    clampPage();
+    invalidateVirtualRange();
   }
 
   async function runSearch(seq) {
@@ -1932,7 +1951,7 @@
       return;
     }
     setSearchRows(matched, rows.length, false);
-    batch.page = 1;
+    resetVirtualScroll();
     renderVisibleRows();
   }
 
@@ -1983,7 +2002,7 @@
     batch.searchQuery = String(value || "");
     batch.searchNeedle = searchText(batch.searchQuery);
     batch.searchSeq += 1;
-    batch.page = 1;
+    resetVirtualScroll();
     if (!batch.searchNeedle) {
       resetSearchState();
       renderVisibleRows();
@@ -2092,8 +2111,9 @@
     refreshCounts();
   }
 
+  // 注: 仅新增与修改按有效当前名称比较，避免无自定义名称时把 Steam 原名误判为待写入
   function shouldSelectImportedName(mode, row, name) {
-    return mode === IMPORT_MODE_COVER || text(row?.custom) !== text(name);
+    return mode === IMPORT_MODE_COVER || currentName(row) !== text(name);
   }
 
   async function applyImportedNames(names, seq, mode) {
@@ -2113,10 +2133,10 @@
         matched += 1;
         const checked = shouldSelectImportedName(mode, row, name);
         updateRowWrite(row, () => {
-          row.want = name;
+          row.want = checked ? name : "";
           row.checked = checked;
-          row.manual = true;
-          row.cloudTouched = true;
+          row.manual = checked;
+          row.cloudTouched = checked;
           row.mnemonicTouched = false;
           row.mnemonicOn = false;
           row.state = "";
@@ -2124,8 +2144,8 @@
           refreshRowSearch(row);
         });
         keepRowState(row);
-        filled += 1;
         if (checked) {
+          filled += 1;
           selected += 1;
         } else {
           unchanged += 1;
@@ -3190,6 +3210,48 @@
     `;
   }
 
+  function currentName(row) {
+    return text(row?.custom) || text(row?.official);
+  }
+
+  function selectedCountText() {
+    return i18n("steam.libraryCustomName.selectedCount", "已选 $count$ 项", {
+      count: batch.selectedCount,
+    });
+  }
+
+  function virtualSpacerHtml(position, height) {
+    if (height <= 0) {
+      return "";
+    }
+    return `
+      <tr class="st-lcn-virtual-spacer" data-lcn-virtual-spacer="${attr(position)}" data-lcn-virtual-size="${attr(height)}" aria-hidden="true">
+        <td colspan="4"></td>
+      </tr>
+    `;
+  }
+
+  function virtualRowHtml(row) {
+    const official = text(row.official);
+    const current = currentName(row);
+    return `
+      <tr data-appid="${attr(row.appid)}" class="st-lcn-data-row ${row.state === "success" ? "ok" : row.state === "failed" ? "fail" : ""}">
+        <td><input type="checkbox" data-lcn-check="${attr(row.appid)}" ${row.checked ? "checked" : ""} ${batch.saving || batch.busy || batch.selecting ? "disabled" : ""}></td>
+        <td class="st-lcn-name-cell" title="${attr(official)}"><span class="st-lcn-cell-text">${esc(official)}</span><span class="st-lcn-appid">${esc(row.appid)}</span></td>
+        <td class="st-lcn-name-cell" data-lcn-current-name title="${attr(current)}"><span class="st-lcn-cell-text">${esc(current)}</span></td>
+        <td><input class="st-lcn-input" data-lcn-name="${attr(row.appid)}" value="${attr(row.want)}" ${batch.saving || batch.busy || batch.selecting ? "disabled" : ""}></td>
+      </tr>
+    `;
+  }
+
+  function virtualRowsHtml(rows, range) {
+    return `
+      ${virtualSpacerHtml("before", range.before)}
+      ${visibleRows(rows, range).map(virtualRowHtml).join("")}
+      ${virtualSpacerHtml("after", range.after)}
+    `;
+  }
+
   function rowsHtml() {
     if (!batch.rows.length) {
       return `<div class="st-lcn-empty">${esc(batch.loadingLocal
@@ -3197,18 +3259,15 @@
         : i18n("steam.libraryCustomName.localListEmpty", "暂无本地列表数据"))}</div>`;
     }
     const rows = activeRows();
-    const pages = totalPages();
-    const range = visibleRange();
-    const locked = batch.busy || batch.saving;
-    const countText = searchActive()
-      ? i18n("steam.libraryCustomName.filteredCount", "$visible$（总 $total$）", { visible: rows.length, total: batch.rows.length })
-      : `${batch.rows.length}`;
+    const range = virtualRange(rows);
+    const locked = batch.busy || batch.saving || batch.selecting;
     const filterbar = `
       <div class="st-lcn-selectbar">
         <div class="st-lcn-select-actions">
           <button class="st-lcn-inline-btn" type="button" data-lcn-select="all" ${locked || !rows.length ? "disabled" : ""}>${esc(i18n("common.selectAll", "全选"))}</button>
           <button class="st-lcn-inline-btn" type="button" data-lcn-select="invert" ${locked || !rows.length ? "disabled" : ""}>${esc(i18n("common.invertSelection", "反选"))}</button>
           <button class="st-lcn-inline-btn" type="button" data-lcn-select="none" ${locked || !rows.length ? "disabled" : ""}>${esc(i18n("common.clearSelection", "取消全选"))}</button>
+          <span class="st-lcn-selected-count" data-lcn-selected-count>${esc(selectedCountText())}</span>
         </div>
         <div class="st-lcn-filter-actions">
           <button class="st-lcn-inline-btn" type="button" data-lcn-action="import" ${locked || !batch.localRows.length ? "disabled" : ""}>${esc(i18n("common.import", "导入"))}</button>
@@ -3227,44 +3286,24 @@
       `;
     }
     return `
-      <div class="st-lcn-pagebar" data-lcn-pagebar>
-        <span>${esc(i18n("steam.libraryCustomName.pageSummary", "显示 $from$-$to$ / $count$，第 $page$ / $pages$ 页，已选", {
-          from: range.from,
-          to: range.to,
-          count: countText,
-          page: batch.page,
-          pages,
-        }))} <span data-lcn-selected-count>${batch.selectedCount}</span> ${esc(i18n("common.itemsSuffix", "项"))}</span>
-        <div class="st-lcn-page-actions">
-          <button class="st-lcn-inline-btn" type="button" data-lcn-page="first" ${batch.page <= 1 || batch.busy ? "disabled" : ""}>${esc(i18n("common.firstPage", "首页"))}</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-page="prev" ${batch.page <= 1 || batch.busy ? "disabled" : ""}>${esc(i18n("common.previousPage", "上一页"))}</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-page="next" ${batch.page >= pages || batch.busy ? "disabled" : ""}>${esc(i18n("common.nextPage", "下一页"))}</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-page="last" ${batch.page >= pages || batch.busy ? "disabled" : ""}>${esc(i18n("common.lastPage", "末页"))}</button>
-        </div>
-      </div>
       ${filterbar}
       <div class="st-lcn-table-wrap">
-        <table>
+        <table aria-rowcount="${attr(rows.length)}">
+          <colgroup>
+            <col class="st-lcn-col-select">
+            <col class="st-lcn-col-official">
+            <col class="st-lcn-col-current">
+            <col class="st-lcn-col-custom">
+          </colgroup>
           <thead>
             <tr>
               <th>${esc(i18n("common.select", "选择"))}</th>
-              <th>${esc(i18n("steam.libraryCustomName.officialName", "官方名称"))}</th>
-              <th>${esc(i18n("steam.libraryCustomName.cloudName", "云端名称"))}</th>
-              <th>${esc(i18n("steam.libraryCustomName.currentCustomSortName", "当前自定义排序名"))}</th>
-              <th>${esc(i18n("steam.libraryCustomName.pendingName", "待写入名"))}</th>
+              <th>${esc(i18n("steam.libraryCustomName.steamOriginalName", "Steam 原名"))}</th>
+              <th>${esc(i18n("steam.libraryCustomName.currentName", "当前名称"))}</th>
+              <th>${esc(i18n("steam.libraryCustomName.customSortName", "自定义排序名称"))}</th>
             </tr>
           </thead>
-          <tbody>
-            ${visibleRows().map(row => `
-              <tr data-appid="${attr(row.appid)}" class="${row.state === "success" ? "ok" : row.state === "failed" ? "fail" : ""}">
-                <td><input type="checkbox" data-lcn-check="${attr(row.appid)}" ${row.checked ? "checked" : ""} ${batch.saving || batch.busy ? "disabled" : ""}></td>
-                <td>${esc(row.official)}<span class="st-lcn-appid">${esc(row.appid)}</span></td>
-                <td>${esc(row.apiName || syncStatusText(row.syncStatus))}</td>
-                <td>${esc(row.custom)}</td>
-                <td><input class="st-lcn-input" data-lcn-name="${attr(row.appid)}" value="${attr(row.want)}" ${batch.saving || batch.busy ? "disabled" : ""}></td>
-              </tr>
-            `).join("")}
-          </tbody>
+          <tbody data-lcn-virtual-body>${virtualRowsHtml(rows, range)}</tbody>
         </table>
       </div>
     `;
@@ -3272,7 +3311,7 @@
 
   function modalHtml() {
     const write = batch.writeCount;
-    const locked = batch.busy || batch.saving;
+    const locked = batch.busy || batch.saving || batch.selecting;
     const queryDisabled = locked || !canQueryCloud();
     const mnemonic = mnemonicAction();
     const mnemonicDisabled = locked || !mnemonic.count;
@@ -3320,11 +3359,11 @@
   function renderModal(options = {}) {
     const modal = document.getElementById(MODAL);
     if (modal) {
-      // 弹窗刷新会替换表格节点；普通操作恢复原滚动，翻页明确从新页顶部开始。
       const table = modal.querySelector(".st-lcn-table-wrap");
-      const tableScroll = options.resetTableScroll === true || !table
-        ? null
-        : { left: table.scrollLeft, top: table.scrollTop };
+      const tableScroll = {
+        left: table ? table.scrollLeft : 0,
+        top: batch.virtualScrollTop,
+      };
       const active = document.activeElement;
       if (batch.searchComposing && active?.matches?.("[data-lcn-search]")) {
         batch.searchQuery = String(active.value || "");
@@ -3334,8 +3373,8 @@
       const searchStart = keepSearch ? active.selectionStart : 0;
       const searchEnd = keepSearch ? active.selectionEnd : 0;
       const key = focusKey(modal, active);
+      cancelVirtualFrame();
       setTrustedTemplate(modal, modalHtml(), "library-custom-name-batch-modal-template");
-      bindModalControls(modal);
       if (keepSearch) {
         const next = modal.querySelector("[data-lcn-search]");
         if (next) {
@@ -3350,14 +3389,11 @@
       }
       const nextTable = modal.querySelector(".st-lcn-table-wrap");
       if (nextTable) {
-        if (tableScroll) {
-          nextTable.scrollLeft = tableScroll.left;
-          nextTable.scrollTop = tableScroll.top;
-        } else if (options.resetTableScroll === true) {
-          nextTable.scrollLeft = 0;
-          nextTable.scrollTop = 0;
-        }
+        nextTable.scrollLeft = tableScroll.left;
+        nextTable.scrollTop = tableScroll.top;
+        batch.virtualScrollTop = nextTable.scrollTop;
       }
+      bindModalControls(modal);
     }
   }
 
@@ -3379,44 +3415,188 @@
     }
     const queryBtn = modal.querySelector("[data-lcn-action='query']");
     if (queryBtn) {
-      queryBtn.disabled = batch.busy || batch.saving || !canQueryCloud();
+      queryBtn.disabled = batch.busy || batch.saving || batch.selecting || !canQueryCloud();
     }
     const mnemonicBtn = modal.querySelector("[data-lcn-action='mnemonic']");
     if (mnemonicBtn) {
       const mnemonic = mnemonicAction();
-      mnemonicBtn.disabled = batch.busy || batch.saving || !mnemonic.count;
+      mnemonicBtn.disabled = batch.busy || batch.saving || batch.selecting || !mnemonic.count;
       mnemonicBtn.textContent = mnemonic.on
         ? i18n("steam.libraryCustomName.generateMnemonic", "生成助记符")
         : i18n("steam.libraryCustomName.cancelMnemonic", "取消助记符");
     }
     const saveBtn = modal.querySelector("[data-lcn-action='save']");
     if (saveBtn) {
-      saveBtn.disabled = batch.busy || batch.saving || !batch.writeCount;
+      saveBtn.disabled = batch.busy || batch.saving || batch.selecting || !batch.writeCount;
     }
     const clearBtn = modal.querySelector("[data-lcn-action='clear-selected']");
     if (clearBtn) {
-      clearBtn.disabled = batch.busy || batch.saving || !batch.selectedCount;
+      clearBtn.disabled = batch.busy || batch.saving || batch.selecting || !batch.selectedCount;
     }
   }
 
-  function setSelection(mode) {
-    const rows = activeRows();
-    if (batch.busy || batch.saving || !rows.length) {
+  function cancelVirtualFrame() {
+    if (!batch.virtualFrame) {
       return;
     }
-    for (const row of rows) {
-      if (mode === "all") {
-        row.checked = true;
-      } else if (mode === "none") {
-        row.checked = false;
-      } else if (mode === "invert") {
-        row.checked = !row.checked;
-      }
-      keepRowState(row);
+    window.cancelAnimationFrame(batch.virtualFrame);
+    batch.virtualFrame = 0;
+  }
+
+  function sameVirtualRange(left, right) {
+    return left?.start === right?.start
+      && left?.end === right?.end
+      && left?.total === right?.total;
+  }
+
+  function applyVirtualSpacerSizes(root) {
+    for (const spacer of root?.querySelectorAll?.("[data-lcn-virtual-size]") || []) {
+      const height = Math.max(0, Number(spacer.dataset.lcnVirtualSize) || 0);
+      spacer.style.setProperty("--st-lcn-virtual-size", `${height}px`);
     }
-    refreshCounts();
-    batch.message = previewMessage();
-    renderVisibleRows();
+  }
+
+  function updateVirtualMetrics(table) {
+    const headerHeight = Math.max(0, Number(table?.querySelector?.("thead")?.offsetHeight) || 0);
+    batch.virtualViewportHeight = Math.max(VIRTUAL_ROW_HEIGHT, (Number(table?.clientHeight) || VIRTUAL_VIEWPORT_HEIGHT) - headerHeight);
+    batch.virtualScrollTop = Math.max(0, Number(table?.scrollTop) || 0);
+    virtualWindow()?.update?.({
+      rowHeight: VIRTUAL_ROW_HEIGHT,
+      viewportHeight: batch.virtualViewportHeight,
+      overscan: VIRTUAL_OVERSCAN,
+      scrollTop: batch.virtualScrollTop,
+    });
+  }
+
+  function virtualRangeNeedsRender(total) {
+    const current = batch.virtualRange;
+    if (current.total !== total || current.end <= current.start) {
+      return true;
+    }
+    const first = Math.floor(batch.virtualScrollTop / VIRTUAL_ROW_HEIGHT);
+    const visible = Math.ceil(batch.virtualViewportHeight / VIRTUAL_ROW_HEIGHT);
+    const last = Math.min(total, first + visible);
+    if (first < current.start || last > current.end) {
+      return true;
+    }
+    const nearTop = current.start > 0 && first - current.start < VIRTUAL_REBUFFER;
+    const nearBottom = current.end < total && current.end - last < VIRTUAL_REBUFFER;
+    return nearTop || nearBottom;
+  }
+
+  /* 优化: 滚动只替换虚拟窗口内的 tbody，不能触发完整弹窗重绘 */
+  function renderVirtualRows(table, force = false) {
+    if (!table?.isConnected) {
+      return;
+    }
+    updateVirtualMetrics(table);
+    const rows = activeRows();
+    if (!force && !virtualRangeNeedsRender(rows.length)) {
+      return;
+    }
+    const controller = virtualWindow();
+    if (!controller) {
+      return;
+    }
+    const nextRange = controller.range(rows.length);
+    if (sameVirtualRange(nextRange, batch.virtualRange)) {
+      return;
+    }
+    const body = table.querySelector("[data-lcn-virtual-body]");
+    if (!body) {
+      return;
+    }
+    const active = document.activeElement;
+    const key = focusKey(body, active);
+    const selectionStart = key && "selectionStart" in active ? active.selectionStart : null;
+    const selectionEnd = key && "selectionEnd" in active ? active.selectionEnd : null;
+    batch.virtualRange = nextRange;
+    setTrustedTemplate(body, virtualRowsHtml(rows, nextRange), "library-custom-name-virtual-rows-template");
+    applyVirtualSpacerSizes(body);
+    if (key && focusByKey(body, key)) {
+      const next = document.activeElement;
+      if (selectionStart !== null && typeof next?.setSelectionRange === "function") {
+        try {
+          next.setSelectionRange(selectionStart, selectionEnd);
+        } catch {
+        }
+      }
+    }
+  }
+
+  function scheduleVirtualRows(table) {
+    if (batch.virtualFrame) {
+      return;
+    }
+    batch.virtualFrame = window.requestAnimationFrame(() => {
+      batch.virtualFrame = 0;
+      const current = document.querySelector(`#${MODAL} .st-lcn-table-wrap`);
+      if (current === table) {
+        renderVirtualRows(table);
+      }
+    });
+  }
+
+  function onVirtualTableScroll(event) {
+    const table = event.currentTarget;
+    batch.virtualScrollTop = Math.max(0, Number(table?.scrollTop) || 0);
+    virtualWindow()?.update?.({ scrollTop: batch.virtualScrollTop });
+    scheduleVirtualRows(table);
+  }
+
+  async function setSelection(mode) {
+    const rows = activeRows();
+    if (batch.busy || batch.saving || batch.selecting || !rows.length) {
+      return;
+    }
+    batch.selecting = true;
+    renderModal();
+    try {
+      let selectedDelta = 0;
+      let writeDelta = 0;
+      let mnemonicEligibleDelta = 0;
+      let mnemonicPendingDelta = 0;
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index];
+        const beforeSelected = !!row.checked;
+        const beforeWrite = canWrite(row);
+        const beforeMnemonicEligible = mnemonicEligible(row);
+        const beforeMnemonicPending = mnemonicPending(row);
+        if (mode === "all") {
+          row.checked = true;
+        } else if (mode === "none") {
+          row.checked = false;
+        } else if (mode === "invert") {
+          row.checked = !row.checked;
+        }
+        const afterSelected = !!row.checked;
+        const afterWrite = canWrite(row);
+        const afterMnemonicEligible = mnemonicEligible(row);
+        const afterMnemonicPending = mnemonicPending(row);
+        selectedDelta += Number(afterSelected) - Number(beforeSelected);
+        writeDelta += Number(afterWrite) - Number(beforeWrite);
+        mnemonicEligibleDelta += Number(afterMnemonicEligible) - Number(beforeMnemonicEligible);
+        mnemonicPendingDelta += Number(afterMnemonicPending) - Number(beforeMnemonicPending);
+        keepRowState(row);
+        if (index > 0 && index % SELECTION_SCAN_YIELD === 0) {
+          await yieldUI();
+        }
+      }
+      batch.selectedCount += selectedDelta;
+      batch.writeCount += writeDelta;
+      batch.mnemonicEligibleCount += mnemonicEligibleDelta;
+      batch.mnemonicPendingCount += mnemonicPendingDelta;
+      refreshSkip();
+      refreshStorageCapacitySoon();
+      batch.message = previewMessage();
+    } catch (error) {
+      refreshCounts();
+      batch.message = error?.message || String(error);
+      log.error("library-custom-name-selection-failed", "库自定义名称批量选择失败", { error, mode });
+    } finally {
+      batch.selecting = false;
+      renderVisibleRows();
+    }
   }
 
   function rowVisible(row) {
@@ -3424,8 +3604,7 @@
     if (!Number.isFinite(index)) {
       return false;
     }
-    const start = (batch.page - 1) * BATCH_PAGE_SIZE;
-    return index >= start && index < start + BATCH_PAGE_SIZE;
+    return index >= batch.virtualRange.start && index < batch.virtualRange.end;
   }
 
   function refreshProgressRow(row) {
@@ -3438,9 +3617,14 @@
     }
     tr.classList.toggle("ok", row.state === "success");
     tr.classList.toggle("fail", row.state === "failed");
-    const customCell = tr.children?.[3];
-    if (customCell) {
-      customCell.textContent = row.custom || "";
+    const currentCell = tr.querySelector("[data-lcn-current-name]");
+    if (currentCell) {
+      const current = currentName(row);
+      currentCell.title = current;
+      const textCell = currentCell.querySelector(".st-lcn-cell-text");
+      if (textCell) {
+        textCell.textContent = current;
+      }
     }
     const input = tr.querySelector("[data-lcn-name]");
     if (input && input.value !== text(row.want)) {
@@ -3456,6 +3640,12 @@
 
   function bindModalControls(modal) {
     modal.querySelector("[data-lcn-close]")?.addEventListener("click", onModalCloseClick);
+    const table = modal.querySelector(".st-lcn-table-wrap");
+    if (table) {
+      table.addEventListener("scroll", onVirtualTableScroll, { passive: true });
+      renderVirtualRows(table, true);
+      applyVirtualSpacerSizes(table);
+    }
   }
 
   function onModalCompositionStart(event) {
@@ -3630,7 +3820,7 @@
     }
     const selected = modal.querySelector("[data-lcn-selected-count]");
     if (selected) {
-      selected.textContent = String(batch.selectedCount);
+      selected.textContent = selectedCountText();
     }
     const tr = modal.querySelector(`tr[data-appid="${row.appid}"]`);
     const check = tr?.querySelector("[data-lcn-check]");
@@ -3683,6 +3873,7 @@
       clearLocalRows();
     }
     batch.searchComposing = false;
+    cancelVirtualFrame();
     backend("cancel-preview").catch(() => {});
     const modal = document.getElementById(MODAL);
     const wasOpen = !!modal && !modal.hidden;
@@ -3767,7 +3958,7 @@
             setSyncStatus(id, status);
           }
         }
-        resetRowsForPolicy({ preservePage: true });
+        resetRowsForPolicy({ preserveScroll: true });
         renderVisibleRows();
         await yieldUI();
       }
@@ -4240,26 +4431,10 @@
       onModalCloseClick(event);
       return;
     }
-    const page = event.target.closest("[data-lcn-page]")?.dataset?.lcnPage;
-    if (page) {
-      event.preventDefault();
-      if (page === "first") {
-        batch.page = 1;
-      } else if (page === "prev") {
-        batch.page -= 1;
-      } else if (page === "next") {
-        batch.page += 1;
-      } else if (page === "last") {
-        batch.page = totalPages();
-      }
-      clampPage();
-      renderVisibleRows({ resetTableScroll: true });
-      return;
-    }
     const select = event.target.closest("[data-lcn-select]")?.dataset?.lcnSelect;
     if (select) {
       event.preventDefault();
-      setSelection(select);
+      setSelection(select).catch(() => {});
       return;
     }
     const action = event.target.closest("[data-lcn-action]")?.dataset?.lcnAction;

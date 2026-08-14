@@ -36,9 +36,12 @@
     const typography = theme.typography || {};
     return {
       "--st-lcn-font": typography.fontFamily,
+      "--st-lcn-property-window": cssVar("--st-color-steam-property-window"),
       "--st-lcn-property-bg": cssVar("--st-color-steam-property-button"),
-      "--st-lcn-property-bg-hover": cssVar("--st-color-bg-card"),
+      "--st-lcn-property-bg-hover": cssVar("--st-color-white-alpha-10"),
       "--st-lcn-property-border": cssVar("--st-color-border-normal"),
+      "--st-lcn-property-divider": cssVar("--st-color-white-alpha-06"),
+      "--st-lcn-property-input": cssVar("--st-color-black-alpha-22"),
       "--st-lcn-success-border": cssVar("--st-color-success-bright-alpha-55"),
       "--st-lcn-success-bg": cssVar("--st-color-success-bright-alpha-50"),
       "--st-lcn-success-bg-hover": cssVar("--st-color-success"),
@@ -360,13 +363,15 @@
         box-sizing: border-box;
         border: 0;
         border-radius: 0;
-        background: var(--st-dialog-surface);
-        box-shadow: var(--st-dialog-panel-shadow);
+        background: var(--st-lcn-property-window);
+        box-shadow: 0 16px 36px var(--st-color-black-alpha-55);
         transform: none;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-head {
         position: relative;
         z-index: 5;
+        border-bottom: 1px solid var(--st-lcn-property-divider);
+        background: var(--st-lcn-property-window);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-body {
         display: flex;
@@ -374,6 +379,7 @@
         width: 100%;
         box-sizing: border-box;
         overflow: hidden;
+        background: var(--st-lcn-property-window);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-note {
         margin: 4px 0 14px;
@@ -387,10 +393,10 @@
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} fieldset {
         margin: 0;
-        border: 1px solid var(--st-dialog-divider);
-        border-radius: var(--st-control-radius);
+        border: 1px solid var(--st-lcn-property-divider);
+        border-radius: 2px;
         padding: 8px 12px 12px;
-        background: var(--st-dialog-surface-raised);
+        background: var(--st-lcn-property-bg);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} legend {
         color: var(--st-dialog-muted-color);
@@ -431,7 +437,7 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:checked {
         border-color: var(--st-color-steam-blue);
         background: var(--st-color-steam-blue);
-        box-shadow: inset 0 0 0 3px var(--st-dialog-surface-raised);
+        box-shadow: inset 0 0 0 3px var(--st-lcn-property-bg);
       }
       #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"]:checked,
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:checked {
@@ -450,7 +456,7 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:disabled:checked {
         border-color: var(--st-color-text-secondary);
         background: var(--st-color-text-secondary);
-        box-shadow: inset 0 0 0 3px var(--st-dialog-surface-raised);
+        box-shadow: inset 0 0 0 3px var(--st-lcn-property-bg);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:disabled:checked {
         border-color: var(--st-color-text-secondary);
@@ -462,6 +468,16 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn {
         margin-left: 2px;
         padding: 0 8px;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn:not(.primary):not(.danger),
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn {
+        border-color: var(--st-lcn-property-border);
+        border-radius: 2px;
+        background: var(--st-lcn-property-bg);
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn:not(.primary):not(.danger):hover:not(:disabled),
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn:hover:not(:disabled) {
+        background: var(--st-lcn-property-bg-hover);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-actions {
         flex-wrap: wrap;
@@ -583,19 +599,6 @@
         text-align: center;
         font-size: 12px;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-pagebar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        margin-top: 12px;
-        color: var(--st-dialog-muted-color);
-        font-size: 12px;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-page-actions {
-        display: flex;
-        gap: 6px;
-      }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-selectbar {
         display: flex;
         justify-content: flex-start;
@@ -606,7 +609,19 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-select-actions {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         gap: 6px;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-selected-count {
+        display: inline-flex;
+        align-items: center;
+        min-width: 86px;
+        min-height: var(--st-control-height-compact);
+        margin-left: 4px;
+        color: var(--st-dialog-muted-color);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-filter-actions {
         display: flex;
@@ -616,6 +631,12 @@
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-search {
         width: min(310px, 34vw);
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-search,
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-input {
+        border-color: var(--st-lcn-property-border);
+        border-radius: 2px;
+        background: var(--st-lcn-property-input);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-file {
         position: absolute;
@@ -632,44 +653,82 @@
         max-height: none;
         margin-top: 12px;
         overflow: auto;
-        border: 1px solid var(--st-dialog-divider);
-        border-radius: var(--st-control-radius);
+        border: 1px solid var(--st-lcn-property-divider);
+        border-radius: 2px;
+        background: var(--st-lcn-property-bg);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} table {
         width: 100%;
-        min-width: 680px;
+        min-width: 760px;
         border-collapse: collapse;
         table-layout: fixed;
         font-size: 12px;
       }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-select {
+        width: 52px;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-official,
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-current {
+        width: 22%;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-custom {
+        width: auto;
+      }
       #${LIBRARY_CUSTOM_NAME_MODAL} th:first-child,
       #${LIBRARY_CUSTOM_NAME_MODAL} td:first-child {
-        width: 44px;
         text-align: center;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} th,
       #${LIBRARY_CUSTOM_NAME_MODAL} td {
-        border-bottom: 1px solid var(--st-color-white-alpha-06);
+        border-bottom: 1px solid var(--st-lcn-property-divider);
         padding: 7px 8px;
         text-align: left;
         vertical-align: middle;
-        overflow-wrap: anywhere;
+        box-sizing: border-box;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} th {
         position: sticky;
         top: 0;
-        background: var(--st-color-bg-input-focus);
+        z-index: 2;
+        background: var(--st-lcn-property-window);
         color: var(--st-dialog-muted-color);
         font-weight: 500;
       }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-data-row {
+        height: 54px;
+        background: var(--st-lcn-property-bg);
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-data-row:hover td {
+        background: var(--st-lcn-property-bg-hover);
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-name-cell {
+        overflow: hidden;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-cell-text {
+        display: block;
+        overflow: hidden;
+        color: var(--st-dialog-text-color);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-input {
         width: 100%;
+        box-sizing: border-box;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-appid {
         display: block;
         margin-top: 2px;
         color: var(--st-color-text-disabled);
         font-size: 11px;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-virtual-spacer,
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-virtual-spacer td {
+        height: var(--st-lcn-virtual-size, 0);
+        min-height: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        line-height: 0;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} tr.ok td {
         background: var(--st-lcn-row-ok);

@@ -3378,6 +3378,23 @@
   "steam_libraryCustomName_currentCustomSortName": {
     "message": "現在のカスタム並べ替え名"
   },
+  "steam_libraryCustomName_currentName": {
+    "message": "現在の名前"
+  },
+  "steam_libraryCustomName_customSortName": {
+    "message": "カスタム並べ替え名"
+  },
+  "steam_libraryCustomName_selectedCount": {
+    "message": "$count$ 件選択",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_steamOriginalName": {
+    "message": "Steam の元の名前"
+  },
   "steam_libraryCustomName_customSortTimeout": {
     "message": "Steam custom-sort API がタイムアウトしました"
   },

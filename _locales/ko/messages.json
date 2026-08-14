@@ -3378,6 +3378,23 @@
   "steam_libraryCustomName_currentCustomSortName": {
     "message": "현재 사용자 지정 정렬 이름"
   },
+  "steam_libraryCustomName_currentName": {
+    "message": "현재 이름"
+  },
+  "steam_libraryCustomName_customSortName": {
+    "message": "사용자 지정 정렬 이름"
+  },
+  "steam_libraryCustomName_selectedCount": {
+    "message": "$count$개 선택",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_steamOriginalName": {
+    "message": "Steam 원래 이름"
+  },
   "steam_libraryCustomName_customSortTimeout": {
     "message": "Steam custom-sort API 시간이 초과되었습니다"
   },
