@@ -209,6 +209,42 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "カスタム並べ替えタイトルがある場合、Steamの元の名前をランタイムの検索欄に追加します。"
   },
+  "settings_feature_library_sort_title_stable_mode_name": {
+    "message": "名前表示モード"
+  },
+  "settings_feature_library_sort_title_stable_mode_desc": {
+    "message": "スムーズモードは現在表示されている項目のみを処理します。安定モードは AppOverview を置き換える更新方式を使用するため、ライブラリ内のゲーム数が多い場合は動作が重くなることがあります。"
+  },
+  "settings_feature_library_sort_title_stable_mode_option_false": {
+    "message": "スムーズモード"
+  },
+  "settings_feature_library_sort_title_stable_mode_option_true": {
+    "message": "安定モード"
+  },
+  "settings_feature_library_sort_title_hover_custom_name_name": {
+    "message": "ホバー時のツールチップにカスタム名を表示"
+  },
+  "settings_feature_library_sort_title_hover_custom_name_desc": {
+    "message": "有効にすると、ライブラリ項目にマウスを重ねた際、Steam 標準のツールチップにカスタム名とコレクションタグを表示します。無効にすると Steam の元の名前に戻ります。"
+  },
+  "settings_feature_library_group_labels_name": {
+    "message": "コレクションを名前の後に表示"
+  },
+  "settings_feature_library_group_labels_desc": {
+    "message": "Steam ライブラリ一覧でコレクション名末尾の [] を非表示にし、ライブラリ項目名の後ろに所属するコレクションタグを追加します。"
+  },
+  "settings_feature_library_group_labels_grouped_mode_name": {
+    "message": "コレクション別にグループ化した場合も表示"
+  },
+  "settings_feature_library_group_labels_grouped_mode_desc": {
+    "message": "Steam 標準の「コレクション別にグループ化」を有効にしても、ライブラリ項目名の後ろにすべてのコレクションタグを表示し続けます。"
+  },
+  "settings_feature_library_group_labels_hide_collection_tags_name": {
+    "message": "コレクション名の [] を非表示"
+  },
+  "settings_feature_library_group_labels_hide_collection_tags_desc": {
+    "message": "Steam ライブラリ一覧に表示されるコレクション名で、末尾に連続する [] タグを非表示にします。Steam の元のコレクションデータは変更しません。"
+  },
   "settings_feature_download_batch_actions_name": {
     "message": "ダウンロードキューの一括操作"
   },
@@ -1984,6 +2020,9 @@
   "store_priceChart_legendNoData": {
     "message": " データなし"
   },
+  "store_priceChart_legendUnavailable": {
+    "message": " 地域別価格を利用できません"
+  },
   "store_priceChart_legendStats": {
     "message": "$label$ グラフ統計",
     "placeholders": {
@@ -1994,6 +2033,9 @@
   },
   "store_priceChart_countriesAndShops": {
     "message": "地域とストア"
+  },
+  "store_dataDisplay_productSelector": {
+    "message": "Steam 商品バージョンを選択"
   },
   "store_dataDisplay_range6Months": {
     "message": "6か月"
@@ -3619,6 +3661,29 @@
   },
   "steam_libraryCustomName_officialName": {
     "message": "正式名称"
+  },
+  "steam_libraryCustomName_officialSyncing": {
+    "message": "Steam の公式データを同期中"
+  },
+  "steam_libraryCustomName_officialSyncedNoCustom": {
+    "message": "公式データを同期しました。クラウドのカスタム名はありません"
+  },
+  "steam_libraryCustomName_officialUnavailable": {
+    "message": "Steam 公式から利用可能な英語名がまだ返されていません"
+  },
+  "steam_libraryCustomName_officialSyncFailed": {
+    "message": "Steam 公式データの同期は現在利用できません"
+  },
+  "steam_libraryCustomName_officialSyncSummary": {
+    "message": "；$count$ 本のゲームで Steam 公式データを同期中です。しばらくしてから再取得してください",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_officialSyncingRetry": {
+    "message": "Steam 公式データを同期中です。しばらくしてから再取得してください"
   },
   "steam_libraryCustomName_overwritePrompt": {
     "message": "現在のカスタム並べ替え名を上書きします。続行しますか？"

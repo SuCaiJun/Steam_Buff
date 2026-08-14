@@ -209,6 +209,42 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "存在自定义排序名称时，将 Steam 原名加入运行时搜索字段"
   },
+  "settings_feature_library_sort_title_stable_mode_name": {
+    "message": "名称显示模式"
+  },
+  "settings_feature_library_sort_title_stable_mode_desc": {
+    "message": "流畅模式只处理当前可见项目；稳定模式使用 AppOverview 替换刷新方法，库中游戏数量过多时可能会卡顿"
+  },
+  "settings_feature_library_sort_title_stable_mode_option_false": {
+    "message": "流畅模式"
+  },
+  "settings_feature_library_sort_title_stable_mode_option_true": {
+    "message": "稳定模式"
+  },
+  "settings_feature_library_sort_title_hover_custom_name_name": {
+    "message": "悬停提示显示自定义名称"
+  },
+  "settings_feature_library_sort_title_hover_custom_name_desc": {
+    "message": "开启后，鼠标悬停库列表项目时的 Steam 原生提示框显示自定义名称和分组标签；关闭时恢复 Steam 原始名称"
+  },
+  "settings_feature_library_group_labels_name": {
+    "message": "分组显示在名称后面"
+  },
+  "settings_feature_library_group_labels_desc": {
+    "message": "在 Steam 库列表中隐藏收藏分组名称末尾的 []，并在库项目名称后追加所属分组标签"
+  },
+  "settings_feature_library_group_labels_grouped_mode_name": {
+    "message": "按收藏分组时也显示"
+  },
+  "settings_feature_library_group_labels_grouped_mode_desc": {
+    "message": "开启 Steam 原生“按收藏分组”后，库项目名称仍继续追加所有分组标签"
+  },
+  "settings_feature_library_group_labels_hide_collection_tags_name": {
+    "message": "隐藏分组名称中的 []"
+  },
+  "settings_feature_library_group_labels_hide_collection_tags_desc": {
+    "message": "在 Steam 库列表可见的收藏分组名称中隐藏末尾连续的 [] 标签；不修改 Steam 原始分组数据"
+  },
   "settings_feature_download_batch_actions_name": {
     "message": "下载队列批量操作"
   },
@@ -1984,6 +2020,9 @@
   "store_priceChart_legendNoData": {
     "message": " 暂无数据"
   },
+  "store_priceChart_legendUnavailable": {
+    "message": " 区域价格不可用"
+  },
   "store_priceChart_legendStats": {
     "message": "$label$ 图表统计",
     "placeholders": {
@@ -1994,6 +2033,9 @@
   },
   "store_priceChart_countriesAndShops": {
     "message": "国家和商店"
+  },
+  "store_dataDisplay_productSelector": {
+    "message": "选择 Steam 商品版本"
   },
   "store_dataDisplay_range6Months": {
     "message": "6个月"
@@ -3619,6 +3661,29 @@
   },
   "steam_libraryCustomName_officialName": {
     "message": "官方名称"
+  },
+  "steam_libraryCustomName_officialSyncing": {
+    "message": "正在同步 Steam 官方数据"
+  },
+  "steam_libraryCustomName_officialSyncedNoCustom": {
+    "message": "官方数据已同步，暂无云端自定义名称"
+  },
+  "steam_libraryCustomName_officialUnavailable": {
+    "message": "Steam 官方暂未返回可用英文名称"
+  },
+  "steam_libraryCustomName_officialSyncFailed": {
+    "message": "Steam 官方数据同步暂不可用"
+  },
+  "steam_libraryCustomName_officialSyncSummary": {
+    "message": "；有 $count$ 个游戏正在同步 Steam 官方数据，请稍后重新获取",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_officialSyncingRetry": {
+    "message": "正在同步 Steam 官方数据，请稍后重新获取"
   },
   "steam_libraryCustomName_overwritePrompt": {
     "message": "当前操作会覆盖当前自定义排序名称，是否继续？"

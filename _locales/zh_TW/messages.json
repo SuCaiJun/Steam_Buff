@@ -209,6 +209,42 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "存在自訂排序名稱時，將 Steam 原名加入執行階段搜尋欄位"
   },
+  "settings_feature_library_sort_title_stable_mode_name": {
+    "message": "名稱顯示模式"
+  },
+  "settings_feature_library_sort_title_stable_mode_desc": {
+    "message": "流暢模式只處理目前可見項目；穩定模式使用 AppOverview 替換重新整理方式，收藏庫中的遊戲數量過多時可能會卡頓"
+  },
+  "settings_feature_library_sort_title_stable_mode_option_false": {
+    "message": "流暢模式"
+  },
+  "settings_feature_library_sort_title_stable_mode_option_true": {
+    "message": "穩定模式"
+  },
+  "settings_feature_library_sort_title_hover_custom_name_name": {
+    "message": "懸停提示顯示自訂名稱"
+  },
+  "settings_feature_library_sort_title_hover_custom_name_desc": {
+    "message": "開啟後，滑鼠懸停於收藏庫清單項目時，Steam 原生提示框會顯示自訂名稱和群組標籤；關閉時恢復 Steam 原始名稱"
+  },
+  "settings_feature_library_group_labels_name": {
+    "message": "群組顯示在名稱後方"
+  },
+  "settings_feature_library_group_labels_desc": {
+    "message": "在 Steam 收藏庫清單中隱藏收藏群組名稱末尾的 []，並在收藏庫項目名稱後附加所屬群組標籤"
+  },
+  "settings_feature_library_group_labels_grouped_mode_name": {
+    "message": "依收藏群組時也顯示"
+  },
+  "settings_feature_library_group_labels_grouped_mode_desc": {
+    "message": "開啟 Steam 原生「依收藏群組」後，收藏庫項目名稱仍會附加所有群組標籤"
+  },
+  "settings_feature_library_group_labels_hide_collection_tags_name": {
+    "message": "隱藏群組名稱中的 []"
+  },
+  "settings_feature_library_group_labels_hide_collection_tags_desc": {
+    "message": "在 Steam 收藏庫清單可見的收藏群組名稱中隱藏末尾連續的 [] 標籤；不修改 Steam 原始群組資料"
+  },
   "settings_feature_download_batch_actions_name": {
     "message": "下載佇列批次操作"
   },
@@ -1984,6 +2020,9 @@
   "store_priceChart_legendNoData": {
     "message": " 尚無資料"
   },
+  "store_priceChart_legendUnavailable": {
+    "message": " 區域價格無法使用"
+  },
   "store_priceChart_legendStats": {
     "message": "$label$ 圖表統計",
     "placeholders": {
@@ -1994,6 +2033,9 @@
   },
   "store_priceChart_countriesAndShops": {
     "message": "國家與商店"
+  },
+  "store_dataDisplay_productSelector": {
+    "message": "選擇 Steam 商品版本"
   },
   "store_dataDisplay_range6Months": {
     "message": "6 個月"
@@ -3619,6 +3661,29 @@
   },
   "steam_libraryCustomName_officialName": {
     "message": "官方名稱"
+  },
+  "steam_libraryCustomName_officialSyncing": {
+    "message": "正在同步 Steam 官方資料"
+  },
+  "steam_libraryCustomName_officialSyncedNoCustom": {
+    "message": "官方資料已同步，目前沒有雲端自訂名稱"
+  },
+  "steam_libraryCustomName_officialUnavailable": {
+    "message": "Steam 官方目前尚未傳回可用的英文名稱"
+  },
+  "steam_libraryCustomName_officialSyncFailed": {
+    "message": "Steam 官方資料同步目前無法使用"
+  },
+  "steam_libraryCustomName_officialSyncSummary": {
+    "message": "；有 $count$ 款遊戲正在同步 Steam 官方資料，請稍後重新取得",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_officialSyncingRetry": {
+    "message": "正在同步 Steam 官方資料，請稍後重新取得"
   },
   "steam_libraryCustomName_overwritePrompt": {
     "message": "此操作會覆寫目前的自訂排序名稱，是否繼續？"

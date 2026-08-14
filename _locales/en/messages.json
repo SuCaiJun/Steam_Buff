@@ -209,6 +209,42 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "Add the Steam original name to the runtime search field when a custom sort title exists."
   },
+  "settings_feature_library_sort_title_stable_mode_name": {
+    "message": "Name Display Mode"
+  },
+  "settings_feature_library_sort_title_stable_mode_desc": {
+    "message": "Smooth mode processes only currently visible items. Stable mode refreshes by replacing AppOverview objects and may stutter in very large libraries."
+  },
+  "settings_feature_library_sort_title_stable_mode_option_false": {
+    "message": "Smooth Mode"
+  },
+  "settings_feature_library_sort_title_stable_mode_option_true": {
+    "message": "Stable Mode"
+  },
+  "settings_feature_library_sort_title_hover_custom_name_name": {
+    "message": "Show Custom Name in Hover Tooltip"
+  },
+  "settings_feature_library_sort_title_hover_custom_name_desc": {
+    "message": "When enabled, Steam's native tooltip displays the custom name and collection tags while hovering over a library item. When disabled, it uses the original Steam name."
+  },
+  "settings_feature_library_group_labels_name": {
+    "message": "Show Collections After Names"
+  },
+  "settings_feature_library_group_labels_desc": {
+    "message": "Hide trailing [] from collection names in the Steam library list and append collection tags to library item names."
+  },
+  "settings_feature_library_group_labels_grouped_mode_name": {
+    "message": "Also Show When Grouped by Collection"
+  },
+  "settings_feature_library_group_labels_grouped_mode_desc": {
+    "message": "Keep appending all collection tags to library item names when Steam's native Group by Collection mode is enabled."
+  },
+  "settings_feature_library_group_labels_hide_collection_tags_name": {
+    "message": "Hide [] in Collection Names"
+  },
+  "settings_feature_library_group_labels_hide_collection_tags_desc": {
+    "message": "Hide consecutive trailing [] tags from collection names visible in the Steam library list without modifying Steam's original collection data."
+  },
   "settings_feature_download_batch_actions_name": {
     "message": "Download Queue Batch Actions"
   },
@@ -1984,6 +2020,9 @@
   "store_priceChart_legendNoData": {
     "message": " no data"
   },
+  "store_priceChart_legendUnavailable": {
+    "message": " regional price unavailable"
+  },
   "store_priceChart_legendStats": {
     "message": "$label$ chart statistics",
     "placeholders": {
@@ -1994,6 +2033,9 @@
   },
   "store_priceChart_countriesAndShops": {
     "message": "Regions and stores"
+  },
+  "store_dataDisplay_productSelector": {
+    "message": "Select Steam product version"
   },
   "store_dataDisplay_range6Months": {
     "message": "6 months"
@@ -3619,6 +3661,29 @@
   },
   "steam_libraryCustomName_officialName": {
     "message": "Official name"
+  },
+  "steam_libraryCustomName_officialSyncing": {
+    "message": "Syncing official Steam data"
+  },
+  "steam_libraryCustomName_officialSyncedNoCustom": {
+    "message": "Official data synced; no cloud custom name is available"
+  },
+  "steam_libraryCustomName_officialUnavailable": {
+    "message": "Steam has not returned an available English name"
+  },
+  "steam_libraryCustomName_officialSyncFailed": {
+    "message": "Official Steam data sync is currently unavailable"
+  },
+  "steam_libraryCustomName_officialSyncSummary": {
+    "message": "; official Steam data is syncing for $count$ games. Fetch again later",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_libraryCustomName_officialSyncingRetry": {
+    "message": "Syncing official Steam data. Fetch again later"
   },
   "steam_libraryCustomName_overwritePrompt": {
     "message": "This will overwrite the current custom sort name. Continue?"
