@@ -86,6 +86,8 @@
   const NEWS_TRANSLATE_ID = "steam-news-translate";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
   const HOVER_TITLE_SETTING_ID = "library-sort-title-hover-custom-name";
+  const CHROMIUM_WINDOW_OPEN = "CHROMIUM_WINDOW_OPEN";
+  const SETTINGS_CENTER_PAGE = "settings/center.html";
   const CFG = globalThis.STConfig;
   const MATCH = CFG.matchers;
   const AUTH_REFRESH = CFG.loginAuth("/auth/refresh");
@@ -1352,6 +1354,26 @@
     }
   }
 
+  async function openNameAccountCenter(data) {
+    const response = await globalThis.STMessageBus.request({
+      type: CHROMIUM_WINDOW_OPEN,
+      url: chrome.runtime.getURL(SETTINGS_CENTER_PAGE),
+      requestId: safeRid(data.rid),
+    }, {
+      timeoutMs: 10_000,
+      expectSuccess: true,
+    });
+    if (response?.opened !== true) {
+      throw new Error("用户中心打开失败");
+    }
+    postName({
+      type: "open-account-result",
+      rid: data.rid || "",
+      ok: true,
+      data: { opened: true },
+    });
+  }
+
   // 页面主上下文无法直接调用 chrome API，标题/库自定义名统一走 DOM 属性桥接到内容脚本
   async function getAuth() {
     const rt = await storageGet([AUTH_KEY]);
@@ -1571,7 +1593,13 @@
         code = Number(body?.code) || response.status || 0;
       }
       if (code < 200 || code >= 300) {
-        postName({ type: "query-result", rid, ok: false, error: `[${code}] ${body?.message || "查询失败"}` });
+        postName({
+          type: "query-result",
+          rid,
+          ok: false,
+          code,
+          error: `[${code}] ${body?.message || "查询失败"}`,
+        });
         log({
           level: "warn",
           domain: "extension",
@@ -1585,7 +1613,13 @@
       await touchAuth(auth, diagnostics);
       postName({ type: "query-result", rid, ok: true, data: body });
     } catch (error) {
-      postName({ type: "query-result", rid, ok: false, error: error?.message || String(error) });
+      postName({
+        type: "query-result",
+        rid,
+        ok: false,
+        code: Number(error?.code) || 0,
+        error: error?.message || String(error),
+      });
       log({
         level: "error",
         domain: "extension",
@@ -1743,10 +1777,22 @@
     if (!trustedNamePage()) {
       return;
     }
-    if (data.script !== NAME_ID || data.side !== "page" || (data.type !== "query" && data.type !== "feedback")) {
+    if (data.script !== NAME_ID || data.side !== "page"
+        || !["query", "feedback", "open-account"].includes(data.type)) {
       return;
     }
     if (seenName(data)) {
+      return;
+    }
+    if (data.type === "open-account") {
+      openNameAccountCenter(data).catch((error) => {
+        postName({
+          type: "open-account-result",
+          rid: data.rid || "",
+          ok: false,
+          error: error?.message || String(error),
+        });
+      });
       return;
     }
     if (data.type === "feedback") {
@@ -1756,7 +1802,13 @@
       return;
     }
     queryNames(data).catch((error) => {
-      postName({ type: "query-result", rid: data.rid || "", ok: false, error: error?.message || String(error) });
+      postName({
+        type: "query-result",
+        rid: data.rid || "",
+        ok: false,
+        code: Number(error?.code) || 0,
+        error: error?.message || String(error),
+      });
     });
   }
 

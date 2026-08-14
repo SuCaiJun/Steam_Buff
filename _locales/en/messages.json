@@ -3460,6 +3460,15 @@
   "steam_libraryCustomName_fetchFailed": {
     "message": "Fetch failed"
   },
+  "steam_libraryCustomName_loginLater": {
+    "message": "Later"
+  },
+  "steam_libraryCustomName_loginAction": {
+    "message": "Log in"
+  },
+  "steam_libraryCustomName_accountCenterOpenFailed": {
+    "message": "Failed to open the account center"
+  },
   "steam_libraryCustomName_fetching": {
     "message": "Fetching..."
   },

@@ -3460,6 +3460,15 @@
   "steam_libraryCustomName_fetchFailed": {
     "message": "가져오기에 실패했습니다"
   },
+  "steam_libraryCustomName_loginLater": {
+    "message": "나중에"
+  },
+  "steam_libraryCustomName_loginAction": {
+    "message": "로그인"
+  },
+  "steam_libraryCustomName_accountCenterOpenFailed": {
+    "message": "사용자 센터를 열지 못했습니다"
+  },
   "steam_libraryCustomName_fetching": {
     "message": "가져오는 중..."
   },

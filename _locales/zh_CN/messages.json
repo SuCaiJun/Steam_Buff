@@ -3460,6 +3460,15 @@
   "steam_libraryCustomName_fetchFailed": {
     "message": "获取失败"
   },
+  "steam_libraryCustomName_loginLater": {
+    "message": "稍后"
+  },
+  "steam_libraryCustomName_loginAction": {
+    "message": "登录"
+  },
+  "steam_libraryCustomName_accountCenterOpenFailed": {
+    "message": "用户中心打开失败"
+  },
   "steam_libraryCustomName_fetching": {
     "message": "获取中..."
   },

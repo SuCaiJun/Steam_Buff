@@ -800,6 +800,23 @@
     return contentReq("feedback", data);
   }
 
+  async function openAccountCenter() {
+    try {
+      const result = await contentReq("open-account", {});
+      if (result?.opened !== true) {
+        throw new Error("account-center-not-opened");
+      }
+      return result;
+    } catch (error) {
+      const failure = new Error(i18n(
+        "steam.libraryCustomName.accountCenterOpenFailed",
+        "用户中心打开失败",
+      ));
+      failure.cause = error;
+      throw failure;
+    }
+  }
+
   function settings() {
     const raw = document.documentElement?.dataset?.steamBuffSettings || "{}";
     try {
@@ -827,7 +844,7 @@
     return st;
   }
 
-  // content.js 会把查询/反馈结果写回属性，MutationObserver 可能重复触发，rid 用于只结算对应请求。
+  // content.js 会把查询、反馈和用户中心打开结果写回属性，MutationObserver 可能重复触发，rid 用于只结算对应请求。
   function onQuery(event) {
     if (event && event.attributeName && event.attributeName !== RES_ATTR) {
       return;
@@ -839,7 +856,8 @@
     } catch {
       data = {};
     }
-    if (data.script !== ID || data.side !== "content" || (data.type !== "query-result" && data.type !== "feedback-result")) {
+    if (data.script !== ID || data.side !== "content"
+        || !["query-result", "feedback-result", "open-account-result"].includes(data.type)) {
       return;
     }
     const wait = qpend.get(data.rid);
@@ -851,7 +869,9 @@
     if (data.type === "feedback-result") {
       wait.resolve(data.data || {});
     } else if (data.ok === false) {
-      wait.reject(new Error(data.error || i18n("common.queryFailed", "查询失败")));
+      const error = new Error(data.error || i18n("common.queryFailed", "查询失败"));
+      error.code = Number(data.code) || 0;
+      wait.reject(error);
     } else {
       wait.resolve(data.data || {});
     }
@@ -2585,6 +2605,21 @@
     focusElement(box.querySelector("[data-lcn-one='ok']") || box.querySelector(".st-lcn-one-panel"));
   }
 
+  function oneLoginRequired(message) {
+    const box = openOneDialog();
+    setTrustedTemplate(box, `
+      <div class="st-lcn-one-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-one-title" tabindex="-1">
+        <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">${esc(i18n("steam.libraryCustomName.fetchFailed", "获取失败"))}</h3></div>
+        <div class="st-lcn-one-body"><div class="st-lcn-one-message">${esc(message)}</div></div>
+        <div class="st-lcn-one-actions">
+          <button class="st-lcn-btn" type="button" data-lcn-one="later">${esc(i18n("steam.libraryCustomName.loginLater", "稍后"))}</button>
+          <button class="st-lcn-btn primary" type="button" data-lcn-one="login">${esc(i18n("steam.libraryCustomName.loginAction", "登录"))}</button>
+        </div>
+      </div>
+    `, "library-custom-name-login-dialog-template");
+    focusElement(box.querySelector("[data-lcn-one='later']"));
+  }
+
   function oneConfirm(message, opt = {}) {
     const box = openOneDialog();
     const title = opt.title || i18n("steam.libraryCustomName.confirmOverwrite", "确认覆盖");
@@ -2652,10 +2687,15 @@
     resolve?.(false);
   }
 
-  function oneFail(message) {
+  function oneFail(error) {
+    const message = error?.message || String(error || "") || i18n("common.operationFailed", "操作失败");
+    if (Number(error?.code) === 401) {
+      oneLoginRequired(message);
+      return;
+    }
     oneBox(
       i18n("steam.libraryCustomName.fetchFailed", "获取失败"),
-      message || i18n("common.operationFailed", "操作失败"),
+      message,
       true,
     );
   }
@@ -2663,6 +2703,22 @@
   function onOneClick(event) {
     const action = event.target.closest?.("[data-lcn-one]")?.dataset?.lcnOne;
     if (!action) {
+      return;
+    }
+    if (action === "later") {
+      closeOne();
+      return;
+    }
+    if (action === "login") {
+      closeOne();
+      openAccountCenter().catch((error) => {
+        log.error(
+          "library-custom-name-account-center-open-failed",
+          "库自定义名称登录入口打开用户中心失败",
+          { error },
+        );
+        oneFail(error);
+      });
       return;
     }
     if (action === "import-cover" || action === "import-changes") {
@@ -2759,7 +2815,7 @@
       setNative(input, name);
       closeOne();
     } catch (error) {
-      oneFail(error?.message || String(error));
+      oneFail(error);
     } finally {
       setOneBusy(false);
     }
@@ -2930,7 +2986,7 @@
     event.preventDefault();
     event.stopPropagation();
     if (one) {
-      fillOne().catch((error) => oneFail(error?.message || String(error)));
+      fillOne().catch((error) => oneFail(error));
       return;
     }
     if (mnemonicBtn) {
@@ -3724,7 +3780,12 @@
       if (seq !== batch.previewSeq) {
         return;
       }
-      batch.message = error?.message || String(error);
+      if (Number(error?.code) === 401) {
+        batch.message = previewMessage();
+        oneFail(error);
+      } else {
+        batch.message = error?.message || String(error);
+      }
       log.error("library-custom-name-preview-failed", "库自定义名称云端名称获取失败", {
         durationMs: now() - startedAt,
         error,
