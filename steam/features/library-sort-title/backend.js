@@ -9,12 +9,12 @@
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
 
-// SharedJSContext 只维护库列表名称显示快照；UI 通过 BroadcastChannel 请求当前挂载行
-// 后台不改写 display_name、不克隆 AppOverview，也不主动触发全库刷新
+// 流畅模式只维护库列表名称显示快照；稳定模式保留 1.0.5 之前的 AppOverview 替换刷新路径
 (() => {
   "use strict";
 
   const ID = "library-sort-title";
+  const STABLE_MODE_ID = "library-sort-title-stable-mode";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
   const HOVER_TITLE_ID = "library-sort-title-hover-custom-name";
   const GROUP_LABELS_ID = "library-group-labels";
@@ -38,6 +38,7 @@
   const SETTINGS_DEBOUNCE_MS = 1000;
   const AFTER_SAVE_RECHECK_MS = 1000;
   const BULK_INVALIDATION_LIMIT = 200;
+  const STABLE_UI_REFRESH_MAX = 50;
   const EVENTS = Object.freeze(["focus", "pageshow"]);
 
   // Steam 收藏分组只识别名称末尾连续的 ASCII 方括号
@@ -452,6 +453,7 @@
   function settingsSnapshot(rt) {
     return {
       customSortEnabled: rt.customSortEnabled,
+      stableMode: rt.stableMode,
       groupLabelsEnabled: rt.groupLabelsEnabled,
       groupedModeEnabled: rt.groupedModeEnabled,
       groupedByCollection: groupedMode(),
@@ -469,6 +471,101 @@
     } catch {
       return null;
     }
+  }
+
+  function appOverviewReady(app) {
+    if (!app || typeof app !== "object") return false;
+    return typeof app.BHasStoreTag !== "function"
+      || typeof app.m_setStoreTags?.has === "function";
+  }
+
+  function stableTargetName(app, rt, restore = false) {
+    const custom = rt.customSortEnabled ? clean(app?.custom_sort_as_display) : "";
+    if (!restore && rt.stableMode && custom) {
+      const original = officialName(app);
+      if (original) saveOriginalName(app, original);
+      return viewCustomName(custom);
+    }
+    const id = Number(app?.appid) || 0;
+    return clean(app?.[ORIG]) || (id ? clean(names().get(id)) : "") || clean(app?.display_name);
+  }
+
+  function stableApplyInPlace(app, rt, restore = false) {
+    const id = Number(app?.appid) || 0;
+    if (!id || !appOverviewReady(app)) return false;
+    if (restore && !rt.stableDisplayIds.has(id)) return false;
+    const next = stableTargetName(app, rt, restore);
+    if (!next || app.display_name === next) {
+      if (restore) rt.stableDisplayIds.delete(id);
+      else if (rt.stableMode && hasCustomName(app)) rt.stableDisplayIds.add(id);
+      return false;
+    }
+    app.display_name = next;
+    if (restore) rt.stableDisplayIds.delete(id);
+    else rt.stableDisplayIds.add(id);
+    return true;
+  }
+
+  function stableClone(app) {
+    try {
+      const replacement = Object.create(Object.getPrototypeOf(app));
+      Object.defineProperties(replacement, Object.getOwnPropertyDescriptors(app));
+      const original = clean(app?.[ORIG]) || clean(names().get(Number(app?.appid) || 0));
+      if (original) saveOriginalName(replacement, original);
+      return replacement;
+    } catch {
+      return null;
+    }
+  }
+
+  function stableCommit(rt, replacements, notify = true) {
+    const store = window.appStore;
+    if (!store?.m_mapApps || !Array.isArray(replacements) || !replacements.length) return 0;
+    const applied = [];
+    try {
+      for (const replacement of replacements) {
+        if (!replacement?.appid) continue;
+        store.m_mapApps.set(replacement.appid, replacement);
+        applied.push(replacement);
+      }
+    } catch {
+      return applied.length;
+    }
+    if (notify && applied.length <= STABLE_UI_REFRESH_MAX
+      && typeof window.collectionStore?.OnAppOverviewChange === "function") {
+      const previous = rt.notifying === true;
+      try {
+        rt.notifying = true;
+        window.collectionStore.OnAppOverviewChange(applied, []);
+      } catch {
+      } finally {
+        rt.notifying = previous;
+      }
+    }
+    return applied.length;
+  }
+
+  function stableSyncApps(rt, apps, { restore = false, notify = true } = {}) {
+    const replacements = [];
+    for (const app of Array.from(apps || [])) {
+      if (!appOverviewReady(app)) continue;
+      const id = Number(app.appid) || 0;
+      if (!id || (restore && !rt.stableDisplayIds.has(id))) continue;
+      const replacement = stableClone(app);
+      if (!replacement) continue;
+      if (!stableApplyInPlace(replacement, rt, restore)) continue;
+      replacements.push(replacement);
+    }
+    return stableCommit(rt, replacements, notify);
+  }
+
+  function stableSyncAll(rt, restore = false) {
+    const values = window.appStore?.m_mapApps && typeof window.appStore.m_mapApps.values === "function"
+      ? Array.from(window.appStore.m_mapApps.values()).filter(Boolean)
+      : [];
+    const changed = stableSyncApps(rt, values, { restore, notify: true });
+    if (restore) rt.stableDisplayIds.clear();
+    return changed;
   }
 
   function modelEntry(rt, appid) {
@@ -491,6 +588,7 @@
       labels,
       labelsActive(rt),
       rt.customSortEnabled,
+      rt.stableMode,
       rt.groupLabelsEnabled,
       rt.groupedModeEnabled,
       groupedMode(),
@@ -503,6 +601,7 @@
       appid: id,
       officialName: official,
       customName,
+      baseDisplayName: base,
       groupTags: labels.slice(),
       finalDisplayName,
       signature,
@@ -579,12 +678,14 @@
 
   function syncSettings(api, rt) {
     const customSortEnabled = settingsValue(api, ID, true) !== false;
+    const stableMode = customSortEnabled && settingsValue(api, STABLE_MODE_ID, false) === true;
     const groupLabelsEnabled = settingsValue(api, GROUP_LABELS_ID, true) !== false;
     const groupedModeEnabled = settingsValue(api, GROUPED_MODE_ID, false) === true;
     const hideCollectionTags = groupLabelsEnabled && settingsValue(api, HIDE_COLLECTION_TAGS_ID, true) !== false;
     const customTitleEnabled = customSortEnabled && settingsValue(api, HOVER_TITLE_ID, false) === true;
     const originalNameSearch = customSortEnabled && settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true;
     const changed = rt.customSortEnabled !== customSortEnabled
+      || rt.stableMode !== stableMode
       || rt.groupLabelsEnabled !== groupLabelsEnabled
       || rt.groupedModeEnabled !== groupedModeEnabled
       || rt.hideCollectionTags !== hideCollectionTags
@@ -592,7 +693,11 @@
       || rt.originalNameSearch !== originalNameSearch;
     if (!changed) return false;
     const groupChanged = rt.groupLabelsEnabled !== groupLabelsEnabled;
+    const stableChanged = rt.stableMode !== stableMode;
+    if (rt.stableMode && !stableMode) stableSyncAll(rt, true);
     rt.customSortEnabled = customSortEnabled;
+    rt.stableMode = stableMode;
+    if (stableChanged) rt.stableBootstrapped = false;
     rt.groupLabelsEnabled = groupLabelsEnabled;
     rt.groupedModeEnabled = groupedModeEnabled;
     rt.hideCollectionTags = hideCollectionTags;
@@ -654,6 +759,7 @@
       const name = officialName(this, args[0]);
       if (name && !this[ORIG]) saveOriginalName(this, name);
       syncSortAs(this, window[RT]);
+      if (window[RT].stableMode) stableSyncApps(window[RT], [this]);
       invalidate(window[RT], [this.appid], "custom-sort");
       return result;
     });
@@ -684,10 +790,12 @@
     if (recordBulk(rt, appid, data.sortAs, true)) return;
     const app = appOverview(appid) || data.app;
     if (app) setCustomName(app, data.sortAs, rt);
+    if (app && rt.stableMode) stableSyncApps(rt, [app]);
     invalidate(rt, [appid], "custom-sort-save");
     scheduleTimeout(rt, "custom-sort-recheck", () => {
       const current = appOverview(appid);
       if (current) setCustomName(current, data.sortAs, rt);
+      if (current && rt.stableMode) stableSyncApps(rt, [current]);
       invalidate(rt, [appid], "custom-sort-recheck");
     }, AFTER_SAVE_RECHECK_MS);
   }
@@ -703,15 +811,24 @@
 
   function hookOverviewChange(rt, store) {
     return patch(store, "OnAppOverviewChange", O_FLAG, (original) => function overviewChangeHook(...args) {
-      const result = original.apply(this, args);
-      if (window[RT]?.scheduled !== true) return result;
       const apps = Array.isArray(args[0]) ? args[0] : [];
+      const currentRt = window[RT];
+      if (currentRt?.scheduled !== true) return original.apply(this, args);
+      if (currentRt.stableMode && apps.length && bulkOn(currentRt)) {
+        for (const app of apps) recordBulk(currentRt, app?.appid, app?.custom_sort_as_display);
+        return undefined;
+      }
+      if (currentRt.stableMode && !currentRt.notifying) {
+        for (const app of apps) stableApplyInPlace(app, currentRt);
+      }
+      const result = original.apply(this, args);
+      if (currentRt.notifying) return result;
       const ids = apps.map((app) => Number(app?.appid) || 0).filter(Boolean);
       for (const id of ids) {
         const current = appOverview(id);
-        if (current) syncSortAs(current, window[RT]);
+        if (current) syncSortAs(current, currentRt);
       }
-      if (ids.length) invalidate(window[RT], ids, "overview-change");
+      if (ids.length) invalidate(currentRt, ids, "overview-change");
       return result;
     });
   }
@@ -824,10 +941,15 @@
     const state = rt.bulk;
     rt.bulk = null;
     const ids = Array.from(state.map.keys());
+    const stableApps = [];
     for (const [appid, sortAs] of state.map) {
       const app = appOverview(appid);
-      if (app) setCustomName(app, sortAs, rt);
+      if (app) {
+        setCustomName(app, sortAs, rt);
+        if (rt.stableMode) stableApps.push(app);
+      }
     }
+    if (stableApps.length) stableSyncApps(rt, stableApps);
     if (ids.length) invalidate(rt, ids, `custom-name-bulk:${clean(data.reason) || "done"}`);
     return { enabled: true, reason: clean(data.reason) || "done", queued: ids.length, changed: ids.length };
   }
@@ -861,6 +983,7 @@
       collectionHeaders: [],
       groupIndexReady: false,
       customSortEnabled: settingsValue(api, ID, true) !== false,
+      stableMode: settingsValue(api, STABLE_MODE_ID, false) === true,
       groupLabelsEnabled: settingsValue(api, GROUP_LABELS_ID, true) !== false,
       groupedModeEnabled: settingsValue(api, GROUPED_MODE_ID, false) === true,
       lastGroupedMode: null,
@@ -868,6 +991,9 @@
       customTitleEnabled: settingsValue(api, HOVER_TITLE_ID, false) === true,
       originalNameSearch: settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true,
       sortAsOriginals: new Map(),
+      stableDisplayIds: new Set(),
+      stableBootstrapped: false,
+      notifying: false,
       customEventsOff: null,
       sortOk: false,
       changeOk: false,
@@ -905,6 +1031,11 @@
         syncSortAsAll(rt);
         rt.sortAsBootstrapped = true;
       }
+      if (rt.stableMode && !rt.stableBootstrapped
+        && Number(window.appStore?.m_mapApps?.size || 0) > 0) {
+        stableSyncAll(rt, false);
+        rt.stableBootstrapped = true;
+      }
       const groupIndexReady = !rt.groupLabelsEnabled || rt.groupIndexReady;
       const ready = groupIndexReady && rt.changeOk && (!rt.customSortEnabled || rt.sortOk);
       setSchedulerInterval(rt, ready ? SYNC_MS : BOOT_MS);
@@ -919,6 +1050,7 @@
       window.STScheduler?.unregister?.(SCHEDULER_TASK);
       rt.scheduled = false;
       clearTimers(rt);
+      if (rt.stableDisplayIds.size) stableSyncAll(rt, true);
       restoreAllOriginalSortAs(rt);
       rt.customEventsOff?.();
       rt.customEventsOff = null;

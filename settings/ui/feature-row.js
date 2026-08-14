@@ -53,6 +53,10 @@
       return tr(item?.badgeKey, item?.badge || "");
     }
 
+    function optionLabel(option) {
+      return tr(option?.labelKey, option?.label || "");
+    }
+
     function switchHtml(item) {
       const checked = item.disabled === true ? false : state(item.id) !== false;
       const enabled = available(item);
@@ -135,7 +139,7 @@
             </div>
             <div class="feature-desc row-desc">${sourceTipHtml(item)}<span>${esc(itemDesc(item))}</span></div>
           </div>
-          ${switchHtml(item)}
+          ${controlHtml(item)}
         </article>
       `;
     }
@@ -151,6 +155,31 @@
           ${switchHtml(item)}
         </article>
       `;
+    }
+
+    function modeHtml(item) {
+      const enabled = available(item);
+      const selected = state(item.id) === true;
+      const name = itemName(item);
+      const options = Array.isArray(item.options) ? item.options : [];
+      return `
+        <div class="setting-mode" role="radiogroup" aria-label="${escAttr(name)}" data-setting-mode="${escAttr(item.id)}" aria-disabled="${enabled ? "false" : "true"}">
+          ${options.map(option => {
+            const value = option.value === true;
+            const checked = selected === value;
+            return `
+              <label class="setting-mode-option${checked ? " selected" : ""}">
+                <input type="radio" name="${escAttr(item.id)}" value="${value ? "true" : "false"}" data-setting-mode-option="${escAttr(item.id)}" ${checked ? "checked" : ""} ${enabled ? "" : "disabled"}>
+                <span>${esc(optionLabel(option))}</span>
+              </label>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    function controlHtml(item) {
+      return item?.control === "mode" ? modeHtml(item) : switchHtml(item);
     }
 
     function drawerItemHtml(item, bodyHtml) {
@@ -189,7 +218,7 @@
       `;
     }
 
-    return Object.freeze({ itemHtml, masterItemHtml, drawerItemHtml, sourceTipHtml, switchHtml, helpLinkHtml });
+    return Object.freeze({ itemHtml, masterItemHtml, drawerItemHtml, sourceTipHtml, switchHtml, modeHtml, controlHtml, helpLinkHtml });
   }
 
   const api = Object.freeze({ create });

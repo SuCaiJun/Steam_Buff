@@ -854,6 +854,19 @@
               deps: depAll(["library-sort-title"]),
             },
             {
+              id: "library-sort-title-stable-mode",
+              name: "名称显示模式",
+              desc: "流畅模式只处理当前可见项目；稳定模式使用 AppOverview 替换刷新方法，库中游戏数量过多时可能会卡顿",
+              area: "steam",
+              control: "mode",
+              enabled: false,
+              options: Object.freeze([
+                { value: false, label: "流畅模式" },
+                { value: true, label: "稳定模式" },
+              ]),
+              deps: depAll(["library-sort-title"]),
+            },
+            {
               id: "library-sort-title-hover-custom-name",
               name: "悬停提示显示自定义名称",
               desc: "开启后，鼠标悬停库列表项目时的 Steam 原生提示框显示自定义名称和分组标签；关闭时恢复 Steam 原始名称",
@@ -1002,6 +1015,12 @@
     }
     if (item.sourceTip && !item.sourceTipKey) {
       out.sourceTipKey = `${prefix}.${item.id}.sourceTip`;
+    }
+    if (Array.isArray(item.options)) {
+      out.options = Object.freeze(item.options.map(option => Object.freeze({
+        ...option,
+        labelKey: option.labelKey || `${prefix}.${item.id}.option.${String(option.value).replace(/[^A-Za-z0-9_]/g, "_")}`,
+      })));
     }
     if (item.emptyTitle && !item.emptyTitleKey) {
       out.emptyTitleKey = `${prefix}.${item.id}.emptyTitle`;

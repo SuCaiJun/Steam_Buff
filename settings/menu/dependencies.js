@@ -153,16 +153,20 @@
       return featureRows().helpLinkHtml?.(item) || "";
     }
 
-    function featureSwitch(shadow, id) {
-      return Array.from(shadow.querySelectorAll(".switch"))
-        .find(sw => sw.dataset.feature === id) || null;
+    function featureControls(shadow, id) {
+      const switches = Array.from(shadow.querySelectorAll(".switch"))
+        .filter(sw => sw.dataset.feature === id);
+      const modes = Array.from(shadow.querySelectorAll("[data-setting-mode-option]"))
+        .filter(input => input.dataset.settingModeOption === id);
+      return [...switches, ...modes];
     }
 
     function updateFeature(shadow, id) {
       const item = catalog.featureById?.(id);
-      const sw = featureSwitch(shadow, id);
-      const row = sw?.closest(".feature");
-      if (!item || !sw || !row) {
+      const controls = featureControls(shadow, id);
+      const first = controls[0] || null;
+      const row = first?.closest(".feature");
+      if (!item || !first || !row) {
         return false;
       }
 
@@ -175,13 +179,21 @@
       row.classList.toggle("disabled", !enabled);
       if (tip) {
         row.setAttribute("title", tip);
-        sw.setAttribute("title", tip);
       } else {
         row.removeAttribute("title");
-        sw.setAttribute("title", itemName(item));
       }
-      sw.disabled = !enabled;
-      sw.setAttribute("aria-checked", checked ? "true" : "false");
+      for (const control of controls) {
+        control.disabled = !enabled;
+        if (control.classList.contains("switch")) {
+          control.setAttribute("title", tip || itemName(item));
+          control.setAttribute("aria-checked", checked ? "true" : "false");
+        } else {
+          const selected = (control.value === "true") === checked;
+          control.checked = selected;
+          control.closest(".setting-mode-option")?.classList.toggle("selected", selected);
+        }
+      }
+      row.querySelector("[data-setting-mode]")?.setAttribute("aria-disabled", enabled ? "false" : "true");
 
       if (!enabled) {
         if (!lock && title) {
