@@ -1651,8 +1651,13 @@
 
   async function playerStatsFetch(request, sender, sendResponse) {
     const appId = Number.parseInt(String(request?.appid || request?.appId || ""), 10);
+    const part = String(request?.part || "");
     if (!Number.isInteger(appId) || appId <= 0) {
       sendResponse({ success: false, code: "PLAYER_STATS_APPID_INVALID", error: "无效的 AppID" });
+      return;
+    }
+    if (part !== "gmcharts" && part !== "steam-current") {
+      sendResponse({ success: false, code: "PLAYER_STATS_PART_INVALID", error: "无效的在线人数请求部分" });
       return;
     }
     const pageUrl = senderUrlObject(sender);
@@ -1664,12 +1669,15 @@
       return;
     }
     try {
-      const gmChartsPromise = fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_GMCHARTS_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_GMCHARTS_TTL_MS, kind: "gmcharts", fetchValue: () => fetchGmChartsPlayerStats(request, appId) });
-      const steamCurrentPromise = fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_STEAM_CURRENT_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_STEAM_CURRENT_TTL_MS, kind: "steam-current", fetchValue: () => fetchSteamCurrentPlayers(request, appId) }).catch(() => ({ value: null, cache: "miss" }));
-      const [gmCharts, steamCurrent] = await Promise.all([gmChartsPromise, steamCurrentPromise]);
-      sendResponse({ success: true, data: gmCharts.value, currentPlayers: steamCurrent.value, status: 200, ok: true, headers: {}, source: { gmChartsCache: gmCharts.cache, steamCurrentCache: steamCurrent.cache } });
+      if (part === "gmcharts") {
+        const gmCharts = await fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_GMCHARTS_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_GMCHARTS_TTL_MS, kind: "gmcharts", fetchValue: () => fetchGmChartsPlayerStats(request, appId) });
+        sendResponse({ success: true, part, data: gmCharts.value, status: 200, ok: true, headers: {}, source: { gmChartsCache: gmCharts.cache } });
+        return;
+      }
+      const steamCurrent = await fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_STEAM_CURRENT_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_STEAM_CURRENT_TTL_MS, kind: "steam-current", fetchValue: () => fetchSteamCurrentPlayers(request, appId) });
+      sendResponse({ success: true, part, currentPlayers: steamCurrent.value, status: 200, ok: true, headers: {}, source: { steamCurrentCache: steamCurrent.cache } });
     } catch (error) {
-      sendResponse({ success: false, error: error?.message || String(error), status: Number(error?.status) || 0, ok: false, errorKind: "transport", ...(error?.name ? { errorName: String(error.name) } : {}), ...(error?.code ? { errorCode: String(error.code) } : {}) });
+      sendResponse({ success: false, part, error: error?.message || String(error), status: Number(error?.status) || 0, ok: false, errorKind: "transport", ...(error?.name ? { errorName: String(error.name) } : {}), ...(error?.code ? { errorCode: String(error.code) } : {}) });
     }
   }
 

@@ -96,8 +96,14 @@
   const NAME_REQ_ATTR = "data-steam-buff-name-request";
   const NAME_RES_ATTR = "data-steam-buff-name-response";
   const PLAYER_STATS_ID = "player-stats";
-  const PLAYER_STATS_REQ_ATTR = "data-steam-buff-player-stats-request";
-  const PLAYER_STATS_RES_ATTR = "data-steam-buff-player-stats-response";
+  const PLAYER_STATS_REQ_ATTRS = Object.freeze({
+    gmcharts: "data-steam-buff-player-stats-request-gmcharts",
+    "steam-current": "data-steam-buff-player-stats-request-steam-current",
+  });
+  const PLAYER_STATS_RES_ATTRS = Object.freeze({
+    gmcharts: "data-steam-buff-player-stats-response-gmcharts",
+    "steam-current": "data-steam-buff-player-stats-response-steam-current",
+  });
   const SETTINGS_PREFIX = "st.settings.";
   const SETTINGS_SUFFIX = ".enabled";
   const TRANS_PREFIX = `${SETTINGS_PREFIX}translate.`;
@@ -1871,17 +1877,28 @@
     });
   }
 
-  function playerStatsRequest() {
+  function playerStatsRequest(attribute) {
     try {
-      return JSON.parse(root()?.getAttribute(PLAYER_STATS_REQ_ATTR) || "{}");
+      return JSON.parse(root()?.getAttribute(attribute) || "{}");
     } catch {
       return {};
     }
   }
 
+  function takePlayerStatsRequest(attribute) {
+    const data = playerStatsRequest(attribute);
+    try {
+      root()?.removeAttribute(attribute);
+    } catch {
+    }
+    return data;
+  }
+
   function postPlayerStats(data) {
     try {
-      root()?.setAttribute(PLAYER_STATS_RES_ATTR, JSON.stringify({
+      const attribute = PLAYER_STATS_RES_ATTRS[String(data?.part || "")];
+      if (!attribute) return;
+      root()?.setAttribute(attribute, JSON.stringify({
         script: PLAYER_STATS_ID,
         side: "content",
         ...data,
@@ -1892,27 +1909,29 @@
 
   async function handlePlayerStats(data) {
     const appId = Number.parseInt(String(data?.appid || ""), 10);
+    const part = String(data?.part || "");
     const route = String(data?.route || "");
     const routeMatch = route.match(/^\/library\/app\/(\d+)$/);
     if (data?.script !== PLAYER_STATS_ID || data?.side !== "page" || data?.type !== "fetch"
-        || !String(data?.rid || "") || !Number.isInteger(appId) || appId <= 0
+        || (part !== "gmcharts" && part !== "steam-current") || !String(data?.rid || "") || !Number.isInteger(appId) || appId <= 0
         || !routeMatch || Number.parseInt(routeMatch[1], 10) !== appId) {
       return;
     }
     try {
       const response = await globalThis.STMessageBus.request({
         type: "PLAYER_STATS_FETCH",
+        part,
         appid: String(appId),
         route,
         timeoutMs: 12_000,
       }, {
         timeoutMs: 12_000,
-        dedupeKey: `player-stats:${appId}`,
+        dedupeKey: `player-stats:${part}:${appId}`,
         expectSuccess: false,
       });
-      postPlayerStats({ rid: data.rid, ...response });
+      postPlayerStats({ part, rid: data.rid, ...response });
     } catch (error) {
-      postPlayerStats({ rid: data.rid, success: false, error: error?.message || String(error) });
+      postPlayerStats({ part, rid: data.rid, success: false, error: error?.message || String(error) });
     }
   }
 
@@ -1930,13 +1949,17 @@
     el.dataset.steamBuffPlayerStatsBridge = "1";
     try {
       const observer = new MutationObserver((items) => {
-        if (items.some((item) => item.attributeName === PLAYER_STATS_REQ_ATTR)) {
-          void handlePlayerStats(playerStatsRequest());
+        const attributes = new Set(items.map((item) => item.attributeName).filter((attribute) => Object.values(PLAYER_STATS_REQ_ATTRS).includes(attribute)));
+        for (const attribute of attributes) {
+          void handlePlayerStats(takePlayerStatsRequest(attribute));
         }
       });
-      // 只监听页面桥接的单一属性，不观察子树或页面其他变化。
-      observer.observe(el, { attributes: true, attributeFilter: [PLAYER_STATS_REQ_ATTR] });
-      void handlePlayerStats(playerStatsRequest());
+      // 每一路请求使用独立属性，避免并行请求在同一 MutationObserver 批次内互相覆盖。
+      const requestAttributes = Object.values(PLAYER_STATS_REQ_ATTRS);
+      observer.observe(el, { attributes: true, attributeFilter: requestAttributes });
+      for (const attribute of requestAttributes) {
+        void handlePlayerStats(takePlayerStatsRequest(attribute));
+      }
     } catch {
       delete el.dataset.steamBuffPlayerStatsBridge;
     }

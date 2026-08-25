@@ -11,8 +11,14 @@
   "use strict";
 
   const ID = "player-stats";
-  const REQUEST_ATTR = "data-steam-buff-player-stats-request";
-  const RESPONSE_ATTR = "data-steam-buff-player-stats-response";
+  const REQUEST_ATTRS = Object.freeze({
+    gmcharts: "data-steam-buff-player-stats-request-gmcharts",
+    "steam-current": "data-steam-buff-player-stats-request-steam-current",
+  });
+  const RESPONSE_ATTRS = Object.freeze({
+    gmcharts: "data-steam-buff-player-stats-response-gmcharts",
+    "steam-current": "data-steam-buff-player-stats-response-steam-current",
+  });
   const api = window.SteamBuff;
   const ui = window.STPlayerStatsUi;
   const statsApi = window.STPlayerStats;
@@ -40,13 +46,17 @@
   function requestStats(payload) {
     const root = document.documentElement;
     if (!root) return Promise.reject(new Error("Steam 页面根节点不可用"));
+    const part = String(payload?.part || "");
+    const requestAttr = REQUEST_ATTRS[part];
+    const responseAttr = RESPONSE_ATTRS[part];
+    if (!requestAttr || !responseAttr) return Promise.reject(new Error("无效的在线人数请求部分"));
     const requestId = `${ID}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     return new Promise((resolve, reject) => {
       let timeout = 0;
       const observer = new MutationObserver(() => {
         let response;
         try {
-          response = JSON.parse(root.getAttribute(RESPONSE_ATTR) || "{}");
+          response = JSON.parse(root.getAttribute(responseAttr) || "{}");
         } catch {
           return;
         }
@@ -59,16 +69,17 @@
         }
         resolve(response);
       });
-      observer.observe(root, { attributes: true, attributeFilter: [RESPONSE_ATTR] });
+      observer.observe(root, { attributes: true, attributeFilter: [responseAttr] });
       timeout = window.setTimeout(() => {
         observer.disconnect();
         reject(new Error("在线人数请求超时（12000ms）"));
       }, 12_000);
-      root.setAttribute(REQUEST_ATTR, JSON.stringify({
+      root.setAttribute(requestAttr, JSON.stringify({
         script: ID,
         side: "page",
         type: "fetch",
         rid: requestId,
+        part,
         appid: String(payload.appid || ""),
         route: String(payload.route || ""),
         timeoutMs: 12_000,

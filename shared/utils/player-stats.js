@@ -123,6 +123,15 @@
     return maximum;
   }
 
+  function latestInWindow(samples, start, end) {
+    let latest = null;
+    for (const sample of samples) {
+      if (sample.timestamp < start || sample.timestamp >= end) continue;
+      if (!latest || sample.timestamp > latest.timestamp) latest = sample;
+    }
+    return latest?.players ?? null;
+  }
+
   function utcDayStart(timestamp) {
     const date = new Date(timestamp);
     return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
@@ -146,6 +155,7 @@
     const reference = Number(now);
     if (!Number.isFinite(reference)) throw new TypeError("统计参考时间无效");
     const day = utcDayStart(reference);
+    const current = latestInWindow(ranges["24h"], Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY);
     const todayPeak = maxInWindow(ranges["30d"], day, day + DAY_MS);
     const yesterdayPeak = maxInWindow(ranges["30d"], day - DAY_MS, day);
     const currentMonthKey = utcMonthKey(reference);
@@ -154,7 +164,7 @@
     return {
       version: VERSION,
       metrics: {
-        current: null,
+        current,
         todayPeak,
         monthlyPeak: currentMonth?.peak ?? null,
         lastMonthPeak: previousMonth?.peak ?? null,
