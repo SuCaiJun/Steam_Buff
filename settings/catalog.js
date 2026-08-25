@@ -650,9 +650,6 @@
               desc: "显示当前在线玩家数",
               area: "store",
               enabled: true,
-              disabled: true,
-              badge: "待开发",
-              lock: "旧 API 数据源已下线，等待对接新 API",
               deps: depAll(["data-display-enhancements"]),
             },
             {

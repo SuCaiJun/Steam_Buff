@@ -142,6 +142,21 @@
           api.ctx?.settingOn?.("steam-news-translate") !== false;
       },
     },
+    {
+      id: "player-stats",
+      name: "库详情页在线人数",
+      settingsKey: "player-stats",
+      loadStrategy: "on-demand-entry",
+      modes: ["ui"],
+      pageScope: ["main-ui", "/library/app/:appid"],
+      entries: {
+        ui: "ui.js",
+      },
+      shouldRun(api, context) {
+        return context === "ui" &&
+          api.ctx?.isMainUi?.() === true;
+      },
+    },
   ];
 
   features.forEach((item) => {

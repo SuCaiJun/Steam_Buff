@@ -241,6 +241,9 @@
   ]);
   const STORE_FEATURE_CHUNKS = Object.freeze({
     details: Object.freeze([
+      "shared/utils/player-stats.js",
+      "shared/utils/player-stats-ui.js",
+      "store/features/player-stats/feature.js",
       "store/api/subscription-info.js",
       "store/api/family-library.js",
       "store/api/exchange-rates.js",
@@ -358,6 +361,7 @@
     "content-mark-not-ready",
   ]);
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
+  const PLAYER_STATS_FETCH = "PLAYER_STATS_FETCH";
   const ONBOARDING_OPEN_LOCAL_MESSAGE = ONBOARDING.MESSAGES.openLocalPage;
   const ONBOARDING_OPEN_SETTINGS_MESSAGE = ONBOARDING.MESSAGES.openSettings;
   const ONBOARDING_PAGE = "onboarding/index.html";
@@ -368,6 +372,11 @@
   let steamLoopbackRecoveryScheduleFlight = null;
   let steamLoopbackRecoveryFinished = false;
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
+  const PLAYER_STATS_GMCHARTS_TTL_MS = 60 * 60 * 1000;
+  const PLAYER_STATS_STEAM_CURRENT_TTL_MS = 10 * 60 * 1000;
+  const PLAYER_STATS_GMCHARTS_CACHE_PREFIX = "st.playerStats.gmcharts.v1.";
+  const PLAYER_STATS_STEAM_CURRENT_CACHE_PREFIX = "st.playerStats.steamCurrent.v1.";
+  const playerStatsFetchFlights = new Map();
   const AI_FETCH_TIMEOUT_MS = 20 * 1000;
   const AI_FETCH_TIMEOUT_MAX_MS = 120 * 1000;
   const AI_GATEWAY_PERMISSION_CHECK = "AI_GATEWAY_PERMISSION_CHECK";
@@ -1500,6 +1509,167 @@
         ...(error?.name ? { errorName: String(error.name) } : {}),
         ...(error?.code ? { errorCode: String(error.code) } : {}),
       });
+    }
+  }
+
+  function storeAppDetailsPath(url) {
+    return String(url?.pathname || "").match(/^\/app\/(\d+)(?:\/|$)/);
+  }
+
+  function isStoreAppDetailsSender(sender) {
+    const url = senderUrlObject(sender);
+    return !!url
+      && url.protocol === "https:"
+      && MATCH.isSteamStoreHost?.(url.hostname) === true
+      && !!storeAppDetailsPath(url);
+  }
+
+  function isSteamLoopbackAppDetailsSender(sender, appId, route) {
+    const url = senderUrlObject(sender);
+    const routeMatch = String(route || "").match(/^\/library\/app\/(\d+)$/);
+    const loopbackPage = !!url
+      && url.protocol === "https:"
+      && MATCH.isSteamLoopbackHost?.(url.hostname) === true
+      && url.pathname === "/index.html";
+    // Steam 库主窗口的内容脚本 sender 是已验证的 browserType=4 about:blank，而不是 loopback URL。
+    const steamMainWindow = isSteamMainAboutBlank(senderUrl(sender));
+    return (loopbackPage || steamMainWindow)
+      && !!routeMatch
+      && Number.parseInt(routeMatch[1], 10) === appId;
+  }
+
+  function playerStatsCacheKey(prefix, appId) {
+    return `${prefix}${appId}`;
+  }
+
+  function isPlayerStatsCacheValue(value, kind) {
+    return kind === "gmcharts" ? typeof value === "string" : typeof value === "number" && Number.isFinite(value) && value >= 0;
+  }
+
+  async function readPlayerStatsCache(key, appId, kind) {
+    let record;
+    try {
+      record = await sessionStorageGet(key);
+    } catch {
+      return null;
+    }
+    if (!record || typeof record !== "object" || record.appId !== appId
+      || !Number.isFinite(record.expiresAt) || record.expiresAt <= Date.now()
+      || !isPlayerStatsCacheValue(record.value, kind)) return null;
+    return record.value;
+  }
+
+  async function writePlayerStatsCache(key, appId, ttlMs, value) {
+    try {
+      await sessionStorageSet({ [key]: { appId, expiresAt: Date.now() + ttlMs, value } });
+    } catch {
+      // 缓存不可用时仍返回本次真实请求结果。
+    }
+  }
+
+  function playerStatsFetchFlight(key, task) {
+    const existing = playerStatsFetchFlights.get(key);
+    if (existing) return existing;
+    const flight = Promise.resolve().then(task).finally(() => playerStatsFetchFlights.delete(key));
+    playerStatsFetchFlights.set(key, flight);
+    return flight;
+  }
+
+  async function fetchCachedPlayerStatsValue({ prefix, appId, ttlMs, kind, fetchValue }) {
+    const key = playerStatsCacheKey(prefix, appId);
+    const cached = await readPlayerStatsCache(key, appId, kind);
+    if (cached !== null) return { value: cached, cache: "hit" };
+    const value = await playerStatsFetchFlight(key, async () => {
+      const fetched = await fetchValue();
+      if (!isPlayerStatsCacheValue(fetched, kind)) throw new TypeError("在线人数缓存值无效");
+      await writePlayerStatsCache(key, appId, ttlMs, fetched);
+      return fetched;
+    });
+    return { value, cache: "miss" };
+  }
+
+  function parseSteamCurrentPlayers(data) {
+    let payload;
+    try {
+      payload = JSON.parse(data);
+    } catch (error) {
+      const result = new TypeError("Steam 实时在线人数响应不是 JSON");
+      result.cause = error;
+      throw result;
+    }
+    const count = payload?.response?.player_count;
+    if (typeof count !== "number" || !Number.isFinite(count) || count < 0) {
+      throw new TypeError("Steam 实时在线人数响应无效");
+    }
+    return count;
+  }
+
+  async function fetchGmChartsPlayerStats(request, appId) {
+    const startedAt = Date.now();
+    const url = CFG.vendors.gmCharts.chartData(appId);
+    const requestMeta = { ...request, method: "GET", service: "gmcharts", endpointKey: "gmcharts-chart-data", logUrl: url };
+    try {
+      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const data = await response.text();
+      if (!response.ok) {
+        const error = new Error(`gmCharts 请求失败（HTTP ${response.status}）`);
+        error.name = "HttpError";
+        error.code = "HTTP_STATUS_ERROR";
+        error.status = response.status;
+        throw error;
+      }
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "gmCharts 在线人数数据请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      return data;
+    } catch (error) {
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "gmCharts 在线人数数据请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      throw error;
+    }
+  }
+
+  async function fetchSteamCurrentPlayers(request, appId) {
+    const startedAt = Date.now();
+    const url = CFG.vendors.steamApi.currentPlayers(appId);
+    const requestMeta = { ...request, method: "GET", service: "steam-api", endpointKey: "steam-current-players", logUrl: url };
+    try {
+      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const data = await response.text();
+      if (!response.ok) {
+        const error = new Error(`Steam 实时在线人数请求失败（HTTP ${response.status}）`);
+        error.name = "HttpError";
+        error.code = "HTTP_STATUS_ERROR";
+        error.status = response.status;
+        throw error;
+      }
+      const currentPlayers = parseSteamCurrentPlayers(data);
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Steam 实时在线人数请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      return currentPlayers;
+    } catch (error) {
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Steam 实时在线人数请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      throw error;
+    }
+  }
+
+  async function playerStatsFetch(request, sender, sendResponse) {
+    const appId = Number.parseInt(String(request?.appid || request?.appId || ""), 10);
+    if (!Number.isInteger(appId) || appId <= 0) {
+      sendResponse({ success: false, code: "PLAYER_STATS_APPID_INVALID", error: "无效的 AppID" });
+      return;
+    }
+    const pageUrl = senderUrlObject(sender);
+    const storePageMatch = storeAppDetailsPath(pageUrl);
+    const storeAllowed = isStoreAppDetailsSender(sender) && !!storePageMatch && Number.parseInt(storePageMatch[1], 10) === appId;
+    const loopbackAllowed = isSteamLoopbackAppDetailsSender(sender, appId, request?.route);
+    if (!storeAllowed && !loopbackAllowed) {
+      sendResponse({ success: false, code: "PLAYER_STATS_SENDER_REJECTED", error: "在线人数请求来源或路由无效" });
+      return;
+    }
+    try {
+      const gmChartsPromise = fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_GMCHARTS_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_GMCHARTS_TTL_MS, kind: "gmcharts", fetchValue: () => fetchGmChartsPlayerStats(request, appId) });
+      const steamCurrentPromise = fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_STEAM_CURRENT_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_STEAM_CURRENT_TTL_MS, kind: "steam-current", fetchValue: () => fetchSteamCurrentPlayers(request, appId) }).catch(() => ({ value: null, cache: "miss" }));
+      const [gmCharts, steamCurrent] = await Promise.all([gmChartsPromise, steamCurrentPromise]);
+      sendResponse({ success: true, data: gmCharts.value, currentPlayers: steamCurrent.value, status: 200, ok: true, headers: {}, source: { gmChartsCache: gmCharts.cache, steamCurrentCache: steamCurrent.cache } });
+    } catch (error) {
+      sendResponse({ success: false, error: error?.message || String(error), status: Number(error?.status) || 0, ok: false, errorKind: "transport", ...(error?.name ? { errorName: String(error.name) } : {}), ...(error?.code ? { errorCode: String(error.code) } : {}) });
     }
   }
 
@@ -3181,6 +3351,7 @@
   const ROUTE_POLICY = Object.freeze({
     UPDATE_CHECK: "设置中心更新检查",
     STORE_FETCH: "允许列表内跨域请求代理",
+    [PLAYER_STATS_FETCH]: "Steam 商店详情页或库详情页固定在线人数请求",
     TRANSLATE_INJECT: "翻译 runner 按需注入",
     CONTENT_FILES_INJECT: "当前 frame 内容脚本按需注入",
     [STEAM_LOOPBACK_INJECT_REQUEST]: "Steam CEF 白名单 frame 按需注入",
@@ -3206,6 +3377,7 @@
   const ROUTES = Object.freeze({
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
     STORE_FETCH: storeFetch,
+    [PLAYER_STATS_FETCH]: playerStatsFetch,
     TRANSLATE_INJECT: translateInject,
     CONTENT_FILES_INJECT: injectContentFiles,
     [STEAM_LOOPBACK_INJECT_REQUEST]: steamLoopbackInjectRequest,

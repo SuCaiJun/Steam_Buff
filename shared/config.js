@@ -38,6 +38,7 @@
     keylol: "keylol.com",
     aiProxy: "steam-buff.ai.sucaijun.com",
     onboarding: "steam-buff.sucaijun.com",
+    gmCharts: "gmcharts.com",
   });
 
   function pathOf(path = "") {
@@ -75,6 +76,7 @@
     keylol: origin(HOSTS.keylol),
     aiProxy: origin(HOSTS.aiProxy),
     onboarding: origin(HOSTS.onboarding),
+    gmCharts: origin(HOSTS.gmCharts),
   });
   const STEAM_BUFF_BASE = join(ORIGINS.site, "/wp-json/steam-buff/v1");
   const STEAM_FESTIVALS_BASE = join(ORIGINS.site, "/wp-json/steam-festivals/v1");
@@ -359,9 +361,15 @@
       dynamicStoreUserdataBase: join(ORIGINS.steamStore, "/dynamicstore/userdata/"),
       familyManagement: () => join(ORIGINS.steamStore, "/account/familymanagement/?tab=library"),
     }),
+    gmCharts: Object.freeze({
+      host: HOSTS.gmCharts,
+      origin: ORIGINS.gmCharts,
+      chartData: (appId) => join(ORIGINS.gmCharts, `/en/chart-data/${encoded(appId)}`),
+    }),
     steamApi: Object.freeze({
       host: HOSTS.steamApi,
       origin: ORIGINS.steamApi,
+      currentPlayers: (appId) => join(ORIGINS.steamApi, `/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=${encoded(appId)}`),
       cartAddItems: () => join(ORIGINS.steamApi, "/IAccountCartService/AddItemsToCart/v1/"),
       cartAddItemsBody: (token, inputJson, storeOrigin = ORIGINS.steamStore) => `access_token=${encoded(token)}&origin=${encoded(storeOrigin)}&input_json=${encoded(inputJson)}`,
       familyGroupForUser: () => join(ORIGINS.steamApi, "/IFamilyGroupsService/GetFamilyGroupForUser/v1/"),

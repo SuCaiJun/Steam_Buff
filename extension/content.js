@@ -95,6 +95,9 @@
   const API_SUBMIT = CFG.steamBuff("/submit");
   const NAME_REQ_ATTR = "data-steam-buff-name-request";
   const NAME_RES_ATTR = "data-steam-buff-name-response";
+  const PLAYER_STATS_ID = "player-stats";
+  const PLAYER_STATS_REQ_ATTR = "data-steam-buff-player-stats-request";
+  const PLAYER_STATS_RES_ATTR = "data-steam-buff-player-stats-response";
   const SETTINGS_PREFIX = "st.settings.";
   const SETTINGS_SUFFIX = ".enabled";
   const TRANS_PREFIX = `${SETTINGS_PREFIX}translate.`;
@@ -1868,6 +1871,77 @@
     });
   }
 
+  function playerStatsRequest() {
+    try {
+      return JSON.parse(root()?.getAttribute(PLAYER_STATS_REQ_ATTR) || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  function postPlayerStats(data) {
+    try {
+      root()?.setAttribute(PLAYER_STATS_RES_ATTR, JSON.stringify({
+        script: PLAYER_STATS_ID,
+        side: "content",
+        ...data,
+      }));
+    } catch {
+    }
+  }
+
+  async function handlePlayerStats(data) {
+    const appId = Number.parseInt(String(data?.appid || ""), 10);
+    const route = String(data?.route || "");
+    const routeMatch = route.match(/^\/library\/app\/(\d+)$/);
+    if (data?.script !== PLAYER_STATS_ID || data?.side !== "page" || data?.type !== "fetch"
+        || !String(data?.rid || "") || !Number.isInteger(appId) || appId <= 0
+        || !routeMatch || Number.parseInt(routeMatch[1], 10) !== appId) {
+      return;
+    }
+    try {
+      const response = await globalThis.STMessageBus.request({
+        type: "PLAYER_STATS_FETCH",
+        appid: String(appId),
+        route,
+        timeoutMs: 12_000,
+      }, {
+        timeoutMs: 12_000,
+        dedupeKey: `player-stats:${appId}`,
+        expectSuccess: false,
+      });
+      postPlayerStats({ rid: data.rid, ...response });
+    } catch (error) {
+      postPlayerStats({ rid: data.rid, success: false, error: error?.message || String(error) });
+    }
+  }
+
+  function isSteamPlayerStatsBridgeTarget() {
+    const ctx = globalThis.STPageContext?.snapshot?.() || {};
+    return ctx.domain === "steam" && (ctx.title === "Steam" || ctx.steam?.aboutMain === true);
+  }
+
+  function watchPlayerStatsReq() {
+    if (!isSteamPlayerStatsBridgeTarget()) {
+      return;
+    }
+    const el = root();
+    if (!el || el.dataset.steamBuffPlayerStatsBridge === "1") return;
+    el.dataset.steamBuffPlayerStatsBridge = "1";
+    try {
+      const observer = new MutationObserver((items) => {
+        if (items.some((item) => item.attributeName === PLAYER_STATS_REQ_ATTR)) {
+          void handlePlayerStats(playerStatsRequest());
+        }
+      });
+      // 只监听页面桥接的单一属性，不观察子树或页面其他变化。
+      observer.observe(el, { attributes: true, attributeFilter: [PLAYER_STATS_REQ_ATTR] });
+      void handlePlayerStats(playerStatsRequest());
+    } catch {
+      delete el.dataset.steamBuffPlayerStatsBridge;
+    }
+  }
+
   function notifySteamFeaturesDisabled(keys) {
     if (!Array.isArray(keys) || keys.length === 0) {
       return;
@@ -2036,6 +2110,7 @@
       return;
     }
     watchNameReq();
+    watchPlayerStatsReq();
 
     if (!gd.lock()) {
       if (pageRuntimeReady()) {
@@ -2093,6 +2168,8 @@
           "shared/data-index.js",
           "shared/batch-queue.js",
           "shared/virtual-list.js",
+          "shared/utils/player-stats.js",
+          "shared/utils/player-stats-ui.js",
           "shared/page-context.js",
           "shared/runtime/kernel.js",
           "shared/runtime/surface-manager.js",
