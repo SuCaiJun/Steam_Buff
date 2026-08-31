@@ -16,9 +16,16 @@
   }
 
   const STEAM_USER_AGENT = /Valve\s+Steam|Steam\s+Client|SteamClient|SteamTenfoot|ValveSteam/i;
+  const SETTINGS_CENTER_PATH = "/settings/center.html";
+
+  function isSteamBuffChromiumSettingsPage() {
+    return String(root.location?.protocol || "").toLowerCase() === "chrome-extension:"
+      && String(root.location?.pathname || "") === SETTINGS_CENTER_PATH;
+  }
 
   function isSteamClientPage() {
     try {
+      if (isSteamBuffChromiumSettingsPage()) return false;
       if (root.STConfig?.matchers?.isSteamLoopbackHost?.(root.location?.hostname) === true) return true;
       if (root.SteamClient || root.SharedJSContext || root.document?.title === "SharedJSContext") return true;
       return STEAM_USER_AGENT.test(String(root.navigator?.userAgent || ""));
