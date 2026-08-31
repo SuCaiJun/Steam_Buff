@@ -745,7 +745,7 @@
       #${DOWNLOAD_SURFACE_ROOT} {
         position: fixed;
         top: 99px;
-        right: 57px;
+        left: 4px;
         z-index: 999999;
         height: auto;
         display: flex;
@@ -880,8 +880,8 @@
       }
       @media (max-width: 1250px) {
         #${DOWNLOAD_SURFACE_ROOT} {
-          top: 139px;
-          right: 27px;
+          top: 99px;
+          left: 4px;
         }
         #${DOWNLOAD_SURFACE_TOAST} {
           top: 172px;
