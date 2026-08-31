@@ -374,8 +374,10 @@
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
   const PLAYER_STATS_GMCHARTS_TTL_MS = 60 * 60 * 1000;
   const PLAYER_STATS_STEAM_CURRENT_TTL_MS = 10 * 60 * 1000;
+  const PLAYER_STATS_AUGMENTED_PEAK_TTL_MS = 24 * 60 * 60 * 1000;
   const PLAYER_STATS_GMCHARTS_CACHE_PREFIX = "st.playerStats.gmcharts.v1.";
   const PLAYER_STATS_STEAM_CURRENT_CACHE_PREFIX = "st.playerStats.steamCurrent.v1.";
+  const PLAYER_STATS_AUGMENTED_PEAK_CACHE_PREFIX = "st.playerStats.augmentedPeak.v2.";
   const playerStatsFetchFlights = new Map();
   const AI_FETCH_TIMEOUT_MS = 20 * 1000;
   const AI_FETCH_TIMEOUT_MAX_MS = 120 * 1000;
@@ -1543,7 +1545,27 @@
   }
 
   function isPlayerStatsCacheValue(value, kind) {
-    return kind === "gmcharts" ? typeof value === "string" : typeof value === "number" && Number.isFinite(value) && value >= 0;
+    if (kind === "gmcharts") return typeof value === "string";
+    if (kind === "steam-current") return typeof value === "number" && Number.isFinite(value) && value >= 0;
+    return kind === "augmented-peak"
+      && value !== null
+      && typeof value === "object"
+      && typeof value.historicalPeak === "number"
+      && Number.isFinite(value.historicalPeak)
+      && value.historicalPeak >= 0
+      && (value.hltb === null || (
+        value.hltb !== null
+        && typeof value.hltb === "object"
+        && typeof value.hltb.story === "number"
+        && Number.isFinite(value.hltb.story)
+        && value.hltb.story >= 0
+        && typeof value.hltb.extras === "number"
+        && Number.isFinite(value.hltb.extras)
+        && value.hltb.extras >= 0
+        && typeof value.hltb.complete === "number"
+        && Number.isFinite(value.hltb.complete)
+        && value.hltb.complete >= 0
+      ));
   }
 
   async function readPlayerStatsCache(key, appId, kind) {
@@ -1604,6 +1626,33 @@
     return count;
   }
 
+  function parseAugmentedSteamPlayerStats(data) {
+    let payload;
+    try {
+      payload = JSON.parse(data);
+    } catch (error) {
+      const result = new TypeError("Augmented Steam 玩家统计响应不是 JSON");
+      result.cause = error;
+      throw result;
+    }
+    const peak = payload?.players?.peak_all;
+    if (typeof peak !== "number" || !Number.isFinite(peak) || peak < 0) {
+      throw new TypeError("Augmented Steam 历史巅峰响应无效");
+    }
+    const rawHltb = payload?.hltb;
+    let hltb = null;
+    if (rawHltb !== undefined && rawHltb !== null) {
+      if (typeof rawHltb !== "object"
+        || typeof rawHltb.story !== "number" || !Number.isFinite(rawHltb.story) || rawHltb.story < 0
+        || typeof rawHltb.extras !== "number" || !Number.isFinite(rawHltb.extras) || rawHltb.extras < 0
+        || typeof rawHltb.complete !== "number" || !Number.isFinite(rawHltb.complete) || rawHltb.complete < 0) {
+        throw new TypeError("Augmented Steam 游玩统计响应无效");
+      }
+      hltb = { story: rawHltb.story, extras: rawHltb.extras, complete: rawHltb.complete };
+    }
+    return { historicalPeak: peak, hltb };
+  }
+
   async function fetchGmChartsPlayerStats(request, appId) {
     const startedAt = Date.now();
     const url = CFG.vendors.gmCharts.chartData(appId);
@@ -1649,6 +1698,29 @@
     }
   }
 
+  async function fetchAugmentedSteamHistoricalPeak(request, appId) {
+    const startedAt = Date.now();
+    const url = CFG.vendors.augmentedSteam.app(appId);
+    const requestMeta = { ...request, method: "GET", service: "augmented-steam", endpointKey: "augmented-steam-app", logUrl: url };
+    try {
+      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const data = await response.text();
+      if (!response.ok) {
+        const error = new Error(`Augmented Steam 玩家统计请求失败（HTTP ${response.status}）`);
+        error.name = "HttpError";
+        error.code = "HTTP_STATUS_ERROR";
+        error.status = response.status;
+        throw error;
+      }
+      const playerStats = parseAugmentedSteamPlayerStats(data);
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Augmented Steam 玩家统计请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      return playerStats;
+    } catch (error) {
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Augmented Steam 玩家统计请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      throw error;
+    }
+  }
+
   async function playerStatsFetch(request, sender, sendResponse) {
     const appId = Number.parseInt(String(request?.appid || request?.appId || ""), 10);
     const part = String(request?.part || "");
@@ -1656,7 +1728,7 @@
       sendResponse({ success: false, code: "PLAYER_STATS_APPID_INVALID", error: "无效的 AppID" });
       return;
     }
-    if (part !== "gmcharts" && part !== "steam-current") {
+    if (part !== "gmcharts" && part !== "steam-current" && part !== "augmented-peak") {
       sendResponse({ success: false, code: "PLAYER_STATS_PART_INVALID", error: "无效的在线人数请求部分" });
       return;
     }
@@ -1674,8 +1746,13 @@
         sendResponse({ success: true, part, data: gmCharts.value, status: 200, ok: true, headers: {}, source: { gmChartsCache: gmCharts.cache } });
         return;
       }
-      const steamCurrent = await fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_STEAM_CURRENT_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_STEAM_CURRENT_TTL_MS, kind: "steam-current", fetchValue: () => fetchSteamCurrentPlayers(request, appId) });
-      sendResponse({ success: true, part, currentPlayers: steamCurrent.value, status: 200, ok: true, headers: {}, source: { steamCurrentCache: steamCurrent.cache } });
+      if (part === "steam-current") {
+        const steamCurrent = await fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_STEAM_CURRENT_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_STEAM_CURRENT_TTL_MS, kind: "steam-current", fetchValue: () => fetchSteamCurrentPlayers(request, appId) });
+        sendResponse({ success: true, part, currentPlayers: steamCurrent.value, status: 200, ok: true, headers: {}, source: { steamCurrentCache: steamCurrent.cache } });
+        return;
+      }
+      const augmentedPeak = await fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_AUGMENTED_PEAK_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_AUGMENTED_PEAK_TTL_MS, kind: "augmented-peak", fetchValue: () => fetchAugmentedSteamHistoricalPeak(request, appId) });
+      sendResponse({ success: true, part, historicalPeak: augmentedPeak.value.historicalPeak, hltb: augmentedPeak.value.hltb, status: 200, ok: true, headers: {}, source: { augmentedPeakCache: augmentedPeak.cache } });
     } catch (error) {
       sendResponse({ success: false, part, error: error?.message || String(error), status: Number(error?.status) || 0, ok: false, errorKind: "transport", ...(error?.name ? { errorName: String(error.name) } : {}), ...(error?.code ? { errorCode: String(error.code) } : {}) });
     }

@@ -38,7 +38,8 @@
   const SETTINGS_DEBOUNCE_MS = 1000;
   const AFTER_SAVE_RECHECK_MS = 1000;
   const BULK_INVALIDATION_LIMIT = 200;
-  const STABLE_UI_REFRESH_MAX = 50;
+  const STABLE_RETRY_MS = 1000;
+  const STABLE_RETRY_MAX = 10;
   const EVENTS = Object.freeze(["focus", "pageshow"]);
 
   // Steam 收藏分组只识别名称末尾连续的 ASCII 方括号
@@ -475,8 +476,12 @@
 
   function appOverviewReady(app) {
     if (!app || typeof app !== "object") return false;
-    return typeof app.BHasStoreTag !== "function"
-      || typeof app.m_setStoreTags?.has === "function";
+    try {
+      return typeof app.BHasStoreTag !== "function"
+        || typeof app.m_setStoreTags?.has === "function";
+    } catch {
+      return false;
+    }
   }
 
   function stableTargetName(app, rt, restore = false) {
@@ -518,29 +523,133 @@
     }
   }
 
-  function stableCommit(rt, replacements, notify = true) {
+  function stableLogOnce(rt, key, level, event, message, details = {}) {
+    if (!rt?.stableFailureKeys || rt.stableFailureKeys.has(key)) {
+      return;
+    }
+    rt.stableFailureKeys.add(key);
+    log[level]?.(event, message, details);
+  }
+
+  function stableQueuePending(rt, appid, reason, restore = false) {
+    const id = Number(appid) || 0;
+    if (!rt?.stablePendingIds || id <= 0) {
+      return false;
+    }
+    const wasPending = rt.stablePendingIds.has(id);
+    rt.stablePendingIds.add(id);
+    if (restore) {
+      rt.stablePendingRestoreIds.add(id);
+    } else {
+      rt.stablePendingRestoreIds.delete(id);
+    }
+    if (!wasPending) {
+      rt.stableRetryAttempt = 0;
+      rt.stableRetryStartedAt = Date.now();
+      rt.stableRetryExhausted = false;
+      stableLogOnce(rt, `pending:${reason}`, "warn", "library-sort-title-stable-pending", "稳定模式等待 AppOverview 状态恢复", {
+        phase: reason,
+        pendingCount: rt.stablePendingIds.size,
+      });
+    }
+    stableStartRetry(rt);
+    return true;
+  }
+
+  function stableResolvePending(rt, appid) {
+    const id = Number(appid) || 0;
+    if (!id) return;
+    rt?.stablePendingIds?.delete(id);
+    rt?.stablePendingRestoreIds?.delete(id);
+  }
+
+  function stableResetRetry(rt) {
+    if (!rt) return;
+    rt.stablePendingIds?.clear();
+    rt.stablePendingRestoreIds?.clear();
+    rt.stableRetryAttempt = 0;
+    rt.stableRetryStartedAt = 0;
+    rt.stableRetryScheduled = false;
+    rt.stableRetryExhausted = false;
+    rt.stableRetryWarned = false;
+    rt.stableFailureKeys?.clear();
+  }
+
+  function stableCommit(rt, replacements, notify = true, restore = false) {
     const store = window.appStore;
-    if (!store?.m_mapApps || !Array.isArray(replacements) || !replacements.length) return 0;
-    const applied = [];
+    let map = null;
     try {
-      for (const replacement of replacements) {
-        if (!replacement?.appid) continue;
+      map = store?.m_mapApps;
+    } catch (error) {
+      stableLogOnce(rt, "map-read", "error", "library-sort-title-stable-failed", "稳定模式读取 AppOverview 映射失败", { error });
+    }
+    let mapWritable = false;
+    try {
+      mapWritable = typeof map?.set === "function";
+    } catch (error) {
+      stableLogOnce(rt, "map-write", "error", "library-sort-title-stable-failed", "稳定模式检查 AppOverview 写回接口失败", { error });
+    }
+    if (!map || !mapWritable || !Array.isArray(replacements) || !replacements.length) {
+      for (const replacement of replacements || []) {
+        stableQueuePending(rt, replacement?.appid, "app-overview-map-unavailable", restore);
+      }
+      return 0;
+    }
+    const applied = [];
+    for (const replacement of replacements) {
+      const id = Number(replacement?.appid) || 0;
+      if (!id) continue;
+      try {
         store.m_mapApps.set(replacement.appid, replacement);
         applied.push(replacement);
+      } catch (error) {
+        stableQueuePending(rt, id, "app-overview-replace", restore);
+        stableLogOnce(rt, "app-overview-replace", "error", "library-sort-title-stable-failed", "稳定模式写回 AppOverview 失败", {
+          phase: "app-overview-replace",
+          appid: id,
+          error,
+        });
       }
-    } catch {
+    }
+    if (!applied.length) {
+      return 0;
+    }
+    if (!notify) {
+      for (const replacement of applied) stableResolvePending(rt, replacement.appid);
       return applied.length;
     }
-    if (notify && applied.length <= STABLE_UI_REFRESH_MAX
-      && typeof window.collectionStore?.OnAppOverviewChange === "function") {
-      const previous = rt.notifying === true;
-      try {
-        rt.notifying = true;
-        window.collectionStore.OnAppOverviewChange(applied, []);
-      } catch {
-      } finally {
-        rt.notifying = previous;
+    try {
+      if (notify && typeof window.collectionStore?.OnAppOverviewChange === "function") {
+        const notifier = window.collectionStore.OnAppOverviewChange;
+        const previous = rt.notifying === true;
+        try {
+          rt.notifying = true;
+          notifier.call(window.collectionStore, applied, []);
+          for (const replacement of applied) stableResolvePending(rt, replacement.appid);
+        } catch (error) {
+          for (const replacement of applied) stableQueuePending(rt, replacement.appid, "library-ui-notify", restore);
+          stableLogOnce(rt, "library-ui-notify", "error", "library-sort-title-stable-failed", "稳定模式通知 Steam 库列表刷新失败", {
+            phase: "library-ui-notify",
+            changed: applied.length,
+            error,
+          });
+        } finally {
+          rt.notifying = previous;
+        }
+      } else if (notify) {
+        for (const replacement of applied) stableQueuePending(rt, replacement.appid, "library-ui-notify-unavailable", restore);
+        stableLogOnce(rt, "library-ui-notify-unavailable", "warn", "library-sort-title-stable-pending", "稳定模式等待 Steam 库列表刷新接口就绪", {
+          phase: "library-ui-notify-unavailable",
+          changed: applied.length,
+        });
       }
+    } catch (error) {
+      for (const replacement of applied) stableQueuePending(rt, replacement.appid, "library-ui-notify", restore);
+      stableLogOnce(rt, "library-ui-notify", "error", "library-sort-title-stable-failed", "稳定模式读取 Steam 库列表刷新接口失败", {
+        phase: "library-ui-notify",
+        changed: applied.length,
+        error,
+      });
     }
     return applied.length;
   }
@@ -548,23 +657,107 @@
   function stableSyncApps(rt, apps, { restore = false, notify = true } = {}) {
     const replacements = [];
     for (const app of Array.from(apps || [])) {
-      if (!appOverviewReady(app)) continue;
-      const id = Number(app.appid) || 0;
-      if (!id || (restore && !rt.stableDisplayIds.has(id))) continue;
+      const id = Number(app?.appid) || 0;
+      if (!id || (restore && !rt.stableDisplayIds.has(id) && !rt.stablePendingRestoreIds.has(id))) continue;
+      if (!appOverviewReady(app)) {
+        stableQueuePending(rt, id, "app-overview-not-ready", restore);
+        continue;
+      }
+      const wasPending = rt.stablePendingIds.has(id);
       const replacement = stableClone(app);
-      if (!replacement) continue;
-      if (!stableApplyInPlace(replacement, rt, restore)) continue;
-      replacements.push(replacement);
+      if (!replacement) {
+        stableQueuePending(rt, id, "app-overview-clone", restore);
+        continue;
+      }
+      const changed = stableApplyInPlace(replacement, rt, restore);
+      // 待通知对象即使显示值已相同，也必须重新提交一次，确保 Steam UI 收到刷新事件。
+      if (changed || wasPending) {
+        replacements.push(replacement);
+      } else if (!restore) {
+        stableResolvePending(rt, id);
+      }
     }
-    return stableCommit(rt, replacements, notify);
+    const changed = stableCommit(rt, replacements, notify, restore);
+    if (restore && rt.stablePendingRestoreIds.size === 0) {
+      rt.stableDisplayIds.clear();
+    }
+    return changed;
+  }
+
+  function stableRunRetry(rt) {
+    rt.stableRetryScheduled = false;
+    if (rt.scheduled !== true || rt.stablePendingIds.size === 0) return;
+    rt.stableRetryAttempt += 1;
+    const applyApps = [];
+    const restoreApps = [];
+    for (const id of Array.from(rt.stablePendingIds)) {
+      const app = appOverview(id);
+      if (!app) {
+        stableQueuePending(rt, id, rt.stablePendingRestoreIds.has(id) ? "app-overview-not-ready" : "app-overview-read", rt.stablePendingRestoreIds.has(id));
+        continue;
+      }
+      (rt.stablePendingRestoreIds.has(id) ? restoreApps : applyApps).push(app);
+    }
+    if (applyApps.length && rt.stableMode) stableSyncApps(rt, applyApps, { notify: true });
+    if (restoreApps.length) stableSyncApps(rt, restoreApps, { restore: true, notify: true });
+    if (rt.stablePendingIds.size === 0) {
+      if (rt.stableRetryAttempt > 0) {
+        log.warn("library-sort-title-stable-recovered", "稳定模式待处理 AppOverview 已恢复", {
+          phase: "stable-retry",
+          attempt: rt.stableRetryAttempt,
+          durationMs: Date.now() - rt.stableRetryStartedAt,
+        });
+      }
+      rt.stableBootstrapped = rt.stableMode === true;
+      rt.stableRetryAttempt = 0;
+      rt.stableRetryStartedAt = 0;
+      rt.stableRetryExhausted = false;
+      rt.stableRetryWarned = false;
+      rt.stableFailureKeys.clear();
+      return;
+    }
+    if (rt.stableRetryAttempt >= STABLE_RETRY_MAX) {
+      rt.stableRetryExhausted = true;
+      if (!rt.stableRetryWarned) {
+        rt.stableRetryWarned = true;
+        log.warn("library-sort-title-stable-failed", "稳定模式等待 AppOverview 恢复超时", {
+          phase: "stable-retry",
+          attempt: rt.stableRetryAttempt,
+          pendingCount: rt.stablePendingIds.size,
+          durationMs: Date.now() - rt.stableRetryStartedAt,
+        });
+      }
+      return;
+    }
+    stableStartRetry(rt);
+  }
+
+  function stableStartRetry(rt, { restart = false } = {}) {
+    if (rt?.scheduled !== true || rt.stablePendingIds.size === 0 || rt.stableRetryScheduled) return false;
+    if (rt.stableRetryExhausted) {
+      if (!restart) return false;
+      rt.stableRetryAttempt = 0;
+      rt.stableRetryStartedAt = Date.now();
+      rt.stableRetryExhausted = false;
+      rt.stableRetryWarned = false;
+    }
+    rt.stableRetryScheduled = true;
+    scheduleTimeout(rt, "stable-retry", () => stableRunRetry(rt), STABLE_RETRY_MS);
+    return true;
   }
 
   function stableSyncAll(rt, restore = false) {
-    const values = window.appStore?.m_mapApps && typeof window.appStore.m_mapApps.values === "function"
-      ? Array.from(window.appStore.m_mapApps.values()).filter(Boolean)
-      : [];
+    let values = [];
+    try {
+      const map = window.appStore?.m_mapApps;
+      if (map && typeof map.values === "function") {
+        values = Array.from(map.values()).filter(Boolean);
+      }
+    } catch (error) {
+      stableLogOnce(rt, "map-read", "error", "library-sort-title-stable-failed", "稳定模式读取 AppOverview 列表失败", { error });
+    }
     const changed = stableSyncApps(rt, values, { restore, notify: true });
-    if (restore) rt.stableDisplayIds.clear();
+    if (restore && rt.stablePendingRestoreIds.size === 0) rt.stableDisplayIds.clear();
     return changed;
   }
 
@@ -678,7 +871,7 @@
 
   function syncSettings(api, rt) {
     const customSortEnabled = settingsValue(api, ID, true) !== false;
-    const stableMode = customSortEnabled && settingsValue(api, STABLE_MODE_ID, false) === true;
+    const stableMode = customSortEnabled && settingsValue(api, STABLE_MODE_ID, true) === true;
     const groupLabelsEnabled = settingsValue(api, GROUP_LABELS_ID, true) !== false;
     const groupedModeEnabled = settingsValue(api, GROUPED_MODE_ID, false) === true;
     const hideCollectionTags = groupLabelsEnabled && settingsValue(api, HIDE_COLLECTION_TAGS_ID, true) !== false;
@@ -694,7 +887,14 @@
     if (!changed) return false;
     const groupChanged = rt.groupLabelsEnabled !== groupLabelsEnabled;
     const stableChanged = rt.stableMode !== stableMode;
-    if (rt.stableMode && !stableMode) stableSyncAll(rt, true);
+    if (rt.stableMode && !stableMode) {
+      stableResetRetry(rt);
+      stableSyncAll(rt, true);
+    }
+    if (!rt.stableMode && stableMode) {
+      stableResetRetry(rt);
+      rt.stableDisplayIds.clear();
+    }
     rt.customSortEnabled = customSortEnabled;
     rt.stableMode = stableMode;
     if (stableChanged) rt.stableBootstrapped = false;
@@ -754,13 +954,20 @@
     const owner = findSortOwner();
     if (!owner) return false;
     return patch(owner, "SetSortAs", S_FLAG, (original) => function sortHook(...args) {
+      const currentRt = window[RT];
+      if (currentRt?.scheduled !== true) return original.apply(this, args);
+      if (currentRt.stableMode) {
+        const name = officialName(this, args[0]);
+        if (name && !this[ORIG]) saveOriginalName(this, name);
+      }
       const result = original.apply(this, args);
-      if (window[RT]?.scheduled !== true) return result;
-      const name = officialName(this, args[0]);
-      if (name && !this[ORIG]) saveOriginalName(this, name);
+      if (!currentRt.stableMode) {
+        const name = officialName(this, args[0]);
+        if (name && !this[ORIG]) saveOriginalName(this, name);
+      }
       syncSortAs(this, window[RT]);
-      if (window[RT].stableMode) stableSyncApps(window[RT], [this]);
-      invalidate(window[RT], [this.appid], "custom-sort");
+      if (currentRt.stableMode) stableSyncApps(currentRt, [this]);
+      invalidate(currentRt, [this.appid], "custom-sort");
       return result;
     });
   }
@@ -819,7 +1026,15 @@
         return undefined;
       }
       if (currentRt.stableMode && !currentRt.notifying) {
-        for (const app of apps) stableApplyInPlace(app, currentRt);
+        for (const app of apps) {
+          const id = Number(app?.appid) || 0;
+          if (!id) continue;
+          if (!appOverviewReady(app)) {
+            stableQueuePending(currentRt, id, "app-overview-not-ready");
+          } else {
+            stableApplyInPlace(app, currentRt);
+          }
+        }
       }
       const result = original.apply(this, args);
       if (currentRt.notifying) return result;
@@ -950,7 +1165,27 @@
       }
     }
     if (stableApps.length) stableSyncApps(rt, stableApps);
-    if (ids.length) invalidate(rt, ids, `custom-name-bulk:${clean(data.reason) || "done"}`);
+    if (ids.length) {
+      invalidate(rt, ids, `custom-name-bulk:${clean(data.reason) || "done"}`);
+      if (rt.stableMode) {
+        // Steam 云同步可能在保存返回后替换 AppOverview；按本批 AppID 延迟复查，避免再次全库扫描。
+        scheduleTimeout(rt, "stable-bulk-delayed-recheck", () => {
+          if (!rt.stableMode) return;
+          const delayedApps = [];
+          for (const [appid, sortAs] of state.map) {
+            const current = appOverview(appid);
+            if (!current) {
+              stableQueuePending(rt, appid, "app-overview-read");
+              continue;
+            }
+            setCustomName(current, sortAs, rt);
+            delayedApps.push(current);
+          }
+          if (delayedApps.length) stableSyncApps(rt, delayedApps);
+          invalidate(rt, ids, "custom-name-bulk-recheck");
+        }, AFTER_SAVE_RECHECK_MS);
+      }
+    }
     return { enabled: true, reason: clean(data.reason) || "done", queued: ids.length, changed: ids.length };
   }
 
@@ -983,7 +1218,7 @@
       collectionHeaders: [],
       groupIndexReady: false,
       customSortEnabled: settingsValue(api, ID, true) !== false,
-      stableMode: settingsValue(api, STABLE_MODE_ID, false) === true,
+      stableMode: settingsValue(api, STABLE_MODE_ID, true) === true,
       groupLabelsEnabled: settingsValue(api, GROUP_LABELS_ID, true) !== false,
       groupedModeEnabled: settingsValue(api, GROUPED_MODE_ID, false) === true,
       lastGroupedMode: null,
@@ -993,6 +1228,14 @@
       sortAsOriginals: new Map(),
       stableDisplayIds: new Set(),
       stableBootstrapped: false,
+      stablePendingIds: new Set(),
+      stablePendingRestoreIds: new Set(),
+      stableRetryAttempt: 0,
+      stableRetryStartedAt: 0,
+      stableRetryScheduled: false,
+      stableRetryExhausted: false,
+      stableRetryWarned: false,
+      stableFailureKeys: new Set(),
       notifying: false,
       customEventsOff: null,
       sortOk: false,
@@ -1034,7 +1277,10 @@
       if (rt.stableMode && !rt.stableBootstrapped
         && Number(window.appStore?.m_mapApps?.size || 0) > 0) {
         stableSyncAll(rt, false);
-        rt.stableBootstrapped = true;
+        rt.stableBootstrapped = rt.stablePendingIds.size === 0;
+      }
+      if (rt.stablePendingIds.size && !rt.stableRetryScheduled) {
+        stableStartRetry(rt, { restart: rt.stableRetryExhausted });
       }
       const groupIndexReady = !rt.groupLabelsEnabled || rt.groupIndexReady;
       const ready = groupIndexReady && rt.changeOk && (!rt.customSortEnabled || rt.sortOk);
@@ -1050,7 +1296,10 @@
       window.STScheduler?.unregister?.(SCHEDULER_TASK);
       rt.scheduled = false;
       clearTimers(rt);
-      if (rt.stableDisplayIds.size) stableSyncAll(rt, true);
+      if (rt.stableDisplayIds.size) {
+        stableResetRetry(rt);
+        stableSyncAll(rt, true);
+      }
       restoreAllOriginalSortAs(rt);
       rt.customEventsOff?.();
       rt.customEventsOff = null;

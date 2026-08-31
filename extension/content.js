@@ -85,6 +85,7 @@
   const NAME_ID = "library-custom-name";
   const NEWS_TRANSLATE_ID = "steam-news-translate";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
+  const STABLE_MODE_ID = "library-sort-title-stable-mode";
   const HOVER_TITLE_SETTING_ID = "library-sort-title-hover-custom-name";
   const CHROMIUM_WINDOW_OPEN = "CHROMIUM_WINDOW_OPEN";
   const SETTINGS_CENTER_PAGE = "settings/center.html";
@@ -99,10 +100,12 @@
   const PLAYER_STATS_REQ_ATTRS = Object.freeze({
     gmcharts: "data-steam-buff-player-stats-request-gmcharts",
     "steam-current": "data-steam-buff-player-stats-request-steam-current",
+    "augmented-peak": "data-steam-buff-player-stats-request-augmented-peak",
   });
   const PLAYER_STATS_RES_ATTRS = Object.freeze({
     gmcharts: "data-steam-buff-player-stats-response-gmcharts",
     "steam-current": "data-steam-buff-player-stats-response-steam-current",
+    "augmented-peak": "data-steam-buff-player-stats-response-augmented-peak",
   });
   const SETTINGS_PREFIX = "st.settings.";
   const SETTINGS_SUFFIX = ".enabled";
@@ -119,6 +122,7 @@
   const STEAM_SETTING_DEFAULTS = Object.freeze({
     [SORT_TITLE_ID]: true,
     [ORIGINAL_NAME_SEARCH_ID]: false,
+    [STABLE_MODE_ID]: true,
     [HOVER_TITLE_SETTING_ID]: false,
     "library-group-labels": true,
     "library-group-labels-grouped-mode": false,
@@ -130,6 +134,7 @@
   const STEAM_SETTING_IDS = Object.freeze([
     SORT_TITLE_ID,
     ORIGINAL_NAME_SEARCH_ID,
+    STABLE_MODE_ID,
     HOVER_TITLE_SETTING_ID,
     "library-group-labels",
     "library-group-labels-grouped-mode",
@@ -1913,7 +1918,7 @@
     const route = String(data?.route || "");
     const routeMatch = route.match(/^\/library\/app\/(\d+)$/);
     if (data?.script !== PLAYER_STATS_ID || data?.side !== "page" || data?.type !== "fetch"
-        || (part !== "gmcharts" && part !== "steam-current") || !String(data?.rid || "") || !Number.isInteger(appId) || appId <= 0
+        || (part !== "gmcharts" && part !== "steam-current" && part !== "augmented-peak") || !String(data?.rid || "") || !Number.isInteger(appId) || appId <= 0
         || !routeMatch || Number.parseInt(routeMatch[1], 10) !== appId) {
       return;
     }

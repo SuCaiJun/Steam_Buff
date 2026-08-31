@@ -14,10 +14,12 @@
   const REQUEST_ATTRS = Object.freeze({
     gmcharts: "data-steam-buff-player-stats-request-gmcharts",
     "steam-current": "data-steam-buff-player-stats-request-steam-current",
+    "augmented-peak": "data-steam-buff-player-stats-request-augmented-peak",
   });
   const RESPONSE_ATTRS = Object.freeze({
     gmcharts: "data-steam-buff-player-stats-response-gmcharts",
     "steam-current": "data-steam-buff-player-stats-response-steam-current",
+    "augmented-peak": "data-steam-buff-player-stats-response-augmented-peak",
   });
   const api = window.SteamBuff;
   const ui = window.STPlayerStatsUi;

@@ -856,7 +856,7 @@
               desc: "流畅模式只处理当前可见项目；稳定模式使用 AppOverview 替换刷新方法，库中游戏数量过多时可能会卡顿",
               area: "steam",
               control: "mode",
-              enabled: false,
+              enabled: true,
               options: Object.freeze([
                 { value: false, label: "流畅模式" },
                 { value: true, label: "稳定模式" },
