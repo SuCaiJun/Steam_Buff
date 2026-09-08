@@ -680,7 +680,14 @@
       const chartState = root.__stChartState || {};
       const row = root.querySelector(".st-data-display__chart-row");
       const fallback = i18n("store.priceChart.emptyHistory", "暂无历史价格数据");
-      row?.replaceChildren(charts?.createEmpty?.(message || fallback) || el("div", "st-data-display-chart--empty", message || fallback));
+      const empty = charts?.createEmpty?.(message || fallback) || el("div", "st-data-display-chart--empty", message || fallback);
+      if (state === "provider-disabled") {
+        const help = api.assets?.createThirdPartyDisabledHelpLink?.(
+          i18n("store_thirdPartyDisabled_help", "查看第三方数据服务关闭说明"),
+        );
+        if (help) empty.appendChild(help);
+      }
+      row?.replaceChildren(empty);
       renderRangeControls(root, Number.isFinite(Number(chartState.months)) ? Number(chartState.months) : DEFAULT_RANGE_MONTHS, false);
     }
     if (sectionEnabled(root, "forecastEnabled")) {

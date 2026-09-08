@@ -25,6 +25,7 @@
     CONTENT_FILES_INJECT: { timeoutMs: 12 * 1000, owner: "runtime" },
     STEAM_BUFF_OPEN_SETTINGS: { timeoutMs: 5 * 1000, owner: "settings" },
     STORE_FETCH: { timeoutMs: 12 * 1000, owner: "network" },
+    PLAYER_STATS_FETCH: { timeoutMs: 12 * 1000, owner: "store" },
     TRANSLATE_INJECT: { timeoutMs: 12 * 1000, owner: "translate" },
     UPDATE_CHECK: { timeoutMs: 10 * 1000, owner: "settings" },
     AI_GATEWAY_PERMISSION_CHECK: { timeoutMs: 5 * 1000, owner: "ai" },

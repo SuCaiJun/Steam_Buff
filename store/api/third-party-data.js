@@ -329,7 +329,7 @@
     }
     if (!providerEnabled(config)) {
       logConfigMissing(providerId, capability, "PROVIDER_DISABLED");
-      return { config, provider, state: failure("PROVIDER_DISABLED", "第三方数据服务已关闭。", { provider: providerId, capability, source: source(provider) }) };
+      return { config, provider, state: failure("PROVIDER_DISABLED", "第三方数据服务已关闭", { provider: providerId, capability, source: source(provider) }) };
     }
     const key = text(config.isthereanydeal?.key);
     if (!key) {

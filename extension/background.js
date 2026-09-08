@@ -241,6 +241,9 @@
   ]);
   const STORE_FEATURE_CHUNKS = Object.freeze({
     details: Object.freeze([
+      "shared/utils/player-stats.js",
+      "shared/utils/player-stats-ui.js",
+      "store/features/player-stats/feature.js",
       "store/api/subscription-info.js",
       "store/api/family-library.js",
       "store/api/exchange-rates.js",
@@ -358,10 +361,10 @@
     "content-mark-not-ready",
   ]);
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
+  const PLAYER_STATS_FETCH = "PLAYER_STATS_FETCH";
   const ONBOARDING_OPEN_LOCAL_MESSAGE = ONBOARDING.MESSAGES.openLocalPage;
   const ONBOARDING_OPEN_SETTINGS_MESSAGE = ONBOARDING.MESSAGES.openSettings;
   const ONBOARDING_PAGE = "onboarding/index.html";
-  const ONBOARDING_STORE_URL = "https://store.steampowered.com/";
   const INJECT_DELAYS = Object.freeze([0, 1000, 3000]);
   const TAB_INJECT_DELAYS = Object.freeze([0, 1000]);
   const pendingTabInjects = new Map();
@@ -369,6 +372,13 @@
   let steamLoopbackRecoveryScheduleFlight = null;
   let steamLoopbackRecoveryFinished = false;
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
+  const PLAYER_STATS_GMCHARTS_TTL_MS = 60 * 60 * 1000;
+  const PLAYER_STATS_STEAM_CURRENT_TTL_MS = 10 * 60 * 1000;
+  const PLAYER_STATS_AUGMENTED_PEAK_TTL_MS = 24 * 60 * 60 * 1000;
+  const PLAYER_STATS_GMCHARTS_CACHE_PREFIX = "st.playerStats.gmcharts.v1.";
+  const PLAYER_STATS_STEAM_CURRENT_CACHE_PREFIX = "st.playerStats.steamCurrent.v1.";
+  const PLAYER_STATS_AUGMENTED_PEAK_CACHE_PREFIX = "st.playerStats.augmentedPeak.v2.";
+  const playerStatsFetchFlights = new Map();
   const AI_FETCH_TIMEOUT_MS = 20 * 1000;
   const AI_FETCH_TIMEOUT_MAX_MS = 120 * 1000;
   const AI_GATEWAY_PERMISSION_CHECK = "AI_GATEWAY_PERMISSION_CHECK";
@@ -384,7 +394,8 @@
   const STEAM_ROOT_MENU_BROWSER_HOME_SETTING = "web_browser_home";
   const STEAM_ROOT_MENU_BROWSER_FALLBACK = "https://sucaijun.com/";
   const STEAM_ROOT_MENU_EXTENSIONS_URL = "chrome://extensions/";
-  const STEAM_ROOT_MENU_REFOCUS_DELAY_MS = 0;
+  const STEAM_ROOT_MENU_SETTINGS_PAGE = "settings/center.html";
+  const STEAM_ROOT_MENU_REFOCUS_DELAY_MS = 200;
   const AI_PERMISSION_PAGE = "permissions/ai/index.html";
   const AI_PERMISSION_SESSION_PREFIX = "st.aiGatewayPermission.session.v1.";
   const AI_PERMISSION_TAB_PREFIX = "st.aiGatewayPermission.tab.v1.";
@@ -1290,7 +1301,7 @@
       sendResponse({ success: false, error: "引导页来源无效" });
       return;
     }
-    chrome.tabs.create({ url: ONBOARDING_STORE_URL }, (tab) => {
+    chrome.tabs.create({ url: chrome.runtime.getURL(STEAM_ROOT_MENU_SETTINGS_PAGE) }, (tab) => {
       const err = chrome.runtime.lastError;
       const tabId = tab?.id;
       if (err || typeof tabId !== "number") {
@@ -1298,30 +1309,7 @@
         return;
       }
 
-      let done = false;
-      const finish = (targetTab, timedOut = false) => {
-        if (done) return;
-        done = true;
-        chrome.tabs.onUpdated.removeListener(listener);
-        openSettings(targetTab || tab);
-        sendResponse({ success: true, tabId, timedOut });
-      };
-      const listener = (updatedTabId, changeInfo, updatedTab) => {
-        if (updatedTabId === tabId && changeInfo.status === "complete") {
-          finish(updatedTab);
-        }
-      };
-
-      chrome.tabs.onUpdated.addListener(listener);
-      if (tab.status === "complete") {
-        finish(tab);
-        return;
-      }
-      globalThis.setTimeout(() => {
-        chrome.tabs.get(tabId, (current) => {
-          finish(chrome.runtime.lastError ? tab : current || tab, true);
-        });
-      }, 8000);
+      sendResponse({ success: true, tabId });
     });
   }
 
@@ -1527,6 +1515,250 @@
         ...(error?.name ? { errorName: String(error.name) } : {}),
         ...(error?.code ? { errorCode: String(error.code) } : {}),
       });
+    }
+  }
+
+  function storeAppDetailsPath(url) {
+    return String(url?.pathname || "").match(/^\/app\/(\d+)(?:\/|$)/);
+  }
+
+  function isStoreAppDetailsSender(sender) {
+    const url = senderUrlObject(sender);
+    return !!url
+      && url.protocol === "https:"
+      && MATCH.isSteamStoreHost?.(url.hostname) === true
+      && !!storeAppDetailsPath(url);
+  }
+
+  function isSteamLoopbackAppDetailsSender(sender, appId, route) {
+    const url = senderUrlObject(sender);
+    const routeMatch = String(route || "").match(/^\/library\/app\/(\d+)$/);
+    const loopbackPage = !!url
+      && url.protocol === "https:"
+      && MATCH.isSteamLoopbackHost?.(url.hostname) === true
+      && url.pathname === "/index.html";
+    // Steam 库主窗口的内容脚本 sender 是已验证的 browserType=4 about:blank，而不是 loopback URL。
+    const steamMainWindow = isSteamMainAboutBlank(senderUrl(sender));
+    return (loopbackPage || steamMainWindow)
+      && !!routeMatch
+      && Number.parseInt(routeMatch[1], 10) === appId;
+  }
+
+  function playerStatsCacheKey(prefix, appId) {
+    return `${prefix}${appId}`;
+  }
+
+  function isPlayerStatsCacheValue(value, kind) {
+    if (kind === "gmcharts") return typeof value === "string";
+    if (kind === "steam-current") return typeof value === "number" && Number.isFinite(value) && value >= 0;
+    return kind === "augmented-peak"
+      && value !== null
+      && typeof value === "object"
+      && typeof value.historicalPeak === "number"
+      && Number.isFinite(value.historicalPeak)
+      && value.historicalPeak >= 0
+      && (value.hltb === null || (
+        value.hltb !== null
+        && typeof value.hltb === "object"
+        && typeof value.hltb.story === "number"
+        && Number.isFinite(value.hltb.story)
+        && value.hltb.story >= 0
+        && typeof value.hltb.extras === "number"
+        && Number.isFinite(value.hltb.extras)
+        && value.hltb.extras >= 0
+        && typeof value.hltb.complete === "number"
+        && Number.isFinite(value.hltb.complete)
+        && value.hltb.complete >= 0
+      ));
+  }
+
+  async function readPlayerStatsCache(key, appId, kind) {
+    let record;
+    try {
+      record = await sessionStorageGet(key);
+    } catch {
+      return null;
+    }
+    if (!record || typeof record !== "object" || record.appId !== appId
+      || !Number.isFinite(record.expiresAt) || record.expiresAt <= Date.now()
+      || !isPlayerStatsCacheValue(record.value, kind)) return null;
+    return record.value;
+  }
+
+  async function writePlayerStatsCache(key, appId, ttlMs, value) {
+    try {
+      await sessionStorageSet({ [key]: { appId, expiresAt: Date.now() + ttlMs, value } });
+    } catch {
+      // 缓存不可用时仍返回本次真实请求结果。
+    }
+  }
+
+  function playerStatsFetchFlight(key, task) {
+    const existing = playerStatsFetchFlights.get(key);
+    if (existing) return existing;
+    const flight = Promise.resolve().then(task).finally(() => playerStatsFetchFlights.delete(key));
+    playerStatsFetchFlights.set(key, flight);
+    return flight;
+  }
+
+  async function fetchCachedPlayerStatsValue({ prefix, appId, ttlMs, kind, fetchValue }) {
+    const key = playerStatsCacheKey(prefix, appId);
+    const cached = await readPlayerStatsCache(key, appId, kind);
+    if (cached !== null) return { value: cached, cache: "hit" };
+    const value = await playerStatsFetchFlight(key, async () => {
+      const fetched = await fetchValue();
+      if (!isPlayerStatsCacheValue(fetched, kind)) throw new TypeError("在线人数缓存值无效");
+      await writePlayerStatsCache(key, appId, ttlMs, fetched);
+      return fetched;
+    });
+    return { value, cache: "miss" };
+  }
+
+  function parseSteamCurrentPlayers(data) {
+    let payload;
+    try {
+      payload = JSON.parse(data);
+    } catch (error) {
+      const result = new TypeError("Steam 实时在线人数响应不是 JSON");
+      result.cause = error;
+      throw result;
+    }
+    const count = payload?.response?.player_count;
+    if (typeof count !== "number" || !Number.isFinite(count) || count < 0) {
+      throw new TypeError("Steam 实时在线人数响应无效");
+    }
+    return count;
+  }
+
+  function parseAugmentedSteamPlayerStats(data) {
+    let payload;
+    try {
+      payload = JSON.parse(data);
+    } catch (error) {
+      const result = new TypeError("Augmented Steam 玩家统计响应不是 JSON");
+      result.cause = error;
+      throw result;
+    }
+    const peak = payload?.players?.peak_all;
+    if (typeof peak !== "number" || !Number.isFinite(peak) || peak < 0) {
+      throw new TypeError("Augmented Steam 历史巅峰响应无效");
+    }
+    const rawHltb = payload?.hltb;
+    let hltb = null;
+    if (rawHltb !== undefined && rawHltb !== null) {
+      if (typeof rawHltb !== "object"
+        || typeof rawHltb.story !== "number" || !Number.isFinite(rawHltb.story) || rawHltb.story < 0
+        || typeof rawHltb.extras !== "number" || !Number.isFinite(rawHltb.extras) || rawHltb.extras < 0
+        || typeof rawHltb.complete !== "number" || !Number.isFinite(rawHltb.complete) || rawHltb.complete < 0) {
+        throw new TypeError("Augmented Steam 游玩统计响应无效");
+      }
+      hltb = { story: rawHltb.story, extras: rawHltb.extras, complete: rawHltb.complete };
+    }
+    return { historicalPeak: peak, hltb };
+  }
+
+  async function fetchGmChartsPlayerStats(request, appId) {
+    const startedAt = Date.now();
+    const url = CFG.vendors.gmCharts.chartData(appId);
+    const requestMeta = { ...request, method: "GET", service: "gmcharts", endpointKey: "gmcharts-chart-data", logUrl: url };
+    try {
+      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const data = await response.text();
+      if (!response.ok) {
+        const error = new Error(`gmCharts 请求失败（HTTP ${response.status}）`);
+        error.name = "HttpError";
+        error.code = "HTTP_STATUS_ERROR";
+        error.status = response.status;
+        throw error;
+      }
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "gmCharts 在线人数数据请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      return data;
+    } catch (error) {
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "gmCharts 在线人数数据请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      throw error;
+    }
+  }
+
+  async function fetchSteamCurrentPlayers(request, appId) {
+    const startedAt = Date.now();
+    const url = CFG.vendors.steamApi.currentPlayers(appId);
+    const requestMeta = { ...request, method: "GET", service: "steam-api", endpointKey: "steam-current-players", logUrl: url };
+    try {
+      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const data = await response.text();
+      if (!response.ok) {
+        const error = new Error(`Steam 实时在线人数请求失败（HTTP ${response.status}）`);
+        error.name = "HttpError";
+        error.code = "HTTP_STATUS_ERROR";
+        error.status = response.status;
+        throw error;
+      }
+      const currentPlayers = parseSteamCurrentPlayers(data);
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Steam 实时在线人数请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      return currentPlayers;
+    } catch (error) {
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Steam 实时在线人数请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      throw error;
+    }
+  }
+
+  async function fetchAugmentedSteamHistoricalPeak(request, appId) {
+    const startedAt = Date.now();
+    const url = CFG.vendors.augmentedSteam.app(appId);
+    const requestMeta = { ...request, method: "GET", service: "augmented-steam", endpointKey: "augmented-steam-app", logUrl: url };
+    try {
+      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const data = await response.text();
+      if (!response.ok) {
+        const error = new Error(`Augmented Steam 玩家统计请求失败（HTTP ${response.status}）`);
+        error.name = "HttpError";
+        error.code = "HTTP_STATUS_ERROR";
+        error.status = response.status;
+        throw error;
+      }
+      const playerStats = parseAugmentedSteamPlayerStats(data);
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Augmented Steam 玩家统计请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      return playerStats;
+    } catch (error) {
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Augmented Steam 玩家统计请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      throw error;
+    }
+  }
+
+  async function playerStatsFetch(request, sender, sendResponse) {
+    const appId = Number.parseInt(String(request?.appid || request?.appId || ""), 10);
+    const part = String(request?.part || "");
+    if (!Number.isInteger(appId) || appId <= 0) {
+      sendResponse({ success: false, code: "PLAYER_STATS_APPID_INVALID", error: "无效的 AppID" });
+      return;
+    }
+    if (part !== "gmcharts" && part !== "steam-current" && part !== "augmented-peak") {
+      sendResponse({ success: false, code: "PLAYER_STATS_PART_INVALID", error: "无效的在线人数请求部分" });
+      return;
+    }
+    const pageUrl = senderUrlObject(sender);
+    const storePageMatch = storeAppDetailsPath(pageUrl);
+    const storeAllowed = isStoreAppDetailsSender(sender) && !!storePageMatch && Number.parseInt(storePageMatch[1], 10) === appId;
+    const loopbackAllowed = isSteamLoopbackAppDetailsSender(sender, appId, request?.route);
+    if (!storeAllowed && !loopbackAllowed) {
+      sendResponse({ success: false, code: "PLAYER_STATS_SENDER_REJECTED", error: "在线人数请求来源或路由无效" });
+      return;
+    }
+    try {
+      if (part === "gmcharts") {
+        const gmCharts = await fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_GMCHARTS_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_GMCHARTS_TTL_MS, kind: "gmcharts", fetchValue: () => fetchGmChartsPlayerStats(request, appId) });
+        sendResponse({ success: true, part, data: gmCharts.value, status: 200, ok: true, headers: {}, source: { gmChartsCache: gmCharts.cache } });
+        return;
+      }
+      if (part === "steam-current") {
+        const steamCurrent = await fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_STEAM_CURRENT_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_STEAM_CURRENT_TTL_MS, kind: "steam-current", fetchValue: () => fetchSteamCurrentPlayers(request, appId) });
+        sendResponse({ success: true, part, currentPlayers: steamCurrent.value, status: 200, ok: true, headers: {}, source: { steamCurrentCache: steamCurrent.cache } });
+        return;
+      }
+      const augmentedPeak = await fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_AUGMENTED_PEAK_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_AUGMENTED_PEAK_TTL_MS, kind: "augmented-peak", fetchValue: () => fetchAugmentedSteamHistoricalPeak(request, appId) });
+      sendResponse({ success: true, part, historicalPeak: augmentedPeak.value.historicalPeak, hltb: augmentedPeak.value.hltb, status: 200, ok: true, headers: {}, source: { augmentedPeakCache: augmentedPeak.cache } });
+    } catch (error) {
+      sendResponse({ success: false, part, error: error?.message || String(error), status: Number(error?.status) || 0, ok: false, errorKind: "transport", ...(error?.name ? { errorName: String(error.name) } : {}), ...(error?.code ? { errorCode: String(error.code) } : {}) });
     }
   }
 
@@ -2058,7 +2290,7 @@
         void chrome.runtime.lastError;
       });
     } catch {
-      // Root Menu 关闭后的焦点恢复失败不应覆盖已经成功创建的 Chromium 窗口。
+      // 已创建的窗口仍可使用，延后聚焦失败不覆盖打开结果。
     }
   }
 
@@ -2137,7 +2369,7 @@
 
   async function openSteamRootMenuChromiumRequest(request, sender, sendResponse) {
     const action = String(request?.action || "");
-    if (action !== "browser" && action !== "extensions") {
+    if (!["browser", "extensions", "settings"].includes(action)) {
       sendResponse({ success: false, code: "STEAM_ROOT_MENU_ACTION_INVALID", error: "Steam Root Menu 操作无效" });
       return;
     }
@@ -2148,16 +2380,18 @@
     }
     const target = action === "extensions"
       ? { url: STEAM_ROOT_MENU_EXTENSIONS_URL, source: "fixed" }
-      : steamRootMenuBrowserTarget(context);
+      : action === "settings"
+        ? { url: chrome.runtime.getURL(STEAM_ROOT_MENU_SETTINGS_PAGE), source: "fixed" }
+        : steamRootMenuBrowserTarget(context);
     openChromiumWindow(target.url, (response) => {
+      if (response?.opened === true && Number.isInteger(response.windowId)) {
+        scheduleSteamRootMenuChromiumRefocus(response.windowId);
+      }
       sendResponse({
         ...response,
         action,
         source: target.source,
       });
-      if (response?.opened === true && Number.isInteger(response.windowId)) {
-        scheduleSteamRootMenuChromiumRefocus(response.windowId);
-      }
     });
   }
 
@@ -2797,7 +3031,14 @@
 
   function isSettingsSender(sender) {
     const url = senderUrlObject(sender);
-    if (!url || !["http:", "https:"].includes(url.protocol)) {
+    if (!url) {
+      return false;
+    }
+    if (url.protocol === "chrome-extension:") {
+      return url.hostname === chrome.runtime.id
+        && url.pathname.replace(/^\/+/, "") === STEAM_ROOT_MENU_SETTINGS_PAGE;
+    }
+    if (!["http:", "https:"].includes(url.protocol)) {
       return false;
     }
     return MATCH.isSteamPoweredLikeHost?.(url.hostname) === true ||
@@ -3199,6 +3440,7 @@
   const ROUTE_POLICY = Object.freeze({
     UPDATE_CHECK: "设置中心更新检查",
     STORE_FETCH: "允许列表内跨域请求代理",
+    [PLAYER_STATS_FETCH]: "Steam 商店详情页或库详情页固定在线人数请求",
     TRANSLATE_INJECT: "翻译 runner 按需注入",
     CONTENT_FILES_INJECT: "当前 frame 内容脚本按需注入",
     [STEAM_LOOPBACK_INJECT_REQUEST]: "Steam CEF 白名单 frame 按需注入",
@@ -3224,6 +3466,7 @@
   const ROUTES = Object.freeze({
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
     STORE_FETCH: storeFetch,
+    [PLAYER_STATS_FETCH]: playerStatsFetch,
     TRANSLATE_INJECT: translateInject,
     CONTENT_FILES_INJECT: injectContentFiles,
     [STEAM_LOOPBACK_INJECT_REQUEST]: steamLoopbackInjectRequest,

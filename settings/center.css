@@ -1,0 +1,57 @@
+:root {
+  color-scheme: light;
+  font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+  color: #536579;
+  background: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-width: 320px;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #ffffff;
+}
+
+.settings-page-state {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.settings-page-state p {
+  margin: 0;
+  color: #536579;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.6;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .settings-page-state {
+    padding: 8px;
+  }
+
+  .settings-page-state p {
+    font-size: 21px;
+  }
+}
+
+@media (max-width: 360px) {
+  .settings-page-state p {
+    font-size: 18px;
+  }
+}

@@ -41,6 +41,20 @@
       inputs: Object.freeze(["zh_tw"]),
       inputPrefixes: Object.freeze([]),
     }),
+    Object.freeze({
+      id: "ja",
+      tag: "ja",
+      fallbackLabel: "日本語",
+      inputs: Object.freeze(["ja"]),
+      inputPrefixes: Object.freeze([]),
+    }),
+    Object.freeze({
+      id: "ko",
+      tag: "ko",
+      fallbackLabel: "한국어",
+      inputs: Object.freeze(["ko"]),
+      inputPrefixes: Object.freeze([]),
+    }),
   ]);
   const LOCALE_BY_ID = Object.freeze(Object.fromEntries(
     LOCALE_DEFINITIONS.map(definition => [definition.id, definition]),

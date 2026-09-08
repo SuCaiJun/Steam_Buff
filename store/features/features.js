@@ -121,6 +121,10 @@
     return api.features.purchaseHistoryClassifier?.start?.(...args);
   }
 
+  function startPlayerStats(...args) {
+    return api.features.playerStats?.start?.(...args);
+  }
+
   function stopFeature(feature, label) {
     try {
       return !!feature?.stop?.();
@@ -148,6 +152,7 @@
       stopFeature(api.features.dataDisplay, "data-display"),
       stopFeature(api.features.regionalPricePopover, "regional-price-popover"),
       stopFeature(api.features.purchaseHistoryClassifier, "purchase-history-classifier"),
+      stopFeature(api.features.playerStats, "player-stats"),
       stopFeature(api.purchaseRecover, "purchase-recover"),
     ].filter(Boolean).length;
     api.purchaseRecover?.setRestore?.(null);
@@ -264,6 +269,9 @@
         
         if (type === "app") {
             initPurchaseAreaFeatures(appId);
+            if (canRun("player-stats")) {
+                startPlayerStats(appId);
+            }
             if (canRun("price-history")) {
                 void startRegionalPricePopover(appId);
             }

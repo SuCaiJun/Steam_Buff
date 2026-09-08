@@ -25,6 +25,7 @@
   const HEADER_ATTR = "data-steam-buff-library-header";
   // BroadcastChannel 不缓存建立前的消息，超时后由现有低频调度重新请求当前可见行
   const SNAPSHOT_REQUEST_TIMEOUT_MS = 3000;
+  const ENTRY_CACHE_LIMIT = 4096;
   const REPAIR_MAX_ATTEMPTS = 3;
   const REPAIR_WINDOW_MS = 1000;
   const REPAIR_SUSPEND_MS = 5000;
@@ -34,6 +35,13 @@
   const CELL_SELECTOR = ":scope > div[role='gridcell']";
   const ROW_SELECTOR = "[draggable='true']";
   const SETTINGS_ATTRIBUTE = "data-steam-buff-settings";
+  const LIST_OBSERVER_OPTIONS = Object.freeze({
+    childList: true,
+    characterData: true,
+    subtree: true,
+  });
+  const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
+  const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Za-z0-9]+)\]\s*/g;
   const reactTextState = new WeakMap();
 
   const log = window.STLoggerFactory.createLogger("steam", `${ID}-ui`);
@@ -44,6 +52,17 @@
 
   function clean(value) {
     return typeof value === "string" ? value.trim() : "";
+  }
+
+  function viewCustomName(value) {
+    const source = typeof value === "string" ? value : "";
+    if (!source) return "";
+    const visible = source
+      .replace(MNEMONIC_TAG_RE, " ")
+      .replace(/\s{2,}/g, " ")
+      .replace(TAG_RE, "")
+      .trim();
+    return visible || source;
   }
 
   function setAttributeIfChanged(node, name, value) {
@@ -182,6 +201,16 @@
     restoreOriginal(span);
   }
 
+  function releaseTextTracking(span) {
+    if (!span) return;
+    removeAttributeIfPresent(span, ORIGINAL_TEXT_ATTR);
+    removeAttributeIfPresent(span, DISPLAY_ATTR);
+    removeAttributeIfPresent(span, HEADER_ATTR);
+    removeAttributeIfPresent(span, ORIGINAL_OWNER_ATTR);
+    restoreOriginal(span);
+    reactTextState.delete(span);
+  }
+
   // ReactVirtualized 行会复用 DOM 节点，原始文本必须按当前 AppID 或分组名称重新绑定
   function resetTracking(span, owner, baseline = "") {
     if (!span) return;
@@ -257,36 +286,47 @@
     removeInjected(container, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}]), [${HEADER_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
   }
 
-  function applyEntry(row, entry, appid, appliedIds, customTitleEnabled = false) {
+  function applyEntry(row, entry, appid, appliedRows, settings = {}) {
     if (!row) return false;
     removeInjected(row, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
     const name = nameSpan(row);
     const previousOwner = name?.getAttribute?.(ORIGINAL_OWNER_ATTR);
     if (previousOwner !== null && previousOwner !== String(appid)) restoreRowTitle(row);
     if (!entry || Number(entry.appid) <= 0) {
-      appliedIds?.delete?.(appid);
+      appliedRows?.delete?.(row);
       resetTracking(name, appid);
       restoreRowTitle(row);
       removeInjected(row, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
       return false;
     }
     const expected = clean(entry.finalDisplayName);
-    const mismatch = appliedIds?.has?.(appid) === true
+    const previousApplied = clean(appliedRows?.get?.(row));
+    const mismatch = Boolean(previousApplied)
+      && previousApplied === expected
       && Boolean(name)
       && Boolean(expected)
       && clean(name.textContent) !== expected;
-    showText(
-      name,
-      entry.finalDisplayName,
-      DISPLAY_ATTR,
-      String(entry.appid),
-      entry.officialName,
-    );
-    applyRowTitle(row, customTitleEnabled ? expected : "");
+    const stableOwnsBase = settings.stableMode === true
+      && clean(entry.finalDisplayName) === clean(entry.baseDisplayName);
+    if (stableOwnsBase) {
+      releaseTextTracking(name);
+    } else {
+      showText(
+        name,
+        entry.finalDisplayName,
+        DISPLAY_ATTR,
+        String(entry.appid),
+        entry.officialName,
+      );
+    }
+    const title = settings.customTitleEnabled === true
+      ? expected
+      : (settings.stableMode === true ? clean(entry.officialName) : "");
+    applyRowTitle(row, title);
     const managed = name?.hasAttribute?.(DISPLAY_ATTR) === true
       && clean(name.textContent) === expected;
-    if (managed) appliedIds?.add?.(appid);
-    else appliedIds?.delete?.(appid);
+    if (managed) appliedRows?.set?.(row, expected);
+    else appliedRows?.delete?.(row);
     return mismatch;
   }
 
@@ -326,9 +366,54 @@
       const item = rowItem(row);
       const appid = Number(item?.appid) || 0;
       if (!appid) continue;
-      result.set(appid, row);
+      const rows = result.get(appid);
+      if (rows) rows.push(row);
+      else result.set(appid, [row]);
     }
     return result;
+  }
+
+  function rowList(rowsByAppid, appid) {
+    const rows = rowsByAppid.get(Number(appid) || 0);
+    if (Array.isArray(rows)) return rows;
+    return rows ? [rows] : [];
+  }
+
+  function provisionalEntry(row, appid, settings = {}) {
+    const id = Number(appid) || 0;
+    if (!id || settings.stableMode === true || settings.customSortEnabled !== true) return null;
+    const item = rowItem(row);
+    if (Number(item?.appid) !== id) return null;
+    const officialName = clean(item.display_name);
+    const customName = clean(item.custom_sort_as_display);
+    const baseDisplayName = viewCustomName(customName) || officialName;
+    if (!baseDisplayName) return null;
+    return {
+      appid: id,
+      officialName,
+      customName,
+      baseDisplayName,
+      groupTags: [],
+      finalDisplayName: baseDisplayName,
+      provisional: true,
+    };
+  }
+
+  function cacheEntry(entries, entry) {
+    const appid = Number(entry?.appid) || 0;
+    if (!appid) return false;
+    entries.delete(appid);
+    entries.set(appid, entry);
+    return true;
+  }
+
+  function trimEntryCache(entries, rowsByAppid) {
+    if (entries.size <= ENTRY_CACHE_LIMIT) return;
+    const visible = new Set(rowsByAppid.keys());
+    for (const appid of entries.keys()) {
+      if (entries.size <= ENTRY_CACHE_LIMIT) break;
+      if (!visible.has(appid)) entries.delete(appid);
+    }
   }
 
   function start(api, _feature, _context, scope) {
@@ -362,8 +447,9 @@
       refreshAll: false,
       repairIds: new Set(),
       repairState: new Map(),
-      appliedIds: new Set(),
+      appliedRows: new WeakMap(),
       hoveredAppid: 0,
+      hoveredRow: null,
       hoverFrame: 0,
       hoverAttempts: 0,
       hoverRows: new Map(),
@@ -399,6 +485,22 @@
       if (typeof window.cancelAnimationFrame === "function") window.cancelAnimationFrame(state.hoverFrame);
       else window.clearTimeout(state.hoverFrame);
       state.hoverFrame = 0;
+    }
+
+    function observeList() {
+      if (!state.observer || !state.container) return;
+      state.observer.observe(state.container, LIST_OBSERVER_OPTIONS);
+    }
+
+    function withoutListObservation(callback) {
+      const observer = state.observer;
+      if (!observer) return callback();
+      observer.disconnect();
+      try {
+        return callback();
+      } finally {
+        if (state.observer === observer && state.container) observeList();
+      }
     }
 
     function restoreHoverRow(row) {
@@ -444,7 +546,7 @@
       const matches = hoverRowsFor(id, source);
       const matched = new Set(matches);
       for (const row of matches) {
-        applyEntry(row, entry, id, null, state.settings.customTitleEnabled === true);
+        applyEntry(row, entry, id, null, state.settings);
         state.hoverRows.set(row, id);
       }
       for (const [row, rowId] of state.hoverRows) {
@@ -455,20 +557,19 @@
       return matches.length > 0;
     }
 
-    function scheduleHoverSync(appid = state.hoveredAppid) {
+    function scheduleHoverSync(appid = state.hoveredAppid, source = state.hoveredRow) {
       const id = Number(appid) || 0;
-      const source = state.rows.get(id);
       if (!id || !source || state.hoverFrame || !state.started) return;
       state.hoverFrame = raf(() => {
         state.hoverFrame = 0;
-        if (state.hoveredAppid !== id) return;
+        if (state.hoveredAppid !== id || state.hoveredRow !== source) return;
         if (syncHoverRows(id, source)) {
           state.hoverAttempts = 0;
           return;
         }
         if (state.hoverAttempts >= HOVER_SYNC_MAX_ATTEMPTS) return;
         state.hoverAttempts += 1;
-        scheduleHoverSync(id);
+        scheduleHoverSync(id, source);
       });
     }
 
@@ -487,20 +588,22 @@
       const row = hoveredRowFromEvent(event);
       if (!row || relatedInside(row, event.relatedTarget)) return;
       const id = Number(rowItem(row)?.appid) || 0;
-      if (!id || state.hoveredAppid === id) return;
+      if (!id || (state.hoveredAppid === id && state.hoveredRow === row)) return;
       restoreHoverRows();
       cancelHoverFrame();
       state.hoveredAppid = id;
+      state.hoveredRow = row;
       state.hoverAttempts = 0;
-      scheduleHoverSync(id);
+      scheduleHoverSync(id, row);
     }
 
     function onMouseOut(event) {
       const row = hoveredRowFromEvent(event);
       if (!row || relatedInside(row, event.relatedTarget)) return;
       const id = Number(rowItem(row)?.appid) || 0;
-      if (!id || state.hoveredAppid !== id) return;
+      if (!id || state.hoveredAppid !== id || state.hoveredRow !== row) return;
       state.hoveredAppid = 0;
+      state.hoveredRow = null;
       state.hoverAttempts = 0;
       cancelHoverFrame();
       restoreHoverRows();
@@ -585,25 +688,41 @@
         const idsToRepair = Array.from(state.repairIds);
         state.repairIds.clear();
         const next = [];
-        for (const id of idsToRepair) {
-          if (repairSuspended(id)) continue;
-          const row = state.rows.get(id);
-          const entry = state.entries.get(id);
-          const name = nameSpan(row);
-          if (!row || !entry || !name || clean(name.textContent) === clean(entry.finalDisplayName)) continue;
-          if (applyEntry(row, entry, id, state.appliedIds, state.settings.customTitleEnabled === true)) next.push(id);
-        }
+        withoutListObservation(() => {
+          for (const id of idsToRepair) {
+            if (repairSuspended(id)) continue;
+            const entry = state.entries.get(id);
+            if (!entry) continue;
+            let retry = false;
+            for (const row of rowList(state.rows, id)) {
+              const name = nameSpan(row);
+              if (!name || clean(name.textContent) === clean(entry.finalDisplayName)) continue;
+              if (applyEntry(row, entry, id, state.appliedRows, state.settings)) retry = true;
+            }
+            if (retry) next.push(id);
+          }
+        });
         if (next.length) queueRepair(next);
       });
     }
 
     function applyVisible() {
       const repairs = [];
-      for (const [appid, row] of state.rows) {
-        if (repairSuspended(appid)) continue;
-        if (applyEntry(row, state.entries.get(appid), appid, state.appliedIds, state.settings.customTitleEnabled === true)) repairs.push(appid);
-      }
-      applyHeaders(state.container, state.headers, state.settings.hideCollectionTags === true);
+      withoutListObservation(() => {
+        for (const appid of state.rows.keys()) {
+          if (repairSuspended(appid)) continue;
+          const cached = state.entries.get(appid);
+          let retry = false;
+          for (const row of rowList(state.rows, appid)) {
+            const entry = cached || provisionalEntry(row, appid, state.settings);
+            if (!entry) continue;
+            const appliedRows = cached ? state.appliedRows : null;
+            if (applyEntry(row, entry, appid, appliedRows, state.settings)) retry = true;
+          }
+          if (retry) repairs.push(appid);
+        }
+        applyHeaders(state.container, state.headers, state.settings.hideCollectionTags === true);
+      });
       queueRepair(repairs);
       scheduleHoverSync();
     }
@@ -636,9 +755,22 @@
       state.requestedKey = "";
     }
 
+    function queuePendingRows(ids) {
+      if (state.refreshAll) return;
+      const pending = new Set(state.pendingIds);
+      for (const rawId of Array.from(ids || [])) {
+        const appid = Number(rawId) || 0;
+        if (!appid || !state.rows.has(appid) || pending.has(appid)) continue;
+        if (!state.entries.has(appid) || state.refreshIds.has(appid)) state.refreshIds.add(appid);
+      }
+    }
+
     function request(ids = Array.from(state.rows.keys())) {
       if (state.pendingRid) {
-        if (Date.now() - state.pendingAt < SNAPSHOT_REQUEST_TIMEOUT_MS) return;
+        if (Date.now() - state.pendingAt < SNAPSHOT_REQUEST_TIMEOUT_MS) {
+          queuePendingRows(ids);
+          return;
+        }
         requeuePending();
       }
       const fullRequest = state.refreshAll;
@@ -693,22 +825,13 @@
       attachHoverListeners();
       if (!state.observer) {
         state.observer = new MutationObserver(() => schedule());
-        state.observer.observe(state.container, {
-          childList: true,
-          characterData: true,
-          subtree: true,
-        });
+        observeList();
         state.observerHandle = scope?.observer?.("library-list", state.observer) || null;
       }
       state.rows = visibleRows(state.container);
-      for (const appid of Array.from(state.entries.keys())) {
-        if (!state.rows.has(appid)) state.entries.delete(appid);
-      }
+      trimEntryCache(state.entries, state.rows);
       for (const appid of Array.from(state.repairState.keys())) {
         if (!state.rows.has(appid)) state.repairState.delete(appid);
-      }
-      for (const appid of Array.from(state.appliedIds)) {
-        if (!state.rows.has(appid)) state.appliedIds.delete(appid);
       }
       for (const appid of Array.from(state.refreshIds)) {
         if (!state.rows.has(appid)) state.refreshIds.delete(appid);
@@ -733,6 +856,7 @@
       state.observer = null;
       state.observerHandle = null;
       state.hoveredAppid = 0;
+      state.hoveredRow = null;
       state.hoverAttempts = 0;
       restoreHoverRows();
     }
@@ -753,7 +877,7 @@
       state.refreshAll = false;
       state.repairIds.clear();
       state.repairState.clear();
-      state.appliedIds.clear();
+      state.appliedRows = new WeakMap();
     }
 
     function onMessage(event) {
@@ -761,19 +885,28 @@
       if (data.script !== ID || data.side !== "backend") return;
       if (data.type === "invalidate") {
         const targeted = Array.isArray(data.appids) && data.appids.length > 0;
-        const ids = targeted
-          ? data.appids.map((appid) => Number(appid) || 0).filter((appid) => state.rows.has(appid))
-          : Array.from(state.rows.keys());
+        const invalidated = targeted
+          ? Array.from(new Set(data.appids.map((appid) => Number(appid) || 0).filter(Boolean)))
+          : [];
+        if (targeted) {
+          for (const appid of invalidated) {
+            if (!state.rows.has(appid)) state.entries.delete(appid);
+          }
+        } else {
+          state.entries.clear();
+        }
+        const ids = targeted ? invalidated.filter((appid) => state.rows.has(appid)) : Array.from(state.rows.keys());
         if (targeted && !ids.length) return;
         queueRefresh(ids, !targeted);
         request(ids);
         return;
       }
       if (data.type === "settings") {
+        requeuePending();
+        state.entries.clear();
         state.settings = data.settings || state.settings;
         state.headers = Array.isArray(data.headers) ? data.headers : state.headers;
         queueRefresh(Array.from(state.rows.keys()), true);
-        applyVisible();
         request();
         return;
       }
@@ -787,15 +920,11 @@
       state.pendingIds = [];
       state.pendingAll = false;
       state.revision = Number(data.revision) || state.revision;
-      const nextEntries = new Map(state.entries);
       for (const entry of Array.isArray(data.entries) ? data.entries : []) {
         const appid = Number(entry?.appid) || 0;
-        if (appid && requestedSet.has(appid)) nextEntries.set(appid, entry);
+        if (appid && requestedSet.has(appid)) cacheEntry(state.entries, entry);
       }
-      for (const appid of Array.from(nextEntries.keys())) {
-        if (!state.rows.has(appid)) nextEntries.delete(appid);
-      }
-      state.entries = nextEntries;
+      trimEntryCache(state.entries, state.rows);
       state.headers = Array.isArray(data.headers) ? data.headers : [];
       state.settings = data.settings || state.settings;
       applyVisible();

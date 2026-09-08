@@ -15,7 +15,8 @@
   const SCHEDULER_TASK = "download-auto-shutdown-backend";
   const CH = "__steam_download_auto_shutdown_Ricky";
   const POLL_MS = 30000;
-  const IDLE_MS = 30000;
+  const IDLE_MS = 60000;
+  const DOWNLOAD_PROGRESS_INDEX = 2;
   const BIG_WAIT_MS = 10000;
   const BIG_STEP_MS = 250;
   const FAIL_MS = 120000;
@@ -108,6 +109,18 @@
     return value;
   }
 
+  function requireProgress(value, name) {
+    if (!value || typeof value !== "object") {
+      throw new TypeError(`Steam 下载进度字段 ${name} 不是对象`);
+    }
+    const inProgress = requireNumber(value.bytes_in_progress, `${name}.bytes_in_progress`);
+    const total = requireNumber(value.bytes_total, `${name}.bytes_total`);
+    if (inProgress < 0 || total < 0) {
+      throw new TypeError(`Steam 下载进度字段 ${name} 不能为负数`);
+    }
+    return value;
+  }
+
   function requireOverview(value) {
     if (!value || typeof value !== "object") {
       throw new TypeError("Steam 下载概览契约不可用");
@@ -131,8 +144,31 @@
     requireNumber(value.appid, `AllTransfers[${index}].appid`, { integer: true });
     requireNumber(value.queue_index, `AllTransfers[${index}].queue_index`, { integer: true });
     requireNumber(value.completed_time, `AllTransfers[${index}].completed_time`);
+    requireNumber(value.deferred_time, `AllTransfers[${index}].deferred_time`);
     requireBoolean(value.active, `AllTransfers[${index}].active`);
     requireBoolean(value.completed, `AllTransfers[${index}].completed`);
+    const infos = requireArray(value.update_type_info, `AllTransfers[${index}].update_type_info`);
+    infos.forEach((info, infoIndex) => {
+      if (!info || typeof info !== "object") {
+        throw new TypeError(`Steam 下载项目 ${index}.update_type_info[${infoIndex}] 不是对象`);
+      }
+      const progress = requireArray(
+        info.progress,
+        `AllTransfers[${index}].update_type_info[${infoIndex}].progress`,
+      );
+      requireProgress(
+        progress[DOWNLOAD_PROGRESS_INDEX],
+        `AllTransfers[${index}].update_type_info[${infoIndex}].progress[${DOWNLOAD_PROGRESS_INDEX}]`,
+      );
+    });
+    return value;
+  }
+
+  function requireTransferReference(value, name, index) {
+    if (!value || typeof value !== "object") {
+      throw new TypeError(`Steam 下载状态字段 ${name}[${index}] 不是对象`);
+    }
+    requireNumber(value.appid, `${name}[${index}].appid`, { integer: true });
     return value;
   }
 
@@ -152,6 +188,60 @@
     return `${item.appid}:${item.completed_time}`;
   }
 
+  function progressFor(item, index) {
+    let inProgress = 0;
+    let total = 0;
+    for (const [infoIndex, info] of item.update_type_info.entries()) {
+      const progress = info.progress[DOWNLOAD_PROGRESS_INDEX];
+      const remaining = Math.max(0, progress.bytes_total - progress.bytes_in_progress);
+      total += progress.bytes_total;
+      inProgress += Math.min(progress.bytes_in_progress, progress.bytes_total);
+      if (!Number.isFinite(remaining)) {
+        throw new TypeError(`Steam 下载项目 ${index}.update_type_info[${infoIndex}] 剩余容量不是有效数字`);
+      }
+    }
+    return { remainingBytes: Math.max(0, total - inProgress) };
+  }
+
+  function estimate(pending, speed, sampledAt) {
+    const remainingBytes = pending.reduce((sum, item) => sum + item.remainingBytes, 0);
+    const speedBytesPerSecond = Math.max(0, speed);
+    const ordered = pending.slice().sort((left, right) => {
+      const leftDeferred = left.item.deferred_time > 0;
+      const rightDeferred = right.item.deferred_time > 0;
+      if (leftDeferred !== rightDeferred) {
+        return leftDeferred ? 1 : -1;
+      }
+      if (leftDeferred && left.item.deferred_time !== right.item.deferred_time) {
+        return left.item.deferred_time - right.item.deferred_time;
+      }
+      if (left.item.queue_index !== right.item.queue_index) {
+        return left.item.queue_index - right.item.queue_index;
+      }
+      return left.item.appid - right.item.appid;
+    });
+
+    let finishAt = sampledAt;
+    if (remainingBytes > 0 && speedBytesPerSecond > 0) {
+      for (const entry of ordered) {
+        const deferredAt = entry.item.deferred_time > 0
+          ? entry.item.deferred_time * 1000
+          : sampledAt;
+        finishAt = Math.max(finishAt, deferredAt);
+        finishAt += (entry.remainingBytes / speedBytesPerSecond) * 1000;
+      }
+    }
+
+    const canEstimate = remainingBytes > 0 && speedBytesPerSecond > 0;
+    return {
+      remainingBytes,
+      speedBytesPerSecond,
+      estimatedDownloadMs: canEstimate ? Math.max(0, finishAt - sampledAt) : null,
+      estimatedShutdownAt: canEstimate ? Math.round(finishAt + IDLE_MS) : null,
+      sampledAt,
+    };
+  }
+
   // 这些字段由当前 CEF 对象与 Steam bundle 共同确认；契约失效时停止判断，不能按空队列处理。
   async function snap() {
     const ds = window.downloadsStore;
@@ -160,13 +250,20 @@
     }
     const ov = requireOverview(ds.CurrentViewingDownloadOverview || ds.LocalDownloadOverview);
     const list = requireArray(ds.AllTransfers, "AllTransfers").map(requireTransfer);
-    const queue = requireArray(ds.QueuedTransfers, "QueuedTransfers");
-    const later = requireArray(ds.ScheduledTransfers, "ScheduledTransfers");
+    const queue = requireArray(ds.QueuedTransfers, "QueuedTransfers")
+      .map((item, index) => requireTransferReference(item, "QueuedTransfers", index));
+    const later = requireArray(ds.ScheduledTransfers, "ScheduledTransfers")
+      .map((item, index) => requireTransferReference(item, "ScheduledTransfers", index));
     const act = list.filter(active);
     const finished = list.filter(done);
     const keys = finished.map(doneKey);
     const actN = act.filter((item) => item.active).length;
     const queueN = Math.max(queue.length, act.filter(queued).length);
+    const queueIds = new Set(queue.map((item) => item.appid));
+    const scheduledIds = new Set(later.map((item) => item.appid));
+    const pending = list
+      .filter((item) => !done(item) && (active(item) || queueIds.has(item.appid) || scheduledIds.has(item.appid)))
+      .map((item, index) => ({ item, ...progressFor(item, index) }));
 
     const upd = ov.update_state;
     const ovWork = !!(
@@ -181,7 +278,9 @@
       )
     );
 
-    const work = ovWork || actN > 0 || queueN > 0;
+    const work = ovWork || actN > 0 || queueN > 0 || later.length > 0;
+    const sampledAt = now();
+    const estimateData = estimate(pending, ov.update_network_bytes_per_second, sampledAt);
     return {
       work,
       actN,
@@ -195,6 +294,11 @@
       net: ov.update_network_bytes_per_second,
       disk: ov.update_disc_bytes_per_second,
       pct: ov.overall_percent_complete,
+      remainingBytes: estimateData.remainingBytes,
+      speedBytesPerSecond: estimateData.speedBytesPerSecond,
+      estimatedDownloadMs: estimateData.estimatedDownloadMs,
+      estimatedShutdownAt: estimateData.estimatedShutdownAt,
+      sampledAt: estimateData.sampledAt,
       source: "downloadsStore",
     };
   }
@@ -252,7 +356,7 @@
       reason: s.reason || ST.READY,
       route: api.ctx?.route?.() || "",
       isDown: api.ctx?.isDown?.() === true,
-      routeSources: routeSources(api),
+      routeSources: api.ctx?.routeSources?.() || {},
     });
   }
 
@@ -400,6 +504,9 @@
       if (!await bigPicture()) {
         throw new Error("Steam 大屏幕模式未能在 10 秒内启动。");
       }
+      if (!s.shut) {
+        return false;
+      }
       window.SteamClient.System.ShutdownPC();
       log.info("download-auto-shutdown-success", "下载完成自动关机请求已发送", {
         operationId: s.operationId || "",
@@ -460,6 +567,8 @@
 
     const shot = await snap();
     reportPollRecovery();
+    const newDone = hasNewDone(shot);
+    s.keysOn = shot.keys || [];
     s.snap = shot;
 
     if (shot.work) {
@@ -470,15 +579,19 @@
       return;
     }
 
+    if (newDone) {
+      s.seen = true;
+      s.idleAt = now();
+      s.mon = true;
+      pub(api, { reason: ST.WAIT });
+      return;
+    }
+
     if (!s.seen) {
-      if (hasNewDone(shot)) {
-        s.seen = true;
-      } else {
-        s.mon = false;
-        s.idleAt = 0;
-        pub(api, { reason: ST.NO_WORK });
-        return;
-      }
+      s.mon = false;
+      s.idleAt = 0;
+      pub(api, { reason: ST.NO_WORK });
+      return;
     }
 
     if (!s.idleAt) {

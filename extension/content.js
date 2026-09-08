@@ -85,7 +85,10 @@
   const NAME_ID = "library-custom-name";
   const NEWS_TRANSLATE_ID = "steam-news-translate";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
+  const STABLE_MODE_ID = "library-sort-title-stable-mode";
   const HOVER_TITLE_SETTING_ID = "library-sort-title-hover-custom-name";
+  const CHROMIUM_WINDOW_OPEN = "CHROMIUM_WINDOW_OPEN";
+  const SETTINGS_CENTER_PAGE = "settings/center.html";
   const CFG = globalThis.STConfig;
   const MATCH = CFG.matchers;
   const AUTH_REFRESH = CFG.loginAuth("/auth/refresh");
@@ -93,6 +96,17 @@
   const API_SUBMIT = CFG.steamBuff("/submit");
   const NAME_REQ_ATTR = "data-steam-buff-name-request";
   const NAME_RES_ATTR = "data-steam-buff-name-response";
+  const PLAYER_STATS_ID = "player-stats";
+  const PLAYER_STATS_REQ_ATTRS = Object.freeze({
+    gmcharts: "data-steam-buff-player-stats-request-gmcharts",
+    "steam-current": "data-steam-buff-player-stats-request-steam-current",
+    "augmented-peak": "data-steam-buff-player-stats-request-augmented-peak",
+  });
+  const PLAYER_STATS_RES_ATTRS = Object.freeze({
+    gmcharts: "data-steam-buff-player-stats-response-gmcharts",
+    "steam-current": "data-steam-buff-player-stats-response-steam-current",
+    "augmented-peak": "data-steam-buff-player-stats-response-augmented-peak",
+  });
   const SETTINGS_PREFIX = "st.settings.";
   const SETTINGS_SUFFIX = ".enabled";
   const TRANS_PREFIX = `${SETTINGS_PREFIX}translate.`;
@@ -108,6 +122,7 @@
   const STEAM_SETTING_DEFAULTS = Object.freeze({
     [SORT_TITLE_ID]: true,
     [ORIGINAL_NAME_SEARCH_ID]: false,
+    [STABLE_MODE_ID]: true,
     [HOVER_TITLE_SETTING_ID]: false,
     "library-group-labels": true,
     "library-group-labels-grouped-mode": false,
@@ -119,6 +134,7 @@
   const STEAM_SETTING_IDS = Object.freeze([
     SORT_TITLE_ID,
     ORIGINAL_NAME_SEARCH_ID,
+    STABLE_MODE_ID,
     HOVER_TITLE_SETTING_ID,
     "library-group-labels",
     "library-group-labels-grouped-mode",
@@ -1352,6 +1368,26 @@
     }
   }
 
+  async function openNameAccountCenter(data) {
+    const response = await globalThis.STMessageBus.request({
+      type: CHROMIUM_WINDOW_OPEN,
+      url: chrome.runtime.getURL(SETTINGS_CENTER_PAGE),
+      requestId: safeRid(data.rid),
+    }, {
+      timeoutMs: 10_000,
+      expectSuccess: true,
+    });
+    if (response?.opened !== true) {
+      throw new Error("用户中心打开失败");
+    }
+    postName({
+      type: "open-account-result",
+      rid: data.rid || "",
+      ok: true,
+      data: { opened: true },
+    });
+  }
+
   // 页面主上下文无法直接调用 chrome API，标题/库自定义名统一走 DOM 属性桥接到内容脚本
   async function getAuth() {
     const rt = await storageGet([AUTH_KEY]);
@@ -1571,7 +1607,13 @@
         code = Number(body?.code) || response.status || 0;
       }
       if (code < 200 || code >= 300) {
-        postName({ type: "query-result", rid, ok: false, error: `[${code}] ${body?.message || "查询失败"}` });
+        postName({
+          type: "query-result",
+          rid,
+          ok: false,
+          code,
+          error: `[${code}] ${body?.message || "查询失败"}`,
+        });
         log({
           level: "warn",
           domain: "extension",
@@ -1585,7 +1627,13 @@
       await touchAuth(auth, diagnostics);
       postName({ type: "query-result", rid, ok: true, data: body });
     } catch (error) {
-      postName({ type: "query-result", rid, ok: false, error: error?.message || String(error) });
+      postName({
+        type: "query-result",
+        rid,
+        ok: false,
+        code: Number(error?.code) || 0,
+        error: error?.message || String(error),
+      });
       log({
         level: "error",
         domain: "extension",
@@ -1743,10 +1791,22 @@
     if (!trustedNamePage()) {
       return;
     }
-    if (data.script !== NAME_ID || data.side !== "page" || (data.type !== "query" && data.type !== "feedback")) {
+    if (data.script !== NAME_ID || data.side !== "page"
+        || !["query", "feedback", "open-account"].includes(data.type)) {
       return;
     }
     if (seenName(data)) {
+      return;
+    }
+    if (data.type === "open-account") {
+      openNameAccountCenter(data).catch((error) => {
+        postName({
+          type: "open-account-result",
+          rid: data.rid || "",
+          ok: false,
+          error: error?.message || String(error),
+        });
+      });
       return;
     }
     if (data.type === "feedback") {
@@ -1756,7 +1816,13 @@
       return;
     }
     queryNames(data).catch((error) => {
-      postName({ type: "query-result", rid: data.rid || "", ok: false, error: error?.message || String(error) });
+      postName({
+        type: "query-result",
+        rid: data.rid || "",
+        ok: false,
+        code: Number(error?.code) || 0,
+        error: error?.message || String(error),
+      });
     });
   }
 
@@ -1814,6 +1880,94 @@
       }
       return prev[settingId] !== false && next[settingId] === false;
     });
+  }
+
+  function playerStatsRequest(attribute) {
+    try {
+      return JSON.parse(root()?.getAttribute(attribute) || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  function takePlayerStatsRequest(attribute) {
+    const data = playerStatsRequest(attribute);
+    try {
+      root()?.removeAttribute(attribute);
+    } catch {
+    }
+    return data;
+  }
+
+  function postPlayerStats(data) {
+    try {
+      const attribute = PLAYER_STATS_RES_ATTRS[String(data?.part || "")];
+      if (!attribute) return;
+      root()?.setAttribute(attribute, JSON.stringify({
+        script: PLAYER_STATS_ID,
+        side: "content",
+        ...data,
+      }));
+    } catch {
+    }
+  }
+
+  async function handlePlayerStats(data) {
+    const appId = Number.parseInt(String(data?.appid || ""), 10);
+    const part = String(data?.part || "");
+    const route = String(data?.route || "");
+    const routeMatch = route.match(/^\/library\/app\/(\d+)$/);
+    if (data?.script !== PLAYER_STATS_ID || data?.side !== "page" || data?.type !== "fetch"
+        || (part !== "gmcharts" && part !== "steam-current" && part !== "augmented-peak") || !String(data?.rid || "") || !Number.isInteger(appId) || appId <= 0
+        || !routeMatch || Number.parseInt(routeMatch[1], 10) !== appId) {
+      return;
+    }
+    try {
+      const response = await globalThis.STMessageBus.request({
+        type: "PLAYER_STATS_FETCH",
+        part,
+        appid: String(appId),
+        route,
+        timeoutMs: 12_000,
+      }, {
+        timeoutMs: 12_000,
+        dedupeKey: `player-stats:${part}:${appId}`,
+        expectSuccess: false,
+      });
+      postPlayerStats({ part, rid: data.rid, ...response });
+    } catch (error) {
+      postPlayerStats({ part, rid: data.rid, success: false, error: error?.message || String(error) });
+    }
+  }
+
+  function isSteamPlayerStatsBridgeTarget() {
+    const ctx = globalThis.STPageContext?.snapshot?.() || {};
+    return ctx.domain === "steam" && (ctx.title === "Steam" || ctx.steam?.aboutMain === true);
+  }
+
+  function watchPlayerStatsReq() {
+    if (!isSteamPlayerStatsBridgeTarget()) {
+      return;
+    }
+    const el = root();
+    if (!el || el.dataset.steamBuffPlayerStatsBridge === "1") return;
+    el.dataset.steamBuffPlayerStatsBridge = "1";
+    try {
+      const observer = new MutationObserver((items) => {
+        const attributes = new Set(items.map((item) => item.attributeName).filter((attribute) => Object.values(PLAYER_STATS_REQ_ATTRS).includes(attribute)));
+        for (const attribute of attributes) {
+          void handlePlayerStats(takePlayerStatsRequest(attribute));
+        }
+      });
+      // 每一路请求使用独立属性，避免并行请求在同一 MutationObserver 批次内互相覆盖。
+      const requestAttributes = Object.values(PLAYER_STATS_REQ_ATTRS);
+      observer.observe(el, { attributes: true, attributeFilter: requestAttributes });
+      for (const attribute of requestAttributes) {
+        void handlePlayerStats(takePlayerStatsRequest(attribute));
+      }
+    } catch {
+      delete el.dataset.steamBuffPlayerStatsBridge;
+    }
   }
 
   function notifySteamFeaturesDisabled(keys) {
@@ -1984,6 +2138,7 @@
       return;
     }
     watchNameReq();
+    watchPlayerStatsReq();
 
     if (!gd.lock()) {
       if (pageRuntimeReady()) {
@@ -2041,6 +2196,8 @@
           "shared/data-index.js",
           "shared/batch-queue.js",
           "shared/virtual-list.js",
+          "shared/utils/player-stats.js",
+          "shared/utils/player-stats-ui.js",
           "shared/page-context.js",
           "shared/runtime/kernel.js",
           "shared/runtime/surface-manager.js",
@@ -2050,6 +2207,7 @@
           "steam/runtime/context-router.js",
           "steam/runtime/surface-hosts.js",
           "steam/runtime/styles.js",
+          "steam/runtime/download-toolbar.js",
           "steam/runtime/feature-registry.js",
           "steam/features/features.js",
           "steam/main.js",

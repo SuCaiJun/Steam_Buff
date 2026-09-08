@@ -12,7 +12,7 @@
   "use strict";
 
   const api = window.SteamBuff = window.SteamBuff || {};
-  const VERSION = "steam-buff-surface-hosts-v3";
+  const VERSION = "steam-buff-surface-hosts-v4";
   const DOWNLOAD_HOST_ID = "download-toolbar";
   const DOWNLOAD_ROUTE = "/library/downloads";
   const DOWNLOAD_ROOT = "__RickyDownloadSurfaceHost";
@@ -122,6 +122,7 @@
       return false;
     }
     downloadState.routeHandle = api.contextRouter.subscribe(setDownloadRoute);
+    setDownloadRoute(api.ctx?.route?.() || "");
     downloadState.started = true;
     return true;
   }

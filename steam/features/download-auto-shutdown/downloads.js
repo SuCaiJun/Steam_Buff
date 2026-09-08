@@ -16,6 +16,7 @@
   const LOG_PREFIX = "[Steam Buff]";
   const CH = "__steam_download_auto_shutdown_Ricky";
   const ROOT = "__Rickydownload-auto-shutdown-root";
+  const STATUS_ROOT = "__RickyDownloadAutoShutdownStatus";
   const SYNC_MS = 5000;
   const RESP_MS = 8000;
   const RETRY_MS = 1000;
@@ -66,6 +67,10 @@
     return window.SteamBuff?.surfaces?.download || null;
   }
 
+  function toolbar() {
+    return window.SteamBuff?.downloadToolbar || null;
+  }
+
   function notify(message, kind = "info") {
     surface()?.notify?.(message, kind);
   }
@@ -80,6 +85,109 @@
 
   function shuttingDown(st) {
     return !!st?.shut;
+  }
+
+  function formatBytes(value) {
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes < 0) {
+      return "--";
+    }
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let amount = bytes;
+    let unit = 0;
+    while (amount >= 1024 && unit < units.length - 1) {
+      amount /= 1024;
+      unit += 1;
+    }
+    const text = unit === 0 ? amount.toFixed(0) : amount.toFixed(1);
+    return `${text.replace(/\.0$/, "")} ${units[unit]}`;
+  }
+
+  function formatDuration(milliseconds) {
+    const minutes = Math.max(1, Math.ceil(Math.max(0, Number(milliseconds) || 0) / 60000));
+    const hours = Math.floor(minutes / 60);
+    return `${hours}${i18n("steam.downloadShutdown.hours", "小时")}${minutes % 60}${i18n("steam.downloadShutdown.minutes", "分钟")}`;
+  }
+
+  function pad(value) {
+    return String(value).padStart(2, "0");
+  }
+
+  function formatEtaTime(timestamp) {
+    const target = new Date(timestamp);
+    const current = new Date(now());
+    if (!Number.isFinite(target.getTime())) {
+      return "--";
+    }
+    const clock = `${pad(target.getHours())}:${pad(target.getMinutes())}`;
+    if (target.getFullYear() === current.getFullYear() &&
+      target.getMonth() === current.getMonth() &&
+      target.getDate() === current.getDate()) {
+      return i18n("steam.downloadShutdown.timeToday", "$time$", { time: clock });
+    }
+    if (target.getFullYear() === current.getFullYear() && target.getMonth() === current.getMonth()) {
+      return i18n("steam.downloadShutdown.timeDay", "$day$日 $time$", {
+        day: target.getDate(),
+        time: clock,
+      });
+    }
+    return i18n("steam.downloadShutdown.timeMonth", "$month$月$day$日 $time$", {
+      month: target.getMonth() + 1,
+      day: target.getDate(),
+      time: clock,
+    });
+  }
+
+  function statusLines(st) {
+    if (!st) {
+      return [i18n("steam.downloadShutdown.backendStarting", "后台初始化中")];
+    }
+    if (shuttingDown(st)) {
+      return [i18n("steam.downloadShutdown.shuttingDown", "下载已完成，正在关机")];
+    }
+    if (!enabled(st)) {
+      return [i18n("steam.downloadShutdown.notEnabled", "自动关机未启用")];
+    }
+    const snap = st.snap;
+    if (snap?.work !== true) {
+      return [i18n("steam.downloadShutdown.enabled", "自动关机：已开启")];
+    }
+
+    const remainingBytes = Number(snap.remainingBytes);
+    const speed = Number(snap.speedBytesPerSecond);
+    const target = Number(snap.estimatedShutdownAt);
+    const details = Number.isFinite(remainingBytes) && remainingBytes >= 0 && Number.isFinite(speed) && speed >= 0
+      ? i18n("steam.downloadShutdown.details", "剩余下载：$remaining$，当前速度：$speed$", {
+        remaining: formatBytes(remainingBytes),
+        speed: `${formatBytes(speed)}/s`,
+      })
+      : "";
+    if (!(remainingBytes > 0) || !(speed > 0) || !Number.isFinite(target)) {
+      return [
+        i18n("steam.downloadShutdown.unavailable", "自动关机：暂无法估算"),
+        details,
+      ].filter(Boolean);
+    }
+    return [
+      i18n("steam.downloadShutdown.eta", "自动关机：$duration$后($time$)", {
+        duration: formatDuration(target - now()),
+        time: formatEtaTime(target),
+      }),
+      details,
+    ];
+  }
+
+  function paintStatus(element, st) {
+    if (!element) {
+      return;
+    }
+    const lines = statusLines(st);
+    const primary = element.querySelector(".sdas-status-primary");
+    const details = element.querySelector(".sdas-status-details");
+    primary.textContent = lines[0] || "";
+    details.textContent = lines[1] || "";
+    details.hidden = !lines[1];
+    element.dataset.status = enabled(st) ? (st?.snap?.work === true ? "work" : "enabled") : "disabled";
   }
 
   function statusText(st) {
@@ -131,11 +239,14 @@
     }
     const input = element.querySelector("input");
     const label = element.querySelector(".sdas-label");
+    const hint = element.querySelector(".sdas-tooltip");
     const checked = enabled(st) || shuttingDown(st);
     input.checked = checked;
-    input.disabled = !st || !!s.rid;
+    input.disabled = !st || !!s.rid || shuttingDown(st);
     label.textContent = i18n("steam.downloadShutdown.shortLabel", "下载完成后关机");
-    element.title = tooltip(st);
+    if (hint) {
+      hint.textContent = tooltip(st);
+    }
 
     if (shuttingDown(st)) {
       element.dataset.status = "shutdown";
@@ -163,8 +274,23 @@
     const label = document.createElement("span");
     label.className = "sdas-label";
     label.textContent = i18n("steam.downloadShutdown.shortLabel", "下载完成后关机");
+    const hint = document.createElement("span");
+    hint.className = "sdas-tooltip";
+    hint.setAttribute("role", "tooltip");
+    hint.hidden = true;
     toggle.append(input, label);
-    element.appendChild(toggle);
+    element.append(toggle, hint);
+
+    const showHint = () => {
+      hint.hidden = false;
+    };
+    const hideHint = () => {
+      hint.hidden = true;
+    };
+    toggle.addEventListener("mouseenter", showHint);
+    toggle.addEventListener("mouseleave", hideHint);
+    toggle.addEventListener("focusin", showHint);
+    toggle.addEventListener("focusout", hideHint);
 
     input.addEventListener("change", () => {
       const on = input.checked;
@@ -196,6 +322,21 @@
       paint(element, { on, mon: false, reason: on ? ST.READY : ST.OFF });
     });
 
+    return element;
+  }
+
+  function makeStatus() {
+    const element = document.createElement("div");
+    element.id = STATUS_ROOT;
+    element.className = "st-download-auto-shutdown-status";
+    element.setAttribute("role", "status");
+    element.setAttribute("aria-live", "off");
+    const primary = document.createElement("div");
+    primary.className = "sdas-status-primary";
+    const details = document.createElement("div");
+    details.className = "sdas-status-details";
+    element.append(primary, details);
+    paintStatus(element, s.st);
     return element;
   }
 
@@ -245,11 +386,13 @@
       return { started: false, reason: "not-main-ui" };
     }
     const ch = chan();
-    const host = surface();
-    if (!ch || !host?.register || !window.STScheduler?.register) {
+    const host = toolbar();
+    const statusHost = surface();
+    if (!ch || !host?.register || !statusHost?.register || !window.STScheduler?.register) {
       log.warn("download-auto-shutdown-ui-start-skipped", "下载完成自动关机界面入口缺少运行能力", {
         hasBroadcastChannel: !!ch,
-        hasDownloadSurface: typeof host?.register === "function",
+        hasDownloadToolbar: typeof host?.register === "function",
+        hasDownloadSurface: typeof statusHost?.register === "function",
         hasScheduler: typeof window.STScheduler?.register === "function",
       });
       return { started: false, reason: "runtime-unavailable" };
@@ -258,6 +401,7 @@
     s.fOn = true;
     s.st = null;
     const element = make(ch);
+    const statusElement = makeStatus();
     s.hostHandle = host.register({
       id: ID,
       element,
@@ -265,6 +409,17 @@
       onActiveChange(active) {
         if (active && s.hostHandle) {
           sync(ch);
+        }
+      },
+    });
+    s.statusHandle = statusHost.register({
+      id: STATUS_ROOT,
+      element: statusElement,
+      order: 10,
+      onActiveChange(active) {
+        statusElement.hidden = active !== true;
+        if (active) {
+          paintStatus(statusElement, s.st);
         }
       },
     });
@@ -282,6 +437,7 @@
         s.want = false;
       }
       paint(element, data);
+      paintStatus(statusElement, data);
     };
     s.channelListenerHandle = scope?.listener?.("frontend-channel-message", ch, "message", s.onMsg) || null;
     if (!s.channelListenerHandle) {
@@ -309,6 +465,8 @@
       }
       s.hostHandle?.dispose?.();
       s.hostHandle = null;
+      s.statusHandle?.dispose?.();
+      s.statusHandle = null;
       if (s.ch === ch) {
         ch.close();
         s.ch = null;

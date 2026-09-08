@@ -43,6 +43,10 @@
     return window.SteamBuff?.surfaces?.download || null;
   }
 
+  function toolbar() {
+    return window.SteamBuff?.downloadToolbar || null;
+  }
+
   function notify(message, kind = "info") {
     surface()?.notify?.(message, kind);
   }
@@ -173,11 +177,11 @@
     if (context !== "downloads" || api.ctx?.isMainUi?.() !== true || !document.body) {
       return { started: false, reason: "not-main-ui" };
     }
-    const host = surface();
+    const host = toolbar();
     if (typeof BroadcastChannel !== "function" || !host?.register || !window.STScheduler?.register) {
       log.warn("download-batch-ui-unavailable", "Steam 下载批量操作界面缺少运行能力", {
         hasBroadcastChannel: typeof BroadcastChannel === "function",
-        hasDownloadSurface: typeof host?.register === "function",
+        hasDownloadToolbar: typeof host?.register === "function",
         hasScheduler: typeof window.STScheduler?.register === "function",
       });
       return { started: false, reason: "runtime-unavailable" };

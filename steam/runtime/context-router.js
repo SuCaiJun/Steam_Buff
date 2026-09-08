@@ -12,7 +12,7 @@
   "use strict";
 
   const api = window.SteamBuff = window.SteamBuff || {};
-  const VERSION = "steam-buff-context-router-v1";
+  const VERSION = "steam-buff-context-router-v2";
   const CHANNEL = "__steam_buff_context_router_Ricky";
   const TASK = "steam-context-router";
   const SOURCE = "steam-context-router";
@@ -28,6 +28,7 @@
     channel: null,
     listener: null,
     route: "",
+    routeSource: null,
     listeners: new Set(),
     started: false,
   };
@@ -73,6 +74,51 @@
     return next;
   }
 
+  // Steam 当前 SharedJSContext 会在 UpdateRoutingInfo 中提交新的内部路由。
+  // 仅在该已验证提交点完成后发布一次快照，避免等待下一次低频心跳。
+  function installRouteSource() {
+    if (api.ctx?.isShared?.() !== true) {
+      return false;
+    }
+    const target = window.tempNavStore;
+    const original = target?.UpdateRoutingInfo;
+    if (!target || typeof original !== "function") {
+      return false;
+    }
+    const wrapped = function (...args) {
+      const result = original.apply(this, args);
+      try {
+        publish(false);
+      } catch (error) {
+        log.error("context-route-source-publish-failed", "Steam 内部路由提交后的快照发布失败", { error });
+      }
+      return result;
+    };
+    try {
+      target.UpdateRoutingInfo = wrapped;
+      if (target.UpdateRoutingInfo !== wrapped) {
+        return false;
+      }
+    } catch (error) {
+      log.warn("context-route-source-install-failed", "Steam 内部路由提交点接入失败，将保留心跳同步", { error });
+      return false;
+    }
+    state.routeSource = { target, original, wrapped };
+    return true;
+  }
+
+  function uninstallRouteSource() {
+    const source = state.routeSource;
+    try {
+      if (source?.target?.UpdateRoutingInfo === source.wrapped) {
+        source.target.UpdateRoutingInfo = source.original;
+      }
+    } catch (error) {
+      log.warn("context-route-source-uninstall-failed", "Steam 内部路由提交点恢复失败", { error });
+    }
+    state.routeSource = null;
+  }
+
   function onMessage(event) {
     const data = event?.data || {};
     if (data.source !== SOURCE) {
@@ -89,6 +135,7 @@
 
   function stop() {
     window.STScheduler?.unregister?.(TASK);
+    uninstallRouteSource();
     if (state.listener && state.channel) {
       state.channel.removeEventListener("message", state.listener);
     }
@@ -123,6 +170,7 @@
     state.started = true;
 
     if (shared) {
+      installRouteSource();
       publish(true);
       window.STScheduler.register(
         TASK,

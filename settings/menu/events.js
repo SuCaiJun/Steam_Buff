@@ -121,6 +121,17 @@
       syncModule(id);
     }
 
+    function applyModeState(id, enabled) {
+      setState(id, enabled);
+      for (const input of Array.from(shadow.querySelectorAll("[data-setting-mode-option]"))) {
+        if (input.dataset.settingModeOption !== id) continue;
+        const selected = (input.value === "true") === enabled;
+        input.checked = selected;
+        input.closest(".setting-mode-option")?.classList.toggle("selected", selected);
+      }
+      deps.updateFeature(shadow, id);
+    }
+
     async function persistSwitchState(id, enabled, previous, dependents, operationId) {
       try {
         if (typeof api.storage?.set !== "function") {
@@ -155,6 +166,41 @@
           if (sw) {
             sw.disabled = !deps.depAvailable(id);
           }
+        }
+      }
+    }
+
+    async function persistModeState(id, enabled, previous, dependents, operationId) {
+      try {
+        if (typeof api.storage?.set !== "function") {
+          throw new Error("设置模式存储未初始化");
+        }
+        const ok = await Promise.resolve(api.storage.set(id, enabled, { operationId }));
+        if (ok !== true) {
+          if (ok !== false) {
+            log.error("setting-save-failed", "设置模式保存结果未确认", {
+              operationId,
+              featureId: id,
+              enabled,
+              error: new Error("设置存储未返回成功结果"),
+            });
+          }
+          applyModeState(id, previous);
+          syncDependents(dependents, true);
+        }
+      } catch (error) {
+        log.error("setting-save-failed", "设置模式保存异常", {
+          operationId,
+          featureId: id,
+          enabled,
+          error,
+        });
+        applyModeState(id, previous);
+        syncDependents(dependents, true);
+      } finally {
+        if (pendingSwitches.get(id) === enabled) {
+          pendingSwitches.delete(id);
+          deps.updateFeature(shadow, id);
         }
       }
     }
@@ -287,6 +333,25 @@
           });
           shell.render(shadow);
         }
+        return;
+      }
+
+      const mode = event.target.closest("[data-setting-mode-option]");
+      if (mode) {
+        const id = mode.dataset.settingModeOption;
+        if (!id || mode.disabled || pendingSwitches.has(id)) return;
+        const previous = getStates()?.[id] === true;
+        const enabled = mode.value === "true";
+        if (enabled === previous) return;
+        const operationId = root.STLoggerFactory?.createOperationId?.() || "";
+        const dependents = deps.dependentIds(id).map(depId => [depId, deps.depAvailable(depId)]);
+        pendingSwitches.set(id, enabled);
+        applyModeState(id, enabled);
+        for (const input of Array.from(shadow.querySelectorAll("[data-setting-mode-option]"))) {
+          if (input.dataset.settingModeOption === id) input.disabled = true;
+        }
+        syncDependents(dependents);
+        persistModeState(id, enabled, previous, dependents, operationId);
         return;
       }
 

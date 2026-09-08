@@ -110,7 +110,32 @@ function Wait-ReleaseAssetsAbsent($releaseId, $assetNames, $maxAttempts = 10, $d
   throw "等待 GitHub Release 资产删除超时，仍存在：$($remainingNames -join ', ')"
 }
 
-function Publish-ReleaseAsset($releaseId, $asset, $maxAttempts = 3) {
+function Wait-ReleaseAssetDeleted($assetId, $assetName, $maxAttempts = 10, $delaySeconds = 1) {
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    $existing = Invoke-GitHub "GET" "releases/assets/$assetId"
+    if (-not $existing) {
+      return
+    }
+    if ($attempt -lt $maxAttempts) {
+      Start-Sleep -Seconds $delaySeconds
+    }
+  }
+  throw "等待 GitHub Release 资产删除超时，资产仍可按 ID 读取：$assetName ($assetId)"
+}
+
+function Remove-ReleaseAssets($releaseId, $releaseAssets) {
+  $items = @($releaseAssets | Where-Object { $_ -and $_.id })
+  if ($items.Count -eq 0) {
+    return
+  }
+  foreach ($existing in $items) {
+    Invoke-GitHub "DELETE" "releases/assets/$($existing.id)" | Out-Null
+    Wait-ReleaseAssetDeleted $existing.id ([string]$existing.name)
+  }
+  Wait-ReleaseAssetsAbsent $releaseId @($items | ForEach-Object { [string]$_.name })
+}
+
+function Publish-ReleaseAsset($releaseId, $asset, $maxAttempts = 5) {
   $uploadPath = "https://uploads.github.com/repos/$repository/releases/$releaseId/assets?name=$([uri]::EscapeDataString($asset.Name))"
   for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
     try {
@@ -125,16 +150,56 @@ function Publish-ReleaseAsset($releaseId, $asset, $maxAttempts = 3) {
 
       Write-Warning "GitHub Release 资产 $($asset.Name) 已存在，正在清理并重试（第 $attempt/$maxAttempts 次）。"
       $conflictingAssets = @(Get-ReleaseAssets $releaseId | Where-Object { [string]$_.name -eq [string]$asset.Name })
-      foreach ($existing in $conflictingAssets) {
-        Invoke-GitHub "DELETE" "releases/assets/$($existing.id)" | Out-Null
-      }
-      Wait-ReleaseAssetsAbsent $releaseId @($asset.Name)
+      Remove-ReleaseAssets $releaseId $conflictingAssets
+      $retryDelaySeconds = [Math]::Min(10, [Math]::Pow(2, $attempt))
+      Start-Sleep -Seconds $retryDelaySeconds
     }
   }
 }
 
 function Get-Release($tag) {
   return Invoke-GitHub "GET" "releases/tags/$([uri]::EscapeDataString($tag))"
+}
+
+function Wait-ReleaseAbsent($tag, $maxAttempts = 10, $delaySeconds = 1) {
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    if (-not (Get-Release $tag)) {
+      return
+    }
+    if ($attempt -lt $maxAttempts) {
+      Start-Sleep -Seconds $delaySeconds
+    }
+  }
+  throw "等待 GitHub Release 删除超时：$tag"
+}
+
+function Wait-TagAbsent($tag, $maxAttempts = 10, $delaySeconds = 1) {
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    $ref = Invoke-GitHub "GET" "git/ref/tags/$([uri]::EscapeDataString($tag))"
+    if (-not $ref) {
+      return
+    }
+    if ($attempt -lt $maxAttempts) {
+      Start-Sleep -Seconds $delaySeconds
+    }
+  }
+  throw "等待 GitHub 标签删除超时：$tag"
+}
+
+function Remove-BetaReleaseAndTag($tag) {
+  if ($tag -ne "beta-release") {
+    throw "拒绝用 Beta 重建流程删除非 Beta Release：$tag"
+  }
+  $release = Get-Release $tag
+  if ($release) {
+    Invoke-GitHub "DELETE" "releases/$($release.id)" | Out-Null
+    Wait-ReleaseAbsent $tag
+  }
+  $ref = Invoke-GitHub "GET" "git/ref/tags/$([uri]::EscapeDataString($tag))"
+  if ($ref) {
+    Invoke-GitHub "DELETE" "git/refs/tags/$([uri]::EscapeDataString($tag))" | Out-Null
+    Wait-TagAbsent $tag
+  }
 }
 
 function Ensure-Tag($tag, $target, $allowMove) {
@@ -183,8 +248,7 @@ function Publish-Release {
     throw "Release 资产名称不符合版本契约，必须为：$($expectedAssetNames -join '、')。"
   }
 
-  $allowMove = $Tag -eq "beta-release"
-  Ensure-Tag $Tag $TargetCommit $allowMove
+  $isBeta = $Tag -eq "beta-release"
   $body = Get-Content -LiteralPath $BodyPath -Raw
   $payload = @{
     tag_name = $Tag
@@ -194,25 +258,26 @@ function Publish-Release {
     draft = $false
     prerelease = [bool]$Prerelease
   }
-  $release = Get-Release $Tag
-  if ($release) {
-    $release = Invoke-GitHub "PATCH" "releases/$($release.id)" $payload
-  } else {
+  if ($isBeta) {
+    Remove-BetaReleaseAndTag $Tag
+    Ensure-Tag $Tag $TargetCommit $true
     $release = Invoke-GitHub "POST" "releases" $payload
+  } else {
+    Ensure-Tag $Tag $TargetCommit $false
+    $release = Get-Release $Tag
+    if ($release) {
+      $release = Invoke-GitHub "PATCH" "releases/$($release.id)" $payload
+    } else {
+      $release = Invoke-GitHub "POST" "releases" $payload
+    }
   }
   if (-not $release.id) {
     throw "GitHub Release 创建或更新后没有返回 Release ID。"
   }
 
   $existingAssets = @(Get-ReleaseAssets $release.id)
-  $removedAssetNames = @()
-  foreach ($existing in $existingAssets) {
-    if ($Tag -eq "beta-release" -or ($assets.Name -contains [string]$existing.name)) {
-      Invoke-GitHub "DELETE" "releases/assets/$($existing.id)" | Out-Null
-      $removedAssetNames += [string]$existing.name
-    }
-  }
-  Wait-ReleaseAssetsAbsent $release.id $removedAssetNames
+  $assetsToRemove = @($existingAssets | Where-Object { $assets.Name -contains [string]$_.name })
+  Remove-ReleaseAssets $release.id $assetsToRemove
   foreach ($asset in $assets) {
     Publish-ReleaseAsset $release.id $asset
   }

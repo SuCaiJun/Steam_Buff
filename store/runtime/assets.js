@@ -46,6 +46,26 @@
     return root;
   }
 
+  function createThirdPartyDisabledHelpLink(label = "") {
+    const link = document.createElement("a");
+    link.className = "st-store-help-link";
+    const url = globalThis.STConfig?.urls?.helpSearch?.("第三方数据服务已关闭") || "";
+    if (!url || typeof globalThis.STConfig?.externalNavigation?.applyToLink !== "function") {
+      return null;
+    }
+    globalThis.STConfig.externalNavigation.applyToLink(link, url);
+    const accessibleLabel = String(label || "查看第三方数据服务关闭说明").trim();
+    link.title = accessibleLabel;
+    link.setAttribute("aria-label", accessibleLabel);
+
+    const icon = document.createElement("img");
+    icon.src = getImageUrl("ui/help.svg");
+    icon.alt = "";
+    icon.setAttribute("aria-hidden", "true");
+    link.appendChild(icon);
+    return link;
+  }
+
   const ImageAssets = Object.freeze({
     MC_LOGO: "store/providers/mc-logo.png",
   });
@@ -53,6 +73,7 @@
   api.assets = Object.freeze({
     getImageUrl,
     createBrandMark,
+    createThirdPartyDisabledHelpLink,
     ImageAssets,
   });
 })();

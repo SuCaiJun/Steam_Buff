@@ -13,6 +13,30 @@
 
   const features = [
     {
+      id: "download-auto-shutdown",
+      name: "下载完成后自动关机",
+      settingsKey: "download-auto-shutdown",
+      loadStrategy: "on-demand-entry",
+      modes: ["backend", "downloads"],
+      pageScope: ["SharedJSContext", "main-ui", "/library/downloads"],
+      dependencies: ["shared/scheduler.js", "BroadcastChannel"],
+      cost: "polling",
+      entries: {
+        backend: "backend.js",
+        downloads: "downloads.js",
+      },
+      shouldRun(api, context, ctx = {}) {
+        const on = ctx.settingOn?.("download-auto-shutdown") ?? api.ctx?.settingOn?.("download-auto-shutdown");
+        if (on === false) {
+          return false;
+        }
+        if (context === "backend") {
+          return true;
+        }
+        return context === "downloads" && api.ctx?.isMainUi?.() === true;
+      },
+    },
+    {
       id: "native-custom-sort-events",
       name: "Steam 原生自定义排序保存事件",
       loadStrategy: "on-demand-entry",
@@ -101,30 +125,6 @@
       },
     },
     {
-      id: "download-auto-shutdown",
-      name: "下载完成后自动关机",
-      settingsKey: "download-auto-shutdown",
-      loadStrategy: "on-demand-entry",
-      modes: ["backend", "downloads"],
-      pageScope: ["SharedJSContext", "main-ui", "/library/downloads"],
-      dependencies: ["shared/scheduler.js", "BroadcastChannel"],
-      cost: "polling",
-      entries: {
-        backend: "backend.js",
-        downloads: "downloads.js",
-      },
-      shouldRun(api, context, ctx = {}) {
-        const on = ctx.settingOn?.("download-auto-shutdown") ?? api.ctx?.settingOn?.("download-auto-shutdown");
-        if (on === false) {
-          return false;
-        }
-        if (context === "backend") {
-          return true;
-        }
-        return context === "downloads" && api.ctx?.isMainUi?.() === true;
-      },
-    },
-    {
       id: "steam-news-translate",
       name: "Steam 新闻弹窗翻译",
       settingsKey: "steam-news-translate",
@@ -140,6 +140,21 @@
         return context === "ui" &&
           api.ctx?.isMainUi?.() === true &&
           api.ctx?.settingOn?.("steam-news-translate") !== false;
+      },
+    },
+    {
+      id: "player-stats",
+      name: "库详情页在线人数",
+      settingsKey: "player-stats",
+      loadStrategy: "on-demand-entry",
+      modes: ["ui"],
+      pageScope: ["main-ui", "/library/app/:appid"],
+      entries: {
+        ui: "ui.js",
+      },
+      shouldRun(api, context) {
+        return context === "ui" &&
+          api.ctx?.isMainUi?.() === true;
       },
     },
   ];

@@ -216,6 +216,7 @@
         .close:focus-visible,
         .nav-item:focus-visible,
         .switch:focus-visible,
+        .setting-mode-option:focus-within,
         .dialog-btn:focus-visible {
           outline: 2px solid var(--st-color-steam-blue, var(--st-color-steam-blue));
           outline-offset: 2px;
@@ -816,6 +817,56 @@
           font-weight: 500;
           line-height: 1.35;
           letter-spacing: 0;
+        }
+
+        .setting-mode {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(72px, 1fr));
+          width: min(220px, 42%);
+          min-width: 168px;
+          padding: 3px;
+          border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-06));
+          border-radius: 6px;
+          background: var(--st-color-surface-subtle, var(--st-color-white-alpha-08));
+          gap: 3px;
+          flex: 0 0 auto;
+        }
+
+        .setting-mode-option {
+          position: relative;
+          display: grid;
+          place-items: center;
+          min-height: 32px;
+          padding: 0 10px;
+          border-radius: 4px;
+          color: var(--st-color-text-muted);
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          user-select: none;
+        }
+
+        .setting-mode-option input {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .setting-mode-option:hover {
+          color: var(--st-color-text-primary);
+          background: var(--st-color-bg-card-hover);
+        }
+
+        .setting-mode-option.selected {
+          color: var(--st-color-white);
+          background: var(--st-color-steam-blue);
+        }
+
+        .setting-mode[aria-disabled="true"] .setting-mode-option {
+          cursor: not-allowed;
+          opacity: 0.48;
         }
 
         .feature-desc,
@@ -2060,6 +2111,11 @@
 
           .settings-drawer-body {
             padding: 12px;
+          }
+
+          .setting-mode {
+            width: 100%;
+            min-width: 0;
           }
 
           .store-price-chart-field {

@@ -21,7 +21,10 @@
   const LIBRARY_CUSTOM_NAME_PROGRESS = "__RickyLibraryCustomNameProgress";
   const DOWNLOAD_SURFACE_ROOT = "__RickyDownloadSurfaceHost";
   const DOWNLOAD_SURFACE_TOAST = "__RickyDownloadSurfaceToast";
+  const DOWNLOAD_TOOLBAR_ROOT = "__RickyDownloadToolbar";
+  const DOWNLOAD_TOOLBAR_MENU = "__RickyDownloadToolbarMenu";
   const DOWNLOAD_AUTO_SHUTDOWN_ROOT = "__Rickydownload-auto-shutdown-root";
+  const DOWNLOAD_AUTO_SHUTDOWN_STATUS = "__RickyDownloadAutoShutdownStatus";
   const NEWS_TRANSLATE_BUTTON_CLASS = "steam-buff-news-translate-button";
   const NEWS_TRANSLATE_ICON_CLASS = "steam-buff-news-translate-icon";
   const NEWS_TRANSLATE_DONE_CLASS = "steam-buff-news-translated";
@@ -36,9 +39,12 @@
     const typography = theme.typography || {};
     return {
       "--st-lcn-font": typography.fontFamily,
+      "--st-lcn-property-window": cssVar("--st-color-steam-property-window"),
       "--st-lcn-property-bg": cssVar("--st-color-steam-property-button"),
-      "--st-lcn-property-bg-hover": cssVar("--st-color-bg-card"),
+      "--st-lcn-property-bg-hover": cssVar("--st-color-white-alpha-10"),
       "--st-lcn-property-border": cssVar("--st-color-border-normal"),
+      "--st-lcn-property-divider": cssVar("--st-color-white-alpha-06"),
+      "--st-lcn-property-input": cssVar("--st-color-black-alpha-22"),
       "--st-lcn-success-border": cssVar("--st-color-success-bright-alpha-55"),
       "--st-lcn-success-bg": cssVar("--st-color-success-bright-alpha-50"),
       "--st-lcn-success-bg-hover": cssVar("--st-color-success"),
@@ -149,6 +155,15 @@
       "--st-sdas-warning": cssVar("--st-color-warning"),
       "--st-sdas-danger": cssVar("--st-color-danger"),
       "--st-download-action-danger-bg": cssVar("--st-color-danger-alpha-12"),
+      // Steam CEF 顶部原生图标按钮的实测尺寸/颜色；菜单容器使用实体背景避免透出下载页内容。
+      "--st-download-toolbar-button-bg": "rgb(61, 68, 80)",
+      "--st-download-toolbar-button-bg-hover": "rgb(82, 89, 101)",
+      "--st-download-toolbar-button-border": "transparent",
+      "--st-download-toolbar-button-border-hover": "transparent",
+      "--st-download-toolbar-button-color": "rgb(220, 222, 223)",
+      "--st-download-toolbar-menu-bg": cssVar("--st-color-bg-body"),
+      "--st-download-toolbar-menu-border": cssVar("--st-color-border-normal"),
+      "--st-download-toolbar-menu-shadow": cssVar("--st-shadow-panel-menu"),
       "--st-sdas-gap": spacing.sm,
       "--st-sdas-toggle-pad-x": `calc(${spacing.sm} + ${spacing.xxs})`,
       "--st-sdas-toast-pad-y": `calc(${spacing.sm} + ${spacing.xxs})`,
@@ -360,13 +375,15 @@
         box-sizing: border-box;
         border: 0;
         border-radius: 0;
-        background: var(--st-dialog-surface);
-        box-shadow: var(--st-dialog-panel-shadow);
+        background: var(--st-lcn-property-window);
+        box-shadow: 0 16px 36px var(--st-color-black-alpha-55);
         transform: none;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-head {
         position: relative;
         z-index: 5;
+        border-bottom: 1px solid var(--st-lcn-property-divider);
+        background: var(--st-lcn-property-window);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-body {
         display: flex;
@@ -374,6 +391,7 @@
         width: 100%;
         box-sizing: border-box;
         overflow: hidden;
+        background: var(--st-lcn-property-window);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-note {
         margin: 4px 0 14px;
@@ -387,10 +405,10 @@
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} fieldset {
         margin: 0;
-        border: 1px solid var(--st-dialog-divider);
-        border-radius: var(--st-control-radius);
+        border: 1px solid var(--st-lcn-property-divider);
+        border-radius: 2px;
         padding: 8px 12px 12px;
-        background: var(--st-dialog-surface-raised);
+        background: var(--st-lcn-property-bg);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} legend {
         color: var(--st-dialog-muted-color);
@@ -431,7 +449,7 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:checked {
         border-color: var(--st-color-steam-blue);
         background: var(--st-color-steam-blue);
-        box-shadow: inset 0 0 0 3px var(--st-dialog-surface-raised);
+        box-shadow: inset 0 0 0 3px var(--st-lcn-property-bg);
       }
       #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"]:checked,
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:checked {
@@ -450,7 +468,7 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:disabled:checked {
         border-color: var(--st-color-text-secondary);
         background: var(--st-color-text-secondary);
-        box-shadow: inset 0 0 0 3px var(--st-dialog-surface-raised);
+        box-shadow: inset 0 0 0 3px var(--st-lcn-property-bg);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:disabled:checked {
         border-color: var(--st-color-text-secondary);
@@ -462,6 +480,16 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn {
         margin-left: 2px;
         padding: 0 8px;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn:not(.primary):not(.danger),
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn {
+        border-color: var(--st-lcn-property-border);
+        border-radius: 2px;
+        background: var(--st-lcn-property-bg);
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn:not(.primary):not(.danger):hover:not(:disabled),
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn:hover:not(:disabled) {
+        background: var(--st-lcn-property-bg-hover);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-actions {
         flex-wrap: wrap;
@@ -583,19 +611,6 @@
         text-align: center;
         font-size: 12px;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-pagebar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        margin-top: 12px;
-        color: var(--st-dialog-muted-color);
-        font-size: 12px;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-page-actions {
-        display: flex;
-        gap: 6px;
-      }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-selectbar {
         display: flex;
         justify-content: flex-start;
@@ -606,7 +621,19 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-select-actions {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         gap: 6px;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-selected-count {
+        display: inline-flex;
+        align-items: center;
+        min-width: 86px;
+        min-height: var(--st-control-height-compact);
+        margin-left: 4px;
+        color: var(--st-dialog-muted-color);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-filter-actions {
         display: flex;
@@ -616,6 +643,12 @@
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-search {
         width: min(310px, 34vw);
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-search,
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-input {
+        border-color: var(--st-lcn-property-border);
+        border-radius: 2px;
+        background: var(--st-lcn-property-input);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-file {
         position: absolute;
@@ -632,44 +665,82 @@
         max-height: none;
         margin-top: 12px;
         overflow: auto;
-        border: 1px solid var(--st-dialog-divider);
-        border-radius: var(--st-control-radius);
+        border: 1px solid var(--st-lcn-property-divider);
+        border-radius: 2px;
+        background: var(--st-lcn-property-bg);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} table {
         width: 100%;
-        min-width: 680px;
+        min-width: 760px;
         border-collapse: collapse;
         table-layout: fixed;
         font-size: 12px;
       }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-select {
+        width: 52px;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-official,
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-current {
+        width: 22%;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-custom {
+        width: auto;
+      }
       #${LIBRARY_CUSTOM_NAME_MODAL} th:first-child,
       #${LIBRARY_CUSTOM_NAME_MODAL} td:first-child {
-        width: 44px;
         text-align: center;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} th,
       #${LIBRARY_CUSTOM_NAME_MODAL} td {
-        border-bottom: 1px solid var(--st-color-white-alpha-06);
+        border-bottom: 1px solid var(--st-lcn-property-divider);
         padding: 7px 8px;
         text-align: left;
         vertical-align: middle;
-        overflow-wrap: anywhere;
+        box-sizing: border-box;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} th {
         position: sticky;
         top: 0;
-        background: var(--st-color-bg-input-focus);
+        z-index: 2;
+        background: var(--st-lcn-property-window);
         color: var(--st-dialog-muted-color);
         font-weight: 500;
       }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-data-row {
+        height: 54px;
+        background: var(--st-lcn-property-bg);
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-data-row:hover td {
+        background: var(--st-lcn-property-bg-hover);
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-name-cell {
+        overflow: hidden;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-cell-text {
+        display: block;
+        overflow: hidden;
+        color: var(--st-dialog-text-color);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-input {
         width: 100%;
+        box-sizing: border-box;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-appid {
         display: block;
         margin-top: 2px;
         color: var(--st-color-text-disabled);
         font-size: 11px;
+      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-virtual-spacer,
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-virtual-spacer td {
+        height: var(--st-lcn-virtual-size, 0);
+        min-height: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        line-height: 0;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} tr.ok td {
         background: var(--st-lcn-row-ok);
@@ -705,61 +776,172 @@
         align-items: center;
         height: 28px;
       }
-      #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} {
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_ROOT} {
+        position: relative;
         display: inline-flex;
         align-items: center;
+        width: 28px;
         height: 28px;
       }
-      #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle {
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_ROOT} .st-download-toolbar-button {
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        appearance: none;
+        -webkit-appearance: none;
+        width: 28px;
+        height: 28px;
+        min-width: 28px;
+        padding: 6px;
+        border: 0;
+        border-radius: 2px;
+        background: var(--st-download-toolbar-button-bg);
+        color: var(--st-download-toolbar-button-color);
+        box-shadow: none;
+        font: inherit;
+        line-height: 1;
+        cursor: pointer;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_ROOT} .st-download-toolbar-button:hover {
+        border-color: var(--st-download-toolbar-button-border-hover);
+        background: var(--st-download-toolbar-button-bg-hover);
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_ROOT} .st-download-toolbar-button:focus-visible {
+        outline: 1px solid var(--st-download-toolbar-button-border-hover);
+        outline-offset: 1px;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_ROOT} .st-download-toolbar-icon {
+        display: block;
+        width: 16px;
+        height: 16px;
+        pointer-events: none;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} {
+        position: absolute;
+        top: 32px;
+        right: 0;
+        z-index: 1;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        min-width: 230px;
+        padding: 6px;
+        border: 1px solid var(--st-download-toolbar-menu-border);
+        border-radius: 4px;
+        background: var(--st-download-toolbar-menu-bg);
+        box-shadow: var(--st-download-toolbar-menu-shadow);
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU}[hidden] {
+        display: none !important;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .st-download-surface-slot {
+        display: inline-flex;
+        align-items: center;
+        width: 100%;
+        min-height: 28px;
+        height: auto;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} {
+        width: 100%;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle {
         position: relative;
         box-sizing: border-box;
         display: inline-flex;
         align-items: center;
         gap: var(--st-sdas-gap);
+        width: 100%;
         height: 28px;
         padding: 0 var(--st-sdas-toggle-pad-x);
         border: 1px solid var(--st-sdas-border);
-        border-top: 0;
         background: var(--st-sdas-bg);
         box-shadow: var(--st-sdas-shadow);
         cursor: pointer;
         user-select: none;
         white-space: nowrap;
       }
-      #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 1px;
-        background: var(--st-sdas-border);
-      }
-      #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle:hover {
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle:hover {
         border-color: var(--st-sdas-border-hover);
         background: var(--st-sdas-bg-hover);
       }
-      #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle:hover::before {
-        background: var(--st-sdas-border-hover);
-      }
-      #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle input {
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle input {
         width: 14px;
         height: 14px;
         margin: 0;
         accent-color: var(--st-sdas-primary);
       }
-      #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-label {
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-label {
         font-size: var(--st-sdas-font-size);
         line-height: 1;
         letter-spacing: 0;
       }
-      #${DOWNLOAD_SURFACE_ROOT} .st-download-batch-actions {
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .sdas-tooltip {
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        z-index: 2;
+        box-sizing: border-box;
+        min-width: 230px;
+        max-width: min(360px, calc(100vw - 16px));
+        padding: 5px 8px;
+        border: 1px solid var(--st-sdas-border);
+        border-radius: 2px;
+        background: var(--st-sdas-bg);
+        color: var(--st-sdas-text);
+        box-shadow: var(--st-sdas-shadow);
+        font-family: var(--st-sdas-font);
+        font-size: var(--st-sdas-font-size);
+        line-height: var(--st-sdas-line-height);
+        pointer-events: none;
+        white-space: pre-line;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .sdas-tooltip[hidden] {
+        display: none !important;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS} {
+        position: fixed;
+        top: 83px;
+        left: 8px;
+        z-index: 1000000;
+        box-sizing: border-box;
+        display: block;
+        max-width: min(560px, calc(100vw - 16px));
+        padding: 5px 8px;
+        border: 1px solid var(--st-sdas-border);
+        border-radius: 2px;
+        background: var(--st-sdas-bg);
+        color: var(--st-sdas-text);
+        box-shadow: var(--st-sdas-shadow);
+        font-family: var(--st-sdas-font);
+        font-size: var(--st-sdas-font-size);
+        line-height: var(--st-sdas-line-height);
+        font-variant-numeric: tabular-nums;
+        pointer-events: none;
+        white-space: normal;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS}[hidden],
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS} .sdas-status-details[hidden] {
+        display: none !important;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS} .sdas-status-primary,
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS} .sdas-status-details {
+        overflow-wrap: anywhere;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS} .sdas-status-details {
+        margin-top: 2px;
+      }
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .st-download-batch-actions {
         display: inline-flex;
         align-items: center;
+        width: 100%;
         gap: 4px;
       }
-      #${DOWNLOAD_SURFACE_ROOT} .st-download-action {
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .st-download-action {
         box-sizing: border-box;
+        flex: 1 1 0;
         height: 28px;
         min-width: 68px;
         padding: 0 10px;
@@ -774,19 +956,19 @@
         white-space: nowrap;
         cursor: pointer;
       }
-      #${DOWNLOAD_SURFACE_ROOT} .st-download-action:hover:not(:disabled) {
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .st-download-action:hover:not(:disabled) {
         border-color: var(--st-sdas-border-hover);
         background: var(--st-sdas-bg-hover);
       }
-      #${DOWNLOAD_SURFACE_ROOT} .st-download-action:focus-visible {
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .st-download-action:focus-visible {
         outline: 1px solid var(--st-sdas-border-hover);
         outline-offset: 1px;
       }
-      #${DOWNLOAD_SURFACE_ROOT} .st-download-action:disabled {
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .st-download-action:disabled {
         cursor: default;
         opacity: 0.5;
       }
-      #${DOWNLOAD_SURFACE_ROOT} .st-download-action[data-action="remove-all"]:hover:not(:disabled) {
+      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .st-download-action[data-action="remove-all"]:hover:not(:disabled) {
         border-color: var(--st-sdas-danger);
         background: var(--st-download-action-danger-bg);
       }
@@ -821,8 +1003,8 @@
       }
       @media (max-width: 1250px) {
         #${DOWNLOAD_SURFACE_ROOT} {
-          top: 139px;
-          right: 27px;
+          top: 99px;
+          right: 57px;
         }
         #${DOWNLOAD_SURFACE_TOAST} {
           top: 172px;

@@ -222,6 +222,34 @@
         color: var(--st-color-text-primary);
         text-overflow: ellipsis;
       }
+      .st-store-help-link {
+        display: inline-flex;
+        width: 16px;
+        height: 16px;
+        margin-left: 2px;
+        align-items: center;
+        justify-content: center;
+        vertical-align: -3px;
+        text-decoration: none;
+      }
+      .st-store-help-link img {
+        display: block;
+        width: 16px;
+        height: 16px;
+        filter: var(--st-filter-icon-steam-blue);
+        opacity: .72;
+        transition: filter .16s ease, opacity .16s ease;
+      }
+      .st-store-help-link:hover img,
+      .st-store-help-link:focus-visible img {
+        filter: var(--st-filter-icon-steam-blue-hover);
+        opacity: 1;
+      }
+      .st-store-help-link:focus-visible {
+        border-radius: 50%;
+        outline: 1px solid var(--st-color-steam-blue);
+        outline-offset: 2px;
+      }
       .st-store-chart-tooltip__comparison-date {
         margin-bottom: var(--st-spacing-xs);
         font-variant-numeric: tabular-nums;
