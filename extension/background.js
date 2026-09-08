@@ -1423,6 +1423,10 @@
 
   /* 商店页跨域代理 */
   async function storeFetch(request, sender, sendResponse) {
+    if (!isStoreSender(sender) && !isSettingsSender(sender) && !isSteamRuntimeSender(sender)) {
+      sendResponse(null);
+      return;
+    }
     const startedAt = Date.now();
     let url;
     try {
