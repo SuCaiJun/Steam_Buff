@@ -109,6 +109,83 @@
   const SEL_CLOSE_AUTO = "auto";
   const SEL_CLOSE_MANUAL = "manual";
   const SEL_CLOSE_MODES = Object.freeze(new Set([SEL_CLOSE_AUTO, SEL_CLOSE_MANUAL]));
+  // 注: 社区页和评论弹层不加载 STTheme，划词框必须自带与 theme.js 一致的颜色兜底
+  const THEME_FALLBACKS = Object.freeze({
+    "--st-color-steam-blue": "#66c0f4",
+    "--st-color-text-muted": "#8f98a0",
+    "--st-color-text-bright": "#dfe8f2",
+    "--st-color-white": "#fff",
+    "--st-color-surface-control-strong": "rgba(13,20,29,0.82)",
+    "--st-color-surface-control-hover": "rgba(38,86,108,0.82)",
+    "--st-color-border-hover": "rgba(255,255,255,0.16)",
+    "--st-color-steam-blue-alpha-72": "rgba(102,192,244,0.72)",
+    "--st-color-steam-blue-alpha-45": "rgba(102,192,244,0.45)",
+    "--st-color-steam-blue-alpha-15": "rgba(102,192,244,0.15)",
+    "--st-color-steam-blue-alpha-14": "rgba(102,192,244,0.14)",
+    "--st-color-steam-blue-alpha-05": "rgba(102,192,244,0.05)",
+    "--st-color-primary-soft-text": "#9dd7ff",
+    "--st-color-danger-soft-text": "#ffb8b8",
+    "--st-color-danger-soft": "#d94f4f",
+    "--st-color-danger-soft-alpha-72": "rgba(217,79,79,0.72)",
+    "--st-shadow-tooltip": "0 0 10px rgba(0,0,0,0.5)",
+    "--st-shadow-panel-menu": "0 12px 30px rgba(0,0,0,0.38)",
+    "--st-shadow-card-hover": "0 4px 16px rgba(0,0,0,0.25)",
+    "--st-gradient-settings-skeleton": "linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.14), rgba(255,255,255,0.06))",
+  });
+
+  function themeVar(name) {
+    return `var(${name}, ${THEME_FALLBACKS[name]})`;
+  }
+
+  function overlayApi(el) {
+    return typeof el?.showPopover === "function";
+  }
+
+  function enableOverlay(el) {
+    if (el && overlayApi(el) && el.getAttribute("popover") !== "manual") {
+      el.setAttribute("popover", "manual");
+    }
+  }
+
+  function openOverlay(el) {
+    if (!el) {
+      return;
+    }
+    el.hidden = false;
+    if (!overlayApi(el)) {
+      return;
+    }
+    try {
+      if (!el.matches(":popover-open")) {
+        el.showPopover();
+      }
+    } catch {
+    }
+  }
+
+  function closeOverlay(el) {
+    if (!el) {
+      return;
+    }
+    if (overlayApi(el)) {
+      try {
+        if (el.matches(":popover-open")) {
+          el.hidePopover();
+        }
+      } catch {
+      }
+    }
+    el.hidden = true;
+  }
+
+  function pageScrollEvent(event) {
+    const target = event?.target;
+    return target === document
+      || target === document.documentElement
+      || target === document.body
+      || target === document.scrollingElement
+      || target === window;
+  }
 
   let tip = null;
   let selTip = null;
@@ -319,13 +396,13 @@
       }
 
       [${STYLE_ATTR}="blockquote"] {
-        border-left: 3px solid var(--st-color-steam-blue);
+        border-left: 3px solid ${themeVar("--st-color-steam-blue")};
         padding-left: 7px;
       }
 
       [${STYLE_ATTR}="weakened"],
       [${STYLE_ATTR}="weakened"] * {
-        color: var(--st-color-text-muted) !important;
+        color: ${themeVar("--st-color-text-muted")} !important;
       }
 
       [${STYLE_ATTR}="weakened"] {
@@ -333,33 +410,35 @@
       }
 
       [${STYLE_ATTR}="dashedLine"] {
-        text-decoration: underline dashed var(--st-color-steam-blue) !important;
+        text-decoration: underline dashed ${themeVar("--st-color-steam-blue")} !important;
         text-decoration-thickness: 1px !important;
         text-underline-offset: 2px !important;
         text-decoration-skip-ink: auto;
       }
 
       [${STYLE_ATTR}="wavyLine"] {
-        text-decoration: underline wavy var(--st-color-steam-blue) !important;
+        text-decoration: underline wavy ${themeVar("--st-color-steam-blue")} !important;
         text-decoration-thickness: 1px !important;
         text-underline-offset: 2px !important;
         text-decoration-skip-ink: auto;
       }
 
       [${STYLE_ATTR}="border"] {
-        border: 1px solid var(--st-color-steam-blue-alpha-72);
+        border: 1px solid ${themeVar("--st-color-steam-blue-alpha-72")};
         border-radius: 4px;
         padding: 1px 4px;
       }
 
       [${STYLE_ATTR}="background"] {
-        background-color: var(--st-color-steam-blue-alpha-15);
+        background-color: ${themeVar("--st-color-steam-blue-alpha-15")};
         border-radius: 4px;
         padding: 1px 4px;
       }
 
       .${TIP_CLASS} {
         position: fixed;
+        inset: auto;
+        margin: 0;
         z-index: 2147483647;
         max-width: min(420px, calc(100vw - 32px));
         max-height: min(260px, calc(100vh - 32px));
@@ -367,11 +446,12 @@
         overflow-x: hidden;
         overflow-y: auto;
         padding: 8px 10px;
-        border: 1px solid var(--st-color-steam-blue-alpha-45);
+        border: 1px solid ${themeVar("--st-color-steam-blue-alpha-45")};
         border-radius: 4px;
-        color: var(--st-color-text-bright);
-        background: var(--st-color-surface-control-strong);
-        box-shadow: var(--st-shadow-tooltip);
+        color: ${themeVar("--st-color-text-bright")};
+        background: ${themeVar("--st-color-surface-control-strong")};
+        background-color: ${themeVar("--st-color-surface-control-strong")};
+        box-shadow: ${themeVar("--st-shadow-tooltip")};
         font: 12px/1.55 Arial, Helvetica, sans-serif;
         text-align: left;
         white-space: pre-wrap;
@@ -380,6 +460,11 @@
         overscroll-behavior: contain;
         box-sizing: border-box;
         pointer-events: none;
+        isolation: isolate;
+      }
+
+      .${TIP_CLASS}:popover-open {
+        display: block;
       }
 
       .${TIP_CLASS}[hidden] {
@@ -388,7 +473,7 @@
 
       .${TIP_CLASS}[data-pinned="1"] {
         pointer-events: auto;
-        border-color: var(--st-color-steam-blue-alpha-72);
+        border-color: ${themeVar("--st-color-steam-blue-alpha-72")};
       }
 
       .${TIP_CLASS}[data-interactive="1"] {
@@ -405,6 +490,9 @@
         overflow-y: auto;
         padding: 8px 10px;
         border-radius: inherit;
+        color: inherit;
+        background: ${themeVar("--st-color-surface-control-strong")};
+        background-color: ${themeVar("--st-color-surface-control-strong")};
         white-space: pre-wrap;
         overflow-wrap: anywhere;
         word-break: break-word;
@@ -451,31 +539,38 @@
       }
 
       .${TIP_CLASS}[data-state="loading"] {
-        color: var(--st-color-primary-soft-text);
+        color: ${themeVar("--st-color-primary-soft-text")};
       }
 
       .${TIP_CLASS}[data-state="error"] {
-        color: var(--st-color-danger-soft-text);
-        border-color: var(--st-color-danger-soft-alpha-72);
+        color: ${themeVar("--st-color-danger-soft-text")};
+        border-color: ${themeVar("--st-color-danger-soft-alpha-72")};
       }
 
       .${SEL_ACTION_CLASS} {
         position: fixed;
+        inset: auto;
+        margin: 0;
         z-index: 2147483647;
         width: 24px;
         height: 24px;
-        border: 1px solid var(--st-color-border-hover);
+        border: 1px solid ${themeVar("--st-color-border-hover")};
         border-radius: 50%;
         padding: 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: var(--st-color-white);
-        background: var(--st-color-surface-control-strong);
-        box-shadow: var(--st-shadow-panel-menu);
+        color: ${themeVar("--st-color-white")};
+        background: ${themeVar("--st-color-surface-control-strong")};
+        background-color: ${themeVar("--st-color-surface-control-strong")};
+        box-shadow: ${themeVar("--st-shadow-panel-menu")};
         cursor: pointer;
         pointer-events: auto;
         box-sizing: border-box;
+      }
+
+      .${SEL_ACTION_CLASS}:popover-open {
+        display: flex;
       }
 
       .${SEL_ACTION_CLASS}[hidden] {
@@ -483,8 +578,9 @@
       }
 
       .${SEL_ACTION_CLASS}:hover {
-        border-color: var(--st-color-steam-blue-alpha-72);
-        background: var(--st-color-surface-control-hover);
+        border-color: ${themeVar("--st-color-steam-blue-alpha-72")};
+        background: ${themeVar("--st-color-surface-control-hover")};
+        background-color: ${themeVar("--st-color-surface-control-hover")};
       }
 
       .${SEL_ACTION_CLASS}[data-kind="icon"] img {
@@ -497,9 +593,10 @@
       .${SEL_ACTION_CLASS}[data-kind="dot"] {
         width: 13px;
         height: 13px;
-        border: 2px solid var(--st-color-white);
-        background: var(--st-color-danger-soft);
-        box-shadow: var(--st-shadow-card-hover);
+        border: 2px solid ${themeVar("--st-color-white")};
+        background: ${themeVar("--st-color-danger-soft")};
+        background-color: ${themeVar("--st-color-danger-soft")};
+        box-shadow: ${themeVar("--st-shadow-card-hover")};
       }
 
       .${SELECT_HOST_CLASS} {
@@ -555,15 +652,15 @@
       width: clamp(56px, 44%, 180px);
       pointer-events: none;
       z-index: 1;
-      background: var(--st-gradient-settings-skeleton);
+      background: ${themeVar("--st-gradient-settings-skeleton")};
       transform: translate3d(-170%, 0, 0);
       will-change: transform, opacity;
       animation: steam-buff-progress-shimmer 1.9s linear infinite;
     }
 
     @keyframes steam-buff-progress-pulse {
-      from { background-color: var(--st-color-steam-blue-alpha-05); }
-      to { background-color: var(--st-color-steam-blue-alpha-14); }
+      from { background-color: ${themeVar("--st-color-steam-blue-alpha-05")}; }
+      to { background-color: ${themeVar("--st-color-steam-blue-alpha-14")}; }
     }
 
     @keyframes steam-buff-progress-shimmer {
@@ -874,11 +971,12 @@
       tip = document.createElement("div");
       tip.className = TIP_CLASS;
       tip.hidden = true;
+      enableOverlay(tip);
       (document.body || document.documentElement).appendChild(tip);
     }
     installTipWheel();
     tip.textContent = text;
-    tip.hidden = false;
+    openOverlay(tip);
     moveTip(event);
   }
 
@@ -890,6 +988,7 @@
       selTip.className = TIP_CLASS;
       selTip.dataset.interactive = "1";
       selTip.hidden = true;
+      enableOverlay(selTip);
       const body = document.createElement("div");
       body.className = SEL_BODY_CLASS;
       selTip.appendChild(body);
@@ -984,6 +1083,7 @@
       selAction.title = "翻译";
       selAction.setAttribute("aria-label", "翻译选中文字");
       selAction.hidden = true;
+      enableOverlay(selAction);
       selAction.addEventListener("mousedown", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -1019,7 +1119,7 @@
       el.appendChild(img);
     }
     selCtx = ctx;
-    el.hidden = false;
+    openOverlay(el);
     placeAction(el, ctx.point);
   }
 
@@ -1036,13 +1136,14 @@
       delete el.dataset.state;
     }
     el.hidden = false;
+    openOverlay(el);
     placeTip(el, point);
   }
 
   function hideSelAction() {
     selCtx = null;
     if (selAction) {
-      selAction.hidden = true;
+      closeOverlay(selAction);
     }
   }
 
@@ -1167,14 +1268,14 @@
     }
     pinned = false;
     if (tip) {
-      tip.hidden = true;
+      closeOverlay(tip);
       delete tip.dataset.pinned;
     }
   }
 
   function hideSelTip() {
     if (selTip) {
-      selTip.hidden = true;
+      closeOverlay(selTip);
       delete selTip.dataset.state;
       const body = ensureSelBody(selTip);
       body.scrollTop = 0;
@@ -2341,7 +2442,11 @@
     document.addEventListener("mouseup", finishSelection, true);
     document.addEventListener("pointerup", finishSelection, true);
 
-    window.addEventListener("scroll", () => {
+    window.addEventListener("scroll", (event) => {
+      // 注: 评论区/新闻弹层内部滚动会在 capture 阶段到达 window，不能据此取消待显示的划词按钮
+      if (!pageScrollEvent(event)) {
+        return;
+      }
       cancelSelEnd();
       hideSelAction();
       autoHideSelTip();

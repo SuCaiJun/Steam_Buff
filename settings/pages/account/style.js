@@ -1466,7 +1466,7 @@
       background: var(--st-color-gold-alpha-10);
     }
 
-    .feature-badge {
+    .feature-card .feature-badge {
       position: absolute;
       top: 12px;
       right: 12px;
