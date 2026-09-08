@@ -905,9 +905,12 @@
           animation: none;
         }
 
+        /* 注: 用户中心卡片标签是绝对定位，设置行必须保持 static，避免赞助者标签被吸到开关上方 */
         .feature-badge {
+          position: static;
           display: inline-flex;
           align-items: center;
+          flex: 0 0 auto;
           height: 18px;
           border: 1px solid var(--st-color-primary-alpha-38);
           border-radius: 3px;

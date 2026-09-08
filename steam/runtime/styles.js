@@ -1135,6 +1135,83 @@
 
       .${NEWS_TRANSLATE_BODY_CLASS} {
         white-space: pre-wrap;
+      }
+
+      .steam-buff-news-selection-action,
+      .steam-buff-news-selection-tip {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        z-index: var(--st-z-index-max);
+        -webkit-app-region: no-drag !important;
+        box-sizing: border-box;
+        pointer-events: auto;
+        isolation: isolate;
+      }
+
+      .steam-buff-news-selection-action {
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--st-color-border-hover, rgba(255,255,255,0.16));
+        border-radius: 50%;
+        color: var(--st-color-white, #fff);
+        background: var(--st-color-surface-control-strong, rgba(13,20,29,0.82));
+        background-color: var(--st-color-surface-control-strong, rgba(13,20,29,0.82));
+        box-shadow: var(--st-shadow-panel-menu, 0 12px 30px rgba(0,0,0,0.38));
+        cursor: pointer;
+      }
+
+      .steam-buff-news-selection-action:popover-open {
+        display: flex;
+      }
+
+      .steam-buff-news-selection-action .${NEWS_TRANSLATE_ICON_CLASS} {
+        width: 16px !important;
+        height: 16px !important;
+        opacity: 0.92 !important;
+      }
+
+      .steam-buff-news-selection-action[hidden] {
+        display: none !important;
+      }
+
+      .steam-buff-news-selection-tip {
+        max-width: min(420px, calc(100vw - 32px));
+        max-height: min(260px, calc(100vh - 32px));
+        overflow: auto;
+        padding: 8px 10px;
+        border: 1px solid var(--st-color-steam-blue-alpha-45, rgba(102,192,244,0.45));
+        border-radius: 4px;
+        color: var(--st-color-text-bright, #dfe8f2);
+        background: var(--st-color-surface-control-strong, rgba(13,20,29,0.82));
+        background-color: var(--st-color-surface-control-strong, rgba(13,20,29,0.82));
+        box-shadow: var(--st-shadow-tooltip, 0 0 10px rgba(0,0,0,0.5));
+        font: 12px/1.55 Arial, Helvetica, sans-serif;
+        text-align: left;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      .steam-buff-news-selection-tip:popover-open {
+        display: block;
+      }
+
+      .steam-buff-news-selection-tip[hidden] {
+        display: none !important;
+      }
+
+      .steam-buff-news-selection-tip[data-state="loading"] {
+        color: var(--st-color-primary-soft-text, #9dd7ff);
+      }
+
+      .steam-buff-news-selection-tip[data-state="error"] {
+        color: var(--st-color-danger-soft-text, #ffb8b8);
+        border-color: var(--st-color-danger-soft-alpha-72, rgba(217,79,79,0.72));
       }`,
       vars: steamNewsTranslateVars,
     },

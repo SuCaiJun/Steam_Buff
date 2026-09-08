@@ -20,6 +20,9 @@
   const BOX_CLASS = "steam-buff-news-translation";
   const TRANSLATED_CLASS = "steam-buff-news-translated";
   const TRANSLATED_BODY_CLASS = "steam-buff-news-translated-body";
+  const SEL_ACTION_CLASS = "steam-buff-news-selection-action";
+  const SEL_TIP_CLASS = "steam-buff-news-selection-tip";
+  const SEL_DELAY_MS = 35;
   const ICON_PATH = "images/features/translate.svg";
   const CONFIG_ATTR = "steamBuffNewsTranslate";
   const CONFIG_REQ = "STEAM_BUFF_NEWS_TRANSLATE_CONFIG_REQUEST";
@@ -1659,7 +1662,299 @@
     return true;
   }
 
+  // 注: steamloopback 不注入划词 runner，新闻正文划词只挂在 #popup_target 已验证正文上
+  function newsSelectionUi(el) {
+    return !!el?.closest?.(`.${SEL_ACTION_CLASS}, .${SEL_TIP_CLASS}`);
+  }
+
+  function newsSelectionHost(rt) {
+    if (!rt?.activeCard?.isConnected) {
+      return null;
+    }
+    const contract = newsContentSurface(rt.activeCard);
+    return contract.valid ? rt.activeCard : null;
+  }
+
+  function newsSelectionText(host) {
+    const selection = window.getSelection?.();
+    if (!selection || selection.isCollapsed || !host?.isConnected) {
+      return "";
+    }
+    const node = selection.anchorNode;
+    const el = node?.nodeType === 1 ? node : node?.parentElement;
+    if (!el || !host.contains(el)) {
+      return "";
+    }
+    return clean(selection.toString()).replace(/\s*\n\s*/g, "\n").trim();
+  }
+
+  function newsSelectionTrigger(rt) {
+    const value = String(rt?.config?.selectionTrigger || "direct");
+    return value === "icon" || value === "dot" || value === "direct" ? value : "icon";
+  }
+
+  function newsSelectionPoint(event) {
+    return {
+      clientX: event.clientX,
+      clientY: event.clientY,
+    };
+  }
+
+  function placeNewsOverlay(el, point, size) {
+    if (!el || !point) {
+      return;
+    }
+    const gap = 8;
+    const width = size?.width || el.offsetWidth || 24;
+    const height = size?.height || el.offsetHeight || 24;
+    let left = point.clientX + gap;
+    let top = point.clientY - Math.max(6, Math.round(height / 2));
+    if (left + width > window.innerWidth - 6) {
+      left = Math.max(6, point.clientX - width - gap);
+    }
+    if (top + height > window.innerHeight - 6) {
+      top = Math.max(6, window.innerHeight - height - 6);
+    }
+    if (top < 6) {
+      top = 6;
+    }
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+  }
+
+  function enableNewsOverlay(el) {
+    if (el && typeof el.showPopover === "function" && el.getAttribute("popover") !== "manual") {
+      el.setAttribute("popover", "manual");
+    }
+  }
+
+  function openNewsOverlay(el) {
+    if (!el) {
+      return;
+    }
+    el.hidden = false;
+    if (typeof el.showPopover !== "function") {
+      return;
+    }
+    try {
+      if (!el.matches(":popover-open")) {
+        el.showPopover();
+      }
+    } catch {
+    }
+  }
+
+  function closeNewsOverlay(el) {
+    if (!el) {
+      return;
+    }
+    if (typeof el.hidePopover === "function") {
+      try {
+        if (el.matches(":popover-open")) {
+          el.hidePopover();
+        }
+      } catch {
+      }
+    }
+    el.hidden = true;
+  }
+
+  function ensureNewsSelAction(rt) {
+    if (rt.selAction?.isConnected) {
+      return rt.selAction;
+    }
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = SEL_ACTION_CLASS;
+    el.title = i18n("steam.newsTranslate.selectionTitle", "翻译选中文字");
+    el.setAttribute("aria-label", el.title);
+    el.hidden = true;
+    enableNewsOverlay(el);
+    const img = document.createElement("img");
+    img.className = ICON_CLASS;
+    img.alt = "";
+    img.src = assetUrl(ICON_PATH);
+    el.appendChild(img);
+    el.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+    el.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      startNewsSelection(rt);
+    });
+    el.addEventListener("mouseenter", () => {
+      if (String(rt.config?.selectionAction || "click") === "hover") {
+        startNewsSelection(rt);
+      }
+    });
+    (document.body || document.documentElement).appendChild(el);
+    rt.selAction = el;
+    return el;
+  }
+
+  function ensureNewsSelTip(rt) {
+    if (rt.selTip?.isConnected) {
+      return rt.selTip;
+    }
+    const el = document.createElement("div");
+    el.className = SEL_TIP_CLASS;
+    el.hidden = true;
+    enableNewsOverlay(el);
+    (document.body || document.documentElement).appendChild(el);
+    rt.selTip = el;
+    return el;
+  }
+
+  function hideNewsSelAction(rt) {
+    rt.selCtx = null;
+    closeNewsOverlay(rt.selAction);
+  }
+
+  function hideNewsSelTip(rt) {
+    closeNewsOverlay(rt.selTip);
+    if (rt.selTip) {
+      rt.selTip.textContent = "";
+      delete rt.selTip.dataset.state;
+    }
+  }
+
+  function hideNewsSelection(rt) {
+    if (rt.selTimer) {
+      window.clearTimeout(rt.selTimer);
+      rt.selTimer = 0;
+    }
+    hideNewsSelAction(rt);
+    hideNewsSelTip(rt);
+  }
+
+  function showNewsSelAction(rt, ctx) {
+    const el = ensureNewsSelAction(rt);
+    rt.selCtx = ctx;
+    el.dataset.kind = ctx.trigger;
+    openNewsOverlay(el);
+    placeNewsOverlay(el, ctx.point, { width: 24, height: 24 });
+  }
+
+  function showNewsSelTip(rt, text, point, state = "") {
+    const el = ensureNewsSelTip(rt);
+    el.textContent = text;
+    if (state) {
+      el.dataset.state = state;
+    } else {
+      delete el.dataset.state;
+    }
+    openNewsOverlay(el);
+    placeNewsOverlay(el, point, { width: el.offsetWidth || 160, height: el.offsetHeight || 40 });
+  }
+
+  async function startNewsSelection(rt) {
+    const ctx = rt.selCtx;
+    if (!ctx?.text) {
+      return;
+    }
+    hideNewsSelAction(rt);
+    const seq = (rt.selSeq || 0) + 1;
+    rt.selSeq = seq;
+    showNewsSelTip(rt, i18n("steam.newsTranslate.translating", "正在翻译..."), ctx.point, "loading");
+    log.info("news-popup-selection-start", "新闻弹窗划词翻译开始", {
+      textLength: ctx.text.length,
+    });
+    try {
+      const result = await requestTranslationText(ctx.text, ctx.meta || {});
+      if (seq !== rt.selSeq) {
+        return;
+      }
+      showNewsSelTip(rt, result.text || i18n("steam.newsTranslate.emptyResult", "翻译结果为空"), ctx.point);
+    } catch (error) {
+      if (seq !== rt.selSeq) {
+        return;
+      }
+      showNewsSelTip(rt, error?.message || i18n("steam.newsTranslate.failed", "翻译失败"), ctx.point, "error");
+      logError("news-popup-selection-failed", "新闻弹窗划词翻译失败", {
+        textLength: ctx.text.length,
+      }, error);
+    }
+  }
+
+  function finishNewsSelection(rt, event) {
+    const host = newsSelectionHost(rt);
+    const text = newsSelectionText(host);
+    if (!text) {
+      return;
+    }
+    const ctx = {
+      text,
+      trigger: newsSelectionTrigger(rt),
+      point: newsSelectionPoint(event),
+      meta: rt.activeCard ? extract(rt.activeCard).meta : {},
+    };
+    if (ctx.trigger === "icon" || ctx.trigger === "dot") {
+      showNewsSelAction(rt, ctx);
+      return;
+    }
+    rt.selCtx = ctx;
+    startNewsSelection(rt);
+  }
+
+  function unbindNewsSelection(rt) {
+    hideNewsSelection(rt);
+    rt.selUnbind?.();
+    rt.selUnbind = null;
+    rt.selRoot = null;
+  }
+
+  function bindNewsSelection(rt) {
+    const root = rt.popupRoot;
+    if (!root?.isConnected || rt.config?.enabled !== true || rt.config?.selection === false) {
+      unbindNewsSelection(rt);
+      return;
+    }
+    if (rt.selRoot === root && rt.selUnbind) {
+      return;
+    }
+    unbindNewsSelection(rt);
+
+    const onMouseDown = (event) => {
+      if (event.button != null && event.button !== 0) {
+        return;
+      }
+      if (newsSelectionUi(event.target)) {
+        return;
+      }
+      hideNewsSelection(rt);
+    };
+    const onMouseUp = (event) => {
+      if (event.button != null && event.button !== 0) {
+        return;
+      }
+      if (newsSelectionUi(event.target)) {
+        return;
+      }
+      if (rt.selTimer) {
+        window.clearTimeout(rt.selTimer);
+      }
+      const point = newsSelectionPoint(event);
+      rt.selTimer = window.setTimeout(() => {
+        rt.selTimer = 0;
+        finishNewsSelection(rt, point);
+      }, SEL_DELAY_MS);
+    };
+
+    root.addEventListener("mousedown", onMouseDown, true);
+    root.addEventListener("mouseup", onMouseUp, true);
+    root.addEventListener("pointerup", onMouseUp, true);
+    rt.selRoot = root;
+    rt.selUnbind = () => {
+      root.removeEventListener("mousedown", onMouseDown, true);
+      root.removeEventListener("mouseup", onMouseUp, true);
+      root.removeEventListener("pointerup", onMouseUp, true);
+    };
+  }
+
   function clearMounted(rt) {
+    hideNewsSelection(rt);
     for (const card of rt.cards) {
       const record = mounted.get(card);
       stopButtonMotion(record?.button);
@@ -1712,9 +2007,11 @@
   function onMainPopupSurface(rt, active, context) {
     rt.popupRoot = active ? context?.root || null : null;
     if (!active || !rt.popupRoot?.isConnected) {
+      unbindNewsSelection(rt);
       clearMounted(rt);
       return;
     }
+    bindNewsSelection(rt);
     if (context?.reason === "scroll" && !rt.activeCard) {
       return;
     }
@@ -1733,6 +2030,8 @@
       config?.featureEnabled === false ? "feature-off" : "feature-on",
       config?.translateEnabled === false ? "translate-off" : "translate-on-or-unknown",
       config?.newsPopup === false ? "news-off" : "news-on-or-unknown",
+      config?.selection === false ? "sel-off" : "sel-on",
+      config?.selectionTrigger || "",
       config?.source || "",
       config?.reason || "",
     ].join("|");
@@ -1767,9 +2066,11 @@
     };
     logConfigState(rt);
     if (rt.config.enabled !== true) {
+      unbindNewsSelection(rt);
       clearMounted(rt);
       return;
     }
+    bindNewsSelection(rt);
     refreshMountedSurface(rt);
   }
 
@@ -1851,6 +2152,13 @@
       popupRoot: null,
       surfaceHandle: null,
       configWarnAt: 0,
+      selSeq: 0,
+      selTimer: 0,
+      selCtx: null,
+      selRoot: null,
+      selUnbind: null,
+      selAction: null,
+      selTip: null,
       stop() {
         log.info("news-popup-ui-stop", "新闻弹窗翻译界面已停止", {
           cardCount: rt.cards.size,
@@ -1861,6 +2169,11 @@
         rt.surfaceHandle = null;
         rt.popupRoot = null;
         window.removeEventListener("message", rt.onMessage);
+        unbindNewsSelection(rt);
+        rt.selAction?.remove?.();
+        rt.selTip?.remove?.();
+        rt.selAction = null;
+        rt.selTip = null;
         clearMounted(rt);
         if (window[RT] === rt) {
           window[RT] = null;
@@ -1880,6 +2193,7 @@
       },
       onDispose() {
         rt.popupRoot = null;
+        unbindNewsSelection(rt);
         clearMounted(rt);
       },
     });
