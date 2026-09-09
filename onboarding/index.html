@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : 安装引导本地账号、客户端与完成步骤页面结构
+ * @File          : 安装引导本地账号、第三方、AI、客户端与完成步骤页面结构
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  -->
@@ -48,36 +48,160 @@
           <section class="step-panel account-step" data-step-panel="account" aria-labelledby="account-title" hidden>
             <header class="step-heading">
               <h1 id="account-title" tabindex="-1">登录账号</h1>
-              <p class="step-description">登录后可使用账号相关能力；跳过后仍可继续使用本地功能。</p>
             </header>
-            <ul class="side-points" aria-label="账号能力与后续规划">
-              <li>查看会员权益、功能用量和账号状态</li>
-              <li>打折监控已支持：每日检查价格，到达目标价后通过 QQ 或邮件提醒</li>
+            <ul class="side-points" aria-label="账号能力">
+              <li>库列表自定义名称同步</li>
+              <li>商店显示自定义游戏名</li>
+              <li>商店与库中设置游戏备注</li>
+              <li>打折监控：到达目标价后通过 QQ 或邮件提醒</li>
             </ul>
-            <div class="account-content" id="account-content" aria-live="polite"></div>
+            <div class="setup-card" id="account-card">
+              <div class="setup-card-head" id="account-gate-control">
+                <div class="setup-card-copy">
+                  <strong id="account-gate-title">登录素材君账号</strong>
+                  <span id="account-gate-detail">本地功能不受影响,不登录也可以用.登录后可使用更多功能</span>
+                </div>
+                <button class="switch" id="account-require-login" type="button" role="switch" aria-checked="true" data-action="account-require-login" aria-label="要求登录后继续">
+                  <span class="switch-knob"></span>
+                </button>
+              </div>
+              <div class="setup-card-body account-content" id="account-content" aria-live="polite"></div>
+            </div>
+          </section>
+
+          <!-- third-party -->
+          <section class="step-panel service-step" data-step-panel="third-party" aria-labelledby="third-party-title" hidden>
+            <header class="step-heading">
+              <div class="step-heading-row">
+                <h1 id="third-party-title" tabindex="-1">第三方服务</h1>
+                <button class="step-tutorial" type="button" data-action="open-step-tutorial" data-tutorial-key="第三方服务">查看教程</button>
+              </div>
+              <p class="step-description">启用后可使用历史价格、折扣预测等第三方数据；</p>
+            </header>
+            <div class="setup-card" id="third-party-surface">
+              <div class="setup-card-head">
+                <div class="setup-card-copy">
+                  <strong>启用第三方数据服务</strong>
+                  <span>关闭后可跳过密钥配置</span>
+                </div>
+                <button class="switch" id="third-party-enabled" type="button" role="switch" aria-checked="true" data-action="third-party-enabled" aria-label="启用第三方数据服务">
+                  <span class="switch-knob"></span>
+                </button>
+              </div>
+              <div class="setup-card-body setup-fields" id="third-party-fields">
+                <label class="setup-field">
+                  <span class="setup-field-label">默认价格数据源</span>
+                  <select class="setup-control" id="third-party-provider" disabled>
+                    <option value="isthereanydeal" selected>IsThereAnyDeal</option>
+                  </select>
+                </label>
+                <label class="setup-field">
+                  <span class="setup-field-label">ITAD API Key</span>
+                  <input class="setup-control" id="third-party-key" type="password" autocomplete="off" spellcheck="false" placeholder="填写 ITAD API Key">
+                </label>
+                <div class="setup-actions">
+                  <p class="setup-status" id="third-party-status" aria-live="polite"></p>
+                  <button class="btn btn-secondary btn-compact" id="third-party-test" type="button" data-action="third-party-test">测试连接</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ai -->
+          <section class="step-panel service-step" data-step-panel="ai" aria-labelledby="ai-title" hidden>
+            <header class="step-heading">
+              <div class="step-heading-row">
+                <h1 id="ai-title" tabindex="-1">AI 服务</h1>
+                <button class="step-tutorial" type="button" data-action="open-step-tutorial" data-tutorial-key="AI服务">查看教程</button>
+              </div>
+              <p class="step-description">启用后可配置全局 AI 网关；AI翻译、AI打折预测等功能需要此功能</p>
+            </header>
+            <div class="setup-card" id="ai-surface">
+              <div class="setup-card-head">
+                <div class="setup-card-copy">
+                  <strong>启用 AI 模块</strong>
+                  <span>关闭后可跳过网关配置</span>
+                </div>
+                <button class="switch" id="ai-enabled" type="button" role="switch" aria-checked="true" data-action="ai-enabled" aria-label="启用 AI 模块">
+                  <span class="switch-knob"></span>
+                </button>
+              </div>
+              <div class="setup-card-body setup-fields" id="ai-fields">
+                <div class="setup-group" aria-label="网关与模型">
+                  <p class="setup-group-title">网关与模型</p>
+                  <label class="setup-field">
+                    <span class="setup-field-label">AI 网关地址</span>
+                    <input class="setup-control" id="ai-host" type="url" autocomplete="off" spellcheck="false" placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions/">
+                  </label>
+                  <label class="setup-field">
+                    <span class="setup-field-label">模型</span>
+                    <input class="setup-control" id="ai-model" type="text" autocomplete="off" spellcheck="false" placeholder="GLM-4-Flash">
+                  </label>
+                </div>
+                <div class="setup-group" aria-label="鉴权">
+                  <p class="setup-group-title">鉴权</p>
+                  <label class="setup-field">
+                    <span class="setup-field-label">密钥方式</span>
+                    <select class="setup-control" id="ai-key-mode" data-action-change="ai-key-mode">
+                      <option value="none">不传递</option>
+                      <option value="bearer" selected>Authorization Bearer</option>
+                      <option value="header">自定义请求头</option>
+                      <option value="param">表单参数</option>
+                    </select>
+                  </label>
+                  <label class="setup-field" id="ai-key-field">
+                    <span class="setup-field-label">访问密钥</span>
+                    <input class="setup-control" id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-...">
+                  </label>
+                  <label class="setup-field" id="ai-key-name-field" hidden>
+                    <span class="setup-field-label">密钥字段名</span>
+                    <input class="setup-control" id="ai-key-name" type="text" autocomplete="off" spellcheck="false" placeholder="x-api-key / key">
+                  </label>
+                </div>
+                <div class="setup-group" aria-label="高级参数">
+                  <p class="setup-group-title">高级参数</p>
+                  <div class="setup-field-row">
+                    <label class="setup-field">
+                      <span class="setup-field-label">温度</span>
+                      <input class="setup-control" id="ai-temperature" type="text" autocomplete="off" spellcheck="false" placeholder="0.2" value="0.2">
+                    </label>
+                    <label class="setup-field">
+                      <span class="setup-field-label">AI 并发上限</span>
+                      <input class="setup-control" id="ai-concurrency" type="number" min="1" max="10" step="1" value="10">
+                    </label>
+                  </div>
+                </div>
+                <div class="setup-actions">
+                  <p class="setup-status" id="ai-status" aria-live="polite"></p>
+                  <button class="btn btn-secondary btn-compact" id="ai-test" type="button" data-action="ai-test">测试连接</button>
+                </div>
+              </div>
+            </div>
           </section>
 
           <!-- client -->
           <section class="step-panel client-step" data-step-panel="client" aria-labelledby="client-title" hidden>
             <header class="step-heading">
-              <h1 id="client-title" tabindex="-1">客户端增强</h1>
-              <p class="step-description">统一控制 Steam 客户端内的库列表、下载页和新闻弹窗等增强功能。</p>
+              <div class="step-heading-row">
+                <h1 id="client-title" tabindex="-1">客户端增强</h1>
+                <button class="step-tutorial" type="button" data-action="open-step-tutorial" data-tutorial-key="客户端增强">查看教程</button>
+              </div>
+              <p class="step-description">选择要启用的 Steam 客户端增强；进入下一步时保存，之后仍可在设置中心修改子选项。</p>
             </header>
-            <p class="client-note">设置将在完成引导时保存，之后仍可在设置中心修改。</p>
-            <div class="client-surface">
-              <div class="client-control" id="client-control">
-                <div class="client-state-copy">
-                  <strong id="client-state-title">当前关闭</strong>
-                  <span id="client-state-detail">不会加载 Steam 客户端相关增强</span>
+            <div class="setup-card" id="client-surface">
+              <div class="setup-card-head" id="client-control">
+                <div class="setup-card-copy">
+                  <strong>启用客户端增强</strong>
+                  <span id="client-state-detail">关闭后不加载相关增强</span>
                 </div>
-                <button class="switch" id="client-toggle" type="button" role="switch" aria-checked="false" data-action="client-toggle" aria-label="客户端增强">
+                <button class="switch" id="client-toggle" type="button" role="switch" aria-checked="false" data-action="client-toggle" aria-label="启用客户端增强">
                   <span class="switch-knob"></span>
                 </button>
               </div>
-              <div class="client-scope" aria-label="客户端增强覆盖范围">
-                <span>库列表</span>
-                <span>下载页</span>
-                <span>新闻弹窗</span>
+              <div class="setup-card-body client-scope-panel" aria-label="客户端增强功能">
+                <p class="setup-group-title">功能列表</p>
+                <div class="client-feature-list" id="client-feature-list"></div>
+                <p class="client-scope-note" id="client-scope-note">开启后将在 Steam 客户端对应页面加载这些增强；部分功能需重启 Steam 后生效。</p>
               </div>
             </div>
           </section>
@@ -99,6 +223,14 @@
                 <dd id="complete-account">未登录</dd>
               </div>
               <div>
+                <dt>第三方服务</dt>
+                <dd id="complete-third-party">未配置</dd>
+              </div>
+              <div>
+                <dt>AI 服务</dt>
+                <dd id="complete-ai">未配置</dd>
+              </div>
+              <div>
                 <dt>客户端增强</dt>
                 <dd id="complete-client">已关闭</dd>
               </div>
@@ -110,7 +242,7 @@
           <div class="rail-top">
             <p class="rail-kicker" id="rail-kicker">SETUP</p>
             <h2 class="rail-title" id="rail-title">开始设置</h2>
-            <p class="rail-copy" id="rail-copy">登录不是必需。客户端增强可在设置中心随时调整。</p>
+            <p class="rail-copy" id="rail-copy">按步骤完成账号、第三方、AI 与客户端设置。</p>
             <nav class="progress-track" id="progress-track" aria-label="引导步骤" aria-busy="true"></nav>
           </div>
           <div class="rail-actions footer-actions">
@@ -125,6 +257,15 @@
     </section>
   </main>
 
+  <div class="ob-modal" id="restart-modal" hidden>
+    <div class="ob-modal-backdrop" aria-hidden="true"></div>
+    <div class="ob-modal-card" role="dialog" aria-modal="true" aria-labelledby="restart-modal-title">
+      <h3 id="restart-modal-title">需要重启 Steam</h3>
+      <p class="ob-modal-copy">客户端增强需要你<strong>完全退出并重新打开 Steam</strong> 后才会生效。我们不会替你重启，请确认后自行操作。</p>
+      <button class="btn btn-primary" type="button" data-action="restart-modal-ack">知道了</button>
+    </div>
+  </div>
+
   <script src="../shared/client-environment.js"></script>
   <script src="../shared/config.js"></script>
   <script src="../shared/logger-schema.js"></script>
@@ -132,6 +273,7 @@
   <script src="../shared/logger-factory.js"></script>
   <script src="../shared/auth-session.js"></script>
   <script src="../shared/account-profile.js"></script>
+  <script src="../ai/config.js"></script>
   <script src="./contract.js"></script>
   <script src="./script.js"></script>
 </body>

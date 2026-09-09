@@ -19,7 +19,9 @@
     openSettings: "STEAM_BUFF_ONBOARDING_OPEN_SETTINGS",
   });
   const LOCAL_STEPS = Object.freeze([
-    Object.freeze({ id: "account", title: "登录账号", copy: "登录不是必需，可直接进入下一步。", note: "感谢使用Steam Buff", nextLabel: "下一步" }),
+    Object.freeze({ id: "account", title: "登录账号", copy: "可要求登录后继续，也可关闭后跳过。", note: "感谢使用Steam Buff", nextLabel: "下一步" }),
+    Object.freeze({ id: "third-party", title: "第三方服务", copy: "开启后需配置并测试 ITAD 密钥。", note: "感谢使用Steam Buff", nextLabel: "下一步" }),
+    Object.freeze({ id: "ai", title: "AI 服务", copy: "开启后需配置并测试 AI 网关。", note: "感谢使用Steam Buff", nextLabel: "下一步" }),
     Object.freeze({ id: "client", title: "客户端增强", copy: "设置将在完成引导时保存。", note: "感谢使用Steam Buff", nextLabel: "下一步" }),
     Object.freeze({ id: "complete", title: "完成", copy: "确认摘要后即可开始使用。", note: "感谢使用Steam Buff", nextLabel: "开始使用" }),
   ]);
