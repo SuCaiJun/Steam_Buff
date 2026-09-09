@@ -37,6 +37,7 @@
   const INVALID_TITLE = "当前地址无效";
   const INVALID_COPY = "当前页面可能已失效或不存在，请点击刷新页面或返回首页。";
   const INVALID_NOTE = "当前页面已失效";
+  const COMMITTED_PAGE_KEY = "st.onboarding.lastCommittedPage";
   const AI_GATEWAY_PERMISSION_CHECK = "AI_GATEWAY_PERMISSION_CHECK";
   const AI_GATEWAY_PERMISSION_REQUEST = "AI_GATEWAY_PERMISSION_REQUEST";
   const AI_GATEWAY_PERMISSION_OPEN = "AI_GATEWAY_PERMISSION_OPEN";
@@ -56,7 +57,7 @@
     cloudCount: 0,
     total: 0,
     step: 0,
-    maxReachedPage: 0,
+    lastCommittedPage: 0,
     busy: false,
     serviceBusy: false,
     note: "",
@@ -231,7 +232,7 @@
   }
 
   function gateBlockNote(stepId = activeStep().id) {
-    if (stepId === "account") return "请先登录，或关闭“要求登录后继续”。";
+    if (stepId === "account") return "请先登录，或关闭“登录素材君账号”。";
     if (stepId === "third-party") return "请填写 ITAD 密钥并测试通过，或关闭第三方服务。";
     if (stepId === "ai") return "请完成 AI 配置并测试通过，或关闭 AI 模块。";
     return "请先完成本步配置。";
@@ -544,10 +545,57 @@
     });
   }
 
-  function clampReachedPage() {
-    if (!stepCanNext(activeStep().id) && state.maxReachedPage > state.page) {
-      state.maxReachedPage = state.page;
+  function firstLocalPage() {
+    return state.cloudCount + 1;
+  }
+
+  function readCommittedPage(cloudCount) {
+    try {
+      const raw = sessionStorage.getItem(COMMITTED_PAGE_KEY);
+      if (!raw) return 0;
+      const data = JSON.parse(raw);
+      if (!data || Number(data.cloudCount) !== Number(cloudCount)) return 0;
+      const page = Number(data.page);
+      return Number.isSafeInteger(page) && page > 0 ? page : 0;
+    } catch {
+      return 0;
     }
+  }
+
+  function writeCommittedPage(page) {
+    if (!Number.isSafeInteger(page) || page < 1) return;
+    try {
+      sessionStorage.setItem(COMMITTED_PAGE_KEY, JSON.stringify({
+        cloudCount: state.cloudCount,
+        page,
+      }));
+    } catch {
+      // sessionStorage 不可用时仅保留内存态
+    }
+  }
+
+  function commitPage(page) {
+    if (!Number.isSafeInteger(page) || page < 1) return;
+    if (page > state.lastCommittedPage) {
+      state.lastCommittedPage = page;
+      writeCommittedPage(page);
+    }
+  }
+
+  // 闸门重新失败时收回可跳转边界，避免进度条绕过未配置步骤
+  function clampCommittedPage() {
+    if (!stepCanNext(activeStep().id) && state.lastCommittedPage > state.page) {
+      state.lastCommittedPage = state.page;
+      writeCommittedPage(state.page);
+    }
+  }
+
+  function canNavigateToPage(page) {
+    if (!Number.isSafeInteger(page) || page < 1 || page > state.total) return false;
+    if (page === state.page) return true;
+    if (page < state.page) return true;
+    if (page <= state.lastCommittedPage) return true;
+    return page === state.page + 1;
   }
 
   function syncThirdPartyStateFromForm() {
@@ -557,7 +605,7 @@
       state.thirdParty.saved = false;
     }
     state.thirdParty.key = next.key;
-    clampReachedPage();
+    clampCommittedPage();
   }
 
   function syncAiStateFromForm() {
@@ -580,7 +628,7 @@
       messageError: state.ai.messageError,
       saved: state.ai.saved,
     });
-    clampReachedPage();
+    clampCommittedPage();
   }
 
   async function ensureAiModule() {
@@ -1578,10 +1626,18 @@
   }
 
   // state.page 始终是全局页码，state.step 只保存本地索引；跨到云端时替换当前历史项。
+  // 注: 不在单纯跳页时抬高 lastCommittedPage，只有「下一步」成功过闸/落盘后才提交边界
   function applyLocalPage(page, historyMode = "push") {
     if (state.phase !== "ready" || !Number.isSafeInteger(page) || page < 1 || page > state.total) {
       setInvalidPhase();
       render();
+      return;
+    }
+    if (page > state.lastCommittedPage) {
+      if (historyMode === "history") {
+        window.history.replaceState(null, "", localUrl(state.page));
+      }
+      setNote("请按顺序完成前面的配置步骤。", true);
       return;
     }
     if (page <= state.cloudCount) {
@@ -1595,9 +1651,9 @@
       return;
     }
     if (historyMode === "push") window.history.pushState(null, "", localUrl(page));
+    else if (historyMode === "replace") window.history.replaceState(null, "", localUrl(page));
     state.page = page;
     state.step = index;
-    if (page > state.maxReachedPage) state.maxReachedPage = page;
     state.note = "";
     state.noteError = false;
     const stepId = LOCAL_STEPS[index]?.id;
@@ -1663,7 +1719,9 @@
         return;
       }
     }
-    applyLocalPage(state.page + 1);
+    const nextPage = state.page + 1;
+    commitPage(nextPage);
+    applyLocalPage(nextPage);
   }
 
   function goToPage(page) {
@@ -1673,7 +1731,7 @@
       applyLocalPage(page);
       return;
     }
-    if (page <= state.maxReachedPage) {
+    if (page <= state.lastCommittedPage) {
       applyLocalPage(page);
       return;
     }
@@ -1695,6 +1753,11 @@
     button.setAttribute("aria-label", `第 ${page} 步：${title}`);
     button.classList.toggle("is-complete", page <= state.page);
     if (page === state.page) button.setAttribute("aria-current", "step");
+    const reachable = canNavigateToPage(page);
+    setControlDisabled(button, page !== state.page && !reachable, false);
+    if (!reachable && page !== state.page) {
+      button.title = "请先完成前面的配置步骤";
+    }
     return button;
   }
 
@@ -1776,10 +1839,20 @@
       }
       const index = CONTRACT.localIndexForPage(state.page, state.cloudCount);
       if (index < 0) throw new Error("本地引导页码无效");
-      state.step = index;
-      if (state.page > state.maxReachedPage) state.maxReachedPage = state.page;
+      const firstLocal = firstLocalPage();
+      let committed = readCommittedPage(state.cloudCount);
+      if (committed < firstLocal) committed = firstLocal;
+      if (committed > state.total) committed = state.total;
+      state.lastCommittedPage = committed;
+      writeCommittedPage(committed);
+      if (state.page > state.lastCommittedPage) {
+        state.page = state.lastCommittedPage;
+        window.history.replaceState(null, "", localUrl(state.page));
+      }
+      state.step = CONTRACT.localIndexForPage(state.page, state.cloudCount);
+      if (state.step < 0) throw new Error("本地引导页码无效");
       setPhase("ready", "", "");
-      if (LOCAL_STEPS[index]?.id === "complete" && inSteamClient()) {
+      if (LOCAL_STEPS[state.step]?.id === "complete" && inSteamClient()) {
         state.restartAcked = false;
         state.restartModalOpen = true;
       }
@@ -1828,8 +1901,8 @@
     if (railCopy) {
       if (step.id === "account") {
         railCopy.textContent = state.requireLogin
-          ? (loggedIn() ? "已登录，可进入下一步。" : "请先登录，或关闭要求登录。")
-          : "已关闭要求登录，可直接进入下一步。";
+          ? (loggedIn() ? "已登录，可进入下一步。" : "请先登录，或关闭登录素材君账号。")
+          : "已关闭登录素材君账号，可直接进入下一步。";
       } else if (step.id === "third-party") {
         railCopy.textContent = state.thirdParty.enabled
           ? (state.thirdParty.verified ? "密钥测试已通过，可进入下一步。" : "开启后需填写密钥并测试通过。")
@@ -2320,10 +2393,10 @@
     if (action === "go-page") goToPage(Number(control.dataset.page));
     if (action === "account-require-login") {
       state.requireLogin = state.requireLogin !== true;
-      clampReachedPage();
+      clampCommittedPage();
       setNote(state.requireLogin
-        ? (loggedIn() ? "已开启要求登录。" : "请先登录，或关闭要求登录。")
-        : "已关闭要求登录，可直接进入下一步。", false);
+        ? (loggedIn() ? "已开启登录素材君账号。" : "请先登录，或关闭登录素材君账号。")
+        : "已关闭登录素材君账号，可直接进入下一步。", false);
     }
     if (action === "third-party-enabled") {
       state.thirdParty.enabled = state.thirdParty.enabled !== true;
@@ -2333,7 +2406,7 @@
         ? "开启后请填写密钥并测试连接。"
         : "已关闭，可直接进入下一步。";
       state.thirdParty.messageError = false;
-      clampReachedPage();
+      clampCommittedPage();
       setNote(state.thirdParty.message, false);
     }
     if (action === "third-party-test") await testThirdPartyConnection();
@@ -2345,7 +2418,7 @@
         ? "开启后请配置并测试连接。"
         : "已关闭，可直接进入下一步。";
       state.ai.messageError = false;
-      clampReachedPage();
+      clampCommittedPage();
       setNote(state.ai.message, false);
     }
     if (action === "ai-test") await testAiConnection();

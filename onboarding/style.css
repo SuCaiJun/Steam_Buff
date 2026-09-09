@@ -1064,8 +1064,16 @@ button:focus-visible {
   background: var(--ob-primary);
 }
 
-.progress-segment:hover::before {
+.progress-segment:hover:not(:disabled)::before {
   background: var(--ob-primary-hover);
+}
+
+.progress-segment:disabled {
+  cursor: not-allowed;
+}
+
+.progress-segment:disabled:not(.is-complete)::before {
+  background: var(--ob-line);
 }
 
 .progress-segment:focus-visible {
