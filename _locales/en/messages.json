@@ -3300,9 +3300,6 @@
   "steam_libraryCustomName_channelUnavailable": {
     "message": "The communication channel is unavailable"
   },
-  "steam_libraryCustomName_chooseImportMode": {
-    "message": "Choose an import mode"
-  },
   "steam_libraryCustomName_clearBatchWaiting": {
     "message": "Clear batch $batch$ completed. Waiting $seconds$ seconds for Steam Cloud sync.",
     "placeholders": {
@@ -3505,8 +3502,11 @@
   "steam_libraryCustomName_entryBootstrapTimeout": {
     "message": "Steam CloudStorage entry bootstrap write timed out"
   },
-  "steam_libraryCustomName_exported": {
-    "message": "Exported $count$ current custom sort names",
+  "steam_libraryCustomName_exportAccept": {
+    "message": "Confirm"
+  },
+  "steam_libraryCustomName_exportConfirm": {
+    "message": "Export $count$ games?",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -3514,7 +3514,18 @@
     }
   },
   "steam_libraryCustomName_exportEmpty": {
-    "message": "There are no custom sort names to export"
+    "message": "No games are selected for export"
+  },
+  "steam_libraryCustomName_exportTitle": {
+    "message": "Export names"
+  },
+  "steam_libraryCustomName_exported": {
+    "message": "Exported $count$ items",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "steam_libraryCustomName_fastWriteNoResult": {
     "message": "Steam CloudStorage fast write returned no result. The save queue stopped safely."
@@ -3608,34 +3619,62 @@
   "steam_libraryCustomName_generatingSingleMnemonic": {
     "message": "Generating..."
   },
-  "steam_libraryCustomName_importChanges": {
-    "message": "Add and update only"
+  "steam_libraryCustomName_importAll": {
+    "message": "Import all"
   },
-  "steam_libraryCustomName_importChangesDone": {
-    "message": "Add-and-update import completed: $matched$ matched, $selected$ pending writes, $unchanged$ unchanged",
+  "steam_libraryCustomName_importAllDone": {
+    "message": "Import complete: $matched$ matched, $imported$ imported",
     "placeholders": {
       "matched": {
         "content": "$1"
       },
-      "selected": {
+      "imported": {
         "content": "$2"
-      },
-      "unchanged": {
-        "content": "$3"
       }
     }
   },
-  "steam_libraryCustomName_importCover": {
-    "message": "Overwrite import"
+  "steam_libraryCustomName_importCancel": {
+    "message": "Cancel import"
   },
-  "steam_libraryCustomName_importCoverDone": {
-    "message": "Overwrite import completed: $matched$ matched, $selected$ pending writes",
+  "steam_libraryCustomName_importPromptDetail": {
+    "message": "$existing$ already have custom names, $unset$ are unset",
+    "placeholders": {
+      "existing": {
+        "content": "$1"
+      },
+      "unset": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importPromptStats": {
+    "message": "File contains $file$ names, $matched$ matched in the library",
+    "placeholders": {
+      "file": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importPromptTitle": {
+    "message": "Import games that already have custom names?"
+  },
+  "steam_libraryCustomName_importUnset": {
+    "message": "Unset only"
+  },
+  "steam_libraryCustomName_importUnsetDone": {
+    "message": "Import complete: $matched$ matched, $imported$ imported, $skipped$ skipped",
     "placeholders": {
       "matched": {
         "content": "$1"
       },
-      "selected": {
+      "imported": {
         "content": "$2"
+      },
+      "skipped": {
+        "content": "$3"
       }
     }
   },
@@ -3650,12 +3689,6 @@
       }
     }
   },
-  "steam_libraryCustomName_importModeMessage": {
-    "message": "Choose how to process this JSON file"
-  },
-  "steam_libraryCustomName_importModeTitle": {
-    "message": "Choose import mode"
-  },
   "steam_libraryCustomName_inputMissing": {
     "message": "The custom sort name input was not found"
   },
@@ -3668,8 +3701,11 @@
   "steam_libraryCustomName_jsonItemsRequired": {
     "message": "The JSON must contain an items array"
   },
+  "steam_libraryCustomName_jsonMatchMissing": {
+    "message": "No games in the current library matched the JSON"
+  },
   "steam_libraryCustomName_jsonNameMissing": {
-    "message": "No appid/name fields were recognized in the JSON"
+    "message": "No appid/custom_name fields were recognized in the JSON"
   },
   "steam_libraryCustomName_jsonReadFailed": {
     "message": "Failed to read the JSON file"

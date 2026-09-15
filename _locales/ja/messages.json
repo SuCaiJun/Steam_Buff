@@ -3300,9 +3300,6 @@
   "steam_libraryCustomName_channelUnavailable": {
     "message": "通信チャンネルを利用できません"
   },
-  "steam_libraryCustomName_chooseImportMode": {
-    "message": "インポートモードを選択"
-  },
   "steam_libraryCustomName_clearBatchWaiting": {
     "message": "バッチ $batch$ のクリアが完了しました。Steam Cloudの同期を$seconds$秒待機しています。",
     "placeholders": {
@@ -3505,8 +3502,11 @@
   "steam_libraryCustomName_entryBootstrapTimeout": {
     "message": "Steam CloudStorage エントリのブートストラップ書き込みがタイムアウトしました"
   },
-  "steam_libraryCustomName_exported": {
-    "message": "現在のカスタム並べ替え名を$count$件エクスポートしました",
+  "steam_libraryCustomName_exportAccept": {
+    "message": "確認"
+  },
+  "steam_libraryCustomName_exportConfirm": {
+    "message": "$count$ 件のゲームをエクスポートしますか？",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -3514,7 +3514,18 @@
     }
   },
   "steam_libraryCustomName_exportEmpty": {
-    "message": "エクスポートするカスタム並べ替え名がありません"
+    "message": "エクスポートするゲームが選択されていません"
+  },
+  "steam_libraryCustomName_exportTitle": {
+    "message": "名前をエクスポート"
+  },
+  "steam_libraryCustomName_exported": {
+    "message": "$count$ 件をエクスポートしました",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "steam_libraryCustomName_fastWriteNoResult": {
     "message": "Steam CloudStorage の高速書き込みから結果が返されませんでした。保存キューを安全に停止しました。"
@@ -3608,34 +3619,62 @@
   "steam_libraryCustomName_generatingSingleMnemonic": {
     "message": "生成中..."
   },
-  "steam_libraryCustomName_importChanges": {
-    "message": "追加と更新のみ"
+  "steam_libraryCustomName_importAll": {
+    "message": "すべてインポート"
   },
-  "steam_libraryCustomName_importChangesDone": {
-    "message": "追加・更新インポートが完了しました: $matched$ 件一致、$selected$ 件が書き込み待ち、$unchanged$ 件変更なし",
+  "steam_libraryCustomName_importAllDone": {
+    "message": "インポート完了：一致 $matched$ 件、取り込み $imported$ 件",
     "placeholders": {
       "matched": {
         "content": "$1"
       },
-      "selected": {
+      "imported": {
         "content": "$2"
-      },
-      "unchanged": {
-        "content": "$3"
       }
     }
   },
-  "steam_libraryCustomName_importCover": {
-    "message": "上書きインポート"
+  "steam_libraryCustomName_importCancel": {
+    "message": "インポートをキャンセル"
   },
-  "steam_libraryCustomName_importCoverDone": {
-    "message": "上書きインポートが完了しました: $matched$ 件一致、$selected$ 件が書き込み待ち",
+  "steam_libraryCustomName_importPromptDetail": {
+    "message": "うちカスタム名あり $existing$ 件、未設定 $unset$ 件",
+    "placeholders": {
+      "existing": {
+        "content": "$1"
+      },
+      "unset": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importPromptStats": {
+    "message": "ファイル内の名前 $file$ 件、ライブラリ内一致 $matched$ 件",
+    "placeholders": {
+      "file": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importPromptTitle": {
+    "message": "既存のカスタム名があるゲームもインポートしますか？"
+  },
+  "steam_libraryCustomName_importUnset": {
+    "message": "未設定のみ"
+  },
+  "steam_libraryCustomName_importUnsetDone": {
+    "message": "インポート完了：一致 $matched$ 件、取り込み $imported$ 件、スキップ $skipped$ 件",
     "placeholders": {
       "matched": {
         "content": "$1"
       },
-      "selected": {
+      "imported": {
         "content": "$2"
+      },
+      "skipped": {
+        "content": "$3"
       }
     }
   },
@@ -3650,12 +3689,6 @@
       }
     }
   },
-  "steam_libraryCustomName_importModeMessage": {
-    "message": "この JSON ファイルの処理方法を選択してください"
-  },
-  "steam_libraryCustomName_importModeTitle": {
-    "message": "インポートモードを選択"
-  },
   "steam_libraryCustomName_inputMissing": {
     "message": "カスタム並べ替え名の入力欄が見つかりませんでした"
   },
@@ -3668,8 +3701,11 @@
   "steam_libraryCustomName_jsonItemsRequired": {
     "message": "JSON には items 配列が必要です"
   },
+  "steam_libraryCustomName_jsonMatchMissing": {
+    "message": "ライブラリ内にインポートできるゲームが見つかりませんでした"
+  },
   "steam_libraryCustomName_jsonNameMissing": {
-    "message": "JSON 内で appid/name フィールドを認識できませんでした"
+    "message": "JSON 内で appid/custom_name フィールドを認識できませんでした"
   },
   "steam_libraryCustomName_jsonReadFailed": {
     "message": "JSON ファイルの読み取りに失敗しました"

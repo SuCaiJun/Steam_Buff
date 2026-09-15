@@ -3300,9 +3300,6 @@
   "steam_libraryCustomName_channelUnavailable": {
     "message": "通信通道不可用"
   },
-  "steam_libraryCustomName_chooseImportMode": {
-    "message": "请选择导入方式"
-  },
   "steam_libraryCustomName_clearBatchWaiting": {
     "message": "第 $batch$ 批清空完成，等待 Steam 云同步 $seconds$ 秒",
     "placeholders": {
@@ -3505,8 +3502,11 @@
   "steam_libraryCustomName_entryBootstrapTimeout": {
     "message": "Steam CloudStorage Entry 引导写入超时"
   },
-  "steam_libraryCustomName_exported": {
-    "message": "已导出 $count$ 项当前自定义排序名称",
+  "steam_libraryCustomName_exportAccept": {
+    "message": "确认"
+  },
+  "steam_libraryCustomName_exportConfirm": {
+    "message": "是否导出 $count$ 个游戏？",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -3514,7 +3514,18 @@
     }
   },
   "steam_libraryCustomName_exportEmpty": {
-    "message": "当前没有可导出的自定义排序名称"
+    "message": "当前没有勾选要导出的游戏"
+  },
+  "steam_libraryCustomName_exportTitle": {
+    "message": "导出名称"
+  },
+  "steam_libraryCustomName_exported": {
+    "message": "已导出 $count$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "steam_libraryCustomName_fastWriteNoResult": {
     "message": "Steam CloudStorage 快速写入未返回结果，保存队列已安全中止"
@@ -3608,34 +3619,62 @@
   "steam_libraryCustomName_generatingSingleMnemonic": {
     "message": "生成中..."
   },
-  "steam_libraryCustomName_importChanges": {
-    "message": "仅新增与修改"
+  "steam_libraryCustomName_importAll": {
+    "message": "全部导入"
   },
-  "steam_libraryCustomName_importChangesDone": {
-    "message": "仅新增与修改导入完成，匹配 $matched$ 项，待写入 $selected$ 项，已存在 $unchanged$ 项",
+  "steam_libraryCustomName_importAllDone": {
+    "message": "导入完成，匹配 $matched$ 项，已导 $imported$ 项",
     "placeholders": {
       "matched": {
         "content": "$1"
       },
-      "selected": {
+      "imported": {
         "content": "$2"
-      },
-      "unchanged": {
-        "content": "$3"
       }
     }
   },
-  "steam_libraryCustomName_importCover": {
-    "message": "覆盖导入"
+  "steam_libraryCustomName_importCancel": {
+    "message": "取消导入"
   },
-  "steam_libraryCustomName_importCoverDone": {
-    "message": "覆盖导入完成，匹配 $matched$ 项，待写入 $selected$ 项",
+  "steam_libraryCustomName_importPromptDetail": {
+    "message": "其中已有自定义名称 $existing$ 项，未设置 $unset$ 项",
+    "placeholders": {
+      "existing": {
+        "content": "$1"
+      },
+      "unset": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importPromptStats": {
+    "message": "文件中名称 $file$ 项，库内匹配 $matched$ 项",
+    "placeholders": {
+      "file": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_libraryCustomName_importPromptTitle": {
+    "message": "是否导入已存在自定义名称的游戏？"
+  },
+  "steam_libraryCustomName_importUnset": {
+    "message": "仅未设置"
+  },
+  "steam_libraryCustomName_importUnsetDone": {
+    "message": "导入完成，匹配 $matched$ 项，已导 $imported$ 项，跳过 $skipped$ 项",
     "placeholders": {
       "matched": {
         "content": "$1"
       },
-      "selected": {
+      "imported": {
         "content": "$2"
+      },
+      "skipped": {
+        "content": "$3"
       }
     }
   },
@@ -3650,12 +3689,6 @@
       }
     }
   },
-  "steam_libraryCustomName_importModeMessage": {
-    "message": "请选择本次 JSON 文件的处理方式"
-  },
-  "steam_libraryCustomName_importModeTitle": {
-    "message": "选择导入方式"
-  },
   "steam_libraryCustomName_inputMissing": {
     "message": "未找到自定义排序名称输入框"
   },
@@ -3668,8 +3701,11 @@
   "steam_libraryCustomName_jsonItemsRequired": {
     "message": "JSON 格式应包含 items 数组"
   },
+  "steam_libraryCustomName_jsonMatchMissing": {
+    "message": "库内没有匹配到可导入的游戏"
+  },
   "steam_libraryCustomName_jsonNameMissing": {
-    "message": "JSON 中没有识别到 appid/name"
+    "message": "JSON 中没有识别到 appid/custom_name"
   },
   "steam_libraryCustomName_jsonReadFailed": {
     "message": "JSON 文件读取失败"
