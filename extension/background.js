@@ -320,6 +320,7 @@
       "store/features/reminders/subscription-info.js",
       "store/features/reminders/family-library-owned-marker.js",
       "store/features/notes/game-notes.js",
+      "store/features/funds/custom-wallet-amount.js",
     ]),
   });
   const STORE_START_SCRIPTS = Object.freeze([

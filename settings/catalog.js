@@ -802,6 +802,14 @@
             },
           ]),
         },
+        {
+          id: "custom-wallet-amount",
+          name: "自定义充值金额",
+          desc: "在 Steam 钱包充值和礼物卡页输入不低于最低档的自定义金额。",
+          help: "自定义充值金额",
+          area: "store",
+          enabled: true,
+        },
       ]),
     },
     {

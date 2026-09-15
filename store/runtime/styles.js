@@ -3948,6 +3948,45 @@
       }
     `,
     },
+    "custom-wallet-amount": {
+      id: "st-custom-wallet-amount-style",
+      css: `
+      .st-custom-wallet-amount__input {
+        box-sizing: border-box;
+        width: 88px;
+        min-width: 72px;
+        margin: 0 var(--st-spacing-xxs, 2px);
+        padding: 0 var(--st-spacing-xs, 4px);
+        color: inherit;
+        font: inherit;
+        text-align: inherit;
+        background: var(--st-color-bg-input, transparent);
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: var(--st-radius-sm, 2px);
+      }
+
+      .st-custom-wallet-amount__input:focus {
+        outline: 1px solid var(--st-color-steam-blue);
+        outline-offset: 1px;
+      }
+
+      .st-custom-wallet-amount.is-invalid .st-custom-wallet-amount__hint {
+        color: var(--st-color-danger-text);
+      }
+
+      .st-custom-wallet-amount [aria-disabled="true"] {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .st-custom-wallet-amount .giftcard_style {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: var(--st-spacing-xs, 4px);
+      }
+    `,
+    },
     "store-common-feature": {
       id: "st-store-common-feature-style",
       css: STORE_COMMON_FEATURE_CSS,

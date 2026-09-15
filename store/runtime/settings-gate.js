@@ -51,6 +51,17 @@
       },
     },
     {
+      id: "custom-wallet-amount",
+      module: "customWalletAmount",
+      pageScope: ["store-other"],
+      start(api) {
+        return api.features.customWalletAmount?.start?.();
+      },
+      stop(api) {
+        return api.features.customWalletAmount?.stop?.();
+      },
+    },
+    {
       id: "family-library-detail-card",
       module: "familyLibraryOwnedMarker",
       pageScope: ["store-app"],

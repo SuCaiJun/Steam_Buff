@@ -149,6 +149,12 @@
   "settings_feature_cart_select_desc": {
     "message": "지금 구매할 장바구니 항목을 선택하고 구매하지 않은 항목을 나중에 복원합니다."
   },
+  "settings_feature_custom_wallet_amount_name": {
+    "message": "사용자 지정 충전 금액"
+  },
+  "settings_feature_custom_wallet_amount_desc": {
+    "message": "Steam 지갑 충전과 기프트 카드 페이지에서 최저 금액 이상의 금액을 입력합니다."
+  },
   "settings_feature_search_suggestions_name": {
     "message": "검색 제안"
   },
@@ -4994,6 +5000,39 @@
   },
   "store_cartSelect_skipPayment": {
     "message": "지금 결제하지 않기"
+  },
+  "store_customWalletAmount_belowMin": {
+    "message": "최저 금액 $min$ 미만은 사용할 수 없습니다",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_giftBelowMin": {
+    "message": "$min$ 미만은 사용할 수 없습니다",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_giftHint": {
+    "message": "사용자 지정 기프트 카드 금액"
+  },
+  "store_customWalletAmount_hint": {
+    "message": "$min$ 이상의 금액을 입력하세요",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_inputAria": {
+    "message": "사용자 지정 금액"
+  },
+  "store_customWalletAmount_title": {
+    "message": "사용자 지정 금액 충전"
   },
   "store_dlc_addingToCart": {
     "message": "장바구니에 추가하는 중..."

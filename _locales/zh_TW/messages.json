@@ -149,6 +149,12 @@
   "settings_feature_cart_select_desc": {
     "message": "在購物車中選擇本次付款項目，並可還原未付款項目。"
   },
+  "settings_feature_custom_wallet_amount_name": {
+    "message": "自訂儲值金額"
+  },
+  "settings_feature_custom_wallet_amount_desc": {
+    "message": "在 Steam 錢包儲值和禮物卡頁輸入不低於最低檔的自訂金額。"
+  },
   "settings_feature_search_suggestions_name": {
     "message": "搜尋聯想詞"
   },
@@ -4994,6 +5000,39 @@
   },
   "store_cartSelect_skipPayment": {
     "message": "本次不付款"
+  },
+  "store_customWalletAmount_belowMin": {
+    "message": "不能低於最低資金級別 $min$",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_giftBelowMin": {
+    "message": "不能低於 $min$",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_giftHint": {
+    "message": "選擇自訂金額"
+  },
+  "store_customWalletAmount_hint": {
+    "message": "請輸入不低於 $min$ 的金額",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_inputAria": {
+    "message": "自訂金額"
+  },
+  "store_customWalletAmount_title": {
+    "message": "儲值自訂金額"
   },
   "store_dlc_addingToCart": {
     "message": "正在加入購物車..."

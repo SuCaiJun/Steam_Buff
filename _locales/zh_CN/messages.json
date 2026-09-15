@@ -149,6 +149,12 @@
   "settings_feature_cart_select_desc": {
     "message": "在购物车中选择本次支付项目，并可恢复未支付项目。"
   },
+  "settings_feature_custom_wallet_amount_name": {
+    "message": "自定义充值金额"
+  },
+  "settings_feature_custom_wallet_amount_desc": {
+    "message": "在 Steam 钱包充值和礼物卡页输入不低于最低档的自定义金额。"
+  },
   "settings_feature_search_suggestions_name": {
     "message": "搜索联想词"
   },
@@ -4994,6 +5000,39 @@
   },
   "store_cartSelect_skipPayment": {
     "message": "本次不支付"
+  },
+  "store_customWalletAmount_belowMin": {
+    "message": "不能低于最低资金级别 $min$",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_giftBelowMin": {
+    "message": "不能低于 $min$",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_giftHint": {
+    "message": "选择自定义金额"
+  },
+  "store_customWalletAmount_hint": {
+    "message": "请输入不低于 $min$ 的金额",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_inputAria": {
+    "message": "自定义金额"
+  },
+  "store_customWalletAmount_title": {
+    "message": "充值自定义金额"
   },
   "store_dlc_addingToCart": {
     "message": "正在加入购物车..."

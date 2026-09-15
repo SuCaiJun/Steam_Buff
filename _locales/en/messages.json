@@ -149,6 +149,12 @@
   "settings_feature_cart_select_desc": {
     "message": "Select which cart items to purchase now and restore unpaid items afterward."
   },
+  "settings_feature_custom_wallet_amount_name": {
+    "message": "Custom Wallet Amount"
+  },
+  "settings_feature_custom_wallet_amount_desc": {
+    "message": "Enter a custom amount at or above the minimum on Steam wallet and gift card pages."
+  },
   "settings_feature_search_suggestions_name": {
     "message": "Search Suggestions"
   },
@@ -4994,6 +5000,39 @@
   },
   "store_cartSelect_skipPayment": {
     "message": "Do not pay now"
+  },
+  "store_customWalletAmount_belowMin": {
+    "message": "Amount cannot be below the minimum $min$",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_giftBelowMin": {
+    "message": "Amount cannot be below $min$",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_giftHint": {
+    "message": "Custom gift card amount"
+  },
+  "store_customWalletAmount_hint": {
+    "message": "Enter an amount of at least $min$",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_inputAria": {
+    "message": "Custom amount"
+  },
+  "store_customWalletAmount_title": {
+    "message": "Add custom amount"
   },
   "store_dlc_addingToCart": {
     "message": "Adding to cart..."

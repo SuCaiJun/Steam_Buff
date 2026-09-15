@@ -149,6 +149,12 @@
   "settings_feature_cart_select_desc": {
     "message": "今すぐ購入するカート内の商品を選択し、未購入の商品を後で復元します。"
   },
+  "settings_feature_custom_wallet_amount_name": {
+    "message": "カスタム入金額"
+  },
+  "settings_feature_custom_wallet_amount_desc": {
+    "message": "Steamウォレット入金とギフトカードページで、最低額以上の任意金額を入力できます。"
+  },
   "settings_feature_search_suggestions_name": {
     "message": "検索候補"
   },
@@ -4994,6 +5000,39 @@
   },
   "store_cartSelect_skipPayment": {
     "message": "今は支払わない"
+  },
+  "store_customWalletAmount_belowMin": {
+    "message": "最低額 $min$ を下回ることはできません",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_giftBelowMin": {
+    "message": "$min$ を下回ることはできません",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_giftHint": {
+    "message": "カスタムギフトカード金額"
+  },
+  "store_customWalletAmount_hint": {
+    "message": "$min$ 以上の金額を入力してください",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_customWalletAmount_inputAria": {
+    "message": "カスタム金額"
+  },
+  "store_customWalletAmount_title": {
+    "message": "カスタム金額を追加"
   },
   "store_dlc_addingToCart": {
     "message": "カートに追加しています..."
