@@ -1352,8 +1352,8 @@
     const operationId = globalThis.STLoggerFactory.createOperationId();
     logSettingsBackup("info", "settings-import-read-start", "开始读取设置备份文件", { operationId });
     try {
-      const text = await readFileText(file);
-      const preview = backup.inspectPackage(text);
+      const fileText = await readFileText(file);
+      const preview = backup.inspectPackage(fileText);
       const action = await ctx.dialog(shadow, {
         title: text("about.backup.importTitle", "导入设置备份"),
         message: importSummary(preview),
@@ -1368,7 +1368,7 @@
       }
 
       logSettingsBackup("info", "settings-import-start", "开始导入设置备份", { ...preview.stats, operationId });
-      const result = await backup.importPackage(text);
+      const result = await backup.importPackage(fileText);
       logSettingsBackup("info", "settings-import-success", "设置备份导入成功", {
         ...(result.stats || {}),
         operationId,
