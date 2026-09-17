@@ -1,0 +1,5 @@
+{
+  "name": "Steam Buff",
+  "install": "bash .cursor/validate.sh",
+  "chromeExecutablePath": "/usr/bin/google-chrome"
+}
