@@ -22,7 +22,6 @@
   const DEFAULT_HISTORY_SINCE = "1996-07-01T00:00:00Z";
   const UNSUPPORTED_MESSAGE = "当前平台暂不支持该能力。";
   const READY_CAPABILITIES = Object.freeze(new Set(["stable", "optional"]));
-  const FESTIVAL_TYPES = Object.freeze(new Set(["seasonal_sale", "themed_sale", "next_fest", "other"]));
   const FESTIVAL_DEFAULT_BEFORE_MONTHS = 36;
   const FESTIVAL_DEFAULT_AFTER_MONTHS = 12;
   const FESTIVAL_MAX_MONTHS = 60;
@@ -135,15 +134,23 @@
     const type = text(item.type);
     const typeLabel = text(item.type_label);
     if (!name) throw new TypeError("Steam 节日名称不能为空");
-    if (!FESTIVAL_TYPES.has(type)) throw new TypeError("Steam 节日类型无效");
+    if (typeof item.type !== "string" || !/^[a-z][a-z0-9_]{0,31}$/.test(type)) throw new TypeError("Steam 节日类型无效");
     if (!typeLabel) throw new TypeError("Steam 节日类型名称不能为空");
+    // v1 的既有响应没有颜色；v2 提供时必须遵守六位十六进制契约，不生成默认颜色。
+    let typeColor = null;
+    if (item.type_color !== undefined) {
+      if (typeof item.type_color !== "string" || item.type_color.length !== 7 || !/^#[0-9a-fA-F]{6}$/.test(item.type_color)) {
+        throw new TypeError("Steam 节日类型颜色无效");
+      }
+      typeColor = item.type_color.toUpperCase();
+    }
     const startsAt = festivalTime(item.starts_at, "starts_at");
     const endsAt = festivalTime(item.ends_at, "ends_at");
     const updatedAt = festivalTime(item.updated_at, "updated_at");
     if (Date.parse(endsAt) <= Date.parse(startsAt)) {
       throw new TypeError("Steam 节日结束时间必须晚于开始时间");
     }
-    return Object.freeze({ name, type, typeLabel, startsAt, endsAt, updatedAt });
+    return Object.freeze({ name, type, typeLabel, typeColor, startsAt, endsAt, updatedAt });
   }
 
   function normalizeFestivalItems(items, field) {
