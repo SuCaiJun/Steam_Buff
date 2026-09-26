@@ -186,7 +186,7 @@
                 <h1 id="client-title" tabindex="-1">客户端增强</h1>
                 <button class="step-tutorial" type="button" data-action="open-step-tutorial" data-tutorial-key="客户端增强">查看教程</button>
               </div>
-              <p class="step-description">选择要启用的 Steam 客户端增强；进入下一步时保存，之后仍可在设置中心修改子选项。</p>
+              <p class="step-description">选择库名称方案和要启用的 Steam 客户端增强；进入下一步时保存，之后仍可在设置中心修改。</p>
             </header>
             <div class="setup-card" id="client-surface">
               <div class="setup-card-head" id="client-control">
@@ -199,8 +199,15 @@
                 </button>
               </div>
               <div class="setup-card-body client-scope-panel" aria-label="客户端增强功能">
-                <p class="setup-group-title">功能列表</p>
-                <div class="client-feature-list" id="client-feature-list"></div>
+                <div class="client-name-mode" id="client-name-mode">
+                  <p class="setup-group-title">库自定义名称方案</p>
+                  <p class="client-name-mode-lead" id="client-name-mode-lead">默认使用 Steam 云存储版，继续显示 Steam 里已有的自定义排序名称。素材君云存储版可换电脑独立同步，赞助者可在本步改选。</p>
+                  <div class="client-name-mode-options" id="client-name-mode-options" role="radiogroup" aria-label="库自定义名称方案" aria-describedby="client-name-mode-lead"></div>
+                </div>
+                <div class="client-feature-scope" id="client-feature-scope">
+                  <p class="setup-group-title">功能列表</p>
+                  <div class="client-feature-list" id="client-feature-list"></div>
+                </div>
                 <p class="client-scope-note" id="client-scope-note">开启后将在 Steam 客户端对应页面加载这些增强；部分功能需重启 Steam 后生效。</p>
               </div>
             </div>

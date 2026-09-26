@@ -145,40 +145,41 @@
     applyRailPos(y, side, save);
   }
 
-  function fixedScrollTargets() {
-    return [
-      document.scrollingElement,
-      document.documentElement,
-      document.body,
-      document.querySelector("#responsive_page_template_content"),
-      document.querySelector(".responsive_page_frame"),
-      document.querySelector(".DialogContent"),
-      document.querySelector(".ModalPosition_Content"),
-      document.querySelector("[class*='scroll'][class*='Scroll']"),
-    ].filter(Boolean);
+  // 共享模块缺失时只退回文档根节点，不扫描页面
+  function fallbackScrollTargets() {
+    function targets() {
+      return Array.from(new Set([
+        document.scrollingElement,
+        document.documentElement,
+        document.body,
+      ].filter((target) => target && typeof target.scrollTop === "number")));
+    }
+    return {
+      scrollTargets: targets,
+      scrollY() {
+        const top = root.scrollY || document.documentElement.scrollTop || document.body?.scrollTop || 0;
+        if (top > 0) {
+          return top;
+        }
+        for (const el of targets()) {
+          if (el.scrollTop > 0) {
+            return el.scrollTop;
+          }
+        }
+        return 0;
+      },
+      rememberScrollTarget() {},
+    };
   }
 
-  function scrollTargets() {
-    const fixed = fixedScrollTargets();
-    const active = Array.from(document.querySelectorAll("*")).filter((el) => el.scrollTop > 0);
-    return Array.from(new Set([...fixed, ...active]));
-  }
+  const scroll = root.STSettingsScrollTargets?.create?.() || fallbackScrollTargets();
 
   function scrollY() {
-    const top = root.scrollY || document.documentElement.scrollTop || document.body?.scrollTop || 0;
-    if (top > 0) {
-      return top;
-    }
-    for (const el of fixedScrollTargets()) {
-      if (el.scrollTop > 0) {
-        return el.scrollTop;
-      }
-    }
-    return 0;
+    return scroll.scrollY();
   }
 
   function toTop() {
-    const targets = scrollTargets();
+    const targets = scroll.scrollTargets();
     try {
       root.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
@@ -212,7 +213,9 @@
     }
   }
 
-  function scheduleTopButton() {
+  function scheduleTopButton(event) {
+    // 合并到下一帧前记住容器；共享模块最多 8 个，scrollTop 为 0 不记，这里不打日志
+    scroll.rememberScrollTarget(event?.target);
     if (topFrameRaf) {
       return;
     }

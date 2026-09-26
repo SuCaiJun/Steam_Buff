@@ -19,7 +19,7 @@
     operationId: runtimeCorrelation.steamBuffRuntimeOperationId || "",
   });
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
-  const RUNTIME_VERSION = "steam-buff-runtime-v20";
+  const RUNTIME_VERSION = "steam-buff-runtime-v27";
   const RUNTIME_OPERATION_ATTR = "steamBuffRuntimeOperationId";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
@@ -225,6 +225,7 @@
     clearTimer(api.runtime?.timer, "runtime.timer");
     if (api.ctx?.isShared?.() !== true) {
       stopState("library-custom-name");
+      stopState("library-independent-name");
       stopState("download-batch-actions");
       stopState("download-auto-shutdown");
       try {
@@ -264,6 +265,19 @@
     return out;
   }
 
+  function enabledFeatureIds(data) {
+    const keys = Array.isArray(data?.startKeys) ? data.startKeys : [];
+    const known = new Set((reg.list?.() || []).map(item => item.id));
+    const out = [];
+    for (const key of keys) {
+      const id = String(key || "").trim();
+      if (id && known.has(id) && !out.includes(id)) {
+        out.push(id);
+      }
+    }
+    return out;
+  }
+
   function stopDisabledFeature(featureId) {
     const ownerPrefix = `steam:${featureId}:`;
     let disposedCount = 0;
@@ -287,6 +301,17 @@
     });
   }
 
+  async function startEnabledFeature(featureId) {
+    if (typeof reg.startFeature !== "function") {
+      return;
+    }
+    const results = await reg.startFeature(featureId);
+    const noted = results.filter((result) => result.status !== "skipped" && result.unchanged !== true);
+    if (noted.length) {
+      api.runtime.results.push(...noted);
+    }
+  }
+
   function installFeatureDisabledListener() {
     const handler = (event) => {
       if (event.source !== window) {
@@ -298,6 +323,18 @@
       }
       for (const featureId of disabledFeatureIds(data)) {
         stopDisabledFeature(featureId);
+      }
+      const startIds = enabledFeatureIds(data);
+      if (startIds.length) {
+        (async () => {
+          for (const featureId of startIds) {
+            await startEnabledFeature(featureId);
+          }
+        })().catch((error) => {
+          log.error("runtime-feature-enable-failed", "Steam 客户端功能切换启动失败", {
+            error,
+          });
+        });
       }
     };
     if (runtime?.listener) {

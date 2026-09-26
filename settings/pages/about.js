@@ -69,8 +69,6 @@
     .about-log-close:focus-visible,
     .about-settings-export:focus-visible,
     .about-settings-import:focus-visible,
-    .about-settings-sensitive:focus-visible,
-    .about-settings-sensitive-toggle:focus-visible,
     .about-action-link:focus-visible,
     .about-update-link:focus-visible {
       outline: 2px solid var(--st-color-steam-blue);
@@ -479,56 +477,6 @@
     .about-log-health.bad {
       background: var(--st-color-danger-soft);
       box-shadow: 0 0 7px var(--st-color-danger-soft-alpha-55);
-    }
-
-    .about-settings-toggle-wrap {
-      position: absolute;
-      top: 14px;
-      right: 14px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--st-color-warning-soft);
-      font-size: 11px;
-      cursor: pointer;
-    }
-
-    .about-settings-sensitive {
-      position: absolute;
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    .about-settings-sensitive-toggle {
-      width: 28px;
-      height: 16px;
-      border: 1px solid var(--st-color-white-alpha-10);
-      border-radius: 999px;
-      background: var(--st-color-white-alpha-08);
-      position: relative;
-      transition: all .15s ease;
-    }
-
-    .about-settings-sensitive-toggle::after {
-      content: "";
-      width: 12px;
-      height: 12px;
-      border-radius: 999px;
-      position: absolute;
-      top: 1px;
-      left: 1px;
-      background: var(--st-color-text-secondary-alt);
-      transition: transform .15s ease, background .15s ease;
-    }
-
-    .about-settings-sensitive:checked + .about-settings-sensitive-toggle {
-      border-color: transparent;
-      background: linear-gradient(135deg, var(--st-color-steam-blue), var(--st-color-primary-accent));
-    }
-
-    .about-settings-sensitive:checked + .about-settings-sensitive-toggle::after {
-      background: var(--st-color-white);
-      transform: translateX(12px);
     }
 
     .about-settings-file {
@@ -1240,11 +1188,14 @@
   function sectionText(sections) {
     const names = {
       features: text("about.backup.section.features", "功能开关"),
+      uiLocale: text("about.backup.section.uiLocale", "界面语言"),
+      familyLibrary: text("about.backup.section.familyLibrary", "家庭库刷新"),
+      storePriceChart: text("about.backup.section.storePriceChart", "价格图表"),
+      searchSuggestions: text("about.backup.section.searchSuggestions", "搜索联想"),
+      reviewFilter: text("about.backup.section.reviewFilter", "评论过滤"),
       translate: text("about.backup.section.translate", "翻译参数"),
       ai: text("about.backup.section.ai", "AI 参数"),
-      reviewFilter: text("about.backup.section.reviewFilter", "评论过滤"),
-      searchSuggestions: text("about.backup.section.searchSuggestions", "搜索联想"),
-      familyLibrary: text("about.backup.section.familyLibrary", "家庭库刷新"),
+      thirdPartyServices: text("about.backup.section.thirdPartyServices", "第三方服务"),
     };
     const list = (sections || []).map(section => names[section] || section);
     return list.length ? list.join(text("common.listSeparator", "、")) : text("about.backup.noSections", "无可识别分区");
@@ -1294,8 +1245,8 @@
     for (const key of ["imported", "defaulted", "skipped", "exported"]) {
       if (meta[key] !== undefined && meta[key] !== null) details[key] = Number(meta[key]) || 0;
     }
-    for (const key of ["includeSensitive", "hasSensitive"]) {
-      if (meta[key] !== undefined && meta[key] !== null) details[key] = meta[key] === true;
+    if (meta.hasSensitive !== undefined && meta.hasSensitive !== null) {
+      details.hasSensitive = meta.hasSensitive === true;
     }
     if (meta.durationMs !== undefined && meta.durationMs !== null) {
       details.durationMs = Math.max(0, Number(meta.durationMs) || 0);
@@ -1303,7 +1254,7 @@
     log[method](event, message, details);
   }
 
-  async function exportSettings(shadow, ctx, options = {}) {
+  async function exportSettings(shadow, ctx) {
     const backup = backupApi();
     if (!backup?.exportPackage) {
       ctx.dialog(shadow, {
@@ -1312,15 +1263,26 @@
       });
       return;
     }
-    const includeSensitive = options.includeSensitive === true;
+    const confirmAction = await ctx.dialog(shadow, {
+      title: text("about.backup.exportConfirmTitle", "导出设置"),
+      message: text("about.backup.exportConfirmMessage", "本操作将导出所有配置数据(包含API密钥)，请勿随意外传导出文件！"),
+      actions: [
+        { id: "cancel", label: text("about.backup.cancelExport", "取消导出") },
+        { id: "export", label: text("about.backup.confirmExport", "确认导出"), primary: true },
+      ],
+    });
+    if (confirmAction !== "export") {
+      const operationId = globalThis.STLoggerFactory.createOperationId();
+      logSettingsBackup("info", "settings-export-skipped", "用户取消导出设置备份", { operationId });
+      return;
+    }
     const startedAt = Date.now();
     const operationId = globalThis.STLoggerFactory.createOperationId();
-    logSettingsBackup("info", "settings-export-start", "开始导出设置备份", { includeSensitive, operationId });
+    logSettingsBackup("info", "settings-export-start", "开始导出设置备份", { operationId });
     try {
-      const out = await backup.exportPackage({ includeSensitive });
+      const out = await backup.exportPackage();
       downloadText(out.filename, out.data);
       logSettingsBackup("info", "settings-export-success", "设置备份导出成功", {
-        includeSensitive,
         exported: out.stats?.exported,
         hasSensitive: out.stats?.hasSensitive,
         operationId,
@@ -1961,11 +1923,6 @@
         title: text("about.card.backup.title", "设置备份"),
         desc: text("about.card.backup.desc", "导入导出功能与个性化配置"),
         extra: `
-          <label class="about-settings-toggle-wrap" title="${ctx.esc(text("about.card.backup.sensitiveTitle", "包含 AI 密钥等敏感配置"))}">
-            <span>${ctx.esc(text("about.card.backup.sensitive", "含密钥"))}</span>
-            <input class="about-settings-sensitive" type="checkbox">
-            <span class="about-settings-sensitive-toggle"></span>
-          </label>
           <input class="about-settings-file" type="file" accept="application/json,.json" hidden>
         `,
         actions: `<button class="about-action-link about-settings-export" type="button">${ctx.esc(text("common.export", "导出"))}</button><button class="about-action-link divider about-settings-import" type="button">${ctx.esc(text("common.import", "导入"))}</button>`,
@@ -2051,9 +2008,7 @@
     }
 
     if (event.target.closest(".about-settings-export")) {
-      exportSettings(shadow, ctx, {
-        includeSensitive: shadow.querySelector(".about-settings-sensitive")?.checked === true,
-      });
+      void exportSettings(shadow, ctx);
       return true;
     }
 

@@ -25,6 +25,8 @@
     const depNames = typeof options.depNames === "function" ? options.depNames : () => "上级开关";
     const lockText = typeof options.lockText === "function" ? options.lockText : (item) => item.lock || `需开启 ${depNames(item)}`;
     const state = typeof options.state === "function" ? options.state : () => true;
+    const optionAvailable = typeof options.optionAvailable === "function" ? options.optionAvailable : () => true;
+    const optionLockText = typeof options.optionLockText === "function" ? options.optionLockText : (option) => option.lock || "";
     const tipIconUrl = options.tipIconUrl;
     const helpIconUrl = options.helpIconUrl;
     const drawerIconUrl = options.drawerIconUrl;
@@ -157,19 +159,45 @@
       `;
     }
 
+    function booleanMode(item) {
+      const options = Array.isArray(item?.options) ? item.options : [];
+      return options.length > 0 && options.every((option) => typeof option.value === "boolean");
+    }
+
+    function modeRadioValue(option) {
+      return typeof option.value === "boolean" ? (option.value ? "true" : "false") : String(option.value ?? "");
+    }
+
+    function modeSelectedValue(item) {
+      if (booleanMode(item)) {
+        return state(item.id) === true;
+      }
+      const stored = String(state(item.id) || item.default || "");
+      const options = Array.isArray(item.options) ? item.options : [];
+      const current = options.find((option) => String(option.value) === stored);
+      if (current && optionAvailable(current)) {
+        return stored;
+      }
+      const fallback = options.find((option) => optionAvailable(option));
+      return fallback ? String(fallback.value) : stored;
+    }
+
     function modeHtml(item) {
       const enabled = available(item);
-      const selected = state(item.id) === true;
+      const selected = modeSelectedValue(item);
+      const asBoolean = booleanMode(item);
       const name = itemName(item);
       const options = Array.isArray(item.options) ? item.options : [];
       return `
         <div class="setting-mode" role="radiogroup" aria-label="${escAttr(name)}" data-setting-mode="${escAttr(item.id)}" aria-disabled="${enabled ? "false" : "true"}">
-          ${options.map(option => {
-            const value = option.value === true;
-            const checked = selected === value;
+          ${options.map((option) => {
+            const radioValue = modeRadioValue(option);
+            const optionOn = enabled && optionAvailable(option);
+            const checked = asBoolean ? selected === (option.value === true) : selected === String(option.value);
+            const tip = optionOn ? optionLabel(option) : optionLockText(option);
             return `
-              <label class="setting-mode-option${checked ? " selected" : ""}">
-                <input type="radio" name="${escAttr(item.id)}" value="${value ? "true" : "false"}" data-setting-mode-option="${escAttr(item.id)}" ${checked ? "checked" : ""} ${enabled ? "" : "disabled"}>
+              <label class="setting-mode-option${checked ? " selected" : ""}${optionOn ? "" : " disabled"}"${tip ? ` title="${escAttr(tip)}"` : ""}>
+                <input type="radio" name="${escAttr(item.id)}" value="${escAttr(radioValue)}" data-setting-mode-option="${escAttr(item.id)}" ${checked ? "checked" : ""} ${optionOn ? "" : "disabled"}>
                 <span>${esc(optionLabel(option))}</span>
               </label>
             `;
@@ -178,8 +206,51 @@
       `;
     }
 
+    function orderValues(item) {
+      const stored = state(item.id);
+      const fallback = Array.isArray(item.default) ? item.default.slice() : [];
+      const allowed = new Set((item.options || []).map((option) => option.value));
+      const out = [];
+      for (const value of Array.isArray(stored) ? stored : []) {
+        if (allowed.has(value) && !out.includes(value)) {
+          out.push(value);
+        }
+      }
+      for (const value of fallback) {
+        if (allowed.has(value) && !out.includes(value)) {
+          out.push(value);
+        }
+      }
+      return out;
+    }
+
+    function orderHtml(item) {
+      const enabled = available(item);
+      const name = itemName(item);
+      const labels = new Map((item.options || []).map((option) => [option.value, optionLabel(option)]));
+      const values = orderValues(item);
+      return `
+        <ol class="setting-order" data-setting-order="${escAttr(item.id)}" aria-label="${escAttr(name)}" aria-disabled="${enabled ? "false" : "true"}">
+          ${values.map((value, index) => `
+            <li class="setting-order-item" draggable="${enabled ? "true" : "false"}" tabindex="0" data-setting-order-item="${escAttr(value)}" data-setting-order-index="${index}">
+              <span class="setting-order-handle" aria-hidden="true"></span>
+              <span class="setting-order-label">${esc(labels.get(value) || value)}</span>
+              <button class="setting-order-move" type="button" data-setting-order-up="${escAttr(value)}" aria-label="${escAttr(tr("settings.order.moveUp", "上移"))}" ${index === 0 || !enabled ? "disabled" : ""}>${esc(tr("settings.order.moveUp", "上移"))}</button>
+              <button class="setting-order-move" type="button" data-setting-order-down="${escAttr(value)}" aria-label="${escAttr(tr("settings.order.moveDown", "下移"))}" ${index === values.length - 1 || !enabled ? "disabled" : ""}>${esc(tr("settings.order.moveDown", "下移"))}</button>
+            </li>
+          `).join("")}
+        </ol>
+      `;
+    }
+
     function controlHtml(item) {
-      return item?.control === "mode" ? modeHtml(item) : switchHtml(item);
+      if (item?.control === "mode") {
+        return modeHtml(item);
+      }
+      if (item?.control === "order") {
+        return orderHtml(item);
+      }
+      return switchHtml(item);
     }
 
     function drawerItemHtml(item, bodyHtml) {
@@ -218,7 +289,7 @@
       `;
     }
 
-    return Object.freeze({ itemHtml, masterItemHtml, drawerItemHtml, sourceTipHtml, switchHtml, modeHtml, controlHtml, helpLinkHtml });
+    return Object.freeze({ itemHtml, masterItemHtml, drawerItemHtml, sourceTipHtml, switchHtml, modeHtml, orderHtml, controlHtml, helpLinkHtml });
   }
 
   const api = Object.freeze({ create });

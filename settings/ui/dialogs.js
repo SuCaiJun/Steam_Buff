@@ -16,41 +16,72 @@
     warn() {},
   };
 
-  function text(key, fallback) {
-    return globalThis.STI18n.text(key, fallback);
+  function text(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
   }
 
-  function focusElement(element) {
-    if (!element?.isConnected || typeof element.focus !== "function") {
-      return false;
+  function fillMessage(node, options = {}) {
+    const parts = Array.isArray(options.messageParts) ? options.messageParts : [];
+    if (!parts.length) {
+      node.textContent = String(options.message || "");
+      return;
     }
-    try {
-      element.focus({ preventScroll: true });
-    } catch {
-      element.focus();
+    node.textContent = "";
+    for (const part of parts) {
+      const value = String(part?.text || "");
+      if (!value) {
+        continue;
+      }
+      if (part.emphasize === true) {
+        const em = document.createElement("strong");
+        em.className = "settings-dialog-emphasis";
+        em.textContent = value;
+        node.appendChild(em);
+        continue;
+      }
+      node.appendChild(document.createTextNode(value));
     }
-    return true;
   }
 
-  function trapTab(layer, event) {
-    if (event.key !== "Tab") {
-      return;
+  function countdownLabel(base, seconds) {
+    const label = String(base || "");
+    const left = Number(seconds) || 0;
+    if (left <= 0) {
+      return label;
     }
-    const controls = Array.from(layer.querySelectorAll("button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])"))
-      .filter((element) => element.getClientRects().length > 0);
-    if (!controls.length) {
-      event.preventDefault();
-      return;
+    return text("common.continueCountdown", "$label$($seconds$)", {
+      label,
+      seconds: left,
+    });
+  }
+
+  function bindCountdown(btn, action) {
+    const total = Math.max(0, Math.floor(Number(action?.countdownSeconds) || 0));
+    if (!btn || total <= 0) {
+      return () => {};
     }
-    const first = controls[0];
-    const last = controls[controls.length - 1];
-    if (event.shiftKey && event.target === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && event.target === last) {
-      event.preventDefault();
-      first.focus();
-    }
+    const base = String(action.label || "");
+    let left = total;
+    let timer = 0;
+    const paint = () => {
+      btn.disabled = left > 0;
+      btn.textContent = countdownLabel(base, left);
+    };
+    const tick = () => {
+      left -= 1;
+      paint();
+      if (left > 0) {
+        timer = window.setTimeout(tick, 1000);
+      }
+    };
+    paint();
+    timer = window.setTimeout(tick, 1000);
+    return () => {
+      if (timer) {
+        window.clearTimeout(timer);
+        timer = 0;
+      }
+    };
   }
 
   function dialog(shadow, options = {}) {
@@ -78,12 +109,15 @@
     box.setAttribute("role", "dialog");
     box.setAttribute("aria-modal", "true");
     box.setAttribute("aria-labelledby", "st-settings-dialog-title");
+    box.setAttribute("aria-describedby", "st-settings-dialog-message");
     title.className = "settings-dialog-title";
     title.id = "st-settings-dialog-title";
     title.textContent = String(options.title || text("common.notice", "提示"));
     message.className = "settings-dialog-message";
-    message.textContent = String(options.message || "");
+    message.id = "st-settings-dialog-message";
+    fillMessage(message, options);
     actions.className = "settings-dialog-actions";
+    const countdownClears = [];
 
     for (const action of optionActions) {
       const btn = document.createElement("button");
@@ -91,6 +125,7 @@
       btn.type = "button";
       btn.dataset.dialogAction = String(action.id || "");
       btn.textContent = String(action.label || "");
+      countdownClears.push(bindCountdown(btn, action));
       actions.appendChild(btn);
     }
 
@@ -105,16 +140,21 @@
 
     return new Promise((resolve) => {
       let done = false;
+      let life = null;
       const close = (value) => {
         if (done) {
           return;
         }
         done = true;
+        for (const clear of countdownClears) {
+          clear();
+        }
         layer.classList.remove("show");
         window.setTimeout(() => {
           layer.remove();
-          if (!focusElement(restoreTarget)) {
-            focusElement(shadow.querySelector(".close"));
+          life?.close?.();
+          if (!globalThis.STDialogLifecycle?.focus?.(restoreTarget)) {
+            globalThis.STDialogLifecycle?.focus?.(shadow.querySelector(".close"));
           }
         }, 120);
         log.info("settings-dialog-close", "设置弹窗关闭", {
@@ -124,24 +164,23 @@
         resolve(value);
       };
 
+      life = globalThis.STDialogLifecycle?.open?.({
+        root: layer,
+        restore: restoreTarget,
+        initial: () => layer.querySelector(".dialog-btn:not(:disabled)") || layer.querySelector(".dialog-btn"),
+        onEscape: () => close("cancel"),
+      });
+
       layer.addEventListener("click", (event) => {
         const action = event.target.closest("[data-dialog-action]");
-        if (action) {
+        if (action && action.disabled !== true) {
           close(action.dataset.dialogAction || "");
-        }
-      });
-      layer.addEventListener("keydown", (event) => {
-        trapTab(layer, event);
-        if (event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          close("cancel");
         }
       });
 
       window.requestAnimationFrame(() => {
         layer.classList.add("show");
-        layer.querySelector(".dialog-btn.primary, .dialog-btn")?.focus();
+        life?.focusInitial?.();
       });
     });
   }

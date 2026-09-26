@@ -15,10 +15,18 @@
   if (!authSession) {
     throw new Error("shared/auth-session.js must load before extension/content.js");
   }
-  const { cleanAuth, nextAuth } = authSession;
+  const userNamesStore = globalThis.STUserNamesSnapshot;
+  if (!userNamesStore) {
+    throw new Error("shared/user-names-snapshot.js must load before extension/content.js");
+  }
+  const authApi = globalThis.STAuthClient;
+  if (!authApi?.createClient) {
+    throw new Error("shared/auth-client.js must load before extension/content.js");
+  }
+  const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v20";
+  const RUN_VERSION = "steam-buff-runtime-v27";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -83,6 +91,8 @@
   const LOCALE_ATTR = "steamBuffUiLocale";
   const SORT_TITLE_ID = "library-sort-title";
   const NAME_ID = "library-custom-name";
+  const INDEPENDENT_NAME_ID = "library-independent-name";
+  const NATIVE_CUSTOM_SORT_EVENTS_ID = "native-custom-sort-events";
   const NEWS_TRANSLATE_ID = "steam-news-translate";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
   const STABLE_MODE_ID = "library-sort-title-stable-mode";
@@ -113,12 +123,23 @@
   const AI_PREFIX = `${SETTINGS_PREFIX}ai.`;
   const UI_LOCALE_KEY = "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
+  const MEMBERSHIP_KEY = "steam_buff_membership";
+  // 值按 userId 分槽，退出登录不删除
+  const USER_NAMES_KEY = "st.userNames.snapshot";
+  const USER_NAMES_COMMIT = "USER_NAMES_COMMIT";
+  const USER_NAMES_ATTR = "steamBuffUserNames";
+  const USER_NAMES_SEARCH_ATTR = "steamBuffUserNameSearch";
+  const USER_NAMES_REQ_ATTR = "data-steam-buff-user-names-request";
+  const USER_NAMES_RES_ATTR = "data-steam-buff-user-names-response";
+  const API_USER_NAMES = CFG.steamBuff("/user/names");
+  const API_USER_NAMES_META = CFG.steamBuff("/user/names/meta");
   const AI_SERVICE = "steam-buff.ai";
   const NEWS_AI_MODE = "steam-news-popup";
   const NEWS_TEXT_MAX = 20000;
   const NEWS_AI_CHUNK_CHARS = 1600;
   const NEWS_AI_HARD_CHUNK_CHARS = 1800;
   const NEWS_AI_TIMEOUT_MS = 120_000;
+  const NAME_MODE_ID = CFG.libraryNameMode.key;
   const STEAM_SETTING_DEFAULTS = Object.freeze({
     [SORT_TITLE_ID]: true,
     [ORIGINAL_NAME_SEARCH_ID]: false,
@@ -130,6 +151,7 @@
     "download-batch-actions": true,
     "download-auto-shutdown": true,
     [NEWS_TRANSLATE_ID]: true,
+    [NAME_MODE_ID]: CFG.libraryNameMode.values.STEAM_SORT,
   });
   const STEAM_SETTING_IDS = Object.freeze([
     SORT_TITLE_ID,
@@ -142,10 +164,13 @@
     "download-batch-actions",
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
+    NAME_MODE_ID,
   ]);
   const STEAM_FEATURE_IDS = Object.freeze([
     SORT_TITLE_ID,
     NAME_ID,
+    NATIVE_CUSTOM_SORT_EVENTS_ID,
+    INDEPENDENT_NAME_ID,
     "download-batch-actions",
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
@@ -153,6 +178,7 @@
   const STEAM_FEATURE_SETTING_IDS = Object.freeze({
     [SORT_TITLE_ID]: SORT_TITLE_ID,
     [NAME_ID]: SORT_TITLE_ID,
+    [NATIVE_CUSTOM_SORT_EVENTS_ID]: SORT_TITLE_ID,
     "download-batch-actions": "download-batch-actions",
     "download-auto-shutdown": "download-auto-shutdown",
     [NEWS_TRANSLATE_ID]: NEWS_TRANSLATE_ID,
@@ -195,6 +221,10 @@
   let steamSettingsSnapshot = null;
   let watchSettings = false;
   let watchNames = false;
+  let watchUserNames = false;
+  let userNamesSyncing = false;
+  let namesImportId = "";
+  const IMPORT_CHUNK = 200;
   let watchLogs = false;
   let watchNewsTranslate = false;
   let bootTries = 0;
@@ -714,7 +744,22 @@
   }
 
   function settingKey(id) {
+    if (id === NAME_MODE_ID) {
+      return `${SETTINGS_PREFIX}${id}.value`;
+    }
     return `${SETTINGS_PREFIX}${id}${SETTINGS_SUFFIX}`;
+  }
+
+  function decodeSteamSetting(id, value) {
+    const def = STEAM_SETTING_DEFAULTS[id];
+    if (typeof def === "string") {
+      return typeof value === "string" && value ? value : def;
+    }
+    return typeof value === "boolean" ? value : def;
+  }
+
+  function customNamesAllowedFrom(membership) {
+    return globalThis.STConfig.customNamesAllowed(membership);
   }
 
   function transKey(id) {
@@ -796,6 +841,7 @@
         owner: "extension:content",
         ids: STEAM_SETTING_IDS,
         defaults: out,
+        keyBuilder: settingKey,
         force,
         ttlMs: 30_000,
         reason: "content-settings-load",
@@ -804,11 +850,16 @@
     }
     const rt = await storageGet(STEAM_SETTING_IDS.map(settingKey));
     for (const id of STEAM_SETTING_IDS) {
-      const value = rt[settingKey(id)];
-      out[id] = typeof value === "boolean" ? value : STEAM_SETTING_DEFAULTS[id];
+      out[id] = decodeSteamSetting(id, rt[settingKey(id)]);
     }
     settingsCache = out;
     return out;
+  }
+
+  async function loadMembership() {
+    const rt = await storageGet([MEMBERSHIP_KEY]);
+    const raw = rt[MEMBERSHIP_KEY];
+    return raw && typeof raw === "object" ? raw : {};
   }
 
   async function enabled(id) {
@@ -1395,7 +1446,19 @@
   // 页面主上下文无法直接调用 chrome API，标题/库自定义名统一走 DOM 属性桥接到内容脚本
   async function getAuth() {
     const rt = await storageGet([AUTH_KEY]);
-    return cleanAuth(rt[AUTH_KEY]);
+    const value = rt[AUTH_KEY];
+    return value && typeof value === "object" ? value : null;
+  }
+
+  // 一次读出令牌和会员 userId，绑定刷新写回时不能拆成两次读取
+  async function getAuthIdentity() {
+    const rt = await storageGet([AUTH_KEY, MEMBERSHIP_KEY]);
+    const auth = rt[AUTH_KEY] && typeof rt[AUTH_KEY] === "object" ? rt[AUTH_KEY] : null;
+    const membership = rt[MEMBERSHIP_KEY] && typeof rt[MEMBERSHIP_KEY] === "object" ? rt[MEMBERSHIP_KEY] : null;
+    return {
+      auth,
+      userId: String(membership?.userId || membership?.user?.id || "").trim(),
+    };
   }
 
   async function saveAuth(auth, diagnostics = {}) {
@@ -1426,120 +1489,72 @@
     throw error;
   }
 
-  async function touchAuth(auth, diagnostics = {}) {
-    try {
-      await saveAuth({ ...auth, last_used_at: Date.now() }, diagnostics);
-      return true;
-    } catch (error) {
-      log({
-        level: "warn",
-        domain: "extension",
-        feature: NAME_ID,
-        event: "library-custom-name-auth-persist-failed",
-        message: "库自定义名称鉴权状态更新失败，但远端操作结果已保留",
-        operationId: diagnostics.operationId || "",
-        requestId: diagnostics.requestId || "",
-        error,
-        meta: pageMeta(),
-      });
-      return false;
-    }
-  }
-
-  function parseBody(response) {
-    try {
-      return JSON.parse(response?.data || "{}");
-    } catch {
-      return { code: 0, message: "接口返回解析失败" };
-    }
-  }
-
-  function fetchBg(request) {
-    return new Promise((resolve, reject) => {
-      try {
-        if (globalThis.STMessageBus?.send) {
-          globalThis.STMessageBus.send({
-            type: "STORE_FETCH",
-            ...request,
-          }, {
-            timeoutMs: request.timeoutMs || 12_000,
-          }).then((response) => {
-            if (!response?.success) {
-              reject(new Error(response?.error || "后台请求失败"));
-              return;
-            }
-            resolve(response);
-          }).catch(reject);
-          return;
-        }
-        chrome.runtime.sendMessage({
-          type: "STORE_FETCH",
-          ...request,
-        }, (response) => {
-          const err = chrome.runtime.lastError;
-          if (err) {
-            reject(new Error(err.message || "后台请求失败"));
-            return;
-          }
-          if (!response?.success) {
-            reject(new Error(response?.error || "后台请求失败"));
-            return;
-          }
-          resolve(response);
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
   function authError(message) {
     const error = new Error(message);
     error.code = 401;
     return error;
   }
 
-  async function refreshAuth(auth, diagnostics = {}) {
-    if (!auth?.refresh_token) {
-      await clearAuthOrThrow(diagnostics);
-      throw authError("请先在设置中登录");
-    }
-
-    const response = await fetchBg({
-      url: AUTH_REFRESH,
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      data: {
-        refresh_token: auth.refresh_token,
-      },
-      allowHttpError: true,
-      operationId: diagnostics.operationId || "",
-      requestId: diagnostics.requestId || "",
-    });
-    const body = parseBody(response);
-    const code = Number(body?.code) || response.status || 0;
-    if (code < 200 || code >= 300 || !body?.access_token) {
-      await clearAuthOrThrow(diagnostics);
-      throw authError(body?.message || "登录已过期，请重新登录");
-    }
-
-    const next = nextAuth(body, auth);
-    await saveAuth(next, diagnostics);
-    return next;
+  function ownerChangedError() {
+    const error = new Error("账号已切换");
+    error.code = "owner-changed";
+    return error;
   }
 
-  async function readyAuth(diagnostics = {}) {
-    const auth = await getAuth();
-    if (!auth?.access_token && !auth?.refresh_token) {
-      throw authError("请先在设置中登录");
+  let nameAuth = null;
+
+  // 内容脚本只提供存储适配，令牌刷新和写回约束走公共认证客户端
+  // 未带 ownerId 的请求也交给公共客户端，只改 last_used_at
+  function nameAuthClient() {
+    if (!nameAuth) {
+      nameAuth = authApi.createClient({
+        storage: {
+          getAuth,
+          getAuthIdentity,
+          setAuth: saveAuth,
+          clearAuth: clearAuthOrThrow,
+        },
+        refreshUrl: AUTH_REFRESH,
+      });
     }
-    if (authSession.expired(auth)) {
-      return refreshAuth(auth, diagnostics);
+    return nameAuth;
+  }
+
+  function mapAuthFailure(error) {
+    if (error?.code === "owner-changed") {
+      throw ownerChangedError();
     }
-    return auth;
+    if (Number(error?.status) === 401) {
+      throw authError(error.message || "请先在设置中登录");
+    }
+    throw error;
+  }
+
+  async function authedBridge(url, options, diagnostics = {}) {
+    const client = nameAuthClient();
+    try {
+      return await client.authedRequest(url, {
+        method: options.method,
+        body: options.body,
+        operationId: diagnostics.operationId || "",
+        requestId: diagnostics.requestId || "",
+        ownerId: String(options.ownerId || ""),
+        throwOnMissingAuth: true,
+        logFailures: false,
+        lenientJson: true,
+        touchAuth: options.touchAuth === true,
+      });
+    } catch (error) {
+      mapAuthFailure(error);
+    }
+  }
+
+  async function bridgeOwnerId() {
+    const snap = await getAuthIdentity();
+    if (!cleanAuth(snap?.auth)) {
+      return "";
+    }
+    return String(snap?.userId || "").trim();
   }
 
   function queryBody(appids) {
@@ -1600,16 +1615,15 @@
     }
 
     try {
-      let auth = await readyAuth(diagnostics);
-      let response = await sendQuery(payload, auth, diagnostics);
-      let body = parseBody(response);
-      let code = Number(body?.code) || response.status || 0;
-      if (code === 401 && auth?.refresh_token) {
-        auth = await refreshAuth(auth, diagnostics);
-        response = await sendQuery(payload, auth, diagnostics);
-        body = parseBody(response);
-        code = Number(body?.code) || response.status || 0;
-      }
+      const ownerId = await bridgeOwnerId();
+      const result = await authedBridge(API_GET, {
+        method: "POST",
+        body: payload,
+        ownerId,
+        touchAuth: true,
+      }, diagnostics);
+      const body = result.body || {};
+      const code = result.code;
       if (code < 200 || code >= 300) {
         postName({
           type: "query-result",
@@ -1624,11 +1638,10 @@
           feature: NAME_ID,
           event: "library-custom-name-bridge-query-failed",
           message: "库自定义名称桥接查询失败",
-          meta: bridgeNameMeta(data, { code, status: response.status || 0 }),
+          meta: bridgeNameMeta(data, { code, status: result.response?.status || 0 }),
         });
         return;
       }
-      await touchAuth(auth, diagnostics);
       postName({ type: "query-result", rid, ok: true, data: body });
     } catch (error) {
       postName({
@@ -1650,22 +1663,6 @@
     }
   }
 
-  function sendQuery(body, auth, diagnostics = {}) {
-    return fetchBg({
-      url: API_GET,
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${auth.access_token}`,
-      },
-      data: body,
-      allowHttpError: true,
-      operationId: diagnostics.operationId || "",
-      requestId: diagnostics.requestId || "",
-    });
-  }
-
   async function submitFeedback(data) {
     const rid = data?.rid || "";
     const diagnostics = {
@@ -1679,16 +1676,15 @@
     }
 
     try {
-      let auth = await readyAuth(diagnostics);
-      let response = await sendFeedback(data, auth);
-      let body = parseBody(response);
-      let code = Number(body?.code) || response.status || 0;
-      if (code === 401 && auth?.refresh_token) {
-        auth = await refreshAuth(auth, diagnostics);
-        response = await sendFeedback(data, auth);
-        body = parseBody(response);
-        code = Number(body?.code) || response.status || 0;
-      }
+      const ownerId = await bridgeOwnerId();
+      const result = await authedBridge(API_SUBMIT, {
+        method: "POST",
+        body: feedbackPayload(data),
+        ownerId,
+        touchAuth: true,
+      }, diagnostics);
+      const body = result.body || {};
+      const code = result.code;
       if (code < 200 || code >= 300) {
         postName({ type: "feedback-result", rid, ok: false, data: { code, message: body?.message || "提交失败" } });
         log({
@@ -1698,12 +1694,9 @@
           event: "library-custom-name-bridge-feedback-failed",
           message: "库自定义名称桥接反馈提交失败",
           operationId: data?.operationId || "",
-          meta: bridgeNameMeta(data, { code, status: response.status || 0 }),
+          meta: bridgeNameMeta(data, { code, status: result.response?.status || 0 }),
         });
         return;
-      }
-      if (code !== 401) {
-        await touchAuth(auth, diagnostics);
       }
       postName({ type: "feedback-result", rid, ok: true, data: body });
     } catch (error) {
@@ -1750,22 +1743,6 @@
       globalThis.STLogger?.append?.(event.data.entry, {
         forcePersist: event.data.forcePersist === true,
       });
-    });
-  }
-
-  function sendFeedback(data, auth) {
-    return fetchBg({
-      url: API_SUBMIT,
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${auth.access_token}`,
-      },
-      data: feedbackPayload(data),
-      allowHttpError: true,
-      operationId: data?.operationId || "",
-      requestId: data?.rid || "",
     });
   }
 
@@ -1866,11 +1843,12 @@
     }
   }
 
-  function steamSettingsFrom(all = {}) {
+  function steamSettingsFrom(all = {}, membership = {}) {
     const settings = {};
     for (const id of STEAM_SETTING_IDS) {
-      settings[id] = typeof all[id] === "boolean" ? all[id] : STEAM_SETTING_DEFAULTS[id];
+      settings[id] = decodeSteamSetting(id, all[id]);
     }
+    settings.customNamesAllowed = customNamesAllowedFrom(membership);
     return settings;
   }
 
@@ -1882,8 +1860,43 @@
         const isActive = next[SORT_TITLE_ID] !== false || next["library-group-labels"] !== false;
         return wasActive && !isActive;
       }
+      // 独立版与 Steam 云版互斥；方案值是字符串，不能用布尔 false 判断热停
+      if (featureId === INDEPENDENT_NAME_ID) {
+        return independentModeOn(prev) && !independentModeOn(next);
+      }
+      if (featureId === NAME_ID) {
+        const wasOn = prev[SORT_TITLE_ID] !== false && !independentModeOn(prev);
+        const isOn = next[SORT_TITLE_ID] !== false && !independentModeOn(next);
+        return wasOn && !isOn;
+      }
+      if (featureId === NATIVE_CUSTOM_SORT_EVENTS_ID) {
+        const wasOn = prev[SORT_TITLE_ID] !== false && !independentModeOn(prev);
+        const isOn = next[SORT_TITLE_ID] !== false && !independentModeOn(next);
+        return wasOn && !isOn;
+      }
       return prev[settingId] !== false && next[settingId] === false;
     });
+  }
+
+  function enabledSteamFeatureIds(prev = {}, next = {}) {
+    const out = [];
+    const wasSortActive = prev[SORT_TITLE_ID] !== false || prev["library-group-labels"] !== false;
+    const isSortActive = next[SORT_TITLE_ID] !== false || next["library-group-labels"] !== false;
+    if (!wasSortActive && isSortActive) {
+      out.push(SORT_TITLE_ID);
+    }
+    const wasIndependent = independentModeOn(prev);
+    const isIndependent = independentModeOn(next);
+    if (!wasIndependent && isIndependent) {
+      out.push(INDEPENDENT_NAME_ID);
+    }
+    const wasSteamName = prev[SORT_TITLE_ID] !== false && !wasIndependent;
+    const isSteamName = next[SORT_TITLE_ID] !== false && !isIndependent;
+    if (!wasSteamName && isSteamName) {
+      out.push(NATIVE_CUSTOM_SORT_EVENTS_ID);
+      out.push(NAME_ID);
+    }
+    return out;
   }
 
   function playerStatsRequest(attribute) {
@@ -1974,14 +1987,17 @@
     }
   }
 
-  function notifySteamFeaturesDisabled(keys) {
-    if (!Array.isArray(keys) || keys.length === 0) {
+  function notifySteamFeaturesChanged(disabled, enabled) {
+    const keys = Array.isArray(disabled) ? disabled : [];
+    const startKeys = Array.isArray(enabled) ? enabled : [];
+    if (!keys.length && !startKeys.length) {
       return;
     }
     try {
       window.postMessage({
         type: STEAM_FEATURES_DISABLED_MESSAGE,
         keys,
+        startKeys,
       }, "*");
     } catch {
     }
@@ -2000,6 +2016,484 @@
     }
   }
 
+  function independentModeOn(settings = {}) {
+    return globalThis.STConfig.effectiveLibraryNameMode(settings)
+      === globalThis.STConfig.libraryNameMode.values.INDEPENDENT;
+  }
+
+  function compactUserNames(body = {}) {
+    return userNamesStore.compactCloud(body);
+  }
+
+  function displayUserNames(snapshot) {
+    return userNamesStore.displayMap(snapshot);
+  }
+
+  function writeUserNamesDataset(snapshot) {
+    const el = root();
+    if (!el) {
+      return;
+    }
+    try {
+      el.dataset[USER_NAMES_ATTR] = JSON.stringify(displayUserNames(snapshot));
+      el.dataset[USER_NAMES_SEARCH_ATTR] = JSON.stringify(userNamesStore.searchMap(snapshot));
+    } catch {
+      el.dataset[USER_NAMES_ATTR] = "{}";
+      el.dataset[USER_NAMES_SEARCH_ATTR] = "{}";
+    }
+  }
+
+  function postUserNames(data) {
+    try {
+      root()?.setAttribute(USER_NAMES_RES_ATTR, JSON.stringify({
+        script: "library-independent-name",
+        side: "content",
+        ...data,
+        time: Date.now(),
+      }));
+    } catch {
+    }
+  }
+
+  // 只核对这次操作的登录身份，不读取、不整理名称名册
+  async function readSignedOwner() {
+    const rt = await storageGet([MEMBERSHIP_KEY, AUTH_KEY]);
+    return userNamesStore.signedInUserId(rt[MEMBERSHIP_KEY], rt[AUTH_KEY]);
+  }
+
+  // 展示和同步只整理当前账号这一份快照
+  async function readNameState() {
+    const rt = await storageGet([USER_NAMES_KEY, MEMBERSHIP_KEY, AUTH_KEY]);
+    const ownerId = userNamesStore.signedInUserId(rt[MEMBERSHIP_KEY], rt[AUTH_KEY]);
+    return {
+      ownerId,
+      snapshot: userNamesStore.readUser(rt[USER_NAMES_KEY], ownerId),
+    };
+  }
+
+  async function showSignedInNames() {
+    const state = await readNameState();
+    writeUserNamesDataset(state.ownerId ? state.snapshot : { items: {} });
+    return state;
+  }
+
+  async function namesOwnerStill(ownerId) {
+    return userNamesStore.sameUser(await readSignedOwner(), ownerId);
+  }
+
+  async function authedNamesGet(url, ownerId, diagnostics = {}) {
+    const boundOwner = String(ownerId || "").trim();
+    if (!boundOwner) {
+      throw authError("请先在设置中登录");
+    }
+    const result = await authedBridge(url, {
+      method: "GET",
+      ownerId: boundOwner,
+      touchAuth: true,
+    }, diagnostics);
+    const body = result.body || {};
+    const code = result.code;
+    if (code === 401 || code === 403) {
+      const error = new Error(body.message || "当前权益不包含自定义名称");
+      error.code = code;
+      throw error;
+    }
+    if (code < 200 || code >= 300) {
+      const error = new Error(body.message || "名称快照读取失败");
+      error.code = code;
+      throw error;
+    }
+    if (!(await namesOwnerStill(boundOwner))) {
+      throw ownerChangedError();
+    }
+    return body;
+  }
+
+  async function commitNameSnapshot(ownerId, op, diagnostics = {}) {
+    const response = await globalThis.STMessageBus.request({
+      type: USER_NAMES_COMMIT,
+      ownerId,
+      op,
+      operationId: diagnostics.operationId || "",
+      requestId: diagnostics.requestId || "",
+    });
+    if (response?.reason === "owner-changed") {
+      return null;
+    }
+    if (response?.success === true && response.snapshot) {
+      writeUserNamesDataset(response.snapshot);
+      return response.snapshot;
+    }
+    const error = new Error(response?.error || "名称本地保存失败");
+    error.code = response?.code || "write-failed";
+    if (error.code === "write-failed" || response == null) {
+      log({
+        level: "error",
+        domain: "extension",
+        feature: "library-independent-name",
+        event: "user-names-local-save-failed",
+        message: "独立名称本地保存失败",
+        error,
+        operationId: diagnostics.operationId || "",
+        requestId: diagnostics.requestId || "",
+      });
+    }
+    throw error;
+  }
+
+  async function stopForOwner(ownerId, diagnostics, reason) {
+    const state = await showSignedInNames();
+    log({
+      level: "warn",
+      domain: "extension",
+      feature: "library-independent-name",
+      event: "user-names-owner-changed",
+      message: "独立名称同步时账号已切换，已停止写回",
+      operationId: diagnostics?.operationId || "",
+      requestId: diagnostics?.requestId || "",
+      meta: {
+        ownerId: String(ownerId || ""),
+        currentUserId: state.ownerId,
+        reason: String(reason || ""),
+      },
+    });
+    return { ok: false, reason: "owner-changed" };
+  }
+
+  async function denyCustomNames() {
+    const rt = await storageGet([MEMBERSHIP_KEY]);
+    const raw = rt[MEMBERSHIP_KEY];
+    if (!raw || typeof raw !== "object") {
+      return false;
+    }
+    const permissions = { ...(raw.permissions || {}), customNames: false };
+    const features = { ...(raw.features || {}), customNames: false };
+    return storageSet({
+      [MEMBERSHIP_KEY]: {
+        ...raw,
+        permissions,
+        features,
+        updatedAt: Date.now(),
+      },
+    });
+  }
+
+  async function keepNamesAfterFailure(error, ownerId) {
+    const state = await readNameState();
+    if (!userNamesStore.sameUser(state.ownerId, ownerId)) {
+      await showSignedInNames();
+      return null;
+    }
+    const local = state.snapshot;
+    const code = Number(error?.code) || 0;
+    if (code === 403) {
+      const saved = await commitNameSnapshot(ownerId, {
+        op: "set-allowed",
+        allowed: false,
+      });
+      if (!saved) {
+        await showSignedInNames();
+        return null;
+      }
+      if (!(await namesOwnerStill(ownerId))) {
+        await showSignedInNames();
+        return null;
+      }
+      const denied = await denyCustomNames();
+      if (denied) {
+        await writeSteamSettings({ reason: "names-forbidden", notifyDisabled: true });
+      } else {
+        writeUserNamesDataset(saved);
+      }
+      return saved;
+    }
+    writeUserNamesDataset(local);
+    return local;
+  }
+
+  async function syncUserNamesSnapshot(options = {}) {
+    const settings = options.settings || steamSettingsFrom(await loadSettings(), await loadMembership());
+    if (!independentModeOn(settings)) {
+      writeUserNamesDataset({ items: {} });
+      return { skipped: true, reason: "independent-off" };
+    }
+    if (userNamesSyncing) {
+      await showSignedInNames();
+      return { skipped: true, reason: "busy" };
+    }
+    userNamesSyncing = true;
+    const diagnostics = {
+      operationId: options.operationId || "",
+      requestId: options.requestId || "",
+    };
+    let ownerId = "";
+    try {
+      const state = await readNameState();
+      ownerId = state.ownerId;
+      if (!ownerId) {
+        writeUserNamesDataset({ items: {} });
+        return { skipped: true, reason: "signed-out" };
+      }
+      const local = state.snapshot;
+      writeUserNamesDataset(local);
+      const since = Number(local.revision) || 0;
+      const url = since > 0
+        ? `${API_USER_NAMES}?sinceRevision=${encodeURIComponent(String(since))}`
+        : API_USER_NAMES;
+      const body = await authedNamesGet(url, ownerId, diagnostics);
+      if (body?.unchanged === true) {
+        const current = await readNameState();
+        if (!userNamesStore.sameUser(current.ownerId, ownerId)) {
+          return stopForOwner(ownerId, diagnostics, options.reason || "");
+        }
+        writeUserNamesDataset(current.snapshot);
+        return current.snapshot;
+      }
+      const saved = await commitNameSnapshot(ownerId, {
+        op: "merge",
+        cloud: compactUserNames(body),
+      }, diagnostics);
+      if (!saved) {
+        return stopForOwner(ownerId, diagnostics, options.reason || "");
+      }
+      return saved;
+    } catch (error) {
+      if (error?.code === "owner-changed") {
+        return stopForOwner(ownerId, diagnostics, options.reason || "");
+      }
+      // 注: 读取失败不能写空快照，403 只关闭当前账号权益并改回 Steam 排序名显示
+      const kept = await keepNamesAfterFailure(error, ownerId);
+      if (!kept) {
+        return stopForOwner(ownerId, diagnostics, options.reason || "");
+      }
+      log({
+        level: "warn",
+        domain: "extension",
+        feature: "library-independent-name",
+        event: "user-names-snapshot-failed",
+        message: "独立版名称快照同步失败",
+        error,
+        meta: { reason: options.reason || "" },
+      });
+      return { ok: false, error: error?.message || String(error) };
+    } finally {
+      userNamesSyncing = false;
+    }
+  }
+
+  async function saveIndependentName(item, diagnostics = {}) {
+    const ownerId = await readSignedOwner();
+    if (!ownerId) {
+      const error = new Error("请先在设置中登录");
+      error.code = 401;
+      throw error;
+    }
+    const settings = steamSettingsFrom(await loadSettings(true), await loadMembership());
+    if (!(await namesOwnerStill(ownerId))) {
+      throw ownerChangedError();
+    }
+    if (!independentModeOn(settings)) {
+      const error = new Error("当前权益不包含自定义名称");
+      error.code = 403;
+      throw error;
+    }
+    const saved = await commitNameSnapshot(ownerId, {
+      op: "apply",
+      item,
+    }, diagnostics);
+    if (!saved) {
+      throw ownerChangedError();
+    }
+    log({
+      level: "info",
+      domain: "extension",
+      feature: "library-independent-name",
+      event: "user-names-local-saved",
+      message: "独立名称已写入本地，等待上传",
+      operationId: diagnostics.operationId || "",
+      meta: { appid: Number(item?.appid) || 0 },
+    });
+    return saved;
+  }
+
+  function readUserNamesReq() {
+    try {
+      return JSON.parse(root()?.getAttribute(USER_NAMES_REQ_ATTR) || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  async function handleUserNames(data) {
+    if (!trustedNamePage()) {
+      return;
+    }
+    if (data.script !== "library-independent-name" || data.side !== "page") {
+      return;
+    }
+    const rid = data.rid || "";
+    const diagnostics = { requestId: rid, operationId: data.operationId || "" };
+    try {
+      if (data.type === "snapshot") {
+        const snapshot = await syncUserNamesSnapshot({
+          reason: "page-open",
+          ...diagnostics,
+        });
+        const local = snapshot?.items ? snapshot : (await readNameState()).snapshot;
+        postUserNames({ type: "snapshot-result", rid, ok: true, data: local });
+        return;
+      }
+      if (data.type === "save") {
+        const saved = await saveIndependentName(data.item || {}, diagnostics);
+        postUserNames({ type: "save-result", rid, ok: true, data: saved });
+        return;
+      }
+      if (data.type === "cancel-import") {
+        if (namesImportId && namesImportId === rid) {
+          namesImportId = "";
+        }
+        return;
+      }
+      if (data.type === "import") {
+        const items = Array.isArray(data.items) ? data.items : [];
+        const ownerId = await readSignedOwner();
+        if (!ownerId) {
+          const error = new Error("请先在设置中登录");
+          error.code = 401;
+          throw error;
+        }
+        const settings = steamSettingsFrom(await loadSettings(true), await loadMembership());
+        if (!independentModeOn(settings)) {
+          const error = new Error("当前权益不包含自定义名称");
+          error.code = 403;
+          throw error;
+        }
+        namesImportId = rid;
+        // 分块只让取消能在落盘前生效，后台按最新槽套用同一批 items，不用这里的临时副本
+        const working = userNamesStore.beginLocalApply(userNamesStore.emptySnapshot());
+        for (let index = 0; index < items.length; index += 1) {
+          if (namesImportId !== rid) {
+            const error = new Error("导入已取消");
+            error.code = "cancelled";
+            throw error;
+          }
+          userNamesStore.applyInto(working, items[index]);
+          if ((index + 1) % IMPORT_CHUNK === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
+        }
+        if (namesImportId !== rid) {
+          const error = new Error("导入已取消");
+          error.code = "cancelled";
+          throw error;
+        }
+        const saved = await commitNameSnapshot(ownerId, {
+          op: "apply-many",
+          items,
+        }, diagnostics);
+        if (namesImportId === rid) {
+          namesImportId = "";
+        }
+        if (!saved) {
+          throw ownerChangedError();
+        }
+        log({
+          level: "info",
+          domain: "extension",
+          feature: "library-independent-name",
+          event: "user-names-import-saved",
+          message: "独立名称导入已写入本地",
+          operationId: diagnostics.operationId || "",
+          requestId: diagnostics.requestId || "",
+          meta: { count: items.length },
+        });
+        postUserNames({ type: "import-result", rid, ok: true, data: saved, count: items.length });
+        return;
+      }
+    } catch (error) {
+      if (error?.code === "owner-changed") {
+        log({
+          level: "warn",
+          domain: "extension",
+          feature: "library-independent-name",
+          event: "user-names-owner-changed",
+          message: "独立名称保存时账号已切换，未写入",
+          operationId: diagnostics.operationId || "",
+          requestId: diagnostics.requestId || "",
+          error,
+        });
+      }
+      postUserNames({
+        type: `${String(data.type || "snapshot")}-result`,
+        rid,
+        ok: false,
+        error: error?.message || String(error),
+        code: Number(error?.code) || 0,
+      });
+    }
+  }
+
+  function watchUserNamesReq() {
+    if (watchUserNames) {
+      return;
+    }
+    const el = root();
+    if (!el) {
+      return;
+    }
+    watchUserNames = true;
+    try {
+      const obs = new MutationObserver((items) => {
+        for (const item of items) {
+          if (item.attributeName === USER_NAMES_REQ_ATTR) {
+            handleUserNames(readUserNamesReq());
+          }
+        }
+      });
+      obs.observe(el, {
+        attributes: true,
+        attributeFilter: [USER_NAMES_REQ_ATTR],
+      });
+      handleUserNames(readUserNamesReq());
+    } catch {
+      watchUserNames = false;
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        return;
+      }
+      syncUserNamesSnapshot({ reason: "visible" }).catch(() => {});
+    });
+    watchUserNamesStorage();
+  }
+
+  function watchUserNamesStorage() {
+    if (watchUserNamesStorage.bound || !chrome.storage?.onChanged) {
+      return;
+    }
+    watchUserNamesStorage.bound = true;
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local" || !Object.hasOwn(changes || {}, USER_NAMES_KEY)) {
+        return;
+      }
+      if (globalThis.STPageContext?.snapshot?.().domain !== "steam") {
+        return;
+      }
+      const next = changes[USER_NAMES_KEY]?.newValue;
+      Promise.all([
+        loadSettings(),
+        storageGet([MEMBERSHIP_KEY, AUTH_KEY]),
+      ]).then(([settings, rt]) => {
+        const membership = rt[MEMBERSHIP_KEY];
+        if (!independentModeOn(steamSettingsFrom(settings, membership))) {
+          return;
+        }
+        const ownerId = userNamesStore.signedInUserId(membership, rt[AUTH_KEY]);
+        writeUserNamesDataset(userNamesStore.readUser(next, ownerId));
+      }).catch(() => {});
+    });
+  }
+
   async function writeSteamSettings(options = {}) {
     const el = root();
     if (!el) {
@@ -2010,7 +2504,11 @@
     const onPhase = typeof options.onPhase === "function" ? options.onPhase : () => {};
     const prev = readSteamSettingsSnapshot();
     onPhase("settings-load");
-    const settings = steamSettingsFrom(await loadSettings());
+    const [loaded, membership] = await Promise.all([
+      loadSettings(),
+      loadMembership(),
+    ]);
+    const settings = steamSettingsFrom(loaded, membership);
 
     try {
       el.dataset[SETTINGS_ATTR] = JSON.stringify(settings);
@@ -2019,10 +2517,17 @@
     }
     steamSettingsSnapshot = settings;
     if (options.notifyDisabled !== false && prev) {
-      notifySteamFeaturesDisabled(disabledSteamFeatureIds(prev, settings));
+      const disabled = disabledSteamFeatureIds(prev, settings);
+      const enabled = enabledSteamFeatureIds(prev, settings);
+      notifySteamFeaturesChanged(disabled, enabled);
     }
     onPhase("locale-load");
     await writeUiLocale();
+    onPhase("user-names-sync");
+    await syncUserNamesSnapshot({
+      settings,
+      reason: options.reason || "settings-ready",
+    });
     onPhase("settings-ready");
   }
 
@@ -2050,8 +2555,9 @@
         globalThis.STSettingsBus.subscribe((event) => {
           const keys = event.changedKeys || [];
           const localeHit = keys.includes(UI_LOCALE_KEY);
+          const membershipHit = keys.includes(MEMBERSHIP_KEY);
           const hit = STEAM_SETTING_IDS.some(id => keys.includes(settingKey(id)));
-          if (hit) {
+          if (hit || membershipHit) {
             settingsCache = null;
             if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
               writeSteamSettings().catch(() => {});
@@ -2064,7 +2570,7 @@
           owner: "extension:content",
           key: "settings-watch",
           prefixes: [SETTINGS_PREFIX, TRANS_PREFIX, AI_PREFIX],
-          keys: [UI_LOCALE_KEY],
+          keys: [UI_LOCALE_KEY, MEMBERSHIP_KEY],
         });
         return;
       }
@@ -2073,9 +2579,9 @@
           return;
         }
         const localeHit = Object.hasOwn(changes || {}, UI_LOCALE_KEY);
-        const keys = Object.keys(changes || {});
+        const membershipHit = Object.hasOwn(changes || {}, MEMBERSHIP_KEY);
         const hit = STEAM_SETTING_IDS.some(id => Object.hasOwn(changes, settingKey(id)));
-        if (hit) {
+        if (hit || membershipHit) {
           settingsCache = null;
           if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
             writeSteamSettings().catch(() => {});
@@ -2142,6 +2648,7 @@
       return;
     }
     watchNameReq();
+    watchUserNamesReq();
     watchPlayerStatsReq();
 
     if (!gd.lock()) {
@@ -2200,6 +2707,7 @@
           "shared/data-index.js",
           "shared/batch-queue.js",
           "shared/virtual-list.js",
+          "shared/dialog-lifecycle.js",
           "shared/utils/player-stats.js",
           "shared/utils/player-stats-ui.js",
           "shared/page-context.js",

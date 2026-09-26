@@ -23,6 +23,10 @@
   const OPEN_SETTINGS_MESSAGE = CONTRACT.MESSAGES.openSettings;
   const SETTINGS_PREFIX = "st.settings.";
   const SETTINGS_SUFFIX = ".enabled";
+  const SETTINGS_VALUE_SUFFIX = ".value";
+  const NAME_MODE_ID = globalThis.STConfig.libraryNameMode.key;
+  const NAME_MODE_STEAM = globalThis.STConfig.libraryNameMode.values.STEAM_SORT;
+  const NAME_MODE_INDEPENDENT = globalThis.STConfig.libraryNameMode.values.INDEPENDENT;
   const THIRD_PARTY_PREFIX = `${SETTINGS_PREFIX}thirdPartyServices.`;
   const AI_PREFIX = `${SETTINGS_PREFIX}ai.`;
   const AUTH_KEY = "steam_buff_auth";
@@ -65,6 +69,8 @@
     clientEnabled: false,
     clientFeatures: {},
     clientFeatureList: [],
+    clientNameMode: NAME_MODE_STEAM,
+    clientNameModeOptions: [],
     clientDefaultReady: false,
     restartModalOpen: false,
     restartAcked: false,
@@ -160,6 +166,10 @@
 
   function settingKey(id) {
     return `${SETTINGS_PREFIX}${id}${SETTINGS_SUFFIX}`;
+  }
+
+  function settingValueKey(id) {
+    return `${SETTINGS_PREFIX}${id}${SETTINGS_VALUE_SUFFIX}`;
   }
 
   function thirdPartyKey(path) {
@@ -262,13 +272,35 @@
     return window.STSettings?.catalog || null;
   }
 
-  // 只取设置中心「客户端增强」分类的顶层功能，不含子选项
+  // 只取设置中心「客户端增强」分类的顶层布尔功能，不含子选项和二选一方案
   async function clientTopLevelFeatures() {
     const catalog = await settingsCatalog();
     const categories = catalog?.list?.() || [];
     const client = categories.find((item) => item?.id === "client");
     const items = Array.isArray(client?.items) ? client.items : [];
-    return items.filter((item) => item?.area === "steam" && item.disabled !== true && item.id);
+    return items.filter((item) => item?.area === "steam" && item.disabled !== true && item.id && item.control !== "mode");
+  }
+
+  function customNamesAllowed() {
+    return window.STConfig.customNamesAllowed(state.accountData);
+  }
+
+  function nameModeAllowed(value) {
+    return clampNameMode(value) === value;
+  }
+
+  function clampNameMode(value) {
+    return window.STConfig.effectiveLibraryNameMode({
+      [NAME_MODE_ID]: value,
+      customNamesAllowed: customNamesAllowed(),
+    });
+  }
+
+  function nameModeCopy(value) {
+    if (value === NAME_MODE_INDEPENDENT) {
+      return "名称同步到素材君云，换电脑不丢。推荐新安装选用。";
+    }
+    return "沿用 Steam 自定义排序名称，数据在 Steam 云。";
   }
 
   function clientFeatureLockText(item, catalog) {
@@ -1203,6 +1235,21 @@
     const profile = normalizeAccount(res.body || {}, current);
     state.accountData = profile;
     await storeMembership(profile, operationId);
+    try {
+      chrome.runtime.sendMessage({
+        type: "SETTINGS_CLOUD_SYNC",
+        reason: "login",
+        action: "sync",
+        operationId,
+      }, () => {
+        void chrome.runtime.lastError;
+      });
+    } catch (error) {
+      log.warn("settings-cloud-login-trigger-failed", "登录后触发设置云同步失败", {
+        operationId,
+        error,
+      });
+    }
     return profile;
   }
 
@@ -1420,7 +1467,9 @@
 
   async function saveClientChoices(operationId = "") {
     if (!state.clientDefaultReady) await ensureClientDefault();
-    const data = {};
+    const data = {
+      [settingValueKey(NAME_MODE_ID)]: clampNameMode(state.clientNameMode),
+    };
     state.clientFeatureList.forEach((item) => {
       const on = state.clientEnabled === true && state.clientFeatures[item.id] === true;
       data[settingKey(item.id)] = on;
@@ -1527,6 +1576,17 @@
       desc: String(item.desc || ""),
       lock: clientFeatureLockText(item, catalog),
     }));
+    const nameMode = catalog?.featureById?.(NAME_MODE_ID);
+    state.clientNameModeOptions = Array.isArray(nameMode?.options)
+      ? nameMode.options
+        .filter((option) => typeof option?.value === "string" && option.value)
+        .map((option) => ({
+          value: String(option.value),
+          label: String(option.label || option.value),
+          lock: String(option.lock || ""),
+        }))
+      : [];
+    state.clientNameMode = NAME_MODE_STEAM;
     state.clientFeatures = {};
     syncClientFeatures(on);
     state.clientDefaultReady = true;
@@ -2044,11 +2104,49 @@
     renderAccountPrompt(root);
   }
 
+  function renderNameMode() {
+    const root = $("#client-name-mode-options");
+    if (!root) return;
+    const busy = controlsBusy();
+    const selected = clampNameMode(state.clientNameMode);
+    state.clientNameMode = selected;
+    const options = state.clientNameModeOptions.length
+      ? state.clientNameModeOptions
+      : [{ value: NAME_MODE_STEAM, label: "Steam云存储版", lock: "" }];
+    root.replaceChildren();
+    options.forEach((option) => {
+      const value = String(option.value || "");
+      const allowed = nameModeAllowed(value);
+      const checked = selected === value;
+      const label = el("label", `client-name-mode-option${checked ? " is-selected" : ""}${allowed ? "" : " is-locked"}`);
+      const input = el("input");
+      input.type = "radio";
+      input.name = NAME_MODE_ID;
+      input.value = value;
+      input.checked = checked;
+      input.disabled = busy || !allowed;
+      input.dataset.actionChange = "client-name-mode";
+      const copy = el("div", "client-name-mode-copy");
+      const title = el("div", "client-name-mode-title");
+      title.append(el("span", "", option.label || value));
+      if (value === NAME_MODE_INDEPENDENT) {
+        title.append(el("span", "client-name-mode-badge", "推荐"));
+      }
+      if (!allowed && option.lock) {
+        title.append(el("span", "client-feature-lock", option.lock));
+      }
+      copy.append(title);
+      copy.append(el("span", "client-name-mode-desc", nameModeCopy(value)));
+      label.append(input, copy);
+      root.append(label);
+    });
+  }
+
   function renderClient() {
     const detail = $("#client-state-detail");
     const note = $("#client-scope-note");
     const toggle = $("#client-toggle");
-    const panel = $(".client-scope-panel");
+    const scope = $("#client-feature-scope");
     const list = $("#client-feature-list");
     if (!detail || !toggle) return;
     toggle.hidden = false;
@@ -2063,7 +2161,8 @@
         ? "开启后将在 Steam 客户端对应页面加载这些增强；部分功能需重启 Steam 后生效。"
         : "当前已关闭，不会在 Steam 客户端页面加载这些增强。";
     }
-    if (panel) panel.classList.toggle("is-disabled", state.clientEnabled !== true);
+    if (scope) scope.classList.toggle("is-disabled", state.clientEnabled !== true);
+    renderNameMode();
     if (!list) return;
     const busy = controlsBusy();
     const masterOn = state.clientEnabled === true;
@@ -2480,6 +2579,12 @@
       state.ai.message = "";
       state.ai.messageError = false;
       render();
+    }
+    if (target.dataset.actionChange === "client-name-mode") {
+      const value = String(target.value || "");
+      if (!nameModeAllowed(value)) return;
+      state.clientNameMode = clampNameMode(value);
+      setNote("客户端增强设置将在进入下一步时保存。", false);
     }
   });
 

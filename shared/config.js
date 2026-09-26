@@ -83,6 +83,11 @@
   const SUPPORTER_BASE = join(ORIGINS.site, "/wp-json/supporter/v1");
   const LOGIN_AUTH_BASE = join(ORIGINS.site, "/wp-json/login-auth/v1");
   const CLIENT_VERSION_HEADER = "X-Steam-Buff-Version";
+  const LIBRARY_NAME_MODE_KEY = "library-name-mode";
+  const LIBRARY_NAME_MODES = Object.freeze({
+    STEAM_SORT: "steam-sort",
+    INDEPENDENT: "independent",
+  });
   const OWNED_WORDPRESS_API_PATHS = Object.freeze([
     "/wp-json/steam-buff/v1",
     "/wp-json/steam-festivals/v1",
@@ -178,6 +183,25 @@
       }
     }
     return out;
+  }
+
+  // 库名称只有一个有效来源；素材君方案必须同时满足独立模式和 customNames 权益。
+  function customNamesAllowed(value) {
+    const source = value && typeof value === "object" ? value : {};
+    return source.customNamesAllowed === true
+      || source.permissions?.customNames === true
+      || source.features?.customNames === true;
+  }
+
+  function effectiveLibraryNameMode(settings = {}, membership = null) {
+    const source = settings && typeof settings === "object" ? settings : {};
+    const selected = source[LIBRARY_NAME_MODE_KEY];
+    const allowed = Object.prototype.hasOwnProperty.call(source, "customNamesAllowed")
+      ? source.customNamesAllowed === true
+      : customNamesAllowed(source) || customNamesAllowed(membership);
+    return selected === LIBRARY_NAME_MODES.INDEPENDENT && allowed
+      ? LIBRARY_NAME_MODES.INDEPENDENT
+      : LIBRARY_NAME_MODES.STEAM_SORT;
   }
 
   const client = Object.freeze({
@@ -286,6 +310,8 @@
     updateLatest: join(STEAM_BUFF_BASE, "/update-logs/latest"),
     updateLogs: join(STEAM_BUFF_BASE, "/update-logs/latest"),
     updateLog: (version) => join(STEAM_BUFF_BASE, `/update-logs/${encoded(version)}`),
+    userSettings: join(STEAM_BUFF_BASE, "/user/settings"),
+    userSettingsMeta: join(STEAM_BUFF_BASE, "/user/settings/meta"),
     steamFestivals: (anchorDate, beforeMonths = 36, afterMonths = 12) => `${join(STEAM_FESTIVALS_BASE, "/festivals")}?anchor_date=${encoded(anchorDate)}&before_months=${encoded(beforeMonths)}&after_months=${encoded(afterMonths)}`,
     homepage: join(ORIGINS.site, "/25.html"),
     updatePage: join(ORIGINS.site, "/25.html"),
@@ -483,6 +509,12 @@
     client,
     origin,
     externalNavigation,
+    libraryNameMode: Object.freeze({
+      key: LIBRARY_NAME_MODE_KEY,
+      values: LIBRARY_NAME_MODES,
+    }),
+    effectiveLibraryNameMode,
+    customNamesAllowed,
     site: (path = "") => join(ORIGINS.site, path),
     api: (path = "") => join(ORIGINS.api, path),
     steamBuff: (path = "") => join(STEAM_BUFF_BASE, path),

@@ -47,6 +47,113 @@
   "settings_uiLocale_label": {
     "message": "显示语言"
   },
+  "settings_cloud_title": {
+    "message": "设置云同步"
+  },
+  "settings_cloud_desc": {
+    "message": "把设置中心面板配置加密同步到当前 Steam Buff 账号。同步密钥只保存在本机。"
+  },
+  "settings_cloud_enable": {
+    "message": "启用云同步"
+  },
+  "settings_cloud_secret": {
+    "message": "同步密钥"
+  },
+  "settings_cloud_secretPlaceholder": {
+    "message": "只保存在本机，请在其它设备填写同一串"
+  },
+  "settings_cloud_syncNow": {
+    "message": "立即同步"
+  },
+  "settings_cloud_login": {
+    "message": "去登录"
+  },
+  "settings_cloud_needLogin": {
+    "message": "请先登录 Steam Buff 账号。"
+  },
+  "settings_cloud_needPermission": {
+    "message": "当前权益不包含设置云同步。"
+  },
+  "settings_cloud_needSecret": {
+    "message": "请填写同步密钥后再同步。其它设备使用同一串密钥。"
+  },
+  "settings_cloud_idle": {
+    "message": "开启后，设置中心面板配置会加密同步到当前账号。"
+  },
+  "settings_cloud_dirty": {
+    "message": "有未上传的本机改动，关闭设置页或点击立即同步后会上传。"
+  },
+  "settings_cloud_conflictPending": {
+    "message": "本机和云端都改过设置，需要选择保留哪一份。"
+  },
+  "settings_cloud_decryptPending": {
+    "message": "密钥错误"
+  },
+  "settings_cloud_secretWrongMessage": {
+    "message": "同步密钥无法解密云端设置。可以填写正确密钥后再同步，核对成功后才会替换本机密钥。要更换云端密文的加密密钥，请先重置清除云端设置，再重新开启并填写新密钥。"
+  },
+  "settings_cloud_upgradePending": {
+    "message": "云端设置来自更高版本扩展，请先升级 Steam Buff。"
+  },
+  "settings_cloud_lastSynced": {
+    "message": "上次同步：$time$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_cloud_conflictTitle": {
+    "message": "设置云同步冲突"
+  },
+  "settings_cloud_conflictMessage": {
+    "message": "这台设备和云端都改过设置。使用云端会覆盖本机面板设置；使用本机则会覆盖云端。不会自动备份。"
+  },
+  "settings_cloud_useCloud": {
+    "message": "使用云端"
+  },
+  "settings_cloud_useLocal": {
+    "message": "使用本机"
+  },
+  "settings_cloud_later": {
+    "message": "稍后"
+  },
+  "settings_cloud_overwriteConfirmTitle": {
+    "message": "确认覆盖云端？"
+  },
+  "settings_cloud_overwriteConfirmMessage": {
+    "message": "云端现有设置会被这台设备用当前密钥加密后覆盖，且不会保留历史版本。"
+  },
+  "settings_cloud_upgradeTitle": {
+    "message": "需要升级扩展"
+  },
+  "settings_cloud_upgradeMessage": {
+    "message": "云端设置来自更高版本的 Steam Buff。升级后再同步，避免丢掉新字段。"
+  },
+  "settings_cloud_reset": {
+    "message": "重置"
+  },
+  "settings_cloud_resetTitle": {
+    "message": "清除云端设置？"
+  },
+  "settings_cloud_resetMessage": {
+    "message": "重置会删除当前账号在云端保存的设置副本，删除后不能恢复。本机的面板设置会保留。云同步会在这台设备上关闭，其他设备不能再从云端拉回这份设置。之后需要你自己重新开启云同步，并填写新的同步密钥。"
+  },
+  "settings_cloud_resetConfirm": {
+    "message": "确认"
+  },
+  "settings_cloud_resetFailed": {
+    "message": "清除云端设置失败，云同步仍保持原状。"
+  },
+  "settings_cloud_tooLarge": {
+    "message": "设置体积过大，请精简评论规则后再同步。"
+  },
+  "settings_cloud_syncSuccess": {
+    "message": "设置已同步。"
+  },
+  "settings_cloud_syncFailed": {
+    "message": "同步失败，请稍后重试。"
+  },
   "settings_category_extension_settings_name": {
     "message": "扩展设置"
   },
@@ -584,13 +691,13 @@
     "message": "拼音搜索"
   },
   "settings_feature_search_suggestions_pinyin_desc": {
-    "message": "允许使用完整拼音匹配中文名称，例如 xiadaoliecheshou"
+    "message": "商店联想和库搜索都使用完整拼音匹配中文名称，例如 xiadaoliecheshou"
   },
   "settings_feature_search_suggestions_mnemonic_name": {
     "message": "助记符搜索"
   },
   "settings_feature_search_suggestions_mnemonic_desc": {
-    "message": "允许使用中文首字母助记符匹配中文名称，例如 xdlcs"
+    "message": "商店联想和库搜索都使用中文首字母助记符匹配中文名称，例如 xdlcs"
   },
   "settings_feature_game_notes_name": {
     "message": "游戏备注"
@@ -1235,6 +1342,15 @@
   "common_saveFailed": {
     "message": "保存失败"
   },
+  "settings_order_saveFailed": {
+    "message": "来源顺序保存失败，已恢复原来的顺序。"
+  },
+  "settings_order_moveUp": {
+    "message": "上移"
+  },
+  "settings_order_moveDown": {
+    "message": "下移"
+  },
   "settings_savePrompt_title": {
     "message": "保存成功"
   },
@@ -1459,6 +1575,15 @@
   "about_backup_section_familyLibrary": {
     "message": "家庭库刷新"
   },
+  "about_backup_section_uiLocale": {
+    "message": "界面语言"
+  },
+  "about_backup_section_storePriceChart": {
+    "message": "价格图表"
+  },
+  "about_backup_section_thirdPartyServices": {
+    "message": "第三方服务"
+  },
   "about_backup_noSections": {
     "message": "无可识别分区"
   },
@@ -1553,6 +1678,18 @@
   },
   "about_backup_exportFailedTitle": {
     "message": "导出设置失败"
+  },
+  "about_backup_exportConfirmTitle": {
+    "message": "导出设置"
+  },
+  "about_backup_exportConfirmMessage": {
+    "message": "本操作将导出所有配置数据(包含API密钥)，请勿随意外传导出文件！"
+  },
+  "about_backup_cancelExport": {
+    "message": "取消导出"
+  },
+  "about_backup_confirmExport": {
+    "message": "确认导出"
   },
   "about_backup_importFailedTitle": {
     "message": "导入设置失败"
@@ -2566,6 +2703,17 @@
   "common_continue": {
     "message": "继续"
   },
+  "common_continueCountdown": {
+    "message": "$label$($seconds$)",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "seconds": {
+        "content": "$2"
+      }
+    }
+  },
   "common_dateYmd": {
     "message": "$year$年$month$月$day$日",
     "placeholders": {
@@ -3108,6 +3256,9 @@
   },
   "steam_newsTranslate_requestTimedOut": {
     "message": "翻译请求超时"
+  },
+  "steam_newsTranslate_selectionTitle": {
+    "message": "翻译选中文字"
   },
   "steam_newsTranslate_titleTextMissing": {
     "message": "未找到可替换的标题文本"
@@ -3958,7 +4109,7 @@
     "message": "保存进度"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "总计:$total$，处理:$processed$，跳过:$skipped$，失败:$failed$，同步:$synced$",
+    "message": "总计:$total$，处理:$processed$，跳过:$skipped$，失败:$failed$，已入队:$queued$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -3972,7 +4123,7 @@
       "failed": {
         "content": "$4"
       },
-      "synced": {
+      "queued": {
         "content": "$5"
       }
     }
@@ -4769,6 +4920,12 @@
   },
   "settings_account_loginExpired": {
     "message": "登录已过期，请重新登录"
+  },
+  "settings_account_accountSwitched": {
+    "message": "请求处理期间账号已切换"
+  },
+  "settings_account_refreshFailed": {
+    "message": "登录刷新失败，请稍后重试"
   },
   "settings_account_loggingOut": {
     "message": "正在退出登录"
@@ -5573,5 +5730,200 @@
   },
   "store_drmWarning_title": {
     "message": "第三方检查"
+  },
+  "settings_feature_library_name_mode_name": {
+    "message": "库自定义名称方案"
+  },
+  "settings_feature_library_name_mode_desc": {
+    "message": "素材君云存储版将修改后的名称实时同步至素材君云服务器，换电脑不会导致名称数据丢失。\nSteam云存储版基于Steam的自定义排序名称功能实现，将数据实时同步至Steam云中，换电脑不会导致名称数据丢失。"
+  },
+  "settings_feature_library_name_mode_option_independent": {
+    "message": "素材君云存储版"
+  },
+  "settings_feature_library_name_mode_option_steam_sort": {
+    "message": "Steam云存储版"
+  },
+  "settings_libraryNameMode_restartConfirmTitle": {
+    "message": "切换模式"
+  },
+  "settings_libraryNameMode_restartConfirmBefore": {
+    "message": "切换模式"
+  },
+  "settings_libraryNameMode_restartConfirmEmphasis": {
+    "message": "需要手动重启Steam"
+  },
+  "settings_libraryNameMode_restartConfirmAfter": {
+    "message": "，是否继续？"
+  },
+  "settings_feature_store_title_name_sources_name": {
+    "message": "商店标题名称来源"
+  },
+  "settings_feature_store_title_name_sources_desc": {
+    "message": "按上下顺序选用第一个非空来源；Steam 原名固定为最后兜底，不参与排序"
+  },
+  "settings_feature_store_title_name_sources_option_user_custom": {
+    "message": "我的自定义名称"
+  },
+  "settings_feature_store_title_name_sources_option_community": {
+    "message": "社区自定义名称"
+  },
+  "settings_feature_store_title_name_sources_option_ai": {
+    "message": "AI 翻译名称"
+  },
+  "store_titleCustomName_aliasHint": {
+    "message": "回车或空格添加，每游戏最多 10 个"
+  },
+  "steam_independentName_timeout": {
+    "message": "名称服务响应超时"
+  },
+  "steam_independentName_requestFailed": {
+    "message": "名称请求失败"
+  },
+  "steam_independentName_open": {
+    "message": "自定义名称"
+  },
+  "steam_independentName_aliasHint": {
+    "message": "回车或空格添加"
+  },
+  "steam_independentName_saveRow": {
+    "message": "保存"
+  },
+  "steam_independentName_colOfficial": {
+    "message": "Steam 原名称"
+  },
+  "steam_independentName_colAppid": {
+    "message": "AppID"
+  },
+  "steam_independentName_colCustom": {
+    "message": "自定义名称"
+  },
+  "steam_independentName_colAlias": {
+    "message": "别名"
+  },
+  "steam_independentName_colMnemonic": {
+    "message": "助记符"
+  },
+  "steam_independentName_colPinyin": {
+    "message": "拼音全拼"
+  },
+  "steam_independentName_quotaUnlimited": {
+    "message": "额度不限"
+  },
+  "steam_independentName_quotaUsed": {
+    "message": "已用 $count$ / $quota$",
+    "placeholders": {
+        "count": {
+            "content": "$1"
+        },
+        "quota": {
+            "content": "$2"
+        }
+    }
+  },
+  "steam_independentName_rows": {
+    "message": "共 $n$ 款游戏",
+    "placeholders": {
+        "n": {
+            "content": "$1"
+        }
+    }
+  },
+  "steam_independentName_title": {
+    "message": "自定义名称"
+  },
+  "steam_independentName_batch": {
+    "message": "批量设置"
+  },
+  "steam_independentName_batchTitle": {
+    "message": "批量设置自定义名称"
+  },
+  "steam_independentName_saving": {
+    "message": "正在保存..."
+  },
+  "steam_independentName_search": {
+    "message": "搜索名称 / AppID / 别名"
+  },
+  "steam_independentName_export": {
+    "message": "导出"
+  },
+  "steam_independentName_import": {
+    "message": "导入"
+  },
+  "steam_independentName_channelMissing": {
+    "message": "名称列表通道不可用"
+  },
+  "steam_independentName_loading": {
+    "message": "正在加载..."
+  },
+  "steam_independentName_draftConflict": {
+    "message": "云端名称已更新，这行还有未保存的修改"
+  },
+  "steam_independentName_saved": {
+    "message": "本地已保存"
+  },
+  "steam_independentName_waitingCloud": {
+    "message": "等待云端处理"
+  },
+  "steam_independentName_syncBlocked": {
+    "message": "云端拒绝：$message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_quotaExceeded": {
+    "message": "导入后将超过自定义名称额度"
+  },
+  "steam_independentName_importing": {
+    "message": "正在导入 $n$ 条，关闭窗口可取消",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_imported": {
+    "message": "已导入 $n$ 条",
+    "placeholders": {
+        "n": {
+            "content": "$1"
+        }
+    }
+  },
+  "steam_independentName_importAll": {
+    "message": "全部导入"
+  },
+  "steam_independentName_importCancel": {
+    "message": "取消导入"
+  },
+  "steam_independentName_importUnset": {
+    "message": "仅未设置"
+  },
+  "steam_independentName_importPromptTitle": {
+    "message": "是否导入已存在自定义名称的游戏？"
+  },
+  "steam_independentName_importPromptStats": {
+    "message": "文件中名称 $file$ 项，库内匹配 $matched$ 项；其中已有自定义名称 $existing$ 项，未设置 $unset$ 项",
+    "placeholders": {
+        "file": {
+            "content": "$1"
+        },
+        "matched": {
+            "content": "$2"
+        },
+        "existing": {
+            "content": "$3"
+        },
+        "unset": {
+            "content": "$4"
+        }
+    }
+  },
+  "steam_independentName_listTimeout": {
+    "message": "名称列表读取超时"
+  },
+  "steam_independentName_listFailed": {
+    "message": "名称列表读取失败"
   }
 }

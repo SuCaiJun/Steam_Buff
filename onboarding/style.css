@@ -667,8 +667,92 @@ button:focus-visible {
   padding: 20px 26px 22px;
 }
 
-.client-scope-panel.is-disabled {
+.client-feature-scope.is-disabled {
   opacity: 0.62;
+}
+
+.client-name-mode {
+  display: grid;
+  gap: 8px;
+}
+
+.client-name-mode-lead {
+  margin: 0;
+  color: var(--ob-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.client-name-mode-options {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--ob-line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--ob-surface);
+}
+
+.client-name-mode-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.client-name-mode-option + .client-name-mode-option {
+  border-top: 1px solid var(--ob-line);
+}
+
+.client-name-mode-option.is-selected {
+  background: var(--ob-primary-soft);
+}
+
+.client-name-mode-option.is-locked {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.client-name-mode-option input {
+  margin: 3px 0 0;
+}
+
+.client-name-mode-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.client-name-mode-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--ob-text);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.client-name-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: var(--ob-primary);
+  background: var(--ob-primary-soft);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.client-name-mode-desc {
+  color: var(--ob-text-muted);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .client-feature-list {

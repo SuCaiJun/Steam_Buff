@@ -47,6 +47,113 @@
   "settings_uiLocale_label": {
     "message": "顯示語言"
   },
+  "settings_cloud_title": {
+    "message": "設定雲端同步"
+  },
+  "settings_cloud_desc": {
+    "message": "將設定中心面板設定加密同步到目前 Steam Buff 帳號。同步金鑰只保存在本機。"
+  },
+  "settings_cloud_enable": {
+    "message": "啟用雲端同步"
+  },
+  "settings_cloud_secret": {
+    "message": "同步金鑰"
+  },
+  "settings_cloud_secretPlaceholder": {
+    "message": "只保存在本機，請在其他裝置填寫同一串"
+  },
+  "settings_cloud_syncNow": {
+    "message": "立即同步"
+  },
+  "settings_cloud_login": {
+    "message": "前往登入"
+  },
+  "settings_cloud_needLogin": {
+    "message": "請先登入 Steam Buff 帳號。"
+  },
+  "settings_cloud_needPermission": {
+    "message": "目前權益不包含設定雲端同步。"
+  },
+  "settings_cloud_needSecret": {
+    "message": "請填寫同步金鑰後再同步。其他裝置使用同一串金鑰。"
+  },
+  "settings_cloud_idle": {
+    "message": "開啟後，設定中心面板設定會加密同步到目前帳號。"
+  },
+  "settings_cloud_dirty": {
+    "message": "有尚未上傳的本機變更，關閉設定頁或點立即同步後會上傳。"
+  },
+  "settings_cloud_conflictPending": {
+    "message": "本機和雲端都改過設定，需要選擇保留哪一份。"
+  },
+  "settings_cloud_decryptPending": {
+    "message": "金鑰錯誤"
+  },
+  "settings_cloud_secretWrongMessage": {
+    "message": "同步金鑰無法解密雲端設定。可以填寫正確金鑰後再同步，核對成功後才會替換本機金鑰。要更換雲端密文的加密金鑰，請先重置清除雲端設定，再重新開啟並填寫新金鑰。"
+  },
+  "settings_cloud_upgradePending": {
+    "message": "雲端設定來自更高版本擴充功能，請先升級 Steam Buff。"
+  },
+  "settings_cloud_lastSynced": {
+    "message": "上次同步：$time$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_cloud_conflictTitle": {
+    "message": "設定雲端同步衝突"
+  },
+  "settings_cloud_conflictMessage": {
+    "message": "這台裝置和雲端都改過設定。使用雲端會覆蓋本機面板設定；使用本機則會覆蓋雲端。不會自動備份。"
+  },
+  "settings_cloud_useCloud": {
+    "message": "使用雲端"
+  },
+  "settings_cloud_useLocal": {
+    "message": "使用本機"
+  },
+  "settings_cloud_later": {
+    "message": "稍後"
+  },
+  "settings_cloud_overwriteConfirmTitle": {
+    "message": "確認覆蓋雲端？"
+  },
+  "settings_cloud_overwriteConfirmMessage": {
+    "message": "雲端現有設定會被這台裝置用目前金鑰加密後覆蓋，且不會保留歷史版本。"
+  },
+  "settings_cloud_upgradeTitle": {
+    "message": "需要升級擴充功能"
+  },
+  "settings_cloud_upgradeMessage": {
+    "message": "雲端設定來自更高版本的 Steam Buff。升級後再同步，避免丟掉新欄位。"
+  },
+  "settings_cloud_reset": {
+    "message": "重置"
+  },
+  "settings_cloud_resetTitle": {
+    "message": "清除雲端設定？"
+  },
+  "settings_cloud_resetMessage": {
+    "message": "重置會刪除目前帳號在雲端儲存的設定副本，刪除後不能恢復。本機的面板設定會保留。雲端同步會在這台裝置上關閉，其他裝置不能再從雲端拉回這份設定。之後需要你自己重新開啟雲端同步，並填寫新的同步金鑰。"
+  },
+  "settings_cloud_resetConfirm": {
+    "message": "確認"
+  },
+  "settings_cloud_resetFailed": {
+    "message": "清除雲端設定失敗，雲端同步仍保持原狀。"
+  },
+  "settings_cloud_tooLarge": {
+    "message": "設定體積過大，請精簡評論規則後再同步。"
+  },
+  "settings_cloud_syncSuccess": {
+    "message": "設定已同步。"
+  },
+  "settings_cloud_syncFailed": {
+    "message": "同步失敗，請稍後再試。"
+  },
   "settings_category_extension_settings_name": {
     "message": "擴充功能設定"
   },
@@ -99,7 +206,7 @@
     "message": "用戶端增強"
   },
   "settings_category_client_desc": {
-    "message": "Steam 用戶端收藏庫和下載頁增強，此頁面功能開啟或關閉後需要重新啟動 Steam 用戶端。"
+    "message": "Steam 用戶端收藏庫和下載頁增強，此頁面功能開啟或關閉需要重新啟動 Steam 用戶端。"
   },
   "settings_feature_settings_startup_animation_name": {
     "message": "設定中心啟動動畫"
@@ -584,13 +691,13 @@
     "message": "拼音搜尋"
   },
   "settings_feature_search_suggestions_pinyin_desc": {
-    "message": "允許使用完整拼音匹配中文名稱，例如 xiadaoliecheshou。"
+    "message": "商店聯想和庫搜尋都使用完整拼音匹配中文名稱，例如 xiadaoliecheshou"
   },
   "settings_feature_search_suggestions_mnemonic_name": {
     "message": "助記符搜尋"
   },
   "settings_feature_search_suggestions_mnemonic_desc": {
-    "message": "允許使用中文首字母助記符匹配中文名稱，例如 xdlcs。"
+    "message": "商店聯想和庫搜尋都使用中文首字母助記符匹配中文名稱，例如 xdlcs"
   },
   "settings_feature_game_notes_name": {
     "message": "遊戲備註"
@@ -1235,6 +1342,15 @@
   "common_saveFailed": {
     "message": "儲存失敗"
   },
+  "settings_order_saveFailed": {
+    "message": "來源順序儲存失敗，已恢復原來的順序。"
+  },
+  "settings_order_moveUp": {
+    "message": "上移"
+  },
+  "settings_order_moveDown": {
+    "message": "下移"
+  },
   "settings_savePrompt_title": {
     "message": "儲存成功"
   },
@@ -1459,6 +1575,15 @@
   "about_backup_section_familyLibrary": {
     "message": "家庭收藏庫重新整理"
   },
+  "about_backup_section_uiLocale": {
+    "message": "介面語言"
+  },
+  "about_backup_section_storePriceChart": {
+    "message": "價格圖表"
+  },
+  "about_backup_section_thirdPartyServices": {
+    "message": "第三方服務"
+  },
   "about_backup_noSections": {
     "message": "沒有可辨識的分區"
   },
@@ -1553,6 +1678,18 @@
   },
   "about_backup_exportFailedTitle": {
     "message": "匯出設定失敗"
+  },
+  "about_backup_exportConfirmTitle": {
+    "message": "匯出設定"
+  },
+  "about_backup_exportConfirmMessage": {
+    "message": "本操作將匯出所有設定資料（包含 API 金鑰），請勿隨意外傳匯出檔！"
+  },
+  "about_backup_cancelExport": {
+    "message": "取消匯出"
+  },
+  "about_backup_confirmExport": {
+    "message": "確認匯出"
   },
   "about_backup_importFailedTitle": {
     "message": "匯入設定失敗"
@@ -2566,6 +2703,17 @@
   "common_continue": {
     "message": "繼續"
   },
+  "common_continueCountdown": {
+    "message": "$label$($seconds$)",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "seconds": {
+        "content": "$2"
+      }
+    }
+  },
   "common_dateYmd": {
     "message": "$year$年$month$月$day$日",
     "placeholders": {
@@ -3108,6 +3256,9 @@
   },
   "steam_newsTranslate_requestTimedOut": {
     "message": "翻譯請求逾時"
+  },
+  "steam_newsTranslate_selectionTitle": {
+    "message": "翻譯選中文字"
   },
   "steam_newsTranslate_titleTextMissing": {
     "message": "找不到可替換的標題文字"
@@ -3958,7 +4109,7 @@
     "message": "儲存進度"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "總計：$total$，處理：$processed$，略過：$skipped$，失敗：$failed$，同步：$synced$",
+    "message": "總計：$total$，處理：$processed$，略過：$skipped$，失敗：$failed$，已入隊：$queued$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -3972,7 +4123,7 @@
       "failed": {
         "content": "$4"
       },
-      "synced": {
+      "queued": {
         "content": "$5"
       }
     }
@@ -4769,6 +4920,12 @@
   },
   "settings_account_loginExpired": {
     "message": "登入已過期，請重新登入"
+  },
+  "settings_account_accountSwitched": {
+    "message": "請求處理期間帳號已切換"
+  },
+  "settings_account_refreshFailed": {
+    "message": "登入刷新失敗，請稍後重試"
   },
   "settings_account_loggingOut": {
     "message": "正在登出"
@@ -5573,5 +5730,200 @@
   },
   "store_drmWarning_title": {
     "message": "第三方檢查"
+  },
+  "settings_feature_library_name_mode_name": {
+    "message": "庫自訂名稱方案"
+  },
+  "settings_feature_library_name_mode_desc": {
+    "message": "素材君雲儲存版會將修改後的名稱即時同步至素材君雲端伺服器，換電腦不會導致名稱資料遺失。\nSteam雲儲存版基於 Steam 的自訂排序名稱功能實作，會將資料即時同步至 Steam 雲端，換電腦不會導致名稱資料遺失。"
+  },
+  "settings_feature_library_name_mode_option_independent": {
+    "message": "素材君雲儲存版"
+  },
+  "settings_feature_library_name_mode_option_steam_sort": {
+    "message": "Steam雲儲存版"
+  },
+  "settings_libraryNameMode_restartConfirmTitle": {
+    "message": "切換模式"
+  },
+  "settings_libraryNameMode_restartConfirmBefore": {
+    "message": "切換模式"
+  },
+  "settings_libraryNameMode_restartConfirmEmphasis": {
+    "message": "需要手動重啟Steam"
+  },
+  "settings_libraryNameMode_restartConfirmAfter": {
+    "message": "，是否繼續？"
+  },
+  "settings_feature_store_title_name_sources_name": {
+    "message": "商店標題名稱來源"
+  },
+  "settings_feature_store_title_name_sources_desc": {
+    "message": "依上下順序選用第一個非空來源；Steam 原名固定為最後兜底，不參與排序"
+  },
+  "settings_feature_store_title_name_sources_option_user_custom": {
+    "message": "我的自訂名稱"
+  },
+  "settings_feature_store_title_name_sources_option_community": {
+    "message": "社群自訂名稱"
+  },
+  "settings_feature_store_title_name_sources_option_ai": {
+    "message": "AI 翻譯名稱"
+  },
+  "store_titleCustomName_aliasHint": {
+    "message": "Enter 或空白鍵新增，每款遊戲最多 10 個"
+  },
+  "steam_independentName_timeout": {
+    "message": "名稱服務回應逾時"
+  },
+  "steam_independentName_requestFailed": {
+    "message": "名稱請求失敗"
+  },
+  "steam_independentName_open": {
+    "message": "自訂名稱"
+  },
+  "steam_independentName_aliasHint": {
+    "message": "Enter 或空白鍵新增"
+  },
+  "steam_independentName_saveRow": {
+    "message": "儲存"
+  },
+  "steam_independentName_colOfficial": {
+    "message": "Steam 英文原名"
+  },
+  "steam_independentName_colAppid": {
+    "message": "AppID"
+  },
+  "steam_independentName_colCustom": {
+    "message": "自訂名稱"
+  },
+  "steam_independentName_colAlias": {
+    "message": "別名"
+  },
+  "steam_independentName_colMnemonic": {
+    "message": "助記符"
+  },
+  "steam_independentName_colPinyin": {
+    "message": "拼音全稱"
+  },
+  "steam_independentName_quotaUnlimited": {
+    "message": "額度不限"
+  },
+  "steam_independentName_quotaUsed": {
+    "message": "已用 $count$ / $quota$",
+    "placeholders": {
+        "count": {
+            "content": "$1"
+        },
+        "quota": {
+            "content": "$2"
+        }
+    }
+  },
+  "steam_independentName_rows": {
+    "message": "共 $n$ 款遊戲",
+    "placeholders": {
+        "n": {
+            "content": "$1"
+        }
+    }
+  },
+  "steam_independentName_title": {
+    "message": "自訂名稱"
+  },
+  "steam_independentName_batch": {
+    "message": "批次設定"
+  },
+  "steam_independentName_batchTitle": {
+    "message": "批次設定自訂名稱"
+  },
+  "steam_independentName_saving": {
+    "message": "正在儲存..."
+  },
+  "steam_independentName_search": {
+    "message": "搜尋名稱 / AppID / 別名"
+  },
+  "steam_independentName_export": {
+    "message": "匯出"
+  },
+  "steam_independentName_import": {
+    "message": "匯入"
+  },
+  "steam_independentName_channelMissing": {
+    "message": "名稱列表通道不可用"
+  },
+  "steam_independentName_loading": {
+    "message": "正在載入..."
+  },
+  "steam_independentName_draftConflict": {
+    "message": "雲端名稱已更新，這行還有未儲存的修改"
+  },
+  "steam_independentName_saved": {
+    "message": "已儲存在本機"
+  },
+  "steam_independentName_waitingCloud": {
+    "message": "等待雲端處理"
+  },
+  "steam_independentName_syncBlocked": {
+    "message": "雲端拒絕：$message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_quotaExceeded": {
+    "message": "匯入後將超過自訂名稱額度"
+  },
+  "steam_independentName_importing": {
+    "message": "正在匯入 $n$ 條，關閉視窗可取消",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_imported": {
+    "message": "已匯入 $n$ 條",
+    "placeholders": {
+        "n": {
+            "content": "$1"
+        }
+    }
+  },
+  "steam_independentName_importAll": {
+    "message": "全部匯入"
+  },
+  "steam_independentName_importCancel": {
+    "message": "取消匯入"
+  },
+  "steam_independentName_importUnset": {
+    "message": "僅未設定"
+  },
+  "steam_independentName_importPromptTitle": {
+    "message": "是否匯入已存在自訂名稱的遊戲？"
+  },
+  "steam_independentName_importPromptStats": {
+    "message": "檔案中名稱 $file$ 項，庫內匹配 $matched$ 項；其中已有自訂名稱 $existing$ 項，未設定 $unset$ 項",
+    "placeholders": {
+        "file": {
+            "content": "$1"
+        },
+        "matched": {
+            "content": "$2"
+        },
+        "existing": {
+            "content": "$3"
+        },
+        "unset": {
+            "content": "$4"
+        }
+    }
+  },
+  "steam_independentName_listTimeout": {
+    "message": "名稱列表讀取逾時"
+  },
+  "steam_independentName_listFailed": {
+    "message": "名稱列表讀取失敗"
   }
 }

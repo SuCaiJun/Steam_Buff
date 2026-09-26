@@ -47,6 +47,113 @@
   "settings_uiLocale_label": {
     "message": "表示言語"
   },
+  "settings_cloud_title": {
+    "message": "設定のクラウド同期"
+  },
+  "settings_cloud_desc": {
+    "message": "設定センターのパネル設定を暗号化して、現在の Steam Buff アカウントに同期します。同期キーはこの端末だけに保存されます。"
+  },
+  "settings_cloud_enable": {
+    "message": "クラウド同期を有効化"
+  },
+  "settings_cloud_secret": {
+    "message": "同期キー"
+  },
+  "settings_cloud_secretPlaceholder": {
+    "message": "この端末だけに保存されます。他の端末でも同じ文字列を入力してください"
+  },
+  "settings_cloud_syncNow": {
+    "message": "今すぐ同期"
+  },
+  "settings_cloud_login": {
+    "message": "ログイン"
+  },
+  "settings_cloud_needLogin": {
+    "message": "先に Steam Buff アカウントにログインしてください。"
+  },
+  "settings_cloud_needPermission": {
+    "message": "現在の特典には設定のクラウド同期が含まれていません。"
+  },
+  "settings_cloud_needSecret": {
+    "message": "同期する前に同期キーを入力してください。他の端末でも同じキーを使います。"
+  },
+  "settings_cloud_idle": {
+    "message": "有効にすると、設定センターのパネル設定が暗号化されてこのアカウントに同期されます。"
+  },
+  "settings_cloud_dirty": {
+    "message": "未アップロードの変更があります。設定ページを閉じるか「今すぐ同期」を押すとアップロードされます。"
+  },
+  "settings_cloud_conflictPending": {
+    "message": "この端末とクラウドの両方で設定が変更されています。残す方を選んでください。"
+  },
+  "settings_cloud_decryptPending": {
+    "message": "キーが違います"
+  },
+  "settings_cloud_secretWrongMessage": {
+    "message": "同期キーではクラウド設定を復号できません。正しいキーを入力してから同期してください。クラウドの暗号文を復号できたときだけ、この端末のキーを置き換えます。クラウド側の暗号化キーを変えるには、先にリセットでクラウド設定を削除し、クラウド同期を開き直してから新しいキーを入力してください。"
+  },
+  "settings_cloud_upgradePending": {
+    "message": "クラウド設定は新しい拡張機能バージョンのものです。先に Steam Buff を更新してください。"
+  },
+  "settings_cloud_lastSynced": {
+    "message": "前回の同期: $time$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_cloud_conflictTitle": {
+    "message": "設定クラウド同期の競合"
+  },
+  "settings_cloud_conflictMessage": {
+    "message": "この端末とクラウドの両方で設定が変更されています。クラウドを使うとこの端末のパネル設定が上書きされ、この端末を使うとクラウドが上書きされます。自動バックアップは作成されません。"
+  },
+  "settings_cloud_useCloud": {
+    "message": "クラウドを使う"
+  },
+  "settings_cloud_useLocal": {
+    "message": "この端末を使う"
+  },
+  "settings_cloud_later": {
+    "message": "後で"
+  },
+  "settings_cloud_overwriteConfirmTitle": {
+    "message": "クラウドを上書きしますか？"
+  },
+  "settings_cloud_overwriteConfirmMessage": {
+    "message": "クラウド上の現在の設定は、この端末の設定を現在のキーで暗号化したものに置き換えられ、履歴は残りません。"
+  },
+  "settings_cloud_upgradeTitle": {
+    "message": "拡張機能の更新が必要です"
+  },
+  "settings_cloud_upgradeMessage": {
+    "message": "クラウド設定は新しい Steam Buff バージョンのものです。新しい項目を失わないよう、更新してから同期してください。"
+  },
+  "settings_cloud_reset": {
+    "message": "リセット"
+  },
+  "settings_cloud_resetTitle": {
+    "message": "クラウド設定を消去しますか？"
+  },
+  "settings_cloud_resetMessage": {
+    "message": "リセットすると、現在のアカウントのクラウド設定コピーが削除され、元に戻せません。この端末のパネル設定は残ります。この端末のクラウド同期はオフになり、他の端末はこのクラウドコピーを取得できなくなります。その後、自分でクラウド同期をオンにし、新しい同期キーを入力してください。"
+  },
+  "settings_cloud_resetConfirm": {
+    "message": "確認"
+  },
+  "settings_cloud_resetFailed": {
+    "message": "クラウド設定を消去できませんでした。クラウド同期はそのままです。"
+  },
+  "settings_cloud_tooLarge": {
+    "message": "設定が大きすぎます。レビューフィルタールールを減らしてから同期してください。"
+  },
+  "settings_cloud_syncSuccess": {
+    "message": "設定を同期しました。"
+  },
+  "settings_cloud_syncFailed": {
+    "message": "同期に失敗しました。しばらくしてから再試行してください。"
+  },
   "settings_category_extension_settings_name": {
     "message": "拡張機能設定"
   },
@@ -99,7 +206,7 @@
     "message": "クライアント拡張"
   },
   "settings_category_client_desc": {
-    "message": "Steamクライアントのライブラリとダウンロードページを拡張します。このページで機能を有効または無効にした後は、Steamを再起動してください。"
+    "message": "Steamクライアントのライブラリとダウンロードページを拡張します。このページの機能を有効または無効にした場合は、Steamクライアントの再起動が必要です。"
   },
   "settings_feature_settings_startup_animation_name": {
     "message": "設定センター起動アニメーション"
@@ -584,13 +691,13 @@
     "message": "ピンイン検索"
   },
   "settings_feature_search_suggestions_pinyin_desc": {
-    "message": "中国語の名前をピンインの完全表記で照合します。例: xiadaoliecheshou。"
+    "message": "ストア候補とライブラリ検索の両方でピンイン完全表記を使います。例: xiadaoliecheshou"
   },
   "settings_feature_search_suggestions_mnemonic_name": {
     "message": "頭文字検索"
   },
   "settings_feature_search_suggestions_mnemonic_desc": {
-    "message": "中国語の名前をピンインの頭文字で照合します。例: xdlcs。"
+    "message": "ストア候補とライブラリ検索の両方でピンイン頭文字を使います。例: xdlcs"
   },
   "settings_feature_game_notes_name": {
     "message": "ゲームメモ"
@@ -1235,6 +1342,15 @@
   "common_saveFailed": {
     "message": "保存に失敗しました"
   },
+  "settings_order_saveFailed": {
+    "message": "表示順を保存できませんでした。元の順序に戻しました。"
+  },
+  "settings_order_moveUp": {
+    "message": "上へ"
+  },
+  "settings_order_moveDown": {
+    "message": "下へ"
+  },
   "settings_savePrompt_title": {
     "message": "保存しました"
   },
@@ -1459,6 +1575,15 @@
   "about_backup_section_familyLibrary": {
     "message": "ファミリーライブラリの更新"
   },
+  "about_backup_section_uiLocale": {
+    "message": "表示言語"
+  },
+  "about_backup_section_storePriceChart": {
+    "message": "価格チャート"
+  },
+  "about_backup_section_thirdPartyServices": {
+    "message": "サードパーティサービス"
+  },
   "about_backup_noSections": {
     "message": "認識されたセクションはありません"
   },
@@ -1553,6 +1678,18 @@
   },
   "about_backup_exportFailedTitle": {
     "message": "設定のエクスポートに失敗しました"
+  },
+  "about_backup_exportConfirmTitle": {
+    "message": "設定をエクスポート"
+  },
+  "about_backup_exportConfirmMessage": {
+    "message": "この操作ですべての設定データ（APIキーを含む）をエクスポートします。ファイルを安易に共有しないでください。"
+  },
+  "about_backup_cancelExport": {
+    "message": "エクスポートをキャンセル"
+  },
+  "about_backup_confirmExport": {
+    "message": "エクスポートを確認"
   },
   "about_backup_importFailedTitle": {
     "message": "設定のインポートに失敗しました"
@@ -2566,6 +2703,17 @@
   "common_continue": {
     "message": "続行"
   },
+  "common_continueCountdown": {
+    "message": "$label$($seconds$)",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "seconds": {
+        "content": "$2"
+      }
+    }
+  },
   "common_dateYmd": {
     "message": "$month$/$day$/$year$",
     "placeholders": {
@@ -3108,6 +3256,9 @@
   },
   "steam_newsTranslate_requestTimedOut": {
     "message": "翻訳リクエストがタイムアウトしました"
+  },
+  "steam_newsTranslate_selectionTitle": {
+    "message": "選択したテキストを翻訳"
   },
   "steam_newsTranslate_titleTextMissing": {
     "message": "置換可能なタイトルテキストが見つかりませんでした"
@@ -3958,7 +4109,7 @@
     "message": "保存の進捗状況"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "合計: $total$、処理済み: $processed$、スキップ: $skipped$、失敗: $failed$、同期済み: $synced$",
+    "message": "合計: $total$、処理済み: $processed$、スキップ: $skipped$、失敗: $failed$、キュー投入: $queued$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -3972,7 +4123,7 @@
       "failed": {
         "content": "$4"
       },
-      "synced": {
+      "queued": {
         "content": "$5"
       }
     }
@@ -4769,6 +4920,12 @@
   },
   "settings_account_loginExpired": {
     "message": "サインインの有効期限が切れました。もう一度サインインしてください。"
+  },
+  "settings_account_accountSwitched": {
+    "message": "リクエストの実行中にアカウントが切り替わりました。"
+  },
+  "settings_account_refreshFailed": {
+    "message": "サインインを更新できませんでした。しばらくしてからもう一度お試しください。"
   },
   "settings_account_loggingOut": {
     "message": "サインアウト中"
@@ -5573,5 +5730,200 @@
   },
   "store_drmWarning_title": {
     "message": "サードパーティチェック"
+  },
+  "settings_feature_library_name_mode_name": {
+    "message": "ライブラリカスタム名方式"
+  },
+  "settings_feature_library_name_mode_desc": {
+    "message": "素材君クラウド版は、変更した名称を素材君クラウドサーバーへリアルタイム同期するため、パソコンを替えても名称データは失われません。\nSteamクラウド版は Steam のカスタムソート名機能を使い、データを Steam クラウドへリアルタイム同期するため、パソコンを替えても名称データは失われません。"
+  },
+  "settings_feature_library_name_mode_option_independent": {
+    "message": "素材君クラウド版"
+  },
+  "settings_feature_library_name_mode_option_steam_sort": {
+    "message": "Steamクラウド版"
+  },
+  "settings_libraryNameMode_restartConfirmTitle": {
+    "message": "モード切替"
+  },
+  "settings_libraryNameMode_restartConfirmBefore": {
+    "message": "モードを切り替えると"
+  },
+  "settings_libraryNameMode_restartConfirmEmphasis": {
+    "message": "Steamを手動で再起動する必要があります"
+  },
+  "settings_libraryNameMode_restartConfirmAfter": {
+    "message": "。続行しますか？"
+  },
+  "settings_feature_store_title_name_sources_name": {
+    "message": "ストアタイトルの名称ソース"
+  },
+  "settings_feature_store_title_name_sources_desc": {
+    "message": "上から最初の空でないソースを使います。Steam 原題は常に最後のフォールバックで、並べ替え対象ではありません。"
+  },
+  "settings_feature_store_title_name_sources_option_user_custom": {
+    "message": "自分のカスタム名"
+  },
+  "settings_feature_store_title_name_sources_option_community": {
+    "message": "コミュニティのカスタム名"
+  },
+  "settings_feature_store_title_name_sources_option_ai": {
+    "message": "AI 翻訳名"
+  },
+  "store_titleCustomName_aliasHint": {
+    "message": "Enter またはスペースで追加。ゲームごとに最大 10 件"
+  },
+  "steam_independentName_timeout": {
+    "message": "名称サービスの応答がタイムアウトしました"
+  },
+  "steam_independentName_requestFailed": {
+    "message": "名称リクエストに失敗しました"
+  },
+  "steam_independentName_open": {
+    "message": "カスタム名"
+  },
+  "steam_independentName_aliasHint": {
+    "message": "Enter またはスペースで追加"
+  },
+  "steam_independentName_saveRow": {
+    "message": "保存"
+  },
+  "steam_independentName_colOfficial": {
+    "message": "Steam 英語名"
+  },
+  "steam_independentName_colAppid": {
+    "message": "AppID"
+  },
+  "steam_independentName_colCustom": {
+    "message": "カスタム名"
+  },
+  "steam_independentName_colAlias": {
+    "message": "エイリアス"
+  },
+  "steam_independentName_colMnemonic": {
+    "message": "ニーモニック"
+  },
+  "steam_independentName_colPinyin": {
+    "message": "ピンイン全称"
+  },
+  "steam_independentName_quotaUnlimited": {
+    "message": "制限なし"
+  },
+  "steam_independentName_quotaUsed": {
+    "message": "使用 $count$ / $quota$",
+    "placeholders": {
+        "count": {
+            "content": "$1"
+        },
+        "quota": {
+            "content": "$2"
+        }
+    }
+  },
+  "steam_independentName_rows": {
+    "message": "$n$ 本のゲーム",
+    "placeholders": {
+        "n": {
+            "content": "$1"
+        }
+    }
+  },
+  "steam_independentName_title": {
+    "message": "カスタム名"
+  },
+  "steam_independentName_batch": {
+    "message": "一括設定"
+  },
+  "steam_independentName_batchTitle": {
+    "message": "カスタム名の一括設定"
+  },
+  "steam_independentName_saving": {
+    "message": "保存中..."
+  },
+  "steam_independentName_search": {
+    "message": "名前 / AppID / エイリアスを検索"
+  },
+  "steam_independentName_export": {
+    "message": "エクスポート"
+  },
+  "steam_independentName_import": {
+    "message": "インポート"
+  },
+  "steam_independentName_channelMissing": {
+    "message": "名称リストのチャネルを利用できません"
+  },
+  "steam_independentName_loading": {
+    "message": "読み込み中..."
+  },
+  "steam_independentName_draftConflict": {
+    "message": "クラウドの名称が更新されました。この行には未保存の変更があります"
+  },
+  "steam_independentName_saved": {
+    "message": "ローカルに保存済み"
+  },
+  "steam_independentName_waitingCloud": {
+    "message": "クラウドの処理待ち"
+  },
+  "steam_independentName_syncBlocked": {
+    "message": "クラウド拒否：$message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_quotaExceeded": {
+    "message": "インポートするとカスタム名の上限を超えます"
+  },
+  "steam_independentName_importing": {
+    "message": "$n$ 件をインポートしています。ウィンドウを閉じると中止します。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_imported": {
+    "message": "$n$ 件をインポートしました",
+    "placeholders": {
+        "n": {
+            "content": "$1"
+        }
+    }
+  },
+  "steam_independentName_importAll": {
+    "message": "すべてインポート"
+  },
+  "steam_independentName_importCancel": {
+    "message": "インポートをキャンセル"
+  },
+  "steam_independentName_importUnset": {
+    "message": "未設定のみ"
+  },
+  "steam_independentName_importPromptTitle": {
+    "message": "既にカスタム名があるゲームもインポートしますか？"
+  },
+  "steam_independentName_importPromptStats": {
+    "message": "ファイルは $file$ 件、ライブラリ一致は $matched$ 件。既にカスタム名があるのは $existing$ 件、未設定は $unset$ 件です",
+    "placeholders": {
+        "file": {
+            "content": "$1"
+        },
+        "matched": {
+            "content": "$2"
+        },
+        "existing": {
+            "content": "$3"
+        },
+        "unset": {
+            "content": "$4"
+        }
+    }
+  },
+  "steam_independentName_listTimeout": {
+    "message": "名称リストの読み込みがタイムアウトしました"
+  },
+  "steam_independentName_listFailed": {
+    "message": "名称リストの読み込みに失敗しました"
   }
 }

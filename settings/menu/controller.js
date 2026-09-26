@@ -295,6 +295,7 @@
         callPanelOpen(shadow);
         playStartupAnimation(shadow);
         log.info("settings-panel-open", "设置面板打开", actionMeta());
+        globalThis.STSettingsCloudUi?.notifyOpen?.();
       }
     }
 
@@ -303,6 +304,7 @@
       setOpen(false);
       if (wasOpen) {
         log.info("settings-panel-close", "设置面板关闭", actionMeta());
+        globalThis.STSettingsCloudUi?.notifyClose?.();
       }
     }
 
@@ -327,10 +329,12 @@
         log.info("settings-panel-open", "设置面板打开", actionMeta({
           source: "toggle",
         }));
+        globalThis.STSettingsCloudUi?.notifyOpen?.();
       } else {
         log.info("settings-panel-close", "设置面板关闭", actionMeta({
           source: "toggle",
         }));
+        globalThis.STSettingsCloudUi?.notifyClose?.();
       }
     }
 

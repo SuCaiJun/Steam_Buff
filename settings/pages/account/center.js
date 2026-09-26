@@ -70,6 +70,43 @@
       rt.centerCache = null;
     }
 
+    function ownerChangedError() {
+      const error = new Error(t("settings.account.accountSwitched", "账号已切换"));
+      error.code = "owner-changed";
+      return error;
+    }
+
+    async function identityOf(ctx, authValue = rt.auth) {
+      if (typeof ctx.storage?.getAuthIdentity === "function") {
+        const stored = await ctx.storage.getAuthIdentity();
+        return {
+          userId: String(stored?.userId || stored?.user?.id || "").trim(),
+          session: authKey(stored?.auth || authValue),
+        };
+      }
+      return { userId: "", session: authKey(authValue) };
+    }
+
+    function sameOwner(left, right) {
+      if (left?.userId && right?.userId) {
+        return left.userId === right.userId;
+      }
+      return !left?.session || !right?.session || left.session === right.session;
+    }
+
+    function sameSession(identity, authValue) {
+      const session = authKey(authValue);
+      return !identity?.session || !session || identity.session === session;
+    }
+
+    async function assertIdentity(ctx, bound, authValue = rt.auth) {
+      const current = await identityOf(ctx, authValue);
+      if (!sameOwner(bound, current) || !sameSession(current, authValue)) {
+        throw ownerChangedError();
+      }
+      return current;
+    }
+
     function refresh(ctx) {
       ctx.refresh("account");
     }
@@ -103,12 +140,22 @@
       refresh(ctx);
       try {
         const auth = getAuth();
+        const beforeReady = await identityOf(ctx, rt.auth);
         let current = await auth.readyAuth(ctx, { operationId });
+        const afterReady = await identityOf(ctx, current);
+        if (!sameOwner(beforeReady, afterReady) || !sameSession(afterReady, current)) {
+          throw ownerChangedError();
+        }
+        let bound = afterReady;
         let res = await api.request("/user/center", null, current.access_token, ctx, "GET", api.urls.steamBuffBase, { operationId });
+        await assertIdentity(ctx, bound, current);
         let code = Number(res.body?.code) || res.status || 0;
         if (code === 401 && current?.refresh_token) {
+          await assertIdentity(ctx, bound, current);
           current = await auth.refreshAuth(ctx, { operationId });
+          bound = await assertIdentity(ctx, bound, current);
           res = await api.request("/user/center", null, current.access_token, ctx, "GET", api.urls.steamBuffBase, { operationId });
+          await assertIdentity(ctx, bound, current);
           code = Number(res.body?.code) || res.status || 0;
         }
         if (code === 401) {
@@ -119,31 +166,57 @@
           throw new Error(res.body?.message || t("settings.account.centerLoadFailed", "获取用户中心失败"));
         }
 
-        rt.center = res.body || null;
-        cacheCenter(rt.center, current);
+        await assertIdentity(ctx, bound, current);
         if (typeof ctx.storage?.setMembership !== "function") {
           throw new Error(t("settings.account.membershipStorageUnavailable", "会员状态存储未初始化"));
         }
         const membership = await ctx.storage.setMembership(
-          profile().membershipSnapshot(profile().normalizeData(rt.center, current)),
-          { operationId }
+          profile().membershipSnapshot(profile().normalizeData(res.body || null, current)),
+          {
+            operationId,
+            ownerId: bound.userId,
+            sessionKey: bound.session,
+          }
         );
         if (!membership) {
           throw new Error(t("settings.account.membershipSaveFailed", "会员状态保存失败"));
         }
-        await auth.storeAuth(ctx, {
-          ...current,
-          last_used_at: Date.now(),
-        }, { operationId });
+        await auth.touchUsed(ctx, { operationId });
+        current = rt.auth || current;
+        bound = await assertIdentity(ctx, bound, current);
+        rt.center = res.body || null;
+        cacheCenter(rt.center, current);
         rt.centerError = "";
         log.info("account-center-sync-success", "用户中心同步成功", {
           operationId,
           durationMs: Date.now() - startedAt,
           membershipActive: profile().membershipSnapshot(profile().normalizeData(rt.center, current)).active === true,
         });
+        try {
+          if (typeof root.STSettingsCloudUi?.preload === "function") {
+            await root.STSettingsCloudUi.preload();
+          }
+          chrome.runtime.sendMessage({
+            type: "SETTINGS_CLOUD_SYNC",
+            reason: "login",
+            action: "sync",
+            operationId,
+          }, () => {
+            void chrome.runtime.lastError;
+          });
+        } catch (error) {
+          log.warn("settings-cloud-login-trigger-failed", "登录后触发设置云同步失败", {
+            operationId,
+            error,
+          });
+        }
         return rt.center;
       } catch (error) {
         rt.centerError = error?.message || String(error);
+        if (error?.code === "owner-changed") {
+          rt.center = null;
+          clearCenterCache();
+        }
         if (!rt.auth?.access_token && !rt.auth?.refresh_token) {
           rt.center = null;
         }

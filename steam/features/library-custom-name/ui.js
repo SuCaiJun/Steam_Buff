@@ -399,7 +399,7 @@
       skipped: 0,
       uploadOk: 0,
       uploadFail: 0,
-      cloudOk: 0,
+      cloudQueued: 0,
       cloudFail: 0,
       cloudSkipped: 0,
       cloudPending: 0,
@@ -470,7 +470,7 @@
       success: batch.stats.success,
       failed: batch.stats.failed,
       skipped: batch.stats.skipped,
-      cloudOk: batch.stats.cloudOk,
+      cloudQueued: batch.stats.cloudQueued,
       cloudFail: batch.stats.cloudFail,
       cloudSkipped: batch.stats.cloudSkipped,
       cloudPending: batch.stats.cloudPending,
@@ -2370,7 +2370,7 @@
     batch.cloudQueue = [];
     batch.cloudFlush = null;
     batch.cloudFinishing = false;
-    batch.stats.cloudOk = 0;
+    batch.stats.cloudQueued = 0;
     batch.stats.cloudFail = 0;
     batch.stats.cloudSkipped = 0;
     batch.stats.cloudPending = 0;
@@ -2396,29 +2396,43 @@
   }
 
   function countCloudResult(res, size) {
+    const batchSize = Math.max(0, Number(size) || 0);
     const results = Array.isArray(res?.results) ? res.results : [];
+    // 仅本函数读取 results[].code；当前入队回执没有该字段，这里的数量也只表示已入队
     if (results.length) {
-      let ok = 0;
+      let queued = 0;
       let fail = 0;
       for (const item of results) {
         const code = Number(item?.code) || 0;
         if (code >= 200 && code < 300) {
-          ok += 1;
+          queued += 1;
         } else {
           fail += 1;
         }
       }
-      return { ok, fail };
+      return { queued, fail };
     }
     const accepted = Number(res?.accepted);
     const failed = Number(res?.failed);
     if (Number.isFinite(accepted) || Number.isFinite(failed)) {
+      const acceptedCount = Math.max(0, Number.isFinite(accepted) ? accepted : 0);
+      const failedCount = Math.max(0, Number.isFinite(failed) ? failed : 0);
+      // accepted 含 code>=400 的入队行；没有 rejected 的旧回执只计 accepted，去重差额不计失败
+      let rejectedCount = 0;
+      if (Array.isArray(res?.rejected)) {
+        for (const item of res.rejected) {
+          const code = Number(item?.code);
+          if (item && typeof item === "object" && Number.isFinite(code) && code >= 400) {
+            rejectedCount += 1;
+          }
+        }
+      }
       return {
-        ok: Math.max(0, Number.isFinite(accepted) ? accepted : 0),
-        fail: Math.max(0, Number.isFinite(failed) ? failed : 0),
+        queued: Math.max(0, acceptedCount - rejectedCount),
+        fail: failedCount + rejectedCount,
       };
     }
-    return { ok: size, fail: 0 };
+    return { queued: 0, fail: batchSize };
   }
 
   async function waitCloudResume() {
@@ -2527,13 +2541,13 @@
           try {
             const res = await feedback({ items: chunk });
             const count = countCloudResult(res, chunk.length);
-            batch.stats.cloudOk += count.ok;
+            batch.stats.cloudQueued += count.queued;
             batch.stats.cloudFail += count.fail;
             if (count.fail > 0) {
               log.warn("library-custom-name-cloud-upload-batch-failed", "库自定义名称素材君云端上传批次存在失败项", {
                 operationId: batch.operationId || "",
                 size: chunk.length,
-                ok: count.ok,
+                queued: count.queued,
                 fail: count.fail,
                 pending: batch.stats.cloudPending,
               });
@@ -2567,7 +2581,7 @@
           : (cancelled ? "library-custom-name-cloud-upload-cancelled" : (failed ? "library-custom-name-cloud-upload-failed" : "library-custom-name-cloud-upload-success"));
         const message = terminalError
           ? "库自定义名称素材君云端上传异常"
-          : (cancelled ? "库自定义名称素材君云端上传已取消" : (failed ? "库自定义名称素材君云端上传完成但存在失败项" : "库自定义名称素材君云端上传完成"));
+          : (cancelled ? "库自定义名称素材君云端上传已取消" : (failed ? "库自定义名称素材君云端入队完成但存在失败项" : "库自定义名称素材君云端上传已入队"));
         logByLevel(level, event, message, {
           operationId: batch.operationId || "",
           ...statsMeta(),
@@ -3221,10 +3235,10 @@
     if (batch.saveAction === "clear") {
       return i18n("steam.libraryCustomName.clearProgressLine", "总计:$total$，已清空:$success$，跳过:$skipped$，失败:$failed$", st);
     }
-    const synced = batch.saveUploadCloud ? st.cloudOk : 0;
-    return i18n("steam.libraryCustomName.saveProgressLine", "总计:$total$，处理:$processed$，跳过:$skipped$，失败:$failed$，同步:$synced$", {
+    const queued = batch.saveUploadCloud ? st.cloudQueued : 0;
+    return i18n("steam.libraryCustomName.saveProgressLine", "总计:$total$，处理:$processed$，跳过:$skipped$，失败:$failed$，已入队:$queued$", {
       ...st,
-      synced,
+      queued,
     });
   }
 

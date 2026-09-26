@@ -97,6 +97,32 @@
     return hasCjk ? out.join("") : "";
   }
 
+  function pinyinFull(name, fn) {
+    const body = stripTags(name);
+    if (!body || !CJK_RE.test(body)) {
+      return "";
+    }
+    const py = pinyinFn(fn);
+    if (typeof py !== "function") {
+      return "";
+    }
+    try {
+      const out = py(body, {
+        toneType: "none",
+        type: "array",
+      });
+      if (!Array.isArray(out)) {
+        return "";
+      }
+      return out.map((part) => {
+        const syllable = String(part || "").replace(/\s+/g, "").toLowerCase();
+        return syllable ? syllable.charAt(0).toUpperCase() + syllable.slice(1) : "";
+      }).join("");
+    } catch {
+      return "";
+    }
+  }
+
   function rebuildMnemonic(name, fn) {
     const raw = text(name);
     const body = stripTags(raw);
@@ -114,6 +140,7 @@
 
   return {
     mnemonic,
+    pinyinFull,
     rebuildMnemonic,
     stripMnemonic,
     stripTags,

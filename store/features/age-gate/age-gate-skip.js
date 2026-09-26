@@ -21,6 +21,8 @@
     const ADULT_BIRTH_YEAR = 1996;
     const ADULT_BIRTH_MONTH = 7;
     const ADULT_BIRTH_DAY = 1;
+    const OBSERVER_DEBOUNCE_MS = 80;
+    const log = window.STLoggerFactory?.createLogger?.("store", "age-gate");
 
     function isAgeCheckPage() {
         return AGE_CHECK_PATH_RE.test(location.pathname);
@@ -148,17 +150,26 @@
 
     function ageCheckObserverTarget() {
         return document.querySelector("#agecheck_form")
-            || document.querySelector(".agegate_birthday_selector")
-            || document.getElementById("responsive_page_template_content")
-            || document.querySelector(".page_content")
-            || null;
+            || document.querySelector(".agegate_birthday_selector");
     }
 
     function contentWarningObserverTarget() {
-        return document.querySelector(".contentcheck_desc_ctn")
-            || document.getElementById("responsive_page_template_content")
-            || document.querySelector(".page_content")
-            || null;
+        return document.querySelector(".contentcheck_desc_ctn");
+    }
+
+    // 生日控件和继续按钮挂在这些节点内部，所以只观察该节点的后代
+    // 节点或监听工具不存在时不观察，调用方只保留已经执行的那一次填写或点击
+    // 隐藏期间断开，重新可见后挂回同一节点，超时后的 disconnect 会销毁监听
+    function watchPreciseNode(callback, target) {
+        const utils = window.STObserverUtils;
+        if (!target || typeof utils?.createDebouncedObserver !== "function" || typeof utils?.createVisibilityGatedObserver !== "function") {
+            return null;
+        }
+        const rawObserver = utils.createDebouncedObserver(callback, OBSERVER_DEBOUNCE_MS);
+        return utils.createVisibilityGatedObserver(rawObserver, target, {
+            childList: true,
+            subtree: true
+        });
     }
 
     function skipAgeCheckPage() {
@@ -197,14 +208,12 @@
         function startObserver() {
             if (handled || observer) return;
             const target = ageCheckObserverTarget();
-            if (!target) return;
-            observer = window.STObserverUtils?.createDebouncedObserver?.(trySubmit, 80)
-                || new MutationObserver(trySubmit);
-            // 只监听年龄验证表单或商店主内容区域，等待下拉框/提交按钮挂载。
-            observer.observe(target, {
-                childList: true,
-                subtree: true
-            });
+            observer = watchPreciseNode(trySubmit, target);
+            if (!observer && target) {
+                log?.warn?.("age-check-observer-skipped", "年龄验证表单已出现，但监听工具不可用，只保留当前这一次提交", {
+                    reason: "observer-utils-missing"
+                });
+            }
         }
 
         trySubmit();
@@ -263,13 +272,12 @@
             if (stopped || observer) return;
             const target = contentWarningObserverTarget();
             if (!target) return;
-            observer = window.STObserverUtils?.createDebouncedObserver?.(tryClick, 80)
-                || new MutationObserver(tryClick);
-            // 只监听内容警告区域或商店主内容区域，等待继续按钮挂载。
-            observer.observe(target, {
-                childList: true,
-                subtree: true
-            });
+            observer = watchPreciseNode(tryClick, target);
+            if (!observer) {
+                log?.warn?.("content-warning-observer-skipped", "内容警告区域已出现，但监听工具不可用，只保留当前这一次点击", {
+                    reason: "observer-utils-missing"
+                });
+            }
         }
 
         tryClick();

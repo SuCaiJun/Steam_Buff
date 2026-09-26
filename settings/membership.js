@@ -13,7 +13,7 @@
 
   const settings = root.STSettings = root.STSettings || {};
   const KEY = "steam_buff_membership";
-  const PERMISSION_KEYS = ["customNames", "gameNotes", "priceMonitor", "searchSuggestions"];
+  const PERMISSION_KEYS = ["customNames", "gameNotes", "priceMonitor", "searchSuggestions", "settingsCloud"];
   const log = root.STLoggerFactory?.createLogger?.("settings", "membership") || {
     warn() {},
   };
@@ -74,6 +74,7 @@
       gameNotes: quotaPermission(gameNotes, "quota"),
       priceMonitor: undefined,
       searchSuggestions: typeof search.enabled === "boolean" ? search.enabled : undefined,
+      settingsCloud: undefined,
     };
     return Object.fromEntries(PERMISSION_KEYS.map((key) => [
       key,
@@ -90,6 +91,7 @@
       badge: "",
       identity: "",
       expire: "",
+      userId: "",
       permissions: Object.fromEntries(PERMISSION_KEYS.map((key) => [key, false])),
       features: Object.fromEntries(PERMISSION_KEYS.map((key) => [key, false])),
       updatedAt: Date.now(),
@@ -113,6 +115,7 @@
       badge: active ? badgeValue : "",
       identity: identityValue === "赞助者身份" ? "" : identityValue,
       expire,
+      userId: String(src.userId || src.user?.id || "").trim(),
       permissions,
       // 兼容现有设置页和旧存储快照；新代码通过 permission/canUse 读取 permissions。
       features: permissions,
@@ -126,11 +129,11 @@
   }
 
   function canUse(item, membership) {
-    if (item?.member !== true) {
+    const feature = item?.memberFeature;
+    if (item?.member !== true && !feature) {
       return true;
     }
     const value = membership || empty();
-    const feature = item.memberFeature;
     return feature ? permission(feature, value) : value.active === true;
   }
 
@@ -138,7 +141,7 @@
     if (item?.disabled === true) {
       return item.lock || root.STI18n.text("settings.membership.unavailable", "暂不可用");
     }
-    if (item?.member === true && !canUse(item, membership)) {
+    if (!canUse(item, membership)) {
       const identity = membership?.identity || root.STI18n.text("settings.membership.sponsorIdentity", "赞助者身份");
       return item.lock || root.STI18n.text("settings.membership.identityOnly", "$identity$可用", { identity });
     }

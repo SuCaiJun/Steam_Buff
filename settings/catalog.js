@@ -375,6 +375,27 @@
     lineColors: Object.freeze({}),
   });
 
+  // 备份与云同步共用的面板分区；不含云同步通道、浮窗位置、登录会员、日志缓存
+  const PANEL_SECTIONS = Object.freeze([
+    "features",
+    "uiLocale",
+    "familyLibrary",
+    "storePriceChart",
+    "searchSuggestions",
+    "reviewFilter",
+    "translate",
+    "ai",
+    "thirdPartyServices",
+  ]);
+  const PANEL_STORAGE_PREFIXES = Object.freeze([
+    "st.settings.translate.",
+    "st.settings.ai.",
+    "st.settings.reviewFilter.",
+    "st.settings.searchSuggestions.",
+    "st.settings.familyLibrary.",
+    "st.settings.thirdPartyServices.",
+  ]);
+
   const categories = Object.freeze([
     {
       id: "extension-settings",
@@ -743,7 +764,7 @@
             {
               id: "search-suggestions-pinyin",
               name: "拼音搜索",
-              desc: "允许使用完整拼音匹配中文名称，例如 xiadaoliecheshou",
+              desc: "商店联想和库搜索都使用完整拼音匹配中文名称，例如 xiadaoliecheshou",
               area: "store",
               enabled: true,
               deps: depAll(["search-suggestions"]),
@@ -751,7 +772,7 @@
             {
               id: "search-suggestions-mnemonic",
               name: "助记符搜索",
-              desc: "允许使用中文首字母助记符匹配中文名称，例如 xdlcs",
+              desc: "商店联想和库搜索都使用中文首字母助记符匹配中文名称，例如 xdlcs",
               area: "store",
               enabled: true,
               deps: depAll(["search-suggestions"]),
@@ -766,6 +787,20 @@
           area: "store",
           enabled: true,
           children: Object.freeze([
+            {
+              id: "store-title-name-sources",
+              name: "商店标题名称来源",
+              desc: "按上下顺序选用第一个非空来源；Steam 原名固定为最后兜底，不参与排序",
+              area: "store",
+              control: "order",
+              default: Object.freeze(["user_custom", "community", "ai"]),
+              options: Object.freeze([
+                { value: "user_custom", label: "我的自定义名称" },
+                { value: "community", label: "社区自定义名称" },
+                { value: "ai", label: "AI 翻译名称" },
+              ]),
+              deps: depAll(["store-title-custom-name"]),
+            },
             {
               id: "game-notes",
               name: "游戏备注",
@@ -842,6 +877,20 @@
       name: "客户端增强",
       desc: "Steam 客户端库和下载页增强，此页面功能开启或关闭需要重启steam客户端。",
       items: Object.freeze([
+        {
+          id: "library-name-mode",
+          name: "库自定义名称方案",
+          desc: "素材君云存储版将修改后的名称实时同步至素材君云服务器，换电脑不会导致名称数据丢失。\nSteam云存储版基于Steam的自定义排序名称功能实现，将数据实时同步至Steam云中，换电脑不会导致名称数据丢失。",
+          help: "库自定义名称方案",
+          area: "steam",
+          control: "mode",
+          // 注: 缺 key 必须落回 steam-sort，避免老赞助者升级后库列表丢掉 Steam 自定义排序名称
+          default: "steam-sort",
+          options: Object.freeze([
+            { value: "independent", label: "素材君云存储版", memberFeature: "customNames", lock: "赞助者可用，开通后会按当前保存状态恢复" },
+            { value: "steam-sort", label: "Steam云存储版" },
+          ]),
+        },
         {
           id: "library-sort-title",
           name: "库列表显示自定义名称",
@@ -1132,9 +1181,38 @@
       .map((item) => item.id);
   }
 
+  function valueKind(item) {
+    const control = String(item?.control || "");
+    if (control === "order") {
+      return "order";
+    }
+    if (control === "choice") {
+      return "choice";
+    }
+    if (control === "mode") {
+      const options = Array.isArray(item.options) ? item.options : [];
+      if (options.length && options.every((option) => typeof option.value === "boolean")) {
+        return "";
+      }
+      if (options.length) {
+        return "choice";
+      }
+    }
+    return "";
+  }
+
   function defaults() {
     const out = {};
     for (const item of featureItems()) {
+      const kind = valueKind(item);
+      if (kind === "choice") {
+        out[item.id] = item.default;
+        continue;
+      }
+      if (kind === "order") {
+        out[item.id] = Array.isArray(item.default) ? item.default.slice() : [];
+        continue;
+      }
       out[item.id] = item.disabled === true ? false : item.enabled !== false;
     }
     return out;
@@ -1202,12 +1280,65 @@
     };
   }
 
+  function panelSectionDefaults(name) {
+    if (name === "features") {
+      return defaults();
+    }
+    if (name === "uiLocale") {
+      return "zh_CN";
+    }
+    if (name === "familyLibrary") {
+      return familyLibraryDefaults();
+    }
+    if (name === "storePriceChart") {
+      return storePriceChartDefaults();
+    }
+    if (name === "searchSuggestions") {
+      return searchSuggestionDefaults();
+    }
+    if (name === "reviewFilter") {
+      return reviewFilterDefaults();
+    }
+    if (name === "translate") {
+      return translateDefaults();
+    }
+    if (name === "ai") {
+      return aiDefaults();
+    }
+    if (name === "thirdPartyServices") {
+      return thirdPartyServicesDefaults();
+    }
+    return {};
+  }
+
+  function isPanelStorageKey(name) {
+    const key = String(name || "");
+    if (key === UI_LOCALE_KEY || key === "st.settings.storePriceChart") {
+      return true;
+    }
+    if (!key.startsWith("st.settings.") || key.startsWith("st.settings.cloud.") || key.startsWith("st.settings.rail.")) {
+      return false;
+    }
+    if (key.endsWith(".enabled") || key.endsWith(".value")) {
+      return true;
+    }
+    return PANEL_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix));
+  }
+
+  function valueControl(id) {
+    return valueKind(featureById(id));
+  }
+
   api.catalog = Object.freeze({
     UI_LOCALE_KEY,
+    panelSections: PANEL_SECTIONS,
+    panelSectionDefaults,
+    isPanelStorageKey,
     list,
     featureItems,
     featureById,
     featureIds,
+    valueControl,
     dependency,
     dependentsOf,
     defaults,

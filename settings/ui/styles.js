@@ -307,6 +307,11 @@
           overflow-wrap: anywhere;
         }
 
+        .settings-dialog-emphasis {
+          font-weight: 700;
+          color: var(--st-color-danger);
+        }
+
         .filtered-review-dialog {
           width: min(680px, calc(100% - 24px));
           max-height: min(620px, calc(100vh - 110px));
@@ -822,8 +827,8 @@
         .setting-mode {
           display: grid;
           grid-template-columns: repeat(2, minmax(72px, 1fr));
-          width: min(220px, 42%);
-          min-width: 168px;
+          width: min(280px, 48%);
+          min-width: 200px;
           padding: 3px;
           border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-06));
           border-radius: 6px;
@@ -864,7 +869,74 @@
           background: var(--st-color-steam-blue);
         }
 
+        .setting-mode-option.disabled,
         .setting-mode[aria-disabled="true"] .setting-mode-option {
+          cursor: not-allowed;
+          opacity: 0.48;
+        }
+
+        .setting-order {
+          display: grid;
+          gap: 8px;
+          margin: 0;
+          padding: 0;
+          min-width: 220px;
+          max-width: 280px;
+          list-style: none;
+          flex: 0 0 auto;
+        }
+
+        .setting-order-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 36px;
+          padding: 8px 12px;
+          border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-06));
+          border-radius: 6px;
+          background: var(--st-color-surface-subtle, var(--st-color-white-alpha-08));
+          color: var(--st-color-text-secondary-alt);
+          font-size: 12px;
+          font-weight: 600;
+          cursor: grab;
+        }
+
+        .setting-order-item.dragging {
+          opacity: 0.55;
+        }
+
+        .setting-order[aria-disabled="true"] .setting-order-item {
+          cursor: not-allowed;
+          opacity: 0.48;
+        }
+
+        .setting-order-handle {
+          width: 8px;
+          height: 14px;
+          flex: 0 0 auto;
+          background:
+            radial-gradient(circle, var(--st-color-text-muted) 1.1px, transparent 1.2px) 0 0 / 8px 6px repeat-y,
+            radial-gradient(circle, var(--st-color-text-muted) 1.1px, transparent 1.2px) 4px 0 / 8px 6px repeat-y;
+        }
+
+        .setting-order-label {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+
+        .setting-order-move {
+          flex: 0 0 auto;
+          min-height: 24px;
+          padding: 0 8px;
+          border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-06));
+          border-radius: 4px;
+          background: var(--st-color-surface-subtle, var(--st-color-white-alpha-08));
+          color: var(--st-color-text-secondary-alt);
+          font-size: 12px;
+          cursor: pointer;
+        }
+
+        .setting-order-move:disabled {
           cursor: not-allowed;
           opacity: 0.48;
         }
@@ -878,6 +950,8 @@
           font-weight: 400;
           line-height: 1.5;
           letter-spacing: 0;
+          /* 模板缩进不能制造来源图标前的换行，显式换行由正文节点单独保留。 */
+          white-space: normal;
         }
 
         .feature-desc .source-tip,
@@ -888,6 +962,7 @@
         .feature-desc.row-desc > span:not(.source-tip),
         .row-desc > span:not(.source-tip) {
           display: inline;
+          white-space: pre-line;
         }
 
         .feature-lock {
@@ -1347,6 +1422,13 @@
           overflow: visible;
           text-overflow: clip;
           white-space: normal;
+        }
+
+        .settings-cloud-card .settings-label {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          width: auto;
         }
 
         .control,
@@ -2116,9 +2198,11 @@
             padding: 12px;
           }
 
-          .setting-mode {
+          .setting-mode,
+          .setting-order {
             width: 100%;
             min-width: 0;
+            max-width: none;
           }
 
           .store-price-chart-field {

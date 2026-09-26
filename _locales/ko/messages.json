@@ -47,6 +47,113 @@
   "settings_uiLocale_label": {
     "message": "표시 언어"
   },
+  "settings_cloud_title": {
+    "message": "설정 클라우드 동기화"
+  },
+  "settings_cloud_desc": {
+    "message": "설정 센터 패널 구성을 암호화해 현재 Steam Buff 계정에 동기화합니다. 동기화 키는 이 기기에만 저장됩니다."
+  },
+  "settings_cloud_enable": {
+    "message": "클라우드 동기화 사용"
+  },
+  "settings_cloud_secret": {
+    "message": "동기화 키"
+  },
+  "settings_cloud_secretPlaceholder": {
+    "message": "이 기기에만 저장됩니다. 다른 기기에도 같은 문자열을 입력하세요"
+  },
+  "settings_cloud_syncNow": {
+    "message": "지금 동기화"
+  },
+  "settings_cloud_login": {
+    "message": "로그인"
+  },
+  "settings_cloud_needLogin": {
+    "message": "먼저 Steam Buff 계정에 로그인하세요."
+  },
+  "settings_cloud_needPermission": {
+    "message": "현재 혜택에 설정 클라우드 동기화가 포함되어 있지 않습니다."
+  },
+  "settings_cloud_needSecret": {
+    "message": "동기화하기 전에 동기화 키를 입력하세요. 다른 기기도 같은 키를 사용합니다."
+  },
+  "settings_cloud_idle": {
+    "message": "켜면 설정 센터 패널 구성이 암호화되어 이 계정에 동기화됩니다."
+  },
+  "settings_cloud_dirty": {
+    "message": "아직 업로드되지 않은 로컬 변경이 있습니다. 설정 페이지를 닫거나 지금 동기화를 누르면 업로드됩니다."
+  },
+  "settings_cloud_conflictPending": {
+    "message": "이 기기와 클라우드에서 모두 설정이 변경되었습니다. 유지할 쪽을 선택하세요."
+  },
+  "settings_cloud_decryptPending": {
+    "message": "키가 올바르지 않습니다"
+  },
+  "settings_cloud_secretWrongMessage": {
+    "message": "동기화 키로 클라우드 설정을 복호화할 수 없습니다. 올바른 키를 입력한 뒤 다시 동기화하세요. 클라우드 암호문을 복호화한 뒤에만 이 기기의 키가 바뀝니다. 클라우드 암호문의 암호화 키를 바꾸려면 먼저 초기화로 클라우드 설정을 삭제한 뒤, 클라우드 동기화를 다시 켜고 새 키를 입력하세요."
+  },
+  "settings_cloud_upgradePending": {
+    "message": "클라우드 설정이 더 높은 확장 프로그램 버전에서 왔습니다. 먼저 Steam Buff를 업데이트하세요."
+  },
+  "settings_cloud_lastSynced": {
+    "message": "마지막 동기화: $time$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_cloud_conflictTitle": {
+    "message": "설정 클라우드 동기화 충돌"
+  },
+  "settings_cloud_conflictMessage": {
+    "message": "이 기기와 클라우드에서 모두 설정이 변경되었습니다. 클라우드를 사용하면 이 기기의 패널 설정이 덮어씌워지고, 이 기기를 사용하면 클라우드가 덮어씌워집니다. 자동 백업은 만들지 않습니다."
+  },
+  "settings_cloud_useCloud": {
+    "message": "클라우드 사용"
+  },
+  "settings_cloud_useLocal": {
+    "message": "이 기기 사용"
+  },
+  "settings_cloud_later": {
+    "message": "나중에"
+  },
+  "settings_cloud_overwriteConfirmTitle": {
+    "message": "클라우드를 덮어쓸까요?"
+  },
+  "settings_cloud_overwriteConfirmMessage": {
+    "message": "클라우드의 현재 설정은 이 기기 설정을 현재 키로 암호화한 내용으로 바뀌며, 이전 버전은 보관되지 않습니다."
+  },
+  "settings_cloud_upgradeTitle": {
+    "message": "확장 프로그램 업데이트가 필요합니다"
+  },
+  "settings_cloud_upgradeMessage": {
+    "message": "클라우드 설정이 더 높은 Steam Buff 버전에서 왔습니다. 새 필드가 사라지지 않도록 업데이트한 뒤 동기화하세요."
+  },
+  "settings_cloud_reset": {
+    "message": "초기화"
+  },
+  "settings_cloud_resetTitle": {
+    "message": "클라우드 설정을 지울까요?"
+  },
+  "settings_cloud_resetMessage": {
+    "message": "초기화하면 현재 계정의 클라우드 설정 사본이 삭제되며 되돌릴 수 없습니다. 이 기기의 패널 설정은 유지됩니다. 이 기기의 클라우드 동기화는 꺼지고, 다른 기기는 이 클라우드 사본을 다시 받을 수 없습니다. 이후 직접 클라우드 동기화를 다시 켜고 새 동기화 키를 입력해야 합니다."
+  },
+  "settings_cloud_resetConfirm": {
+    "message": "확인"
+  },
+  "settings_cloud_resetFailed": {
+    "message": "클라우드 설정을 지우지 못했습니다. 클라우드 동기화는 그대로입니다."
+  },
+  "settings_cloud_tooLarge": {
+    "message": "설정이 너무 큽니다. 리뷰 필터 규칙을 줄인 뒤 다시 동기화하세요."
+  },
+  "settings_cloud_syncSuccess": {
+    "message": "설정이 동기화되었습니다."
+  },
+  "settings_cloud_syncFailed": {
+    "message": "동기화에 실패했습니다. 나중에 다시 시도하세요."
+  },
   "settings_category_extension_settings_name": {
     "message": "확장 프로그램 설정"
   },
@@ -99,7 +206,7 @@
     "message": "클라이언트 개선 기능"
   },
   "settings_category_client_desc": {
-    "message": "Steam 클라이언트 라이브러리와 다운로드 페이지를 개선합니다. 이 페이지에서 기능을 활성화하거나 비활성화한 후 Steam을 다시 시작하세요."
+    "message": "Steam 클라이언트 라이브러리와 다운로드 페이지를 개선합니다. 이 페이지의 기능을 켜거나 끄면 Steam 클라이언트를 다시 시작해야 합니다."
   },
   "settings_feature_settings_startup_animation_name": {
     "message": "설정 센터 시작 애니메이션"
@@ -584,13 +691,13 @@
     "message": "병음 검색"
   },
   "settings_feature_search_suggestions_pinyin_desc": {
-    "message": "중국어 이름을 병음 전체 표기로 검색합니다. 예: xiadaoliecheshou."
+    "message": "상점 추천과 라이브러리 검색 모두에서 병음 전체 표기를 사용합니다. 예: xiadaoliecheshou"
   },
   "settings_feature_search_suggestions_mnemonic_name": {
     "message": "초성 검색"
   },
   "settings_feature_search_suggestions_mnemonic_desc": {
-    "message": "중국어 이름을 병음 초성으로 검색합니다. 예: xdlcs."
+    "message": "상점 추천과 라이브러리 검색 모두에서 병음 초성을 사용합니다. 예: xdlcs"
   },
   "settings_feature_game_notes_name": {
     "message": "게임 메모"
@@ -1235,6 +1342,15 @@
   "common_saveFailed": {
     "message": "저장하지 못했습니다"
   },
+  "settings_order_saveFailed": {
+    "message": "출처 순서를 저장하지 못했습니다. 이전 순서로 되돌렸습니다."
+  },
+  "settings_order_moveUp": {
+    "message": "위로"
+  },
+  "settings_order_moveDown": {
+    "message": "아래로"
+  },
   "settings_savePrompt_title": {
     "message": "저장됨"
   },
@@ -1459,6 +1575,15 @@
   "about_backup_section_familyLibrary": {
     "message": "가족 라이브러리 새로 고침"
   },
+  "about_backup_section_uiLocale": {
+    "message": "인터페이스 언어"
+  },
+  "about_backup_section_storePriceChart": {
+    "message": "가격 차트"
+  },
+  "about_backup_section_thirdPartyServices": {
+    "message": "타사 서비스"
+  },
   "about_backup_noSections": {
     "message": "인식된 섹션이 없습니다"
   },
@@ -1553,6 +1678,18 @@
   },
   "about_backup_exportFailedTitle": {
     "message": "설정 내보내기 실패"
+  },
+  "about_backup_exportConfirmTitle": {
+    "message": "설정 내보내기"
+  },
+  "about_backup_exportConfirmMessage": {
+    "message": "이 작업은 모든 설정 데이터(API 키 포함)를 내보냅니다. 내보낸 파일을 함부로 공유하지 마세요."
+  },
+  "about_backup_cancelExport": {
+    "message": "내보내기 취소"
+  },
+  "about_backup_confirmExport": {
+    "message": "내보내기 확인"
   },
   "about_backup_importFailedTitle": {
     "message": "설정 가져오기 실패"
@@ -2566,6 +2703,17 @@
   "common_continue": {
     "message": "계속"
   },
+  "common_continueCountdown": {
+    "message": "$label$($seconds$)",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "seconds": {
+        "content": "$2"
+      }
+    }
+  },
   "common_dateYmd": {
     "message": "$month$/$day$/$year$",
     "placeholders": {
@@ -3108,6 +3256,9 @@
   },
   "steam_newsTranslate_requestTimedOut": {
     "message": "번역 요청 시간이 초과되었습니다"
+  },
+  "steam_newsTranslate_selectionTitle": {
+    "message": "선택한 텍스트 번역"
   },
   "steam_newsTranslate_titleTextMissing": {
     "message": "대체할 수 있는 제목 텍스트를 찾지 못했습니다"
@@ -3958,7 +4109,7 @@
     "message": "저장 진행 상황"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "총계: $total$, 처리됨: $processed$, 건너뜀: $skipped$, 실패: $failed$, 동기화됨: $synced$",
+    "message": "총계: $total$, 처리됨: $processed$, 건너뜀: $skipped$, 실패: $failed$, 대기열 등록: $queued$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -3972,7 +4123,7 @@
       "failed": {
         "content": "$4"
       },
-      "synced": {
+      "queued": {
         "content": "$5"
       }
     }
@@ -4769,6 +4920,12 @@
   },
   "settings_account_loginExpired": {
     "message": "로그인이 만료되었습니다. 다시 로그인하세요."
+  },
+  "settings_account_accountSwitched": {
+    "message": "요청을 처리하는 동안 계정이 변경되었습니다."
+  },
+  "settings_account_refreshFailed": {
+    "message": "로그인 갱신에 실패했습니다. 잠시 후 다시 시도해 주세요."
   },
   "settings_account_loggingOut": {
     "message": "로그아웃 중"
@@ -5573,5 +5730,200 @@
   },
   "store_drmWarning_title": {
     "message": "타사 확인"
+  },
+  "settings_feature_library_name_mode_name": {
+    "message": "라이브러리 사용자 지정 이름 방식"
+  },
+  "settings_feature_library_name_mode_desc": {
+    "message": "소재군 클라우드 저장판은 수정한 이름을 소재군 클라우드 서버에 실시간 동기화하므로, 컴퓨터를 바꿔도 이름 데이터가 사라지지 않습니다.\nSteam 클라우드 저장판은 Steam의 사용자 지정 정렬 이름 기능을 기반으로 데이터를 Steam 클라우드에 실시간 동기화하므로, 컴퓨터를 바꿔도 이름 데이터가 사라지지 않습니다."
+  },
+  "settings_feature_library_name_mode_option_independent": {
+    "message": "소재군 클라우드 저장판"
+  },
+  "settings_feature_library_name_mode_option_steam_sort": {
+    "message": "Steam 클라우드 저장판"
+  },
+  "settings_libraryNameMode_restartConfirmTitle": {
+    "message": "모드 전환"
+  },
+  "settings_libraryNameMode_restartConfirmBefore": {
+    "message": "모드를 전환하려면 "
+  },
+  "settings_libraryNameMode_restartConfirmEmphasis": {
+    "message": "Steam을 수동으로 다시 시작해야 합니다"
+  },
+  "settings_libraryNameMode_restartConfirmAfter": {
+    "message": ". 계속하시겠습니까?"
+  },
+  "settings_feature_store_title_name_sources_name": {
+    "message": "상점 제목 이름 소스"
+  },
+  "settings_feature_store_title_name_sources_desc": {
+    "message": "위에서부터 비어 있지 않은 첫 소스를 사용합니다. Steam 원제는 항상 마지막 대체값이며 정렬 대상이 아닙니다."
+  },
+  "settings_feature_store_title_name_sources_option_user_custom": {
+    "message": "내 사용자 지정 이름"
+  },
+  "settings_feature_store_title_name_sources_option_community": {
+    "message": "커뮤니티 사용자 지정 이름"
+  },
+  "settings_feature_store_title_name_sources_option_ai": {
+    "message": "AI 번역 이름"
+  },
+  "store_titleCustomName_aliasHint": {
+    "message": "Enter 또는 스페이스로 추가, 게임당 최대 10개"
+  },
+  "steam_independentName_timeout": {
+    "message": "이름 서비스 응답 시간이 초과되었습니다"
+  },
+  "steam_independentName_requestFailed": {
+    "message": "이름 요청에 실패했습니다"
+  },
+  "steam_independentName_open": {
+    "message": "사용자 지정 이름"
+  },
+  "steam_independentName_aliasHint": {
+    "message": "Enter 또는 스페이스로 추가"
+  },
+  "steam_independentName_saveRow": {
+    "message": "저장"
+  },
+  "steam_independentName_colOfficial": {
+    "message": "Steam 영어 원제"
+  },
+  "steam_independentName_colAppid": {
+    "message": "AppID"
+  },
+  "steam_independentName_colCustom": {
+    "message": "사용자 지정 이름"
+  },
+  "steam_independentName_colAlias": {
+    "message": "별칭"
+  },
+  "steam_independentName_colMnemonic": {
+    "message": "니모닉"
+  },
+  "steam_independentName_colPinyin": {
+    "message": "병음 전체"
+  },
+  "steam_independentName_quotaUnlimited": {
+    "message": "한도 없음"
+  },
+  "steam_independentName_quotaUsed": {
+    "message": "사용 $count$ / $quota$",
+    "placeholders": {
+        "count": {
+            "content": "$1"
+        },
+        "quota": {
+            "content": "$2"
+        }
+    }
+  },
+  "steam_independentName_rows": {
+    "message": "게임 $n$개",
+    "placeholders": {
+        "n": {
+            "content": "$1"
+        }
+    }
+  },
+  "steam_independentName_title": {
+    "message": "사용자 지정 이름"
+  },
+  "steam_independentName_batch": {
+    "message": "일괄 설정"
+  },
+  "steam_independentName_batchTitle": {
+    "message": "사용자 지정 이름 일괄 설정"
+  },
+  "steam_independentName_saving": {
+    "message": "저장 중..."
+  },
+  "steam_independentName_search": {
+    "message": "이름 / AppID / 별칭 검색"
+  },
+  "steam_independentName_export": {
+    "message": "내보내기"
+  },
+  "steam_independentName_import": {
+    "message": "가져오기"
+  },
+  "steam_independentName_channelMissing": {
+    "message": "이름 목록 채널을 사용할 수 없습니다"
+  },
+  "steam_independentName_loading": {
+    "message": "불러오는 중..."
+  },
+  "steam_independentName_draftConflict": {
+    "message": "클라우드 이름이 업데이트되었고, 이 행에는 저장하지 않은 수정이 있습니다"
+  },
+  "steam_independentName_saved": {
+    "message": "로컬에 저장됨"
+  },
+  "steam_independentName_waitingCloud": {
+    "message": "클라우드 처리 대기"
+  },
+  "steam_independentName_syncBlocked": {
+    "message": "클라우드 거부: $message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_quotaExceeded": {
+    "message": "가져오면 사용자 지정 이름 한도를 초과합니다"
+  },
+  "steam_independentName_importing": {
+    "message": "$n$개를 가져오는 중입니다. 창을 닫으면 취소됩니다.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_imported": {
+    "message": "$n$개 가져옴",
+    "placeholders": {
+        "n": {
+            "content": "$1"
+        }
+    }
+  },
+  "steam_independentName_importAll": {
+    "message": "모두 가져오기"
+  },
+  "steam_independentName_importCancel": {
+    "message": "가져오기 취소"
+  },
+  "steam_independentName_importUnset": {
+    "message": "미설정만"
+  },
+  "steam_independentName_importPromptTitle": {
+    "message": "이미 사용자 지정 이름이 있는 게임도 가져올까요?"
+  },
+  "steam_independentName_importPromptStats": {
+    "message": "파일 이름 $file$개, 라이브러리 일치 $matched$개. 이미 있는 항목 $existing$개, 미설정 $unset$개",
+    "placeholders": {
+        "file": {
+            "content": "$1"
+        },
+        "matched": {
+            "content": "$2"
+        },
+        "existing": {
+            "content": "$3"
+        },
+        "unset": {
+            "content": "$4"
+        }
+    }
+  },
+  "steam_independentName_listTimeout": {
+    "message": "이름 목록을 불러오는 시간이 초과되었습니다"
+  },
+  "steam_independentName_listFailed": {
+    "message": "이름 목록을 불러오지 못했습니다"
   }
 }

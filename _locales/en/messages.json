@@ -47,6 +47,113 @@
   "settings_uiLocale_label": {
     "message": "Display Language"
   },
+  "settings_cloud_title": {
+    "message": "Settings cloud sync"
+  },
+  "settings_cloud_desc": {
+    "message": "Encrypt and sync Settings panel configuration to the current Steam Buff account. The sync key stays on this device."
+  },
+  "settings_cloud_enable": {
+    "message": "Enable cloud sync"
+  },
+  "settings_cloud_secret": {
+    "message": "Sync key"
+  },
+  "settings_cloud_secretPlaceholder": {
+    "message": "Stored on this device only. Use the same key on other devices."
+  },
+  "settings_cloud_syncNow": {
+    "message": "Sync now"
+  },
+  "settings_cloud_login": {
+    "message": "Sign in"
+  },
+  "settings_cloud_needLogin": {
+    "message": "Sign in to your Steam Buff account first."
+  },
+  "settings_cloud_needPermission": {
+    "message": "Your current entitlement does not include settings cloud sync."
+  },
+  "settings_cloud_needSecret": {
+    "message": "Enter a sync key before syncing. Other devices must use the same key."
+  },
+  "settings_cloud_idle": {
+    "message": "When enabled, Settings panel configuration is encrypted and synced to this account."
+  },
+  "settings_cloud_dirty": {
+    "message": "There are local changes that have not been uploaded. They will upload when you close Settings or tap Sync now."
+  },
+  "settings_cloud_conflictPending": {
+    "message": "This device and the cloud both changed settings. Choose which copy to keep."
+  },
+  "settings_cloud_decryptPending": {
+    "message": "Wrong key"
+  },
+  "settings_cloud_secretWrongMessage": {
+    "message": "The sync key cannot decrypt the cloud settings. Enter the correct key and sync again. This device replaces its saved key only after that key decrypts the cloud copy. To encrypt the cloud copy with a different key, reset and clear the cloud settings, then turn cloud sync on again and enter the new key."
+  },
+  "settings_cloud_upgradePending": {
+    "message": "Cloud settings come from a newer Steam Buff version. Update the extension first."
+  },
+  "settings_cloud_lastSynced": {
+    "message": "Last synced: $time$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_cloud_conflictTitle": {
+    "message": "Settings cloud sync conflict"
+  },
+  "settings_cloud_conflictMessage": {
+    "message": "This device and the cloud both changed settings. Using the cloud overwrites this device. Using this device overwrites the cloud. No backup file is created."
+  },
+  "settings_cloud_useCloud": {
+    "message": "Use cloud"
+  },
+  "settings_cloud_useLocal": {
+    "message": "Use this device"
+  },
+  "settings_cloud_later": {
+    "message": "Later"
+  },
+  "settings_cloud_overwriteConfirmTitle": {
+    "message": "Overwrite the cloud?"
+  },
+  "settings_cloud_overwriteConfirmMessage": {
+    "message": "The current cloud settings will be replaced with this device’s settings, encrypted with the current key. Previous cloud versions are not kept."
+  },
+  "settings_cloud_upgradeTitle": {
+    "message": "Update the extension"
+  },
+  "settings_cloud_upgradeMessage": {
+    "message": "Cloud settings come from a newer Steam Buff version. Update before syncing so new fields are not dropped."
+  },
+  "settings_cloud_reset": {
+    "message": "Reset"
+  },
+  "settings_cloud_resetTitle": {
+    "message": "Clear cloud settings?"
+  },
+  "settings_cloud_resetMessage": {
+    "message": "Reset deletes this account's cloud settings copy and cannot be undone. Settings on this device stay. Cloud sync turns off on this device, and other devices can no longer download this cloud copy. Turn cloud sync on again yourself and enter a new sync key."
+  },
+  "settings_cloud_resetConfirm": {
+    "message": "Confirm"
+  },
+  "settings_cloud_resetFailed": {
+    "message": "Could not clear cloud settings. Cloud sync is unchanged."
+  },
+  "settings_cloud_tooLarge": {
+    "message": "Settings are too large. Reduce review-filter rules before syncing."
+  },
+  "settings_cloud_syncSuccess": {
+    "message": "Settings synced."
+  },
+  "settings_cloud_syncFailed": {
+    "message": "Sync failed. Try again later."
+  },
   "settings_category_extension_settings_name": {
     "message": "Extension Settings"
   },
@@ -99,7 +206,7 @@
     "message": "Client Enhancements"
   },
   "settings_category_client_desc": {
-    "message": "Steam client library and download page enhancements. Restart Steam after enabling or disabling features on this page."
+    "message": "Steam client library and download page enhancements require restarting the Steam client when features on this page are enabled or disabled."
   },
   "settings_feature_settings_startup_animation_name": {
     "message": "Settings Startup Animation"
@@ -584,13 +691,13 @@
     "message": "Pinyin Search"
   },
   "settings_feature_search_suggestions_pinyin_desc": {
-    "message": "Match Chinese names using full Pinyin, for example xiadaoliecheshou."
+    "message": "Use full Pinyin in store suggestions and library search, for example xiadaoliecheshou"
   },
   "settings_feature_search_suggestions_mnemonic_name": {
     "message": "Initials Search"
   },
   "settings_feature_search_suggestions_mnemonic_desc": {
-    "message": "Match Chinese names using Pinyin initials, for example xdlcs."
+    "message": "Use Pinyin initials in store suggestions and library search, for example xdlcs"
   },
   "settings_feature_game_notes_name": {
     "message": "Game Notes"
@@ -1235,6 +1342,15 @@
   "common_saveFailed": {
     "message": "Save failed"
   },
+  "settings_order_saveFailed": {
+    "message": "The source order could not be saved. The previous order has been restored."
+  },
+  "settings_order_moveUp": {
+    "message": "Move up"
+  },
+  "settings_order_moveDown": {
+    "message": "Move down"
+  },
   "settings_savePrompt_title": {
     "message": "Saved"
   },
@@ -1459,6 +1575,15 @@
   "about_backup_section_familyLibrary": {
     "message": "Family Library refresh"
   },
+  "about_backup_section_uiLocale": {
+    "message": "Interface language"
+  },
+  "about_backup_section_storePriceChart": {
+    "message": "Price chart"
+  },
+  "about_backup_section_thirdPartyServices": {
+    "message": "Third-party services"
+  },
   "about_backup_noSections": {
     "message": "No recognized sections"
   },
@@ -1553,6 +1678,18 @@
   },
   "about_backup_exportFailedTitle": {
     "message": "Settings export failed"
+  },
+  "about_backup_exportConfirmTitle": {
+    "message": "Export settings"
+  },
+  "about_backup_exportConfirmMessage": {
+    "message": "This will export all configuration data (including API keys). Do not share the export file casually!"
+  },
+  "about_backup_cancelExport": {
+    "message": "Cancel export"
+  },
+  "about_backup_confirmExport": {
+    "message": "Confirm export"
   },
   "about_backup_importFailedTitle": {
     "message": "Settings import failed"
@@ -2566,6 +2703,17 @@
   "common_continue": {
     "message": "Continue"
   },
+  "common_continueCountdown": {
+    "message": "$label$($seconds$)",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "seconds": {
+        "content": "$2"
+      }
+    }
+  },
   "common_dateYmd": {
     "message": "$month$/$day$/$year$",
     "placeholders": {
@@ -3108,6 +3256,9 @@
   },
   "steam_newsTranslate_requestTimedOut": {
     "message": "The translation request timed out"
+  },
+  "steam_newsTranslate_selectionTitle": {
+    "message": "Translate selected text"
   },
   "steam_newsTranslate_titleTextMissing": {
     "message": "No replaceable title text was found"
@@ -3958,7 +4109,7 @@
     "message": "Save progress"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "Total: $total$, processed: $processed$, skipped: $skipped$, failed: $failed$, synced: $synced$",
+    "message": "Total: $total$, processed: $processed$, skipped: $skipped$, failed: $failed$, queued: $queued$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -3972,7 +4123,7 @@
       "failed": {
         "content": "$4"
       },
-      "synced": {
+      "queued": {
         "content": "$5"
       }
     }
@@ -4769,6 +4920,12 @@
   },
   "settings_account_loginExpired": {
     "message": "Your sign-in has expired. Sign in again."
+  },
+  "settings_account_accountSwitched": {
+    "message": "The account changed while this request was running."
+  },
+  "settings_account_refreshFailed": {
+    "message": "Couldn't refresh the sign-in. Try again later."
   },
   "settings_account_loggingOut": {
     "message": "Signing out"
@@ -5573,5 +5730,200 @@
   },
   "store_drmWarning_title": {
     "message": "Third-party check"
+  },
+  "settings_feature_library_name_mode_name": {
+    "message": "Library Custom Name Mode"
+  },
+  "settings_feature_library_name_mode_desc": {
+    "message": "Sucaijun Cloud Storage syncs renamed titles to the Sucaijun cloud server in real time, so switching computers will not lose your name data.\nSteam Cloud Storage is built on Steam's custom sort name feature and syncs data to Steam Cloud in real time, so switching computers will not lose your name data."
+  },
+  "settings_feature_library_name_mode_option_independent": {
+    "message": "Sucaijun Cloud Storage"
+  },
+  "settings_feature_library_name_mode_option_steam_sort": {
+    "message": "Steam Cloud Storage"
+  },
+  "settings_libraryNameMode_restartConfirmTitle": {
+    "message": "Switch mode"
+  },
+  "settings_libraryNameMode_restartConfirmBefore": {
+    "message": "Switching modes "
+  },
+  "settings_libraryNameMode_restartConfirmEmphasis": {
+    "message": "requires manually restarting Steam"
+  },
+  "settings_libraryNameMode_restartConfirmAfter": {
+    "message": ". Continue?"
+  },
+  "settings_feature_store_title_name_sources_name": {
+    "message": "Store title name sources"
+  },
+  "settings_feature_store_title_name_sources_desc": {
+    "message": "Use the first non-empty source in this order. The Steam original title is always the last fallback and is not sortable."
+  },
+  "settings_feature_store_title_name_sources_option_user_custom": {
+    "message": "My custom name"
+  },
+  "settings_feature_store_title_name_sources_option_community": {
+    "message": "Community custom name"
+  },
+  "settings_feature_store_title_name_sources_option_ai": {
+    "message": "AI translated name"
+  },
+  "store_titleCustomName_aliasHint": {
+    "message": "Press Enter or Space to add, up to 10 per game"
+  },
+  "steam_independentName_timeout": {
+    "message": "Name service timed out"
+  },
+  "steam_independentName_requestFailed": {
+    "message": "Name request failed"
+  },
+  "steam_independentName_open": {
+    "message": "Custom names"
+  },
+  "steam_independentName_aliasHint": {
+    "message": "Press Enter or Space to add"
+  },
+  "steam_independentName_saveRow": {
+    "message": "Save"
+  },
+  "steam_independentName_colOfficial": {
+    "message": "Steam original name"
+  },
+  "steam_independentName_colAppid": {
+    "message": "AppID"
+  },
+  "steam_independentName_colCustom": {
+    "message": "Custom name"
+  },
+  "steam_independentName_colAlias": {
+    "message": "Aliases"
+  },
+  "steam_independentName_colMnemonic": {
+    "message": "Mnemonic"
+  },
+  "steam_independentName_colPinyin": {
+    "message": "Full Pinyin"
+  },
+  "steam_independentName_quotaUnlimited": {
+    "message": "Unlimited quota"
+  },
+  "steam_independentName_quotaUsed": {
+    "message": "Used $count$ / $quota$",
+    "placeholders": {
+        "count": {
+            "content": "$1"
+        },
+        "quota": {
+            "content": "$2"
+        }
+    }
+  },
+  "steam_independentName_rows": {
+    "message": "$n$ games",
+    "placeholders": {
+        "n": {
+            "content": "$1"
+        }
+    }
+  },
+  "steam_independentName_title": {
+    "message": "Custom name"
+  },
+  "steam_independentName_batch": {
+    "message": "Batch settings"
+  },
+  "steam_independentName_batchTitle": {
+    "message": "Batch custom name settings"
+  },
+  "steam_independentName_saving": {
+    "message": "Saving..."
+  },
+  "steam_independentName_search": {
+    "message": "Search names / AppID / aliases"
+  },
+  "steam_independentName_export": {
+    "message": "Export"
+  },
+  "steam_independentName_import": {
+    "message": "Import"
+  },
+  "steam_independentName_channelMissing": {
+    "message": "Name list channel is unavailable"
+  },
+  "steam_independentName_loading": {
+    "message": "Loading..."
+  },
+  "steam_independentName_draftConflict": {
+    "message": "The cloud name changed, and this row still has unsaved edits"
+  },
+  "steam_independentName_saved": {
+    "message": "Saved locally"
+  },
+  "steam_independentName_waitingCloud": {
+    "message": "Waiting for cloud processing"
+  },
+  "steam_independentName_syncBlocked": {
+    "message": "Cloud rejected: $message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_quotaExceeded": {
+    "message": "Import would exceed the custom name quota"
+  },
+  "steam_independentName_importing": {
+    "message": "Importing $n$ items. Close the window to cancel.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_imported": {
+    "message": "Imported $n$ items",
+    "placeholders": {
+        "n": {
+            "content": "$1"
+        }
+    }
+  },
+  "steam_independentName_importAll": {
+    "message": "Import all"
+  },
+  "steam_independentName_importCancel": {
+    "message": "Cancel import"
+  },
+  "steam_independentName_importUnset": {
+    "message": "Unset only"
+  },
+  "steam_independentName_importPromptTitle": {
+    "message": "Import names that already exist?"
+  },
+  "steam_independentName_importPromptStats": {
+    "message": "The file has $file$ names, $matched$ match the library; $existing$ already have custom names, $unset$ are unset",
+    "placeholders": {
+        "file": {
+            "content": "$1"
+        },
+        "matched": {
+            "content": "$2"
+        },
+        "existing": {
+            "content": "$3"
+        },
+        "unset": {
+            "content": "$4"
+        }
+    }
+  },
+  "steam_independentName_listTimeout": {
+    "message": "Timed out while loading the name list"
+  },
+  "steam_independentName_listFailed": {
+    "message": "Failed to load the name list"
   }
 }

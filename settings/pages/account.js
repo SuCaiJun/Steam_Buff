@@ -45,13 +45,26 @@
     deviceLogin,
   });
 
+  async function syncCloudCard() {
+    if (typeof root.STSettingsCloudUi?.preload !== "function") {
+      return;
+    }
+    try {
+      await root.STSettingsCloudUi.preload(rt.auth);
+    } catch (error) {
+      log.warn("settings-cloud-login-preload-failed", "打开设置时预读云同步登录态失败", { error });
+    }
+  }
+
   async function load(ctx) {
     await auth.load(ctx);
+    await syncCloudCard();
   }
 
   async function onOpen(shadow, ctx) {
     const before = JSON.stringify(rt.auth || null);
     await auth.load(ctx);
+    await syncCloudCard();
     if (JSON.stringify(rt.auth || null) !== before) {
       ctx.refresh("account");
     }

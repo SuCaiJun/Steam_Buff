@@ -19,6 +19,8 @@
   const LIBRARY_CUSTOM_NAME_ONE = "__RickyLibraryCustomNameOne";
   const LIBRARY_CUSTOM_NAME_MODAL = "__RickyLibraryCustomNameModal";
   const LIBRARY_CUSTOM_NAME_PROGRESS = "__RickyLibraryCustomNameProgress";
+  const LIBRARY_INDEPENDENT_NAME_MODAL = "__RickyLibraryIndependentNameModal";
+  const LIBRARY_INDEPENDENT_NAME_BATCH_MODAL = "__RickyLibraryIndependentNameBatchModal";
   const DOWNLOAD_SURFACE_ROOT = "__RickyDownloadSurfaceHost";
   const DOWNLOAD_SURFACE_TOAST = "__RickyDownloadSurfaceToast";
   const DOWNLOAD_TOOLBAR_ROOT = "__RickyDownloadToolbar";
@@ -1214,6 +1216,319 @@
         border-color: var(--st-color-danger-soft-alpha-72, rgba(217,79,79,0.72));
       }`,
       vars: steamNewsTranslateVars,
+    },
+    "library-independent-name": {
+      id: "__RickyLibraryIndependentNameStyle",
+      css: `
+      .st-lin-context-entry {
+        color: var(--st-color-text-primary);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL},
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483646;
+        display: grid;
+        place-items: center;
+        background: var(--st-color-black-alpha-36, rgba(0,0,0,0.45));
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL}[hidden],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL}[hidden] {
+        display: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-dialog,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-dialog {
+        position: relative;
+        display: grid;
+        padding: 16px;
+        gap: 16px;
+        border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-08));
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window, #171d25);
+        color: var(--st-color-text-primary);
+        box-shadow: 0 16px 36px var(--st-color-black-alpha-55, rgba(0,0,0,0.55));
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-dialog {
+        grid-template-rows: auto auto auto auto;
+        width: min(640px, calc(100vw - 48px));
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-dialog {
+        grid-template-rows: auto auto auto auto minmax(0, 1fr);
+        width: min(1100px, calc(100vw - 48px));
+        height: min(640px, calc(100vh - 48px));
+        gap: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-head,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-head h2,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head h2 {
+        margin: 0;
+        flex: 1;
+        font-size: 16px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-close {
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: 4px;
+        color: inherit;
+        background: transparent;
+        cursor: pointer;
+        font-size: 20px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-close:hover,
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-close:focus-visible {
+        background: var(--st-color-surface-subtle, var(--st-color-white-alpha-08));
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-form {
+        display: grid;
+        grid-template-columns: 128px minmax(0, 1fr);
+        align-items: center;
+        gap: 16px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-form label,
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-label {
+        color: var(--st-color-text-secondary-alt);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-form output {
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-form > input,
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-aliases input {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 32px;
+        padding: 0 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 4px;
+        background: var(--st-color-bg-input, #0e1621);
+        color: inherit;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-aliases {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-aliases input {
+        flex: 1 1 160px;
+        width: auto;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-footer,
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-footer {
+        justify-content: space-between;
+        padding-top: 8px;
+        border-top: 1px solid var(--st-color-white-alpha-06);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-primary {
+        border-color: var(--st-color-border-primary, var(--st-color-steam-blue-alpha-38));
+        background: var(--st-color-steam-blue-alpha-38, rgba(102,192,244,0.28));
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} :where(button, input):focus-visible,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} :where(button, input):focus-visible {
+        outline: 2px solid var(--st-color-border-primary, var(--st-color-steam-blue-alpha-38));
+        outline-offset: 2px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-toolbar input[type="search"] {
+        flex: 1;
+        min-height: 32px;
+        padding: 0 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 4px;
+        background: var(--st-color-bg-input, #0e1621);
+        color: inherit;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-cols,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-scroll {
+        scrollbar-gutter: stable;
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-scroll {
+        min-height: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-official { width: 18%; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-appid { width: 10%; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-custom { width: 18%; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias { width: 22%; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-mnemonic { width: 12%; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-pinyin { width: 12%; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-action { width: 8%; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table th,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table td {
+        box-sizing: border-box;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table th {
+        padding: 8px;
+        border-bottom: 1px solid var(--st-color-white-alpha-06);
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table td {
+        padding: 0;
+        border: 0;
+        vertical-align: top;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-slot {
+        box-sizing: border-box;
+        height: 56px;
+        padding: 8px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        box-shadow: inset 0 -1px 0 var(--st-color-white-alpha-06);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-slot > * {
+        min-height: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-clip {
+        display: block;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table input {
+        width: 100%;
+        height: 28px;
+        min-height: 0;
+        flex: 0 0 28px;
+        box-sizing: border-box;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 4px;
+        background: var(--st-color-bg-input, #0e1621);
+        color: inherit;
+      }
+      /* 行槽去掉上下 8px 后只剩 40px，别名条必须停在这块里，滚动条压到 4px 才不会盖住 28px 标签 */
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-aliases {
+        display: flex;
+        flex: 0 0 40px;
+        height: 40px;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-aliases::-webkit-scrollbar {
+        height: 4px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-aliases input {
+        width: auto;
+        flex: 1 0 88px;
+        min-width: 88px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-chip,
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-btn,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-chip,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-btn {
+        box-sizing: border-box;
+        height: 28px;
+        min-height: 0;
+        max-width: 100%;
+        padding: 0 8px;
+        border: 1px solid var(--st-color-border-primary, var(--st-color-steam-blue-alpha-38));
+        border-radius: 4px;
+        color: inherit;
+        background: var(--st-color-surface-subtle, var(--st-color-white-alpha-08));
+        cursor: pointer;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-chip,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-chip {
+        flex: 0 0 auto;
+        max-width: 120px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-action .st-lin-btn {
+        width: 100%;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-sync-error,
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-sync-note,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-sync-error,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-sync-note {
+        flex: 0 0 12px;
+        margin: 0;
+        height: 12px;
+        overflow: hidden;
+        font-size: 11px;
+        line-height: 12px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-sync-error,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-sync-error {
+        color: var(--st-color-danger-soft-text, #ffb8b8);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-sync-note,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-sync-note {
+        color: var(--st-color-text-secondary-alt);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-msg,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-msg {
+        margin: 0;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import {
+        position: absolute;
+        inset: 16px;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 16px;
+        padding: 24px;
+        border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-08));
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window, #171d25);
+        box-shadow: 0 16px 36px var(--st-color-black-alpha-55, rgba(0,0,0,0.55));
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import[hidden] {
+        display: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import h3 {
+        margin: 0;
+        font-size: 16px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import p {
+        margin: 0;
+        color: var(--st-color-text-secondary-alt);
+        white-space: pre-wrap;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      `,
     },
   });
 

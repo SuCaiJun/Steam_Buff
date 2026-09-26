@@ -2099,6 +2099,35 @@
         font-size: 12px;
         line-height: 1.4;
       }
+      #st-title-custom-name-modal .st-title-custom-name-alias-box {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      #st-title-custom-name-modal .st-title-custom-name-alias-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      #st-title-custom-name-modal .st-title-custom-name-alias-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 100%;
+        padding: 4px 8px;
+        border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-08));
+        border-radius: 4px;
+        background: var(--st-color-bg-input, var(--st-color-surface-control));
+        color: var(--st-color-text-primary);
+      }
+      #st-title-custom-name-modal .st-title-custom-name-alias-del {
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: var(--st-color-text-muted);
+        cursor: pointer;
+      }
       #st-title-custom-name-modal .st-title-custom-name-msg {
         min-height: 20px;
         padding: 8px 22px 0;

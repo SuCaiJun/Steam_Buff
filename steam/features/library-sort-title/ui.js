@@ -35,6 +35,7 @@
   const CELL_SELECTOR = ":scope > div[role='gridcell']";
   const ROW_SELECTOR = "[draggable='true']";
   const SETTINGS_ATTRIBUTE = "data-steam-buff-settings";
+  const USER_NAMES_ATTRIBUTE = "data-steam-buff-user-names";
   const LIST_OBSERVER_OPTIONS = Object.freeze({
     childList: true,
     characterData: true,
@@ -63,6 +64,22 @@
       .replace(TAG_RE, "")
       .trim();
     return visible || source;
+  }
+
+  function independentSettings(settings = {}) {
+    return settings.independentNames === true;
+  }
+
+  function mineNameOf(appid) {
+    const id = Number(appid) || 0;
+    if (!id) return "";
+    try {
+      const data = JSON.parse(document.documentElement?.dataset?.steamBuffUserNames || "{}") || {};
+      const value = data[id] ?? data[String(id)];
+      return clean(typeof value === "string" ? value : value?.custom_name);
+    } catch {
+      return "";
+    }
   }
 
   function setAttributeIfChanged(node, name, value) {
@@ -105,15 +122,7 @@
   // ReactVirtualized 库行的真实 props 链上存在 item.appid；只沿当前行的
   // Fiber return 链读取，未找到就放弃该行
   function rowItem(row) {
-    const key = fiberKey(row);
-    if (!key) return null;
-    let fiber = row[key];
-    for (let depth = 0; fiber && depth < 12; depth += 1, fiber = fiber.return) {
-      const props = fiber.memoizedProps;
-      const item = props?.item;
-      if (item && Number(item.appid) > 0) return item;
-    }
-    return null;
+    return window.SteamBuff?.ctx?.libraryRowItem?.(row) || null;
   }
 
   function nameSpan(row) {
@@ -381,12 +390,18 @@
 
   function provisionalEntry(row, appid, settings = {}) {
     const id = Number(appid) || 0;
-    if (!id || settings.stableMode === true || settings.customSortEnabled !== true) return null;
+    if (!id || settings.stableMode === true) return null;
+    if (settings.customSortEnabled !== true && !independentSettings(settings)) return null;
     const item = rowItem(row);
     if (Number(item?.appid) !== id) return null;
     const officialName = clean(item.display_name);
-    const customName = clean(item.custom_sort_as_display);
-    const baseDisplayName = viewCustomName(customName) || officialName;
+    const independent = independentSettings(settings);
+    const customName = independent
+      ? mineNameOf(id)
+      : clean(item.custom_sort_as_display);
+    const baseDisplayName = independent
+      ? (customName || officialName)
+      : (viewCustomName(customName) || officialName);
     if (!baseDisplayName) return null;
     return {
       appid: id,
