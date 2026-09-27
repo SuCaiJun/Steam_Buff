@@ -21,15 +21,13 @@
   if (!api) return;
 
   const FEATURE_ID = "store-title-custom-name";
-  const API_GET = root.STConfig.steamBuff("/get");
+  const API_GET = root.STConfig.steamBuff("/store/names");
   const API_SUBMIT = root.STConfig.steamBuff("/submit");
   const ALIAS_QUERY = root.STConfig.steamBuff("/aliases/query");
   const ALIAS_SAVE = root.STConfig.steamBuff("/aliases");
   const AUTH_REFRESH = root.STConfig.loginAuth("/auth/refresh");
   const NOTE_MAX = 2000;
   const NAME_BATCH_SIZE = 80;
-  const TITLE_FIELDS = Object.freeze(["mine", "community", "ai"]);
-  const TITLE_SOURCE_DEFAULT = Object.freeze(["user_custom", "community", "ai"]);
   const ALIAS_MAX = 10;
   const HOST_ID = "st-title-custom-name";
   const MODAL_ID = "st-title-custom-name-modal";
@@ -94,56 +92,34 @@
   }
   const log = root.STLoggerFactory.createLogger("store", "title-custom-name");
 
-  function customNamesAllowed() {
-    const mem = api.settings?.membership?.() || {};
-    return root.STConfig.customNamesAllowed(mem);
+  function storeSources(editor = false) {
+    if (editor) return "mine";
+    const settings = api.settings?.all?.() || {};
+    const out = ["mine"];
+    if (settings["store-title-community-fallback"] !== false) {
+      out.push("community");
+      if (settings["store-title-community-fallback-ai"] === true) out.push("ai");
+    }
+    return out.join(",");
   }
 
-  function sourceOrder() {
-    const raw = api.settings?.all?.()?.["store-title-name-sources"];
-    const allowed = new Set(TITLE_SOURCE_DEFAULT);
-    const out = [];
-    for (const item of Array.isArray(raw) ? raw : TITLE_SOURCE_DEFAULT) {
-      if (allowed.has(item) && !out.includes(item)) {
-        out.push(item);
-      }
-    }
-    for (const item of TITLE_SOURCE_DEFAULT) {
-      if (!out.includes(item)) {
-        out.push(item);
-      }
-    }
-    return out;
+  function namesUrl(editor = false) {
+    return `${API_GET}?sources=${encodeURIComponent(storeSources(editor))}`;
   }
 
   function decorateName(item, steamTitle = "") {
     if (!item || typeof item !== "object") {
       return item;
     }
-    const title = steamTitle || text(item.steam_name);
-    const allowed = customNamesAllowed();
-    const values = {
-      user_custom: allowed ? text(item.mine) : "",
-      community: text(item.community),
-      ai: text(item.ai),
+    const picked = {
+      name: text(item.name || item.mine),
+      name_source: text(item.source || item.name_source) || "none",
     };
-    let picked = { name: "", name_source: "steam" };
-    const official = item.has_official_cn === true || text(item.official_cn_name) !== "" || officialByTitle(title);
-    for (const key of sourceOrder()) {
-      const name = values[key];
-      if (!name || nameEqual(name, title)) {
-        continue;
-      }
-      if (official && key !== "user_custom") {
-        continue;
-      }
-      picked = { name, name_source: key };
-      break;
-    }
     return {
       ...item,
       name: picked.name,
       name_source: picked.name_source,
+      mine: picked.name_source === "mine" ? picked.name : "",
     };
   }
 
@@ -275,7 +251,8 @@
   }
 
   function renderNameHost(host, appid, item, steamTitle, mode) {
-    const visibleName = shouldShowName(item, steamTitle) ? text(item?.name) : "";
+    const hidden = api.settings?.all?.()?.["store-title-hide-custom-name"] === true;
+    const visibleName = !hidden && shouldShowName(item, steamTitle) ? text(item?.name) : "";
     const label = visibleName ? `[${visibleName}]` : "";
     const idText = String(appid || "");
     const key = JSON.stringify([appid, text(item?.name), text(item?.name_source), steamTitle, mode]);
@@ -439,15 +416,6 @@
         value: currentAlias || "",
         attr: "data-title-custom-name-alias",
         desc: i18n("store.titleCustomName.aliasDescription", "别名功能只针对steam商店页面搜索生效，添加别名后，可在steam商店搜索框中使用别名查找该游戏。"),
-      },
-      {
-        id: "hideCustomName",
-        label: i18n("store.titleCustomName.hideCustomName", "隐藏自定义名称"),
-        type: "switch",
-        checked: false,
-        attr: "data-title-custom-name-hide",
-        disabled: true,
-        desc: i18n("store.titleCustomName.reserved", "功能预留，后续接入后可用"),
       },
     ];
   }
@@ -688,9 +656,6 @@
     if (event.target.matches?.("[data-title-custom-name-note]")) {
       updateCount(document.getElementById(MODAL_ID));
     }
-    if (event.target.matches?.("[data-title-custom-name-hide]")) {
-      event.target.setAttribute("aria-checked", event.target.checked ? "true" : "false");
-    }
   }
 
   function onModalKey(event) {
@@ -797,13 +762,17 @@
         custom_name: custom,
         aliases,
       }, { operationId });
-      const item = decorateName({
-        ...(nameCache.get(ctx.appid) || {}),
-        appid: ctx.appid,
-        mine: custom,
-        steam_name: ctx.steamTitle,
-        aliases,
-      }, ctx.steamTitle);
+      const item = custom
+        ? decorateName({
+          ...(nameCache.get(ctx.appid) || {}),
+          appid: ctx.appid,
+          name: custom,
+          source: "mine",
+          mine: custom,
+          steam_name: ctx.steamTitle,
+          aliases,
+        }, ctx.steamTitle)
+        : await loadName(ctx.appid).catch(() => null);
       nameCache.set(ctx.appid, item);
       if (item && state?.appid === ctx.appid) {
         state.item = item;
@@ -833,8 +802,8 @@
     const startedAt = Date.now();
     log.info("title-custom-name-load-start", "开始读取商店标题中文名", { appid });
     try {
-      const body = await authedPost(API_GET, { appid, fields: TITLE_FIELDS });
-      const data = decorateName(body?.data || null);
+      const body = await authedPost(namesUrl(true), { appids: [appid] });
+      const data = decorateName(Array.isArray(body?.data) ? body.data[0] : null);
       log.info("title-custom-name-load-success", "商店标题中文名读取完成", {
         appid,
         hasName: !!data?.name,
@@ -857,16 +826,22 @@
     return out;
   }
 
-  async function batchFetchWishlistNames(appids) {
+  async function batchFetchWishlistNames(appids, requestSeq = refreshSeq) {
     const ids = Array.from(new Set((appids || [])
       .map(Number)
       .filter(id => id > 0 && !nameCache.has(id) && !namePending.has(id))));
     if (!ids.length) return;
     ids.forEach(id => namePending.add(id));
     for (const part of chunk(ids, NAME_BATCH_SIZE)) {
+      if (requestSeq !== refreshSeq || !started || !api.settings?.on?.(FEATURE_ID)) {
+        break;
+      }
       const startedAt = Date.now();
       try {
-        const body = await authedPost(API_GET, { appids: part, fields: TITLE_FIELDS });
+        const body = await authedPost(namesUrl(false), { appids: part });
+        if (requestSeq !== refreshSeq || !started || !api.settings?.on?.(FEATURE_ID)) {
+          break;
+        }
         const found = new Set();
         for (const item of body?.data || []) {
           const appid = Number(item.appid) || 0;
@@ -888,7 +863,9 @@
           error,
         });
       } finally {
-        part.forEach(id => namePending.delete(id));
+        if (requestSeq === refreshSeq) {
+          part.forEach(id => namePending.delete(id));
+        }
       }
     }
   }
@@ -986,7 +963,7 @@
         if (!host) continue;
         renderNameHost(host, appid, decorateName(nameCache.get(appid) || null, steamTitleFromRow(row)), steamTitleFromRow(row), "wishlist");
       }
-      await batchFetchWishlistNames(appids);
+      await batchFetchWishlistNames(appids, seq);
       if (seq !== refreshSeq || !started || !api.settings?.on?.(FEATURE_ID)) return false;
       appids.forEach(renderWishlistName);
       const summaryKey = `${rows.length}:${appids.length}`;
@@ -1269,6 +1246,8 @@
     detailSettleChecks = 0;
     wishlistSettleChecks = 0;
     state = null;
+    nameCache.clear();
+    namePending.clear();
     document.getElementById(HOST_ID)?.remove();
     document.querySelectorAll(".st-title-custom-name-wishlist").forEach(node => node.remove());
     document.querySelectorAll(".st-title-custom-name-wishlist-row").forEach(node => {
@@ -1312,12 +1291,9 @@
   }
 
   function shouldShowName(item, steamTitle) {
-    if (!item || item.name_source === "steam") return false;
+    if (!item || item.name_source === "none") return false;
     const name = text(item.name);
     if (!name || nameEqual(name, steamTitle)) return false;
-    const official = item.has_official_cn === true || text(item.official_cn_name) !== "" || officialByTitle(steamTitle);
-    const userCustom = item.name_source === "user_custom";
-    if (official && !userCustom) return false;
     return true;
   }
 

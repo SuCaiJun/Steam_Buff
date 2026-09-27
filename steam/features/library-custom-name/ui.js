@@ -49,7 +49,7 @@
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
-  const CUSTOM_NAME_SOURCES = new Set(["user_custom", "community", "ai"]);
+  const CUSTOM_NAME_SOURCES = new Set(["mine", "community", "ai"]);
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
 
@@ -84,6 +84,7 @@
     localRows: [],
     localMap: new Map(),
     cloudMap: new Map(),
+    cloudSourceMap: new Map(),
     syncMap: new Map(),
     syncingCount: 0,
     stateMap: new Map(),
@@ -603,6 +604,7 @@
     batch.localRows = [];
     batch.localMap = new Map();
     batch.cloudMap = new Map();
+    batch.cloudSourceMap = new Map();
     batch.syncMap = new Map();
     batch.syncingCount = 0;
     batch.stateMap = new Map();
@@ -1086,22 +1088,13 @@
       for (const row of apiRows(data)) {
         const appid = Number(row?.appid);
         if (Number.isFinite(appid) && appid > 0) {
-          const source = String(row?.name_source || "");
+          const source = String(row?.source || row?.name_source || "");
           if (CUSTOM_NAME_SOURCES.has(source) && text(row?.name)) {
             names.set(appid, row);
-          } else if (source === "steam") {
-            statuses.set(appid, "synced");
+          } else if (source === "none") {
+            statuses.set(appid, "none");
           }
         }
-      }
-      for (const appid of Array.isArray(data?.syncing_appids) ? data.syncing_appids : []) {
-        statuses.set(Number(appid), "syncing");
-      }
-      for (const appid of Array.isArray(data?.not_found_appids) ? data.not_found_appids : []) {
-        statuses.set(Number(appid), "unavailable");
-      }
-      for (const appid of Array.isArray(data?.sync_failed_appids) ? data.sync_failed_appids : []) {
-        statuses.set(Number(appid), "failed");
       }
     }
     return { names, statuses };
@@ -1148,7 +1141,7 @@
     return core;
   }
 
-  // 云端名称按 100 个 AppID 分片，和后端 /get 的批量限制保持一致。
+  // 云端名称按 100 个 AppID 分片，和后端 /names/resolve 的批量限制保持一致。
   async function queryMap(appids) {
     const parts = [];
     for (let i = 0; i < appids.length; i += QUERY_MAX) {
@@ -1159,17 +1152,8 @@
   }
 
   function syncStatusText(status) {
-    if (status === "syncing") {
-      return i18n("steam.libraryCustomName.officialSyncing", "正在同步 Steam 官方数据");
-    }
-    if (status === "synced") {
-      return i18n("steam.libraryCustomName.officialSyncedNoCustom", "官方数据已同步，暂无云端自定义名称");
-    }
-    if (status === "unavailable") {
-      return i18n("steam.libraryCustomName.officialUnavailable", "Steam 官方暂未返回可用英文名称");
-    }
-    if (status === "failed") {
-      return i18n("steam.libraryCustomName.officialSyncFailed", "Steam 官方数据同步暂不可用");
+    if (status === "none") {
+      return i18n("steam.libraryCustomName.cloudNameMissing", "云端没有找到当前游戏名称");
     }
     return "";
   }
@@ -1316,11 +1300,11 @@
     } else if (!manual && batch.policy === "skip" && !hasCustom(app)) {
       want = cloud;
       checked = true;
-      source = cloud ? "api" : "";
+      source = batch.cloudSourceMap.get(appid) || (cloud ? "api" : "");
     } else if (!manual && cloud) {
       want = cloud;
       checked = (stored ? !!old.checked : true) && !(batch.policy === "skip" && hasCustom(app));
-      source = "api";
+      source = batch.cloudSourceMap.get(appid) || "api";
     } else if (!manual) {
       want = "";
       checked = false;
@@ -1821,6 +1805,7 @@
     batch.localRows = [];
     batch.localMap = new Map();
     batch.cloudMap = new Map();
+    batch.cloudSourceMap = new Map();
     batch.syncMap = new Map();
     batch.syncingCount = 0;
     batch.stateMap = new Map();
@@ -2918,9 +2903,7 @@
       const name = text(result.names.get(appid)?.name);
       if (!name) {
         const status = result.statuses.get(appid) || "";
-        const message = status === "syncing"
-          ? i18n("steam.libraryCustomName.officialSyncingRetry", "正在同步 Steam 官方数据，请稍后重新获取")
-          : syncStatusText(status) || i18n("steam.libraryCustomName.cloudNameMissing", "云端没有找到当前游戏名称");
+        const message = syncStatusText(status) || i18n("steam.libraryCustomName.cloudNameMissing", "云端没有找到当前游戏名称");
         oneBox(i18n("steam.libraryCustomName.fetchTitle", "获取名称"), message, true);
         return;
       }
@@ -4040,9 +4023,11 @@
           const id = Number(appid);
           const got = result.names.get(id);
           batch.cloudMap.delete(id);
+          batch.cloudSourceMap.delete(id);
           const name = text(got?.name);
           if (name) {
             batch.cloudMap.set(id, name);
+            batch.cloudSourceMap.set(id, String(got.source || got.name_source || ""));
           }
           if (got) {
             setSyncStatus(id, "");

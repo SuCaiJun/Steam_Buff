@@ -5770,6 +5770,24 @@
   "settings_feature_store_title_name_sources_option_ai": {
     "message": "AI 번역 이름"
   },
+  "settings_feature_store_title_community_fallback_name": {
+    "message": "커뮤니티 이름 대체 표시"
+  },
+  "settings_feature_store_title_community_fallback_desc": {
+    "message": "내 이름이 없을 때 커뮤니티 이름을 표시하며, 편집 창에는 저장하지 않습니다."
+  },
+  "settings_feature_store_title_community_fallback_ai_name": {
+    "message": "커뮤니티 이름이 없으면 AI 이름 반환"
+  },
+  "settings_feature_store_title_community_fallback_ai_desc": {
+    "message": "커뮤니티 이름이 없을 때 AI 번역 이름을 대체 표시합니다."
+  },
+  "settings_feature_store_title_hide_custom_name_name": {
+    "message": "스토어 사용자 지정 이름 숨기기"
+  },
+  "settings_feature_store_title_hide_custom_name_desc": {
+    "message": "저장된 이름은 삭제하지 않고 Steam 스토어 상세와 위시리스트에서 숨깁니다."
+  },
   "store_titleCustomName_aliasHint": {
     "message": "Enter 또는 스페이스로 추가, 게임당 최대 10개"
   },

@@ -158,7 +158,9 @@
   // 来源顺序和悬浮穿透不改变门禁，仍允许时重跑对应 start
   const DISPLAY_RESTART_IDS = Object.freeze({
     "wishlist-price-history-hover-through": Object.freeze(["wishlist-price-history"]),
-    "store-title-name-sources": Object.freeze(["store-title-custom-name"]),
+    "store-title-community-fallback": Object.freeze(["store-title-custom-name"]),
+    "store-title-community-fallback-ai": Object.freeze(["store-title-custom-name"]),
+    "store-title-hide-custom-name": Object.freeze(["store-title-custom-name"]),
   });
   const FAMILY_PAGE_IDS = Object.freeze([
     "family-library-detail-card",

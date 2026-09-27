@@ -287,10 +287,10 @@
     "message": "在 Steam 願望清單懸停遊戲時顯示價格懸浮卡片，包含 Steam 目前價格、歷史最低價和 SteamPY 價格。"
   },
   "settings_feature_store_title_custom_name_name": {
-    "message": "遊戲商店標題中文名"
+    "message": "遊戲商店自訂名稱"
   },
   "settings_feature_store_title_custom_name_desc": {
-    "message": "在 Steam 商店遊戲標題旁顯示 Steam Buff 中文名，並支援提交自己的中文名。"
+    "message": "在 Steam 商店遊戲標題旁顯示使用者自訂名稱、社群名稱或 AI 名稱，並支援提交自己的名稱。"
   },
   "settings_feature_ai_name": {
     "message": "AI 模組"
@@ -311,7 +311,7 @@
     "message": "控制評論過濾設定分類和 Steam 商店評論過濾。"
   },
   "settings_feature_library_sort_title_name": {
-    "message": "收藏庫清單顯示自訂名稱"
+    "message": "自訂遊戲名稱"
   },
   "settings_feature_library_sort_title_desc": {
     "message": "收藏庫清單優先顯示自訂排序名稱，並在 Steam 自訂頁提供名稱管理工具"
@@ -658,7 +658,7 @@
     "message": "舊 API 資料來源已下線，等待接入新 API。"
   },
   "settings_feature_search_suggestions_user_custom_name": {
-    "message": "玩家自訂名稱"
+    "message": "我的名稱"
   },
   "settings_feature_search_suggestions_user_custom_desc": {
     "message": "優先匹配目前帳號儲存的私人自訂名稱。"
@@ -670,7 +670,7 @@
     "message": "匹配目前帳號儲存的私人遊戲別名。"
   },
   "settings_feature_search_suggestions_community_name": {
-    "message": "公共自訂名稱"
+    "message": "公共名稱"
   },
   "settings_feature_search_suggestions_community_desc": {
     "message": "匹配已達標的社群公共自訂名稱。"
@@ -5769,6 +5769,24 @@
   },
   "settings_feature_store_title_name_sources_option_ai": {
     "message": "AI 翻譯名稱"
+  },
+  "settings_feature_store_title_community_fallback_name": {
+    "message": "社群名稱兜底顯示"
+  },
+  "settings_feature_store_title_community_fallback_desc": {
+    "message": "沒有我的名稱時使用社群名稱顯示；社群名稱不會寫入編輯視窗。"
+  },
+  "settings_feature_store_title_community_fallback_ai_name": {
+    "message": "沒有社群名稱時返回 AI 名稱"
+  },
+  "settings_feature_store_title_community_fallback_ai_desc": {
+    "message": "沒有社群名稱時，允許使用 AI 翻譯名稱作為兜底顯示。"
+  },
+  "settings_feature_store_title_hide_custom_name_name": {
+    "message": "隱藏商店自訂名稱"
+  },
+  "settings_feature_store_title_hide_custom_name_desc": {
+    "message": "在 Steam 商店詳情頁和願望清單隱藏自訂名稱顯示，但不刪除已儲存名稱。"
   },
   "store_titleCustomName_aliasHint": {
     "message": "Enter 或空白鍵新增，每款遊戲最多 10 個"

@@ -102,7 +102,7 @@
   const CFG = globalThis.STConfig;
   const MATCH = CFG.matchers;
   const AUTH_REFRESH = CFG.loginAuth("/auth/refresh");
-  const API_GET = CFG.steamBuff("/get");
+  const API_GET = `${CFG.steamBuff("/names/resolve")}?sources=mine%2Ccommunity%2Cai`;
   const API_SUBMIT = CFG.steamBuff("/submit");
   const NAME_REQ_ATTR = "data-steam-buff-name-request";
   const NAME_RES_ATTR = "data-steam-buff-name-response";

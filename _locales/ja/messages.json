@@ -5770,6 +5770,24 @@
   "settings_feature_store_title_name_sources_option_ai": {
     "message": "AI 翻訳名"
   },
+  "settings_feature_store_title_community_fallback_name": {
+    "message": "コミュニティ名をフォールバック表示"
+  },
+  "settings_feature_store_title_community_fallback_desc": {
+    "message": "自分の名前がない場合にコミュニティ名を表示します。編集画面には書き込みません。"
+  },
+  "settings_feature_store_title_community_fallback_ai_name": {
+    "message": "コミュニティ名がない場合は AI 名を返す"
+  },
+  "settings_feature_store_title_community_fallback_ai_desc": {
+    "message": "コミュニティ名がない場合に AI 翻訳名をフォールバック表示します。"
+  },
+  "settings_feature_store_title_hide_custom_name_name": {
+    "message": "ストアのカスタム名を非表示"
+  },
+  "settings_feature_store_title_hide_custom_name_desc": {
+    "message": "保存済みの名前を削除せず、Steam ストア詳細とウィッシュリストで非表示にします。"
+  },
   "store_titleCustomName_aliasHint": {
     "message": "Enter またはスペースで追加。ゲームごとに最大 10 件"
   },

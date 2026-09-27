@@ -287,10 +287,10 @@
     "message": "Show a price hover card on Steam wishlist games, including Steam current price, historical low, and SteamPY prices."
   },
   "settings_feature_store_title_custom_name_name": {
-    "message": "Store Game Chinese Title"
+    "message": "Store Custom Game Name"
   },
   "settings_feature_store_title_custom_name_desc": {
-    "message": "Show the Steam Buff Chinese title next to Steam store game titles and allow submitting your own Chinese title."
+    "message": "Show your custom, community, or AI game name next to Steam store titles and allow submitting your own name."
   },
   "settings_feature_ai_name": {
     "message": "AI Module"
@@ -311,7 +311,7 @@
     "message": "Control the review filter category and Steam store review filtering."
   },
   "settings_feature_library_sort_title_name": {
-    "message": "Display Custom Library Names"
+    "message": "Custom Game Names"
   },
   "settings_feature_library_sort_title_desc": {
     "message": "Prefer custom sort names in the Steam library list and provide name management tools on Steam customization pages."
@@ -658,7 +658,7 @@
     "message": "The previous API source is offline. A replacement API is pending."
   },
   "settings_feature_search_suggestions_user_custom_name": {
-    "message": "Player Custom Names"
+    "message": "My Names"
   },
   "settings_feature_search_suggestions_user_custom_desc": {
     "message": "Prioritize private custom names saved by the current account."
@@ -670,7 +670,7 @@
     "message": "Match private game aliases saved by the current account."
   },
   "settings_feature_search_suggestions_community_name": {
-    "message": "Public Custom Names"
+    "message": "Public Names"
   },
   "settings_feature_search_suggestions_community_desc": {
     "message": "Match approved public custom names from the community."
@@ -5769,6 +5769,24 @@
   },
   "settings_feature_store_title_name_sources_option_ai": {
     "message": "AI translated name"
+  },
+  "settings_feature_store_title_community_fallback_name": {
+    "message": "Community Name Fallback"
+  },
+  "settings_feature_store_title_community_fallback_desc": {
+    "message": "Use the community name when your name is unavailable; community names are not written to the editor."
+  },
+  "settings_feature_store_title_community_fallback_ai_name": {
+    "message": "Use AI Name When Community Name Is Missing"
+  },
+  "settings_feature_store_title_community_fallback_ai_desc": {
+    "message": "Allow the AI translation name as a fallback when no community name exists."
+  },
+  "settings_feature_store_title_hide_custom_name_name": {
+    "message": "Hide Store Custom Name"
+  },
+  "settings_feature_store_title_hide_custom_name_desc": {
+    "message": "Hide custom names on Steam store details and wishlist pages without deleting saved names."
   },
   "store_titleCustomName_aliasHint": {
     "message": "Press Enter or Space to add, up to 10 per game"

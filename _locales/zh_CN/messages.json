@@ -287,10 +287,10 @@
     "message": "在 Steam 愿望单悬停游戏时显示价格悬浮卡片，包含 Steam 当前价、历史最低价和 SteamPY 价格。"
   },
   "settings_feature_store_title_custom_name_name": {
-    "message": "游戏商店标题中文名"
+    "message": "游戏商店自定义名称"
   },
   "settings_feature_store_title_custom_name_desc": {
-    "message": "在 Steam 商店游戏标题旁显示 Steam Buff 中文名，并支持提交自己的中文名。"
+    "message": "在 Steam 商店游戏标题旁显示用户自定义名称、社区名称或 AI 名称，并支持提交自己的名称。"
   },
   "settings_feature_ai_name": {
     "message": "AI模块"
@@ -311,7 +311,7 @@
     "message": "控制评论过滤设置分类和 Steam 商店评测过滤。"
   },
   "settings_feature_library_sort_title_name": {
-    "message": "库列表显示自定义名称"
+    "message": "自定义游戏名称"
   },
   "settings_feature_library_sort_title_desc": {
     "message": "库列表优先显示自定义排序名称，并在 Steam 自定义页提供名称管理工具"
@@ -658,7 +658,7 @@
     "message": "旧 API 数据源已下线，等待对接新 API"
   },
   "settings_feature_search_suggestions_user_custom_name": {
-    "message": "玩家自定义名称"
+    "message": "我的名称"
   },
   "settings_feature_search_suggestions_user_custom_desc": {
     "message": "优先匹配当前账号保存的私有自定义名称"
@@ -670,7 +670,7 @@
     "message": "匹配当前账号保存的私有游戏别名"
   },
   "settings_feature_search_suggestions_community_name": {
-    "message": "公共自定义名称"
+    "message": "公共名称"
   },
   "settings_feature_search_suggestions_community_desc": {
     "message": "匹配已达标的社区公共自定义名称"
@@ -5769,6 +5769,24 @@
   },
   "settings_feature_store_title_name_sources_option_ai": {
     "message": "AI 翻译名称"
+  },
+  "settings_feature_store_title_community_fallback_name": {
+    "message": "社区名称兜底显示"
+  },
+  "settings_feature_store_title_community_fallback_desc": {
+    "message": "没有我的名称时，使用社区名称显示；社区名称不会写入编辑弹窗。"
+  },
+  "settings_feature_store_title_community_fallback_ai_name": {
+    "message": "无社区名称时返回 AI 名称"
+  },
+  "settings_feature_store_title_community_fallback_ai_desc": {
+    "message": "社区名称不存在时，允许使用 AI 翻译名称兜底显示。"
+  },
+  "settings_feature_store_title_hide_custom_name_name": {
+    "message": "隐藏商店自定义名称"
+  },
+  "settings_feature_store_title_hide_custom_name_desc": {
+    "message": "在 Steam 商店详情页和愿望单隐藏自定义名称显示，但不删除已保存名称。"
   },
   "store_titleCustomName_aliasHint": {
     "message": "回车或空格添加，每游戏最多 10 个"
