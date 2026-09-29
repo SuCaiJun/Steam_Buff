@@ -671,88 +671,276 @@ button:focus-visible {
   opacity: 0.62;
 }
 
-.client-name-mode {
-  display: grid;
-  gap: 8px;
+.name-mode-step {
+  width: min(100%, 1100px);
+  margin: auto;
+  padding: 24px 0;
 }
-
-.client-name-mode-lead {
-  margin: 0;
-  color: var(--ob-text-muted);
+.name-mode-kicker {
+  margin: 0 0 16px;
+  color: var(--ob-primary);
   font-size: 12px;
-  line-height: 1.6;
+  font-weight: 650;
+  letter-spacing: .08em;
 }
-
+.name-mode-step h1 {
+  font-size: clamp(32px, 3.2vw, 48px);
+}
+.client-name-mode {
+  margin-top: 32px;
+}
 .client-name-mode-options {
-  display: grid;
-  gap: 0;
+  overflow-x: auto;
   border: 1px solid var(--ob-line);
-  border-radius: 14px;
-  overflow: hidden;
+  border-radius: 16px;
   background: var(--ob-surface);
 }
-
-.client-name-mode-option {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 12px;
-  padding: 14px 16px;
-  cursor: pointer;
+.client-name-mode-options:focus-visible {
+  outline: 2px solid var(--ob-primary);
+  outline-offset: 4px;
 }
-
-.client-name-mode-option + .client-name-mode-option {
+.mode-comparison {
+  width: 100%;
+  min-width: 640px;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.mode-comparison th,
+.mode-comparison td {
+  padding: 8px 24px;
+  text-align: center;
+  vertical-align: middle;
+}
+.mode-comparison .mode-row-heading {
+  width: 32%;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left;
+  font-weight: 500;
+  background: var(--ob-surface);
+}
+.mode-comparison thead th {
+  padding-top: 24px;
+  padding-bottom: 24px;
+  vertical-align: top;
+}
+.mode-comparison thead .mode-row-heading {
+  vertical-align: bottom;
+}
+.mode-feature-title,
+.mode-feature-note {
+  display: block;
+}
+.mode-feature-title {
+  font-size: 16px;
+  font-weight: 650;
+}
+.mode-feature-note {
+  margin-top: 8px;
+  color: var(--ob-text-soft);
+  font-size: 12px;
+}
+.mode-comparison tbody th,
+.mode-comparison tbody td,
+.mode-comparison tfoot th,
+.mode-comparison tfoot td {
   border-top: 1px solid var(--ob-line);
 }
-
-.client-name-mode-option.is-selected {
-  background: var(--ob-primary-soft);
+.mode-comparison th + th,
+.mode-comparison td {
+  border-left: 1px solid var(--ob-line);
 }
-
-.client-name-mode-option.is-locked {
-  cursor: not-allowed;
-  opacity: 0.72;
+.mode-plan-badge {
+  display: inline-block;
+  margin-bottom: 16px;
+  padding: 0 8px;
+  border-radius: 4px;
+  color: var(--ob-text-soft);
+  font-size: 12px;
+  line-height: 24px;
+  font-weight: 500;
 }
-
-.client-name-mode-option input {
-  margin: 3px 0 0;
+.mode-plan-label {
+  cursor: pointer;
 }
-
-.client-name-mode-copy {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
 .client-name-mode-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  margin: 0;
   color: var(--ob-text);
-  font-size: 14px;
-  font-weight: 650;
+  font-size: clamp(18px, 1.6vw, 24px);
   line-height: 1.4;
 }
-
-.client-name-mode-badge {
-  display: inline-flex;
+.client-name-mode-desc {
+  margin: 8px 0 0;
+  color: var(--ob-text-soft);
+  font-size: 13px;
+  line-height: 1.7;
+  font-weight: 400;
+}
+.mode-support {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--ob-text-muted);
+  font-size: 18px;
+}
+.mode-support.is-supported {
+  color: var(--ob-text-soft);
+  font-weight: 700;
+}
+.mode-comparison tfoot th,
+.mode-comparison tfoot td {
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+.client-name-mode-option {
+  display: flex;
   align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 8px;
+  border: 1px solid var(--ob-rail-line);
+  border-radius: 8px;
+  background: var(--ob-surface);
+  color: var(--ob-text);
+  cursor: pointer;
+}
+.client-name-mode-option.is-selected {
+  border-color: var(--ob-primary);
+  background: var(--ob-primary);
+  color: var(--st-color-white);
+}
+.client-name-mode-option:has(input:disabled) {
+  cursor: default;
+}
+.client-name-mode-option:has(input:disabled):not(.is-selected) {
+  color: var(--ob-text-muted);
+}
+.client-name-mode-option:has(input:focus-visible) {
+  outline: 2px solid var(--ob-primary);
+  outline-offset: 4px;
+}
+.client-name-mode-option input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--ob-primary);
+}
+.client-name-mode-option.is-selected input {
+  accent-color: var(--st-color-white);
+}
+.mode-choice {
+  font-size: 13px;
+  font-weight: 650;
+}
+.name-mode-notes {
+  margin: 24px 0 0;
+  color: var(--ob-text-soft);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.name-mode-notes p {
+  margin: 0;
+}
+.name-mode-notes p + p {
+  margin-top: 8px;
+}
+.config-guide {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 24px 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: config;
+}
+.config-guide li {
+  counter-increment: config;
+  color: var(--ob-text-soft);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.config-guide li::before {
+  content: counter(config);
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  border-radius: 50%;
   color: var(--ob-primary);
   background: var(--ob-primary-soft);
-  font-size: 11px;
-  font-weight: 650;
-  line-height: 1;
-  white-space: nowrap;
 }
-
-.client-name-mode-desc {
+.setup-advanced {
+  border-top: 1px solid var(--ob-line);
+  padding-top: 16px;
+}
+.setup-advanced summary {
+  padding: 8px 0;
+  cursor: pointer;
+  color: var(--ob-text);
+  font-size: 13px;
+}
+.setup-advanced summary span {
+  margin-left: 16px;
   color: var(--ob-text-muted);
   font-size: 12px;
-  line-height: 1.55;
+}
+.setup-advanced .setup-group {
+  margin-top: 16px;
+}
+.config-help {
+  margin: 0 0 24px;
+  padding: 16px 24px;
+  border: 1px solid var(--ob-line);
+  border-radius: 12px;
+  color: var(--ob-text-soft);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.config-help summary {
+  color: var(--ob-primary);
+  cursor: pointer;
+  font-weight: 600;
+}
+.config-help ol {
+  padding-left: 20px;
+  margin: 16px 0;
+}
+.config-help-key,
+.complete-restart-note {
+  color: var(--ob-danger);
+  font-weight: 700;
+}
+.config-help dl {
+  margin: 16px 0 0;
+}
+.config-help dl > div {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 16px;
+  margin-top: 8px;
+}
+.config-help dt {
+  color: var(--ob-text);
+}
+.config-help dd {
+  margin: 0;
+}
+.config-help p {
+  margin: 16px 0 0;
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .mode-comparison th,
+  .mode-comparison td {
+    padding-inline: 16px;
+  }
 }
 
 .client-feature-list {

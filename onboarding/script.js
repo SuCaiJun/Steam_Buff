@@ -27,8 +27,8 @@
   const NAME_MODE_ID = globalThis.STConfig.libraryNameMode.key;
   const NAME_MODE_STEAM = globalThis.STConfig.libraryNameMode.values.STEAM_SORT;
   const NAME_MODE_INDEPENDENT = globalThis.STConfig.libraryNameMode.values.INDEPENDENT;
+  const CLIENT_RESTART_NOTE = "部分功能需重启 Steam";
   const THIRD_PARTY_PREFIX = `${SETTINGS_PREFIX}thirdPartyServices.`;
-  const AI_PREFIX = `${SETTINGS_PREFIX}ai.`;
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = "steam_buff_membership";
   const CONFIG_PATH = "shared/config.js";
@@ -74,7 +74,10 @@
     clientDefaultReady: false,
     restartModalOpen: false,
     restartAcked: false,
-    requireLogin: true,
+    initializing: true,
+    initError: false,
+    results: {},
+    savedSummary: {},
     thirdParty: {
       enabled: true,
       key: "",
@@ -177,37 +180,15 @@
   }
 
   function aiStorageKey(id) {
-    return globalThis.STAI?.storageKey?.(id) || `${AI_PREFIX}${id}`;
+    return globalThis.STAI.storageKey(id);
   }
 
   function aiDefaults() {
-    const defs = globalThis.STAI?.defaults?.() || {};
-    return {
-      enabled: false,
-      host: String(defs.host || "https://open.bigmodel.cn/api/paas/v4/chat/completions/"),
-      model: String(defs.model || "GLM-4-Flash"),
-      key: "",
-      keyMode: String(defs.keyMode || "bearer"),
-      keyName: "",
-      temperature: String(defs.temperature || ""),
-      aiConcurrency: Number(defs.aiConcurrency) || 10,
-    };
+    return globalThis.STAI.defaults();
   }
 
   function normalizeAiDraft(values = {}) {
-    const defs = aiDefaults();
-    const next = globalThis.STAI?.normalize?.({ ...defs, ...values }) || {
-      enabled: values.enabled === true,
-      host: String(values.host || defs.host || "").trim(),
-      model: String(values.model || defs.model || "").trim(),
-      key: String(values.key || "").trim(),
-      keyMode: String(values.keyMode || defs.keyMode || "bearer"),
-      keyName: String(values.keyName || "").trim(),
-      temperature: String(values.temperature ?? defs.temperature ?? ""),
-      aiConcurrency: Number(values.aiConcurrency) || defs.aiConcurrency,
-    };
-    if (!String(next.temperature || "").trim()) next.temperature = "0.2";
-    return next;
+    return globalThis.STAI.normalize({ ...aiDefaults(), ...values });
   }
 
   function loggedIn() {
@@ -215,11 +196,11 @@
   }
 
   function controlsBusy() {
-    return state.busy || state.loginBusy || state.serviceBusy;
+    return state.initializing || state.busy || state.loginBusy || state.serviceBusy;
   }
 
   function accountCanNext() {
-    return state.requireLogin !== true || loggedIn();
+    return loggedIn();
   }
 
   function thirdPartyCanNext() {
@@ -235,6 +216,8 @@
   }
 
   function stepCanNext(stepId = activeStep().id) {
+    if (state.initializing || state.initError) return false;
+    if (stepId === "name-mode") return nameFeatureEnabled() && nameModeAllowed(state.clientNameMode);
     if (stepId === "account") return accountCanNext();
     if (stepId === "third-party") return thirdPartyCanNext();
     if (stepId === "ai") return aiCanNext();
@@ -242,9 +225,9 @@
   }
 
   function gateBlockNote(stepId = activeStep().id) {
-    if (stepId === "account") return "请先登录，或关闭“登录素材君账号”。";
-    if (stepId === "third-party") return "请填写 ITAD 密钥并测试通过，或关闭第三方服务。";
-    if (stepId === "ai") return "请完成 AI 配置并测试通过，或关闭 AI 模块。";
+    if (stepId === "account") return "请先登录，或点击“暂不登录”。";
+    if (stepId === "third-party") return "请测试连接，或点击“稍后配置”。";
+    if (stepId === "ai") return "请测试连接，或点击“稍后配置”。";
     return "请先完成本步配置。";
   }
 
@@ -266,7 +249,10 @@
       const src = api?.runtime?.getURL
         ? api.runtime.getURL(SETTINGS_CATALOG_PATH)
         : `../${SETTINGS_CATALOG_PATH}`;
-      catalogJob = loadScript(src).catch(() => false);
+      catalogJob = loadScript(src).catch((error) => {
+        catalogJob = null;
+        throw error;
+      });
     }
     await catalogJob;
     return window.STSettings?.catalog || null;
@@ -297,10 +283,13 @@
   }
 
   function nameModeCopy(value) {
-    if (value === NAME_MODE_INDEPENDENT) {
-      return "名称同步到素材君云，换电脑不丢。推荐新安装选用。";
-    }
-    return "沿用 Steam 自定义排序名称，数据在 Steam 云。";
+    return value === NAME_MODE_INDEPENDENT
+      ? "别名、全拼都能搜，名称与排序分开设置。"
+      : "使用 Steam 自定义排序名称实现改名。";
+  }
+
+  function nameFeatureEnabled() {
+    return state.clientEnabled && state.clientFeatures["library-sort-title"] === true;
   }
 
   function clientFeatureLockText(item, catalog) {
@@ -319,10 +308,6 @@
     state.clientFeatureList.forEach((item) => {
       state.clientFeatures[item.id] = next;
     });
-  }
-
-  function clientAnyEnabled() {
-    return state.clientFeatureList.some((item) => state.clientFeatures[item.id] === true);
   }
 
   async function sharedConfig() {
@@ -451,29 +436,27 @@
   }
 
   function storageGetMany(keys) {
-    const list = Array.isArray(keys) ? keys : [];
     const api = chromeApi();
     if (api?.storage?.local) {
-      return new Promise((resolve) => {
-        try {
-          api.storage.local.get(list, (data) => resolve(api.runtime?.lastError ? {} : (data || {})));
-        } catch {
-          resolve({});
-        }
+      return new Promise((resolve, reject) => {
+        api.storage.local.get(keys, data => {
+          const error = api.runtime?.lastError;
+          if (error) reject(new Error(error.message));
+          else if (!data || typeof data !== "object") reject(new Error("设置读取结果无效"));
+          else resolve(data);
+        });
       });
     }
     const out = {};
-    list.forEach((key) => {
-      try {
+    try {
+      keys.forEach(key => {
         const raw = localStorage.getItem(key);
         if (raw == null) return;
-        out[key] = parseJson(raw);
-        if (out[key] === null && raw !== "null") out[key] = raw;
-      } catch {
-        // ignore local preview read failures
-      }
-    });
-    return Promise.resolve(out);
+        // 本地预览原有的 string / JSON 两种写入格式。
+        try { out[key] = JSON.parse(raw); } catch { out[key] = raw; }
+      });
+      return Promise.resolve(out);
+    } catch (error) { return Promise.reject(error); }
   }
 
   function storageSetMany(data, diagnostics = {}) {
@@ -560,7 +543,7 @@
   function readThirdPartyForm() {
     return {
       enabled: state.thirdParty.enabled === true,
-      key: String($("#third-party-key")?.value || state.thirdParty.key || "").trim(),
+      key: String($("#third-party-key").value).trim(),
     };
   }
 
@@ -586,7 +569,12 @@
       const raw = sessionStorage.getItem(COMMITTED_PAGE_KEY);
       if (!raw) return 0;
       const data = JSON.parse(raw);
-      if (!data || Number(data.cloudCount) !== Number(cloudCount)) return 0;
+      if (!data || Number(data.cloudCount) !== Number(cloudCount)
+        || data.steps !== LOCAL_STEPS.map(step => step.id).join("|")) return 0;
+      LOCAL_STEPS.forEach(step => {
+        const result = data.results?.[step.id];
+        if (result === "saved" || result === "skipped") state.results[step.id] = result;
+      });
       const page = Number(data.page);
       return Number.isSafeInteger(page) && page > 0 ? page : 0;
     } catch {
@@ -599,6 +587,8 @@
     try {
       sessionStorage.setItem(COMMITTED_PAGE_KEY, JSON.stringify({
         cloudCount: state.cloudCount,
+        steps: LOCAL_STEPS.map(step => step.id).join("|"),
+        results: state.results,
         page,
       }));
     } catch {
@@ -608,18 +598,22 @@
 
   function commitPage(page) {
     if (!Number.isSafeInteger(page) || page < 1) return;
-    if (page > state.lastCommittedPage) {
-      state.lastCommittedPage = page;
-      writeCommittedPage(page);
-    }
+    state.lastCommittedPage = Math.max(page, state.lastCommittedPage);
+    writeCommittedPage(state.lastCommittedPage);
   }
 
   // 闸门重新失败时收回可跳转边界，避免进度条绕过未配置步骤
   function clampCommittedPage() {
     if (!stepCanNext(activeStep().id) && state.lastCommittedPage > state.page) {
-      state.lastCommittedPage = state.page;
-      writeCommittedPage(state.page);
+      invalidateProgress();
     }
+  }
+
+  function invalidateProgress() {
+    if (state.lastCommittedPage <= state.page) return;
+    state.lastCommittedPage = state.page;
+    writeCommittedPage(state.page);
+    renderProgress();
   }
 
   function canNavigateToPage(page) {
@@ -635,6 +629,7 @@
     if (next.key !== state.thirdParty.key) {
       state.thirdParty.verified = false;
       state.thirdParty.saved = false;
+      invalidateProgress();
     }
     state.thirdParty.key = next.key;
     clampCommittedPage();
@@ -653,6 +648,7 @@
     if (changed) {
       state.ai.verified = false;
       state.ai.saved = false;
+      invalidateProgress();
     }
     Object.assign(state.ai, next, {
       verified: state.ai.verified,
@@ -676,17 +672,11 @@
 
   async function hydrateServiceSettings() {
     if (state.servicesHydrated) return;
-    await ensureAiModule().catch(() => null);
+    await ensureAiModule();
     const defs = aiDefaults();
     const thirdPartyPaths = [
       "enabled",
-      "defaultProvider",
       "isthereanydeal.key",
-      "isthereanydeal.country",
-      "isthereanydeal.shops",
-      "routes.prices",
-      "routes.history",
-      "routes.discountForecast",
     ];
     const aiIds = Object.keys(defs);
     const keys = [
@@ -703,7 +693,7 @@
     state.thirdParty.verified = false;
     state.thirdParty.saved = false;
 
-    const aiValues = { ...defs };
+    const aiValues = { ...defs, temperature: "0.2" };
     aiIds.forEach((id) => {
       if (Object.hasOwn(stored, aiStorageKey(id))) aiValues[id] = stored[aiStorageKey(id)];
     });
@@ -719,6 +709,8 @@
       messageError: false,
       saved: false,
     });
+    state.savedSummary["third-party"] = stored[thirdPartyKey("enabled")] === true ? "已启用" : "未启用";
+    state.savedSummary.ai = stored[aiStorageKey("enabled")] === true ? "已启用" : "未启用";
     state.servicesHydrated = true;
   }
 
@@ -729,16 +721,9 @@
     if (enabled && !state.thirdParty.verified) {
       return { ok: false, reason: "unverified" };
     }
-    const data = {
-      [thirdPartyKey("enabled")]: enabled,
-      [thirdPartyKey("defaultProvider")]: "isthereanydeal",
-      [thirdPartyKey("isthereanydeal.key")]: form.key,
-      [thirdPartyKey("isthereanydeal.country")]: "CN",
-      [thirdPartyKey("isthereanydeal.shops")]: [61],
-      [thirdPartyKey("routes.prices")]: "isthereanydeal",
-      [thirdPartyKey("routes.history")]: "isthereanydeal",
-      [thirdPartyKey("routes.discountForecast")]: "isthereanydeal",
-    };
+    const data = { [thirdPartyKey("enabled")]: enabled };
+    if (enabled) data[thirdPartyKey("isthereanydeal.key")] = form.key;
+
     log.info("onboarding-third-party-save-start", "安装引导开始保存第三方服务配置", {
       operationId,
       enabled,
@@ -755,6 +740,7 @@
       return { ok: false, reason: "storage" };
     }
     state.thirdParty.saved = true;
+    state.savedSummary["third-party"] = enabled ? "已配置并测试" : "已关闭";
     log.info("onboarding-third-party-save-success", "安装引导第三方服务配置保存成功", {
       operationId,
       enabled,
@@ -776,9 +762,9 @@
       return { ok: false, reason: "unverified" };
     }
     const data = {};
-    Object.keys(aiDefaults()).forEach((id) => {
-      data[aiStorageKey(id)] = form[id];
-    });
+    if (form.enabled) {
+      Object.keys(aiDefaults()).forEach(id => { data[aiStorageKey(id)] = form[id]; });
+    } else { data[aiStorageKey("enabled")] = false; }
     log.info("onboarding-ai-save-start", "安装引导开始保存 AI 配置", {
       operationId,
       enabled: form.enabled === true,
@@ -793,6 +779,7 @@
       return { ok: false, reason: "storage" };
     }
     state.ai.saved = true;
+    state.savedSummary.ai = form.enabled ? "已配置并测试" : "已关闭";
     log.info("onboarding-ai-save-success", "安装引导 AI 配置保存成功", {
       operationId,
       enabled: form.enabled === true,
@@ -1466,53 +1453,29 @@
   }
 
   async function saveClientChoices(operationId = "") {
-    if (!state.clientDefaultReady) await ensureClientDefault();
-    const data = {
-      [settingValueKey(NAME_MODE_ID)]: clampNameMode(state.clientNameMode),
-    };
-    state.clientFeatureList.forEach((item) => {
-      const on = state.clientEnabled === true && state.clientFeatures[item.id] === true;
-      data[settingKey(item.id)] = on;
+    if (!state.clientDefaultReady || state.initError) return false;
+    const data = {};
+    state.clientFeatureList.forEach(item => {
+      data[settingKey(item.id)] = state.clientEnabled && state.clientFeatures[item.id] === true;
     });
-    if (!Object.keys(data).length) return false;
-    const api = chromeApi();
-    if (api?.storage?.local) {
-      return new Promise((resolve) => {
-        try {
-          api.storage.local.set(data, () => {
-            const error = api.runtime?.lastError;
-            if (error) {
-              log.warn("onboarding-client-settings-save-failed", "安装引导客户端增强设置保存失败", {
-                operationId,
-                settingCount: Object.keys(data).length,
-                error,
-              });
-              resolve(false);
-              return;
-            }
-            resolve(true);
-          });
-        } catch (error) {
-          log.warn("onboarding-client-settings-save-failed", "安装引导客户端增强设置保存失败", {
-            operationId,
-            settingCount: Object.keys(data).length,
-            error,
-          });
-          resolve(false);
-        }
-      });
+    log.info("onboarding-client-save-start", "安装引导开始保存客户端功能", { operationId, settingCount: Object.keys(data).length });
+    const ok = await storageSetMany(data, { operationId });
+    if (ok) {
+      state.savedSummary.client = Object.values(data).some(Boolean) ? `已开启 · ${CLIENT_RESTART_NOTE}` : "已关闭";
+      log.info("onboarding-client-save-success", "安装引导客户端功能已保存", { operationId });
     }
-    try {
-      Object.entries(data).forEach(([key, value]) => localStorage.setItem(key, String(value)));
-      return true;
-    } catch (error) {
-      log.warn("onboarding-client-settings-save-failed", "安装引导客户端增强设置保存失败", {
-        operationId,
-        settingCount: Object.keys(data).length,
-        error,
-      });
-      return false;
+    return ok;
+  }
+
+  async function saveNameMode(operationId = "") {
+    if (!nameFeatureEnabled() || !nameModeAllowed(state.clientNameMode)) return false;
+    log.info("onboarding-name-mode-save-start", "安装引导开始保存名称方案", { operationId, mode: state.clientNameMode });
+    const ok = await storageSetMany({ [settingValueKey(NAME_MODE_ID)]: state.clientNameMode }, { operationId });
+    if (ok) {
+      state.savedSummary["name-mode"] = state.clientNameMode === NAME_MODE_INDEPENDENT ? "素材君云存储版" : "Steam 云存储版";
+      log.info("onboarding-name-mode-save-success", "安装引导名称方案已保存", { operationId, mode: state.clientNameMode });
     }
+    return ok;
   }
 
   function setNote(note = "", error = false) {
@@ -1568,8 +1531,9 @@
     if (state.clientDefaultReady) return;
     const catalog = await settingsCatalog();
     const items = await clientTopLevelFeatures();
+    if (!catalog || !items.length) throw new Error("客户端功能目录未加载");
     const on = window.STClientEnvironment.isSteamClientPage() === true;
-    state.clientEnabled = on;
+    const stored = await storageGetMany([...items.map(item => settingKey(item.id)), settingValueKey(NAME_MODE_ID)]);
     state.clientFeatureList = items.map((item) => ({
       id: item.id,
       name: String(item.name || item.id),
@@ -1586,9 +1550,13 @@
           lock: String(option.lock || ""),
         }))
       : [];
-    state.clientNameMode = NAME_MODE_STEAM;
-    state.clientFeatures = {};
-    syncClientFeatures(on);
+    const storedMode = stored[settingValueKey(NAME_MODE_ID)];
+    if (storedMode !== undefined && !state.clientNameModeOptions.some(option => option.value === storedMode)) throw new Error("已保存的名称方案无效");
+    state.clientNameMode = storedMode ?? NAME_MODE_STEAM;
+    state.clientFeatures = Object.fromEntries(items.map(item => [item.id, Object.hasOwn(stored, settingKey(item.id)) ? stored[settingKey(item.id)] === true : on]));
+    state.clientEnabled = Object.values(state.clientFeatures).some(Boolean);
+    state.savedSummary.client = items.some(item => stored[settingKey(item.id)] === true) ? "已开启" : "未启用";
+    state.savedSummary["name-mode"] = state.clientNameMode === NAME_MODE_INDEPENDENT ? "素材君云存储版" : "Steam 云存储版";
     state.clientDefaultReady = true;
   }
 
@@ -1622,17 +1590,6 @@
       steamClient,
     });
     try {
-      setBusy(true, "正在保存客户端增强设置...");
-      const ok = await saveClientChoices(operationId);
-      if (!ok) {
-        log.warn("onboarding-finish-failed", "安装引导客户端增强设置未能保存", {
-          operationId,
-          durationMs: Date.now() - startedAt,
-          errorCode: "STORAGE_REJECTED",
-        });
-        setBusy(false, "客户端增强设置保存失败，请稍后重试。", true);
-        return;
-      }
       if (steamClient) {
         state.busy = false;
         openRestartModal();
@@ -1730,8 +1687,8 @@
   async function advanceFromCurrent() {
     if (controlsBusy()) return;
     const stepId = activeStep().id;
-    syncThirdPartyStateFromForm();
-    syncAiStateFromForm();
+    if (stepId === "third-party") syncThirdPartyStateFromForm();
+    if (stepId === "ai") syncAiStateFromForm();
     if (!stepCanNext(stepId)) {
       setNote(gateBlockNote(stepId), true);
       return;
@@ -1779,9 +1736,31 @@
         return;
       }
     }
+    if (stepId === "name-mode") {
+      state.serviceBusy = true;
+      render();
+      let ok;
+      try { ok = await saveNameMode(operationId); }
+      finally { state.serviceBusy = false; }
+      if (!ok) {
+        setNote("名称方案保存失败，请检查选择后重试。", true);
+        return;
+      }
+    }
+    state.results[stepId] = "saved";
     const nextPage = state.page + 1;
     commitPage(nextPage);
     applyLocalPage(nextPage);
+  }
+
+  function skipCurrentStep() {
+    if (controlsBusy() || state.initError) return;
+    const id = activeStep().id;
+    if (!["account", "name-mode", "third-party", "ai"].includes(id)) return;
+    if (id === "account") cancelLogin();
+    state.results[id] = "skipped";
+    commitPage(state.page + 1);
+    applyLocalPage(state.page + 1);
   }
 
   function goToPage(page) {
@@ -1845,6 +1824,8 @@
     $("#progress-track").replaceChildren();
     $("#progress-track").setAttribute("aria-busy", state.phase === "loading" ? "true" : "false");
     $("#footer-back").hidden = true;
+    $("#footer-skip").hidden = true;
+    $("#footer-retry").hidden = true;
     $("#footer-next").hidden = false;
     setControlDisabled($("#footer-next"), true, state.phase === "loading");
     $("#footer-tutorial").hidden = true;
@@ -1862,6 +1843,8 @@
 
   // 注: 本地页必须先验证 flow.json 才能判断全局页码，任何加载失败都不能回退到固定页数。
   async function loadFlow() {
+    state.initializing = true;
+    state.initError = false;
     const pageResult = CONTRACT.readPage(window.location.href);
     if (!pageResult.ok) {
       setInvalidPhase();
@@ -1916,22 +1899,17 @@
         state.restartAcked = false;
         state.restartModalOpen = true;
       }
-      Promise.all([
-        ensureClientDefault(),
-        hydrateServiceSettings(),
-      ]).catch((error) => {
-        log.warn("onboarding-service-hydrate-failed", "安装引导服务配置读取失败，将使用引导默认值", {
-          error,
-        });
-      }).finally(() => {
-        render();
-      });
-      ensureLoginState().catch((error) => {
-        log.error("onboarding-account-sync-failed", "安装引导账号状态初始化异常", {
-          operationId: state.loginOperationId || "",
-          error,
-        });
-      });
+      render();
+      const initialized = await Promise.allSettled([ensureClientDefault(), hydrateServiceSettings(), ensureLoginState()]);
+      const failed = initialized.find(result => result.status === "rejected");
+      state.initializing = false;
+      if (failed) {
+        state.initError = true;
+        state.note = "已有设置读取失败，请重试；本次尚未保存配置。";
+        state.noteError = true;
+        log.error("onboarding-service-hydrate-failed", "安装引导设置读取失败，已阻止保存", { error: failed.reason });
+      }
+      render();
     } catch (error) {
       log.error("onboarding-flow-load-failed", "安装引导配置加载失败", {
         error,
@@ -1960,9 +1938,7 @@
     if (railTitle) railTitle.textContent = step.title || "";
     if (railCopy) {
       if (step.id === "account") {
-        railCopy.textContent = state.requireLogin
-          ? (loggedIn() ? "已登录，可进入下一步。" : "请先登录，或关闭登录素材君账号。")
-          : "已关闭登录素材君账号，可直接进入下一步。";
+        railCopy.textContent = loggedIn() ? "已登录，可进入下一步。" : "登录素材君账号，也可以暂时跳过。";
       } else if (step.id === "third-party") {
         railCopy.textContent = state.thirdParty.enabled
           ? (state.thirdParty.verified ? "密钥测试已通过，可进入下一步。" : "开启后需填写密钥并测试通过。")
@@ -1978,29 +1954,29 @@
   }
 
   function renderComplete() {
-    const account = $("#complete-account");
-    const thirdParty = $("#complete-third-party");
-    const ai = $("#complete-ai");
-    const client = $("#complete-client");
-    account.textContent = loggedIn() ? "已登录" : "未登录";
-    thirdParty.textContent = state.thirdParty.enabled
-      ? (state.thirdParty.key ? "已开启并配置" : "已开启")
-      : "已关闭";
-    ai.textContent = state.ai.enabled
-      ? (state.ai.verified || state.ai.saved ? "已开启并配置" : "已开启")
-      : "已关闭";
-    client.textContent = state.clientEnabled && clientAnyEnabled() ? "已开启" : "已关闭";
+    $("#complete-account").textContent = loggedIn() ? "已登录" : "暂未登录";
+    ["third-party", "ai", "client", "name-mode"].forEach(id => {
+      const result = state.results[id];
+      const saved = state.savedSummary[id] || "尚未保存";
+      const summary = result === "skipped"
+        ? `已跳过 · 原设置：${saved}`
+        : result === "saved" ? saved : `原设置：${saved}`;
+      const target = $("#complete-" + id);
+      if (id === "client" && summary.endsWith(CLIENT_RESTART_NOTE)) {
+        target.replaceChildren(
+          document.createTextNode(summary.slice(0, -CLIENT_RESTART_NOTE.length)),
+          el("strong", "complete-restart-note", CLIENT_RESTART_NOTE),
+        );
+      } else {
+        target.textContent = summary;
+      }
+    });
   }
 
   function renderAccountGate() {
-    const toggle = $("#account-require-login");
-    const detail = $("#account-gate-detail");
-    if (!toggle || !detail) return;
-    toggle.setAttribute("aria-checked", state.requireLogin ? "true" : "false");
-    setControlDisabled(toggle, controlsBusy(), controlsBusy());
-    detail.textContent = state.requireLogin
-      ? (loggedIn() ? "已登录，可以进入下一步" : "登录后可使用账号相关能力；关闭要求后仍可继续本地功能。")
-      : "已关闭，可不登录直接进入下一步";
+    $("#account-gate-detail").textContent = loggedIn()
+      ? "已登录，可以继续。"
+      : "登录后使用账号相关功能。暂时不需要，可以跳过。";
   }
 
   function renderAuthField(label, value, action) {
@@ -2106,40 +2082,97 @@
 
   function renderNameMode() {
     const root = $("#client-name-mode-options");
-    if (!root) return;
-    const busy = controlsBusy();
-    const selected = clampNameMode(state.clientNameMode);
-    state.clientNameMode = selected;
-    const options = state.clientNameModeOptions.length
-      ? state.clientNameModeOptions
-      : [{ value: NAME_MODE_STEAM, label: "Steam云存储版", lock: "" }];
-    root.replaceChildren();
-    options.forEach((option) => {
-      const value = String(option.value || "");
+    const selected = state.clientNameMode;
+    const focused = root.contains(document.activeElement) ? document.activeElement.value : null;
+    const features = [
+      ["自定义名称", true, true],
+      ["别名搜索", true, false],
+      ["助记符搜索", true, true],
+      ["拼音全拼搜索", true, false],
+      ["批量设置", true, true],
+      ["导入导出", true, true],
+      ["是否影响排序显示", "不影响", "影响"],
+      ["存储位置", "素材君云端", "Steam 云端"],
+      ["使用条件", "捐赠用户身份", "无需捐赠用户身份"],
+    ];
+    const modes = [NAME_MODE_INDEPENDENT, NAME_MODE_STEAM]
+      .filter(value => state.clientNameModeOptions.some(item => item.value === value));
+    const table = el("table", "mode-comparison");
+    table.setAttribute("aria-label", "自定义名称方案功能对比");
+    const head = el("thead");
+    const header = el("tr");
+    const corner = el("th", "mode-row-heading");
+    corner.scope = "col";
+    corner.append(el("span", "mode-feature-title", "功能对比"), el("span", "mode-feature-note", "按你的使用习惯选择"));
+    header.append(corner);
+    const foot = el("tfoot");
+    const choices = el("tr");
+    const choiceHeading = el("th", "mode-row-heading", "选择方案");
+    choiceHeading.scope = "row";
+    choices.append(choiceHeading);
+    const inputs = [];
+    modes.forEach(value => {
+      const independent = value === NAME_MODE_INDEPENDENT;
       const allowed = nameModeAllowed(value);
-      const checked = selected === value;
-      const label = el("label", `client-name-mode-option${checked ? " is-selected" : ""}${allowed ? "" : " is-locked"}`);
+      const title = independent ? "素材君云存储版" : "Steam 云存储版";
+      const columnClass = independent ? "mode-independent" : "mode-steam";
+      const cell = el("th", columnClass);
+      cell.scope = "col";
+      const titleLabel = el("label", "mode-plan-label", title);
+      titleLabel.htmlFor = `name-mode-${value}`;
+      const heading = el("h2", "client-name-mode-title");
+      heading.append(titleLabel);
+      cell.append(
+        el("span", "mode-plan-badge", independent ? "捐赠用户专享" : "无需捐赠用户身份"),
+        heading,
+        el("p", "client-name-mode-desc", nameModeCopy(value)),
+      );
+      header.append(cell);
+
+      const choiceCell = el("td", columnClass);
+      const label = el("label", `client-name-mode-option${selected === value ? " is-selected" : ""}`);
       const input = el("input");
       input.type = "radio";
+      input.id = `name-mode-${value}`;
       input.name = NAME_MODE_ID;
       input.value = value;
-      input.checked = checked;
-      input.disabled = busy || !allowed;
+      input.checked = selected === value;
+      input.disabled = controlsBusy() || !allowed || !nameFeatureEnabled();
       input.dataset.actionChange = "client-name-mode";
-      const copy = el("div", "client-name-mode-copy");
-      const title = el("div", "client-name-mode-title");
-      title.append(el("span", "", option.label || value));
-      if (value === NAME_MODE_INDEPENDENT) {
-        title.append(el("span", "client-name-mode-badge", "推荐"));
-      }
-      if (!allowed && option.lock) {
-        title.append(el("span", "client-feature-lock", option.lock));
-      }
-      copy.append(title);
-      copy.append(el("span", "client-name-mode-desc", nameModeCopy(value)));
-      label.append(input, copy);
-      root.append(label);
+      input.setAttribute("aria-label", title);
+      label.append(input, el("span", "mode-choice", !allowed ? "需要捐赠用户身份" : selected === value ? "已选择" : independent ? "选择素材君版" : "选择 Steam 版"));
+      choiceCell.append(label);
+      choices.append(choiceCell);
+      inputs.push(input);
     });
+    head.append(header);
+    const body = el("tbody");
+    features.forEach(([title, independentValue, steamValue]) => {
+      const row = el("tr");
+      const heading = el("th", "mode-row-heading", title);
+      heading.scope = "row";
+      row.append(heading);
+      modes.forEach(value => {
+        const independent = value === NAME_MODE_INDEPENDENT;
+        const content = independent ? independentValue : steamValue;
+        const cell = el("td", independent ? "mode-independent" : "mode-steam");
+        if (typeof content === "boolean") {
+          const status = el("span", `mode-support${content ? " is-supported" : ""}`, content ? "✓" : "—");
+          status.setAttribute("role", "img");
+          status.setAttribute("aria-label", content ? "支持" : "不支持");
+          cell.append(status);
+        } else {
+          cell.textContent = content;
+        }
+        row.append(cell);
+      });
+      body.append(row);
+    });
+    foot.append(choices);
+    table.append(head, body, foot);
+    root.replaceChildren(table);
+    const active = inputs.find(input => input.value === focused && !input.disabled);
+    if (active) active.focus({ preventScroll: true });
   }
 
   function renderClient() {
@@ -2224,7 +2257,6 @@
     const testButton = $("#ai-test");
     const status = $("#ai-status");
     if (!enabledToggle || !fields || !host || !model || !keyMode || !key || !testButton || !status) return;
-    const defs = aiDefaults();
     enabledToggle.setAttribute("aria-checked", state.ai.enabled ? "true" : "false");
     setControlDisabled(enabledToggle, controlsBusy(), controlsBusy());
     fields.hidden = state.ai.enabled !== true;
@@ -2232,16 +2264,17 @@
       if (!node || document.activeElement === node) return;
       node.value = value == null ? "" : String(value);
     };
-    fill(host, state.ai.host || defs.host);
-    fill(model, state.ai.model || defs.model);
+    fill(host, state.ai.host);
+    fill(model, state.ai.model);
     fill(keyMode, state.ai.keyMode || "bearer");
     fill(key, state.ai.key || "");
     fill(keyName, state.ai.keyName || "");
-    fill(temperature, state.ai.temperature || "0.2");
+    fill(temperature, state.ai.temperature);
     fill(concurrency, state.ai.aiConcurrency || 10);
     const mode = String(keyMode.value || state.ai.keyMode || "bearer");
     if (keyField) keyField.hidden = mode === "none";
     if (keyNameField) keyNameField.hidden = mode !== "header" && mode !== "param";
+    $("#ai-advanced-mode").textContent = keyMode.options[keyMode.selectedIndex]?.textContent || "";
     const aiBusy = controlsBusy();
     const aiLocked = aiBusy || state.ai.enabled !== true;
     [host, model, keyMode, key, keyName, temperature, concurrency].forEach((node) => {
@@ -2258,7 +2291,7 @@
     const step = activeStep();
     const final = state.step === LOCAL_STEPS.length - 1;
     const note = $("#footer-note");
-    note.textContent = state.note || step.note;
+    note.textContent = state.initializing ? "正在读取已有设置…" : state.note || step.note;
     note.classList.toggle("error", state.noteError);
 
     const back = $("#footer-back");
@@ -2269,6 +2302,11 @@
     back.hidden = false;
     setControlDisabled(back, controlsBusy(), controlsBusy());
 
+    const skip = $("#footer-skip");
+    skip.hidden = !["account", "name-mode", "third-party", "ai"].includes(step.id) || (step.id === "account" && loggedIn());
+    skip.textContent = step.id === "account" ? "暂不登录" : step.id === "name-mode" ? "保留原方案" : "稍后配置";
+    setControlDisabled(skip, controlsBusy() || state.initError, controlsBusy());
+    $("#footer-retry").hidden = !state.initError;
     next.hidden = final;
     const nextBusy = controlsBusy();
     setControlDisabled(next, nextBusy || !stepCanNext(step.id), nextBusy);
@@ -2484,20 +2522,15 @@
       setNote("请完全退出并重新打开 Steam，客户端增强才会生效。", false);
       return;
     }
-    if (state.phase !== "ready") return;
+    if (state.phase !== "ready" || state.initializing) return;
     if (state.serviceBusy && !["login-cancel", "open-step-tutorial", "open-tutorial", "restart-modal-ack"].includes(action)) return;
     if (state.loginBusy && action !== "login-cancel") return;
     if (action === "back") applyLocalPage(state.page - 1);
     if (action === "next") await advanceFromCurrent();
     if (action === "go-page") goToPage(Number(control.dataset.page));
-    if (action === "account-require-login") {
-      state.requireLogin = state.requireLogin !== true;
-      clampCommittedPage();
-      setNote(state.requireLogin
-        ? (loggedIn() ? "已开启登录素材君账号。" : "请先登录，或关闭登录素材君账号。")
-        : "已关闭登录素材君账号，可直接进入下一步。", false);
-    }
+    if (action === "skip-step") skipCurrentStep();
     if (action === "third-party-enabled") {
+      invalidateProgress();
       state.thirdParty.enabled = state.thirdParty.enabled !== true;
       state.thirdParty.verified = false;
       state.thirdParty.saved = false;
@@ -2510,6 +2543,7 @@
     }
     if (action === "third-party-test") await testThirdPartyConnection();
     if (action === "ai-enabled") {
+      invalidateProgress();
       state.ai.enabled = state.ai.enabled !== true;
       state.ai.verified = false;
       state.ai.saved = false;
@@ -2522,6 +2556,7 @@
     }
     if (action === "ai-test") await testAiConnection();
     if (action === "client-toggle") {
+      invalidateProgress();
       state.clientEnabled = state.clientEnabled !== true;
       syncClientFeatures(state.clientEnabled);
       setNote("客户端增强设置将在进入下一步时保存。", false);
@@ -2530,6 +2565,7 @@
       if (state.clientEnabled !== true) return;
       const featureId = String(control.dataset.featureId || "").trim();
       if (!featureId || !Object.prototype.hasOwnProperty.call(state.clientFeatures, featureId)) return;
+      invalidateProgress();
       state.clientFeatures[featureId] = state.clientFeatures[featureId] !== true;
       setNote("客户端增强设置将在进入下一步时保存。", false);
     }
@@ -2540,6 +2576,9 @@
     if (action === "login-copy-url") copyText(loginFullUrl(), "授权链接已复制。");
     if (action === "open-tutorial") await openTutorial();
     if (action === "open-step-tutorial") await openTutorial(control.dataset.tutorialKey || "");
+    if (action === "open-itad-apps") {
+      window.STConfig.externalNavigation.open(window.STConfig.vendors.isthereanydeal.apps);
+    }
     if (action === "finish-open") {
       if (inSteamClient() && !state.restartAcked) {
         openRestartModal();
@@ -2583,8 +2622,9 @@
     if (target.dataset.actionChange === "client-name-mode") {
       const value = String(target.value || "");
       if (!nameModeAllowed(value)) return;
-      state.clientNameMode = clampNameMode(value);
-      setNote("客户端增强设置将在进入下一步时保存。", false);
+      invalidateProgress();
+      state.clientNameMode = value;
+      setNote("名称方案将在进入下一步时保存。", false);
     }
   });
 
@@ -2596,6 +2636,10 @@
 
   window.addEventListener("popstate", () => {
     if (state.phase !== "ready") return;
+    if (controlsBusy()) {
+      window.history.replaceState(null, "", localUrl(state.page));
+      return;
+    }
     const result = CONTRACT.readPage(window.location.href);
     if (!result.ok) {
       setInvalidPhase();

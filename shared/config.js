@@ -334,6 +334,7 @@
     isthereanydeal: Object.freeze({
       host: HOSTS.isthereanydeal,
       origin: ORIGINS.isthereanydeal,
+      apps: "https://isthereanydeal.com/apps/",
       endpoint: (path = "") => join(ORIGINS.isthereanydeal, path),
       statsMostPopular: (limit = 1, offset = 0) => `${join(ORIGINS.isthereanydeal, "/stats/most-popular/v1")}?limit=${encoded(limit)}&offset=${encoded(offset)}`,
       lookupSteam: (shopId = 61) => join(ORIGINS.isthereanydeal, `/lookup/id/shop/${encoded(shopId)}/v1`),
