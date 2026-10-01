@@ -159,7 +159,12 @@
           code = Number(res.body?.code) || res.status || 0;
         }
         if (code === 401) {
-          await auth.clearAuthState(ctx, { operationId });
+          await auth.clearAuthState(ctx, {
+            operationId,
+            ownerId: bound.userId,
+            sent: current,
+            reject: true,
+          });
           throw new Error(res.body?.message || t("settings.account.loginExpired", "登录已过期，请重新登录"));
         }
         if (code < 200 || code >= 300) {
@@ -181,7 +186,7 @@
         if (!membership) {
           throw new Error(t("settings.account.membershipSaveFailed", "会员状态保存失败"));
         }
-        await auth.touchUsed(ctx, { operationId });
+        await auth.touchUsed(ctx, { operationId, ownerId: bound.userId, sent: current });
         current = rt.auth || current;
         bound = await assertIdentity(ctx, bound, current);
         rt.center = res.body || null;

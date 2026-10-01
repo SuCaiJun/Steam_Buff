@@ -292,6 +292,12 @@
   "settings_feature_store_title_custom_name_desc": {
     "message": "Steam 상점 게임 제목 옆에 Steam Buff 중국어 제목을 표시하고 직접 중국어 제목을 제출할 수 있게 합니다."
   },
+  "settings_feature_store_title_custom_name_badge": {
+    "message": "후원자"
+  },
+  "settings_feature_store_title_custom_name_lock": {
+    "message": "후원자만 이용할 수 있습니다. 활성화하면 저장된 상태가 복원됩니다."
+  },
   "settings_feature_ai_name": {
     "message": "AI 모듈"
   },

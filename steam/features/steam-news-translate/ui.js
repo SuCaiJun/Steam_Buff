@@ -1043,6 +1043,9 @@
         reject(new Error(i18n("steam.newsTranslate.requestTimedOut", "翻译请求超时")));
       }, timeoutMs);
       const onMessage = (event) => {
+        if (event.source !== window || event.origin !== window.location.origin) {
+          return;
+        }
         const data = event.data || {};
         if (data.source !== "steam-buff-content" || data.type !== responseType || data.rid !== rid) {
           return;
@@ -1060,7 +1063,7 @@
         source: "steam-buff-page",
         rid,
         ...payload,
-      }, "*");
+      }, window.location.origin);
     });
   }
 

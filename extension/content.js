@@ -970,7 +970,7 @@
         type,
         source: "steam-buff-content",
         ...data,
-      }, "*");
+      }, window.location.origin);
     } catch {
     }
   }
@@ -1337,6 +1337,9 @@
     globalThis[NEWS_TRANSLATE_BRIDGE_MARK] = RUN_VERSION;
     globalThis[NEWS_TRANSLATE_BRIDGE_HANDLER_MARK] = RUN_VERSION;
     const bridgeHandler = (event) => {
+      if (event.source !== window || event.origin !== window.location.origin) {
+        return;
+      }
       const data = event.data || {};
       if (data.source !== "steam-buff-page") {
         return;

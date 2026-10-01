@@ -140,6 +140,7 @@
     "shared/runtime/message-bus.js",
     "shared/settings-bus.js",
     "shared/auth-session.js",
+    "shared/auth-client.js",
     "shared/account-profile.js",
     "shared/price-comparison-catalog.js",
     "settings/catalog.js",

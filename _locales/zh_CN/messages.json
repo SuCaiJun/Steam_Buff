@@ -292,6 +292,12 @@
   "settings_feature_store_title_custom_name_desc": {
     "message": "在 Steam 商店游戏标题旁显示用户自定义名称、社区名称或 AI 名称，并支持提交自己的名称。"
   },
+  "settings_feature_store_title_custom_name_badge": {
+    "message": "赞助者"
+  },
+  "settings_feature_store_title_custom_name_lock": {
+    "message": "赞助者可用，开通后会按当前保存状态恢复"
+  },
   "settings_feature_ai_name": {
     "message": "AI模块"
   },

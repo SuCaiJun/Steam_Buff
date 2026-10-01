@@ -18,7 +18,13 @@
   if (!authSession) {
     throw new Error("shared/auth-session.js must load before settings account auth");
   }
-  const { cleanAuth, expired, authKey, nextAuth, refreshRejected, commitAuth } = authSession;
+  const { cleanAuth, expired, authKey, nextAuth, refreshRejected } = authSession;
+  if (!root.STAuthClient && typeof module === "object" && module.exports && typeof require === "function") {
+    require("../../../shared/auth-client.js");
+  }
+  if (typeof root.STAuthClient?.commitStored !== "function") {
+    throw new Error("shared/auth-client.js must load before settings account auth");
+  }
 
   function create(options = {}) {
     const rt = options.state;
@@ -31,17 +37,10 @@
       error() {},
     };
 
-    let commitChain = Promise.resolve();
-
     function switchedError() {
       const error = new Error(t("settings.account.accountSwitched", "账号已切换"));
       error.code = "owner-changed";
       return error;
-    }
-
-    function canCommitRemote() {
-      return typeof root.chrome?.runtime?.sendMessage === "function"
-        && typeof root.STMessageBus?.request === "function";
     }
 
     async function readStored(ctx) {
@@ -74,121 +73,36 @@
       }
     }
 
-    async function writeStored(ctx, value, operationId) {
-      const next = cleanAuth(value);
-      if (!next) {
-        await eraseStored(ctx, operationId);
-        return null;
-      }
-      const before = authKey(rt.auth);
-      const after = authKey(next);
-      if (typeof ctx.storage?.setAuth !== "function") {
-        throw new Error(t("settings.account.authStorageUnavailable", "登录状态存储未初始化"));
-      }
-      const saved = await ctx.storage.setAuth(next, {
-        operationId: String(operationId || ""),
-      });
-      if (!saved) {
-        throw new Error(t("settings.account.authSaveFailed", "登录状态保存失败"));
-      }
-      rt.auth = next;
-      if (before !== after) {
-        rt.center = null;
-        center?.clearCenterCache?.();
-      }
-      return rt.auth;
-    }
-
-    async function eraseStored(ctx, operationId) {
-      if (typeof ctx.storage?.clearAuth !== "function") {
-        throw new Error(t("settings.account.authStorageUnavailable", "登录状态存储未初始化"));
-      }
-      const cleared = await ctx.storage.clearAuth({
-        operationId: String(operationId || ""),
-      });
-      if (cleared !== true) {
-        throw new Error(t("settings.account.authClearFailed", "本地登录状态清理失败"));
-      }
-      rt.auth = null;
-      rt.center = null;
-      center?.clearCenterCache?.();
-    }
-
-    // 设置页不能引用共享请求客户端。能发后台消息时只交给 AUTH_COMMIT，否则在本页队列里读、判断、写
-    async function applyLocal(ctx, input) {
+    // 所有读、比较和写入统一交给共享提交入口；这里只更新账号页状态。
+    async function commitEntry(ctx, input) {
+      const decision = await root.STAuthClient.commitStored(ctx.storage, input);
+      // 后台提交完成与页面收到回执之间仍可能换号，只采用当前存储里的状态。
       const stored = await readStored(ctx);
-      const decision = commitAuth({
-        kind: input.kind,
-        stored,
-        sent: input.sent,
-        incoming: input.incoming,
-        lastUsedAt: input.lastUsedAt,
-      });
-      if (decision.action === "write") {
-        await writeStored(ctx, decision.auth, input.operationId);
-        return { action: "write", auth: rt.auth };
+      if (decision.action === "write" || decision.action === "keep") {
+        adoptStored(stored);
+        if (authKey(stored) !== authKey(decision.auth)) return { action: "session-changed" };
+        return { ...decision, auth: rt.auth };
+      } else if (decision.action === "clear") {
+        adoptStored(stored);
+        if (stored) return { action: "session-changed" };
+      } else if (decision.action === "session-changed" || decision.action === "owner-changed") {
+        adoptStored(stored);
       }
-      if (decision.action === "clear") {
-        await eraseStored(ctx, input.operationId);
-        return { action: "clear" };
-      }
-      if (decision.action === "keep") {
-        adoptStored(decision.auth);
-        return { action: "keep", auth: rt.auth };
-      }
-      if (decision.action === "session-changed") {
-        adoptStored(await readStored(ctx));
-        return { action: "session-changed" };
-      }
-      return { action: decision.action };
+      return decision;
     }
 
-    function commitLocal(ctx, input) {
-      const run = commitChain.then(() => applyLocal(ctx, input));
-      commitChain = run.then(() => undefined, () => undefined);
-      return run;
-    }
-
-    async function commitRemote(ctx, input) {
-      const response = await root.STMessageBus.request({
-        type: "AUTH_COMMIT",
-        kind: input.kind,
-        sent: cleanAuth(input.sent),
-        incoming: cleanAuth(input.incoming),
-        ownerId: "",
-        lastUsedAt: Number(input.lastUsedAt) || 0,
-        operationId: String(input.operationId || ""),
-      }, {
-        timeoutMs: 8 * 1000,
-        expectSuccess: false,
-        logFailures: false,
-      });
-      if (!response || response.success !== true) {
-        const error = new Error(response?.error || t("settings.account.authSaveFailed", "登录状态保存失败"));
-        error.code = response?.code || "auth-commit-failed";
-        throw error;
+    // 网络操作开始时捕获凭据及其所属账号，完成时不能重读 rt.auth 作为原请求身份。
+    async function captureIdentity(ctx, value = rt.auth) {
+      if (typeof ctx.storage?.getAuthIdentity !== "function") {
+        throw new Error(t("settings.account.authStorageUnavailable", "登录状态存储未初始化"));
       }
-      const action = String(response.action || "");
-      if (action === "write" || action === "keep") {
-        adoptStored(response.auth);
-        return { action, auth: rt.auth };
+      const sent = cleanAuth(value);
+      const snapshot = await ctx.storage.getAuthIdentity();
+      if (authKey(snapshot?.auth) !== authKey(sent)) {
+        adoptStored(snapshot?.auth);
+        throw switchedError();
       }
-      if (action === "clear") {
-        rt.auth = null;
-        rt.center = null;
-        center?.clearCenterCache?.();
-        return { action: "clear" };
-      }
-      if (action === "session-changed") {
-        adoptStored(await readStored(ctx));
-        return { action: "session-changed" };
-      }
-      return { action };
-    }
-
-    function commitEntry(ctx, input) {
-      if (canCommitRemote()) return commitRemote(ctx, input);
-      return commitLocal(ctx, input);
+      return { sent, ownerId: String(snapshot?.userId || "").trim() };
     }
 
     async function storeAuth(ctx, value, options = {}) {
@@ -204,26 +118,35 @@
         incoming: next,
         operationId,
       });
+      if (decision.action === "session-changed" || decision.action === "owner-changed") {
+        throw switchedError();
+      }
       if (decision.action === "write") {
         await preloadCloud(rt.auth, operationId, "settings-cloud-login-preload-failed", "登录后预读设置云同步卡片失败");
       }
       return rt.auth;
     }
 
+    // sent/ownerId 属于原操作；reject 只拒绝未更新的凭据，返回共享提交结果。
     async function clearAuthState(ctx, options = {}) {
       const operationId = String(options.operationId || "");
+      const bound = Object.hasOwn(options, "sent")
+        ? { sent: cleanAuth(options.sent), ownerId: String(options.ownerId || "") }
+        : await captureIdentity(ctx);
+      if (!bound.sent) return { action: "keep", auth: null };
       const decision = await commitEntry(ctx, {
-        kind: "clear",
-        sent: cleanAuth(rt.auth),
+        kind: options.reject === true ? "reject" : "clear",
+        ...bound,
         operationId,
       });
-      if (decision.action === "session-changed") {
+      if (decision.action === "session-changed" || decision.action === "owner-changed") {
         log.warn("account-session-changed", "登录会话已变化，已停止原来的退出", { operationId });
         throw switchedError();
       }
       if (decision.action === "clear") {
         await preloadCloud(null, operationId, "settings-cloud-logout-preload-failed", "退出登录后刷新设置云同步卡片失败");
       }
+      return decision;
     }
 
     let refreshInflight = null;
@@ -263,6 +186,7 @@
       const startedAt = Date.now();
       const operationId = String(options.operationId || "");
       const sent = cleanAuth(rt.auth);
+      const bound = await captureIdentity(ctx, sent);
       log.info("account-token-refresh-start", "开始刷新登录令牌", {
         operationId,
         hasRefreshToken: !!token,
@@ -272,7 +196,7 @@
       if (refreshRejected(code)) {
         const decision = await commitEntry(ctx, {
           kind: "reject",
-          sent,
+          ...bound,
           operationId,
         });
         if (decision.action === "clear") {
@@ -291,7 +215,7 @@
 
       const decision = await commitEntry(ctx, {
         kind: "refresh",
-        sent,
+        ...bound,
         incoming: nextAuth(res.body, sent || {}),
         operationId,
       });
@@ -314,7 +238,8 @@
       const operationId = String(options.operationId || "");
       const decision = await commitEntry(ctx, {
         kind: "touch",
-        sent: cleanAuth(rt.auth),
+        sent: cleanAuth(options.sent || rt.auth),
+        ownerId: String(options.ownerId || ""),
         lastUsedAt: Date.now(),
         operationId,
       });
@@ -350,7 +275,6 @@
 
     async function logout(shadow, ctx, helpers = {}) {
       helpers.stopPoll?.();
-      const token = rt.auth?.access_token || "";
       const startedAt = Date.now();
       const operationId = root.STLoggerFactory?.createOperationId?.() || "";
       rt.busy = true;
@@ -359,9 +283,11 @@
       rt.loadError = "";
       rt.centerError = "";
       helpers.clearCopyTimer?.();
-      log.info("account-logout-start", "开始退出登录", { operationId, hasToken: !!token });
+      log.info("account-logout-start", "开始退出登录", { operationId, hasToken: !!rt.auth?.access_token });
       helpers.refresh?.(ctx);
       try {
+        const bound = await captureIdentity(ctx);
+        const token = bound.sent?.access_token || "";
         let remoteLogoutSucceeded = !token;
         if (token) {
           try {
@@ -377,7 +303,7 @@
             });
           }
         }
-        await clearAuthState(ctx, { operationId });
+        await clearAuthState(ctx, { ...bound, operationId });
         rt.device = null;
         rt.msg = t("settings.account.loggedOut", "已退出登录");
         log.info("account-logout-success", "退出登录成功", {

@@ -292,6 +292,12 @@
   "settings_feature_store_title_custom_name_desc": {
     "message": "Show your custom, community, or AI game name next to Steam store titles and allow submitting your own name."
   },
+  "settings_feature_store_title_custom_name_badge": {
+    "message": "Sponsor"
+  },
+  "settings_feature_store_title_custom_name_lock": {
+    "message": "Available to sponsors. Your saved state is restored after activation."
+  },
   "settings_feature_ai_name": {
     "message": "AI Module"
   },

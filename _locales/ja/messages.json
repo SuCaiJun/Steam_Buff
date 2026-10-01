@@ -292,6 +292,12 @@
   "settings_feature_store_title_custom_name_desc": {
     "message": "Steamストアのゲームタイトルの横にSteam Buffの中国語タイトルを表示し、自分で中国語タイトルを投稿できるようにします。"
   },
+  "settings_feature_store_title_custom_name_badge": {
+    "message": "スポンサー"
+  },
+  "settings_feature_store_title_custom_name_lock": {
+    "message": "スポンサーのみ利用できます。有効化後、保存済みの状態が復元されます。"
+  },
   "settings_feature_ai_name": {
     "message": "AIモジュール"
   },
