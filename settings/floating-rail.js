@@ -38,6 +38,7 @@
   let rail = null;
   let settingsBtn = null;
   let topBtn = null;
+  let translateBtn = null;
   let reviewBtn = null;
   let reviewCount = null;
   let railTop = null;
@@ -360,7 +361,17 @@
     topBtn = button("top", tr("settings.shell.topButton", "回到顶部"), topUrl());
     topBtn.hidden = true;
 
-    for (const node of [settingsBtn, reviewBtn, topBtn]) {
+    const translateItem = document.createElement("div");
+    translateItem.className = "item page-translate-slot";
+    const translateView = root.STSettingsPageTranslate.mount(translateItem);
+    translateBtn = translateView.button;
+    addDisposer(translateView.dispose);
+
+    for (const node of [settingsBtn, translateItem, reviewBtn, topBtn]) {
+      if (node === translateItem) {
+        rail.appendChild(node);
+        continue;
+      }
       const item = document.createElement("div");
       item.className = "item";
       item.appendChild(node);
@@ -410,6 +421,8 @@
           requestOpen({ category: "review-filter", filteredReviews: true });
         } else if (drag.target === "top") {
           toTop();
+        } else if (drag.target === "page-translate" && !translateBtn.disabled) {
+          root.STSettingsPageTranslate.run();
         }
         root.setTimeout(() => {
           drag.handledClick = false;
@@ -433,7 +446,8 @@
         ? "settings"
         : event.target.closest(".comment-filter")
           ? "review-filter"
-          : event.target.closest(".top") ? "top" : "";
+          : event.target.closest(".top") ? "top"
+            : event.target.closest(".page-translate") ? "page-translate" : "";
       rail.setPointerCapture(event.pointerId);
     });
 
@@ -485,6 +499,15 @@
       }
       requestOpen({ category: "review-filter", filteredReviews: true });
     });
+    listen(translateBtn, "click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (drag.moved || drag.handledClick) {
+        drag.moved = false;
+        return;
+      }
+      root.STSettingsPageTranslate.run();
+    });
   }
 
   function bind() {
@@ -523,6 +546,7 @@
     rail = null;
     settingsBtn = null;
     topBtn = null;
+    translateBtn = null;
     reviewBtn = null;
     reviewCount = null;
     log?.info?.("floating-rail-dispose", "轻量悬浮栏已释放", {

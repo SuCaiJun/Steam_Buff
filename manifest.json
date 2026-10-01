@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -312,6 +312,7 @@
         "images/icon.png",
         "images/ui/settings.svg",
         "images/ui/back-to-top.svg",
+        "images/ui/page-translate.svg",
         "images/ui/source-tip.svg",
         "images/ui/settings-translate.svg",
         "images/ui/help.svg",

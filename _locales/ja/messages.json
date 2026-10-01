@@ -20,6 +20,30 @@
   "locale_ko": {
     "message": "韓国語"
   },
+  "settings_shell_pageTranslatePageChanged": {
+    "message": "ページが変わりました。現在のページで翻訳をもう一度クリックしてください。"
+  },
+  "settings_shell_pageTranslateButton": {
+    "message": "ページを手動翻訳（設定の翻訳先言語を使用）"
+  },
+  "settings_shell_pageTranslateBusy": {
+    "message": "ページを翻訳中…"
+  },
+  "settings_shell_pageTranslateSuccess": {
+    "message": "翻訳完了。再読み込みで原文に戻せます"
+  },
+  "settings_shell_pageTranslateFailed": {
+    "message": "翻訳未完了：$error$。もう一度クリックして再試行してください",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "settings_shell_pageTranslateUnavailable": {
+    "message": "このページでは手動翻訳を利用できません"
+  },
+  "settings_shell_pageTranslateRuntimeMissing": {
+    "message": "翻訳機能が読み込まれていません。ページを再読み込みしてください"
+  },
   "settings_shell_settingsButton": {
     "message": "設定"
   },

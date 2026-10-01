@@ -141,6 +141,7 @@
         }
 
         .top,
+        .page-translate,
         .comment-filter {
           width: 28px;
           height: 28px;
@@ -163,18 +164,21 @@
         }
 
         .rail.left .top,
+        .rail.left .page-translate,
         .rail.left .comment-filter {
           margin-right: 0;
           margin-left: 8px;
         }
 
         .rail.dragging .top,
+        .rail.dragging .page-translate,
         .rail.dragging .comment-filter {
           margin-right: 0;
           margin-left: 0;
         }
 
         .top[hidden],
+        .page-translate-slot[hidden],
         .comment-filter[hidden] {
           display: none;
         }
@@ -186,7 +190,8 @@
           height: 30px;
         }
 
-        .top .content {
+        .top .content,
+        .page-translate .content {
           width: 24px;
           height: 24px;
         }
@@ -204,6 +209,7 @@
         }
 
         .top:hover,
+        .page-translate:hover,
         .comment-filter:hover {
           background: var(--st-color-surface-control-hover, var(--st-color-surface-control-hover));
           border-color: var(--st-color-border-primary-strong, var(--st-color-steam-blue-alpha-55));
@@ -211,6 +217,7 @@
         }
 
         .round:focus-visible,
+        .page-translate:focus-visible,
         .comment-filter:focus-visible,
         .top:focus-visible,
         .close:focus-visible,
@@ -236,7 +243,8 @@
           transform: none;
         }
 
-        .top img {
+        .top img,
+        .page-translate img {
           width: 24px;
           height: 24px;
           display: block;
@@ -244,6 +252,32 @@
           border-radius: 50%;
           pointer-events: none;
         }
+
+        .page-translate:disabled {
+          cursor: progress;
+          opacity: .55;
+        }
+
+        .page-translate-status {
+          position: absolute;
+          right: 44px;
+          top: 0;
+          width: max-content;
+          max-width: min(320px, calc(100vw - 64px));
+          padding: 8px 16px;
+          border: 1px solid var(--st-color-border-hover);
+          border-radius: 8px;
+          color: var(--st-color-text-bright);
+          background: var(--st-color-surface-control-strong);
+          box-shadow: var(--st-shadow-tooltip);
+          font: 12px/1.5 Arial, sans-serif;
+          overflow-wrap: anywhere;
+          pointer-events: none;
+        }
+
+        .page-translate-status[hidden] { display: none; }
+        .page-translate-status[data-state="error"] { color: var(--st-color-danger-soft-text); }
+        .rail.left .page-translate-status { left: 44px; right: auto; }
 
         .comment-filter img {
           width: 18px;

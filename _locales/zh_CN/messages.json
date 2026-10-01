@@ -20,6 +20,30 @@
   "locale_ko": {
     "message": "韩语"
   },
+  "settings_shell_pageTranslatePageChanged": {
+    "message": "页面已变化，请在当前页面重新点击翻译"
+  },
+  "settings_shell_pageTranslateButton": {
+    "message": "手动翻译网页（使用设置中的目标语言）"
+  },
+  "settings_shell_pageTranslateBusy": {
+    "message": "正在翻译网页…"
+  },
+  "settings_shell_pageTranslateSuccess": {
+    "message": "翻译完成；刷新网页可恢复原文"
+  },
+  "settings_shell_pageTranslateFailed": {
+    "message": "翻译未完成：$error$。请再次点击重试",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "settings_shell_pageTranslateUnavailable": {
+    "message": "当前页面不支持手动翻译"
+  },
+  "settings_shell_pageTranslateRuntimeMissing": {
+    "message": "手动翻译运行时未加载，请刷新网页后重试"
+  },
   "settings_shell_settingsButton": {
     "message": "设置"
   },

@@ -41,6 +41,9 @@
     topIcon() {
       return runtimeUrl("images/ui/back-to-top.svg");
     },
+    pageTranslateIcon() {
+      return runtimeUrl("images/ui/page-translate.svg");
+    },
     commentFilterIcon() {
       return runtimeUrl("images/features/review-filter.svg");
     },

@@ -45,6 +45,11 @@
   const VIEW_DELAY = 120;
   const BACKGROUND_DELAY = 420;
   const AUTO_PAGE_OBSERVER_DEBOUNCE_MS = 1000;
+  const MANUAL_SCAN_BUDGET_MS = 6;
+  const MANUAL_SCAN_LIMIT = 240;
+  const MANUAL_BATCH_TIMEOUT_MS = 120000;
+  const MANUAL_SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT", "PRE", "CODE", "SVG", "CANVAS"]);
+  const MANUAL_UI_SELECTOR = "[translate='no'], .notranslate, #st-settings-root, #st-title-custom-name, #st-title-custom-name-modal, #st-title-custom-name-toast, .st-title-custom-name-wishlist";
   const VISIBILITY_ATTRS = Object.freeze(["style", "class", "hidden", "aria-hidden"]);
   const TIP_CLASS = "steam-buff-translate-tooltip";
   const SEL_TIP_ID = "steam-buff-translate-selection-tip";
@@ -205,6 +210,7 @@
   const selCache = new Map();
   const selPending = new Map();
   const loggerCache = new Map();
+  let manualJob = null;
   const state = {
     started: false,
     modes: [],
@@ -1443,7 +1449,9 @@
       call(() => recordOriginals(trans, data));
     });
     trans.lifecycle?.execute?.renderFinish?.push?.(() => {
+      if (manualJob) return;
       window.setTimeout(() => {
+        if (manualJob) return;
         call(() => mark(trans, cfg()));
       }, 0);
     });
@@ -2103,7 +2111,7 @@
     });
   }
 
-  function edgeSel(trans, text, from, to) {
+  function edgeRequest(trans, texts, from, to) {
     return new Promise((resolve, reject) => {
       let url = "";
       try {
@@ -2125,14 +2133,18 @@
           return;
         }
         try {
-          resolve(edgeText(JSON.parse(xhr.responseText || "[]")));
+          resolve(JSON.parse(xhr.responseText || "[]"));
         } catch (error) {
           reject(error);
         }
       };
       xhr.onerror = () => reject(new Error("划词翻译请求失败"));
-      xhr.send(JSON.stringify([text]));
+      xhr.send(JSON.stringify(texts));
     });
+  }
+
+  function edgeSel(trans, text, from, to) {
+    return edgeRequest(trans, [text], from, to).then(edgeText);
   }
 
   function aiSel(text, from, to, conf, options = {}) {
@@ -2472,7 +2484,7 @@
     }
   }
 
-  function apply(trans, conf) {
+  function apply(trans, conf, manual = false) {
     globalThis.STTranslateVendor?.configure?.(conf);
     disableVendorInit(trans);
     if (trans.selectLanguageTag && typeof trans.selectLanguageTag === "object") {
@@ -2489,12 +2501,15 @@
       trans.language?.setLocal?.(conf.local);
     }
     if (conf.to) {
-      if (conf.service === AI_SERVICE) {
+      if (manual) {
+        // 手动任务使用设置中的目标语言，不能被 vendor 的网页语言缓存覆盖
+        trans.to = conf.to;
+      } else if (conf.service === AI_SERVICE) {
         // 原生语言框会写入 translate.js 的 to 缓存，AI 模式固定回设置里的目标语言。
         trans.storage?.set?.("to", conf.to);
         trans.to = conf.to;
       }
-      trans.language?.setDefaultTo?.(conf.to);
+      if (!manual) trans.language?.setDefaultTo?.(conf.to);
     }
     if (conf.service === globalThis.STTranslateAI?.SERVICE) {
       globalThis.STTranslateAI.apply(trans, conf, {
@@ -2595,7 +2610,282 @@
     });
   }
 
+  function manualActive(job) {
+    return !job.cancelled && location.href === job.href && document.body === job.body;
+  }
+
+  function cancelManual(job) {
+    job.cancelled = true;
+    for (const finish of [...job.requests]) finish();
+  }
+
+  function yieldManual() {
+    return new Promise(resolve => window.setTimeout(resolve, 0));
+  }
+
+  // 一次用户操作只遍历当前文档一次；逐段让出主线程，不注册 DOM 观察器
+  async function manualNodes(job) {
+    const walker = document.createTreeWalker(job.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (node.nodeType === Node.ELEMENT_NODE && (
+          MANUAL_SKIP_TAGS.has(node.tagName) || node.isContentEditable
+          || node.matches(MANUAL_UI_SELECTOR) || runtimeUi(node)
+          || job.trans.ignore.isIgnore(node)
+        )) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const nodes = [];
+    let node;
+    let count = 0;
+    let start = performance.now();
+    while ((node = walker.nextNode())) {
+      if (!manualActive(job)) throw new Error("页面或翻译设置已变化，本次翻译已停止");
+      if (node.nodeType === Node.TEXT_NODE && /\p{L}/u.test(node.nodeValue)) {
+        nodes.push({ node, text: node.nodeValue });
+      }
+      if (++count >= MANUAL_SCAN_LIMIT || performance.now() - start >= MANUAL_SCAN_BUDGET_MS) {
+        await yieldManual();
+        count = 0;
+        start = performance.now();
+      }
+    }
+    return nodes;
+  }
+
+  function manualHook(list, fn, disposers) {
+    list.push(fn);
+    disposers.push(() => {
+      const index = list.indexOf(fn);
+      if (index >= 0) list.splice(index, 1);
+    });
+  }
+
+  // 字符分类无法区分无重音的法语和英语；拉丁文本交给现有服务自动识别，仍使用 vendor 分段及渲染
+  function manualRecognition(job) {
+    const language = job.trans.language;
+    const original = language.recognition;
+    const wrapped = function(text) {
+      const result = original.call(this, text);
+      if (!job.executing) return result;
+      const latin = [result.languageArray.english, result.languageArray.romance].filter(Boolean);
+      if (!latin.length) return result;
+      result.languageArray.auto = {
+        number: latin.reduce((sum, part) => sum + part.number, 0),
+        list: latin.flatMap(part => part.list),
+      };
+      delete result.languageArray.english;
+      delete result.languageArray.romance;
+      return result;
+    };
+    language.recognition = wrapped;
+    return () => { if (language.recognition === wrapped) language.recognition = original; };
+  }
+
+  // vendor 的 finally 只表示 execute 已返回；真正完成以 renderFinish 为准
+  function manualBatch(job, entries) {
+    const trans = job.trans;
+    const hooks = trans.lifecycle.execute;
+    const nodes = entries.map(entry => entry.node);
+    const previous = new Map();
+    for (const node of nodes) {
+      const info = trans.node.get(node);
+      if (info && (node.nodeValue === info.originalText || node.nodeValue === info.resultText)) previous.set(node, info);
+      // vendor 会跳过已有 originalText 的节点；只清除此批次，允许重试及更换目标语言
+      trans.node.delete(node);
+    }
+    return new Promise((resolve, reject) => {
+      let uuid = "";
+      let failure = null;
+      let settled = false;
+      const disposers = [];
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        for (const dispose of disposers) dispose();
+        let changed = 0;
+        for (const node of nodes) {
+          const info = trans.node.get(node);
+          const prior = previous.get(node);
+          if (info?.resultText) {
+            if (prior) info.originalText = prior.originalText;
+            markNode(node, info, job.conf);
+            if (info.originalText !== info.resultText) changed++;
+          } else if (prior) {
+            trans.node.set(node, prior);
+          } else {
+            trans.node.delete(node);
+          }
+        }
+        job.changed += changed;
+        if (failure) reject(failure);
+        else resolve();
+      };
+      manualHook(hooks.trigger, (data) => {
+        if (data.docs !== nodes) return false;
+        uuid = data.uuid;
+      }, disposers);
+      manualHook(hooks.translateNetworkAfter, (data) => {
+        if (data.uuid === uuid && data.result !== 1) failure = new Error("翻译服务请求失败，请检查网络或翻译服务设置");
+      }, disposers);
+      manualHook(hooks.renderFinish, (id) => { if (id === uuid) finish(); }, disposers);
+      manualHook(hooks.finally, (data) => {
+        if (data.uuid === uuid && ![18, 25].includes(data.state)) {
+          failure = new Error("翻译任务未能执行，请刷新网页后重试");
+          finish();
+        }
+      }, disposers);
+      job.executing = true;
+      try { trans.execute(nodes); }
+      catch (error) { failure = error; finish(); }
+      finally { job.executing = false; }
+    });
+  }
+
+  // 为本次请求补足超时和取消出口；迟到响应不再进入 vendor 渲染回调
+  function manualRequests(job) {
+    const request = job.trans.request;
+    const original = request.post;
+    const wrapped = function(path, data, callback, abnormal) {
+      if (!job.executing || path !== request.api.translate) return original.call(this, path, data, callback, abnormal);
+      let done = false;
+      let timer;
+      const finish = (response, input, xhr) => {
+        if (done) return;
+        done = true;
+        window.clearTimeout(timer);
+        job.requests.delete(cancel);
+        if (!manualActive(job) || !response) response = { result: 0, info: "手动翻译已停止或请求超时", from: data.from, to: data.to, text: [] };
+        if (response.result === 1 && (response.from !== data.from || response.to !== data.to
+          || !Array.isArray(response.text) || response.text.length !== JSON.parse(decodeURIComponent(data.text)).length
+          || response.text.some(text => typeof text !== "string" || !text.trim()))) {
+          response = { result: 0, info: "翻译服务返回了不完整的结果", from: data.from, to: data.to, text: [] };
+        }
+        callback(response, input || data, xhr);
+      };
+      const cancel = () => finish(null, data);
+      job.requests.add(cancel);
+      timer = window.setTimeout(cancel, MANUAL_BATCH_TIMEOUT_MS);
+      try {
+        if (data.from === "auto" && job.conf.service === EDGE_SERVICE) {
+          // Edge 自动识别必须省略 from；复用划词入口的已确认 JSON 请求协议，不能发送 from=auto
+          return edgeRequest(job.trans, JSON.parse(decodeURIComponent(data.text)), data.from, data.to).then(
+            response => finish({ result: 1, from: data.from, to: data.to, text: response.map(item => edgeText([item])) }, data),
+            () => cancel(),
+          ).catch(() => cancel());
+        }
+        return original.call(this, path, data, finish, () => cancel());
+      }
+      catch (error) { cancel(); throw error; }
+    };
+    request.post = wrapped;
+    return () => { if (request.post === wrapped) request.post = original; };
+  }
+
+  function waitManualIdle(job) {
+    const trans = job.trans;
+    if (trans.state === 0) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const finish = (error) => {
+        window.clearTimeout(timer);
+        job.requests.delete(cancel);
+        const index = trans.lifecycle.execute.renderFinish.indexOf(hook);
+        if (index >= 0) trans.lifecycle.execute.renderFinish.splice(index, 1);
+        if (error) reject(error);
+        else resolve();
+      };
+      const hook = () => finish();
+      const cancel = () => finish(new Error("页面或翻译设置已变化，本次翻译已停止"));
+      const timer = window.setTimeout(() => finish(new Error("已有翻译任务尚未完成，请稍后重试")), MANUAL_BATCH_TIMEOUT_MS);
+      job.requests.add(cancel);
+      trans.lifecycle.execute.renderFinish.push(hook);
+    });
+  }
+
+  /**
+   * 强制翻译当前文档已加载文字，返回 { scanned, changed, to } 的 Promise
+   * 同一任务重入复用 Promise；失败或页面/配置变化时拒绝，允许部分文字已完成
+   * 复用 vendor 分语种和 DOM 渲染，只暂时暂停自动模式，不写设置或网页语言缓存
+   */
+  function manualPage(conf) {
+    if (manualJob) return manualJob.task;
+    const trans = rt();
+    if (!trans || !document.body || !conf?.to || !conf.service) return Promise.reject(new Error("翻译服务或目标语言未配置"));
+    if (!topFrame() || globalThis.STPageContext.translateAllowed({ scope: "steam" }).allowed !== true) return Promise.reject(new Error("当前页面不支持手动翻译"));
+    const job = { trans, href: location.href, body: document.body, cancelled: false, requests: new Set(), changed: 0 };
+    manualJob = job;
+    const onLeave = () => cancelManual(job);
+    window.addEventListener("pagehide", onLeave);
+    window.addEventListener("popstate", onLeave);
+    window.addEventListener("hashchange", onLeave);
+    job.task = (async () => {
+      stopAutoPage(trans);
+      await waitManualIdle(job);
+      if (!manualActive(job)) throw new Error("页面或翻译设置已变化，本次翻译已停止");
+      const saved = { conf: cfg(), to: trans.to, local: trans.language.local, force: trans.language.translateLocal,
+        service: trans.service.name, api: { ...trans.request.api }, params: trans.request.appendParams, headers: trans.request.appendHeaders,
+        classes: trans.ignore.class.data, ids: trans.ignore.id, range: trans.language.translateLanguagesRange,
+        whole: { classes: trans.whole.class, tags: trans.whole.tag, ids: trans.whole.id } };
+      job.conf = { ...conf, enabled: true, page: false, selection: false, select: false, manual: true, force: true, modes: [MODE_MANUAL] };
+      globalThis.STEAM_BUFF_TRANSLATE_CONFIG = job.conf;
+      let restoreRequests = () => {};
+      let restoreRecognition = () => {};
+      try {
+        apply(trans, job.conf, true);
+        // Edge service.use 会重新启用 whole；必须在配置服务后关闭，保留混合文本中的目标语言部分
+        prepareTextMode(trans);
+        trans.whole.class = [];
+        trans.whole.tag = [];
+        trans.whole.id = [];
+        if (!trans.request.api.translate) throw new Error("翻译服务未就绪，请检查服务配置");
+        trans.ignore.class.data = saved.classes.filter(name => !STEAM_TITLE_IGNORE_CLASSES.includes(name));
+        trans.ignore.id = saved.ids.filter(id => !STEAM_TITLE_IGNORE_IDS.includes(id));
+        trans.language.translateLanguagesRange = [];
+        restoreRequests = manualRequests(job);
+        restoreRecognition = manualRecognition(job);
+        installCss();
+        if (conf.hover !== false) ensureTip(trans);
+        const entries = await manualNodes(job);
+        for (let index = 0; index < entries.length; index += VIEW_BATCH) {
+          if (!manualActive(job)) throw new Error("页面或翻译设置已变化，本次翻译已停止");
+          const batch = entries.slice(index, index + VIEW_BATCH).filter(entry => entry.node.isConnected && entry.node.nodeValue === entry.text);
+          if (batch.length) await manualBatch(job, batch);
+          await yieldManual();
+        }
+        if (!manualActive(job)) throw new Error("页面或翻译设置已变化，本次翻译已停止");
+        return { scanned: entries.length, changed: job.changed, to: conf.to };
+      } finally {
+        restoreRequests();
+        restoreRecognition();
+        trans.ignore.class.data = saved.classes;
+        trans.ignore.id = saved.ids;
+        trans.language.translateLanguagesRange = saved.range;
+        trans.whole.class = saved.whole.classes;
+        trans.whole.tag = saved.whole.tags;
+        trans.whole.id = saved.whole.ids;
+        if (cfg() === job.conf) {
+          globalThis.STEAM_BUFF_TRANSLATE_CONFIG = saved.conf;
+          trans.to = saved.to;
+          trans.language.local = saved.local;
+          trans.language.translateLocal = saved.force;
+          trans.service.use(saved.service);
+          Object.assign(trans.request.api, saved.api);
+          trans.request.appendParams = saved.params;
+          trans.request.appendHeaders = saved.headers;
+        }
+      }
+    })().finally(() => {
+      window.removeEventListener("pagehide", onLeave);
+      window.removeEventListener("popstate", onLeave);
+      window.removeEventListener("hashchange", onLeave);
+      manualJob = null;
+      if (job.resume !== false && location.href === job.href && document.body === job.body) configure(cfg());
+    });
+    return job.task;
+  }
+
   function configure(conf = cfg()) {
+    if (manualJob && conf !== manualJob.conf) cancelManual(manualJob);
     const startedAt = Date.now();
     const trans = rt();
     if (!trans) {
@@ -2668,10 +2958,15 @@
     globalThis[API_MARK] = Object.freeze({
       version: "steam-buff-translate-runner-v2-viewport-auto-page",
       configure,
+      manualPage,
       start(transConf, conf) {
         start(transConf, conf);
       },
       stop() {
+        if (manualJob) {
+          manualJob.resume = false;
+          cancelManual(manualJob);
+        }
         stopAutoPage(trans);
       },
       diagnostics() {

@@ -63,12 +63,15 @@
       addDisposer(() => target.removeEventListener(type, handler, eventOptions));
     }
 
+    const translateView = root.STSettingsPageTranslate.mount(shadow.querySelector(".page-translate-slot"));
+    addDisposer(translateView.dispose);
     const controller = root.STSettingsMenuController.create({
       shadow,
       btn,
       panel,
       rail: shadow.querySelector(".rail"),
       topBtn: shadow.querySelector(".top"),
+      translateBtn: translateView.button,
       reviewBtn: shadow.querySelector(".comment-filter"),
       closeBtn: shadow.querySelector(".close"),
       storage: options.storage || api.storage,

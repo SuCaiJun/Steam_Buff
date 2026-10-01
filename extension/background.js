@@ -157,6 +157,7 @@
     "settings/ui/assets.js",
     "settings/ui/styles.js",
     "settings/ui/scroll-targets.js",
+    "settings/ui/page-translate.js",
     "settings/floating-rail.js",
     "settings/api/request.js",
     "settings/update-log-renderer.js",
@@ -202,6 +203,7 @@
     "settings/ui/fields.js",
     "settings/ui/feature-row.js",
     "settings/ui/scroll-targets.js",
+    "settings/ui/page-translate.js",
     "settings/panels/review-filter.js",
     "settings/panels/search-suggestions.js",
     "settings/panels/ai.js",
@@ -3119,13 +3121,21 @@
     });
   }
 
-  // 翻译脚本只注入发起请求的 frame，先写入配置，再按需加载翻译库和 runner，避免污染其他页面。
+  // 手动入口只准备依赖，任务由同一 isolated world 中的 runner 执行，不覆盖已有自动翻译配置
+  // 旧请求仍按配置启动；仅注入请求来源 frame
   async function translateInject(request, sender, sendResponse) {
-    const target = translateTarget(sender);
-    if (!target) {
+    const manual = request.action === "manual-page";
+    const target = manual && typeof sender?.documentId === "string"
+      ? { tabId: sender.tab?.id, documentIds: [sender.documentId] }
+      : translateTarget(sender);
+    const url = manual ? senderUrlObject(sender) : null;
+    if (!target || (manual && (typeof sender.documentId !== "string" || typeof sender.tab?.id !== "number"
+      || !isSettingsSender(sender) || sender.frameId !== 0 || !["http:", "https:"].includes(url?.protocol)))) {
       sendResponse({ success: false, error: "无法定位翻译页面" });
       return;
     }
+
+    // 手动请求绑定发起点击的文档，导航后不能把剩余注入步骤送到新网页
 
     const inputCfg = request.cfg && typeof request.cfg === "object" ? request.cfg : {};
     const modes = translateModesFrom(inputCfg);
@@ -3138,12 +3148,18 @@
       await execScript({
         target,
         world: "ISOLATED",
-        func: (cfg) => {
+        func: (cfg, manual) => {
+          if (manual) {
+            if (!globalThis.STEAM_BUFF_TRANSLATE_CONFIG) {
+              globalThis.STEAM_BUFF_TRANSLATE_CONFIG = { enabled: false, page: false, selection: false, select: false, modes: [] };
+            }
+            return;
+          }
           globalThis.STEAM_BUFF_TRANSLATE_CONFIG = cfg || {};
           globalThis.STTranslateVendor?.configure?.(globalThis.STEAM_BUFF_TRANSLATE_CONFIG);
           globalThis.STTranslateRunner?.configure?.(globalThis.STEAM_BUFF_TRANSLATE_CONFIG);
         },
-        args: [translateCfg],
+        args: [translateCfg, manual],
       });
 
       const res = await execScript({
@@ -3155,11 +3171,15 @@
         }),
       });
       const state = res?.[0]?.result || {};
-      if (!modes.length) {
+      if (!manual && !modes.length) {
         sendResponse({ success: true, skipped: true, reason: "no-enabled-mode" });
         return;
       }
       if (state.runner === true) {
+        if (manual) {
+          sendResponse({ success: true });
+          return;
+        }
         await execScript({
           target,
           world: "ISOLATED",
@@ -3212,16 +3232,20 @@
       await execScript({
         target,
         world: "ISOLATED",
-        func: () => {
+        func: (manual) => {
+          if (manual) return;
           const cfg = globalThis.STEAM_BUFF_TRANSLATE_CONFIG || {};
           globalThis.STTranslateVendor?.configure?.(cfg);
           globalThis.STTranslateRunner?.configure?.(cfg);
         },
+        args: [manual],
       });
       sendResponse({ success: true });
     } catch (error) {
       const msg = error.message || String(error);
-      logError("translate", "inject-failed", "翻译注入失败", error);
+      logError("translate", "inject-failed", "翻译注入失败", error, {
+        ...(manual ? { action: "manual-page", operationId: request.operationId, documentId: sender.documentId } : {}),
+      });
       sendResponse({ success: false, error: msg });
     }
   }

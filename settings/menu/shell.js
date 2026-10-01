@@ -398,6 +398,7 @@
               </span>
             </button>
           </div>
+          <div class="item page-translate-slot" hidden></div>
           <div class="item">
             <button class="comment-filter" type="button" title="${escAttr(filtered)}" aria-label="${escAttr(filtered)}" hidden>
               <span class="content">
