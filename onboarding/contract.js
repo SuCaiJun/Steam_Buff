@@ -19,7 +19,7 @@
     openSettings: "STEAM_BUFF_ONBOARDING_OPEN_SETTINGS",
   });
   const LOCAL_STEPS = Object.freeze([
-    Object.freeze({ id: "account", title: "登录账号", copy: "登录素材君账号，也可以暂时跳过。", note: "未登录也可以使用本地功能。", nextLabel: "下一步" }),
+    Object.freeze({ id: "account", title: "登录账号", copy: "登录素材君账号，也可暂时跳过。", note: "未登录也可使用大部分功能。", nextLabel: "下一步" }),
     Object.freeze({ id: "client", title: "客户端增强", copy: "选择需要的功能，下一步保存。", note: "部分增强需要重启 Steam 后生效。", nextLabel: "保存并继续" }),
     Object.freeze({ id: "name-mode", title: "名称方案", copy: "按你的使用习惯，选择一种名称方案。", note: "以后可以在设置中心切换。", nextLabel: "保存并继续" }),
     Object.freeze({ id: "third-party", title: "价格数据", copy: "填入自己的 ITAD API Key，再测试连接。", note: "还没有密钥？可以稍后配置。", nextLabel: "保存并继续" }),

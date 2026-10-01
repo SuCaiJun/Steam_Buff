@@ -284,8 +284,8 @@
 
   function nameModeCopy(value) {
     return value === NAME_MODE_INDEPENDENT
-      ? "别名、全拼都能搜，名称与排序分开设置。"
-      : "使用 Steam 自定义排序名称实现改名。";
+      ? "覆盖商店、库列表和愿望单。"
+      : "使用自定义排序名称修改库列表显示。";
   }
 
   function nameFeatureEnabled() {
@@ -1976,7 +1976,7 @@
   function renderAccountGate() {
     $("#account-gate-detail").textContent = loggedIn()
       ? "已登录，可以继续。"
-      : "登录后使用账号相关功能。暂时不需要，可以跳过。";
+      : "部分功能需要登录后方可使用,如不需要使用这些功能可跳过登录。";
   }
 
   function renderAuthField(label, value, action) {
@@ -2084,31 +2084,51 @@
     const root = $("#client-name-mode-options");
     const selected = state.clientNameMode;
     const focused = root.contains(document.activeElement) ? document.activeElement.value : null;
-    const features = [
-      ["自定义名称", true, true],
-      ["别名搜索", true, false],
-      ["助记符搜索", true, true],
-      ["拼音全拼搜索", true, false],
-      ["批量设置", true, true],
-      ["导入导出", true, true],
-      ["是否影响排序显示", "不影响", "影响"],
-      ["存储位置", "素材君云端", "Steam 云端"],
-      ["使用条件", "捐赠用户身份", "无需捐赠用户身份"],
+    const groups = [
+      { title: "商店", features: [
+        ["自定义名称", true, false],
+        ["别名搜索", true, false],
+        ["助记符搜索", true, false],
+        ["拼音全拼搜索", true, false],
+        ["游戏备注", true, false],
+      ] },
+      { title: "库列表", features: [
+        ["自定义名称", true, true],
+        ["别名搜索", true, false],
+        ["助记符搜索", true, true],
+        ["拼音全拼搜索", true, false],
+      ] },
+      { title: "愿望单", features: [
+        ["自定义名称", true, false],
+        ["游戏备注", true, false],
+      ] },
+      { title: "其他", features: [
+        ["批量设置", true, true],
+        ["导入导出", true, true],
+        ["是否影响排序显示", "不影响", "影响"],
+        ["存储位置", "素材君云端", "Steam 云端"],
+        ["使用条件", "需赞助开发者开通", "无任何要求"],
+      ] },
     ];
     const modes = [NAME_MODE_INDEPENDENT, NAME_MODE_STEAM]
       .filter(value => state.clientNameModeOptions.some(item => item.value === value));
     const table = el("table", "mode-comparison");
     table.setAttribute("aria-label", "自定义名称方案功能对比");
+    const columns = el("colgroup");
+    columns.append(el("col", "mode-category-column"), el("col", "mode-feature-column"));
+    modes.forEach(() => columns.append(el("col")));
     const head = el("thead");
     const header = el("tr");
-    const corner = el("th", "mode-row-heading");
-    corner.scope = "col";
-    corner.append(el("span", "mode-feature-title", "功能对比"), el("span", "mode-feature-note", "按你的使用习惯选择"));
-    header.append(corner);
+    const categoryHeading = el("th", "mode-category-heading", "类别");
+    categoryHeading.scope = "col";
+    const featureHeading = el("th", "mode-row-heading", "功能");
+    featureHeading.scope = "col";
+    header.append(categoryHeading, featureHeading);
     const foot = el("tfoot");
     const choices = el("tr");
-    const choiceHeading = el("th", "mode-row-heading", "选择方案");
+    const choiceHeading = el("th", "mode-choice-heading", "选择方案");
     choiceHeading.scope = "row";
+    choiceHeading.colSpan = 2;
     choices.append(choiceHeading);
     const inputs = [];
     modes.forEach(value => {
@@ -2146,30 +2166,40 @@
       inputs.push(input);
     });
     head.append(header);
-    const body = el("tbody");
-    features.forEach(([title, independentValue, steamValue]) => {
-      const row = el("tr");
-      const heading = el("th", "mode-row-heading", title);
-      heading.scope = "row";
-      row.append(heading);
-      modes.forEach(value => {
-        const independent = value === NAME_MODE_INDEPENDENT;
-        const content = independent ? independentValue : steamValue;
-        const cell = el("td", independent ? "mode-independent" : "mode-steam");
-        if (typeof content === "boolean") {
-          const status = el("span", `mode-support${content ? " is-supported" : ""}`, content ? "✓" : "—");
-          status.setAttribute("role", "img");
-          status.setAttribute("aria-label", content ? "支持" : "不支持");
-          cell.append(status);
-        } else {
-          cell.textContent = content;
+    table.append(columns, head);
+    groups.forEach(group => {
+      const body = el("tbody");
+      group.features.forEach(([title, independentValue, steamValue], index) => {
+        const row = el("tr");
+        if (index === 0) {
+          const category = el("th", "mode-category-heading", group.title);
+          category.scope = "rowgroup";
+          category.rowSpan = group.features.length;
+          row.append(category);
         }
-        row.append(cell);
+        const heading = el("th", "mode-row-heading", title);
+        heading.scope = "row";
+        row.append(heading);
+        modes.forEach(value => {
+          const independent = value === NAME_MODE_INDEPENDENT;
+          const content = independent ? independentValue : steamValue;
+          const cell = el("td", independent ? "mode-independent" : "mode-steam");
+          if (typeof content === "boolean") {
+            const status = el("span", `mode-support${content ? " is-supported" : ""}`, content ? "✓" : "—");
+            status.setAttribute("role", "img");
+            status.setAttribute("aria-label", content ? "支持" : "不支持");
+            cell.append(status);
+          } else {
+            cell.textContent = content;
+          }
+          row.append(cell);
+        });
+        body.append(row);
       });
-      body.append(row);
+      table.append(body);
     });
     foot.append(choices);
-    table.append(head, body, foot);
+    table.append(foot);
     root.replaceChildren(table);
     const active = inputs.find(input => input.value === focused && !input.disabled);
     if (active) active.focus({ preventScroll: true });

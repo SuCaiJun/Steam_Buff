@@ -47,7 +47,10 @@
           <!-- account -->
           <section class="step-panel account-step" data-step-panel="account" aria-labelledby="account-title" hidden>
             <header class="step-heading">
-              <h1 id="account-title" tabindex="-1">登录账号</h1>
+              <div class="step-heading-row">
+                <h1 id="account-title" tabindex="-1">登录账号</h1>
+                <a class="step-sponsor" href="https://www.sucaijun.com/donate" target="_blank" rel="noopener noreferrer" aria-label="赞助开发者（在新标签页打开）">赞助开发者 <span class="jump-icon" aria-hidden="true"></span></a>
+              </div>
             </header>
             <ul class="side-points" aria-label="账号能力">
               <li>库列表自定义名称同步</li>
@@ -97,13 +100,17 @@
           <section class="step-panel name-mode-step" data-step-panel="name-mode" aria-labelledby="name-mode-title" hidden>
             <header class="step-heading">
               <p class="name-mode-kicker">自定义名称</p>
-              <h1 id="name-mode-title" tabindex="-1">选择自定义名称方案</h1>
-              <p class="step-description" id="client-name-mode-lead">两种方案都能改名。素材君版还支持别名、全拼搜索，名称与排序分开设置。</p>
+              <div class="step-heading-row">
+                <h1 id="name-mode-title" tabindex="-1">选择自定义名称方案</h1>
+                <a class="step-sponsor" href="https://www.sucaijun.com/donate" target="_blank" rel="noopener noreferrer" aria-label="赞助开发者（在新标签页打开）">赞助开发者 <span class="jump-icon" aria-hidden="true"></span></a>
+              </div>
+              <p class="step-description" id="client-name-mode-lead">按使用场景对比两种方案，选择适合自己的名称管理方式。</p>
             </header>
             <div class="client-name-mode" id="client-name-mode">
               <div class="client-name-mode-options" id="client-name-mode-options" role="region" aria-label="库自定义名称方案对比" aria-describedby="client-name-mode-lead" tabindex="0"></div>
             </div>
             <div class="name-mode-notes">
+              <p>此处选择库列表的名称方案，不影响已开通的商店和愿望单功能。</p>
               <p>Steam 云存储版是基于 Steam 的自定义排序名称实现的，将数据保存至 Steam 的自定义排序名称中。使用需要将需要显示的名称写在自定义排序名称中，库列表会自动显示该名称。</p>
               <p>素材君云存储版为独立实现，将自定义名称数据存储至素材君服务器中，自定义名称数据与素材君账号绑定，不影响也不会干扰 Steam 的自定义排序名称功能的使用。</p>
               <p>无论使用哪种方案，在重装或换设备时，已同步到云端的数据可通过原账号恢复。切换方案不会迁移或删除已保存的名称。</p>
@@ -123,7 +130,7 @@
             <details class="config-help">
               <summary>怎样获取 API Key？</summary>
               <ol><li>打开 IsThereAnyDeal 应用页面，注册或登录账号。</li><li>按网站要求注册应用，获取 API Key。</li><li>复制 <strong class="config-help-key">API Key</strong>，回到本页粘贴并测试连接。</li></ol>
-              <button class="step-tutorial" type="button" data-action="open-itad-apps">打开 IsThereAnyDeal 应用页面 ↗</button>
+              <button class="step-tutorial" type="button" data-action="open-itad-apps">打开 IsThereAnyDeal 应用页面 <span class="jump-icon" aria-hidden="true"></span></button>
             </details>
             <div class="setup-card" id="third-party-surface">
               <div class="setup-card-head">

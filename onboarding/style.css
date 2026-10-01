@@ -219,7 +219,8 @@ button:focus-visible {
   flex-wrap: wrap;
 }
 
-.step-tutorial {
+.step-tutorial,
+.step-sponsor {
   flex: 0 0 auto;
   min-height: 36px;
   margin: 0 0 6px;
@@ -238,6 +239,36 @@ button:focus-visible {
 .step-tutorial:hover {
   border-color: var(--ob-primary);
   background: rgba(0, 120, 212, 0.12);
+}
+
+.step-sponsor {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 8px;
+  margin: 0;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.step-sponsor:hover {
+  border-color: var(--ob-primary);
+}
+
+.step-sponsor:focus-visible {
+  outline: 2px solid var(--ob-primary);
+  outline-offset: 4px;
+}
+
+.jump-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 12px;
+  vertical-align: -1px;
+  background-color: currentColor;
+  -webkit-mask: url("./media/jump.svg") center / contain no-repeat;
+  mask: url("./media/jump.svg") center / contain no-repeat;
 }
 
 .step-description {
@@ -700,48 +731,54 @@ button:focus-visible {
   outline-offset: 4px;
 }
 .mode-comparison {
+  --mode-category-width: 88px;
   width: 100%;
-  min-width: 640px;
+  min-width: 720px;
   border-spacing: 0;
   table-layout: fixed;
   font-size: 14px;
   line-height: 1.6;
 }
+.mode-category-column {
+  width: var(--mode-category-width);
+}
+.mode-feature-column {
+  width: 24%;
+}
 .mode-comparison th,
 .mode-comparison td {
-  padding: 8px 24px;
+  padding: 8px 16px;
   text-align: center;
   vertical-align: middle;
 }
-.mode-comparison .mode-row-heading {
-  width: 32%;
+.mode-comparison .mode-category-heading,
+.mode-comparison .mode-row-heading,
+.mode-comparison .mode-choice-heading {
   position: sticky;
-  left: 0;
   z-index: 1;
-  text-align: left;
-  font-weight: 500;
   background: var(--ob-surface);
 }
-.mode-comparison thead th {
-  padding-top: 24px;
-  padding-bottom: 24px;
-  vertical-align: top;
-}
-.mode-comparison thead .mode-row-heading {
-  vertical-align: bottom;
-}
-.mode-feature-title,
-.mode-feature-note {
-  display: block;
-}
-.mode-feature-title {
-  font-size: 16px;
+.mode-comparison .mode-category-heading,
+.mode-comparison .mode-choice-heading {
+  left: 0;
   font-weight: 650;
 }
-.mode-feature-note {
-  margin-top: 8px;
-  color: var(--ob-text-soft);
-  font-size: 12px;
+.mode-comparison .mode-row-heading {
+  left: var(--mode-category-width);
+  text-align: left;
+  font-weight: 500;
+}
+.mode-comparison .mode-choice-heading {
+  text-align: left;
+  padding-left: 24px;
+}
+.mode-comparison thead th {
+  padding-top: 16px;
+  padding-bottom: 16px;
+  vertical-align: middle;
+}
+.mode-comparison thead .mode-row-heading {
+  font-weight: 650;
 }
 .mode-comparison tbody th,
 .mode-comparison tbody td,
@@ -750,12 +787,16 @@ button:focus-visible {
   border-top: 1px solid var(--ob-line);
 }
 .mode-comparison th + th,
+.mode-comparison .mode-row-heading,
 .mode-comparison td {
   border-left: 1px solid var(--ob-line);
 }
+.mode-comparison tbody + tbody tr:first-child > * {
+  border-top-color: var(--ob-rail-line);
+}
 .mode-plan-badge {
   display: inline-block;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   padding: 0 8px;
   border-radius: 4px;
   color: var(--ob-text-soft);
@@ -937,9 +978,22 @@ button:focus-visible {
   font-size: 12px;
 }
 @media (max-width: 600px) {
+  .mode-comparison {
+    --mode-category-width: 64px;
+    min-width: 520px;
+  }
+  .mode-feature-column {
+    width: 112px;
+  }
   .mode-comparison th,
   .mode-comparison td {
     padding-inline: 16px;
+  }
+  .mode-comparison .mode-category-heading {
+    padding-inline: 8px;
+  }
+  .mode-comparison .mode-row-heading {
+    padding-inline: 12px;
   }
 }
 
