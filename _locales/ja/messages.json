@@ -5830,6 +5830,58 @@
   "steam_independentName_open": {
     "message": "カスタム名"
   },
+  "steam_independentName_readingButton": {
+    "message": "読み"
+  },
+  "steam_independentName_readingTitle": {
+    "message": "読みの選択"
+  },
+  "steam_independentName_readingNone": {
+    "message": "選択が必要な読みはありません"
+  },
+  "steam_independentName_readingFailed": {
+    "message": "読み候補を読み込めませんでした。編集画面を閉じて開き直してください。"
+  },
+  "steam_independentName_readingPreviewHint": {
+    "message": "現在の内容を文字ごとに対応付けられません。プレビューを適用すると、ピンインと略語の両方が置き換わります。"
+  },
+  "steam_independentName_readingApply": {
+    "message": "ピンインと略語を置換"
+  },
+  "steam_independentName_readingPosition": {
+    "message": "$n$ 文字目：$context$",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      },
+      "context": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_aliasEdit": {
+    "message": "別名を編集"
+  },
+  "steam_independentName_aliasAdd": {
+    "message": "別名を追加"
+  },
+  "steam_independentName_aliasRemove": {
+    "message": "別名を削除：$alias$",
+    "placeholders": {
+      "alias": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_aliasEditorHint": {
+    "message": "タグをクリックして編集。各ゲームは最大10件。確認後、行の保存をクリックしてください。"
+  },
+  "steam_independentName_aliasDuplicate": {
+    "message": "この別名は既に存在します"
+  },
+  "steam_independentName_aliasChanged": {
+    "message": "別名が更新されました。閉じてから編集画面を開き直してください。"
+  },
   "steam_independentName_aliasHint": {
     "message": "Enter またはスペースで追加"
   },

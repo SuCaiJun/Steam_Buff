@@ -5830,6 +5830,58 @@
   "steam_independentName_open": {
     "message": "自訂名稱"
   },
+  "steam_independentName_readingButton": {
+    "message": "讀音"
+  },
+  "steam_independentName_readingTitle": {
+    "message": "讀音選擇"
+  },
+  "steam_independentName_readingNone": {
+    "message": "未偵測到需要選擇的讀音"
+  },
+  "steam_independentName_readingFailed": {
+    "message": "讀音候選載入失敗，請關閉後重新開啟編輯區"
+  },
+  "steam_independentName_readingPreviewHint": {
+    "message": "現有內容無法逐字對應。下方是產生的預覽，套用後將取代全拼與助記符。"
+  },
+  "steam_independentName_readingApply": {
+    "message": "取代全拼與助記符"
+  },
+  "steam_independentName_readingPosition": {
+    "message": "第 $n$ 個字：$context$",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      },
+      "context": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_aliasEdit": {
+    "message": "編輯別名"
+  },
+  "steam_independentName_aliasAdd": {
+    "message": "新增別名"
+  },
+  "steam_independentName_aliasRemove": {
+    "message": "刪除別名：$alias$",
+    "placeholders": {
+      "alias": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_aliasEditorHint": {
+    "message": "點擊標籤修改，每款遊戲最多 10 個；確認後點擊該列儲存。"
+  },
+  "steam_independentName_aliasDuplicate": {
+    "message": "這個別名已存在"
+  },
+  "steam_independentName_aliasChanged": {
+    "message": "別名已更新，請關閉後重新開啟編輯區"
+  },
   "steam_independentName_aliasHint": {
     "message": "Enter 或空白鍵新增"
   },

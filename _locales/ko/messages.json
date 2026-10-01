@@ -5830,6 +5830,58 @@
   "steam_independentName_open": {
     "message": "사용자 지정 이름"
   },
+  "steam_independentName_readingButton": {
+    "message": "발음"
+  },
+  "steam_independentName_readingTitle": {
+    "message": "발음 선택"
+  },
+  "steam_independentName_readingNone": {
+    "message": "선택할 다른 발음이 없습니다"
+  },
+  "steam_independentName_readingFailed": {
+    "message": "발음을 불러오지 못했습니다. 편집 창을 닫았다가 다시 여세요."
+  },
+  "steam_independentName_readingPreviewHint": {
+    "message": "기존 값을 글자별로 대응시킬 수 없습니다. 이 미리보기를 적용하면 전체 병음과 약어가 모두 바뀝니다."
+  },
+  "steam_independentName_readingApply": {
+    "message": "병음과 약어 바꾸기"
+  },
+  "steam_independentName_readingPosition": {
+    "message": "$n$번째 글자: $context$",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      },
+      "context": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_aliasEdit": {
+    "message": "별칭 편집"
+  },
+  "steam_independentName_aliasAdd": {
+    "message": "별칭 추가"
+  },
+  "steam_independentName_aliasRemove": {
+    "message": "별칭 삭제: $alias$",
+    "placeholders": {
+      "alias": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_aliasEditorHint": {
+    "message": "태그를 클릭하여 편집하세요. 게임당 최대 10개입니다. 확인 후 해당 행을 저장하세요."
+  },
+  "steam_independentName_aliasDuplicate": {
+    "message": "이미 존재하는 별칭입니다"
+  },
+  "steam_independentName_aliasChanged": {
+    "message": "별칭이 변경되었습니다. 편집 창을 닫고 다시 여세요."
+  },
   "steam_independentName_aliasHint": {
     "message": "Enter 또는 스페이스로 추가"
   },

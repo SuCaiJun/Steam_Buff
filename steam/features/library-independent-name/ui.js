@@ -34,6 +34,7 @@
   const OVERSCAN = 8;
   const ALIAS_MAX = 10;
   const SEARCH_MS = 180;
+  const READINGS_MS = 300;
 
   function i18n(key, fallback, params) {
     return globalThis.STI18n.text(key, fallback, params);
@@ -176,8 +177,14 @@
       singleMessage: "",
       opener: null,
       aliasPending: new Map(),
+      aliasEditor: null,
+      aliasSession: null,
+      singleReading: null,
+      readingEditor: null,
+      readingTimer: 0,
     };
     let painted = null;
+    let libsTask = null;
 
     function cloudOf(appid) {
       const row = state.snapshot.items?.[String(appid)] || state.snapshot.items?.[appid] || {};
@@ -228,6 +235,8 @@
     }
 
     function closeBatchModal() {
+      closeReadingEditor(false);
+      closeAliasEditor();
       if (state.importRid) {
         postReq({ type: "cancel-import", rid: state.importRid });
         state.importRid = "";
@@ -263,6 +272,8 @@
     }
 
     function closeSingleModal() {
+      window.clearTimeout(state.readingTimer);
+      state.singleReading = null;
       const session = state.singleSession;
       state.singleSession = null;
       session?.close?.();
@@ -338,6 +349,7 @@
             <input id="st-lin-single-mnemonic" data-lin-single-mnemonic type="text" maxlength="200" value="${esc(draft.mnemonic)}" ${disabled}>
             <label for="st-lin-single-pinyin">${esc(i18n("steam.independentName.colPinyin", "拼音全拼"))}</label>
             <input id="st-lin-single-pinyin" data-lin-single-pinyin type="text" maxlength="200" value="${esc(draft.pinyin)}" ${disabled}>
+            <div class="st-lin-readings st-lin-single-readings" data-lin-single-readings>${state.singleBusy ? "" : readingsHtml(singleReading(appid))}</div>
           </div>
           <p class="st-lin-msg ${status.kind === "rejected" ? "st-lin-sync-error" : ""}" data-lin-single-msg role="status">${esc(message)}</p>
           <footer class="st-lin-single-footer">
@@ -387,6 +399,7 @@
         modal.addEventListener("click", onSingleClick);
         modal.addEventListener("keydown", onSingleKey);
         modal.addEventListener("input", onSingleInput);
+        modal.addEventListener("compositionend", scheduleSingleReadings);
         document.body.appendChild(modal);
       }
       state.opener = document.activeElement;
@@ -436,16 +449,324 @@
     }
 
     function aliasHtml(appid, aliases) {
-      const chips = (aliases || []).map((alias) => `
-        <button class="st-lin-chip" type="button" data-lin-alias-del="${esc(alias)}">${esc(alias)} ×</button>
-      `).join("");
-      const pending = state.aliasPending.get(appid) || "";
       return `
-        <div class="st-lin-aliases" data-appid="${appid}">
-          ${chips}
-          <input class="st-lin-alias-input" type="text" maxlength="40" value="${esc(pending)}" placeholder="${esc(i18n("steam.independentName.aliasHint", "回车或空格添加"))}" ${aliases.length >= ALIAS_MAX ? "disabled" : ""}>
-        </div>
+        <button class="st-lin-alias-summary" type="button" data-lin-alias-edit="${appid}" title="${esc(i18n("steam.independentName.aliasEdit", "编辑别名"))}">
+          ${aliasSummaryHtml(aliases)}
+        </button>
       `;
+    }
+
+    function aliasSummaryHtml(aliases) {
+      const summary = aliases.length ? aliases.join("、") : i18n("steam.independentName.aliasAdd", "添加别名");
+      return `<span class="st-lin-alias-text">${esc(summary)}</span><span class="st-lin-alias-count">${aliases.length}/${ALIAS_MAX}</span>`;
+    }
+
+    function readingBase(appid) {
+      const draft = draftOf(appid);
+      return { name: draft.custom_name, pinyin: draft.pinyin, mnemonic: draft.mnemonic };
+    }
+
+    function sameReadingBase(left, right) {
+      return left.name === right.name && left.pinyin === right.pinyin && left.mnemonic === right.mnemonic;
+    }
+
+    function makeReading(appid) {
+      const base = readingBase(appid);
+      const control = { appid, base, model: null, error: "" };
+      try {
+        control.model = window.SteamBuff.libraryCustomNameMnemonic.readings(base.name, base, window.pinyinPro);
+      } catch (error) {
+        control.error = i18n("steam.independentName.readingFailed", "读音候选加载失败，请关闭后重新打开编辑区");
+        log.error("independent-name-readings-failed", "名称读音候选解析失败", { error, appid });
+      }
+      return control;
+    }
+
+    function singleReading(appid) {
+      if (state.singleReading?.appid === appid && state.singleReading.error) return state.singleReading;
+      if (!state.singleReading || state.singleReading.appid !== appid || !sameReadingBase(state.singleReading.base, readingBase(appid))) {
+        state.singleReading = makeReading(appid);
+      }
+      return state.singleReading;
+    }
+
+    function readingsHtml(control) {
+      if (control?.error) return `<p class="st-lin-msg" role="status">${esc(control.error)}</p>`;
+      const model = control?.model;
+      if (!model) return "";
+      if (!model.groups.length) return "";
+      const groups = model.groups.map((group) => {
+        const context = i18n("steam.independentName.readingPosition", "第 $n$ 个字：$context$", { n: group.index + 1, context: group.context });
+        return `<div class="st-lin-reading-group" role="group" aria-label="${esc(`${group.char} · ${context}`)}">
+          <span title="${esc(context)}">${esc(group.char)}：</span>
+          ${group.options.map((option) => `<button class="st-lin-reading-option" type="button" data-lin-reading-index="${group.index}" data-lin-reading-value="${esc(option.value)}" aria-pressed="${model.parts[group.index] === option.value}" aria-label="${esc(`${group.char} · ${context} · ${option.label}`)}">${esc(option.label)}</button>`).join("")}
+        </div>`;
+      }).join("");
+      return `<div class="st-lin-reading-groups">${groups}</div>
+        <div class="st-lin-reading-preview" data-lin-reading-preview ${model.replace ? "" : "hidden"}>
+          <p class="st-lin-msg">${esc(i18n("steam.independentName.readingPreviewHint", "现有内容无法逐字对应。下方是生成预览，应用后将替换全拼和助记符。"))}</p>
+          <span>${esc(i18n("steam.independentName.colPinyin", "拼音全拼"))}</span><output data-lin-reading-full>${esc(model.pinyin)}</output>
+          <span>${esc(i18n("steam.independentName.colMnemonic", "助记符"))}</span><output data-lin-reading-mnemonic>${esc(model.mnemonic)}</output>
+          <button class="st-lin-btn" type="button" data-lin-reading-apply>${esc(i18n("steam.independentName.readingApply", "替换全拼和助记符"))}</button>
+        </div>`;
+    }
+
+    // 单游戏只解析当前名称，输入法完成后合并输入变化；候选点击不重建输入框或候选按钮
+    function scheduleSingleReadings(event) {
+      if (event && !event.target.matches("[data-lin-single-name], [data-lin-single-pinyin], [data-lin-single-mnemonic]")) return;
+      window.clearTimeout(state.readingTimer);
+      state.readingTimer = window.setTimeout(() => {
+        state.readingTimer = 0;
+        if (!state.currentGame || state.singleBusy) return;
+        const panel = document.getElementById(MODAL)?.querySelector("[data-lin-single-readings]");
+        if (panel) setHtml(panel, readingsHtml(singleReading(state.currentGame.appid)), "library-independent-name-readings");
+      }, READINGS_MS);
+    }
+
+    function closeReadingEditor(restore = true) {
+      const control = state.readingEditor;
+      if (!control) return;
+      state.readingEditor = null;
+      window.removeEventListener("resize", onReadingResize);
+      control.opener.setAttribute("aria-expanded", "false");
+      if (control.root.matches(":popover-open")) control.root.hidePopover();
+      if (restore && control.opener.isConnected) control.opener.focus({ preventScroll: true });
+    }
+
+    function onReadingResize() {
+      closeReadingEditor();
+    }
+
+    function positionReadingEditor(control) {
+      const rect = control.opener.getBoundingClientRect();
+      const panel = control.root;
+      const gap = 8;
+      const width = Math.min(440, window.innerWidth - gap * 2);
+      const below = window.innerHeight - rect.bottom - gap * 2;
+      const above = rect.top - gap * 2;
+      panel.style.width = `${width}px`;
+      panel.style.maxHeight = `${Math.max(0, Math.max(below, above))}px`;
+      const height = panel.getBoundingClientRect().height;
+      panel.style.left = `${Math.max(gap, Math.min(rect.right - width, window.innerWidth - width - gap))}px`;
+      panel.style.top = `${below >= height ? rect.bottom + gap : Math.max(gap, rect.top - height - gap)}px`;
+    }
+
+    // 批量只打开一个当前行浮层，离开行窗口或滚动即关闭，不给虚拟行增加节点高度
+    async function openReadingEditor(appid, opener) {
+      if (state.readingEditor?.appid === appid) { closeReadingEditor(); return; }
+      closeReadingEditor(false);
+      const panel = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-reading-editor]");
+      if (!panel || !appid) return;
+      const control = { appid, opener, root: panel, model: null, base: readingBase(appid), error: "" };
+      state.readingEditor = control;
+      setHtml(panel, `<header class="st-lin-head"><strong>${esc(i18n("steam.independentName.readingTitle", "读音选择"))}</strong><button class="st-lin-btn" type="button" data-lin-reading-close>${esc(i18n("common.close", "关闭"))}</button></header>
+        <p class="st-lin-reading-name">${esc(control.base.name)}</p>
+        <div class="st-lin-readings" data-lin-reading-content><p class="st-lin-msg" role="status">${esc(i18n("steam.independentName.loading", "正在加载..."))}</p></div>`, "library-independent-name-reading-editor");
+      opener.setAttribute("aria-expanded", "true");
+      panel.showPopover();
+      positionReadingEditor(control);
+      window.addEventListener("resize", onReadingResize);
+      panel.querySelector("[data-lin-reading-close]").focus({ preventScroll: true });
+      try {
+        await loadLibs();
+        if (state.readingEditor !== control) return;
+        Object.assign(control, makeReading(appid));
+        const html = readingsHtml(control) || `<p class="st-lin-msg">${esc(i18n("steam.independentName.readingNone", "未检测到需要选择的读音"))}</p>`;
+        setHtml(panel.querySelector("[data-lin-reading-content]"), html, "library-independent-name-readings");
+        positionReadingEditor(control);
+      } catch (error) {
+        if (state.readingEditor !== control) return;
+        control.error = i18n("steam.independentName.readingFailed", "读音候选加载失败，请关闭后重新打开编辑区");
+        setHtml(panel.querySelector("[data-lin-reading-content]"), readingsHtml(control), "library-independent-name-readings");
+        log.error("independent-name-readings-failed", "名称读音候选加载失败", { error, appid });
+      }
+    }
+
+    function onReadingToggle(event) {
+      if (event.newState === "closed" && state.readingEditor?.root === event.currentTarget) closeReadingEditor(false);
+    }
+
+    function applyReading(control) {
+      const draft = ensureEdited(control.appid);
+      draft.pinyin = control.model.pinyin;
+      draft.mnemonic = control.model.mnemonic;
+      draft.pinyin_locked = true;
+      draft.mnemonic_locked = true;
+      control.model.replace = false;
+      control.base = readingBase(control.appid);
+      const root = control.root || document.getElementById(MODAL);
+      const pinyin = control.root
+        ? document.getElementById(BATCH_MODAL)?.querySelector(`tr[data-appid="${control.appid}"] input.st-lin-pinyin`)
+        : root.querySelector("[data-lin-single-pinyin]");
+      const mnemonic = control.root
+        ? document.getElementById(BATCH_MODAL)?.querySelector(`tr[data-appid="${control.appid}"] input.st-lin-mnemonic`)
+        : root.querySelector("[data-lin-single-mnemonic]");
+      if (pinyin) pinyin.value = draft.pinyin;
+      if (mnemonic) mnemonic.value = draft.mnemonic;
+      root.querySelector("[data-lin-reading-preview]").hidden = true;
+    }
+
+    function onReadingClick(event, control) {
+      const choice = event.target.closest("[data-lin-reading-value]");
+      const apply = event.target.closest("[data-lin-reading-apply]");
+      if (!choice && !apply) return false;
+      if (!control?.model || control.error) return true;
+      if (!sameReadingBase(control.base, readingBase(control.appid))) {
+        const root = control.root || document.getElementById(MODAL)?.querySelector("[data-lin-single-readings]");
+        if (control.root) closeReadingEditor();
+        else setHtml(root, readingsHtml(singleReading(control.appid)), "library-independent-name-readings");
+        return true;
+      }
+      if (choice) {
+        control.model = window.SteamBuff.libraryCustomNameMnemonic.selectReading(control.model, Number(choice.dataset.linReadingIndex), choice.dataset.linReadingValue);
+        const group = choice.closest(".st-lin-reading-group");
+        for (const button of group.querySelectorAll("[data-lin-reading-value]")) button.setAttribute("aria-pressed", String(button === choice));
+        const root = control.root || document.getElementById(MODAL);
+        root.querySelector("[data-lin-reading-full]").textContent = control.model.pinyin;
+        root.querySelector("[data-lin-reading-mnemonic]").textContent = control.model.mnemonic;
+      }
+      if (apply || !control.model.replace) applyReading(control);
+      if (control.root) positionReadingEditor(control);
+      return true;
+    }
+
+    function closeAliasEditor() {
+      if (!state.aliasEditor && !state.aliasSession) return;
+      const appid = state.aliasEditor?.appid;
+      const session = state.aliasSession;
+      state.aliasSession = null;
+      state.aliasEditor = null;
+      const modal = document.getElementById(BATCH_MODAL);
+      const editor = modal?.querySelector("[data-lin-alias-editor]");
+      if (editor) editor.hidden = true;
+      session?.close?.();
+      if (appid) modal?.querySelector(`tr[data-appid="${appid}"] [data-lin-alias-edit]`)?.focus?.({ preventScroll: true });
+    }
+
+    // 编辑区只维护当前游戏的别名副本；确认后写回行草稿，行保存仍走原有通道
+    function openAliasEditor(appid, opener) {
+      closeReadingEditor(false);
+      const modal = document.getElementById(BATCH_MODAL);
+      const editor = modal?.querySelector("[data-lin-alias-editor]");
+      if (!editor || !appid) return;
+      const aliases = draftOf(appid).aliases.slice();
+      state.aliasEditor = { appid, aliases, base: aliases.slice(), editing: -1, input: "", message: "" };
+      const official = opener.closest("tr")?.querySelector(".st-lin-official .st-lin-clip")?.textContent || "";
+      setHtml(editor, `
+        <div class="st-lin-alias-dialog">
+          <header class="st-lin-head">
+            <h3 id="st-lin-alias-title">${esc(i18n("steam.independentName.aliasEdit", "编辑别名"))}</h3>
+            <button class="st-lin-close" type="button" data-lin-alias-cancel aria-label="${esc(i18n("common.close", "关闭"))}">×</button>
+          </header>
+          <p class="st-lin-alias-game">${esc(official)} <span>AppID ${appid}</span></p>
+          <div class="st-lin-alias-tags" data-lin-alias-tags></div>
+          <div class="st-lin-alias-entry">
+            <input data-lin-alias-editor-input type="text" maxlength="40" aria-label="${esc(i18n("steam.independentName.colAlias", "别名"))}" placeholder="${esc(i18n("steam.independentName.aliasHint", "回车或空格添加"))}">
+            <button class="st-lin-btn" type="button" data-lin-alias-commit></button>
+            <button class="st-lin-btn" type="button" data-lin-alias-edit-cancel hidden>${esc(i18n("common.cancel", "取消"))}</button>
+          </div>
+          <p class="st-lin-alias-hint">${esc(i18n("steam.independentName.aliasEditorHint", "点击标签修改，每游戏最多 10 个；确认后点击该行保存。"))}</p>
+          <p class="st-lin-msg" data-lin-alias-msg role="status"></p>
+          <footer class="st-lin-alias-actions">
+            <button class="st-lin-btn" type="button" data-lin-alias-cancel>${esc(i18n("common.cancel", "取消"))}</button>
+            <button class="st-lin-btn st-lin-primary" type="button" data-lin-alias-confirm>${esc(i18n("common.confirm", "确认"))}</button>
+          </footer>
+        </div>
+      `, "library-independent-name-alias-editor");
+      editor.hidden = false;
+      renderAliasEditor();
+      const life = window.STDialogLifecycle;
+      state.aliasSession = life.open({
+        root: editor,
+        restore: opener,
+        initial: () => editor.querySelector("[data-lin-alias-editor-input]:not(:disabled)") || editor.querySelector("[data-lin-alias-confirm]"),
+        onEscape: closeAliasEditor,
+      });
+      state.aliasSession.focusInitial();
+    }
+
+    function renderAliasEditor() {
+      const draft = state.aliasEditor;
+      const editor = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-alias-editor]");
+      if (!draft || !editor) return;
+      setHtml(editor.querySelector("[data-lin-alias-tags]"), draft.aliases.map((alias, index) => `
+        <span class="st-lin-alias-tag">
+          <button type="button" data-lin-alias-item="${index}" aria-pressed="${draft.editing === index}">${esc(alias)}</button>
+          <button type="button" data-lin-alias-remove="${index}" aria-label="${esc(i18n("steam.independentName.aliasRemove", "删除别名：$alias$", { alias }))}">×</button>
+        </span>
+      `).join(""), "library-independent-name-alias-tags");
+      const input = editor.querySelector("[data-lin-alias-editor-input]");
+      input.value = draft.input;
+      input.disabled = draft.editing < 0 && draft.aliases.length >= ALIAS_MAX;
+      const commit = editor.querySelector("[data-lin-alias-commit]");
+      commit.textContent = i18n(draft.editing < 0 ? "common.add" : "common.save", draft.editing < 0 ? "添加" : "保存");
+      commit.disabled = input.disabled || !text(draft.input);
+      editor.querySelector("[data-lin-alias-confirm]").disabled = draft.editing >= 0 && !text(draft.input);
+      editor.querySelector("[data-lin-alias-edit-cancel]").hidden = draft.editing < 0;
+      editor.querySelector("[data-lin-alias-msg]").textContent = draft.message;
+    }
+
+    function commitAliasInput() {
+      const draft = state.aliasEditor;
+      if (!draft) return false;
+      const alias = text(draft.input);
+      if (!alias) return draft.editing < 0;
+      if (draft.aliases.some((item, index) => index !== draft.editing && item === alias)) {
+        draft.message = i18n("steam.independentName.aliasDuplicate", "这个别名已存在");
+        renderAliasEditor();
+        return false;
+      }
+      if (draft.editing < 0 && draft.aliases.length >= ALIAS_MAX) return false;
+      if (draft.editing < 0) draft.aliases.push(alias);
+      else draft.aliases[draft.editing] = alias;
+      draft.input = "";
+      draft.editing = -1;
+      draft.message = "";
+      renderAliasEditor();
+      const editor = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-alias-editor]");
+      (editor?.querySelector("[data-lin-alias-editor-input]:not(:disabled)") || editor?.querySelector("[data-lin-alias-confirm]"))?.focus({ preventScroll: true });
+      return true;
+    }
+
+    function onAliasClick(event) {
+      const draft = state.aliasEditor;
+      if (!draft || !event.target.closest("[data-lin-alias-editor]")) return false;
+      if (event.target.closest("[data-lin-alias-cancel]")) {
+        closeAliasEditor();
+      } else if (event.target.closest("[data-lin-alias-confirm]")) {
+        if (!commitAliasInput()) return true;
+        const current = draftOf(draft.appid).aliases;
+        if (JSON.stringify(current) !== JSON.stringify(draft.base)) {
+          draft.message = i18n("steam.independentName.aliasChanged", "别名已更新，请关闭后重新打开编辑区");
+          renderAliasEditor();
+          return true;
+        }
+        if (JSON.stringify(draft.aliases) !== JSON.stringify(current)) ensureEdited(draft.appid).aliases = draft.aliases.slice();
+        const summary = document.getElementById(BATCH_MODAL)?.querySelector(`tr[data-appid="${draft.appid}"] [data-lin-alias-edit]`);
+        if (summary) setHtml(summary, aliasSummaryHtml(draft.aliases), "library-independent-name-alias-summary");
+        closeAliasEditor();
+      } else if (event.target.closest("[data-lin-alias-commit]")) {
+        commitAliasInput();
+      } else {
+        const item = event.target.closest("[data-lin-alias-item]");
+        const remove = event.target.closest("[data-lin-alias-remove]");
+        if (item) {
+          draft.editing = Number(item.dataset.linAliasItem);
+          draft.input = draft.aliases[draft.editing];
+        } else if (remove) {
+          const index = Number(remove.dataset.linAliasRemove);
+          draft.aliases.splice(index, 1);
+          if (draft.editing === index) { draft.editing = -1; draft.input = ""; }
+          else if (draft.editing > index) draft.editing -= 1;
+        } else if (event.target.closest("[data-lin-alias-edit-cancel]")) {
+          draft.editing = -1;
+          draft.input = "";
+        } else return true;
+        draft.message = "";
+        renderAliasEditor();
+        document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-alias-editor-input]:not(:disabled)")?.focus({ preventScroll: true });
+      }
+      return true;
     }
 
     // 只读快照模块留下的 syncErrors。指纹对不上的旧错误已在 normalize 丢掉
@@ -505,7 +826,7 @@
             <td class="st-lin-custom">${slot(`<input class="st-lin-name" type="text" maxlength="200" value="${esc(draft.custom_name)}" title="${esc(conflict)}">${conflict ? `<div class="st-lin-sync-error" title="${esc(conflict)}">${esc(conflict)}</div>` : ""}`)}</td>
             <td class="st-lin-alias">${slot(aliasHtml(row.appid, draft.aliases))}</td>
             <td class="st-lin-mnemonic">${slot(`<input class="st-lin-mnemonic" type="text" maxlength="200" value="${esc(draft.mnemonic)}">`)}</td>
-            <td class="st-lin-pinyin">${slot(`<input class="st-lin-pinyin" type="text" maxlength="200" value="${esc(draft.pinyin)}">`)}</td>
+            <td class="st-lin-pinyin">${slot(`<div class="st-lin-pinyin-entry"><input class="st-lin-pinyin" type="text" maxlength="200" value="${esc(draft.pinyin)}"><button class="st-lin-btn" type="button" data-lin-reading-edit="${row.appid}" aria-controls="st-lin-reading-popover" aria-expanded="false">${esc(i18n("steam.independentName.readingButton", "读音"))}</button></div>`)}</td>
             <td class="st-lin-action">${slot(`<button class="st-lin-btn" type="button" data-lin-save title="${esc(status.text)}">${esc(i18n("steam.independentName.saveRow", "保存"))}</button>${statusLine(status)}`)}</td>
           </tr>
         `;
@@ -513,14 +834,13 @@
     }
 
     function fieldKind(input) {
-      if (input.classList?.contains("st-lin-alias-input")) return "alias";
       if (input.classList?.contains("st-lin-name")) return "name";
       if (input.classList?.contains("st-lin-mnemonic")) return "mnemonic";
       if (input.classList?.contains("st-lin-pinyin")) return "pinyin";
       return "";
     }
 
-    // 别名未按回车或空格前不进 aliases。名称类字段只抄当前焦点，避免把上一帧画面写回已更新的草稿
+    // 名称类字段只抄当前焦点，避免把上一帧画面写回已更新的草稿
     function rememberEditing(body) {
       const active = document.activeElement;
       let focus = null;
@@ -531,10 +851,7 @@
         if (!appid || !kind) {
           continue;
         }
-        if (kind === "alias") {
-          if (input.value) state.aliasPending.set(appid, input.value);
-          else state.aliasPending.delete(appid);
-        } else if (input === active) {
+        if (input === active) {
           const key = kind === "name" ? "custom_name" : kind;
           if (input.value !== draftOf(appid)[key]) {
             const edited = ensureEdited(appid);
@@ -555,7 +872,6 @@
         return;
       }
       const selector = {
-        alias: ".st-lin-alias-input",
         name: ".st-lin-name",
         mnemonic: ".st-lin-mnemonic",
         pinyin: ".st-lin-pinyin",
@@ -593,6 +909,7 @@
       if (reason === "scroll" && sameWindow(range)) {
         return;
       }
+      closeReadingEditor(false);
       const focus = rememberEditing(body);
       setHtml(body, `
         <div style="height:${range.before}px"></div>
@@ -664,10 +981,13 @@
             </div>
           </div>
         </div>
+        <section class="st-lin-alias-layer" data-lin-alias-editor role="dialog" aria-modal="true" aria-labelledby="st-lin-alias-title" hidden></section>
+        <section id="st-lin-reading-popover" class="st-lin-reading-popover" data-lin-reading-editor popover="auto" aria-label="${esc(i18n("steam.independentName.readingTitle", "读音选择"))}"></section>
       `;
     }
 
     async function loadLibs() {
+      if (libsTask) return libsTask;
       const load = (path) => new Promise((resolve, reject) => {
         if (path.endsWith("mnemonic.js") && window.SteamBuff?.libraryCustomNameMnemonic) {
           resolve();
@@ -683,8 +1003,16 @@
         script.onerror = () => reject(new Error(path));
         document.documentElement.appendChild(script);
       });
-      await load(PINYIN_LIB);
-      await load(MNEMONIC_CORE);
+      // 同一编辑会话切换浮层时复用正在加载的依赖，失败后允许下一次主动打开重试
+      libsTask = (async () => {
+        await load(PINYIN_LIB);
+        await load(MNEMONIC_CORE);
+      })();
+      try {
+        await libsTask;
+      } finally {
+        libsTask = null;
+      }
     }
 
     function fillGenerated(draft, prevName, nextName) {
@@ -757,10 +1085,12 @@
       state.aliasPending.clear();
       painted = null;
       setHtml(modal, batchModalHtml(), "library-independent-name-batch-modal");
+      modal.querySelector("[data-lin-reading-editor]").addEventListener("toggle", onReadingToggle);
       modal.hidden = false;
       bindBatchModal(modal);
       const scroller = modal.querySelector("[data-lin-scroll]");
       scroller?.addEventListener("scroll", () => {
+        closeReadingEditor(false);
         state.scrollTop = scroller.scrollTop;
         renderTable("scroll");
       }, { passive: true });
@@ -974,7 +1304,7 @@
       renderTable();
     }
 
-    function addAlias(appid, value) {
+    function addSingleAlias(appid, value) {
       const alias = text(value);
       if (!alias) {
         return;
@@ -984,11 +1314,7 @@
         return;
       }
       draft.aliases.push(alias);
-      if (state.currentGame?.appid === appid) {
-        renderSingleModal();
-      } else {
-        renderTable();
-      }
+      renderSingleModal();
     }
 
     function closeNativeMenu(entry) {
@@ -1097,6 +1423,7 @@
     }
 
     function onSingleClick(event) {
+      if (!state.singleBusy && onReadingClick(event, state.singleReading)) return;
       if (event.target.closest("[data-lin-single-close], [data-lin-single-cancel]")) {
         closeSingleModal();
         return;
@@ -1145,7 +1472,7 @@
       const value = input.value;
       input.value = "";
       state.aliasPending.delete(state.currentGame.appid);
-      addAlias(state.currentGame.appid, value);
+      addSingleAlias(state.currentGame.appid, value);
     }
 
     function onSingleInput(event) {
@@ -1175,9 +1502,31 @@
         draft.pinyin = event.target.value;
         draft.pinyin_locked = true;
       }
+      if (event.isComposing) {
+        window.clearTimeout(state.readingTimer);
+        state.readingTimer = 0;
+      } else scheduleSingleReadings(event);
     }
 
     function onBatchClick(event) {
+      if (event.target.closest("[data-lin-reading-close]")) { closeReadingEditor(); return; }
+      if (onReadingClick(event, state.readingEditor)) return;
+      const reading = event.target.closest("[data-lin-reading-edit]");
+      if (reading) {
+        openReadingEditor(Number(reading.dataset.linReadingEdit), reading).catch((error) => {
+          closeReadingEditor();
+          state.message = i18n("steam.independentName.readingFailed", "读音候选加载失败，请关闭后重新打开编辑区");
+          log.error("independent-name-readings-failed", "名称读音选择浮层打开失败", { error, appid: Number(reading.dataset.linReadingEdit) });
+          renderTable();
+        });
+        return;
+      }
+      if (onAliasClick(event)) return;
+      const alias = event.target.closest("[data-lin-alias-edit]");
+      if (alias) {
+        openAliasEditor(Number(alias.dataset.linAliasEdit), alias);
+        return;
+      }
       if (event.target.closest("[data-lin-close]")) {
         closeBatchModal();
         return;
@@ -1210,14 +1559,6 @@
         });
         return;
       }
-      const del = event.target.closest("[data-lin-alias-del]");
-      if (del) {
-        const appid = Number(del.closest("tr")?.dataset.appid) || 0;
-        const draft = ensureEdited(appid);
-        draft.aliases = draft.aliases.filter((item) => item !== del.dataset.linAliasDel);
-        renderTable();
-        return;
-      }
       if (event.target.closest("[data-lin-export]")) {
         exportJson();
         return;
@@ -1228,7 +1569,13 @@
     }
 
     function onBatchKey(event) {
-      const input = event.target.closest(".st-lin-alias-input");
+      if (state.readingEditor && event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeReadingEditor();
+        return;
+      }
+      const input = event.target.closest("[data-lin-alias-editor-input]");
       if (!input || (event.key !== "Enter" && event.key !== " ")) {
         return;
       }
@@ -1236,14 +1583,18 @@
         return;
       }
       event.preventDefault();
-      const appid = Number(input.closest("tr")?.dataset.appid) || 0;
-      const value = input.value;
-      input.value = "";
-      state.aliasPending.delete(appid);
-      addAlias(appid, value);
+      commitAliasInput();
     }
 
     function onBatchInput(event) {
+      if (event.target.matches?.("[data-lin-alias-editor-input]") && state.aliasEditor) {
+        state.aliasEditor.input = event.target.value;
+        const editor = event.target.closest("[data-lin-alias-editor]");
+        const hasValue = !!text(event.target.value);
+        editor.querySelector("[data-lin-alias-commit]").disabled = !hasValue;
+        editor.querySelector("[data-lin-alias-confirm]").disabled = state.aliasEditor.editing >= 0 && !hasValue;
+        return;
+      }
       const search = event.target.closest("[data-lin-search]");
       if (search) {
         state.search = search.value;
@@ -1259,12 +1610,8 @@
       if (!appid) {
         return;
       }
-      if (event.target.classList.contains("st-lin-alias-input")) {
-        if (event.target.value) state.aliasPending.set(appid, event.target.value);
-        else state.aliasPending.delete(appid);
-        return;
-      }
       const draft = ensureEdited(appid);
+      if (state.readingEditor?.appid === appid) closeReadingEditor(false);
       if (event.target.classList.contains("st-lin-name")) {
         draft.custom_name = event.target.value;
       } else if (event.target.classList.contains("st-lin-mnemonic")) {
@@ -1330,6 +1677,7 @@
       }
       document.removeEventListener("visibilitychange", onVisibility);
       window.clearTimeout(state.searchTimer);
+      window.clearTimeout(state.readingTimer);
       state.ch?.close?.();
       document.getElementById(MODAL)?.remove();
       document.getElementById(BATCH_MODAL)?.remove();

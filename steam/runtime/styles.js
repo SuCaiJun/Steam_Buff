@@ -1251,6 +1251,9 @@
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-dialog {
         grid-template-rows: auto auto auto auto;
         width: min(640px, calc(100vw - 48px));
+        box-sizing: border-box;
+        max-height: calc(100vh - 48px);
+        overflow-y: auto;
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-dialog {
         grid-template-rows: auto auto auto auto minmax(0, 1fr);
@@ -1311,6 +1314,125 @@
         border-radius: 4px;
         background: var(--st-color-bg-input, #0e1621);
         color: inherit;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-readings {
+        grid-column: 2;
+        min-width: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-readings:empty {
+        display: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-groups,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-groups {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        max-height: 160px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-group,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-group {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 8px;
+        max-width: 100%;
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 1.5;
+        color: var(--st-color-text-secondary-alt);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-option,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-option {
+        padding: 0;
+        min-height: 28px;
+        border: 0;
+        border-radius: 0;
+        appearance: none;
+        font: inherit;
+        color: inherit;
+        background: none;
+        text-decoration-line: none;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 4px;
+        cursor: pointer;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-option:hover,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-option:hover {
+        color: var(--st-color-primary-hover-text);
+        text-decoration-line: underline;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-option[aria-pressed="true"],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-option[aria-pressed="true"] {
+        color: var(--st-color-steam-blue);
+        text-decoration-line: underline;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-option:focus-visible,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-option:focus-visible {
+        outline: 2px solid var(--st-color-steam-blue);
+        outline-offset: 2px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-preview,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-preview {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+        margin-top: 16px;
+        font-size: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-preview[hidden],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-preview[hidden] {
+        display: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-preview output,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-preview output {
+        padding: 8px;
+        max-height: 80px;
+        overflow-y: auto;
+        overflow-wrap: anywhere;
+        white-space: normal;
+        text-overflow: clip;
+        background: var(--st-color-bg-input);
+        color: var(--st-color-text-primary);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-pinyin-entry {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        height: 28px;
+        flex: 0 0 28px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-pinyin-entry input {
+        flex: 1;
+        min-width: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-pinyin-entry button {
+        flex: 0 0 auto;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-popover {
+        position: fixed;
+        inset: auto;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 16px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        border: 1px solid var(--st-color-border-primary);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-popover strong {
+        flex: 1;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-name {
+        margin: 16px 0;
+        overflow-wrap: anywhere;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-aliases {
         display: flex;
@@ -1421,29 +1543,159 @@
         background: var(--st-color-bg-input, #0e1621);
         color: inherit;
       }
-      /* 行槽去掉上下 8px 后只剩 40px，别名条必须停在这块里，滚动条压到 4px 才不会盖住 28px 标签 */
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-aliases {
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-summary {
+        box-sizing: border-box;
         display: flex;
-        flex: 0 0 40px;
-        height: 40px;
-        flex-wrap: nowrap;
+        width: 100%;
+        height: 28px;
+        flex: 0 0 28px;
         align-items: center;
-        gap: 4px;
+        gap: 8px;
         min-width: 0;
-        overflow-x: auto;
-        overflow-y: hidden;
+        padding: 0 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 4px;
+        background: var(--st-color-bg-input);
+        color: inherit;
+        cursor: pointer;
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-aliases::-webkit-scrollbar {
-        height: 4px;
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-summary:hover {
+        border-color: var(--st-color-border-primary);
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-aliases input {
-        width: auto;
-        flex: 1 0 88px;
-        min-width: 88px;
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-text {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: left;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-count {
+        flex: 0 0 auto;
+        color: var(--st-color-text-secondary-alt);
+        font-variant-numeric: tabular-nums;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        box-sizing: border-box;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: var(--st-color-overlay);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-layer[hidden] {
+        display: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-dialog {
+        box-sizing: border-box;
+        color-scheme: dark;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto minmax(64px, 1fr) auto auto auto auto;
+        gap: 16px;
+        min-width: 0;
+        width: min(560px, 100%);
+        max-height: calc(100vh - 48px);
+        overflow-y: auto;
+        padding: 16px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-dialog h3 {
+        flex: 1;
+        margin: 0;
+        font-size: 16px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-dialog .st-lin-close {
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        font-size: 20px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-game,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-hint {
+        margin: 0;
+        overflow-wrap: anywhere;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-game span {
+        display: block;
+        margin-top: 8px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-tags {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: start;
+        align-items: start;
+        gap: 8px;
+        min-height: 32px;
+        max-height: min(240px, 30vh);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-tag {
+        display: flex;
+        align-items: stretch;
+        max-width: 100%;
+        border: 1px solid var(--st-color-border-primary);
+        border-radius: 4px;
+        background: var(--st-color-surface-subtle);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-tag button {
+        min-width: 0;
+        padding: 8px;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        overflow-wrap: anywhere;
+        text-align: left;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-tag button[aria-pressed="true"],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-tag button:hover {
+        background: var(--st-color-surface-inset-hover);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-entry,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-entry input {
+        box-sizing: border-box;
+        flex: 1;
+        min-width: 0;
+        height: 32px;
+        padding: 0 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 4px;
+        background: var(--st-color-bg-input);
+        color: inherit;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-entry input:disabled {
+        color: var(--st-color-text-secondary-alt);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-actions {
+        justify-content: flex-end;
+        padding-top: 16px;
+        border-top: 1px solid var(--st-color-white-alpha-06);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-actions .st-lin-primary {
+        border-color: var(--st-color-border-primary);
+        background: var(--st-color-steam-blue-alpha-38);
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-chip,
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-btn,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-chip,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-btn {
         box-sizing: border-box;
         height: 28px;
@@ -1456,8 +1708,7 @@
         background: var(--st-color-surface-subtle, var(--st-color-white-alpha-08));
         cursor: pointer;
       }
-      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-chip,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-chip {
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-chip {
         flex: 0 0 auto;
         max-width: 120px;
         overflow: hidden;

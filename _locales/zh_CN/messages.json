@@ -5830,6 +5830,58 @@
   "steam_independentName_open": {
     "message": "自定义名称"
   },
+  "steam_independentName_readingButton": {
+    "message": "读音"
+  },
+  "steam_independentName_readingTitle": {
+    "message": "读音选择"
+  },
+  "steam_independentName_readingNone": {
+    "message": "未检测到需要选择的读音"
+  },
+  "steam_independentName_readingFailed": {
+    "message": "读音候选加载失败，请关闭后重新打开编辑区"
+  },
+  "steam_independentName_readingPreviewHint": {
+    "message": "现有内容无法逐字对应。下方是生成预览，应用后将替换全拼和助记符。"
+  },
+  "steam_independentName_readingApply": {
+    "message": "替换全拼和助记符"
+  },
+  "steam_independentName_readingPosition": {
+    "message": "第 $n$ 个字：$context$",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      },
+      "context": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_aliasEdit": {
+    "message": "编辑别名"
+  },
+  "steam_independentName_aliasAdd": {
+    "message": "添加别名"
+  },
+  "steam_independentName_aliasRemove": {
+    "message": "删除别名：$alias$",
+    "placeholders": {
+      "alias": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_aliasEditorHint": {
+    "message": "点击标签修改，每游戏最多 10 个；确认后点击该行保存。"
+  },
+  "steam_independentName_aliasDuplicate": {
+    "message": "这个别名已存在"
+  },
+  "steam_independentName_aliasChanged": {
+    "message": "别名已更新，请关闭后重新打开编辑区"
+  },
   "steam_independentName_aliasHint": {
     "message": "回车或空格添加"
   },

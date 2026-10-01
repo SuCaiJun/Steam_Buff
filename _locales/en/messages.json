@@ -5830,6 +5830,58 @@
   "steam_independentName_open": {
     "message": "Custom names"
   },
+  "steam_independentName_readingButton": {
+    "message": "Sounds"
+  },
+  "steam_independentName_readingTitle": {
+    "message": "Pronunciation"
+  },
+  "steam_independentName_readingNone": {
+    "message": "No alternative pronunciations to choose"
+  },
+  "steam_independentName_readingFailed": {
+    "message": "Could not load pronunciations. Close and reopen the editor."
+  },
+  "steam_independentName_readingPreviewHint": {
+    "message": "The existing values cannot be matched character by character. Applying this preview replaces both pinyin and mnemonic."
+  },
+  "steam_independentName_readingApply": {
+    "message": "Replace pinyin and mnemonic"
+  },
+  "steam_independentName_readingPosition": {
+    "message": "Character $n$: $context$",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      },
+      "context": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_aliasEdit": {
+    "message": "Edit aliases"
+  },
+  "steam_independentName_aliasAdd": {
+    "message": "Add alias"
+  },
+  "steam_independentName_aliasRemove": {
+    "message": "Remove alias: $alias$",
+    "placeholders": {
+      "alias": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_aliasEditorHint": {
+    "message": "Click a tag to edit. Up to 10 aliases per game. Confirm, then save the row."
+  },
+  "steam_independentName_aliasDuplicate": {
+    "message": "This alias already exists"
+  },
+  "steam_independentName_aliasChanged": {
+    "message": "Aliases changed. Close and reopen the editor."
+  },
   "steam_independentName_aliasHint": {
     "message": "Press Enter or Space to add"
   },

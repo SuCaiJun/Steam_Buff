@@ -1854,13 +1854,14 @@
         background: var(--st-color-primary-surface-hover);
       }
       #st-title-custom-name-modal {
+        box-sizing: border-box;
         position: fixed;
         inset: 0;
         z-index: var(--st-z-index-max);
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 40px;
+        padding: 24px;
         background: var(--st-color-overlay);
         color: var(--st-color-text-primary);
         font-family: Motiva Sans, Arial, Helvetica, sans-serif;
@@ -1869,44 +1870,44 @@
         display: none;
       }
       #st-title-custom-name-modal .st-title-custom-name-panel {
-        width: min(880px, calc(100vw - 80px));
+        box-sizing: border-box;
+        color-scheme: dark;
+        width: min(640px, calc(100vw - 48px));
         height: auto;
-        max-height: min(692px, calc(100vh - 80px));
+        max-height: calc(100vh - 48px);
         min-width: 0;
         display: grid;
-        grid-template-rows: 52px minmax(0, 1fr) auto;
-        border: 0;
-        border-radius: 8px;
-        background: var(--st-color-bg-body);
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 6px;
+        background: var(--st-color-steam-property-window);
         box-shadow: var(--st-shadow-panel-large);
         overflow: hidden;
       }
       #st-title-custom-name-modal .st-title-custom-name-head {
         display: flex;
         align-items: center;
-        gap: 18px;
+        gap: 16px;
         min-width: 0;
-        padding: 0 18px 0 22px;
+        padding: 16px 24px;
         border-bottom: 1px solid var(--st-color-surface-inset-hover);
-        background: var(--st-gradient-settings-header);
       }
       #st-title-custom-name-modal h3 {
-        flex: 0 0 auto;
+        flex: 1;
         margin: 0;
         color: var(--st-color-white);
-        font-size: 14px;
+        font-size: 16px;
         font-weight: 600;
         letter-spacing: 0;
       }
       #st-title-custom-name-modal .st-title-custom-name-tabs {
         display: flex;
         gap: 4px;
-        align-self: stretch;
-        align-items: flex-end;
+        align-items: center;
       }
       #st-title-custom-name-modal .st-title-custom-name-tabs button {
-        min-width: 72px;
-        min-height: 52px;
+        min-width: 56px;
+        min-height: 36px;
         border: 0;
         border-bottom: 2px solid transparent;
         padding: 0 12px;
@@ -1923,7 +1924,7 @@
         width: 28px;
         height: 28px;
         min-height: 28px;
-        margin-left: auto;
+        margin-left: 0;
         border: 0;
         border-radius: 4px;
         padding: 0;
@@ -1939,8 +1940,8 @@
       #st-title-custom-name-modal .st-title-custom-name-body {
         min-height: 0;
         overflow: auto;
-        padding: 22px;
-        background: var(--st-color-bg-child);
+        padding: 24px;
+        overscroll-behavior: contain;
       }
       #st-title-custom-name-modal [data-title-custom-name-panel][hidden] {
         display: none;
@@ -1949,28 +1950,48 @@
         min-height: 0;
       }
       #st-title-custom-name-modal .st-title-custom-name-card {
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 8px;
-        background: var(--st-color-bg-card);
-        overflow: hidden;
+        display: grid;
+        gap: 24px;
+      }
+      #st-title-custom-name-modal .st-title-custom-name-meta {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 16px;
+        margin-bottom: 24px;
+        border-bottom: 1px solid var(--st-color-border-light);
+        padding-bottom: 16px;
+      }
+      #st-title-custom-name-modal .st-title-custom-name-meta-item {
+        min-width: 0;
+        display: grid;
+        gap: 4px;
+        color: var(--st-color-text-muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      #st-title-custom-name-modal [data-title-custom-name-meta="steamName"] {
+        grid-column: 1;
+        grid-row: 1;
+      }
+      #st-title-custom-name-modal [data-title-custom-name-meta="appid"] {
+        grid-column: 2;
+        grid-row: 1;
+        text-align: right;
+      }
+      #st-title-custom-name-modal output {
+        color: var(--st-color-text-secondary);
+        font-size: 13px;
+        overflow-wrap: anywhere;
       }
       #st-title-custom-name-modal label {
-        min-height: 62px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 18px;
+        min-width: 0;
+        display: grid;
+        gap: 8px;
         margin: 0;
-        border-bottom: 1px solid var(--st-color-border-light);
-        padding: 14px 22px;
         color: var(--st-color-text-secondary);
         font-size: 13px;
       }
-      #st-title-custom-name-modal label:last-child {
-        border-bottom: 0;
-      }
       #st-title-custom-name-modal .st-title-custom-name-field {
-        flex: 0 0 120px;
         color: var(--st-color-text-secondary);
         line-height: 1.4;
       }
@@ -1988,7 +2009,7 @@
         width: 100%;
         border: 1px solid var(--st-color-border-normal);
         border-radius: 5px;
-        background: var(--st-color-bg-input-focus);
+        background: var(--st-color-bg-input);
         color: var(--st-color-text-primary);
         padding: 0 12px;
         outline: none;
@@ -1996,7 +2017,7 @@
         font-family: inherit;
       }
       #st-title-custom-name-modal input {
-        height: 34px;
+        height: 36px;
       }
       #st-title-custom-name-modal input:focus,
       #st-title-custom-name-modal textarea:focus {
@@ -2004,7 +2025,7 @@
       }
       #st-title-custom-name-modal textarea {
         width: 100%;
-        min-height: 300px;
+        min-height: 220px;
         padding: 10px 12px;
         resize: vertical;
         line-height: 1.45;
@@ -2109,6 +2130,10 @@
         flex-wrap: wrap;
         gap: 8px;
       }
+      #st-title-custom-name-modal .st-title-custom-name-alias-tags:empty,
+      #st-title-custom-name-modal .st-title-custom-name-msg:empty {
+        display: none;
+      }
       #st-title-custom-name-modal .st-title-custom-name-alias-chip {
         display: inline-flex;
         align-items: center;
@@ -2119,6 +2144,7 @@
         border-radius: 4px;
         background: var(--st-color-bg-input, var(--st-color-surface-control));
         color: var(--st-color-text-primary);
+        overflow-wrap: anywhere;
       }
       #st-title-custom-name-modal .st-title-custom-name-alias-del {
         min-width: 0;
@@ -2130,7 +2156,7 @@
       }
       #st-title-custom-name-modal .st-title-custom-name-msg {
         min-height: 20px;
-        padding: 8px 22px 0;
+        padding: 16px 0 0;
         color: var(--st-color-text-muted);
         font-size: 12px;
       }
@@ -2139,10 +2165,8 @@
         justify-content: flex-end;
         align-items: center;
         gap: 10px;
-        min-height: 61px;
         border-top: 1px solid var(--st-color-border-light);
-        padding: 14px 22px;
-        background: var(--st-color-bg-drawer);
+        padding: 16px 24px;
       }
       #st-title-custom-name-modal button {
         min-width: 0;
@@ -2172,7 +2196,7 @@
         filter: brightness(1.1);
         background: var(--st-gradient-primary-vertical);
       }
-      @media (max-width: 720px) {
+      @media (max-width: 600px) {
         #st-title-custom-name-modal {
           padding: 16px;
         }
@@ -2181,24 +2205,19 @@
           max-height: calc(100vh - 32px);
         }
         #st-title-custom-name-modal .st-title-custom-name-head {
-          gap: 10px;
-          padding: 0 12px 0 16px;
-        }
-        #st-title-custom-name-modal h3 {
-          display: none;
-        }
-        #st-title-custom-name-modal label {
-          align-items: flex-start;
-          flex-direction: column;
+          flex-wrap: wrap;
           gap: 8px;
+          padding: 16px;
         }
-        #st-title-custom-name-modal .st-title-custom-name-field,
-        #st-title-custom-name-modal .st-title-custom-name-control,
-        #st-title-custom-name-modal input,
-        #st-title-custom-name-modal textarea,
-        #st-title-custom-name-modal .st-title-custom-name-note-wrap {
-          width: 100%;
-          flex-basis: auto;
+        #st-title-custom-name-modal .st-title-custom-name-tabs {
+          order: 3;
+          flex-basis: 100%;
+        }
+        #st-title-custom-name-modal .st-title-custom-name-body {
+          padding: 16px;
+        }
+        #st-title-custom-name-modal .st-title-custom-name-actions {
+          padding: 16px;
         }
       }
       #st-title-custom-name-toast {

@@ -422,6 +422,9 @@
 
   function baseFieldHtml(field) {
     const common = `${field.attr || ""} data-title-custom-name-field="${attr(field.id)}"`;
+    if (field.readonly) {
+      return `<div class="st-title-custom-name-meta-item" data-title-custom-name-meta="${attr(field.id)}"><span id="st-title-custom-name-label-${attr(field.id)}">${esc(field.label)}</span><output ${common} aria-labelledby="st-title-custom-name-label-${attr(field.id)}">${esc(field.value)}</output></div>`;
+    }
     if (field.type === "alias-tags") {
       return `
         <label>
@@ -456,7 +459,7 @@
       <label>
         <span class="st-title-custom-name-field">${esc(field.label)}</span>
         <span class="st-title-custom-name-control">
-          <input type="text" value="${attr(field.value)}" ${field.readonly ? "disabled" : ""} ${field.placeholder ? `placeholder="${attr(field.placeholder)}"` : ""} ${common}>
+          <input type="text" value="${attr(field.value)}" ${field.placeholder ? `placeholder="${attr(field.placeholder)}"` : ""} ${common}>
           ${field.desc ? `<span class="st-title-custom-name-desc">${esc(field.desc)}</span>` : ""}
         </span>
       </label>
@@ -464,6 +467,7 @@
   }
 
   function modalTemplate(ctx, currentName, currentAlias = "") {
+    const fields = baseFields(ctx, currentName, currentAlias);
     const remaining = i18n("store.titleCustomName.remaining", "剩余 $remaining$ / $limit$", {
       remaining: NOTE_MAX,
       limit: NOTE_MAX,
@@ -479,8 +483,11 @@
           <button type="button" class="st-title-custom-name-close" data-title-custom-name-close title="${attr(i18n("common.close", "关闭"))}">×</button>
         </div>
         <div class="st-title-custom-name-body">
+          <div class="st-title-custom-name-meta">
+            ${fields.filter((field) => field.readonly).map(baseFieldHtml).join("")}
+          </div>
           <div class="st-title-custom-name-card" data-title-custom-name-panel="base">
-            ${baseFields(ctx, currentName, currentAlias).map(baseFieldHtml).join("")}
+            ${fields.filter((field) => !field.readonly).map(baseFieldHtml).join("")}
           </div>
           <div class="st-title-custom-name-card" data-title-custom-name-panel="note" hidden>
             <label>
