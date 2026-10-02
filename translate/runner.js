@@ -2112,6 +2112,8 @@
   }
 
   function edgeRequest(trans, texts, from, to) {
+    const startedAt = Date.now();
+    const requestId = globalThis.STLoggerFactory?.createRequestId?.();
     return new Promise((resolve, reject) => {
       let url = "";
       try {
@@ -2122,6 +2124,17 @@
       }
 
       const xhr = new XMLHttpRequest();
+      let settled = false;
+      const fail = (error, phase) => {
+        if (settled) return;
+        settled = true;
+        loggerFor("api-request")?.error("translate-api-request-failed", "翻译接口请求失败", {
+          requestId, phase, durationMs: Date.now() - startedAt,
+          request: { method: "POST", endpointKey: "translate-edge", url, hasBody: true, mediaType: "application/json", params: { inputCount: texts.length } },
+          response: { status: xhr.status, mediaType: xhr.getResponseHeader("content-type"), bodyLength: xhr.responseText.length }, error,
+        });
+        reject(error);
+      };
       xhr.open("POST", url, true);
       xhr.setRequestHeader("Content-Type", "application/json");
       xhr.onreadystatechange = () => {
@@ -2129,16 +2142,18 @@
           return;
         }
         if (xhr.status !== 200) {
-          reject(new Error(`划词翻译请求失败${xhr.status ? `：${xhr.status}` : ""}`));
+          fail(new Error(`划词翻译请求失败${xhr.status ? `：${xhr.status}` : ""}`), xhr.status ? "http" : "xhr-completion");
           return;
         }
         try {
           resolve(JSON.parse(xhr.responseText || "[]"));
+          settled = true;
         } catch (error) {
-          reject(error);
+          globalThis.STLoggerSchema?.markJsonError?.(error);
+          fail(error, "parse");
         }
       };
-      xhr.onerror = () => reject(new Error("划词翻译请求失败"));
+      xhr.onerror = () => fail(new Error("划词翻译请求失败"), "network");
       xhr.send(JSON.stringify(texts));
     });
   }

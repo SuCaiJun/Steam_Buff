@@ -40,7 +40,7 @@
     return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
   }
 
-  function logNetwork(config, event, message, error, status, startedAt, attempt, maxAttempts, ids, delayMs = 0) {
+  function logNetwork(config, event, message, error, response, startedAt, attempt, maxAttempts, ids, delayMs = 0, phase = "", data) {
     if (config.silentLog === true) {
       return;
     }
@@ -50,19 +50,13 @@
         : (event === "request-retry" ? "warn" : "error");
       const logger = requestLogger(config);
       const fn = logger?.[level] || logger?.info;
-      const responseStatus = Number(status) || 0;
       fn?.(event, message, {
         service: config.service,
         operationId: ids.operationId,
         requestId: ids.requestId,
-        request: {
-          method: config.method || "GET",
-          endpointKey: config.endpointKey || featureName(config),
-          url: config.logUrl || config.url,
-          params: config.logParams,
-          timeoutMs: normalizeTimeout(config),
-        },
-        response: responseStatus ? { status: responseStatus } : undefined,
+        request: globalThis.STLoggerSchema?.requestFacts?.({ ...config, body: config.data, data: config.requestData, timeoutMs: normalizeTimeout(config), endpointKey: config.endpointKey || featureName(config) }),
+        response: { ...globalThis.STLoggerSchema?.responseFacts?.(response), ...(data === undefined ? {} : globalThis.STLoggerSchema?.resultFacts?.(data)) },
+        phase,
         retry: event === "request-retry" || attempt > 1
           ? {
             attempt,
@@ -134,6 +128,7 @@
     try {
       return JSON.parse(response.data);
     } catch (error) {
+      globalThis.STLoggerSchema?.markJsonError?.(error);
       const parseError = new Error(config.parseMessage || "商店页响应解析失败");
       parseError.name = "ParseError";
       parseError.status = Number(response?.status) || 0;
@@ -306,27 +301,34 @@
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const attemptStartedAt = Date.now();
       let response = null;
+      let phase = "message-response";
+      let data;
       try {
         response = await sendMessageOnce({ ...config, method, ...ids }, timeoutMs);
         if (!response || response.success === false) {
+          if (response?.errorKind === "transport") phase = "network";
           throw createResponseError(response, "后台请求失败");
         }
+        phase = "http";
         if (response.ok === false && config.allowHttpError !== true) {
           throw createResponseError(response, "请求失败");
         }
 
-        const data = parseResponseData(response, config);
+        phase = "parse";
+        data = parseResponseData(response, config);
+        phase = "validate";
         validateResponse(config, data, response);
         logNetwork(
           config,
           "request-success",
           "商店页请求完成",
           null,
-          Number(response?.status) || 0,
+          response,
           startedAt,
           attempt + 1,
           maxAttempts,
           ids,
+          0, phase, data,
         );
         if (config.includeResponse === true) {
           return { data, response };
@@ -342,12 +344,13 @@
             "request-retry",
             "请求失败，准备重试",
             error,
-            Number(response?.status) || Number(error?.status) || 0,
+            response,
             attemptStartedAt,
             attempt + 1,
             maxAttempts,
             ids,
             delay,
+            phase, data,
           );
           await sleep(delay);
           continue;
@@ -358,11 +361,12 @@
           "request-failed",
           "商店页请求失败",
           error,
-          Number(response?.status) || Number(error?.status) || 0,
+          response,
           startedAt,
           attempt + 1,
           maxAttempts,
           ids,
+          0, phase, data,
         );
         throw error;
       }

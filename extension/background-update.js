@@ -213,38 +213,55 @@
     const operationId = String(options.operationId || "");
     const persistCache = options.persistCache !== false;
     const logNewVersion = options.logNewVersion !== false;
-    const response = await fetchWithTimeout(CFG.urls.updateLatest, {
-      method: "GET",
-      headers: CFG.client.versionedHeaders(CFG.urls.updateLatest, { Accept: "application/json" }),
-      cache: "no-cache",
-      credentials: "omit",
-    }, UPDATE_FETCH_TIMEOUT_MS);
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(httpError(response.status, text));
+    const requestId = root.STLoggerFactory?.createRequestId?.();
+    let phase = "network";
+    let responseFacts;
+    try {
+      const response = await fetchWithTimeout(CFG.urls.updateLatest, {
+        method: "GET",
+        headers: CFG.client.versionedHeaders(CFG.urls.updateLatest, { Accept: "application/json" }),
+        cache: "no-cache",
+        credentials: "omit",
+      }, UPDATE_FETCH_TIMEOUT_MS);
+      responseFacts = root.STLoggerSchema?.httpFacts?.(response);
+      phase = "response-read";
+      const text = await response.text();
+      responseFacts = { ...responseFacts, bodyLength: text.length };
+      phase = "http";
+      if (!response.ok) {
+        throw new Error(httpError(response.status, text));
+      }
+      phase = "parse";
+      const data = parseJson(text);
+      if (!data) {
+        throw new Error("官网最新版本返回解析失败");
+      }
+      phase = "validate";
+      responseFacts = { ...responseFacts, ...root.STLoggerSchema?.resultFacts?.(data, ["data"]) };
+      const result = resultFromLatest(normalizeLatest(data), Date.now(), false);
+      phase = "cache-save";
+      if (persistCache) {
+        await writeCache(result);
+      }
+      if (manual) {
+        log("info", "update-manual-check-success", "手动检查更新成功", {
+          operationId,
+          current: result.current,
+          remote: result.remote,
+          hasNew: result.hasNew,
+        });
+      } else if (logNewVersion && result.hasNew) {
+        log("info", "update-new-version-found", "自动检查发现新版本", {
+          current: result.current,
+          remote: result.remote,
+        });
+      }
+      return result;
+    } catch (error) {
+      if (error && typeof error === "object" && Object.isExtensible(error)) error.apiDiagnostics = { operationId, requestId, phase,
+        request: { method: "GET", endpointKey: "update-latest", url: CFG.urls.updateLatest, timeoutMs: UPDATE_FETCH_TIMEOUT_MS }, response: responseFacts };
+      throw error;
     }
-    const data = parseJson(text);
-    if (!data) {
-      throw new Error("官网最新版本返回解析失败");
-    }
-    const result = resultFromLatest(normalizeLatest(data), Date.now(), false);
-    if (persistCache) {
-      await writeCache(result);
-    }
-    if (manual) {
-      log("info", "update-manual-check-success", "手动检查更新成功", {
-        operationId,
-        current: result.current,
-        remote: result.remote,
-        hasNew: result.hasNew,
-      });
-    } else if (logNewVersion && result.hasNew) {
-      log("info", "update-new-version-found", "自动检查发现新版本", {
-        current: result.current,
-        remote: result.remote,
-      });
-    }
-    return result;
   }
 
   let autoPending = null;
@@ -259,6 +276,7 @@
       autoPending = fetchLatest()
         .catch((error) => {
           log("error", "update-auto-check-failed", "自动检查更新失败", {
+            ...error.apiDiagnostics,
             error,
           });
           throw error;
@@ -296,11 +314,13 @@
     } catch (error) {
       if (manual) {
         log("error", "update-manual-check-failed", "手动检查更新失败", {
+          ...error.apiDiagnostics,
           operationId,
           error,
         });
       } else if (aboutStatus) {
         log("error", "update-about-status-check-failed", "关于页版本状态查询失败", {
+          ...error.apiDiagnostics,
           error,
         });
       }

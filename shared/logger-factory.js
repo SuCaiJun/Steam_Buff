@@ -135,6 +135,7 @@
     return schema.normalizeContext({
       execution: contextExecution,
       extensionVersion: manifestVersion(),
+      online: root.navigator?.onLine,
       pageType: page.pageType || page.page || "",
       route: page.path || root.location?.pathname || "",
       ...extra,
@@ -197,7 +198,10 @@
         message,
         sessionId: String(scopedSessionId || "").trim() || sessionId,
         ...splitDetails(details),
-      }, { requestUrlPolicy: options.requestUrlPolicy });
+      }, {
+        requestUrlPolicy: options.requestUrlPolicy || root.STConfig?.diagnosticUrlPolicy?.(details.request?.url),
+        responseUrlPolicy: root.STConfig?.diagnosticUrlPolicy?.(details.response?.finalUrl),
+      });
       publish(entry);
       return entry;
     } catch {

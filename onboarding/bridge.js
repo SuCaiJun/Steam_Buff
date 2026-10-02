@@ -138,15 +138,24 @@
     handoff.disabled = true;
     const abort = new AbortController();
     const timeout = window.setTimeout(() => abort.abort(), FLOW_TIMEOUT_MS);
+    const requestId = globalThis.STLoggerFactory?.createRequestId?.();
+    let phase = "network";
+    let responseFacts;
     try {
       const response = await fetch(cfg.urls.onboardingFlow, {
         headers: { Accept: "application/json" },
         signal: abort.signal,
       });
+      responseFacts = globalThis.STLoggerSchema?.httpFacts?.(response);
+      phase = "http";
       if (!response.ok || !String(response.headers.get("content-type") || "").toLowerCase().includes("application/json")) {
         throw new Error("引导配置响应无效");
       }
-      const value = contract.cloudPageCount(await response.json());
+      phase = "parse";
+      const flow = await response.json();
+      responseFacts = { ...responseFacts, ...globalThis.STLoggerSchema?.resultFacts?.(flow) };
+      phase = "validate";
+      const value = contract.cloudPageCount(flow);
       if (!value) throw new Error("引导配置内容无效");
       pageCount = value;
       const result = contract.readPage(window.location.href);
@@ -166,7 +175,11 @@
       note.replaceChildren(...noteContent.map(node => node.cloneNode(true)));
       note.classList.remove("error");
       if (result.page > pageCount) routePage(result.page);
-    } catch {
+    } catch (error) {
+      if (phase === "parse" && error?.name === "SyntaxError") globalThis.STLoggerSchema?.markJsonError?.(error);
+      globalThis.STLoggerFactory?.createLogger?.("onboarding", "bridge").error("onboarding-flow-load-failed", "云端引导配置加载失败", {
+        requestId, phase, request: { method: "GET", endpointKey: "onboarding-flow", url: cfg.urls.onboardingFlow, timeoutMs: FLOW_TIMEOUT_MS }, response: responseFacts, error,
+      });
       setUnavailable();
     } finally {
       window.clearTimeout(timeout);

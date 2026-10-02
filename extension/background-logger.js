@@ -21,8 +21,8 @@
   const lifecycleInfoEvents = schema.lifecycleInfoEvents;
   const POLICY = Object.freeze({
     version: STORAGE_VERSION,
-    targetBytes: 5 * MB,
-    hardBytes: Math.floor(5.5 * MB),
+    targetBytes: Math.floor(3.3 * MB),
+    hardBytes: Math.floor(3.5 * MB),
     maxAgeMs: 7 * 24 * 60 * 60 * 1000,
   });
   const LEVELS = Object.freeze(["debug", "info", "network", "warn", "error", "fatal"]);
@@ -283,20 +283,21 @@
     const failures = new Set(fresh.filter(item => ["error", "fatal"].includes(item.level) && item.operationId).map(item => item.operationId));
     const byteSizes = fresh.map(entry => schema.byteLength(JSON.stringify(entry)));
     let totalBytes = fresh.length ? 2 + (fresh.length - 1) + byteSizes.reduce((total, value) => total + value, 0) : 2;
-    if (fresh.length > 1 && totalBytes > POLICY.targetBytes) {
+    if (totalBytes > POLICY.targetBytes) {
       const evictionOrder = fresh
         .map((entry, index) => ({ index, priority: retentionPriority(entry, failures) }))
         .sort((left, right) => left.priority - right.priority || left.index - right.index);
       const removed = new Set();
       for (const candidate of evictionOrder) {
-        if (fresh.length - removed.size <= 1 || totalBytes <= POLICY.targetBytes) break;
+        if (totalBytes <= POLICY.targetBytes) break;
+        if (fresh.length - removed.size <= 1 && totalBytes <= POLICY.hardBytes) break;
+        totalBytes -= byteSizes[candidate.index] + (fresh.length - removed.size > 1 ? 1 : 0);
         removed.add(candidate.index);
-        totalBytes -= byteSizes[candidate.index] + 1;
         recordDrop(health, fresh[candidate.index]);
       }
-      return { logs: fresh.filter((_entry, index) => !removed.has(index)), health };
+      return { logs: fresh.filter((_entry, index) => !removed.has(index)), health, logBytes: totalBytes };
     }
-    return { logs: fresh, health };
+    return { logs: fresh, health, logBytes: totalBytes };
   }
 
   function fallbackSignature(entry) {
@@ -376,7 +377,7 @@
     return { logs, health, fallbackMerge: mergeState, merged: merged || healthChanged };
   }
 
-  function statsFrom(logs, health) {
+  function statsFrom(logs, health, logBytes = sizeOf(logs)) {
     const list = Array.isArray(logs) ? logs : [];
     const counts = levelCounts(list);
     let firstTime = "";
@@ -389,7 +390,7 @@
     }
     return {
       count: list.length,
-      sizeBytes: sizeOf(list),
+      sizeBytes: logBytes,
       firstTime,
       lastTime,
       errorCount: counts.error + counts.fatal,
@@ -466,6 +467,7 @@
       fallback,
       logs: compacted.logs,
       health: compacted.health,
+      logBytes: compacted.logBytes,
       fallbackMerge: merged.fallbackMerge,
       changed: main._dirty === true
         || merged.merged
@@ -483,11 +485,36 @@
       health: prepared.health,
       fallbackMerge: normalizeFallbackMerge(prepared.fallbackMerge),
     };
+    // 硬上限包含存储盒元数据；超限时按相同保留优先级逐条淘汰。
+    let logBytes = prepared.logBytes ?? sizeOf(next.logs);
+    let metadataBytes = schema.byteLength(JSON.stringify({ ...next, logs: [] })) - 2;
+    if (metadataBytes + logBytes > POLICY.hardBytes) {
+      const failures = new Set(next.logs.filter(item => ["error", "fatal"].includes(item.level) && item.operationId).map(item => item.operationId));
+      const order = next.logs.map((entry, index) => ({ index, priority: retentionPriority(entry, failures) }))
+        .sort((a, b) => a.priority - b.priority || a.index - b.index);
+      const removed = new Set();
+      for (const candidate of order) {
+        logBytes -= schema.byteLength(JSON.stringify(next.logs[candidate.index])) + (next.logs.length - removed.size > 1 ? 1 : 0);
+        removed.add(candidate.index);
+        recordDrop(next.health, next.logs[candidate.index]);
+        metadataBytes = schema.byteLength(JSON.stringify({ ...next, logs: [] })) - 2;
+        if (metadataBytes + logBytes <= POLICY.hardBytes) break;
+      }
+      next.logs = next.logs.filter((_entry, index) => !removed.has(index));
+      prepared.changed = true;
+    }
+    if (metadataBytes + logBytes > POLICY.hardBytes) {
+      const error = new Error("日志存储元数据超过硬上限");
+      error.code = "LOG_CAPACITY_EXCEEDED";
+      throw error;
+    }
+    prepared.logs = next.logs;
+    prepared.health = next.health;
     if (prepared.changed || !cachedBox) {
       await storageSet({ [STORE_KEY]: next });
       cachedBox = next;
     }
-    return statsFrom(next.logs, next.health);
+    return statsFrom(next.logs, next.health, logBytes);
   }
 
   async function appendNow(input, sender) {
@@ -514,7 +541,7 @@
     const compacted = compact(logs, prepared.health);
     const nextHealth = normalizeHealth(compacted.health);
     nextHealth.truncatedFieldCount += schema.countTruncatedFields(entry);
-    return commitPrepared({ ...prepared, logs: compacted.logs, health: nextHealth, changed: true });
+    return commitPrepared({ ...prepared, logs: compacted.logs, health: nextHealth, logBytes: compacted.logBytes, changed: true });
   }
 
   function append(input, sender) {

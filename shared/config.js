@@ -211,6 +211,15 @@
     versionedHeaders,
   });
 
+  const DIAGNOSTIC_HOSTS = new Set(Object.values(HOSTS));
+  function diagnosticUrlPolicy(value) {
+    try {
+      return DIAGNOSTIC_HOSTS.has(new URL(value).hostname) ? { allowPath: true } : { originOnly: true };
+    } catch {
+      return undefined;
+    }
+  }
+
   const matchers = Object.freeze({
     host,
     isHost,
@@ -508,6 +517,7 @@
     matchers,
     distribution,
     client,
+    diagnosticUrlPolicy,
     origin,
     externalNavigation,
     libraryNameMode: Object.freeze({

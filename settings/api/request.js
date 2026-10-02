@@ -19,6 +19,7 @@
   const DEFAULT_RETRY_DELAY_MS = 500;
   const FINAL_FAILURE_LOGGED = Symbol("settings-api-final-failure-logged");
   const SUCCESS_ATTEMPT_RECORDED = Symbol("settings-api-success-attempt-recorded");
+  const RETRY_ELIGIBILITY = Symbol("settings-api-retry-eligibility");
 
   function text(key, fallback, params) {
     return root.STI18n?.text?.(key, fallback, params) ?? fallback;
@@ -53,6 +54,7 @@
     try {
       return JSON.parse(source || "{}");
     } catch (error) {
+      root.STLoggerSchema?.markJsonError?.(error);
       const err = new Error(message || text("settings.api.parseFailed", "官网接口返回解析失败"));
       err.name = "ParseError";
       err.cause = error;
@@ -71,6 +73,7 @@
   }
 
   function isRetryable(error, response) {
+    if (typeof error?.[RETRY_ELIGIBILITY] === "boolean") return error[RETRY_ELIGIBILITY];
     const status = Number(response?.status) || Number(error?.status) || 0;
     if (status === 429 || status >= 500) {
       return true;
@@ -179,18 +182,14 @@
       service: options.service,
       operationId,
       requestId,
-      request: {
-        method,
-        endpointKey: options.endpointKey || "settings-api",
-        url,
-        params: options.logParams,
-        timeoutMs,
-      },
+      request: root.STLoggerSchema?.requestFacts?.({ ...options, method, url, headers, timeoutMs, endpointKey: options.endpointKey || "settings-api" }),
     };
 
     return (async () => {
       let lastError = null;
+      if (options.traceRequest === true) log.info("api-request-start", "设置中心已发起关键 API 请求", requestDetails);
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        let phase = "message-response";
         try {
           const response = await sendMessageOnce({
             url,
@@ -204,14 +203,22 @@
             requestId,
             endpointKey: options.endpointKey || "settings-api",
             service: options.service,
+            traceRequest: options.traceRequest === true,
           }, timeoutMs);
+          if (options.traceRequest === true) log.info("api-response-received", "设置中心已收到关键 API 消息回复", { ...requestDetails, response: root.STLoggerSchema?.responseFacts?.(response), durationMs: Date.now() - startedAt });
           if (!response?.success) {
             const error = new Error(responseErrorMessage(response));
             error.status = Number(response?.status) || 0;
             error.data = response?.data;
             error.response = response;
+            // 补充原始错误名称/代码只用于诊断，沿用原有重试判定结果。
+            error[RETRY_ELIGIBILITY] = isRetryable(error, response);
+            if (response?.errorName) error.name = response.errorName;
+            if (response?.errorCode) error.code = response.errorCode;
+            if (response?.errorKind === "transport") phase = "network";
             throw error;
           }
+          phase = "http";
           if (response.ok === false && allowHttpError === false) {
             const error = new Error(text("settings.api.statusCode", "$label$返回状态码 $status$", {
               label,
@@ -222,6 +229,7 @@
             error.response = response;
             throw error;
           }
+          phase = "validate";
           if (validateResponse && !validateResponse(response)) {
             const error = new Error(options.validateMessage || text("settings.api.responseInvalid", "$label$返回格式异常", { label }));
             error.name = "ValidationError";
@@ -234,7 +242,7 @@
           if (!deferSuccessLog) {
             log.info("settings-api-request-success", "设置中心接口请求成功", {
               ...requestDetails,
-              response: Number(response?.status) ? { status: Number(response.status) } : undefined,
+              response: root.STLoggerSchema?.responseFacts?.(response),
               retry: attempt > 0 ? { attempt: attempt + 1, maxAttempts } : undefined,
               durationMs: Date.now() - startedAt,
             });
@@ -247,9 +255,8 @@
             const delayMs = retryDelayMs * Math.pow(2, attempt);
             log.warn("settings-api-request-retry", "设置中心接口请求重试", {
               ...requestDetails,
-              response: Number(response?.status) || Number(error?.status)
-                ? { status: Number(response?.status) || Number(error?.status) }
-                : undefined,
+              phase,
+              response: root.STLoggerSchema?.responseFacts?.(response),
               retry: { attempt: attempt + 1, maxAttempts, delayMs },
               error,
             });
@@ -259,9 +266,8 @@
           options[FINAL_FAILURE_LOGGED]?.();
           log.error("settings-api-request-failed", "设置中心接口请求失败", {
             ...requestDetails,
-            response: Number(response?.status) || Number(error?.status)
-              ? { status: Number(response?.status) || Number(error?.status) }
-              : undefined,
+            phase,
+            response: root.STLoggerSchema?.responseFacts?.(response),
             retry: attempt > 0 ? { attempt: attempt + 1, maxAttempts } : undefined,
             durationMs: Date.now() - startedAt,
             error,
@@ -289,17 +295,13 @@
       service: options.service,
       operationId,
       requestId,
-      request: {
-        method: "GET",
-        endpointKey: options.endpointKey || "settings-api",
-        url,
-        params: options.logParams,
-        timeoutMs: normalizeTimeout(options),
-      },
+      request: root.STLoggerSchema?.requestFacts?.({ ...options, url, method: "GET", headers: options.headers || { Accept: "application/json" }, endpointKey: options.endpointKey || "settings-api", timeoutMs: normalizeTimeout(options) }),
     };
     let response;
     let requestFailureLogged = false;
     let successAttempt = 1;
+    let phase = "message-response";
+    let payload;
     try {
       response = await request({
         ...options,
@@ -318,13 +320,16 @@
           successAttempt = attempt;
         },
       });
-      const payload = parseJson(response.data, options.parseMessage || text("settings.api.parseFailed", "官网接口返回解析失败"));
+      phase = "parse";
+      payload = parseJson(response.data, options.parseMessage || text("settings.api.parseFailed", "官网接口返回解析失败"));
+      phase = "validate";
       if (options.validate && !options.validate(payload, response)) {
         const error = new Error(options.validateMessage || text("settings.api.responseInvalid", "$label$返回格式异常", { label }));
         error.name = "ValidationError";
         error.status = Number(response?.status) || 0;
         throw error;
       }
+      phase = "business";
       if (payload?.code && Number(payload.code) !== 200) {
         const error = new Error(payload.message || text("settings.api.requestFailed", "$label$请求失败", { label }));
         error.name = "BusinessError";
@@ -333,9 +338,7 @@
       }
       log.info("settings-api-request-success", "设置中心接口请求成功", {
         ...requestDetails,
-        response: Number(response?.status) || payload?.code
-          ? { ...(Number(response?.status) ? { status: Number(response.status) } : {}), ...(payload?.code ? { businessCode: payload.code } : {}) }
-          : undefined,
+        response: { ...root.STLoggerSchema?.responseFacts?.(response), ...root.STLoggerSchema?.resultFacts?.(payload), businessCode: payload?.code, message: payload?.message },
         retry: successAttempt > 1 ? { attempt: successAttempt, maxAttempts: normalizeRetries(options) + 1 } : undefined,
         durationMs: Date.now() - startedAt,
       });
@@ -344,9 +347,8 @@
       if (!requestFailureLogged) {
         log.error("settings-api-request-failed", "设置中心接口请求失败", {
           ...requestDetails,
-          response: Number(response?.status) || Number(error?.status)
-            ? { status: Number(response?.status) || Number(error?.status) }
-            : undefined,
+          phase,
+          response: { ...root.STLoggerSchema?.responseFacts?.(response), ...root.STLoggerSchema?.resultFacts?.(payload), businessCode: payload?.code, message: payload?.message },
           durationMs: Date.now() - startedAt,
           error,
         });

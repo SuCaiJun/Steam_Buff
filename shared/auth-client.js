@@ -35,6 +35,7 @@
     try {
       return JSON.parse(source || "{}");
     } catch (error) {
+      root.STLoggerSchema?.markJsonError?.(error);
       const parseError = new Error(text("common.authResponseParseFailed", "鉴权接口响应解析失败"), { cause: error });
       parseError.name = "ParseError";
       throw parseError;
@@ -186,50 +187,56 @@
   }
 
   async function fetchDirect(request, timeoutMs) {
-    const method = String(request.method || "GET").toUpperCase();
-    const headers = root.STConfig?.client?.versionedHeaders
-      ? root.STConfig.client.versionedHeaders(request.url, request.headers || {})
-      : { ...(request.headers || {}) };
-    const init = {
-      method,
-      headers,
-      credentials: "omit",
-      cache: "no-cache",
-    };
-    if (request.data !== undefined && method !== "GET" && method !== "HEAD") {
-      init.body = typeof request.data === "string" ? request.data : JSON.stringify(request.data);
-    }
-    let response;
-    if (timeoutMs > 0 && typeof AbortController === "function") {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(timeoutError(timeoutMs)), timeoutMs);
-      try {
-        response = await fetch(request.url, { ...init, signal: controller.signal });
-      } finally {
-        clearTimeout(timer);
+    let phase = "network";
+    let diagnostics;
+    try {
+      const method = String(request.method || "GET").toUpperCase();
+      const headers = root.STConfig?.client?.versionedHeaders
+        ? root.STConfig.client.versionedHeaders(request.url, request.headers || {})
+        : { ...(request.headers || {}) };
+      const init = { method, headers, credentials: "omit", cache: "no-cache" };
+      if (request.data !== undefined && method !== "GET" && method !== "HEAD") {
+        init.body = typeof request.data === "string" ? request.data : JSON.stringify(request.data);
       }
-    } else {
-      response = await fetch(request.url, init);
-    }
-    const data = await response.text();
-    if (!response.ok && request.allowHttpError !== true) {
-      const error = new Error(text("common.backgroundRequestFailed", "后台请求失败"));
-      error.status = response.status;
+      let response;
+      if (timeoutMs > 0 && typeof AbortController === "function") {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(timeoutError(timeoutMs)), timeoutMs);
+        try {
+          response = await fetch(request.url, { ...init, signal: controller.signal });
+        } finally {
+          clearTimeout(timer);
+        }
+      } else {
+        response = await fetch(request.url, init);
+      }
+      diagnostics = root.STLoggerSchema?.httpFacts?.(response);
+      phase = "response-read";
+      const data = await response.text();
+      diagnostics = { ...diagnostics, bodyLength: data.length };
+      phase = "http";
+      if (!response.ok && request.allowHttpError !== true) {
+        const error = new Error(text("common.backgroundRequestFailed", "后台请求失败"));
+        error.status = response.status;
+        throw error;
+      }
+      return { success: true, data, status: response.status, ok: response.ok,
+        diagnostics: root.STLoggerSchema?.normalizeResponse?.(diagnostics, { urlPolicy: root.STConfig?.diagnosticUrlPolicy?.(response.url) }),
+      };
+    } catch (error) {
+      if (error && typeof error === "object" && Object.isExtensible(error)) {
+        error.phase = phase;
+        error.diagnostics = diagnostics;
+      }
       throw error;
     }
-    return {
-      success: true,
-      data,
-      status: response.status,
-      ok: response.ok,
-    };
   }
 
   function fetchBg(request = {}, options = {}) {
     const startedAt = Date.now();
     const timeoutMs = Number(request.timeoutMs) || DEFAULT_TIMEOUT_MS;
     const method = String(request.method || "GET").toUpperCase();
-    const operationId = String(request.operationId || "").trim();
+    const operationId = String(request.operationId || "").trim() || root.STLoggerFactory?.createOperationId?.() || "";
     const requestId = String(request.requestId || "").trim() || root.STLoggerFactory?.createRequestId?.() || "";
     const logFailures = options.logFailures !== false;
 
@@ -242,20 +249,18 @@
         service: "steam-buff-api",
         operationId,
         requestId,
-        request: {
-          method,
-          endpointKey: "auth-request",
-          url: request.url,
-          timeoutMs,
-        },
+        request: root.STLoggerSchema?.requestFacts?.({ ...request, method, endpointKey: "auth-request", timeoutMs }),
         durationMs: Date.now() - startedAt,
         ...extra,
+        phase: extra.error?.phase || (extra.error?.name === "TimeoutError" ? "timeout" : "message-response"),
+        response: extra.response || extra.error?.diagnostics,
       };
     }
 
     return new Promise((resolve, reject) => {
       let done = false;
       let timer = 0;
+      let replyFacts;
       const finish = (fn, value) => {
         if (done) {
           return;
@@ -263,6 +268,9 @@
         done = true;
         if (timer) {
           clearTimeout(timer);
+        }
+        if (fn === reject && value && typeof value === "object" && Object.isExtensible(value)) {
+          value.apiDiagnostics = requestMeta({ error: value, response: replyFacts });
         }
         fn(value);
       };
@@ -279,6 +287,7 @@
         // 后台 Service Worker 不能给自己发 STORE_FETCH，刷新令牌必须在进程内发网
         if (inServiceWorker()) {
           fetchDirect(request, timeoutMs).then((response) => {
+            replyFacts = root.STLoggerSchema?.responseFacts?.(response);
             if (done) {
               return;
             }
@@ -286,6 +295,7 @@
               const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
               reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
                 reason: "invalid-response",
+                response: root.STLoggerSchema?.responseFacts?.(response),
                 error,
               }));
               finish(reject, error);
@@ -294,8 +304,11 @@
             if (!response?.success) {
               const error = new Error(backgroundRequestMessage(response));
               error.status = Number(response?.status) || 0;
+              if (response?.errorName) error.name = response.errorName;
+              if (response?.errorCode) error.code = response.errorCode;
+              if (response?.errorKind === "transport") error.phase = "network";
               reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-                response: error.status ? { status: error.status } : undefined,
+                response: root.STLoggerSchema?.responseFacts?.(response),
                 error,
               }));
               finish(reject, error);
@@ -326,6 +339,7 @@
             timeoutMs,
             logFailures: false,
           }).then((response) => {
+            replyFacts = root.STLoggerSchema?.responseFacts?.(response);
             if (done) {
               return;
             }
@@ -333,6 +347,7 @@
               const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
               reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
                 reason: "invalid-response",
+                response: root.STLoggerSchema?.responseFacts?.(response),
                 error,
               }));
               finish(reject, error);
@@ -341,8 +356,11 @@
             if (!response?.success) {
               const error = new Error(backgroundRequestMessage(response));
               error.status = Number(response?.status) || 0;
+              if (response?.errorName) error.name = response.errorName;
+              if (response?.errorCode) error.code = response.errorCode;
+              if (response?.errorKind === "transport") error.phase = "network";
               reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-                response: error.status ? { status: error.status } : undefined,
+                response: root.STLoggerSchema?.responseFacts?.(response),
                 error,
               }));
               finish(reject, error);
@@ -369,6 +387,7 @@
           endpointKey: "auth-request",
           service: "steam-buff-api",
         }, (response) => {
+          replyFacts = root.STLoggerSchema?.responseFacts?.(response);
           if (done) {
             return;
           }
@@ -385,6 +404,7 @@
             const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
             reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
               reason: "invalid-response",
+              response: root.STLoggerSchema?.responseFacts?.(response),
               error,
             }));
             finish(reject, error);
@@ -393,8 +413,11 @@
           if (!response?.success) {
             const error = new Error(backgroundRequestMessage(response));
             error.status = Number(response?.status) || 0;
+            if (response?.errorName) error.name = response.errorName;
+            if (response?.errorCode) error.code = response.errorCode;
+            if (response?.errorKind === "transport") error.phase = "network";
             reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-              response: error.status ? { status: error.status } : undefined,
+              response: root.STLoggerSchema?.responseFacts?.(response),
               error,
             }));
             finish(reject, error);
@@ -541,8 +564,11 @@
       const startedAt = Date.now();
       // 401 刷新属于这次认证请求，超时与 ownerId 都沿用调用方，业务入口不再各写一套
       const timeoutMs = Number(diagnostics.timeoutMs) > 0 ? Number(diagnostics.timeoutMs) : DEFAULT_TIMEOUT_MS;
+      let response;
+      let body;
+      let phase = "message-response";
       try {
-        const response = await fetchBg({
+        response = await fetchBg({
           url: refreshUrl,
           method: "POST",
           headers: {
@@ -557,7 +583,9 @@
           operationId: diagnostics.operationId || "",
           requestId: diagnostics.requestId || "",
         }, { logFailures: false });
-        const body = parseJson(response.data);
+        phase = "parse";
+        body = parseJson(response.data);
+        phase = "business";
         const code = Number(body?.code) || Number(response.status) || 0;
         // 注: 只有服务端确认 401 且存储仍是这次发出的令牌才清除；超时、断网、5xx 和非预期正文保留现有凭据
         if (refreshRejected(code)) {
@@ -574,7 +602,8 @@
             log.warn("auth-client-refresh-failed", "鉴权令牌刷新失败", {
               operationId: diagnostics.operationId || "",
               requestId: diagnostics.requestId || "",
-              response: { status: code },
+              response: { ...root.STLoggerSchema?.responseFacts?.(response), businessCode: code, ...root.STLoggerSchema?.resultFacts?.(body, ["access_token", "refresh_token", "expires_in"]) },
+              phase,
               durationMs: Date.now() - startedAt,
               error,
             });
@@ -611,6 +640,10 @@
         log.warn("auth-client-refresh-failed", "鉴权令牌刷新失败", {
           operationId: diagnostics.operationId || "",
           requestId: diagnostics.requestId || "",
+          ...error.apiDiagnostics,
+          phase: error.apiDiagnostics?.phase || phase,
+          request: error.apiDiagnostics?.request || { method: "POST", endpointKey: "auth-refresh", url: refreshUrl, timeoutMs, hasBody: true, mediaType: "application/json" },
+          response: error.apiDiagnostics?.response || { ...root.STLoggerSchema?.responseFacts?.(response), ...root.STLoggerSchema?.resultFacts?.(body, ["access_token", "refresh_token", "expires_in"]), businessCode: body?.code, message: body?.message },
           durationMs: Date.now() - startedAt,
           error,
         });

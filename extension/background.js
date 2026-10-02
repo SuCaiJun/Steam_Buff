@@ -504,8 +504,10 @@
         method: String(entry?.method || "GET"),
         endpointKey: String(entry?.endpointKey || feature),
         url: entry?.url,
+        ...entry?.request,
       },
-      response: Number(entry?.status) ? { status: Number(entry.status) } : undefined,
+      response: entry?.response || (Number(entry?.status) ? { status: Number(entry.status) } : undefined),
+      phase: entry?.phase,
     });
   }
 
@@ -1380,6 +1382,7 @@
       operationId: request?.operationId,
       requestId: request?.requestId,
       endpointKey: request?.endpointKey,
+      request: globalThis.STLoggerSchema.requestFacts({ ...request, endpointKey: request?.endpointKey || entry.feature }),
     });
   }
 
@@ -1439,6 +1442,16 @@
   /* 商店页跨域代理 */
   async function storeFetch(request, sender, sendResponse) {
     const startedAt = Date.now();
+    request.requestId ||= globalThis.STLoggerFactory.createRequestId();
+    request.operationId ||= globalThis.STLoggerFactory.createOperationId();
+    const checkpoint = (event, message, response) => {
+      if (request.traceRequest === true) backgroundLogger("store-fetch").info(event, message, {
+        operationId: request.operationId, requestId: request.requestId,
+        request: globalThis.STLoggerSchema.requestFacts({ ...request, endpointKey: request.endpointKey || "store-fetch" }),
+        response, durationMs: Date.now() - startedAt,
+      });
+    };
+    checkpoint("api-request-received", "后台已收到关键 API 请求");
     let url;
     try {
       url = new URL(request.url);
@@ -1483,9 +1496,19 @@
       init.body = body;
     }
 
+    let phase = "network";
+    let responseFacts;
     try {
       const response = await fetchWithTimeout(url.toString(), init, request.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      responseFacts = { ...globalThis.STLoggerSchema.httpFacts(response), networkDurationMs: Date.now() - startedAt };
+      phase = "response-read";
+      const readStartedAt = Date.now();
       const data = await response.text();
+      responseFacts.bodyLength = data.length;
+      responseFacts.readDurationMs = Date.now() - readStartedAt;
+      phase = "http";
+      const diagnostics = globalThis.STLoggerSchema.normalizeResponse(responseFacts, { urlPolicy: CFG.diagnosticUrlPolicy(response.url) });
+      checkpoint("api-response-ready", "后台已完成关键 API 请求并准备回复", responseFacts);
       if (!response.ok && !request.allowHttpError) {
         const msg = httpError(response.status, data);
         const requestError = new Error(msg);
@@ -1501,8 +1524,10 @@
           status: response.status,
           durationMs: Date.now() - startedAt,
           error: requestError,
+          response: responseFacts,
+          phase,
         });
-        sendResponse({ success: false, error: msg, data, status: response.status, ok: false, headers: cleanResponseHeaders(response.headers) });
+        sendResponse({ success: false, error: msg, data, status: response.status, ok: false, headers: cleanResponseHeaders(response.headers), diagnostics });
         return;
       }
       if (!response.ok) {
@@ -1514,9 +1539,11 @@
           url: url.toString(),
           status: response.status,
           durationMs: Date.now() - startedAt,
+          response: responseFacts,
+          phase,
         });
       }
-      sendResponse({ success: true, data, status: response.status, ok: response.ok, headers: cleanResponseHeaders(response.headers) });
+      sendResponse({ success: true, data, status: response.status, ok: response.ok, headers: cleanResponseHeaders(response.headers), diagnostics });
     } catch (error) {
       const msg = error.message || String(error);
       storeLogNetwork(request, {
@@ -1528,6 +1555,8 @@
         status: 0,
         durationMs: Date.now() - startedAt,
         error,
+        response: responseFacts,
+        phase,
       });
       sendResponse({
         success: false,
@@ -1535,6 +1564,7 @@
         status: 0,
         ok: false,
         errorKind: "transport",
+        diagnostics: responseFacts ? globalThis.STLoggerSchema.normalizeResponse(responseFacts, { urlPolicy: CFG.diagnosticUrlPolicy(responseFacts.finalUrl) }) : undefined,
         ...(error?.name ? { errorName: String(error.name) } : {}),
         ...(error?.code ? { errorCode: String(error.code) } : {}),
       });
@@ -1642,6 +1672,7 @@
     try {
       payload = JSON.parse(data);
     } catch (error) {
+      globalThis.STLoggerSchema?.markJsonError?.(error);
       const result = new TypeError("Steam 实时在线人数响应不是 JSON");
       result.cause = error;
       throw result;
@@ -1658,6 +1689,7 @@
     try {
       payload = JSON.parse(data);
     } catch (error) {
+      globalThis.STLoggerSchema?.markJsonError?.(error);
       const result = new TypeError("Augmented Steam 玩家统计响应不是 JSON");
       result.cause = error;
       throw result;
@@ -1680,13 +1712,39 @@
     return { historicalPeak: peak, hltb };
   }
 
+  async function fetchDiagnosticText(url, init, timeoutMs) {
+    let phase = "network";
+    let diagnostics;
+    const startedAt = Date.now();
+    try {
+      const response = await fetchWithTimeout(url, init, timeoutMs);
+      diagnostics = { ...globalThis.STLoggerSchema.httpFacts(response), networkDurationMs: Date.now() - startedAt };
+      phase = "response-read";
+      const readStartedAt = Date.now();
+      const data = await response.text();
+      diagnostics.bodyLength = data.length;
+      diagnostics.readDurationMs = Date.now() - readStartedAt;
+      return { response, data, diagnostics };
+    } catch (error) {
+      if (error && typeof error === "object" && Object.isExtensible(error)) {
+        error.phase = phase;
+        error.diagnostics = diagnostics;
+      }
+      throw error;
+    }
+  }
+
   async function fetchGmChartsPlayerStats(request, appId) {
     const startedAt = Date.now();
     const url = CFG.vendors.gmCharts.chartData(appId);
     const requestMeta = { ...request, method: "GET", service: "gmcharts", endpointKey: "gmcharts-chart-data", logUrl: url };
+    let diagnostics;
+    let phase = "network";
     try {
-      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
-      const data = await response.text();
+      const result = await fetchDiagnosticText(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const { response, data } = result;
+      diagnostics = result.diagnostics;
+      phase = "http";
       if (!response.ok) {
         const error = new Error(`gmCharts 请求失败（HTTP ${response.status}）`);
         error.name = "HttpError";
@@ -1694,10 +1752,10 @@
         error.status = response.status;
         throw error;
       }
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "gmCharts 在线人数数据请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "gmCharts 在线人数数据请求完成", method: "GET", url, status: response.status, response: diagnostics, durationMs: Date.now() - startedAt });
       return data;
     } catch (error) {
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "gmCharts 在线人数数据请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "gmCharts 在线人数数据请求失败", method: "GET", url, status: Number(error?.status) || 0, response: diagnostics || error.diagnostics, phase: error.phase || phase, durationMs: Date.now() - startedAt, error });
       throw error;
     }
   }
@@ -1706,9 +1764,13 @@
     const startedAt = Date.now();
     const url = CFG.vendors.steamApi.currentPlayers(appId);
     const requestMeta = { ...request, method: "GET", service: "steam-api", endpointKey: "steam-current-players", logUrl: url };
+    let diagnostics;
+    let phase = "network";
     try {
-      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
-      const data = await response.text();
+      const result = await fetchDiagnosticText(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const { response, data } = result;
+      diagnostics = result.diagnostics;
+      phase = "http";
       if (!response.ok) {
         const error = new Error(`Steam 实时在线人数请求失败（HTTP ${response.status}）`);
         error.name = "HttpError";
@@ -1716,11 +1778,12 @@
         error.status = response.status;
         throw error;
       }
+      phase = "parse";
       const currentPlayers = parseSteamCurrentPlayers(data);
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Steam 实时在线人数请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Steam 实时在线人数请求完成", method: "GET", url, status: response.status, response: diagnostics, durationMs: Date.now() - startedAt });
       return currentPlayers;
     } catch (error) {
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Steam 实时在线人数请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Steam 实时在线人数请求失败", method: "GET", url, status: Number(error?.status) || 0, response: diagnostics || error.diagnostics, phase: error.phase || phase, durationMs: Date.now() - startedAt, error });
       throw error;
     }
   }
@@ -1729,9 +1792,13 @@
     const startedAt = Date.now();
     const url = CFG.vendors.augmentedSteam.app(appId);
     const requestMeta = { ...request, method: "GET", service: "augmented-steam", endpointKey: "augmented-steam-app", logUrl: url };
+    let diagnostics;
+    let phase = "network";
     try {
-      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
-      const data = await response.text();
+      const result = await fetchDiagnosticText(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const { response, data } = result;
+      diagnostics = result.diagnostics;
+      phase = "http";
       if (!response.ok) {
         const error = new Error(`Augmented Steam 玩家统计请求失败（HTTP ${response.status}）`);
         error.name = "HttpError";
@@ -1739,11 +1806,12 @@
         error.status = response.status;
         throw error;
       }
+      phase = "parse";
       const playerStats = parseAugmentedSteamPlayerStats(data);
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Augmented Steam 玩家统计请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Augmented Steam 玩家统计请求完成", method: "GET", url, status: response.status, response: diagnostics, durationMs: Date.now() - startedAt });
       return playerStats;
     } catch (error) {
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Augmented Steam 玩家统计请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Augmented Steam 玩家统计请求失败", method: "GET", url, status: Number(error?.status) || 0, response: diagnostics || error.diagnostics, phase: error.phase || phase, durationMs: Date.now() - startedAt, error });
       throw error;
     }
   }
@@ -2595,25 +2663,30 @@
     });
   }
 
-  function fetchAiChat(url, next, timeoutMs) {
-    return fetchWithTimeout(url, {
-      method: "POST",
-      headers: next.headers,
-      body: JSON.stringify(next.body),
-      cache: "no-cache",
-      credentials: "omit",
-    }, timeoutMs)
-      .then((response) => response.text().then((text) => {
-        if (!response.ok) {
-          throw new Error(httpError(response.status, text));
-        }
-        const data = parseJson(text);
-        const content = globalThis.STAI?.chatText?.(data);
-        if (!content) {
-          throw new Error("AI 响应格式异常");
-        }
-        return { content, status: response.status };
-      }));
+  async function fetchAiChat(url, next, timeoutMs) {
+    const { response, data: text, diagnostics } = await fetchDiagnosticText(url, {
+      method: "POST", headers: next.headers, body: JSON.stringify(next.body), cache: "no-cache", credentials: "omit",
+    }, timeoutMs);
+    let phase = "http";
+    try {
+      if (!response.ok) {
+        const error = new Error(httpError(response.status, text));
+        error.status = response.status;
+        throw error;
+      }
+      phase = "parse";
+      const data = parseJson(text);
+      phase = "validate";
+      const content = globalThis.STAI?.chatText?.(data);
+      if (!content) throw new Error("AI 响应格式异常");
+      return { content, status: response.status };
+    } catch (error) {
+      if (error && typeof error === "object" && Object.isExtensible(error)) {
+        error.phase = phase;
+        error.diagnostics = diagnostics;
+      }
+      throw error;
+    }
   }
 
   function aiChat(request, sender, sendResponse) {
@@ -2661,7 +2734,11 @@
       })
       .catch((error) => {
         const msg = error.message || String(error);
-        logError("ai", "request-failed", "AI 请求失败", error);
+        logError("ai", "request-failed", "AI 请求失败", error, {
+          operationId: request.operationId, requestId: request.requestId, phase: error.phase || "permission",
+          request: globalThis.STLoggerSchema.requestFacts({ ...next, url: url.toString(), method: "POST", timeoutMs, endpointKey: "ai-chat" }),
+          response: error.diagnostics,
+        });
         sendResponse({ success: false, code: error?.code || "AI_REQUEST_FAILED", error: msg });
       });
   }
@@ -2715,6 +2792,8 @@
       ? setTimeout(() => controller.abort(timeoutError(timeout)), timeout)
       : 0;
     let reader = null;
+    let phase = "network";
+    let diagnostics;
     try {
       const response = await fetch(url, {
         method: "POST",
@@ -2724,6 +2803,8 @@
         credentials: "omit",
         signal: controller.signal,
       });
+      diagnostics = globalThis.STLoggerSchema.httpFacts(response);
+      phase = "http";
       if (!response.ok) {
         const error = new Error(httpError(response.status, ""));
         error.name = "HttpError";
@@ -2731,6 +2812,7 @@
         error.status = response.status;
         throw error;
       }
+      phase = "validate";
       if (!response.body?.getReader) {
         const error = new Error("AI 服务未返回可读取的流式响应");
         error.code = "AI_STREAM_BODY_UNAVAILABLE";
@@ -2745,6 +2827,7 @@
       let finished = false;
 
       const consume = (block) => {
+        phase = "parse";
         const event = parseAiStreamEvent(block);
         if (event.done) {
           finished = true;
@@ -2757,6 +2840,7 @@
       };
 
       while (!finished) {
+        phase = "response-read";
         const part = await reader.read();
         if (part.done) break;
         buffer += decoder.decode(part.value, { stream: true });
@@ -2782,6 +2866,12 @@
         }
       }
       return { content, chunks, status: response.status };
+    } catch (error) {
+      if (error && typeof error === "object" && Object.isExtensible(error)) {
+        error.phase = phase;
+        error.diagnostics = diagnostics;
+      }
+      throw error;
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -2897,6 +2987,9 @@
           requestId,
           model,
           status: Number(error?.status) || 0,
+          phase: error.phase || "permission",
+          request: globalThis.STLoggerSchema.requestFacts({ ...next, url: url.toString(), method: "POST", timeoutMs, endpointKey: "ai-chat-stream" }),
+          response: error.diagnostics,
           durationMs: Date.now() - startedAt,
         });
         fail(error?.code || error?.name || "AI_STREAM_FAILED", message, Number(error?.status) || 0);

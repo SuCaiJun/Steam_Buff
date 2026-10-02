@@ -136,6 +136,10 @@
     return globalThis.STLoggerFactory?.createOperationId?.() || "";
   }
 
+  function createRequestId() {
+    return globalThis.STLoggerFactory?.createRequestId?.() || "";
+  }
+
   function el(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -327,12 +331,13 @@
   function parseJson(text) {
     try {
       return JSON.parse(text || "{}");
-    } catch {
-      throw new Error("接口返回解析失败，请稍后重试。");
+    } catch (cause) {
+      globalThis.STLoggerSchema?.markJsonError?.(cause);
+      throw new Error("接口返回解析失败，请稍后重试。", { cause });
     }
   }
 
-  function storeFetch(url, data, token = "", method = "POST", base = "") {
+  function storeFetch(url, data, token = "", method = "POST", base = "", diagnostics = {}) {
     const api = chromeApi();
     if (!api?.runtime?.sendMessage) {
       return Promise.reject(new Error("当前是本地预览模式，安装为扩展后可在此获取授权码。"));
@@ -342,28 +347,48 @@
       "Content-Type": "application/json",
     };
     if (token) headers.Authorization = `Bearer ${token}`;
+    const requestId = createRequestId();
+    const operationId = diagnostics.operationId || state.loginOperationId || createOperationId();
+    const payload = {
+      type: "STORE_FETCH", url: `${base}${url}`, method, headers, data: data || {},
+      allowHttpError: true, timeoutMs: 12_000, operationId, requestId,
+      endpointKey: `onboarding:${url}`, service: "sucaijun-api", traceRequest: diagnostics.traceRequest === true,
+    };
+    const details = { operationId, requestId, request: globalThis.STLoggerSchema.requestFacts(payload) };
+    const startedAt = Date.now();
+    if (payload.traceRequest) log.info("onboarding-api-request-start", "安装引导已发起关键 API 请求", details);
     return new Promise((resolve, reject) => {
       try {
-        api.runtime.sendMessage({
-          type: "STORE_FETCH",
-          url: `${base}${url}`,
-          method,
-          headers,
-          data: data || {},
-          allowHttpError: true,
-          timeoutMs: 12_000,
-        }, (res) => {
+        api.runtime.sendMessage(payload, (res) => {
           const error = api.runtime.lastError;
-          if (error || !res?.success) {
-            reject(new Error(error?.message || res?.error || "登录请求失败，请稍后重试。"));
-            return;
+          let phase = "message-response";
+          let body;
+          try {
+            const response = globalThis.STLoggerSchema.responseFacts(res);
+            if (payload.traceRequest) log.info("onboarding-api-response-received", "安装引导已收到关键 API 消息回复", { ...details, response, durationMs: Date.now() - startedAt });
+            if (error || !res?.success) {
+              const failure = new Error(error?.message || res?.error || "登录请求失败，请稍后重试。");
+              if (res?.errorName) failure.name = res.errorName;
+              if (res?.errorCode) failure.code = res.errorCode;
+              if (typeof res?.status === "number") failure.status = res.status;
+              if (res?.errorKind === "transport") phase = "network";
+              throw failure;
+            }
+            phase = "parse";
+            body = parseJson(res.data);
+            const diagnostics = { ...response, ...globalThis.STLoggerSchema.resultFacts(body, ["code", "device_code", "user_code", "interval", "expires_in"]), businessCode: body?.code, message: body?.message };
+            if (payload.traceRequest) log.info("api-response-parsed", "设备登录接口回复已解析", { ...details, response: diagnostics, durationMs: Date.now() - startedAt });
+            resolve({ status: res.status || 0, body, diagnostics, requestId, operationId });
+          } catch (failure) {
+            log.error("onboarding-api-request-failed", "安装引导 API 请求失败", {
+              ...details, phase, response: { ...globalThis.STLoggerSchema.responseFacts(res), ...(body === undefined ? {} : globalThis.STLoggerSchema.resultFacts(body)) },
+              durationMs: Date.now() - startedAt, error: failure,
+            });
+            reject(failure);
           }
-          resolve({
-            status: res.status || 0,
-            body: parseJson(res.data),
-          });
         });
       } catch (error) {
+        log.error("onboarding-api-request-failed", "安装引导 API 请求发送失败", { ...details, phase: "message-send", durationMs: Date.now() - startedAt, error });
         reject(error);
       }
     });
@@ -1292,9 +1317,15 @@
     render();
     try {
       const cfg = await sharedConfig();
-      const res = await storeFetch("/auth/device/start", { device_name: "Steam Buff 引导页" }, "", "POST", cfg.urls.loginAuthBase);
+      const res = await storeFetch("/auth/device/start", { device_name: "Steam Buff 引导页" }, "", "POST", cfg.urls.loginAuthBase, { traceRequest: true });
       if (!okCode(res) || !res.body?.device_code) {
-        throw new Error(res.body?.message || "获取授权码失败");
+        const error = new Error(res.body?.message || "获取授权码失败");
+        log.error("onboarding-api-response-invalid", "设备登录接口返回未通过校验", {
+          operationId: res.operationId, requestId: res.requestId, phase: "validate",
+          request: { method: "POST", endpointKey: "onboarding:/auth/device/start", url: `${cfg.urls.loginAuthBase}/auth/device/start` },
+          response: res.diagnostics, error,
+        });
+        throw error;
       }
       state.loginDevice = {
         device_code: res.body.device_code,
@@ -1857,17 +1888,29 @@
 
     const abort = new AbortController();
     const timeout = window.setTimeout(() => abort.abort(), FLOW_TIMEOUT_MS);
+    const requestId = createRequestId();
+    let requestUrl;
+    let responseFacts;
+    let phase = "configuration";
     try {
       const cfg = await sharedConfig();
+      requestUrl = cfg.urls.onboardingFlow;
+      phase = "network";
       const response = await fetch(cfg.urls.onboardingFlow, {
         headers: { Accept: "application/json" },
         signal: abort.signal,
       });
       const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+      responseFacts = globalThis.STLoggerSchema.httpFacts(response);
+      phase = "http";
       if (!response.ok || !contentType.includes("application/json")) {
         throw new Error("引导配置响应无效");
       }
-      const pageCount = CONTRACT.cloudPageCount(await response.json());
+      phase = "parse";
+      const flow = await response.json();
+      responseFacts = { ...responseFacts, ...globalThis.STLoggerSchema.resultFacts(flow) };
+      phase = "validate";
+      const pageCount = CONTRACT.cloudPageCount(flow);
       if (!pageCount) throw new Error("引导配置内容无效");
       state.cloudCount = pageCount;
       state.total = CONTRACT.totalPageCount(pageCount);
@@ -1911,7 +1954,9 @@
       }
       render();
     } catch (error) {
+      if (phase === "parse" && error?.name === "SyntaxError") globalThis.STLoggerSchema.markJsonError(error);
       log.error("onboarding-flow-load-failed", "安装引导配置加载失败", {
+        requestId, phase, request: { method: "GET", endpointKey: "onboarding-flow", url: requestUrl, timeoutMs: FLOW_TIMEOUT_MS }, response: responseFacts,
         error,
       });
       setPhase("error", "引导配置加载失败", "无法验证云端页面数量，请刷新页面或返回首页。");

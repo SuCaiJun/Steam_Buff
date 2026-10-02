@@ -217,9 +217,11 @@
       capturedAt: bjTime(exportTs),
       capturedTs: exportTs,
       browser: browserInfo(nav.userAgent || ""),
+      extension: extensionInfo(),
       page: {
         url: safeUrl(root.location?.href || ""),
       },
+      ...(typeof nav.onLine === "boolean" ? { online: nav.onLine } : {}),
       display: {
         screenWidth: Math.max(0, Math.round(num(scr.width))),
         screenHeight: Math.max(0, Math.round(num(scr.height))),

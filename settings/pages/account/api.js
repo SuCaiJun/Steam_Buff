@@ -40,6 +40,8 @@
     if (!requestApi?.request) {
       return Promise.reject(new Error(t("settings.account.requestUnavailable", "设置中心请求封装未初始化")));
     }
+    const operationId = diagnostics.operationId || root.STLoggerFactory?.createOperationId?.() || "";
+    const requestId = diagnostics.requestId || root.STLoggerFactory?.createRequestId?.() || "";
     return requestApi.request({
       url: url(path, base),
       method,
@@ -48,16 +50,33 @@
       allowHttpError: true,
       label: t("settings.account.requestLabel", "用户中心接口"),
       timeoutMs: 12_000,
-      operationId: diagnostics.operationId || "",
-      requestId: diagnostics.requestId || "",
+      operationId,
+      requestId,
+      traceRequest: path === "/auth/device/start",
+      endpointKey: `account:${path}`,
+      service: "sucaijun-api",
       validateResponse(response) {
         return typeof response?.data === "string";
       },
-    }).then((response) => ({
-      status: response.status || 0,
-      ok: response.ok !== false,
-      body: ctx.parseJson(response.data),
-    }));
+    }).then((response) => {
+      try {
+        const body = ctx.parseJson(response.data);
+        const summary = { ...root.STLoggerSchema?.responseFacts?.(response), ...root.STLoggerSchema?.resultFacts?.(body, ["code", "device_code", "user_code", "access_token", "expires_in"]), businessCode: body?.code, message: body?.message };
+        const details = { operationId, requestId, phase: "business",
+          request: root.STLoggerSchema?.requestFacts?.({ method, url: url(path, base), headers, data, endpointKey: `account:${path}`, timeoutMs: 12_000 }), response: summary };
+        const logger = root.STLoggerFactory?.createLogger?.("settings", "account-api");
+        if (!okCode({ status: response.status, body })) logger?.network("account-api-business-failed", "用户中心 API 返回业务失败", details);
+        else if (path === "/auth/device/start") logger?.info("api-response-parsed", "设备登录接口回复已解析", details);
+        return { status: response.status || 0, ok: response.ok !== false, body };
+      } catch (error) {
+        root.STLoggerFactory?.createLogger?.("settings", "account-api").error("settings-api-response-parse-failed", "用户中心接口返回解析失败", {
+          operationId, requestId, phase: "parse", error,
+          request: root.STLoggerSchema?.requestFacts?.({ method, url: url(path, base), headers, data, endpointKey: `account:${path}`, timeoutMs: 12_000 }),
+          response: root.STLoggerSchema?.responseFacts?.(response),
+        });
+        throw error;
+      }
+    });
   }
 
   function okCode(res) {
