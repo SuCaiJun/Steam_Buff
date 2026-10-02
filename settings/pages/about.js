@@ -23,8 +23,10 @@
   const FEEDBACK_URL = CFG.urls.feedback;
   const DONATIONS_API = CFG.supporter("/donations?limit=100");
   const DONATION_CACHE_MS = 60 * 60 * 1000;
-  const ABOUT_DONOR_MARQUEE_SPEED_PX_PER_SECOND = 8;
+  const ABOUT_DONOR_MARQUEE_SPEED_PX_PER_SECOND = 25;
   const ABOUT_DONOR_MARQUEE_DURATION_VAR = "--about-donors-marquee-duration";
+  const ABOUT_DONOR_MARQUEE_ENTRY_OFFSET_VAR = "--about-donors-marquee-entry-offset";
+  const ABOUT_DONOR_MARQUEE_ENTRY_DURATION_VAR = "--about-donors-marquee-entry-duration";
   const vendorCatalog = globalThis.STVendorCatalog;
   if (!Array.isArray(vendorCatalog?.openSourceLibs)) {
     throw new Error("[Steam Buff] 关于页面依赖 STVendorCatalog 未加载");
@@ -608,12 +610,20 @@
       align-items: center;
       gap: 10px;
       min-width: max-content;
-      animation: about-marquee var(--about-donors-marquee-duration) linear infinite;
+      visibility: hidden;
+      animation:
+        about-marquee-entry var(--about-donors-marquee-entry-duration) linear both,
+        about-marquee var(--about-donors-marquee-duration) linear var(--about-donors-marquee-entry-duration) infinite;
       white-space: nowrap;
     }
 
     .about-marquee:hover .about-marquee-track {
       animation-play-state: paused;
+    }
+
+    @keyframes about-marquee-entry {
+      from { visibility: visible; transform: translateX(var(--about-donors-marquee-entry-offset)); }
+      to { visibility: visible; transform: translateX(0); }
     }
 
     @keyframes about-marquee {
@@ -724,6 +734,7 @@
         display: grid;
         grid-template-columns: 1fr;
         animation: none;
+        visibility: visible;
         white-space: normal;
       }
     }
@@ -1423,20 +1434,27 @@
 
   function applyDonorMarqueeSpeed(shadow) {
     const body = shadow?.querySelector?.(".body");
+    const marquee = shadow?.querySelector?.(".about-marquee");
     const track = shadow?.querySelector?.(".about-marquee-track");
-    if (!body || !track || typeof track.getBoundingClientRect !== "function") {
+    if (!body || !marquee || !track || typeof track.getBoundingClientRect !== "function") {
       return;
     }
 
+    const entryOffsetPx = Number(marquee.getBoundingClientRect().width);
     const trackWidth = Number(track.getBoundingClientRect().width);
     const distancePx = trackWidth / 2;
-    if (!Number.isFinite(distancePx) || distancePx <= 0) {
+    if (!Number.isFinite(distancePx) || distancePx <= 0 || !Number.isFinite(entryOffsetPx) || entryOffsetPx <= 0) {
       body.style.removeProperty(ABOUT_DONOR_MARQUEE_DURATION_VAR);
+      body.style.removeProperty(ABOUT_DONOR_MARQUEE_ENTRY_OFFSET_VAR);
+      body.style.removeProperty(ABOUT_DONOR_MARQUEE_ENTRY_DURATION_VAR);
       return;
     }
 
     const durationSeconds = distancePx / ABOUT_DONOR_MARQUEE_SPEED_PX_PER_SECOND;
+    const entryDurationSeconds = entryOffsetPx / ABOUT_DONOR_MARQUEE_SPEED_PX_PER_SECOND;
     body.style.setProperty(ABOUT_DONOR_MARQUEE_DURATION_VAR, `${durationSeconds}s`);
+    body.style.setProperty(ABOUT_DONOR_MARQUEE_ENTRY_OFFSET_VAR, `${entryOffsetPx}px`);
+    body.style.setProperty(ABOUT_DONOR_MARQUEE_ENTRY_DURATION_VAR, `${entryDurationSeconds}s`);
   }
 
   function scheduleDonorMarqueeSpeed(shadow) {
