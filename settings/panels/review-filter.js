@@ -168,9 +168,9 @@
     let activeRuleType = "all";
     let savePending = false;
 
+    // 接收容器回填的配置并返回规范化结果；保存成功后的通知由保存入口发出，避免回填再次通知容器
     function setConfig(next) {
       conf = normalizeReviewFilter(next || {});
-      onConfigChange(conf);
       return conf;
     }
 
