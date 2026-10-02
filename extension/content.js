@@ -392,6 +392,8 @@
   function settingsReady() {
     return !!globalThis.STSettings?.catalog &&
       !!globalThis.STSettings?.storage &&
+      !!globalThis.STSettings?.panelSnapshot &&
+      !!globalThis.STSettings?.cloud &&
       !!globalThis.STSettingsMembership;
   }
 
