@@ -92,6 +92,7 @@
     const panel = options.panel;
     const rail = options.rail || shadow?.querySelector(".rail");
     const topBtn = options.topBtn || shadow?.querySelector(".top");
+    const translateBtn = options.translateBtn;
     const reviewBtn = options.reviewBtn || shadow?.querySelector(".comment-filter");
     const closeBtn = options.closeBtn || shadow?.querySelector(".close");
     const storage = options.storage || {};
@@ -295,6 +296,7 @@
         callPanelOpen(shadow);
         playStartupAnimation(shadow);
         log.info("settings-panel-open", "设置面板打开", actionMeta());
+        globalThis.STSettingsCloudUi?.notifyOpen?.();
       }
     }
 
@@ -303,6 +305,7 @@
       setOpen(false);
       if (wasOpen) {
         log.info("settings-panel-close", "设置面板关闭", actionMeta());
+        globalThis.STSettingsCloudUi?.notifyClose?.();
       }
     }
 
@@ -327,10 +330,12 @@
         log.info("settings-panel-open", "设置面板打开", actionMeta({
           source: "toggle",
         }));
+        globalThis.STSettingsCloudUi?.notifyOpen?.();
       } else {
         log.info("settings-panel-close", "设置面板关闭", actionMeta({
           source: "toggle",
         }));
+        globalThis.STSettingsCloudUi?.notifyClose?.();
       }
     }
 
@@ -407,6 +412,8 @@
             openFilteredDialog();
           } else if (drag.target === "top") {
             toTop();
+          } else if (drag.target === "page-translate" && !translateBtn.disabled) {
+            globalThis.STSettingsPageTranslate.run();
           }
           window.setTimeout(() => {
             drag.handledClick = false;
@@ -446,6 +453,15 @@
         }
         openFilteredDialog();
       });
+      listen(translateBtn, "click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (drag.moved || drag.handledClick) {
+          drag.moved = false;
+          return;
+        }
+        globalThis.STSettingsPageTranslate.run();
+      });
       listen(closeBtn, "click", close);
       listen(rail, "pointerdown", (event) => {
         if (event.button !== 0 && event.pointerType === "mouse") {
@@ -462,7 +478,8 @@
           ? "settings"
           : event.target.closest(".comment-filter")
             ? "review-filter"
-            : event.target.closest(".top") ? "top" : null;
+            : event.target.closest(".top") ? "top"
+              : event.target.closest(".page-translate") ? "page-translate" : null;
         rail.setPointerCapture(event.pointerId);
       });
 

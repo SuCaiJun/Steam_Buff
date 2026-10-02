@@ -21,6 +21,7 @@
   const GROUPED_MODE_ID = "library-group-labels-grouped-mode";
   const HIDE_COLLECTION_TAGS_ID = "library-group-labels-hide-collection-tags";
   const SETTINGS_ATTRIBUTE = "data-steam-buff-settings";
+  const USER_NAMES_ATTRIBUTE = "data-steam-buff-user-names";
   const SCHEDULER_TASK = "library-sort-title-backend";
   const RT = "__SteamBuffLibrarySortTitle";
   const CHANNEL = "__steam_library_display_model_Ricky";
@@ -160,7 +161,10 @@
     return window[ORIGS];
   }
 
-  function hasCustomName(app) {
+  function hasCustomName(app, rt) {
+    if (independentActive(rt)) {
+      return !!mineNameOf(app?.appid, rt);
+    }
     return !!clean(app?.custom_sort_as_display);
   }
 
@@ -232,6 +236,82 @@
     return visible || source;
   }
 
+  function independentActive(rt) {
+    return rt?.nameMode === window.STConfig.libraryNameMode.values.INDEPENDENT;
+  }
+
+  function readMineNames() {
+    const rawValue = document.documentElement?.dataset?.steamBuffUserNames || "{}";
+    const map = new Map();
+    try {
+      const data = JSON.parse(rawValue) || {};
+      if (!data || typeof data !== "object") {
+        return map;
+      }
+      for (const [id, value] of Object.entries(data)) {
+        const appid = Number(id) || 0;
+        const name = clean(typeof value === "string" ? value : value?.custom_name);
+        if (appid && name) {
+          map.set(appid, name);
+        }
+      }
+    } catch {
+    }
+    return map;
+  }
+
+  function mineNameOf(appid, rt) {
+    const id = Number(appid) || 0;
+    return id ? clean(rt?.mineNames?.get(id)) : "";
+  }
+
+  function changedMineIds(previous, next) {
+    const before = previous instanceof Map ? previous : new Map();
+    const after = next instanceof Map ? next : new Map();
+    const ids = [];
+    for (const [id, name] of before) {
+      if (after.get(id) !== name) ids.push(id);
+    }
+    for (const id of after.keys()) {
+      if (!before.has(id)) ids.push(id);
+    }
+    return ids;
+  }
+
+  // 独立名称是否生效变了时，文本没变的我的名称和已经替换过的对象也要重算
+  function stableSourceIds(previousMine, nextMine, patchedIds) {
+    const ids = new Set();
+    const before = previousMine instanceof Map ? previousMine : new Map();
+    const after = nextMine instanceof Map ? nextMine : new Map();
+    for (const id of before.keys()) ids.add(id);
+    for (const id of after.keys()) ids.add(id);
+    for (const id of patchedIds || []) {
+      const appid = Number(id) || 0;
+      if (appid) ids.add(appid);
+    }
+    return Array.from(ids);
+  }
+
+  // 稳定模式完成首次同步后，名称变化只替换受影响的 AppOverview，不能因此重跑全库同步
+  function stableSyncMineIds(rt, ids) {
+    const apps = [];
+    for (const id of ids) {
+      const app = appOverview(id);
+      if (app) apps.push(app);
+      else stableQueuePending(rt, id, "mine-name-overview");
+    }
+    if (apps.length) stableSyncApps(rt, apps);
+  }
+
+  function displayBaseName(app, rt) {
+    const official = officialName(app);
+    if (independentActive(rt)) {
+      return mineNameOf(app?.appid, rt) || official;
+    }
+    const custom = rt.customSortEnabled ? clean(app?.custom_sort_as_display) : "";
+    return custom ? viewCustomName(custom) : official;
+  }
+
   function originalSearchName(app) {
     const custom = clean(app?.custom_sort_as_display);
     if (!custom) {
@@ -249,7 +329,7 @@
   }
 
   function originalSearchSortAs(app, rt = window[RT]) {
-    if (rt?.originalNameSearch !== true || !hasCustomName(app)) {
+    if (independentActive(rt) || rt?.originalNameSearch !== true || !hasCustomName(app, rt)) {
       return "";
     }
     const original = originalSearchName(app);
@@ -460,6 +540,7 @@
       groupedByCollection: groupedMode(),
       hideCollectionTags: rt.hideCollectionTags,
       customTitleEnabled: rt.customTitleEnabled,
+      independentNames: independentActive(rt),
     };
   }
 
@@ -485,11 +566,13 @@
   }
 
   function stableTargetName(app, rt, restore = false) {
-    const custom = rt.customSortEnabled ? clean(app?.custom_sort_as_display) : "";
-    if (!restore && rt.stableMode && custom) {
+    if (!restore) {
+      const next = displayBaseName(app, rt);
       const original = officialName(app);
-      if (original) saveOriginalName(app, original);
-      return viewCustomName(custom);
+      if (next && original && next !== original) {
+        saveOriginalName(app, original);
+      }
+      return next;
     }
     const id = Number(app?.appid) || 0;
     return clean(app?.[ORIG]) || (id ? clean(names().get(id)) : "") || clean(app?.display_name);
@@ -502,7 +585,7 @@
     const next = stableTargetName(app, rt, restore);
     if (!next || app.display_name === next) {
       if (restore) rt.stableDisplayIds.delete(id);
-      else if (rt.stableMode && hasCustomName(app)) rt.stableDisplayIds.add(id);
+      else if (rt.stableMode && hasCustomName(app, rt)) rt.stableDisplayIds.add(id);
       return false;
     }
     app.display_name = next;
@@ -770,8 +853,12 @@
       ensureGroupIndex(rt);
     }
     const official = officialName(app);
-    const customName = rt.customSortEnabled ? clean(app.custom_sort_as_display) : "";
-    const visibleCustomName = customName ? viewCustomName(customName) : "";
+    const customName = independentActive(rt)
+      ? mineNameOf(id, rt)
+      : (rt.customSortEnabled ? clean(app.custom_sort_as_display) : "");
+    const visibleCustomName = independentActive(rt)
+      ? customName
+      : (customName ? viewCustomName(customName) : "");
     const base = visibleCustomName || official;
     const labels = rt.groupTagsByApp.get(id) || [];
     const finalDisplayName = labelsActive(rt) ? appendLabels(base, labels) : base;
@@ -781,6 +868,8 @@
       labels,
       labelsActive(rt),
       rt.customSortEnabled,
+      rt.nameMode,
+      visibleCustomName,
       rt.stableMode,
       rt.groupLabelsEnabled,
       rt.groupedModeEnabled,
@@ -863,6 +952,11 @@
     return Object.prototype.hasOwnProperty.call(snapshot, id) ? snapshot[id] : fallback;
   }
 
+  // 注: 缺 key 或未知值走 steam-sort，避免老赞助者升级后库列表丢掉 Steam 自定义排序名称
+  function nameModeOf(api) {
+    return window.STConfig.effectiveLibraryNameMode(api.ctx?.settings?.() || {});
+  }
+
   function broadcastSettings(rt) {
     rt.model.clear();
     rt.revision += 1;
@@ -871,19 +965,28 @@
 
   function syncSettings(api, rt) {
     const customSortEnabled = settingsValue(api, ID, true) !== false;
+    const nameMode = nameModeOf(api);
     const stableMode = customSortEnabled && settingsValue(api, STABLE_MODE_ID, true) === true;
     const groupLabelsEnabled = settingsValue(api, GROUP_LABELS_ID, true) !== false;
     const groupedModeEnabled = settingsValue(api, GROUPED_MODE_ID, false) === true;
     const hideCollectionTags = groupLabelsEnabled && settingsValue(api, HIDE_COLLECTION_TAGS_ID, true) !== false;
     const customTitleEnabled = customSortEnabled && settingsValue(api, HOVER_TITLE_ID, false) === true;
-    const originalNameSearch = customSortEnabled && settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true;
+    const originalNameSearch = nameMode !== window.STConfig.libraryNameMode.values.INDEPENDENT &&
+      customSortEnabled && settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true;
+    const mineNames = readMineNames();
+    const mineSignature = Array.from(mineNames.entries()).map(([id, name]) => `${id}:${name}`).join("|");
+    const previousMine = rt.mineNames;
+    const mineChanged = rt.mineSignature !== mineSignature;
+    const wasIndependent = independentActive(rt);
     const changed = rt.customSortEnabled !== customSortEnabled
       || rt.stableMode !== stableMode
       || rt.groupLabelsEnabled !== groupLabelsEnabled
       || rt.groupedModeEnabled !== groupedModeEnabled
       || rt.hideCollectionTags !== hideCollectionTags
       || rt.customTitleEnabled !== customTitleEnabled
-      || rt.originalNameSearch !== originalNameSearch;
+      || rt.originalNameSearch !== originalNameSearch
+      || rt.nameMode !== nameMode
+      || mineChanged;
     if (!changed) return false;
     const groupChanged = rt.groupLabelsEnabled !== groupLabelsEnabled;
     const stableChanged = rt.stableMode !== stableMode;
@@ -903,6 +1006,19 @@
     rt.hideCollectionTags = hideCollectionTags;
     rt.customTitleEnabled = customTitleEnabled;
     rt.originalNameSearch = originalNameSearch;
+    rt.nameMode = nameMode;
+    if (rt.nameMode !== window.STConfig.libraryNameMode.values.STEAM_SORT && rt.customEventsOff) {
+      rt.customEventsOff();
+      rt.customEventsOff = null;
+    }
+    rt.mineNames = mineNames;
+    rt.mineSignature = mineSignature;
+    const sourceChanged = wasIndependent !== independentActive(rt);
+    if ((mineChanged || sourceChanged) && rt.stableMode && rt.stableBootstrapped) {
+      stableSyncMineIds(rt, sourceChanged
+        ? stableSourceIds(previousMine, mineNames, rt.stableDisplayIds)
+        : changedMineIds(previousMine, mineNames));
+    }
     if (!groupLabelsEnabled) {
       rt.groupTagsByApp.clear();
       rt.collectionHeaders = [];
@@ -1104,7 +1220,10 @@
         if (syncSettings(api, rt)) rt.schedule();
       }, SETTINGS_DEBOUNCE_MS);
     });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: [SETTINGS_ATTRIBUTE] });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: [SETTINGS_ATTRIBUTE, USER_NAMES_ATTRIBUTE],
+    });
     rt.settingsObserver = observer;
     return true;
   }
@@ -1218,6 +1337,9 @@
       collectionHeaders: [],
       groupIndexReady: false,
       customSortEnabled: settingsValue(api, ID, true) !== false,
+      nameMode: nameModeOf(api),
+      mineNames: readMineNames(),
+      mineSignature: "",
       stableMode: settingsValue(api, STABLE_MODE_ID, true) === true,
       groupLabelsEnabled: settingsValue(api, GROUP_LABELS_ID, true) !== false,
       groupedModeEnabled: settingsValue(api, GROUPED_MODE_ID, false) === true,
@@ -1266,7 +1388,11 @@
       }
       if (rt.groupLabelsEnabled && !rt.groupIndexReady) ensureGroupIndex(rt);
       if (rt.customSortEnabled && !rt.sortOk) rt.sortOk = hookSort(rt);
-      if (rt.customSortEnabled && !rt.customEventsOff) bindCustomSortEvents(rt, window.appStore);
+      if (rt.customSortEnabled
+        && rt.nameMode === window.STConfig.libraryNameMode.values.STEAM_SORT
+        && !rt.customEventsOff) {
+        bindCustomSortEvents(rt, window.appStore);
+      }
       if (!rt.changeOk) rt.changeOk = hookOverviewChange(rt, window.collectionStore);
       if (!rt.collectionOk) rt.collectionOk = hookCollectionEvents(rt);
       if (rt.originalNameSearch && !rt.sortAsBootstrapped

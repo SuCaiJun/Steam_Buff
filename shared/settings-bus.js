@@ -47,6 +47,7 @@
     lastOwner: "",
   };
   let boundStorage = false;
+  const pendingWrites = [];
 
   function text(value) {
     return value == null ? "" : String(value);
@@ -57,7 +58,46 @@
   }
 
   function featureKey(id) {
+    const control = root.STSettings?.catalog?.valueControl?.(id);
+    if (control) {
+      return `${PREFIX}${text(id)}.value`;
+    }
     return `${PREFIX}${text(id)}${SUFFIX}`;
+  }
+
+  function decodeValue(value, def) {
+    if (Array.isArray(def)) {
+      if (typeof value === "string") {
+        try {
+          value = JSON.parse(value);
+        } catch {
+          value = null;
+        }
+      }
+      if (!Array.isArray(value)) {
+        return def.slice();
+      }
+      const allowed = new Set(def);
+      const out = [];
+      for (const item of value) {
+        if (allowed.has(item) && !out.includes(item)) {
+          out.push(item);
+        }
+      }
+      for (const item of def) {
+        if (!out.includes(item)) {
+          out.push(item);
+        }
+      }
+      return out;
+    }
+    if (typeof def === "string") {
+      if (typeof value === "string" && value) {
+        return value;
+      }
+      return def;
+    }
+    return typeof value === "boolean" ? value : def;
   }
 
   function ownerOf(options = {}) {
@@ -84,6 +124,38 @@
     return Object.keys(data || {});
   }
 
+  function rememberWrite(keys, options) {
+    pendingWrites.push({
+      keys: keys.slice(),
+      owner: ownerOf(options),
+      reason: text(options?.reason || "write"),
+      createdAt: now(),
+    });
+  }
+
+  function consumeWrite(keys) {
+    const changed = new Set(keys);
+    const matched = pendingWrites.filter((item) => item.keys.every((key) => changed.has(key)));
+    if (!matched.length) {
+      return null;
+    }
+    for (const item of matched) {
+      const index = pendingWrites.indexOf(item);
+      if (index >= 0) {
+        pendingWrites.splice(index, 1);
+      }
+    }
+    const covered = new Set(matched.flatMap((item) => item.keys));
+    if (covered.size !== changed.size) {
+      return null;
+    }
+    const owner = matched[0].owner;
+    const reason = matched[0].reason;
+    return matched.every((item) => item.owner === owner && item.reason === reason)
+      ? { owner, reason }
+      : null;
+  }
+
   function normalizeKeys(keys) {
     if (Array.isArray(keys)) {
       return keys.map(String);
@@ -99,6 +171,11 @@
 
   function prune() {
     const time = now();
+    for (let i = pendingWrites.length - 1; i >= 0; i -= 1) {
+      if (time - pendingWrites[i].createdAt > 30 * 1000) {
+        pendingWrites.splice(i, 1);
+      }
+    }
     let removed = 0;
     for (const [key, item] of cache.entries()) {
       if (item.expiresAt <= time) {
@@ -212,6 +289,8 @@
                 reason: options.reason || "write",
                 changedKeys: keys,
               });
+            } else if (options.reason === "settings-cloud-apply") {
+              rememberWrite(keys, options);
             }
           } else {
             log.warn("settings-bus-write-failed", "设置总线写入失败", {
@@ -287,7 +366,8 @@
     const ids = list(options.ids?.length ? options.ids : Object.keys(defaults));
     const keyBuilder = typeof options.keyBuilder === "function" ? options.keyBuilder : featureKey;
     const storageKeys = ids.map(keyBuilder);
-    const cacheKey = `${POLICY.cacheKeyPrefix}${ids.join(",")}`;
+    // 同一组设置可能由不同上下文使用不同的键规则，缓存必须按实际存储键隔离
+    const cacheKey = `${POLICY.cacheKeyPrefix}${storageKeys.join(",")}`;
     if (options.force !== true) {
       const cached = cacheGet(owner, cacheKey);
       if (cached) {
@@ -300,7 +380,7 @@
     for (const id of ids) {
       const def = Object.hasOwn(defaults, id) ? defaults[id] : true;
       const value = rt[keyBuilder(id)];
-      out[id] = typeof value === "boolean" ? value : def;
+      out[id] = decodeValue(value, def);
     }
     cacheSet(owner, cacheKey, out, {
       ttlMs: options.ttlMs,
@@ -409,9 +489,10 @@
         }
         const keys = Object.keys(changes || {});
         invalidateKeys(keys);
+        const source = consumeWrite(keys);
         publish({
-          owner: "chrome.storage.onChanged",
-          reason: "storage-change",
+          owner: source?.owner || "chrome.storage.onChanged",
+          reason: source?.reason || "storage-change",
           changedKeys: keys,
         });
       });

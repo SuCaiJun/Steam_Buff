@@ -31,6 +31,14 @@
   const UI_LOCALE_KEY = globalThis.STI18n?.STORAGE_KEY || api.catalog?.UI_LOCALE_KEY || "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
+  // 退出登录必须同时切断设置云同步通道，避免下一账号沿用密钥和 revision
+  // 独立名称按账号分槽留在本地，退出时不删除
+  const CLOUD_CHANNEL_KEYS = Object.freeze([
+    "st.settings.cloud.enabled",
+    "st.settings.cloud.secret",
+    "st.settings.cloud.syncMeta",
+  ]);
+  const AUTH_CLEAR_KEYS = Object.freeze([AUTH_KEY, MEMBERSHIP_KEY, ...CLOUD_CHANNEL_KEYS]);
   const AI_SERVICE = "steam-buff.ai";
   const log = globalThis.STLoggerFactory.createLogger("settings", "settings-storage");
   const priceCatalog = globalThis.STPriceComparisonCatalog;
@@ -44,7 +52,57 @@
   }
 
   function key(id) {
+    const control = api.catalog?.valueControl?.(id);
+    if (control) {
+      return `${PREFIX}${id}.value`;
+    }
     return `${PREFIX}${id}${SUFFIX}`;
+  }
+
+  function normalizeStored(id, value, fallback) {
+    const control = api.catalog?.valueControl?.(id);
+    if (control === "choice") {
+      const allowed = new Set((api.catalog?.featureById?.(id)?.options || []).map((option) => String(option.value)));
+      const next = typeof value === "string" ? value : "";
+      if (next && allowed.has(next)) {
+        return next;
+      }
+      return typeof fallback === "string" && fallback ? fallback : next;
+    }
+    if (control === "order") {
+      if (typeof value === "string") {
+        try {
+          value = JSON.parse(value);
+        } catch {
+          value = null;
+        }
+      }
+      const allowed = new Set((api.catalog?.featureById?.(id)?.options || []).map((option) => option.value));
+      const source = Array.isArray(value) ? value : [];
+      const out = [];
+      for (const item of source) {
+        if (allowed.has(item) && !out.includes(item)) {
+          out.push(item);
+        }
+      }
+      for (const item of Array.isArray(fallback) ? fallback : []) {
+        if (allowed.has(item) && !out.includes(item)) {
+          out.push(item);
+        }
+      }
+      return out;
+    }
+    return typeof value === "boolean" ? value : fallback;
+  }
+
+  function localeOf(value) {
+    if (typeof globalThis.STI18n?.normalizeLocale === "function") {
+      return globalThis.STI18n.normalizeLocale(value);
+    }
+    if (typeof api.panelSnapshot?.localeOf === "function") {
+      return api.panelSnapshot.localeOf(value);
+    }
+    return "zh_CN";
   }
 
   function defaults() {
@@ -388,7 +446,7 @@
       return globalThis.STSettingsBus.rawSet(data, {
         operationId: String(diagnostics?.operationId || ""),
         owner: "settings:storage",
-        reason: "settings-storage-write",
+        reason: String(diagnostics?.reason || "settings-storage-write"),
       });
     }
     const box = area();
@@ -425,13 +483,13 @@
 
     for (const id of ids) {
       const value = rt[key(id)];
-      out[id] = typeof value === "boolean" ? value : defs[id];
+      out[id] = normalizeStored(id, value, defs[id]);
     }
 
     return out;
   }
 
-  async function setAll(values) {
+  async function setAll(values, diagnostics = {}) {
     const defs = defaults();
     const data = {};
 
@@ -439,7 +497,13 @@
       if (!Object.hasOwn(values || {}, id)) {
         continue;
       }
-      data[key(id)] = Boolean(values[id]);
+      if (api.catalog?.valueControl?.(id) === "order") {
+        data[key(id)] = JSON.stringify(normalizeStored(id, values[id], defs[id]));
+      } else if (api.catalog?.valueControl?.(id) === "choice") {
+        data[key(id)] = normalizeStored(id, values[id], defs[id]);
+      } else {
+        data[key(id)] = Boolean(values[id]);
+      }
     }
 
     if (!Object.keys(data).length) {
@@ -447,16 +511,20 @@
       return false;
     }
 
-    const ok = await put(data);
+    const ok = await put(data, diagnostics);
     logSave("features", ok, { count: Object.keys(data).length });
     return ok;
   }
 
   async function set(id, enabled, diagnostics = {}) {
-    const value = Boolean(enabled);
+    const control = api.catalog?.valueControl?.(id);
+    const defs = defaults();
+    const value = control
+      ? (control === "order" ? JSON.stringify(normalizeStored(id, enabled, defs[id])) : normalizeStored(id, enabled, defs[id]))
+      : Boolean(enabled);
     const operationId = String(diagnostics?.operationId || "");
     try {
-      const ok = await put({ [key(id)]: value }, { operationId });
+      const ok = await put({ [key(id)]: value }, { ...diagnostics, operationId });
       log[ok ? "info" : "warn"](ok ? "setting-toggle-success" : "setting-save-failed", ok ? "设置开关已保存" : "设置开关保存失败", {
         operationId,
         featureId: id,
@@ -476,22 +544,22 @@
 
   async function getUiLocale() {
     const rt = await get([UI_LOCALE_KEY]);
-    return globalThis.STI18n.normalizeLocale(rt[UI_LOCALE_KEY]);
+    return localeOf(rt[UI_LOCALE_KEY]);
   }
 
   async function setUiLocale(value, diagnostics = {}) {
-    const locale = globalThis.STI18n.normalizeLocale(value);
+    const locale = localeOf(value);
     const operationId = String(diagnostics?.operationId || "");
     let ok = true;
     try {
       if (globalThis.STI18n?.setLocaleResult) {
-        const result = await globalThis.STI18n.setLocaleResult(locale, { operationId });
+        const result = await globalThis.STI18n.setLocaleResult(locale, { ...diagnostics, operationId });
         ok = result?.persisted === true;
       } else if (globalThis.STI18n?.setLocale) {
         await globalThis.STI18n.setLocale(locale, { operationId });
         ok = null;
       } else {
-        ok = await put({ [UI_LOCALE_KEY]: locale }, { operationId });
+        ok = await put({ [UI_LOCALE_KEY]: locale }, { ...diagnostics, operationId });
       }
     } catch (error) {
       log.error("setting-save-failed", "界面语言保存异常", {
@@ -515,6 +583,17 @@
     return value && typeof value === "object" ? value : null;
   }
 
+  // 一次读出令牌和会员 userId，认证请求绑定身份时不能拆成两次读取
+  async function getAuthIdentity() {
+    const rt = await get([AUTH_KEY, MEMBERSHIP_KEY]);
+    const auth = rt[AUTH_KEY] && typeof rt[AUTH_KEY] === "object" ? rt[AUTH_KEY] : null;
+    const membership = rt[MEMBERSHIP_KEY] && typeof rt[MEMBERSHIP_KEY] === "object" ? rt[MEMBERSHIP_KEY] : null;
+    return {
+      auth,
+      userId: String(membership?.userId || membership?.user?.id || "").trim(),
+    };
+  }
+
   async function setAuth(value, diagnostics = {}) {
     if (!value || typeof value !== "object") {
       return clearAuth(diagnostics);
@@ -531,7 +610,7 @@
   function clearAuth(diagnostics = {}) {
     const operationId = String(diagnostics?.operationId || "");
     if (globalThis.STSettingsBus?.rawRemove) {
-      return globalThis.STSettingsBus.rawRemove([AUTH_KEY, MEMBERSHIP_KEY], {
+      return globalThis.STSettingsBus.rawRemove([...AUTH_CLEAR_KEYS], {
         operationId,
         owner: "settings:storage",
         reason: "auth-clear",
@@ -544,7 +623,7 @@
 
     return new Promise((resolve) => {
       try {
-        box.remove([AUTH_KEY, MEMBERSHIP_KEY], () => {
+        box.remove([...AUTH_CLEAR_KEYS], () => {
           resolve(!chrome.runtime.lastError);
         });
       } catch {
@@ -559,6 +638,16 @@
   }
 
   async function setMembership(value, diagnostics = {}) {
+    const expectedOwner = String(diagnostics?.ownerId || "").trim();
+    const expectedSession = String(diagnostics?.sessionKey || "").trim();
+    if (expectedOwner || expectedSession) {
+      const identity = await getAuthIdentity();
+      const currentSession = globalThis.STAuthSession?.authKey?.(identity.auth) || "";
+      if ((expectedOwner && identity.userId !== expectedOwner)
+        || (expectedSession && currentSession !== expectedSession)) {
+        return null;
+      }
+    }
     const rt = await get([AUTH_KEY]);
     const next = normalizeMembership(value, { access_token: "__snapshot__" });
     const operationId = String(diagnostics?.operationId || "");
@@ -926,31 +1015,54 @@
     return { top, side };
   }
 
-  async function getBackupSections() {
+  async function getPanelSettings() {
+    const [
+      features,
+      uiLocale,
+      familyLibrary,
+      storePriceChart,
+      searchSuggestions,
+      reviewFilter,
+      translate,
+      ai,
+      thirdPartyServices,
+    ] = await Promise.all([
+      getAll(),
+      getUiLocale(),
+      getFamilyLibrary(),
+      getStorePriceChart(),
+      getSearchSuggestions(),
+      getReviewFilter(),
+      getTranslate(),
+      getAi(),
+      getThirdPartyServices(),
+    ]);
     return {
-      features: await getAll(),
-      translate: await getTranslate(),
-      ai: await getAi(),
-      thirdPartyServices: await getThirdPartyServices(),
-      storePriceChart: await getStorePriceChart(),
-      reviewFilter: await getReviewFilter(),
-      searchSuggestions: await getSearchSuggestions(),
-      familyLibrary: await getFamilyLibrary(),
+      features,
+      uiLocale,
+      familyLibrary,
+      storePriceChart,
+      searchSuggestions,
+      reviewFilter,
+      translate,
+      ai,
+      thirdPartyServices,
     };
   }
 
-  async function setBackupSections(sections = {}) {
+  async function setPanelSettings(sections = {}, diagnostics = {}) {
     const jobs = [
-      setAll(sections.features || {}),
-      setTranslate(sections.translate || {}),
-      setAi(sections.ai || {}),
+      setAll(sections.features || {}, diagnostics),
+      setUiLocale(sections.uiLocale, diagnostics),
+      setFamilyLibrary(sections.familyLibrary || {}, diagnostics),
+      setSearchSuggestions(sections.searchSuggestions || {}, diagnostics),
+      setReviewFilter(sections.reviewFilter || {}, diagnostics),
+      setTranslate(sections.translate || {}, diagnostics),
+      setAi(sections.ai || {}, diagnostics),
       setStorePriceChartSettings({
         thirdPartyServices: sections.thirdPartyServices || {},
         storePriceChart: sections.storePriceChart || {},
-      }),
-      setReviewFilter(sections.reviewFilter || {}),
-      setSearchSuggestions(sections.searchSuggestions || {}),
-      setFamilyLibrary(sections.familyLibrary || {}),
+      }, diagnostics),
     ];
     const out = await Promise.all(jobs);
     return out.every(value => value !== false);
@@ -965,6 +1077,7 @@
     getUiLocale,
     setUiLocale,
     getAuth,
+    getAuthIdentity,
     setAuth,
     clearAuth,
     MEMBERSHIP_KEY,
@@ -992,7 +1105,7 @@
     setStorePriceChartSettings,
     getRailPos,
     setRailPos,
-    getBackupSections,
-    setBackupSections,
+    getPanelSettings,
+    setPanelSettings,
   });
 })();

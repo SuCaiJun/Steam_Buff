@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : 安装引导本地步骤、云端页数加载与全局页码交互
+ * @File          : 安装引导本地步骤、服务配置闸门、云端页数加载与全局页码交互
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
@@ -23,14 +23,30 @@
   const OPEN_SETTINGS_MESSAGE = CONTRACT.MESSAGES.openSettings;
   const SETTINGS_PREFIX = "st.settings.";
   const SETTINGS_SUFFIX = ".enabled";
+  const SETTINGS_VALUE_SUFFIX = ".value";
+  const NAME_MODE_ID = globalThis.STConfig.libraryNameMode.key;
+  const NAME_MODE_STEAM = globalThis.STConfig.libraryNameMode.values.STEAM_SORT;
+  const NAME_MODE_INDEPENDENT = globalThis.STConfig.libraryNameMode.values.INDEPENDENT;
+  const CLIENT_RESTART_NOTE = "部分功能需重启 Steam";
+  const THIRD_PARTY_PREFIX = `${SETTINGS_PREFIX}thirdPartyServices.`;
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = "steam_buff_membership";
   const CONFIG_PATH = "shared/config.js";
   const SETTINGS_CATALOG_PATH = "settings/catalog.js";
+  const AI_CONFIG_PATH = "ai/config.js";
   const FLOW_TIMEOUT_MS = 10_000;
+  const ITAD_TEST_TIMEOUT_MS = 12_000;
+  const AI_TEST_TIMEOUT_MS = 20_000;
+  const AI_PERMISSION_WAIT_MS = 5 * 60 * 1000;
   const INVALID_TITLE = "当前地址无效";
   const INVALID_COPY = "当前页面可能已失效或不存在，请点击刷新页面或返回首页。";
   const INVALID_NOTE = "当前页面已失效";
+  const COMMITTED_PAGE_KEY = "st.onboarding.lastCommittedPage";
+  const AI_GATEWAY_PERMISSION_CHECK = "AI_GATEWAY_PERMISSION_CHECK";
+  const AI_GATEWAY_PERMISSION_REQUEST = "AI_GATEWAY_PERMISSION_REQUEST";
+  const AI_GATEWAY_PERMISSION_OPEN = "AI_GATEWAY_PERMISSION_OPEN";
+  const AI_GATEWAY_PERMISSION_CANCEL = "AI_GATEWAY_PERMISSION_CANCEL";
+  const AI_GATEWAY_PERMISSION_RESULT = "AI_GATEWAY_PERMISSION_RESULT";
   const log = globalThis.STLoggerFactory?.createLogger?.("onboarding", "local-flow") || {
     info() {},
     warn() {},
@@ -45,10 +61,45 @@
     cloudCount: 0,
     total: 0,
     step: 0,
+    lastCommittedPage: 0,
     busy: false,
+    serviceBusy: false,
     note: "",
     noteError: false,
     clientEnabled: false,
+    clientFeatures: {},
+    clientFeatureList: [],
+    clientNameMode: NAME_MODE_STEAM,
+    clientNameModeOptions: [],
+    clientDefaultReady: false,
+    restartModalOpen: false,
+    restartAcked: false,
+    initializing: true,
+    initError: false,
+    results: {},
+    savedSummary: {},
+    thirdParty: {
+      enabled: true,
+      key: "",
+      verified: false,
+      message: "",
+      messageError: false,
+      saved: false,
+    },
+    ai: {
+      enabled: true,
+      host: "",
+      model: "",
+      keyMode: "bearer",
+      key: "",
+      keyName: "",
+      temperature: "0.2",
+      aiConcurrency: 10,
+      verified: false,
+      message: "",
+      messageError: false,
+      saved: false,
+    },
     loginMode: "idle",
     loginBusy: false,
     loginDevice: null,
@@ -59,6 +110,7 @@
     loginOperationId: "",
     loginPollErrorKey: "",
     completeCelebrated: false,
+    servicesHydrated: false,
   };
 
   let catalogJob = null;
@@ -103,12 +155,80 @@
     node.dataset.action = action;
     if (iconName) node.append(icon(iconName, "account-action-icon"), document.createTextNode(label));
     else node.textContent = label;
-    node.disabled = state.busy || state.loginBusy;
+    setControlDisabled(node, controlsBusy(), controlsBusy());
     return node;
+  }
+
+  // 闸门禁用用 not-allowed；仅真正忙时加 is-busy 显示 wait 光标
+  function setControlDisabled(node, disabled, busy = false) {
+    if (!node) return;
+    const off = disabled === true;
+    node.disabled = off;
+    node.classList.toggle("is-busy", off && busy === true);
   }
 
   function settingKey(id) {
     return `${SETTINGS_PREFIX}${id}${SETTINGS_SUFFIX}`;
+  }
+
+  function settingValueKey(id) {
+    return `${SETTINGS_PREFIX}${id}${SETTINGS_VALUE_SUFFIX}`;
+  }
+
+  function thirdPartyKey(path) {
+    return `${THIRD_PARTY_PREFIX}${path}`;
+  }
+
+  function aiStorageKey(id) {
+    return globalThis.STAI.storageKey(id);
+  }
+
+  function aiDefaults() {
+    return globalThis.STAI.defaults();
+  }
+
+  function normalizeAiDraft(values = {}) {
+    return globalThis.STAI.normalize({ ...aiDefaults(), ...values });
+  }
+
+  function loggedIn() {
+    return state.loginMode === "success" || !!state.loginAuth;
+  }
+
+  function controlsBusy() {
+    return state.initializing || state.busy || state.loginBusy || state.serviceBusy;
+  }
+
+  function accountCanNext() {
+    return loggedIn();
+  }
+
+  function thirdPartyCanNext() {
+    return state.thirdParty.enabled !== true || state.thirdParty.verified === true;
+  }
+
+  function aiKeyRequired(mode = state.ai.keyMode) {
+    return mode !== "none";
+  }
+
+  function aiCanNext() {
+    return state.ai.enabled !== true || state.ai.verified === true;
+  }
+
+  function stepCanNext(stepId = activeStep().id) {
+    if (state.initializing || state.initError) return false;
+    if (stepId === "name-mode") return nameFeatureEnabled() && nameModeAllowed(state.clientNameMode);
+    if (stepId === "account") return accountCanNext();
+    if (stepId === "third-party") return thirdPartyCanNext();
+    if (stepId === "ai") return aiCanNext();
+    return true;
+  }
+
+  function gateBlockNote(stepId = activeStep().id) {
+    if (stepId === "account") return "请先登录，或点击“暂不登录”。";
+    if (stepId === "third-party") return "请测试连接，或点击“稍后配置”。";
+    if (stepId === "ai") return "请测试连接，或点击“稍后配置”。";
+    return "请先完成本步配置。";
   }
 
   function loadScript(src) {
@@ -129,19 +249,65 @@
       const src = api?.runtime?.getURL
         ? api.runtime.getURL(SETTINGS_CATALOG_PATH)
         : `../${SETTINGS_CATALOG_PATH}`;
-      catalogJob = loadScript(src).catch(() => false);
+      catalogJob = loadScript(src).catch((error) => {
+        catalogJob = null;
+        throw error;
+      });
     }
     await catalogJob;
     return window.STSettings?.catalog || null;
   }
 
-  async function clientFeatureIds() {
+  // 只取设置中心「客户端增强」分类的顶层布尔功能，不含子选项和二选一方案
+  async function clientTopLevelFeatures() {
     const catalog = await settingsCatalog();
-    const items = catalog?.featureItems?.() || [];
-    return items
-      .filter((item) => item?.area === "steam" && item.disabled !== true)
-      .map((item) => item.id)
+    const categories = catalog?.list?.() || [];
+    const client = categories.find((item) => item?.id === "client");
+    const items = Array.isArray(client?.items) ? client.items : [];
+    return items.filter((item) => item?.area === "steam" && item.disabled !== true && item.id && item.control !== "mode");
+  }
+
+  function customNamesAllowed() {
+    return window.STConfig.customNamesAllowed(state.accountData);
+  }
+
+  function nameModeAllowed(value) {
+    return clampNameMode(value) === value;
+  }
+
+  function clampNameMode(value) {
+    return window.STConfig.effectiveLibraryNameMode({
+      [NAME_MODE_ID]: value,
+      customNamesAllowed: customNamesAllowed(),
+    });
+  }
+
+  function nameModeCopy(value) {
+    return value === NAME_MODE_INDEPENDENT
+      ? "覆盖商店、库列表和愿望单。"
+      : "使用自定义排序名称修改库列表显示。";
+  }
+
+  function nameFeatureEnabled() {
+    return state.clientEnabled && state.clientFeatures["library-sort-title"] === true;
+  }
+
+  function clientFeatureLockText(item, catalog) {
+    const ids = item?.deps?.ids;
+    if (!Array.isArray(ids) || !ids.length) return "";
+    const names = ids
+      .map((id) => catalog?.featureById?.(id)?.name || "")
+      .map((name) => String(name || "").trim())
       .filter(Boolean);
+    if (!names.length) return "";
+    return `需开启 ${names.join("、")}`;
+  }
+
+  function syncClientFeatures(enabled) {
+    const next = enabled === true;
+    state.clientFeatureList.forEach((item) => {
+      state.clientFeatures[item.id] = next;
+    });
   }
 
   async function sharedConfig() {
@@ -266,6 +432,642 @@
         error,
       });
       return Promise.resolve(false);
+    }
+  }
+
+  function storageGetMany(keys) {
+    const api = chromeApi();
+    if (api?.storage?.local) {
+      return new Promise((resolve, reject) => {
+        api.storage.local.get(keys, data => {
+          const error = api.runtime?.lastError;
+          if (error) reject(new Error(error.message));
+          else if (!data || typeof data !== "object") reject(new Error("设置读取结果无效"));
+          else resolve(data);
+        });
+      });
+    }
+    const out = {};
+    try {
+      keys.forEach(key => {
+        const raw = localStorage.getItem(key);
+        if (raw == null) return;
+        // 本地预览原有的 string / JSON 两种写入格式。
+        try { out[key] = JSON.parse(raw); } catch { out[key] = raw; }
+      });
+      return Promise.resolve(out);
+    } catch (error) { return Promise.reject(error); }
+  }
+
+  function storageSetMany(data, diagnostics = {}) {
+    const operationId = String(diagnostics?.operationId || "");
+    const payload = data && typeof data === "object" ? data : {};
+    const api = chromeApi();
+    if (api?.storage?.local) {
+      return new Promise((resolve) => {
+        try {
+          api.storage.local.set(payload, () => {
+            const error = api.runtime?.lastError;
+            if (error) {
+              log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
+                operationId,
+                storageKey: Object.keys(payload).join(","),
+                error,
+              });
+              resolve(false);
+              return;
+            }
+            resolve(true);
+          });
+        } catch (error) {
+          log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
+            operationId,
+            storageKey: Object.keys(payload).join(","),
+            error,
+          });
+          resolve(false);
+        }
+      });
+    }
+    try {
+      Object.entries(payload).forEach(([key, value]) => {
+        localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+      });
+      return Promise.resolve(true);
+    } catch (error) {
+      log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
+        operationId,
+        storageKey: Object.keys(payload).join(","),
+        error,
+      });
+      return Promise.resolve(false);
+    }
+  }
+
+  function runtimeSend(payload, timeoutMs = 12_000) {
+    const api = chromeApi();
+    if (!api?.runtime?.sendMessage) {
+      return Promise.reject(new Error("当前是本地预览模式，安装为扩展后可测试连接。"));
+    }
+    return new Promise((resolve, reject) => {
+      let done = false;
+      const timer = window.setTimeout(() => {
+        if (done) return;
+        done = true;
+        const error = new Error("请求超时，请稍后重试。");
+        error.name = "TimeoutError";
+        error.code = "REQUEST_TIMEOUT";
+        reject(error);
+      }, Math.max(1, Number(timeoutMs) || 12_000));
+      try {
+        api.runtime.sendMessage(payload, (res) => {
+          if (done) return;
+          done = true;
+          window.clearTimeout(timer);
+          const error = api.runtime.lastError;
+          if (error) {
+            reject(new Error(error.message || String(error)));
+            return;
+          }
+          resolve(res || null);
+        });
+      } catch (error) {
+        if (done) return;
+        done = true;
+        window.clearTimeout(timer);
+        reject(error);
+      }
+    });
+  }
+
+  function readThirdPartyForm() {
+    return {
+      enabled: state.thirdParty.enabled === true,
+      key: String($("#third-party-key").value).trim(),
+    };
+  }
+
+  function readAiForm() {
+    return normalizeAiDraft({
+      enabled: state.ai.enabled === true,
+      host: $("#ai-host")?.value,
+      model: $("#ai-model")?.value,
+      keyMode: $("#ai-key-mode")?.value,
+      key: $("#ai-key")?.value,
+      keyName: $("#ai-key-name")?.value,
+      temperature: $("#ai-temperature")?.value,
+      aiConcurrency: $("#ai-concurrency")?.value,
+    });
+  }
+
+  function firstLocalPage() {
+    return state.cloudCount + 1;
+  }
+
+  function readCommittedPage(cloudCount) {
+    try {
+      const raw = sessionStorage.getItem(COMMITTED_PAGE_KEY);
+      if (!raw) return 0;
+      const data = JSON.parse(raw);
+      if (!data || Number(data.cloudCount) !== Number(cloudCount)
+        || data.steps !== LOCAL_STEPS.map(step => step.id).join("|")) return 0;
+      LOCAL_STEPS.forEach(step => {
+        const result = data.results?.[step.id];
+        if (result === "saved" || result === "skipped") state.results[step.id] = result;
+      });
+      const page = Number(data.page);
+      return Number.isSafeInteger(page) && page > 0 ? page : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  function writeCommittedPage(page) {
+    if (!Number.isSafeInteger(page) || page < 1) return;
+    try {
+      sessionStorage.setItem(COMMITTED_PAGE_KEY, JSON.stringify({
+        cloudCount: state.cloudCount,
+        steps: LOCAL_STEPS.map(step => step.id).join("|"),
+        results: state.results,
+        page,
+      }));
+    } catch {
+      // sessionStorage 不可用时仅保留内存态
+    }
+  }
+
+  function commitPage(page) {
+    if (!Number.isSafeInteger(page) || page < 1) return;
+    state.lastCommittedPage = Math.max(page, state.lastCommittedPage);
+    writeCommittedPage(state.lastCommittedPage);
+  }
+
+  // 闸门重新失败时收回可跳转边界，避免进度条绕过未配置步骤
+  function clampCommittedPage() {
+    if (!stepCanNext(activeStep().id) && state.lastCommittedPage > state.page) {
+      invalidateProgress();
+    }
+  }
+
+  function invalidateProgress() {
+    if (state.lastCommittedPage <= state.page) return;
+    state.lastCommittedPage = state.page;
+    writeCommittedPage(state.page);
+    renderProgress();
+  }
+
+  function canNavigateToPage(page) {
+    if (!Number.isSafeInteger(page) || page < 1 || page > state.total) return false;
+    if (page === state.page) return true;
+    if (page < state.page) return true;
+    if (page <= state.lastCommittedPage) return true;
+    return page === state.page + 1;
+  }
+
+  function syncThirdPartyStateFromForm() {
+    const next = readThirdPartyForm();
+    if (next.key !== state.thirdParty.key) {
+      state.thirdParty.verified = false;
+      state.thirdParty.saved = false;
+      invalidateProgress();
+    }
+    state.thirdParty.key = next.key;
+    clampCommittedPage();
+  }
+
+  function syncAiStateFromForm() {
+    const next = readAiForm();
+    const prev = state.ai;
+    const changed = next.host !== prev.host
+      || next.model !== prev.model
+      || next.keyMode !== prev.keyMode
+      || next.key !== prev.key
+      || next.keyName !== prev.keyName
+      || next.temperature !== prev.temperature
+      || Number(next.aiConcurrency) !== Number(prev.aiConcurrency);
+    if (changed) {
+      state.ai.verified = false;
+      state.ai.saved = false;
+      invalidateProgress();
+    }
+    Object.assign(state.ai, next, {
+      verified: state.ai.verified,
+      message: state.ai.message,
+      messageError: state.ai.messageError,
+      saved: state.ai.saved,
+    });
+    clampCommittedPage();
+  }
+
+  async function ensureAiModule() {
+    if (globalThis.STAI?.normalize) return globalThis.STAI;
+    const api = chromeApi();
+    const src = api?.runtime?.getURL
+      ? api.runtime.getURL(AI_CONFIG_PATH)
+      : `../${AI_CONFIG_PATH}`;
+    await loadScript(src).catch(() => false);
+    if (!globalThis.STAI?.normalize) throw new Error("AI 配置模块未加载");
+    return globalThis.STAI;
+  }
+
+  async function hydrateServiceSettings() {
+    if (state.servicesHydrated) return;
+    await ensureAiModule();
+    const defs = aiDefaults();
+    const thirdPartyPaths = [
+      "enabled",
+      "isthereanydeal.key",
+    ];
+    const aiIds = Object.keys(defs);
+    const keys = [
+      ...thirdPartyPaths.map(thirdPartyKey),
+      ...aiIds.map(aiStorageKey),
+    ];
+    const stored = await storageGetMany(keys);
+    const savedKey = String(stored[thirdPartyKey("isthereanydeal.key")] ?? "").trim();
+    // 引导页默认开启；仅当本地已有明确关闭记录时沿用关闭。
+    if (Object.hasOwn(stored, thirdPartyKey("enabled"))) {
+      state.thirdParty.enabled = stored[thirdPartyKey("enabled")] === true;
+    }
+    state.thirdParty.key = savedKey;
+    state.thirdParty.verified = false;
+    state.thirdParty.saved = false;
+
+    const aiValues = { ...defs, temperature: "0.2" };
+    aiIds.forEach((id) => {
+      if (Object.hasOwn(stored, aiStorageKey(id))) aiValues[id] = stored[aiStorageKey(id)];
+    });
+    const ai = normalizeAiDraft(aiValues);
+    if (Object.hasOwn(stored, aiStorageKey("enabled"))) {
+      ai.enabled = stored[aiStorageKey("enabled")] === true;
+    } else {
+      ai.enabled = true;
+    }
+    Object.assign(state.ai, ai, {
+      verified: false,
+      message: "",
+      messageError: false,
+      saved: false,
+    });
+    state.savedSummary["third-party"] = stored[thirdPartyKey("enabled")] === true ? "已启用" : "未启用";
+    state.savedSummary.ai = stored[aiStorageKey("enabled")] === true ? "已启用" : "未启用";
+    state.servicesHydrated = true;
+  }
+
+  async function saveThirdPartySettings(operationId = "") {
+    const form = readThirdPartyForm();
+    state.thirdParty.key = form.key;
+    const enabled = state.thirdParty.enabled === true;
+    if (enabled && !state.thirdParty.verified) {
+      return { ok: false, reason: "unverified" };
+    }
+    const data = { [thirdPartyKey("enabled")]: enabled };
+    if (enabled) data[thirdPartyKey("isthereanydeal.key")] = form.key;
+
+    log.info("onboarding-third-party-save-start", "安装引导开始保存第三方服务配置", {
+      operationId,
+      enabled,
+      hasItadKey: !!form.key,
+    });
+    const ok = await storageSetMany(data, { operationId });
+    if (!ok) {
+      log.warn("onboarding-third-party-save-failed", "安装引导第三方服务配置保存失败", {
+        operationId,
+        enabled,
+        hasItadKey: !!form.key,
+        errorCode: "STORAGE_REJECTED",
+      });
+      return { ok: false, reason: "storage" };
+    }
+    state.thirdParty.saved = true;
+    state.savedSummary["third-party"] = enabled ? "已配置并测试" : "已关闭";
+    log.info("onboarding-third-party-save-success", "安装引导第三方服务配置保存成功", {
+      operationId,
+      enabled,
+      hasItadKey: !!form.key,
+    });
+    return { ok: true };
+  }
+
+  async function saveAiSettings(operationId = "") {
+    await ensureAiModule();
+    const form = readAiForm();
+    Object.assign(state.ai, form, {
+      verified: state.ai.verified,
+      message: state.ai.message,
+      messageError: state.ai.messageError,
+      saved: state.ai.saved,
+    });
+    if (form.enabled && !state.ai.verified) {
+      return { ok: false, reason: "unverified" };
+    }
+    const data = {};
+    if (form.enabled) {
+      Object.keys(aiDefaults()).forEach(id => { data[aiStorageKey(id)] = form[id]; });
+    } else { data[aiStorageKey("enabled")] = false; }
+    log.info("onboarding-ai-save-start", "安装引导开始保存 AI 配置", {
+      operationId,
+      enabled: form.enabled === true,
+    });
+    const ok = await storageSetMany(data, { operationId });
+    if (!ok) {
+      log.warn("onboarding-ai-save-failed", "安装引导 AI 配置保存失败", {
+        operationId,
+        enabled: form.enabled === true,
+        errorCode: "STORAGE_REJECTED",
+      });
+      return { ok: false, reason: "storage" };
+    }
+    state.ai.saved = true;
+    state.savedSummary.ai = form.enabled ? "已配置并测试" : "已关闭";
+    log.info("onboarding-ai-save-success", "安装引导 AI 配置保存成功", {
+      operationId,
+      enabled: form.enabled === true,
+    });
+    return { ok: true };
+  }
+
+  function itadFailureFromStatus(status) {
+    if (status === 401 || status === 403) {
+      return { code: "PROVIDER_AUTH_FAILED", message: "ITAD API Key 验证失败，请检查密钥是否正确或权限是否可用。" };
+    }
+    if (status === 429) {
+      return { code: "PROVIDER_RATE_LIMITED", message: "ITAD 请求已触发限流，请稍后再试。" };
+    }
+    if (status >= 500) {
+      return { code: "PROVIDER_UNAVAILABLE", message: "ITAD 服务暂时不可用，请稍后重试。" };
+    }
+    if (status > 0) {
+      return { code: "PROVIDER_HTTP_ERROR", message: `ITAD 测试接口返回状态码 ${status}。` };
+    }
+    return { code: "NETWORK_FAILED", message: "网络请求失败，请检查网络连接或稍后重试。" };
+  }
+
+  async function testThirdPartyConnection() {
+    if (state.serviceBusy || state.busy) return;
+    syncThirdPartyStateFromForm();
+    const key = state.thirdParty.key;
+    const operationId = createOperationId();
+    const requestId = `itad-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    if (!key) {
+      state.thirdParty.verified = false;
+      state.thirdParty.message = "请先填写 ITAD API Key。";
+      state.thirdParty.messageError = true;
+      log.warn("onboarding-itad-test-failed", "安装引导 ITAD 连接测试缺少 API Key", {
+        operationId,
+        requestId,
+        errorCode: "PROVIDER_CONFIG_MISSING",
+      });
+      render();
+      return;
+    }
+    state.serviceBusy = true;
+    state.thirdParty.message = "测试中...";
+    state.thirdParty.messageError = false;
+    render();
+    const startedAt = Date.now();
+    log.info("onboarding-itad-test-start", "安装引导开始测试 ITAD 连接", {
+      operationId,
+      requestId,
+      hasItadKey: true,
+    });
+    try {
+      const cfg = await sharedConfig();
+      const url = cfg.vendors?.isthereanydeal?.statsMostPopular?.(1, 0);
+      if (!url) throw new Error("ITAD 测试接口配置未就绪。");
+      const res = await runtimeSend({
+        type: "STORE_FETCH",
+        url,
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "ITAD-API-Key": key,
+        },
+        allowHttpError: true,
+        timeoutMs: ITAD_TEST_TIMEOUT_MS,
+      }, ITAD_TEST_TIMEOUT_MS + 1_000);
+      const status = Number(res?.status) || 0;
+      if (!res?.success && status <= 0) {
+        throw Object.assign(new Error(res?.error || "网络请求失败，请检查网络连接或稍后重试。"), {
+          code: "NETWORK_FAILED",
+        });
+      }
+      if (status < 200 || status >= 300) {
+        const failure = itadFailureFromStatus(status);
+        state.thirdParty.verified = false;
+        state.thirdParty.message = failure.message;
+        state.thirdParty.messageError = true;
+        log.warn("onboarding-itad-test-failed", "安装引导 ITAD 连接测试失败", {
+          operationId,
+          requestId,
+          status,
+          durationMs: Date.now() - startedAt,
+          errorCode: failure.code,
+        });
+        return;
+      }
+      const payload = parseJson(res.data);
+      if (!payload || (typeof payload !== "object" && !Array.isArray(payload))) {
+        throw Object.assign(new Error("ITAD 测试接口响应格式异常。"), { code: "RESPONSE_SHAPE_INVALID" });
+      }
+      state.thirdParty.verified = true;
+      state.thirdParty.saved = false;
+      state.thirdParty.message = "测试通过，可进入下一步。";
+      state.thirdParty.messageError = false;
+      log.info("onboarding-itad-test-success", "安装引导 ITAD 连接测试成功", {
+        operationId,
+        requestId,
+        status,
+        durationMs: Date.now() - startedAt,
+      });
+    } catch (error) {
+      state.thirdParty.verified = false;
+      state.thirdParty.message = error?.message || String(error);
+      state.thirdParty.messageError = true;
+      log.error("onboarding-itad-test-failed", "安装引导 ITAD 连接测试异常", {
+        operationId,
+        requestId,
+        durationMs: Date.now() - startedAt,
+        errorCode: error?.code || "TEST_THROWN",
+        error,
+      });
+    } finally {
+      state.serviceBusy = false;
+      render();
+    }
+  }
+
+  function aiPermissionError(response) {
+    const denied = response?.code === "AI_HOST_PERMISSION_DENIED";
+    const error = new Error(response?.error || (denied
+      ? "未获得当前 AI 网关的访问权限，请允许访问后重试。"
+      : "AI 网关访问权限申请失败，请稍后重试。"));
+    error.code = response?.code || "AI_HOST_PERMISSION_REQUEST_FAILED";
+    return error;
+  }
+
+  function waitAiPermissionResult(requestId) {
+    const api = chromeApi();
+    if (!api?.runtime?.onMessage) {
+      return Promise.reject(Object.assign(new Error("AI 网关访问权限申请失败，请稍后重试。"), {
+        code: "AI_HOST_PERMISSION_RESULT_UNAVAILABLE",
+      }));
+    }
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        api.runtime.onMessage.removeListener(onMessage);
+        if (error) reject(error);
+        else resolve(true);
+      };
+      const onMessage = (message, _sender, sendResponse) => {
+        if (String(message?.type || "") !== AI_GATEWAY_PERMISSION_RESULT) return false;
+        if (String(message?.requestId || "") !== requestId) return false;
+        try {
+          sendResponse?.({ success: true, received: true });
+        } catch {
+          // ignore response channel errors
+        }
+        finish(message?.granted === true ? null : aiPermissionError(message));
+        return false;
+      };
+      const timer = window.setTimeout(() => {
+        finish(Object.assign(new Error("等待授权超时，请重新操作。"), { code: "AI_HOST_PERMISSION_TIMEOUT" }));
+      }, AI_PERMISSION_WAIT_MS);
+      api.runtime.onMessage.addListener(onMessage);
+    });
+  }
+
+  async function ensureAiGatewayPermission(ai, operationId = "") {
+    if (ai?.enabled !== true || !ai?.host) return true;
+    const check = await runtimeSend({
+      type: AI_GATEWAY_PERMISSION_CHECK,
+      operationId,
+      host: ai.host,
+    }, 5_000);
+    if (check?.success !== true) throw aiPermissionError(check);
+    if (check.granted === true) return true;
+    if (window.STClientEnvironment.isSteamClientPage() !== true) {
+      const response = await runtimeSend({
+        type: AI_GATEWAY_PERMISSION_REQUEST,
+        operationId,
+        host: ai.host,
+      }, 0);
+      if (response?.granted !== true) throw aiPermissionError(response);
+      return true;
+    }
+    const ok = window.confirm("该操作需要授权，需打开 Chromium 浏览器进行授权操作。是否继续？");
+    if (!ok) {
+      const error = new Error("已取消 AI 网关授权。");
+      error.code = "AI_HOST_PERMISSION_CANCELLED";
+      throw error;
+    }
+    const requestId = globalThis.STLoggerFactory?.createRequestId?.()
+      || `ai-perm-${Date.now().toString(36)}`;
+    const waiter = waitAiPermissionResult(requestId);
+    try {
+      const response = await runtimeSend({
+        type: AI_GATEWAY_PERMISSION_OPEN,
+        requestId,
+        operationId,
+        host: ai.host,
+      }, 10_000);
+      if (response?.opened !== true) throw aiPermissionError(response);
+      await waiter;
+      return true;
+    } catch (error) {
+      try {
+        await runtimeSend({
+          type: AI_GATEWAY_PERMISSION_CANCEL,
+          requestId,
+          operationId,
+        }, 5_000);
+      } catch {
+        // keep original permission error
+      }
+      throw error;
+    }
+  }
+
+  async function testAiConnection() {
+    if (state.serviceBusy || state.busy) return;
+    await ensureAiModule();
+    syncAiStateFromForm();
+    const testConf = normalizeAiDraft({ ...state.ai, enabled: true });
+    const operationId = createOperationId();
+    if (!testConf.host || !testConf.model) {
+      state.ai.verified = false;
+      state.ai.message = "请填写 AI 网关地址和模型。";
+      state.ai.messageError = true;
+      render();
+      return;
+    }
+    if (aiKeyRequired(testConf.keyMode) && !testConf.key) {
+      state.ai.verified = false;
+      state.ai.message = "请填写访问密钥。";
+      state.ai.messageError = true;
+      render();
+      return;
+    }
+    state.serviceBusy = true;
+    state.ai.message = "测试中...";
+    state.ai.messageError = false;
+    render();
+    const startedAt = Date.now();
+    log.info("onboarding-ai-test-start", "安装引导开始测试 AI 连接", {
+      operationId,
+      enabled: true,
+    });
+    try {
+      await ensureAiGatewayPermission(testConf, operationId);
+      const response = await runtimeSend({
+        type: "AI_CHAT_COMPLETIONS",
+        operationId,
+        ai: testConf,
+        messages: [
+          { role: "system", content: "你是接口连通性测试助手，只回复纯文本。" },
+          { role: "user", content: "请只回复：Steam Buff AI 测试成功" },
+        ],
+      }, AI_TEST_TIMEOUT_MS);
+      if (response?.success !== true) {
+        throw Object.assign(new Error(response?.error || "AI 测试失败，请检查配置后重试。"), {
+          code: response?.code || "AI_TEST_FAILED",
+        });
+      }
+      state.ai.verified = true;
+      state.ai.saved = false;
+      state.ai.message = "测试通过，可进入下一步。";
+      state.ai.messageError = false;
+      log.info("onboarding-ai-test-success", "安装引导 AI 连接测试成功", {
+        operationId,
+        durationMs: Date.now() - startedAt,
+      });
+    } catch (error) {
+      if (error?.code === "AI_HOST_PERMISSION_CANCELLED") {
+        state.ai.verified = false;
+        state.ai.message = "已取消授权。";
+        state.ai.messageError = true;
+        log.info("onboarding-ai-test-permission-cancelled", "安装引导 AI 连接测试授权已取消", {
+          operationId,
+          durationMs: Date.now() - startedAt,
+        });
+      } else {
+        state.ai.verified = false;
+        state.ai.message = error?.message || String(error);
+        state.ai.messageError = true;
+        log.error("onboarding-ai-test-failed", "安装引导 AI 连接测试失败", {
+          operationId,
+          durationMs: Date.now() - startedAt,
+          errorCode: error?.code || "TEST_THROWN",
+          error,
+        });
+      }
+    } finally {
+      state.serviceBusy = false;
+      render();
     }
   }
 
@@ -420,6 +1222,21 @@
     const profile = normalizeAccount(res.body || {}, current);
     state.accountData = profile;
     await storeMembership(profile, operationId);
+    try {
+      chrome.runtime.sendMessage({
+        type: "SETTINGS_CLOUD_SYNC",
+        reason: "login",
+        action: "sync",
+        operationId,
+      }, () => {
+        void chrome.runtime.lastError;
+      });
+    } catch (error) {
+      log.warn("settings-cloud-login-trigger-failed", "登录后触发设置云同步失败", {
+        operationId,
+        error,
+      });
+    }
     return profile;
   }
 
@@ -621,10 +1438,13 @@
     render();
   }
 
-  async function openTutorial() {
+  async function openTutorial(topic = "") {
     try {
       const cfg = await sharedConfig();
-      const url = cfg.urls.onboardingTutorial;
+      const key = String(topic || "").trim();
+      const url = key && typeof cfg.urls.helpSearch === "function"
+        ? cfg.urls.helpSearch(key)
+        : cfg.urls.onboardingTutorial;
       if (!url) throw new Error("使用教程地址未配置");
       cfg.externalNavigation.open(url);
     } catch (error) {
@@ -632,52 +1452,30 @@
     }
   }
 
-  function saveClientChoices(operationId = "") {
-    return clientFeatureIds().then((ids) => {
-      const data = {};
-      ids.forEach((id) => {
-        data[settingKey(id)] = state.clientEnabled === true;
-      });
-      if (!Object.keys(data).length) return false;
-      const api = chromeApi();
-      if (api?.storage?.local) {
-        return new Promise((resolve) => {
-          try {
-            api.storage.local.set(data, () => {
-              const error = api.runtime?.lastError;
-              if (error) {
-                log.warn("onboarding-client-settings-save-failed", "安装引导客户端增强设置保存失败", {
-                  operationId,
-                  settingCount: Object.keys(data).length,
-                  error,
-                });
-                resolve(false);
-                return;
-              }
-              resolve(true);
-            });
-          } catch (error) {
-            log.warn("onboarding-client-settings-save-failed", "安装引导客户端增强设置保存失败", {
-              operationId,
-              settingCount: Object.keys(data).length,
-              error,
-            });
-            resolve(false);
-          }
-        });
-      }
-      try {
-        Object.entries(data).forEach(([key, value]) => localStorage.setItem(key, String(value)));
-        return true;
-      } catch (error) {
-        log.warn("onboarding-client-settings-save-failed", "安装引导客户端增强设置保存失败", {
-          operationId,
-          settingCount: Object.keys(data).length,
-          error,
-        });
-        return false;
-      }
+  async function saveClientChoices(operationId = "") {
+    if (!state.clientDefaultReady || state.initError) return false;
+    const data = {};
+    state.clientFeatureList.forEach(item => {
+      data[settingKey(item.id)] = state.clientEnabled && state.clientFeatures[item.id] === true;
     });
+    log.info("onboarding-client-save-start", "安装引导开始保存客户端功能", { operationId, settingCount: Object.keys(data).length });
+    const ok = await storageSetMany(data, { operationId });
+    if (ok) {
+      state.savedSummary.client = Object.values(data).some(Boolean) ? `已开启 · ${CLIENT_RESTART_NOTE}` : "已关闭";
+      log.info("onboarding-client-save-success", "安装引导客户端功能已保存", { operationId });
+    }
+    return ok;
+  }
+
+  async function saveNameMode(operationId = "") {
+    if (!nameFeatureEnabled() || !nameModeAllowed(state.clientNameMode)) return false;
+    log.info("onboarding-name-mode-save-start", "安装引导开始保存名称方案", { operationId, mode: state.clientNameMode });
+    const ok = await storageSetMany({ [settingValueKey(NAME_MODE_ID)]: state.clientNameMode }, { operationId });
+    if (ok) {
+      state.savedSummary["name-mode"] = state.clientNameMode === NAME_MODE_INDEPENDENT ? "素材君云存储版" : "Steam 云存储版";
+      log.info("onboarding-name-mode-save-success", "安装引导名称方案已保存", { operationId, mode: state.clientNameMode });
+    }
+    return ok;
   }
 
   function setNote(note = "", error = false) {
@@ -729,30 +1527,80 @@
     }
   }
 
+  async function ensureClientDefault() {
+    if (state.clientDefaultReady) return;
+    const catalog = await settingsCatalog();
+    const items = await clientTopLevelFeatures();
+    if (!catalog || !items.length) throw new Error("客户端功能目录未加载");
+    const on = window.STClientEnvironment.isSteamClientPage() === true;
+    const stored = await storageGetMany([...items.map(item => settingKey(item.id)), settingValueKey(NAME_MODE_ID)]);
+    state.clientFeatureList = items.map((item) => ({
+      id: item.id,
+      name: String(item.name || item.id),
+      desc: String(item.desc || ""),
+      lock: clientFeatureLockText(item, catalog),
+    }));
+    const nameMode = catalog?.featureById?.(NAME_MODE_ID);
+    state.clientNameModeOptions = Array.isArray(nameMode?.options)
+      ? nameMode.options
+        .filter((option) => typeof option?.value === "string" && option.value)
+        .map((option) => ({
+          value: String(option.value),
+          label: String(option.label || option.value),
+          lock: String(option.lock || ""),
+        }))
+      : [];
+    const storedMode = stored[settingValueKey(NAME_MODE_ID)];
+    if (storedMode !== undefined && !state.clientNameModeOptions.some(option => option.value === storedMode)) throw new Error("已保存的名称方案无效");
+    state.clientNameMode = storedMode ?? NAME_MODE_STEAM;
+    state.clientFeatures = Object.fromEntries(items.map(item => [item.id, Object.hasOwn(stored, settingKey(item.id)) ? stored[settingKey(item.id)] === true : on]));
+    state.clientEnabled = Object.values(state.clientFeatures).some(Boolean);
+    state.savedSummary.client = items.some(item => stored[settingKey(item.id)] === true) ? "已开启" : "未启用";
+    state.savedSummary["name-mode"] = state.clientNameMode === NAME_MODE_INDEPENDENT ? "素材君云存储版" : "Steam 云存储版";
+    state.clientDefaultReady = true;
+  }
+
+  function inSteamClient() {
+    return window.STClientEnvironment.isSteamClientPage() === true;
+  }
+
+  function openRestartModal() {
+    state.restartModalOpen = true;
+    renderRestartModal();
+  }
+
+  function closeRestartModal() {
+    state.restartModalOpen = false;
+    renderRestartModal();
+  }
+
+  function renderRestartModal() {
+    const modal = $("#restart-modal");
+    if (!modal) return;
+    modal.hidden = state.restartModalOpen !== true;
+  }
+
   async function finish() {
     if (state.busy || state.loginBusy) return;
     const operationId = createOperationId();
     const startedAt = Date.now();
-    const steamClient = window.STClientEnvironment.isSteamClientPage();
-    log.info("onboarding-finish-start", "安装引导开始保存设置并打开设置中心", {
+    const steamClient = inSteamClient();
+    log.info("onboarding-finish-start", "安装引导开始完成收尾", {
       operationId,
       steamClient,
     });
     try {
-      if (!steamClient) {
-        setBusy(true, "正在保存客户端增强设置...");
-        const ok = await saveClientChoices(operationId);
-        if (!ok) {
-          log.warn("onboarding-finish-failed", "安装引导客户端增强设置未能保存", {
-            operationId,
-            durationMs: Date.now() - startedAt,
-            errorCode: "STORAGE_REJECTED",
-          });
-          setBusy(false, "客户端增强设置保存失败，请稍后重试。", true);
-          return;
-        }
+      if (steamClient) {
         state.busy = false;
+        openRestartModal();
+        setNote("请完全退出并重新打开 Steam，客户端增强才会生效。", false);
+        log.info("onboarding-finish-restart-required", "安装引导完成，等待用户自行重启 Steam", {
+          operationId,
+          durationMs: Date.now() - startedAt,
+        });
+        return;
       }
+      state.busy = false;
       openSettings(operationId, startedAt);
     } catch (error) {
       log.error("onboarding-finish-failed", "安装引导完成操作异常", {
@@ -795,10 +1643,18 @@
   }
 
   // state.page 始终是全局页码，state.step 只保存本地索引；跨到云端时替换当前历史项。
+  // 注: 不在单纯跳页时抬高 lastCommittedPage，只有「下一步」成功过闸/落盘后才提交边界
   function applyLocalPage(page, historyMode = "push") {
     if (state.phase !== "ready" || !Number.isSafeInteger(page) || page < 1 || page > state.total) {
       setInvalidPhase();
       render();
+      return;
+    }
+    if (page > state.lastCommittedPage) {
+      if (historyMode === "history") {
+        window.history.replaceState(null, "", localUrl(state.page));
+      }
+      setNote("请按顺序完成前面的配置步骤。", true);
       return;
     }
     if (page <= state.cloudCount) {
@@ -812,12 +1668,117 @@
       return;
     }
     if (historyMode === "push") window.history.pushState(null, "", localUrl(page));
+    else if (historyMode === "replace") window.history.replaceState(null, "", localUrl(page));
     state.page = page;
     state.step = index;
     state.note = "";
     state.noteError = false;
+    const stepId = LOCAL_STEPS[index]?.id;
+    if (stepId === "complete" && inSteamClient()) {
+      state.restartAcked = false;
+      state.restartModalOpen = true;
+    } else {
+      state.restartModalOpen = false;
+    }
     render();
     focusHeading();
+  }
+
+  async function advanceFromCurrent() {
+    if (controlsBusy()) return;
+    const stepId = activeStep().id;
+    if (stepId === "third-party") syncThirdPartyStateFromForm();
+    if (stepId === "ai") syncAiStateFromForm();
+    if (!stepCanNext(stepId)) {
+      setNote(gateBlockNote(stepId), true);
+      return;
+    }
+    const operationId = createOperationId();
+    if (stepId === "third-party") {
+      state.serviceBusy = true;
+      render();
+      let saved;
+      try {
+        saved = await saveThirdPartySettings(operationId);
+      } finally {
+        state.serviceBusy = false;
+      }
+      if (!saved?.ok) {
+        setNote(saved?.reason === "unverified" ? gateBlockNote(stepId) : "第三方服务配置保存失败，请稍后重试。", true);
+        return;
+      }
+    }
+    if (stepId === "ai") {
+      state.serviceBusy = true;
+      render();
+      let saved;
+      try {
+        saved = await saveAiSettings(operationId);
+      } finally {
+        state.serviceBusy = false;
+      }
+      if (!saved?.ok) {
+        setNote(saved?.reason === "unverified" ? gateBlockNote(stepId) : "AI 配置保存失败，请稍后重试。", true);
+        return;
+      }
+    }
+    if (stepId === "client") {
+      state.serviceBusy = true;
+      render();
+      let ok = false;
+      try {
+        ok = await saveClientChoices(operationId);
+      } finally {
+        state.serviceBusy = false;
+      }
+      if (!ok) {
+        setNote("客户端增强设置保存失败，请稍后重试。", true);
+        return;
+      }
+    }
+    if (stepId === "name-mode") {
+      state.serviceBusy = true;
+      render();
+      let ok;
+      try { ok = await saveNameMode(operationId); }
+      finally { state.serviceBusy = false; }
+      if (!ok) {
+        setNote("名称方案保存失败，请检查选择后重试。", true);
+        return;
+      }
+    }
+    state.results[stepId] = "saved";
+    const nextPage = state.page + 1;
+    commitPage(nextPage);
+    applyLocalPage(nextPage);
+  }
+
+  function skipCurrentStep() {
+    if (controlsBusy() || state.initError) return;
+    const id = activeStep().id;
+    if (!["account", "name-mode", "third-party", "ai"].includes(id)) return;
+    if (id === "account") cancelLogin();
+    state.results[id] = "skipped";
+    commitPage(state.page + 1);
+    applyLocalPage(state.page + 1);
+  }
+
+  function goToPage(page) {
+    if (!Number.isSafeInteger(page) || page < 1 || page > state.total) return;
+    if (page === state.page) return;
+    if (page < state.page) {
+      applyLocalPage(page);
+      return;
+    }
+    if (page <= state.lastCommittedPage) {
+      applyLocalPage(page);
+      return;
+    }
+    if (page === state.page + 1) {
+      advanceFromCurrent();
+      return;
+    }
+    setNote("请按顺序完成前面的配置步骤。", true);
   }
 
   function progressButton(page) {
@@ -831,6 +1792,11 @@
     button.setAttribute("aria-label", `第 ${page} 步：${title}`);
     button.classList.toggle("is-complete", page <= state.page);
     if (page === state.page) button.setAttribute("aria-current", "step");
+    const reachable = canNavigateToPage(page);
+    setControlDisabled(button, page !== state.page && !reachable, false);
+    if (!reachable && page !== state.page) {
+      button.title = "请先完成前面的配置步骤";
+    }
     return button;
   }
 
@@ -858,12 +1824,14 @@
     $("#progress-track").replaceChildren();
     $("#progress-track").setAttribute("aria-busy", state.phase === "loading" ? "true" : "false");
     $("#footer-back").hidden = true;
+    $("#footer-skip").hidden = true;
+    $("#footer-retry").hidden = true;
     $("#footer-next").hidden = false;
-    $("#footer-next").disabled = true;
+    setControlDisabled($("#footer-next"), true, state.phase === "loading");
     $("#footer-tutorial").hidden = true;
     $("#footer-finish").hidden = true;
-    $("#onboarding-retry").disabled = state.phase === "loading";
-    $("#onboarding-home").disabled = state.phase === "loading";
+    setControlDisabled($("#onboarding-retry"), state.phase === "loading", state.phase === "loading");
+    setControlDisabled($("#onboarding-home"), state.phase === "loading", state.phase === "loading");
     const note = $("#footer-note");
     note.textContent = state.phase === "loading"
       ? "正在验证云端页面数量"
@@ -875,6 +1843,8 @@
 
   // 注: 本地页必须先验证 flow.json 才能判断全局页码，任何加载失败都不能回退到固定页数。
   async function loadFlow() {
+    state.initializing = true;
+    state.initError = false;
     const pageResult = CONTRACT.readPage(window.location.href);
     if (!pageResult.ok) {
       setInvalidPhase();
@@ -912,15 +1882,34 @@
       }
       const index = CONTRACT.localIndexForPage(state.page, state.cloudCount);
       if (index < 0) throw new Error("本地引导页码无效");
-      state.step = index;
+      const firstLocal = firstLocalPage();
+      let committed = readCommittedPage(state.cloudCount);
+      if (committed < firstLocal) committed = firstLocal;
+      if (committed > state.total) committed = state.total;
+      state.lastCommittedPage = committed;
+      writeCommittedPage(committed);
+      if (state.page > state.lastCommittedPage) {
+        state.page = state.lastCommittedPage;
+        window.history.replaceState(null, "", localUrl(state.page));
+      }
+      state.step = CONTRACT.localIndexForPage(state.page, state.cloudCount);
+      if (state.step < 0) throw new Error("本地引导页码无效");
       setPhase("ready", "", "");
+      if (LOCAL_STEPS[state.step]?.id === "complete" && inSteamClient()) {
+        state.restartAcked = false;
+        state.restartModalOpen = true;
+      }
       render();
-      ensureLoginState().catch((error) => {
-        log.error("onboarding-account-sync-failed", "安装引导账号状态初始化异常", {
-          operationId: state.loginOperationId || "",
-          error,
-        });
-      });
+      const initialized = await Promise.allSettled([ensureClientDefault(), hydrateServiceSettings(), ensureLoginState()]);
+      const failed = initialized.find(result => result.status === "rejected");
+      state.initializing = false;
+      if (failed) {
+        state.initError = true;
+        state.note = "已有设置读取失败，请重试；本次尚未保存配置。";
+        state.noteError = true;
+        log.error("onboarding-service-hydrate-failed", "安装引导设置读取失败，已阻止保存", { error: failed.reason });
+      }
+      render();
     } catch (error) {
       log.error("onboarding-flow-load-failed", "安装引导配置加载失败", {
         error,
@@ -947,26 +1936,54 @@
     const railTitle = $("#rail-title");
     const railCopy = $("#rail-copy");
     if (railTitle) railTitle.textContent = step.title || "";
-    if (railCopy) railCopy.textContent = step.copy || "";
-
+    if (railCopy) {
+      if (step.id === "account") {
+        railCopy.textContent = loggedIn() ? "已登录，可进入下一步。" : "登录素材君账号，也可以暂时跳过。";
+      } else if (step.id === "third-party") {
+        railCopy.textContent = state.thirdParty.enabled
+          ? (state.thirdParty.verified ? "密钥测试已通过，可进入下一步。" : "开启后需填写密钥并测试通过。")
+          : "已关闭第三方服务，可进入下一步。";
+      } else if (step.id === "ai") {
+        railCopy.textContent = state.ai.enabled
+          ? (state.ai.verified ? "AI 测试已通过，可进入下一步。" : "开启后需配置并测试通过。")
+          : "已关闭 AI 模块，可进入下一步。";
+      } else {
+        railCopy.textContent = step.copy || "";
+      }
+    }
   }
 
   function renderComplete() {
-    const account = $("#complete-account");
-    const client = $("#complete-client");
-    account.textContent = state.loginMode === "success" || state.loginAuth ? "已登录" : "未登录";
-    client.textContent = window.STClientEnvironment.isSteamClientPage()
-      ? "需重启客户端"
-      : state.clientEnabled
-        ? "已开启"
-        : "已关闭";
+    $("#complete-account").textContent = loggedIn() ? "已登录" : "暂未登录";
+    ["third-party", "ai", "client", "name-mode"].forEach(id => {
+      const result = state.results[id];
+      const saved = state.savedSummary[id] || "尚未保存";
+      const summary = result === "skipped"
+        ? `已跳过 · 原设置：${saved}`
+        : result === "saved" ? saved : `原设置：${saved}`;
+      const target = $("#complete-" + id);
+      if (id === "client" && summary.endsWith(CLIENT_RESTART_NOTE)) {
+        target.replaceChildren(
+          document.createTextNode(summary.slice(0, -CLIENT_RESTART_NOTE.length)),
+          el("strong", "complete-restart-note", CLIENT_RESTART_NOTE),
+        );
+      } else {
+        target.textContent = summary;
+      }
+    });
+  }
+
+  function renderAccountGate() {
+    $("#account-gate-detail").textContent = loggedIn()
+      ? "已登录，可以继续。"
+      : "部分功能需要登录后方可使用,如不需要使用这些功能可跳过登录。";
   }
 
   function renderAuthField(label, value, action) {
     const field = el("button", "auth-field");
     field.type = "button";
     field.dataset.action = action;
-    field.disabled = state.busy || state.loginBusy;
+    setControlDisabled(field, controlsBusy(), controlsBusy());
     const copy = el("span", "auth-field-copy");
     copy.append(el("small", "", label), el("strong", "", value || "-"));
     field.append(copy, icon("copy", "copy-icon"));
@@ -1063,33 +2080,248 @@
     renderAccountPrompt(root);
   }
 
+  function renderNameMode() {
+    const root = $("#client-name-mode-options");
+    const selected = state.clientNameMode;
+    const focused = root.contains(document.activeElement) ? document.activeElement.value : null;
+    const groups = [
+      { title: "商店", features: [
+        ["自定义名称", true, false],
+        ["别名搜索", true, false],
+        ["助记符搜索", true, false],
+        ["拼音全拼搜索", true, false],
+        ["游戏备注", true, false],
+      ] },
+      { title: "库列表", features: [
+        ["自定义名称", true, true],
+        ["别名搜索", true, false],
+        ["助记符搜索", true, true],
+        ["拼音全拼搜索", true, false],
+      ] },
+      { title: "愿望单", features: [
+        ["自定义名称", true, false],
+        ["游戏备注", true, false],
+      ] },
+      { title: "其他", features: [
+        ["批量设置", true, true],
+        ["导入导出", true, true],
+        ["是否影响排序显示", "不影响", "影响"],
+        ["存储位置", "素材君云端", "Steam 云端"],
+        ["使用条件", "需赞助开发者开通", "无任何要求"],
+      ] },
+    ];
+    const modes = [NAME_MODE_INDEPENDENT, NAME_MODE_STEAM]
+      .filter(value => state.clientNameModeOptions.some(item => item.value === value));
+    const table = el("table", "mode-comparison");
+    table.setAttribute("aria-label", "自定义名称方案功能对比");
+    const columns = el("colgroup");
+    columns.append(el("col", "mode-category-column"), el("col", "mode-feature-column"));
+    modes.forEach(() => columns.append(el("col")));
+    const head = el("thead");
+    const header = el("tr");
+    const categoryHeading = el("th", "mode-category-heading", "类别");
+    categoryHeading.scope = "col";
+    const featureHeading = el("th", "mode-row-heading", "功能");
+    featureHeading.scope = "col";
+    header.append(categoryHeading, featureHeading);
+    const foot = el("tfoot");
+    const choices = el("tr");
+    const choiceHeading = el("th", "mode-choice-heading", "选择方案");
+    choiceHeading.scope = "row";
+    choiceHeading.colSpan = 2;
+    choices.append(choiceHeading);
+    const inputs = [];
+    modes.forEach(value => {
+      const independent = value === NAME_MODE_INDEPENDENT;
+      const allowed = nameModeAllowed(value);
+      const title = independent ? "素材君云存储版" : "Steam 云存储版";
+      const columnClass = independent ? "mode-independent" : "mode-steam";
+      const cell = el("th", columnClass);
+      cell.scope = "col";
+      const titleLabel = el("label", "mode-plan-label", title);
+      titleLabel.htmlFor = `name-mode-${value}`;
+      const heading = el("h2", "client-name-mode-title");
+      heading.append(titleLabel);
+      cell.append(
+        el("span", "mode-plan-badge", independent ? "捐赠用户专享" : "无需捐赠用户身份"),
+        heading,
+        el("p", "client-name-mode-desc", nameModeCopy(value)),
+      );
+      header.append(cell);
+
+      const choiceCell = el("td", columnClass);
+      const label = el("label", `client-name-mode-option${selected === value ? " is-selected" : ""}`);
+      const input = el("input");
+      input.type = "radio";
+      input.id = `name-mode-${value}`;
+      input.name = NAME_MODE_ID;
+      input.value = value;
+      input.checked = selected === value;
+      input.disabled = controlsBusy() || !allowed || !nameFeatureEnabled();
+      input.dataset.actionChange = "client-name-mode";
+      input.setAttribute("aria-label", title);
+      label.append(input, el("span", "mode-choice", !allowed ? "需要捐赠用户身份" : selected === value ? "已选择" : independent ? "选择素材君版" : "选择 Steam 版"));
+      choiceCell.append(label);
+      choices.append(choiceCell);
+      inputs.push(input);
+    });
+    head.append(header);
+    table.append(columns, head);
+    groups.forEach(group => {
+      const body = el("tbody");
+      group.features.forEach(([title, independentValue, steamValue], index) => {
+        const row = el("tr");
+        if (index === 0) {
+          const category = el("th", "mode-category-heading", group.title);
+          category.scope = "rowgroup";
+          category.rowSpan = group.features.length;
+          row.append(category);
+        }
+        const heading = el("th", "mode-row-heading", title);
+        heading.scope = "row";
+        row.append(heading);
+        modes.forEach(value => {
+          const independent = value === NAME_MODE_INDEPENDENT;
+          const content = independent ? independentValue : steamValue;
+          const cell = el("td", independent ? "mode-independent" : "mode-steam");
+          if (typeof content === "boolean") {
+            const status = el("span", `mode-support${content ? " is-supported" : ""}`, content ? "✓" : "—");
+            status.setAttribute("role", "img");
+            status.setAttribute("aria-label", content ? "支持" : "不支持");
+            cell.append(status);
+          } else {
+            cell.textContent = content;
+          }
+          row.append(cell);
+        });
+        body.append(row);
+      });
+      table.append(body);
+    });
+    foot.append(choices);
+    table.append(foot);
+    root.replaceChildren(table);
+    const active = inputs.find(input => input.value === focused && !input.disabled);
+    if (active) active.focus({ preventScroll: true });
+  }
+
   function renderClient() {
-    const control = $("#client-control");
-    const title = $("#client-state-title");
     const detail = $("#client-state-detail");
+    const note = $("#client-scope-note");
     const toggle = $("#client-toggle");
-    const inClient = window.STClientEnvironment.isSteamClientPage();
-    control.classList.toggle("is-client-context", inClient);
-    if (inClient) {
-      title.textContent = "需要重启 Steam 客户端";
-      detail.textContent = "重启后，客户端相关增强会按当前设置加载。";
-      toggle.hidden = true;
-      return;
-    }
+    const scope = $("#client-feature-scope");
+    const list = $("#client-feature-list");
+    if (!detail || !toggle) return;
     toggle.hidden = false;
     toggle.setAttribute("aria-checked", state.clientEnabled ? "true" : "false");
-    toggle.disabled = state.busy || state.loginBusy;
-    title.textContent = state.clientEnabled ? "当前开启" : "当前关闭";
+    setControlDisabled(toggle, controlsBusy(), controlsBusy());
+    const enabledCount = state.clientFeatureList.filter((item) => state.clientFeatures[item.id] === true).length;
     detail.textContent = state.clientEnabled
-      ? "将启用 Steam 客户端相关增强"
-      : "不会加载 Steam 客户端相关增强";
+      ? (enabledCount ? `已选择 ${enabledCount} 项功能` : "已开启总开关，请至少选择一项功能")
+      : "关闭后不加载相关增强";
+    if (note) {
+      note.textContent = state.clientEnabled
+        ? "开启后将在 Steam 客户端对应页面加载这些增强；部分功能需重启 Steam 后生效。"
+        : "当前已关闭，不会在 Steam 客户端页面加载这些增强。";
+    }
+    if (scope) scope.classList.toggle("is-disabled", state.clientEnabled !== true);
+    renderNameMode();
+    if (!list) return;
+    const busy = controlsBusy();
+    const masterOn = state.clientEnabled === true;
+    list.replaceChildren();
+    state.clientFeatureList.forEach((item) => {
+      const row = el("div", "client-feature-row");
+      const copy = el("div", "client-feature-copy");
+      const title = el("div", "client-feature-title");
+      title.append(el("span", "", item.name));
+      if (item.lock) title.append(el("span", "client-feature-lock", item.lock));
+      copy.append(title);
+      if (item.desc) copy.append(el("span", "client-feature-desc", item.desc));
+      const switchBtn = el("button", "switch");
+      switchBtn.type = "button";
+      switchBtn.setAttribute("role", "switch");
+      switchBtn.setAttribute("aria-checked", state.clientFeatures[item.id] === true ? "true" : "false");
+      switchBtn.setAttribute("aria-label", item.name);
+      switchBtn.dataset.action = "client-feature-toggle";
+      switchBtn.dataset.featureId = item.id;
+      switchBtn.append(el("span", "switch-knob"));
+      setControlDisabled(switchBtn, busy || !masterOn, busy);
+      row.append(copy, switchBtn);
+      list.append(row);
+    });
+  }
+
+  function renderThirdParty() {
+    const enabledToggle = $("#third-party-enabled");
+    const fields = $("#third-party-fields");
+    const keyInput = $("#third-party-key");
+    const testButton = $("#third-party-test");
+    const status = $("#third-party-status");
+    if (!enabledToggle || !fields || !keyInput || !testButton || !status) return;
+    enabledToggle.setAttribute("aria-checked", state.thirdParty.enabled ? "true" : "false");
+    setControlDisabled(enabledToggle, controlsBusy(), controlsBusy());
+    fields.hidden = state.thirdParty.enabled !== true;
+    if (document.activeElement !== keyInput) keyInput.value = state.thirdParty.key || "";
+    const thirdPartyBusy = controlsBusy();
+    setControlDisabled(keyInput, thirdPartyBusy || state.thirdParty.enabled !== true, thirdPartyBusy);
+    setControlDisabled(testButton, thirdPartyBusy || state.thirdParty.enabled !== true, thirdPartyBusy);
+    testButton.textContent = state.serviceBusy && activeStep().id === "third-party" ? "测试中" : "测试连接";
+    status.textContent = state.thirdParty.message || "";
+    status.classList.toggle("is-error", state.thirdParty.messageError === true);
+    status.classList.toggle("is-success", state.thirdParty.verified === true && !state.thirdParty.messageError);
+  }
+
+  function renderAi() {
+    const enabledToggle = $("#ai-enabled");
+    const fields = $("#ai-fields");
+    const host = $("#ai-host");
+    const model = $("#ai-model");
+    const keyMode = $("#ai-key-mode");
+    const key = $("#ai-key");
+    const keyField = $("#ai-key-field");
+    const keyName = $("#ai-key-name");
+    const keyNameField = $("#ai-key-name-field");
+    const temperature = $("#ai-temperature");
+    const concurrency = $("#ai-concurrency");
+    const testButton = $("#ai-test");
+    const status = $("#ai-status");
+    if (!enabledToggle || !fields || !host || !model || !keyMode || !key || !testButton || !status) return;
+    enabledToggle.setAttribute("aria-checked", state.ai.enabled ? "true" : "false");
+    setControlDisabled(enabledToggle, controlsBusy(), controlsBusy());
+    fields.hidden = state.ai.enabled !== true;
+    const fill = (node, value) => {
+      if (!node || document.activeElement === node) return;
+      node.value = value == null ? "" : String(value);
+    };
+    fill(host, state.ai.host);
+    fill(model, state.ai.model);
+    fill(keyMode, state.ai.keyMode || "bearer");
+    fill(key, state.ai.key || "");
+    fill(keyName, state.ai.keyName || "");
+    fill(temperature, state.ai.temperature);
+    fill(concurrency, state.ai.aiConcurrency || 10);
+    const mode = String(keyMode.value || state.ai.keyMode || "bearer");
+    if (keyField) keyField.hidden = mode === "none";
+    if (keyNameField) keyNameField.hidden = mode !== "header" && mode !== "param";
+    $("#ai-advanced-mode").textContent = keyMode.options[keyMode.selectedIndex]?.textContent || "";
+    const aiBusy = controlsBusy();
+    const aiLocked = aiBusy || state.ai.enabled !== true;
+    [host, model, keyMode, key, keyName, temperature, concurrency].forEach((node) => {
+      setControlDisabled(node, aiLocked, aiBusy);
+    });
+    setControlDisabled(testButton, aiLocked, aiBusy);
+    testButton.textContent = state.serviceBusy && activeStep().id === "ai" ? "测试中" : "测试连接";
+    status.textContent = state.ai.message || "";
+    status.classList.toggle("is-error", state.ai.messageError === true);
+    status.classList.toggle("is-success", state.ai.verified === true && !state.ai.messageError);
   }
 
   function renderGlobal() {
     const step = activeStep();
     const final = state.step === LOCAL_STEPS.length - 1;
     const note = $("#footer-note");
-    note.textContent = state.note || step.note;
+    note.textContent = state.initializing ? "正在读取已有设置…" : state.note || step.note;
     note.classList.toggle("error", state.noteError);
 
     const back = $("#footer-back");
@@ -1098,17 +2330,30 @@
     const finishButton = $("#footer-finish");
 
     back.hidden = false;
-    back.disabled = state.busy || state.loginBusy;
+    setControlDisabled(back, controlsBusy(), controlsBusy());
 
+    const skip = $("#footer-skip");
+    skip.hidden = !["account", "name-mode", "third-party", "ai"].includes(step.id) || (step.id === "account" && loggedIn());
+    skip.textContent = step.id === "account" ? "暂不登录" : step.id === "name-mode" ? "保留原方案" : "稍后配置";
+    setControlDisabled(skip, controlsBusy() || state.initError, controlsBusy());
+    $("#footer-retry").hidden = !state.initError;
     next.hidden = final;
-    next.disabled = state.busy || state.loginBusy;
+    const nextBusy = controlsBusy();
+    setControlDisabled(next, nextBusy || !stepCanNext(step.id), nextBusy);
     next.textContent = step.nextLabel || "下一步";
 
     tutorial.hidden = !final;
-    tutorial.disabled = state.busy;
+    setControlDisabled(tutorial, state.busy, state.busy);
 
     finishButton.hidden = !final;
-    finishButton.disabled = state.busy || state.loginBusy;
+    if (final && inSteamClient()) {
+      finishButton.textContent = state.restartAcked ? "请重启 Steam" : "请先确认重启提示";
+      setControlDisabled(finishButton, !state.restartAcked || controlsBusy(), controlsBusy());
+    } else {
+      finishButton.textContent = "开始使用";
+      setControlDisabled(finishButton, controlsBusy(), controlsBusy());
+    }
+    renderRestartModal();
   }
 
   // 注: 复用重构前的有限庆祝动画；只在进入完成页时运行，离开后立即释放 Canvas 与 rAF。
@@ -1276,7 +2521,10 @@
       return;
     }
     renderStep();
+    renderAccountGate();
     renderAccount();
+    renderThirdParty();
+    renderAi();
     renderClient();
     renderComplete();
     renderGlobal();
@@ -1288,6 +2536,7 @@
       return;
     }
     state.completeCelebrated = false;
+    state.restartModalOpen = false;
     stopCelebration();
   }
 
@@ -1297,14 +2546,58 @@
     if (!action || state.busy || control.disabled) return;
     if (action === "flow-retry") loadFlow();
     if (action === "flow-home") window.location.replace(window.STConfig.urls.onboardingPage(1));
-    if (state.phase !== "ready") return;
+    if (action === "restart-modal-ack") {
+      state.restartAcked = true;
+      closeRestartModal();
+      setNote("请完全退出并重新打开 Steam，客户端增强才会生效。", false);
+      return;
+    }
+    if (state.phase !== "ready" || state.initializing) return;
+    if (state.serviceBusy && !["login-cancel", "open-step-tutorial", "open-tutorial", "restart-modal-ack"].includes(action)) return;
     if (state.loginBusy && action !== "login-cancel") return;
     if (action === "back") applyLocalPage(state.page - 1);
-    if (action === "next") applyLocalPage(state.page + 1);
-    if (action === "go-page") applyLocalPage(Number(control.dataset.page));
+    if (action === "next") await advanceFromCurrent();
+    if (action === "go-page") goToPage(Number(control.dataset.page));
+    if (action === "skip-step") skipCurrentStep();
+    if (action === "third-party-enabled") {
+      invalidateProgress();
+      state.thirdParty.enabled = state.thirdParty.enabled !== true;
+      state.thirdParty.verified = false;
+      state.thirdParty.saved = false;
+      state.thirdParty.message = state.thirdParty.enabled
+        ? "开启后请填写密钥并测试连接。"
+        : "已关闭，可直接进入下一步。";
+      state.thirdParty.messageError = false;
+      clampCommittedPage();
+      setNote(state.thirdParty.message, false);
+    }
+    if (action === "third-party-test") await testThirdPartyConnection();
+    if (action === "ai-enabled") {
+      invalidateProgress();
+      state.ai.enabled = state.ai.enabled !== true;
+      state.ai.verified = false;
+      state.ai.saved = false;
+      state.ai.message = state.ai.enabled
+        ? "开启后请配置并测试连接。"
+        : "已关闭，可直接进入下一步。";
+      state.ai.messageError = false;
+      clampCommittedPage();
+      setNote(state.ai.message, false);
+    }
+    if (action === "ai-test") await testAiConnection();
     if (action === "client-toggle") {
+      invalidateProgress();
       state.clientEnabled = state.clientEnabled !== true;
-      setNote("客户端增强设置将在点击“开始使用”后保存。", false);
+      syncClientFeatures(state.clientEnabled);
+      setNote("客户端增强设置将在进入下一步时保存。", false);
+    }
+    if (action === "client-feature-toggle") {
+      if (state.clientEnabled !== true) return;
+      const featureId = String(control.dataset.featureId || "").trim();
+      if (!featureId || !Object.prototype.hasOwnProperty.call(state.clientFeatures, featureId)) return;
+      invalidateProgress();
+      state.clientFeatures[featureId] = state.clientFeatures[featureId] !== true;
+      setNote("客户端增强设置将在进入下一步时保存。", false);
     }
     if (action === "login-start") startLogin();
     if (action === "login-check") pollLogin(true);
@@ -1312,7 +2605,57 @@
     if (action === "login-copy-code") copyText(formatUserCode(state.loginDevice?.user_code), "授权码已复制。");
     if (action === "login-copy-url") copyText(loginFullUrl(), "授权链接已复制。");
     if (action === "open-tutorial") await openTutorial();
-    if (action === "finish-open") await finish();
+    if (action === "open-step-tutorial") await openTutorial(control.dataset.tutorialKey || "");
+    if (action === "open-itad-apps") {
+      window.STConfig.externalNavigation.open(window.STConfig.vendors.isthereanydeal.apps);
+    }
+    if (action === "finish-open") {
+      if (inSteamClient() && !state.restartAcked) {
+        openRestartModal();
+        return;
+      }
+      await finish();
+    }
+  });
+
+  document.addEventListener("input", (event) => {
+    if (state.phase !== "ready") return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === "third-party-key") {
+      syncThirdPartyStateFromForm();
+      state.thirdParty.message = "";
+      state.thirdParty.messageError = false;
+      renderGlobal();
+      renderThirdParty();
+      return;
+    }
+    if (["ai-host", "ai-model", "ai-key", "ai-key-name", "ai-temperature", "ai-concurrency"].includes(target.id)) {
+      syncAiStateFromForm();
+      state.ai.message = "";
+      state.ai.messageError = false;
+      renderGlobal();
+      renderAi();
+    }
+  });
+
+  document.addEventListener("change", (event) => {
+    if (state.phase !== "ready") return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === "ai-key-mode") {
+      syncAiStateFromForm();
+      state.ai.message = "";
+      state.ai.messageError = false;
+      render();
+    }
+    if (target.dataset.actionChange === "client-name-mode") {
+      const value = String(target.value || "");
+      if (!nameModeAllowed(value)) return;
+      invalidateProgress();
+      state.clientNameMode = value;
+      setNote("名称方案将在进入下一步时保存。", false);
+    }
   });
 
   window.addEventListener("pagehide", () => {
@@ -1323,6 +2666,10 @@
 
   window.addEventListener("popstate", () => {
     if (state.phase !== "ready") return;
+    if (controlsBusy()) {
+      window.history.replaceState(null, "", localUrl(state.page));
+      return;
+    }
     const result = CONTRACT.readPage(window.location.href);
     if (!result.ok) {
       setInvalidPhase();

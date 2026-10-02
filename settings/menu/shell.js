@@ -255,6 +255,7 @@
       const page = pageById(cat.id);
       const items = cat.items || [];
       const localeHtml = cat.id === "extension-settings" ? uiLocaleHtml() : "";
+      const cloudHtml = cat.id === "extension-settings" ? (root.STSettingsCloudUi?.htmlSync?.() || "") : "";
       const body = categoryBodyHtml(cat, page, items);
       const header = page?.hideHeader ? "" : `
           <h2 class="page-title"><span>${esc(catName(cat))}</span>${titleHelpHtml(cat)}</h2>
@@ -264,6 +265,7 @@
         <div class="content-swap" data-active="${escAttr(cat.id)}">
           ${header}
           ${localeHtml}
+          ${cloudHtml}
           ${body}
         </div>
       `;
@@ -303,6 +305,13 @@
 
     function afterRender(shadow) {
       panels.review?.().renderDynamicLists?.(shadow);
+      const cloudUi = root.STSettingsCloudUi;
+      if (cloudUi?.bind) {
+        cloudUi.bind(shadow);
+        Promise.resolve(cloudUi.refresh?.(shadow)).catch((error) => {
+          log.warn("settings-cloud-card-refresh-failed", "设置云同步卡片刷新失败", { error });
+        });
+      }
     }
 
     function render(shadow) {
@@ -389,6 +398,7 @@
               </span>
             </button>
           </div>
+          <div class="item page-translate-slot" hidden></div>
           <div class="item">
             <button class="comment-filter" type="button" title="${escAttr(filtered)}" aria-label="${escAttr(filtered)}" hidden>
               <span class="content">

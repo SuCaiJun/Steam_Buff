@@ -19,9 +19,12 @@
     openSettings: "STEAM_BUFF_ONBOARDING_OPEN_SETTINGS",
   });
   const LOCAL_STEPS = Object.freeze([
-    Object.freeze({ id: "account", title: "登录账号", copy: "登录不是必需，可直接进入下一步。", note: "感谢使用Steam Buff", nextLabel: "下一步" }),
-    Object.freeze({ id: "client", title: "客户端增强", copy: "设置将在完成引导时保存。", note: "感谢使用Steam Buff", nextLabel: "下一步" }),
-    Object.freeze({ id: "complete", title: "完成", copy: "确认摘要后即可开始使用。", note: "感谢使用Steam Buff", nextLabel: "开始使用" }),
+    Object.freeze({ id: "account", title: "登录账号", copy: "登录素材君账号，也可暂时跳过。", note: "未登录也可使用大部分功能。", nextLabel: "下一步" }),
+    Object.freeze({ id: "client", title: "客户端增强", copy: "选择需要的功能，下一步保存。", note: "部分增强需要重启 Steam 后生效。", nextLabel: "保存并继续" }),
+    Object.freeze({ id: "name-mode", title: "名称方案", copy: "按你的使用习惯，选择一种名称方案。", note: "以后可以在设置中心切换。", nextLabel: "保存并继续" }),
+    Object.freeze({ id: "third-party", title: "价格数据", copy: "填入自己的 ITAD API Key，再测试连接。", note: "还没有密钥？可以稍后配置。", nextLabel: "保存并继续" }),
+    Object.freeze({ id: "ai", title: "AI 服务", copy: "填写服务商提供的地址、模型和密钥。", note: "暂时不需要 AI？可以稍后配置。", nextLabel: "保存并继续" }),
+    Object.freeze({ id: "complete", title: "一切就绪", copy: "看看这次保存的设置。", note: "需要调整时，打开 Steam Buff 设置中心。", nextLabel: "开始使用" }),
   ]);
 
   // 校验服务器允许发布的云端页数范围

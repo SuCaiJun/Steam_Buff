@@ -141,6 +141,7 @@
         }
 
         .top,
+        .page-translate,
         .comment-filter {
           width: 28px;
           height: 28px;
@@ -163,18 +164,21 @@
         }
 
         .rail.left .top,
+        .rail.left .page-translate,
         .rail.left .comment-filter {
           margin-right: 0;
           margin-left: 8px;
         }
 
         .rail.dragging .top,
+        .rail.dragging .page-translate,
         .rail.dragging .comment-filter {
           margin-right: 0;
           margin-left: 0;
         }
 
         .top[hidden],
+        .page-translate-slot[hidden],
         .comment-filter[hidden] {
           display: none;
         }
@@ -186,7 +190,8 @@
           height: 30px;
         }
 
-        .top .content {
+        .top .content,
+        .page-translate .content {
           width: 24px;
           height: 24px;
         }
@@ -204,6 +209,7 @@
         }
 
         .top:hover,
+        .page-translate:hover,
         .comment-filter:hover {
           background: var(--st-color-surface-control-hover, var(--st-color-surface-control-hover));
           border-color: var(--st-color-border-primary-strong, var(--st-color-steam-blue-alpha-55));
@@ -211,6 +217,7 @@
         }
 
         .round:focus-visible,
+        .page-translate:focus-visible,
         .comment-filter:focus-visible,
         .top:focus-visible,
         .close:focus-visible,
@@ -236,7 +243,8 @@
           transform: none;
         }
 
-        .top img {
+        .top img,
+        .page-translate img {
           width: 24px;
           height: 24px;
           display: block;
@@ -244,6 +252,32 @@
           border-radius: 50%;
           pointer-events: none;
         }
+
+        .page-translate:disabled {
+          cursor: progress;
+          opacity: .55;
+        }
+
+        .page-translate-status {
+          position: absolute;
+          right: 44px;
+          top: 0;
+          width: max-content;
+          max-width: min(320px, calc(100vw - 64px));
+          padding: 8px 16px;
+          border: 1px solid var(--st-color-border-hover);
+          border-radius: 8px;
+          color: var(--st-color-text-bright);
+          background: var(--st-color-surface-control-strong);
+          box-shadow: var(--st-shadow-tooltip);
+          font: 12px/1.5 Arial, sans-serif;
+          overflow-wrap: anywhere;
+          pointer-events: none;
+        }
+
+        .page-translate-status[hidden] { display: none; }
+        .page-translate-status[data-state="error"] { color: var(--st-color-danger-soft-text); }
+        .rail.left .page-translate-status { left: 44px; right: auto; }
 
         .comment-filter img {
           width: 18px;
@@ -305,6 +339,11 @@
           line-height: 1.55;
           white-space: pre-wrap;
           overflow-wrap: anywhere;
+        }
+
+        .settings-dialog-emphasis {
+          font-weight: 700;
+          color: var(--st-color-danger);
         }
 
         .filtered-review-dialog {
@@ -822,8 +861,8 @@
         .setting-mode {
           display: grid;
           grid-template-columns: repeat(2, minmax(72px, 1fr));
-          width: min(220px, 42%);
-          min-width: 168px;
+          width: min(280px, 48%);
+          min-width: 200px;
           padding: 3px;
           border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-06));
           border-radius: 6px;
@@ -864,7 +903,74 @@
           background: var(--st-color-steam-blue);
         }
 
+        .setting-mode-option.disabled,
         .setting-mode[aria-disabled="true"] .setting-mode-option {
+          cursor: not-allowed;
+          opacity: 0.48;
+        }
+
+        .setting-order {
+          display: grid;
+          gap: 8px;
+          margin: 0;
+          padding: 0;
+          min-width: 220px;
+          max-width: 280px;
+          list-style: none;
+          flex: 0 0 auto;
+        }
+
+        .setting-order-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 36px;
+          padding: 8px 12px;
+          border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-06));
+          border-radius: 6px;
+          background: var(--st-color-surface-subtle, var(--st-color-white-alpha-08));
+          color: var(--st-color-text-secondary-alt);
+          font-size: 12px;
+          font-weight: 600;
+          cursor: grab;
+        }
+
+        .setting-order-item.dragging {
+          opacity: 0.55;
+        }
+
+        .setting-order[aria-disabled="true"] .setting-order-item {
+          cursor: not-allowed;
+          opacity: 0.48;
+        }
+
+        .setting-order-handle {
+          width: 8px;
+          height: 14px;
+          flex: 0 0 auto;
+          background:
+            radial-gradient(circle, var(--st-color-text-muted) 1.1px, transparent 1.2px) 0 0 / 8px 6px repeat-y,
+            radial-gradient(circle, var(--st-color-text-muted) 1.1px, transparent 1.2px) 4px 0 / 8px 6px repeat-y;
+        }
+
+        .setting-order-label {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+
+        .setting-order-move {
+          flex: 0 0 auto;
+          min-height: 24px;
+          padding: 0 8px;
+          border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-06));
+          border-radius: 4px;
+          background: var(--st-color-surface-subtle, var(--st-color-white-alpha-08));
+          color: var(--st-color-text-secondary-alt);
+          font-size: 12px;
+          cursor: pointer;
+        }
+
+        .setting-order-move:disabled {
           cursor: not-allowed;
           opacity: 0.48;
         }
@@ -878,6 +984,8 @@
           font-weight: 400;
           line-height: 1.5;
           letter-spacing: 0;
+          /* 模板缩进不能制造来源图标前的换行，显式换行由正文节点单独保留。 */
+          white-space: normal;
         }
 
         .feature-desc .source-tip,
@@ -888,6 +996,7 @@
         .feature-desc.row-desc > span:not(.source-tip),
         .row-desc > span:not(.source-tip) {
           display: inline;
+          white-space: pre-line;
         }
 
         .feature-lock {
@@ -1347,6 +1456,13 @@
           overflow: visible;
           text-overflow: clip;
           white-space: normal;
+        }
+
+        .settings-cloud-card .settings-label {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          width: auto;
         }
 
         .control,
@@ -2116,9 +2232,11 @@
             padding: 12px;
           }
 
-          .setting-mode {
+          .setting-mode,
+          .setting-order {
             width: 100%;
             min-width: 0;
+            max-width: none;
           }
 
           .store-price-chart-field {

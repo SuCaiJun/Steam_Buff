@@ -43,13 +43,13 @@
   const IMPORT_SCAN_YIELD = 1000;
   const CLOUD_UPLOAD_MAX = 2000;
   const CLOUD_UPLOAD_DELAY_MS = 0;
-  const IMPORT_MODE_COVER = "cover";
-  const IMPORT_MODE_CHANGES = "changes";
-  const IMPORT_MODES = Object.freeze([IMPORT_MODE_COVER, IMPORT_MODE_CHANGES]);
+  const IMPORT_MODE_ALL = "all";
+  const IMPORT_MODE_UNSET = "unset";
+  const IMPORT_MODES = Object.freeze([IMPORT_MODE_ALL, IMPORT_MODE_UNSET]);
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
   const CLOUD_TAG_RE = /\[[^\]\r\n]*\]\s*/g;
-  const CUSTOM_NAME_SOURCES = new Set(["user_custom", "community", "ai"]);
+  const CUSTOM_NAME_SOURCES = new Set(["mine", "community", "ai"]);
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
 
@@ -84,6 +84,7 @@
     localRows: [],
     localMap: new Map(),
     cloudMap: new Map(),
+    cloudSourceMap: new Map(),
     syncMap: new Map(),
     syncingCount: 0,
     stateMap: new Map(),
@@ -140,7 +141,6 @@
     restoreFocus: null,
     progressRestoreFocus: null,
     progressNeedsFocus: false,
-    importMode: "",
     message: "",
   };
 
@@ -400,7 +400,7 @@
       skipped: 0,
       uploadOk: 0,
       uploadFail: 0,
-      cloudOk: 0,
+      cloudQueued: 0,
       cloudFail: 0,
       cloudSkipped: 0,
       cloudPending: 0,
@@ -471,7 +471,7 @@
       success: batch.stats.success,
       failed: batch.stats.failed,
       skipped: batch.stats.skipped,
-      cloudOk: batch.stats.cloudOk,
+      cloudQueued: batch.stats.cloudQueued,
       cloudFail: batch.stats.cloudFail,
       cloudSkipped: batch.stats.cloudSkipped,
       cloudPending: batch.stats.cloudPending,
@@ -601,10 +601,10 @@
     batch.cloudQueue = [];
     batch.cloudFlush = null;
     batch.cloudFinishing = false;
-    batch.importMode = "";
     batch.localRows = [];
     batch.localMap = new Map();
     batch.cloudMap = new Map();
+    batch.cloudSourceMap = new Map();
     batch.syncMap = new Map();
     batch.syncingCount = 0;
     batch.stateMap = new Map();
@@ -1088,22 +1088,13 @@
       for (const row of apiRows(data)) {
         const appid = Number(row?.appid);
         if (Number.isFinite(appid) && appid > 0) {
-          const source = String(row?.name_source || "");
+          const source = String(row?.source || row?.name_source || "");
           if (CUSTOM_NAME_SOURCES.has(source) && text(row?.name)) {
             names.set(appid, row);
-          } else if (source === "steam") {
-            statuses.set(appid, "synced");
+          } else if (source === "none") {
+            statuses.set(appid, "none");
           }
         }
-      }
-      for (const appid of Array.isArray(data?.syncing_appids) ? data.syncing_appids : []) {
-        statuses.set(Number(appid), "syncing");
-      }
-      for (const appid of Array.isArray(data?.not_found_appids) ? data.not_found_appids : []) {
-        statuses.set(Number(appid), "unavailable");
-      }
-      for (const appid of Array.isArray(data?.sync_failed_appids) ? data.sync_failed_appids : []) {
-        statuses.set(Number(appid), "failed");
       }
     }
     return { names, statuses };
@@ -1150,7 +1141,7 @@
     return core;
   }
 
-  // 云端名称按 100 个 AppID 分片，和后端 /get 的批量限制保持一致。
+  // 云端名称按 100 个 AppID 分片，和后端 /names/resolve 的批量限制保持一致。
   async function queryMap(appids) {
     const parts = [];
     for (let i = 0; i < appids.length; i += QUERY_MAX) {
@@ -1161,17 +1152,8 @@
   }
 
   function syncStatusText(status) {
-    if (status === "syncing") {
-      return i18n("steam.libraryCustomName.officialSyncing", "正在同步 Steam 官方数据");
-    }
-    if (status === "synced") {
-      return i18n("steam.libraryCustomName.officialSyncedNoCustom", "官方数据已同步，暂无云端自定义名称");
-    }
-    if (status === "unavailable") {
-      return i18n("steam.libraryCustomName.officialUnavailable", "Steam 官方暂未返回可用英文名称");
-    }
-    if (status === "failed") {
-      return i18n("steam.libraryCustomName.officialSyncFailed", "Steam 官方数据同步暂不可用");
+    if (status === "none") {
+      return i18n("steam.libraryCustomName.cloudNameMissing", "云端没有找到当前游戏名称");
     }
     return "";
   }
@@ -1318,11 +1300,11 @@
     } else if (!manual && batch.policy === "skip" && !hasCustom(app)) {
       want = cloud;
       checked = true;
-      source = cloud ? "api" : "";
+      source = batch.cloudSourceMap.get(appid) || (cloud ? "api" : "");
     } else if (!manual && cloud) {
       want = cloud;
       checked = (stored ? !!old.checked : true) && !(batch.policy === "skip" && hasCustom(app));
-      source = "api";
+      source = batch.cloudSourceMap.get(appid) || "api";
     } else if (!manual) {
       want = "";
       checked = false;
@@ -1823,6 +1805,7 @@
     batch.localRows = [];
     batch.localMap = new Map();
     batch.cloudMap = new Map();
+    batch.cloudSourceMap = new Map();
     batch.syncMap = new Map();
     batch.syncingCount = 0;
     batch.stateMap = new Map();
@@ -2032,23 +2015,48 @@
     return `steam-buff-custom-names-${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}.json`;
   }
 
-  function exportCurrentNames() {
-    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
-    const items = batch.localRows
-      .map((app) => ({
-        appid: Number(app?.appid),
-        name: text(app?.current_custom_name),
-      }))
-      .filter((item) => Number.isFinite(item.appid) && item.appid > 0 && item.name)
-      .sort((left, right) => left.appid - right.appid);
+  // 导出只认勾选行；custom_name 用已保存值，不读待写入列
+  function exportItems() {
+    const items = [];
+    for (const row of batch.rows) {
+      const appid = Number(row?.appid);
+      if (!row?.checked || !Number.isFinite(appid) || appid <= 0) {
+        continue;
+      }
+      items.push({
+        appid,
+        name: text(row.official),
+        custom_name: text(row.custom),
+      });
+    }
+    items.sort((left, right) => left.appid - right.appid);
+    return items;
+  }
+
+  async function exportSelectedNames() {
+    const items = exportItems();
     if (!items.length) {
-      batch.message = i18n("steam.libraryCustomName.exportEmpty", "当前没有可导出的自定义排序名称");
+      batch.message = i18n("steam.libraryCustomName.exportEmpty", "当前没有勾选要导出的游戏");
       renderModal();
       return;
     }
+    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
+    batch.busy = true;
+    renderModal();
     try {
+      const ok = await oneConfirm(
+        i18n("steam.libraryCustomName.exportConfirm", "是否导出 $count$ 个游戏？", { count: items.length }),
+        {
+          title: i18n("steam.libraryCustomName.exportTitle", "导出名称"),
+          cancel: i18n("common.cancel", "取消"),
+          confirm: i18n("steam.libraryCustomName.exportAccept", "确认"),
+        },
+      );
+      if (!ok) {
+        return;
+      }
       downloadJson(exportFileName(), { items });
-      batch.message = i18n("steam.libraryCustomName.exported", "已导出 $count$ 项当前自定义排序名称", { count: items.length });
+      batch.message = i18n("steam.libraryCustomName.exported", "已导出 $count$ 项", { count: items.length });
       log.info("library-custom-name-export-success", "库自定义名称 JSON 导出完成", {
         operationId,
         exported: items.length,
@@ -2059,8 +2067,10 @@
         operationId,
         error,
       });
+    } finally {
+      batch.busy = false;
+      renderModal();
     }
-    renderModal();
   }
 
   function readJsonFile(file) {
@@ -2080,6 +2090,7 @@
     }
   }
 
+  // 写入源只有 custom_name；name 是 Steam 原名参考字段，导入时忽略
   function parseImportNames(raw) {
     const data = JSON.parse(raw);
     const items = Array.isArray(data?.items) ? data.items : [];
@@ -2088,9 +2099,30 @@
     }
     const map = new Map();
     for (const item of items) {
-      addImportName(map, item?.appid, item?.name);
+      addImportName(map, item?.appid, item?.custom_name);
     }
     return map;
+  }
+
+  function importMatchStats(names) {
+    let matched = 0;
+    let existing = 0;
+    for (const appid of names.keys()) {
+      const app = batch.localMap.get(appid);
+      if (!app) {
+        continue;
+      }
+      matched += 1;
+      if (hasCustom(app)) {
+        existing += 1;
+      }
+    }
+    return {
+      file: names.size,
+      matched,
+      existing,
+      unset: Math.max(0, matched - existing),
+    };
   }
 
   function prepareRowsForImport() {
@@ -2111,44 +2143,41 @@
     refreshCounts();
   }
 
-  // 注: 仅新增与修改按有效当前名称比较，避免无自定义名称时把 Steam 原名误判为待写入
-  function shouldSelectImportedName(mode, row, name) {
-    return mode === IMPORT_MODE_COVER || currentName(row) !== text(name);
+  // 仅未设置只看已保存自定义名，不看待写入列
+  function shouldImportRow(mode, row) {
+    return mode === IMPORT_MODE_ALL || !hasCustom(batch.localMap.get(Number(row?.appid)));
   }
 
   async function applyImportedNames(names, seq, mode) {
     prepareRowsForImport();
     let matched = 0;
-    let filled = 0;
-    let selected = 0;
-    let unchanged = 0;
+    let imported = 0;
+    let skipped = 0;
     const total = batch.rows.length;
     for (let i = 0; i < total; i += 1) {
       if (seq !== batch.previewSeq) {
-        return { matched, filled, selected, unchanged, cancelled: true };
+        return { matched, imported, skipped, cancelled: true };
       }
       const row = batch.rows[i];
       const name = names.get(Number(row?.appid));
       if (name) {
         matched += 1;
-        const checked = shouldSelectImportedName(mode, row, name);
-        updateRowWrite(row, () => {
-          row.want = checked ? name : "";
-          row.checked = checked;
-          row.manual = checked;
-          row.cloudTouched = checked;
-          row.mnemonicTouched = false;
-          row.mnemonicOn = false;
-          row.state = "";
-          row.error = "";
-          refreshRowSearch(row);
-        });
-        keepRowState(row);
-        if (checked) {
-          filled += 1;
-          selected += 1;
+        if (!shouldImportRow(mode, row)) {
+          skipped += 1;
         } else {
-          unchanged += 1;
+          updateRowWrite(row, () => {
+            row.want = name;
+            row.checked = true;
+            row.manual = true;
+            row.cloudTouched = true;
+            row.mnemonicTouched = false;
+            row.mnemonicOn = false;
+            row.state = "";
+            row.error = "";
+            refreshRowSearch(row);
+          });
+          keepRowState(row);
+          imported += 1;
         }
       }
       if (i > 0 && i % IMPORT_SCAN_YIELD === 0) {
@@ -2160,16 +2189,26 @@
         await yieldUI();
       }
     }
-    return { matched, filled, selected, unchanged, cancelled: false };
+    return { matched, imported, skipped, cancelled: false };
   }
 
-  async function importJsonFile(file, mode) {
-    if (!file) {
-      return;
+  function importDoneMessage(mode, result) {
+    if (mode === IMPORT_MODE_UNSET) {
+      return i18n(
+        "steam.libraryCustomName.importUnsetDone",
+        "导入完成，匹配 $matched$ 项，已导 $imported$ 项，跳过 $skipped$ 项",
+        result,
+      );
     }
-    if (!IMPORT_MODES.includes(mode)) {
-      batch.message = i18n("steam.libraryCustomName.chooseImportMode", "请选择导入方式");
-      renderModal();
+    return i18n(
+      "steam.libraryCustomName.importAllDone",
+      "导入完成，匹配 $matched$ 项，已导 $imported$ 项",
+      result,
+    );
+  }
+
+  async function importJsonFile(file) {
+    if (!file) {
       return;
     }
     if (!batch.localRows.length) {
@@ -2186,25 +2225,33 @@
       const raw = await readJsonFile(file);
       const names = parseImportNames(raw);
       if (!names.size) {
-        throw new Error(i18n("steam.libraryCustomName.jsonNameMissing", "JSON 中没有识别到 appid/name"));
+        throw new Error(i18n("steam.libraryCustomName.jsonNameMissing", "JSON 中没有识别到 appid/custom_name"));
+      }
+      const stats = importMatchStats(names);
+      if (!stats.matched) {
+        throw new Error(i18n("steam.libraryCustomName.jsonMatchMissing", "库内没有匹配到可导入的游戏"));
       }
       batch.message = i18n("steam.libraryCustomName.matchingJson", "正在匹配 JSON $count$ 项", { count: names.size });
       refreshMessage();
+      const mode = await chooseImportPolicy(stats);
+      if (!IMPORT_MODES.includes(mode) || seq !== batch.previewSeq) {
+        if (seq === batch.previewSeq) {
+          batch.message = previewMessage();
+        }
+        return;
+      }
       const result = await applyImportedNames(names, seq, mode);
       if (result.cancelled) {
         return;
       }
-      batch.message = mode === IMPORT_MODE_COVER
-        ? i18n("steam.libraryCustomName.importCoverDone", "覆盖导入完成，匹配 $matched$ 项，待写入 $selected$ 项", result)
-        : i18n("steam.libraryCustomName.importChangesDone", "仅新增与修改导入完成，匹配 $matched$ 项，待写入 $selected$ 项，已存在 $unchanged$ 项", result);
+      batch.message = importDoneMessage(mode, result);
       log.info("library-custom-name-import-success", "库自定义名称 JSON 导入完成", {
         operationId,
         mode,
-        imported: names.size,
+        fileCount: names.size,
         matched: result.matched,
-        filled: result.filled,
-        selected: result.selected,
-        unchanged: result.unchanged,
+        imported: result.imported,
+        skipped: result.skipped,
       });
     } catch (error) {
       batch.message = error?.message || String(error);
@@ -2308,7 +2355,7 @@
     batch.cloudQueue = [];
     batch.cloudFlush = null;
     batch.cloudFinishing = false;
-    batch.stats.cloudOk = 0;
+    batch.stats.cloudQueued = 0;
     batch.stats.cloudFail = 0;
     batch.stats.cloudSkipped = 0;
     batch.stats.cloudPending = 0;
@@ -2334,29 +2381,43 @@
   }
 
   function countCloudResult(res, size) {
+    const batchSize = Math.max(0, Number(size) || 0);
     const results = Array.isArray(res?.results) ? res.results : [];
+    // 仅本函数读取 results[].code；当前入队回执没有该字段，这里的数量也只表示已入队
     if (results.length) {
-      let ok = 0;
+      let queued = 0;
       let fail = 0;
       for (const item of results) {
         const code = Number(item?.code) || 0;
         if (code >= 200 && code < 300) {
-          ok += 1;
+          queued += 1;
         } else {
           fail += 1;
         }
       }
-      return { ok, fail };
+      return { queued, fail };
     }
     const accepted = Number(res?.accepted);
     const failed = Number(res?.failed);
     if (Number.isFinite(accepted) || Number.isFinite(failed)) {
+      const acceptedCount = Math.max(0, Number.isFinite(accepted) ? accepted : 0);
+      const failedCount = Math.max(0, Number.isFinite(failed) ? failed : 0);
+      // accepted 含 code>=400 的入队行；没有 rejected 的旧回执只计 accepted，去重差额不计失败
+      let rejectedCount = 0;
+      if (Array.isArray(res?.rejected)) {
+        for (const item of res.rejected) {
+          const code = Number(item?.code);
+          if (item && typeof item === "object" && Number.isFinite(code) && code >= 400) {
+            rejectedCount += 1;
+          }
+        }
+      }
       return {
-        ok: Math.max(0, Number.isFinite(accepted) ? accepted : 0),
-        fail: Math.max(0, Number.isFinite(failed) ? failed : 0),
+        queued: Math.max(0, acceptedCount - rejectedCount),
+        fail: failedCount + rejectedCount,
       };
     }
-    return { ok: size, fail: 0 };
+    return { queued: 0, fail: batchSize };
   }
 
   async function waitCloudResume() {
@@ -2465,13 +2526,13 @@
           try {
             const res = await feedback({ items: chunk });
             const count = countCloudResult(res, chunk.length);
-            batch.stats.cloudOk += count.ok;
+            batch.stats.cloudQueued += count.queued;
             batch.stats.cloudFail += count.fail;
             if (count.fail > 0) {
               log.warn("library-custom-name-cloud-upload-batch-failed", "库自定义名称素材君云端上传批次存在失败项", {
                 operationId: batch.operationId || "",
                 size: chunk.length,
-                ok: count.ok,
+                queued: count.queued,
                 fail: count.fail,
                 pending: batch.stats.cloudPending,
               });
@@ -2505,7 +2566,7 @@
           : (cancelled ? "library-custom-name-cloud-upload-cancelled" : (failed ? "library-custom-name-cloud-upload-failed" : "library-custom-name-cloud-upload-success"));
         const message = terminalError
           ? "库自定义名称素材君云端上传异常"
-          : (cancelled ? "库自定义名称素材君云端上传已取消" : (failed ? "库自定义名称素材君云端上传完成但存在失败项" : "库自定义名称素材君云端上传完成"));
+          : (cancelled ? "库自定义名称素材君云端上传已取消" : (failed ? "库自定义名称素材君云端入队完成但存在失败项" : "库自定义名称素材君云端上传已入队"));
         logByLevel(level, event, message, {
           operationId: batch.operationId || "",
           ...statsMeta(),
@@ -2666,25 +2727,46 @@
     });
   }
 
-  function chooseImportMode() {
-    batch.importMode = "";
+  function chooseImportPolicy(stats) {
     const box = openOneDialog();
-    if (s.oneResolve) {
-      s.oneResolve(false);
-      s.oneResolve = null;
-    }
-    setTrustedTemplate(box, `
-      <div class="st-lcn-one-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-one-title" tabindex="-1">
-        <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">${esc(i18n("steam.libraryCustomName.importModeTitle", "选择导入方式"))}</h3></div>
-        <div class="st-lcn-one-body"><div class="st-lcn-one-message">${esc(i18n("steam.libraryCustomName.importModeMessage", "请选择本次 JSON 文件的处理方式"))}</div></div>
-        <div class="st-lcn-one-actions">
-          <button class="st-lcn-btn" type="button" data-lcn-one="cancel">${esc(i18n("common.cancel", "取消"))}</button>
-          <button class="st-lcn-btn" type="button" data-lcn-one="import-cover">${esc(i18n("steam.libraryCustomName.importCover", "覆盖导入"))}</button>
-          <button class="st-lcn-btn primary" type="button" data-lcn-one="import-changes">${esc(i18n("steam.libraryCustomName.importChanges", "仅新增与修改"))}</button>
+    const summary = i18n(
+      "steam.libraryCustomName.importPromptStats",
+      "文件中名称 $file$ 项，库内匹配 $matched$ 项",
+      stats,
+    );
+    const detail = i18n(
+      "steam.libraryCustomName.importPromptDetail",
+      "其中已有自定义名称 $existing$ 项，未设置 $unset$ 项",
+      stats,
+    );
+    return new Promise((resolve) => {
+      if (s.oneResolve) {
+        s.oneResolve(false);
+      }
+      s.oneResolve = resolve;
+      setTrustedTemplate(box, `
+        <div class="st-lcn-one-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-one-title" tabindex="-1">
+          <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">${esc(i18n("steam.libraryCustomName.importPromptTitle", "是否导入已存在自定义名称的游戏？"))}</h3></div>
+          <div class="st-lcn-one-body"><div class="st-lcn-one-message">${esc(`${summary}\n${detail}`)}</div></div>
+          <div class="st-lcn-one-actions">
+            <button class="st-lcn-btn" type="button" data-lcn-one="cancel">${esc(i18n("steam.libraryCustomName.importCancel", "取消导入"))}</button>
+            <button class="st-lcn-btn" type="button" data-lcn-one="import-unset">${esc(i18n("steam.libraryCustomName.importUnset", "仅未设置"))}</button>
+            <button class="st-lcn-btn primary" type="button" data-lcn-one="import-all">${esc(i18n("steam.libraryCustomName.importAll", "全部导入"))}</button>
+          </div>
         </div>
-      </div>
-    `, "library-custom-name-import-mode-dialog-template");
-    focusElement(box.querySelector("[data-lcn-one='cancel']"));
+      `, "library-custom-name-import-policy-dialog-template");
+      focusElement(box.querySelector("[data-lcn-one='cancel']"));
+    });
+  }
+
+  function pickImportFile() {
+    const file = document.querySelector(`#${MODAL} [data-lcn-import-file]`);
+    if (!file) {
+      batch.message = i18n("steam.libraryCustomName.filePickerUnavailable", "导入文件选择器不可用");
+      renderModal();
+      return;
+    }
+    file.click();
   }
 
   function closeOne() {
@@ -2741,17 +2823,13 @@
       });
       return;
     }
-    if (action === "import-cover" || action === "import-changes") {
-      batch.importMode = action === "import-cover" ? IMPORT_MODE_COVER : IMPORT_MODE_CHANGES;
+    if (action === "import-all" || action === "import-unset") {
+      const resolve = s.oneResolve;
+      s.oneResolve = null;
       closeOne();
-      const file = document.querySelector(`#${MODAL} [data-lcn-import-file]`);
-      if (!file) {
-        batch.importMode = "";
-        batch.message = i18n("steam.libraryCustomName.filePickerUnavailable", "导入文件选择器不可用");
-        renderModal();
-        return;
+      if (resolve) {
+        resolve(action === "import-all" ? IMPORT_MODE_ALL : IMPORT_MODE_UNSET);
       }
-      file.click();
       return;
     }
     if (action === "confirm" || action === "cancel") {
@@ -2825,9 +2903,7 @@
       const name = text(result.names.get(appid)?.name);
       if (!name) {
         const status = result.statuses.get(appid) || "";
-        const message = status === "syncing"
-          ? i18n("steam.libraryCustomName.officialSyncingRetry", "正在同步 Steam 官方数据，请稍后重新获取")
-          : syncStatusText(status) || i18n("steam.libraryCustomName.cloudNameMissing", "云端没有找到当前游戏名称");
+        const message = syncStatusText(status) || i18n("steam.libraryCustomName.cloudNameMissing", "云端没有找到当前游戏名称");
         oneBox(i18n("steam.libraryCustomName.fetchTitle", "获取名称"), message, true);
         return;
       }
@@ -3142,10 +3218,10 @@
     if (batch.saveAction === "clear") {
       return i18n("steam.libraryCustomName.clearProgressLine", "总计:$total$，已清空:$success$，跳过:$skipped$，失败:$failed$", st);
     }
-    const synced = batch.saveUploadCloud ? st.cloudOk : 0;
-    return i18n("steam.libraryCustomName.saveProgressLine", "总计:$total$，处理:$processed$，跳过:$skipped$，失败:$failed$，同步:$synced$", {
+    const queued = batch.saveUploadCloud ? st.cloudQueued : 0;
+    return i18n("steam.libraryCustomName.saveProgressLine", "总计:$total$，处理:$processed$，跳过:$skipped$，失败:$failed$，已入队:$queued$", {
       ...st,
-      synced,
+      queued,
     });
   }
 
@@ -3947,9 +4023,11 @@
           const id = Number(appid);
           const got = result.names.get(id);
           batch.cloudMap.delete(id);
+          batch.cloudSourceMap.delete(id);
           const name = text(got?.name);
           if (name) {
             batch.cloudMap.set(id, name);
+            batch.cloudSourceMap.set(id, String(got.source || got.name_source || ""));
           }
           if (got) {
             setSyncStatus(id, "");
@@ -4448,10 +4526,14 @@
       clearSelectedNames();
     } else if (action === "import") {
       event.preventDefault();
-      chooseImportMode();
+      pickImportFile();
     } else if (action === "export") {
       event.preventDefault();
-      exportCurrentNames();
+      exportSelectedNames().catch((error) => {
+        batch.busy = false;
+        batch.message = error?.message || String(error);
+        renderModal();
+      });
     }
   }
 
@@ -4480,13 +4562,11 @@
     const file = event.target.closest("[data-lcn-import-file]");
     if (file) {
       const picked = file.files?.[0] || null;
-      const mode = batch.importMode;
-      batch.importMode = "";
       file.value = "";
       if (!picked) {
         return;
       }
-      importJsonFile(picked, mode).catch((error) => {
+      importJsonFile(picked).catch((error) => {
         batch.busy = false;
         batch.message = error?.message || String(error);
         renderModal();

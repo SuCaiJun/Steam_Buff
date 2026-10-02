@@ -13,7 +13,7 @@
 
   const MARK = "__steamBuffLoopbackGuard";
   const RECOVERY_MARK = "__steamBuffLoopbackRecovery";
-  const VERSION = "steam-loopback-guard-v20";
+  const VERSION = "steam-loopback-guard-v21";
   const REQUEST_TYPE = "STEAM_LOOPBACK_INJECT_REQUEST";
   const ROOT_MENU_TITLE = "Steam Root Menu";
   const ROOT_MENU_TARGET_SELECTOR = "#popup_target";

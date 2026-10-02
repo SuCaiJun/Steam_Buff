@@ -14,7 +14,6 @@
   const api = root.STStore = root.STStore || {};
   const SOURCE_FALLBACK = Object.freeze({ name: "IsThereAnyDeal", url: "https://isthereanydeal.com/" });
   const SIGNALS = Object.freeze(["reviews", "players", "playtime", "mediaScore"]);
-  const FESTIVAL_TYPES = Object.freeze(new Set(["seasonal_sale", "themed_sale", "next_fest", "other"]));
   const FESTIVAL_EVIDENCE_PRIORITY = Object.freeze({ none: 0, low: 1, medium: 2, strong: 3 });
   const SEASON_KEYWORDS = Object.freeze([
     Object.freeze({ key: "spring", keyword: "春季" }),
@@ -186,6 +185,7 @@
         name: text(item.name),
         type: text(item.type),
         typeLabel: text(item.typeLabel),
+        typeColor: item.typeColor,
         seasonKey: options.futureDiscount === true ? seasonKey(item.type, item.name, options) : "",
         startsAt: time(item.startsAt),
         endsAt: time(item.endsAt),
@@ -193,7 +193,7 @@
       }))
       .filter(item => (
         item.name
-        && FESTIVAL_TYPES.has(item.type)
+        && item.type
         && item.typeLabel
         && item.startsAt
         && item.endsAt

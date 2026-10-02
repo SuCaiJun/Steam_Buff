@@ -11,6 +11,9 @@
 (() => {
   "use strict";
 
+  const nameModeConfig = window.STConfig.libraryNameMode;
+  const effectiveNameMode = settings => window.STConfig.effectiveLibraryNameMode(settings || {});
+
   const features = [
     {
       id: "download-auto-shutdown",
@@ -47,8 +50,11 @@
         backend: "backend.js",
       },
       shouldRun(api, context, ctx = {}) {
+        const settings = ctx.settingsSnapshot || api.ctx?.settings?.() || {};
         const sortOn = ctx.settingOn?.("library-sort-title") ?? api.ctx?.settingOn?.("library-sort-title");
-        return context === "backend" && sortOn !== false;
+        return context === "backend"
+          && sortOn !== false
+          && effectiveNameMode(settings) === nameModeConfig.values.STEAM_SORT;
       },
     },
     {
@@ -90,6 +96,10 @@
         ui: "ui.js",
       },
       shouldRun(api, context, ctx = {}) {
+        const settings = ctx.settingsSnapshot || api.ctx?.settings?.() || {};
+        if (effectiveNameMode(settings) === nameModeConfig.values.INDEPENDENT) {
+          return false;
+        }
         const on = ctx.settingOn?.("library-sort-title") ?? api.ctx?.settingOn?.("library-sort-title");
         if (on === false) {
           return false;
@@ -98,6 +108,30 @@
           return true;
         }
         return context === "ui" && api.ctx?.isPropertyDialog?.() === true;
+      },
+    },
+    {
+      id: "library-independent-name",
+      name: "独立云端自定义名称",
+      settingsKey: nameModeConfig.key,
+      loadStrategy: "on-demand-entry",
+      modes: ["backend", "ui"],
+      pageScope: ["SharedJSContext", "backend", "main-ui", "/library/home", "/library/collections"],
+      dependencies: ["shared/scheduler.js", "BroadcastChannel"],
+      cost: "large-library",
+      entries: {
+        backend: "backend.js",
+        ui: "ui.js",
+      },
+      shouldRun(api, context, ctx = {}) {
+        const settings = ctx.settingsSnapshot || api.ctx?.settings?.() || {};
+        if (effectiveNameMode(settings) !== nameModeConfig.values.INDEPENDENT) {
+          return false;
+        }
+        if (context === "backend") {
+          return true;
+        }
+        return context === "ui" && api.ctx?.isMainUi?.() === true;
       },
     },
     {

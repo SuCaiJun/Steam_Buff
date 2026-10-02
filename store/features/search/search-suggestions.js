@@ -98,7 +98,14 @@
       limit: options.limit,
     });
     try {
-      const { body, code } = await authClient.authedPost(API_QUERY, { keyword, limit: options.limit, sources, modes: modes });
+      // URL query contract: keyword=sources=modes=limit; JSON body stays empty.
+      const query = new URLSearchParams({
+        keyword: String(keyword || ""),
+        sources: Object.keys(sources || {}).filter(key => sources[key]).join(","),
+        modes: Object.keys(modes || {}).filter(key => modes[key]).join(","),
+        limit: String(Math.min(10, Math.max(1, options.limit))),
+      });
+      const { body, code } = await authClient.authedPost(`${API_QUERY}?${query.toString()}`, {});
       if (code === 401 || code === 403) {
         log.warn("search-suggestions-query-failed", "搜索联想词查询未授权", {
           keywordLength: String(keyword || "").length,

@@ -187,6 +187,13 @@
   }
 
   function put(data, diagnostics = {}) {
+    if (root.STSettingsBus?.rawSet) {
+      return root.STSettingsBus.rawSet(data, {
+        operationId: String(diagnostics?.operationId || ""),
+        owner: "settings:storage",
+        reason: String(diagnostics?.reason || "settings-storage-write"),
+      });
+    }
     const box = area();
     if (!box) {
       return Promise.resolve(false);
@@ -338,7 +345,7 @@
     const operationId = String(diagnostics?.operationId || "");
     await Promise.all([load(DEFAULT_LOCALE), load(next)]);
     current = next;
-    const ok = await put({ [STORAGE_KEY]: next }, { operationId });
+    const ok = await put({ [STORAGE_KEY]: next }, { ...diagnostics, operationId });
     if (ok === false) {
       log.warn("i18n-locale-save-failed", "界面语言保存失败", {
         operationId,

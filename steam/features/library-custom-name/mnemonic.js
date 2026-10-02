@@ -76,6 +76,24 @@
     return letter ? letter.toUpperCase() : "";
   }
 
+  function fullFromParts(parts) {
+    return parts.map((part) => {
+      const syllable = String(part || "").replace(/\s+/g, "").toLowerCase();
+      return syllable ? syllable.charAt(0).toUpperCase() + syllable.slice(1) : "";
+    }).join("");
+  }
+
+  function mnemonicFromParts(chars, parts) {
+    let hasCjk = false;
+    const out = chars.map((ch, index) => {
+      if (DIGIT_RE.test(ch)) return ch;
+      if (!CJK_RE.test(ch)) return "";
+      hasCjk = true;
+      return firstLetter(parts[index]);
+    });
+    return hasCjk ? out.join("") : "";
+  }
+
   function mnemonic(name, fn) {
     const body = stripTags(name);
     if (!body) {
@@ -84,17 +102,122 @@
 
     const chars = Array.from(body);
     const parts = pinyinParts(body, fn);
-    const out = [];
-    let hasCjk = false;
-    chars.forEach((ch, index) => {
-      if (DIGIT_RE.test(ch)) {
-        out.push(ch);
-      } else if (CJK_RE.test(ch)) {
-        hasCjk = true;
-        out.push(firstLetter(parts[index]));
+    return mnemonicFromParts(chars, parts);
+  }
+
+  function pinyinFull(name, fn) {
+    const body = stripTags(name);
+    if (!body || !CJK_RE.test(body)) {
+      return "";
+    }
+    const py = pinyinFn(fn);
+    if (typeof py !== "function") {
+      return "";
+    }
+    try {
+      const out = py(body, {
+        toneType: "none",
+        type: "array",
+      });
+      if (!Array.isArray(out)) {
+        return "";
       }
+      return fullFromParts(out);
+    } catch {
+      return "";
+    }
+  }
+
+  // 只接受完整且唯一的逐字匹配；任意手工字符串不会按长度或首字母猜测位置
+  function matchParts(value, variants) {
+    let states = new Map([[0, { count: 1, path: null }]]);
+    for (const options of variants) {
+      const next = new Map();
+      for (const [offset, state] of states) {
+        for (const part of options) {
+          const segment = fullFromParts([part]);
+          if (!value.startsWith(segment, offset)) continue;
+          const end = offset + segment.length;
+          const old = next.get(end);
+          next.set(end, {
+            count: Math.min(2, (old?.count || 0) + state.count),
+            path: { prev: state.path, part },
+          });
+        }
+      }
+      states = next;
+      if (!states.size) return null;
+    }
+    const result = states.get(value.length);
+    if (result?.count !== 1) return null;
+    const parts = [];
+    for (let node = result.path; node; node = node.prev) parts.push(node.part);
+    return parts.reverse();
+  }
+
+  function readingPair(model, parts) {
+    return {
+      ...model,
+      parts,
+      pinyin: fullFromParts(parts),
+      mnemonic: mnemonicFromParts(model.chars, parts),
+    };
+  }
+
+  // readings 解析一个名称及现有两字段，返回逐字候选和同源的全拼/助记符预览
+  // replace 表示现有内容不能安全定位，调用方必须等用户明确应用整组预览；不修改传入字段
+  // selectReading 只接受该位置的真实候选并返回新模型；库缺失或返回契约失效时抛出异常
+  function readings(name, fields = {}, lib = root.pinyinPro) {
+    const body = stripTags(name);
+    const chars = Array.from(body);
+    if (!body || !CJK_RE.test(body)) {
+      return { body, chars, parts: [], groups: [], replace: false, pinyin: "", mnemonic: "" };
+    }
+    if (typeof lib?.pinyin !== "function" || typeof lib?.polyphonic !== "function" || typeof lib?.convert !== "function") {
+      throw new TypeError("Pinyin reading API unavailable");
+    }
+    const defaults = lib.pinyin(body, { type: "array", toneType: "none" });
+    const all = lib.polyphonic(body, { type: "all", toneType: "symbol" });
+    if (!Array.isArray(defaults) || !Array.isArray(all) || defaults.length !== chars.length || all.length !== chars.length) {
+      throw new TypeError("Pinyin character alignment failed");
+    }
+    const groups = [];
+    const variants = chars.map((char, index) => {
+      const options = new Map();
+      if (typeof defaults[index] !== "string" || !Array.isArray(all[index]) || !all[index].length) {
+        throw new TypeError("Invalid pinyin reading result");
+      }
+      for (const reading of all[index]) {
+        if (reading.origin !== char || typeof reading.pinyin !== "string" || typeof reading.isZh !== "boolean") {
+          throw new TypeError("Invalid pinyin character result");
+        }
+        if (!CJK_RE.test(char) || !reading.isZh) continue;
+        const value = lib.convert(reading.pinyin, { format: "toneNone" });
+        if (typeof value !== "string" || !value) throw new TypeError("Invalid pinyin conversion result");
+        if (!options.has(value)) options.set(value, []);
+        if (!options.get(value).includes(reading.pinyin)) options.get(value).push(reading.pinyin);
+      }
+      if (!options.size) return [defaults[index]];
+      if (!options.has(defaults[index])) throw new TypeError("Default reading missing from candidates");
+      if (options.size > 1) {
+        groups.push({ index, char, context: chars.slice(Math.max(0, index - 2), index + 3).join(""), options: Array.from(options, ([value, labels]) => ({ value, label: labels.join("/") })) });
+      }
+      return Array.from(options.keys());
     });
-    return hasCjk ? out.join("") : "";
+    const current = String(fields.pinyin || "");
+    const matched = current ? matchParts(current, variants) : defaults;
+    const parts = matched || defaults;
+    const pair = readingPair({ body, chars, groups }, parts);
+    pair.replace = !matched || (!!fields.mnemonic && fields.mnemonic !== pair.mnemonic);
+    return pair;
+  }
+
+  function selectReading(model, index, value) {
+    const group = model.groups.find((item) => item.index === index);
+    if (!group?.options.some((option) => option.value === value)) throw new TypeError("Unknown pinyin candidate");
+    const parts = model.parts.slice();
+    parts[index] = value;
+    return readingPair(model, parts);
   }
 
   function rebuildMnemonic(name, fn) {
@@ -114,6 +237,9 @@
 
   return {
     mnemonic,
+    pinyinFull,
+    readings,
+    selectReading,
     rebuildMnemonic,
     stripMnemonic,
     stripTags,

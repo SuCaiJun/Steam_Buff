@@ -122,6 +122,12 @@
           depNames,
           lockText,
           state,
+          optionAvailable(option) {
+            return membershipGate.canUse?.(option, memberState()) !== false;
+          },
+          optionLockText(option) {
+            return membershipGate.lockText?.(option, memberState()) || option.lock || "";
+          },
           featureIconHtml,
           helpUrl,
         }) || {};
@@ -153,12 +159,18 @@
       return featureRows().helpLinkHtml?.(item) || "";
     }
 
+    function orderHtml(item) {
+      return featureRows().orderHtml?.(item) || "";
+    }
+
     function featureControls(shadow, id) {
       const switches = Array.from(shadow.querySelectorAll(".switch"))
         .filter(sw => sw.dataset.feature === id);
       const modes = Array.from(shadow.querySelectorAll("[data-setting-mode-option]"))
         .filter(input => input.dataset.settingModeOption === id);
-      return [...switches, ...modes];
+      const orders = Array.from(shadow.querySelectorAll("[data-setting-order]"))
+        .filter(list => list.dataset.settingOrder === id);
+      return [...switches, ...modes, ...orders];
     }
 
     function updateFeature(shadow, id) {
@@ -183,14 +195,29 @@
         row.removeAttribute("title");
       }
       for (const control of controls) {
-        control.disabled = !enabled;
         if (control.classList.contains("switch")) {
+          control.disabled = !enabled;
           control.setAttribute("title", tip || itemName(item));
           control.setAttribute("aria-checked", checked ? "true" : "false");
-        } else {
-          const selected = (control.value === "true") === checked;
+        } else if (control.matches?.("[data-setting-mode-option]")) {
+          const option = (item.options || []).find((entry) => {
+            const radioValue = typeof entry.value === "boolean" ? (entry.value ? "true" : "false") : String(entry.value);
+            return radioValue === control.value;
+          });
+          const optionOn = enabled && membershipGate.canUse?.(option || {}, memberState()) !== false;
+          control.disabled = !optionOn;
+          control.closest(".setting-mode-option")?.classList.toggle("disabled", !optionOn);
+          const current = state(id);
+          const selected = typeof current === "boolean"
+            ? (control.value === "true") === current
+            : control.value === String(current);
           control.checked = selected;
           control.closest(".setting-mode-option")?.classList.toggle("selected", selected);
+        } else if (control.matches?.("[data-setting-order]")) {
+          control.setAttribute("aria-disabled", enabled ? "false" : "true");
+          for (const itemNode of Array.from(control.querySelectorAll("[data-setting-order-item]"))) {
+            itemNode.setAttribute("draggable", enabled ? "true" : "false");
+          }
         }
       }
       row.querySelector("[data-setting-mode]")?.setAttribute("aria-disabled", enabled ? "false" : "true");
@@ -223,6 +250,7 @@
       sourceTipHtml,
       switchHtml,
       helpLinkHtml,
+      orderHtml,
       updateFeature,
     });
   }

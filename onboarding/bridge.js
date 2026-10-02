@@ -38,25 +38,33 @@
   const INVALID_COPY = "当前页面可能已失效或不存在，请点击刷新页面或返回首页。";
   const INVALID_NOTE = "当前页面已失效";
   const handoffLabel = handoff.textContent;
-  const noteText = note.textContent;
+  const noteContent = Array.from(note.childNodes, node => node.cloneNode(true));
   let pageCount = 0;
   let loading = false;
 
+  function showHandoffError(message) {
+    note.textContent = message;
+    note.classList.remove("is-pending");
+    note.classList.add("error");
+    handoff.disabled = false;
+  }
+
   function sendLocal(page, index) {
-    chrome.runtime.sendMessage({
-      type: contract.MESSAGES.openLocalPage,
-      page,
-      pageCount,
-      localIndex: index,
-    }, (response) => {
-      const error = chrome.runtime.lastError;
-      if (error || !response?.success) {
-        note.textContent = error?.message || response?.error || "扩展本地引导页打开失败，请重试。";
-        note.classList.remove("is-pending");
-        note.classList.add("error");
-        handoff.disabled = false;
-      }
-    });
+    try {
+      chrome.runtime.sendMessage({
+        type: contract.MESSAGES.openLocalPage,
+        page,
+        pageCount,
+        localIndex: index,
+      }, (response) => {
+        const error = chrome.runtime.lastError;
+        if (error || !response?.success) {
+          showHandoffError(error?.message || response?.error || "扩展本地引导页打开失败，请重试。");
+        }
+      });
+    } catch (error) {
+      showHandoffError(error.message || "扩展连接已失效，请刷新页面重试。");
+    }
   }
 
   // 云端页使用固定官方 URL，本地页只发送经过 contract 验证的索引
@@ -155,7 +163,7 @@
       renderProgress(result.page);
       handoff.disabled = false;
       handoff.textContent = handoffLabel;
-      note.textContent = noteText;
+      note.replaceChildren(...noteContent.map(node => node.cloneNode(true)));
       note.classList.remove("error");
       if (result.page > pageCount) routePage(result.page);
     } catch {
@@ -167,13 +175,18 @@
   }
 
   handoff.addEventListener("click", (event) => {
-    if (!event.isTrusted) return;
+    if (!event.isTrusted || handoff.disabled) return;
     if (!pageCount) {
       loadFlow();
       return;
     }
     const page = contract.pageForLocalIndex(0, pageCount);
-    if (page) routePage(page);
+    if (page) {
+      handoff.disabled = true;
+      note.textContent = "正在打开本地配置…";
+      note.classList.remove("error", "is-pending");
+      routePage(page);
+    }
   });
 
   loadFlow();

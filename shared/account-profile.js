@@ -49,7 +49,7 @@
       : null;
   }
 
-  const PERMISSION_KEYS = ["customNames", "gameNotes", "priceMonitor", "searchSuggestions"];
+  const PERMISSION_KEYS = ["customNames", "gameNotes", "priceMonitor", "searchSuggestions", "settingsCloud"];
 
   function explicitPermissions(source) {
     const result = {};
@@ -75,6 +75,7 @@
       gameNotes: quotaValue(gameNotes) !== null ? quotaValue(gameNotes) !== 0 : false,
       priceMonitor: false,
       searchSuggestions: typeof suggestions.enabled === "boolean" ? suggestions.enabled : false,
+      settingsCloud: false,
     };
     return Object.fromEntries(PERMISSION_KEYS.map((key) => [
       key,
@@ -232,6 +233,7 @@
       expire: activeSource?.type === "vip" && activeSource.validity?.type === "limited"
         ? String(activeSource.validity.expiresAt || "")
         : "",
+      userId: String(src.user?.id || ""),
       permissions: normalizedPermissions,
       // 兼容旧设置页读取路径；新代码统一读取 permissions。
       features: normalizedPermissions,

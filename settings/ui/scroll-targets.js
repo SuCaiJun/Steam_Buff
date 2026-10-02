@@ -26,7 +26,6 @@
     ".fullscreen_scroll",
     ".main_content",
     ".page_content_ctn",
-    "[class*='scroll'][class*='Scroll']",
   ]);
 
   function asList(value) {

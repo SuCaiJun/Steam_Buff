@@ -455,6 +455,28 @@
       return results;
     }
 
+    /**
+     * 按功能 ID 定点重算并启动入口，供低频设置切换复用
+     * @param {string} featureId 已注册的功能 ID
+     * @returns {Promise<Array<object>>} 当前上下文的启动结果
+     */
+    async startFeature(featureId) {
+      const id = String(featureId || "").trim();
+      const feature = this.state.features.find(item => item.id === id);
+      if (!feature) {
+        return [];
+      }
+      const snapshot = this.contextSnapshot();
+      const results = [];
+      for (const context of snapshot.contexts) {
+        const result = await this.startEntry(feature, context, snapshot);
+        if (result) {
+          results.push(result);
+        }
+      }
+      return results;
+    }
+
     list() {
       return this.state.features.slice();
     }

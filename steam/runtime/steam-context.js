@@ -13,6 +13,9 @@
 
   const api = window.SteamBuff = window.SteamBuff || {};
   const PROPERTY_PANEL_SELECTOR = "[role='tabpanel'][id*='/app/'][id*='/properties/']";
+  const LIBRARY_GRID_SELECTOR = "div[role='grid'].ReactVirtualized__List";
+  const LIBRARY_CONTAINER_SELECTOR = ".ReactVirtualized__Grid__innerScrollContainer";
+  const LIBRARY_ROW_SELECTOR = "[draggable='true']";
 
   /* Steam 客户端上下文识别 */
   function isShared() {
@@ -192,6 +195,67 @@
     return settings()[id] !== false;
   }
 
+  function settingValue(id, fallback) {
+    const snapshot = settings();
+    return Object.prototype.hasOwnProperty.call(snapshot, id) ? snapshot[id] : fallback;
+  }
+
+  function independentNamesOn() {
+    return window.STConfig.effectiveLibraryNameMode(settings())
+      === window.STConfig.libraryNameMode.values.INDEPENDENT;
+  }
+
+  function reactFiber(node) {
+    const keys = Object.keys(node || {}).filter((key) => key.startsWith("__reactFiber"));
+    return keys.length === 1 ? node[keys[0]] : null;
+  }
+
+  // 仅沿已取证的 ReactVirtualized 库行 Fiber 链读取 item，不扫描其他 React 节点
+  function libraryRowItem(row) {
+    let fiber = reactFiber(row);
+    for (let depth = 0; fiber && depth < 12; depth += 1, fiber = fiber.return) {
+      const item = fiber.memoizedProps?.item;
+      if (item && Number(item.appid) > 0) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  // 右键入口只接受精确库列表容器中的真实游戏行
+  function libraryRow(target) {
+    const row = target?.closest?.(LIBRARY_ROW_SELECTOR);
+    // Steam 当前列表行由 Focusable/gridcell 包裹，容器不是游戏行的直接父节点。
+    const container = row?.closest?.(LIBRARY_CONTAINER_SELECTOR);
+    const grid = container?.closest?.(LIBRARY_GRID_SELECTOR);
+    if (!row || !grid || !container?.matches?.(LIBRARY_CONTAINER_SELECTOR)) {
+      return null;
+    }
+    return libraryRowItem(row) ? row : null;
+  }
+
+  // Steam 原生右键菜单 Fiber 父链的 overview 与右键行 AppID共同校验入口归属
+  function contextMenuOverview(node) {
+    let fiber = reactFiber(node);
+    for (let depth = 0; fiber && depth < 12; depth += 1, fiber = fiber.return) {
+      const overview = fiber.memoizedProps?.overview;
+      if (overview && Number(overview.appid) > 0) {
+        return overview;
+      }
+    }
+    return null;
+  }
+
+  function userNames() {
+    const raw = document.documentElement?.dataset?.steamBuffUserNames || "{}";
+    try {
+      const next = JSON.parse(raw) || {};
+      return next && typeof next === "object" ? next : {};
+    } catch {
+      return {};
+    }
+  }
+
   api.ctx = {
     isShared,
     isUi,
@@ -204,7 +268,13 @@
     targets,
     contexts,
     apps,
+    libraryRow,
+    libraryRowItem,
+    contextMenuOverview,
     settings,
     settingOn,
+    settingValue,
+    independentNamesOn,
+    userNames,
   };
 })();

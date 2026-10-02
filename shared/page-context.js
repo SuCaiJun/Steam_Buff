@@ -18,6 +18,7 @@
   const FEATURE_PAGES = Object.freeze({
     "library-sort-title": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/home", "/library/collections", "/library/app/:appid"]),
     "library-custom-name": Object.freeze(["SharedJSContext", "backend", "property-dialog"]),
+    "library-independent-name": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/home", "/library/collections"]),
     "download-batch-actions": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/downloads", "downloads"]),
     "download-auto-shutdown": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/downloads", "downloads"]),
     "player-stats": Object.freeze(["main-ui", "/library/app/:appid", "store-details", "store-app"]),
@@ -35,6 +36,7 @@
     "price-history": Object.freeze(["store-app"]),
     "wishlist-price-history": Object.freeze(["store-wishlist"]),
     "cart-select": Object.freeze(["store-cart", "checkout"]),
+    "custom-wallet-amount": Object.freeze(["store-other"]),
     "review-filter": Object.freeze(["store-details", "store-wishlist", "store-search", "store-other", "community-review"]),
     "search-suggestions": Object.freeze(["store-details", "store-wishlist", "store-search", "store-other"]),
     "store-title-custom-name": Object.freeze(["store-details", "store-wishlist"]),

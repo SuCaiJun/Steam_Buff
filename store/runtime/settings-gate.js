@@ -51,6 +51,17 @@
       },
     },
     {
+      id: "custom-wallet-amount",
+      module: "customWalletAmount",
+      pageScope: ["store-other"],
+      start(api) {
+        return api.features.customWalletAmount?.start?.();
+      },
+      stop(api) {
+        return api.features.customWalletAmount?.stop?.();
+      },
+    },
+    {
       id: "family-library-detail-card",
       module: "familyLibraryOwnedMarker",
       pageScope: ["store-app"],
@@ -143,10 +154,27 @@
       },
     },
   ]);
+  const FEATURE_BY_ID = new Map(REFRESHABLE_FEATURES.map((feature) => [feature.id, feature]));
+  // 来源顺序和悬浮穿透不改变门禁，仍允许时重跑对应 start
+  const DISPLAY_RESTART_IDS = Object.freeze({
+    "wishlist-price-history-hover-through": Object.freeze(["wishlist-price-history"]),
+    "store-title-community-fallback": Object.freeze(["store-title-custom-name"]),
+    "store-title-community-fallback-ai": Object.freeze(["store-title-custom-name"]),
+    "store-title-hide-custom-name": Object.freeze(["store-title-custom-name"]),
+  });
+  const FAMILY_PAGE_IDS = Object.freeze([
+    "family-library-detail-card",
+    "family-library-store-badge",
+    "family-library-wishlist-badge",
+    "family-library-cart-badge",
+  ]);
 
   let settings = {};
   let membership = { active: false, features: {} };
   let watchingSettings = false;
+  // 一次 load 会读到整份设置。比较实际已执行的门禁，不能只用这次事件的键和加载前快照
+  const applied = new Map();
+  let appliedReady = false;
   const logger = globalThis.STLoggerFactory?.createLogger?.("store", "settings-gate");
 
   function log(level, event, message, meta = {}) {
@@ -214,7 +242,7 @@
       key === (globalThis.STSettings?.storage?.MEMBERSHIP_KEY || MEMBERSHIP_KEY)
       || globalThis.STSettingsMembership?.isChange?.(changes, area)
       || (key.startsWith(SETTINGS_PREFIX)
-        && (key.endsWith(SETTINGS_SUFFIX) || key.startsWith(SEARCH_SUGGESTION_PREFIX) || key.startsWith(FAMILY_LIBRARY_PREFIX)))
+        && (key.endsWith(SETTINGS_SUFFIX) || key.endsWith(".value") || key.startsWith(SEARCH_SUGGESTION_PREFIX) || key.startsWith(FAMILY_LIBRARY_PREFIX)))
     ));
   }
 
@@ -230,11 +258,138 @@
     }) || { allowed: fallbackAllowed, reason: fallbackAllowed ? "" : "settings-disabled" };
   }
 
-  function refreshFeature(feature, meta) {
+  function membershipStorageKey() {
+    return globalThis.STSettings?.storage?.MEMBERSHIP_KEY || MEMBERSHIP_KEY;
+  }
+
+  function settingIdFromKey(key) {
+    if (!key.startsWith(SETTINGS_PREFIX)) return "";
+    if (key.endsWith(SETTINGS_SUFFIX)) {
+      return key.slice(SETTINGS_PREFIX.length, -SETTINGS_SUFFIX.length);
+    }
+    if (key.endsWith(".value")) {
+      return key.slice(SETTINGS_PREFIX.length, -".value".length);
+    }
+    return "";
+  }
+
+  function dependentsInRefresh(id) {
+    const deps = globalThis.STSettings?.catalog?.dependentsOf?.(id) || [];
+    const out = [];
+    for (const depId of deps) {
+      if (FEATURE_BY_ID.has(depId)) out.push(depId);
+    }
+    return out;
+  }
+
+  // 注: 设置键只处理受影响项。无键 refresh 是页面重判，会按当前页面启动或停止全部 12 项
+  function planChange(keys) {
+    const ids = new Set();
+    const restart = new Set();
+    let shouldLoad = false;
+    let membership = false;
+    for (const key of keys || []) {
+      if (typeof key !== "string" || !key) continue;
+      if (key === membershipStorageKey()) {
+        membership = true;
+        shouldLoad = true;
+        continue;
+      }
+      if (key.startsWith(FAMILY_LIBRARY_PREFIX)) {
+        shouldLoad = true;
+        continue;
+      }
+      if (key.startsWith(SEARCH_SUGGESTION_PREFIX)) continue;
+      const id = settingIdFromKey(key);
+      if (!id) continue;
+      if (id === "family-library-exclude-self") {
+        shouldLoad = true;
+        for (const childId of FAMILY_PAGE_IDS) {
+          const feature = FEATURE_BY_ID.get(childId);
+          if (feature && featureGate(feature).allowed === true) restart.add(childId);
+        }
+        continue;
+      }
+      const displayTargets = DISPLAY_RESTART_IDS[id];
+      if (displayTargets) {
+        shouldLoad = true;
+        for (const targetId of displayTargets) restart.add(targetId);
+        continue;
+      }
+      const affected = FEATURE_BY_ID.has(id) ? [id] : [];
+      affected.push(...dependentsInRefresh(id));
+      if (!affected.length) continue;
+      shouldLoad = true;
+      for (const affectedId of affected) ids.add(affectedId);
+    }
+    if (membership) {
+      for (const featureId of FEATURE_BY_ID.keys()) ids.add(featureId);
+    }
+    for (const restartId of restart) ids.add(restartId);
+    return { load: shouldLoad, refresh: ids.size > 0, ids, restart };
+  }
+
+  function ensureApplied() {
+    if (appliedReady) return;
+    for (const feature of REFRESHABLE_FEATURES) {
+      applied.set(feature.id, featureGate(feature).allowed === true);
+    }
+    appliedReady = true;
+  }
+
+  function rememberApplied(feature, allowed, status) {
+    if (status === "failed" || status === "missing") {
+      applied.delete(feature.id);
+      return;
+    }
+    applied.set(feature.id, allowed === true);
+    appliedReady = true;
+  }
+
+  function driftedIds() {
+    const ids = new Set();
+    for (const feature of REFRESHABLE_FEATURES) {
+      const allowed = featureGate(feature).allowed === true;
+      if (!applied.has(feature.id) || applied.get(feature.id) !== allowed) ids.add(feature.id);
+    }
+    return ids;
+  }
+
+  function failStatus(feature, meta, error) {
+    log("error", "settings-refresh-feature-failed", "商店页功能生命周期刷新失败", {
+      ...meta,
+      feature: feature.id,
+      error,
+    });
+    return { id: feature.id, status: "failed", error: error?.message || String(error) };
+  }
+
+  function watchResult(feature, meta, value, map) {
+    if (value && typeof value.then === "function") {
+      return value.then((result) => map(result), (error) => failStatus(feature, meta, error));
+    }
+    return map(value);
+  }
+
+  function lifecycleMode(feature, allowed, change) {
+    if (!change) return allowed ? "start" : "stop";
+    if (!change.applied?.has(feature.id)) return allowed ? "start" : "stop";
+    const wasAllowed = change.applied.get(feature.id) === true;
+    if (wasAllowed !== allowed) return allowed ? "start" : "stop";
+    if (change.restart?.has(feature.id) && allowed) return "start";
+    return "unchanged";
+  }
+
+  function runFeature(feature, meta, change) {
     const gate = featureGate(feature);
+    const allowed = gate.allowed === true;
+    const mode = lifecycleMode(feature, allowed, change);
+    if (mode === "unchanged") {
+      return { id: feature.id, status: "unchanged" };
+    }
     const mod = api.features?.[feature.module];
     if (!mod) {
-      if (gate.allowed === false) {
+      if (!allowed) {
         return { id: feature.id, status: "skipped", reason: gate.reason || "disabled" };
       }
       log("warn", "settings-refresh-feature-missing", "商店页刷新功能模块缺失", {
@@ -245,32 +400,25 @@
       });
       return { id: feature.id, status: "missing" };
     }
-    if (gate.allowed) {
-      const result = feature.start(api);
-      return { id: feature.id, status: result === false ? "skipped" : "started" };
-    }
-    feature.stop(api);
-    return { id: feature.id, status: "stopped", reason: gate.reason || "disabled" };
-  }
-
-  function refreshFeatureLifecycles(meta) {
-    const results = [];
-    for (const feature of REFRESHABLE_FEATURES) {
-      try {
-        results.push(refreshFeature(feature, meta));
-      } catch (error) {
-        results.push({ id: feature.id, status: "failed", error: error?.message || String(error) });
-        log("error", "settings-refresh-feature-failed", "商店页功能生命周期刷新失败", {
-          ...meta,
-          feature: feature.id,
-          error,
-        });
+    try {
+      if (mode === "start") {
+        return watchResult(feature, meta, feature.start(api), (result) => (
+          result === false
+            ? { id: feature.id, status: "skipped" }
+            : { id: feature.id, status: "started" }
+        ));
       }
+      return watchResult(feature, meta, feature.stop(api), () => ({
+        id: feature.id,
+        status: "stopped",
+        reason: gate.reason || "disabled",
+      }));
+    } catch (error) {
+      return failStatus(feature, meta, error);
     }
-    return results;
   }
 
-  function refreshActiveFeatureSet(reason = "settings") {
+  function refreshActiveFeatureSet(reason = "settings", change = null) {
     const startedAt = Date.now();
     const context = globalThis.STPageContext?.snapshot?.() || {};
     const meta = { reason, path: context.path || location.pathname, pageType: context.pageType || "" };
@@ -291,13 +439,33 @@
         reason: gate.reason || "",
         meta,
       });
-      const refreshed = refreshFeatureLifecycles(meta);
-      log("info", "settings-refresh-success", "商店页设置快照刷新完成", {
-        ...meta,
-        active: gate.allowed === true,
-        skippedReason: gate.reason || "",
-        refreshed,
-        durationMs: Date.now() - startedAt,
+      const selected = change?.ids
+        ? REFRESHABLE_FEATURES.filter((feature) => change.ids.has(feature.id))
+        : REFRESHABLE_FEATURES;
+      const jobs = [];
+      for (const feature of selected) {
+        const allowed = featureGate(feature).allowed === true;
+        const modeChange = change?.ids ? change : null;
+        jobs.push(Promise.resolve(runFeature(feature, meta, modeChange)).then((row) => {
+          rememberApplied(feature, allowed, row?.status);
+          return row;
+        }));
+      }
+      // 同一轮里的 start/stop 仍按原顺序立刻调用；成功日志等到 Promise 落定
+      return Promise.all(jobs).then((refreshed) => {
+        log("info", "settings-refresh-success", "商店页设置快照刷新完成", {
+          ...meta,
+          active: gate.allowed === true,
+          skippedReason: gate.reason || "",
+          refreshed,
+          durationMs: Date.now() - startedAt,
+        });
+      }).catch((error) => {
+        log("error", "settings-refresh-failed", "商店页设置快照刷新失败", {
+          ...meta,
+          durationMs: Date.now() - startedAt,
+          error,
+        });
       });
     } catch (error) {
       log("error", "settings-refresh-failed", "商店页设置快照刷新失败", {
@@ -305,7 +473,35 @@
         durationMs: Date.now() - startedAt,
         error,
       });
+      return Promise.resolve();
     }
+  }
+
+  // 同一页面的设置变更串行执行。load 之后把已执行状态和当前门禁不一致的功能一并处理
+  let refreshQueue = Promise.resolve();
+
+  function applySettingsChange(keys, reason) {
+    refreshQueue = refreshQueue.then(() => {
+      const plan = planChange(keys);
+      if (!plan.load) return null;
+      ensureApplied();
+      return load().then(() => {
+        const ids = new Set(plan.ids);
+        for (const id of driftedIds()) ids.add(id);
+        if (ids.size === 0) return null;
+        return refreshActiveFeatureSet(reason, {
+          ids,
+          restart: plan.restart,
+          applied,
+        });
+      });
+    }).catch((error) => {
+      log("error", "settings-refresh-failed", "商店页设置快照刷新失败", {
+        reason,
+        path: location.pathname,
+        error,
+      });
+    });
   }
 
   function watch() {
@@ -319,14 +515,12 @@
             changes[key] = true;
           }
           if (!settingsChanged(changes, "local")) return;
-          load().then(() => {
-            refreshActiveFeatureSet(event.reason || "settings");
-          }).catch(() => {});
+          applySettingsChange(event.changedKeys || [], event.reason || "settings");
         }, {
           owner: "store:settings-gate",
           key: "settings-watch",
           prefixes: [SETTINGS_PREFIX, SEARCH_SUGGESTION_PREFIX, FAMILY_LIBRARY_PREFIX],
-          keys: [globalThis.STSettings?.storage?.MEMBERSHIP_KEY || MEMBERSHIP_KEY],
+          keys: [membershipStorageKey()],
         });
         log("info", "settings-watch-start", "商店页设置变化监听已启动", {
           transport: "settings-bus",
@@ -336,9 +530,7 @@
       }
       chrome.storage.onChanged.addListener((changes, area) => {
         if (!settingsChanged(changes, area)) return;
-        load().then(() => {
-          refreshActiveFeatureSet("settings");
-        }).catch(() => {});
+        applySettingsChange(Object.keys(changes || {}), "settings");
       });
       log("info", "settings-watch-start", "商店页设置变化监听已启动", {
         transport: "chrome-storage",
@@ -357,6 +549,9 @@
     on,
     all() {
       return { ...settings };
+    },
+    membership() {
+      return membership;
     },
   });
 

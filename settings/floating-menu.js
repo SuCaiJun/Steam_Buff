@@ -393,6 +393,9 @@
     createPanels();
     createShell();
     await shell.loadPages();
+    if (typeof globalThis.STSettingsCloudUi?.preload === "function") {
+      await globalThis.STSettingsCloudUi.preload();
+    }
 
     const pos = await api.storage?.getRailPos?.();
     if (pos) {

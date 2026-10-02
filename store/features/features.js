@@ -121,6 +121,10 @@
     return api.features.purchaseHistoryClassifier?.start?.(...args);
   }
 
+  function startCustomWalletAmount(...args) {
+    return api.features.customWalletAmount?.start?.(...args);
+  }
+
   function startPlayerStats(...args) {
     return api.features.playerStats?.start?.(...args);
   }
@@ -152,6 +156,7 @@
       stopFeature(api.features.dataDisplay, "data-display"),
       stopFeature(api.features.regionalPricePopover, "regional-price-popover"),
       stopFeature(api.features.purchaseHistoryClassifier, "purchase-history-classifier"),
+      stopFeature(api.features.customWalletAmount, "custom-wallet-amount"),
       stopFeature(api.features.playerStats, "player-stats"),
       stopFeature(api.purchaseRecover, "purchase-recover"),
     ].filter(Boolean).length;
@@ -425,6 +430,10 @@
 
     if (on("purchase-history-classifier")) {
       startPurchaseHistoryClassifier();
+    }
+
+    if (canRun("custom-wallet-amount")) {
+      startCustomWalletAmount();
     }
 
     if (location.href.match(/(app|sub|bundle)\/\d+/)) {

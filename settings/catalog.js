@@ -375,6 +375,27 @@
     lineColors: Object.freeze({}),
   });
 
+  // 备份与云同步共用的面板分区；不含云同步通道、浮窗位置、登录会员、日志缓存
+  const PANEL_SECTIONS = Object.freeze([
+    "features",
+    "uiLocale",
+    "familyLibrary",
+    "storePriceChart",
+    "searchSuggestions",
+    "reviewFilter",
+    "translate",
+    "ai",
+    "thirdPartyServices",
+  ]);
+  const PANEL_STORAGE_PREFIXES = Object.freeze([
+    "st.settings.translate.",
+    "st.settings.ai.",
+    "st.settings.reviewFilter.",
+    "st.settings.searchSuggestions.",
+    "st.settings.familyLibrary.",
+    "st.settings.thirdPartyServices.",
+  ]);
+
   const categories = Object.freeze([
     {
       id: "extension-settings",
@@ -688,84 +709,104 @@
           ]),
         },
         {
-          id: "search-suggestions",
-          name: "搜索联想词",
-          desc: "控制 Steam 商店搜索联想词、中文名称匹配和结果展示增强。",
-          help: "搜索联想词",
+          id: "store-title-custom-name",
+          name: "游戏商店自定义名称",
+          desc: "在 Steam 商店游戏标题旁显示用户自定义名称、社区名称或 AI 名称，并支持提交自己的名称。",
+          help: "游戏商店自定义名称",
           area: "store",
           enabled: true,
           member: true,
-          memberFeature: "searchSuggestions",
+          memberFeature: "customNames",
           badge: "赞助者",
           lock: "赞助者可用，开通后会按当前保存状态恢复",
-          panel: "search-suggestion",
           children: Object.freeze([
             {
-              id: "search-suggestions-user-custom",
-              name: "玩家自定义名称",
-              desc: "优先匹配当前账号保存的私有自定义名称",
+              id: "store-title-community-fallback",
+              name: "社区名称兜底显示",
+              desc: "没有我的名称时，使用社区名称显示；社区名称不会写入编辑弹窗。",
               area: "store",
               enabled: true,
-              deps: depAll(["search-suggestions"]),
+              deps: depAll(["store-title-custom-name"]),
             },
             {
-              id: "search-suggestions-user-alias",
-              name: "我的别名",
-              desc: "匹配当前账号保存的私有游戏别名",
+              id: "store-title-community-fallback-ai",
+              name: "无社区名称时返回 AI 名称",
+              desc: "社区名称不存在时，允许使用 AI 翻译名称兜底显示。",
               area: "store",
-              enabled: true,
-              deps: depAll(["search-suggestions"]),
+              enabled: false,
+              deps: depAll(["store-title-community-fallback"]),
             },
             {
-              id: "search-suggestions-community",
-              name: "公共自定义名称",
-              desc: "匹配已达标的社区公共自定义名称",
+              id: "search-suggestions",
+              name: "搜索联想词",
+              desc: "控制 Steam 商店搜索联想词、中文名称匹配和结果展示增强。",
+              help: "搜索联想词",
               area: "store",
               enabled: true,
-              deps: depAll(["search-suggestions"]),
+              member: true,
+              memberFeature: "searchSuggestions",
+              badge: "赞助者",
+              lock: "赞助者可用，开通后会按当前保存状态恢复",
+              panel: "search-suggestion",
+              children: Object.freeze([
+                {
+                  id: "search-suggestions-user-custom",
+                  name: "我的名称",
+                  desc: "优先匹配当前账号保存的私有自定义名称",
+                  area: "store",
+                  enabled: true,
+                  deps: depAll(["search-suggestions"]),
+                },
+                {
+                  id: "search-suggestions-user-alias",
+                  name: "我的别名",
+                  desc: "匹配当前账号保存的私有游戏别名",
+                  area: "store",
+                  enabled: true,
+                  deps: depAll(["search-suggestions"]),
+                },
+                {
+                  id: "search-suggestions-community",
+                  name: "公共名称",
+                  desc: "匹配已达标的社区公共自定义名称",
+                  area: "store",
+                  enabled: true,
+                  deps: depAll(["search-suggestions"]),
+                },
+                {
+                  id: "search-suggestions-community-alias",
+                  name: "社区别名",
+                  desc: "匹配已达标的社区公共游戏别名",
+                  area: "store",
+                  enabled: true,
+                  deps: depAll(["search-suggestions"]),
+                },
+                {
+                  id: "search-suggestions-ai",
+                  name: "AI 翻译名称",
+                  desc: "匹配当前启用的 AI 主翻译名称",
+                  area: "store",
+                  enabled: true,
+                  deps: depAll(["search-suggestions"]),
+                },
+                {
+                  id: "search-suggestions-pinyin",
+                  name: "拼音搜索",
+                  desc: "商店联想和库搜索都使用完整拼音匹配中文名称，例如 xiadaoliecheshou",
+                  area: "store",
+                  enabled: true,
+                  deps: depAll(["search-suggestions"]),
+                },
+                {
+                  id: "search-suggestions-mnemonic",
+                  name: "助记符搜索",
+                  desc: "商店联想和库搜索都使用中文首字母助记符匹配中文名称，例如 xdlcs",
+                  area: "store",
+                  enabled: true,
+                  deps: depAll(["search-suggestions"]),
+                },
+              ]),
             },
-            {
-              id: "search-suggestions-community-alias",
-              name: "社区别名",
-              desc: "匹配已达标的社区公共游戏别名",
-              area: "store",
-              enabled: true,
-              deps: depAll(["search-suggestions"]),
-            },
-            {
-              id: "search-suggestions-ai",
-              name: "AI 翻译名称",
-              desc: "匹配当前启用的 AI 主翻译名称",
-              area: "store",
-              enabled: true,
-              deps: depAll(["search-suggestions"]),
-            },
-            {
-              id: "search-suggestions-pinyin",
-              name: "拼音搜索",
-              desc: "允许使用完整拼音匹配中文名称，例如 xiadaoliecheshou",
-              area: "store",
-              enabled: true,
-              deps: depAll(["search-suggestions"]),
-            },
-            {
-              id: "search-suggestions-mnemonic",
-              name: "助记符搜索",
-              desc: "允许使用中文首字母助记符匹配中文名称，例如 xdlcs",
-              area: "store",
-              enabled: true,
-              deps: depAll(["search-suggestions"]),
-            },
-          ]),
-        },
-        {
-          id: "store-title-custom-name",
-          name: "游戏商店标题中文名",
-          desc: "在 Steam 商店游戏标题旁显示 Steam Buff 中文名，并支持提交自己的中文名。",
-          help: "游戏商店标题中文名",
-          area: "store",
-          enabled: true,
-          children: Object.freeze([
             {
               id: "game-notes",
               name: "游戏备注",
@@ -802,6 +843,14 @@
             },
           ]),
         },
+        {
+          id: "custom-wallet-amount",
+          name: "自定义充值金额",
+          desc: "在 Steam 钱包充值和礼物卡页输入不低于最低档的自定义金额。",
+          help: "自定义充值金额",
+          area: "store",
+          enabled: true,
+        },
       ]),
     },
     {
@@ -836,12 +885,26 @@
       items: Object.freeze([
         {
           id: "library-sort-title",
-          name: "库列表显示自定义名称",
+          name: "自定义游戏名称",
           desc: "库列表优先显示自定义排序名称，并在 Steam 自定义页提供名称管理工具",
-          help: "库列表显示自定义名称",
+          help: "自定义游戏名称",
           area: "steam",
           enabled: true,
           children: Object.freeze([
+            {
+              id: "library-name-mode",
+              name: "库自定义名称方案",
+              desc: "素材君云存储版将修改后的名称实时同步至素材君云服务器，换电脑不会导致名称数据丢失。\nSteam云存储版基于Steam的自定义排序名称功能实现，将数据实时同步至Steam云中，换电脑不会导致名称数据丢失。",
+              help: "库自定义名称方案",
+              area: "steam",
+              control: "mode",
+              default: "steam-sort",
+              options: Object.freeze([
+                { value: "independent", label: "素材君云存储版", memberFeature: "customNames", lock: "赞助者可用，开通后会按当前保存状态恢复" },
+                { value: "steam-sort", label: "Steam云存储版" },
+              ]),
+              deps: depAll(["library-sort-title"]),
+            },
             {
               id: "library-sort-title-original-search",
               name: "优化 Steam 原名搜索",
@@ -872,6 +935,13 @@
               deps: depAll(["library-sort-title"]),
             },
           ]),
+        },
+        {
+          id: "store-title-hide-custom-name",
+          name: "隐藏商店自定义名称",
+          desc: "在 Steam 商店详情页和愿望单隐藏自定义名称显示，但不删除已保存名称。",
+          area: "steam",
+          enabled: false,
         },
         {
           id: "library-group-labels",
@@ -1124,9 +1194,38 @@
       .map((item) => item.id);
   }
 
+  function valueKind(item) {
+    const control = String(item?.control || "");
+    if (control === "order") {
+      return "order";
+    }
+    if (control === "choice") {
+      return "choice";
+    }
+    if (control === "mode") {
+      const options = Array.isArray(item.options) ? item.options : [];
+      if (options.length && options.every((option) => typeof option.value === "boolean")) {
+        return "";
+      }
+      if (options.length) {
+        return "choice";
+      }
+    }
+    return "";
+  }
+
   function defaults() {
     const out = {};
     for (const item of featureItems()) {
+      const kind = valueKind(item);
+      if (kind === "choice") {
+        out[item.id] = item.default;
+        continue;
+      }
+      if (kind === "order") {
+        out[item.id] = Array.isArray(item.default) ? item.default.slice() : [];
+        continue;
+      }
       out[item.id] = item.disabled === true ? false : item.enabled !== false;
     }
     return out;
@@ -1194,12 +1293,65 @@
     };
   }
 
+  function panelSectionDefaults(name) {
+    if (name === "features") {
+      return defaults();
+    }
+    if (name === "uiLocale") {
+      return "zh_CN";
+    }
+    if (name === "familyLibrary") {
+      return familyLibraryDefaults();
+    }
+    if (name === "storePriceChart") {
+      return storePriceChartDefaults();
+    }
+    if (name === "searchSuggestions") {
+      return searchSuggestionDefaults();
+    }
+    if (name === "reviewFilter") {
+      return reviewFilterDefaults();
+    }
+    if (name === "translate") {
+      return translateDefaults();
+    }
+    if (name === "ai") {
+      return aiDefaults();
+    }
+    if (name === "thirdPartyServices") {
+      return thirdPartyServicesDefaults();
+    }
+    return {};
+  }
+
+  function isPanelStorageKey(name) {
+    const key = String(name || "");
+    if (key === UI_LOCALE_KEY || key === "st.settings.storePriceChart") {
+      return true;
+    }
+    if (!key.startsWith("st.settings.") || key.startsWith("st.settings.cloud.") || key.startsWith("st.settings.rail.")) {
+      return false;
+    }
+    if (key.endsWith(".enabled") || key.endsWith(".value")) {
+      return true;
+    }
+    return PANEL_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix));
+  }
+
+  function valueControl(id) {
+    return valueKind(featureById(id));
+  }
+
   api.catalog = Object.freeze({
     UI_LOCALE_KEY,
+    panelSections: PANEL_SECTIONS,
+    panelSectionDefaults,
+    isPanelStorageKey,
     list,
     featureItems,
     featureById,
     featureIds,
+    valueControl,
     dependency,
     dependentsOf,
     defaults,

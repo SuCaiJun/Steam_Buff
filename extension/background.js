@@ -30,6 +30,19 @@
   importScripts(chrome.runtime.getURL("shared/lifecycle-prompt-contract.js"));
   importScripts(chrome.runtime.getURL("extension/background-lifecycle.js"));
   importScripts(chrome.runtime.getURL("extension/background-update.js"));
+  importScripts(chrome.runtime.getURL("vendor/fflate/fflate.js"));
+  importScripts(chrome.runtime.getURL("ai/config.js"));
+  importScripts(chrome.runtime.getURL("shared/price-comparison-catalog.js"));
+  importScripts(chrome.runtime.getURL("settings/catalog.js"));
+  importScripts(chrome.runtime.getURL("settings/membership.js"));
+  importScripts(chrome.runtime.getURL("settings/storage.js"));
+  importScripts(chrome.runtime.getURL("settings/panel-snapshot.js"));
+  importScripts(chrome.runtime.getURL("settings/settings-cloud.js"));
+  importScripts(chrome.runtime.getURL("shared/auth-session.js"));
+  importScripts(chrome.runtime.getURL("shared/auth-client.js"));
+  importScripts(chrome.runtime.getURL("shared/user-names-snapshot.js"));
+  importScripts(chrome.runtime.getURL("extension/background-settings-sync.js"));
+  importScripts(chrome.runtime.getURL("extension/background-user-names-sync.js"));
 
   const CFG = globalThis.STConfig;
   const ONBOARDING = globalThis.STOnboardingContract;
@@ -69,6 +82,8 @@
     "shared/runtime/message-bus.js",
     "shared/settings-bus.js",
     "shared/auth-session.js",
+    "shared/auth-client.js",
+    "shared/user-names-snapshot.js",
     "extension/content.js",
   ]);
   const STEAM_LOOPBACK_GUARD_FILES = Object.freeze([
@@ -88,6 +103,8 @@
     "shared/runtime/message-bus.js",
     "shared/settings-bus.js",
     "shared/auth-session.js",
+    "shared/auth-client.js",
+    "shared/user-names-snapshot.js",
     "extension/content.js",
   ]);
   const STEAM_CONTENT_SHARED_SCRIPTS = Object.freeze([
@@ -123,11 +140,14 @@
     "shared/runtime/message-bus.js",
     "shared/settings-bus.js",
     "shared/auth-session.js",
+    "shared/auth-client.js",
     "shared/account-profile.js",
     "shared/price-comparison-catalog.js",
     "settings/catalog.js",
     "settings/membership.js",
     "settings/storage.js",
+    "settings/panel-snapshot.js",
+    "settings/settings-cloud.js",
   ]);
   const SETTINGS_RAIL_SCRIPTS = Object.freeze([
     "shared/i18n.js",
@@ -136,6 +156,8 @@
     "shared/styles/components.js",
     "settings/ui/assets.js",
     "settings/ui/styles.js",
+    "settings/ui/scroll-targets.js",
+    "settings/ui/page-translate.js",
     "settings/floating-rail.js",
     "settings/api/request.js",
     "settings/update-log-renderer.js",
@@ -174,11 +196,14 @@
     "settings/ui/html.js",
     "settings/ui/assets.js",
     "settings/ui/styles.js",
+    "shared/dialog-lifecycle.js",
     "settings/ui/dialogs.js",
+    "settings/settings-cloud-ui.js",
     "settings/ui/toast.js",
     "settings/ui/fields.js",
     "settings/ui/feature-row.js",
     "settings/ui/scroll-targets.js",
+    "settings/ui/page-translate.js",
     "settings/panels/review-filter.js",
     "settings/panels/search-suggestions.js",
     "settings/panels/ai.js",
@@ -235,6 +260,7 @@
     "settings/storage.js",
     "settings/ui/html.js",
     "settings/ui/styles.js",
+    "shared/dialog-lifecycle.js",
     "settings/ui/dialogs.js",
     "settings/ui/toast.js",
     "store/api/request.js",
@@ -320,6 +346,7 @@
       "store/features/reminders/subscription-info.js",
       "store/features/reminders/family-library-owned-marker.js",
       "store/features/notes/game-notes.js",
+      "store/features/funds/custom-wallet-amount.js",
     ]),
   });
   const STORE_START_SCRIPTS = Object.freeze([
@@ -327,7 +354,7 @@
     "store/main.js",
   ]);
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v20";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v27";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_RUNTIME_READY_WAIT_MS = 6000;
@@ -3098,13 +3125,21 @@
     });
   }
 
-  // 翻译脚本只注入发起请求的 frame，先写入配置，再按需加载翻译库和 runner，避免污染其他页面。
+  // 手动入口只准备依赖，任务由同一 isolated world 中的 runner 执行，不覆盖已有自动翻译配置
+  // 旧请求仍按配置启动；仅注入请求来源 frame
   async function translateInject(request, sender, sendResponse) {
-    const target = translateTarget(sender);
-    if (!target) {
+    const manual = request.action === "manual-page";
+    const target = manual && typeof sender?.documentId === "string"
+      ? { tabId: sender.tab?.id, documentIds: [sender.documentId] }
+      : translateTarget(sender);
+    const url = manual ? senderUrlObject(sender) : null;
+    if (!target || (manual && (typeof sender.documentId !== "string" || typeof sender.tab?.id !== "number"
+      || !isSettingsSender(sender) || sender.frameId !== 0 || !["http:", "https:"].includes(url?.protocol)))) {
       sendResponse({ success: false, error: "无法定位翻译页面" });
       return;
     }
+
+    // 手动请求绑定发起点击的文档，导航后不能把剩余注入步骤送到新网页
 
     const inputCfg = request.cfg && typeof request.cfg === "object" ? request.cfg : {};
     const modes = translateModesFrom(inputCfg);
@@ -3117,12 +3152,18 @@
       await execScript({
         target,
         world: "ISOLATED",
-        func: (cfg) => {
+        func: (cfg, manual) => {
+          if (manual) {
+            if (!globalThis.STEAM_BUFF_TRANSLATE_CONFIG) {
+              globalThis.STEAM_BUFF_TRANSLATE_CONFIG = { enabled: false, page: false, selection: false, select: false, modes: [] };
+            }
+            return;
+          }
           globalThis.STEAM_BUFF_TRANSLATE_CONFIG = cfg || {};
           globalThis.STTranslateVendor?.configure?.(globalThis.STEAM_BUFF_TRANSLATE_CONFIG);
           globalThis.STTranslateRunner?.configure?.(globalThis.STEAM_BUFF_TRANSLATE_CONFIG);
         },
-        args: [translateCfg],
+        args: [translateCfg, manual],
       });
 
       const res = await execScript({
@@ -3134,11 +3175,15 @@
         }),
       });
       const state = res?.[0]?.result || {};
-      if (!modes.length) {
+      if (!manual && !modes.length) {
         sendResponse({ success: true, skipped: true, reason: "no-enabled-mode" });
         return;
       }
       if (state.runner === true) {
+        if (manual) {
+          sendResponse({ success: true });
+          return;
+        }
         await execScript({
           target,
           world: "ISOLATED",
@@ -3191,16 +3236,20 @@
       await execScript({
         target,
         world: "ISOLATED",
-        func: () => {
+        func: (manual) => {
+          if (manual) return;
           const cfg = globalThis.STEAM_BUFF_TRANSLATE_CONFIG || {};
           globalThis.STTranslateVendor?.configure?.(cfg);
           globalThis.STTranslateRunner?.configure?.(cfg);
         },
+        args: [manual],
       });
       sendResponse({ success: true });
     } catch (error) {
       const msg = error.message || String(error);
-      logError("translate", "inject-failed", "翻译注入失败", error);
+      logError("translate", "inject-failed", "翻译注入失败", error, {
+        ...(manual ? { action: "manual-page", operationId: request.operationId, documentId: sender.documentId } : {}),
+      });
       sendResponse({ success: false, error: msg });
     }
   }
@@ -3437,6 +3486,76 @@
       .catch((error) => sendResponse({ success: false, error: error?.message || String(error) }));
   }
 
+  function authCommitSender(sender) {
+    if (isSettingsSender(sender) || isOnboardingSender(sender) || isSteamRuntimeSender(sender)) {
+      return true;
+    }
+    const url = senderUrlObject(sender);
+    return !!url
+      && url.protocol === "chrome-extension:"
+      && url.hostname === chrome.runtime.id;
+  }
+
+  // 商店页、设置页和客户端运行时共用这一条写入。读、判断和写都在服务工作线程的队列里完成
+  function commitAuthMessage(request, sender, sendResponse) {
+    if (!authCommitSender(sender)) {
+      backgroundLogger("auth-commit").warn(
+        "auth-commit-rejected",
+        "登录状态写入入口拒绝该页面",
+        {
+          operationId: String(request?.operationId || ""),
+          requestId: String(request?.requestId || ""),
+        },
+      );
+      sendResponse({ success: false, error: "登录状态写入入口拒绝该页面", code: "forbidden" });
+      return;
+    }
+    const storage = globalThis.STSettings?.storage;
+    if (!storage || typeof globalThis.STAuthClient?.commitStored !== "function") {
+      sendResponse({ success: false, error: "登录状态写入入口未初始化", code: "auth-commit-unavailable" });
+      return;
+    }
+    globalThis.STAuthClient.commitStored(storage, {
+      kind: request?.kind,
+      sent: request?.sent,
+      incoming: request?.incoming,
+      ownerId: request?.ownerId,
+      lastUsedAt: request?.lastUsedAt,
+      operationId: request?.operationId,
+      requestId: request?.requestId,
+    }).then((decision) => {
+      const action = String(decision?.action || "");
+      const expose = action === "keep" || action === "write";
+      sendResponse({
+        success: true,
+        action,
+        auth: expose ? decision?.auth || null : null,
+      });
+    }).catch((error) => {
+      sendResponse({
+        success: false,
+        error: error?.message || "登录状态写入失败",
+        code: error?.code || "auth-commit-failed",
+      });
+    });
+  }
+
+  function commitUserNames(request, sender, sendResponse) {
+    if (!isSteamRuntimeSender(sender)) {
+      backgroundLogger("library-independent-name").warn(
+        "user-names-commit-rejected",
+        "独立名称写入入口拒绝该页面",
+        {
+          operationId: String(request?.operationId || ""),
+          requestId: String(request?.requestId || ""),
+        },
+      );
+      sendResponse({ success: false, error: "名称写入入口拒绝该页面", code: "forbidden" });
+      return;
+    }
+    globalThis.STBackgroundUserNamesSync.handleMessage(request, sendResponse);
+  }
+
   const ROUTE_POLICY = Object.freeze({
     UPDATE_CHECK: "设置中心更新检查",
     STORE_FETCH: "允许列表内跨域请求代理",
@@ -3461,6 +3580,9 @@
     LOG_STATS: "诊断日志状态",
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: "云端安装引导页打开本地步骤",
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: "安装引导页打开设置中心",
+    SETTINGS_CLOUD_SYNC: "设置云同步检查、上传、下载和冲突处理",
+    USER_NAMES_COMMIT: "独立名称本地变更的唯一写入入口",
+    AUTH_COMMIT: "登录状态写入的唯一入口",
   });
 
   const ROUTES = Object.freeze({
@@ -3483,6 +3605,9 @@
     AI_TRANSLATE_CACHE_SET: cacheSet,
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: openOnboardingLocalPage,
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: openOnboardingSettings,
+    SETTINGS_CLOUD_SYNC: globalThis.STBackgroundSettingsSync.handleMessage,
+    USER_NAMES_COMMIT: commitUserNames,
+    AUTH_COMMIT: commitAuthMessage,
     LOG_APPEND(request, sender, sendResponse) {
       globalThis.STBackgroundLogger.append(request, sender)
         .then((stats) => sendResponse({ success: true, stats }))
