@@ -23,6 +23,8 @@
   const FEEDBACK_URL = CFG.urls.feedback;
   const DONATIONS_API = CFG.supporter("/donations?limit=100");
   const DONATION_CACHE_MS = 60 * 60 * 1000;
+  const ABOUT_DONOR_MARQUEE_SPEED_PX_PER_SECOND = 8;
+  const ABOUT_DONOR_MARQUEE_DURATION_VAR = "--about-donors-marquee-duration";
   const vendorCatalog = globalThis.STVendorCatalog;
   if (!Array.isArray(vendorCatalog?.openSourceLibs)) {
     throw new Error("[Steam Buff] 关于页面依赖 STVendorCatalog 未加载");
@@ -606,7 +608,7 @@
       align-items: center;
       gap: 10px;
       min-width: max-content;
-      animation: about-marquee 48s linear infinite;
+      animation: about-marquee var(--about-donors-marquee-duration) linear infinite;
       white-space: nowrap;
     }
 
@@ -1419,7 +1421,34 @@
     });
   }
 
-  async function loadDonors(ctx) {
+  function applyDonorMarqueeSpeed(shadow) {
+    const body = shadow?.querySelector?.(".body");
+    const track = shadow?.querySelector?.(".about-marquee-track");
+    if (!body || !track || typeof track.getBoundingClientRect !== "function") {
+      return;
+    }
+
+    const trackWidth = Number(track.getBoundingClientRect().width);
+    const distancePx = trackWidth / 2;
+    if (!Number.isFinite(distancePx) || distancePx <= 0) {
+      body.style.removeProperty(ABOUT_DONOR_MARQUEE_DURATION_VAR);
+      return;
+    }
+
+    const durationSeconds = distancePx / ABOUT_DONOR_MARQUEE_SPEED_PX_PER_SECOND;
+    body.style.setProperty(ABOUT_DONOR_MARQUEE_DURATION_VAR, `${durationSeconds}s`);
+  }
+
+  function scheduleDonorMarqueeSpeed(shadow) {
+    const raf = globalThis.requestAnimationFrame;
+    if (typeof raf !== "function") {
+      applyDonorMarqueeSpeed(shadow);
+      return;
+    }
+    raf(() => applyDonorMarqueeSpeed(shadow));
+  }
+
+  async function loadDonors(shadow, ctx) {
     if (Array.isArray(donors) && Date.now() - donorsLoadedAt < DONATION_CACHE_MS) {
       return;
     }
@@ -1428,10 +1457,12 @@
       donors = data.map(normalizeDonation);
       donorsLoadedAt = Date.now();
       ctx.refresh("about");
+      scheduleDonorMarqueeSpeed(shadow);
     } catch {
       donors = [];
       donorsLoadedAt = Date.now();
       ctx.refresh("about");
+      scheduleDonorMarqueeSpeed(shadow);
     }
   }
 
@@ -2039,16 +2070,16 @@
   }
 
   function onOpen(shadow, ctx) {
-    void shadow;
     refreshStatus(ctx);
+    scheduleDonorMarqueeSpeed(shadow);
   }
 
   function onPanelOpen(shadow, ctx) {
-    void shadow;
     info = emptyUpdateInfo(ctx);
     ctx.refresh("about");
+    scheduleDonorMarqueeSpeed(shadow);
     refreshLogStats(ctx);
-    loadDonors(ctx);
+    loadDonors(shadow, ctx);
   }
 
   pages.register({
