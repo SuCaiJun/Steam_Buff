@@ -35,7 +35,9 @@
   "settings_shell_pageTranslateFailed": {
     "message": "번역 미완료: $error$. 다시 클릭하여 재시도하세요",
     "placeholders": {
-      "error": { "content": "$1" }
+      "error": {
+        "content": "$1"
+      }
     }
   },
   "settings_shell_pageTranslateUnavailable": {
@@ -3502,7 +3504,7 @@
     "message": "지우기 완료"
   },
   "steam_libraryCustomName_clearingBatch": {
-    "message": "Steam 배치 $batch$ 지우는 중 $written$/$max$$cloud$",
+    "message": "Steam 배치 $batch$ 지우는 중 $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -3512,9 +3514,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -3579,9 +3578,6 @@
   "steam_libraryCustomName_cloudApiTimeout": {
     "message": "클라우드 이름 서비스가 응답하지 않았습니다"
   },
-  "steam_libraryCustomName_cloudCancel": {
-    "message": "비활성화하면 이 저장 작업은 로컬 Steam 라이브러리만 업데이트하며 SucaiJun Cloud와 동기화되지 않습니다.\n\n클라우드 공유를 통해 다른 플레이어가 더 정확한 사용자 지정 이름 제안을 받을 수 있습니다. 비활성화하시겠습니까?"
-  },
   "steam_libraryCustomName_cloudDiskFailed": {
     "message": "Steam CloudStorage 디스크 쓰기에 실패했습니다: $result$",
     "placeholders": {
@@ -3599,32 +3595,8 @@
   "steam_libraryCustomName_cloudNameMissing": {
     "message": "현재 게임의 클라우드 이름을 찾을 수 없습니다"
   },
-  "steam_libraryCustomName_cloudPaused": {
-    "message": "SucaiJun Cloud 업로드가 일시 중지되었습니다"
-  },
-  "steam_libraryCustomName_cloudPreparing": {
-    "message": "Steam 쓰기 배치가 시작되기를 기다리는 중입니다. SucaiJun Cloud 업로드를 준비하는 중입니다."
-  },
-  "steam_libraryCustomName_cloudResumed": {
-    "message": "SucaiJun Cloud 업로드가 재개되었습니다"
-  },
-  "steam_libraryCustomName_cloudTip": {
-    "message": "사용자 지정 정렬 이름을 SucaiJun Cloud(Steam Buff Cloud)에 동기화합니다. 나중에 클라우드 이름 가져오기를 사용하여 복원하고 스토어 페이지에서 사용할 수 있습니다.\n\n참고:\n1. 현지 법률을 위반하는 이름을 업로드하지 마세요. 위반 시 계정이 정지될 수 있습니다.\n2. 업로드된 이름은 커뮤니티 게임 이름 라이브러리를 개선하고 다른 플레이어에게 더 정확한 이름을 제공하는 데 사용될 수 있습니다."
-  },
-  "steam_libraryCustomName_cloudUpload": {
-    "message": "SucaiJun Cloud 업로드"
-  },
-  "steam_libraryCustomName_cloudUploadSuffix": {
-    "message": ", SucaiJun Cloud 업로드가 병렬로 진행 중"
-  },
-  "steam_libraryCustomName_confirmDisableCloud": {
-    "message": "비활성화"
-  },
   "steam_libraryCustomName_confirmOverwrite": {
     "message": "덮어쓰기 확인"
-  },
-  "steam_libraryCustomName_continueCloudUpload": {
-    "message": "업로드 계속"
   },
   "steam_libraryCustomName_continueSave": {
     "message": "저장 계속"
@@ -3662,9 +3634,6 @@
         "content": "$1"
       }
     }
-  },
-  "steam_libraryCustomName_disableCloudTitle": {
-    "message": "SucaiJun Cloud 업로드를 비활성화하시겠습니까?"
   },
   "steam_libraryCustomName_disabled": {
     "message": "'사용자 지정 라이브러리 이름 표시'가 비활성화되었습니다"
@@ -4139,7 +4108,7 @@
     "message": "저장 진행 상황"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "총계: $total$, 처리됨: $processed$, 건너뜀: $skipped$, 실패: $failed$, 대기열 등록: $queued$",
+    "message": "전체: $total$, 처리: $processed$, 건너뜀: $skipped$, 실패: $failed$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -4152,9 +4121,6 @@
       },
       "failed": {
         "content": "$4"
-      },
-      "queued": {
-        "content": "$5"
       }
     }
   },
@@ -4166,9 +4132,6 @@
   },
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "Steam 저장 대기열이 응답하지 않았습니다. 결과를 확인하려면 일괄 작업 창을 다시 여세요."
-  },
-  "steam_libraryCustomName_savingWithCloud": {
-    "message": "SucaiJun Cloud에 업로드하는 동안 Steam에 쓰는 중"
   },
   "steam_libraryCustomName_searchPlaceholder": {
     "message": "게임 / AppID / 보류 중인 이름 검색"
@@ -4212,9 +4175,6 @@
       }
     }
   },
-  "steam_libraryCustomName_steamDoneWaitingCloud": {
-    "message": "Steam에 기록이 완료되었습니다. SucaiJun Cloud 업로드가 완료되기를 기다리는 중입니다."
-  },
   "steam_libraryCustomName_storageLimitTip": {
     "message": "항목 수 및 용량 제한은 사용자 지정 정렬 이름에 대한 Steam의 공식 제한입니다. 이 제한을 초과하는 이름은 로컬 또는 Steam Cloud에 저장되지 않을 수 있습니다."
   },
@@ -4233,22 +4193,8 @@
   "steam_libraryCustomName_typeTool": {
     "message": "도구"
   },
-  "steam_libraryCustomName_uploadCloud": {
-    "message": "이름을 클라우드에 업로드"
-  },
-  "steam_libraryCustomName_uploadCloudLabel": {
-    "message": "이름을 클라우드에 업로드"
-  },
   "steam_libraryCustomName_waitingQuery": {
     "message": "쿼리를 기다리는 중"
-  },
-  "steam_libraryCustomName_waitingSteamBatch": {
-    "message": "Steam 동기화 창에서 배치 $batch$가 종료되기를 기다리는 중입니다. SucaiJun Cloud 업로드가 일시 중지되었습니다.",
-    "placeholders": {
-      "batch": {
-        "content": "$1"
-      }
-    }
   },
   "steam_libraryCustomName_writeBatchWaiting": {
     "message": "쓰기 배치 $batch$가 완료되었습니다. Steam Cloud 동기화를 위해 $seconds$초 동안 기다리는 중입니다.",
@@ -4265,7 +4211,7 @@
     "message": "Steam에서 쓰기를 거부했습니다"
   },
   "steam_libraryCustomName_writingBatch": {
-    "message": "Steam 쓰기 배치 $batch$ 처리 중 $written$/$max$$cloud$",
+    "message": "Steam 쓰기 배치 $batch$ 처리 중 $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -4275,9 +4221,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -5912,20 +5855,20 @@
   "steam_independentName_quotaUsed": {
     "message": "사용 $count$ / $quota$",
     "placeholders": {
-        "count": {
-            "content": "$1"
-        },
-        "quota": {
-            "content": "$2"
-        }
+      "count": {
+        "content": "$1"
+      },
+      "quota": {
+        "content": "$2"
+      }
     }
   },
   "steam_independentName_rows": {
     "message": "게임 $n$개",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_title": {
@@ -5986,9 +5929,9 @@
   "steam_independentName_imported": {
     "message": "$n$개 가져옴",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_importAll": {
@@ -6006,18 +5949,18 @@
   "steam_independentName_importPromptStats": {
     "message": "파일 이름 $file$개, 라이브러리 일치 $matched$개. 이미 있는 항목 $existing$개, 미설정 $unset$개",
     "placeholders": {
-        "file": {
-            "content": "$1"
-        },
-        "matched": {
-            "content": "$2"
-        },
-        "existing": {
-            "content": "$3"
-        },
-        "unset": {
-            "content": "$4"
-        }
+      "file": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      },
+      "existing": {
+        "content": "$3"
+      },
+      "unset": {
+        "content": "$4"
+      }
     }
   },
   "steam_independentName_listTimeout": {
@@ -6025,5 +5968,11 @@
   },
   "steam_independentName_listFailed": {
     "message": "이름 목록을 불러오지 못했습니다"
+  },
+  "steam_libraryCustomName_fetchPermissionMissing": {
+    "message": "클라우드 이름 권한이 동기화되지 않았습니다. 서버를 업데이트하고 사용자 센터를 새로 고침하세요."
+  },
+  "steam_libraryCustomName_fetchPermissionDenied": {
+    "message": "현재 권한으로 클라우드 이름을 가져올 수 없습니다."
   }
 }

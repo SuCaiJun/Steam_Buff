@@ -35,7 +35,9 @@
   "settings_shell_pageTranslateFailed": {
     "message": "翻译未完成：$error$。请再次点击重试",
     "placeholders": {
-      "error": { "content": "$1" }
+      "error": {
+        "content": "$1"
+      }
     }
   },
   "settings_shell_pageTranslateUnavailable": {
@@ -3502,7 +3504,7 @@
     "message": "清空完成"
   },
   "steam_libraryCustomName_clearingBatch": {
-    "message": "正在清空 Steam 第 $batch$ 批 $written$/$max$$cloud$",
+    "message": "正在清空 Steam 第 $batch$ 批 $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -3512,9 +3514,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -3579,9 +3578,6 @@
   "steam_libraryCustomName_cloudApiTimeout": {
     "message": "云端名称接口没有响应"
   },
-  "steam_libraryCustomName_cloudCancel": {
-    "message": "关闭后，本次保存仅写入本地 Steam 库，不会同步到素材君云端。\n\n云端共享可帮助更多玩家获得更准确的自定义名称建议。确认关闭吗？"
-  },
   "steam_libraryCustomName_cloudDiskFailed": {
     "message": "Steam CloudStorage 写盘失败: $result$",
     "placeholders": {
@@ -3599,32 +3595,8 @@
   "steam_libraryCustomName_cloudNameMissing": {
     "message": "云端没有找到当前游戏名称"
   },
-  "steam_libraryCustomName_cloudPaused": {
-    "message": "素材君云端上传已暂停"
-  },
-  "steam_libraryCustomName_cloudPreparing": {
-    "message": "等待 Steam 写入批次开始，素材君云端上传准备中"
-  },
-  "steam_libraryCustomName_cloudResumed": {
-    "message": "素材君云端上传继续执行"
-  },
-  "steam_libraryCustomName_cloudTip": {
-    "message": "将自定义排序名称同步到素材君云端（Steam Buff 云端）。之后可通过【获取云端名称】恢复，并在商店等页面使用。\n\n注意：\n1. 请勿上传违反当地法律法规的名称；违规内容一经发现，可能导致账号被封禁。\n2. 上传的名称可能用于改进社区游戏名称库，帮助更多玩家获得更准确的名称。"
-  },
-  "steam_libraryCustomName_cloudUpload": {
-    "message": "素材君云端上传"
-  },
-  "steam_libraryCustomName_cloudUploadSuffix": {
-    "message": "，素材君云端上传同步进行"
-  },
-  "steam_libraryCustomName_confirmDisableCloud": {
-    "message": "确认关闭"
-  },
   "steam_libraryCustomName_confirmOverwrite": {
     "message": "确认覆盖"
-  },
-  "steam_libraryCustomName_continueCloudUpload": {
-    "message": "继续上传"
   },
   "steam_libraryCustomName_continueSave": {
     "message": "继续保存"
@@ -3662,9 +3634,6 @@
         "content": "$1"
       }
     }
-  },
-  "steam_libraryCustomName_disableCloudTitle": {
-    "message": "确认关闭素材君云端上传"
   },
   "steam_libraryCustomName_disabled": {
     "message": "库列表显示自定义名称已关闭"
@@ -4139,7 +4108,7 @@
     "message": "保存进度"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "总计:$total$，处理:$processed$，跳过:$skipped$，失败:$failed$，已入队:$queued$",
+    "message": "总计:$total$，处理:$processed$，跳过:$skipped$，失败:$failed$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -4152,9 +4121,6 @@
       },
       "failed": {
         "content": "$4"
-      },
-      "queued": {
-        "content": "$5"
       }
     }
   },
@@ -4166,9 +4132,6 @@
   },
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "Steam 保存队列状态没有响应，请重新打开批量窗口确认结果"
-  },
-  "steam_libraryCustomName_savingWithCloud": {
-    "message": "正在写入 Steam，素材君云端上传同步进行"
   },
   "steam_libraryCustomName_searchPlaceholder": {
     "message": "搜索游戏 / AppID / 待写入名"
@@ -4212,9 +4175,6 @@
       }
     }
   },
-  "steam_libraryCustomName_steamDoneWaitingCloud": {
-    "message": "Steam 写入完成，正在等待素材君云端上传完成"
-  },
   "steam_libraryCustomName_storageLimitTip": {
     "message": "存储上限和容量上限为 Steam 官方对自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功或无法保存至 steam 云端！"
   },
@@ -4233,22 +4193,8 @@
   "steam_libraryCustomName_typeTool": {
     "message": "工具"
   },
-  "steam_libraryCustomName_uploadCloud": {
-    "message": "名称上传云端"
-  },
-  "steam_libraryCustomName_uploadCloudLabel": {
-    "message": "名称上传云端"
-  },
   "steam_libraryCustomName_waitingQuery": {
     "message": "等待查询"
-  },
-  "steam_libraryCustomName_waitingSteamBatch": {
-    "message": "等待 Steam 第 $batch$ 批同步窗口结束，素材君云端上传已暂停",
-    "placeholders": {
-      "batch": {
-        "content": "$1"
-      }
-    }
   },
   "steam_libraryCustomName_writeBatchWaiting": {
     "message": "第 $batch$ 批写入完成，等待 Steam 云同步 $seconds$ 秒",
@@ -4265,7 +4211,7 @@
     "message": "Steam 拒绝写入"
   },
   "steam_libraryCustomName_writingBatch": {
-    "message": "正在写入 Steam 第 $batch$ 批 $written$/$max$$cloud$",
+    "message": "正在写入 Steam 第 $batch$ 批 $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -4275,9 +4221,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -5912,20 +5855,20 @@
   "steam_independentName_quotaUsed": {
     "message": "已用 $count$ / $quota$",
     "placeholders": {
-        "count": {
-            "content": "$1"
-        },
-        "quota": {
-            "content": "$2"
-        }
+      "count": {
+        "content": "$1"
+      },
+      "quota": {
+        "content": "$2"
+      }
     }
   },
   "steam_independentName_rows": {
     "message": "共 $n$ 款游戏",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_title": {
@@ -5986,9 +5929,9 @@
   "steam_independentName_imported": {
     "message": "已导入 $n$ 条",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_importAll": {
@@ -6006,18 +5949,18 @@
   "steam_independentName_importPromptStats": {
     "message": "文件中名称 $file$ 项，库内匹配 $matched$ 项；其中已有自定义名称 $existing$ 项，未设置 $unset$ 项",
     "placeholders": {
-        "file": {
-            "content": "$1"
-        },
-        "matched": {
-            "content": "$2"
-        },
-        "existing": {
-            "content": "$3"
-        },
-        "unset": {
-            "content": "$4"
-        }
+      "file": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      },
+      "existing": {
+        "content": "$3"
+      },
+      "unset": {
+        "content": "$4"
+      }
     }
   },
   "steam_independentName_listTimeout": {
@@ -6025,5 +5968,11 @@
   },
   "steam_independentName_listFailed": {
     "message": "名称列表读取失败"
+  },
+  "steam_libraryCustomName_fetchPermissionMissing": {
+    "message": "获取云端名称权限尚未同步，请更新后端并刷新用户中心"
+  },
+  "steam_libraryCustomName_fetchPermissionDenied": {
+    "message": "当前权益未开通获取云端名称"
   }
 }

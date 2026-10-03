@@ -35,7 +35,9 @@
   "settings_shell_pageTranslateFailed": {
     "message": "Translation incomplete: $error$. Click again to retry",
     "placeholders": {
-      "error": { "content": "$1" }
+      "error": {
+        "content": "$1"
+      }
     }
   },
   "settings_shell_pageTranslateUnavailable": {
@@ -3502,7 +3504,7 @@
     "message": "Clear complete"
   },
   "steam_libraryCustomName_clearingBatch": {
-    "message": "Clearing Steam batch $batch$ $written$/$max$$cloud$",
+    "message": "Clearing Steam batch $batch$ $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -3512,9 +3514,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -3579,9 +3578,6 @@
   "steam_libraryCustomName_cloudApiTimeout": {
     "message": "The cloud name service did not respond"
   },
-  "steam_libraryCustomName_cloudCancel": {
-    "message": "If disabled, this save will only update the local Steam library and will not sync to SucaiJun Cloud.\n\nCloud sharing helps other players receive more accurate custom-name suggestions. Disable it?"
-  },
   "steam_libraryCustomName_cloudDiskFailed": {
     "message": "Steam CloudStorage disk write failed: $result$",
     "placeholders": {
@@ -3599,32 +3595,8 @@
   "steam_libraryCustomName_cloudNameMissing": {
     "message": "No cloud name was found for the current game"
   },
-  "steam_libraryCustomName_cloudPaused": {
-    "message": "SucaiJun Cloud upload is paused"
-  },
-  "steam_libraryCustomName_cloudPreparing": {
-    "message": "Waiting for the Steam write batch to start. Preparing the SucaiJun Cloud upload."
-  },
-  "steam_libraryCustomName_cloudResumed": {
-    "message": "SucaiJun Cloud upload resumed"
-  },
-  "steam_libraryCustomName_cloudTip": {
-    "message": "Sync custom sort names to SucaiJun Cloud (Steam Buff Cloud). You can restore them later with Get Cloud Names and use them on Store pages.\n\nNote:\n1. Do not upload names that violate local laws. Violations may result in account suspension.\n2. Uploaded names may be used to improve the community game-name library and provide more accurate names to other players."
-  },
-  "steam_libraryCustomName_cloudUpload": {
-    "message": "SucaiJun Cloud upload"
-  },
-  "steam_libraryCustomName_cloudUploadSuffix": {
-    "message": ", with SucaiJun Cloud upload running in parallel"
-  },
-  "steam_libraryCustomName_confirmDisableCloud": {
-    "message": "Disable"
-  },
   "steam_libraryCustomName_confirmOverwrite": {
     "message": "Confirm overwrite"
-  },
-  "steam_libraryCustomName_continueCloudUpload": {
-    "message": "Continue uploading"
   },
   "steam_libraryCustomName_continueSave": {
     "message": "Continue saving"
@@ -3662,9 +3634,6 @@
         "content": "$1"
       }
     }
-  },
-  "steam_libraryCustomName_disableCloudTitle": {
-    "message": "Disable SucaiJun Cloud upload?"
   },
   "steam_libraryCustomName_disabled": {
     "message": "Display Custom Library Names is disabled"
@@ -4139,7 +4108,7 @@
     "message": "Save progress"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "Total: $total$, processed: $processed$, skipped: $skipped$, failed: $failed$, queued: $queued$",
+    "message": "Total: $total$, processed: $processed$, skipped: $skipped$, failed: $failed$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -4152,9 +4121,6 @@
       },
       "failed": {
         "content": "$4"
-      },
-      "queued": {
-        "content": "$5"
       }
     }
   },
@@ -4166,9 +4132,6 @@
   },
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "The Steam save queue did not respond. Reopen the bulk window to confirm the result."
-  },
-  "steam_libraryCustomName_savingWithCloud": {
-    "message": "Writing to Steam while uploading to SucaiJun Cloud"
   },
   "steam_libraryCustomName_searchPlaceholder": {
     "message": "Search game / AppID / pending name"
@@ -4212,9 +4175,6 @@
       }
     }
   },
-  "steam_libraryCustomName_steamDoneWaitingCloud": {
-    "message": "Steam write completed. Waiting for the SucaiJun Cloud upload to finish."
-  },
   "steam_libraryCustomName_storageLimitTip": {
     "message": "The item and capacity limits are Steam's official limits for custom sort names. Names beyond these limits may fail to save locally or to Steam Cloud."
   },
@@ -4233,22 +4193,8 @@
   "steam_libraryCustomName_typeTool": {
     "message": "Tools"
   },
-  "steam_libraryCustomName_uploadCloud": {
-    "message": "Upload names to cloud"
-  },
-  "steam_libraryCustomName_uploadCloudLabel": {
-    "message": "Upload names to cloud"
-  },
   "steam_libraryCustomName_waitingQuery": {
     "message": "Waiting for query"
-  },
-  "steam_libraryCustomName_waitingSteamBatch": {
-    "message": "Waiting for the Steam sync window for batch $batch$ to end. SucaiJun Cloud upload is paused.",
-    "placeholders": {
-      "batch": {
-        "content": "$1"
-      }
-    }
   },
   "steam_libraryCustomName_writeBatchWaiting": {
     "message": "Write batch $batch$ completed. Waiting $seconds$ seconds for Steam Cloud sync.",
@@ -4265,7 +4211,7 @@
     "message": "Steam rejected the write"
   },
   "steam_libraryCustomName_writingBatch": {
-    "message": "Writing Steam batch $batch$ $written$/$max$$cloud$",
+    "message": "Writing Steam batch $batch$ $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -4275,9 +4221,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -5912,20 +5855,20 @@
   "steam_independentName_quotaUsed": {
     "message": "Used $count$ / $quota$",
     "placeholders": {
-        "count": {
-            "content": "$1"
-        },
-        "quota": {
-            "content": "$2"
-        }
+      "count": {
+        "content": "$1"
+      },
+      "quota": {
+        "content": "$2"
+      }
     }
   },
   "steam_independentName_rows": {
     "message": "$n$ games",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_title": {
@@ -5986,9 +5929,9 @@
   "steam_independentName_imported": {
     "message": "Imported $n$ items",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_importAll": {
@@ -6006,18 +5949,18 @@
   "steam_independentName_importPromptStats": {
     "message": "The file has $file$ names, $matched$ match the library; $existing$ already have custom names, $unset$ are unset",
     "placeholders": {
-        "file": {
-            "content": "$1"
-        },
-        "matched": {
-            "content": "$2"
-        },
-        "existing": {
-            "content": "$3"
-        },
-        "unset": {
-            "content": "$4"
-        }
+      "file": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      },
+      "existing": {
+        "content": "$3"
+      },
+      "unset": {
+        "content": "$4"
+      }
     }
   },
   "steam_independentName_listTimeout": {
@@ -6025,5 +5968,11 @@
   },
   "steam_independentName_listFailed": {
     "message": "Failed to load the name list"
+  },
+  "steam_libraryCustomName_fetchPermissionMissing": {
+    "message": "Cloud name access has not synced. Update the server and refresh Account Center."
+  },
+  "steam_libraryCustomName_fetchPermissionDenied": {
+    "message": "Your current entitlements do not include fetching cloud names."
   }
 }

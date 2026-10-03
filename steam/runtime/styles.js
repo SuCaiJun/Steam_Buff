@@ -243,16 +243,14 @@
       #${LIBRARY_CUSTOM_NAME_BAR} * {
         -webkit-app-region: no-drag !important;
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option {
+      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn {
         border-color: var(--st-lcn-property-border);
         background: var(--st-lcn-property-bg);
       }
       #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn {
         padding: 0 16px;
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn:hover:not(:disabled),
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option:hover {
+      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn:hover:not(:disabled) {
         background: var(--st-lcn-property-bg-hover);
       }
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn.success {
@@ -276,19 +274,6 @@
         to {
           transform: rotate(360deg);
         }
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        min-height: var(--st-control-height-compact);
-        border: 1px solid var(--st-lcn-property-border);
-        border-radius: var(--st-control-radius);
-        padding: 0 16px;
-        color: var(--st-color-white);
-        cursor: pointer;
-        font-size: 12px;
-        white-space: nowrap;
       }
       #${LIBRARY_CUSTOM_NAME_ONE},
       #${LIBRARY_CUSTOM_NAME_MODAL},
@@ -498,14 +483,6 @@
         align-items: center;
         margin-top: 16px;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-action-option {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        min-height: var(--st-control-height-compact);
-        margin-left: 2px;
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip {
         position: relative;
         display: inline-flex;
@@ -513,13 +490,6 @@
         gap: 3px;
         cursor: help;
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip {
-        cursor: pointer;
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn .st-lcn-tip {
-        pointer-events: auto;
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip-mark,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip-mark {
         display: inline-flex;
         align-items: center;
@@ -537,10 +507,6 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip-text {
         cursor: help;
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:hover .st-lcn-tip-mark,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:focus .st-lcn-tip-mark,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:focus-within .st-lcn-tip-mark,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip.is-open .st-lcn-tip-mark,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:hover .st-lcn-tip-mark,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:focus .st-lcn-tip-mark,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:focus-within .st-lcn-tip-mark,
@@ -549,7 +515,6 @@
         border-color: var(--st-lcn-tip-border-hover);
         background: var(--st-lcn-tip-bg-hover);
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip-popover,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip-popover {
         position: absolute;
         left: 50%;
@@ -575,29 +540,12 @@
         pointer-events: none;
         transition: opacity .12s ease, transform .12s ease;
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip-popover {
-        left: auto;
-        right: 0;
-        transform: translateY(4px);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-actions .st-lcn-tip-popover {
-        top: calc(100% + 8px);
-        bottom: auto;
-        z-index: 6;
-      }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:hover .st-lcn-tip-popover,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:focus .st-lcn-tip-popover,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:focus-within .st-lcn-tip-popover,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip.is-open .st-lcn-tip-popover {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:hover .st-lcn-tip-popover,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:focus .st-lcn-tip-popover,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:focus-within .st-lcn-tip-popover,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip.is-open .st-lcn-tip-popover {
-        opacity: 1;
-        transform: translateY(0);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-msg {
         min-height: 18px;

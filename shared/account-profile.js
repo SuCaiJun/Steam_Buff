@@ -49,7 +49,7 @@
       : null;
   }
 
-  const PERMISSION_KEYS = ["customNames", "gameNotes", "priceMonitor", "searchSuggestions", "settingsCloud"];
+  const PERMISSION_KEYS = ["customNames", "gameNotes", "priceMonitor", "searchSuggestions", "settingsCloud", "cloudNameFetch"];
 
   function explicitPermissions(source) {
     const result = {};
@@ -80,7 +80,7 @@
     return Object.fromEntries(PERMISSION_KEYS.map((key) => [
       key,
       Object.hasOwn(explicit, key) ? explicit[key] : legacy[key],
-    ]));
+    ]).filter(([, value]) => typeof value === "boolean"));
   }
 
   function clamp(value, min, max) {
@@ -221,7 +221,9 @@
     const activeSource = src.entitlement?.active || null;
     const entitled = src.logged === true && activeSource && activeSource.type !== "normal";
     const permissions = explicitPermissions(src.permissions || src.features);
-    const normalizedPermissions = Object.fromEntries(PERMISSION_KEYS.map((key) => [
+    const normalizedPermissions = Object.fromEntries(PERMISSION_KEYS.filter((key) =>
+      key !== "cloudNameFetch" || typeof permissions[key] === "boolean",
+    ).map((key) => [
       key,
       permissions[key] === true,
     ]));

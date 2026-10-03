@@ -103,7 +103,6 @@
   const MATCH = CFG.matchers;
   const AUTH_REFRESH = CFG.loginAuth("/auth/refresh");
   const API_GET = `${CFG.steamBuff("/names/resolve")}?sources=mine%2Ccommunity%2Cai`;
-  const API_SUBMIT = CFG.steamBuff("/submit");
   const NAME_REQ_ATTR = "data-steam-buff-name-request";
   const NAME_RES_ATTR = "data-steam-buff-name-response";
   const PLAYER_STATS_ID = "player-stats";
@@ -870,7 +869,8 @@
   }
 
   async function nameAllowed() {
-    return { enabled: await enabled(SORT_TITLE_ID) };
+    const [on, membership] = await Promise.all([enabled(SORT_TITLE_ID), loadMembership()]);
+    return { enabled: on, allowed: membership.permissions?.cloudNameFetch };
   }
 
   function aiConcurrency(value) {
@@ -1619,6 +1619,17 @@
       return;
     }
 
+    if (typeof status.allowed !== "boolean" || !status.allowed) {
+      postName({
+        type: "query-result", rid, ok: false,
+        code: typeof status.allowed === "boolean" ? 403 : 503,
+        error: typeof status.allowed === "boolean"
+          ? "当前权益不包含获取云端名称"
+          : "获取云端名称权限尚未同步，请更新后端并刷新用户中心",
+      });
+      return;
+    }
+
     try {
       const ownerId = await bridgeOwnerId();
       const result = await authedBridge(API_GET, {
@@ -1668,69 +1679,6 @@
     }
   }
 
-  async function submitFeedback(data) {
-    const rid = data?.rid || "";
-    const diagnostics = {
-      operationId: data?.operationId || "",
-      requestId: rid,
-    };
-    const status = await nameAllowed();
-    if (!status.enabled) {
-      postName({ type: "feedback-result", rid, ok: false, data: { code: 403, message: "功能已关闭" } });
-      return;
-    }
-
-    try {
-      const ownerId = await bridgeOwnerId();
-      const result = await authedBridge(API_SUBMIT, {
-        method: "POST",
-        body: feedbackPayload(data),
-        ownerId,
-        touchAuth: true,
-      }, diagnostics);
-      const body = result.body || {};
-      const code = result.code;
-      if (code < 200 || code >= 300) {
-        postName({ type: "feedback-result", rid, ok: false, data: { code, message: body?.message || "提交失败" } });
-        log({
-          level: "warn",
-          domain: "extension",
-          feature: NAME_ID,
-          event: "library-custom-name-bridge-feedback-failed",
-          message: "库自定义名称桥接反馈提交失败",
-          operationId: data?.operationId || "",
-          meta: bridgeNameMeta(data, { code, status: result.response?.status || 0 }),
-        });
-        return;
-      }
-      postName({ type: "feedback-result", rid, ok: true, data: body });
-    } catch (error) {
-      postName({ type: "feedback-result", rid, ok: false, data: { code: Number(error?.code) || 0, message: error?.message || String(error) } });
-      log({
-        level: "error",
-        domain: "extension",
-        feature: NAME_ID,
-        event: "library-custom-name-bridge-feedback-failed",
-        message: "库自定义名称桥接反馈提交异常",
-        operationId: data?.operationId || "",
-        error,
-        meta: bridgeNameMeta(data, { code: Number(error?.code) || 0 }),
-      });
-    }
-  }
-
-  function feedbackPayload(data) {
-    if (Array.isArray(data?.items)) {
-      return { items: data.items };
-    }
-    return {
-      type: "Game",
-      appid: data?.appid,
-      steam_name: data?.steam_name,
-      custom_name: data?.custom_name,
-    };
-  }
-
   /* 主上下文日志桥接 */
   function watchPageLog() {
     if (watchLogs) {
@@ -1778,7 +1726,7 @@
       return;
     }
     if (data.script !== NAME_ID || data.side !== "page"
-        || !["query", "feedback", "open-account"].includes(data.type)) {
+        || !["query", "open-account"].includes(data.type)) {
       return;
     }
     if (seenName(data)) {
@@ -1792,12 +1740,6 @@
           ok: false,
           error: error?.message || String(error),
         });
-      });
-      return;
-    }
-    if (data.type === "feedback") {
-      submitFeedback(data).catch((error) => {
-        postName({ type: "feedback-result", rid: data.rid || "", ok: false, data: { code: 0, message: error?.message || String(error) } });
       });
       return;
     }
@@ -1854,6 +1796,9 @@
       settings[id] = decodeSteamSetting(id, all[id]);
     }
     settings.customNamesAllowed = customNamesAllowedFrom(membership);
+    if (typeof membership.permissions?.cloudNameFetch === "boolean") {
+      settings.cloudNameFetchAllowed = membership.permissions.cloudNameFetch;
+    }
     return settings;
   }
 

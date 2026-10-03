@@ -35,7 +35,9 @@
   "settings_shell_pageTranslateFailed": {
     "message": "翻譯未完成：$error$。請再次點擊重試",
     "placeholders": {
-      "error": { "content": "$1" }
+      "error": {
+        "content": "$1"
+      }
     }
   },
   "settings_shell_pageTranslateUnavailable": {
@@ -3502,7 +3504,7 @@
     "message": "清空完成"
   },
   "steam_libraryCustomName_clearingBatch": {
-    "message": "正在清空 Steam 第 $batch$ 批 $written$/$max$$cloud$",
+    "message": "正在清空 Steam 第 $batch$ 批 $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -3512,9 +3514,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -3579,9 +3578,6 @@
   "steam_libraryCustomName_cloudApiTimeout": {
     "message": "雲端名稱服務沒有回應"
   },
-  "steam_libraryCustomName_cloudCancel": {
-    "message": "關閉後，本次儲存只會寫入本機 Steam 遊戲庫，不會同步至素材君雲端。\n\n雲端共享可協助更多玩家取得更準確的自訂名稱建議。確定要關閉嗎？"
-  },
   "steam_libraryCustomName_cloudDiskFailed": {
     "message": "Steam CloudStorage 寫入磁碟失敗：$result$",
     "placeholders": {
@@ -3599,32 +3595,8 @@
   "steam_libraryCustomName_cloudNameMissing": {
     "message": "雲端找不到目前遊戲的名稱"
   },
-  "steam_libraryCustomName_cloudPaused": {
-    "message": "素材君雲端上傳已暫停"
-  },
-  "steam_libraryCustomName_cloudPreparing": {
-    "message": "正在等待 Steam 寫入批次開始，並準備素材君雲端上傳"
-  },
-  "steam_libraryCustomName_cloudResumed": {
-    "message": "素材君雲端上傳繼續執行"
-  },
-  "steam_libraryCustomName_cloudTip": {
-    "message": "將自訂排序名稱同步至素材君雲端（Steam Buff 雲端）。之後可透過「取得雲端名稱」還原，並在商店等頁面使用。\n\n注意：\n1. 請勿上傳違反當地法律規範的名稱；若發現違規內容，帳號可能會遭停權。\n2. 上傳的名稱可能用於改善社群遊戲名稱庫，協助更多玩家取得更準確的名稱。"
-  },
-  "steam_libraryCustomName_cloudUpload": {
-    "message": "素材君雲端上傳"
-  },
-  "steam_libraryCustomName_cloudUploadSuffix": {
-    "message": "，素材君雲端上傳同步進行"
-  },
-  "steam_libraryCustomName_confirmDisableCloud": {
-    "message": "確認關閉"
-  },
   "steam_libraryCustomName_confirmOverwrite": {
     "message": "確認覆寫"
-  },
-  "steam_libraryCustomName_continueCloudUpload": {
-    "message": "繼續上傳"
   },
   "steam_libraryCustomName_continueSave": {
     "message": "繼續儲存"
@@ -3662,9 +3634,6 @@
         "content": "$1"
       }
     }
-  },
-  "steam_libraryCustomName_disableCloudTitle": {
-    "message": "確認關閉素材君雲端上傳"
   },
   "steam_libraryCustomName_disabled": {
     "message": "收藏庫清單顯示自訂名稱已關閉"
@@ -4139,7 +4108,7 @@
     "message": "儲存進度"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "總計：$total$，處理：$processed$，略過：$skipped$，失敗：$failed$，已入隊：$queued$",
+    "message": "總計:$total$，處理:$processed$，略過:$skipped$，失敗:$failed$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -4152,9 +4121,6 @@
       },
       "failed": {
         "content": "$4"
-      },
-      "queued": {
-        "content": "$5"
       }
     }
   },
@@ -4166,9 +4132,6 @@
   },
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "Steam 儲存佇列狀態沒有回應，請重新開啟批次視窗確認結果"
-  },
-  "steam_libraryCustomName_savingWithCloud": {
-    "message": "正在寫入 Steam，素材君雲端上傳同步進行"
   },
   "steam_libraryCustomName_searchPlaceholder": {
     "message": "搜尋遊戲 / AppID / 待寫入名稱"
@@ -4212,9 +4175,6 @@
       }
     }
   },
-  "steam_libraryCustomName_steamDoneWaitingCloud": {
-    "message": "Steam 寫入完成，正在等待素材君雲端上傳完成"
-  },
   "steam_libraryCustomName_storageLimitTip": {
     "message": "儲存數量和容量上限是 Steam 官方對自訂排序名稱的限制。超過限制的自訂排序名稱可能無法成功儲存或無法儲存至 Steam 雲端！"
   },
@@ -4233,22 +4193,8 @@
   "steam_libraryCustomName_typeTool": {
     "message": "工具"
   },
-  "steam_libraryCustomName_uploadCloud": {
-    "message": "將名稱上傳至雲端"
-  },
-  "steam_libraryCustomName_uploadCloudLabel": {
-    "message": "將名稱上傳至雲端"
-  },
   "steam_libraryCustomName_waitingQuery": {
     "message": "等待查詢"
-  },
-  "steam_libraryCustomName_waitingSteamBatch": {
-    "message": "等待 Steam 第 $batch$ 批同步視窗結束，素材君雲端上傳已暫停",
-    "placeholders": {
-      "batch": {
-        "content": "$1"
-      }
-    }
   },
   "steam_libraryCustomName_writeBatchWaiting": {
     "message": "第 $batch$ 批寫入完成，等待 Steam 雲端同步 $seconds$ 秒",
@@ -4265,7 +4211,7 @@
     "message": "Steam 拒絕寫入"
   },
   "steam_libraryCustomName_writingBatch": {
-    "message": "正在寫入 Steam 第 $batch$ 批 $written$/$max$$cloud$",
+    "message": "正在寫入 Steam 第 $batch$ 批 $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -4275,9 +4221,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -5912,20 +5855,20 @@
   "steam_independentName_quotaUsed": {
     "message": "已用 $count$ / $quota$",
     "placeholders": {
-        "count": {
-            "content": "$1"
-        },
-        "quota": {
-            "content": "$2"
-        }
+      "count": {
+        "content": "$1"
+      },
+      "quota": {
+        "content": "$2"
+      }
     }
   },
   "steam_independentName_rows": {
     "message": "共 $n$ 款遊戲",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_title": {
@@ -5986,9 +5929,9 @@
   "steam_independentName_imported": {
     "message": "已匯入 $n$ 條",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_importAll": {
@@ -6006,18 +5949,18 @@
   "steam_independentName_importPromptStats": {
     "message": "檔案中名稱 $file$ 項，庫內匹配 $matched$ 項；其中已有自訂名稱 $existing$ 項，未設定 $unset$ 項",
     "placeholders": {
-        "file": {
-            "content": "$1"
-        },
-        "matched": {
-            "content": "$2"
-        },
-        "existing": {
-            "content": "$3"
-        },
-        "unset": {
-            "content": "$4"
-        }
+      "file": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      },
+      "existing": {
+        "content": "$3"
+      },
+      "unset": {
+        "content": "$4"
+      }
     }
   },
   "steam_independentName_listTimeout": {
@@ -6025,5 +5968,11 @@
   },
   "steam_independentName_listFailed": {
     "message": "名稱列表讀取失敗"
+  },
+  "steam_libraryCustomName_fetchPermissionMissing": {
+    "message": "取得雲端名稱權限尚未同步，請更新後端並重新整理使用者中心"
+  },
+  "steam_libraryCustomName_fetchPermissionDenied": {
+    "message": "目前權益未開通取得雲端名稱"
   }
 }
