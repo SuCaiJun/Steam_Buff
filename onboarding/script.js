@@ -337,11 +337,43 @@
     }
   }
 
-  function storeFetch(url, data, token = "", method = "POST", base = "", diagnostics = {}) {
+  // API 发网、消息超时和请求日志复用公共封装；这里只区分引导页的无效消息回复
+  async function onboardingApiRequest(options) {
     const api = chromeApi();
     if (!api?.runtime?.sendMessage) {
-      return Promise.reject(new Error("当前是本地预览模式，安装为扩展后可在此获取授权码。"));
+      throw new Error("当前是本地预览模式，安装为扩展后可测试连接或获取授权码。");
     }
+    const requestApi = globalThis.STSettingsApiRequest;
+    if (!requestApi?.request || !requestApi?.parseJson) {
+      throw new Error("引导页请求封装未加载，请重新打开引导页。");
+    }
+    try {
+      return await requestApi.request({
+        ...options,
+        retries: 0,
+        // 授权等待轮询只记录异常和状态变化，不新增逐次成功日志
+        deferSuccessLog: true,
+        validateResponse(response) {
+          return response.success === true && typeof response.status === "number" && Number.isFinite(response.status)
+            && response.status > 0 && typeof response.data === "string";
+        },
+        validateMessage: "后台请求回复格式异常：缺少 HTTP 状态码或响应内容。",
+      });
+    } catch (cause) {
+      // STORE_FETCH 的正式失败回复包含 success:false 和 error；空回复不属于网络错误
+      if (cause && Object.hasOwn(cause, "response") && !cause.response?.success
+        && !(cause.response?.success === false && typeof cause.response.error === "string" && cause.response.error.trim())) {
+        const error = new Error("后台未返回有效请求结果，请重新打开引导页后重试。", { cause });
+        error.name = "MessageError";
+        error.code = "BACKGROUND_RESPONSE_INVALID";
+        error.response = cause.response;
+        throw error;
+      }
+      throw cause;
+    }
+  }
+
+  async function storeFetch(url, data, token = "", method = "POST", base = "", diagnostics = {}) {
     const headers = {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -349,49 +381,28 @@
     if (token) headers.Authorization = `Bearer ${token}`;
     const requestId = createRequestId();
     const operationId = diagnostics.operationId || state.loginOperationId || createOperationId();
-    const payload = {
-      type: "STORE_FETCH", url: `${base}${url}`, method, headers, data: data || {},
+    const options = {
+      url: `${base}${url}`, method, headers, data: data || {},
+      label: "引导页用户中心接口",
       allowHttpError: true, timeoutMs: 12_000, operationId, requestId,
       endpointKey: `onboarding:${url}`, service: "sucaijun-api", traceRequest: diagnostics.traceRequest === true,
     };
-    const details = { operationId, requestId, request: globalThis.STLoggerSchema.requestFacts(payload) };
+    const details = { operationId, requestId, request: globalThis.STLoggerSchema.requestFacts(options) };
     const startedAt = Date.now();
-    if (payload.traceRequest) log.info("onboarding-api-request-start", "安装引导已发起关键 API 请求", details);
-    return new Promise((resolve, reject) => {
-      try {
-        api.runtime.sendMessage(payload, (res) => {
-          const error = api.runtime.lastError;
-          let phase = "message-response";
-          let body;
-          try {
-            const response = globalThis.STLoggerSchema.responseFacts(res);
-            if (payload.traceRequest) log.info("onboarding-api-response-received", "安装引导已收到关键 API 消息回复", { ...details, response, durationMs: Date.now() - startedAt });
-            if (error || !res?.success) {
-              const failure = new Error(error?.message || res?.error || "登录请求失败，请稍后重试。");
-              if (res?.errorName) failure.name = res.errorName;
-              if (res?.errorCode) failure.code = res.errorCode;
-              if (typeof res?.status === "number") failure.status = res.status;
-              if (res?.errorKind === "transport") phase = "network";
-              throw failure;
-            }
-            phase = "parse";
-            body = parseJson(res.data);
-            const diagnostics = { ...response, ...globalThis.STLoggerSchema.resultFacts(body, ["code", "device_code", "user_code", "interval", "expires_in"]), businessCode: body?.code, message: body?.message };
-            if (payload.traceRequest) log.info("api-response-parsed", "设备登录接口回复已解析", { ...details, response: diagnostics, durationMs: Date.now() - startedAt });
-            resolve({ status: res.status || 0, body, diagnostics, requestId, operationId });
-          } catch (failure) {
-            log.error("onboarding-api-request-failed", "安装引导 API 请求失败", {
-              ...details, phase, response: { ...globalThis.STLoggerSchema.responseFacts(res), ...(body === undefined ? {} : globalThis.STLoggerSchema.resultFacts(body)) },
-              durationMs: Date.now() - startedAt, error: failure,
-            });
-            reject(failure);
-          }
-        });
-      } catch (error) {
-        log.error("onboarding-api-request-failed", "安装引导 API 请求发送失败", { ...details, phase: "message-send", durationMs: Date.now() - startedAt, error });
-        reject(error);
-      }
-    });
+    const response = await onboardingApiRequest(options);
+    let body;
+    try {
+      body = globalThis.STSettingsApiRequest.parseJson(response.data, "接口返回解析失败，请稍后重试。");
+    } catch (error) {
+      log.error("onboarding-api-request-failed", "安装引导 API 响应解析失败", {
+        ...details, phase: "parse", response: globalThis.STLoggerSchema.responseFacts(response),
+        durationMs: Date.now() - startedAt, error,
+      });
+      throw error;
+    }
+    const summary = { ...globalThis.STLoggerSchema.responseFacts(response), ...globalThis.STLoggerSchema.resultFacts(body, ["code", "device_code", "user_code", "interval", "expires_in"]), businessCode: body?.code, message: body?.message };
+    if (options.traceRequest) log.info("api-response-parsed", "设备登录接口回复已解析", { ...details, response: summary, durationMs: Date.now() - startedAt });
+    return { status: response.status, body, diagnostics: summary, requestId, operationId };
   }
 
   function okCode(res) {
@@ -851,6 +862,10 @@
     state.thirdParty.messageError = false;
     render();
     const startedAt = Date.now();
+    const details = { operationId, requestId };
+    let response;
+    let payload;
+    let phase = "configuration";
     log.info("onboarding-itad-test-start", "安装引导开始测试 ITAD 连接", {
       operationId,
       requestId,
@@ -860,9 +875,9 @@
       const cfg = await sharedConfig();
       const url = cfg.vendors?.isthereanydeal?.statsMostPopular?.(1, 0);
       if (!url) throw new Error("ITAD 测试接口配置未就绪。");
-      const res = await runtimeSend({
-        type: "STORE_FETCH",
+      const options = {
         url,
+        label: "引导页 ITAD 测试接口",
         method: "GET",
         headers: {
           Accept: "application/json",
@@ -870,28 +885,36 @@
         },
         allowHttpError: true,
         timeoutMs: ITAD_TEST_TIMEOUT_MS,
-      }, ITAD_TEST_TIMEOUT_MS + 1_000);
-      const status = Number(res?.status) || 0;
-      if (!res?.success && status <= 0) {
-        throw Object.assign(new Error(res?.error || "网络请求失败，请检查网络连接或稍后重试。"), {
-          code: "NETWORK_FAILED",
-        });
-      }
+        operationId,
+        requestId,
+        endpointKey: "onboarding:itad-test",
+        service: "itad",
+        requestUrlPolicy: { allowPath: true, allowedQueryKeys: ["limit", "offset"] },
+        traceRequest: true,
+      };
+      details.request = globalThis.STLoggerSchema.requestFacts(options);
+      phase = "request";
+      response = await onboardingApiRequest(options);
+      phase = "http";
+      const status = response.status;
       if (status < 200 || status >= 300) {
         const failure = itadFailureFromStatus(status);
         state.thirdParty.verified = false;
         state.thirdParty.message = failure.message;
         state.thirdParty.messageError = true;
-        log.warn("onboarding-itad-test-failed", "安装引导 ITAD 连接测试失败", {
-          operationId,
-          requestId,
+        log.error("onboarding-itad-test-failed", "安装引导 ITAD 连接测试失败", {
+          ...details,
+          phase,
+          response: globalThis.STLoggerSchema.responseFacts(response),
           status,
           durationMs: Date.now() - startedAt,
           errorCode: failure.code,
         });
         return;
       }
-      const payload = parseJson(res.data);
+      phase = "parse";
+      payload = globalThis.STSettingsApiRequest.parseJson(response.data, "ITAD 测试接口响应解析失败。");
+      phase = "validate";
       if (!payload || (typeof payload !== "object" && !Array.isArray(payload))) {
         throw Object.assign(new Error("ITAD 测试接口响应格式异常。"), { code: "RESPONSE_SHAPE_INVALID" });
       }
@@ -900,8 +923,8 @@
       state.thirdParty.message = "测试通过，可进入下一步。";
       state.thirdParty.messageError = false;
       log.info("onboarding-itad-test-success", "安装引导 ITAD 连接测试成功", {
-        operationId,
-        requestId,
+        ...details,
+        response: { ...globalThis.STLoggerSchema.responseFacts(response), ...globalThis.STLoggerSchema.resultFacts(payload) },
         status,
         durationMs: Date.now() - startedAt,
       });
@@ -910,8 +933,9 @@
       state.thirdParty.message = error?.message || String(error);
       state.thirdParty.messageError = true;
       log.error("onboarding-itad-test-failed", "安装引导 ITAD 连接测试异常", {
-        operationId,
-        requestId,
+        ...details,
+        phase,
+        response: { ...globalThis.STLoggerSchema.responseFacts(response || error.response), ...(payload === undefined ? {} : globalThis.STLoggerSchema.resultFacts(payload)) },
         durationMs: Date.now() - startedAt,
         errorCode: error?.code || "TEST_THROWN",
         error,
