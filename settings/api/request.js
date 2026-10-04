@@ -114,7 +114,7 @@
       }
 
       try {
-        if (root.STMessageBus?.send) {
+        if (root.STMessageBus?.ready && root.STMessageBus?.send) {
           root.STMessageBus.send({
             type: "STORE_FETCH",
             ...payload,

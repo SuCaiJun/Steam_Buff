@@ -33,7 +33,30 @@
   function dailyPeaks(samples, limit = PREVIEW_DAY_COUNT) { if (!Array.isArray(samples)) throw new TypeError("在线人数趋势样本不是数组"); if (!Number.isInteger(limit) || limit <= 0) throw new TypeError("在线人数趋势天数无效"); const byDay = new Map(); for (const sample of samples) { if (!Number.isFinite(sample?.timestamp) || !Number.isFinite(sample?.players) || typeof sample?.collected_at !== "string") throw new TypeError("在线人数趋势样本无效"); const date = new Date(sample.timestamp); const day = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()); const current = byDay.get(day); if (!current || sample.players > current.players) byDay.set(day, sample); } return [...byDay.entries()].sort(([a], [b]) => a - b).slice(-limit).map(([, sample]) => sample); }
   function createController(options = {}) {
     const statsApi = options.statsApi || root.STPlayerStats, requestBus = options.requestBus || root.STMessageBus;
-    const requestStats = typeof options.requestStats === "function" ? options.requestStats : (payload) => typeof requestBus?.request === "function" ? requestBus.request(payload, { timeoutMs:12000, dedupeKey:`player-stats:${payload.part}:${payload.appid}`, expectSuccess:true }) : Promise.reject(new Error("运行时消息总线未就绪"));
+    const requestStats = typeof options.requestStats === "function" ? options.requestStats : (payload) => {
+      const requestOptions = { timeoutMs:12000, dedupeKey:`player-stats:${payload.part}:${payload.appid}`, expectSuccess:true };
+      if (requestBus?.ready && typeof requestBus.request === "function") {
+        return requestBus.request(payload, requestOptions);
+      }
+      return new Promise((resolve, reject) => {
+        try {
+          root.chrome.runtime.sendMessage(payload, (response) => {
+            const error = root.chrome.runtime.lastError;
+            if (error) {
+              reject(new Error(error.message || "运行时消息请求失败"));
+              return;
+            }
+            if (requestOptions.expectSuccess === true && response?.success === false) {
+              reject(new Error(response.error || "运行时消息请求失败"));
+              return;
+            }
+            resolve(response || null);
+          });
+        } catch (error) {
+          reject(error);
+        }
+      });
+    };
     const rootId = text(options.rootId) || "st-player-stats", modalId = text(options.modalId) || "st-player-stats-modal", cardClass = text(options.cardClass) || "st-player-stats", cardLayout = options.cardLayout === "steam-library" ? "steam-library" : "store";
     const getCurrentAppId = typeof options.getCurrentAppId === "function" ? options.getCurrentAppId : () => 0, getTarget = typeof options.getTarget === "function" ? options.getTarget : () => null, getRoute = typeof options.getRoute === "function" ? options.getRoute : () => "", insertCard = typeof options.insertCard === "function" ? options.insertCard : (card, target) => target.insertBefore(card, target.firstElementChild || null), logger = options.logger || root.STLoggerFactory?.createLogger?.("shared", "player-stats");
     let activeAppId = 0, activeCard = null, activeData = null, activeLoad = null, activeCurrent = null, activeModal = null, modalKeyHandler = null, tooltip = null;

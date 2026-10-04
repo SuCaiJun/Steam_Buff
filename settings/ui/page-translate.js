@@ -51,6 +51,30 @@
     if (!task && message) hideTimer = root.setTimeout(() => update("", ""), 6000);
   }
 
+  function requestRuntime(payload, options = {}) {
+    if (root.STMessageBus?.ready && root.STMessageBus?.request) {
+      return root.STMessageBus.request(payload, options);
+    }
+    return new Promise((resolve, reject) => {
+      try {
+        root.chrome.runtime.sendMessage(payload, (response) => {
+          const error = root.chrome.runtime.lastError;
+          if (error) {
+            reject(new Error(error.message || "运行时消息请求失败"));
+            return;
+          }
+          if (options.expectSuccess === true && response?.success === false) {
+            reject(new Error(response.error || "运行时消息请求失败"));
+            return;
+          }
+          resolve(response || null);
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
   // 两种悬浮栏共享同一个任务；配置只在点击时读取，不写入设置或启动自动模式
   function run() {
     if (task) return task;
@@ -67,7 +91,7 @@
       const [conf, ai] = await Promise.all([storage.getTranslate(), storage.getAi()]);
       checkPage();
       log.info("manual-page-start", "用户开始手动翻译网页", { operationId, to: conf.to, service: conf.service });
-      await root.STMessageBus.request({
+      await requestRuntime({
         type: "TRANSLATE_INJECT", action: "manual-page", cfg: { ...conf, ai }, operationId,
       }, { expectSuccess: true });
       checkPage();

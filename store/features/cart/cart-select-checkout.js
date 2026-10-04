@@ -90,7 +90,7 @@
       timer = setTimeout(() => {
         finish({ success: false, error: "请求超时", status: 0, ok: false });
       }, Number(options.timeoutMs) || REQUEST_TIMEOUT_MS);
-      if (globalThis.STMessageBus?.send) {
+      if (globalThis.STMessageBus?.ready && globalThis.STMessageBus?.send) {
         globalThis.STMessageBus.send({
           type: "STORE_FETCH",
           url,

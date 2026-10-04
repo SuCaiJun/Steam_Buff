@@ -199,7 +199,7 @@
       }
 
       try {
-        if (globalThis.STMessageBus?.send) {
+        if (globalThis.STMessageBus?.ready && globalThis.STMessageBus?.send) {
           globalThis.STMessageBus.send({
             type: "STORE_FETCH",
             url: config.url,

@@ -99,7 +99,7 @@
   function send(message) {
     return new Promise((resolve, reject) => {
       try {
-        if (root.STMessageBus?.send) {
+        if (root.STMessageBus?.ready && root.STMessageBus?.send) {
           root.STMessageBus.send(message, {
             timeoutMs: message?.type === "UPDATE_CHECK" ? 10_000 : 12_000,
           }).then((response) => {

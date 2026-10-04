@@ -1033,7 +1033,7 @@
   function sendLogMessage(type, payload = {}) {
     return new Promise((resolve, reject) => {
       try {
-        if (globalThis.STMessageBus?.send) {
+        if (globalThis.STMessageBus?.ready && globalThis.STMessageBus?.send) {
           globalThis.STMessageBus.send({ type, ...(payload || {}) }, {
             timeoutMs: type === "LOG_EXPORT" ? 12_000 : 8_000,
           }).then((response) => {

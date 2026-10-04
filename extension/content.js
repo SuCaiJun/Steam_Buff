@@ -380,6 +380,7 @@
       typeof globalThis.STErrorBoundary?.capture === "function" &&
       !!globalThis.STI18n &&
       typeof globalThis.STPageContext?.snapshot === "function" &&
+      !!globalThis.STMessageBus?.ready &&
       typeof globalThis.STMessageBus?.request === "function" &&
       typeof globalThis.STSettingsBus?.loadSettingsSnapshot === "function";
   }
@@ -405,7 +406,7 @@
     if (!id) {
       return Promise.resolve({ success: true });
     }
-    if (globalThis.STMessageBus?.request) {
+    if (globalThis.STMessageBus?.ready && globalThis.STMessageBus?.request) {
       return globalThis.STMessageBus.request({
         type: "CONTENT_FILES_INJECT",
         bundle: id,
@@ -652,7 +653,7 @@
 
   function bindSettingsOpenMessage() {
     try {
-      if (globalThis.STMessageBus?.listen) {
+      if (globalThis.STMessageBus?.ready && globalThis.STMessageBus?.listen) {
         globalThis.STMessageBus.listen(SETTINGS_OPEN_MESSAGE, (request) => {
           openSettings(request.category || "");
           return false;
@@ -1044,7 +1045,7 @@
   function injectTranslate(conf) {
     return new Promise((resolve) => {
       try {
-        if (globalThis.STMessageBus?.send) {
+        if (globalThis.STMessageBus?.ready && globalThis.STMessageBus?.send) {
           globalThis.STMessageBus.send({
             type: "TRANSLATE_INJECT",
             cfg: conf,

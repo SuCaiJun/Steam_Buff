@@ -203,7 +203,7 @@
     }
 
     function sendAiTest(testConf, operationId = "") {
-      if (globalThis.STMessageBus?.send) {
+      if (globalThis.STMessageBus?.ready && globalThis.STMessageBus?.send) {
         return globalThis.STMessageBus.send({
           type: "AI_CHAT_COMPLETIONS",
           operationId,
@@ -231,7 +231,7 @@
     }
 
     function sendPermissionMessage(payload, timeoutMs) {
-      if (globalThis.STMessageBus?.send) {
+      if (globalThis.STMessageBus?.ready && globalThis.STMessageBus?.send) {
         return globalThis.STMessageBus.send(payload, { timeoutMs });
       }
       return new Promise((resolve, reject) => {
@@ -303,7 +303,8 @@
         if (error) rejectPromise(error);
         else resolvePromise(true);
       };
-      subscription = globalThis.STMessageBus?.listen?.(AI_GATEWAY_PERMISSION_RESULT, (message, _sender, sendResponse) => {
+      subscription = globalThis.STMessageBus?.ready
+        ? globalThis.STMessageBus.listen?.(AI_GATEWAY_PERMISSION_RESULT, (message, _sender, sendResponse) => {
         if (String(message?.requestId || "") !== requestId) {
           return false;
         }
@@ -313,7 +314,8 @@
       }, {
         owner: "settings-ai",
         key: `permission-result:${requestId}`,
-      });
+      })
+        : null;
       if (!subscription) {
         const error = new Error(uiText("settings.ai.permissionFailed", "AI 网关访问权限申请失败，请稍后重试。"));
         error.code = "AI_HOST_PERMISSION_RESULT_UNAVAILABLE";

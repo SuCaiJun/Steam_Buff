@@ -658,7 +658,7 @@
   }
 
   async function streamConversation(state, conf, messages, initial, contextMessages = messages) {
-    const streamApi = window.STMessageBus?.stream;
+    const streamApi = window.STMessageBus?.ready && window.STMessageBus?.stream;
     if (typeof streamApi !== "function") {
       state.phase = "error";
       state.errorText = i18n("store.aiForecast.streamUnavailable", "AI 流式通道未就绪。");

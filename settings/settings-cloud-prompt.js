@@ -36,7 +36,7 @@
 
   function request(payload) {
     const message = { type: SYNC_TYPE, ...payload };
-    if (root.STMessageBus?.request) {
+    if (root.STMessageBus?.ready && root.STMessageBus?.request) {
       return root.STMessageBus.request(message, { expectSuccess: false });
     }
     return new Promise((resolve) => {
@@ -238,7 +238,7 @@
     }
   }
 
-  if (root.STMessageBus?.listen) {
+  if (root.STMessageBus?.ready && root.STMessageBus?.listen) {
     root.STMessageBus.listen(PROMPT_TYPE, (request) => {
       handle(request).catch((error) => {
         log.warn("settings-cloud-prompt-failed", "设置云同步弹窗失败", { error });
