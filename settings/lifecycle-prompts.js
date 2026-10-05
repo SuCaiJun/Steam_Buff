@@ -34,6 +34,7 @@
   const checker = root.STUpdateChecker;
   const membershipApi = root.STSettingsMembership;
   const dom = root.STDomUtils;
+  const theme = root.STTheme;
   const components = root.STComponents?.css;
   const log = root.STLoggerFactory?.createLogger?.("settings", "lifecycle-prompts") || {
     info() {},
@@ -42,7 +43,7 @@
   let blocking = false;
   let activeHost = null;
 
-  if (!checker || !membershipApi?.normalize || !dom?.setTrustedHTML || !components?.dialog || !components?.button) {
+  if (!checker || !membershipApi?.normalize || !dom?.setTrustedHTML || !theme?.applyCssVariables || !components?.dialog || !components?.button) {
     throw new Error("[Steam Buff] 生命周期提示依赖未加载");
   }
 
@@ -511,6 +512,8 @@
 
   function dialogHost(type, template, onAction) {
     const host = document.createElement("div");
+    // 升级与赞助提示共用宿主主题，不依赖页面根节点的样式。
+    theme.applyCssVariables(host);
     const shadow = host.attachShadow({ mode: "open" });
     host.id = ROOT_ID;
     host.dataset.promptType = type;

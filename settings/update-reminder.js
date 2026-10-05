@@ -21,9 +21,10 @@
   };
 
   const ROOT = "__SteamBuffUpdateReminder";
+  const theme = globalThis.STTheme;
   const sharedCss = globalThis.STComponents?.css;
-  if (!sharedCss?.dialog || !sharedCss?.button) {
-    throw new Error("[Steam Buff] 更新提醒依赖 STComponents 未加载");
+  if (!theme?.applyCssVariables || !sharedCss?.dialog || !sharedCss?.button) {
+    throw new Error("[Steam Buff] 更新提醒依赖 STTheme / STComponents 未加载");
   }
 
   function text(key, fallback, params) {
@@ -220,6 +221,8 @@
 
   function build(info) {
     const host = document.createElement("div");
+    // 独立弹窗不依赖 Steam 页面根节点提供主题变量。
+    theme.applyCssVariables(host);
     const shadow = host.attachShadow({ mode: "open" });
     const latest = info.latest || {};
     const remote = api.verLabel(latest.version || info.remote);
