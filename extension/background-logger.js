@@ -134,6 +134,7 @@
   }
 
   function enqueueStorage(job) {
+    // 调用方接收原始 task 的失败；仅队列尾恢复，避免一次失败阻断后续存储任务。
     const task = storageQueue.catch(() => null).then(job);
     storageQueue = task.catch(() => null);
     return task;

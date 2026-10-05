@@ -31,11 +31,10 @@
     const api = options.api || root.STSettingsAccountApi;
     const center = options.center;
     const t = root.STI18n.text;
-    const log = root.STLoggerFactory?.createLogger?.("settings", "account") || {
-      info() {},
-      warn() {},
-      error() {},
-    };
+    if (typeof root.STLoggerFactory?.createLogger !== "function") {
+      throw new Error("账号认证缺少日志依赖，请先加载 shared/logger-factory.js");
+    }
+    const log = root.STLoggerFactory.createLogger("settings", "account");
 
     function switchedError() {
       const error = new Error(t("settings.account.accountSwitched", "账号已切换"));

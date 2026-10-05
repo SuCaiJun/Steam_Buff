@@ -20,11 +20,10 @@
   const TYPE = "SETTINGS_CLOUD_SYNC";
   const PROMPT_TYPE = "SETTINGS_CLOUD_PROMPT";
   const AUTH_KEY = "steam_buff_auth";
-  const log = root.STLoggerFactory?.createLogger?.("settings", "settings-cloud") || {
-    info() {},
-    warn() {},
-    error() {},
-  };
+  if (typeof root.STLoggerFactory?.createLogger !== "function") {
+    throw new Error("设置云同步缺少日志依赖，请先加载 shared/logger-factory.js");
+  }
+  const log = root.STLoggerFactory.createLogger("settings", "settings-cloud");
   let bound = false;
   let prompting = false;
   let lastSecret = "";

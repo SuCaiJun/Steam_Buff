@@ -19,6 +19,12 @@
   const { cleanAuth, nextAuth } = authSession;
 
   const CONTRACT = globalThis.STOnboardingContract;
+  if (!CONTRACT) {
+    throw new Error("安装引导缺少步骤依赖，请先加载 onboarding/contract.js");
+  }
+  if (!globalThis.STConfig?.urls || !globalThis.STConfig.libraryNameMode) {
+    throw new Error("安装引导缺少配置依赖，请先加载 shared/config.js");
+  }
   const LOCAL_STEPS = CONTRACT.LOCAL_STEPS;
   const OPEN_SETTINGS_MESSAGE = CONTRACT.MESSAGES.openSettings;
   const SETTINGS_PREFIX = "st.settings.";
@@ -31,9 +37,7 @@
   const THIRD_PARTY_PREFIX = `${SETTINGS_PREFIX}thirdPartyServices.`;
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = "steam_buff_membership";
-  const CONFIG_PATH = "shared/config.js";
   const SETTINGS_CATALOG_PATH = "settings/catalog.js";
-  const AI_CONFIG_PATH = "ai/config.js";
   const FLOW_TIMEOUT_MS = 10_000;
   const ITAD_TEST_TIMEOUT_MS = 12_000;
   const AI_TEST_TIMEOUT_MS = 20_000;
@@ -47,11 +51,10 @@
   const AI_GATEWAY_PERMISSION_OPEN = "AI_GATEWAY_PERMISSION_OPEN";
   const AI_GATEWAY_PERMISSION_CANCEL = "AI_GATEWAY_PERMISSION_CANCEL";
   const AI_GATEWAY_PERMISSION_RESULT = "AI_GATEWAY_PERMISSION_RESULT";
-  const log = globalThis.STLoggerFactory?.createLogger?.("onboarding", "local-flow") || {
-    info() {},
-    warn() {},
-    error() {},
-  };
+  if (typeof globalThis.STLoggerFactory?.createLogger !== "function") {
+    throw new Error("安装引导缺少日志依赖，请先加载 shared/logger-factory.js");
+  }
+  const log = globalThis.STLoggerFactory.createLogger("onboarding", "local-flow");
 
   const state = {
     phase: "loading",
@@ -114,7 +117,6 @@
   };
 
   let catalogJob = null;
-  let configJob = null;
   let loginPollTimer = 0;
   let loginCopyTimer = 0;
   let celebration = null;
@@ -247,19 +249,26 @@
   }
 
   async function settingsCatalog() {
-    if (window.STSettings?.catalog?.featureItems) return window.STSettings.catalog;
+    if (typeof window.STSettings?.catalog?.featureItems === "function") return window.STSettings.catalog;
     if (!catalogJob) {
       const api = chromeApi();
       const src = api?.runtime?.getURL
         ? api.runtime.getURL(SETTINGS_CATALOG_PATH)
         : `../${SETTINGS_CATALOG_PATH}`;
-      catalogJob = loadScript(src).catch((error) => {
-        catalogJob = null;
-        throw error;
-      });
+      catalogJob = loadScript(src);
     }
-    await catalogJob;
-    return window.STSettings?.catalog || null;
+    const job = catalogJob;
+    try {
+      await job;
+    } catch (error) {
+      if (catalogJob === job) catalogJob = null;
+      throw error;
+    }
+    if (typeof window.STSettings?.catalog?.featureItems !== "function") {
+      if (catalogJob === job) catalogJob = null;
+      throw new Error("设置目录模块未初始化");
+    }
+    return window.STSettings.catalog;
   }
 
   // 只取设置中心「客户端增强」分类的顶层布尔功能，不含子选项和二选一方案
@@ -314,16 +323,8 @@
     });
   }
 
-  async function sharedConfig() {
-    if (window.STConfig?.urls) return window.STConfig;
-    if (!configJob) {
-      const api = chromeApi();
-      const src = api?.runtime?.getURL
-        ? api.runtime.getURL(CONFIG_PATH)
-        : `../${CONFIG_PATH}`;
-      configJob = loadScript(src).catch(() => false);
-    }
-    await configJob;
+  function sharedConfig() {
+    // index.html 已先加载必需配置；缺失时直接报错，不能静默重复加载。
     if (!window.STConfig?.urls) throw new Error("配置加载失败，请稍后重试。");
     return window.STConfig;
   }
@@ -410,133 +411,73 @@
     return code >= 200 && code < 300;
   }
 
-  function storageGet(key) {
-    const api = chromeApi();
-    if (api?.storage?.local) {
-      return new Promise((resolve) => {
-        try {
-          api.storage.local.get(key, (data) => resolve(api.runtime?.lastError ? null : data?.[key]));
-        } catch {
-          resolve(null);
-        }
-      });
-    }
-    try {
-      const raw = localStorage.getItem(key);
-      return Promise.resolve(raw ? parseJson(raw) : null);
-    } catch {
-      return Promise.resolve(null);
-    }
+  async function storageGet(key) {
+    const data = await storageGetMany([key]);
+    return data[key] ?? null;
   }
 
   function storageSet(key, value, diagnostics = {}) {
-    const operationId = String(diagnostics?.operationId || "");
-    const api = chromeApi();
-    if (api?.storage?.local) {
-      return new Promise((resolve) => {
-        try {
-          api.storage.local.set({ [key]: value }, () => {
-            const error = api.runtime?.lastError;
-            if (error) {
-              log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
-                operationId,
-                storageKey: key,
-                error,
-              });
-              resolve(false);
-              return;
-            }
-            resolve(true);
-          });
-        } catch (error) {
-          log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
-            operationId,
-            storageKey: key,
-            error,
-          });
-          resolve(false);
-        }
-      });
-    }
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-      return Promise.resolve(true);
-    } catch (error) {
-      log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
-        operationId,
-        storageKey: key,
-        error,
-      });
-      return Promise.resolve(false);
-    }
+    return storageSetMany({ [key]: value }, diagnostics);
   }
 
-  function storageGetMany(keys) {
+  function storageApi() {
     const api = chromeApi();
-    if (api?.storage?.local) {
+    if (api?.storage?.local) return api;
+    if (window.location.protocol === "chrome-extension:" || api?.runtime?.id) {
+      throw new Error("扩展本地存储不可用，请重新打开安装引导");
+    }
+    // 普通网页预览沿用来源独立的 localStorage，扩展页不能退回该存储。
+    return null;
+  }
+
+  async function storageGetMany(keys) {
+    const api = storageApi();
+    if (api) {
       return new Promise((resolve, reject) => {
         api.storage.local.get(keys, data => {
           const error = api.runtime?.lastError;
-          if (error) reject(new Error(error.message));
-          else if (!data || typeof data !== "object") reject(new Error("设置读取结果无效"));
+          if (error) reject(new Error("设置读取失败", { cause: error }));
+          else if (!data || typeof data !== "object" || Array.isArray(data)) reject(new Error("设置读取结果无效"));
           else resolve(data);
         });
       });
     }
     const out = {};
-    try {
-      keys.forEach(key => {
-        const raw = localStorage.getItem(key);
-        if (raw == null) return;
-        // 本地预览原有的 string / JSON 两种写入格式。
-        try { out[key] = JSON.parse(raw); } catch { out[key] = raw; }
-      });
-      return Promise.resolve(out);
-    } catch (error) { return Promise.reject(error); }
+    keys.forEach(key => {
+      const raw = localStorage.getItem(key);
+      if (raw == null) return;
+      // 本地预览原有的 string / JSON 两种写入格式。
+      try { out[key] = JSON.parse(raw); } catch { out[key] = raw; }
+    });
+    return out;
   }
 
-  function storageSetMany(data, diagnostics = {}) {
+  async function storageSetMany(data, diagnostics = {}) {
     const operationId = String(diagnostics?.operationId || "");
     const payload = data && typeof data === "object" ? data : {};
-    const api = chromeApi();
-    if (api?.storage?.local) {
-      return new Promise((resolve) => {
-        try {
+    try {
+      const api = storageApi();
+      if (api) {
+        await new Promise((resolve, reject) => {
           api.storage.local.set(payload, () => {
             const error = api.runtime?.lastError;
-            if (error) {
-              log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
-                operationId,
-                storageKey: Object.keys(payload).join(","),
-                error,
-              });
-              resolve(false);
-              return;
-            }
-            resolve(true);
+            if (error) reject(new Error("设置保存失败", { cause: error }));
+            else resolve();
           });
-        } catch (error) {
-          log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
-            operationId,
-            storageKey: Object.keys(payload).join(","),
-            error,
-          });
-          resolve(false);
-        }
-      });
-    }
-    try {
-      Object.entries(payload).forEach(([key, value]) => {
-        localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
-      });
-      return Promise.resolve(true);
+        });
+      } else {
+        Object.entries(payload).forEach(([key, value]) => {
+          localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+        });
+      }
+      return true;
     } catch (error) {
-      log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
+      log.error("onboarding-storage-write-failed", "安装引导状态保存失败", {
         operationId,
         storageKey: Object.keys(payload).join(","),
         error,
       });
-      return Promise.resolve(false);
+      return false;
     }
   }
 
@@ -695,14 +636,9 @@
     clampCommittedPage();
   }
 
-  async function ensureAiModule() {
-    if (globalThis.STAI?.normalize) return globalThis.STAI;
-    const api = chromeApi();
-    const src = api?.runtime?.getURL
-      ? api.runtime.getURL(AI_CONFIG_PATH)
-      : `../${AI_CONFIG_PATH}`;
-    await loadScript(src).catch(() => false);
-    if (!globalThis.STAI?.normalize) throw new Error("AI 配置模块未加载");
+  function ensureAiModule() {
+    // AI 配置与引导脚本在 index.html 中按固定顺序加载。
+    if (typeof globalThis.STAI?.normalize !== "function") throw new Error("AI 配置模块未加载");
     return globalThis.STAI;
   }
 

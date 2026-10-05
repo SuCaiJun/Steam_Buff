@@ -16,9 +16,10 @@
   if (!pages?.register) {
     return;
   }
-  const log = root.STLoggerFactory?.createLogger?.("settings", "account") || {
-    warn() {},
-  };
+  if (typeof root.STLoggerFactory?.createLogger !== "function") {
+    throw new Error("账号页面缺少日志依赖，请先加载 shared/logger-factory.js");
+  }
+  const log = root.STLoggerFactory.createLogger("settings", "account");
 
   const rt = root.STSettingsAccountState.create();
   const api = root.STSettingsAccountApi;

@@ -19,11 +19,10 @@
   const PROMPT_TYPE = "SETTINGS_CLOUD_PROMPT";
   const SYNC_TYPE = "SETTINGS_CLOUD_SYNC";
   const HOST_ID = "__SteamBuffSettingsCloudPrompt";
-  const log = root.STLoggerFactory?.createLogger?.("settings", "settings-cloud-prompt") || {
-    info() {},
-    warn() {},
-    error() {},
-  };
+  if (typeof root.STLoggerFactory?.createLogger !== "function") {
+    throw new Error("设置云同步弹窗缺少日志依赖，请先加载 shared/logger-factory.js");
+  }
+  const log = root.STLoggerFactory.createLogger("settings", "settings-cloud-prompt");
   let prompting = false;
 
   function tr(key, fallback, params) {
