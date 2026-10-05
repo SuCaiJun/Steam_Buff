@@ -56,7 +56,7 @@ const CURRENCY_SYMBOLS = {
 
 const STEAM_SHOP_ID = 61;
 
-const DRM_EXCLUDED_APPIDS = [21690]; // Resident Evil 5, at Capcom's request
+const DRM_EXCLUDED_APPIDS = [21690]; // 应 Capcom 要求排除《Resident Evil 5》
 
   api.config = Object.freeze({
     CC_OVERRIDE,

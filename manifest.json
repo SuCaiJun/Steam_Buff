@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.0.7",
+  "version": "2.0.15",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -248,6 +248,8 @@
         "steam/main.js",
         "vendor/fflate/*.js",
         "vendor/pinyin-pro/*.js",
+        "images/ui/filter.svg",
+        "images/ui/delete.svg",
         "images/ui/source-tip.svg",
         "images/ui/download-actions.svg",
         "images/features/translate.svg"

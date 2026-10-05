@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : 第三方开源项目与随包库清单
- * @File          : Vendor catalog
+ * @File          : 第三方库清单
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */

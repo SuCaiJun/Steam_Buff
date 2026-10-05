@@ -5773,17 +5773,8 @@
   "steam_independentName_open": {
     "message": "カスタム名"
   },
-  "steam_independentName_readingButton": {
-    "message": "読み"
-  },
-  "steam_independentName_readingTitle": {
-    "message": "読みの選択"
-  },
-  "steam_independentName_readingNone": {
-    "message": "選択が必要な読みはありません"
-  },
   "steam_independentName_readingFailed": {
-    "message": "読み候補を読み込めませんでした。編集画面を閉じて開き直してください。"
+    "message": "読み候補を読み込めませんでした。名前設定を開き直してください。"
   },
   "steam_independentName_readingPreviewHint": {
     "message": "現在の内容を文字ごとに対応付けられません。プレビューを適用すると、ピンインと略語の両方が置き換わります。"
@@ -5828,8 +5819,16 @@
   "steam_independentName_aliasHint": {
     "message": "Enter またはスペースで追加"
   },
-  "steam_independentName_saveRow": {
+  "steam_independentName_saveAll": {
     "message": "保存"
+  },
+  "steam_independentName_savedAll": {
+    "message": "$n$ 件のゲームを保存しました",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
   },
   "steam_independentName_colOfficial": {
     "message": "Steam 英語名"
@@ -5839,6 +5838,12 @@
   },
   "steam_independentName_colCustom": {
     "message": "カスタム名"
+  },
+  "steam_independentName_referenceName": {
+    "message": "参考名："
+  },
+  "steam_independentName_referenceHint": {
+    "message": "クリックしてカスタム名に入力"
   },
   "steam_independentName_colAlias": {
     "message": "エイリアス"
@@ -5974,5 +5979,165 @@
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
     "message": "現在の権限ではクラウド名を取得できません。"
+  },
+  "steam_independentName_filter": {
+    "message": "絞り込み"
+  },
+  "steam_independentName_addFilter": {
+    "message": "+ 条件を追加"
+  },
+  "steam_independentName_clearFilters": {
+    "message": "条件をクリア"
+  },
+  "steam_independentName_addAndFilter": {
+    "message": "+ AND 条件を追加"
+  },
+  "steam_independentName_applyFilter": {
+    "message": "適用"
+  },
+  "steam_independentName_removeFilter": {
+    "message": "条件を削除"
+  },
+  "steam_independentName_filterValue": {
+    "message": "条件の値"
+  },
+  "steam_independentName_filterOperator": {
+    "message": "条件の演算子"
+  },
+  "steam_independentName_filterIncomplete": {
+    "message": "値を入力するか、種類を選択してください"
+  },
+  "steam_independentName_typeMissing": {
+    "message": "種類のデータを取得できません。拡張機能を更新して再試行してください"
+  },
+  "steam_independentName_gameType": {
+    "message": "種類"
+  },
+  "steam_independentName_typeGame": {
+    "message": "ゲーム"
+  },
+  "steam_independentName_typeSoftware": {
+    "message": "ソフトウェア"
+  },
+  "steam_independentName_typeTool": {
+    "message": "ツール"
+  },
+  "steam_independentName_typeAudio": {
+    "message": "音声"
+  },
+  "steam_independentName_typeVideo": {
+    "message": "動画"
+  },
+  "steam_independentName_typeOther": {
+    "message": "その他"
+  },
+  "steam_independentName_filterOpIn": {
+    "message": "いずれかに一致"
+  },
+  "steam_independentName_filterOpNotIn": {
+    "message": "いずれにも一致しない"
+  },
+  "steam_independentName_filterOpNotEmpty": {
+    "message": "空でない"
+  },
+  "steam_independentName_filterOpEmpty": {
+    "message": "空である"
+  },
+  "steam_independentName_filterOpContains": {
+    "message": "含む"
+  },
+  "steam_independentName_filterOpNotContains": {
+    "message": "含まない"
+  },
+  "steam_independentName_filterOpEquals": {
+    "message": "等しい"
+  },
+  "steam_independentName_filterOpNotEquals": {
+    "message": "等しくない"
+  },
+  "steam_independentName_saveChanges": {
+    "message": "変更を保存"
+  },
+  "steam_independentName_nameQuota": {
+    "message": "名前の上限："
+  },
+  "steam_independentName_batchStats": {
+    "message": "$total$ 件 · 絞り込み $filtered$ 件 · 選択 $selected$ 件 · 未保存 $dirty$ 件",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "filtered": {
+        "content": "$2"
+      },
+      "selected": {
+        "content": "$3"
+      },
+      "dirty": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_selectedCount": {
+    "message": "$n$ 件選択",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectGame": {
+    "message": "$name$ を選択",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectAll": {
+    "message": "すべて選択"
+  },
+  "steam_independentName_invertSelection": {
+    "message": "選択を反転"
+  },
+  "steam_independentName_clearSelection": {
+    "message": "選択を解除"
+  },
+  "steam_independentName_fetchCommunity": {
+    "message": "コミュニティ名を取得"
+  },
+  "steam_independentName_fetchingCommunity": {
+    "message": "コミュニティ名を取得中..."
+  },
+  "steam_independentName_replaceCommunityTitle": {
+    "message": "選択したゲームの名前を置き換えますか？"
+  },
+  "steam_independentName_replaceCommunityPrompt": {
+    "message": "$n$ 件中 $existing$ 件にカスタム名があります。確認するとコミュニティ名で置き換えます。コミュニティ名がないゲームは現在の内容を保持します.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      },
+      "existing": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_communityFilled": {
+    "message": "$filled$ 件入力済み、名前なし $missing$ 件、新しい編集を保持 $preserved$ 件。変更を保存してください.",
+    "placeholders": {
+      "filled": {
+        "content": "$1"
+      },
+      "missing": {
+        "content": "$2"
+      },
+      "preserved": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_independentName_exportFailed": {
+    "message": "エクスポートに失敗しました。再試行してください"
   }
 }

@@ -7,7 +7,7 @@
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
-/* Online-player card and detail dialog shared by Store and Steam Library. */
+/* 商店与 Steam 库共用的在线人数卡片和详情弹窗。 */
 ((root, factory) => {
   "use strict";
   const api = factory(root);

@@ -98,7 +98,7 @@
       limit: options.limit,
     });
     try {
-      // URL query contract: keyword=sources=modes=limit; JSON body stays empty.
+      // URL 查询契约：keyword、sources、modes、limit 放在查询参数中；JSON 请求体保持为空。
       const query = new URLSearchParams({
         keyword: String(keyword || ""),
         sources: Object.keys(sources || {}).filter(key => sources[key]).join(","),

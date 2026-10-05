@@ -5773,17 +5773,8 @@
   "steam_independentName_open": {
     "message": "自定义名称"
   },
-  "steam_independentName_readingButton": {
-    "message": "读音"
-  },
-  "steam_independentName_readingTitle": {
-    "message": "读音选择"
-  },
-  "steam_independentName_readingNone": {
-    "message": "未检测到需要选择的读音"
-  },
   "steam_independentName_readingFailed": {
-    "message": "读音候选加载失败，请关闭后重新打开编辑区"
+    "message": "读音候选加载失败，请重新打开名称设置"
   },
   "steam_independentName_readingPreviewHint": {
     "message": "现有内容无法逐字对应。下方是生成预览，应用后将替换全拼和助记符。"
@@ -5828,8 +5819,16 @@
   "steam_independentName_aliasHint": {
     "message": "回车或空格添加"
   },
-  "steam_independentName_saveRow": {
+  "steam_independentName_saveAll": {
     "message": "保存"
+  },
+  "steam_independentName_savedAll": {
+    "message": "已保存 $n$ 款游戏",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
   },
   "steam_independentName_colOfficial": {
     "message": "Steam 原名称"
@@ -5839,6 +5838,12 @@
   },
   "steam_independentName_colCustom": {
     "message": "自定义名称"
+  },
+  "steam_independentName_referenceName": {
+    "message": "参考名称："
+  },
+  "steam_independentName_referenceHint": {
+    "message": "点击填入自定义名称"
   },
   "steam_independentName_colAlias": {
     "message": "别名"
@@ -5974,5 +5979,165 @@
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
     "message": "当前权益未开通获取云端名称"
+  },
+  "steam_independentName_filter": {
+    "message": "筛选"
+  },
+  "steam_independentName_addFilter": {
+    "message": "+ 添加筛选"
+  },
+  "steam_independentName_clearFilters": {
+    "message": "清空筛选"
+  },
+  "steam_independentName_addAndFilter": {
+    "message": "+ 添加 AND 条件"
+  },
+  "steam_independentName_applyFilter": {
+    "message": "应用"
+  },
+  "steam_independentName_removeFilter": {
+    "message": "移除筛选"
+  },
+  "steam_independentName_filterValue": {
+    "message": "筛选值"
+  },
+  "steam_independentName_filterOperator": {
+    "message": "筛选关系"
+  },
+  "steam_independentName_filterIncomplete": {
+    "message": "请填写筛选值或选择游戏类型"
+  },
+  "steam_independentName_typeMissing": {
+    "message": "游戏类型数据不可用，请更新扩展后重试"
+  },
+  "steam_independentName_gameType": {
+    "message": "游戏类型"
+  },
+  "steam_independentName_typeGame": {
+    "message": "游戏"
+  },
+  "steam_independentName_typeSoftware": {
+    "message": "软件"
+  },
+  "steam_independentName_typeTool": {
+    "message": "工具"
+  },
+  "steam_independentName_typeAudio": {
+    "message": "音频"
+  },
+  "steam_independentName_typeVideo": {
+    "message": "视频"
+  },
+  "steam_independentName_typeOther": {
+    "message": "其他"
+  },
+  "steam_independentName_filterOpIn": {
+    "message": "属于"
+  },
+  "steam_independentName_filterOpNotIn": {
+    "message": "不属于"
+  },
+  "steam_independentName_filterOpNotEmpty": {
+    "message": "不为空"
+  },
+  "steam_independentName_filterOpEmpty": {
+    "message": "为空"
+  },
+  "steam_independentName_filterOpContains": {
+    "message": "包含"
+  },
+  "steam_independentName_filterOpNotContains": {
+    "message": "不包含"
+  },
+  "steam_independentName_filterOpEquals": {
+    "message": "等于"
+  },
+  "steam_independentName_filterOpNotEquals": {
+    "message": "不等于"
+  },
+  "steam_independentName_saveChanges": {
+    "message": "保存修改"
+  },
+  "steam_independentName_nameQuota": {
+    "message": "名称额度："
+  },
+  "steam_independentName_batchStats": {
+    "message": "总 $total$ 款 · 筛选后 $filtered$ 款 · 已勾选 $selected$ 款 · 未保存修改 $dirty$ 款",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "filtered": {
+        "content": "$2"
+      },
+      "selected": {
+        "content": "$3"
+      },
+      "dirty": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_selectedCount": {
+    "message": "已选 $n$ 款",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectGame": {
+    "message": "勾选 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectAll": {
+    "message": "全选"
+  },
+  "steam_independentName_invertSelection": {
+    "message": "反选"
+  },
+  "steam_independentName_clearSelection": {
+    "message": "取消选中"
+  },
+  "steam_independentName_fetchCommunity": {
+    "message": "获取社区名称"
+  },
+  "steam_independentName_fetchingCommunity": {
+    "message": "正在获取社区名称..."
+  },
+  "steam_independentName_replaceCommunityTitle": {
+    "message": "替换已勾选游戏的名称？"
+  },
+  "steam_independentName_replaceCommunityPrompt": {
+    "message": "已勾选 $n$ 款，其中 $existing$ 款已有自定义名称。确认后获取社区名称并替换；没有社区名称的游戏保留原内容。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      },
+      "existing": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_communityFilled": {
+    "message": "已填入 $filled$ 款，无社区名称 $missing$ 款，保留新修改 $preserved$ 款；请点击保存修改。",
+    "placeholders": {
+      "filled": {
+        "content": "$1"
+      },
+      "missing": {
+        "content": "$2"
+      },
+      "preserved": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_independentName_exportFailed": {
+    "message": "导出失败，请重试"
   }
 }

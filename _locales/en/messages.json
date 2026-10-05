@@ -5773,17 +5773,8 @@
   "steam_independentName_open": {
     "message": "Custom names"
   },
-  "steam_independentName_readingButton": {
-    "message": "Sounds"
-  },
-  "steam_independentName_readingTitle": {
-    "message": "Pronunciation"
-  },
-  "steam_independentName_readingNone": {
-    "message": "No alternative pronunciations to choose"
-  },
   "steam_independentName_readingFailed": {
-    "message": "Could not load pronunciations. Close and reopen the editor."
+    "message": "Reading candidates could not load. Reopen name settings."
   },
   "steam_independentName_readingPreviewHint": {
     "message": "The existing values cannot be matched character by character. Applying this preview replaces both pinyin and mnemonic."
@@ -5828,8 +5819,16 @@
   "steam_independentName_aliasHint": {
     "message": "Press Enter or Space to add"
   },
-  "steam_independentName_saveRow": {
+  "steam_independentName_saveAll": {
     "message": "Save"
+  },
+  "steam_independentName_savedAll": {
+    "message": "Saved $n$ games",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
   },
   "steam_independentName_colOfficial": {
     "message": "Steam original name"
@@ -5839,6 +5838,12 @@
   },
   "steam_independentName_colCustom": {
     "message": "Custom name"
+  },
+  "steam_independentName_referenceName": {
+    "message": "Reference name:"
+  },
+  "steam_independentName_referenceHint": {
+    "message": "Click to fill in the custom name"
   },
   "steam_independentName_colAlias": {
     "message": "Aliases"
@@ -5974,5 +5979,165 @@
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
     "message": "Your current entitlements do not include fetching cloud names."
+  },
+  "steam_independentName_filter": {
+    "message": "Filter"
+  },
+  "steam_independentName_addFilter": {
+    "message": "+ Add filter"
+  },
+  "steam_independentName_clearFilters": {
+    "message": "Clear filters"
+  },
+  "steam_independentName_addAndFilter": {
+    "message": "+ Add AND condition"
+  },
+  "steam_independentName_applyFilter": {
+    "message": "Apply"
+  },
+  "steam_independentName_removeFilter": {
+    "message": "Remove filter"
+  },
+  "steam_independentName_filterValue": {
+    "message": "Filter value"
+  },
+  "steam_independentName_filterOperator": {
+    "message": "Filter operator"
+  },
+  "steam_independentName_filterIncomplete": {
+    "message": "Enter a filter value or select an application type"
+  },
+  "steam_independentName_typeMissing": {
+    "message": "Application type data is unavailable. Update the extension and retry."
+  },
+  "steam_independentName_gameType": {
+    "message": "Application type"
+  },
+  "steam_independentName_typeGame": {
+    "message": "Game"
+  },
+  "steam_independentName_typeSoftware": {
+    "message": "Software"
+  },
+  "steam_independentName_typeTool": {
+    "message": "Tool"
+  },
+  "steam_independentName_typeAudio": {
+    "message": "Audio"
+  },
+  "steam_independentName_typeVideo": {
+    "message": "Video"
+  },
+  "steam_independentName_typeOther": {
+    "message": "Other"
+  },
+  "steam_independentName_filterOpIn": {
+    "message": "Is one of"
+  },
+  "steam_independentName_filterOpNotIn": {
+    "message": "Is not one of"
+  },
+  "steam_independentName_filterOpNotEmpty": {
+    "message": "Is not empty"
+  },
+  "steam_independentName_filterOpEmpty": {
+    "message": "Is empty"
+  },
+  "steam_independentName_filterOpContains": {
+    "message": "Contains"
+  },
+  "steam_independentName_filterOpNotContains": {
+    "message": "Does not contain"
+  },
+  "steam_independentName_filterOpEquals": {
+    "message": "Equals"
+  },
+  "steam_independentName_filterOpNotEquals": {
+    "message": "Does not equal"
+  },
+  "steam_independentName_saveChanges": {
+    "message": "Save changes"
+  },
+  "steam_independentName_nameQuota": {
+    "message": "Name quota:"
+  },
+  "steam_independentName_batchStats": {
+    "message": "Total $total$ · Filtered $filtered$ · Selected $selected$ · Unsaved $dirty$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "filtered": {
+        "content": "$2"
+      },
+      "selected": {
+        "content": "$3"
+      },
+      "dirty": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_selectedCount": {
+    "message": "$n$ selected",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectGame": {
+    "message": "Select $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectAll": {
+    "message": "Select all"
+  },
+  "steam_independentName_invertSelection": {
+    "message": "Invert selection"
+  },
+  "steam_independentName_clearSelection": {
+    "message": "Clear selection"
+  },
+  "steam_independentName_fetchCommunity": {
+    "message": "Get community names"
+  },
+  "steam_independentName_fetchingCommunity": {
+    "message": "Getting community names..."
+  },
+  "steam_independentName_replaceCommunityTitle": {
+    "message": "Replace names for selected games?"
+  },
+  "steam_independentName_replaceCommunityPrompt": {
+    "message": "$n$ selected; $existing$ already have custom names. Confirm to retrieve and replace them with community names. Games without a community name keep their current content.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      },
+      "existing": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_communityFilled": {
+    "message": "Filled $filled$; no community name $missing$; newer edits preserved $preserved$. Click Save changes.",
+    "placeholders": {
+      "filled": {
+        "content": "$1"
+      },
+      "missing": {
+        "content": "$2"
+      },
+      "preserved": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_independentName_exportFailed": {
+    "message": "Export failed. Please retry."
   }
 }

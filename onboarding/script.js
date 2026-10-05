@@ -978,7 +978,7 @@
         try {
           sendResponse?.({ success: true, received: true });
         } catch {
-          // ignore response channel errors
+          // 忽略响应通道错误
         }
         finish(message?.granted === true ? null : aiPermissionError(message));
         return false;
@@ -1035,7 +1035,7 @@
           operationId,
         }, 5_000);
       } catch {
-        // keep original permission error
+        // 保留原始权限错误
       }
       throw error;
     }

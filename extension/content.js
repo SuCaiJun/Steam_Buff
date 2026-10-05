@@ -132,6 +132,7 @@
   const USER_NAMES_RES_ATTR = "data-steam-buff-user-names-response";
   const API_USER_NAMES = CFG.steamBuff("/user/names");
   const API_USER_NAMES_META = CFG.steamBuff("/user/names/meta");
+  const API_NAME_REFERENCE = `${CFG.steamBuff("/store/names")}?sources=community`;
   const AI_SERVICE = "steam-buff.ai";
   const NEWS_AI_MODE = "steam-news-popup";
   const NEWS_TEXT_MAX = 20000;
@@ -2232,7 +2233,7 @@
     }
   }
 
-  async function saveIndependentName(item, diagnostics = {}) {
+  async function independentNameOwner() {
     const ownerId = await readSignedOwner();
     if (!ownerId) {
       const error = new Error("请先在设置中登录");
@@ -2248,6 +2249,11 @@
       error.code = 403;
       throw error;
     }
+    return ownerId;
+  }
+
+  async function saveIndependentName(item, diagnostics = {}) {
+    const ownerId = await independentNameOwner();
     const saved = await commitNameSnapshot(ownerId, {
       op: "apply",
       item,
@@ -2267,12 +2273,71 @@
     return saved;
   }
 
+  async function saveIndependentNames(items, diagnostics = {}) {
+    if (!Array.isArray(items) || !items.length) {
+      throw new TypeError("批量保存需要非空名称列表");
+    }
+    const ownerId = await independentNameOwner();
+    const saved = await commitNameSnapshot(ownerId, { op: "apply-many", items }, diagnostics);
+    if (!saved) throw ownerChangedError();
+    log({
+      level: "info", domain: "extension", feature: "library-independent-name",
+      event: "user-names-local-batch-saved", message: "独立名称批量已写入本地，等待上传",
+      operationId: diagnostics.operationId || "", requestId: diagnostics.requestId || "",
+      meta: { count: items.length },
+    });
+    return saved;
+  }
+
   function readUserNamesReq() {
     try {
       return JSON.parse(root()?.getAttribute(USER_NAMES_REQ_ATTR) || "{}");
     } catch {
       return {};
     }
+  }
+
+  const referenceRuns = new Map();
+
+  // 单条与批量共用社区查询校验；一次批量始终绑定同一账号，取消后不再发下一批
+  async function queryNameReferences(appids, diagnostics = {}, cancelled = () => false) {
+    if (!Array.isArray(appids) || !appids.length || appids.some(appid => !Number.isSafeInteger(appid) || appid <= 0) || new Set(appids).size !== appids.length) {
+      const error = new Error("无效的 AppID");
+      error.code = 400;
+      throw error;
+    }
+    const ownerId = await independentNameOwner();
+    const out = [];
+    for (let index = 0; index < appids.length; index += 100) {
+      if (cancelled()) throw Object.assign(new Error("社区名称获取已取消"), { code: "cancelled" });
+      if (index > 0 && !(await namesOwnerStill(ownerId))) throw ownerChangedError();
+      const ids = appids.slice(index, index + 100);
+      const result = await authedBridge(API_NAME_REFERENCE, {
+        method: "POST", body: { appids: ids }, ownerId, touchAuth: true,
+      }, diagnostics);
+      if (!(await namesOwnerStill(ownerId))) throw ownerChangedError();
+      if (cancelled()) throw Object.assign(new Error("社区名称获取已取消"), { code: "cancelled" });
+      if (result.code < 200 || result.code >= 300) {
+        const error = new Error(result.body?.message || "社区参考名称读取失败");
+        error.code = result.code;
+        throw error;
+      }
+      const rows = result.body?.data;
+      const expected = new Set(ids);
+      if (!Array.isArray(rows) || rows.length !== ids.length) throw new TypeError("社区参考名称响应格式错误");
+      for (const row of rows) {
+        if (!row || !expected.delete(row.appid) || typeof row.name !== "string"
+          || !["community", "none"].includes(row.source)
+          || (row.source === "none" && row.name !== "")
+          || (row.source === "community" && !row.name.trim())) throw new TypeError("社区参考名称响应格式错误");
+        out.push({ appid: row.appid, name: row.name.trim() });
+      }
+    }
+    return out;
+  }
+
+  async function queryNameReference(appid, diagnostics = {}) {
+    return (await queryNameReferences([appid], diagnostics))[0].name;
   }
 
   async function handleUserNames(data) {
@@ -2285,6 +2350,28 @@
     const rid = data.rid || "";
     const diagnostics = { requestId: rid, operationId: data.operationId || "" };
     try {
+      if (data.type === "cancel-reference") {
+        const run = referenceRuns.get(rid);
+        if (run) run.cancelled = true;
+        return;
+      }
+      if (data.type === "reference-many") {
+        if (referenceRuns.has(rid)) return;
+        const run = { cancelled: false };
+        referenceRuns.set(rid, run);
+        try {
+          const rows = await queryNameReferences(data.appids, diagnostics, () => run.cancelled);
+          postUserNames({ type: "reference-many-result", rid, ok: true, rows });
+        } finally {
+          referenceRuns.delete(rid);
+        }
+        return;
+      }
+      if (data.type === "reference") {
+        const name = await queryNameReference(data.appid, diagnostics);
+        postUserNames({ type: "reference-result", rid, ok: true, name });
+        return;
+      }
       if (data.type === "snapshot") {
         const snapshot = await syncUserNamesSnapshot({
           reason: "page-open",
@@ -2297,6 +2384,11 @@
       if (data.type === "save") {
         const saved = await saveIndependentName(data.item || {}, diagnostics);
         postUserNames({ type: "save-result", rid, ok: true, data: saved });
+        return;
+      }
+      if (data.type === "save-all") {
+        const saved = await saveIndependentNames(data.items, diagnostics);
+        postUserNames({ type: "save-all-result", rid, ok: true, data: saved });
         return;
       }
       if (data.type === "cancel-import") {
@@ -2368,7 +2460,7 @@
           domain: "extension",
           feature: "library-independent-name",
           event: "user-names-owner-changed",
-          message: "独立名称保存时账号已切换，未写入",
+          message: "独立名称操作时账号已切换，已停止",
           operationId: diagnostics.operationId || "",
           requestId: diagnostics.requestId || "",
           error,
