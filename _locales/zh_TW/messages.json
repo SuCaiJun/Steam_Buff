@@ -5880,13 +5880,13 @@
     }
   },
   "steam_independentName_title": {
-    "message": "自訂名稱"
+    "message": "Steam Buff · 自訂名稱"
   },
   "steam_independentName_batch": {
     "message": "批次設定"
   },
   "steam_independentName_batchTitle": {
-    "message": "批次設定自訂名稱"
+    "message": "Steam Buff · 批次設定自訂名稱"
   },
   "steam_independentName_saving": {
     "message": "正在儲存..."
@@ -6181,5 +6181,195 @@
   },
   "about_debug_warningShare": {
     "message": "請僅將日誌提供給可信任的人員，切勿公開分享。"
+  },
+  "steam_independentName_bulk_menu": {
+    "message": "批次操作"
+  },
+  "steam_independentName_bulk_add": {
+    "message": "新增"
+  },
+  "steam_independentName_bulk_generate": {
+    "message": "產生"
+  },
+  "steam_independentName_bulk_clear": {
+    "message": "清空"
+  },
+  "steam_independentName_bulk_other": {
+    "message": "其他"
+  },
+  "steam_independentName_bulk_name": {
+    "message": "修改名稱"
+  },
+  "steam_independentName_bulk_aliases": {
+    "message": "新增別名"
+  },
+  "steam_independentName_bulk_mnemonic": {
+    "message": "新增助記符"
+  },
+  "steam_independentName_bulk_pinyin": {
+    "message": "新增拼音全拼"
+  },
+  "steam_independentName_bulk_generate_mnemonic": {
+    "message": "產生助記符"
+  },
+  "steam_independentName_bulk_generate_pinyin": {
+    "message": "產生拼音全拼"
+  },
+  "steam_independentName_bulk_clear_name": {
+    "message": "清空名稱"
+  },
+  "steam_independentName_bulk_clear_aliases": {
+    "message": "清空別名"
+  },
+  "steam_independentName_bulk_clear_mnemonic": {
+    "message": "清空助記符"
+  },
+  "steam_independentName_bulk_clear_pinyin": {
+    "message": "清空拼音全拼"
+  },
+  "steam_independentName_bulk_cancelSelection": {
+    "message": "取消全選"
+  },
+  "steam_independentName_bulk_selectFirst": {
+    "message": "請先勾選遊戲"
+  },
+  "steam_independentName_bulk_replace": {
+    "message": "尋找取代"
+  },
+  "steam_independentName_bulk_sequence": {
+    "message": "序號格式"
+  },
+  "steam_independentName_bulk_insert": {
+    "message": "新增內容"
+  },
+  "steam_independentName_bulk_manual": {
+    "message": "手動編輯"
+  },
+  "steam_independentName_bulk_find": {
+    "message": "尋找關鍵字"
+  },
+  "steam_independentName_bulk_value": {
+    "message": "新增內容"
+  },
+  "steam_independentName_bulk_replacement": {
+    "message": "取代為"
+  },
+  "steam_independentName_bulk_type": {
+    "message": "序號類型"
+  },
+  "steam_independentName_bulk_start": {
+    "message": "起始序號"
+  },
+  "steam_independentName_bulk_prefix": {
+    "message": "前綴"
+  },
+  "steam_independentName_bulk_suffix": {
+    "message": "後綴"
+  },
+  "steam_independentName_bulk_number": {
+    "message": "數字"
+  },
+  "steam_independentName_bulk_chinese": {
+    "message": "中文數字"
+  },
+  "steam_independentName_bulk_lower": {
+    "message": "英文小寫"
+  },
+  "steam_independentName_bulk_upper": {
+    "message": "英文大寫"
+  },
+  "steam_independentName_bulk_insertType": {
+    "message": "新增類型"
+  },
+  "steam_independentName_bulk_text": {
+    "message": "文字"
+  },
+  "steam_independentName_bulk_position": {
+    "message": "新增位置"
+  },
+  "steam_independentName_bulk_before": {
+    "message": "名稱前"
+  },
+  "steam_independentName_bulk_after": {
+    "message": "名稱後"
+  },
+  "steam_independentName_bulk_original": {
+    "message": "自訂名稱為空時使用原名稱"
+  },
+  "steam_independentName_bulk_old": {
+    "message": "修改前"
+  },
+  "steam_independentName_bulk_next": {
+    "message": "修改後"
+  },
+  "steam_independentName_bulk_unset": {
+    "message": "未設定"
+  },
+  "steam_independentName_bulk_apply": {
+    "message": "套用修改"
+  },
+  "steam_independentName_bulk_calculating": {
+    "message": "正在計算預覽…"
+  },
+  "steam_independentName_bulk_summary": {
+    "message": "已選 $total$ 款 · 修改 $changed$ 款 · 無變更 $unchanged$ 款 · 無效 $invalid$ 款",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "unchanged": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_bulk_applied": {
+    "message": "已修改 $n$ 款，請點擊儲存修改。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_bulk_updated": {
+    "message": "目標內容已更新，請關閉後重新開啟操作視窗。"
+  },
+  "steam_independentName_bulk_invalidSequence": {
+    "message": "起始序號必須是正整數，且整個序號範圍不能超出精確整數範圍。"
+  },
+  "steam_independentName_bulk_tooLong": {
+    "message": "內容超過輸入長度上限。"
+  },
+  "steam_independentName_bulk_aliasLimit": {
+    "message": "每個遊戲最多 10 個別名，請先處理已達上限的遊戲。"
+  },
+  "steam_independentName_bulk_nameRequired": {
+    "message": "請先設定自訂名稱，再儲存助記符或拼音。"
+  },
+  "steam_independentName_bulk_originalMissing": {
+    "message": "Steam 原名稱無法使用。"
+  },
+  "steam_independentName_bulk_clearWarning": {
+    "message": "清空名稱會同時清空助記符、拼音及其鎖定狀態，保留別名。"
+  },
+  "steam_independentName_bulk_overwriteWarning": {
+    "message": "請核對修改後內容；套用會取代已有目標欄位，包括手動鎖定的內容。"
+  },
+  "steam_independentName_bulk_noGeneration": {
+    "message": "未產生內容，保留原值。"
+  },
+  "steam_independentName_bulk_failed": {
+    "message": "批次操作失敗，請重試。"
+  },
+  "steam_independentName_bulk_clearedLock": {
+    "message": "清空後鎖定該輔助欄位，名稱變更時不自動補回。"
+  },
+  "steam_independentName_bulk_selection": {
+    "message": "選擇"
   }
 }

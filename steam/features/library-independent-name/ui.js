@@ -37,6 +37,65 @@
   const READINGS_MS = 300;
   const FILTER_ICON_PATH = "images/ui/filter.svg";
   const FILTER_DELETE_ICON_PATH = "images/ui/delete.svg";
+  const BULK_LABELS = Object.freeze({
+    menu: "批量操作", add: "添加", generate: "生成", clear: "清空", selection: "选择", other: "其他",
+    name: "修改名称", aliases: "添加别名", mnemonic: "添加助记符", pinyin: "添加拼音全拼",
+    "generate-mnemonic": "生成助记符", "generate-pinyin": "生成拼音全拼",
+    "clear-name": "清空名称", "clear-aliases": "清空别名", "clear-mnemonic": "清空助记符", "clear-pinyin": "清空拼音全拼",
+    cancelSelection: "取消全选", selectFirst: "请先勾选游戏", replace: "查找替换", sequence: "序号格式", insert: "新增内容", manual: "手动编辑",
+    find: "查找关键词", value: "新增内容", replacement: "替换为", type: "序号类型", start: "起始序号", prefix: "前缀", suffix: "后缀",
+    number: "数字", chinese: "中文数字", lower: "英文小写", upper: "英文大写", insertType: "新增类型", text: "文本", position: "新增位置", before: "名称前", after: "名称后",
+    original: "自定义名称为空时使用原名称", old: "修改前", next: "修改后", unset: "未设置", apply: "应用修改", calculating: "正在计算预览…",
+    summary: "已选 $total$ 款 · 修改 $changed$ 款 · 无变化 $unchanged$ 款 · 无效 $invalid$ 款",
+    applied: "已修改 $n$ 款，请点击保存修改。", updated: "目标内容已更新，请关闭后重新打开操作窗。",
+    invalidSequence: "起始序号必须是正整数，且整个序号范围不能超出精确整数范围。", tooLong: "内容超过输入长度上限。",
+    aliasLimit: "每个游戏最多 10 个别名，请先处理满额游戏。", nameRequired: "请先设置自定义名称，再保存助记符或拼音。",
+    originalMissing: "Steam 原名称不可用。", clearWarning: "清空名称会同时清空助记符、拼音及其锁状态，保留别名。",
+    overwriteWarning: "请核对修改后内容；应用会替换已有目标字段，包括手工锁定的内容。", noGeneration: "未生成内容，保留原值。",
+    failed: "批量操作失败，请重试。", clearedLock: "清空后锁定该辅助字段，名称变化时不自动补回。",
+  });
+
+  function bulkText(key, params) {
+    return i18n(`steam.independentName.bulk.${key}`, BULK_LABELS[key], params);
+  }
+
+  // 两个序号标签共用同一转换；中文以四位分组，英文使用从 1 开始的字母编号。
+  function formatSequence(number, type) {
+    if (!Number.isSafeInteger(number) || number < 1) throw new RangeError("序号超出正整数范围");
+    if (type === "number") return String(number);
+    if (type === "lower" || type === "upper") {
+      let output = "";
+      while (number > 0) {
+        number -= 1;
+        output = String.fromCharCode((type === "lower" ? 97 : 65) + number % 26) + output;
+        number = Math.floor(number / 26);
+      }
+      return output;
+    }
+    if (type !== "chinese") throw new TypeError("未知序号类型");
+    const digits = "零一二三四五六七八九";
+    const groups = [];
+    while (number) { groups.push(number % 10000); number = Math.floor(number / 10000); }
+    let output = "";
+    let gap = false;
+    for (let index = groups.length - 1; index >= 0; index -= 1) {
+      const value = groups[index];
+      if (!value) { gap = !!output; continue; }
+      if (output && (gap || value < 1000)) output += "零";
+      let part = "";
+      let innerGap = false;
+      for (let place = 3; place >= 0; place -= 1) {
+        const digit = Math.floor(value / 10 ** place) % 10;
+        if (!digit) { innerGap = !!part; continue; }
+        if (innerGap) part += "零";
+        part += digits[digit] + ["", "十", "百", "千"][place];
+        innerGap = false;
+      }
+      output += part + ["", "万", "亿", "万亿"][index];
+      gap = false;
+    }
+    return output.replace(/^一十/, "十");
+  }
   const FILTER_GROUPS = Object.freeze([
     ["名称", ["custom_name", "aliases", "mnemonic", "pinyin", "original_language"]],
     ["应用", ["app_type", "sources", "collections", "modes", "status", "privacy"]],
@@ -145,6 +204,11 @@
       && aliases(left) === aliases(right);
   }
 
+  // 编辑界面沿用精确文本去重；保存层的大小写和空白归一化保持现有契约。
+  function hasAlias(aliases, value, except = -1) {
+    return aliases.some((item, index) => index !== except && item === value);
+  }
+
   function adoptDrafts(drafts, cloudFor) {
     const next = new Map();
     for (const [appid, draft] of drafts) {
@@ -248,6 +312,9 @@
       batchReadingTimer: 0,
       batchSaving: false,
       readingTimer: 0,
+      actionsMenu: null,
+      bulk: null,
+      bulkSession: null,
     };
     let painted = null;
     let libsTask = null;
@@ -320,6 +387,8 @@
     }
 
     function closeBatchModal() {
+      closeActionsMenu(false);
+      closeBulkEditor();
       closeFilterEditor();
       closeReferenceConfirm();
       if (state.referenceRun) {
@@ -364,7 +433,8 @@
         restore: state.opener,
         initial: () => modal.querySelector("[data-lin-search]") || modal.querySelector("[data-lin-close]"),
         onEscape: () => {
-          if (state.filterDraft) closeFilterEditor();
+          if (state.actionsMenu) closeActionsMenu();
+          else if (state.filterDraft) closeFilterEditor();
           else if (state.referencePending) closeReferenceConfirm();
           else closeBatchModal();
         },
@@ -434,7 +504,7 @@
       return `
         <div class="st-lin-single-dialog">
           <header class="st-lin-head">
-            <h2 id="st-lin-single-title">${esc(i18n("steam.independentName.title", "自定义名称"))}</h2>
+            <h2 id="st-lin-single-title">${esc(i18n("steam.independentName.title", "Steam Buff · 自定义名称"))}</h2>
             <button class="st-lin-close" type="button" data-lin-single-close aria-label="${esc(i18n("common.close", "关闭"))}">×</button>
           </header>
           <div class="st-lin-single-form" data-appid="${appid}">
@@ -894,8 +964,15 @@
       if (picker.matches("[data-lin-filter-option-menu]")) {
         picker.style.width = `${Math.min(Math.max(anchor.width, 220), window.innerWidth - 16)}px`;
       }
+      if (picker.matches("[data-lin-actions-menu]")) {
+        // 两侧都放不下整份菜单时只缩小内部滚动区，保留触发按钮和三角之间的间隙。
+        const available = Math.max(anchor.top - 16, window.innerHeight - anchor.bottom - 16);
+        picker.querySelector(".st-lin-actions-scroll").style.maxHeight = `${Math.max(0, available - 2)}px`;
+      }
       const rect = picker.getBoundingClientRect();
-      picker.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - rect.width - 8))}px`;
+      const left = Math.max(8, Math.min(anchor.left, window.innerWidth - rect.width - 8));
+      picker.style.left = `${left}px`;
+      if (picker.matches("[data-lin-actions-menu]")) picker.style.setProperty("--st-lin-actions-arrow-x", `${Math.max(12, Math.min(anchor.left + anchor.width / 2 - left, rect.width - 12))}px`);
       const below = anchor.bottom + 8 + rect.height <= window.innerHeight - 8;
       picker.dataset.linFilterPlacement = below ? "below" : "above";
       picker.style.top = `${below ? anchor.bottom + 8 : Math.max(8, anchor.top - rect.height - 8)}px`;
@@ -1094,11 +1171,347 @@
       }, READINGS_MS);
     }
 
+    function actionsMenuHtml() {
+      const action = key => `<button class="st-lin-btn" type="button" data-lin-bulk-action="${key}" disabled>${esc(bulkText(key))}</button>`;
+      const group = (key, contents) => `<div class="st-lin-actions-group" data-lin-actions-group="${key}"><strong>${esc(bulkText(key))}</strong><div>${contents}</div></div>`;
+      return group("add", ["name", "aliases", "mnemonic", "pinyin"].map(action).join(""))
+        + group("generate", `<button class="st-lin-btn" type="button" data-lin-reference-many disabled>${esc(i18n("steam.independentName.fetchCommunity", "获取社区名称"))}</button>` + ["generate-mnemonic", "generate-pinyin"].map(action).join(""))
+        + group("clear", ["clear-name", "clear-aliases", "clear-mnemonic", "clear-pinyin"].map(action).join(""))
+        + group("selection", `<button class="st-lin-btn" type="button" data-lin-selection="all">${esc(i18n("steam.independentName.selectAll", "全选"))}</button><button class="st-lin-btn" type="button" data-lin-selection="invert">${esc(i18n("steam.independentName.invertSelection", "反选"))}</button><button class="st-lin-btn" type="button" data-lin-selection="clear">${esc(bulkText("cancelSelection"))}</button>`)
+        + group("other", `<button class="st-lin-btn" type="button" data-lin-import>${esc(i18n("steam.independentName.import", "导入"))}</button><button class="st-lin-btn" type="button" data-lin-export disabled>${esc(i18n("steam.independentName.export", "导出"))}</button>`);
+    }
+
+    function closeActionsMenu(restore = true) {
+      const menu = state.actionsMenu;
+      if (!menu) return;
+      state.actionsMenu = null;
+      menu.hidePopover();
+      menu.hidden = true;
+      document.removeEventListener("pointerdown", onActionsOutside, true);
+      window.removeEventListener("resize", onActionsResize);
+      const button = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-actions-toggle]");
+      button?.setAttribute("aria-expanded", "false");
+      if (restore) button?.focus({ preventScroll: true });
+    }
+
+    function onActionsOutside(event) {
+      if (!state.actionsMenu?.contains(event.target) && !event.target.closest("[data-lin-actions-toggle]")) closeActionsMenu(false);
+    }
+
+    function onActionsResize() {
+      positionFilterPicker(state.actionsMenu, document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-actions-toggle]"));
+    }
+
+    function toggleActionsMenu(button) {
+      if (state.actionsMenu) { closeActionsMenu(false); return; }
+      if (state.busy || state.batchSaving || state.referenceRun || state.bulk) return;
+      const menu = document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-menu]");
+      menu.hidden = false;
+      menu.showPopover();
+      state.actionsMenu = menu;
+      button.setAttribute("aria-expanded", "true");
+      onActionsResize();
+      document.addEventListener("pointerdown", onActionsOutside, true);
+      window.addEventListener("resize", onActionsResize);
+      menu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
+    }
+
+    function bulkRoot() {
+      return document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-bulk-editor]");
+    }
+
+    function closeBulkEditor(reason = "cancel") {
+      const bulk = state.bulk;
+      if (bulk && reason !== "applied") log.info("independent-name-bulk-cancelled", "选中游戏批量操作已取消，未应用草稿", { operation: bulk.kind, operationId: bulk.operationId, count: bulk.rows.length, durationMs: Math.round(performance.now() - bulk.startedAt) });
+      if (bulk?.frame) window.cancelAnimationFrame(bulk.frame);
+      if (bulk?.commitFrame) {
+        window.cancelAnimationFrame(bulk.commitFrame.id);
+        bulk.commitFrame.resolve();
+      }
+      state.bulk = null;
+      const root = bulkRoot();
+      if (root) root.hidden = true;
+      refreshBatchSave();
+      state.bulkSession?.close();
+      state.bulkSession = null;
+    }
+
+    function bulkParameters() {
+      const bulk = state.bulk;
+      const params = bulk.params[bulk.tab];
+      const input = (key, type = "text") => `<label><span>${esc(bulkText(key === "value" && bulk.tab === "replace" ? "replacement" : key))}</span><input data-lin-bulk-param="${key}" type="${type}" value="${esc(params[key])}" ${type === "number" ? 'min="1" step="1"' : 'maxlength="200"'}></label>`;
+      const select = (key, values) => `<label><span>${esc(bulkText(key))}</span><select data-lin-bulk-param="${key}">${values.map(value => `<option value="${value}" ${params[key] === value ? "selected" : ""}>${esc(bulkText(value))}</option>`).join("")}</select></label>`;
+      const numbering = () => select("type", ["number", "chinese", "lower", "upper"]) + input("start", "number") + input("prefix") + input("suffix");
+      let html = "";
+      if (bulk.kind === "name") {
+        if (bulk.tab === "replace") html = input("find") + input("value");
+        if (bulk.tab === "sequence") html = numbering();
+        if (bulk.tab === "insert") html = select("insertType", ["text", "sequence"]) + select("position", ["before", "after"]) + (params.insertType === "text" ? input("value") : numbering());
+      } else if (["aliases", "mnemonic", "pinyin"].includes(bulk.kind)) html = input("value");
+      setHtml(bulkRoot().querySelector("[data-lin-bulk-params]"), html, "library-independent-name-bulk-params");
+    }
+
+    async function openBulkEditor(kind) {
+      if (!state.selected.size || state.busy || state.referenceRun || state.batchSaving || state.bulk) return;
+      window.clearTimeout(state.searchTimer);
+      applySearch();
+      const rows = state.filtered.filter(row => state.selected.has(row.appid));
+      if (!rows.length) { refreshBatchSave(); return; }
+      if (typeof state.snapshot.userId !== "string" || !state.snapshot.userId) throw new TypeError("名称快照缺少当前账号");
+      closeActionsMenu(false);
+      const root = bulkRoot();
+      const bulk = {
+        kind, tab: kind === "name" ? "replace" : "value", userId: state.snapshot.userId,
+        operationId: `bulk-${Date.now()}-${Math.random().toString(36).slice(2)}`, startedAt: performance.now(),
+        rows: rows.map(row => ({ appid: row.appid, official_name: row.official_name, base: { ...draftOf(row.appid), aliases: draftOf(row.appid).aliases.slice() } })),
+        params: { replace: { find: "", value: "" }, sequence: { type: "number", start: "1", prefix: "", suffix: "" }, insert: { insertType: "text", position: "before", value: "", type: "number", start: "1", prefix: "", suffix: "" }, manual: {}, value: { value: "" } },
+        manual: new Map(), useOriginal: false, preview: [], revision: 0, frame: 0, ready: false, running: true, error: "", changed: 0, invalid: 0, clearedNames: 0,
+        virtual: VIRTUAL.createVirtualWindow({ rowHeight: 80, viewportHeight: 320, overscan: 4 }),
+      };
+      bulk.index = new Map(bulk.rows.map((row, index) => [row.appid, index]));
+      state.bulk = bulk;
+      const tabs = kind === "name" ? `<div class="st-lin-bulk-tabs" role="tablist">${["replace", "sequence", "insert", "manual"].map(tab => `<button class="st-lin-btn" type="button" role="tab" id="st-lin-bulk-tab-${tab}" aria-controls="st-lin-bulk-panel" aria-selected="${tab === bulk.tab}" tabindex="${tab === bulk.tab ? 0 : -1}" data-lin-bulk-tab="${tab}">${esc(bulkText(tab))}</button>`).join("")}</div>` : "";
+      setHtml(root, `<div class="st-lin-bulk-dialog"><header class="st-lin-head"><h3 id="st-lin-bulk-title">Steam Buff · ${esc(bulkText(kind))}</h3><button class="st-lin-btn" type="button" data-lin-bulk-cancel>${esc(i18n("common.close", "关闭"))}</button></header>${tabs}<div id="st-lin-bulk-panel" ${kind === "name" ? 'role="tabpanel" aria-labelledby="st-lin-bulk-tab-replace"' : ""}><div class="st-lin-bulk-params" data-lin-bulk-params></div>${kind === "name" ? `<label class="st-lin-bulk-original"><input type="checkbox" data-lin-bulk-original>${esc(bulkText("original"))}</label>` : ""}<div class="st-lin-bulk-columns"><span>AppID · ${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</span><span>${esc(bulkText("old"))}</span><span>${esc(bulkText("next"))}</span></div><div class="st-lin-bulk-scroll" data-lin-bulk-scroll><div data-lin-bulk-rows></div></div></div><p class="st-lin-msg" data-lin-bulk-warning></p><p class="st-lin-msg" role="status" data-lin-bulk-status></p><footer class="st-lin-filter-actions"><button class="st-lin-btn" type="button" data-lin-bulk-cancel>${esc(i18n("common.cancel", "取消"))}</button><button class="st-lin-btn st-lin-primary" type="button" data-lin-bulk-apply disabled>${esc(bulkText("apply"))}</button></footer></div>`, "library-independent-name-bulk-editor");
+      root.hidden = false;
+      bulkParameters();
+      root.querySelector("[data-lin-bulk-scroll]").addEventListener("scroll", () => { if (state.bulk === bulk && !bulk.composing) renderBulkRows(); }, { passive: true });
+      state.bulkSession = window.STDialogLifecycle.open({ root, restore: document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-toggle]"), initial: () => root.querySelector("input") || root.querySelector("[data-lin-bulk-cancel]"), onEscape: closeBulkEditor });
+      state.bulkSession.focusInitial();
+      refreshBulkStatus();
+      refreshBatchSave();
+      log.info("independent-name-bulk-start", "已打开选中游戏批量操作", { operation: kind, operationId: bulk.operationId, count: rows.length });
+      await loadLibs();
+      if (state.bulk !== bulk || !state.started) return;
+      bulk.ready = true;
+      scheduleBulkPreview();
+    }
+
+    function bulkField(kind) {
+      return kind === "name" || kind === "clear-name" ? "custom_name" : kind.replace(/^(generate|clear)-/, "");
+    }
+
+    // 只产生目标字段补丁。名称派生字段复用 fillGenerated，并先用既有读音契约校验生成结果。
+    function bulkRow(row, index) {
+      const bulk = state.bulk;
+      const base = row.base;
+      const field = bulkField(bulk.kind);
+      const params = bulk.params[bulk.tab];
+      const source = base.custom_name || (bulk.useOriginal && typeof row.official_name === "string" ? row.official_name : "");
+      let patch = {};
+      let value;
+      let error = "";
+      let note = "";
+      if (bulk.kind === "name") {
+        if (!base.custom_name && bulk.useOriginal && !source) error = bulkText("originalMissing");
+        if (bulk.tab === "replace" && params.find && source.includes(params.find)) value = source.split(params.find).join(params.value);
+        if (bulk.tab === "manual" && bulk.manual.has(row.appid)) value = bulk.manual.get(row.appid);
+        if (bulk.tab === "sequence" || bulk.tab === "insert") {
+          const added = bulk.tab === "insert" && params.insertType === "text" ? params.value : params.prefix + formatSequence(Number(params.start) + index, params.type) + params.suffix;
+          if (bulk.tab === "sequence") value = added;
+          else if (added) value = params.position === "before" ? added + source : source + added;
+        }
+        if (value !== undefined && !error) {
+          value = text(value);
+          if (!base.custom_name && bulk.useOriginal && bulk.tab !== "sequence" && value === source) value = undefined;
+        }
+        if (value !== undefined && !error) {
+          patch.custom_name = value;
+          if (value !== base.custom_name) {
+            const next = { ...base, custom_name: value };
+            const pair = value && (!base.mnemonic_locked || !base.pinyin_locked) ? window.SteamBuff.libraryCustomNameMnemonic.readings(value, {}, window.pinyinPro) : null;
+            fillGenerated(next, base.custom_name, value, pair);
+            for (const key of ["mnemonic", "pinyin", "mnemonic_locked", "pinyin_locked"]) if (next[key] !== base[key]) patch[key] = next[key];
+          }
+        }
+      } else if (bulk.kind.startsWith("clear-")) {
+        patch[field] = field === "aliases" ? [] : "";
+        if (field === "custom_name") Object.assign(patch, { mnemonic: "", pinyin: "", mnemonic_locked: false, pinyin_locked: false });
+        if (field === "mnemonic" || field === "pinyin") patch[`${field}_locked`] = true;
+      } else {
+        value = text(params.value);
+        if (field !== "aliases" && !base.custom_name) error = bulkText("nameRequired");
+        if (bulk.kind.startsWith("generate-") && !error) {
+          value = window.SteamBuff.libraryCustomNameMnemonic.readings(base.custom_name, {}, window.pinyinPro)[field];
+          if (!value) note = bulkText("noGeneration");
+        }
+        if (value && !error) {
+          if (field === "aliases") {
+            if (value.length > 40) error = bulkText("tooLong");
+            else if (!hasAlias(base.aliases, value)) {
+              if (base.aliases.length >= ALIAS_MAX) error = bulkText("aliasLimit");
+              else patch.aliases = [...base.aliases, value];
+            }
+          } else { patch[field] = value; patch[`${field}_locked`] = true; }
+        }
+      }
+      if (Object.values(patch).some(value => typeof value === "string" && value.length > 200)) error = bulkText("tooLong");
+      const changed = !error && Object.keys(patch).some(key => JSON.stringify(base[key]) !== JSON.stringify(patch[key]));
+      return { appid: row.appid, original: row.official_name, before: bulk.kind === "name" ? source : base[field], next: patch[field] ?? (bulk.kind === "name" ? source : base[field]), source, patch, changed, error, note };
+    }
+
+    function refreshBulkStatus() {
+      const bulk = state.bulk;
+      if (!bulk) return;
+      const root = bulkRoot();
+      root.querySelector("[data-lin-bulk-status]").textContent = bulk.error || (bulk.running ? bulkText("calculating") : bulkText("summary", { total: bulk.rows.length, changed: bulk.changed, unchanged: bulk.rows.length - bulk.changed - bulk.invalid, invalid: bulk.invalid }));
+      root.querySelector("[data-lin-bulk-apply]").disabled = bulk.running || bulk.composing || !!bulk.error || bulk.invalid > 0 || !bulk.changed;
+      for (const field of root.querySelectorAll("input, select, [data-lin-bulk-tab]")) field.disabled = bulk.committing === true;
+      const clearsName = bulk.kind === "clear-name" || bulk.clearedNames > 0;
+      const warning = clearsName ? bulkText("clearWarning") : ["clear-mnemonic", "clear-pinyin"].includes(bulk.kind) ? bulkText("clearedLock") : bulk.kind !== "name" && bulk.kind !== "aliases" ? bulkText("overwriteWarning") : "";
+      root.querySelector("[data-lin-bulk-warning]").textContent = warning;
+    }
+
+    function renderBulkRows() {
+      const bulk = state.bulk;
+      if (!bulk) return;
+      const root = bulkRoot();
+      const scroller = root.querySelector("[data-lin-bulk-scroll]");
+      const range = bulk.virtual.update({ scrollTop: scroller.scrollTop, viewportHeight: scroller.clientHeight || 320 }).range(bulk.preview.length);
+      const display = value => Array.isArray(value) ? value.join(" · ") : value || bulkText("unset");
+      const active = document.activeElement;
+      const focus = active?.matches("[data-lin-bulk-manual]") ? { appid: active.dataset.linBulkManual, start: active.selectionStart, end: active.selectionEnd } : null;
+      setHtml(root.querySelector("[data-lin-bulk-rows]"), `<div style="height:${range.before}px"></div>${bulk.preview.slice(range.start, range.end).map(row => `<div class="st-lin-bulk-row" ${row.changed ? 'data-changed="true"' : ""}><span title="${esc(row.original)}"><b>${row.appid}</b><small>${esc(row.original)}</small></span><span title="${esc(display(row.before))}">${esc(display(row.before))}</span><span>${bulk.kind === "name" && bulk.tab === "manual" ? `<input type="text" maxlength="200" data-lin-bulk-manual="${row.appid}" value="${esc(bulk.manual.has(row.appid) ? bulk.manual.get(row.appid) : row.source)}" aria-label="${row.appid} ${esc(bulkText("next"))}">` : `<span title="${esc(display(row.next))}">${esc(display(row.next))}</span>`}<small class="st-lin-bulk-error">${esc(row.error || row.note)}</small></span></div>`).join("")}<div style="height:${range.after}px"></div>`, "library-independent-name-bulk-preview");
+      if (focus) {
+        const input = root.querySelector(`[data-lin-bulk-manual="${focus.appid}"]`);
+        input?.focus({ preventScroll: true });
+        input?.setSelectionRange(focus.start, focus.end);
+      }
+    }
+
+    // 输入只作废旧批次；每帧最多计算 16 个选中项，不注册轮询或逐次预览日志。
+    function scheduleBulkPreview() {
+      const bulk = state.bulk;
+      if (!bulk) return;
+      if (bulk.frame) window.cancelAnimationFrame(bulk.frame);
+      const revision = ++bulk.revision;
+      bulk.running = true;
+      bulk.error = "";
+      refreshBulkStatus();
+      if (!bulk.ready || bulk.composing) return;
+      const params = bulk.params[bulk.tab];
+      if (bulk.kind === "name" && (bulk.tab === "sequence" || bulk.tab === "insert" && params.insertType === "sequence") && (!/^[1-9]\d*$/.test(params.start) || !Number.isSafeInteger(Number(params.start) + bulk.rows.length - 1))) {
+        bulk.running = false; bulk.error = bulkText("invalidSequence"); refreshBulkStatus(); return;
+      }
+      const results = [];
+      const step = () => {
+        bulk.frame = 0;
+        if (state.bulk !== bulk || !state.started || revision !== bulk.revision) return;
+        if (bulk.userId !== state.snapshot.userId) { bulk.running = false; bulk.error = bulkText("updated"); refreshBulkStatus(); return; }
+        try {
+          const end = Math.min(results.length + 16, bulk.rows.length);
+          while (results.length < end) results.push(bulkRow(bulk.rows[results.length], results.length));
+          if (results.length < bulk.rows.length) { bulk.frame = window.requestAnimationFrame(step); return; }
+          bulk.preview = results;
+          bulk.changed = results.filter(row => row.changed).length;
+          bulk.invalid = results.filter(row => row.error).length;
+          bulk.clearedNames = results.filter(row => row.changed && row.patch.custom_name === "").length;
+          bulk.running = false;
+          renderBulkRows();
+          refreshBulkStatus();
+        } catch (error) { bulk.running = false; bulk.error = bulkText("failed"); refreshBulkStatus(); log.error("independent-name-bulk-preview-failed", "批量名称预览失败", { error, operation: bulk.kind, operationId: bulk.operationId, count: bulk.rows.length, durationMs: Math.round(performance.now() - bulk.startedAt) }); }
+      };
+      bulk.frame = window.requestAnimationFrame(step);
+    }
+
+    function switchBulkTab(tab) {
+      const bulk = state.bulk;
+      if (!bulk || bulk.running && bulk.committing) return;
+      bulk.tab = tab;
+      for (const button of bulkRoot().querySelectorAll("[data-lin-bulk-tab]")) {
+        const selected = button.dataset.linBulkTab === tab;
+        button.setAttribute("aria-selected", String(selected));
+        button.tabIndex = selected ? 0 : -1;
+      }
+      bulkRoot().querySelector("#st-lin-bulk-panel").setAttribute("aria-labelledby", `st-lin-bulk-tab-${tab}`);
+      bulkParameters();
+      scheduleBulkPreview();
+    }
+
+    function onBulkInput(event) {
+      const bulk = state.bulk;
+      if (!bulk || bulk.committing || !event.target.closest("[data-lin-bulk-editor]")) return false;
+      bulk.composing = event.isComposing === true;
+      const field = event.target;
+      if (bulk.composing) {
+        if (bulk.frame) window.cancelAnimationFrame(bulk.frame);
+        bulk.frame = 0;
+        bulk.revision += 1;
+        if (!field.matches("[data-lin-bulk-manual]")) bulk.running = true;
+        refreshBulkStatus();
+      }
+      if (field.matches("[data-lin-bulk-param]")) {
+        bulk.params[bulk.tab][field.dataset.linBulkParam] = field.value;
+        if (field.dataset.linBulkParam === "insertType") { bulkParameters(); bulkRoot().querySelector('[data-lin-bulk-param="insertType"]').focus(); }
+        if (!bulk.composing) scheduleBulkPreview();
+      } else if (field.matches("[data-lin-bulk-original]")) {
+        bulk.useOriginal = field.checked; scheduleBulkPreview();
+      } else if (field.matches("[data-lin-bulk-manual]")) {
+        const appid = Number(field.dataset.linBulkManual);
+        bulk.manual.set(appid, field.value);
+        if (bulk.composing) return true;
+        if (bulk.running) { if (!bulk.composing) scheduleBulkPreview(); return true; }
+        const index = bulk.index.get(appid);
+        const previous = bulk.preview[index];
+        const next = bulkRow(bulk.rows[index], index);
+        bulk.preview[index] = next;
+        bulk.changed += Number(next.changed) - Number(previous.changed);
+        bulk.invalid += Number(!!next.error) - Number(!!previous.error);
+        bulk.clearedNames += Number(next.changed && next.patch.custom_name === "") - Number(previous.changed && previous.patch.custom_name === "");
+        field.closest(".st-lin-bulk-row").dataset.changed = String(next.changed);
+        field.parentElement.querySelector("small").textContent = next.error;
+        refreshBulkStatus();
+      }
+      return true;
+    }
+
+    function reportFailure(error, bulk = state.bulk) {
+      if (!state.started || state.bulk !== bulk) return;
+      if (bulk) { bulk.running = false; bulk.committing = false; bulk.error = error.message || bulkText("failed"); refreshBulkStatus(); }
+      else { state.message = bulkText("failed"); renderTable(); }
+      log.error("independent-name-bulk-failed", "选中游戏批量操作失败", { error, operation: bulk?.kind, operationId: bulk?.operationId, count: bulk?.rows.length, durationMs: bulk ? Math.round(performance.now() - bulk.startedAt) : undefined });
+    }
+
+    // 在独立 Map 中分批校验、合并；最后替换草稿集合，取消或账号变化不留下半批草稿。
+    async function applyBulkEditor() {
+      const bulk = state.bulk;
+      if (!bulk || bulk.running || bulk.composing || bulk.error || bulk.invalid || !bulk.changed) return;
+      bulk.running = true;
+      bulk.committing = true;
+      refreshBulkStatus();
+      const previousDrafts = state.drafts;
+      const nextDrafts = new Map(previousDrafts);
+      const unchanged = (row, base) => {
+        return sameNameDraft(draftOf(row.appid), base);
+      };
+      for (let index = 0; index < bulk.preview.length; index += 1) {
+        if (state.bulk !== bulk || !state.started) return;
+        if (bulk.userId !== state.snapshot.userId || previousDrafts !== state.drafts) throw new Error(bulkText("updated"));
+        const row = bulk.preview[index];
+        if (row.changed) {
+          const current = draftOf(row.appid);
+          const base = bulk.rows[index].base;
+          if (!unchanged(row, base)) throw new Error(bulkText("updated"));
+          nextDrafts.set(row.appid, { ...current, aliases: current.aliases.slice(), edited: true, conflict: false, base: previousDrafts.get(row.appid)?.base || cloudOf(row.appid), ...row.patch });
+        }
+        if ((index + 1) % 16 === 0) await new Promise(resolve => { bulk.commitFrame = { resolve, id: window.requestAnimationFrame(() => { bulk.commitFrame = null; resolve(); }) }; });
+      }
+      if (state.bulk !== bulk || !state.started) return;
+      if (bulk.userId !== state.snapshot.userId || previousDrafts !== state.drafts) throw new Error(bulkText("updated"));
+      // 分批等待期间的就地修改也必须拒绝；校验结束到替换 Map 之间没有异步间隙。
+      for (let index = 0; index < bulk.preview.length; index += 1) if (bulk.preview[index].changed && !unchanged(bulk.preview[index], bulk.rows[index].base)) throw new Error(bulkText("updated"));
+      state.drafts = nextDrafts;
+      syncSelectedDrafts();
+      state.message = bulkText("applied", { n: bulk.changed });
+      log.info("independent-name-bulk-applied", "选中游戏批量修改已应用到草稿", { operation: bulk.kind, operationId: bulk.operationId, count: bulk.rows.length, changed: bulk.changed, durationMs: Math.round(performance.now() - bulk.startedAt) });
+      closeBulkEditor("applied");
+      renderTable();
+    }
+
     function refreshBatchSave() {
       const modal = document.getElementById(BATCH_MODAL);
       const button = modal?.querySelector("[data-lin-save-all]");
       if (!button) return;
-      const locked = state.busy || !!state.referenceRun;
+      const locked = state.busy || !!state.referenceRun || !!state.bulk;
       button.disabled = state.batchSaving || locked || state.selectedDrafts.size === 0;
       button.textContent = state.batchSaving
         ? i18n("steam.independentName.saving", "正在保存...")
@@ -1112,6 +1525,11 @@
       reference.disabled = locked || state.batchSaving || !state.selected.size;
       reference.textContent = state.referenceRun ? i18n("steam.independentName.fetchingCommunity", "正在获取社区名称...") : i18n("steam.independentName.fetchCommunity", "获取社区名称");
       for (const control of modal.querySelectorAll("[data-lin-selection], [data-lin-select], [data-lin-search], [data-lin-filter-open], [data-lin-filter-add], [data-lin-import]")) control.disabled = locked;
+      modal.querySelector("[data-lin-actions-toggle]").disabled = locked || state.batchSaving;
+      for (const control of modal.querySelectorAll("[data-lin-bulk-action]")) {
+        control.disabled = locked || state.batchSaving || !state.selected.size;
+        control.title = state.selected.size ? "" : bulkText("selectFirst");
+      }
       modal.querySelector("[data-lin-filter-clear]").disabled = locked || !state.filters.length;
       modal.querySelector("[data-lin-filter-chips]").inert = locked;
     }
@@ -1240,7 +1658,7 @@
       if (!draft) return false;
       const alias = text(draft.input);
       if (!alias) return draft.editing < 0;
-      if (draft.aliases.some((item, index) => index !== draft.editing && item === alias)) {
+      if (hasAlias(draft.aliases, alias, draft.editing)) {
         draft.message = i18n("steam.independentName.aliasDuplicate", "这个别名已存在");
         renderAliasEditor();
         return false;
@@ -1474,7 +1892,7 @@
       return `
         <div class="st-lin-dialog">
           <header class="st-lin-head">
-            <h2 id="st-lin-batch-title">${esc(i18n("steam.independentName.batchTitle", "批量设置自定义名称"))}</h2>
+            <h2 id="st-lin-batch-title">${esc(i18n("steam.independentName.batchTitle", "Steam Buff · 批量设置自定义名称"))}</h2>
             <button class="st-lin-btn" type="button" data-lin-close>${esc(i18n("common.close", "关闭"))}</button>
           </header>
           <div class="st-lin-top">
@@ -1498,18 +1916,12 @@
               </section>
             </div>
             <p class="st-lin-msg st-lin-filter-stats" data-lin-stats></p>
-            <div class="st-lin-toolbar">
-              <button class="st-lin-btn st-lin-primary" type="button" data-lin-save-all disabled>${esc(i18n("steam.independentName.saveChanges", "保存修改"))}</button>
-              <button class="st-lin-btn" type="button" data-lin-reference-many disabled>${esc(i18n("steam.independentName.fetchCommunity", "获取社区名称"))}</button>
-            </div>
             <div class="st-lin-toolbar st-lin-selection-bar">
-              <button class="st-lin-btn" type="button" data-lin-selection="all">${esc(i18n("steam.independentName.selectAll", "全选"))}</button>
-              <button class="st-lin-btn" type="button" data-lin-selection="invert">${esc(i18n("steam.independentName.invertSelection", "反选"))}</button>
-              <button class="st-lin-btn" type="button" data-lin-selection="clear">${esc(i18n("steam.independentName.clearSelection", "取消选中"))}</button>
+              <button class="st-lin-btn st-lin-primary" type="button" data-lin-save-all disabled>${esc(i18n("steam.independentName.saveChanges", "保存修改"))}</button>
               <span class="st-lin-msg" data-lin-selected-count></span>
               <div class="st-lin-file-tools">
-                <button class="st-lin-btn" type="button" data-lin-import>${esc(i18n("steam.independentName.import", "导入"))}</button>
-                <button class="st-lin-btn" type="button" data-lin-export disabled>${esc(i18n("steam.independentName.export", "导出"))}</button>
+                <button class="st-lin-btn" type="button" data-lin-actions-toggle aria-controls="st-lin-actions-menu" aria-expanded="false">${esc(bulkText("menu"))} ▾</button>
+                <div id="st-lin-actions-menu" class="st-lin-actions-menu" data-lin-actions-menu popover="manual" hidden><div class="st-lin-actions-scroll">${actionsMenuHtml()}</div></div>
                 <input data-lin-search type="search" value="${esc(state.search)}" aria-label="${esc(i18n("steam.independentName.search", "搜索名称 / AppID / 别名"))}" placeholder="${esc(i18n("steam.independentName.search", "搜索名称 / AppID / 别名"))}">
                 <input data-lin-file type="file" accept="application/json" hidden>
               </div>
@@ -1554,6 +1966,7 @@
           </div>
         </section>
         <section class="st-lin-alias-layer" data-lin-alias-editor role="dialog" aria-modal="true" aria-labelledby="st-lin-alias-title" hidden></section>
+        <section class="st-lin-alias-layer" data-lin-bulk-editor role="dialog" aria-modal="true" aria-labelledby="st-lin-bulk-title" hidden></section>
       `;
     }
 
@@ -1586,7 +1999,7 @@
       }
     }
 
-    function fillGenerated(draft, prevName, nextName) {
+    function fillGenerated(draft, prevName, nextName, generated) {
       if (!nextName) {
         draft.mnemonic = "";
         draft.pinyin = "";
@@ -1600,10 +2013,10 @@
       const core = window.SteamBuff?.libraryCustomNameMnemonic;
       // 锁定表示用户改过，默认生成才套用大写助记符和音节首字母大写的拼音
       if (!draft.mnemonic_locked) {
-        draft.mnemonic = core?.mnemonic?.(nextName, window.pinyinPro?.pinyin) || draft.mnemonic;
+        draft.mnemonic = (generated ? generated.mnemonic : core?.mnemonic?.(nextName, window.pinyinPro?.pinyin)) || draft.mnemonic;
       }
       if (!draft.pinyin_locked) {
-        draft.pinyin = core?.pinyinFull?.(nextName, window.pinyinPro?.pinyin) || draft.pinyin;
+        draft.pinyin = (generated ? generated.pinyin : core?.pinyinFull?.(nextName, window.pinyinPro?.pinyin)) || draft.pinyin;
       }
     }
 
@@ -1661,6 +2074,7 @@
         modal.addEventListener("keydown", onBatchKey);
         modal.addEventListener("input", onBatchInput);
         modal.addEventListener("change", onBatchChange);
+        modal.addEventListener("compositionend", onBatchInput);
         modal.addEventListener("compositionend", scheduleBatchReadings);
         document.body.appendChild(modal);
       }
@@ -2005,7 +2419,7 @@
         return;
       }
       const draft = ensureEdited(appid);
-      if (draft.aliases.length >= ALIAS_MAX || draft.aliases.includes(alias)) {
+      if (draft.aliases.length >= ALIAS_MAX || hasAlias(draft.aliases, alias)) {
         return;
       }
       draft.aliases.push(alias);
@@ -2214,6 +2628,27 @@
 
     function onBatchClick(event) {
       const target = event.target;
+      if (state.bulk) {
+        if (!target.closest("[data-lin-bulk-editor]")) return;
+        if (target.closest("[data-lin-bulk-cancel]")) { closeBulkEditor(); return; }
+        const tab = target.closest("[data-lin-bulk-tab]");
+        if (tab) { switchBulkTab(tab.dataset.linBulkTab); return; }
+        if (target.closest("[data-lin-bulk-apply]")) {
+          const bulk = state.bulk;
+          void applyBulkEditor().catch(error => reportFailure(error, bulk));
+        }
+        return;
+      }
+      const toggle = target.closest("[data-lin-actions-toggle]");
+      if (toggle) { toggleActionsMenu(toggle); return; }
+      const action = target.closest("[data-lin-bulk-action]");
+      if (action) {
+        if (action.disabled) return;
+        const task = openBulkEditor(action.dataset.linBulkAction);
+        const bulk = state.bulk;
+        void task.catch(error => reportFailure(error, bulk));
+        return;
+      }
       if (state.filterDraft) {
         const editor = target.closest("[data-lin-filter-editor]");
         if (!editor || target.closest("[data-lin-filter-cancel]")) { closeFilterEditor(); return; }
@@ -2276,7 +2711,12 @@
       const selection = target.closest("[data-lin-selection]");
       if (selection) { changeSelection(selection.dataset.linSelection); return; }
       const community = target.closest("[data-lin-reference-many]");
-      if (community) { fetchSelectedCommunity(community); return; }
+      if (community) {
+        if (community.disabled) return;
+        closeActionsMenu();
+        fetchSelectedCommunity(document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-toggle]"));
+        return;
+      }
       const panel = event.target.closest("[data-lin-batch-readings]");
       if (panel) {
         const appid = Number(panel.closest("tr")?.dataset.appid) || 0;
@@ -2318,15 +2758,28 @@
         return;
       }
       if (event.target.closest("[data-lin-export]")) {
+        closeActionsMenu();
         exportJson();
         return;
       }
       if (event.target.closest("[data-lin-import]")) {
+        closeActionsMenu();
         document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-file]")?.click();
       }
     }
 
     function onBatchKey(event) {
+      if (state.bulk) {
+        const tab = event.target.closest("[data-lin-bulk-tab]");
+        if (!tab || event.isComposing || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const tabs = Array.from(bulkRoot().querySelectorAll("[data-lin-bulk-tab]"));
+        const index = tabs.indexOf(tab);
+        const next = tabs[event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+        switchBulkTab(next.dataset.linBulkTab);
+        next.focus();
+        return;
+      }
       if (event.key === "Escape" && state.filterPicker && event.target.closest?.("[data-lin-filter-option-search]")) {
         event.preventDefault();
         closeFilterPicker();
@@ -2344,6 +2797,10 @@
     }
 
     function onBatchInput(event) {
+      if (state.bulk) {
+        try { onBulkInput(event); } catch (error) { reportFailure(error); }
+        return;
+      }
       if (event.target.matches?.("[data-lin-select]")) return;
       if (event.target.matches?.("[data-lin-filter-option-search]")) {
         const query = text(event.target.value).toLocaleLowerCase();
@@ -2418,6 +2875,12 @@
     }
 
     function onBatchChange(event) {
+      if (state.bulk) {
+        if (event.target.matches("select, [data-lin-bulk-original]")) {
+          try { onBulkInput(event); } catch (error) { reportFailure(error); }
+        }
+        return;
+      }
       const selection = event.target.closest("[data-lin-select]");
       if (selection) {
         if (state.referenceRun || state.busy) return;

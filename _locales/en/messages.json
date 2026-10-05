@@ -5880,13 +5880,13 @@
     }
   },
   "steam_independentName_title": {
-    "message": "Custom name"
+    "message": "Steam Buff · Custom name"
   },
   "steam_independentName_batch": {
     "message": "Batch settings"
   },
   "steam_independentName_batchTitle": {
-    "message": "Batch custom name settings"
+    "message": "Steam Buff · Batch custom name settings"
   },
   "steam_independentName_saving": {
     "message": "Saving..."
@@ -6181,5 +6181,195 @@
   },
   "about_debug_warningShare": {
     "message": "Only share logs with trusted people. Never share them publicly."
+  },
+  "steam_independentName_bulk_menu": {
+    "message": "Batch actions"
+  },
+  "steam_independentName_bulk_add": {
+    "message": "Add"
+  },
+  "steam_independentName_bulk_generate": {
+    "message": "Generate"
+  },
+  "steam_independentName_bulk_clear": {
+    "message": "Clear"
+  },
+  "steam_independentName_bulk_other": {
+    "message": "Other"
+  },
+  "steam_independentName_bulk_name": {
+    "message": "Edit names"
+  },
+  "steam_independentName_bulk_aliases": {
+    "message": "Add aliases"
+  },
+  "steam_independentName_bulk_mnemonic": {
+    "message": "Set mnemonics"
+  },
+  "steam_independentName_bulk_pinyin": {
+    "message": "Set full pinyin"
+  },
+  "steam_independentName_bulk_generate_mnemonic": {
+    "message": "Generate mnemonics"
+  },
+  "steam_independentName_bulk_generate_pinyin": {
+    "message": "Generate full pinyin"
+  },
+  "steam_independentName_bulk_clear_name": {
+    "message": "Clear names"
+  },
+  "steam_independentName_bulk_clear_aliases": {
+    "message": "Clear aliases"
+  },
+  "steam_independentName_bulk_clear_mnemonic": {
+    "message": "Clear mnemonics"
+  },
+  "steam_independentName_bulk_clear_pinyin": {
+    "message": "Clear full pinyin"
+  },
+  "steam_independentName_bulk_cancelSelection": {
+    "message": "Deselect all"
+  },
+  "steam_independentName_bulk_selectFirst": {
+    "message": "Select games first"
+  },
+  "steam_independentName_bulk_replace": {
+    "message": "Find and replace"
+  },
+  "steam_independentName_bulk_sequence": {
+    "message": "Numbering"
+  },
+  "steam_independentName_bulk_insert": {
+    "message": "Insert content"
+  },
+  "steam_independentName_bulk_manual": {
+    "message": "Manual editing"
+  },
+  "steam_independentName_bulk_find": {
+    "message": "Find text"
+  },
+  "steam_independentName_bulk_value": {
+    "message": "Content to add"
+  },
+  "steam_independentName_bulk_replacement": {
+    "message": "Replace with"
+  },
+  "steam_independentName_bulk_type": {
+    "message": "Sequence type"
+  },
+  "steam_independentName_bulk_start": {
+    "message": "Starting number"
+  },
+  "steam_independentName_bulk_prefix": {
+    "message": "Prefix"
+  },
+  "steam_independentName_bulk_suffix": {
+    "message": "Suffix"
+  },
+  "steam_independentName_bulk_number": {
+    "message": "Numbers"
+  },
+  "steam_independentName_bulk_chinese": {
+    "message": "Chinese numerals"
+  },
+  "steam_independentName_bulk_lower": {
+    "message": "Lowercase letters"
+  },
+  "steam_independentName_bulk_upper": {
+    "message": "Uppercase letters"
+  },
+  "steam_independentName_bulk_insertType": {
+    "message": "Content type"
+  },
+  "steam_independentName_bulk_text": {
+    "message": "Text"
+  },
+  "steam_independentName_bulk_position": {
+    "message": "Insert position"
+  },
+  "steam_independentName_bulk_before": {
+    "message": "Before name"
+  },
+  "steam_independentName_bulk_after": {
+    "message": "After name"
+  },
+  "steam_independentName_bulk_original": {
+    "message": "Use the original name when the custom name is empty"
+  },
+  "steam_independentName_bulk_old": {
+    "message": "Before"
+  },
+  "steam_independentName_bulk_next": {
+    "message": "After"
+  },
+  "steam_independentName_bulk_unset": {
+    "message": "Not set"
+  },
+  "steam_independentName_bulk_apply": {
+    "message": "Apply changes"
+  },
+  "steam_independentName_bulk_calculating": {
+    "message": "Calculating preview…"
+  },
+  "steam_independentName_bulk_summary": {
+    "message": "Selected $total$ · Changed $changed$ · Unchanged $unchanged$ · Invalid $invalid$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "unchanged": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_bulk_applied": {
+    "message": "Changed $n$ games. Click Save changes to save them.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_bulk_updated": {
+    "message": "The target content has changed. Close and reopen this action window."
+  },
+  "steam_independentName_bulk_invalidSequence": {
+    "message": "The starting number must be a positive integer, and the entire sequence must stay within the safe integer range."
+  },
+  "steam_independentName_bulk_tooLong": {
+    "message": "Content exceeds the input length limit."
+  },
+  "steam_independentName_bulk_aliasLimit": {
+    "message": "Each game can have up to 10 aliases. Resolve games at the limit first."
+  },
+  "steam_independentName_bulk_nameRequired": {
+    "message": "Set a custom name before saving a mnemonic or pinyin."
+  },
+  "steam_independentName_bulk_originalMissing": {
+    "message": "The original Steam name is unavailable."
+  },
+  "steam_independentName_bulk_clearWarning": {
+    "message": "Clearing names also clears mnemonics, pinyin and their locks. Aliases are retained."
+  },
+  "steam_independentName_bulk_overwriteWarning": {
+    "message": "Review the result. Applying replaces existing target fields, including manually locked content."
+  },
+  "steam_independentName_bulk_noGeneration": {
+    "message": "No content generated. The existing value is retained."
+  },
+  "steam_independentName_bulk_failed": {
+    "message": "The batch action failed. Please try again."
+  },
+  "steam_independentName_bulk_clearedLock": {
+    "message": "The cleared field will be locked so name changes do not fill it automatically."
+  },
+  "steam_independentName_bulk_selection": {
+    "message": "Selection"
   }
 }

@@ -5880,13 +5880,13 @@
     }
   },
   "steam_independentName_title": {
-    "message": "사용자 지정 이름"
+    "message": "Steam Buff · 사용자 지정 이름"
   },
   "steam_independentName_batch": {
     "message": "일괄 설정"
   },
   "steam_independentName_batchTitle": {
-    "message": "사용자 지정 이름 일괄 설정"
+    "message": "Steam Buff · 사용자 지정 이름 일괄 설정"
   },
   "steam_independentName_saving": {
     "message": "저장 중..."
@@ -6181,5 +6181,195 @@
   },
   "about_debug_warningShare": {
     "message": "로그는 신뢰할 수 있는 사람에게만 제공하고 공개적으로 공유하지 마세요."
+  },
+  "steam_independentName_bulk_menu": {
+    "message": "일괄 작업"
+  },
+  "steam_independentName_bulk_add": {
+    "message": "추가"
+  },
+  "steam_independentName_bulk_generate": {
+    "message": "생성"
+  },
+  "steam_independentName_bulk_clear": {
+    "message": "비우기"
+  },
+  "steam_independentName_bulk_other": {
+    "message": "기타"
+  },
+  "steam_independentName_bulk_name": {
+    "message": "이름 수정"
+  },
+  "steam_independentName_bulk_aliases": {
+    "message": "별칭 추가"
+  },
+  "steam_independentName_bulk_mnemonic": {
+    "message": "약칭 추가"
+  },
+  "steam_independentName_bulk_pinyin": {
+    "message": "전체 병음 추가"
+  },
+  "steam_independentName_bulk_generate_mnemonic": {
+    "message": "약칭 생성"
+  },
+  "steam_independentName_bulk_generate_pinyin": {
+    "message": "전체 병음 생성"
+  },
+  "steam_independentName_bulk_clear_name": {
+    "message": "이름 비우기"
+  },
+  "steam_independentName_bulk_clear_aliases": {
+    "message": "별칭 비우기"
+  },
+  "steam_independentName_bulk_clear_mnemonic": {
+    "message": "약칭 비우기"
+  },
+  "steam_independentName_bulk_clear_pinyin": {
+    "message": "전체 병음 비우기"
+  },
+  "steam_independentName_bulk_cancelSelection": {
+    "message": "전체 선택 해제"
+  },
+  "steam_independentName_bulk_selectFirst": {
+    "message": "먼저 게임을 선택하세요"
+  },
+  "steam_independentName_bulk_replace": {
+    "message": "찾아 바꾸기"
+  },
+  "steam_independentName_bulk_sequence": {
+    "message": "번호 형식"
+  },
+  "steam_independentName_bulk_insert": {
+    "message": "내용 추가"
+  },
+  "steam_independentName_bulk_manual": {
+    "message": "직접 편집"
+  },
+  "steam_independentName_bulk_find": {
+    "message": "찾을 텍스트"
+  },
+  "steam_independentName_bulk_value": {
+    "message": "추가할 내용"
+  },
+  "steam_independentName_bulk_replacement": {
+    "message": "바꿀 텍스트"
+  },
+  "steam_independentName_bulk_type": {
+    "message": "번호 유형"
+  },
+  "steam_independentName_bulk_start": {
+    "message": "시작 번호"
+  },
+  "steam_independentName_bulk_prefix": {
+    "message": "접두사"
+  },
+  "steam_independentName_bulk_suffix": {
+    "message": "접미사"
+  },
+  "steam_independentName_bulk_number": {
+    "message": "숫자"
+  },
+  "steam_independentName_bulk_chinese": {
+    "message": "한자 숫자"
+  },
+  "steam_independentName_bulk_lower": {
+    "message": "영문 소문자"
+  },
+  "steam_independentName_bulk_upper": {
+    "message": "영문 대문자"
+  },
+  "steam_independentName_bulk_insertType": {
+    "message": "추가 유형"
+  },
+  "steam_independentName_bulk_text": {
+    "message": "텍스트"
+  },
+  "steam_independentName_bulk_position": {
+    "message": "추가 위치"
+  },
+  "steam_independentName_bulk_before": {
+    "message": "이름 앞"
+  },
+  "steam_independentName_bulk_after": {
+    "message": "이름 뒤"
+  },
+  "steam_independentName_bulk_original": {
+    "message": "사용자 지정 이름이 비어 있으면 원래 이름 사용"
+  },
+  "steam_independentName_bulk_old": {
+    "message": "수정 전"
+  },
+  "steam_independentName_bulk_next": {
+    "message": "수정 후"
+  },
+  "steam_independentName_bulk_unset": {
+    "message": "미설정"
+  },
+  "steam_independentName_bulk_apply": {
+    "message": "변경 적용"
+  },
+  "steam_independentName_bulk_calculating": {
+    "message": "미리보기 계산 중…"
+  },
+  "steam_independentName_bulk_summary": {
+    "message": "선택 $total$개 · 변경 $changed$개 · 변경 없음 $unchanged$개 · 오류 $invalid$개",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "unchanged": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_bulk_applied": {
+    "message": "$n$개 게임을 변경했습니다. 변경 저장을 클릭하세요.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_bulk_updated": {
+    "message": "대상 내용이 업데이트되었습니다. 작업 창을 닫고 다시 열어 주세요."
+  },
+  "steam_independentName_bulk_invalidSequence": {
+    "message": "시작 번호는 양의 정수여야 하며 전체 번호 범위는 정확하게 표현할 수 있는 정수 범위 안에 있어야 합니다."
+  },
+  "steam_independentName_bulk_tooLong": {
+    "message": "입력 길이 제한을 초과했습니다."
+  },
+  "steam_independentName_bulk_aliasLimit": {
+    "message": "게임당 별칭은 최대 10개입니다. 제한에 도달한 게임을 먼저 확인하세요."
+  },
+  "steam_independentName_bulk_nameRequired": {
+    "message": "약칭이나 병음을 저장하려면 먼저 사용자 지정 이름을 설정하세요."
+  },
+  "steam_independentName_bulk_originalMissing": {
+    "message": "Steam 원래 이름을 사용할 수 없습니다."
+  },
+  "steam_independentName_bulk_clearWarning": {
+    "message": "이름을 비우면 약칭, 병음 및 잠금도 함께 지워집니다. 별칭은 유지됩니다."
+  },
+  "steam_independentName_bulk_overwriteWarning": {
+    "message": "수정 후 내용을 확인하세요. 적용하면 수동으로 잠근 내용을 포함하여 기존 대상 필드를 덮어씁니다."
+  },
+  "steam_independentName_bulk_noGeneration": {
+    "message": "생성된 내용이 없어 기존 값을 유지합니다."
+  },
+  "steam_independentName_bulk_failed": {
+    "message": "일괄 작업에 실패했습니다. 다시 시도하세요."
+  },
+  "steam_independentName_bulk_clearedLock": {
+    "message": "비운 보조 필드를 잠가 이름 변경 시 자동으로 채워지지 않도록 합니다."
+  },
+  "steam_independentName_bulk_selection": {
+    "message": "선택"
   }
 }

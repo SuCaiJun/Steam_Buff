@@ -5880,13 +5880,13 @@
     }
   },
   "steam_independentName_title": {
-    "message": "カスタム名"
+    "message": "Steam Buff · カスタム名"
   },
   "steam_independentName_batch": {
     "message": "一括設定"
   },
   "steam_independentName_batchTitle": {
-    "message": "カスタム名の一括設定"
+    "message": "Steam Buff · カスタム名の一括設定"
   },
   "steam_independentName_saving": {
     "message": "保存中..."
@@ -6181,5 +6181,195 @@
   },
   "about_debug_warningShare": {
     "message": "ログは信頼できる相手にのみ提供し、公開しないでください。"
+  },
+  "steam_independentName_bulk_menu": {
+    "message": "一括操作"
+  },
+  "steam_independentName_bulk_add": {
+    "message": "追加"
+  },
+  "steam_independentName_bulk_generate": {
+    "message": "生成"
+  },
+  "steam_independentName_bulk_clear": {
+    "message": "クリア"
+  },
+  "steam_independentName_bulk_other": {
+    "message": "その他"
+  },
+  "steam_independentName_bulk_name": {
+    "message": "名前を変更"
+  },
+  "steam_independentName_bulk_aliases": {
+    "message": "別名を追加"
+  },
+  "steam_independentName_bulk_mnemonic": {
+    "message": "略称を追加"
+  },
+  "steam_independentName_bulk_pinyin": {
+    "message": "ピンインを追加"
+  },
+  "steam_independentName_bulk_generate_mnemonic": {
+    "message": "略称を生成"
+  },
+  "steam_independentName_bulk_generate_pinyin": {
+    "message": "ピンインを生成"
+  },
+  "steam_independentName_bulk_clear_name": {
+    "message": "名前をクリア"
+  },
+  "steam_independentName_bulk_clear_aliases": {
+    "message": "別名をクリア"
+  },
+  "steam_independentName_bulk_clear_mnemonic": {
+    "message": "略称をクリア"
+  },
+  "steam_independentName_bulk_clear_pinyin": {
+    "message": "ピンインをクリア"
+  },
+  "steam_independentName_bulk_cancelSelection": {
+    "message": "選択をすべて解除"
+  },
+  "steam_independentName_bulk_selectFirst": {
+    "message": "先にゲームを選択してください"
+  },
+  "steam_independentName_bulk_replace": {
+    "message": "検索と置換"
+  },
+  "steam_independentName_bulk_sequence": {
+    "message": "連番形式"
+  },
+  "steam_independentName_bulk_insert": {
+    "message": "内容を追加"
+  },
+  "steam_independentName_bulk_manual": {
+    "message": "手動編集"
+  },
+  "steam_independentName_bulk_find": {
+    "message": "検索する文字列"
+  },
+  "steam_independentName_bulk_value": {
+    "message": "追加する内容"
+  },
+  "steam_independentName_bulk_replacement": {
+    "message": "置換後の文字列"
+  },
+  "steam_independentName_bulk_type": {
+    "message": "連番の種類"
+  },
+  "steam_independentName_bulk_start": {
+    "message": "開始番号"
+  },
+  "steam_independentName_bulk_prefix": {
+    "message": "接頭辞"
+  },
+  "steam_independentName_bulk_suffix": {
+    "message": "接尾辞"
+  },
+  "steam_independentName_bulk_number": {
+    "message": "数字"
+  },
+  "steam_independentName_bulk_chinese": {
+    "message": "漢数字"
+  },
+  "steam_independentName_bulk_lower": {
+    "message": "英小文字"
+  },
+  "steam_independentName_bulk_upper": {
+    "message": "英大文字"
+  },
+  "steam_independentName_bulk_insertType": {
+    "message": "追加する種類"
+  },
+  "steam_independentName_bulk_text": {
+    "message": "テキスト"
+  },
+  "steam_independentName_bulk_position": {
+    "message": "追加位置"
+  },
+  "steam_independentName_bulk_before": {
+    "message": "名前の前"
+  },
+  "steam_independentName_bulk_after": {
+    "message": "名前の後"
+  },
+  "steam_independentName_bulk_original": {
+    "message": "カスタム名が空の場合は元の名前を使用"
+  },
+  "steam_independentName_bulk_old": {
+    "message": "変更前"
+  },
+  "steam_independentName_bulk_next": {
+    "message": "変更後"
+  },
+  "steam_independentName_bulk_unset": {
+    "message": "未設定"
+  },
+  "steam_independentName_bulk_apply": {
+    "message": "変更を適用"
+  },
+  "steam_independentName_bulk_calculating": {
+    "message": "プレビューを計算中…"
+  },
+  "steam_independentName_bulk_summary": {
+    "message": "選択 $total$ 件 · 変更 $changed$ 件 · 変更なし $unchanged$ 件 · 無効 $invalid$ 件",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "unchanged": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_bulk_applied": {
+    "message": "$n$ 件を変更しました。「変更を保存」をクリックしてください。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_bulk_updated": {
+    "message": "対象の内容が更新されました。操作画面を閉じて開き直してください。"
+  },
+  "steam_independentName_bulk_invalidSequence": {
+    "message": "開始番号は正の整数にし、連番全体を正確に表現できる整数の範囲内にしてください。"
+  },
+  "steam_independentName_bulk_tooLong": {
+    "message": "入力可能な文字数を超えています。"
+  },
+  "steam_independentName_bulk_aliasLimit": {
+    "message": "別名はゲームごとに最大10個です。上限に達したゲームを先に確認してください。"
+  },
+  "steam_independentName_bulk_nameRequired": {
+    "message": "略称やピンインを保存する前にカスタム名を設定してください。"
+  },
+  "steam_independentName_bulk_originalMissing": {
+    "message": "Steamの元の名前を取得できません。"
+  },
+  "steam_independentName_bulk_clearWarning": {
+    "message": "名前をクリアすると略称、ピンイン、両方のロックもクリアされます。別名は保持されます。"
+  },
+  "steam_independentName_bulk_overwriteWarning": {
+    "message": "変更後の内容を確認してください。適用すると手動ロックされた内容を含め対象の項目を置き換えます。"
+  },
+  "steam_independentName_bulk_noGeneration": {
+    "message": "生成結果がないため、元の値を保持します。"
+  },
+  "steam_independentName_bulk_failed": {
+    "message": "一括操作に失敗しました。再試行してください。"
+  },
+  "steam_independentName_bulk_clearedLock": {
+    "message": "クリアした補助項目をロックし、名前の変更時に自動入力されないようにします。"
+  },
+  "steam_independentName_bulk_selection": {
+    "message": "選択"
   }
 }
