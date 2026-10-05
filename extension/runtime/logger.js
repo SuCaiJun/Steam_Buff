@@ -12,7 +12,8 @@
   "use strict";
 
   const schema = root.STLoggerSchema;
-  if (!schema || root.STLogger?.schemaVersion === schema.version) {
+  const VERSION = "steam-buff-runtime-logger-v3-debug-session";
+  if (!schema || root.STLogger?.version === VERSION) {
     return;
   }
 
@@ -20,8 +21,58 @@
   const FALLBACK_KEY = "steam_buff_diag_fallback_logs";
   const FALLBACK_VERSION = 2;
   const FALLBACK_MAX = 120;
+  const FALLBACK_BYTES = 1024 * 1024;
   let globalBound = false;
   let fallbackQueue = Promise.resolve();
+  const DEBUG_GET = "LOG_DEBUG_GET";
+  const DEBUG_STATE = "STEAM_BUFF_DEBUG_STATE";
+  const DEBUG_REQUEST = "STEAM_BUFF_DEBUG_REQUEST";
+  let debugState = Object.freeze({ enabled: false, sessionId: "", revision: 0 });
+
+  function acceptDebugState(value) {
+    if (!value || typeof value.enabled !== "boolean" || !Number.isInteger(value.revision)
+      || value.revision < debugState.revision || (value.enabled && !value.sessionId)) return;
+    debugState = Object.freeze({ enabled: value.enabled, sessionId: String(value.sessionId || ""), revision: value.revision });
+    root.STLoggerFactory?.applyDebugState(debugState);
+    if (root.chrome?.runtime?.id && root.postMessage) root.postMessage({ type: DEBUG_STATE, state: debugState }, "*");
+  }
+
+  function requestDebugState() {
+    if (!root.chrome?.runtime?.sendMessage) {
+      root.postMessage?.({ type: DEBUG_REQUEST }, "*");
+      return;
+    }
+    try {
+      root.chrome.runtime.sendMessage({ type: DEBUG_GET }, response => {
+        const error = root.chrome.runtime.lastError;
+        if (error || response?.success !== true) {
+          root.STLoggerFactory?.reportError(new Error(error?.message || response?.error || "DeBug 状态读取失败"), {
+            domain: "extension", feature: "runtime-logger", event: "debug-state-read-failed", message: "读取 DeBug 会话状态失败",
+          });
+          return;
+        }
+        acceptDebugState(response.state);
+      });
+    } catch (error) {
+      root.STLoggerFactory?.reportError(error, { domain: "extension", feature: "runtime-logger", event: "debug-state-read-failed", message: "读取 DeBug 会话状态失败" });
+    }
+  }
+
+  function bindDebugState() {
+    root.chrome?.runtime?.onMessage?.addListener((message) => {
+      if (message?.type === DEBUG_STATE) acceptDebugState(message.state);
+    });
+    root.chrome?.storage?.onChanged?.addListener((changes, area) => {
+      if (area === "session" && changes.steam_buff_debug_session?.newValue) acceptDebugState(changes.steam_buff_debug_session.newValue);
+    });
+    root.addEventListener?.("message", event => {
+      if (event.source !== root) return;
+      if (root.chrome?.runtime?.id) {
+        if (event.data?.type === DEBUG_REQUEST) root.postMessage({ type: DEBUG_STATE, state: debugState }, "*");
+      } else if (event.data?.type === DEBUG_STATE) acceptDebugState(event.data.state);
+    });
+    requestDebugState();
+  }
 
   function execution() {
     if (String(root.location?.protocol || "") === "chrome-extension:") return "settings";
@@ -100,6 +151,13 @@
               return;
             }
             const box = fallbackBox(result?.[FALLBACK_KEY]);
+            if (entry.debugData && (!debugState.enabled || entry.debugData.sessionId !== debugState.sessionId)) {
+              entry = { ...entry }; delete entry.debugData;
+              if (!schema.shouldPersist(entry)) { resolve(false); return; }
+            }
+            if (entry.debugData && schema.byteLength(JSON.stringify(entry)) > FALLBACK_BYTES / 2) {
+              entry = schema.normalizeEntry({ ...entry, debugData: { ...entry.debugData, text: JSON.stringify({ omitted: "fallback-capacity-exceeded" }), truncated: true } });
+            }
             const generationId = box.generationId || schema.createId("fallback");
             const storedEntry = {
               entry,
@@ -107,8 +165,14 @@
               ...(options.forcePersist === true ? { forcePersist: true } : {}),
             };
             const logs = [...box.logs, storedEntry];
-            const dropped = Math.max(0, logs.length - FALLBACK_MAX);
-            const nextLogs = dropped ? logs.slice(-FALLBACK_MAX) : logs;
+            let dropped = Math.max(0, logs.length - FALLBACK_MAX);
+            let nextLogs = dropped ? logs.slice(-FALLBACK_MAX) : logs;
+            let bytes = schema.byteLength(JSON.stringify(nextLogs));
+            while (bytes > FALLBACK_BYTES && nextLogs.length > 1) {
+              nextLogs = nextLogs.slice(1);
+              dropped += 1;
+              bytes = schema.byteLength(JSON.stringify(nextLogs));
+            }
             const health = {
               ...box.health,
               fallbackCount: box.health.fallbackCount + 1,
@@ -191,6 +255,9 @@
   function append(input = {}, options = {}) {
     let entry;
     try {
+      if (!schema.isTrustedEntry(input) && debugState.enabled && input.debugData === undefined) {
+        input = { ...input, debugData: { sessionId: debugState.sessionId, data: input } };
+      }
       entry = normalizedEntry(input, options);
     } catch {
       return null;
@@ -231,10 +298,12 @@
 
   const api = Object.freeze({
     ready: true,
+    version: VERSION,
     schemaVersion: schema.version,
     EVENT,
     sessionId,
     execution: contextExecution,
+    getDebugState: () => debugState,
     append,
     debug(entry) {
       return withLevel("debug", entry);
@@ -258,4 +327,5 @@
 
   root.STLogger = api;
   bindGlobalLoggers();
+  bindDebugState();
 })(typeof globalThis !== "undefined" ? globalThis : self);

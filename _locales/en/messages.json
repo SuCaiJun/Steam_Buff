@@ -5979,7 +5979,7 @@
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
     "message": "Your current entitlements do not include fetching cloud names."
-  },
+  },
   "steam_independentName_filter": {
     "message": "Filter"
   },
@@ -6139,5 +6139,44 @@
   },
   "steam_independentName_exportFailed": {
     "message": "Export failed. Please retry."
+  },
+  "about_debug_title": {
+    "message": "Enable DeBug logging"
+  },
+  "about_debug_warning": {
+    "message": "Once enabled, full business requests, responses and diagnostic data will be recorded. This may include account details, game information and input content.\nLogin tokens, cookies, passwords and keys will still be redacted.\n\nOnly share logs with trusted people. Never share them publicly. Enable this mode only when necessary. Are you sure you want to continue?"
+  },
+  "about_debug_enable": {
+    "message": "Continue"
+  },
+  "about_debug_failed": {
+    "message": "Could not change DeBug mode"
+  },
+  "about_debug_active": {
+    "message": "Do not share DeBug logs casually"
+  },
+  "about_debug_unavailable": {
+    "message": "DeBug status is unavailable. Reopen settings to retry."
+  },
+  "about_debug_exportTitle": {
+    "message": "Export logs containing DeBug data"
+  },
+  "about_debug_exportWarning": {
+    "message": "These logs contain detailed business data and may include private information. Turning DeBug off does not delete these records. Share exported files only with trusted people. Continue exporting?"
+  },
+  "about_debug_warningRecord": {
+    "message": "full business requests, responses and diagnostic data will be recorded"
+  },
+  "about_debug_warningAccount": {
+    "message": "account details"
+  },
+  "about_debug_warningGames": {
+    "message": "game information"
+  },
+  "about_debug_warningInput": {
+    "message": "input content"
+  },
+  "about_debug_warningShare": {
+    "message": "Only share logs with trusted people. Never share them publicly."
   }
 }

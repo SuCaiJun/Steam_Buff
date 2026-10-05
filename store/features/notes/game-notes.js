@@ -386,7 +386,8 @@
       title.insertAdjacentElement("afterend", host);
     }
     renderNote(host, info.appid, cache.get(info.appid)?.note || "", steamNameForApp(info.appid));
-    fetchNotes([info.appid]).then(() => updateVisible(info.appid)).catch(() => {});
+    fetchNotes([info.appid]).then(() => updateVisible(info.appid)).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "notes", event: "start-detail-failed", message: "商店功能处理失败", level: "error", phase: "startDetail" });});
     scheduleDetailSettleCheck();
     return true;
   }
@@ -462,7 +463,8 @@
     } finally {
       renderingWishlist = false;
     }
-    batchFetchWishlistNotes(appids).catch(() => {});
+    batchFetchWishlistNotes(appids).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "notes", event: "render-wishlist-rows-failed", message: "商店功能处理失败", level: "error", phase: "renderWishlistRows" });});
   }
 
   function scheduleWishlistRender(delay = WISHLIST_RENDER_DEBOUNCE_MS) {

@@ -447,7 +447,8 @@
       const raw = localStorage.getItem(key);
       if (raw == null) return;
       // 本地预览原有的 string / JSON 两种写入格式。
-      try { out[key] = JSON.parse(raw); } catch { out[key] = raw; }
+      try { out[key] = JSON.parse(raw); } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "storage-get-many-failed", message: "安装引导处理失败", level: "warn", phase: "storageGetMany" }); out[key] = raw; }
     });
     return out;
   }
@@ -554,7 +555,8 @@
       });
       const page = Number(data.page);
       return Number.isSafeInteger(page) && page > 0 ? page : 0;
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "read-committed-page-failed", message: "安装引导处理失败", level: "error", phase: "readCommittedPage" });
       return 0;
     }
   }
@@ -568,7 +570,8 @@
         results: state.results,
         page,
       }));
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "write-committed-page-failed", message: "安装引导处理失败", level: "error", phase: "writeCommittedPage" });
       // sessionStorage 不可用时仅保留内存态
     }
   }
@@ -913,7 +916,8 @@
         if (String(message?.requestId || "") !== requestId) return false;
         try {
           sendResponse?.({ success: true, received: true });
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "wait-ai-permission-result-failed", message: "安装引导处理失败", level: "warn", phase: "waitAiPermissionResult", requestId });
           // 忽略响应通道错误
         }
         finish(message?.granted === true ? null : aiPermissionError(message));
@@ -1111,7 +1115,8 @@
       if (apex && next.hostname === apex && host) next.hostname = host;
       next.searchParams.set("code", code);
       return next.toString();
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "login-full-url-failed", message: "安装引导处理失败", level: "warn", phase: "loginFullUrl" });
       const sep = target.includes("?") ? "&" : "?";
       return `${target}${sep}code=${encodeURIComponent(code)}`;
     }
@@ -1123,7 +1128,8 @@
       next.search = "";
       next.hash = "";
       return next.toString().replace(/\/$/, "");
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "login-display-url-failed", message: "安装引导处理失败", level: "warn", phase: "loginDisplayUrl" });
       return window.STConfig?.urls?.device || "";
     }
   }
@@ -1142,7 +1148,10 @@
       return ok;
     };
     if (navigator.clipboard?.writeText) {
-      return navigator.clipboard.writeText(text).then(() => done(true)).catch(() => done(false));
+      return navigator.clipboard.writeText(text).then(() => done(true)).catch(error => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "login", event: "clipboard-copy-failed", message: "复制登录内容失败", level: "warn" });
+        return done(false);
+      });
     }
     const input = document.createElement("textarea");
     input.value = text;
@@ -1154,7 +1163,8 @@
     let ok = true;
     try {
       ok = document.execCommand("copy");
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "login", event: "clipboard-copy-failed", message: "复制登录内容失败", level: "warn" });
       ok = false;
     }
     input.remove();
@@ -1439,6 +1449,7 @@
       if (!url) throw new Error("使用教程地址未配置");
       cfg.externalNavigation.open(url);
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "open-tutorial-failed", message: "打开引导教程失败", level: "error", phase: "openTutorial" });
       setNote(error?.message || String(error), true);
     }
   }
@@ -1621,7 +1632,8 @@
     const heading = $(`[data-step-panel="${activeStep().id}"] h1`);
     try {
       heading?.focus({ preventScroll: true });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "focus-heading-failed", message: "安装引导处理失败", level: "warn", phase: "focusHeading" });
       heading?.focus();
     }
   }

@@ -94,7 +94,8 @@
       for (const disposeOne of disposers.splice(0)) {
         try {
           disposeOne();
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "menu-events", event: "dispose-failed", message: "释放界面资源失败", level: "warn", phase: "dispose" });
         }
       }
     }

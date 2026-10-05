@@ -847,7 +847,10 @@
       btn.className = "st_cart_restore_btn";
       btn.textContent = t("store_cartSelect_restoreButton", "恢复暂存购物车数据");
       btn.addEventListener("click", () => {
-        manualRestoreMissing().catch(() => setRestorePanel(t("store_cartSelect_restoreFailed", "恢复失败，请重试"), "bad"));
+        manualRestoreMissing().catch(error => {
+          globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart-select", event: "cart-restore-failed", message: "恢复暂存购物车失败" });
+          setRestorePanel(t("store_cartSelect_restoreFailed", "恢复失败，请重试"), "bad");
+        });
       });
       panel.append(text, btn);
     }
@@ -922,7 +925,8 @@
       if (!observer) {
         observe();
       }
-      showRestorePrompt().catch(() => {});
+      showRestorePrompt().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "scan-failed", message: "商店功能处理失败", level: "error", phase: "scan" });});
     }
     return items;
   }
@@ -930,7 +934,8 @@
   function scheduleScan() {
     clearTimeout(scanTimer);
     scanTimer = setTimeout(() => {
-      scan().catch(() => {});
+      scan().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "schedule-scan-failed", message: "商店功能处理失败", level: "error", phase: "scheduleScan" });});
     }, SCAN_MS);
   }
 
@@ -938,7 +943,8 @@
     clearTimeout(restorePromptTimer);
     restorePromptTimer = setTimeout(() => {
       restorePromptTimer = null;
-      showRestorePrompt().catch(() => {});
+      showRestorePrompt().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "schedule-restore-prompt-failed", message: "商店功能处理失败", level: "error", phase: "scheduleRestorePrompt" });});
     }, SCAN_MS);
   }
 
@@ -972,6 +978,7 @@
       try {
         await selectionSaveTask;
       } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "clear-selection-failed", message: "清理购物车选择失败", level: "warn", phase: "clearSelection" });
         // 发起选择事务的用户操作已经记录失败；这里仅等待回滚完成后重新计算清理状态。
         void error;
       }
@@ -1194,7 +1201,8 @@
 
     event.preventDefault();
     event.stopImmediatePropagation();
-    goCheckout(btn).catch(() => {
+    goCheckout(btn).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "on-checkout-click-failed", message: "提交购物车选择失败", level: "error", phase: "onCheckoutClick" });
       busy = false;
       toast(t("store_cartSelect_checkoutFailed", "购物车选择处理失败"), true);
     });
@@ -1362,7 +1370,8 @@
     bindRemoveAllConfirm();
     observe();
     await scan();
-    showRestorePrompt().catch(() => {});
+    showRestorePrompt().catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });});
     log.info("cart-select-start-success", "购物车选择功能已启动", {
       totalCount: items.length,
       selectedCount: selectedItems().length,

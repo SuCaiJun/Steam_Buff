@@ -29,7 +29,7 @@
     wishlist: "subscription-wishlist-badge",
     cart: "subscription-cart-badge",
   });
-  const BADGE_SUMMARY_LOG_MS = 30_000;
+
   const SHOW_STATUS = Object.freeze(new Set(["active", "leaving"]));
   const PLATFORMS = Object.freeze({
     gamepasspc: { name: "PC Game Pass", short: "PCGP" },
@@ -43,7 +43,7 @@
   let detailActive = false;
   let detailSeq = 0;
   let badgeSeq = 0;
-  let badgeLogState = { signature: "", time: 0 };
+
   const activeBadgeScopes = new Set();
   const log = window.STLoggerFactory?.createLogger?.("store", "subscription-info");
 
@@ -334,14 +334,7 @@
     return true;
   }
 
-  function logBadgeSummary(meta = {}) {
-    const signature = `${meta.scopes || ""}:${meta.targetCount || 0}:${meta.mountedCount || 0}:${meta.status || ""}`;
-    const now = Date.now();
-    if (badgeLogState.signature === signature && now - badgeLogState.time < BADGE_SUMMARY_LOG_MS) return;
-    badgeLogState = { signature, time: now };
-    if (window.STLoggerFactory?.getDiagnostics?.().enabled !== true) return;
-    log?.info?.("subscription-badge-scan-summary", "第三方会员角标扫描完成", pageMeta(meta));
-  }
+
 
   function scanLists(nodes = []) {
     if (typeof fetchGames !== "function") return;
@@ -367,12 +360,7 @@
 
     const uniq = Array.from(new Set(ids));
     if (uniq.length === 0) {
-      logBadgeSummary({
-        status: "no-pending",
-        scopes: Array.from(activeBadgeScopes).join(","),
-        targetCount: nodes.length,
-        mountedCount: nodes.filter(target => target.node.querySelector(":scope > .st_subscription_badges .st_subscription_service_badge")).length,
-      });
+
       return;
     }
 
@@ -392,12 +380,7 @@
           mountedCount += 1;
         }
       });
-      logBadgeSummary({
-        status: mountedCount ? "mounted" : "miss",
-        scopes: Array.from(activeBadgeScopes).join(","),
-        targetCount: nodes.length,
-        mountedCount,
-      });
+
     }).catch((error) => {
       if (seq !== badgeSeq || activeBadgeScopes.size === 0) {
         return;

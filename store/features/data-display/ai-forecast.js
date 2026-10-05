@@ -838,6 +838,7 @@
       ];
       return streamConversation(state, conf, messages, false);
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "data-display", event: "send-followup-failed", message: "发送 AI 追问失败", level: "error", phase: "sendFollowup" });
       state.phase = "error";
       state.errorText = text(error?.message) || i18n("store.aiForecast.followupFailed", "AI 追问失败，请稍后重试。");
       updateUi(state);

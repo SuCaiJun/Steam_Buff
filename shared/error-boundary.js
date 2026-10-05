@@ -11,7 +11,7 @@
 ((root) => {
   "use strict";
 
-  const VERSION = "steam-buff-error-boundary-v1";
+  const VERSION = "steam-buff-error-boundary-v2";
 
   if (root.STErrorBoundary?.version === VERSION) {
     return;
@@ -27,13 +27,6 @@
       return "服务器暂时不可用，请稍后重试";
     }
     return fallback;
-  }
-
-  function loggerFor(context = {}) {
-    return root.STLoggerFactory?.createLogger?.(
-      text(context.domain, "shared"),
-      text(context.feature, "error-boundary")
-    );
   }
 
   /**
@@ -54,10 +47,12 @@
       ...(context.meta && typeof context.meta === "object" ? context.meta : {}),
     };
 
-    const log = loggerFor({ domain, feature });
-    log?.error?.(event, message, {
-      ...meta,
-      error,
+    root.STLoggerFactory.reportError(error, {
+      domain, feature, event, message,
+      level: context.level,
+      operationId: context.operationId,
+      requestId: context.requestId,
+      details: meta,
     });
     root.STRuntime?.current?.()?.markError?.(event, error, {
       domain,
@@ -71,6 +66,8 @@
       feature,
       event,
       message: userMessage,
+      level: context.level || "error",
+      presentation: context.presentation || "none",
     });
   }
 

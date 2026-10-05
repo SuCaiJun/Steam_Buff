@@ -134,7 +134,8 @@
   function version() {
     try {
       return chrome.runtime.getManifest().version || "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-menu", event: "version-failed", message: "设置中心处理失败", level: "warn", phase: "version" });
       return "";
     }
   }
@@ -142,7 +143,8 @@
   function homepage() {
     try {
       return chrome.runtime.getManifest().homepage_url || "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-menu", event: "homepage-failed", message: "设置中心处理失败", level: "warn", phase: "homepage" });
       return "";
     }
   }
@@ -419,6 +421,8 @@
       key: "shadow-root",
       type: "feature-lifecycle",
       dispose() {
+        globalThis.STSettingsDialogs?.cancel();
+        globalThis.STSettingsPages?.get("about")?.dispose?.();
         globalThis.STSettingsCloudUi?.dispose?.(shadow);
         globalThis.STSettingsMenu?.dispose?.();
         host.remove();

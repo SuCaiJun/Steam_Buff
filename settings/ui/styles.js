@@ -346,6 +346,10 @@
           color: var(--st-color-danger);
         }
 
+        .settings-dialog-danger {
+          color: var(--st-color-danger);
+        }
+
         .filtered-review-dialog {
           width: min(680px, calc(100% - 24px));
           max-height: min(620px, calc(100vh - 110px));

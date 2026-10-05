@@ -43,7 +43,8 @@
         chrome.runtime.sendMessage(message, (res) => {
           resolve(chrome.runtime.lastError ? { success: false } : (res || {}));
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "settings-cloud-prompt", event: "request-failed", message: "发送请求失败", level: "error", phase: "request" });
         resolve({ success: false });
       }
     });

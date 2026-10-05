@@ -189,7 +189,8 @@
       try {
         await navigator.clipboard.writeText(value);
         return true;
-      } catch {
+      } catch (error) {
+        root.STLoggerFactory.reportError(error, { domain: "settings", feature: "account", event: "clipboard-copy-fallback", message: "登录代码复制降级", level: "warn" });
         const input = document.createElement("textarea");
         input.value = value;
         input.setAttribute("readonly", "");
@@ -200,7 +201,8 @@
         let ok = true;
         try {
           ok = document.execCommand("copy");
-        } catch {
+        } catch (error) {
+          root.STLoggerFactory.reportError(error, { domain: "settings", feature: "account", event: "clipboard-copy-failed", message: "登录代码复制失败" });
           ok = false;
         }
         input.remove();
@@ -230,7 +232,8 @@
         }
         next.searchParams.set("code", code);
         return next.toString();
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "pages-account-device-login", event: "full-url-failed", message: "设置中心处理失败", level: "warn", phase: "fullUrl" });
         const sep = target.includes("?") ? "&" : "?";
         return `${target}${sep}code=${encodeURIComponent(code)}`;
       }
@@ -242,7 +245,8 @@
         next.search = "";
         next.hash = "";
         return next.toString().replace(/\/$/, "");
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "pages-account-device-login", event: "display-url-failed", message: "设置中心处理失败", level: "warn", phase: "displayUrl" });
         return api.urls.device;
       }
     }
@@ -290,7 +294,8 @@
         const selection = root?.getSelection?.() || window.getSelection();
         selection?.removeAllRanges();
         selection?.addRange(range);
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "pages-account-device-login", event: "select-text-failed", message: "选择登录代码失败", level: "warn", phase: "selectText" });
       }
     }
 

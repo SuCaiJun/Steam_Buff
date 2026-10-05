@@ -57,7 +57,8 @@
   function version() {
     try {
       return chrome.runtime.getManifest().version || "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-update", event: "version-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "version" });
       return "";
     }
   }

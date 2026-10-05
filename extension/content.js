@@ -493,7 +493,8 @@
         globalThis[RUN_MARK] = "";
         run();
       })
-      .catch(() => {
+      .catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "wait-steam-content-deps-failed", message: "加载客户端依赖失败", level: "error", phase: "waitSteamContentDeps" });
         if (!retryRun()) {
           globalThis[RUN_MARK] = "";
         }
@@ -516,7 +517,8 @@
           ...meta,
         },
       });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "activate-light-runtime-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "activateLightRuntime" });
     }
   }
 
@@ -648,7 +650,8 @@
           filteredReviews: event?.detail?.filteredReviews === true,
         });
       });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "bind-settings-open-request-failed", message: "绑定设置打开请求失败", level: "error", phase: "bindSettingsOpenRequest" });
     }
   }
 
@@ -671,7 +674,8 @@
         openSettings(request.category || "");
         return false;
       });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "bind-settings-open-message-failed", message: "绑定设置消息入口失败", level: "error", phase: "bindSettingsOpenMessage" });
     }
   }
 
@@ -789,7 +793,8 @@
           }
           resolve(rt || {});
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "storage-get-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "storageGet" });
         resolve({});
       }
     });
@@ -808,7 +813,8 @@
         chrome.storage.local.set(data, () => {
           resolve(!chrome.runtime.lastError);
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "storage-set-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "storageSet" });
         resolve(false);
       }
     });
@@ -827,7 +833,8 @@
         chrome.storage.local.remove(keys, () => {
           resolve(!chrome.runtime.lastError);
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "storage-remove-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "storageRemove" });
         resolve(false);
       }
     });
@@ -975,7 +982,8 @@
         source: "steam-buff-content",
         ...data,
       }, window.location.origin);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "post-news-failed", message: "发送新闻消息失败", level: "warn", phase: "postNews" });
     }
   }
 
@@ -1004,7 +1012,8 @@
     }
     try {
       el.dataset[NEWS_TRANSLATE_ATTR] = JSON.stringify(config || { enabled: false });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "write-news-translate-dataset-failed", message: "传递新闻翻译配置失败", level: "error", phase: "writeNewsTranslateDataset" });
       el.dataset[NEWS_TRANSLATE_ATTR] = "{\"enabled\":false}";
     }
   }
@@ -1034,7 +1043,8 @@
     let config = null;
     try {
       config = await writeNewsTranslateSettings();
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "post-news-config-failed", message: "发送新闻配置失败", level: "warn", phase: "postNewsConfig" });
       config = readNewsTranslateDataset();
     }
     postNews(NEWS_TRANSLATE_CONFIG_RES, {
@@ -1055,6 +1065,7 @@
           }).then((response) => {
             resolve(response || { success: false, error: "翻译注入请求失败" });
           }).catch((error) => {
+            globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "inject-translate-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "injectTranslate" });
             resolve({ success: false, error: error?.message || "翻译注入请求失败" });
           });
           return;
@@ -1071,6 +1082,7 @@
           resolve(response || { success: false, error: "翻译注入无响应" });
         });
       } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "inject-translate-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "injectTranslate" });
         resolve({ success: false, error: error?.message || String(error) });
       }
     });
@@ -1426,7 +1438,8 @@
         ...data,
         time: Date.now(),
       }));
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "post-name-failed", message: "发送库名称回复失败", level: "warn", phase: "postName" });
     }
   }
 
@@ -1736,6 +1749,7 @@
     }
     if (data.type === "open-account") {
       openNameAccountCenter(data).catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "handle-name-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "handleName" });
         postName({
           type: "open-account-result",
           rid: data.rid || "",
@@ -1746,6 +1760,7 @@
       return;
     }
     queryNames(data).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "handle-name-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "handleName" });
       postName({
         type: "query-result",
         rid: data.rid || "",
@@ -1787,7 +1802,8 @@
         attributeFilter: [NAME_REQ_ATTR],
       });
       handleName(readNameReq());
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-name-req-failed", message: "监听库名称请求失败", level: "warn", phase: "watchNameReq" });
       watchNames = false;
     }
   }
@@ -1863,7 +1879,8 @@
     const data = playerStatsRequest(attribute);
     try {
       root()?.removeAttribute(attribute);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "take-player-stats-request-failed", message: "消费在线人数请求失败", level: "warn", phase: "takePlayerStatsRequest" });
     }
     return data;
   }
@@ -1877,7 +1894,8 @@
         side: "content",
         ...data,
       }));
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "post-player-stats-failed", message: "发送在线人数回复失败", level: "warn", phase: "postPlayerStats" });
     }
   }
 
@@ -1905,6 +1923,7 @@
       });
       postPlayerStats({ part, rid: data.rid, ...response });
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "handle-player-stats-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "handlePlayerStats" });
       postPlayerStats({ part, rid: data.rid, success: false, error: error?.message || String(error) });
     }
   }
@@ -1934,7 +1953,8 @@
       for (const attribute of requestAttributes) {
         void handlePlayerStats(takePlayerStatsRequest(attribute));
       }
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-player-stats-req-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "watchPlayerStatsReq" });
       delete el.dataset.steamBuffPlayerStatsBridge;
     }
   }
@@ -1951,7 +1971,8 @@
         keys,
         startKeys,
       }, "*");
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "notify-steam-features-changed-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "notifySteamFeaturesChanged" });
     }
   }
 
@@ -1989,7 +2010,8 @@
     try {
       el.dataset[USER_NAMES_ATTR] = JSON.stringify(displayUserNames(snapshot));
       el.dataset[USER_NAMES_SEARCH_ATTR] = JSON.stringify(userNamesStore.searchMap(snapshot));
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "write-user-names-dataset-failed", message: "传递名称快照失败", level: "error", phase: "writeUserNamesDataset" });
       el.dataset[USER_NAMES_ATTR] = "{}";
       el.dataset[USER_NAMES_SEARCH_ATTR] = "{}";
     }
@@ -2003,7 +2025,8 @@
         ...data,
         time: Date.now(),
       }));
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "post-user-names-failed", message: "发送名称快照失败", level: "warn", phase: "postUserNames" });
     }
   }
 
@@ -2498,14 +2521,16 @@
         attributeFilter: [USER_NAMES_REQ_ATTR],
       });
       handleUserNames(readUserNamesReq());
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-user-names-req-failed", message: "监听名称请求失败", level: "warn", phase: "watchUserNamesReq" });
       watchUserNames = false;
     }
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) {
         return;
       }
-      syncUserNamesSnapshot({ reason: "visible" }).catch(() => {});
+      syncUserNamesSnapshot({ reason: "visible" }).catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-user-names-req-failed", message: "监听名称请求失败", level: "error", phase: "watchUserNamesReq" });});
     });
     watchUserNamesStorage();
   }
@@ -2533,7 +2558,8 @@
         }
         const ownerId = userNamesStore.signedInUserId(membership, rt[AUTH_KEY]);
         writeUserNamesDataset(userNamesStore.readUser(next, ownerId));
-      }).catch(() => {});
+      }).catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-user-names-storage-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "watchUserNamesStorage" });});
     });
   }
 
@@ -2555,7 +2581,8 @@
 
     try {
       el.dataset[SETTINGS_ATTR] = JSON.stringify(settings);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "write-steam-settings-failed", message: "写入客户端设置失败", level: "error", phase: "writeSteamSettings" });
       el.dataset[SETTINGS_ATTR] = "{}";
     }
     steamSettingsSnapshot = settings;
@@ -2603,11 +2630,13 @@
           if (hit || membershipHit) {
             settingsCache = null;
             if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
-              writeSteamSettings().catch(() => {});
+              writeSteamSettings().catch((error) => {
+                globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-settings-changes-failed", message: "监听设置更新失败", level: "error", phase: "watchSettingsChanges" });});
             }
           }
           if (localeHit) {
-            writeUiLocale().catch(() => {});
+            writeUiLocale().catch((error) => {
+              globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-settings-changes-failed", message: "监听设置更新失败", level: "error", phase: "watchSettingsChanges" });});
           }
         }, {
           owner: "extension:content",
@@ -2627,14 +2656,17 @@
         if (hit || membershipHit) {
           settingsCache = null;
           if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
-            writeSteamSettings().catch(() => {});
+            writeSteamSettings().catch((error) => {
+              globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-settings-changes-failed", message: "监听设置更新失败", level: "error", phase: "watchSettingsChanges" });});
           }
         }
         if (localeHit) {
-          writeUiLocale().catch(() => {});
+          writeUiLocale().catch((error) => {
+            globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-settings-changes-failed", message: "监听设置更新失败", level: "error", phase: "watchSettingsChanges" });});
         }
       });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-settings-changes-failed", message: "监听设置更新失败", level: "error", phase: "watchSettingsChanges" });
     }
   }
 
@@ -2797,6 +2829,7 @@
         steamRuntimeLastInjectFailurePhase = "";
       })
       .catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "run-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "run", operationId });
         globalThis[RUN_MARK] = "";
         clearPageRuntimeReady(operationId);
         gd.fail();

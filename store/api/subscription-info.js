@@ -59,7 +59,8 @@
     if (typeof value !== "string") return value;
     try {
       return JSON.parse(value);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "api-subscription-info", event: "parse-response-failed", message: "解析接口回复失败", level: "warn", phase: "parseResponse" });
       return [];
     }
   }

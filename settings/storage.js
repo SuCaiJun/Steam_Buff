@@ -73,7 +73,8 @@
       if (typeof value === "string") {
         try {
           value = JSON.parse(value);
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "storage", event: "normalize-stored-failed", message: "设置中心处理失败", level: "warn", phase: "normalizeStored" });
           value = null;
         }
       }
@@ -435,7 +436,8 @@
           }
           resolve(rt || {});
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "storage", event: "get-failed", message: "读取本地设置失败", level: "warn", phase: "get" });
         resolve({});
       }
     });
@@ -459,7 +461,8 @@
         box.set(data, () => {
           resolve(!chrome.runtime.lastError);
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "storage", event: "put-failed", message: "保存本地设置失败", level: "error", phase: "put" });
         resolve(false);
       }
     });
@@ -626,7 +629,8 @@
         box.remove([...AUTH_CLEAR_KEYS], () => {
           resolve(!chrome.runtime.lastError);
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "storage", event: "clear-auth-failed", message: "设置中心处理失败", level: "warn", phase: "clearAuth", operationId });
         resolve(false);
       }
     });

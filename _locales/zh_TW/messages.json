@@ -5979,7 +5979,7 @@
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
     "message": "目前權益未開通取得雲端名稱"
-  },
+  },
   "steam_independentName_filter": {
     "message": "篩選"
   },
@@ -6139,5 +6139,44 @@
   },
   "steam_independentName_exportFailed": {
     "message": "匯出失敗，請重試"
+  },
+  "about_debug_title": {
+    "message": "開啟 DeBug 日誌"
+  },
+  "about_debug_warning": {
+    "message": "開啟後將記錄完整的業務請求、回應及診斷資料，可能包含帳號資料、遊戲資訊、輸入內容等隱私資訊。\n登入權杖、Cookie、密碼和金鑰仍會遮蔽。\n\n請僅將日誌提供給可信任的人員，切勿公開分享。非必要情況下請勿開啟，確定繼續嗎？"
+  },
+  "about_debug_enable": {
+    "message": "繼續"
+  },
+  "about_debug_failed": {
+    "message": "調整 DeBug 模式失敗"
+  },
+  "about_debug_active": {
+    "message": "DeBug 模式下請勿隨意分享日誌"
+  },
+  "about_debug_unavailable": {
+    "message": "DeBug 狀態暫不可用，請重新開啟設定重試"
+  },
+  "about_debug_exportTitle": {
+    "message": "匯出包含 DeBug 資料的日誌"
+  },
+  "about_debug_exportWarning": {
+    "message": "日誌包含詳細業務資料，可能涉及隱私。關閉 DeBug 不會刪除這些記錄，請僅將匯出檔案提供給可信任的人員。是否繼續匯出？"
+  },
+  "about_debug_warningRecord": {
+    "message": "記錄完整的業務請求、回應及診斷資料"
+  },
+  "about_debug_warningAccount": {
+    "message": "帳號資料"
+  },
+  "about_debug_warningGames": {
+    "message": "遊戲資訊"
+  },
+  "about_debug_warningInput": {
+    "message": "輸入內容"
+  },
+  "about_debug_warningShare": {
+    "message": "請僅將日誌提供給可信任的人員，切勿公開分享。"
   }
 }

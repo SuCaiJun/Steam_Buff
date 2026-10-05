@@ -357,7 +357,8 @@
       const rows = usePy ? pyRows(py, base) : [];
       setRows(root, rows);
       compact(root);
-    }).catch(() => {
+    }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "create-panel-failed", message: "商店功能处理失败", level: "error", phase: "createPanel" });
       setRows(root, []);
     });
 

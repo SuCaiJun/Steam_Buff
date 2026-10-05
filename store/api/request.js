@@ -41,7 +41,7 @@
   }
 
   function logNetwork(config, event, message, error, response, startedAt, attempt, maxAttempts, ids, delayMs = 0, phase = "", data) {
-    if (config.silentLog === true) {
+    if (config.silentLog === true && event === "request-success" && globalThis.STLoggerFactory?.getDiagnostics?.().enabled !== true) {
       return;
     }
     try {
@@ -66,6 +66,7 @@
           : undefined,
         durationMs: Date.now() - startedAt,
         ...(error ? { error } : {}),
+        debugData: () => ({ request: { url: config.url, method: config.method, headers: config.headers, body: config.data, data: config.requestData }, response, result: data }),
       });
     } catch (logError) {
       void logError;

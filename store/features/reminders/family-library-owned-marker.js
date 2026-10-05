@@ -34,7 +34,7 @@
   });
   const MODULE_CLASS = api.dom.MODULE_CLASSES.FAMILY_LIBRARY_OWNED;
   const FAMILY_MANAGEMENT_URL = window.STConfig?.vendors?.steamStore?.familyManagement?.() || "";
-  const BADGE_SUMMARY_LOG_MS = 30_000;
+
   const DEFAULT_REFRESH_SETTINGS = Object.freeze({
     refreshInterval: "1d",
     autoRefresh: true,
@@ -70,7 +70,7 @@
   const dialogDisposers = new Set();
   const blockingWaitClosers = new Set();
   let badgeCache;
-  let badgeLogState = { signature: "", time: 0 };
+
   const familySharingSupportState = window.__stFamilySharingSupportState || {};
   window.__stFamilySharingSupportState = familySharingSupportState;
   let detailAppId = "";
@@ -1176,14 +1176,7 @@
     return badgeCache;
   }
 
-  function logBadgeSummary(meta = {}) {
-    const signature = `${meta.scopes || ""}:${meta.targetCount || 0}:${meta.mountedCount || 0}:${meta.status || ""}`;
-    const now = Date.now();
-    if (badgeLogState.signature === signature && now - badgeLogState.time < BADGE_SUMMARY_LOG_MS) return;
-    badgeLogState = { signature, time: now };
-    if (window.STLoggerFactory?.getDiagnostics?.().enabled !== true) return;
-    log?.info?.("family-library-badge-scan-summary", "家庭库商店角标扫描完成", pageMeta(meta));
-  }
+
 
   async function scanBadges(targets = []) {
     if (activeBadgeScopes.size === 0) return;
@@ -1192,12 +1185,7 @@
     if (seq !== badgeSeq || activeBadgeScopes.size === 0) return;
     if (!cache) {
       clearFamilyBadges();
-      logBadgeSummary({
-        status: "empty-cache",
-        scopes: Array.from(activeBadgeScopes).join(","),
-        targetCount: targets.length,
-        mountedCount: 0,
-      });
+
       return;
     }
     let mountedCount = 0;
@@ -1218,13 +1206,7 @@
         mountedCount += 1;
       }
     });
-    logBadgeSummary({
-      status: mountedCount ? "mounted" : "miss",
-      scopes: Array.from(activeBadgeScopes).join(","),
-      targetCount: targets.length,
-      mountedCount,
-      appCount: cache.stats?.appCount || 0,
-    });
+
   }
 
   function ensureFeatureStyles(key) {

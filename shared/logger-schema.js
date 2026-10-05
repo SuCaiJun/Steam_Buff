@@ -12,7 +12,8 @@
   "use strict";
 
   const VERSION = "steam-buff-logger-schema-v2";
-  if (root.STLoggerSchema?.version === VERSION) {
+  const IMPLEMENTATION_VERSION = "steam-buff-logger-schema-v2-debug-data";
+  if (root.STLoggerSchema?.implementationVersion === IMPLEMENTATION_VERSION) {
     return;
   }
 
@@ -23,6 +24,8 @@
   const ERROR_STACK_MAX = 32 * 1024;
   const ERROR_TOTAL_MAX = 64 * 1024;
   const META_MAX = 4 * 1024;
+  const DEBUG_DATA_MAX = 3 * 1024 * 1024;
+  const CREDENTIAL_KEY = /(?:authorization|cookie|token|password|secret|sessionid|api[_-]?key|device[_-]?code|user[_-]?code|cloud[_-]?key|encryption[_-]?key|^key$)/iu;
   const META_MAX_DEPTH = 6;
   const META_MAX_NODES = 256;
   const META_MAX_ARRAY_ITEMS = 64;
@@ -47,7 +50,7 @@
     "user_code",
   ]));
   const SENSITIVE_KEY = /(?:authorization|cookie|set-cookie|access[_-]?token|refresh[_-]?token|api[_-]?key|token|sessionid|password|secret|device[_-]?code|user[_-]?code|headers?|requestbody|responsebody|requestdata|responsetext|prompt|messages|content|custom[_-]?name|nickname|remark)/iu;
-  const ASSIGNMENT_SECRET = /["']?\b(authorization|cookie|set-cookie|access[_-]?token|refresh[_-]?token|api[_-]?key|token|sessionid|password|secret|device[_-]?code|user[_-]?code)\b["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^,\s;&]+)/giu;
+  const ASSIGNMENT_SECRET = /["']?\b(authorization|cookie|set-cookie|access[_-]?token|refresh[_-]?token|api[_-]?key|token|sessionid|password|secret|device[_-]?code|user[_-]?code)\b["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^,\s;&]+)/giu;
   const BEARER_SECRET = /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/giu;
   const WINDOWS_USER_PATH = /(\b[A-Za-z]:[\\/]+Users[\\/]+)[^\\/\s"'?#&]+/giu;
   const POSIX_USER_PATH = /((?:^|[\s("'=])\/(?:home|Users)\/|file:\/\/\/(?:home|Users)\/)[^/\s"'?#&]+/gu;
@@ -642,6 +645,80 @@
     return truncatedMeta(json, originalBytes);
   }
 
+  // 诊断正文只接受调用方明确提供的数据；凭据始终脱敏，容量截断必须保留标记。
+  function normalizeDebugData(value, canonical = false) {
+    if (!value || typeof value !== "object" || !value.sessionId) return undefined;
+    let body;
+    let originalBytes;
+    let incomplete = value.incomplete === true;
+    if (canonical) {
+      if (typeof value.text !== "string" || value.format !== "json") return undefined;
+      const clean = normalizeDebugData({ sessionId: value.sessionId, data: JSON.parse(value.text) });
+      if (!clean) return undefined;
+      return { ...clean, originalBytes: Math.max(clean.originalBytes, Number(value.originalBytes) || 0), truncated: clean.truncated || value.truncated === true };
+    } else {
+      const ancestors = [];
+      const seenErrors = new WeakSet();
+      try {
+        body = JSON.stringify(value.data, function(key, item) {
+        if (CREDENTIAL_KEY.test(key)) return "[REDACTED]";
+        if (typeof item === "string") {
+          // 请求与响应中的 JSON 正文按 JSON 契约脱敏，避免转义引号泄漏凭据尾部。
+          if (/^\s*[\[{]/u.test(item)) {
+            try {
+              const parsed = JSON.parse(item);
+              return JSON.stringify(parsed, (field, data) => CREDENTIAL_KEY.test(field) ? "[REDACTED]" : typeof data === "string" ? data.replace(ASSIGNMENT_SECRET, "$1=[REDACTED]").replace(BEARER_SECRET, "Bearer [REDACTED]") : data);
+            } catch {
+              // 非 JSON 正文仍按明确的凭据文本格式脱敏。
+            }
+          }
+          return item.replace(ASSIGNMENT_SECRET, "$1=[REDACTED]").replace(BEARER_SECRET, "Bearer [REDACTED]");
+        }
+        if (typeof item === "bigint") return String(item);
+        if (isRealError(item)) {
+          if (seenErrors.has(item)) { incomplete = true; return "[CircularError]"; }
+          seenErrors.add(item);
+          return { name: item.name, message: item.message, stack: item.stack, code: item.code, status: item.status, cause: item.cause };
+        }
+        if (typeof item === "function" || typeof item === "symbol") {
+          incomplete = true;
+          return `[Unsupported:${typeof item}]`;
+        }
+        if (item && typeof item === "object") {
+          while (ancestors.length && ancestors[ancestors.length - 1] !== this) ancestors.pop();
+          if (ancestors.includes(item)) { incomplete = true; return "[Circular]"; }
+          ancestors.push(item);
+        }
+        return item;
+        });
+      } catch {
+        // 对象 getter/toJSON 失败属于数据不可序列化，保留主日志并明确标记。
+        incomplete = true;
+        body = JSON.stringify({ unavailable: "diagnostic-serialization-failed" });
+      }
+      if (typeof body !== "string") return undefined;
+      originalBytes = byteLength(body);
+    }
+    let limited = { value: body, truncated: false };
+    if (byteLength(body) > DEBUG_DATA_MAX) {
+      let budget = DEBUG_DATA_MAX - 128;
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const preview = truncateText(body, budget, budget, 0).value;
+        limited = { value: JSON.stringify({ truncated: true, preview }), truncated: true };
+        const size = byteLength(limited.value);
+        if (size <= DEBUG_DATA_MAX) break;
+        budget = Math.max(0, budget - (size - DEBUG_DATA_MAX));
+      }
+    }
+    return {
+      sessionId: String(value.sessionId),
+      format: "json",
+      text: limited.value,
+      originalBytes,
+      truncated: incomplete || limited.truncated,
+    };
+  }
+
   function normalizeContext(value) {
     if (!value || typeof value !== "object") return undefined;
     const execution = String(value.execution || "");
@@ -894,6 +971,8 @@
     if (recovery) out.recovery = recovery;
     if (context) out.context = context;
     if (meta) out.meta = meta;
+    const debugData = normalizeDebugData(input.debugData, options.canonicalInput === true);
+    if (debugData) out.debugData = debugData;
     if (options.allowAggregation === true) {
       const group = optionalId(input.fingerprint);
       const repeatCount = finiteNumber(input.repeatCount);
@@ -977,6 +1056,7 @@
 
   function shouldPersist(entry, options = {}) {
     if (!entry) return false;
+    if (options.debugEnabled === true) return true;
     if (entry.level === "debug" && options.forcePersist !== true) return false;
     // 事件降噪名单只约束普通 info；显式 debug 和真实 network/warn/error/fatal 不按事件名丢弃。
     if (entry.level === "info" && NEVER_PERSIST_EVENTS.has(entry.event)) return false;
@@ -1014,6 +1094,7 @@
 
   root.STLoggerSchema = Object.freeze({
     version: VERSION,
+    implementationVersion: IMPLEMENTATION_VERSION,
     levels: readonlySet(LEVELS),
     executions: readonlySet(EXECUTIONS),
     limits: Object.freeze({
@@ -1026,6 +1107,7 @@
       metaNodes: META_MAX_NODES,
       metaArrayItems: META_MAX_ARRAY_ITEMS,
       metaObjectKeys: META_MAX_OBJECT_KEYS,
+      debugDataBytes: DEBUG_DATA_MAX,
     }),
     lifecycleInfoEvents: readonlySet(LIFECYCLE_INFO_EVENTS),
     persistInfoEvents: readonlySet(PERSIST_INFO_EVENTS),
@@ -1042,6 +1124,7 @@
     normalizeError,
     markJsonError,
     normalizeMeta,
+    normalizeDebugData,
     normalizeContext,
     normalizeRequest,
     normalizeResponse,

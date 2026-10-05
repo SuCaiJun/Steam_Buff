@@ -27,6 +27,8 @@
     },
   });
   importScripts(chrome.runtime.getURL("shared/logger-factory.js"));
+  importScripts(chrome.runtime.getURL("extension/background-debug.js"));
+  importScripts(chrome.runtime.getURL("shared/error-boundary.js"));
   importScripts(chrome.runtime.getURL("shared/lifecycle-prompt-contract.js"));
   importScripts(chrome.runtime.getURL("extension/background-lifecycle.js"));
   importScripts(chrome.runtime.getURL("extension/background-update.js"));
@@ -747,7 +749,8 @@
         args: [CONTENT_MARK, CONTENT_MARK_VERSION],
       });
       return frames.length > 0 && frames.every(frame => frame?.result === true);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "ping-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "ping" });
       return false;
     }
   }
@@ -804,7 +807,8 @@
     }
     try {
       return await existing;
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "inject-steam-loopback-frame-if-needed-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "injectSteamLoopbackFrameIfNeeded" });
       clearSteamFrameInjectionFlight(key, existing);
       const replacement = steamFrameInjectionFlights.get(key);
       if (replacement) {
@@ -1367,15 +1371,13 @@
           out[lower] = String(value || "");
         }
       });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "clean-response-headers-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "cleanResponseHeaders" });
     }
     return out;
   }
 
   function storeLogNetwork(request, entry) {
-    if (request?.silentLog === true) {
-      return;
-    }
     logNetwork({
       ...entry,
       service: request?.service,
@@ -1506,6 +1508,10 @@
       const data = await response.text();
       responseFacts.bodyLength = data.length;
       responseFacts.readDurationMs = Date.now() - readStartedAt;
+      backgroundLogger("store-fetch").debug("proxy-response-details", "后台代理请求诊断正文", {
+        operationId: request.operationId, requestId: request.requestId,
+        debugData: () => ({ request: { url: url.toString(), method, headers: init.headers, body }, response: { status: response.status, headers: cleanResponseHeaders(response.headers), body: data } }),
+      });
       phase = "http";
       const diagnostics = globalThis.STLoggerSchema.normalizeResponse(responseFacts, { urlPolicy: CFG.diagnosticUrlPolicy(response.url) });
       checkpoint("api-response-ready", "后台已完成关键 API 请求并准备回复", responseFacts);
@@ -1641,7 +1647,8 @@
   async function writePlayerStatsCache(key, appId, ttlMs, value) {
     try {
       await sessionStorageSet({ [key]: { appId, expiresAt: Date.now() + ttlMs, value } });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "write-player-stats-cache-failed", message: "保存在线人数缓存失败", level: "error", phase: "writePlayerStatsCache" });
       // 缓存不可用时仍返回本次真实请求结果。
     }
   }
@@ -1724,6 +1731,9 @@
       const data = await response.text();
       diagnostics.bodyLength = data.length;
       diagnostics.readDurationMs = Date.now() - readStartedAt;
+      backgroundLogger("api-request").debug("api-response-details", "API 请求诊断正文", {
+        debugData: () => ({ request: { url, method: init.method, headers: init.headers, body: init.body }, response: { status: response.status, body: data } }),
+      });
       return { response, data, diagnostics };
     } catch (error) {
       if (error && typeof error === "object" && Object.isExtensible(error)) {
@@ -1849,6 +1859,7 @@
       const augmentedPeak = await fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_AUGMENTED_PEAK_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_AUGMENTED_PEAK_TTL_MS, kind: "augmented-peak", fetchValue: () => fetchAugmentedSteamHistoricalPeak(request, appId) });
       sendResponse({ success: true, part, historicalPeak: augmentedPeak.value.historicalPeak, hltb: augmentedPeak.value.hltb, status: 200, ok: true, headers: {}, source: { augmentedPeakCache: augmentedPeak.cache } });
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "player-stats-fetch-failed", message: "请求在线人数失败", level: "error", phase: "playerStatsFetch" });
       sendResponse({ success: false, part, error: error?.message || String(error), status: Number(error?.status) || 0, ok: false, errorKind: "transport", ...(error?.name ? { errorName: String(error.name) } : {}), ...(error?.code ? { errorCode: String(error.code) } : {}) });
     }
   }
@@ -1920,12 +1931,12 @@
     }
     hasAiGatewayPermission(origin)
       .then((granted) => sendResponse({ success: true, granted, origin, sourceTabId, sourceFrameId }))
-      .catch((error) => sendResponse({
+      .catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "check-ai-gateway-permission-failed", message: "检查 AI 网关权限失败", level: "error", phase: "checkAiGatewayPermission" }); return sendResponse({
         success: false,
         granted: false,
         code: error?.code || "AI_HOST_PERMISSION_CHECK_FAILED",
         error: error?.message || "AI 网关权限检查失败",
-      }));
+      }); });
   }
 
   function requestAiGatewayPermission(request, sender, sendResponse) {
@@ -2342,7 +2353,8 @@
     const targetUrl = String(url || "").trim();
     try {
       new URL(targetUrl);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "open-chromium-window-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "openChromiumWindow" });
       sendResponse({ success: false, code: "CHROMIUM_WINDOW_URL_INVALID", error: "Chromium 打开地址无效" });
       return;
     }
@@ -2380,7 +2392,8 @@
       chrome.windows.update(windowId, { focused: true }, () => {
         void chrome.runtime.lastError;
       });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "refocus-steam-root-menu-chromium-window-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "refocusSteamRootMenuChromiumWindow" });
       // 已创建的窗口仍可使用，延后聚焦失败不覆盖打开结果。
     }
   }
@@ -2400,7 +2413,8 @@
     try {
       const url = new URL(target);
       return url.protocol === "http:" || url.protocol === "https:" ? target : "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "steam-root-menu-web-url-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "steamRootMenuWebUrl" });
       return "";
     }
   }
@@ -2426,7 +2440,8 @@
             openerTitle = String(window.opener?.document?.title || "");
             const value = window.opener?.settingsStore?.clientSettings?.[settingKey];
             configuredUrl = typeof value === "string" ? value.trim() : "";
-          } catch {
+          } catch (error) {
+            globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "steam-root-menu-context-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "steamRootMenuContext" });
             configuredUrl = "";
           }
           return {
@@ -2447,7 +2462,8 @@
         return null;
       }
       return Object.freeze({ configuredUrl: steamRootMenuWebUrl(frame.configuredUrl) });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "steam-root-menu-context-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "steamRootMenuContext" });
       return null;
     }
   }
@@ -2709,7 +2725,8 @@
     let url;
     try {
       url = new URL(next.url);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "ai-chat-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "aiChat" });
       sendResponse({ success: false, error: "无效的 AI 网关地址" });
       return;
     }
@@ -2760,7 +2777,8 @@
     try {
       port.postMessage(payload);
       return true;
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "stream-port-post-failed", message: "发送 AI 流式结果失败", level: "warn", phase: "streamPortPost" });
       return false;
     }
   }
@@ -2862,7 +2880,8 @@
       if (finished) {
         try {
           await reader.cancel();
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "fetch-ai-chat-stream-failed", message: "清理 AI 流式请求失败", level: "warn", phase: "fetchAiChatStream" });
         }
       }
       return { content, chunks, status: response.status };
@@ -2927,7 +2946,8 @@
       let url;
       try {
         url = new URL(next.url);
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "ai-stream-connect-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "aiStreamConnect", operationId, requestId });
         fail("AI_URL_INVALID", "无效的 AI 网关地址");
         return;
       }
@@ -2971,6 +2991,7 @@
           status: result.status,
           chunkCount: result.chunks,
           durationMs: Date.now() - startedAt,
+          debugData: () => ({ request: { url: url.toString(), headers: next.headers, body: next.body }, response: result }),
         });
         streamPortPost(port, {
           event: "done",
@@ -2991,6 +3012,7 @@
           request: globalThis.STLoggerSchema.requestFacts({ ...next, url: url.toString(), method: "POST", timeoutMs, endpointKey: "ai-chat-stream" }),
           response: error.diagnostics,
           durationMs: Date.now() - startedAt,
+          debugData: () => ({ request: { url: url.toString(), headers: next.headers, body: next.body }, response: error.diagnostics, error }),
         });
         fail(error?.code || error?.name || "AI_STREAM_FAILED", message, Number(error?.status) || 0);
       });
@@ -3561,7 +3583,7 @@
     }
     store.getMany(request.keys)
       .then((data) => sendResponse({ success: true, data }))
-      .catch((error) => sendResponse({ success: false, error: error?.message || String(error) }));
+      .catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "cache-get-failed", message: "读取 AI 缓存失败", level: "error", phase: "cacheGet" }); return sendResponse({ success: false, error: error?.message || String(error) }); });
   }
 
   function cacheSet(request, sender, sendResponse) {
@@ -3572,7 +3594,7 @@
     }
     store.setMany(request.entries)
       .then((ok) => sendResponse({ success: ok !== false }))
-      .catch((error) => sendResponse({ success: false, error: error?.message || String(error) }));
+      .catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "cache-set-failed", message: "保存 AI 缓存失败", level: "error", phase: "cacheSet" }); return sendResponse({ success: false, error: error?.message || String(error) }); });
   }
 
   function authCommitSender(sender) {
@@ -3621,6 +3643,7 @@
         auth: expose ? decision?.auth || null : null,
       });
     }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "commit-auth-message-failed", message: "提交登录状态失败", level: "error", phase: "commitAuthMessage" });
       sendResponse({
         success: false,
         error: error?.message || "登录状态写入失败",
@@ -3667,6 +3690,8 @@
     LOG_EXPORT: "诊断日志导出",
     LOG_CLEAR: "诊断日志清空",
     LOG_STATS: "诊断日志状态",
+    LOG_DEBUG_GET: "读取 DeBug 会话状态",
+    LOG_DEBUG_SET: "设置中心确认后启停 DeBug",
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: "云端安装引导页打开本地步骤",
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: "安装引导页打开设置中心",
     SETTINGS_CLOUD_SYNC: "设置云同步检查、上传、下载和冲突处理",
@@ -3675,6 +3700,26 @@
   });
 
   const ROUTES = Object.freeze({
+    async LOG_DEBUG_GET(request, sender, sendResponse) {
+      try {
+        const state = await globalThis.STBackgroundDebug.initialize();
+        sendResponse({ success: true, state });
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "debug-mode", event: "debug-state-read-failed", message: "读取 DeBug 会话状态失败" });
+        sendResponse({ success: false, error: error.message });
+      }
+    },
+    async LOG_DEBUG_SET(request, sender, sendResponse) {
+      try {
+        if (!isSettingsSender(sender) && !isSteamRuntimeSender(sender)) throw new Error("DeBug 开关只允许设置中心操作");
+        if (request.enabled === true && request.confirmed !== true) throw new Error("开启 DeBug 需要隐私确认");
+        const state = await globalThis.STBackgroundDebug.setEnabled(request.enabled, request.operationId);
+        sendResponse({ success: true, state });
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "debug-mode", event: "debug-state-save-failed", message: "保存 DeBug 会话状态失败", operationId: request.operationId });
+        sendResponse({ success: false, error: error.message });
+      }
+    },
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
     STORE_FETCH: storeFetch,
     [PLAYER_STATS_FETCH]: playerStatsFetch,
@@ -3698,7 +3743,7 @@
     USER_NAMES_COMMIT: commitUserNames,
     AUTH_COMMIT: commitAuthMessage,
     LOG_APPEND(request, sender, sendResponse) {
-      globalThis.STBackgroundLogger.append(request, sender)
+      globalThis.STBackgroundDebug.initialize().then(() => globalThis.STBackgroundLogger.append(request, sender))
         .then((stats) => sendResponse({ success: true, stats }))
         .catch((error) => sendResponse({ success: false, error: error?.message || String(error) }));
     },
@@ -3728,12 +3773,28 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const route = messageRoute(request);
     if (route) {
-      route(request, sender, sendResponse);
+      const fail = (error) => {
+        // LOG_* 的存储故障不能递归写入同一日志链；回复由前台责任层处理。
+        if (!String(request.type).startsWith("LOG_")) globalThis.STLoggerFactory.reportError(error, {
+          domain: "extension", feature: "message-router", event: "message-route-failed", message: "后台消息操作失败", operationId: request.operationId, requestId: request.requestId, phase: request.type,
+        });
+        sendResponse({ success: false, error: error?.message || "后台操作失败" });
+      };
+      try {
+        const task = route(request, sender, sendResponse);
+        if (task && typeof task.catch === "function") task.catch(fail);
+      } catch (error) { fail(error); }
       return true;
     }
     return false;
   });
   chrome.runtime.onConnect.addListener(aiStreamConnect);
+  globalThis.addEventListener("error", event => globalThis.STLoggerFactory.reportError(event.error || event.message, {
+    domain: "extension", feature: "background-runtime", event: "background-unhandled-error", message: "后台未捕获异常",
+  }));
+  globalThis.addEventListener("unhandledrejection", event => globalThis.STLoggerFactory.reportError(event.reason, {
+    domain: "extension", feature: "background-runtime", event: "background-unhandled-rejection", message: "后台未处理异步异常",
+  }));
 
   chrome.runtime.onInstalled.addListener((details) => {
     const lifecycleReady = globalThis.STBackgroundLifecycle.initialize(details)

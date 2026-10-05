@@ -152,7 +152,8 @@
     }
     try {
       element.focus({ preventScroll: true });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "focus-element-failed", message: "恢复界面焦点失败", level: "warn", phase: "focusElement" });
       element.focus();
     }
     return true;
@@ -285,12 +286,14 @@
           setTipOpen(tip, false);
         }
       });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "close-tips-failed", message: "客户端功能处理失败", level: "error", phase: "closeTips" });
     }
     if (blurActive) {
       try {
         document.activeElement?.blur?.();
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "close-tips-failed", message: "客户端功能处理失败", level: "error", phase: "closeTips" });
       }
     }
   }
@@ -302,7 +305,8 @@
     if (open) {
       try {
         tip.focus({ preventScroll: true });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "toggle-tip-failed", message: "客户端功能处理失败", level: "warn", phase: "toggleTip" });
         tip.focus?.();
       }
     }
@@ -366,13 +370,15 @@
     if (progress) {
       event.preventDefault();
       event.stopPropagation();
-      closeProgressAsk().catch(() => {});
+      closeProgressAsk().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-document-keydown-failed", message: "客户端功能处理失败", level: "error", phase: "onDocumentKeydown" });});
       return;
     }
     if (modal) {
       event.preventDefault();
       event.stopPropagation();
-      closeBatchAsk().catch(() => {});
+      closeBatchAsk().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-document-keydown-failed", message: "客户端功能处理失败", level: "error", phase: "onDocumentKeydown" });});
     }
   }
 
@@ -526,7 +532,8 @@
         ch?.removeEventListener?.("message", onBackend);
       }
       ch?.close?.();
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "reset-backend-channel-failed", message: "客户端功能处理失败", level: "error", phase: "resetBackendChannel" });
     }
   }
 
@@ -551,7 +558,8 @@
       }
       try {
         wait?.reject?.(error);
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "reject-pending-requests-failed", message: "客户端功能处理失败", level: "warn", phase: "rejectPendingRequests" });
       }
     }
     map.clear();
@@ -648,7 +656,8 @@
       batch.saveWatchHandle = null;
       batch.saveWatchTimer = 0;
       handle?.dispose?.();
-      pollSaveStatus().catch(() => {});
+      pollSaveStatus().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "schedule-save-watch-failed", message: "客户端功能处理失败", level: "error", phase: "scheduleSaveWatch" });});
     }, Math.max(0, delay));
     batch.saveWatchHandle = s.scope?.resource?.({
       key: "save-watch",
@@ -753,7 +762,8 @@
       qpend.set(id, { resolve, reject, timer });
       try {
         document.documentElement?.setAttribute(REQ_ATTR, JSON.stringify(msg));
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "content-req-failed", message: "客户端功能处理失败", level: "warn", phase: "contentReq" });
       }
     });
   }
@@ -843,7 +853,8 @@
     let data = {};
     try {
       data = JSON.parse(document.documentElement?.getAttribute(RES_ATTR) || "{}");
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-query-failed", message: "客户端功能处理失败", level: "warn", phase: "onQuery" });
       data = {};
     }
     if (data.script !== ID || data.side !== "content"
@@ -1035,7 +1046,8 @@
     }
     try {
       return !!bar.querySelector(".st-lcn-tip:hover, .st-lcn-tip:focus, .st-lcn-tip:focus-within, .st-lcn-tip.is-open");
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "bar-tooltip-active-failed", message: "客户端功能处理失败", level: "warn", phase: "barTooltipActive" });
       return false;
     }
   }
@@ -1691,7 +1703,8 @@
       batch.capacityHandle = null;
       batch.capacityTimer = 0;
       handle?.dispose?.();
-      refreshStorageCapacity(seq).catch(() => {});
+      refreshStorageCapacity(seq).catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "refresh-storage-capacity-soon-failed", message: "客户端功能处理失败", level: "error", phase: "refreshStorageCapacitySoon" });});
     }, Math.max(0, delay));
     batch.capacityHandle = s.scope?.resource?.({
       key: "capacity-refresh",
@@ -1928,6 +1941,7 @@
     batch.searchScanned = 0;
     batch.searching = true;
     const start = () => runSearch(seq).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "schedule-search-failed", message: "客户端功能处理失败", level: "error", phase: "scheduleSearch" });
       if (seq === batch.searchSeq) {
         batch.searching = false;
         batch.message = error?.message || String(error);
@@ -2495,6 +2509,7 @@
   }
 
   function oneFail(error) {
+    globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "single-name-operation-failed", message: "单个游戏名称操作失败" });
     const message = error?.message || String(error || "") || i18n("common.operationFailed", "操作失败");
     if (Number(error?.code) === 401) {
       oneLoginRequired(message);
@@ -2589,7 +2604,8 @@
       let cur = null;
       try {
         cur = await backend("current-app", ctx);
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "fill-one-failed", message: "客户端功能处理失败", level: "warn", phase: "fillOne" });
       }
       const appid = Number(cur?.app?.appid) || Number(ctx.appid);
       if (!appid) {
@@ -2692,7 +2708,10 @@
       return;
     }
     if (mnemonicBtn) {
-      generateSingleMnemonic().catch((error) => singleMnemonicFail(error?.message || String(error)));
+      generateSingleMnemonic().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "single-mnemonic-failed", message: "生成单个游戏助记符失败" });
+        singleMnemonicFail(error?.message || String(error));
+      });
       return;
     }
     openBatch();
@@ -3047,7 +3066,8 @@
           next.focus();
           try {
             next.setSelectionRange(searchStart, searchEnd);
-          } catch {
+          } catch (error) {
+            globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "render-modal-failed", message: "渲染批量名称窗口失败", level: "warn", phase: "renderModal" });
           }
         }
       } else if (key) {
@@ -3181,7 +3201,8 @@
       if (selectionStart !== null && typeof next?.setSelectionRange === "function") {
         try {
           next.setSelectionRange(selectionStart, selectionEnd);
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "render-virtual-rows-failed", message: "渲染名称列表失败", level: "warn", phase: "renderVirtualRows" });
         }
       }
     }
@@ -3298,7 +3319,8 @@
   function onModalCloseClick(event) {
     event?.preventDefault?.();
     event?.stopPropagation?.();
-    closeBatchAsk().catch(() => {});
+    closeBatchAsk().catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-modal-close-click-failed", message: "客户端功能处理失败", level: "error", phase: "onModalCloseClick" });});
   }
 
   function bindModalControls(modal) {
@@ -3517,6 +3539,7 @@
     }
     if (!batch.localRows.length && !batch.busy) {
       loadLocalRows().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "open-batch-failed", message: "打开批量编辑失败", level: "error", phase: "openBatch" });
         batch.busy = false;
         batch.loadingLocal = false;
         batch.message = error?.message || String(error);
@@ -3535,7 +3558,8 @@
     }
     batch.searchComposing = false;
     cancelVirtualFrame();
-    backend("cancel-preview").catch(() => {});
+    backend("cancel-preview").catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "close-batch-failed", message: "关闭批量编辑失败", level: "error", phase: "closeBatch" });});
     const modal = document.getElementById(MODAL);
     const wasOpen = !!modal && !modal.hidden;
     if (modal) {
@@ -3723,6 +3747,7 @@
   function toggleMnemonic() {
     const action = mnemonicAction();
     applyMnemonicToRows(action.on).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "toggle-mnemonic-failed", message: "切换助记词失败", level: "error", phase: "toggleMnemonic" });
       batch.busy = false;
       batch.message = error?.message || String(error);
       renderModal();
@@ -4059,7 +4084,8 @@
     const select = event.target.closest("[data-lcn-select]")?.dataset?.lcnSelect;
     if (select) {
       event.preventDefault();
-      setSelection(select).catch(() => {});
+      setSelection(select).catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" });});
       return;
     }
     const action = event.target.closest("[data-lcn-action]")?.dataset?.lcnAction;
@@ -4077,6 +4103,7 @@
     } else if (action === "export") {
       event.preventDefault();
       exportSelectedNames().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" });
         batch.busy = false;
         batch.message = error?.message || String(error);
         renderModal();
@@ -4097,7 +4124,8 @@
       return;
     }
     if (action === "cancel") {
-      closeProgressAsk().catch(() => {});
+      closeProgressAsk().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-progress-click-failed", message: "处理批量进度操作失败", level: "error", phase: "onProgressClick" });});
       return;
     }
     if (action === "pause" || action === "resume") {
@@ -4114,6 +4142,7 @@
         return;
       }
       importJsonFile(picked).catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-modal-change-failed", message: "保存批量名称配置失败", level: "error", phase: "onModalChange" });
         batch.busy = false;
         batch.message = error?.message || String(error);
         renderModal();

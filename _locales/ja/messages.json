@@ -5979,7 +5979,7 @@
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
     "message": "現在の権限ではクラウド名を取得できません。"
-  },
+  },
   "steam_independentName_filter": {
     "message": "絞り込み"
   },
@@ -6139,5 +6139,44 @@
   },
   "steam_independentName_exportFailed": {
     "message": "エクスポートに失敗しました。再試行してください"
+  },
+  "about_debug_title": {
+    "message": "DeBug ログを有効にする"
+  },
+  "about_debug_warning": {
+    "message": "有効にすると業務リクエスト、レスポンスおよび診断データをすべて記録します。アカウント情報、ゲーム情報、入力内容などの個人情報が含まれる可能性があります。\nログイントークン、Cookie、パスワード、キーは引き続き伏せられます。\n\nログは信頼できる相手にのみ提供し、公開しないでください。必要な場合にのみ有効にしてください。続行しますか？"
+  },
+  "about_debug_enable": {
+    "message": "続行"
+  },
+  "about_debug_failed": {
+    "message": "DeBug モードの変更に失敗しました"
+  },
+  "about_debug_active": {
+    "message": "DeBug のログを安易に共有しないでください"
+  },
+  "about_debug_unavailable": {
+    "message": "DeBug の状態を取得できません。設定を開き直してください。"
+  },
+  "about_debug_exportTitle": {
+    "message": "DeBug データを含むログをエクスポート"
+  },
+  "about_debug_exportWarning": {
+    "message": "ログには詳細な業務データや個人情報が含まれる可能性があります。DeBug を無効にしても記録は削除されません。ファイルは信頼できる相手にのみ共有してください。エクスポートしますか？"
+  },
+  "about_debug_warningRecord": {
+    "message": "業務リクエスト、レスポンスおよび診断データをすべて記録します"
+  },
+  "about_debug_warningAccount": {
+    "message": "アカウント情報"
+  },
+  "about_debug_warningGames": {
+    "message": "ゲーム情報"
+  },
+  "about_debug_warningInput": {
+    "message": "入力内容"
+  },
+  "about_debug_warningShare": {
+    "message": "ログは信頼できる相手にのみ提供し、公開しないでください。"
   }
 }

@@ -164,7 +164,8 @@
       if (!el.matches(":popover-open")) {
         el.showPopover();
       }
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "open-overlay-failed", message: "翻译功能处理失败", level: "warn", phase: "openOverlay" });
     }
   }
 
@@ -177,7 +178,8 @@
         if (el.matches(":popover-open")) {
           el.hidePopover();
         }
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "close-overlay-failed", message: "翻译功能处理失败", level: "warn", phase: "closeOverlay" });
       }
     }
     el.hidden = true;
@@ -277,7 +279,8 @@
         meta,
         dispose,
       });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "register-resource-failed", message: "翻译功能处理失败", level: "warn", phase: "registerResource" });
       return null;
     }
   }
@@ -1023,7 +1026,8 @@
   function assetUrl(path) {
     try {
       return chrome.runtime.getURL(path);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "asset-url-failed", message: "翻译功能处理失败", level: "error", phase: "assetUrl" });
       return path;
     }
   }
@@ -2132,6 +2136,7 @@
           requestId, phase, durationMs: Date.now() - startedAt,
           request: { method: "POST", endpointKey: "translate-edge", url, hasBody: true, mediaType: "application/json", params: { inputCount: texts.length } },
           response: { status: xhr.status, mediaType: xhr.getResponseHeader("content-type"), bodyLength: xhr.responseText.length }, error,
+          debugData: () => ({ request: { url, method: "POST", data: texts }, response: { status: xhr.status, body: xhr.responseText } }),
         });
         reject(error);
       };
@@ -2146,7 +2151,12 @@
           return;
         }
         try {
-          resolve(JSON.parse(xhr.responseText || "[]"));
+          const result = JSON.parse(xhr.responseText || "[]");
+          loggerFor("api-request")?.debug("translate-api-response-details", "翻译接口详细响应", {
+            requestId,
+            debugData: () => ({ request: { url, method: "POST", data: texts }, response: { status: xhr.status, body: xhr.responseText } }),
+          });
+          resolve(result);
           settled = true;
         } catch (error) {
           globalThis.STLoggerSchema?.markJsonError?.(error);
@@ -2305,7 +2315,8 @@
           return point;
         }
       }
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "focus-point-failed", message: "翻译功能处理失败", level: "warn", phase: "focusPoint" });
       // 部分页选区焦点节点不可建 Range，回退到最后一个选区矩形。
     }
     return rangePoint(selection.getRangeAt(selection.rangeCount - 1));
@@ -2787,7 +2798,7 @@
           return edgeRequest(job.trans, JSON.parse(decodeURIComponent(data.text)), data.from, data.to).then(
             response => finish({ result: 1, from: data.from, to: data.to, text: response.map(item => edgeText([item])) }, data),
             () => cancel(),
-          ).catch(() => cancel());
+          ).catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "manual-requests-failed", message: "翻译功能处理失败", level: "error", phase: "manualRequests" }); return cancel(); });
         }
         return original.call(this, path, data, finish, () => cancel());
       }

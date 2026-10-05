@@ -69,7 +69,8 @@
       if (typeof page.load === "function") {
         try {
           await page.load(ctx);
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "pages-registry", event: "load-failed", message: "加载功能数据失败", level: "warn", phase: "load" });
         }
       }
     }

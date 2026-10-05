@@ -102,6 +102,7 @@
         }, {
           timeoutMs: options.timeoutMs || REQUEST_TIMEOUT_MS,
         }).then(response => finish(response)).catch(error => {
+          globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "store-fetch-failed", message: "商店功能处理失败", level: "error", phase: "storeFetch" });
           finish({ success: false, error: error?.message || "请求失败", status: 0, ok: false });
         });
         return;
@@ -278,7 +279,8 @@
     try {
       const data = JSON.parse(res.data || "{}");
       return !!(data.response || data.success || res.data);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "restore-failed", message: "恢复购物车失败", level: "warn", phase: "restore" });
       return true;
     }
   }
@@ -366,7 +368,8 @@
   }
 
   function start() {
-    run().catch(() => {});
+    run().catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });});
     if (!globalThis.STScheduler?.register) {
       logOnce("scheduler-unavailable", "warn", "checkout-cart-restore-skipped", "结算页购物车恢复缺少统一调度器", {
         reason: "scheduler-unavailable",
@@ -378,7 +381,8 @@
     // 恢复入口补挂载迁移到统一调度器，保持原短轮询窗口并在完成后主动注销。
     globalThis.STScheduler.register(SCHEDULER_TASK, () => {
       tries++;
-      run().catch(() => {});
+      run().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });});
       if (tries >= RESTORE_MAX_TRIES || (resultPage() && btn?.isConnected)) {
         globalThis.STScheduler?.unregister?.(SCHEDULER_TASK);
       }

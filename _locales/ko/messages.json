@@ -5979,7 +5979,7 @@
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
     "message": "현재 권한으로 클라우드 이름을 가져올 수 없습니다."
-  },
+  },
   "steam_independentName_filter": {
     "message": "필터"
   },
@@ -6139,5 +6139,44 @@
   },
   "steam_independentName_exportFailed": {
     "message": "내보내기에 실패했습니다. 다시 시도하세요"
+  },
+  "about_debug_title": {
+    "message": "DeBug 로그 켜기"
+  },
+  "about_debug_warning": {
+    "message": "켜면 전체 업무 요청, 응답 및 진단 데이터를 기록합니다. 계정 정보, 게임 정보, 입력 내용 등 개인정보가 포함될 수 있습니다.\n로그인 토큰, Cookie, 비밀번호 및 키는 계속 가려집니다.\n\n로그는 신뢰할 수 있는 사람에게만 제공하고 공개적으로 공유하지 마세요. 꼭 필요한 경우에만 켜세요. 계속하시겠습니까?"
+  },
+  "about_debug_enable": {
+    "message": "계속"
+  },
+  "about_debug_failed": {
+    "message": "DeBug 모드 변경 실패"
+  },
+  "about_debug_active": {
+    "message": "DeBug 로그를 함부로 공유하지 마세요"
+  },
+  "about_debug_unavailable": {
+    "message": "DeBug 상태를 확인할 수 없습니다. 설정을 다시 열어 주세요."
+  },
+  "about_debug_exportTitle": {
+    "message": "DeBug 데이터가 포함된 로그 내보내기"
+  },
+  "about_debug_exportWarning": {
+    "message": "로그에 상세 업무 데이터와 개인정보가 포함될 수 있습니다. DeBug를 꺼도 이 기록은 삭제되지 않습니다. 내보낸 파일은 신뢰할 수 있는 사람에게만 제공하세요. 계속 내보내시겠습니까?"
+  },
+  "about_debug_warningRecord": {
+    "message": "전체 업무 요청, 응답 및 진단 데이터를 기록합니다"
+  },
+  "about_debug_warningAccount": {
+    "message": "계정 정보"
+  },
+  "about_debug_warningGames": {
+    "message": "게임 정보"
+  },
+  "about_debug_warningInput": {
+    "message": "입력 내용"
+  },
+  "about_debug_warningShare": {
+    "message": "로그는 신뢰할 수 있는 사람에게만 제공하고 공개적으로 공유하지 마세요."
   }
 }

@@ -35,7 +35,6 @@
   let layoutTimer = null;
   let layoutScriptInjected = false;
   let started = false;
-  let lastSummaryKey = "";
   const hiddenReviews = new Map();
   const log = window.STLoggerFactory.createLogger(logDomain(), "review-filter");
 
@@ -435,30 +434,15 @@
     updatePanel();
   }
 
-  function scanSummary(cards, durationMs) {
-    const summary = {
-      candidateCount: cards.length,
-      hiddenCount: hiddenReviews.size,
-      durationMs,
-      path: location.pathname,
-    };
-    const key = `${summary.candidateCount}:${summary.hiddenCount}`;
-    if (key === lastSummaryKey) {
-      return;
-    }
-    lastSummaryKey = key;
-    if (window.STLoggerFactory?.getDiagnostics?.().enabled !== true) return;
-    log.info("review-filter-scan-summary", "评测过滤扫描摘要", summary);
-  }
+
 
   function scan() {
     if (!config?.enabled) {
       return;
     }
-    const startedAt = Date.now();
     const cards = findReviewCards();
     cards.forEach(applyCard);
-    scanSummary(cards, Date.now() - startedAt);
+
   }
 
   function queueScan(delay) {
@@ -584,7 +568,6 @@
     window.removeEventListener("pageshow", schedule);
     document.removeEventListener("scroll", schedule);
     hiddenReviews.clear();
-    lastSummaryKey = "";
     restoreCards();
     api.styles?.removeFeatureStyle?.("review-filter");
     updatePanel();

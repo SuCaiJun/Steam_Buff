@@ -68,7 +68,8 @@
           }
           resolve(data || {});
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-user-names-sync", event: "read-local-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "readLocal" });
         resolve({});
       }
     });
@@ -80,7 +81,8 @@
         chrome.storage.local.set(data, () => {
           resolve(!chrome.runtime.lastError);
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-user-names-sync", event: "write-local-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "writeLocal" });
         resolve(false);
       }
     });

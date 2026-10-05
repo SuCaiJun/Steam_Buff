@@ -219,7 +219,7 @@
       try {
         const entryInput = item?.entry && typeof item.entry === "object" ? item.entry : item;
         const entry = schema.normalizeEntry(entryInput, { allowAggregation: true });
-        if (schema.shouldPersist(entry, { forcePersist: item?.forcePersist === true })) {
+        if (schema.shouldPersist(entry, { forcePersist: item?.forcePersist === true, debugEnabled: !!entry.debugData })) {
           normalized.logs.push({
             entry,
             fallbackId: String(item?.fallbackId || ""),
@@ -397,6 +397,7 @@
       errorCount: counts.error + counts.fatal,
       levelCounts: counts,
       loggerHealth: normalizeHealth(health),
+      debugEntryCount: list.filter(entry => !!entry.debugData).length,
       policy: POLICY,
     };
   }
@@ -520,8 +521,9 @@
 
   async function appendNow(input, sender) {
     const prepared = await prepareStored();
-    const raw = input?.entry && typeof input.entry === "object" ? input.entry : input;
-    const forcePersist = input?.forcePersist === true;
+    let raw = input?.entry && typeof input.entry === "object" ? input.entry : input;
+    const debugEnabled = root.STBackgroundDebug?.allows(raw) === true;
+    if (!debugEnabled && raw?.debugData) { raw = { ...raw }; delete raw.debugData; }
     let entry;
     try {
       entry = schema.normalizeEntry(raw);
@@ -535,7 +537,7 @@
       const frameId = Number(sender.frameId);
       if (Number.isInteger(frameId) && frameId >= 0) entry.context = { ...entry.context, frameId };
     }
-    if (!schema.shouldPersist(entry, { forcePersist })) return commitPrepared(prepared);
+    if (!schema.shouldPersist(entry, { forcePersist: debugEnabled, debugEnabled })) return commitPrepared(prepared);
     const logs = prepared.logs.slice();
     // 每个真实事件按发生顺序独立保存；容量只由统一保留策略处理，不聚合或去重 debug/network/warn/error/fatal。
     logs.push(entry);
@@ -591,6 +593,11 @@
         loggerHealth: stats.loggerHealth,
         runtimeHealth: runtimeHealth(logs),
         retentionPolicy: POLICY,
+        debug: {
+          containsDetailedData: logs.some(entry => !!entry.debugData),
+          entryCount: logs.filter(entry => !!entry.debugData).length,
+          incompleteEntryCount: logs.filter(entry => entry.debugData?.truncated === true).length,
+        },
         files: ["logs.jsonl", "config.json", "env.json", "summary.json"],
         format: "zip",
       },

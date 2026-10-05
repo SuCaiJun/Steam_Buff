@@ -48,7 +48,8 @@
   function manifest() {
     try {
       return chrome.runtime.getManifest() || {};
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "diagnostics-export", event: "manifest-failed", message: "设置中心处理失败", level: "warn", phase: "manifest" });
       return {};
     }
   }
@@ -56,7 +57,8 @@
   function extensionId() {
     try {
       return chrome.runtime?.id || "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "diagnostics-export", event: "extension-id-failed", message: "设置中心处理失败", level: "warn", phase: "extensionId" });
       return "";
     }
   }
@@ -146,8 +148,12 @@
     const store = storage();
     const job = store[name];
     try {
-      return typeof job === "function" ? Promise.resolve(job.call(store)).catch(() => ({})) : Promise.resolve({});
-    } catch {
+      return typeof job === "function" ? Promise.resolve(job.call(store)).catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "diagnostics-export", event: "read-settings-failed", message: "读取诊断包设置快照失败", level: "warn", phase: "readSettings" });
+        return {};
+      }) : Promise.resolve({});
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "diagnostics-export", event: "read-settings-failed", message: "读取设置快照失败", level: "error", phase: "readSettings" });
       return Promise.resolve({});
     }
   }
@@ -328,6 +334,11 @@
       loggerHealth: loggerHealth(src.loggerHealth),
       runtimeHealth: runtimeHealth(src.runtimeHealth),
       retentionPolicy: retentionPolicy(src),
+      debug: {
+        containsDetailedData: src.debug?.containsDetailedData === true,
+        entryCount: Math.max(0, Number(src.debug?.entryCount) || 0),
+        incompleteEntryCount: Math.max(0, Number(src.debug?.incompleteEntryCount) || 0),
+      },
     };
   }
 

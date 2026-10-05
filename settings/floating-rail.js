@@ -183,7 +183,8 @@
     const targets = scroll.scrollTargets();
     try {
       root.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-rail", event: "to-top-failed", message: "设置中心处理失败", level: "warn", phase: "toTop" });
       root.scrollTo(0, 0);
     }
 
@@ -193,7 +194,8 @@
       }
       try {
         el.scrollTo({ top: 0, behavior: "smooth" });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-rail", event: "to-top-failed", message: "设置中心处理失败", level: "warn", phase: "toTop" });
         el.scrollTop = 0;
       }
     }
@@ -405,7 +407,8 @@
       drag.active = false;
       try {
         rail.releasePointerCapture(event.pointerId);
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-rail", event: "bind-drag-failed", message: "设置中心处理失败", level: "warn", phase: "bindDrag" });
       }
       rail.classList.remove("dragging");
       if (save && drag.moved) {
@@ -525,7 +528,8 @@
     for (const disposeOne of disposers.splice(0)) {
       try {
         disposeOne();
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-rail", event: "dispose-failed", message: "释放界面资源失败", level: "warn", phase: "dispose" });
       }
     }
     if (topFrameRaf) {

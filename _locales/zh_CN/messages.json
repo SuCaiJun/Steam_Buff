@@ -5979,7 +5979,7 @@
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
     "message": "当前权益未开通获取云端名称"
-  },
+  },
   "steam_independentName_filter": {
     "message": "筛选"
   },
@@ -6139,5 +6139,44 @@
   },
   "steam_independentName_exportFailed": {
     "message": "导出失败，请重试"
+  },
+  "about_debug_title": {
+    "message": "开启 DeBug 日志"
+  },
+  "about_debug_warning": {
+    "message": "开启后将记录完整的业务请求、响应及诊断数据，可能包含账号资料、游戏信息、输入内容等隐私信息。\n登录令牌、Cookie、密码和密钥仍会脱敏。\n\n请仅将日志提供给可信人员，切勿公开分享。非必要情况下请勿开启，确定继续吗？"
+  },
+  "about_debug_enable": {
+    "message": "继续"
+  },
+  "about_debug_failed": {
+    "message": "调整 DeBug 模式失败"
+  },
+  "about_debug_active": {
+    "message": "DeBug 下请勿随意分享日志"
+  },
+  "about_debug_unavailable": {
+    "message": "DeBug 状态暂不可用，请重新打开设置重试"
+  },
+  "about_debug_exportTitle": {
+    "message": "导出包含 DeBug 数据的日志"
+  },
+  "about_debug_exportWarning": {
+    "message": "日志包含详细业务数据，可能涉及隐私。关闭 DeBug 不会删除这些记录，请仅将导出文件提供给可信人员。是否继续导出？"
+  },
+  "about_debug_warningRecord": {
+    "message": "记录完整的业务请求、响应及诊断数据"
+  },
+  "about_debug_warningAccount": {
+    "message": "账号资料"
+  },
+  "about_debug_warningGames": {
+    "message": "游戏信息"
+  },
+  "about_debug_warningInput": {
+    "message": "输入内容"
+  },
+  "about_debug_warningShare": {
+    "message": "请仅将日志提供给可信人员，切勿公开分享。"
   }
 }

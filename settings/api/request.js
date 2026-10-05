@@ -178,11 +178,13 @@
       || root.STLoggerFactory?.createRequestId?.()
       || root.STLoggerSchema?.createId?.("request")
       || "";
+    let debugResponse;
     const requestDetails = {
       service: options.service,
       operationId,
       requestId,
       request: root.STLoggerSchema?.requestFacts?.({ ...options, method, url, headers, timeoutMs, endpointKey: options.endpointKey || "settings-api" }),
+      debugData: () => ({ request: { url, method, headers, body: options.body, data: options.data }, response: debugResponse }),
     };
 
     return (async () => {
@@ -205,6 +207,7 @@
             service: options.service,
             traceRequest: options.traceRequest === true,
           }, timeoutMs);
+          debugResponse = response;
           if (options.traceRequest === true) log.info("api-response-received", "设置中心已收到关键 API 消息回复", { ...requestDetails, response: root.STLoggerSchema?.responseFacts?.(response), durationMs: Date.now() - startedAt });
           if (!response?.success) {
             const error = new Error(responseErrorMessage(response));

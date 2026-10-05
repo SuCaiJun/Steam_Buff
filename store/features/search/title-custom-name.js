@@ -540,7 +540,8 @@
         item = await loadName(source.appid);
         if (openSeq !== modalSeq) return;
         nameCache.set(Number(source.appid), item);
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "warn", phase: "openModal" });
         if (openSeq !== modalSeq) return;
         item = null;
       }
@@ -585,6 +586,7 @@
       const aliases = Array.isArray(item?.aliases) ? item.aliases : (item?.alias ? [item.alias] : []);
       setAliasList(modal, aliases);
     }).catch(error => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "error", phase: "openModal" });
       if (modalLoadCurrent(modal, source.appid, loadSeq)) setMsg(error?.message || String(error));
     });
     modalNote(source.appid).then(note => {
@@ -594,6 +596,7 @@
       textarea.value = String(note?.note || "");
       updateCount(modal);
     }).catch(error => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "error", phase: "openModal" });
       if (modalLoadCurrent(modal, source.appid, loadSeq)) setMsg(error?.message || String(error));
     });
   }
@@ -649,9 +652,9 @@
     }
     if (event.target.closest("[data-title-custom-name-save]")) {
       if (modal.dataset.activeTab === "note") {
-        saveNoteFromModal(false).catch(error => setMsg(error?.message || String(error)));
+        saveNoteFromModal(false).catch(error => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" }); return setMsg(error?.message || String(error)); });
       } else {
-        submitName().catch(error => setMsg(error?.message || String(error)));
+        submitName().catch(error => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" }); return setMsg(error?.message || String(error)); });
       }
     }
   }
@@ -996,7 +999,8 @@
     clearTimeout(wishlistTimer);
     const waitMs = Math.max(0, Number(delay) || 0);
     wishlistTimer = setTimeout(() => {
-      renderWishlistRows().catch(() => {});
+      renderWishlistRows().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "schedule-wishlist-render-failed", message: "商店功能处理失败", level: "error", phase: "scheduleWishlistRender" });});
     }, waitMs);
   }
 
@@ -1047,7 +1051,8 @@
       }
       if (wishlistRowsReady()) return;
       wishlistSettleChecks += 1;
-      renderWishlistRows().catch(() => {});
+      renderWishlistRows().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "schedule-wishlist-settle-check-failed", message: "商店功能处理失败", level: "error", phase: "scheduleWishlistSettleCheck" });});
       scheduleWishlistSettleCheck();
     }, WISHLIST_SETTLE_RETRY_MS);
   }
@@ -1062,7 +1067,8 @@
       scheduleWishlistSettleCheck();
       return false;
     }
-    renderWishlistRows().catch(() => {});
+    renderWishlistRows().catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "start-wishlist-failed", message: "启动愿望单名称展示失败", level: "error", phase: "startWishlist" });});
     bindWishlistObserver(container);
     scheduleWishlistSettleCheck();
     return true;
@@ -1085,7 +1091,8 @@
       }
       detailSettleChecks += 1;
       if (!detailMountedOnCurrentTitle()) {
-        refresh().catch(() => {});
+        refresh().catch((error) => {
+          globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "schedule-detail-settle-check-failed", message: "商店功能处理失败", level: "error", phase: "scheduleDetailSettleCheck" });});
         return;
       }
       scheduleDetailSettleCheck(seq);
@@ -1107,7 +1114,8 @@
       if (info && tries < RETRY_MAX) {
         tries += 1;
         setTimeout(() => {
-          if (seq === refreshSeq) refresh().catch(() => {});
+          if (seq === refreshSeq) refresh().catch((error) => {
+            globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "refresh-failed", message: "刷新功能状态失败", level: "error", phase: "refresh" });});
         }, RETRY_MS);
       }
       return;
@@ -1129,7 +1137,8 @@
       if (seq !== refreshSeq || state?.appid !== info.appid) return;
       state.item = item;
       nameCache.set(info.appid, item);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "refresh-failed", message: "刷新功能状态失败", level: "warn", phase: "refresh" });
       if (seq !== refreshSeq || state?.appid !== info.appid) return;
       state.item = null;
     }
@@ -1149,7 +1158,8 @@
     }
     lastWishlistRenderKey = "";
     if (isWishlistPath()) {
-      renderWishlistRows().catch(() => {});
+      renderWishlistRows().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "apply-cached-decorations-failed", message: "更新名称展示失败", level: "error", phase: "applyCachedDecorations" });});
     }
   }
 
@@ -1177,7 +1187,8 @@
     const callback = () => {
       const info = pageInfo();
       if (info && (!state || state.appid !== info.appid || !detailMountedOnCurrentTitle())) {
-        refresh().catch(() => {});
+        refresh().catch((error) => {
+          globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "observe-failed", message: "商店功能处理失败", level: "error", phase: "observe" });});
       }
     };
     observer = root.STObserverUtils?.createDebouncedObserver?.(callback, DETAIL_OBSERVER_DEBOUNCE_MS)
@@ -1209,7 +1220,8 @@
         observe();
         const appid = state?.appid || pageInfo()?.appid;
         if (!nameCache.has(appid)) {
-          refresh().catch(() => {});
+          refresh().catch((error) => {
+            globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });});
         }
       }
       log.info("title-custom-name-start-skipped", "商店标题自定义名已启动，本次只触发刷新", {
@@ -1223,7 +1235,8 @@
       startWishlist();
     } else if (isDetailPath()) {
       observe();
-      refresh().catch(() => {});
+      refresh().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });});
     }
     log.info("title-custom-name-start-success", "商店标题自定义名已启动", {
       path: location.pathname,

@@ -196,7 +196,8 @@
         return true;
       }
       return match.isSteamCommunityHost(host) || match.isSteamCommunityLikeHost(host);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "prompt-allowed-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "promptAllowed" });
       return false;
     }
   }
@@ -228,7 +229,8 @@
           }
           resolve((tabs || []).filter((tab) => promptAllowed(tab.url)));
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "query-prompt-tabs-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "queryPromptTabs" });
         resolve([]);
       }
     });
@@ -243,7 +245,8 @@
         }, () => {
           resolve(!chrome.runtime.lastError);
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "exec-files-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "execFiles" });
         resolve(false);
       }
     });
@@ -255,7 +258,8 @@
         chrome.tabs.sendMessage(tabId, payload, () => {
           resolve(!chrome.runtime.lastError);
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "send-tab-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "sendTab" });
         resolve(false);
       }
     });
@@ -494,6 +498,7 @@
     try {
       await apiCloud.decrypt(ciphertext, typed, body.alg || apiCloud.ALG);
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "verify-candidate-failed", message: "校验云同步密钥失败", level: "warn", phase: "verifyCandidate", operationId });
       if (error?.code === "alg") {
         return { result: await promptUpgrade(body, operationId, forcePrompt) };
       }
@@ -953,6 +958,7 @@
     }).then((result) => {
       sendResponse({ success: result?.success !== false, ...result });
     }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "handle-message-failed", message: "处理后台消息失败", level: "error", phase: "handleMessage" });
       sendResponse({ success: false, error: error?.message || String(error) });
     });
   }

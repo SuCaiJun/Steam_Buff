@@ -175,7 +175,8 @@
       ]);
       try {
         window.scrollTo({ top: 0, behavior: "smooth" });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "menu-controller", event: "to-top-failed", message: "设置中心处理失败", level: "warn", phase: "toTop" });
         window.scrollTo(0, 0);
       }
 
@@ -185,7 +186,8 @@
         }
         try {
           el.scrollTo({ top: 0, behavior: "smooth" });
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "menu-controller", event: "to-top-failed", message: "设置中心处理失败", level: "warn", phase: "toTop" });
           el.scrollTop = 0;
         }
       }
@@ -254,7 +256,8 @@
       for (const disposeOne of disposers.splice(0)) {
         try {
           disposeOne();
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "menu-controller", event: "dispose-failed", message: "释放界面资源失败", level: "warn", phase: "dispose" });
         }
       }
       scroll.clear?.();
@@ -274,6 +277,8 @@
         return;
       }
 
+      globalThis.STSettingsDialogs?.cancel();
+      globalThis.STSettingsPages?.get("about")?.dispose();
       panel.classList.remove("open");
       window.setTimeout(() => {
         if (!panel.classList.contains("open") && !panel.querySelector(".settings-dialog-layer")) {
@@ -395,7 +400,8 @@
         drag.active = false;
         try {
           rail.releasePointerCapture(event.pointerId);
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "menu-controller", event: "bind-failed", message: "设置中心处理失败", level: "warn", phase: "bind" });
           // 指针捕获可能已被浏览器释放，忽略即可。
         }
         rail.classList.remove("dragging");

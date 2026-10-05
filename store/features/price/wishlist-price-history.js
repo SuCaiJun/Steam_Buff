@@ -460,6 +460,7 @@
       historyCache.set(appid, result);
       return result;
     }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "load-history-failed", message: "加载历史价格失败", level: "error", phase: "loadHistory" });
       const result = {
         ok: false,
         code: error?.code || "ITAD_HISTORY_REQUEST_FAILED",
@@ -518,7 +519,8 @@
       }
       pyCache.set(appid, null);
       return null;
-    })().catch(() => {
+    })().catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "load-py-failed", message: "加载第三方价格失败", level: "error", phase: "loadPy" });
       pyCache.set(appid, null);
       return null;
     }).finally(() => {

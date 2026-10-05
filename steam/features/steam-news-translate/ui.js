@@ -94,7 +94,8 @@
     try {
       const data = JSON.parse(String(value || ""));
       return data && typeof data === "object" ? data : null;
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "steam-news-translate", event: "parse-config-failed", message: "客户端功能处理失败", level: "warn", phase: "parseConfig" });
       return null;
     }
   }
@@ -1482,6 +1483,7 @@
         renderTranslation(rt, card, data, cached, needs);
         setButton(button, "done");
       } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "steam-news-translate", event: "translate-card-failed", message: "翻译新闻失败", level: "error", phase: "translateCard" });
         setButton(button, "error", error?.message || i18n("steam.newsTranslate.failed", "翻译失败"));
       }
       return;
@@ -1598,7 +1600,8 @@
     mounted.set(card, { button, target });
     rt.cards.add(card);
     rt.activeCard = card;
-    translateCard(rt, card, mounted.get(card) || { button }).catch(() => {});
+    translateCard(rt, card, mounted.get(card) || { button }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "steam-news-translate", event: "activate-button-failed", message: "处理新闻翻译失败", level: "error", phase: "activateButton" });});
   }
 
   function mount(rt, surface) {
@@ -1743,7 +1746,8 @@
       if (!el.matches(":popover-open")) {
         el.showPopover();
       }
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "steam-news-translate", event: "open-news-overlay-failed", message: "客户端功能处理失败", level: "warn", phase: "openNewsOverlay" });
     }
   }
 
@@ -1756,7 +1760,8 @@
         if (el.matches(":popover-open")) {
           el.hidePopover();
         }
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "steam-news-translate", event: "close-news-overlay-failed", message: "客户端功能处理失败", level: "warn", phase: "closeNewsOverlay" });
       }
     }
     el.hidden = true;
@@ -2203,7 +2208,8 @@
     // 配置刷新迁移到统一调度器，避免新闻弹窗功能持有独立巡检。
     window.STScheduler.register(
       SCHEDULER_TASK,
-      () => refreshConfig(rt).catch(() => {}),
+      () => refreshConfig(rt).catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "steam-news-translate", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });}),
       () => !rt.stopped,
       { intervalMs: CONFIG_REFRESH_MS }
     );
@@ -2213,7 +2219,8 @@
       surfaceHostId: popupHost.hostId,
       refreshMs: CONFIG_REFRESH_MS,
     });
-    refreshConfig(rt).catch(() => {});
+    refreshConfig(rt).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "steam-news-translate", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });});
     return { started: true, stop: rt.stop };
   }
 

@@ -221,7 +221,8 @@
   function monitorTimezone() {
     try {
       return String(Intl.DateTimeFormat().resolvedOptions().timeZone || "").trim();
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "monitor-timezone-failed", message: "商店功能处理失败", level: "warn", phase: "monitorTimezone" });
       return "";
     }
   }
@@ -342,7 +343,8 @@
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       }).format(value).replace(/\s+/g, "");
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "monitor-amount-text-failed", message: "商店功能处理失败", level: "warn", phase: "monitorAmountText" });
       return `${code} ${value.toFixed(2)}`;
     }
   }
@@ -518,7 +520,8 @@
         maximumFractionDigits: 0,
       }).formatToParts(0).find(item => item.type === "currency");
       return part?.value || code;
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "monitor-currency-symbol-failed", message: "商店功能处理失败", level: "warn", phase: "monitorCurrencySymbol" });
       return code;
     }
   }
@@ -1136,6 +1139,7 @@
           updateMonitorExplanation(modal);
         }
       } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "open-monitor-modal-failed", message: "商店功能处理失败", level: "error", phase: "openMonitorModal" });
         showMonitorErrorDialog(
           modal,
           t("store_priceHistory_monitorAuthErrorTitle", "鉴权检查失败"),
@@ -1668,7 +1672,8 @@
       if (!result?.started || !activeNode(node, queryId)) return;
       node.title = "";
       node.setAttribute("aria-label", historyLabel);
-    }).catch(() => {
+    }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "bind-dlc-regional-price-failed", message: "商店功能处理失败", level: "error", phase: "bindDlcRegionalPrice" });
       // 保留已存在的历史价格 title，区域价格绑定失败时不制造空白悬浮目标。
     });
   }

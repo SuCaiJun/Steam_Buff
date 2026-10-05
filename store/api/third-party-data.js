@@ -472,7 +472,8 @@
     if (typeof provider?.getInfo !== "function") return null;
     try {
       return await provider.getInfo(id, options, config);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "api-third-party-data", event: "optional-game-info-failed", message: "商店功能处理失败", level: "warn", phase: "optionalGameInfo" });
       return null;
     }
   }
@@ -878,6 +879,7 @@
         },
       };
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "api-third-party-data", event: "ensure-store-price-chart-rates-failed", message: "商店功能处理失败", level: "warn", phase: "ensureStorePriceChartRates" });
       return {
         ...result,
         data: {

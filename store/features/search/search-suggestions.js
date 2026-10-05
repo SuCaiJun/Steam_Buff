@@ -38,7 +38,8 @@
   const FALLBACK_IMG = (() => {
     try {
       return root.chrome?.runtime?.getURL?.("images/store/search-fallback.png") || "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "callback-failed", message: "商店功能处理失败", level: "warn", phase: "callback" });
       return "";
     }
   })();
@@ -467,7 +468,8 @@
             fallbackSearch(input, item);
           }
         };
-        reportClick(keyword, item).catch(() => {}).finally(go);
+        reportClick(keyword, item).catch((error) => {
+          globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "bind-clicks-failed", message: "商店功能处理失败", level: "error", phase: "bindClicks" });}).finally(go);
         // 点击统计只是热度参考，网络失败或接口慢都不能阻断用户跳转。
         setTimeout(go, 180);
       });
@@ -499,7 +501,7 @@
 
     const seq = (state.seq || 0) + 1;
     state.seq = seq;
-    const items = await requestSuggestions(keyword, src, mode).catch(() => []);
+    const items = await requestSuggestions(keyword, src, mode).catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "update-failed", message: "商店功能处理失败", level: "error", phase: "update" }); return []; });
     // 输入框内容或请求序号变化说明这是旧响应，直接丢弃，避免覆盖新关键词结果。
     if (state.seq !== seq || core.readyKeyword(input.value) !== keyword) {
       return;
@@ -516,7 +518,7 @@
     }
     clearTimeout(state.timer);
     state.timer = setTimeout(() => {
-      update(input).catch(() => clear(input));
+      update(input).catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "schedule-failed", message: "商店功能处理失败", level: "error", phase: "schedule" }); return clear(input); });
     }, DEBOUNCE_MS);
   }
 
@@ -610,7 +612,8 @@
           applyNativeResults(input);
         }
       }
-    }).catch(() => {});
+    }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "refresh-failed", message: "刷新功能状态失败", level: "error", phase: "refresh" });});
   }
 
   function start() {

@@ -63,7 +63,8 @@
   function version() {
     try {
       return root.chrome?.runtime?.getManifest?.()?.version || "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "update-checker", event: "version-failed", message: "设置中心处理失败", level: "warn", phase: "version" });
       return "";
     }
   }
@@ -74,7 +75,8 @@
         root.chrome?.storage?.local?.get(keys, (data) => {
           resolve(root.chrome?.runtime?.lastError ? {} : (data || {}));
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "update-checker", event: "storage-get-failed", message: "设置中心处理失败", level: "warn", phase: "storageGet" });
         resolve({});
       }
     });
@@ -86,7 +88,8 @@
         root.chrome?.storage?.local?.set(data, () => {
           resolve(!root.chrome?.runtime?.lastError);
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "update-checker", event: "storage-set-failed", message: "设置中心处理失败", level: "error", phase: "storageSet" });
         resolve(false);
       }
     });

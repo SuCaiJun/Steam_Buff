@@ -521,6 +521,7 @@
           }
         })
         .catch((error) => {
+          globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "ai-adapter", event: "install-post-hook-failed", message: "翻译功能处理失败", level: "error", phase: "installPostHook" });
           if (typeof func === "function") {
             func(fail(error, data), data);
           }

@@ -39,6 +39,13 @@
         node.appendChild(em);
         continue;
       }
+      if (part.danger === true) {
+        const span = document.createElement("span");
+        span.className = "settings-dialog-danger";
+        span.textContent = value;
+        node.appendChild(span);
+        continue;
+      }
       node.appendChild(document.createTextNode(value));
     }
   }
@@ -84,6 +91,8 @@
     };
   }
 
+  let activeCancel = null;
+
   function dialog(shadow, options = {}) {
     const startedAt = Date.now();
     const panel = shadow?.querySelector?.(".panel");
@@ -96,6 +105,7 @@
     }
 
     const restoreTarget = shadow.activeElement;
+    activeCancel?.();
     panel.querySelector(".settings-dialog-layer")?.remove();
     const layer = document.createElement("div");
     const box = document.createElement("div");
@@ -146,6 +156,7 @@
           return;
         }
         done = true;
+        if (activeCancel === cancel) activeCancel = null;
         for (const clear of countdownClears) {
           clear();
         }
@@ -163,6 +174,8 @@
         });
         resolve(value);
       };
+      const cancel = () => close("cancel");
+      activeCancel = cancel;
 
       life = globalThis.STDialogLifecycle?.open?.({
         root: layer,
@@ -185,7 +198,7 @@
     });
   }
 
-  const api = Object.freeze({ dialog });
+  const api = Object.freeze({ dialog, cancel() { activeCancel?.(); } });
   globalThis.STSettingsDialogs = api;
 
   if (typeof module === "object" && module.exports) {

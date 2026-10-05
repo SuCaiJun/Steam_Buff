@@ -382,6 +382,7 @@
         items: [{ type: info.type, id: info.appId || info.id }],
       });
     }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "data-display", event: "load-failed", message: "加载功能数据失败", level: "error", phase: "load" });
       if (!isCurrent()) return null;
       const result = { ok: false, code: text(error?.code || "PROVIDER_REQUEST_FAILED"), userMessage: text(error?.message) || "第三方价格数据加载失败，请稍后重试。" };
       view?.renderState?.(root, "error", result, info);

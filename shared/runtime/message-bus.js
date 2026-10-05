@@ -48,6 +48,8 @@
     LOG_EXPORT: { timeoutMs: 12 * 1000, owner: "logger" },
     LOG_CLEAR: { timeoutMs: 8 * 1000, owner: "logger" },
     LOG_STATS: { timeoutMs: 8 * 1000, owner: "logger" },
+    LOG_DEBUG_GET: { timeoutMs: 8 * 1000, owner: "logger" },
+    LOG_DEBUG_SET: { timeoutMs: 8 * 1000, owner: "logger" },
   });
 
   const inFlight = new Map();
