@@ -75,6 +75,20 @@
     });
   }
 
+  // 轻量悬浮栏未加载设置存储时，只为当前文档准备配置依赖。
+  async function ensureStorage(operationId) {
+    if (!root.STSettings?.storage) {
+      await requestRuntime({
+        type: "TRANSLATE_INJECT", action: "manual-page-config", operationId,
+      }, { expectSuccess: true });
+    }
+    const storage = root.STSettings?.storage;
+    if (typeof storage?.getTranslate !== "function" || typeof storage?.getAi !== "function") {
+      throw new Error(tr("settings.shell.pageTranslateSettingsMissing", "翻译配置未加载，请刷新网页后重试"));
+    }
+    return storage;
+  }
+
   // 两种悬浮栏共享同一个任务；配置只在点击时读取，不写入设置或启动自动模式
   function run() {
     if (task) return task;
@@ -87,7 +101,8 @@
     };
     task = Promise.resolve().then(async () => {
       if (!available()) throw new Error(tr("settings.shell.pageTranslateUnavailable", "当前页面不支持手动翻译"));
-      const storage = root.STSettings.storage;
+      const storage = await ensureStorage(operationId);
+      checkPage();
       const [conf, ai] = await Promise.all([storage.getTranslate(), storage.getAi()]);
       checkPage();
       log.info("manual-page-start", "用户开始手动翻译网页", { operationId, to: conf.to, service: conf.service });

@@ -43,6 +43,9 @@
   "settings_shell_pageTranslateUnavailable": {
     "message": "このページでは手動翻訳を利用できません"
   },
+  "settings_shell_pageTranslateSettingsMissing": {
+    "message": "翻訳設定が読み込まれていません。ページを再読み込みしてください"
+  },
   "settings_shell_pageTranslateRuntimeMissing": {
     "message": "翻訳機能が読み込まれていません。ページを再読み込みしてください"
   },

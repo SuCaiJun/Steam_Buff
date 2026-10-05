@@ -3239,7 +3239,8 @@
   // 手动入口只准备依赖，任务由同一 isolated world 中的 runner 执行，不覆盖已有自动翻译配置
   // 旧请求仍按配置启动；仅注入请求来源 frame
   async function translateInject(request, sender, sendResponse) {
-    const manual = request.action === "manual-page";
+    const configOnly = request.action === "manual-page-config";
+    const manual = configOnly || request.action === "manual-page";
     const target = manual && typeof sender?.documentId === "string"
       ? { tabId: sender.tab?.id, documentIds: [sender.documentId] }
       : translateTarget(sender);
@@ -3260,6 +3261,16 @@
     };
 
     try {
+      // 首次点击只准备配置读取模块，不加载设置面板或启动自动翻译。
+      if (configOnly) {
+        await execScript({
+          target,
+          world: "ISOLATED",
+          files: [AI_CONFIG, "shared/price-comparison-catalog.js", "settings/catalog.js", "settings/storage.js"],
+        });
+        sendResponse({ success: true });
+        return;
+      }
       await execScript({
         target,
         world: "ISOLATED",
@@ -3359,7 +3370,7 @@
     } catch (error) {
       const msg = error.message || String(error);
       logError("translate", "inject-failed", "翻译注入失败", error, {
-        ...(manual ? { action: "manual-page", operationId: request.operationId, documentId: sender.documentId } : {}),
+        ...(manual ? { action: request.action, operationId: request.operationId, documentId: sender.documentId } : {}),
       });
       sendResponse({ success: false, error: msg });
     }

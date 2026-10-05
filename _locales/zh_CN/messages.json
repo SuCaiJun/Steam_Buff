@@ -43,6 +43,9 @@
   "settings_shell_pageTranslateUnavailable": {
     "message": "当前页面不支持手动翻译"
   },
+  "settings_shell_pageTranslateSettingsMissing": {
+    "message": "翻译配置未加载，请刷新网页后重试"
+  },
   "settings_shell_pageTranslateRuntimeMissing": {
     "message": "手动翻译运行时未加载，请刷新网页后重试"
   },

@@ -43,6 +43,9 @@
   "settings_shell_pageTranslateUnavailable": {
     "message": "이 페이지에서는 수동 번역을 사용할 수 없습니다"
   },
+  "settings_shell_pageTranslateSettingsMissing": {
+    "message": "번역 설정이 로드되지 않았습니다. 새로고침 후 다시 시도하세요"
+  },
   "settings_shell_pageTranslateRuntimeMissing": {
     "message": "번역 기능이 로드되지 않았습니다. 새로고침 후 다시 시도하세요"
   },

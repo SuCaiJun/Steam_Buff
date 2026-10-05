@@ -43,6 +43,9 @@
   "settings_shell_pageTranslateUnavailable": {
     "message": "目前頁面不支援手動翻譯"
   },
+  "settings_shell_pageTranslateSettingsMissing": {
+    "message": "翻譯設定未載入，請重新整理網頁後重試"
+  },
   "settings_shell_pageTranslateRuntimeMissing": {
     "message": "手動翻譯執行環境未載入，請重新整理網頁後重試"
   },

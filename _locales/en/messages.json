@@ -43,6 +43,9 @@
   "settings_shell_pageTranslateUnavailable": {
     "message": "Manual translation is unavailable on this page"
   },
+  "settings_shell_pageTranslateSettingsMissing": {
+    "message": "Translation settings are unavailable; refresh and retry"
+  },
   "settings_shell_pageTranslateRuntimeMissing": {
     "message": "Manual translation runtime is unavailable; refresh and retry"
   },
