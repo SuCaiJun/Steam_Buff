@@ -24,11 +24,14 @@
     throw new Error("设置云同步缺少日志依赖，请先加载 shared/logger-factory.js");
   }
   const log = root.STLoggerFactory.createLogger("settings", "settings-cloud");
+  if (typeof root.STSettingsBus?.createSnapshotStore !== "function") {
+    throw new Error("设置云同步缺少展示快照依赖，请先加载 shared/settings-bus.js");
+  }
+  const cardState = root.STSettingsBus.createSnapshotStore({ owner: "settings:cloud", key: "card" });
   let bound = false;
   let prompting = false;
-  let lastSecret = "";
-  let cachedState = null;
   let panelShadow = null;
+  let bindingDisposers = [];
 
   function tr(key, fallback, params) {
     return root.STI18n.text(key, fallback, params);
@@ -118,7 +121,8 @@
   }
 
   // 登录写入后可传入同一份 token，避免卡片再读一次空的 steam_buff_auth 后画出去登录
-  async function snapshot(authOverride, useOverride) {
+  async function snapshot(authOverride, useOverride, source = {}) {
+    const ticket = cardState.beginUpdate();
     const api = cloud();
     const store = settings.storage || {};
     const authTask = useOverride
@@ -134,11 +138,9 @@
       authTask,
       memTask,
     ]);
-    lastSecret = String(secret || "");
     const logged = loggedIn(auth);
     const allowed = logged && membership()?.permission?.("settingsCloud", mem) === true;
-    cachedState = { enabled, secret: lastSecret, meta, logged, allowed, mem };
-    return cachedState;
+    return cardState.commitUpdate(ticket, { enabled, secret: String(secret || ""), meta, logged, allowed, mem }, source);
   }
 
   function statusText(state) {
@@ -227,7 +229,7 @@
   }
 
   function htmlSync() {
-    return htmlFrom(cachedState || {
+    return htmlFrom(cardState.getSnapshot() || {
       enabled: false,
       secret: "",
       meta: cloud()?.emptyMeta?.() || {},
@@ -264,42 +266,43 @@
 
   async function preload(...args) {
     try {
-      await snapshot(args[0], args.length > 0);
+      await snapshot(args[0], args.length > 0, args[1]);
     } catch (error) {
-      log.warn("settings-cloud-card-failed", "设置云同步卡片读取失败", { error });
-      return cachedState;
+      log.warn("settings-cloud-card-failed", "设置云同步卡片读取失败", {
+        operationId: String(args[1]?.operationId || ""), reason: String(args[1]?.reason || ""), error,
+      });
+      return cardState.getSnapshot();
     }
-    if (panelShadow?.querySelector?.(".settings-cloud-card")) {
-      try {
-        replaceCard(panelShadow, htmlSync());
-      } catch (error) {
-        log.warn("settings-cloud-card-refresh-failed", "设置云同步卡片刷新失败", { error });
-      }
-    }
-    return cachedState;
+    return cardState.getSnapshot();
   }
 
   async function html() {
     try {
-      return htmlFrom(await snapshot());
+      await snapshot();
+      return htmlSync();
     } catch (error) {
       log.warn("settings-cloud-card-failed", "设置云同步卡片读取失败", { error });
       return htmlSync();
     }
   }
 
-  async function refresh(shadow) {
-    let htmlText = "";
+  async function refresh(shadow, source = {}) {
+    let accepted;
     try {
-      htmlText = await html();
+      accepted = await snapshot(undefined, false, source);
     } catch (error) {
-      log.warn("settings-cloud-card-failed", "设置云同步卡片读取失败", { error });
+      log.warn("settings-cloud-card-failed", "设置云同步卡片读取失败", {
+        operationId: String(source.operationId || ""), reason: String(source.reason || ""), error,
+      });
       return;
     }
+    if (!accepted || (bound && shadow === panelShadow)) return;
     try {
-      replaceCard(shadow, htmlText);
+      replaceCard(shadow, htmlSync());
     } catch (error) {
-      log.warn("settings-cloud-card-refresh-failed", "设置云同步卡片刷新失败", { error });
+      log.warn("settings-cloud-card-refresh-failed", "设置云同步卡片刷新失败", {
+        operationId: String(source.operationId || ""), reason: String(source.reason || ""), error,
+      });
     }
   }
 
@@ -447,62 +450,86 @@
     await refresh(shadow);
   }
 
-  function watchAuth(shadow) {
+  function watchAuth() {
     const keys = [AUTH_KEY, membership()?.KEY || "steam_buff_membership"];
-    const refreshCard = () => {
-      refresh(shadow).catch((error) => {
-        log.warn("settings-cloud-auth-refresh-failed", "登录或权益变化后刷新云同步卡片失败", { error });
+    const refreshCard = (source) => {
+      refresh(panelShadow, source).catch((error) => {
+        log.warn("settings-cloud-auth-refresh-failed", "登录或权益变化后刷新云同步卡片失败", {
+          operationId: source?.operationId || "", error,
+        });
       });
     };
     if (root.STSettingsBus?.subscribe) {
-      root.STSettingsBus.subscribe(refreshCard, {
+      return root.STSettingsBus.subscribe(refreshCard, {
         owner: "settings:cloud",
         key: "auth-membership",
         keys,
       });
-      return;
     }
     if (!root.chrome?.storage?.onChanged) {
-      return;
+      return null;
     }
-    chrome.storage.onChanged.addListener((changes, area) => {
+    const listener = (changes, area) => {
       if (area !== "local") {
         return;
       }
       if (!keys.some((key) => Object.hasOwn(changes || {}, key))) {
         return;
       }
-      refreshCard();
-    });
+      refreshCard({ reason: "storage-change" });
+    };
+    chrome.storage.onChanged.addListener(listener);
+    return { dispose: () => chrome.storage.onChanged.removeListener(listener) };
+  }
+
+  function dispose(shadow) {
+    if (shadow && panelShadow !== shadow) return;
+    for (const release of bindingDisposers.splice(0)) release();
+    bound = false;
+    panelShadow = null;
   }
 
   function bind(shadow) {
     if (!shadow) {
       return;
     }
-    panelShadow = shadow;
-    if (bound) {
+    if (bound && panelShadow === shadow) {
       return;
     }
+    dispose();
+    bindingDisposers = [];
+    panelShadow = shadow;
     bound = true;
     root.STSettingsCloudUi = api;
-    watchAuth(shadow);
-    if (root.STMessageBus?.ready && root.STMessageBus?.listen) {
-      root.STMessageBus.listen(PROMPT_TYPE, (request) => {
-        showPrompt(shadow, request).catch((error) => {
-          log.warn("settings-cloud-prompt-failed", "设置云同步弹窗失败", { error });
-        });
-      }, { owner: "settings:cloud", key: "prompt" });
-    } else if (root.chrome?.runtime?.onMessage) {
-      chrome.runtime.onMessage.addListener((request) => {
-        if (request?.type !== PROMPT_TYPE) {
-          return;
-        }
-        showPrompt(shadow, request).catch((error) => {
-          log.warn("settings-cloud-prompt-failed", "设置云同步弹窗失败", { error });
-        });
+    const rendering = cardState.subscribe(["enabled", "secret", "meta", "logged", "allowed", "mem"], () => {
+      replaceCard(panelShadow, htmlSync());
+    }, { key: "render" });
+    bindingDisposers.push(rendering.dispose);
+    const authWatcher = watchAuth();
+    if (authWatcher) bindingDisposers.push(authWatcher.dispose);
+    const onPrompt = request => {
+      showPrompt(panelShadow, request).catch((error) => {
+        log.warn("settings-cloud-prompt-failed", "设置云同步弹窗失败", { error });
       });
+    };
+    if (root.STMessageBus?.ready && root.STMessageBus?.listen) {
+      const listener = root.STMessageBus.listen(PROMPT_TYPE, onPrompt, { owner: "settings:cloud", key: "prompt" });
+      if (listener) bindingDisposers.push(listener.dispose);
+    } else if (root.chrome?.runtime?.onMessage) {
+      const listener = request => { if (request?.type === PROMPT_TYPE) onPrompt(request); };
+      chrome.runtime.onMessage.addListener(listener);
+      bindingDisposers.push(() => chrome.runtime.onMessage.removeListener(listener));
     }
+    const ownedBindings = bindingDisposers;
+    root.STRuntime?.current?.()?.registerResource({
+      owner: "settings:cloud", key: "ui-bindings", type: "settings-ui", dispose() {
+        for (const release of ownedBindings.splice(0)) release();
+        if (bindingDisposers === ownedBindings) {
+          bound = false;
+          panelShadow = null;
+        }
+      },
+    });
   }
 
   function handleClick(event, shadow, ctx) {
@@ -569,6 +596,7 @@
     preload,
     refresh,
     bind,
+    dispose,
     handleClick,
     showPrompt,
     notifyOpen,

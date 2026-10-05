@@ -18,11 +18,11 @@
   if (!authSession) {
     throw new Error("shared/auth-session.js must load before settings account auth");
   }
-  const { cleanAuth, expired, authKey, nextAuth, refreshRejected } = authSession;
+  const { cleanAuth, expired, authKey, nextAuth } = authSession;
   if (!root.STAuthClient && typeof module === "object" && module.exports && typeof require === "function") {
     require("../../../shared/auth-client.js");
   }
-  if (typeof root.STAuthClient?.commitStored !== "function") {
+  if (typeof root.STAuthClient?.commitStored !== "function" || typeof root.STAuthClient.refreshStored !== "function") {
     throw new Error("shared/auth-client.js must load before settings account auth");
   }
 
@@ -63,7 +63,7 @@
     async function preloadCloud(auth, operationId, event, message) {
       if (typeof root.STSettingsCloudUi?.preload !== "function") return;
       try {
-        await root.STSettingsCloudUi.preload(auth);
+        await root.STSettingsCloudUi.preload(auth, { operationId, reason: "auth-commit" });
       } catch (error) {
         log.warn(event, message, {
           operationId: String(operationId || ""),
@@ -75,6 +75,10 @@
     // 所有读、比较和写入统一交给共享提交入口；这里只更新账号页状态。
     async function commitEntry(ctx, input) {
       const decision = await root.STAuthClient.commitStored(ctx.storage, input);
+      return adoptCommit(ctx, decision);
+    }
+
+    async function adoptCommit(ctx, decision) {
       // 后台提交完成与页面收到回执之间仍可能换号，只采用当前存储里的状态。
       const stored = await readStored(ctx);
       if (decision.action === "write" || decision.action === "keep") {
@@ -137,6 +141,7 @@
         kind: options.reject === true ? "reject" : "clear",
         ...bound,
         operationId,
+        requestId: String(options.requestId || ""),
       });
       if (decision.action === "session-changed" || decision.action === "owner-changed") {
         log.warn("account-session-changed", "登录会话已变化，已停止原来的退出", { operationId });
@@ -148,88 +153,61 @@
       return decision;
     }
 
-    let refreshInflight = null;
-    let refreshInflightToken = "";
-
-    function staleRefresh(operationId) {
-      log.warn("account-token-refresh-stale", "丢弃过期的登录刷新响应", { operationId });
-    }
-
-    function noteSessionChange(operationId) {
-      log.warn("account-session-changed", "登录会话已变化，已停止原来的请求", { operationId });
-      throw switchedError();
-    }
-
     async function refreshAuth(ctx, options = {}) {
-      const token = rt.auth?.refresh_token || "";
-      if (!token) {
+      if (!rt.auth?.refresh_token) {
         throw new Error(t("settings.account.loginRequired", "请先在设置中登录"));
       }
-      if (refreshInflight && refreshInflightToken === token) {
-        return refreshInflight;
-      }
-      const job = refreshAuthOnce(ctx, options, token);
-      refreshInflight = job;
-      refreshInflightToken = token;
-      try {
-        return await job;
-      } finally {
-        if (refreshInflight === job) {
-          refreshInflight = null;
-          refreshInflightToken = "";
-        }
-      }
-    }
-
-    async function refreshAuthOnce(ctx, options, token) {
       const startedAt = Date.now();
       const operationId = String(options.operationId || "");
-      const sent = cleanAuth(rt.auth);
-      const bound = await captureIdentity(ctx, sent);
-      log.info("account-token-refresh-start", "开始刷新登录令牌", {
-        operationId,
-        hasRefreshToken: !!token,
-      });
-      const res = await api.request("/auth/refresh", { refresh_token: token }, "", ctx, "POST", api.urls.loginAuthBase, { operationId });
-      const code = Number(res.body?.code) || Number(res.status) || 0;
-      if (refreshRejected(code)) {
-        const decision = await commitEntry(ctx, {
-          kind: "reject",
+      const bound = await captureIdentity(ctx);
+      let decision;
+      try {
+        decision = await root.STAuthClient.refreshStored(ctx.storage, {
           ...bound,
           operationId,
+          requestId: String(options.requestId || ""),
+          refreshUrl: `${api.urls.loginAuthBase}/auth/refresh`,
+          failureMessage: t("settings.account.refreshFailed", "登录刷新失败，请稍后重试"),
+          logFailures: false,
+        }, (sent, source) => {
+          log.info("account-token-refresh-start", "开始刷新登录令牌", {
+            operationId: source.operationId, hasRefreshToken: !!sent.refresh_token,
+          });
+          return api.request("/auth/refresh", { refresh_token: sent.refresh_token }, "", ctx, "POST", api.urls.loginAuthBase, {
+            operationId: source.operationId,
+            requestId: source.requestId,
+          });
         });
-        if (decision.action === "clear") {
-          await preloadCloud(null, operationId, "settings-cloud-logout-preload-failed", "退出登录后刷新设置云同步卡片失败");
-          throw new Error(res.body?.message || t("settings.account.loginExpired", "登录已过期，请重新登录"));
+      } catch (error) {
+        if (error?.code === "owner-changed") {
+          try {
+            adoptStored(await readStored(ctx));
+          } catch (readError) {
+            log.error("account-session-adopt-failed", "账号切换后读取当前登录状态失败", { operationId, error: readError });
+          }
+          log.warn("account-session-changed", "登录会话已变化，已停止原来的请求", { operationId });
         }
-        if (decision.action === "session-changed" || decision.action === "owner-changed") {
-          noteSessionChange(operationId);
+        throw error;
+      }
+      const adopted = await adoptCommit(ctx, decision);
+      if (adopted.action === "session-changed" || adopted.action === "owner-changed") {
+        log.warn("account-session-changed", "登录会话已变化，已停止原来的请求", { operationId });
+        throw switchedError();
+      }
+      if (adopted.action === "clear") {
+        await preloadCloud(null, operationId, "settings-cloud-logout-preload-failed", "退出登录后刷新云同步卡片失败");
+        throw new Error(decision.message || t("settings.account.loginExpired", "登录已过期，请重新登录"));
+      }
+      if (!decision.joined) {
+        if (adopted.action === "write") {
+          log.info("account-token-refresh-success", "登录令牌刷新成功", {
+            operationId, durationMs: Date.now() - startedAt,
+          });
+          await preloadCloud(rt.auth, operationId, "settings-cloud-login-preload-failed", "登录后预读设置云同步卡片失败");
+        } else {
+          log.warn("account-token-refresh-stale", "丢弃过期的登录刷新响应", { operationId });
         }
-        staleRefresh(operationId);
-        return rt.auth;
       }
-      if (code < 200 || code >= 300 || !res.body?.access_token) {
-        throw new Error(res.body?.message || t("settings.account.refreshFailed", "登录刷新失败，请稍后重试"));
-      }
-
-      const decision = await commitEntry(ctx, {
-        kind: "refresh",
-        ...bound,
-        incoming: nextAuth(res.body, sent || {}),
-        operationId,
-      });
-      if (decision.action === "session-changed" || decision.action === "owner-changed") {
-        noteSessionChange(operationId);
-      }
-      if (decision.action !== "write") {
-        staleRefresh(operationId);
-        return rt.auth;
-      }
-      log.info("account-token-refresh-success", "登录令牌刷新成功", {
-        operationId,
-        durationMs: Date.now() - startedAt,
-      });
-      await preloadCloud(rt.auth, operationId, "settings-cloud-login-preload-failed", "登录后预读设置云同步卡片失败");
       return rt.auth;
     }
 

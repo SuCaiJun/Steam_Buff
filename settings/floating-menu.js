@@ -419,6 +419,7 @@
       key: "shadow-root",
       type: "feature-lifecycle",
       dispose() {
+        globalThis.STSettingsCloudUi?.dispose?.(shadow);
         globalThis.STSettingsMenu?.dispose?.();
         host.remove();
         if (document.documentElement?.dataset) {
