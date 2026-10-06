@@ -2372,36 +2372,67 @@
         color: var(--st-color-text-secondary-alt);
         font-size: 12px;
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import {
-        position: absolute;
-        inset: 16px;
-        z-index: 2;
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog {
+        box-sizing: border-box;
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        gap: 16px;
-        padding: 24px;
-        border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-08));
+        gap: 12px;
+        width: min(1160px, 100%);
+        min-width: 0;
+        max-height: calc(100vh - 48px);
+        padding: 16px;
+        overflow-y: auto;
+        border: 1px solid var(--st-color-border-normal);
         border-radius: 8px;
-        background: var(--st-color-steam-property-window, #171d25);
-        box-shadow: 0 16px 36px var(--st-color-black-alpha-55, rgba(0,0,0,0.55));
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import[hidden] {
-        display: none;
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog h3 { flex: 1; margin: 0; font-size: 16px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog p { margin: 0; font-size: 12px; color: var(--st-color-text-secondary-alt); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog p:empty { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-options][hidden] { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options label,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-sheet-box] label { display: grid; min-width: 0; gap: 6px; font-size: 12px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options label:has(input[type="checkbox"]) { display: flex; align-items: center; height: 32px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog :where(input[type="text"], select) {
+        box-sizing: border-box;
+        height: 32px;
+        min-width: 0;
+        width: 100%;
+        padding: 0 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 4px;
+        background: var(--st-color-bg-input);
+        color: inherit;
+        font: inherit;
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import h3 {
-        margin: 0;
-        font-size: 16px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import p {
-        margin: 0;
-        color: var(--st-color-text-secondary-alt);
-        white-space: pre-wrap;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import-actions {
-        display: flex;
-        justify-content: flex-end;
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog select { min-width: 140px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-preview] { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-preview][hidden] { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-scroll { height: 368px; min-height: 112px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-columns,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row {
+        display: grid;
+        grid-template-columns: 110px minmax(180px, 1.2fr) minmax(240px, 1.5fr) minmax(140px, 1fr) minmax(180px, 1.2fr);
+        min-width: 930px;
         gap: 8px;
+        box-sizing: border-box;
+        padding: 8px;
+        font-size: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-columns { position: sticky; top: 0; z-index: 1; height: 32px; background: var(--st-color-steam-property-window); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row { height: 112px; grid-template-rows: 62px 26px; box-shadow: inset 0 -1px 0 var(--st-color-white-alpha-06); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row label { min-width: 0; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row small { display: block; margin-top: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--st-color-text-secondary-alt); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-mobile-label { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row[data-changed="true"] input { border-color: var(--st-color-steam-blue); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row .st-lin-transfer-row-status { grid-column: 1 / -1; color: var(--st-color-danger-soft-text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      @media (max-width: 600px) {
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog { padding: 12px; gap: 8px; }
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options { gap: 8px; }
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog .st-lin-filter-actions { flex-wrap: wrap; }
       }
       `,
     },

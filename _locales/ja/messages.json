@@ -6371,5 +6371,150 @@
   },
   "steam_independentName_bulk_selection": {
     "message": "選択"
+  },
+  "steam_independentName_transfer_import": {
+    "message": "カスタム名をインポート"
+  },
+  "steam_independentName_transfer_export": {
+    "message": "カスタム名をエクスポート"
+  },
+  "steam_independentName_transfer_format": {
+    "message": "形式"
+  },
+  "steam_independentName_transfer_json": {
+    "message": "JSON"
+  },
+  "steam_independentName_transfer_xlsx": {
+    "message": "Excel (.xlsx)"
+  },
+  "steam_independentName_transfer_choose": {
+    "message": "ファイルを選択"
+  },
+  "steam_independentName_transfer_template": {
+    "message": "Excel テンプレートをダウンロード"
+  },
+  "steam_independentName_transfer_scope": {
+    "message": "範囲"
+  },
+  "steam_independentName_transfer_all": {
+    "message": "すべてのデータ"
+  },
+  "steam_independentName_transfer_selected": {
+    "message": "選択したデータ"
+  },
+  "steam_independentName_transfer_saved": {
+    "message": "保存済みの内容を出力します。含めたい下書きは先に保存してください。"
+  },
+  "steam_independentName_transfer_hint": {
+    "message": "先頭行に APPID と 自定义名称 または 别名 が必要です。列の順序は自由です。"
+  },
+  "steam_independentName_transfer_jsonHint": {
+    "message": "JSON の最上位は items 配列、別名は aliases 配列です。従来の出力ファイルも対応しています。"
+  },
+  "steam_independentName_transfer_aliases": {
+    "message": "別名の形式：\"別名1\",\"別名2\"。半角の二重引用符で囲み、半角または全角のカンマで区切ります。"
+  },
+  "steam_independentName_transfer_empty": {
+    "message": "空の値の処理"
+  },
+  "steam_independentName_transfer_skip": {
+    "message": "空の値をスキップ"
+  },
+  "steam_independentName_transfer_clear": {
+    "message": "該当フィールドをクリア"
+  },
+  "steam_independentName_transfer_preview": {
+    "message": "インポートのプレビュー"
+  },
+  "steam_independentName_transfer_sheet": {
+    "message": "ワークシート"
+  },
+  "steam_independentName_transfer_back": {
+    "message": "別のファイルを選択"
+  },
+  "steam_independentName_transfer_nameHint": {
+    "message": "名前を取り込むと助記符とピンインがリセットされます。ファイルの補助値が優先されます。プレビューは直接編集できます。ピンインの再生成では完全ピンイン、続いて助記符を生成し、両方のフィールドを更新します。"
+  },
+  "steam_independentName_transfer_generatePinyin": {
+    "message": "ピンインを再生成"
+  },
+  "steam_independentName_transfer_apply": {
+    "message": "メイン画面の下書きに適用"
+  },
+  "steam_independentName_transfer_validOnly": {
+    "message": "有効な行のみ取り込む"
+  },
+  "steam_independentName_transfer_working": {
+    "message": "処理中…"
+  },
+  "steam_independentName_transfer_summary": {
+    "message": "$total$ 行 · 変更 $changed$ 件 · 変更なし $same$ 件 · 無効 $invalid$ 行",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "same": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_transfer_applied": {
+    "message": "$n$ 件を下書きに取り込み選択しました。「変更を保存」を押してください。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_line": {
+    "message": "$n$ 行目",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_before": {
+    "message": "変更前"
+  },
+  "steam_independentName_transfer_next": {
+    "message": "変更後"
+  },
+  "steam_independentName_transfer_unavailable": {
+    "message": "APPID が現在のライブラリにありません"
+  },
+  "steam_independentName_transfer_duplicate": {
+    "message": "APPID が重複しています。修正してください。"
+  },
+  "steam_independentName_transfer_updated": {
+    "message": "対象の内容またはアカウントが更新されました。ファイルを選び直してください。"
+  },
+  "steam_independentName_transfer_failed": {
+    "message": "ファイル操作に失敗しました。再試行してください。"
+  },
+  "steam_independentName_transfer_generated": {
+    "message": "$n$ 件を再生成しました",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_exported": {
+    "message": "$n$ 件を出力しました",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_wrongFile": {
+    "message": "選択した形式のファイルを指定してください。"
   }
 }

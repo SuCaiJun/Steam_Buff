@@ -28,6 +28,21 @@
   const RES_ATTR = "data-steam-buff-user-names-response";
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
+  const TRANSFER_LIB = "steam/features/library-independent-name/transfer.js";
+  const IO_LABELS = Object.freeze({
+    import: "导入自定义名称", export: "导出自定义名称", format: "格式", json: "JSON", xlsx: "Excel (.xlsx)",
+    choose: "选择文件", template: "下载 Excel 模板", scope: "范围", all: "全部数据", selected: "已勾选数据",
+    saved: "导出已保存内容；存在未保存草稿，请先保存需要导出的修改。", hint: "首行需包含 APPID，以及自定义名称或别名；列顺序不限。", jsonHint: "JSON 顶层使用 items 数组，别名使用 aliases 数组；支持原有导出文件。",
+    aliases: '别名格式："别名一","别名二"，每项使用英文双引号，中英文逗号均可。',
+    empty: "空值处理", skip: "跳过空值", clear: "清空对应字段", preview: "导入预览", sheet: "工作表", back: "重新选择文件",
+    nameHint: "实际导入名称时重置助记符和拼音；文件中的辅助字段优先。预览可直接编辑，重新生成拼音会先生成拼音全拼，再生成助记符，并更新这两个字段。",
+    generatePinyin: "重新生成拼音", apply: "应用到主窗口草稿",
+    validOnly: "仅导入有效行", working: "正在处理…", summary: "总 $total$ 行 · 修改 $changed$ 款 · 无变化 $same$ 款 · 无效 $invalid$ 行",
+    applied: "已导入 $n$ 款到草稿并勾选，请点击保存修改。", line: "第 $n$ 行", before: "修改前", next: "修改后",
+    unavailable: "APPID 不在当前游戏库中", duplicate: "APPID 重复，请修改后再导入", updated: "目标内容或账号已更新，请重新选择文件预览。",
+    failed: "文件操作失败，请重试。", generated: "已重新生成 $n$ 款", exported: "已导出 $n$ 款", wrongFile: "请选择对应格式的文件。",
+  });
+  const ioText = (key, params) => i18n(`steam.independentName.transfer.${key}`, IO_LABELS[key], params);
   // 行槽必须保持这个高度，表头在滚动区外，占位才是行数乘这个高度
   const ROW_HEIGHT = 64;
   const VIEWPORT_HEIGHT = 420;
@@ -297,7 +312,8 @@
       scrollTop: 0,
       busy: false,
       message: "",
-      pendingImport: null,
+      transfer: null,
+      importSelection: new Set(),
       batchSession: null,
       singleSession: null,
       currentGame: null,
@@ -318,9 +334,10 @@
     };
     let painted = null;
     let libsTask = null;
+    let transferLibsTask = null;
 
-    function cloudOf(appid) {
-      const row = state.snapshot.items?.[String(appid)] || state.snapshot.items?.[appid] || {};
+    function cloudOf(appid, snapshot = state.snapshot) {
+      const row = snapshot.items?.[String(appid)] || snapshot.items?.[appid] || {};
       return {
         custom_name: text(row.custom_name),
         aliases: Array.isArray(row.aliases) ? row.aliases.slice() : [],
@@ -387,6 +404,7 @@
     }
 
     function closeBatchModal() {
+      closeTransfer();
       closeActionsMenu(false);
       closeBulkEditor();
       closeFilterEditor();
@@ -399,10 +417,6 @@
       window.clearTimeout(state.batchReadingTimer);
       state.batchReadings.clear();
       closeAliasEditor();
-      if (state.importRid) {
-        postReq({ type: "cancel-import", rid: state.importRid });
-        state.importRid = "";
-      }
       state.aliasPending.clear();
       state.filters = [];
       state.filterDraft = null;
@@ -433,7 +447,8 @@
         restore: state.opener,
         initial: () => modal.querySelector("[data-lin-search]") || modal.querySelector("[data-lin-close]"),
         onEscape: () => {
-          if (state.actionsMenu) closeActionsMenu();
+          if (state.transfer) closeTransfer();
+          else if (state.actionsMenu) closeActionsMenu();
           else if (state.filterDraft) closeFilterEditor();
           else if (state.referencePending) closeReferenceConfirm();
           else closeBatchModal();
@@ -853,11 +868,11 @@
       });
     }
 
-    // 条件应用和搜索只处理本地库数据；勾选集合始终限定在当前筛选结果内
+    // 普通选择限定筛选结果；本次导入草稿保留隐藏目标，防止主窗口保存漏项。
     function applySearch() {
       state.filtered = state.rows.filter(matchesRow);
       const visible = new Set(state.filtered.map(row => row.appid));
-      for (const appid of state.selected) if (!visible.has(appid)) {
+      for (const appid of state.selected) if (!visible.has(appid) && !state.importSelection.has(appid)) {
         state.selected.delete(appid);
         state.selectedDrafts.delete(appid);
       }
@@ -1053,9 +1068,9 @@
 
     function changeSelection(mode) {
       if (state.referenceRun || state.busy) return;
-      if (mode === "clear") state.selected.clear();
+      if (mode === "clear") { state.selected.clear(); state.importSelection.clear(); }
       else for (const row of state.filtered) {
-        if (mode === "invert" && state.selected.has(row.appid)) state.selected.delete(row.appid);
+        if (mode === "invert" && state.selected.has(row.appid)) { state.selected.delete(row.appid); state.importSelection.delete(row.appid); }
         else state.selected.add(row.appid);
       }
       syncSelectedDrafts();
@@ -1255,7 +1270,7 @@
       if (!state.selected.size || state.busy || state.referenceRun || state.batchSaving || state.bulk) return;
       window.clearTimeout(state.searchTimer);
       applySearch();
-      const rows = state.filtered.filter(row => state.selected.has(row.appid));
+      const rows = state.rows.filter(row => state.selected.has(row.appid));
       if (!rows.length) { refreshBatchSave(); return; }
       if (typeof state.snapshot.userId !== "string" || !state.snapshot.userId) throw new TypeError("名称快照缺少当前账号");
       closeActionsMenu(false);
@@ -1511,7 +1526,7 @@
       const modal = document.getElementById(BATCH_MODAL);
       const button = modal?.querySelector("[data-lin-save-all]");
       if (!button) return;
-      const locked = state.busy || !!state.referenceRun || !!state.bulk;
+      const locked = state.busy || !!state.referenceRun || !!state.bulk || !!state.transfer;
       button.disabled = state.batchSaving || locked || state.selectedDrafts.size === 0;
       button.textContent = state.batchSaving
         ? i18n("steam.independentName.saving", "正在保存...")
@@ -1520,7 +1535,7 @@
       const quotaText = quota === -1 ? i18n("steam.independentName.quotaUnlimited", "额度不限") : i18n("steam.independentName.quotaUsed", "已用 $count$ / $quota$", { count: state.snapshot.count, quota });
       modal.querySelector("[data-lin-stats]").textContent = `${i18n("steam.independentName.batchStats", "总 $total$ 款 · 筛选后 $filtered$ 款 · 已勾选 $selected$ 款 · 未保存修改 $dirty$ 款", { total: state.rows.length, filtered: state.filtered.length, selected: state.selected.size, dirty: state.drafts.size })} · ${i18n("steam.independentName.nameQuota", "名称额度：")} ${quotaText}`;
       modal.querySelector("[data-lin-selected-count]").textContent = i18n("steam.independentName.selectedCount", "已选 $n$ 款", { n: state.selected.size });
-      modal.querySelector("[data-lin-export]").disabled = locked || !state.selected.size;
+      modal.querySelector("[data-lin-export]").disabled = locked || state.batchSaving;
       const reference = modal.querySelector("[data-lin-reference-many]");
       reference.disabled = locked || state.batchSaving || !state.selected.size;
       reference.textContent = state.referenceRun ? i18n("steam.independentName.fetchingCommunity", "正在获取社区名称...") : i18n("steam.independentName.fetchCommunity", "获取社区名称");
@@ -1945,15 +1960,6 @@
           <div class="st-lin-scroll" data-lin-scroll>
             <div data-lin-body></div>
           </div>
-          <div class="st-lin-import" data-lin-import-dialog hidden>
-            <h3>${esc(i18n("steam.independentName.importPromptTitle", "是否导入已存在自定义名称的游戏？"))}</h3>
-            <p data-lin-import-msg></p>
-            <div class="st-lin-import-actions">
-              <button class="st-lin-btn" type="button" data-lin-import-cancel>${esc(i18n("steam.independentName.importCancel", "取消导入"))}</button>
-              <button class="st-lin-btn" type="button" data-lin-import-unset>${esc(i18n("steam.independentName.importUnset", "仅未设置"))}</button>
-              <button class="st-lin-btn" type="button" data-lin-import-all>${esc(i18n("steam.independentName.importAll", "全部导入"))}</button>
-            </div>
-          </div>
         </div>
         <section class="st-lin-alias-layer" data-lin-reference-confirm role="dialog" aria-modal="true" aria-labelledby="st-lin-reference-title" hidden>
           <div class="st-lin-reference-dialog">
@@ -1967,6 +1973,7 @@
         </section>
         <section class="st-lin-alias-layer" data-lin-alias-editor role="dialog" aria-modal="true" aria-labelledby="st-lin-alias-title" hidden></section>
         <section class="st-lin-alias-layer" data-lin-bulk-editor role="dialog" aria-modal="true" aria-labelledby="st-lin-bulk-title" hidden></section>
+        <section class="st-lin-alias-layer" data-lin-transfer role="dialog" aria-modal="true" aria-labelledby="st-lin-transfer-title" hidden></section>
       `;
     }
 
@@ -2114,11 +2121,12 @@
         || (state.currentGame?.appid === appid ? state.currentGame : null);
       const draft = { ...value, aliases: value.aliases.slice() };
       const cloud = cloudOf(appid);
-      fillGenerated(draft, cloud.custom_name, draft.custom_name);
-      if (text(draft.mnemonic) && text(draft.mnemonic) !== text(cloud.mnemonic) && cloud.custom_name === draft.custom_name) {
+      // 导入预览已经确定派生字段及空值，保存不能再次生成并覆盖已审核的结果。
+      if (!value.importPrepared) fillGenerated(draft, cloud.custom_name, draft.custom_name);
+      if (!value.importPrepared && text(draft.mnemonic) && text(draft.mnemonic) !== text(cloud.mnemonic) && cloud.custom_name === draft.custom_name) {
         draft.mnemonic_locked = true;
       }
-      if (text(draft.pinyin) && text(draft.pinyin) !== text(cloud.pinyin) && cloud.custom_name === draft.custom_name) {
+      if (!value.importPrepared && text(draft.pinyin) && text(draft.pinyin) !== text(cloud.pinyin) && cloud.custom_name === draft.custom_name) {
         draft.pinyin_locked = true;
       }
       return {
@@ -2142,6 +2150,7 @@
       const current = state.drafts.get(appid);
       if (current?.edited && sameNameDraft(current, saved)) {
         state.drafts.delete(appid);
+        state.importSelection.delete(appid);
       }
       adoptSnapshot(snap.data || state.snapshot);
       state.message = syncStatus(appid).text;
@@ -2170,7 +2179,9 @@
         }
         for (const item of items) {
           const current = state.drafts.get(item.appid);
-          if (current?.edited && sameNameDraft(current, item)) state.drafts.delete(item.appid);
+          if (current?.edited && sameNameDraft(current, item)) {
+            state.drafts.delete(item.appid); state.importSelection.delete(item.appid);
+          }
         }
         adoptSnapshot(result.data);
         applySearch();
@@ -2182,46 +2193,6 @@
       } finally {
         state.batchSaving = false;
         if (state.started) renderTable();
-      }
-    }
-
-    // 文件里没有锁定字段时视为未锁定，不能因为助记符或拼音非空就当成用户手工锁定
-    function importLock(item, key) {
-      if (!item || typeof item !== "object" || !Object.prototype.hasOwnProperty.call(item, key)) {
-        return false;
-      }
-      return item[key] === true;
-    }
-
-    function exportJson() {
-      if (!state.selected.size || state.referenceRun || state.busy) return;
-      try {
-        const items = state.rows.filter(row => state.selected.has(row.appid)).map((row) => {
-          const draft = cloudOf(row.appid);
-          return {
-            appid: row.appid,
-            name: row.official_name,
-            custom_name: draft.custom_name,
-            aliases: draft.aliases,
-            mnemonic: draft.mnemonic,
-            pinyin: draft.pinyin,
-            mnemonic_locked: draft.mnemonic_locked === true,
-            pinyin_locked: draft.pinyin_locked === true,
-          };
-        });
-        const blob = new Blob([JSON.stringify({ items }, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        try {
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "steam-buff-independent-names.json";
-          a.click();
-        } finally { URL.revokeObjectURL(url); }
-        log.info("independent-name-export-success", "独立版名称已导出", { count: items.length });
-      } catch (error) {
-        state.message = i18n("steam.independentName.exportFailed", "导出失败，请重试");
-        log.error("independent-name-export-failed", "独立版名称导出失败", { error });
-        renderTable();
       }
     }
 
@@ -2300,117 +2271,340 @@
       }
     }
 
-    function parseImportFile(parsed) {
-      const source = Array.isArray(parsed?.items) ? parsed.items : [];
-      const byId = new Map(state.rows.map((row) => [row.appid, row]));
-      const matched = [];
-      let existing = 0;
-      let unset = 0;
-      for (const item of source) {
-        const appid = Number(item?.appid) || 0;
-        const custom_name = text(item?.custom_name);
-        if (!appid || !custom_name || !byId.has(appid)) {
-          continue;
+    const transferRoot = () => document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-transfer]");
+
+    async function loadTransferLibs() {
+      if (window.STNameTransfer) return;
+      if (!transferLibsTask) transferLibsTask = (async () => {
+        for (const path of ["shared/user-names-snapshot.js", TRANSFER_LIB]) {
+          if (path.startsWith("shared/") && window.STUserNamesSnapshot) continue;
+          await new Promise((resolve, reject) => {
+            const script = document.createElement("script"); script.src = api.path.url(path);
+            script.onload = () => { script.remove(); resolve(); };
+            script.onerror = () => { script.remove(); reject(new Error(`无法加载 ${path}`)); };
+            document.documentElement.appendChild(script);
+          });
         }
-        const hasMine = !!cloudOf(appid).custom_name;
-        if (hasMine) {
-          existing += 1;
-        } else {
-          unset += 1;
-        }
-        matched.push({
-          appid,
-          steam_name: byId.get(appid).official_name,
-          custom_name,
-          aliases: Array.isArray(item.aliases) ? item.aliases.slice(0, ALIAS_MAX) : [],
-          mnemonic: text(item.mnemonic),
-          pinyin: text(item.pinyin),
-          mnemonic_locked: importLock(item, "mnemonic_locked"),
-          pinyin_locked: importLock(item, "pinyin_locked"),
-          hasMine,
-        });
-      }
-      return {
-        file: source.length,
-        matched: matched.length,
-        existing,
-        unset,
-        items: matched,
-      };
+      })();
+      try { await transferLibsTask; } finally { transferLibsTask = null; }
     }
 
-    function closeImportDialog() {
-      const box = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-import-dialog]");
-      if (box) {
-        box.hidden = true;
-      }
-      state.pendingImport = null;
+    function closeTransfer(reason = "cancel") {
+      const io = state.transfer;
+      if (!io) return;
+      state.transfer = null;
+      io.worker?.close();
+      if (io.frame) { window.cancelAnimationFrame(io.frame.id); io.frame.resolve(); }
+      transferRoot().hidden = true;
+      refreshBatchSave();
+      io.session?.close();
+      if (reason === "cancel") log.info("independent-name-transfer-cancelled", "名称文件操作已取消", { operation: io.kind, operationId: io.id, durationMs: Math.round(performance.now() - io.started) });
     }
 
-    function showImportDialog(stats) {
-      const box = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-import-dialog]");
-      const msg = box?.querySelector("[data-lin-import-msg]");
-      if (!box || !msg) {
-        return;
+    function reportError(error, io) {
+      if (!state.started) return;
+      if (!io) {
+        state.message = error.message || ioText("failed");
+        log.error("independent-name-transfer-failed", "名称文件弹窗打开失败", { error, phase: "open" });
+        renderTable(); return;
       }
-      msg.textContent = i18n(
-        "steam.independentName.importPromptStats",
-        "文件中名称 $file$ 项，库内匹配 $matched$ 项；其中已有自定义名称 $existing$ 项，未设置 $unset$ 项",
-        stats,
-      );
-      box.hidden = false;
-      box.querySelector("[data-lin-import-cancel]")?.focus?.();
+      if (state.transfer !== io) return;
+      io.working = false; io.error = error.message || ioText("failed");
+      refreshTransferStatus();
+      log.error("independent-name-transfer-failed", "名称文件操作失败", { error, operation: io.kind, operationId: io.id, phase: io.phase, durationMs: Math.round(performance.now() - io.started) });
     }
 
-    async function importParsed(parsed, mode) {
-      await loadLibs();
-      const items = (parsed.items || []).filter((item) => mode !== "unset" || !item.hasMine).map((item) => {
-        const next = {
-          appid: item.appid,
-          steam_name: item.steam_name,
-          custom_name: item.custom_name,
-          aliases: item.aliases,
-          mnemonic: item.mnemonic,
-          pinyin: item.pinyin,
-          mnemonic_locked: item.mnemonic_locked === true,
-          pinyin_locked: item.pinyin_locked === true,
-        };
-        fillGenerated(next, "", next.custom_name);
-        return next;
-      });
-      const quota = Number(state.snapshot.quota);
-      if (quota >= 0) {
-        const existing = new Set(Object.keys(state.snapshot.items || {}).map(Number));
-        let next = existing.size;
-        for (const item of items) {
-          if (item.custom_name && !existing.has(item.appid)) {
-            next += 1;
-          }
-          if (!item.custom_name && existing.has(item.appid)) {
-            next -= 1;
-          }
-        }
-        if (next > quota) {
-          throw new Error(i18n("steam.independentName.quotaExceeded", "导入后将超过自定义名称额度"));
-        }
-      }
-      const rid = `import-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      state.importRid = rid;
-      state.message = i18n("steam.independentName.importing", "正在导入 $n$ 条，关闭窗口可取消", { n: items.length });
-      renderTable();
-      try {
-        await request("import", { items, rid });
-      } finally {
-        if (state.importRid === rid) {
-          state.importRid = "";
-        }
-      }
-      const snap = await request("snapshot");
-      adoptSnapshot(snap.data || state.snapshot);
-      state.message = i18n("steam.independentName.imported", "已导入 $n$ 条", { n: items.length });
-      log.info("independent-name-import-success", "独立版名称已导入", { count: items.length, mode });
+    function transferOptions(io) {
+      const choice = (key, values, current) => `<label>${esc(ioText(key))}<select data-lin-io-${key}>${values.map(value => `<option value="${value}" ${current === value ? "selected" : ""} ${key === "scope" && value === "selected" && !state.selected.size ? "disabled" : ""}>${esc(ioText(value))}</option>`).join("")}</select></label>`;
+      return choice("format", ["json", "xlsx"], io.format) + (io.kind === "export" ? choice("scope", ["all", "selected"], io.scope) : "");
+    }
+
+    async function openTransfer(kind) {
+      if (state.transfer || state.busy || state.batchSaving || state.referenceRun || state.bulk) return;
+      window.clearTimeout(state.searchTimer);
       applySearch();
-      renderTable();
+      closeActionsMenu(false);
+      const io = { kind, format: "json", scope: state.selected.size ? "selected" : "all", phase: "format", records: [], rows: [], manual: new Map(), bases: new Map(), clearEmpty: false, validOnly: false, changed: 0, invalid: 0, working: true, revision: 0, userId: state.snapshot.userId, id: `transfer-${Date.now()}-${Math.random().toString(36).slice(2)}`, started: performance.now(), virtual: VIRTUAL.createVirtualWindow({ rowHeight: 112, viewportHeight: 336, overscan: 4 }) };
+      state.transfer = io;
+      const root = transferRoot(); root.tabIndex = -1;
+      setHtml(root, `<div class="st-lin-transfer-dialog"><header class="st-lin-head"><h3 id="st-lin-transfer-title">Steam Buff · ${esc(ioText(kind))}</h3><button class="st-lin-btn" type="button" data-lin-io-close>${esc(i18n("common.close", "关闭"))}</button></header><div class="st-lin-transfer-options" data-lin-io-options>${transferOptions(io)}</div><p data-lin-io-hint>${esc(io.kind === "import" ? ioText("hint") : state.drafts.size ? ioText("saved") : "")}</p><div data-lin-io-sheet-box hidden><label>${esc(ioText("sheet"))}<select data-lin-io-sheet></select></label></div><div data-lin-io-preview hidden><p>${esc(ioText("nameHint"))}</p><p>${esc(ioText("aliases"))}</p><div class="st-lin-transfer-options"><label>${esc(ioText("empty"))}<select data-lin-io-empty><option value="skip">${esc(ioText("skip"))}</option><option value="clear">${esc(ioText("clear"))}</option></select></label><button class="st-lin-btn" type="button" data-lin-io-generate>${esc(ioText("generatePinyin"))}</button><label><input type="checkbox" data-lin-io-valid-only>${esc(ioText("validOnly"))}</label></div><div class="st-lin-transfer-scroll" data-lin-io-scroll tabindex="0"><div class="st-lin-transfer-columns">${["APPID", ...["colCustom", "colAlias", "colMnemonic", "colPinyin"].map(key => i18n("steam.independentName." + key, key))].map(value => `<b>${esc(value)}</b>`).join("")}</div><div data-lin-io-rows></div></div></div><p class="st-lin-msg" role="status" data-lin-io-status></p><footer class="st-lin-filter-actions"><button class="st-lin-btn" type="button" data-lin-io-template>${esc(ioText("template"))}</button><button class="st-lin-btn" type="button" data-lin-io-back hidden>${esc(ioText("back"))}</button><button class="st-lin-btn" type="button" data-lin-io-close>${esc(i18n("common.cancel", "取消"))}</button><button class="st-lin-btn st-lin-primary" type="button" data-lin-io-primary>${esc(ioText(kind === "import" ? "choose" : "export"))}</button></footer></div>`, "independent-name-transfer-dialog");
+      root.hidden = false;
+      io.session = window.STDialogLifecycle.open({ root, restore: document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-toggle]"), initial: () => io.working || !io.ready ? root.querySelector("[data-lin-io-close]") : io.phase === "preview" ? root.querySelector('[data-lin-io-field="custom_name"]') || root.querySelector("[data-lin-io-close]") : root.querySelector("select"), onEscape: () => closeTransfer() });
+      io.session.focusInitial();
+      root.querySelector("[data-lin-io-scroll]").addEventListener("scroll", () => { if (state.transfer === io && !io.composing) renderTransferRows(); }, { passive: true });
+      refreshBatchSave(); refreshTransferStatus();
+      log.info("independent-name-transfer-start", "已打开名称文件操作", { operation: kind, operationId: io.id });
+      try {
+        await loadTransferLibs();
+        if (state.transfer === io) { io.ready = true; io.working = false; refreshTransferStatus(); }
+      } catch (error) { reportError(error, io); }
+    }
+
+    function refreshTransferStatus() {
+      const io = state.transfer, root = transferRoot();
+      if (!io || !root) return;
+      root.querySelector("[data-lin-io-status]").textContent = io.error || (io.working ? ioText("working") : io.phase === "preview" ? (io.message ? io.message + " · " : "") + ioText("summary", { total: io.rows.length, changed: io.changed, same: io.rows.length - io.changed - io.invalid, invalid: io.invalid }) : io.message || "");
+      const primary = root.querySelector("[data-lin-io-primary]");
+      primary.textContent = ioText(io.phase === "preview" ? "apply" : io.kind === "import" ? "choose" : "export");
+      primary.disabled = !io.ready || io.working || io.composing || (io.phase === "preview" && (io.error || !io.changed || io.invalid > 0 && !io.validOnly));
+      for (const control of root.querySelectorAll("input, select, [data-lin-io-generate], [data-lin-io-template], [data-lin-io-back]")) control.disabled = !io.ready || io.working;
+      root.querySelector("#st-lin-transfer-title").textContent = "Steam Buff · " + ioText(io.phase === "preview" ? "preview" : io.kind);
+      root.querySelector("[data-lin-io-hint]").textContent = io.phase === "preview" ? "" : io.kind === "import" ? ioText(io.format === "json" ? "jsonHint" : "hint") : state.drafts.size ? ioText("saved") : "";
+      root.querySelector("[data-lin-io-options]").hidden = io.phase === "preview";
+      root.querySelector("[data-lin-io-preview]").hidden = io.phase !== "preview";
+      root.querySelector("[data-lin-io-back]").hidden = io.phase !== "preview";
+      root.querySelector("[data-lin-io-template]").hidden = io.kind !== "import" || io.phase === "preview";
+      const active = document.activeElement;
+      if (!root.contains(active) || active.disabled || active.closest("[hidden]")) {
+        if (io.working || !io.ready) root.querySelector("[data-lin-io-close]").focus({ preventScroll: true });
+        else io.session?.focusInitial();
+      }
+    }
+
+    function yieldTransfer(io) {
+      return new Promise(resolve => { io.frame = { resolve, id: window.requestAnimationFrame(() => { io.frame = null; resolve(); }) }; });
+    }
+
+    function transferWorker(io) {
+      if (!io.worker) io.worker = window.STNameTransfer.createSession(api.path.url);
+      return io.worker;
+    }
+
+    function downloadTransfer(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      try { const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); }
+      finally { URL.revokeObjectURL(url); }
+    }
+
+    async function exportTransfer(template = false) {
+      const io = state.transfer;
+      if (!io || io.working) return;
+      io.working = true; io.error = ""; refreshTransferStatus();
+      const rows = state.rows, selected = new Set(state.selected), snapshot = state.snapshot;
+      const items = [];
+      if (!template) for (let index = 0; index < rows.length; index += 1) {
+        if (state.transfer !== io) return;
+        const row = rows[index];
+        if (io.scope === "all" || selected.has(row.appid)) items.push({ appid: row.appid, name: row.official_name, ...cloudOf(row.appid, snapshot) });
+        if ((index + 1) % 100 === 0) await yieldTransfer(io);
+      }
+      const format = template ? "xlsx" : io.format;
+      const result = await transferWorker(io).request({ type: "export", format, items });
+      if (state.transfer !== io) return;
+      if (state.snapshot.userId !== io.userId) throw new Error(ioText("updated"));
+      downloadTransfer(result.blob, template ? "steam-buff-name-template.xlsx" : `steam-buff-independent-names.${format}`);
+      io.working = false; io.message = template ? "" : ioText("exported", { n: items.length }); refreshTransferStatus();
+      log.info("independent-name-export-success", "独立版名称文件已导出", { operationId: io.id, format, scope: template ? "template" : io.scope, count: items.length });
+    }
+
+    async function readTransferFile(file) {
+      const io = state.transfer;
+      if (!io || io.kind !== "import" || io.working) return;
+      if (!file.name.toLowerCase().endsWith("." + io.format)) throw new Error(ioText("wrongFile"));
+      io.worker?.close(); io.worker = null;
+      io.working = true; io.error = ""; io.message = ""; io.manual.clear(); io.bases.clear(); refreshTransferStatus();
+      const result = await transferWorker(io).request({ type: "read", format: io.format, file });
+      if (state.transfer !== io) return;
+      if (io.format === "xlsx") {
+        const select = transferRoot().querySelector("[data-lin-io-sheet]");
+        setHtml(select, result.sheets.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join(""), "independent-name-import-sheets");
+        transferRoot().querySelector("[data-lin-io-sheet-box]").hidden = result.sheets.length < 2;
+        await readTransferSheet(result.sheets[0]);
+      } else { io.records = result.records; await rebuildTransfer(io); }
+    }
+
+    async function readTransferSheet(name) {
+      const io = state.transfer;
+      io.working = true; io.error = ""; io.message = ""; refreshTransferStatus();
+      const result = await transferWorker(io).request({ type: "sheet", name });
+      if (state.transfer !== io) return;
+      io.records = result.records; io.manual.clear(); io.bases.clear();
+      await rebuildTransfer(io);
+    }
+
+    function compileTransferRow(io, index) {
+      const core = window.STNameTransfer, record = io.records[index], manual = io.manual.get(index) || {};
+      const id = Number(Object.hasOwn(manual, "appid") ? manual.appid : record.values.appid);
+      if (!io.bases.has(id)) { const base = draftOf(id); io.bases.set(id, { ...base, aliases: base.aliases.slice() }); }
+      const base = io.bases.get(id);
+      const row = { index, line: record.line, before: base, ...core.compile(record, base, io.clearEmpty, manual) };
+      if (!state.rowsByAppid.has(row.appid)) row.errors.push(ioText("unavailable"));
+      row.changed = !row.errors.length && !sameNameDraft(row.next, base);
+      return row;
+    }
+
+    // 改空值策略或 APPID 时只重算文件目标，16 项一批；普通字段输入只更新当前行。
+    async function rebuildTransfer(io) {
+      const active = document.activeElement;
+      io.focus = active?.matches("[data-lin-io-field]") ? { row: active.dataset.linIoRow, field: active.dataset.linIoField, start: active.selectionStart, end: active.selectionEnd } : null;
+      const revision = ++io.revision;
+      io.working = true; io.error = ""; io.phase = "preview"; refreshTransferStatus();
+      const rows = [], counts = new Map();
+      for (let index = 0; index < io.records.length; index += 1) {
+        if (state.transfer !== io || revision !== io.revision) return;
+        const row = compileTransferRow(io, index); rows.push(row);
+        counts.set(row.appid, (counts.get(row.appid) || 0) + 1);
+        if ((index + 1) % 16 === 0) await yieldTransfer(io);
+      }
+      let changed = 0, invalid = 0;
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index];
+        if (counts.get(row.appid) > 1) row.errors.push(ioText("duplicate"));
+        row.changed = !row.errors.length && row.changed;
+        changed += Number(row.changed); invalid += Number(row.errors.length > 0);
+        if ((index + 1) % 16 === 0) await yieldTransfer(io);
+        if (state.transfer !== io || revision !== io.revision) return;
+      }
+      if (state.snapshot.userId !== io.userId) throw new Error(ioText("updated"));
+      io.rows = rows; io.counts = counts; io.changed = changed; io.invalid = invalid; io.working = false;
+      renderTransferRows(); refreshTransferStatus();
+    }
+
+    function renderTransferRows() {
+      const io = state.transfer, root = transferRoot();
+      if (!io || io.phase !== "preview" || io.composing) return;
+      const core = window.STNameTransfer, scroll = root.querySelector("[data-lin-io-scroll]");
+      const range = io.virtual.update({ scrollTop: Math.max(0, scroll.scrollTop - 32), viewportHeight: scroll.clientHeight || 336 }).range(io.rows.length);
+      const active = document.activeElement;
+      const focus = active?.matches("[data-lin-io-field]") ? { row: active.dataset.linIoRow, field: active.dataset.linIoField, start: active.selectionStart, end: active.selectionEnd } : io.focus;
+      io.focus = null;
+      const fieldValue = (row, field) => {
+        const manual = io.manual.get(row.index);
+        if (manual && Object.hasOwn(manual, field)) return manual[field];
+        if (field === "appid") return io.records[row.index].values.appid ?? "";
+        if (row.errors.length && Object.hasOwn(io.records[row.index].values, field)) {
+          const raw = io.records[row.index].values[field];
+          return field === "aliases" && Array.isArray(raw) ? (raw.every(value => typeof value === "string") ? core.quoteAliases(raw) : JSON.stringify(raw)) : String(raw ?? "");
+        }
+        return field === "aliases" ? core.quoteAliases(row.next.aliases) : row.next[field];
+      };
+      setHtml(root.querySelector("[data-lin-io-rows]"), `<div style="height:${range.before}px"></div>${io.rows.slice(range.start, range.end).map(row => `<div class="st-lin-transfer-row" data-lin-io-preview-row="${row.index}" data-changed="${row.changed}">${["appid", ...core.fields].map((field, col) => `<label><span class="st-lin-transfer-mobile-label">${esc(core.headers[col])}</span><input type="text" data-lin-io-field="${field}" data-lin-io-row="${row.index}" value="${esc(fieldValue(row, field))}" aria-label="${esc(ioText("line", { n: row.line }))} ${esc(core.headers[col])}"><small title="${esc(field === "appid" ? state.rowsByAppid.get(row.appid)?.official_name || "" : field === "aliases" ? core.quoteAliases(row.before.aliases) : row.before[field])}">${esc(field === "appid" ? ioText("line", { n: row.line }) : ioText("before") + "：" + (field === "aliases" ? core.quoteAliases(row.before.aliases) : row.before[field]))}</small></label>`).join("")}<p class="st-lin-transfer-row-status" title="${esc(row.errors.join("；"))}">${esc(row.errors.join("；"))}</p></div>`).join("")}<div style="height:${range.after}px"></div>`, "independent-name-import-preview");
+      if (focus) { const input = root.querySelector(`[data-lin-io-row="${focus.row}"][data-lin-io-field="${focus.field}"]`); input?.focus({ preventScroll: true }); input?.setSelectionRange(focus.start, focus.end); }
+      if (!root.contains(document.activeElement) || document.activeElement.disabled || document.activeElement.closest("[hidden]")) scroll.focus({ preventScroll: true });
+    }
+
+    function onTransferInput(event) {
+      const io = state.transfer, field = event.target;
+      if (!io || io.working || !field.matches("[data-lin-io-field]")) return;
+      io.error = ""; io.message = "";
+      const index = Number(field.dataset.linIoRow);
+      io.manual.set(index, { ...io.manual.get(index), [field.dataset.linIoField]: field.value });
+      io.composing = event.isComposing === true;
+      if (io.composing) { refreshTransferStatus(); return; }
+      if (field.dataset.linIoField === "appid") { void rebuildTransfer(io).catch(error => reportError(error, io)); return; }
+      const previous = io.rows[index], row = compileTransferRow(io, index);
+      if (io.counts.get(row.appid) > 1) row.errors.push(ioText("duplicate"));
+      row.changed = !row.errors.length && row.changed;
+      io.rows[index] = row;
+      io.changed += Number(row.changed) - Number(previous.changed);
+      io.invalid += Number(!!row.errors.length) - Number(!!previous.errors.length);
+      const element = field.closest("[data-lin-io-preview-row]");
+      element.dataset.changed = String(row.changed);
+      const status = element.querySelector(".st-lin-transfer-row-status");
+      status.textContent = row.errors.join("；"); status.title = status.textContent;
+      if (field.dataset.linIoField === "custom_name") for (const input of element.querySelectorAll("[data-lin-io-field]")) {
+        const key = input.dataset.linIoField;
+        if (["mnemonic", "pinyin"].includes(key) && !Object.hasOwn(io.manual.get(index), key)) input.value = row.next[key];
+      }
+      refreshTransferStatus();
+    }
+
+    async function generateTransfer() {
+      const io = state.transfer;
+      if (!io || io.working || io.composing) return;
+      io.working = true; io.error = ""; refreshTransferStatus();
+      await loadLibs();
+      const edits = new Map(io.manual), core = window.SteamBuff.libraryCustomNameMnemonic;
+      let count = 0;
+      for (let index = 0; index < io.rows.length; index += 1) {
+        if (state.transfer !== io) return;
+        const row = io.rows[index];
+        if (!row.errors.length && row.next.custom_name) {
+          const { pinyin, mnemonic } = core.readings(row.next.custom_name, {}, window.pinyinPro);
+          if (typeof pinyin !== "string" || typeof mnemonic !== "string") throw new TypeError("读音生成返回值必须是文本");
+          // 严格核心对无汉字名称返回空结果；这类项目保留预览原值，不能阻止其他有效项目生成。
+          if (pinyin.trim()) { edits.set(index, { ...edits.get(index), pinyin, mnemonic }); count += 1; }
+        }
+        if ((index + 1) % 16 === 0) await yieldTransfer(io);
+      }
+      if (state.transfer !== io) return;
+      io.manual = edits;
+      await rebuildTransfer(io);
+      if (state.transfer === io) {
+        io.message = ioText("generated", { n: count }); refreshTransferStatus();
+        log.info("independent-name-import-generated", "导入预览拼音全拼和助记符已重新生成", { operationId: io.id, fields: ["pinyin", "mnemonic"], count });
+      }
+    }
+
+    async function applyTransfer() {
+      const io = state.transfer;
+      if (!io || io.working || io.composing || !io.changed || io.invalid && !io.validOnly) return;
+      io.working = true; io.error = ""; refreshTransferStatus();
+      const current = state.drafts, prepared = new Map(), selected = new Set();
+      for (let index = 0; index < io.rows.length; index += 1) {
+        if (state.transfer !== io) return;
+        const row = io.rows[index];
+        if (!row.errors.length && row.changed) {
+          if (!sameNameDraft(draftOf(row.appid), row.before)) throw new Error(ioText("updated"));
+          prepared.set(row.appid, { ...row.next, aliases: row.next.aliases.slice(), edited: true, importPrepared: true, conflict: false, base: current.get(row.appid)?.base || cloudOf(row.appid) });
+          selected.add(row.appid);
+        }
+        if ((index + 1) % 16 === 0) await yieldTransfer(io);
+      }
+      if (state.transfer !== io) return;
+      if (state.snapshot.userId !== io.userId || state.drafts !== current) throw new Error(ioText("updated"));
+      for (const row of io.rows) if (selected.has(row.appid) && !sameNameDraft(draftOf(row.appid), row.before)) throw new Error(ioText("updated"));
+      // 分批准备期间，未导入的草稿可能被就地更新；提交时才复制当前集合，只合并本次字段补丁。
+      const next = new Map(current);
+      for (const [appid, draft] of prepared) next.set(appid, draft);
+      state.drafts = next; state.selected = selected; state.importSelection = new Set(selected);
+      syncSelectedDrafts(); applySearch();
+      state.message = ioText("applied", { n: selected.size });
+      log.info("independent-name-import-success", "名称文件已应用到主窗口草稿", { operationId: io.id, format: io.format, count: selected.size, invalid: io.invalid, durationMs: Math.round(performance.now() - io.started) });
+      closeTransfer("applied"); renderTable();
+    }
+
+    function onTransferClick(event) {
+      const io = state.transfer, target = event.target;
+      if (!io || !target.closest("[data-lin-transfer]")) return;
+      if (target.closest("[data-lin-io-close]")) { closeTransfer(); return; }
+      if (io.working || io.composing) return;
+      let task;
+      if (target.closest("[data-lin-io-template]")) task = exportTransfer(true);
+      else if (target.closest("[data-lin-io-back]")) {
+        io.worker?.close(); io.worker = null; io.records = []; io.rows = []; io.manual.clear(); io.bases.clear(); io.phase = "format"; io.error = "";
+        transferRoot().querySelector("[data-lin-io-sheet-box]").hidden = true; refreshTransferStatus();
+      } else if (target.closest("[data-lin-io-primary]")) {
+        if (io.phase === "preview") task = applyTransfer();
+        else if (io.kind === "export") task = exportTransfer();
+        else {
+          const input = document.getElementById(BATCH_MODAL).querySelector("[data-lin-file]");
+          input.accept = io.format === "json" ? ".json,application/json" : ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+          input.click();
+        }
+      } else {
+        const button = target.closest("[data-lin-io-generate]");
+        if (button) task = generateTransfer();
+      }
+      if (task) void task.catch(error => reportError(error, io));
+    }
+
+    function onTransferChange(event) {
+      const io = state.transfer, target = event.target;
+      if (io.working || io.composing) return;
+      let task;
+      if (target.matches("[data-lin-io-format]")) {
+        io.format = target.value; io.error = ""; io.message = "";
+        io.worker?.close(); io.worker = null;
+        transferRoot().querySelector("[data-lin-io-sheet-box]").hidden = true;
+      }
+      else if (target.matches("[data-lin-io-scope]")) io.scope = target.value;
+      else if (target.matches("[data-lin-io-empty]")) { io.clearEmpty = target.value === "clear"; task = rebuildTransfer(io); }
+      else if (target.matches("[data-lin-io-valid-only]")) io.validOnly = target.checked;
+      else if (target.matches("[data-lin-io-sheet]")) task = readTransferSheet(target.value);
+      else if (target.matches("[data-lin-file]") && target.files?.[0]) { const file = target.files[0]; target.value = ""; task = readTransferFile(file); }
+      refreshTransferStatus();
+      if (task) void task.catch(error => reportError(error, io));
     }
 
     function addSingleAlias(appid, value) {
@@ -2627,6 +2821,10 @@
     }
 
     function onBatchClick(event) {
+      if (state.transfer) {
+        try { onTransferClick(event); } catch (error) { reportError(error, state.transfer); }
+        return;
+      }
       const target = event.target;
       if (state.bulk) {
         if (!target.closest("[data-lin-bulk-editor]")) return;
@@ -2734,41 +2932,22 @@
         closeBatchModal();
         return;
       }
-      if (event.target.closest("[data-lin-import-cancel]")) {
-        closeImportDialog();
-        return;
-      }
-      if (event.target.closest("[data-lin-import-unset]") || event.target.closest("[data-lin-import-all]")) {
-        const mode = event.target.closest("[data-lin-import-all]") ? "all" : "unset";
-        const pending = state.pendingImport;
-        closeImportDialog();
-        if (!pending) {
-          return;
-        }
-        importParsed(pending, mode).catch((error) => {
-          state.message = error?.message || String(error);
-          log.warn("independent-name-import-failed", "独立版名称导入失败", { error });
-          renderTable();
-        });
-        return;
-      }
       const save = event.target.closest("[data-lin-save-all]");
       if (save) {
         void saveAllDrafts();
         return;
       }
       if (event.target.closest("[data-lin-export]")) {
-        closeActionsMenu();
-        exportJson();
+        void openTransfer("export").catch(error => reportError(error, state.transfer));
         return;
       }
       if (event.target.closest("[data-lin-import]")) {
-        closeActionsMenu();
-        document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-file]")?.click();
+        void openTransfer("import").catch(error => reportError(error, state.transfer));
       }
     }
 
     function onBatchKey(event) {
+      if (state.transfer) return;
       if (state.bulk) {
         const tab = event.target.closest("[data-lin-bulk-tab]");
         if (!tab || event.isComposing || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -2797,6 +2976,10 @@
     }
 
     function onBatchInput(event) {
+      if (state.transfer) {
+        try { onTransferInput(event); } catch (error) { reportError(error, state.transfer); }
+        return;
+      }
       if (state.bulk) {
         try { onBulkInput(event); } catch (error) { reportFailure(error); }
         return;
@@ -2875,6 +3058,10 @@
     }
 
     function onBatchChange(event) {
+      if (state.transfer) {
+        try { onTransferChange(event); } catch (error) { reportError(error, state.transfer); }
+        return;
+      }
       if (state.bulk) {
         if (event.target.matches("select, [data-lin-bulk-original]")) {
           try { onBulkInput(event); } catch (error) { reportFailure(error); }
@@ -2886,7 +3073,7 @@
         if (state.referenceRun || state.busy) return;
         const appid = Number(selection.dataset.linSelect);
         if (selection.checked) state.selected.add(appid);
-        else state.selected.delete(appid);
+        else { state.selected.delete(appid); state.importSelection.delete(appid); }
         syncSelectedDraft(appid);
         refreshBatchSave();
         return;
@@ -2917,21 +3104,6 @@
         }
         return;
       }
-      const file = event.target.closest("[data-lin-file]");
-      if (!file?.files?.[0]) {
-        return;
-      }
-      const selected = file.files[0];
-      file.value = "";
-      selected.text().then((textValue) => {
-        const parsed = parseImportFile(JSON.parse(textValue));
-        state.pendingImport = parsed;
-        showImportDialog(parsed);
-      }).catch((error) => {
-        state.message = error?.message || String(error);
-        log.warn("independent-name-import-failed", "独立版名称导入失败", { error });
-        renderTable();
-      });
     }
 
     function onVisibility() {

@@ -6371,5 +6371,150 @@
   },
   "steam_independentName_bulk_selection": {
     "message": "选择"
+  },
+  "steam_independentName_transfer_import": {
+    "message": "导入自定义名称"
+  },
+  "steam_independentName_transfer_export": {
+    "message": "导出自定义名称"
+  },
+  "steam_independentName_transfer_format": {
+    "message": "格式"
+  },
+  "steam_independentName_transfer_json": {
+    "message": "JSON"
+  },
+  "steam_independentName_transfer_xlsx": {
+    "message": "Excel (.xlsx)"
+  },
+  "steam_independentName_transfer_choose": {
+    "message": "选择文件"
+  },
+  "steam_independentName_transfer_template": {
+    "message": "下载 Excel 模板"
+  },
+  "steam_independentName_transfer_scope": {
+    "message": "范围"
+  },
+  "steam_independentName_transfer_all": {
+    "message": "全部数据"
+  },
+  "steam_independentName_transfer_selected": {
+    "message": "已勾选数据"
+  },
+  "steam_independentName_transfer_saved": {
+    "message": "导出已保存内容；存在未保存草稿，请先保存需要导出的修改。"
+  },
+  "steam_independentName_transfer_hint": {
+    "message": "首行需包含 APPID，以及自定义名称或别名；列顺序不限。"
+  },
+  "steam_independentName_transfer_jsonHint": {
+    "message": "JSON 顶层使用 items 数组，别名使用 aliases 数组；支持原有导出文件。"
+  },
+  "steam_independentName_transfer_aliases": {
+    "message": "别名格式：\"别名一\",\"别名二\"，每项使用英文双引号，中英文逗号均可。"
+  },
+  "steam_independentName_transfer_empty": {
+    "message": "空值处理"
+  },
+  "steam_independentName_transfer_skip": {
+    "message": "跳过空值"
+  },
+  "steam_independentName_transfer_clear": {
+    "message": "清空对应字段"
+  },
+  "steam_independentName_transfer_preview": {
+    "message": "导入预览"
+  },
+  "steam_independentName_transfer_sheet": {
+    "message": "工作表"
+  },
+  "steam_independentName_transfer_back": {
+    "message": "重新选择文件"
+  },
+  "steam_independentName_transfer_nameHint": {
+    "message": "实际导入名称时重置助记符和拼音；文件中的辅助字段优先。预览可直接编辑，重新生成拼音会先生成拼音全拼，再生成助记符，并更新这两个字段。"
+  },
+  "steam_independentName_transfer_generatePinyin": {
+    "message": "重新生成拼音"
+  },
+  "steam_independentName_transfer_apply": {
+    "message": "应用到主窗口草稿"
+  },
+  "steam_independentName_transfer_validOnly": {
+    "message": "仅导入有效行"
+  },
+  "steam_independentName_transfer_working": {
+    "message": "正在处理…"
+  },
+  "steam_independentName_transfer_summary": {
+    "message": "总 $total$ 行 · 修改 $changed$ 款 · 无变化 $same$ 款 · 无效 $invalid$ 行",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "same": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_transfer_applied": {
+    "message": "已导入 $n$ 款到草稿并勾选，请点击保存修改。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_line": {
+    "message": "第 $n$ 行",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_before": {
+    "message": "修改前"
+  },
+  "steam_independentName_transfer_next": {
+    "message": "修改后"
+  },
+  "steam_independentName_transfer_unavailable": {
+    "message": "APPID 不在当前游戏库中"
+  },
+  "steam_independentName_transfer_duplicate": {
+    "message": "APPID 重复，请修改后再导入"
+  },
+  "steam_independentName_transfer_updated": {
+    "message": "目标内容或账号已更新，请重新选择文件预览。"
+  },
+  "steam_independentName_transfer_failed": {
+    "message": "文件操作失败，请重试。"
+  },
+  "steam_independentName_transfer_generated": {
+    "message": "已重新生成 $n$ 款",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_exported": {
+    "message": "已导出 $n$ 款",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_wrongFile": {
+    "message": "请选择对应格式的文件。"
   }
 }

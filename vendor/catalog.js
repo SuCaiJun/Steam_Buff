@@ -80,6 +80,10 @@
       directory: "fflate",
     }),
     entry({
+      id: "sheetjs", name: "SheetJS CE", url: "https://sheetjs.com/",
+      license: "Apache-2.0", kind: "bundled", directory: "sheetjs",
+    }),
+    entry({
       id: "markdown-it",
       name: "markdown-it",
       url: "https://github.com/markdown-it/markdown-it",

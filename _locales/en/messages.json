@@ -6371,5 +6371,150 @@
   },
   "steam_independentName_bulk_selection": {
     "message": "Selection"
+  },
+  "steam_independentName_transfer_import": {
+    "message": "Import custom names"
+  },
+  "steam_independentName_transfer_export": {
+    "message": "Export custom names"
+  },
+  "steam_independentName_transfer_format": {
+    "message": "Format"
+  },
+  "steam_independentName_transfer_json": {
+    "message": "JSON"
+  },
+  "steam_independentName_transfer_xlsx": {
+    "message": "Excel (.xlsx)"
+  },
+  "steam_independentName_transfer_choose": {
+    "message": "Choose file"
+  },
+  "steam_independentName_transfer_template": {
+    "message": "Download Excel template"
+  },
+  "steam_independentName_transfer_scope": {
+    "message": "Range"
+  },
+  "steam_independentName_transfer_all": {
+    "message": "All data"
+  },
+  "steam_independentName_transfer_selected": {
+    "message": "Selected data"
+  },
+  "steam_independentName_transfer_saved": {
+    "message": "Exports saved values. Save any drafts you want to include first."
+  },
+  "steam_independentName_transfer_hint": {
+    "message": "The first row must include APPID and 自定义名称 or 别名. Column order is flexible."
+  },
+  "steam_independentName_transfer_jsonHint": {
+    "message": "JSON uses an items array and aliases arrays. Existing export files are supported."
+  },
+  "steam_independentName_transfer_aliases": {
+    "message": "Alias format: \"alias one\",\"alias two\". Use English double quotes; English or Chinese commas may separate items."
+  },
+  "steam_independentName_transfer_empty": {
+    "message": "Empty values"
+  },
+  "steam_independentName_transfer_skip": {
+    "message": "Skip empty values"
+  },
+  "steam_independentName_transfer_clear": {
+    "message": "Clear corresponding fields"
+  },
+  "steam_independentName_transfer_preview": {
+    "message": "Import preview"
+  },
+  "steam_independentName_transfer_sheet": {
+    "message": "Worksheet"
+  },
+  "steam_independentName_transfer_back": {
+    "message": "Choose another file"
+  },
+  "steam_independentName_transfer_nameHint": {
+    "message": "Importing a name resets its mnemonic and pinyin. Auxiliary values in the file take priority. Edit the preview directly; Regenerate pinyin generates full pinyin, then its mnemonic, updating both fields."
+  },
+  "steam_independentName_transfer_generatePinyin": {
+    "message": "Regenerate pinyin"
+  },
+  "steam_independentName_transfer_apply": {
+    "message": "Apply to main-window drafts"
+  },
+  "steam_independentName_transfer_validOnly": {
+    "message": "Import valid rows only"
+  },
+  "steam_independentName_transfer_working": {
+    "message": "Processing…"
+  },
+  "steam_independentName_transfer_summary": {
+    "message": "$total$ rows · $changed$ changed · $same$ unchanged · $invalid$ invalid",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "same": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_transfer_applied": {
+    "message": "Imported and selected $n$ drafts. Click Save changes.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_line": {
+    "message": "Row $n$",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_before": {
+    "message": "Before"
+  },
+  "steam_independentName_transfer_next": {
+    "message": "After"
+  },
+  "steam_independentName_transfer_unavailable": {
+    "message": "APPID is not in the current library"
+  },
+  "steam_independentName_transfer_duplicate": {
+    "message": "Duplicate APPID. Correct it before importing."
+  },
+  "steam_independentName_transfer_updated": {
+    "message": "Target values or account changed. Choose the file again to preview."
+  },
+  "steam_independentName_transfer_failed": {
+    "message": "File operation failed. Please try again."
+  },
+  "steam_independentName_transfer_generated": {
+    "message": "Regenerated $n$ games",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_exported": {
+    "message": "Exported $n$ games",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_wrongFile": {
+    "message": "Choose a file in the selected format."
   }
 }
