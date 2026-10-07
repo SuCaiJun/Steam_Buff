@@ -1758,6 +1758,31 @@
         white-space: nowrap;
         text-overflow: ellipsis;
       }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-official {
+        min-width: 0;
+        line-height: 32px;
+        overflow-wrap: anywhere;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-official-label {
+        align-self: start;
+        padding-top: 6px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-official-tail {
+        display: inline-block;
+        white-space: nowrap;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-official .st-lin-single-ai {
+        display: inline-block;
+        margin-inline-start: 8px;
+        vertical-align: baseline;
+        white-space: nowrap;
+        font: inherit;
+        line-height: normal;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-btn:disabled {
+        cursor: default;
+        opacity: .45;
+      }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-form > input,
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-name-field > input,
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-aliases input {
@@ -1807,6 +1832,56 @@
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-readings:empty {
         display: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        box-sizing: border-box;
+        padding: 24px;
+        background: var(--st-color-overlay);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-layer[hidden] {
+        display: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-dialog {
+        box-sizing: border-box;
+        display: grid;
+        gap: 16px;
+        width: min(520px, 100%);
+        max-height: calc(100vh - 48px);
+        min-width: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 16px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-dialog h3 {
+        flex: 1;
+        margin: 0;
+        font-size: 16px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-name {
+        margin: 0;
+        overflow-wrap: anywhere;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-dialog .st-lin-reading-preview {
+        margin-top: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 8px;
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-groups,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-groups {

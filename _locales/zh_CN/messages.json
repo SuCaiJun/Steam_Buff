@@ -5785,6 +5785,9 @@
   "steam_independentName_readingApply": {
     "message": "替换全拼和助记符"
   },
+  "steam_independentName_readingPreview": {
+    "message": "拼音预览"
+  },
   "steam_independentName_readingPosition": {
     "message": "第 $n$ 个字：$context$",
     "placeholders": {
@@ -5884,6 +5887,32 @@
   },
   "steam_independentName_batch": {
     "message": "批量设置"
+  },
+  "steam_independentName_aiGenerate": {
+    "message": "Ai生成"
+  },
+  "steam_independentName_aiGenerating": {
+    "message": "生成中…"
+  },
+  "steam_independentName_aiInvalidName": {
+    "message": "AI 未返回有效的单个游戏名称，请重试。"
+  },
+  "steam_independentName_aiInvalidReadings": {
+    "message": "生成名称无法生成有效的拼音和助记符，或结果超过长度上限，请重试。"
+  },
+  "steam_independentName_aiGenerated": {
+    "message": "已生成，请核对后点击确认保存。"
+  },
+  "steam_independentName_aiFailed": {
+    "message": "Ai生成失败：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_batchSort": {
+    "message": "批量排序"
   },
   "steam_independentName_batchTitle": {
     "message": "Steam Buff · 批量设置自定义名称"

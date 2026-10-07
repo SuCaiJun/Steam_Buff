@@ -5785,6 +5785,9 @@
   "steam_independentName_readingApply": {
     "message": "Replace pinyin and mnemonic"
   },
+  "steam_independentName_readingPreview": {
+    "message": "Pinyin preview"
+  },
   "steam_independentName_readingPosition": {
     "message": "Character $n$: $context$",
     "placeholders": {
@@ -5884,6 +5887,32 @@
   },
   "steam_independentName_batch": {
     "message": "Batch settings"
+  },
+  "steam_independentName_aiGenerate": {
+    "message": "Generate with AI"
+  },
+  "steam_independentName_aiGenerating": {
+    "message": "Generating…"
+  },
+  "steam_independentName_aiInvalidName": {
+    "message": "AI did not return a valid single game name. Please try again."
+  },
+  "steam_independentName_aiInvalidReadings": {
+    "message": "The generated name could not produce valid pinyin and initials, or exceeded the length limit. Please try again."
+  },
+  "steam_independentName_aiGenerated": {
+    "message": "Generated. Review the fields and confirm to save."
+  },
+  "steam_independentName_aiFailed": {
+    "message": "AI generation failed: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_batchSort": {
+    "message": "Batch sorting"
   },
   "steam_independentName_batchTitle": {
     "message": "Steam Buff · Batch custom name settings"

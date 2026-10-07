@@ -5785,6 +5785,9 @@
   "steam_independentName_readingApply": {
     "message": "ピンインと略語を置換"
   },
+  "steam_independentName_readingPreview": {
+    "message": "ピンインのプレビュー"
+  },
   "steam_independentName_readingPosition": {
     "message": "$n$ 文字目：$context$",
     "placeholders": {
@@ -5884,6 +5887,32 @@
   },
   "steam_independentName_batch": {
     "message": "一括設定"
+  },
+  "steam_independentName_aiGenerate": {
+    "message": "AI生成"
+  },
+  "steam_independentName_aiGenerating": {
+    "message": "生成中…"
+  },
+  "steam_independentName_aiInvalidName": {
+    "message": "AIから有効な単一のゲーム名が返されませんでした。再試行してください。"
+  },
+  "steam_independentName_aiInvalidReadings": {
+    "message": "生成された名前から有効なピンインと頭文字を生成できないか、文字数制限を超えています。再試行してください。"
+  },
+  "steam_independentName_aiGenerated": {
+    "message": "生成しました。内容を確認し、確定して保存してください。"
+  },
+  "steam_independentName_aiFailed": {
+    "message": "AI生成に失敗しました：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_batchSort": {
+    "message": "一括並べ替え"
   },
   "steam_independentName_batchTitle": {
     "message": "Steam Buff · カスタム名の一括設定"

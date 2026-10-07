@@ -317,6 +317,7 @@
       batchSession: null,
       singleSession: null,
       currentGame: null,
+      singleAiRun: null,
       singleBusy: false,
       singleMessage: "",
       opener: null,
@@ -324,6 +325,8 @@
       aliasEditor: null,
       aliasSession: null,
       singleReading: null,
+      singleReadingPreview: null,
+      singleReadingSession: null,
       batchReadings: new Map(),
       batchReadingTimer: 0,
       batchSaving: false,
@@ -458,6 +461,10 @@
     }
 
     function closeSingleModal() {
+      closeSingleReadingPreview();
+      const run = state.singleAiRun;
+      state.singleAiRun = null;
+      run?.controller.abort();
       window.clearTimeout(state.readingTimer);
       state.singleReading = null;
       const session = state.singleSession;
@@ -516,6 +523,8 @@
       const status = appid ? syncStatus(appid) : { kind: "", text: "" };
       const message = state.singleMessage || status.text || "";
       const disabled = state.singleBusy || !appid ? "disabled" : "";
+      const original = Array.from(game.official_name || "");
+      const last = original.pop() || "";
       return `
         <div class="st-lin-single-dialog">
           <header class="st-lin-head">
@@ -525,8 +534,8 @@
           <div class="st-lin-single-form" data-appid="${appid}">
             <span class="st-lin-label">${esc(i18n("steam.independentName.colAppid", "AppID"))}</span>
             <output>${appid || ""}</output>
-            <span class="st-lin-label">${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</span>
-            <output title="${esc(game.official_name)}">${esc(game.official_name)}</output>
+            <span class="st-lin-label st-lin-single-official-label">${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</span>
+            <div class="st-lin-single-official"><span title="${esc(game.official_name)}">${esc(original.join(""))}<span class="st-lin-single-official-tail"><span data-lin-single-original-end>${esc(last)}</span><button class="st-lin-btn st-lin-single-ai" type="button" data-lin-single-ai ${disabled} aria-busy="${state.singleAiRun ? "true" : "false"}">${esc(state.singleAiRun ? i18n("steam.independentName.aiGenerating", "生成中…") : i18n("steam.independentName.aiGenerate", "Ai生成"))}</button></span></span></div>
             <label for="st-lin-single-name">${esc(i18n("steam.independentName.colCustom", "自定义名称"))}</label>
             <div class="st-lin-single-name-field">
               <input id="st-lin-single-name" data-lin-single-name type="text" maxlength="200" value="${esc(draft.custom_name)}" ${disabled}>
@@ -541,17 +550,21 @@
             <input id="st-lin-single-mnemonic" data-lin-single-mnemonic type="text" maxlength="200" value="${esc(draft.mnemonic)}" ${disabled}>
             <label for="st-lin-single-pinyin">${esc(i18n("steam.independentName.colPinyin", "拼音全拼"))}</label>
             <input id="st-lin-single-pinyin" data-lin-single-pinyin type="text" maxlength="200" value="${esc(draft.pinyin)}" ${disabled}>
-            <div class="st-lin-readings st-lin-single-readings" data-lin-single-readings>${state.singleBusy ? "" : readingsHtml(singleReading(appid))}</div>
+            <div class="st-lin-readings st-lin-single-readings" data-lin-single-readings>${state.singleBusy ? "" : readingsHtml(singleReading(appid), "inline")}</div>
           </div>
           <p class="st-lin-msg ${status.kind === "rejected" ? "st-lin-sync-error" : ""}" data-lin-single-msg role="status">${esc(message)}</p>
           <footer class="st-lin-single-footer">
-            <button class="st-lin-btn" type="button" data-lin-open-batch>${esc(i18n("steam.independentName.batch", "批量设置"))}</button>
+            <div class="st-lin-single-actions">
+              <button class="st-lin-btn" type="button" data-lin-open-batch>${esc(i18n("steam.independentName.batch", "批量设置"))}</button>
+              <button class="st-lin-btn" type="button" disabled>${esc(i18n("steam.independentName.batchSort", "批量排序"))}</button>
+            </div>
             <div class="st-lin-single-actions">
               <button class="st-lin-btn" type="button" data-lin-single-cancel>${esc(i18n("common.cancel", "取消"))}</button>
               <button class="st-lin-btn st-lin-primary" type="button" data-lin-single-confirm ${disabled}>${esc(i18n("common.confirm", "确认"))}</button>
             </div>
           </footer>
         </div>
+        <section class="st-lin-reading-layer" data-lin-reading-dialog role="dialog" aria-modal="true" aria-labelledby="st-lin-reading-title" tabindex="-1" hidden></section>
       `;
     }
 
@@ -560,6 +573,7 @@
       if (!modal || !state.currentGame) {
         return;
       }
+      closeSingleReadingPreview();
       const active = document.activeElement;
       const focusKey = active?.dataset ? Object.keys(active.dataset).find((key) => key.startsWith("linSingle")) : "";
       const start = active?.selectionStart;
@@ -597,12 +611,57 @@
       }
     }
 
+    // 一次生成绑定当前弹窗对象；结果和两项读音全部校验后才改草稿，关闭后不回填
+    async function generateSingleName() {
+      const game = state.currentGame;
+      if (!game || state.singleBusy || state.singleAiRun) return;
+      const run = {
+        rid: `ai-name-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        controller: new AbortController(),
+        started: performance.now(),
+      };
+      state.singleAiRun = run;
+      state.singleBusy = true;
+      state.singleMessage = i18n("steam.independentName.aiGenerating", "生成中…");
+      renderSingleModal();
+      log.info("independent-name-ai-started", "当前游戏的 AI 名称生成已开始", { appid: game.appid, operationId: run.rid, requestId: run.rid });
+      try {
+        const result = await request("ai-generate", { appid: game.appid, name: game.official_name, rid: run.rid, operationId: run.rid }, 30000, run.controller.signal);
+        if (state.singleAiRun !== run || state.currentGame !== game || !state.started) return;
+        if (typeof result.name !== "string" || !result.name.trim() || result.name.trim().length > 200 || /[\r\n]/.test(result.name.trim())) {
+          throw new TypeError(i18n("steam.independentName.aiInvalidName", "AI 未返回有效的单个游戏名称，请重试。"));
+        }
+        const name = result.name.trim();
+        const generated = window.SteamBuff.libraryCustomNameMnemonic.readings(name, {}, window.pinyinPro);
+        if (typeof generated.pinyin !== "string" || typeof generated.mnemonic !== "string" || !generated.pinyin || !generated.mnemonic || generated.pinyin.length > 200 || generated.mnemonic.length > 200) {
+          throw new TypeError(i18n("steam.independentName.aiInvalidReadings", "生成名称无法生成有效的拼音和助记符，或结果超过长度上限，请重试。"));
+        }
+        const draft = ensureEdited(game.appid);
+        Object.assign(draft, { custom_name: name, pinyin: generated.pinyin, mnemonic: generated.mnemonic, pinyin_locked: false, mnemonic_locked: false, readingsPrepared: true });
+        state.singleReading = null;
+        state.singleMessage = i18n("steam.independentName.aiGenerated", "已生成，请核对后点击确认保存。");
+        log.info("independent-name-ai-generated", "AI 名称及本地拼音已填入当前游戏草稿", { appid: game.appid, operationId: run.rid, requestId: run.rid, durationMs: Math.round(performance.now() - run.started) });
+      } catch (error) {
+        if (run.controller.signal.aborted || state.singleAiRun !== run || state.currentGame !== game || !state.started) return;
+        const detail = error.message || String(error);
+        state.singleMessage = i18n("steam.independentName.aiFailed", "Ai生成失败：$error$", { error: detail });
+        log.error("independent-name-ai-failed", "当前游戏的 AI 名称生成失败", { error, appid: game.appid, operationId: run.rid, requestId: run.rid, durationMs: Math.round(performance.now() - run.started) });
+      } finally {
+        if (state.singleAiRun === run && state.currentGame === game && state.started) {
+          state.singleAiRun = null;
+          state.singleBusy = false;
+          renderSingleModal();
+        }
+      }
+    }
+
     async function openSingleModal(game) {
       const appid = Number(game?.appid) || 0;
       const officialName = text(game?.official_name);
       if (!appid || !officialName) {
         return;
       }
+      closeSingleModal();
       css();
       closeBatchModal();
       let modal = document.getElementById(MODAL);
@@ -1122,7 +1181,7 @@
       return state.singleReading;
     }
 
-    function readingsHtml(control) {
+    function readingsHtml(control, mode = "batch") {
       if (control?.error) return `<p class="st-lin-msg" role="status">${esc(control.error)}</p>`;
       const model = control?.model;
       if (!model) return "";
@@ -1134,13 +1193,109 @@
           ${group.options.map((option) => `<button class="st-lin-reading-option" type="button" data-lin-reading-index="${group.index}" data-lin-reading-value="${esc(option.value)}" aria-pressed="${model.parts[group.index] === option.value}" aria-label="${esc(`${group.char} · ${context} · ${option.label}`)}">${esc(option.label)}</button>`).join("")}
         </div>`;
       }).join("");
+      if (mode === "inline") return `<div class="st-lin-reading-groups">${groups}</div>`;
+      const preview = mode === "dialog";
+      const hint = i18n("steam.independentName.readingPreviewHint", "现有内容无法逐字对应。下方是生成预览，应用后将替换全拼和助记符。");
+      const apply = `<button class="st-lin-btn" type="button" data-lin-reading-apply>${esc(i18n("steam.independentName.readingApply", "替换全拼和助记符"))}</button>`;
       return `<div class="st-lin-reading-groups">${groups}</div>
-        <div class="st-lin-reading-preview" data-lin-reading-preview ${model.replace ? "" : "hidden"}>
-          <p class="st-lin-msg">${esc(i18n("steam.independentName.readingPreviewHint", "现有内容无法逐字对应。下方是生成预览，应用后将替换全拼和助记符。"))}</p>
+        <div class="st-lin-reading-preview" data-lin-reading-preview ${model.replace || preview ? "" : "hidden"}>
+          <p class="st-lin-msg">${esc(hint)}</p>
           <span>${esc(i18n("steam.independentName.colPinyin", "拼音全拼"))}</span><output data-lin-reading-full>${esc(model.pinyin)}</output>
           <span>${esc(i18n("steam.independentName.colMnemonic", "助记符"))}</span><output data-lin-reading-mnemonic>${esc(model.mnemonic)}</output>
-          <button class="st-lin-btn" type="button" data-lin-reading-apply>${esc(i18n("steam.independentName.readingApply", "替换全拼和助记符"))}</button>
+          ${preview ? `<footer class="st-lin-reading-actions"><button class="st-lin-btn" type="button" data-lin-reading-cancel>${esc(i18n("common.cancel", "取消"))}</button>${apply}</footer>` : apply}
         </div>`;
+    }
+
+    function closeSingleReadingPreview() {
+      const session = state.singleReadingSession;
+      state.singleReadingSession = null;
+      state.singleReadingPreview = null;
+      const layer = document.getElementById(MODAL)?.querySelector("[data-lin-reading-dialog]");
+      if (layer) layer.hidden = true;
+      session?.close?.();
+    }
+
+    function stopReadingKeyPropagation(event) {
+      event.stopPropagation();
+    }
+
+    function openSingleReadingPreview(opener, control) {
+      if (!state.currentGame || state.singleBusy) return;
+      const layer = document.getElementById(MODAL)?.querySelector("[data-lin-reading-dialog]");
+      if (!layer || control.error || !control.model?.groups.length) return;
+      window.clearTimeout(state.readingTimer);
+      state.readingTimer = 0;
+      state.singleReadingPreview = {
+        ...control,
+        model: window.SteamBuff.libraryCustomNameMnemonic.selectReading(control.model, Number(opener.dataset.linReadingIndex), opener.dataset.linReadingValue),
+      };
+      setHtml(layer, `
+        <div class="st-lin-reading-dialog">
+          <header class="st-lin-head">
+            <h3 id="st-lin-reading-title">${esc(i18n("steam.independentName.readingPreview", "拼音预览"))}</h3>
+            <button class="st-lin-close" type="button" data-lin-reading-cancel aria-label="${esc(i18n("common.close", "关闭"))}">×</button>
+          </header>
+          <p class="st-lin-reading-name">${esc(control.base.name)}</p>
+          ${readingsHtml(state.singleReadingPreview, "dialog")}
+        </div>
+      `, "library-independent-name-reading-preview");
+      layer.hidden = false;
+      // 子弹窗独立处理 Tab 和 Escape，避免父弹窗再次处理同一按键。
+      layer.addEventListener("keydown", stopReadingKeyPropagation);
+      state.singleReadingSession = window.STDialogLifecycle.open({
+        root: layer,
+        restore: opener,
+        initial: () => layer.querySelector('[data-lin-reading-value][aria-pressed="true"]') || layer.querySelector("[data-lin-reading-cancel]"),
+        onEscape: closeSingleReadingPreview,
+      });
+      state.singleReadingSession.focusInitial();
+    }
+
+    function onSingleReadingPreviewClick(event) {
+      const control = state.singleReadingPreview;
+      if (!control) return false;
+      if (event.target.matches("[data-lin-reading-dialog]") || event.target.closest("[data-lin-reading-cancel]")) {
+        closeSingleReadingPreview();
+        return true;
+      }
+      const choice = event.target.closest("[data-lin-reading-value]");
+      const apply = event.target.closest("[data-lin-reading-apply]");
+      if (!choice && !apply) return true;
+      if (state.currentGame?.appid !== control.appid || !sameReadingBase(control.base, readingBase(control.appid))) {
+        state.singleMessage = i18n("steam.independentName.draftConflict", "名称内容已更新，请重新打开后编辑。");
+        renderSingleModal();
+        return true;
+      }
+      const layer = document.getElementById(MODAL).querySelector("[data-lin-reading-dialog]");
+      if (choice) selectReadingChoice(control, choice, layer);
+      if (apply) {
+        applyReading(control);
+        closeSingleReadingPreview();
+        state.singleReading = null;
+        const current = singleReading(control.appid);
+        const panel = document.getElementById(MODAL).querySelector("[data-lin-single-readings]");
+        for (const button of panel.querySelectorAll("[data-lin-reading-value]")) {
+          button.setAttribute("aria-pressed", String(current.model.parts[Number(button.dataset.linReadingIndex)] === button.dataset.linReadingValue));
+        }
+      }
+      return true;
+    }
+
+    function onSingleReadingClick(event) {
+      const choice = event.target.closest("[data-lin-reading-value]");
+      if (!choice) return false;
+      const control = state.singleReading;
+      if (state.singleBusy || !control?.model || control.error) return true;
+      const panel = document.getElementById(MODAL).querySelector("[data-lin-single-readings]");
+      if (!sameReadingBase(control.base, readingBase(control.appid))) {
+        setHtml(panel, readingsHtml(singleReading(control.appid), "inline"), "library-independent-name-readings");
+        return true;
+      }
+      if (control.model.pinyinMatches) {
+        selectReadingChoice(control, choice, panel, false);
+        applyReading(control);
+      } else openSingleReadingPreview(choice, control);
+      return true;
     }
 
     // 单游戏只解析当前名称，输入法完成后合并输入变化；候选点击不重建输入框或候选按钮
@@ -1151,7 +1306,7 @@
         state.readingTimer = 0;
         if (!state.currentGame || state.singleBusy) return;
         const panel = document.getElementById(MODAL)?.querySelector("[data-lin-single-readings]");
-        if (panel) setHtml(panel, readingsHtml(singleReading(state.currentGame.appid)), "library-independent-name-readings");
+        if (panel) setHtml(panel, readingsHtml(singleReading(state.currentGame.appid), "inline"), "library-independent-name-readings");
       }, READINGS_MS);
     }
 
@@ -1549,6 +1704,16 @@
       modal.querySelector("[data-lin-filter-chips]").inert = locked;
     }
 
+    function selectReadingChoice(control, choice, root, preview = true) {
+      control.model = window.SteamBuff.libraryCustomNameMnemonic.selectReading(control.model, Number(choice.dataset.linReadingIndex), choice.dataset.linReadingValue);
+      const group = choice.closest(".st-lin-reading-group");
+      for (const button of group.querySelectorAll("[data-lin-reading-value]")) button.setAttribute("aria-pressed", String(button === choice));
+      if (preview) {
+        root.querySelector("[data-lin-reading-full]").textContent = control.model.pinyin;
+        root.querySelector("[data-lin-reading-mnemonic]").textContent = control.model.mnemonic;
+      }
+    }
+
     function applyReading(control) {
       const draft = ensureEdited(control.appid);
       draft.pinyin = control.model.pinyin;
@@ -1566,7 +1731,7 @@
         : root.querySelector("[data-lin-single-mnemonic]");
       if (pinyin) pinyin.value = draft.pinyin;
       if (mnemonic) mnemonic.value = draft.mnemonic;
-      root.querySelector("[data-lin-reading-preview]").hidden = true;
+      if (control.root) control.root.querySelector("[data-lin-reading-preview]").hidden = true;
       refreshBatchSave();
     }
 
@@ -1576,18 +1741,11 @@
       if (!choice && !apply) return false;
       if (!control?.model || control.error) return true;
       if (!sameReadingBase(control.base, readingBase(control.appid))) {
-        const root = control.root || document.getElementById(MODAL)?.querySelector("[data-lin-single-readings]");
-        if (control.root) refreshBatchReading(control.appid);
-        else setHtml(root, readingsHtml(singleReading(control.appid)), "library-independent-name-readings");
+        refreshBatchReading(control.appid);
         return true;
       }
       if (choice) {
-        control.model = window.SteamBuff.libraryCustomNameMnemonic.selectReading(control.model, Number(choice.dataset.linReadingIndex), choice.dataset.linReadingValue);
-        const group = choice.closest(".st-lin-reading-group");
-        for (const button of group.querySelectorAll("[data-lin-reading-value]")) button.setAttribute("aria-pressed", String(button === choice));
-        const root = control.root || document.getElementById(MODAL);
-        root.querySelector("[data-lin-reading-full]").textContent = control.model.pinyin;
-        root.querySelector("[data-lin-reading-mnemonic]").textContent = control.model.mnemonic;
+        selectReadingChoice(control, choice, control.root);
       }
       if (apply || !control.model.replace) applyReading(control);
       return true;
@@ -2121,12 +2279,13 @@
         || (state.currentGame?.appid === appid ? state.currentGame : null);
       const draft = { ...value, aliases: value.aliases.slice() };
       const cloud = cloudOf(appid);
-      // 导入预览已经确定派生字段及空值，保存不能再次生成并覆盖已审核的结果。
-      if (!value.importPrepared) fillGenerated(draft, cloud.custom_name, draft.custom_name);
-      if (!value.importPrepared && text(draft.mnemonic) && text(draft.mnemonic) !== text(cloud.mnemonic) && cloud.custom_name === draft.custom_name) {
+      // 导入或显式生成的读音已经就绪；保存不能覆盖结果，也不把同名的新读音误判为手工输入
+      const prepared = value.importPrepared || value.readingsPrepared;
+      if (!prepared) fillGenerated(draft, cloud.custom_name, draft.custom_name);
+      if (!prepared && text(draft.mnemonic) && text(draft.mnemonic) !== text(cloud.mnemonic) && cloud.custom_name === draft.custom_name) {
         draft.mnemonic_locked = true;
       }
-      if (!value.importPrepared && text(draft.pinyin) && text(draft.pinyin) !== text(cloud.pinyin) && cloud.custom_name === draft.custom_name) {
+      if (!prepared && text(draft.pinyin) && text(draft.pinyin) !== text(cloud.pinyin) && cloud.custom_name === draft.custom_name) {
         draft.pinyin_locked = true;
       }
       return {
@@ -2726,7 +2885,8 @@
     }
 
     function onSingleClick(event) {
-      if (!state.singleBusy && onReadingClick(event, state.singleReading)) return;
+      if (onSingleReadingPreviewClick(event)) return;
+      if (onSingleReadingClick(event)) return;
       if (event.target.closest("[data-lin-single-close], [data-lin-single-cancel]")) {
         closeSingleModal();
         return;
@@ -2736,6 +2896,11 @@
         openBatchModal().catch((error) => {
           log.warn("independent-name-open-failed", "独立版批量名称页打开失败", { error });
         });
+        return;
+      }
+      if (state.singleAiRun) return;
+      if (event.target.closest("[data-lin-single-ai]")) {
+        void generateSingleName();
         return;
       }
       if (event.target.closest("[data-lin-single-use-reference]") && state.currentGame && !state.singleBusy) {

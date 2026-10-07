@@ -5785,6 +5785,9 @@
   "steam_independentName_readingApply": {
     "message": "병음과 약어 바꾸기"
   },
+  "steam_independentName_readingPreview": {
+    "message": "병음 미리보기"
+  },
   "steam_independentName_readingPosition": {
     "message": "$n$번째 글자: $context$",
     "placeholders": {
@@ -5884,6 +5887,32 @@
   },
   "steam_independentName_batch": {
     "message": "일괄 설정"
+  },
+  "steam_independentName_aiGenerate": {
+    "message": "AI 생성"
+  },
+  "steam_independentName_aiGenerating": {
+    "message": "생성 중…"
+  },
+  "steam_independentName_aiInvalidName": {
+    "message": "AI가 유효한 단일 게임 이름을 반환하지 않았습니다. 다시 시도하세요."
+  },
+  "steam_independentName_aiInvalidReadings": {
+    "message": "생성된 이름에서 유효한 병음과 이니셜을 만들 수 없거나 길이 제한을 초과했습니다. 다시 시도하세요."
+  },
+  "steam_independentName_aiGenerated": {
+    "message": "생성되었습니다. 내용을 검토한 후 확인하여 저장하세요."
+  },
+  "steam_independentName_aiFailed": {
+    "message": "AI 생성 실패: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_batchSort": {
+    "message": "일괄 정렬"
   },
   "steam_independentName_batchTitle": {
     "message": "Steam Buff · 사용자 지정 이름 일괄 설정"
