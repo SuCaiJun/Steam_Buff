@@ -6039,6 +6039,9 @@
   "steam_independentName_filterIncomplete": {
     "message": "Enter a filter value or select an application type"
   },
+  "steam_independentName_filterRegexInvalid": {
+    "message": "Invalid regular expression. Update it and try again."
+  },
   "steam_independentName_typeMissing": {
     "message": "Application type data is unavailable. Update the extension and retry."
   },
@@ -6086,6 +6089,27 @@
   },
   "steam_independentName_filterOpNotEquals": {
     "message": "Does not equal"
+  },
+  "steam_independentName_filterOpStartsWith": {
+    "message": "Starts with"
+  },
+  "steam_independentName_filterOpEndsWith": {
+    "message": "Ends with"
+  },
+  "steam_independentName_filterOpLengthGt": {
+    "message": "Length greater than"
+  },
+  "steam_independentName_filterOpLengthLt": {
+    "message": "Length less than"
+  },
+  "steam_independentName_filterOpRegex": {
+    "message": "Matches regular expression"
+  },
+  "steam_independentName_filterOpCountGt": {
+    "message": "Count greater than"
+  },
+  "steam_independentName_filterOpCountLt": {
+    "message": "Count less than"
   },
   "steam_independentName_saveChanges": {
     "message": "Save changes"

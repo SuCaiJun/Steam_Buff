@@ -735,6 +735,24 @@
       return ["app_type", "sources", "original_language", "collections", "modes", "status", "privacy", "languages", "genres", "features", "tags", "hardware", "accessibility", "review_score"].includes(field);
     }
 
+    const FILTER_SET_OPERATORS = Object.freeze(["equals", "notEquals", "contains", "notContains"]);
+    const FILTER_TEXT_OPERATORS = Object.freeze(["startsWith", "endsWith", "lengthGt", "lengthLt", "regex"]);
+    const FILTER_EMPTY_OPERATORS = Object.freeze(["empty", "notEmpty"]);
+
+    function isAliasField(field) {
+      return field === "aliases";
+    }
+
+    function usesFilterOptionValues(field, op) {
+      return isDiscreteField(field) && FILTER_SET_OPERATORS.includes(op);
+    }
+
+    function defaultFilterOperator(field) {
+      if (isRangeField(field)) return "between";
+      if (isDiscreteField(field)) return "equals";
+      return "notEmpty";
+    }
+
     function isRangeField(field) {
       return ["metacritic_score", "date_added", "date_release", "date_last_played", "playtime_minutes"].includes(field);
     }
@@ -744,10 +762,15 @@
     }
 
     function operators(field) {
-      const keys = field === "original_language" ? ["contains", "notContains", "equals", "notEquals"] : field === "app_type" || isDiscreteField(field) ? ["equals", "notEquals"] : isRangeField(field) ? ["between", "unknown"] : ["notEmpty", "empty", "contains", "notContains", "equals", "notEquals"];
+      const keys = isRangeField(field)
+        ? ["between", "unknown"]
+        : isAliasField(field)
+          ? ["equals", "notEquals", "startsWith", "endsWith", "contains", "notContains", "empty", "notEmpty", "regex", "countGt", "countLt"]
+          : ["equals", "notEquals", "startsWith", "endsWith", "contains", "notContains", "empty", "notEmpty", "lengthGt", "lengthLt", "regex"];
       const labels = {
         notEmpty: "不为空", empty: "为空",
         contains: "包含", notContains: "不包含", equals: "等于", notEquals: "不等于", between: "范围内", unknown: "未提供",
+        startsWith: "以…开头", endsWith: "以…结尾", lengthGt: "长度大于", lengthLt: "长度小于", regex: "正则匹配", countGt: "数量大于", countLt: "数量小于",
       };
       return keys.map(key => [key, i18n(`steam.independentName.filterOp${key[0].toUpperCase()}${key.slice(1)}`, labels[key])]);
     }
@@ -870,19 +893,67 @@
       }
       const value = metadata[field];
       if (field === "privacy" && Array.isArray(value) && value.length === 0 && metadata.ready?.privacy !== false) {
-        return { ready: true, values: ["normal"] };
+        return { ready: true, values: ["normal"], empty: true };
       }
       if (field === "original_language") {
-        return { ready: value !== undefined && value !== null, values: Array.isArray(value) ? value.map(String) : value == null ? [] : [String(value)] };
+        const values = Array.isArray(value) ? value.map(String) : value == null ? [] : [String(value)];
+        return { ready: value !== undefined && value !== null, values, empty: values.length === 0 };
       }
       if (field === "languages") {
-        return { ready: Array.isArray(value), values: Array.isArray(value) ? value.map(item => String(item) === "sc_schinese" ? "schinese" : String(item)) : [] };
+        const values = Array.isArray(value) ? value.map(item => String(item) === "sc_schinese" ? "schinese" : String(item)) : [];
+        return { ready: Array.isArray(value), values, empty: Array.isArray(value) && values.length === 0 };
       }
-      return { ready: value !== undefined && value !== null, values: Array.isArray(value) ? value.map(String) : [String(value)] };
+      const values = Array.isArray(value) ? value.map(String) : value === undefined || value === null ? [] : [String(value)];
+      return { ready: value !== undefined && value !== null, values, empty: values.length === 0 };
+    }
+
+    function optionLabels(field) {
+      return new Map((field === "app_type" ? gameTypes() : optionList(field)).map(([value, label]) => [String(value), label]));
+    }
+
+    function displayValues(field, values) {
+      const labels = optionLabels(field);
+      return values.filter(value => labels.has(String(value))).map(value => labels.get(String(value)));
+    }
+
+    function unicodeLength(value) {
+      return Array.from(text(value)).length;
+    }
+
+    function matchesText(filter, candidates) {
+      const values = candidates.map(value => text(value)).filter(Boolean);
+      const query = text(filter.value);
+      const normalizedQuery = query.toLocaleLowerCase();
+      if (filter.op === "startsWith") return values.some(value => value.toLocaleLowerCase().startsWith(normalizedQuery));
+      if (filter.op === "endsWith") return values.some(value => value.toLocaleLowerCase().endsWith(normalizedQuery));
+      if (filter.op === "lengthGt") return values.some(value => unicodeLength(value) > Number(filter.value));
+      if (filter.op === "lengthLt") return values.some(value => unicodeLength(value) < Number(filter.value));
+      if (filter.op === "regex") {
+        let expression;
+        try {
+          expression = new RegExp(query, "i");
+        } catch {
+          return false;
+        }
+        return values.some(value => expression.test(value));
+      }
+      const found = values.some(value => {
+        const normalized = value.toLocaleLowerCase();
+        if (filter.op === "contains" || filter.op === "notContains") return normalized.includes(normalizedQuery);
+        return normalized === normalizedQuery;
+      });
+      return filter.op === "notContains" || filter.op === "notEquals" ? !found : found;
     }
 
     function matchesDiscrete(filter, metadata) {
       if (!metadata.ready) return false;
+      if (filter.op === "empty") return metadata.empty ?? metadata.values.length === 0;
+      if (filter.op === "notEmpty") return !(metadata.empty ?? metadata.values.length === 0);
+      if (FILTER_TEXT_OPERATORS.includes(filter.op)) {
+        const labels = optionLabels(filter.field);
+        if (metadata.values.some(value => !labels.has(String(value)))) return false;
+        return matchesText(filter, displayValues(filter.field, metadata.values));
+      }
       const wanted = new Set(filter.values.map(String));
       const foundValues = new Set(metadata.values.map(String));
       if (filter.field === "original_language") {
@@ -894,7 +965,12 @@
         return !exact;
       }
       const found = Array.from(foundValues).some(value => wanted.has(value));
-      return filter.op === "equals" ? found : !found;
+      return filter.op === "equals" || filter.op === "contains" ? found : !found;
+    }
+
+    function matchesAppType(filter, row) {
+      if (!Number.isSafeInteger(row?.app_type)) return false;
+      return matchesDiscrete(filter, { ready: true, values: [gameType(row.app_type)], empty: false });
     }
 
     function matchesRange(filter, metadata) {
@@ -912,18 +988,17 @@
       const q = text(state.search).toLowerCase();
       if (q && ![row.official_name, String(row.appid), draft.custom_name, draft.mnemonic, draft.pinyin, ...draft.aliases].join(" ").toLowerCase().includes(q)) return false;
       return state.filters.every(filter => {
-        if (filter.field === "app_type") {
-          const found = filter.values.includes(gameType(row.app_type));
-          return filter.op === "equals" ? found : !found;
-        }
+        if (filter.field === "app_type") return matchesAppType(filter, row);
         if (isDiscreteField(filter.field)) return matchesDiscrete(filter, rowMetadata(row, filter.field));
         if (isRangeField(filter.field)) return matchesRange(filter, rowMetadata(row, filter.field));
         const values = (filter.field === "aliases" ? draft.aliases : [draft[filter.field]]).map(value => text(value).toLowerCase()).filter(Boolean);
         if (filter.op === "empty") return values.length === 0;
         if (filter.op === "notEmpty") return values.length > 0;
-        const needle = text(filter.value).toLowerCase();
-        const found = values.some(value => filter.op === "contains" || filter.op === "notContains" ? value.includes(needle) : value === needle);
-        return filter.op === "notContains" || filter.op === "notEquals" ? !found : found;
+        if (filter.op === "countGt" || filter.op === "countLt") {
+          const count = values.length;
+          return filter.op === "countGt" ? count > Number(filter.value) : count < Number(filter.value);
+        }
+        return matchesText(filter, values);
       });
     }
 
@@ -957,12 +1032,12 @@
       setHtml(chips, state.filters.map((filter, index) => {
         const field = filterFields().find(([key]) => key === filter.field)?.[1] || filter.field;
         const op = operators(filter.field).find(([key]) => key === filter.op)[1];
-        const value = filter.field === "app_type"
-          ? gameTypes().filter(([key]) => filter.values.includes(key)).map(([, label]) => label).join(" / ")
-          : isDiscreteField(filter.field) ? optionList(filter.field).filter(([key]) => filter.values.includes(key)).map(([, label]) => label).join(" / ")
+        const value = usesFilterOptionValues(filter.field, filter.op)
+          ? displayValues(filter.field, filter.values).join(" / ")
           : isRangeField(filter.field) ? (isDateField(filter.field) && filter.preset
             ? (datePresets().find(([key]) => key === filter.preset)?.[1] || filter.preset)
-            : `${filter.min || filter.dateStart || "-∞"} ~ ${filter.max || filter.dateEnd || "∞"}`) : filter.value;
+            : `${filter.min || filter.dateStart || "-∞"} ~ ${filter.max || filter.dateEnd || "∞"}`)
+            : FILTER_EMPTY_OPERATORS.includes(filter.op) ? "" : filter.value;
         const removeLabel = i18n("steam.independentName.removeFilter", "移除筛选");
         return `<span class="st-lin-filter-chip"><button type="button" data-lin-filter-edit>${esc(`${field} ${op} ${value}`)}</button><button class="st-lin-filter-chip-remove" type="button" data-lin-filter-remove="${index}" aria-label="${esc(removeLabel)}" title="${esc(removeLabel)}">${iconHtml(FILTER_DELETE_ICON_PATH, "st-lin-filter-delete-icon")}</button></span>`;
       }).join(""), "library-independent-name-filter-chips");
@@ -978,13 +1053,13 @@
       setHtml(editor.querySelector("[data-lin-filter-rows]"), state.filterDraft.map((filter, index) => {
         const field = filterFields().find(([key]) => key === filter.field)?.[1] || filter.field;
         const ops = operators(filter.field).map(([key, label]) => `<option value="${key}" ${key === filter.op ? "selected" : ""}>${esc(label)}</option>`).join("");
-        const value = isDiscreteField(filter.field)
+        const value = usesFilterOptionValues(filter.field, filter.op)
           ? filterOptionMenuHtml(filter.field, filter)
           : isRangeField(filter.field)
               ? isDateField(filter.field)
                 ? `<div class="st-lin-filter-date"><select data-lin-filter-date-preset aria-label="${esc(i18n("steam.independentName.filterDatePreset", "日期范围"))}" ${filter.op === "unknown" ? "hidden" : ""}>${datePresets().map(([key, label]) => `<option value="${esc(key)}" ${filter.preset === key ? "selected" : ""}>${esc(label)}</option>`).join("")}</select><div class="st-lin-filter-range" ${filter.preset !== "custom" || filter.op === "unknown" ? "hidden" : ""}><label class="st-lin-filter-date-bound"><span>${esc(i18n("steam.independentName.filterDateStart", "开始日期"))}</span><input data-lin-filter-date-start type="date" value="${esc(filter.dateStart)}"></label><label class="st-lin-filter-date-bound"><span>${esc(i18n("steam.independentName.filterDateEnd", "结束日期"))}</span><input data-lin-filter-date-end type="date" value="${esc(filter.dateEnd)}"></label></div></div>`
                 : `<div class="st-lin-filter-range"><input data-lin-filter-min type="number" value="${esc(filter.min)}" placeholder="${esc(i18n("steam.independentName.filterMin", "最小"))}" ${filter.op === "unknown" ? "hidden" : ""}><input data-lin-filter-max type="number" value="${esc(filter.max)}" placeholder="${esc(i18n("steam.independentName.filterMax", "最大"))}" ${filter.op === "unknown" ? "hidden" : ""}></div>`
-              : `<input data-lin-filter-value type="text" maxlength="200" aria-label="${esc(i18n("steam.independentName.filterValue", "筛选值"))}" value="${esc(filter.value)}" ${["empty", "notEmpty"].includes(filter.op) ? "hidden" : ""}>`;
+              : `<input data-lin-filter-value type="${["lengthGt", "lengthLt", "countGt", "countLt"].includes(filter.op) ? "number" : "text"}" ${["lengthGt", "lengthLt", "countGt", "countLt"].includes(filter.op) ? "min=\"0\" step=\"1\" inputmode=\"numeric\"" : "maxlength=\"200\""} aria-label="${esc(i18n("steam.independentName.filterValue", "筛选值"))}" value="${esc(filter.value)}" ${FILTER_EMPTY_OPERATORS.includes(filter.op) ? "hidden" : ""}>`;
         const fieldPicker = filterGroups().map(([group, fields]) => `<div class="st-lin-filter-picker-group"><strong>${esc(group)}</strong>${fields.map(([key, label]) => {
           const availability = filterAvailability(key);
           const selected = key === filter.field;
@@ -1100,18 +1175,31 @@
       const editor = document.getElementById(BATCH_MODAL).querySelector("[data-lin-filter-editor]");
       const invalid = state.filterDraft.some(filter => {
         if (!filterAvailability(filter.field).ready) return true;
-        if (filter.field === "app_type" || isDiscreteField(filter.field)) return filter.op !== "unknown" && !filter.values.length;
+        if (usesFilterOptionValues(filter.field, filter.op)) return !filter.values.length;
         if (isRangeField(filter.field)) {
           const hasRange = isDateField(filter.field)
             ? !!filter.preset || !!filter.dateStart || !!filter.dateEnd || filter.min !== "" || filter.max !== ""
             : filter.min !== "" || filter.max !== "";
           return filter.op !== "unknown" && !hasRange;
         }
-        return !["empty", "notEmpty"].includes(filter.op) && !text(filter.value);
+        if (FILTER_EMPTY_OPERATORS.includes(filter.op)) return false;
+        if (!text(filter.value)) return true;
+        if (["lengthGt", "lengthLt", "countGt", "countLt"].includes(filter.op)) {
+          return !/^\d+$/.test(text(filter.value)) || !Number.isSafeInteger(Number(filter.value));
+        }
+        if (filter.op === "regex") {
+          try { new RegExp(filter.value, "i"); } catch { return true; }
+        }
+        return false;
       });
       if (invalid) {
         const unavailable = state.filterDraft.map(filter => filterAvailability(filter.field)).find(result => !result.ready);
-        editor.querySelector("[data-lin-filter-msg]").textContent = unavailable?.message || i18n("steam.independentName.filterIncomplete", "请填写筛选值或选择游戏类型");
+        const invalidRegex = state.filterDraft.find(filter => filter.op === "regex" && text(filter.value));
+        let regexMessage = "";
+        if (invalidRegex) {
+          try { new RegExp(invalidRegex.value, "i"); } catch { regexMessage = i18n("steam.independentName.filterRegexInvalid", "正则表达式格式错误，请修改后重试"); }
+        }
+        editor.querySelector("[data-lin-filter-msg]").textContent = unavailable?.message || regexMessage || i18n("steam.independentName.filterIncomplete", "请填写筛选值或选择游戏类型");
         return;
       }
       if (state.filterDraft.some(filter => filter.field === "app_type") && state.rows.some(row => !Number.isSafeInteger(row.app_type))) {
@@ -3027,7 +3115,7 @@
           if (value.disabled) return;
           const filter = state.filterDraft[Number(row.dataset.linFilterRow)];
           filter.field = value.dataset.linFilterFieldValue;
-          filter.op = filter.field === "original_language" || filter.field === "app_type" || isDiscreteField(filter.field) ? "equals" : isRangeField(filter.field) ? "between" : "notEmpty";
+          filter.op = defaultFilterOperator(filter.field);
           filter.value = "";
           filter.values = [];
           filter.min = "";

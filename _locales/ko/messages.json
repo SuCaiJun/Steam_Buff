@@ -6039,6 +6039,9 @@
   "steam_independentName_filterIncomplete": {
     "message": "필터 값을 입력하거나 유형을 선택하세요"
   },
+  "steam_independentName_filterRegexInvalid": {
+    "message": "정규식 형식이 잘못되었습니다. 수정한 후 다시 시도하세요."
+  },
   "steam_independentName_typeMissing": {
     "message": "유형 데이터를 사용할 수 없습니다. 확장 프로그램을 업데이트한 후 다시 시도하세요"
   },
@@ -6086,6 +6089,27 @@
   },
   "steam_independentName_filterOpNotEquals": {
     "message": "같지 않음"
+  },
+  "steam_independentName_filterOpStartsWith": {
+    "message": "다음으로 시작"
+  },
+  "steam_independentName_filterOpEndsWith": {
+    "message": "다음으로 끝남"
+  },
+  "steam_independentName_filterOpLengthGt": {
+    "message": "길이가 다음보다 큼"
+  },
+  "steam_independentName_filterOpLengthLt": {
+    "message": "길이가 다음보다 작음"
+  },
+  "steam_independentName_filterOpRegex": {
+    "message": "정규식 일치"
+  },
+  "steam_independentName_filterOpCountGt": {
+    "message": "개수가 다음보다 큼"
+  },
+  "steam_independentName_filterOpCountLt": {
+    "message": "개수가 다음보다 작음"
   },
   "steam_independentName_saveChanges": {
     "message": "변경 사항 저장"

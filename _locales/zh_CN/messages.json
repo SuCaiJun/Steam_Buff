@@ -6039,6 +6039,9 @@
   "steam_independentName_filterIncomplete": {
     "message": "请填写筛选值或选择游戏类型"
   },
+  "steam_independentName_filterRegexInvalid": {
+    "message": "正则表达式格式错误，请修改后重试"
+  },
   "steam_independentName_typeMissing": {
     "message": "游戏类型数据不可用，请更新扩展后重试"
   },
@@ -6086,6 +6089,27 @@
   },
   "steam_independentName_filterOpNotEquals": {
     "message": "不等于"
+  },
+  "steam_independentName_filterOpStartsWith": {
+    "message": "以…开头"
+  },
+  "steam_independentName_filterOpEndsWith": {
+    "message": "以…结尾"
+  },
+  "steam_independentName_filterOpLengthGt": {
+    "message": "长度大于"
+  },
+  "steam_independentName_filterOpLengthLt": {
+    "message": "长度小于"
+  },
+  "steam_independentName_filterOpRegex": {
+    "message": "正则匹配"
+  },
+  "steam_independentName_filterOpCountGt": {
+    "message": "数量大于"
+  },
+  "steam_independentName_filterOpCountLt": {
+    "message": "数量小于"
   },
   "steam_independentName_saveChanges": {
     "message": "保存修改"

@@ -6039,6 +6039,9 @@
   "steam_independentName_filterIncomplete": {
     "message": "値を入力するか、種類を選択してください"
   },
+  "steam_independentName_filterRegexInvalid": {
+    "message": "正規表現の形式が正しくありません。修正して再試行してください"
+  },
   "steam_independentName_typeMissing": {
     "message": "種類のデータを取得できません。拡張機能を更新して再試行してください"
   },
@@ -6086,6 +6089,27 @@
   },
   "steam_independentName_filterOpNotEquals": {
     "message": "等しくない"
+  },
+  "steam_independentName_filterOpStartsWith": {
+    "message": "次で始まる"
+  },
+  "steam_independentName_filterOpEndsWith": {
+    "message": "次で終わる"
+  },
+  "steam_independentName_filterOpLengthGt": {
+    "message": "長さが次より大きい"
+  },
+  "steam_independentName_filterOpLengthLt": {
+    "message": "長さが次より小さい"
+  },
+  "steam_independentName_filterOpRegex": {
+    "message": "正規表現に一致"
+  },
+  "steam_independentName_filterOpCountGt": {
+    "message": "個数が次より大きい"
+  },
+  "steam_independentName_filterOpCountLt": {
+    "message": "個数が次より小さい"
   },
   "steam_independentName_saveChanges": {
     "message": "変更を保存"
