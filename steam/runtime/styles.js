@@ -1509,6 +1509,7 @@
         line-height: 16px;
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-field-button,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-operator-button,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-delete,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-value-button,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row select,
@@ -1532,6 +1533,55 @@
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-btn:focus-visible {
         outline: 2px solid var(--st-color-steam-blue);
         outline-offset: 2px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator { min-width: 0; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-button {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-menu {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        box-sizing: border-box;
+        min-width: 144px;
+        padding: 4px 0;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-menu[hidden] { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        box-sizing: border-box;
+        width: 100%;
+        height: 32px;
+        padding: 0 12px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: start;
+        cursor: pointer;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option[aria-selected="true"] {
+        background: var(--st-color-bg-input);
+        color: var(--st-color-steam-blue);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option:hover,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option:focus-visible {
+        background: var(--st-color-surface-control-hover);
+        outline: 1px solid var(--st-color-border-normal);
+        outline-offset: -1px;
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-value,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-value-select {
@@ -1632,7 +1682,8 @@
         cursor: pointer;
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types input,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} input[data-lin-select] {
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} input[data-lin-select],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} input[data-lin-select-all] {
         accent-color: var(--st-color-steam-blue);
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-delete {
@@ -1690,7 +1741,8 @@
         gap: 0 8px;
         min-width: 0;
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table input[data-lin-select] {
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table input[data-lin-select],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table input[data-lin-select-all] {
         color-scheme: dark;
         width: 14px;
         height: 14px;
@@ -2137,7 +2189,7 @@
         inset: auto;
         margin: 0;
         box-sizing: border-box;
-        width: min(440px, calc(100vw - 24px));
+        width: min(344px, calc(100vw - 24px));
         max-height: calc(100vh - 24px);
         overflow: visible;
         padding: 0;

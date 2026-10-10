@@ -289,6 +289,8 @@
       rows: [],
       rowsByAppid: new Map(),
       filtered: [],
+      filteredIds: new Set(),
+      filteredSelected: 0,
       snapshot: { items: {}, count: 0, quota: -1 },
       meta: { options: {}, capabilities: {} },
       drafts: new Map(),
@@ -1007,10 +1009,14 @@
     // 普通选择限定筛选结果；本次导入草稿保留隐藏目标，防止主窗口保存漏项。
     function applySearch() {
       state.filtered = state.rows.filter(matchesRow);
-      const visible = new Set(state.filtered.map(row => row.appid));
-      for (const appid of state.selected) if (!visible.has(appid) && !state.importSelection.has(appid)) {
-        state.selected.delete(appid);
-        state.selectedDrafts.delete(appid);
+      const visible = state.filteredIds = new Set(state.filtered.map(row => row.appid));
+      state.filteredSelected = 0;
+      for (const appid of state.selected) {
+        if (visible.has(appid)) state.filteredSelected += 1;
+        else if (!state.importSelection.has(appid)) {
+          state.selected.delete(appid);
+          state.selectedDrafts.delete(appid);
+        }
       }
     }
 
@@ -1022,7 +1028,8 @@
       if (index < 0) return;
       state.filtered = state.filtered.slice();
       state.filtered.splice(index, 1);
-      state.selected.delete(appid);
+      state.filteredIds.delete(appid);
+      if (state.selected.delete(appid)) state.filteredSelected -= 1;
       state.selectedDrafts.delete(appid);
       renderTable();
     }
@@ -1048,13 +1055,23 @@
       clear.disabled = state.filters.length === 0 || !!state.referenceRun;
     }
 
+    // 原 select 保留值、options 和 change 契约；弹层从同一运算符目录生成，不维护第二套筛选规则
+    function filterOperatorHtml(filter, index, ready) {
+      const label = i18n("steam.independentName.filterOperator", "筛选关系");
+      const list = operators(filter.field);
+      const current = list.find(([key]) => key === filter.op)[1];
+      const id = `st-lin-filter-operator-${index}`;
+      const options = list.map(([key, text]) => `<option value="${key}" ${key === filter.op ? "selected" : ""}>${esc(text)}</option>`).join("");
+      const choices = list.map(([key, text]) => `<button class="st-lin-filter-operator-option" type="button" role="option" data-lin-filter-op-value="${key}" aria-selected="${key === filter.op}" tabindex="${key === filter.op ? 0 : -1}"><span>${esc(text)}</span><span aria-hidden="true">${key === filter.op ? "✓" : ""}</span></button>`).join("");
+      return `<div class="st-lin-filter-operator"><select data-lin-filter-op hidden aria-label="${esc(label)}" ${ready ? "" : "disabled"}>${options}</select><button class="st-lin-btn st-lin-filter-operator-button" type="button" data-lin-filter-op-trigger aria-label="${esc(`${label}: ${current}`)}" aria-haspopup="listbox" aria-controls="${id}" aria-expanded="false" ${ready ? "" : "disabled"}><span>${esc(current)}</span><span aria-hidden="true">▾</span></button><div id="${id}" class="st-lin-filter-operator-menu" data-lin-filter-op-menu role="listbox" aria-label="${esc(label)}" popover="manual" hidden>${choices}</div></div>`;
+    }
+
     function renderFilterEditor() {
       const editor = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-filter-editor]");
       if (!editor || !state.filterDraft) return;
       closeFilterPicker();
       setHtml(editor.querySelector("[data-lin-filter-rows]"), state.filterDraft.map((filter, index) => {
         const field = filterFields().find(([key]) => key === filter.field)?.[1] || filter.field;
-        const ops = operators(filter.field).map(([key, label]) => `<option value="${key}" ${key === filter.op ? "selected" : ""}>${esc(label)}</option>`).join("");
         const value = usesFilterOptionValues(filter.field, filter.op)
           ? filterOptionMenuHtml(filter.field, filter)
           : isRangeField(filter.field)
@@ -1071,7 +1088,7 @@
         const unavailable = availability.ready ? "" : `<p class="st-lin-filter-unavailable" data-lin-filter-unavailable role="status">${esc(availability.message)}</p>`;
         const renderedValue = availability.ready ? value : unavailable;
         const removeLabel = i18n("steam.independentName.removeFilter", "移除筛选");
-        return `<div class="st-lin-filter-row" data-lin-filter-row="${index}"><div class="st-lin-filter-field"><button class="st-lin-btn st-lin-filter-field-button" type="button" data-lin-filter-field aria-expanded="false">${esc(field)} <span aria-hidden="true">▾</span></button><div class="st-lin-filter-picker" data-lin-filter-picker popover="manual" hidden><div class="st-lin-filter-picker-scroll">${fieldPicker}</div></div></div><select data-lin-filter-op aria-label="${esc(i18n("steam.independentName.filterOperator", "筛选关系"))}" ${availability.ready ? "" : "disabled"}>${ops}</select><div class="st-lin-filter-value">${renderedValue}</div><button class="st-lin-btn st-lin-filter-delete" type="button" data-lin-filter-delete="${index}" aria-label="${esc(removeLabel)}" title="${esc(removeLabel)}">${iconHtml(FILTER_DELETE_ICON_PATH, "st-lin-filter-delete-icon")}</button></div>`;
+        return `<div class="st-lin-filter-row" data-lin-filter-row="${index}"><div class="st-lin-filter-field"><button class="st-lin-btn st-lin-filter-field-button" type="button" data-lin-filter-field aria-expanded="false">${esc(field)} <span aria-hidden="true">▾</span></button><div class="st-lin-filter-picker" data-lin-filter-picker popover="manual" hidden><div class="st-lin-filter-picker-scroll">${fieldPicker}</div></div></div>${filterOperatorHtml(filter, index, availability.ready)}<div class="st-lin-filter-value">${renderedValue}</div><button class="st-lin-btn st-lin-filter-delete" type="button" data-lin-filter-delete="${index}" aria-label="${esc(removeLabel)}" title="${esc(removeLabel)}">${iconHtml(FILTER_DELETE_ICON_PATH, "st-lin-filter-delete-icon")}</button></div>`;
       }).join(""), "library-independent-name-filter-editor");
       const unavailable = state.filterDraft.map(filter => filterAvailability(filter.field)).find(result => !result.ready);
       const message = editor.querySelector("[data-lin-filter-msg]");
@@ -1115,6 +1132,11 @@
       if (picker.matches("[data-lin-filter-option-menu]")) {
         picker.style.width = `${Math.min(Math.max(anchor.width, 220), window.innerWidth - 16)}px`;
       }
+      if (picker.matches("[data-lin-filter-op-menu]")) {
+        picker.style.width = `${Math.min(Math.max(anchor.width, 144), window.innerWidth - 16)}px`;
+        const available = Math.max(anchor.top - 16, window.innerHeight - anchor.bottom - 16);
+        picker.style.maxHeight = `${Math.max(0, available)}px`;
+      }
       if (picker.matches("[data-lin-actions-menu]")) {
         // 两侧都放不下整份菜单时只缩小内部滚动区，保留触发按钮和三角之间的间隙。
         const available = Math.max(anchor.top - 16, window.innerHeight - anchor.bottom - 16);
@@ -1143,6 +1165,9 @@
       picker.hidePopover();
       picker.hidden = true;
       button?.setAttribute("aria-expanded", "false");
+      if (picker.matches("[data-lin-filter-op-menu]")) {
+        for (const option of picker.querySelectorAll("[data-lin-filter-op-value]")) option.tabIndex = option.getAttribute("aria-selected") === "true" ? 0 : -1;
+      }
       if (picker.matches("[data-lin-filter-option-menu]")) {
         for (const option of picker.querySelectorAll("[data-lin-filter-option]")) option.closest("label").hidden = false;
         const row = button?.closest("[data-lin-filter-row]");
@@ -1157,6 +1182,7 @@
     }
 
     function toggleFilterPicker(button, picker, initialSelector) {
+      if (button.disabled) return;
       if (state.filterPicker === picker) {
         closeFilterPicker(false);
         return;
@@ -1219,9 +1245,11 @@
       if (state.referenceRun || state.busy) return;
       if (mode === "clear") { state.selected.clear(); state.importSelection.clear(); }
       else for (const row of state.filtered) {
-        if (mode === "invert" && state.selected.has(row.appid)) { state.selected.delete(row.appid); state.importSelection.delete(row.appid); }
+        if (mode === "clear-filtered" || (mode === "invert" && state.selected.has(row.appid))) { state.selected.delete(row.appid); state.importSelection.delete(row.appid); }
         else state.selected.add(row.appid);
       }
+      state.filteredSelected = mode === "clear" || mode === "clear-filtered" ? 0
+        : mode === "invert" ? state.filtered.length - state.filteredSelected : state.filtered.length;
       syncSelectedDrafts();
       const modal = document.getElementById(BATCH_MODAL);
       for (const input of modal.querySelectorAll("[data-lin-select]")) input.checked = state.selected.has(Number(input.dataset.linSelect));
@@ -1772,6 +1800,12 @@
       const button = modal?.querySelector("[data-lin-save-all]");
       if (!button) return;
       const locked = state.busy || !!state.referenceRun || !!state.bulk || !!state.transfer;
+      // 输入和滚动复用已维护的筛选内计数，三态同步不遍历整库或重建列表
+      const selectAll = modal.querySelector("[data-lin-select-all]");
+      selectAll.checked = state.filtered.length > 0 && state.filteredSelected === state.filtered.length;
+      selectAll.indeterminate = state.filteredSelected > 0 && state.filteredSelected < state.filtered.length;
+      selectAll.disabled = locked || state.filtered.length === 0;
+      selectAll.title = selectAll.checked ? bulkText("cancelSelection") : i18n("steam.independentName.selectAll", "全选");
       button.disabled = state.batchSaving || locked || state.selectedDrafts.size === 0;
       button.textContent = state.batchSaving
         ? i18n("steam.independentName.saving", "正在保存...")
@@ -2195,7 +2229,7 @@
             <table class="st-lin-table">
               <thead>
                 <tr>
-                  <th class="st-lin-appid">${esc(i18n("steam.independentName.colAppid", "AppID"))}</th>
+                  <th class="st-lin-appid"><label class="st-lin-row-select"><input type="checkbox" data-lin-select-all aria-label="${esc(i18n("steam.independentName.selectAll", "全选"))}"><span>${esc(i18n("steam.independentName.colAppid", "AppID"))}</span></label></th>
                   <th class="st-lin-official">${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</th>
                   <th class="st-lin-custom">${esc(i18n("steam.independentName.colCustom", "自定义名称"))}</th>
                   <th class="st-lin-alias">${esc(i18n("steam.independentName.colAlias", "别名"))}</th>
@@ -3252,13 +3286,25 @@
       if (state.filterDraft) {
         const editor = target.closest("[data-lin-filter-editor]");
         if (!editor || target.closest("[data-lin-filter-cancel]")) { closeFilterEditor(); return; }
-        if (state.filterPicker && !state.filterPicker.contains(target) && !target.closest("[data-lin-filter-field], [data-lin-filter-values]")) closeFilterPicker(false);
+        if (state.filterPicker && !state.filterPicker.contains(target) && !target.closest("[data-lin-filter-field], [data-lin-filter-values], [data-lin-filter-op-trigger]")) closeFilterPicker(false);
         if (target.closest("[data-lin-filter-apply]")) { applyFilters(); return; }
         if (target.closest("[data-lin-filter-row-add]")) { state.filterDraft.push(newFilter()); renderFilterEditor(); return; }
         const del = target.closest("[data-lin-filter-delete]");
         if (del) { state.filterDraft.splice(Number(del.dataset.linFilterDelete), 1); renderFilterEditor(); return; }
         const row = target.closest("[data-lin-filter-row]");
         if (!row) return;
+        const operator = target.closest("[data-lin-filter-op-value]");
+        if (operator) {
+          const select = row.querySelector("[data-lin-filter-op]");
+          select.value = operator.dataset.linFilterOpValue;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          return;
+        }
+        const operatorTrigger = target.closest("[data-lin-filter-op-trigger]");
+        if (operatorTrigger) {
+          toggleFilterPicker(operatorTrigger, row.querySelector("[data-lin-filter-op-menu]"), '[aria-selected="true"]');
+          return;
+        }
         const value = target.closest("[data-lin-filter-field-value]");
         if (value) {
           if (value.disabled) return;
@@ -3350,6 +3396,7 @@
 
     function onBatchKey(event) {
       if (state.transfer) return;
+      if (!event.isComposing && onFilterOperatorKey(event)) return;
       if (state.bulk) {
         const tab = event.target.closest("[data-lin-bulk-tab]");
         if (!tab || event.isComposing || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -3377,6 +3424,33 @@
       commitAliasInput();
     }
 
+    // 单选弹层只在明确选择时修改运算符，方向键仅移动焦点；Tab 返回触发器后继续正常导航
+    function onFilterOperatorKey(event) {
+      const trigger = event.target.closest("[data-lin-filter-op-trigger]");
+      const option = event.target.closest("[data-lin-filter-op-value]");
+      if (trigger && ["ArrowDown", "ArrowUp"].includes(event.key)) {
+        event.preventDefault();
+        if (!trigger.disabled) {
+          const picker = trigger.closest("[data-lin-filter-row]").querySelector("[data-lin-filter-op-menu]");
+          if (state.filterPicker !== picker) toggleFilterPicker(trigger, picker, '[aria-selected="true"]');
+        }
+        return true;
+      }
+      if (!option || state.filterPicker !== option.closest("[data-lin-filter-op-menu]")) return false;
+      if (event.key === "Tab") { closeFilterPicker(); return true; }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return false;
+      event.preventDefault();
+      const options = Array.from(state.filterPicker.querySelectorAll("[data-lin-filter-op-value]"));
+      const index = options.indexOf(option);
+      const next = options[event.key === "Home" ? 0 : event.key === "End" ? options.length - 1
+        : Math.max(0, Math.min(options.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))];
+      option.tabIndex = -1;
+      next.tabIndex = 0;
+      next.focus({ preventScroll: true });
+      next.scrollIntoView({ block: "nearest" });
+      return true;
+    }
+
     function onBatchInput(event) {
       if (state.transfer) {
         try { onTransferInput(event); } catch (error) { reportError(error, state.transfer); }
@@ -3386,7 +3460,7 @@
         try { onBulkInput(event); } catch (error) { reportFailure(error); }
         return;
       }
-      if (event.target.matches?.("[data-lin-select]")) return;
+      if (event.target.matches?.("[data-lin-select], [data-lin-select-all]")) return;
       if (event.target.matches?.("[data-lin-filter-option-search]")) {
         const query = text(event.target.value).toLocaleLowerCase();
         const menu = event.target.closest("[data-lin-filter-option-menu]")
@@ -3470,12 +3544,19 @@
         }
         return;
       }
+      const selectAll = event.target.closest("[data-lin-select-all]");
+      if (selectAll) {
+        if (!selectAll.disabled) changeSelection(selectAll.checked ? "all" : "clear-filtered");
+        return;
+      }
       const selection = event.target.closest("[data-lin-select]");
       if (selection) {
         if (state.referenceRun || state.busy) return;
         const appid = Number(selection.dataset.linSelect);
+        const wasSelected = state.selected.has(appid);
         if (selection.checked) state.selected.add(appid);
         else { state.selected.delete(appid); state.importSelection.delete(appid); }
+        if (state.filteredIds.has(appid) && wasSelected !== selection.checked) state.filteredSelected += selection.checked ? 1 : -1;
         syncSelectedDraft(appid);
         refreshBatchSave();
         return;
@@ -3487,7 +3568,7 @@
           filter.op = event.target.value;
           const index = filterRow.dataset.linFilterRow;
           renderFilterEditor();
-          document.getElementById(BATCH_MODAL).querySelector(`[data-lin-filter-row="${index}"] [data-lin-filter-op]`).focus({ preventScroll: true });
+          document.getElementById(BATCH_MODAL).querySelector(`[data-lin-filter-row="${index}"] [data-lin-filter-op-trigger]`).focus({ preventScroll: true });
         } else if (event.target.matches("[data-lin-filter-date-preset]")) {
           filter.preset = event.target.value;
           renderFilterEditor();
