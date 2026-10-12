@@ -357,24 +357,6 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "カスタム並べ替えタイトルがある場合、Steamの元の名前をランタイムの検索欄に追加します。"
   },
-  "settings_feature_library_sort_title_stable_mode_name": {
-    "message": "名前表示モード"
-  },
-  "settings_feature_library_sort_title_stable_mode_desc": {
-    "message": "スムーズモードは現在表示されている項目のみを処理します。安定モードは AppOverview を置き換える更新方式を使用するため、ライブラリ内のゲーム数が多い場合は動作が重くなることがあります。"
-  },
-  "settings_feature_library_sort_title_stable_mode_option_false": {
-    "message": "スムーズモード"
-  },
-  "settings_feature_library_sort_title_stable_mode_option_true": {
-    "message": "安定モード"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_name": {
-    "message": "ホバー時のツールチップにカスタム名を表示"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_desc": {
-    "message": "有効にすると、ライブラリ項目にマウスを重ねた際、Steam 標準のツールチップにカスタム名とコレクションタグを表示します。無効にすると Steam の元の名前に戻ります。"
-  },
   "settings_feature_library_group_labels_name": {
     "message": "コレクションを名前の後に表示"
   },

@@ -357,24 +357,6 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "사용자 지정 정렬 제목이 있으면 Steam 원래 이름을 런타임 검색창에 추가합니다."
   },
-  "settings_feature_library_sort_title_stable_mode_name": {
-    "message": "이름 표시 모드"
-  },
-  "settings_feature_library_sort_title_stable_mode_desc": {
-    "message": "부드러운 모드는 현재 보이는 항목만 처리합니다. 안정 모드는 AppOverview 교체 새로 고침 방식을 사용하므로 라이브러리에 게임이 너무 많으면 끊김이 발생할 수 있습니다."
-  },
-  "settings_feature_library_sort_title_stable_mode_option_false": {
-    "message": "부드러운 모드"
-  },
-  "settings_feature_library_sort_title_stable_mode_option_true": {
-    "message": "안정 모드"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_name": {
-    "message": "마우스 오버 툴팁에 사용자 지정 이름 표시"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_desc": {
-    "message": "활성화하면 라이브러리 항목에 마우스를 올렸을 때 Steam 기본 툴팁에 사용자 지정 이름과 컬렉션 태그가 표시됩니다. 비활성화하면 Steam 원래 이름으로 복원됩니다."
-  },
   "settings_feature_library_group_labels_name": {
     "message": "이름 뒤에 컬렉션 표시"
   },

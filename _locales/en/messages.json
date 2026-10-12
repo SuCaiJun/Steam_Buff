@@ -357,24 +357,6 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "Add the Steam original name to the runtime search field when a custom sort title exists."
   },
-  "settings_feature_library_sort_title_stable_mode_name": {
-    "message": "Name Display Mode"
-  },
-  "settings_feature_library_sort_title_stable_mode_desc": {
-    "message": "Smooth mode processes only currently visible items. Stable mode refreshes by replacing AppOverview objects and may stutter in very large libraries."
-  },
-  "settings_feature_library_sort_title_stable_mode_option_false": {
-    "message": "Smooth Mode"
-  },
-  "settings_feature_library_sort_title_stable_mode_option_true": {
-    "message": "Stable Mode"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_name": {
-    "message": "Show Custom Name in Hover Tooltip"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_desc": {
-    "message": "When enabled, Steam's native tooltip displays the custom name and collection tags while hovering over a library item. When disabled, it uses the original Steam name."
-  },
   "settings_feature_library_group_labels_name": {
     "message": "Show Collections After Names"
   },

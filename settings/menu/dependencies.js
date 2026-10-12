@@ -53,6 +53,12 @@
       return getMembership() || membershipGate.empty?.() || { active: false, features: {}, identity: "赞助者身份" };
     }
 
+    // 名称方案的可见性沿用运行时的有效模式，保留会员失效时回到 Steam 方案的语义
+    function visible(item) {
+      if (!item.visibleInLibraryNameMode) return true;
+      return root.STConfig.effectiveLibraryNameMode(getStates(), memberState()) === item.visibleInLibraryNameMode;
+    }
+
     function dependency(item) {
       return catalog.dependency?.(item) || { mode: "all", ids: [] };
     }
@@ -69,7 +75,7 @@
     }
 
     function available(item, seen = new Set()) {
-      if (item?.disabled === true) {
+      if (item?.disabled === true || !visible(item)) {
         return false;
       }
       if (membershipGate.canUse?.(item, memberState()) === false) {
@@ -119,6 +125,7 @@
           helpIconUrl,
           drawerIconUrl,
           available,
+          visible,
           depNames,
           lockText,
           state,
@@ -183,6 +190,7 @@
       }
 
       const enabled = available(item);
+      row.hidden = !visible(item);
       const checked = item.disabled === true ? false : state(id) !== false;
       const tip = enabled ? "" : lockText(item);
       const title = row.querySelector(".feature-title");
@@ -240,6 +248,7 @@
 
     return Object.freeze({
       available,
+      visible,
       depNames,
       lockText,
       depAvailable,

@@ -21,7 +21,6 @@
   const ORIGINAL_TEXT_ATTR = "data-steam-buff-original-text";
   const ORIGINAL_DISPLAY_ATTR = "data-steam-buff-original-display";
   const ORIGINAL_OWNER_ATTR = "data-steam-buff-original-owner";
-  const ORIGINAL_TITLE_ATTR = "data-steam-buff-original-title";
   const HEADER_ATTR = "data-steam-buff-library-header";
   // BroadcastChannel 不缓存建立前的消息，超时后由现有低频调度重新请求当前可见行
   const SNAPSHOT_REQUEST_TIMEOUT_MS = 3000;
@@ -33,20 +32,11 @@
   const CONTAINER_SELECTOR = ".ReactVirtualized__Grid__innerScrollContainer";
   const CELL_SELECTOR = ":scope > div[role='gridcell']";
   const ROW_SELECTOR = "[draggable='true']";
-  const HOVER_POPOVER_CLASS = "_2_lmTz0tA4NOSle5WaO1PZ";
-  const SETTINGS_ATTRIBUTE = "data-steam-buff-settings";
-  const USER_NAMES_ATTRIBUTE = "data-steam-buff-user-names";
   const LIST_OBSERVER_OPTIONS = Object.freeze({
     childList: true,
     characterData: true,
     subtree: true,
   });
-  const HOVER_OBSERVER_OPTIONS = Object.freeze({
-    attributes: true,
-    attributeFilter: ["class", "style"],
-  });
-  const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
-  const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Za-z0-9]+)\]\s*/g;
   const reactTextState = new WeakMap();
 
   const log = window.STLoggerFactory.createLogger("steam", `${ID}-ui`);
@@ -57,28 +47,6 @@
 
   function clean(value) {
     return typeof value === "string" ? value.trim() : "";
-  }
-
-  function viewCustomName(value) {
-    const source = typeof value === "string" ? value : "";
-    if (!source) return "";
-    const visible = source
-      .replace(MNEMONIC_TAG_RE, " ")
-      .replace(/\s{2,}/g, " ")
-      .replace(TAG_RE, "")
-      .trim();
-    return visible || source;
-  }
-
-  function independentSettings(settings = {}) {
-    return settings.independentNames === true;
-  }
-
-  function mineNameOf(appid, names) {
-    const id = Number(appid) || 0;
-    if (!id) return "";
-    const value = names[id];
-    return clean(typeof value === "string" ? value : value?.custom_name);
   }
 
   function setAttributeIfChanged(node, name, value) {
@@ -262,34 +230,12 @@
     return true;
   }
 
-  function restoreRowTitle(row) {
-    if (!row) return;
-    const originalTitle = row.getAttribute(ORIGINAL_TITLE_ATTR);
-    if (originalTitle === null) return;
-    if (originalTitle) setAttributeIfChanged(row, "title", originalTitle);
-    else removeAttributeIfPresent(row, "title");
-    removeAttributeIfPresent(row, ORIGINAL_TITLE_ATTR);
-  }
-
-  function applyRowTitle(row, value) {
-    if (!row) return;
-    if (!row.hasAttribute(ORIGINAL_TITLE_ATTR)) {
-      setAttributeIfChanged(row, ORIGINAL_TITLE_ATTR, row.getAttribute("title") || "");
-    }
-    const title = clean(value);
-    if (title) setAttributeIfChanged(row, "title", title);
-    else restoreRowTitle(row);
-  }
-
   function restoreContainer(container) {
     for (const original of Array.from(container?.querySelectorAll?.(`[${ORIGINAL_DISPLAY_ATTR}]`) || [])) {
       restoreOriginal(original);
     }
     for (const original of Array.from(container?.querySelectorAll?.(`[${ORIGINAL_TEXT_ATTR}]`) || [])) {
       restoreText(original);
-    }
-    for (const row of Array.from(container?.querySelectorAll?.(`[${ORIGINAL_TITLE_ATTR}]`) || [])) {
-      restoreRowTitle(row);
     }
     removeInjected(container, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}]), [${HEADER_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
   }
@@ -298,12 +244,9 @@
     if (!row) return false;
     removeInjected(row, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
     const name = nameSpan(row);
-    const previousOwner = name?.getAttribute?.(ORIGINAL_OWNER_ATTR);
-    if (previousOwner !== null && previousOwner !== String(appid)) restoreRowTitle(row);
     if (!entry || Number(entry.appid) <= 0) {
       appliedRows?.delete?.(row);
       resetTracking(name, appid);
-      restoreRowTitle(row);
       removeInjected(row, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
       return false;
     }
@@ -314,9 +257,9 @@
       && Boolean(name)
       && Boolean(expected)
       && clean(name.textContent) !== expected;
-    const stableOwnsBase = settings.stableMode === true
+    const nativeOwnsBase = settings.customSortEnabled === true
       && clean(entry.finalDisplayName) === clean(entry.baseDisplayName);
-    if (stableOwnsBase) {
+    if (nativeOwnsBase) {
       releaseTextTracking(name);
     } else {
       showText(
@@ -327,10 +270,6 @@
         entry.officialName,
       );
     }
-    const title = settings.customTitleEnabled === true
-      ? expected
-      : (settings.stableMode === true ? clean(entry.officialName) : "");
-    applyRowTitle(row, title);
     const managed = name?.hasAttribute?.(DISPLAY_ATTR) === true
       && clean(name.textContent) === expected;
     if (managed) appliedRows?.set?.(row, expected);
@@ -387,32 +326,6 @@
     return rows ? [rows] : [];
   }
 
-  function provisionalEntry(row, appid, settings = {}, names = {}) {
-    const id = Number(appid) || 0;
-    if (!id || settings.stableMode === true) return null;
-    if (settings.customSortEnabled !== true && !independentSettings(settings)) return null;
-    const item = rowItem(row);
-    if (Number(item?.appid) !== id) return null;
-    const officialName = clean(item.display_name);
-    const independent = independentSettings(settings);
-    const customName = independent
-      ? mineNameOf(id, names)
-      : clean(item.custom_sort_as_display);
-    const baseDisplayName = independent
-      ? (customName || officialName)
-      : (viewCustomName(customName) || officialName);
-    if (!baseDisplayName) return null;
-    return {
-      appid: id,
-      officialName,
-      customName,
-      baseDisplayName,
-      groupTags: [],
-      finalDisplayName: baseDisplayName,
-      provisional: true,
-    };
-  }
-
   function cacheEntry(entries, entry) {
     const appid = Number(entry?.appid) || 0;
     if (!appid) return false;
@@ -436,7 +349,6 @@
     if (typeof BroadcastChannel !== "function" || !window.STScheduler?.register) {
       return { started: false, reason: "runtime-unavailable" };
     }
-    if (typeof api.ctx.userNames !== "function") throw new Error("Steam 名称快照读取入口未加载");
     if (typeof api.contextRouter?.subscribe !== "function") throw new Error("Steam 库路由订阅入口未加载");
 
     const state = {
@@ -473,20 +385,6 @@
       repairIds: new Set(),
       repairState: new Map(),
       appliedRows: new WeakMap(),
-      hoveredAppid: 0,
-      hoveredRow: null,
-      hoverFrame: 0,
-      hoverPopover: null,
-      hoverCandidates: [],
-      hoverObserver: null,
-      hoverObserverHandle: null,
-      hoverToggleHandle: null,
-      hoverToggleDirect: false,
-      hoverRows: new Map(),
-      hoverOverHandle: null,
-      hoverOutHandle: null,
-      hoverOverDirect: false,
-      hoverOutDirect: false,
       rid: 0,
       revision: 0,
     };
@@ -510,13 +408,6 @@
       state.repairFrame = 0;
     }
 
-    function cancelHoverFrame() {
-      if (!state.hoverFrame) return;
-      if (typeof window.cancelAnimationFrame === "function") window.cancelAnimationFrame(state.hoverFrame);
-      else window.clearTimeout(state.hoverFrame);
-      state.hoverFrame = 0;
-    }
-
     function observeList() {
       if (!state.observer || !state.container) return;
       state.observer.observe(state.container, LIST_OBSERVER_OPTIONS);
@@ -534,198 +425,6 @@
       } finally {
         if (state.observer === observer && state.container) observeList();
         if (state.dirtyIds.size || state.headerCells.size) schedule();
-      }
-    }
-
-    function restoreHoverRow(row) {
-      if (!row) return;
-      restoreText(nameSpan(row));
-      restoreRowTitle(row);
-    }
-
-    function restoreHoverRows() {
-      for (const row of state.hoverRows.keys()) restoreHoverRow(row);
-      state.hoverRows.clear();
-    }
-
-    function releaseHoverPopover() {
-      cancelHoverFrame();
-      state.hoverObserver?.disconnect();
-      state.hoverObserverHandle?.dispose();
-      state.hoverObserver = null;
-      state.hoverObserverHandle = null;
-      state.hoverPopover = null;
-      state.hoverCandidates = [];
-      restoreHoverRows();
-    }
-
-    function clearHover() {
-      releaseHoverPopover();
-      if (state.hoverToggleDirect) document.removeEventListener("toggle", onHoverPopoverToggle, true);
-      state.hoverToggleHandle?.dispose();
-      state.hoverToggleHandle = null;
-      state.hoverToggleDirect = false;
-      state.hoveredAppid = 0;
-      state.hoveredRow = null;
-    }
-
-    function currentHover(appid, source) {
-      return state.started && !document.hidden && inLibrary(api)
-        && state.hoveredAppid === appid && state.hoveredRow === source
-        && state.container?.contains(source)
-        && Number(rowItem(source)?.appid) === appid;
-    }
-
-    function sameHoverPosition(row, origin) {
-      if (!row || !origin) return false;
-      const current = row.getBoundingClientRect?.();
-      if (!current || !origin || current.width <= 0 || current.height <= 0) return false;
-      return Math.abs(current.left - origin.left) <= 2
-        && Math.abs(current.top - origin.top) <= 2
-        && Math.abs(current.height - origin.height) <= 2;
-    }
-
-    // 原生 toggle 提供已挂载副本；只在当前弹出层内核对位置和 Fiber AppID。
-    function hoverRowsFor(appid, source) {
-      const id = Number(appid) || 0;
-      if (!id || !source || !state.hoverPopover?.isConnected) return [];
-      const origin = source.getBoundingClientRect();
-      const rows = [];
-      for (const row of state.hoverCandidates) {
-        if (!state.hoverPopover.contains(row)) continue;
-        if (getComputedStyle(row).pointerEvents !== "none") continue;
-        if (!sameHoverPosition(row, origin)) continue;
-        if (Number(rowItem(row)?.appid) !== id) continue;
-        rows.push(row);
-      }
-      return rows;
-    }
-
-    function syncHoverRows(appid, source) {
-      const id = Number(appid) || 0;
-      const entry = state.entries.get(id);
-      if (!id || !source || !entry || state.hoveredAppid !== id) return false;
-      const matches = hoverRowsFor(id, source);
-      const matched = new Set(matches);
-      for (const row of matches) {
-        applyEntry(row, entry, id, null, state.settings);
-        state.hoverRows.set(row, id);
-      }
-      for (const [row, rowId] of state.hoverRows) {
-        if (rowId !== id || (matched.has(row) && row.isConnected)) continue;
-        restoreHoverRow(row);
-        state.hoverRows.delete(row);
-      }
-      return matches.length > 0;
-    }
-
-    function scheduleHoverSync(appid = state.hoveredAppid, source = state.hoveredRow) {
-      const id = Number(appid) || 0;
-      const popover = state.hoverPopover;
-      if (!id || !source || !popover || state.hoverFrame || !state.started) return;
-      state.hoverFrame = raf(() => {
-        state.hoverFrame = 0;
-        if (state.hoverPopover !== popover) return;
-        if (!currentHover(id, source)) {
-          clearHover();
-          return;
-        }
-        if (!popover.isConnected) {
-          releaseHoverPopover();
-          return;
-        }
-        syncHoverRows(id, source);
-      });
-    }
-
-    function onHoverPopoverToggle(event) {
-      const popover = event.target;
-      if (!state.hoveredAppid || popover?.nodeType !== 1
-        || popover.getAttribute("popover") !== "manual"
-        || !popover.classList.contains(HOVER_POPOVER_CLASS)) return;
-      if (event.newState === "closed") {
-        if (popover === state.hoverPopover) releaseHoverPopover();
-        return;
-      }
-      if (event.newState !== "open" || !popover.isConnected
-        || state.container?.contains(popover)) return;
-      const id = state.hoveredAppid;
-      if (!currentHover(id, state.hoveredRow)) {
-        clearHover();
-        return;
-      }
-      const candidates = Array.from(popover.querySelectorAll(ROW_SELECTOR))
-        .filter(row => Number(rowItem(row)?.appid) === id
-          && getComputedStyle(row).pointerEvents === "none");
-      const position = popover.firstElementChild;
-      if (!candidates.length || !position || !candidates.every(row => position.contains(row))) return;
-      releaseHoverPopover();
-      state.hoverPopover = popover;
-      state.hoverCandidates = candidates;
-      state.hoverObserver = new MutationObserver(() => {
-        if (state.hoverPopover === popover) scheduleHoverSync();
-      });
-      // Steam 在挂载后更新这两个节点的定位样式；不观察副本文本或整棵子树。
-      state.hoverObserver.observe(popover, HOVER_OBSERVER_OPTIONS);
-      state.hoverObserver.observe(position, HOVER_OBSERVER_OPTIONS);
-      state.hoverObserverHandle = state.scope?.observer?.("library-hover-position", state.hoverObserver) || null;
-      scheduleHoverSync();
-    }
-
-    function hoveredRowFromEvent(event) {
-      const target = event?.target;
-      const row = target?.closest?.(ROW_SELECTOR);
-      if (!row || !state.container?.contains(row)) return null;
-      return row;
-    }
-
-    function relatedInside(row, relatedTarget) {
-      return Boolean(relatedTarget?.nodeType && row?.contains?.(relatedTarget));
-    }
-
-    function onMouseOver(event) {
-      const row = hoveredRowFromEvent(event);
-      if (!row || document.hidden || !state.started || relatedInside(row, event.relatedTarget)) return;
-      const id = Number(rowItem(row)?.appid) || 0;
-      if (!id || (state.hoveredAppid === id && state.hoveredRow === row)) return;
-      clearHover();
-      state.hoveredAppid = id;
-      state.hoveredRow = row;
-      state.hoverToggleHandle = state.scope?.listener?.("library-hover-toggle", document, "toggle", onHoverPopoverToggle, true) || null;
-      if (!state.hoverToggleHandle) {
-        document.addEventListener("toggle", onHoverPopoverToggle, true);
-        state.hoverToggleDirect = true;
-      }
-    }
-
-    function onMouseOut(event) {
-      const row = hoveredRowFromEvent(event);
-      if (!row || relatedInside(row, event.relatedTarget)) return;
-      if (state.hoveredRow === row) clearHover();
-    }
-
-    function detachHoverListeners() {
-      if (state.hoverOverDirect && state.container) state.container.removeEventListener("mouseover", onMouseOver, true);
-      if (state.hoverOutDirect && state.container) state.container.removeEventListener("mouseout", onMouseOut, true);
-      state.hoverOverHandle?.dispose?.();
-      state.hoverOutHandle?.dispose?.();
-      state.hoverOverHandle = null;
-      state.hoverOutHandle = null;
-      state.hoverOverDirect = false;
-      state.hoverOutDirect = false;
-    }
-
-    function attachHoverListeners() {
-      if (!state.container || state.hoverOverHandle || state.hoverOverDirect) return;
-      state.hoverOverHandle = state.scope?.listener?.("library-hover-over", state.container, "mouseover", onMouseOver, true) || null;
-      state.hoverOutHandle = state.scope?.listener?.("library-hover-out", state.container, "mouseout", onMouseOut, true) || null;
-      if (!state.hoverOverHandle) {
-        state.container.addEventListener("mouseover", onMouseOver, true);
-        state.hoverOverDirect = true;
-      }
-      if (!state.hoverOutHandle) {
-        state.container.addEventListener("mouseout", onMouseOut, true);
-        state.hoverOutDirect = true;
       }
     }
 
@@ -803,18 +502,15 @@
 
     function applyVisible(ids = state.rows.keys(), all = false) {
       const repairs = [];
-      const names = independentSettings(state.settings) ? api.ctx.userNames() : null;
       withoutListObservation(() => {
         const targets = all ? state.rows.keys() : new Set([...ids, ...state.dirtyIds]);
         for (const appid of targets) {
           if (repairSuspended(appid)) continue;
-          const cached = state.entries.get(appid);
+          const entry = state.entries.get(appid);
+          if (!entry) continue;
           let retry = false;
           for (const row of rowList(state.rows, appid)) {
-            const entry = cached || provisionalEntry(row, appid, state.settings, names);
-            if (!entry) continue;
-            const appliedRows = cached ? state.appliedRows : null;
-            if (applyEntry(row, entry, appid, appliedRows, state.settings)) retry = true;
+            if (applyEntry(row, entry, appid, state.appliedRows, state.settings)) retry = true;
           }
           if (retry) repairs.push(appid);
         }
@@ -824,13 +520,11 @@
         state.headerCells.clear();
       });
       queueRepair(repairs);
-      scheduleHoverSync();
     }
 
     function removeCell(cell) {
       const previous = state.cells.get(cell);
       if (!previous) return;
-      if (previous.row === state.hoveredRow) clearHover();
       state.cells.delete(cell);
       const rows = state.rows.get(previous.appid);
       if (!rows) return;
@@ -1005,7 +699,6 @@
         state.rebuild = false;
         state.applyAll = true;
       }
-      attachHoverListeners();
       if (!state.observer) {
         state.observer = new MutationObserver(onListMutation);
         observeList();
@@ -1039,7 +732,6 @@
     function pause() {
       cancelFrame();
       cancelRepairFrame();
-      clearHover();
       state.observer?.disconnect?.();
       state.observerHandle?.dispose?.();
       state.observer = null;
@@ -1048,7 +740,6 @@
     }
 
     function detach() {
-      detachHoverListeners();
       pause();
       if (state.container) restoreContainer(state.container);
       state.root = null;

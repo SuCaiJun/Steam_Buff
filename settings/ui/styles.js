@@ -1442,6 +1442,7 @@
           border-bottom: none;
         }
 
+        .feature[hidden],
         .translate-row[hidden],
         .settings-row[hidden] {
           display: none;

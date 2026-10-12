@@ -912,27 +912,7 @@
               area: "steam",
               enabled: false,
               deps: depAll(["library-sort-title"]),
-            },
-            {
-              id: "library-sort-title-stable-mode",
-              name: "名称显示模式",
-              desc: "流畅模式只处理当前可见项目；稳定模式使用 AppOverview 替换刷新方法，库中游戏数量过多时可能会卡顿",
-              area: "steam",
-              control: "mode",
-              enabled: true,
-              options: Object.freeze([
-                { value: false, label: "流畅模式" },
-                { value: true, label: "稳定模式" },
-              ]),
-              deps: depAll(["library-sort-title"]),
-            },
-            {
-              id: "library-sort-title-hover-custom-name",
-              name: "悬停提示显示自定义名称",
-              desc: "开启后，鼠标悬停库列表项目时的 Steam 原生提示框显示自定义名称和分组标签；关闭时恢复 Steam 原始名称",
-              area: "steam",
-              enabled: false,
-              deps: depAll(["library-sort-title"]),
+              visibleInLibraryNameMode: "steam-sort",
             },
           ]),
         },
@@ -1190,7 +1170,8 @@
 
   function dependentsOf(id) {
     return featureItems()
-      .filter((item) => dependency(item).ids.includes(id))
+      .filter((item) => dependency(item).ids.includes(id)
+        || (item.visibleInLibraryNameMode && id === globalThis.STConfig.libraryNameMode.key))
       .map((item) => item.id);
   }
 

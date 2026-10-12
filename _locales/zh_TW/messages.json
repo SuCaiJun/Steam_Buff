@@ -357,24 +357,6 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "存在自訂排序名稱時，將 Steam 原名加入執行階段搜尋欄位"
   },
-  "settings_feature_library_sort_title_stable_mode_name": {
-    "message": "名稱顯示模式"
-  },
-  "settings_feature_library_sort_title_stable_mode_desc": {
-    "message": "流暢模式只處理目前可見項目；穩定模式使用 AppOverview 替換重新整理方式，收藏庫中的遊戲數量過多時可能會卡頓"
-  },
-  "settings_feature_library_sort_title_stable_mode_option_false": {
-    "message": "流暢模式"
-  },
-  "settings_feature_library_sort_title_stable_mode_option_true": {
-    "message": "穩定模式"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_name": {
-    "message": "懸停提示顯示自訂名稱"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_desc": {
-    "message": "開啟後，滑鼠懸停於收藏庫清單項目時，Steam 原生提示框會顯示自訂名稱和群組標籤；關閉時恢復 Steam 原始名稱"
-  },
   "settings_feature_library_group_labels_name": {
     "message": "群組顯示在名稱後方"
   },

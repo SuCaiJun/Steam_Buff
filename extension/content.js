@@ -95,8 +95,6 @@
   const NATIVE_CUSTOM_SORT_EVENTS_ID = "native-custom-sort-events";
   const NEWS_TRANSLATE_ID = "steam-news-translate";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
-  const STABLE_MODE_ID = "library-sort-title-stable-mode";
-  const HOVER_TITLE_SETTING_ID = "library-sort-title-hover-custom-name";
   const CHROMIUM_WINDOW_OPEN = "CHROMIUM_WINDOW_OPEN";
   const SETTINGS_CENTER_PAGE = "settings/center.html";
   const CFG = globalThis.STConfig;
@@ -143,8 +141,6 @@
   const STEAM_SETTING_DEFAULTS = Object.freeze({
     [SORT_TITLE_ID]: true,
     [ORIGINAL_NAME_SEARCH_ID]: false,
-    [STABLE_MODE_ID]: true,
-    [HOVER_TITLE_SETTING_ID]: false,
     "library-group-labels": true,
     "library-group-labels-grouped-mode": false,
     "library-group-labels-hide-collection-tags": true,
@@ -156,8 +152,6 @@
   const STEAM_SETTING_IDS = Object.freeze([
     SORT_TITLE_ID,
     ORIGINAL_NAME_SEARCH_ID,
-    STABLE_MODE_ID,
-    HOVER_TITLE_SETTING_ID,
     "library-group-labels",
     "library-group-labels-grouped-mode",
     "library-group-labels-hide-collection-tags",

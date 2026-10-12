@@ -14,9 +14,7 @@
   "use strict";
 
   const ID = "library-sort-title";
-  const STABLE_MODE_ID = "library-sort-title-stable-mode";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
-  const HOVER_TITLE_ID = "library-sort-title-hover-custom-name";
   const GROUP_LABELS_ID = "library-group-labels";
   const GROUPED_MODE_ID = "library-group-labels-grouped-mode";
   const HIDE_COLLECTION_TAGS_ID = "library-group-labels-hide-collection-tags";
@@ -526,12 +524,10 @@
   function settingsSnapshot(rt) {
     return {
       customSortEnabled: rt.customSortEnabled,
-      stableMode: rt.stableMode,
       groupLabelsEnabled: rt.groupLabelsEnabled,
       groupedModeEnabled: rt.groupedModeEnabled,
       groupedByCollection: groupedMode(),
       hideCollectionTags: rt.hideCollectionTags,
-      customTitleEnabled: rt.customTitleEnabled,
       independentNames: independentActive(rt),
     };
   }
@@ -577,7 +573,7 @@
     const next = stableTargetName(app, rt, restore);
     if (!next || app.display_name === next) {
       if (restore) rt.stableDisplayIds.delete(id);
-      else if (rt.stableMode && hasCustomName(app, rt)) rt.stableDisplayIds.add(id);
+      else if (rt.customSortEnabled && hasCustomName(app, rt)) rt.stableDisplayIds.add(id);
       return false;
     }
     app.display_name = next;
@@ -773,7 +769,7 @@
       }
       (rt.stablePendingRestoreIds.has(id) ? restoreApps : applyApps).push(app);
     }
-    if (applyApps.length && rt.stableMode) stableSyncApps(rt, applyApps, { notify: true });
+    if (applyApps.length && rt.customSortEnabled) stableSyncApps(rt, applyApps, { notify: true });
     if (restoreApps.length) stableSyncApps(rt, restoreApps, { restore: true, notify: true });
     if (rt.stablePendingIds.size === 0) {
       if (rt.stableRetryAttempt > 0) {
@@ -783,7 +779,7 @@
           durationMs: Date.now() - rt.stableRetryStartedAt,
         });
       }
-      rt.stableBootstrapped = rt.stableMode === true;
+      rt.stableBootstrapped = rt.customSortEnabled === true;
       rt.stableRetryAttempt = 0;
       rt.stableRetryStartedAt = 0;
       rt.stableRetryExhausted = false;
@@ -862,7 +858,6 @@
       rt.customSortEnabled,
       rt.nameMode,
       visibleCustomName,
-      rt.stableMode,
       rt.groupLabelsEnabled,
       rt.groupedModeEnabled,
       groupedMode(),
@@ -958,11 +953,9 @@
   function syncSettings(api, rt) {
     const customSortEnabled = settingsValue(api, ID, true) !== false;
     const nameMode = nameModeOf(api);
-    const stableMode = customSortEnabled && settingsValue(api, STABLE_MODE_ID, true) === true;
     const groupLabelsEnabled = settingsValue(api, GROUP_LABELS_ID, true) !== false;
     const groupedModeEnabled = settingsValue(api, GROUPED_MODE_ID, false) === true;
     const hideCollectionTags = groupLabelsEnabled && settingsValue(api, HIDE_COLLECTION_TAGS_ID, true) !== false;
-    const customTitleEnabled = customSortEnabled && settingsValue(api, HOVER_TITLE_ID, false) === true;
     const originalNameSearch = nameMode !== window.STConfig.libraryNameMode.values.INDEPENDENT &&
       customSortEnabled && settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true;
     const mineNames = readMineNames(api);
@@ -971,32 +964,28 @@
     const mineChanged = rt.mineSignature !== mineSignature;
     const wasIndependent = independentActive(rt);
     const changed = rt.customSortEnabled !== customSortEnabled
-      || rt.stableMode !== stableMode
       || rt.groupLabelsEnabled !== groupLabelsEnabled
       || rt.groupedModeEnabled !== groupedModeEnabled
       || rt.hideCollectionTags !== hideCollectionTags
-      || rt.customTitleEnabled !== customTitleEnabled
       || rt.originalNameSearch !== originalNameSearch
       || rt.nameMode !== nameMode
       || mineChanged;
     if (!changed) return false;
     const groupChanged = rt.groupLabelsEnabled !== groupLabelsEnabled;
-    const stableChanged = rt.stableMode !== stableMode;
-    if (rt.stableMode && !stableMode) {
+    const displayChanged = rt.customSortEnabled !== customSortEnabled;
+    if (rt.customSortEnabled && !customSortEnabled) {
       stableResetRetry(rt);
       stableSyncAll(rt, true);
     }
-    if (!rt.stableMode && stableMode) {
+    if (!rt.customSortEnabled && customSortEnabled) {
       stableResetRetry(rt);
       rt.stableDisplayIds.clear();
     }
     rt.customSortEnabled = customSortEnabled;
-    rt.stableMode = stableMode;
-    if (stableChanged) rt.stableBootstrapped = false;
+    if (displayChanged) rt.stableBootstrapped = false;
     rt.groupLabelsEnabled = groupLabelsEnabled;
     rt.groupedModeEnabled = groupedModeEnabled;
     rt.hideCollectionTags = hideCollectionTags;
-    rt.customTitleEnabled = customTitleEnabled;
     rt.originalNameSearch = originalNameSearch;
     rt.nameMode = nameMode;
     if (rt.nameMode !== window.STConfig.libraryNameMode.values.STEAM_SORT && rt.customEventsOff) {
@@ -1006,7 +995,7 @@
     rt.mineNames = mineNames;
     rt.mineSignature = mineSignature;
     const sourceChanged = wasIndependent !== independentActive(rt);
-    if ((mineChanged || sourceChanged) && rt.stableMode && rt.stableBootstrapped) {
+    if ((mineChanged || sourceChanged) && rt.customSortEnabled && rt.stableBootstrapped) {
       stableSyncMineIds(rt, sourceChanged
         ? stableSourceIds(previousMine, mineNames, rt.stableDisplayIds)
         : changedMineIds(previousMine, mineNames));
@@ -1064,17 +1053,11 @@
     return patch(owner, "SetSortAs", S_FLAG, (original) => function sortHook(...args) {
       const currentRt = window[RT];
       if (currentRt?.scheduled !== true) return original.apply(this, args);
-      if (currentRt.stableMode) {
-        const name = officialName(this, args[0]);
-        if (name && !this[ORIG]) saveOriginalName(this, name);
-      }
+      const name = officialName(this, args[0]);
+      if (name && !this[ORIG]) saveOriginalName(this, name);
       const result = original.apply(this, args);
-      if (!currentRt.stableMode) {
-        const name = officialName(this, args[0]);
-        if (name && !this[ORIG]) saveOriginalName(this, name);
-      }
       syncSortAs(this, window[RT]);
-      if (currentRt.stableMode) stableSyncApps(currentRt, [this]);
+      if (currentRt.customSortEnabled) stableSyncApps(currentRt, [this]);
       invalidate(currentRt, [this.appid], "custom-sort");
       return result;
     });
@@ -1105,12 +1088,12 @@
     if (recordBulk(rt, appid, data.sortAs, true)) return;
     const app = appOverview(appid) || data.app;
     if (app) setCustomName(app, data.sortAs, rt);
-    if (app && rt.stableMode) stableSyncApps(rt, [app]);
+    if (app && rt.customSortEnabled) stableSyncApps(rt, [app]);
     invalidate(rt, [appid], "custom-sort-save");
     scheduleTimeout(rt, "custom-sort-recheck", () => {
       const current = appOverview(appid);
       if (current) setCustomName(current, data.sortAs, rt);
-      if (current && rt.stableMode) stableSyncApps(rt, [current]);
+      if (current && rt.customSortEnabled) stableSyncApps(rt, [current]);
       invalidate(rt, [appid], "custom-sort-recheck");
     }, AFTER_SAVE_RECHECK_MS);
   }
@@ -1129,11 +1112,11 @@
       const apps = Array.isArray(args[0]) ? args[0] : [];
       const currentRt = window[RT];
       if (currentRt?.scheduled !== true) return original.apply(this, args);
-      if (currentRt.stableMode && apps.length && bulkOn(currentRt)) {
+      if (currentRt.customSortEnabled && apps.length && bulkOn(currentRt)) {
         for (const app of apps) recordBulk(currentRt, app?.appid, app?.custom_sort_as_display);
         return undefined;
       }
-      if (currentRt.stableMode && !currentRt.notifying) {
+      if (currentRt.customSortEnabled && !currentRt.notifying) {
         for (const app of apps) {
           const id = Number(app?.appid) || 0;
           if (!id) continue;
@@ -1272,16 +1255,16 @@
       const app = appOverview(appid);
       if (app) {
         setCustomName(app, sortAs, rt);
-        if (rt.stableMode) stableApps.push(app);
+        if (rt.customSortEnabled) stableApps.push(app);
       }
     }
     if (stableApps.length) stableSyncApps(rt, stableApps);
     if (ids.length) {
       invalidate(rt, ids, `custom-name-bulk:${clean(data.reason) || "done"}`);
-      if (rt.stableMode) {
+      if (rt.customSortEnabled) {
         // Steam 云同步可能在保存返回后替换 AppOverview；按本批 AppID 延迟复查，避免再次全库扫描。
         scheduleTimeout(rt, "stable-bulk-delayed-recheck", () => {
-          if (!rt.stableMode) return;
+          if (!rt.customSortEnabled) return;
           const delayedApps = [];
           for (const [appid, sortAs] of state.map) {
             const current = appOverview(appid);
@@ -1333,12 +1316,10 @@
       nameMode: nameModeOf(api),
       mineNames: readMineNames(api),
       mineSignature: "",
-      stableMode: settingsValue(api, STABLE_MODE_ID, true) === true,
       groupLabelsEnabled: settingsValue(api, GROUP_LABELS_ID, true) !== false,
       groupedModeEnabled: settingsValue(api, GROUPED_MODE_ID, false) === true,
       lastGroupedMode: null,
       hideCollectionTags: settingsValue(api, HIDE_COLLECTION_TAGS_ID, true) !== false,
-      customTitleEnabled: settingsValue(api, HOVER_TITLE_ID, false) === true,
       originalNameSearch: settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true,
       sortAsOriginals: new Map(),
       stableDisplayIds: new Set(),
@@ -1393,7 +1374,7 @@
         syncSortAsAll(rt);
         rt.sortAsBootstrapped = true;
       }
-      if (rt.stableMode && !rt.stableBootstrapped
+      if (rt.customSortEnabled && !rt.stableBootstrapped
         && Number(window.appStore?.m_mapApps?.size || 0) > 0) {
         stableSyncAll(rt, false);
         rt.stableBootstrapped = rt.stablePendingIds.size === 0;
