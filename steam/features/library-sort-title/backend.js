@@ -1174,12 +1174,13 @@
     }) && ready;
     const uiOwner = prototypeOwner(window.uiStore, "UpdateGameListSelection");
     ready = patch(uiOwner, "UpdateGameListSelection", G_FLAG, (original) => function groupedModeHook(...args) {
-      const before = groupedMode();
       const result = original.apply(this, args);
+      const currentRt = window[RT];
       const after = groupedMode();
-      if (before !== after) {
-        window[RT].lastGroupedMode = after;
-        broadcastSettings(window[RT]);
+      // 原生设置先提交分组状态再发此通知；与上次已同步状态比较，不能比较调用前后读数。
+      if (currentRt?.scheduled === true && after !== null && after !== currentRt.lastGroupedMode) {
+        currentRt.lastGroupedMode = after;
+        broadcastSettings(currentRt);
       }
       return result;
     }) && ready;
