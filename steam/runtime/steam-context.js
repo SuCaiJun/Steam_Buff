@@ -16,6 +16,9 @@
   const LIBRARY_GRID_SELECTOR = "div[role='grid'].ReactVirtualized__List";
   const LIBRARY_CONTAINER_SELECTOR = ".ReactVirtualized__Grid__innerScrollContainer";
   const LIBRARY_ROW_SELECTOR = "[draggable='true']";
+  const log = window.STLoggerFactory.createLogger("steam", "steam-context");
+  let namesRaw = null;
+  let namesSnapshot = {};
 
   /* Steam 客户端上下文识别 */
   function isShared() {
@@ -246,14 +249,20 @@
     return null;
   }
 
+  // 返回所属文档的只读名称快照；输入改变才解析，损坏输入清空旧结果并记录一次错误。
   function userNames() {
     const raw = document.documentElement?.dataset?.steamBuffUserNames || "{}";
+    if (raw === namesRaw) return namesSnapshot;
+    namesRaw = raw;
+    namesSnapshot = {};
     try {
       const next = JSON.parse(raw) || {};
-      return next && typeof next === "object" ? next : {};
-    } catch {
-      return {};
+      if (typeof next !== "object") throw new TypeError("显示名称快照必须是对象");
+      namesSnapshot = next;
+    } catch (error) {
+      log.error("user-names-snapshot-invalid", "Steam 显示名称快照读取失败", { error });
     }
+    return namesSnapshot;
   }
 
   api.ctx = {

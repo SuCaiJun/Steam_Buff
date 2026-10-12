@@ -29,17 +29,21 @@
   const REPAIR_MAX_ATTEMPTS = 3;
   const REPAIR_WINDOW_MS = 1000;
   const REPAIR_SUSPEND_MS = 5000;
-  const HOVER_SYNC_MAX_ATTEMPTS = 2;
   const GRID_SELECTOR = "div[role='grid'].ReactVirtualized__List";
   const CONTAINER_SELECTOR = ".ReactVirtualized__Grid__innerScrollContainer";
   const CELL_SELECTOR = ":scope > div[role='gridcell']";
   const ROW_SELECTOR = "[draggable='true']";
+  const HOVER_POPOVER_CLASS = "_2_lmTz0tA4NOSle5WaO1PZ";
   const SETTINGS_ATTRIBUTE = "data-steam-buff-settings";
   const USER_NAMES_ATTRIBUTE = "data-steam-buff-user-names";
   const LIST_OBSERVER_OPTIONS = Object.freeze({
     childList: true,
     characterData: true,
     subtree: true,
+  });
+  const HOVER_OBSERVER_OPTIONS = Object.freeze({
+    attributes: true,
+    attributeFilter: ["class", "style"],
   });
   const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
   const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Za-z0-9]+)\]\s*/g;
@@ -70,16 +74,11 @@
     return settings.independentNames === true;
   }
 
-  function mineNameOf(appid) {
+  function mineNameOf(appid, names) {
     const id = Number(appid) || 0;
     if (!id) return "";
-    try {
-      const data = JSON.parse(document.documentElement?.dataset?.steamBuffUserNames || "{}") || {};
-      const value = data[id] ?? data[String(id)];
-      return clean(typeof value === "string" ? value : value?.custom_name);
-    } catch {
-      return "";
-    }
+    const value = names[id];
+    return clean(typeof value === "string" ? value : value?.custom_name);
   }
 
   function setAttributeIfChanged(node, name, value) {
@@ -339,24 +338,20 @@
     return mismatch;
   }
 
-  function applyHeaders(container, headers, hide) {
+  function applyHeaders(container, byName, cells = null) {
     if (!container) return;
-    removeInjected(container, `[${HEADER_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
-    const byName = new Map((Array.isArray(headers) ? headers : [])
-      .filter((item) => item && typeof item.name === "string")
-      .map((item) => [item.name, hide ? item.displayName : item.name]));
-    for (const span of Array.from(container?.querySelectorAll?.(`[${HEADER_ATTR}][${ORIGINAL_TEXT_ATTR}]`) || [])) {
-      const marker = span.getAttribute(HEADER_ATTR);
-      const current = clean(span.textContent);
-      const owner = byName.has(marker) ? marker : (byName.has(current) ? current : "");
-      if (owner) {
-        showText(span, byName.get(owner), HEADER_ATTR, owner, owner);
-      } else {
-        restoreText(span);
+    const targets = cells || Array.from(container.querySelectorAll(CELL_SELECTOR));
+    for (const cell of targets) {
+      removeInjected(cell, `[${HEADER_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
+      for (const span of Array.from(cell.querySelectorAll(`[${HEADER_ATTR}][${ORIGINAL_TEXT_ATTR}]`))) {
+        const marker = span.getAttribute(HEADER_ATTR);
+        const current = clean(span.textContent);
+        const owner = byName.has(marker) && (current === marker || current === byName.get(marker))
+          ? marker : (byName.has(current) ? current : "");
+        if (owner) showText(span, byName.get(owner), HEADER_ATTR, owner, owner);
+        else restoreText(span);
       }
-    }
-    if (!byName.size) return;
-    for (const cell of Array.from(container.querySelectorAll(CELL_SELECTOR))) {
+      if (!byName.size) continue;
       if (cell.querySelector(ROW_SELECTOR)) continue;
       for (const span of Array.from(cell.querySelectorAll("span"))) {
         if (span.hasAttribute(ORIGINAL_TEXT_ATTR) || span.hasAttribute(DISPLAY_ATTR) || span.hasAttribute(HEADER_ATTR)) continue;
@@ -367,13 +362,17 @@
     }
   }
 
-  function visibleRows(container) {
+  function visibleRows(container, cells) {
     const result = new Map();
     for (const cell of Array.from(container.querySelectorAll(CELL_SELECTOR))) {
       const row = cell.querySelector(ROW_SELECTOR);
-      if (!row) continue;
+      if (!row) {
+        cells.set(cell, { row: null, appid: 0 });
+        continue;
+      }
       const item = rowItem(row);
       const appid = Number(item?.appid) || 0;
+      cells.set(cell, { row, appid });
       if (!appid) continue;
       const rows = result.get(appid);
       if (rows) rows.push(row);
@@ -388,7 +387,7 @@
     return rows ? [rows] : [];
   }
 
-  function provisionalEntry(row, appid, settings = {}) {
+  function provisionalEntry(row, appid, settings = {}, names = {}) {
     const id = Number(appid) || 0;
     if (!id || settings.stableMode === true) return null;
     if (settings.customSortEnabled !== true && !independentSettings(settings)) return null;
@@ -397,7 +396,7 @@
     const officialName = clean(item.display_name);
     const independent = independentSettings(settings);
     const customName = independent
-      ? mineNameOf(id)
+      ? mineNameOf(id, names)
       : clean(item.custom_sort_as_display);
     const baseDisplayName = independent
       ? (customName || officialName)
@@ -437,6 +436,8 @@
     if (typeof BroadcastChannel !== "function" || !window.STScheduler?.register) {
       return { started: false, reason: "runtime-unavailable" };
     }
+    if (typeof api.ctx.userNames !== "function") throw new Error("Steam 名称快照读取入口未加载");
+    if (typeof api.contextRouter?.subscribe !== "function") throw new Error("Steam 库路由订阅入口未加载");
 
     const state = {
       started: true,
@@ -450,8 +451,17 @@
       frame: 0,
       repairFrame: 0,
       rows: new Map(),
+      cells: new Map(),
+      dirtyCells: new Set(),
+      removedCells: new Set(),
+      dirtyIds: new Set(),
+      headerCells: new Set(),
+      rebuild: true,
+      applyAll: false,
+      routeHandle: null,
       entries: new Map(),
       headers: [],
+      headerNames: new Map(),
       settings: { hideCollectionTags: true },
       requestedKey: "",
       pendingRid: "",
@@ -466,7 +476,12 @@
       hoveredAppid: 0,
       hoveredRow: null,
       hoverFrame: 0,
-      hoverAttempts: 0,
+      hoverPopover: null,
+      hoverCandidates: [],
+      hoverObserver: null,
+      hoverObserverHandle: null,
+      hoverToggleHandle: null,
+      hoverToggleDirect: false,
       hoverRows: new Map(),
       hoverOverHandle: null,
       hoverOutHandle: null,
@@ -510,11 +525,15 @@
     function withoutListObservation(callback) {
       const observer = state.observer;
       if (!observer) return callback();
+      // disconnect 会丢掉尚未交付的原生记录，先纳入本次局部更新。
+      recordCells(observer.takeRecords());
+      updateCells();
       observer.disconnect();
       try {
         return callback();
       } finally {
         if (state.observer === observer && state.container) observeList();
+        if (state.dirtyIds.size || state.headerCells.size) schedule();
       }
     }
 
@@ -529,25 +548,53 @@
       state.hoverRows.clear();
     }
 
-    function sameHoverPosition(row, source) {
-      if (!row || !source || row === source) return false;
+    function releaseHoverPopover() {
+      cancelHoverFrame();
+      state.hoverObserver?.disconnect();
+      state.hoverObserverHandle?.dispose();
+      state.hoverObserver = null;
+      state.hoverObserverHandle = null;
+      state.hoverPopover = null;
+      state.hoverCandidates = [];
+      restoreHoverRows();
+    }
+
+    function clearHover() {
+      releaseHoverPopover();
+      if (state.hoverToggleDirect) document.removeEventListener("toggle", onHoverPopoverToggle, true);
+      state.hoverToggleHandle?.dispose();
+      state.hoverToggleHandle = null;
+      state.hoverToggleDirect = false;
+      state.hoveredAppid = 0;
+      state.hoveredRow = null;
+    }
+
+    function currentHover(appid, source) {
+      return state.started && !document.hidden && inLibrary(api)
+        && state.hoveredAppid === appid && state.hoveredRow === source
+        && state.container?.contains(source)
+        && Number(rowItem(source)?.appid) === appid;
+    }
+
+    function sameHoverPosition(row, origin) {
+      if (!row || !origin) return false;
       const current = row.getBoundingClientRect?.();
-      const origin = source.getBoundingClientRect?.();
       if (!current || !origin || current.width <= 0 || current.height <= 0) return false;
       return Math.abs(current.left - origin.left) <= 2
         && Math.abs(current.top - origin.top) <= 2
         && Math.abs(current.height - origin.height) <= 2;
     }
 
-    // Steam 悬停副本位于库容器外，只按真实行位置和 Fiber AppID 精确匹配
+    // 原生 toggle 提供已挂载副本；只在当前弹出层内核对位置和 Fiber AppID。
     function hoverRowsFor(appid, source) {
       const id = Number(appid) || 0;
-      if (!id || !source || !state.container || !document.contains(source)) return [];
+      if (!id || !source || !state.hoverPopover?.isConnected) return [];
+      const origin = source.getBoundingClientRect();
       const rows = [];
-      for (const row of Array.from(document.querySelectorAll(ROW_SELECTOR))) {
-        if (state.container.contains(row)) continue;
+      for (const row of state.hoverCandidates) {
+        if (!state.hoverPopover.contains(row)) continue;
         if (getComputedStyle(row).pointerEvents !== "none") continue;
-        if (!sameHoverPosition(row, source)) continue;
+        if (!sameHoverPosition(row, origin)) continue;
         if (Number(rowItem(row)?.appid) !== id) continue;
         rows.push(row);
       }
@@ -574,18 +621,55 @@
 
     function scheduleHoverSync(appid = state.hoveredAppid, source = state.hoveredRow) {
       const id = Number(appid) || 0;
-      if (!id || !source || state.hoverFrame || !state.started) return;
+      const popover = state.hoverPopover;
+      if (!id || !source || !popover || state.hoverFrame || !state.started) return;
       state.hoverFrame = raf(() => {
         state.hoverFrame = 0;
-        if (state.hoveredAppid !== id || state.hoveredRow !== source) return;
-        if (syncHoverRows(id, source)) {
-          state.hoverAttempts = 0;
+        if (state.hoverPopover !== popover) return;
+        if (!currentHover(id, source)) {
+          clearHover();
           return;
         }
-        if (state.hoverAttempts >= HOVER_SYNC_MAX_ATTEMPTS) return;
-        state.hoverAttempts += 1;
-        scheduleHoverSync(id, source);
+        if (!popover.isConnected) {
+          releaseHoverPopover();
+          return;
+        }
+        syncHoverRows(id, source);
       });
+    }
+
+    function onHoverPopoverToggle(event) {
+      const popover = event.target;
+      if (!state.hoveredAppid || popover?.nodeType !== 1
+        || popover.getAttribute("popover") !== "manual"
+        || !popover.classList.contains(HOVER_POPOVER_CLASS)) return;
+      if (event.newState === "closed") {
+        if (popover === state.hoverPopover) releaseHoverPopover();
+        return;
+      }
+      if (event.newState !== "open" || !popover.isConnected
+        || state.container?.contains(popover)) return;
+      const id = state.hoveredAppid;
+      if (!currentHover(id, state.hoveredRow)) {
+        clearHover();
+        return;
+      }
+      const candidates = Array.from(popover.querySelectorAll(ROW_SELECTOR))
+        .filter(row => Number(rowItem(row)?.appid) === id
+          && getComputedStyle(row).pointerEvents === "none");
+      const position = popover.firstElementChild;
+      if (!candidates.length || !position || !candidates.every(row => position.contains(row))) return;
+      releaseHoverPopover();
+      state.hoverPopover = popover;
+      state.hoverCandidates = candidates;
+      state.hoverObserver = new MutationObserver(() => {
+        if (state.hoverPopover === popover) scheduleHoverSync();
+      });
+      // Steam 在挂载后更新这两个节点的定位样式；不观察副本文本或整棵子树。
+      state.hoverObserver.observe(popover, HOVER_OBSERVER_OPTIONS);
+      state.hoverObserver.observe(position, HOVER_OBSERVER_OPTIONS);
+      state.hoverObserverHandle = state.scope?.observer?.("library-hover-position", state.hoverObserver) || null;
+      scheduleHoverSync();
     }
 
     function hoveredRowFromEvent(event) {
@@ -601,27 +685,23 @@
 
     function onMouseOver(event) {
       const row = hoveredRowFromEvent(event);
-      if (!row || relatedInside(row, event.relatedTarget)) return;
+      if (!row || document.hidden || !state.started || relatedInside(row, event.relatedTarget)) return;
       const id = Number(rowItem(row)?.appid) || 0;
       if (!id || (state.hoveredAppid === id && state.hoveredRow === row)) return;
-      restoreHoverRows();
-      cancelHoverFrame();
+      clearHover();
       state.hoveredAppid = id;
       state.hoveredRow = row;
-      state.hoverAttempts = 0;
-      scheduleHoverSync(id, row);
+      state.hoverToggleHandle = state.scope?.listener?.("library-hover-toggle", document, "toggle", onHoverPopoverToggle, true) || null;
+      if (!state.hoverToggleHandle) {
+        document.addEventListener("toggle", onHoverPopoverToggle, true);
+        state.hoverToggleDirect = true;
+      }
     }
 
     function onMouseOut(event) {
       const row = hoveredRowFromEvent(event);
       if (!row || relatedInside(row, event.relatedTarget)) return;
-      const id = Number(rowItem(row)?.appid) || 0;
-      if (!id || state.hoveredAppid !== id || state.hoveredRow !== row) return;
-      state.hoveredAppid = 0;
-      state.hoveredRow = null;
-      state.hoverAttempts = 0;
-      cancelHoverFrame();
-      restoreHoverRows();
+      if (state.hoveredRow === row) clearHover();
     }
 
     function detachHoverListeners() {
@@ -721,25 +801,101 @@
       });
     }
 
-    function applyVisible() {
+    function applyVisible(ids = state.rows.keys(), all = false) {
       const repairs = [];
+      const names = independentSettings(state.settings) ? api.ctx.userNames() : null;
       withoutListObservation(() => {
-        for (const appid of state.rows.keys()) {
+        const targets = all ? state.rows.keys() : new Set([...ids, ...state.dirtyIds]);
+        for (const appid of targets) {
           if (repairSuspended(appid)) continue;
           const cached = state.entries.get(appid);
           let retry = false;
           for (const row of rowList(state.rows, appid)) {
-            const entry = cached || provisionalEntry(row, appid, state.settings);
+            const entry = cached || provisionalEntry(row, appid, state.settings, names);
             if (!entry) continue;
             const appliedRows = cached ? state.appliedRows : null;
             if (applyEntry(row, entry, appid, appliedRows, state.settings)) retry = true;
           }
           if (retry) repairs.push(appid);
         }
-        applyHeaders(state.container, state.headers, state.settings.hideCollectionTags === true);
+        applyHeaders(state.container, state.headerNames,
+          all ? null : Array.from(state.headerCells));
+        state.dirtyIds.clear();
+        state.headerCells.clear();
       });
       queueRepair(repairs);
       scheduleHoverSync();
+    }
+
+    function removeCell(cell) {
+      const previous = state.cells.get(cell);
+      if (!previous) return;
+      if (previous.row === state.hoveredRow) clearHover();
+      state.cells.delete(cell);
+      const rows = state.rows.get(previous.appid);
+      if (!rows) return;
+      const index = rows.indexOf(previous.row);
+      if (index >= 0) rows.splice(index, 1);
+      if (!rows.length) {
+        state.rows.delete(previous.appid);
+        state.refreshIds.delete(previous.appid);
+        state.repairIds.delete(previous.appid);
+        state.repairState.delete(previous.appid);
+      }
+    }
+
+    function updateCells() {
+      for (const cell of state.removedCells) {
+        if (cell.parentElement !== state.container) removeCell(cell);
+      }
+      state.removedCells.clear();
+      for (const cell of state.dirtyCells) {
+        if (cell.parentElement !== state.container) continue;
+        const row = cell.querySelector(ROW_SELECTOR);
+        const appid = Number(rowItem(row)?.appid) || 0;
+        const previous = state.cells.get(cell);
+        if (previous?.row !== row || previous?.appid !== appid) {
+          removeCell(cell);
+          state.cells.set(cell, { row, appid });
+          if (appid) {
+            const rows = state.rows.get(appid);
+            if (rows) rows.push(row);
+            else state.rows.set(appid, [row]);
+          }
+        }
+        state.headerCells.add(cell);
+        if (appid) {
+          state.dirtyIds.add(appid);
+          if (!state.entries.has(appid) && !state.refreshAll) {
+            state.refreshIds.add(appid);
+            state.requestedKey = "";
+          }
+        }
+      }
+      state.dirtyCells.clear();
+    }
+
+    function recordCells(records) {
+      for (const record of records) {
+        if (record.type === "childList" && record.target === state.container) {
+          for (const node of record.removedNodes) {
+            if (state.cells.has(node)) state.removedCells.add(node);
+          }
+          for (const node of record.addedNodes) {
+            if (node.nodeType === 1 && node.matches("div[role='gridcell']")
+              && node.parentElement === state.container) state.dirtyCells.add(node);
+          }
+          continue;
+        }
+        const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+        const cell = target?.closest("div[role='gridcell']");
+        if (cell?.parentElement === state.container) state.dirtyCells.add(cell);
+      }
+    }
+
+    function onListMutation(records) {
+      recordCells(records);
+      if (state.dirtyCells.size || state.removedCells.size) schedule();
     }
 
     function queueRefresh(ids = [], all = false) {
@@ -827,32 +983,41 @@
         detach();
         return;
       }
-      const found = locate();
-      if (!found) {
-        detach();
-        return;
-      }
-      if (state.container !== found.container) {
-        detach();
-        state.root = found.grid;
-        state.container = found.container;
+      if (state.rebuild || !state.container?.isConnected) {
+        const found = locate();
+        if (!found) {
+          detach();
+          return;
+        }
+        if (state.container !== found.container) {
+          detach();
+          state.root = found.grid;
+          state.container = found.container;
+        }
+        state.cells.clear();
+        state.rows = visibleRows(state.container, state.cells);
+        for (const appid of state.repairState.keys()) {
+          if (!state.rows.has(appid)) state.repairState.delete(appid);
+        }
+        for (const appid of state.refreshIds) {
+          if (!state.rows.has(appid)) state.refreshIds.delete(appid);
+        }
+        state.rebuild = false;
+        state.applyAll = true;
       }
       attachHoverListeners();
       if (!state.observer) {
-        state.observer = new MutationObserver(() => schedule());
+        state.observer = new MutationObserver(onListMutation);
         observeList();
         state.observerHandle = scope?.observer?.("library-list", state.observer) || null;
       }
-      state.rows = visibleRows(state.container);
+      updateCells();
       trimEntryCache(state.entries, state.rows);
-      for (const appid of Array.from(state.repairState.keys())) {
-        if (!state.rows.has(appid)) state.repairState.delete(appid);
-      }
-      for (const appid of Array.from(state.refreshIds)) {
-        if (!state.rows.has(appid)) state.refreshIds.delete(appid);
-      }
-      applyVisible();
-      request();
+      const all = state.applyAll;
+      const ids = all ? Array.from(state.rows.keys()) : Array.from(state.dirtyIds);
+      state.applyAll = false;
+      if (all || ids.length || state.headerCells.size) applyVisible(ids, all);
+      request(ids);
     }
 
     function schedule() {
@@ -863,17 +1028,23 @@
       });
     }
 
+    function tick() {
+      if (!state.container?.isConnected || !state.observer) state.rebuild = true;
+      if (state.rebuild || state.applyAll || state.dirtyCells.size || state.removedCells.size
+        || state.dirtyIds.size || state.headerCells.size) schedule();
+      if (state.pendingRid && Date.now() - state.pendingAt >= SNAPSHOT_REQUEST_TIMEOUT_MS) request(state.pendingIds);
+      else if (!state.pendingRid && (state.refreshAll || state.refreshIds.size)) request();
+    }
+
     function pause() {
       cancelFrame();
       cancelRepairFrame();
-      cancelHoverFrame();
+      clearHover();
       state.observer?.disconnect?.();
+      state.observerHandle?.dispose?.();
       state.observer = null;
       state.observerHandle = null;
-      state.hoveredAppid = 0;
-      state.hoveredRow = null;
-      state.hoverAttempts = 0;
-      restoreHoverRows();
+      state.rebuild = true;
     }
 
     function detach() {
@@ -883,6 +1054,12 @@
       state.root = null;
       state.container = null;
       state.rows.clear();
+      state.cells.clear();
+      state.dirtyCells.clear();
+      state.removedCells.clear();
+      state.dirtyIds.clear();
+      state.headerCells.clear();
+      state.applyAll = false;
       state.requestedKey = "";
       state.pendingRid = "";
       state.pendingAt = 0;
@@ -921,8 +1098,11 @@
         state.entries.clear();
         state.settings = data.settings || state.settings;
         state.headers = Array.isArray(data.headers) ? data.headers : state.headers;
+        updateHeaderNames();
+        state.applyAll = true;
         queueRefresh(Array.from(state.rows.keys()), true);
         request();
+        schedule();
         return;
       }
       if (data.type !== "snapshot"
@@ -940,30 +1120,54 @@
         if (appid && requestedSet.has(appid)) cacheEntry(state.entries, entry);
       }
       trimEntryCache(state.entries, state.rows);
-      state.headers = Array.isArray(data.headers) ? data.headers : [];
+      const headers = Array.isArray(data.headers) ? data.headers : [];
+      const headersChanged = headers.length !== state.headers.length || headers.some((item, index) =>
+        item.name !== state.headers[index].name || item.displayName !== state.headers[index].displayName);
+      const settingsChanged = data.settings && Object.keys(data.settings).some(key => data.settings[key] !== state.settings[key]);
+      const hideChanged = data.settings && data.settings.hideCollectionTags !== state.settings.hideCollectionTags;
+      state.headers = headers;
       state.settings = data.settings || state.settings;
-      applyVisible();
+      if (headersChanged || hideChanged) updateHeaderNames();
+      const all = state.applyAll || headersChanged || settingsChanged;
+      state.applyAll = false;
+      if (document.hidden) {
+        state.applyAll = true;
+      } else {
+        applyVisible(requestedIds, all);
+      }
       if (state.refreshAll || state.refreshIds.size) {
         state.requestedKey = "";
         schedule();
       }
     }
 
+    function updateHeaderNames() {
+      const hide = state.settings.hideCollectionTags === true;
+      state.headerNames = new Map(state.headers
+        .filter(item => item && typeof item.name === "string")
+        .map(item => [item.name, hide ? item.displayName : item.name]));
+    }
+
     function onVisibility() {
       // Steam 窗口失焦时保留已显示文本，只暂停观察以避免重新可见时闪回原名
       if (document.hidden) pause();
-      else schedule();
+      else {
+        state.rebuild = true;
+        schedule();
+      }
     }
 
     state.channel.addEventListener("message", onMessage);
     scope?.listener?.("visibilitychange", document, "visibilitychange", onVisibility);
-    window.STScheduler.register(TASK, schedule, () => inLibrary(api), { intervalMs: 1000 });
+    state.routeHandle = api.contextRouter.subscribe(() => schedule());
+    window.STScheduler.register(TASK, tick, () => inLibrary(api), { intervalMs: 1000 });
     scope?.schedulerTask?.("library-list", TASK);
     window.__SteamBuffLibrarySortTitleUi = state;
 
     state.stop = () => {
       window.STScheduler?.unregister?.(TASK);
       detach();
+      state.routeHandle.dispose();
       state.channel.removeEventListener("message", onMessage);
       state.channel.close();
       state.started = false;

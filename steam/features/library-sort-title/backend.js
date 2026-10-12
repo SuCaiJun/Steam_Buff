@@ -240,22 +240,14 @@
     return rt?.nameMode === window.STConfig.libraryNameMode.values.INDEPENDENT;
   }
 
-  function readMineNames() {
-    const rawValue = document.documentElement?.dataset?.steamBuffUserNames || "{}";
+  function readMineNames(api) {
     const map = new Map();
-    try {
-      const data = JSON.parse(rawValue) || {};
-      if (!data || typeof data !== "object") {
-        return map;
+    for (const [id, value] of Object.entries(api.ctx.userNames())) {
+      const appid = Number(id) || 0;
+      const name = clean(typeof value === "string" ? value : value?.custom_name);
+      if (appid && name) {
+        map.set(appid, name);
       }
-      for (const [id, value] of Object.entries(data)) {
-        const appid = Number(id) || 0;
-        const name = clean(typeof value === "string" ? value : value?.custom_name);
-        if (appid && name) {
-          map.set(appid, name);
-        }
-      }
-    } catch {
     }
     return map;
   }
@@ -973,7 +965,7 @@
     const customTitleEnabled = customSortEnabled && settingsValue(api, HOVER_TITLE_ID, false) === true;
     const originalNameSearch = nameMode !== window.STConfig.libraryNameMode.values.INDEPENDENT &&
       customSortEnabled && settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true;
-    const mineNames = readMineNames();
+    const mineNames = readMineNames(api);
     const mineSignature = Array.from(mineNames.entries()).map(([id, name]) => `${id}:${name}`).join("|");
     const previousMine = rt.mineNames;
     const mineChanged = rt.mineSignature !== mineSignature;
@@ -1326,6 +1318,7 @@
     const old = window[RT];
     if (old?.scheduled) return { started: false, reason: "already-started", stop: old.stop };
     if (!window.STScheduler?.register) return { started: false, reason: "scheduler-unavailable" };
+    if (typeof api.ctx.userNames !== "function") throw new Error("Steam 名称快照读取入口未加载");
     const rt = {
       scheduled: true,
       scope: scope || null,
@@ -1338,7 +1331,7 @@
       groupIndexReady: false,
       customSortEnabled: settingsValue(api, ID, true) !== false,
       nameMode: nameModeOf(api),
-      mineNames: readMineNames(),
+      mineNames: readMineNames(api),
       mineSignature: "",
       stableMode: settingsValue(api, STABLE_MODE_ID, true) === true,
       groupLabelsEnabled: settingsValue(api, GROUP_LABELS_ID, true) !== false,
