@@ -16,6 +16,7 @@
   const MODAL = "__RickyLibraryIndependentNameModal";
   const BATCH_MODAL = "__RickyLibraryIndependentNameBatchModal";
   const MENU_ENTRY_ATTR = "data-steam-buff-independent-name-entry";
+  const MENU_CLOSING_CLASS = "st-lin-context-closing";
   // SteamUI GameAction_AddToFavorites 的已验证本地化文案（扩展支持的五种语言）。
   const STEAM_FAVORITE_LABELS = Object.freeze([
     "添加至收藏夹",
@@ -2911,6 +2912,7 @@
           instance
           && typeof instance.SetOnHideCallback === "function"
           && typeof instance.Hide === "function"
+          && typeof instance.HideSubMenu === "function"
           && typeof instance.m_fnOnHideCallback === "function"
         ) {
           return instance;
@@ -2985,6 +2987,8 @@
         cleaned: false,
       };
       record.wrappedHide = (...args) => {
+        // 注: 移除入口会让下方子菜单项移到鼠标处，必须先停止菜单命中。
+        menu.classList.add(MENU_CLOSING_CLASS);
         let result;
         try {
           result = originalHide.apply(instance, args);
@@ -3056,6 +3060,10 @@
         log.warn("independent-name-native-menu-close-unavailable", "Steam 原生菜单关闭回调不可用，跳过扩展入口", { appid });
         return false;
       }
+      if (instance.visible !== true) {
+        return false;
+      }
+      menu.classList.remove(MENU_CLOSING_CLASS);
       const active = state.contextMenu;
       if (active && (active.menu !== menu || active.instance !== instance)) {
         cleanupContextMenu(active);
@@ -3092,6 +3100,24 @@
         return false;
       }
       entry.__steamBuffIndependentNameGeneration = record.generation;
+      entry.addEventListener("mouseenter", () => {
+        if (
+          state.started !== true
+          || window.__SteamBuffLibraryIndependentNameUi !== state
+          || state.contextMenu !== record
+          || record.cleaned
+        ) {
+          return;
+        }
+        try {
+          instance.HideSubMenu();
+        } catch (error) {
+          log.error("independent-name-native-submenu-hide-failed", "Steam 原生子菜单收起失败", {
+            error,
+            appid: record.appid,
+          });
+        }
+      });
       entry.addEventListener("click", () => {
         const current = entry.__steamBuffIndependentNameGame;
         const generation = entry.__steamBuffIndependentNameGeneration;

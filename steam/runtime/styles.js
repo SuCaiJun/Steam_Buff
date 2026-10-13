@@ -1171,6 +1171,9 @@
       .st-lin-context-entry {
         color: var(--st-color-text-primary);
       }
+      .st-lin-context-closing {
+        pointer-events: none;
+      }
       #${LIBRARY_INDEPENDENT_NAME_MODAL},
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} {
         position: fixed;
