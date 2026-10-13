@@ -165,6 +165,104 @@
       fontWeight: '700',
     }),
     `
+      .st_subscription_pos {
+        position: relative !important;
+      }
+      .st_store_cart_badge_target,
+      .st_store_image_badge_target {
+        position: relative !important;
+      }
+      .st_subscription_badges {
+        position: absolute;
+        left: var(--st-spacing-sm);
+        z-index: var(--st-z-index-dropdown);
+        display: flex;
+        gap: var(--st-spacing-xs);
+        pointer-events: none;
+      }
+      .st_subscription_badges[hidden] {
+        display: none;
+      }
+      .st_subscription_badges.is-row {
+        bottom: var(--st-spacing-xs);
+      }
+      .st_subscription_badges.is-tile {
+        bottom: var(--st-spacing-xs);
+      }
+      .st_subscription_badges.is-cart {
+        left: var(--st-cart-badge-left, var(--st-spacing-sm));
+        top: var(--st-cart-badge-top, var(--st-spacing-sm));
+        bottom: auto;
+      }
+      .st_subscription_badges.is-image {
+        left: var(--st-image-badge-left, var(--st-spacing-sm));
+        top: var(--st-image-badge-top, var(--st-spacing-sm));
+        bottom: var(--st-image-badge-bottom, auto);
+      }
+      .st_subscription_badge_slot {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--st-spacing-xs);
+        min-height: 18px;
+      }
+      .st_subscription_badge_slot.is-loading {
+        min-width: 32px;
+      }
+      .st_subscription_badge {
+        --st-store-badge-bg: var(--st-color-success);
+      }
+      .st_subscription_loading {
+        min-width: 22px;
+        text-align: center;
+        --st-store-badge-bg: var(--st-color-surface-subtle);
+        color: var(--st-color-text-muted);
+      }
+      .st-store-skeleton {
+        position: relative;
+        display: inline-flex;
+        flex-direction: column;
+        gap: var(--st-spacing-sm);
+        width: 112px;
+        max-width: 100%;
+        overflow: hidden;
+        border-radius: 3px;
+        vertical-align: middle;
+        pointer-events: none;
+      }
+      .st-store-skeleton__piece {
+        display: block;
+        height: 14px;
+        border-radius: 3px;
+        background: var(--st-color-surface-subtle);
+      }
+      .st-store-skeleton::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(100deg, transparent 25%, var(--st-color-white-alpha-08) 50%, transparent 75%);
+        transform: translateX(-100%);
+        animation: st-store-skeleton-sweep 1.8s linear infinite;
+      }
+      .st-store-skeleton[data-paused="1"]::after {
+        animation-play-state: paused;
+      }
+      .st-store-skeleton--badge { width: 28px; height: 14px; }
+      .st-store-skeleton--badge .st-store-skeleton__piece { height: 14px; }
+      .st-store-skeleton--line { width: 144px; }
+      .st-store-skeleton--note,
+      .st-store-skeleton--card,
+      .st-store-skeleton--forecast { display: flex; width: 100%; }
+      .st-store-skeleton--note .st-store-skeleton__piece:last-child,
+      .st-store-skeleton--card .st-store-skeleton__piece:last-child { width: 65%; }
+      .st-store-skeleton--chart { display: flex; width: 100%; height: 180px; justify-content: end; }
+      .st-store-skeleton--chart .st-store-skeleton__piece { height: 44px; }
+      .st-store-skeleton--forecast .st-store-skeleton__piece { height: 48px; }
+      @keyframes st-store-skeleton-sweep {
+        to { transform: translateX(100%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .st-store-skeleton::after { animation: none; content: none; }
+      }
       .st-store-chart-tooltip {
         min-width: 120px;
       }
@@ -1173,26 +1271,6 @@
         padding: var(--st-spacing-lg);
         box-sizing: border-box;
       }
-      .st-data-display-chart__bar {
-        width: var(--st-spacing-lg);
-        height: var(--st-dd-bar, 40%);
-        min-height: var(--st-spacing-lg);
-        border-radius: var(--st-radius-sm) var(--st-radius-sm) 0 0;
-        background: var(--st-gradient-primary-vertical);
-        transform-origin: bottom;
-        animation: st-data-display-pulse 1.1s ease-in-out infinite alternate;
-        animation-delay: var(--st-dd-delay, 0ms);
-      }
-      @keyframes st-data-display-pulse {
-        from {
-          opacity: var(--st-opacity-muted, .72);
-          transform: scaleY(.58);
-        }
-        to {
-          opacity: 1;
-          transform: scaleY(1);
-        }
-      }
       @media (max-width: 720px) {
         .st-data-display {
           padding: var(--st-spacing-md);
@@ -1829,6 +1907,10 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+      #st-title-custom-name > .st-store-skeleton,
+      .st-title-custom-name-wishlist > .st-store-skeleton {
+        width: 192px;
       }
       .st-title-custom-name-btn {
         height: 22px;
@@ -3625,7 +3707,7 @@
         line-clamp: unset;
         -webkit-line-clamp: unset;
       }
-      .st-game-notes-wishlist .st-game-notes-body * {
+      .st-game-notes-wishlist .st-game-notes-body *:not(.st-store-skeleton):not(.st-store-skeleton__piece) {
         display: inline;
       }
       .st-game-notes-wishlist .st-game-notes-empty {
@@ -3801,40 +3883,6 @@
       }
       .es_subscription_info a.st_subscription_platform:hover {
         text-decoration: underline;
-      }
-      .st_subscription_pos {
-        position: relative !important;
-      }
-      .st_store_cart_badge_target,
-      .st_store_image_badge_target {
-        position: relative !important;
-      }
-      .st_subscription_badges {
-        position: absolute;
-        left: var(--st-spacing-sm);
-        z-index: var(--st-z-index-dropdown);
-        display: flex;
-        gap: var(--st-spacing-xs);
-        pointer-events: none;
-      }
-      .st_subscription_badges.is-row {
-        bottom: var(--st-spacing-xs);
-      }
-      .st_subscription_badges.is-tile {
-        bottom: var(--st-spacing-xs);
-      }
-      .st_subscription_badges.is-cart {
-        left: var(--st-cart-badge-left, var(--st-spacing-sm));
-        top: var(--st-cart-badge-top, var(--st-spacing-sm));
-        bottom: auto;
-      }
-      .st_subscription_badges.is-image {
-        left: var(--st-image-badge-left, var(--st-spacing-sm));
-        top: var(--st-image-badge-top, var(--st-spacing-sm));
-        bottom: var(--st-image-badge-bottom, auto);
-      }
-      .st_subscription_badge {
-        --st-store-badge-bg: var(--st-color-success);
       }
       .st_subscription_ubiplus {
         --st-store-badge-bg: var(--st-color-primary);

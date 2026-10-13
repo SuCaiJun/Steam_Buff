@@ -140,6 +140,7 @@
   }
 
   function clearNode(node) {
+    api.dom.loading.clear(node);
     node.replaceChildren();
   }
 
@@ -387,7 +388,8 @@
     const monitor = monitorCache.get(context.key);
 
     if (state === "loading") {
-      appendSpan(host, t("store_priceHistory_monitorReading", "正在读取..."), "st-price-monitor-status");
+      host.appendChild(api.dom.loading.create("line"));
+      api.dom.loading.activate(host);
       return;
     }
     if (state === "error") {
@@ -422,20 +424,26 @@
     context.host = host;
     monitorHosts.set(context.key, host);
     node.appendChild(host);
-    renderMonitorHost(host, context, "ready");
+    renderMonitorHost(host, context, monitorCache.has(context.key) ? "ready" : "loading");
     return context;
   }
 
+  function isCurrentMonitorContext(context) {
+    return context?.host?.isConnected && monitorHosts.get(context.key) === context.host;
+  }
+
   function refreshMonitorHost(context, state = "ready") {
-    const host = monitorHosts.get(context.key) || context.host;
-    if (host) renderMonitorHost(host, context, state);
+    if (isCurrentMonitorContext(context)) renderMonitorHost(context.host, context, state);
   }
 
   async function hydrateMonitors(contexts) {
-    const entries = (contexts || []).filter(context => context?.host?.isConnected);
+    const entries = (contexts || []).filter(isCurrentMonitorContext);
     if (!entries.length) return;
     try {
-      if (!await hasMonitorAuth()) return;
+      if (!await hasMonitorAuth()) {
+        entries.forEach(context => refreshMonitorHost(context));
+        return;
+      }
     } catch (error) {
       entries.forEach(context => refreshMonitorHost(context, "error"));
       log.warn("price-monitor-auth-failed", "打折监控鉴权检查失败", {
@@ -445,11 +453,19 @@
       return;
     }
 
-    entries.forEach(context => refreshMonitorHost(context, "loading"));
+    const current = entries.filter(isCurrentMonitorContext);
+    if (!current.length) return;
+    current.forEach(context => {
+      if (!monitorCache.has(context.key) && !context.host.querySelector(".st-store-skeleton")) {
+        refreshMonitorHost(context, "loading");
+      }
+    });
+    // 查询前给监控行一次绘制机会，旧购买卡片的结果不能写入替换后的行
+    if (!await api.dom.loading.afterPaint(() => current.some(isCurrentMonitorContext))) return;
     const startedAt = Date.now();
     try {
       const body = await monitorPost(MONITOR_QUERY_URL, {
-        items: entries.map(context => ({
+        items: current.filter(isCurrentMonitorContext).map(context => ({
           item_type: context.target.type,
           item_id: context.target.id,
         })),
@@ -462,24 +478,24 @@
           found.set(`${monitor.itemType}:${monitor.itemId}`, monitor);
         }
       });
-      entries.forEach((context) => {
+      current.filter(isCurrentMonitorContext).forEach((context) => {
         context.monitorDenied = false;
         monitorCache.set(context.key, found.get(context.key) || null);
         refreshMonitorHost(context);
       });
       log.info("price-monitor-query-success", "打折监控读取完成", {
-        count: entries.length,
+        count: current.length,
         configuredCount: found.size,
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
-      entries.forEach((context) => {
+      current.filter(isCurrentMonitorContext).forEach((context) => {
         context.monitorDenied = error?.status === 403;
         if (context.monitorDenied) monitorCache.set(context.key, null);
         refreshMonitorHost(context, error?.status === 403 ? "denied" : "error");
       });
       log.warn("price-monitor-query-failed", "打折监控读取失败", {
-        count: entries.length,
+        count: current.length,
         durationMs: Date.now() - startedAt,
         status: error?.status || 0,
         error,
@@ -1437,7 +1453,7 @@
   }
 
   function clearExistingPriceNodes() {
-    document.querySelectorAll("#game_area_purchase .game_lowest_price, .game_lowest_price").forEach(node => node.remove());
+    document.querySelectorAll("#game_area_purchase .game_lowest_price, .game_lowest_price").forEach(node => { api.dom.loading.clear(node); node.remove(); });
     monitorHosts.clear();
     closeMonitorModal();
   }
@@ -1447,9 +1463,7 @@
     node.dataset.stPriceHistoryTarget = targetKey(target);
     node.dataset.stPriceHistoryProvider = "store-data-service";
     node.dataset.stPriceHistoryState = "loading";
-    node.textContent = target.surface === "dlc"
-      ? t("store_priceHistory_dlcLoading", "史低读取中...")
-      : t("store_priceHistory_loading", "正在读取历史最低价格...");
+    api.dom.loading.show(node, "line");
   }
 
   function styleDlcNode(node) {
@@ -1493,6 +1507,7 @@
       } else {
         mount.parent.append(node);
       }
+      api.dom.loading.activate(node);
       nodes[key] = { node, target };
     });
     return nodes;
@@ -1559,6 +1574,7 @@
 
   function removeActiveNode(node, queryId) {
     if (!activeNode(node, queryId)) return false;
+    api.dom.loading.clear(node);
     node.remove();
     return true;
   }
@@ -1804,10 +1820,12 @@
       provider: "isthereanydeal",
     });
 
-    return storePriceChartSettings()
-      .then(chartSettings => queryPricePack(appId, type, subIds, bundleids, cc, targets, chartSettings)
-        .then(result => ({ chartSettings, result })))
+    return api.dom.loading.afterPaint(() => Object.values(nodes).some(({ node }) => activeNode(node, queryId)))
+      .then(ready => ready ? storePriceChartSettings() : null)
+      .then(chartSettings => chartSettings ? queryPricePack(appId, type, subIds, bundleids, cc, targets, chartSettings)
+        .then(result => ({ chartSettings, result })) : { chartSettings: null, result: null })
       .then(async ({ chartSettings, result }) => {
+        if (!chartSettings) return nodes;
         if (result?.ok === true) {
           await renderPack(nodes, queryId, result, appId, cc, chartSettings);
         } else {
@@ -1836,6 +1854,7 @@
           type: type || "app",
           durationMs: Date.now() - startedAt,
           errorCode: error?.code || error?.name || "PRICE_HISTORY_QUERY_FAILED",
+          error,
         });
         return nodes;
       });

@@ -98,13 +98,7 @@
   function createSkeleton() {
     const box = document.createElement("div");
     box.className = "st-data-display-chart st-data-display-chart--loading";
-    for (let index = 0; index < 8; index += 1) {
-      const bar = document.createElement("span");
-      bar.className = "st-data-display-chart__bar";
-      bar.style.setProperty("--st-dd-bar", `${32 + ((index * 17) % 52)}%`);
-      bar.style.setProperty("--st-dd-delay", `-${index * 110}ms`);
-      box.appendChild(bar);
-    }
+    box.appendChild(api.dom.loading.create("chart"));
     return box;
   }
 

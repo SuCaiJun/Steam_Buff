@@ -106,6 +106,7 @@
       }
 
       disposePanel(node);
+      api.dom.loading.clear(node);
       node.remove();
     });
   }
@@ -195,11 +196,12 @@
   function createLoadingRow() {
     const row = document.createElement("div");
     row.className = `${ROOT_CLASS}_empty`;
-    row.textContent = t("store_steampy_loading", "正在读取价格...");
+    api.dom.loading.show(row, "line");
     return row;
   }
 
   function setRows(root, rows) {
+    api.dom.loading.clear(root);
     root.querySelectorAll(`.${ROOT_CLASS}_row, .${ROOT_CLASS}_empty`).forEach(node => node.remove());
     const section = root.closest(".game_area_purchase_game");
     root.hidden = rows.length === 0;
@@ -350,19 +352,26 @@
     root.dataset.steamPyResourceId = String(++nextResourceId);
     root.appendChild(createLoadingRow());
 
+    return root;
+  }
+
+  function loadPanel(root, section, appId) {
     const base = basePrice(section);
     const usePy = needPy();
+    const payload = sectionPayload(section, appId);
+    const cached = payload && apiCache.get(`steampy_deal::${appId}::${payload.type}::${payload.id}`);
+    if (cached) { setRows(root, pyRows(cached, base)); compact(root); return; }
 
-    (usePy ? fetchPy(section, appId) : Promise.resolve(null)).then(py => {
+    const valid = () => root.isConnected && anyEnabled() && location.pathname.includes(`/app/${appId}`);
+    api.dom.loading.afterPaint(valid).then(ready => ready && usePy ? fetchPy(section, appId) : null).then(py => {
+      if (!valid()) return;
       const rows = usePy ? pyRows(py, base) : [];
       setRows(root, rows);
       compact(root);
     }).catch((error) => {
       globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "create-panel-failed", message: "商店功能处理失败", level: "error", phase: "createPanel" });
-      setRows(root, []);
+      if (valid()) setRows(root, []);
     });
-
-    return root;
   }
 
   function render(appId) {
@@ -382,6 +391,8 @@
       const panel = createPanel(section, appId);
       section.classList.add(`${ROOT_CLASS}_host`);
       section.appendChild(panel);
+      api.dom.loading.activate(panel);
+      loadPanel(panel, section, appId);
       hookResize(panel);
       rendered = true;
     });

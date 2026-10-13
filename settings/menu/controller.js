@@ -20,7 +20,6 @@
     dragThreshold: 10,
     minTop: 24,
     margin: 24,
-    topShowY: 1500,
     openEvent: "STSettingsOpen",
     openCatDataset: "steamBuffOpenCat",
     openAckDataset: "steamBuffOpenAck",
@@ -107,7 +106,6 @@
     let railTop = options.initialTop ?? null;
     let railSide = options.initialSide === "left" ? "left" : "right";
     let bound = false;
-    let topButtonRaf = 0;
     let disposers = [];
     const scroll = createScrollTargets();
 
@@ -197,40 +195,12 @@
     }
 
     function updateTopButton() {
-      if (!topBtn) {
-        return;
-      }
-      const hide = scroll.scrollY() < cfg.topShowY;
-      if (topBtn.hidden === hide) {
-        return;
-      }
-      topBtn.hidden = hide;
-      if (rail) {
-        window.requestAnimationFrame(() => {
-          applyRailTop(railTop, false);
-        });
-      }
+      if (topBtn) topBtn.hidden = false;
     }
 
-    function cancelTopButtonUpdate() {
-      if (!topButtonRaf) {
-        return;
-      }
-      const cancel = window.cancelAnimationFrame || window.clearTimeout;
-      cancel.call(window, topButtonRaf);
-      topButtonRaf = 0;
-    }
-
-    function scheduleTopButton(event) {
+    function rememberScrollTarget(event) {
+      // 优化: 常驻按钮不随滚动更新，只为点击回顶部保留真实目标
       scroll.rememberScrollTarget(event?.target);
-      if (topButtonRaf) {
-        return;
-      }
-      const raf = window.requestAnimationFrame || ((fn) => window.setTimeout(fn, 16));
-      topButtonRaf = raf.call(window, () => {
-        topButtonRaf = 0;
-        updateTopButton();
-      });
     }
 
     function addDisposer(dispose) {
@@ -252,7 +222,6 @@
         return false;
       }
       bound = false;
-      cancelTopButtonUpdate();
       for (const disposeOne of disposers.splice(0)) {
         try {
           disposeOne();
@@ -525,8 +494,8 @@
         openCat(document.documentElement.dataset[cfg.openCatDataset] || getActiveCat());
       });
 
-      listen(window, "scroll", scheduleTopButton, { passive: true });
-      listen(document, "scroll", scheduleTopButton, { passive: true, capture: true });
+      // 文档和内层容器由同一个捕获入口记录
+      listen(document, "scroll", rememberScrollTarget, { passive: true, capture: true });
 
       updateTopButton();
       return dispose;

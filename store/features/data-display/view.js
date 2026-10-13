@@ -498,7 +498,12 @@
   function renderForecastReferences(root, result = {}, pageInfo = {}) {
     const wrap = root.querySelector(".st-data-display__forecast");
     if (!wrap || !sectionEnabled(root, "forecastEnabled")) return;
+    api.dom.loading.clear(wrap);
     wrap.replaceChildren();
+    if (root.dataset.state === "loading") {
+      api.dom.loading.show(wrap, "forecast");
+      return;
+    }
     if (result?.ok !== true) {
       aiForecast?.render?.(root, wrap, result, pageInfo);
       return;
@@ -512,7 +517,11 @@
         el("div", "st-data-display-forecast-model__meta", section.meta),
         el("div", "st-data-display-forecast-model__detail", section.detail)
       );
+      if (section.settingId === "price-forecast-seasonal" && result.festivalStatus === "loading") {
+        api.dom.loading.show(card.querySelector(".st-data-display-forecast-model__body"), "note");
+      }
       wrap.appendChild(card);
+      api.dom.loading.activate(card);
     });
     aiForecast?.render?.(root, wrap, result, pageInfo);
   }
@@ -625,6 +634,7 @@
     const state = root.__stChartState || {};
     const months = Number.isFinite(Number(state.months)) ? Number(state.months) : DEFAULT_RANGE_MONTHS;
     const summary = priceSummary(state.result || {}, state.pageInfo || {});
+    api.dom.loading.clear(row);
     row.replaceChildren();
     const host = el("div", "st-data-display__chart-host");
     const chart = summary.chartSeries?.length
@@ -653,12 +663,28 @@
     }
     state.allAttempted = true;
     const row = root.querySelector(".st-data-display__chart-row");
-    row?.replaceChildren(charts?.createSkeleton?.() || el("div", "st-data-display-chart--empty", i18n("store.dataDisplay.loadingRates", "正在加载汇率")));
+    api.dom.loading.clear(row);
+    const loading = charts.createSkeleton();
+    row.replaceChildren(loading);
+    api.dom.loading.activate(row);
     renderRangeControls(root, months, false);
-    const updated = await api.thirdPartyData?.ensureStorePriceChartRates?.(state.result, { months: 0 });
-    if (!root.isConnected || root.__stChartState !== state) return;
-    if (updated) state.result = updated;
-    renderChart(root);
+    const valid = () => root.isConnected && root.__stChartState === state;
+    try {
+      if (!await api.dom.loading.afterPaint(valid)) return;
+      const updated = await api.thirdPartyData.ensureStorePriceChartRates(state.result, { months: 0 });
+      if (!valid()) return;
+      if (updated) state.result = updated;
+      renderChart(root);
+    } catch (error) {
+      if (!valid()) return;
+      state.allAttempted = false;
+      api.dom.loading.clear(loading);
+      row.replaceChildren(charts.createEmpty(i18n("common.requestFailed", "请求失败，请稍后重试")));
+      renderRangeControls(root, months, true);
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "data-display", event: "chart-rates-load-failed", message: "历史价格汇率加载失败", level: "error", phase: "selectChartRange" });
+    } finally {
+      api.dom.loading.clear(loading);
+    }
   }
 
   function renderLoading(root) {
@@ -666,7 +692,9 @@
     if (sectionEnabled(root, "chartEnabled")) {
       const state = root.__stChartState || {};
       const row = root.querySelector(".st-data-display__chart-row");
-      row?.replaceChildren(charts?.createSkeleton?.() || el("div", "st-data-display-chart--empty", i18n("common.loading", "正在加载")));
+      api.dom.loading.clear(row);
+      row.replaceChildren(charts.createSkeleton());
+      api.dom.loading.activate(row);
       renderRangeControls(root, Number.isFinite(Number(state.months)) ? Number(state.months) : DEFAULT_RANGE_MONTHS, false);
     }
     if (sectionEnabled(root, "forecastEnabled")) {
@@ -687,6 +715,7 @@
         );
         if (help) empty.appendChild(help);
       }
+      api.dom.loading.clear(row);
       row?.replaceChildren(empty);
       renderRangeControls(root, Number.isFinite(Number(chartState.months)) ? Number(chartState.months) : DEFAULT_RANGE_MONTHS, false);
     }

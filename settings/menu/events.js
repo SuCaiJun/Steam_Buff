@@ -15,7 +15,6 @@
     dragThreshold: 10,
     minTop: 24,
     margin: 24,
-    topShowY: 1500,
     openEvent: "STSettingsOpen",
     openCatDataset: "steamBuffOpenCat",
     openAckDataset: "steamBuffOpenAck",

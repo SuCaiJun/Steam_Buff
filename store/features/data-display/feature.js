@@ -110,6 +110,7 @@
   function removeCurrent() {
     const current = document.getElementById(ROOT_ID);
     api.features?.dataDisplayAiForecast?.dispose?.(current);
+    if (current) api.dom.loading.clear(current);
     current?.remove?.();
     activeRoot = null;
   }
@@ -209,6 +210,7 @@
     controller.priceData = null;
     api.features?.dataDisplayAiForecast?.dispose?.(controller.root);
     renderControllerState(controller, "loading", {});
+    if (!await api.dom.loading.afterPaint(() => controller.root === activeRoot && requestSequence === controller.priceRequestSequence)) return null;
     const startedAt = Date.now();
     log?.info?.("data-display-load-start", "数据展示开始加载价格数据", pageMeta({
       pageType: controller.info.type || "",
@@ -309,6 +311,8 @@
     };
     root.__stDataDisplayController = controller;
 
+    api.dom.loading.activate(root);
+    if (!await api.dom.loading.afterPaint(isCurrent)) return;
     const festivalReady = festivalsNeeded
       ? Promise.resolve().then(() => {
         if (!api.thirdPartyData?.getSteamFestivals) throw new Error("Steam 节日数据服务未就绪");

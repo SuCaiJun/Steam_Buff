@@ -408,7 +408,7 @@
             </button>
           </div>
           <div class="item">
-            <button class="top" type="button" title="${escAttr(top)}" aria-label="${escAttr(top)}" hidden>
+            <button class="top" type="button" title="${escAttr(top)}" aria-label="${escAttr(top)}">
               <span class="content">
                 <img alt="" src="${escAttr(assets.topUrl?.() || "")}">
               </span>

@@ -455,7 +455,15 @@
     if (!card) return;
     const body = card.querySelector(".st-data-display-ai-card__summary");
     const button = card.querySelector(".st-data-display-ai-card__detail-button");
-    if (body) body.textContent = cardText(state);
+    if (body) {
+      const loading = !state.session?.summary && state.phase !== "error" && (!state.sessionLoaded || state.phase === "preparing" || state.phase === "generating" || dataState(state) === "loading");
+      if (loading) {
+        if (!body.querySelector(".st-store-skeleton")) api.dom.loading.show(body, "note");
+      } else {
+        api.dom.loading.clear(body);
+        body.textContent = cardText(state);
+      }
+    }
     const blocked = !state.session
       && (!state.sessionLoaded || dataState(state) !== "ready");
     if (button) button.disabled = blocked;
@@ -788,6 +796,7 @@
     state.errorText = "";
     updateUi(state);
     try {
+      if (!await api.dom.loading.afterPaint(() => !state.disposed)) return false;
       const conf = await loadAiConfig();
       if (!aiReady(conf)) {
         state.phase = "error";
@@ -862,7 +871,8 @@
 
   function beginSessionLoad(state) {
     if (state.sessionPromise) return state.sessionPromise;
-    state.sessionPromise = readSession(state.key, state.entityKey)
+    state.sessionPromise = api.dom.loading.afterPaint(() => !state.disposed)
+      .then(ready => ready ? readSession(state.key, state.entityKey) : null)
       .then((session) => {
         if (state.disposed) return null;
         state.session = session;
@@ -890,12 +900,14 @@
     if (!root || !wrap) return null;
     if (result?.ok !== true) {
       const current = states.get(root);
+      if (current?.card) api.dom.loading.clear(current.card);
       current?.card?.remove?.();
       if (current) current.card = null;
       return null;
     }
     if (!root.parentNode) return null;
     const state = stateFor(root, result, pageInfo);
+    if (state.card) api.dom.loading.clear(state.card);
     state.card?.remove?.();
     const card = el("article", "st-data-display-ai-card");
     const header = el("div", "st-data-display-ai-card__header");
@@ -909,8 +921,8 @@
     card.append(header, el("div", "st-data-display-ai-card__summary"));
     root.parentNode.insertBefore(card, root.nextSibling);
     state.card = card;
-    beginSessionLoad(state);
     updateCard(state);
+    beginSessionLoad(state);
     return card;
   }
 
@@ -920,6 +932,7 @@
     state.disposed = true;
     state.streamJob?.cancel?.();
     clearStreamRenderTimer(state);
+    if (state.card) api.dom.loading.clear(state.card);
     state.card?.remove?.();
     state.dialog?.remove?.();
     document.documentElement.classList.remove("st-ai-forecast-dialog-open");

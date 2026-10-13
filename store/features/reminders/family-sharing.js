@@ -38,6 +38,33 @@
     }));
   }
 
+  function unsupportedCard(appIdText) {
+    const familySharingContainer = document.createElement("div");
+    familySharingContainer.className = MODULE_CLASSES.FAMILY_SHARING;
+    familySharingContainer.style.marginBottom = "8px";
+    familySharingContainer.dataset.steamAppId = appIdText;
+    const title = document.createElement("div");
+    title.className = "es_family_sharing_warning_title";
+    title.textContent = globalThis.STI18n.text("store.familySharing.title", "共享检查");
+    const text = document.createElement("div");
+    text.className = "es_family_sharing_warning_text";
+    text.textContent = globalThis.STI18n.text(
+      "store.familySharing.unsupported",
+      "此游戏不支持家庭共享功能",
+    );
+    familySharingContainer.append(title, text);
+
+    return familySharingContainer;
+  }
+
+  // 已完成但无需显示卡片不属于 DOM 丢失；只有应显示的警告才需要恢复
+  function needsRestore(appId) {
+    const appIdText = String(appId || "");
+    if (["supported", "unknown"].includes(supportState[appIdText]?.status)) return false;
+    return !Array.from(document.querySelectorAll('.' + MODULE_CLASSES.FAMILY_SHARING))
+      .some(node => node.dataset.steamAppId === appIdText && isUsableExistingModule(node));
+  }
+
 function addFamilySharingNotice(appId, protocol) {
     const startedAt = Date.now();
     const appIdText = String(appId || "");
@@ -76,10 +103,27 @@ function addFamilySharingNotice(appId, protocol) {
         return;
     }
 
+    const completed = supportState[appIdText]?.status;
+    if (completed === "supported" || completed === "unknown") return;
+    if (completed === "unsupported") {
+        if (!insertModule(unsupportedCard(appIdText), MODULE_CLASSES.FAMILY_SHARING, false, true)) {
+            log?.warn?.("family-sharing-mount-failed", "家庭共享警告恢复挂载失败", {
+                appid: Number(appId) || 0,
+                path: location.pathname,
+            });
+        }
+        return;
+    }
+
     // 先占住购买区前的位置，避免异步接口返回后插入顺序漂移。
     const placeholderElement = document.createElement("div");
     placeholderElement.className = MODULE_CLASSES.FAMILY_SHARING;
-    placeholderElement.style.display = "none"; 
+    const loadingTitle = document.createElement("div");
+    loadingTitle.className = "es_family_sharing_warning_title";
+    loadingTitle.textContent = globalThis.STI18n.text("store.familySharing.title", "共享检查");
+    const loadingBody = document.createElement("div");
+    placeholderElement.append(loadingTitle, loadingBody);
+    api.dom.loading.show(loadingBody, "note");
     placeholderElement.setAttribute('data-placeholder', 'true');
     placeholderElement.dataset.steamAppId = appIdText;
     
@@ -91,7 +135,11 @@ function addFamilySharingNotice(appId, protocol) {
         return;
     }
 
-    fetchPlayersInfo(appId, protocol).then(function(response) {
+    api.dom.loading.activate(placeholderElement);
+    const valid = () => placeholderElement.isConnected && String(api.ctx.pageInfo()?.appId || "") === appIdText;
+    api.dom.loading.afterPaint(valid).then(ready => ready ? fetchPlayersInfo(appId, protocol) : null).then(function(response) {
+        if (!valid()) return;
+        api.dom.loading.clear(placeholderElement);
         let data = response;
         if (typeof data === 'string') {
             try {
@@ -102,27 +150,14 @@ function addFamilySharingNotice(appId, protocol) {
                     durationMs: Date.now() - startedAt,
                     error: e,
                 });
+                placeholderElement.remove();
                 publishSupportState(appIdText, "unknown");
                 return;
             }
         }
         
         if (data && !data.family_sharing) {
-            const familySharingContainer = document.createElement("div");
-            familySharingContainer.className = MODULE_CLASSES.FAMILY_SHARING;
-            familySharingContainer.style.marginBottom = "8px";
-            familySharingContainer.dataset.steamAppId = appIdText;
-            const title = document.createElement("div");
-            title.className = "es_family_sharing_warning_title";
-            title.textContent = globalThis.STI18n.text("store.familySharing.title", "共享检查");
-            const text = document.createElement("div");
-            text.className = "es_family_sharing_warning_text";
-            text.textContent = globalThis.STI18n.text(
-              "store.familySharing.unsupported",
-              "此游戏不支持家庭共享功能",
-            );
-            familySharingContainer.append(title, text);
-            
+            const familySharingContainer = unsupportedCard(appIdText);
             if (placeholderElement.parentNode) {
                 placeholderElement.parentNode.replaceChild(familySharingContainer, placeholderElement);
             }
@@ -133,6 +168,7 @@ function addFamilySharingNotice(appId, protocol) {
             });
             publishSupportState(appIdText, "unsupported");
         } else {
+            placeholderElement.remove();
             log?.info?.("family-sharing-mount-skipped", "家庭共享检查未发现限制", {
                 appid: Number(appId) || 0,
                 supported: true,
@@ -141,6 +177,9 @@ function addFamilySharingNotice(appId, protocol) {
             publishSupportState(appIdText, "supported");
         }
     }).catch((error) => {
+        if (!valid()) return;
+        api.dom.loading.clear(placeholderElement);
+        placeholderElement.remove();
         log?.warn?.("family-sharing-request-failed", "家庭共享检查请求失败，已降级跳过", {
             appid: Number(appId) || 0,
             durationMs: Date.now() - startedAt,
@@ -152,5 +191,6 @@ function addFamilySharingNotice(appId, protocol) {
 
   api.features.familySharing = Object.freeze({
     add: addFamilySharingNotice,
+    needsRestore,
   });
 })();

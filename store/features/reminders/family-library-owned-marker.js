@@ -64,12 +64,13 @@
   let refreshInFlight = null;
   let detailActive = false;
   let detailSeq = 0;
-  let badgeSeq = 0;
+  let detailTask = null;
   const activeBadgeScopes = new Set();
   const familySharingWaitDisposers = new Set();
   const dialogDisposers = new Set();
   const blockingWaitClosers = new Set();
   let badgeCache;
+  let badgeCacheLoad = null;
 
   const familySharingSupportState = window.__stFamilySharingSupportState || {};
   window.__stFamilySharingSupportState = familySharingSupportState;
@@ -208,6 +209,7 @@
     let removedCount = 0;
     document.querySelectorAll(`.${MODULE_CLASS}`).forEach((node) => {
       if (String(node.dataset.steamAppId || "") !== appIdText) return;
+      api.dom.loading.clear(node);
       node.remove();
       removedCount += 1;
     });
@@ -1092,7 +1094,8 @@
       const host = badge.closest(".st_subscription_badges");
       const target = host?.parentElement;
       if (scope && target?.dataset?.stFgScope !== scope) return;
-      badge.remove();
+      const slot = badge.closest(".st_subscription_badge_slot");
+      (slot || badge).remove();
       removeEmptyBadgeHost(host);
     });
     scopedElements(root, ".st_family_library_badge_target").forEach((node) => {
@@ -1100,113 +1103,86 @@
     });
   }
 
-  function removeNodeFamilyBadges(node, scope = "") {
-    node.querySelectorAll(":scope > .st_subscription_badges .st_family_library_badge").forEach((item) => {
-      const host = item.closest(".st_subscription_badges");
-      const target = host?.parentElement;
-      if (scope && target?.dataset?.stFgScope !== scope) return;
-      item.remove();
-      removeEmptyBadgeHost(host);
-    });
-  }
-
-  function ensureBadgeHost(target) {
-    const node = target.node;
-    let host = node.querySelector(":scope > .st_subscription_badges");
-    if (!host) {
-      host = document.createElement("div");
-      host.className = "st_subscription_badges st_family_library_badge_host";
-      noTranslate(host);
-      node.appendChild(host);
-    }
-    host.classList.add("st_family_library_badge_host");
-    host.classList.toggle("is-row", target.type === "row");
-    host.classList.toggle("is-tile", target.type === "tile");
-    host.classList.toggle("is-cart", target.type === "cart");
-    host.classList.toggle("is-image", target.type === "image");
-    return host;
-  }
-
-  function positionFamilyBadgeHost(target, host) {
-    const node = target?.node;
-    if (!node || !host) return false;
-    if (target.type === "cart") {
-      return api.dom.positionCartBadgeHost?.(node, host, target.image) === true;
-    }
-    if (target.type === "image") {
-      const image = target.image || api.dom.imageBadgeForNode?.(node, target.appId);
-      return api.dom.positionImageBadgeHost?.(node, host, image, target.badgePlacement) === true;
-    }
-    if (getComputedStyle(node).position === "static") {
-      node.classList.add("st_subscription_pos");
-    }
-    return true;
-  }
-
-  function renderFamilyBadge(target, cache, appId) {
-    const node = target?.node;
-    if (!node) return false;
-    removeNodeFamilyBadges(node);
-    const entry = api.familyLibraryCache?.appEntry?.(cache, appId);
+  function familyBadgeJob(token, cache, loading = false, failed = false) {
+    const target = token.target;
+    const content = [];
+    const entry = cache ? api.familyLibraryCache.appEntry(cache, target.appId) : null;
     const count = ownerItems(cache, entry).length;
-    if (!count) return false;
-
-    const host = ensureBadgeHost(target);
-    if (!positionFamilyBadgeHost(target, host)) {
-      removeNodeFamilyBadges(node);
-      return false;
+    if (loading || count) {
+      const badge = document.createElement("span");
+      badge.className = "st_subscription_badge st_family_library_badge";
+      if (loading) {
+        badge.classList.add("st_subscription_loading");
+        badge.appendChild(api.dom.loading.create("badge"));
+        badge.title = i18n("common.loading", "正在加载");
+      } else {
+        badge.textContent = `FG ${count}`;
+        badge.title = i18n("store.familyLibrary.badgeTitle", "Steam 家庭中有 $count$ 位成员拥有此游戏", { count });
+      }
+      noTranslate(badge);
+      content.push(badge);
     }
-    node.classList.add("st_family_library_badge_target");
-    node.dataset.stFgId = String(appId);
-    node.dataset.stFgType = target.type;
-    node.dataset.stFgScope = target.scope;
-    const badge = document.createElement("span");
-    badge.className = "st_subscription_badge st_family_library_badge";
-    badge.textContent = `FG ${count}`;
-    badge.title = i18n("store.familyLibrary.badgeTitle", "Steam 家庭中有 $count$ 位成员拥有此游戏", { count });
-    noTranslate(badge);
-    host.insertBefore(badge, host.firstElementChild);
-    node.dataset.stFgDone = "1";
-    return true;
+    return {
+      target, content, loading, order: 0, valid: token.valid,
+      commit(host) {
+        const node = target.node;
+        if (host && content.length) host.classList.add("st_family_library_badge_host");
+        node.classList.add("st_family_library_badge_target");
+        node.dataset.stFgId = String(target.appId);
+        node.dataset.stFgType = target.type;
+        node.dataset.stFgScope = target.scope;
+        node.dataset.stFgDone = loading ? "0" : failed ? "error" : "1";
+      },
+    };
   }
 
-  async function loadBadgeCache() {
-    if (badgeCache !== undefined) return badgeCache;
-    badgeCache = await api.familyLibraryCache?.read?.();
-    return badgeCache;
+  function loadBadgeCache() {
+    if (badgeCache !== undefined) return Promise.resolve(badgeCache);
+    if (badgeCacheLoad) return badgeCacheLoad.promise;
+    const load = {};
+    badgeCacheLoad = load;
+    load.promise = api.familyLibraryCache.read().then(cache => {
+      if (badgeCacheLoad === load && activeBadgeScopes.size) badgeCache = cache;
+      return cache;
+    }).finally(() => {
+      if (badgeCacheLoad === load) badgeCacheLoad = null;
+    });
+    return load.promise;
   }
 
-
-
+  // 家庭角标只复用本地缓存读取；冷状态先绘制骨架，不触发 Steam 家庭网络刷新
   async function scanBadges(targets = []) {
-    if (activeBadgeScopes.size === 0) return;
-    const seq = badgeSeq;
-    const cache = await loadBadgeCache();
-    if (seq !== badgeSeq || activeBadgeScopes.size === 0) return;
-    if (!cache) {
-      clearFamilyBadges();
-
-      return;
+    if (!activeBadgeScopes.size || document.hidden) return;
+    const fresh = [];
+    for (const target of targets) {
+      if (!activeBadgeScopes.has(target.scope)) continue;
+      const claim = api.appCardBadgeScanner.claim(FEATURE_ID, target);
+      if (!claim) continue;
+      if (!claim.fresh) {
+        if (target.changed) api.dom.repositionBadge(target);
+      } else {
+        fresh.push(claim.token);
+      }
     }
-    let mountedCount = 0;
-    targets.forEach((target) => {
-      const node = target.node;
-      const appId = target.appId;
-      if (!node?.isConnected || !activeBadgeScopes.has(target.scope)) return;
-      if (!appId) return;
-      if (node.dataset.stFgId === String(appId)
-          && node.dataset.stFgDone === "1"
-          && node.querySelector(":scope > .st_subscription_badges .st_family_library_badge")) {
-        const host = node.querySelector(":scope > .st_subscription_badges");
-        positionFamilyBadgeHost(target, host);
-        mountedCount += 1;
+    if (!fresh.length) return;
+    const loading = badgeCache === undefined;
+    const writes = [api.dom.writeBadgeBatch(FEATURE_ID, fresh.map(token => familyBadgeJob(token, badgeCache, loading)))];
+    await writes[0];
+    if (loading) {
+      try {
+        if (!await api.dom.loading.afterPaint(() => fresh.some(token => token.valid()))) return;
+        const cache = await loadBadgeCache();
+        writes.push(api.dom.writeBadgeBatch(FEATURE_ID, fresh.filter(token => token.valid())
+          .map(token => familyBadgeJob(token, cache))));
+      } catch (error) {
+        const current = fresh.filter(token => token.valid());
+        writes.push(api.dom.writeBadgeBatch(FEATURE_ID, current.map(token => familyBadgeJob(token, null, false, true))));
+        await Promise.all(writes);
+        if (current.length) throw error;
         return;
       }
-      if (renderFamilyBadge(target, cache, appId)) {
-        mountedCount += 1;
-      }
-    });
-
+    }
+    await Promise.all(writes);
   }
 
   function ensureFeatureStyles(key) {
@@ -1214,7 +1190,29 @@
     api.styles?.ensureFeatureStyle?.("family-library-owned-marker", { owner: OWNER, key });
   }
 
-  async function addFamilyLibraryDetailCard(appId) {
+  // 同一游戏的恢复调用共用加载任务；已隐藏或仍在位的完成结果不重新进入骨架阶段
+  function addFamilyLibraryDetailCard(appId) {
+    const id = Number(appId) || 0;
+    if (!id || document.querySelector(".game_area_comingsoon")) return Promise.resolve();
+    if (detailActive && detailAppId === String(id)) {
+      if (detailTask) return detailTask;
+      if (familySharingStatus(id) === "unsupported") return Promise.resolve();
+      const current = Array.from(document.querySelectorAll('.' + MODULE_CLASS))
+        .some(node => node.dataset.steamAppId === String(id) && api.dom.isUsableExistingModule(node));
+      if (current) return Promise.resolve();
+    }
+    if (familySharingStatus(id) === "unsupported") {
+      detailActive = true;
+      detailAppId = String(id);
+      removeDetailForUnsupportedSharing(id, "pre-mount");
+      return Promise.resolve();
+    }
+    const task = loadDetailCard(id).finally(() => { if (detailTask === task) detailTask = null; });
+    detailTask = task;
+    return task;
+  }
+
+  async function loadDetailCard(appId) {
     const startedAt = Date.now();
     const id = Number(appId) || 0;
     if (!id || document.querySelector(".game_area_comingsoon")) return;
@@ -1225,50 +1223,71 @@
     setupFamilySharingResultListener(id);
     ensureFeatureStyles("detail-style");
     log?.info?.("family-library-feature-start", "家庭库检查功能启动", pageMeta({ appid: id, settingsKey: DETAIL_CARD_SETTING_ID }));
-    const sharingStatus = await waitForFamilySharingResult(id);
-    if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
-    if (sharingStatus === "unsupported" || removeDetailForUnsupportedSharing(id, "pre-mount")) {
-      return;
-    }
-    const [cache, refreshSettings, refreshState] = await Promise.all([
-      api.familyLibraryCache?.read?.(),
-      familyRefreshSettings(),
-      api.familyLibraryCache.readRefreshState(),
-    ]);
-    if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
-    const container = mountCard(id, cache);
-    if (!container) return;
-    const entry = api.familyLibraryCache?.appEntry?.(cache, id);
-    if (entry) {
-      log?.info?.("family-library-cache-hit", "当前游戏命中家庭组游戏库缓存", pageMeta({
+    const placeholder = document.createElement("div");
+    placeholder.className = MODULE_CLASS + " st-store-notice";
+    placeholder.dataset.steamAppId = String(id);
+    const title = document.createElement("div");
+    title.className = "st-store-notice__title";
+    title.textContent = i18n("store.familyLibrary.title", "家庭库检查");
+    const body = document.createElement("div");
+    placeholder.append(title, body);
+    api.dom.loading.show(body, "note");
+    if (!api.dom.insertModule(placeholder, MODULE_CLASS, false, true)) { api.dom.loading.clear(placeholder); return; }
+    api.dom.loading.activate(placeholder);
+    const valid = () => detailActive && detailAppId === String(id) && seq === detailSeq && placeholder.isConnected;
+    try {
+      if (!await api.dom.loading.afterPaint(valid)) return;
+      const sharingStatus = await waitForFamilySharingResult(id);
+      if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
+      if (sharingStatus === "unsupported" || removeDetailForUnsupportedSharing(id, "pre-mount")) {
+        return;
+      }
+      const [cache, refreshSettings, refreshState] = await Promise.all([
+        api.familyLibraryCache?.read?.(),
+        familyRefreshSettings(),
+        api.familyLibraryCache.readRefreshState(),
+      ]);
+      if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
+      if (!valid()) return;
+      api.dom.loading.clear(placeholder);
+      placeholder.remove();
+      const container = mountCard(id, cache);
+      if (!container) return;
+      const entry = api.familyLibraryCache?.appEntry?.(cache, id);
+      if (entry) {
+        log?.info?.("family-library-cache-hit", "当前游戏命中家庭组游戏库缓存", pageMeta({
+          appid: id,
+          memberCount: entry.ownerSteamids?.length || 0,
+          cacheAgeMs: api.familyLibraryCache.cacheAgeMs(cache),
+        }));
+      } else {
+        log?.info?.("family-library-cache-miss", "当前游戏未命中家庭组游戏库缓存", pageMeta({
+          appid: id,
+          status: cache ? "cache-miss" : "empty-cache",
+          appCount: cache?.stats?.appCount || 0,
+        }));
+      }
+      // 优化: 详情页只在功能启动时做一次缓存年龄判断，不挂到 DOM 观察器或路由重扫。
+      if (cache && cacheRefreshDue(cache, refreshSettings, refreshState)) {
+        log?.info?.("family-library-cache-stale", "家庭组游戏库缓存已过期", pageMeta({
+          appid: id,
+          cacheAgeMs: api.familyLibraryCache.cacheAgeMs(cache),
+          refreshInterval: refreshSettings.refreshInterval,
+          autoRefresh: refreshSettings.autoRefresh === true,
+        }));
+        await maybePromptStale(id, cache, container, refreshSettings, refreshState);
+      } else if (!cache) {
+        await maybePromptEmpty(id, container, refreshSettings, refreshState);
+      }
+      if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
+      log?.info?.("family-library-feature-ready", "家庭库检查功能启动完成", pageMeta({
         appid: id,
-        memberCount: entry.ownerSteamids?.length || 0,
-        cacheAgeMs: api.familyLibraryCache.cacheAgeMs(cache),
+        durationMs: Date.now() - startedAt,
       }));
-    } else {
-      log?.info?.("family-library-cache-miss", "当前游戏未命中家庭组游戏库缓存", pageMeta({
-        appid: id,
-        status: cache ? "cache-miss" : "empty-cache",
-        appCount: cache?.stats?.appCount || 0,
-      }));
+    } finally {
+      api.dom.loading.clear(placeholder);
+      placeholder.remove();
     }
-    // 优化: 详情页只在功能启动时做一次缓存年龄判断，不挂到 DOM 观察器或路由重扫。
-    if (cache && cacheRefreshDue(cache, refreshSettings, refreshState)) {
-      log?.info?.("family-library-cache-stale", "家庭组游戏库缓存已过期", pageMeta({
-        appid: id,
-        cacheAgeMs: api.familyLibraryCache.cacheAgeMs(cache),
-        refreshInterval: refreshSettings.refreshInterval,
-        autoRefresh: refreshSettings.autoRefresh === true,
-      }));
-      await maybePromptStale(id, cache, container, refreshSettings, refreshState);
-    } else if (!cache) {
-      await maybePromptEmpty(id, container, refreshSettings, refreshState);
-    }
-    if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
-    log?.info?.("family-library-feature-ready", "家庭库检查功能启动完成", pageMeta({
-      appid: id,
-      durationMs: Date.now() - startedAt,
-    }));
   }
 
   function startBadges(scope = "store") {
@@ -1278,7 +1297,7 @@
     const result = api.appCardBadgeScanner?.start?.(FEATURE_ID, normalized, {
       scan: scanBadges,
       onError(error) {
-        log?.warn?.("family-library-badge-scan-failed", "家庭库商店角标扫描失败", pageMeta({
+        log?.error?.("family-library-badge-scan-failed", "家庭库商店角标扫描失败", pageMeta({
           reason: String(error?.code || error?.name || "scan-failed"),
           error,
         }));
@@ -1305,36 +1324,40 @@
   function stopDetail() {
     detailActive = false;
     detailSeq += 1;
+    detailTask = null;
     detailAppId = "";
     lastFamilySharingHideLogKey = "";
     clearDisposers(familySharingWaitDisposers);
     clearDisposers(dialogDisposers);
     clearDisposers(blockingWaitClosers);
     removeFamilySharingResultListener();
-    document.querySelectorAll(`.${MODULE_CLASS}`).forEach(node => node.remove());
+    document.querySelectorAll(`.${MODULE_CLASS}`).forEach(node => { api.dom.loading.clear(node); node.remove(); });
     document.querySelectorAll(".st_family_library_dialog_layer").forEach(node => node.remove());
     removeFeatureStyleIfIdle();
     return true;
   }
 
   function stopBadgeRuntime() {
+    api.dom.cancelBadgeWrites(FEATURE_ID);
     clearFamilyBadges();
     api.appCardBadgeScanner?.stop?.(FEATURE_ID);
     badgeCache = undefined;
+    badgeCacheLoad = null;
   }
 
   function stopBadges(scope = "") {
-    badgeSeq += 1;
     if (scope && BADGE_SETTING_IDS[scope]) {
       activeBadgeScopes.delete(scope);
     } else {
       activeBadgeScopes.clear();
     }
     const cleanupScope = scope && BADGE_SETTING_IDS[scope] ? scope : "";
+    api.dom.cancelBadgeWrites(FEATURE_ID, cleanupScope);
     clearFamilyBadges(document, cleanupScope);
     api.appCardBadgeScanner?.stop?.(FEATURE_ID, cleanupScope);
     if (activeBadgeScopes.size === 0) {
       badgeCache = undefined;
+      badgeCacheLoad = null;
     }
     removeFeatureStyleIfIdle();
     return true;

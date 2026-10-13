@@ -246,19 +246,22 @@
     lastDetailTargetMissing = false;
     const host = ensureHost(title);
     const steamTitle = state.steamTitle || text(title.childNodes[0] || title);
-    renderNameHost(host, state.appid, decorateName(state.item, steamTitle), steamTitle, "detail");
+    renderNameHost(host, state.appid, decorateName(state.item, steamTitle), steamTitle, "detail", state.loading === true);
     return true;
   }
 
-  function renderNameHost(host, appid, item, steamTitle, mode) {
+  function renderNameHost(host, appid, item, steamTitle, mode, loading = false) {
     const hidden = api.settings?.all?.()?.["store-title-hide-custom-name"] === true;
-    const visibleName = !hidden && shouldShowName(item, steamTitle) ? text(item?.name) : "";
+    const visibleName = !loading && !hidden && shouldShowName(item, steamTitle) ? text(item?.name) : "";
     const label = visibleName ? `[${visibleName}]` : "";
     const idText = String(appid || "");
-    const key = JSON.stringify([appid, text(item?.name), text(item?.name_source), steamTitle, mode]);
+    const key = JSON.stringify([appid, text(item?.name), text(item?.name_source), steamTitle, mode, loading, hidden]);
     const labelReady = (host.dataset.label || "") === label;
     const idReady = (host.dataset.stAppid || "") === idText;
-    if (host._stTitleCustomNameKey === key && host.querySelector(".st-title-custom-name-btn") && labelReady && idReady) {
+    const contentReady = loading
+      ? hidden ? host.childElementCount === 0 : !!host.querySelector(".st-store-skeleton")
+      : !!host.querySelector(".st-title-custom-name-btn");
+    if (host._stTitleCustomNameKey === key && contentReady && labelReady && idReady) {
       return;
     }
     host._stTitleCustomNameKey = key;
@@ -266,11 +269,20 @@
     if (!idReady) host.dataset.stAppid = idText;
     if (label) host.dataset.label = label;
     else delete host.dataset.label;
+    api.dom.loading.clear(host);
+    host.replaceChildren();
+    // 名称和编辑入口作为一个加载区域，结果结束前不暴露可点击按钮
+    if (loading) {
+      if (!hidden) host.appendChild(api.dom.loading.create("line"));
+      api.dom.loading.activate(host);
+      return;
+    }
     const button = document.createElement("button");
     button.className = "st-title-custom-name-btn";
     button.type = "button";
     button.textContent = i18n("store.titleCustomName.edit", "编辑");
-    host.replaceChildren(button);
+    host.appendChild(button);
+    api.dom.loading.activate(host);
     if (mode === "detail") {
       log.info("title-custom-name-button-mounted", "商店标题自定义名按钮已挂载", {
         appid,
@@ -948,7 +960,7 @@
       if (rowAppid(row) !== Number(appid)) return;
       const host = ensureWishlistHost(row);
       if (!host) return;
-        renderNameHost(host, appid, decorateName(nameCache.get(Number(appid)) || null, steamTitleFromRow(row)), steamTitleFromRow(row), "wishlist");
+      renderNameHost(host, appid, decorateName(nameCache.get(Number(appid)) || null, steamTitleFromRow(row)), steamTitleFromRow(row), "wishlist");
     });
   }
 
@@ -965,15 +977,20 @@
       addStyle();
       const rows = wishlistRows();
       const appids = [];
+      const needed = [];
       for (const row of rows) {
         const appid = rowAppid(row);
         if (!appid) continue;
         appids.push(appid);
         const host = ensureWishlistHost(row);
         if (!host) continue;
-        renderNameHost(host, appid, decorateName(nameCache.get(appid) || null, steamTitleFromRow(row)), steamTitleFromRow(row), "wishlist");
+        const loading = !nameCache.has(appid) && (!host._stTitleCustomNameKey || host.dataset.stAppid !== String(appid) || !!host.querySelector(".st-store-skeleton"));
+        if (loading) needed.push(appid);
+        renderNameHost(host, appid, decorateName(nameCache.get(appid) || null, steamTitleFromRow(row)), steamTitleFromRow(row), "wishlist", loading);
       }
-      await batchFetchWishlistNames(appids, seq);
+      if (needed.length && await api.dom.loading.afterPaint(() => seq === refreshSeq && started && isWishlistPath())) {
+        await batchFetchWishlistNames(needed, seq);
+      }
       if (seq !== refreshSeq || !started || !api.settings?.on?.(FEATURE_ID)) return false;
       appids.forEach(renderWishlistName);
       const summaryKey = `${rows.length}:${appids.length}`;
@@ -1129,10 +1146,12 @@
       appid: info.appid,
       steamTitle: text(title.childNodes[0] || title),
       item: nameCache.get(info.appid) || null,
+      loading: !nameCache.has(info.appid),
     };
     renderTitle();
     scheduleDetailSettleCheck(seq);
     try {
+      if (state.loading && !await api.dom.loading.afterPaint(() => seq === refreshSeq && started && pageInfo()?.appid === info.appid)) return;
       const item = await loadName(info.appid);
       if (seq !== refreshSeq || state?.appid !== info.appid) return;
       state.item = item;
@@ -1142,6 +1161,7 @@
       if (seq !== refreshSeq || state?.appid !== info.appid) return;
       state.item = null;
     }
+    state.loading = false;
     renderTitle();
     scheduleDetailSettleCheck(seq);
   }
@@ -1268,8 +1288,9 @@
     state = null;
     nameCache.clear();
     namePending.clear();
-    document.getElementById(HOST_ID)?.remove();
-    document.querySelectorAll(".st-title-custom-name-wishlist").forEach(node => node.remove());
+    const host = document.getElementById(HOST_ID);
+    if (host) { api.dom.loading.clear(host); host.remove(); }
+    document.querySelectorAll(".st-title-custom-name-wishlist").forEach(node => { api.dom.loading.clear(node); node.remove(); });
     document.querySelectorAll(".st-title-custom-name-wishlist-row").forEach(node => {
       node.classList.remove("st-title-custom-name-wishlist-row");
     });

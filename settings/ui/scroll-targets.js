@@ -33,7 +33,7 @@
   }
 
   function usableTarget(node) {
-    return !!node && typeof node.scrollTop === "number";
+    return node?.nodeType === 1 && node.isConnected !== false;
   }
 
   function addUnique(targets, node) {
@@ -86,17 +86,14 @@
 
     function rememberScrollTarget(target) {
       const node = normalizeTarget(target);
-      if (!usableTarget(node) || node.scrollTop <= 0) {
+      if (!usableTarget(node)) {
         return;
       }
+      // 优化: 滚动只记最近实际目标，不读位置，也不留下等待 RAF 消费的集合
       const index = recent.indexOf(node);
-      if (index >= 0) {
-        recent.splice(index, 1);
-      }
+      if (index >= 0) recent.splice(index, 1);
       recent.unshift(node);
-      if (recent.length > recentLimit) {
-        recent.length = recentLimit;
-      }
+      if (recent.length > recentLimit) recent.length = recentLimit;
     }
 
     function fixedScrollTargets(extraTargets = []) {
@@ -119,13 +116,20 @@
     }
 
     function scrollY(extraTargets = []) {
-      const top = root.scrollY || doc?.documentElement?.scrollTop || doc?.body?.scrollTop || 0;
+      const positions = new Map();
+      const readTop = node => {
+        if (!usableTarget(node)) return 0;
+        if (!positions.has(node)) positions.set(node, node.scrollTop);
+        return positions.get(node);
+      };
+      const top = root.scrollY || readTop(doc?.documentElement) || readTop(doc?.body) || 0;
       if (top > 0) {
         return top;
       }
       for (const node of fixedScrollTargets(extraTargets)) {
-        if (node.scrollTop > 0) {
-          return node.scrollTop;
+        const value = readTop(node);
+        if (value > 0) {
+          return value;
         }
       }
       return 0;
@@ -137,6 +141,10 @@
       recent.length = 0;
     }
 
+    // 接受 Window/Document 或真实 Element，忽略空值和已断开的节点
+    // 目标查询返回 Element 数组；scrollY 返回首个正位置，无目标时返回 0
+    // remember 不读取位置，只保留有界的最近实际滚动目标
+    // clear 清理缓存和最近目标；查询范围保持白名单、额外目标和最近容器
     return Object.freeze({
       fixedScrollTargets,
       scrollTargets,

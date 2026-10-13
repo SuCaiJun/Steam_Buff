@@ -42,7 +42,8 @@
   let stylesReady = false;
   let detailActive = false;
   let detailSeq = 0;
-  let badgeSeq = 0;
+  let detailAppId = "";
+  let detailTask = null;
 
   const activeBadgeScopes = new Set();
   const log = window.STLoggerFactory?.createLogger?.("store", "subscription-info");
@@ -199,27 +200,54 @@
   function addDetail(appId, protocol) {
     const id = parseInt(appId, 10);
     if (!Number.isFinite(id) || id <= 0 || typeof fetchGame !== "function") return Promise.resolve();
+    if (detailActive && detailAppId === String(id) && detailTask) return detailTask;
+    const cached = api.subs.getCachedGame(id);
+    if (cached) { detailActive = true; detailAppId = String(id); renderDetail(cached); return Promise.resolve(); }
     const seq = detailSeq + 1;
     detailSeq = seq;
     detailActive = true;
+    detailAppId = String(id);
     log?.info?.("subscription-detail-start", "第三方会员详情提醒启动", pageMeta({
       appid: id,
       settingsKey: DETAIL_SETTING_ID,
     }));
-    return fetchGame(id).then((game) => {
-      if (!detailActive || seq !== detailSeq) {
-        return;
-      }
+    addStyles();
+    const placeholder = document.createElement("div");
+    placeholder.className = MODULE_CLASSES.SUBSCRIPTION;
+    placeholder.dataset.steamAppId = String(id);
+    noTranslate(placeholder);
+    const title = document.createElement("div");
+    title.className = "st_subscription_title";
+    title.textContent = i18n("store.subscription.title", "会员检查");
+    placeholder.appendChild(title);
+    const body = document.createElement("div");
+    placeholder.appendChild(body);
+    api.dom.loading.show(body, "note");
+    if (!insertModule(placeholder, MODULE_CLASSES.SUBSCRIPTION, false, true)) {
+      api.dom.loading.clear(placeholder);
+      return Promise.resolve();
+    }
+    api.dom.loading.activate(placeholder);
+    const valid = () => detailActive && seq === detailSeq && placeholder.isConnected && pageAppId() === String(id);
+    const task = api.dom.loading.afterPaint(valid).then(async ready => {
+      if (!ready) return;
+      const game = await fetchGame(id);
+      if (!valid()) return;
+      api.dom.loading.clear(placeholder);
+      placeholder.remove();
       renderDetail(game);
-    }).catch((error) => {
-      if (!detailActive || seq !== detailSeq) {
-        return;
-      }
-      log?.warn?.("subscription-detail-failed", "第三方会员详情提醒加载失败", pageMeta({
-        appid: id,
-        error,
-      }));
+    }).catch(error => {
+      if (!detailActive || seq !== detailSeq) return;
+      api.dom.loading.clear(placeholder);
+      placeholder.remove();
+      log?.warn?.("subscription-detail-failed", "第三方会员详情提醒加载失败", pageMeta({ appid: id, error }));
+    }).finally(() => {
+      api.dom.loading.clear(placeholder);
+      placeholder.remove();
+      if (detailTask === task) detailTask = null;
     });
+    detailTask = task;
+    return task;
   }
 
   function isImageTarget(node) {
@@ -240,14 +268,6 @@
     });
   }
 
-  function markPending(target, id) {
-    const node = target.node;
-    node.classList.add("st_subscription_target");
-    node.dataset.stSubId = String(id);
-    node.dataset.stSubType = target.type;
-    node.dataset.stSubScope = target.scope;
-  }
-
   function removeEmptyBadgeHost(container) {
     if (!container?.classList?.contains("st_subscription_badges")) return;
     if (container.querySelector(".st_subscription_badge")) return;
@@ -259,7 +279,8 @@
       const host = badge.closest(".st_subscription_badges");
       const target = host?.parentElement;
       if (scope && target?.dataset?.stSubScope !== scope) return;
-      badge.remove();
+      const slot = badge.closest(".st_subscription_badge_slot");
+      (slot || badge).remove();
       removeEmptyBadgeHost(host);
     });
   }
@@ -277,118 +298,74 @@
     return true;
   }
 
-  function ensureBadgeHost(target) {
-    const node = target.node;
-    let host = node.querySelector(":scope > .st_subscription_badges");
-    if (!host) {
-      host = document.createElement("div");
-      host.className = "st_subscription_badges";
-      noTranslate(host);
-      node.appendChild(host);
+  function badgeJob(token, game, loading = false, failed = false) {
+    const target = token.target;
+    const content = [];
+    if (loading) {
+      const badge = document.createElement("span");
+      badge.className = "st_subscription_badge st_subscription_service_badge st_subscription_loading";
+      badge.appendChild(api.dom.loading.create("badge"));
+      badge.title = i18n("common.loading", "正在加载");
+      noTranslate(badge);
+      content.push(badge);
     }
-    host.classList.toggle("is-row", target.type === "row");
-    host.classList.toggle("is-tile", target.type === "tile");
-    host.classList.toggle("is-cart", target.type === "cart");
-    host.classList.toggle("is-image", target.type === "image");
-    return host;
-  }
-
-  function positionBadgeHost(target, host) {
-    const node = target?.node;
-    if (!node || !host) return false;
-    if (target.type === "cart") {
-      return api.dom.positionCartBadgeHost?.(node, host, target.image) === true;
-    }
-    if (target.type === "image") {
-      const image = target.image || api.dom.imageBadgeForNode?.(node, target.appId);
-      return api.dom.positionImageBadgeHost?.(node, host, image, target.badgePlacement) === true;
-    }
-    if (getComputedStyle(node).position === "static") {
-      node.classList.add("st_subscription_pos");
-    }
-    return true;
-  }
-
-  function renderBadge(target, game) {
-    const node = target?.node;
-    if (!node || !game) return false;
-    removeSubscriptionBadges(node);
-    const subs = activeSubs(game);
-    if (subs.length === 0) return false;
-
-    const host = ensureBadgeHost(target);
-    if (!positionBadgeHost(target, host)) {
-      removeSubscriptionBadges(node);
-      return false;
-    }
-
-    subs.forEach((item) => {
+    activeSubs(game).forEach((item) => {
       const badge = document.createElement("span");
       badge.className = `st_subscription_badge st_subscription_service_badge st_subscription_${item.platform}`;
       badge.textContent = item.info.short;
       badge.title = lineText(item);
       noTranslate(badge);
-      host.appendChild(badge);
+      content.push(badge);
     });
-    node.dataset.stSubDone = "1";
-    return true;
+    return {
+      target, content, loading, order: 1, valid: token.valid,
+      commit() {
+        const node = target.node;
+        node.classList.add("st_subscription_target");
+        node.dataset.stSubId = String(target.appId);
+        node.dataset.stSubType = target.type;
+        node.dataset.stSubScope = target.scope;
+        node.dataset.stSubDone = loading ? "0" : failed ? "error" : "1";
+      },
+    };
   }
 
-
-
-  function scanLists(nodes = []) {
-    if (typeof fetchGames !== "function") return;
-    if (activeBadgeScopes.size === 0) return;
-    const seq = badgeSeq;
-    clearTextLinkBadges();
-    const ids = [];
-
-    nodes.forEach((target) => {
-      const node = target.node;
-      const id = parseInt(target.appId, 10);
-      if (!Number.isFinite(id) || id <= 0) return;
-      if (node.dataset.stSubId === String(id)
-          && node.dataset.stSubDone === "1"
-          && node.querySelector(":scope > .st_subscription_badges .st_subscription_service_badge")) {
-        const host = node.querySelector(":scope > .st_subscription_badges");
-        positionBadgeHost(target, host);
-        return;
+  // 缓存命中直接准备结果；未命中先绘制骨架，再沿用批量 API
+  // token 绑定原商品快照，返回后不再从节点的可变 dataset 重新认领游戏
+  async function scanLists(nodes = []) {
+    if (!activeBadgeScopes.size || document.hidden) return;
+    const jobs = [];
+    const missing = [];
+    for (const target of nodes) {
+      if (!activeBadgeScopes.has(target.scope)) continue;
+      const claim = api.appCardBadgeScanner.claim(FEATURE_ID, target);
+      if (!claim) continue;
+      if (!claim.fresh) {
+        if (target.changed) api.dom.repositionBadge(target);
+        continue;
       }
-      markPending(target, id);
-      ids.push(id);
-    });
-
-    const uniq = Array.from(new Set(ids));
-    if (uniq.length === 0) {
-
-      return;
+      const game = api.subs.getCachedGame(target.appId);
+      jobs.push(badgeJob(claim.token, game, !game));
+      if (!game) missing.push(claim.token);
     }
-
-    fetchGames(uniq).then((games) => {
-      if (seq !== badgeSeq || activeBadgeScopes.size === 0) {
+    const writes = [api.dom.writeBadgeBatch(FEATURE_ID, jobs)];
+    await writes[0];
+    if (missing.length) {
+      try {
+        if (!await api.dom.loading.afterPaint(() => missing.some(token => token.valid()))) return;
+        const games = await fetchGames(Array.from(new Set(missing.map(token => token.target.appId))));
+        const map = new Map(games.map(game => [String(game.sid), game]));
+        writes.push(api.dom.writeBadgeBatch(FEATURE_ID, missing.filter(token => token.valid())
+          .map(token => badgeJob(token, map.get(String(token.target.appId))))));
+      } catch (error) {
+        const current = missing.filter(token => token.valid());
+        writes.push(api.dom.writeBadgeBatch(FEATURE_ID, current.map(token => badgeJob(token, null, false, true))));
+        await Promise.all(writes);
+        if (current.length) throw error;
         return;
       }
-      const map = new Map(games.map((game) => [String(game.sid), game]));
-      let mountedCount = 0;
-      nodes.forEach((target) => {
-        const node = target.node;
-        if (!node?.isConnected || !activeBadgeScopes.has(target.scope)) return;
-        const id = node.dataset.stSubId;
-        const game = map.get(id);
-        if (!game) return;
-        if (renderBadge(target, game)) {
-          mountedCount += 1;
-        }
-      });
-
-    }).catch((error) => {
-      if (seq !== badgeSeq || activeBadgeScopes.size === 0) {
-        return;
-      }
-      log?.warn?.("subscription-badge-scan-failed", "第三方会员角标扫描失败", pageMeta({
-        error,
-      }));
-    });
+    }
+    await Promise.all(writes);
   }
 
   function addStyles() {
@@ -400,12 +377,13 @@
 
   function startBadges(scope = "store") {
     const normalized = BADGE_SETTING_IDS[scope] ? scope : "store";
+    if (!activeBadgeScopes.has(normalized)) clearTextLinkBadges();
     activeBadgeScopes.add(normalized);
     addStyles();
     const result = api.appCardBadgeScanner?.start?.(FEATURE_ID, normalized, {
       scan: scanLists,
       onError(error) {
-        log?.warn?.("subscription-badge-scan-failed", "第三方会员角标扫描失败", pageMeta({
+        log?.error?.("subscription-badge-scan-failed", "第三方会员角标扫描失败", pageMeta({
           error,
         }));
       },
@@ -430,7 +408,9 @@
   function stopDetail() {
     detailActive = false;
     detailSeq += 1;
-    document.querySelectorAll(`.${MODULE_CLASSES.SUBSCRIPTION}`).forEach(node => node.remove());
+    detailAppId = "";
+    detailTask = null;
+    document.querySelectorAll(`.${MODULE_CLASSES.SUBSCRIPTION}`).forEach(node => { api.dom.loading.clear(node); node.remove(); });
     removeFeatureStyleIfIdle();
     return true;
   }
@@ -440,13 +420,13 @@
   }
 
   function stopBadges(scope = "") {
-    badgeSeq += 1;
     if (scope && BADGE_SETTING_IDS[scope]) {
       activeBadgeScopes.delete(scope);
     } else {
       activeBadgeScopes.clear();
     }
     const cleanupScope = scope && BADGE_SETTING_IDS[scope] ? scope : "";
+    api.dom.cancelBadgeWrites(FEATURE_ID, cleanupScope);
     removeSubscriptionBadges(document, cleanupScope);
     document.querySelectorAll(".st_subscription_target").forEach((node) => {
       clearSubscriptionTarget(node, cleanupScope);
@@ -465,8 +445,8 @@
 
   function stop() {
     stopDetail();
-    badgeSeq += 1;
     activeBadgeScopes.clear();
+    api.dom.cancelBadgeWrites(FEATURE_ID);
     removeSubscriptionBadges();
     document.querySelectorAll(".st_subscription_badges").forEach(removeEmptyBadgeHost);
     document.querySelectorAll(".st_subscription_target").forEach((node) => {

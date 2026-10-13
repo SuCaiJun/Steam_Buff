@@ -51,6 +51,7 @@
   let wishlistSettleChecks = 0;
   let renderingWishlist = false;
   let detailAppid = 0;
+  let loadSeq = 0;
   let cache = new Map();
   let pending = new Set();
 
@@ -182,6 +183,8 @@
   }
 
   async function fetchNotes(appids) {
+    const ticket = loadSeq;
+    const requestPending = pending;
     const ids = Array.from(new Set((appids || []).map(Number).filter(id => id > 0 && !cache.has(id) && !pending.has(id))));
     if (!ids.length) return;
     try {
@@ -193,11 +196,14 @@
       });
       return;
     }
-    ids.forEach(id => pending.add(id));
+    if (ticket !== loadSeq) return;
+    ids.forEach(id => requestPending.add(id));
     for (const part of chunk(ids, BATCH_SIZE)) {
+      if (ticket !== loadSeq) break;
       const startedAt = Date.now();
       try {
         const body = await authedPost(QUERY_URL, { appids: part });
+        if (ticket !== loadSeq) return;
         const found = new Set();
         for (const row of body.data || []) {
           const appid = Number(row.appid) || 0;
@@ -224,7 +230,7 @@
           error,
         });
       } finally {
-        part.forEach(id => pending.delete(id));
+        part.forEach(id => requestPending.delete(id));
       }
     }
   }
@@ -256,7 +262,7 @@
     }, "note");
   }
 
-  function renderNote(host, appid, note, steamName) {
+  function renderNote(host, appid, note, steamName, loading = false) {
     host.classList.add("st-game-notes");
     const isWishlist = host.classList.contains("st-game-notes-wishlist");
     const idText = String(appid || "");
@@ -264,12 +270,13 @@
     if (host.hasAttribute("data-appid")) host.removeAttribute("data-appid");
     if (host.dataset.stAppid !== idText) host.dataset.stAppid = idText;
     if (host.dataset.steamName !== nameText) host.dataset.steamName = nameText;
-    const key = JSON.stringify([appid, String(note || ""), steamName || ""]);
+    const key = JSON.stringify([appid, String(note || ""), steamName || "", loading]);
     if (host._stGameNotesKey === key && host.querySelector(".st-game-notes-body")) {
-      requestAnimationFrame(() => updateMore(host));
+      if (!loading) requestAnimationFrame(() => updateMore(host));
       return;
     }
     host._stGameNotesKey = key;
+    api.dom.loading.clear(host);
     host.replaceChildren();
 
     const line = document.createElement("div");
@@ -288,7 +295,9 @@
     const body = document.createElement("span");
     body.className = "st-game-notes-body";
     const value = String(note || "");
-    if (value) {
+    if (loading) {
+      api.dom.loading.show(body, "line");
+    } else if (value) {
       const rendered = core.renderBBCode(value).html;
       dom.setTrustedHTML(body, dom.trustedHTML(rendered, "game-notes-bbcode-sanitized"));
       body.querySelectorAll("a[href]").forEach(link => {
@@ -315,6 +324,7 @@
         activate();
       });
       host.appendChild(line);
+      api.dom.loading.activate(host);
       return;
     }
 
@@ -328,12 +338,17 @@
     });
     line.appendChild(more);
     host.appendChild(line);
-    requestAnimationFrame(() => updateMore(host));
+    api.dom.loading.activate(host);
+    if (!loading) requestAnimationFrame(() => updateMore(host));
   }
 
   function updateVisible(appid) {
+    if (!api.settings.on(FEATURE_ID)) return;
     const current = cache.get(appid) || { note: "", steamName: "" };
     document.querySelectorAll(`.st-game-notes[data-st-appid="${appid}"]`).forEach(host => {
+      const currentId = host.classList.contains("st-game-notes-wishlist")
+        ? rowAppid(wishlistDom.rowFromNode(host)) : pageInfo()?.appid;
+      if (currentId !== appid) { api.dom.loading.clear(host); return; }
       renderNote(host, appid, current.note, current.steamName || host.dataset.steamName || "");
     });
   }
@@ -385,8 +400,11 @@
     } else if (host.previousElementSibling !== title) {
       title.insertAdjacentElement("afterend", host);
     }
-    renderNote(host, info.appid, cache.get(info.appid)?.note || "", steamNameForApp(info.appid));
-    fetchNotes([info.appid]).then(() => updateVisible(info.appid)).catch((error) => {
+    const loading = !cache.has(info.appid) && (!host._stGameNotesKey || host.dataset.stAppid !== String(info.appid) || !!host.querySelector(".st-store-skeleton"));
+    renderNote(host, info.appid, cache.get(info.appid)?.note || "", steamNameForApp(info.appid), loading);
+    const ticket = loadSeq;
+    const valid = () => ticket === loadSeq && host.isConnected && host.dataset.stAppid === String(info.appid) && pageInfo()?.appid === info.appid && api.settings.on(FEATURE_ID);
+    (loading ? api.dom.loading.afterPaint(valid).then(ready => ready ? fetchNotes([info.appid]) : null) : Promise.resolve()).then(() => { if (valid()) updateVisible(info.appid); }).catch((error) => {
       globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "notes", event: "start-detail-failed", message: "商店功能处理失败", level: "error", phase: "startDetail" });});
     scheduleDetailSettleCheck();
     return true;
@@ -441,8 +459,10 @@
   async function batchFetchWishlistNotes(appids) {
     const ids = Array.from(new Set((appids || []).map(Number).filter(id => id > 0 && !cache.has(id) && !pending.has(id))));
     if (!ids.length) return;
+    const ticket = loadSeq;
+    if (!await api.dom.loading.afterPaint(() => ticket === loadSeq && isWishlistPath() && api.settings.on(FEATURE_ID))) return;
     await fetchNotes(ids);
-    ids.forEach(updateVisible);
+    if (ticket === loadSeq && api.settings.on(FEATURE_ID)) ids.forEach(updateVisible);
   }
 
   function renderWishlistRows() {
@@ -454,11 +474,12 @@
       for (const row of rows) {
         const appid = rowAppid(row);
         if (!appid) continue;
-        appids.push(appid);
         const host = wishlistNoteHost(row);
         if (!host) continue;
         const cached = cache.get(appid) || { note: "", steamName: steamNameForApp(appid, row) };
-        renderNote(host, appid, cached.note, cached.steamName || steamNameForApp(appid, row));
+        const loading = !cache.has(appid) && (!host._stGameNotesKey || host.dataset.stAppid !== String(appid) || !!host.querySelector(".st-store-skeleton"));
+        if (loading) appids.push(appid);
+        renderNote(host, appid, cached.note, cached.steamName || steamNameForApp(appid, row), loading);
       }
     } finally {
       renderingWishlist = false;
@@ -582,6 +603,8 @@
   }
 
   function stop() {
+    loadSeq += 1;
+    pending = new Set();
     wishlistObserver?.disconnect();
     wishlistShellObserver?.disconnect();
     clearTimeout(detailTimer);
@@ -599,7 +622,7 @@
     wishlistContainer = null;
     wishlistShell = null;
     wishlistTimer = 0;
-    document.querySelectorAll(".st-game-notes").forEach(node => node.remove());
+    document.querySelectorAll(".st-game-notes").forEach(node => { api.dom.loading.clear(node); node.remove(); });
   }
 
   function start() {

@@ -19,7 +19,6 @@
   const RAIL_MIN_TOP = 24;
   const RAIL_MARGIN = 24;
   const DRAG_THRESHOLD = 10;
-  const TOP_SHOW_Y = 1500;
   const OPEN_EVT = "STSettingsOpen";
   const OPEN_CAT = "steamBuffOpenCat";
   const OPEN_ACK = "steamBuffOpenAck";
@@ -471,7 +470,6 @@
         dragThreshold: DRAG_THRESHOLD,
         minTop: RAIL_MIN_TOP,
         margin: RAIL_MARGIN,
-        topShowY: TOP_SHOW_Y,
         openEvent: OPEN_EVT,
         openCatDataset: OPEN_CAT,
         openAckDataset: OPEN_ACK,

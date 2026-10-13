@@ -13,6 +13,10 @@
 
   const api = window.STStore;
   if (!api) return;
+  const observerUtils = window.STObserverUtils;
+  if (typeof observerUtils?.createVisibilityGatedObserver !== "function") {
+    throw new Error("商品角标扫描器缺少 Observer 生命周期依赖");
+  }
 
   const OWNER = "store:app-card-badge-scanner";
   const SCAN_DELAY_MS = 1000;
@@ -46,14 +50,26 @@
   const VALID_SCOPES = Object.freeze(new Set(["store", "wishlist", "cart"]));
 
   const entries = new Map();
+  const roots = new Set();
+  const changedCards = new Set();
+  const CART_SELECTOR = ".st_cart_select_row[data-st-cart-select-ready], [data-st-cart-line-id]";
+  const OBSERVER_OPTIONS = Object.freeze({
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["data-ds-appid", "href", "src", "data-st-cart-line-id", "data-st-cart-select-ready"],
+  });
   const disposers = new Set();
   const log = window.STLoggerFactory?.createLogger?.("store", "app-card-badge-scanner");
   let scanTimer = null;
+  let cancelScanTimer = null;
   let observer = null;
   let observerTarget = null;
   let bootstrapRetryCount = 0;
   let missingTargetLogAt = 0;
   let missingTargetLogKey = "";
+  let needsFullScan = true;
+  let scopeVersion = 0;
 
   function normalizeScope(scope) {
     const text = String(scope || "store");
@@ -149,7 +165,7 @@
     return scopes;
   }
 
-  function regularTargets(scopes) {
+  function selectorsFor(scopes) {
     const selectors = [];
     if (scopes.has("store")) {
       selectors.push(
@@ -170,10 +186,16 @@
         "#wishlist_list a[href*='/app/']",
       );
     }
-    if (!selectors.length) return [];
+    return selectors.join(",");
+  }
 
+  function regularTargets(scopes, root) {
+    const selector = selectorsFor(scopes);
+    if (!selector || !root) return [];
     const nodes = [];
-    document.querySelectorAll(selectors.join(",")).forEach((node) => {
+    const candidates = new Set(root.querySelectorAll(selector));
+    if (root.nodeType === Node.ELEMENT_NODE && root.matches(selector)) candidates.add(root);
+    candidates.forEach((node) => {
       const base = node.closest("[data-ds-appid]") || node;
       if (isExcludedTarget(base)) {
         cleanupExcludedTarget(base);
@@ -182,7 +204,8 @@
       const id = appIdForNode(base);
       if (!id || !isImageTarget(base)) return;
       const scope = scopes.has("wishlist") && base.closest("#wishlist_ctn, #wishlist_list") ? "wishlist" : "store";
-      const image = api.dom.imageBadgeForNode?.(base, id);
+      const image = api.dom.imageBadgeForNode(base, id);
+      if (!image && !isCardLikeTarget(base)) return;
       nodes.push({
         node: base,
         appId: id,
@@ -195,9 +218,9 @@
     return nodes;
   }
 
-  function cartTargets(scopes) {
+  function cartTargets(scopes, root = document) {
     if (!scopes.has("cart")) return [];
-    return (api.dom.cartBadgeTargets?.() || []).map(item => ({
+    return api.dom.cartBadgeTargets(root).map(item => ({
       node: item.node,
       appId: item.appId,
       image: item.image,
@@ -210,8 +233,7 @@
   function findCartObserverTarget() {
     const direct = document.querySelector("[data-st-cart-line-id]")?.parentElement
       || document.querySelector(".st_cart_select_row")?.parentElement;
-    if (direct) return direct;
-    return cartTargets(new Set(["cart"]))[0]?.node?.parentElement || null;
+    return direct || null;
   }
 
   function storeHomeObserverTarget() {
@@ -229,12 +251,7 @@
       return null;
     }
     // 注: Store 首页推荐流没有搜索页那类固定列表 id，用主页内容容器承载多个轮播区的低频变更。
-    return candidate.closest(".main_content_ctn")
-      || candidate.closest(".home_page_body_ctn")
-      || candidate.closest(".home_cluster_ctn")
-      || candidate.closest(".carousel_container")
-      || candidate.closest(".carousel_items")
-      || null;
+    return candidate.closest(".main_content_ctn");
   }
 
   function dedupeTargets(items) {
@@ -277,21 +294,109 @@
     return true;
   }
 
-  function targetsFor(scopes = activeScopes()) {
+  function targetsFor(scopes = activeScopes(), root = document) {
+    if (!root) return [];
     if (scopes.has("store")) {
-      cleanupExcludedTargets();
+      cleanupExcludedTargets(root);
     }
-    return dedupeTargets([...regularTargets(scopes), ...cartTargets(scopes)]);
+    return dedupeTargets([...regularTargets(scopes, root), ...cartTargets(scopes, root)]).map(target => ({
+      ...target,
+      route: location.href,
+      imageSrc: target.image?.getAttribute("src") || "",
+    }));
+  }
+
+  function isCurrent(target) {
+    const { node, image } = target;
+    if (!node.isConnected || target.route !== location.href || isExcludedTarget(node)) return false;
+    const id = target.scope === "cart"
+      ? appIdFromUrl(node.querySelector("a[href*='/app/']")?.href)
+      : appIdForNode(node);
+    if (id !== target.appId) return false;
+    return !image || (node.contains(image) && image.getAttribute("src") === target.imageSrc
+      && appIdFromUrl(image.closest("a[href*='/app/']")?.href) === target.appId);
+  }
+
+  // 每个功能独立认领商品快照；停止/重启范围、换页或节点复用都会使旧 token 失效
+  // fresh=false 表示已经处理同一快照（包括空结果），不重新请求或绘制内容
+  function claim(featureId, target) {
+    const entry = entries.get(featureId);
+    if (!entry || !entry.scopes.has(target.scope) || !isCurrent(target)) return null;
+    const version = entry.versions.get(target.scope);
+    const old = entry.records.get(target.node);
+    if (old && old.version === version && old.target.appId === target.appId
+        && old.target.image === target.image && old.target.imageSrc === target.imageSrc
+        && old.target.route === target.route && old.target.type === target.type
+        && old.target.scope === target.scope && old.target.badgePlacement === target.badgePlacement) {
+      return { token: old, fresh: false };
+    }
+    const token = { target, version };
+    token.valid = () => entries.get(featureId) === entry && entry.scopes.has(target.scope)
+      && entry.versions.get(target.scope) === version && entry.records.get(target.node) === token && isCurrent(target);
+    entry.records.set(target.node, token);
+    return { token, fresh: true };
+  }
+
+  function ownNode(node) {
+    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    return !!element?.closest(".st_subscription_badges");
+  }
+
+  function closestCard(node, scopes) {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) return null;
+    const selector = [selectorsFor(scopes), scopes.has("cart") ? CART_SELECTOR : ""].filter(Boolean).join(",");
+    return selector ? node.closest(selector) : null;
+  }
+
+  function forgetCard(node) {
+    entries.forEach(entry => entry.records.delete(node));
+    api.dom.releaseBadgeTarget(node);
+  }
+
+  // 删除子树只释放其中真实商品；替换图片时也立刻撤销所属商品的旧 token
+  function forgetRemoved(node, parent, scopes) {
+    if (node.nodeType !== Node.ELEMENT_NODE || ownNode(node)) return;
+    const selector = [selectorsFor(scopes), scopes.has("cart") ? CART_SELECTOR : ""].filter(Boolean).join(",");
+    if (!selector) return;
+    if (node.matches(selector)) forgetCard(node.closest("[data-ds-appid]") || node);
+    node.querySelectorAll(selector).forEach(card => forgetCard(card.closest("[data-ds-appid]") || card));
+    const card = closestCard(parent, scopes);
+    if (!card) return;
+    for (const entry of entries.values()) {
+      const image = entry.records.get(card)?.target.image;
+      if (image && (node === image || node.contains(image))) { forgetCard(card); break; }
+    }
+  }
+
+  function onMutation(records) {
+    const scopes = activeScopes();
+    let relevant = false;
+    for (const record of records) {
+      if (ownNode(record.target)) continue;
+      if (record.type === "attributes") {
+        const card = closestCard(record.target, scopes);
+        if (card) { changedCards.add(card); relevant = true; }
+        continue;
+      }
+      const added = Array.from(record.addedNodes).filter(node => node.nodeType === Node.ELEMENT_NODE && !ownNode(node));
+      const removed = Array.from(record.removedNodes).filter(node => !ownNode(node));
+      if (!added.length && !removed.length) continue;
+      added.forEach(node => roots.add(node));
+      removed.forEach(node => forgetRemoved(node, record.target, scopes));
+      const card = closestCard(record.target, scopes);
+      if (card) changedCards.add(card);
+      if (added.length || card) relevant = true;
+    }
+    if (relevant) queueScan(OBSERVER_DEBOUNCE_MS);
   }
 
   function stopRuntime() {
-    if (scanTimer) {
-      clearTimeout(scanTimer);
-      scanTimer = null;
-    }
+    cancelScanTimer?.();
     observer?.disconnect?.();
     observer = null;
     observerTarget = null;
+    roots.clear();
+    changedCards.clear();
     window.STRuntime?.current?.()?.disposeOwner?.(OWNER);
     Array.from(disposers).forEach(dispose => dispose());
     disposers.clear();
@@ -299,8 +404,20 @@
 
   function scan() {
     const scopes = activeScopes();
-    if (scopes.size === 0) return 0;
-    const targets = targetsFor(scopes);
+    if (scopes.size === 0 || document.hidden || !observerTarget) return 0;
+    const full = needsFullScan;
+    needsFullScan = false;
+    const sourceSet = new Set(full ? [observerTarget] : [...roots, ...changedCards]);
+    const sources = Array.from(sourceSet).filter(root => {
+      for (let parent = root.parentElement; parent && observerTarget.contains(parent); parent = parent.parentElement) {
+        if (sourceSet.has(parent)) return false;
+      }
+      return true;
+    });
+    roots.clear();
+    changedCards.clear();
+    const targets = dedupeTargets(sources.filter(root => root.isConnected && observerTarget.contains(root))
+      .flatMap(root => targetsFor(scopes, root))).map(target => ({ ...target, changed: !full }));
     for (const [featureId, entry] of entries.entries()) {
       const featureTargets = targets.filter(target => entry.scopes.has(target.scope));
       try {
@@ -330,7 +447,7 @@
   }
 
   function queueScan(delay = SCAN_DELAY_MS) {
-    if (scanTimer || entries.size === 0) return;
+    if (scanTimer || entries.size === 0 || document.hidden) return;
     let disposeTimer = null;
     let timerResource = null;
     const waitMs = Math.max(0, Number(delay) || 0);
@@ -346,9 +463,11 @@
     disposeTimer = track(() => {
       if (scanTimer === timerId) {
         scanTimer = null;
+        cancelScanTimer = null;
       }
       clearTimeout(timerId);
     });
+    cancelScanTimer = disposeTimer;
     timerResource = window.STRuntime?.current?.()?.registerResource?.({
       owner: OWNER,
       key: "scan-timer",
@@ -362,11 +481,9 @@
     if (scopes.size === 0) return false;
     const target = findObserverTarget(scopes);
     if (!target) {
-      const candidateCount = targetsFor(scopes).length;
-      if (shouldLogMissingTarget(scopes, candidateCount)) {
+      if (shouldLogMissingTarget(scopes, 0)) {
         log?.debug?.("app-card-badge-target-missing", "商店 app 卡片角标监听目标缺失", pageMeta({
           scopes: Array.from(scopes).join(","),
-          candidateCount,
         }));
       }
       return false;
@@ -375,11 +492,9 @@
 
     stopRuntime();
     observerTarget = target;
-    observer = window.STObserverUtils?.createDebouncedObserver?.(() => queueScan(0), OBSERVER_DEBOUNCE_MS)
-      || new MutationObserver(() => queueScan(SCAN_DELAY_MS));
-    // 优化: 只监听真实商品列表容器，DOM 波动后统一排队扫描一次，避免两个角标功能各自遍历。
-    window.STObserverUtils?.createVisibilityGatedObserver?.(observer, target, { childList: true, subtree: true })
-      || observer.observe(target, { childList: true, subtree: true });
+    observer = new MutationObserver(onMutation);
+    // 商品、链接和图片嵌套在列表后代中；过滤自有角标后只处理变化子树，不重扫整页
+    observerUtils.createVisibilityGatedObserver(observer, target, OBSERVER_OPTIONS);
     const disposeObserver = track(() => observer?.disconnect?.());
     window.STRuntime?.current?.()?.registerResource?.({
       owner: OWNER,
@@ -388,7 +503,7 @@
       dispose: disposeObserver,
     });
 
-    const scheduleScan = () => queueScan(SCAN_DELAY_MS);
+    const scheduleScan = () => { needsFullScan = true; queueScan(SCAN_DELAY_MS); };
     window.addEventListener("pageshow", scheduleScan);
     const disposePageShow = track(() => window.removeEventListener("pageshow", scheduleScan));
     window.STRuntime?.current?.()?.registerResource?.({
@@ -398,6 +513,18 @@
       meta: { event: "pageshow" },
       dispose: disposePageShow,
     });
+    const onVisibility = () => {
+      if (document.hidden) {
+        cancelScanTimer?.();
+        roots.clear();
+        changedCards.clear();
+        needsFullScan = true;
+      } else {
+        scheduleScan();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    track(() => document.removeEventListener("visibilitychange", onVisibility));
     return true;
   }
 
@@ -406,8 +533,9 @@
     if (!featureId || typeof handler?.scan !== "function") return { started: false, observerReady: false };
     const wasIdle = entries.size === 0;
     const normalized = normalizeScope(scope);
-    const entry = entries.get(featureId) || { scopes: new Set(), handler };
+    const entry = entries.get(featureId) || { scopes: new Set(), versions: new Map(), records: new WeakMap(), handler };
     entry.handler = handler;
+    if (!entry.scopes.has(normalized)) entry.versions.set(normalized, ++scopeVersion);
     entry.scopes.add(normalized);
     entries.set(featureId, entry);
     if (wasIdle) {
@@ -417,6 +545,7 @@
       cleanupExcludedTargets();
     }
     const observerReady = setupObserver();
+    needsFullScan = true;
     queueScan(SCAN_DELAY_MS);
     return { started: true, observerReady };
   }
@@ -440,6 +569,7 @@
       return true;
     }
     setupObserver();
+    needsFullScan = true;
     queueScan(SCAN_DELAY_MS);
     return true;
   }
@@ -447,8 +577,10 @@
   api.appCardBadgeScanner = Object.freeze({
     start,
     stop,
-    queue: queueScan,
+    queue(delay = SCAN_DELAY_MS) { needsFullScan = true; queueScan(delay); },
     targets: targetsFor,
+    claim,
+    isCurrent,
     diagnostics() {
       return {
         activeFeatureCount: entries.size,

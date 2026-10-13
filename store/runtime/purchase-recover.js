@@ -52,10 +52,10 @@
     const purchaseTargets = Array.from(document.querySelectorAll("#game_area_purchase"));
     if (!purchaseTargets.some(target => isUsableInsertTarget(target, "game_area_purchase"))) return false;
 
-    if (api.settings?.on?.("family-sharing") && !hasUsableModule(MODULE_CLASSES.FAMILY_SHARING)) return true;
+    if (api.settings?.on?.("family-sharing") && api.features.familySharing.needsRestore(pageInfo.appId)) return true;
     const languagesTable = document.querySelector("table.game_language_options");
     if (api.settings?.on?.("audio-check") && languagesTable && !hasUsableModule(MODULE_CLASSES.AUDIO_CHECK)) return true;
-    if (api.settings?.on?.("workshop-check") && MODULE_CLASSES.WORKSHOP_CHECK && !hasUsableModule(MODULE_CLASSES.WORKSHOP_CHECK)) return true;
+    if (api.settings?.on?.("workshop-check") && api.features.workshopCheck.needsRestore(pageInfo.appId)) return true;
 
     if (api.settings?.on?.("subscription-info")
       && window.__stSubscriptionActiveAppId === pageInfo.appId
