@@ -15,12 +15,10 @@
   const EVENT = "STReviewFilterNativeLayout";
   const ROOT_ID = "AppHubCards";
   const CONTENT_ID = "AppHubContent";
-  const CARD_SEL = ".apphub_Card, [data-recommendationid]";
+  const CARD_SEL = ".apphub_Card";
   const ROW_SEL = ".apphub_CardRow";
   const PARK_ATTR = "data-st-review-filter-park";
   const HIDDEN_ATTR = "stReviewFilterHidden";
-  const PLAYTIME_RE = /小时游戏时间记录|小时\s*发布于|总时数\s*[\d,.]+\s*小时|[\d,.]+\s*小时\s*总时数|\b(?:hrs?|hours?)\s+on\s+record\b/i;
-  const POSTED_RE = /发布于|\bPosted\b:?/i;
   const WAIT_MS = 80;
 
   if (window[FLAG]) {
@@ -29,15 +27,6 @@
   window[FLAG] = true;
 
   let timer = null;
-
-  function text(el) {
-    return String(el?.innerText || el?.textContent || "").replace(/\s+/g, " ").trim();
-  }
-
-  function reviewCard(el) {
-    const value = text(el);
-    return value && PLAYTIME_RE.test(value) && POSTED_RE.test(value);
-  }
 
   function triggerResize() {
     try {
@@ -76,7 +65,7 @@
 
   function visibleCards(root) {
     return Array.from(root.querySelectorAll(CARD_SEL))
-      .filter(card => !hidden(card) && reviewCard(card));
+      .filter(card => !hidden(card));
   }
 
   function hiddenCards(root) {
