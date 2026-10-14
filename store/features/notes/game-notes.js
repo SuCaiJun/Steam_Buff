@@ -31,25 +31,14 @@
   const DETAIL_RETRY_LIMIT = 20;
   const DETAIL_RETRY_MS = 250;
   const DETAIL_SETTLE_LIMIT = 10;
-  const WISHLIST_RENDER_DEBOUNCE_MS = 1000;
-  const WISHLIST_OBSERVER_DEBOUNCE_MS = 1000;
-  const WISHLIST_SETTLE_RETRY_MS = 300;
-  const WISHLIST_SETTLE_MAX = 8;
 
   const wishlistDom = api.wishlistDom;
   const dom = root.STDomUtils || {};
   let detailTimer = 0;
+  let wishlistSubscription = null;
   let detailSettleTimer = 0;
   let detailRetries = 0;
   let detailSettleChecks = 0;
-  let wishlistObserver = null;
-  let wishlistShellObserver = null;
-  let wishlistContainer = null;
-  let wishlistShell = null;
-  let wishlistTimer = 0;
-  let wishlistSettleTimer = 0;
-  let wishlistSettleChecks = 0;
-  let renderingWishlist = false;
   let detailAppid = 0;
   let loadSeq = 0;
   let cache = new Map();
@@ -443,121 +432,46 @@
     return host;
   }
 
-  function wishlistHostReady(row) {
+  function renderWishlistRow(row, completed = false) {
     const appid = rowAppid(row);
-    if (!appid) return true;
-    const parent = wishlistMetadataHost(row);
-    const host = row.querySelector(".st-game-notes-wishlist");
-    return !!parent && !!host && host.parentElement === parent && host.dataset.stAppid === String(appid);
+    if (!appid) {
+      const host = row.querySelector(".st-game-notes-wishlist");
+      if (host) { api.dom.loading.clear(host); host.remove(); }
+      return 0;
+    }
+    const host = wishlistNoteHost(row);
+    if (!host) return 0;
+    const cached = cache.get(appid) || { note: "", steamName: steamNameForApp(appid, row) };
+    const loading = !completed && !cache.has(appid)
+      && (!host._stGameNotesKey || host.dataset.stAppid !== String(appid) || !!host.querySelector(".st-store-skeleton"));
+    renderNote(host, appid, cached.note, cached.steamName || steamNameForApp(appid, row), loading);
+    return loading ? appid : 0;
   }
 
-  function wishlistRowsReady() {
-    const rows = (wishlistDom?.rows?.(document) || []).filter(row => rowAppid(row));
-    return rows.length > 0 && rows.every(wishlistHostReady);
+  function renderWishlistRows(targets) {
+    return targets.map(row => renderWishlistRow(row)).filter(Boolean);
   }
 
   async function batchFetchWishlistNotes(appids) {
-    const ids = Array.from(new Set((appids || []).map(Number).filter(id => id > 0 && !cache.has(id) && !pending.has(id))));
-    if (!ids.length) return;
     const ticket = loadSeq;
-    if (!await api.dom.loading.afterPaint(() => ticket === loadSeq && isWishlistPath() && api.settings.on(FEATURE_ID))) return;
-    await fetchNotes(ids);
-    if (ticket === loadSeq && api.settings.on(FEATURE_ID)) ids.forEach(updateVisible);
-  }
-
-  function renderWishlistRows() {
-    if (renderingWishlist) return;
-    renderingWishlist = true;
-    const rows = wishlistDom?.rows?.(document) || [];
-    const appids = [];
-    try {
-      for (const row of rows) {
-        const appid = rowAppid(row);
-        if (!appid) continue;
-        const host = wishlistNoteHost(row);
-        if (!host) continue;
-        const cached = cache.get(appid) || { note: "", steamName: steamNameForApp(appid, row) };
-        const loading = !cache.has(appid) && (!host._stGameNotesKey || host.dataset.stAppid !== String(appid) || !!host.querySelector(".st-store-skeleton"));
-        if (loading) appids.push(appid);
-        renderNote(host, appid, cached.note, cached.steamName || steamNameForApp(appid, row), loading);
-      }
-    } finally {
-      renderingWishlist = false;
+    await fetchNotes(appids);
+    if (ticket !== loadSeq || !isWishlistPath() || !api.settings.on(FEATURE_ID) || document.hidden) return;
+    const ids = new Set(appids);
+    for (const row of wishlistDom.rows()) {
+      if (ids.has(rowAppid(row))) renderWishlistRow(row, true);
     }
-    batchFetchWishlistNotes(appids).catch((error) => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "notes", event: "render-wishlist-rows-failed", message: "商店功能处理失败", level: "error", phase: "renderWishlistRows" });});
-  }
-
-  function scheduleWishlistRender(delay = WISHLIST_RENDER_DEBOUNCE_MS) {
-    if (renderingWishlist) return;
-    clearTimeout(wishlistTimer);
-    const waitMs = Math.max(0, Number(delay) || 0);
-    wishlistTimer = setTimeout(renderWishlistRows, waitMs);
-  }
-
-  function bindWishlistShell(container) {
-    const shell = wishlistDom?.listShell?.(container) || null;
-    if (wishlistShell === shell && wishlistShellObserver) return;
-    wishlistShellObserver?.disconnect();
-    wishlistShellObserver = null;
-    wishlistShell = shell;
-    if (!shell) return;
-    const refreshContainer = () => {
-      const next = wishlistDom?.listContainer?.();
-      if (!next || next === wishlistContainer) return;
-      bindWishlistObserver(next);
-      scheduleWishlistRender(0);
-      scheduleWishlistSettleCheck();
-    };
-    wishlistShellObserver = root.STObserverUtils?.createDebouncedObserver?.(refreshContainer, WISHLIST_OBSERVER_DEBOUNCE_MS)
-      || new MutationObserver(refreshContainer);
-    root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistShellObserver, shell, { childList: true })
-      || wishlistShellObserver.observe(shell, { childList: true });
-  }
-
-  function bindWishlistObserver(container) {
-    if (wishlistContainer === container && wishlistObserver) {
-      bindWishlistShell(container);
-      return;
-    }
-    wishlistObserver?.disconnect();
-    wishlistContainer = container;
-    wishlistSettleChecks = 0;
-    wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(0), WISHLIST_OBSERVER_DEBOUNCE_MS)
-      || new MutationObserver(() => scheduleWishlistRender());
-    // 只监听愿望单真实列表容器；虚拟列表会深层替换行节点，保留 subtree。
-    root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistObserver, container, { childList: true, subtree: true })
-      || wishlistObserver.observe(container, { childList: true, subtree: true });
-    bindWishlistShell(container);
-  }
-
-  function scheduleWishlistSettleCheck() {
-    if (wishlistSettleTimer || wishlistSettleChecks >= WISHLIST_SETTLE_MAX) return;
-    wishlistSettleTimer = setTimeout(() => {
-      wishlistSettleTimer = 0;
-      if (!api.settings?.on?.(FEATURE_ID) || !isWishlistPath()) return;
-      const container = wishlistDom?.listContainer?.();
-      if (container && container !== wishlistContainer) {
-        bindWishlistObserver(container);
-      }
-      if (wishlistRowsReady()) return;
-      wishlistSettleChecks += 1;
-      renderWishlistRows();
-      scheduleWishlistSettleCheck();
-    }, WISHLIST_SETTLE_RETRY_MS);
   }
 
   function startWishlist() {
     if (!isWishlistPath()) return false;
-    addStyle();
-    const container = wishlistDom?.listContainer?.();
-    if (!container) {
-      scheduleWishlistSettleCheck();
-      return false;
+    if (wishlistSubscription) {
+      wishlistSubscription.refresh();
+    } else {
+      wishlistSubscription = wishlistDom.observeRows(FEATURE_ID, {
+        render: renderWishlistRows,
+        load: batchFetchWishlistNotes,
+      });
     }
-    renderWishlistRows();
-    bindWishlistObserver(container);
-    scheduleWishlistSettleCheck();
     return true;
   }
 
@@ -605,23 +519,14 @@
   function stop() {
     loadSeq += 1;
     pending = new Set();
-    wishlistObserver?.disconnect();
-    wishlistShellObserver?.disconnect();
+    wishlistSubscription?.dispose();
+    wishlistSubscription = null;
     clearTimeout(detailTimer);
     clearTimeout(detailSettleTimer);
-    clearTimeout(wishlistTimer);
-    clearTimeout(wishlistSettleTimer);
     detailTimer = 0;
     detailSettleTimer = 0;
-    wishlistSettleTimer = 0;
     detailRetries = 0;
     detailSettleChecks = 0;
-    wishlistSettleChecks = 0;
-    wishlistObserver = null;
-    wishlistShellObserver = null;
-    wishlistContainer = null;
-    wishlistShell = null;
-    wishlistTimer = 0;
     document.querySelectorAll(".st-game-notes").forEach(node => { api.dom.loading.clear(node); node.remove(); });
   }
 
