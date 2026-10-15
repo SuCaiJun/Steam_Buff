@@ -12,7 +12,7 @@
   "use strict";
 
   const schema = root.STLoggerSchema;
-  const VERSION = "steam-buff-runtime-logger-v3-debug-session";
+  const VERSION = "steam-buff-runtime-logger-v5-logging-state";
   if (!schema || root.STLogger?.version === VERSION) {
     return;
   }
@@ -27,14 +27,20 @@
   const DEBUG_GET = "LOG_DEBUG_GET";
   const DEBUG_STATE = "STEAM_BUFF_DEBUG_STATE";
   const DEBUG_REQUEST = "STEAM_BUFF_DEBUG_REQUEST";
-  let debugState = Object.freeze({ enabled: false, sessionId: "", revision: 0 });
+  let bootstrapDebugState = Object.freeze({ enabled: false, sessionId: "", revision: 0 });
+
+  function debugSnapshot() {
+    // 工厂加载前暂存握手结果；加载后所有前台入口只读取工厂的已确认快照。
+    return root.STLoggerFactory ? root.STLoggerFactory.getDebugState() : bootstrapDebugState;
+  }
 
   function acceptDebugState(value) {
     if (!value || typeof value.enabled !== "boolean" || !Number.isInteger(value.revision)
-      || value.revision < debugState.revision || (value.enabled && !value.sessionId)) return;
-    debugState = Object.freeze({ enabled: value.enabled, sessionId: String(value.sessionId || ""), revision: value.revision });
-    root.STLoggerFactory?.applyDebugState(debugState);
-    if (root.chrome?.runtime?.id && root.postMessage) root.postMessage({ type: DEBUG_STATE, state: debugState }, "*");
+      || value.revision < debugSnapshot().revision || (value.enabled && !value.sessionId)) return;
+    const state = Object.freeze({ enabled: value.enabled, sessionId: String(value.sessionId || ""), revision: value.revision });
+    if (root.STLoggerFactory) root.STLoggerFactory.applyDebugState(state);
+    else bootstrapDebugState = state;
+    if (root.chrome?.runtime?.id && root.postMessage) root.postMessage({ type: DEBUG_STATE, state: debugSnapshot() }, "*");
   }
 
   function requestDebugState() {
@@ -46,15 +52,15 @@
       root.chrome.runtime.sendMessage({ type: DEBUG_GET }, response => {
         const error = root.chrome.runtime.lastError;
         if (error || response?.success !== true) {
-          root.STLoggerFactory?.reportError(new Error(error?.message || response?.error || "DeBug 状态读取失败"), {
-            domain: "extension", feature: "runtime-logger", event: "debug-state-read-failed", message: "读取 DeBug 会话状态失败",
+          root.STLoggerFactory?.reportError(new Error(error?.message || response?.error || "日志开关状态读取失败"), {
+            domain: "extension", feature: "runtime-logger", event: "debug-state-read-failed", message: "读取日志开关状态失败",
           });
           return;
         }
         acceptDebugState(response.state);
       });
     } catch (error) {
-      root.STLoggerFactory?.reportError(error, { domain: "extension", feature: "runtime-logger", event: "debug-state-read-failed", message: "读取 DeBug 会话状态失败" });
+      root.STLoggerFactory?.reportError(error, { domain: "extension", feature: "runtime-logger", event: "debug-state-read-failed", message: "读取日志开关状态失败" });
     }
   }
 
@@ -63,12 +69,12 @@
       if (message?.type === DEBUG_STATE) acceptDebugState(message.state);
     });
     root.chrome?.storage?.onChanged?.addListener((changes, area) => {
-      if (area === "session" && changes.steam_buff_debug_session?.newValue) acceptDebugState(changes.steam_buff_debug_session.newValue);
+      if (area === "local" && changes.steam_buff_debug_session?.newValue) acceptDebugState(changes.steam_buff_debug_session.newValue);
     });
     root.addEventListener?.("message", event => {
       if (event.source !== root) return;
       if (root.chrome?.runtime?.id) {
-        if (event.data?.type === DEBUG_REQUEST) root.postMessage({ type: DEBUG_STATE, state: debugState }, "*");
+        if (event.data?.type === DEBUG_REQUEST) root.postMessage({ type: DEBUG_STATE, state: debugSnapshot() }, "*");
       } else if (event.data?.type === DEBUG_STATE) acceptDebugState(event.data.state);
     });
     requestDebugState();
@@ -136,7 +142,9 @@
     };
   }
 
-  function writeFallback(entry, options = {}) {
+  function writeFallback(entry, options, recordingSession) {
+    const state = debugSnapshot();
+    if (!state.enabled || state.sessionId !== recordingSession) return Promise.resolve(false);
     return new Promise((resolve) => {
       try {
         const area = root.chrome?.storage?.local;
@@ -146,15 +154,14 @@
         }
         area.get([FALLBACK_KEY], (result) => {
           try {
+            const current = debugSnapshot();
+            if (!current.enabled || current.sessionId !== recordingSession) { resolve(false); return; }
             if (root.chrome?.runtime?.lastError) {
               resolve(false);
               return;
             }
             const box = fallbackBox(result?.[FALLBACK_KEY]);
-            if (entry.debugData && (!debugState.enabled || entry.debugData.sessionId !== debugState.sessionId)) {
-              entry = { ...entry }; delete entry.debugData;
-              if (!schema.shouldPersist(entry)) { resolve(false); return; }
-            }
+            if (entry.debugData && entry.debugData.sessionId !== current.sessionId) { resolve(false); return; }
             if (entry.debugData && schema.byteLength(JSON.stringify(entry)) > FALLBACK_BYTES / 2) {
               entry = schema.normalizeEntry({ ...entry, debugData: { ...entry.debugData, text: JSON.stringify({ omitted: "fallback-capacity-exceeded" }), truncated: true } });
             }
@@ -209,12 +216,17 @@
     });
   }
 
-  function storageFallback(entry, options = {}) {
-    fallbackQueue = fallbackQueue.catch(() => false).then(() => writeFallback(entry, options));
+  function storageFallback(entry, options, recordingSession) {
+    const state = debugSnapshot();
+    if (!state.enabled || state.sessionId !== recordingSession) return Promise.resolve(false);
+    fallbackQueue = fallbackQueue.catch(() => false).then(() => writeFallback(entry, options, recordingSession));
     return fallbackQueue;
   }
 
   function send(entry, options = {}) {
+    const state = debugSnapshot();
+    if (!state.enabled) return;
+    const recordingSession = state.sessionId;
     const forcePersist = options.forcePersist === true && entry.level === "debug";
     const envelope = {
       type: "LOG_APPEND",
@@ -224,11 +236,11 @@
     if (root.chrome?.runtime?.sendMessage) {
       try {
         root.chrome.runtime.sendMessage(envelope, (response) => {
-          if (root.chrome?.runtime?.lastError || !response || response.success !== true) storageFallback(entry, { forcePersist });
+          if (root.chrome?.runtime?.lastError || !response || response.success !== true) storageFallback(entry, { forcePersist }, recordingSession);
         });
         return;
       } catch {
-        storageFallback(entry, { forcePersist });
+        storageFallback(entry, { forcePersist }, recordingSession);
         return;
       }
     }
@@ -252,11 +264,15 @@
     });
   }
 
+  /** 已开启时规范化并发送条目；关闭时返回 null，不读取输入或触发失败回退 */
   function append(input = {}, options = {}) {
+    const state = debugSnapshot();
+    if (!state.enabled) return null;
     let entry;
     try {
-      if (!schema.isTrustedEntry(input) && debugState.enabled && input.debugData === undefined) {
-        input = { ...input, debugData: { sessionId: debugState.sessionId, data: input } };
+      if (input.debugData && input.debugData.sessionId !== state.sessionId) return null;
+      if (!schema.isTrustedEntry(input) && input.debugData === undefined) {
+        input = { ...input, debugData: { sessionId: state.sessionId, data: input } };
       }
       entry = normalizedEntry(input, options);
     } catch {
@@ -270,6 +286,7 @@
     if (globalBound || !root.addEventListener) return;
     globalBound = true;
     root.addEventListener("error", (event) => {
+      if (!debugSnapshot().enabled) return;
       append({
         level: "error",
         domain: domain(),
@@ -281,6 +298,7 @@
       }, { errorEvent: event });
     });
     root.addEventListener("unhandledrejection", (event) => {
+      if (!debugSnapshot().enabled) return;
       append({
         level: "error",
         domain: domain(),
@@ -293,6 +311,7 @@
   }
 
   function withLevel(level, input = {}) {
+    if (!debugSnapshot().enabled) return null;
     return append({ ...(input || {}), level });
   }
 
@@ -303,7 +322,7 @@
     EVENT,
     sessionId,
     execution: contextExecution,
-    getDebugState: () => debugState,
+    getDebugState: debugSnapshot,
     append,
     debug(entry) {
       return withLevel("debug", entry);

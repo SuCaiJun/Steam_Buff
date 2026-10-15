@@ -3701,8 +3701,8 @@
     LOG_EXPORT: "诊断日志导出",
     LOG_CLEAR: "诊断日志清空",
     LOG_STATS: "诊断日志状态",
-    LOG_DEBUG_GET: "读取 DeBug 会话状态",
-    LOG_DEBUG_SET: "设置中心确认后启停 DeBug",
+    LOG_DEBUG_GET: "读取日志开关状态",
+    LOG_DEBUG_SET: "设置中心确认后启停日志",
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: "云端安装引导页打开本地步骤",
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: "安装引导页打开设置中心",
     SETTINGS_CLOUD_SYNC: "设置云同步检查、上传、下载和冲突处理",
@@ -3716,19 +3716,21 @@
         const state = await globalThis.STBackgroundDebug.initialize();
         sendResponse({ success: true, state });
       } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "debug-mode", event: "debug-state-read-failed", message: "读取 DeBug 会话状态失败" });
-        sendResponse({ success: false, error: error.message });
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "debug-mode", event: "debug-state-read-failed", message: "读取日志开关状态失败" });
+        const message = error.message;
+        sendResponse({ success: false, error: message });
       }
     },
     async LOG_DEBUG_SET(request, sender, sendResponse) {
       try {
-        if (!isSettingsSender(sender) && !isSteamRuntimeSender(sender)) throw new Error("DeBug 开关只允许设置中心操作");
-        if (request.enabled === true && request.confirmed !== true) throw new Error("开启 DeBug 需要隐私确认");
+        if (!isSettingsSender(sender) && !isSteamRuntimeSender(sender)) throw new Error("日志开关只允许设置中心操作");
+        if (request.enabled === true && request.confirmed !== true) throw new Error("开启日志需要隐私确认");
         const state = await globalThis.STBackgroundDebug.setEnabled(request.enabled, request.operationId);
         sendResponse({ success: true, state });
       } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "debug-mode", event: "debug-state-save-failed", message: "保存 DeBug 会话状态失败", operationId: request.operationId });
-        sendResponse({ success: false, error: error.message });
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "debug-mode", event: "debug-state-save-failed", message: "保存日志开关状态失败", operationId: request.operationId });
+        const message = error.message;
+        sendResponse({ success: false, error: message });
       }
     },
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
@@ -3811,7 +3813,11 @@
     const lifecycleReady = globalThis.STBackgroundLifecycle.initialize(details)
       .then(() => null)
       .catch((error) => error);
+    // 日志状态或存储失败不阻断安装后的业务启动
     globalThis.STBackgroundLogger.initialize()
+      .catch((error) => {
+        backgroundLogger("background-runtime").error("background-session-failed", "后台日志存储初始化失败", { error });
+      })
       .then(async () => {
         const lifecycleError = await lifecycleReady;
         if (lifecycleError) {
@@ -3823,9 +3829,6 @@
         }
         injectSoon();
         if (details?.reason === "install") openOnboardingPage();
-      })
-      .catch((error) => {
-        backgroundLogger("background-runtime").error("background-session-failed", "后台日志存储初始化失败", { error });
       });
   });
   chrome.runtime.onStartup.addListener(() => {
@@ -3842,12 +3845,13 @@
   ensureAiForecastSessionCleanupAlarm().catch((error) => {
     logError("ai", "ai-forecast-session-cleanup-alarm-failed", "AI 预测会话清理任务创建失败", error);
   });
+  // 日志初始化只影响诊断能力，原有启动注入仍继续执行
   globalThis.STBackgroundLogger.initialize()
+    .catch((error) => {
+      backgroundLogger("background-runtime").error("background-session-failed", "后台日志存储初始化失败", { error });
+    })
     .then(() => {
       backgroundLogger("background-runtime").info("background-session-ready", "后台日志与消息运行时已就绪");
       injectSoon();
-    })
-    .catch((error) => {
-      backgroundLogger("background-runtime").error("background-session-failed", "后台日志存储初始化失败", { error });
     });
 })();

@@ -887,18 +887,18 @@
     try {
       const response = await sendLogMessage("LOG_DEBUG_GET");
       if (binding !== debugBinding) return;
-      if (!globalThis.STLoggerFactory.applyDebugState(response.state)) throw new TypeError("DeBug 状态回复格式错误");
+      if (!globalThis.STLoggerFactory.applyDebugState(response.state)) throw new TypeError("日志开关状态回复格式错误");
       debugReady = true;
       debugReadFailed = false;
     } catch (error) {
       if (binding === debugBinding) debugReadFailed = true;
-      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "about", event: "debug-state-read-failed", message: "读取 DeBug 状态失败" });
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "about", event: "debug-state-read-failed", message: "读取日志开关状态失败" });
     }
     if (binding === debugBinding) ctx.refresh("about");
   }
 
   function debugWarning() {
-    const message = text("about.debug.warning", "开启后将记录完整的业务请求、响应及诊断数据，可能包含账号资料、游戏信息、输入内容等隐私信息。\n登录令牌、Cookie、密码和密钥仍会脱敏。\n\n请仅将日志提供给可信人员，切勿公开分享。非必要情况下请勿开启，确定继续吗？");
+    const message = text("about.debug.warning", "开启后将记录完整的业务请求、响应及诊断数据，可能包含账号资料、游戏信息、输入内容等隐私信息。\n登录令牌、Cookie、密码和密钥仍会脱敏。\n日志将持续记录，重启后仍保持开启，请在复现问题并导出日志后手动关闭。\n\n请仅将日志提供给可信人员，切勿公开分享。非必要情况下请勿开启，确定继续吗？");
     const highlights = [
       [text("about.debug.warningRecord", "记录完整的业务请求、响应及诊断数据"), { danger: true }],
       [text("about.debug.warningAccount", "账号资料"), { danger: true }],
@@ -928,7 +928,7 @@
     try {
       if (enabled) {
         const action = await ctx.dialog(shadow, {
-          title: text("about.debug.title", "开启 DeBug 日志"),
+          title: text("about.debug.title", "开启日志"),
           ...debugWarning(),
           actions: [
             { id: "cancel", label: text("common.cancel", "取消") },
@@ -938,10 +938,10 @@
         if (action !== "enable" || binding !== debugBinding) return;
       }
       const response = await sendLogMessage("LOG_DEBUG_SET", { enabled, confirmed: enabled, operationId });
-      if (!globalThis.STLoggerFactory.applyDebugState(response.state)) throw new TypeError("DeBug 状态回复格式错误");
+      if (!globalThis.STLoggerFactory.applyDebugState(response.state)) throw new TypeError("日志开关状态回复格式错误");
     } catch (error) {
-      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "about", event: "debug-state-save-failed", message: "调整 DeBug 模式失败", operationId });
-      if (binding === debugBinding) await ctx.dialog(shadow, { title: text("about.debug.failed", "调整 DeBug 模式失败"), message: error.message });
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "about", event: "debug-state-save-failed", message: "调整日志开关失败", operationId });
+      if (binding === debugBinding) await ctx.dialog(shadow, { title: text("about.debug.failed", "调整日志开关失败"), message: error.message });
     } finally {
       if (binding === debugBinding) { debugBusy = false; ctx.refresh("about"); }
     }
@@ -1600,8 +1600,8 @@
       const response = await sendLogMessage("LOG_EXPORT", { operationId });
       if (response.summary?.debug?.containsDetailedData) {
         const action = await ctx.dialog(shadow, {
-          title: text("about.debug.exportTitle", "导出包含 DeBug 数据的日志"),
-          message: text("about.debug.exportWarning", "日志包含详细业务数据，可能涉及隐私。关闭 DeBug 不会删除这些记录，请仅将导出文件提供给可信人员。是否继续导出？"),
+          title: text("about.debug.exportTitle", "导出包含详细诊断数据的日志"),
+          message: text("about.debug.exportWarning", "日志包含详细业务数据，可能涉及隐私。关闭日志不会删除这些记录，请仅将导出文件提供给可信人员。是否继续导出？"),
           actions: [{ id: "cancel", label: text("common.cancel", "取消") }, { id: "export", label: text("common.export", "导出"), primary: true }],
         });
         if (action !== "export") return;
@@ -2083,8 +2083,8 @@
         action: "diag-log",
         icon: "pulse",
         title: `${ctx.esc(text("about.card.logs.title", "日志"))} <span class="about-log-health ${health.cls}" title="${ctx.esc(health.title)}"></span>`,
-        headAction: `<button type="button" class="about-debug-toggle" role="switch" aria-checked="${globalThis.STLoggerFactory.getDebugState().enabled}" ${!debugReady || debugBusy ? "disabled" : ""}><span>DeBug</span><span class="about-debug-track" aria-hidden="true"></span></button>`,
-        note: debugReadFailed ? `<div class="about-debug-note">${ctx.esc(text("about.debug.unavailable", "DeBug 状态暂不可用，请重新打开设置重试"))}</div>` : globalThis.STLoggerFactory.getDebugState().enabled ? `<div class="about-debug-note about-debug-note-active">${ctx.esc(text("about.debug.active", "DeBug 下请勿随意分享日志"))}</div>` : "",
+        headAction: `<button type="button" class="about-debug-toggle" role="switch" aria-checked="${globalThis.STLoggerFactory.getDebugState().enabled}" ${!debugReady || debugBusy ? "disabled" : ""}><span>${ctx.esc(text("about.debug.title", "开启日志"))}</span><span class="about-debug-track" aria-hidden="true"></span></button>`,
+        note: debugReadFailed ? `<div class="about-debug-note">${ctx.esc(text("about.debug.unavailable", "日志开关状态暂不可用，请重新打开设置重试"))}</div>` : globalThis.STLoggerFactory.getDebugState().enabled ? `<div class="about-debug-note about-debug-note-active">${ctx.esc(text("about.debug.active", "日志记录已开启，排障完成后请手动关闭。请勿随意分享日志"))}</div>` : `<div class="about-debug-note">${ctx.esc(text("about.debug.inactive", "日志记录已关闭，不生成新日志。开启后请重新复现问题，再导出日志"))}</div>`,
         desc: ctx.esc(logSummary()),
         mono: true,
         actions: `<button class="about-action-link about-log-export" type="button">${ctx.esc(text("about.card.logs.export", "导出日志"))}</button><button class="about-action-link danger divider about-log-clear" type="button">${ctx.esc(text("about.card.logs.clear", "清空日志"))}</button>`,

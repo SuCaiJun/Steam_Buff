@@ -1698,6 +1698,7 @@
       if (event.source !== window || event.data?.type !== LOG_EVENT) {
         return;
       }
+      if (!globalThis.STLogger.getDebugState().enabled) return;
       const validation = globalThis.STLoggerSchema?.validateEntry?.(event.data.entry);
       if (validation?.ok !== true) {
         return;

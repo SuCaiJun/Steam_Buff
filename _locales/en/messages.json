@@ -6179,28 +6179,31 @@
     "message": "Export failed. Please retry."
   },
   "about_debug_title": {
-    "message": "Enable DeBug logging"
+    "message": "Enable logging"
   },
   "about_debug_warning": {
-    "message": "Once enabled, full business requests, responses and diagnostic data will be recorded. This may include account details, game information and input content.\nLogin tokens, cookies, passwords and keys will still be redacted.\n\nOnly share logs with trusted people. Never share them publicly. Enable this mode only when necessary. Are you sure you want to continue?"
+    "message": "Once enabled, full business requests, responses and diagnostic data will be recorded. This may include account details, game information and input content.\nLogin tokens, cookies, passwords and keys will still be redacted.\nLogging stays enabled after restarting. Reproduce the issue, export the logs, then turn logging off manually.\n\nOnly share logs with trusted people. Never share them publicly. Enable this mode only when necessary. Are you sure you want to continue?"
   },
   "about_debug_enable": {
     "message": "Continue"
   },
   "about_debug_failed": {
-    "message": "Could not change DeBug mode"
+    "message": "Could not change logging"
   },
   "about_debug_active": {
-    "message": "Do not share DeBug logs casually"
+    "message": "Logging is enabled. Turn it off manually after troubleshooting. Share logs only with trusted people."
+  },
+  "about_debug_inactive": {
+    "message": "Logging is off; no new logs are generated. Enable it, reproduce the issue, then export the logs."
   },
   "about_debug_unavailable": {
-    "message": "DeBug status is unavailable. Reopen settings to retry."
+    "message": "Logging status is unavailable. Reopen settings to retry."
   },
   "about_debug_exportTitle": {
-    "message": "Export logs containing DeBug data"
+    "message": "Export logs containing detailed diagnostic data"
   },
   "about_debug_exportWarning": {
-    "message": "These logs contain detailed business data and may include private information. Turning DeBug off does not delete these records. Share exported files only with trusted people. Continue exporting?"
+    "message": "These logs contain detailed business data and may include private information. Turning logging off does not delete these records. Share exported files only with trusted people. Continue exporting?"
   },
   "about_debug_warningRecord": {
     "message": "full business requests, responses and diagnostic data will be recorded"

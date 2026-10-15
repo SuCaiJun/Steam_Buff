@@ -385,6 +385,8 @@
     }
 
     markError(event, error, meta = {}) {
+      // 部分入口先加载内核；日志状态确认开启后才生成内存诊断记录
+      if (!window.STLoggerFactory || !window.STLoggerFactory.getDebugState().enabled) return null;
       const entry = {
         event: text(event),
         error: errText(error),

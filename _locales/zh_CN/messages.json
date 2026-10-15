@@ -6179,28 +6179,31 @@
     "message": "导出失败，请重试"
   },
   "about_debug_title": {
-    "message": "开启 DeBug 日志"
+    "message": "开启日志"
   },
   "about_debug_warning": {
-    "message": "开启后将记录完整的业务请求、响应及诊断数据，可能包含账号资料、游戏信息、输入内容等隐私信息。\n登录令牌、Cookie、密码和密钥仍会脱敏。\n\n请仅将日志提供给可信人员，切勿公开分享。非必要情况下请勿开启，确定继续吗？"
+    "message": "开启后将记录完整的业务请求、响应及诊断数据，可能包含账号资料、游戏信息、输入内容等隐私信息。\n登录令牌、Cookie、密码和密钥仍会脱敏。\n日志将持续记录，重启后仍保持开启，请在复现问题并导出日志后手动关闭。\n\n请仅将日志提供给可信人员，切勿公开分享。非必要情况下请勿开启，确定继续吗？"
   },
   "about_debug_enable": {
     "message": "继续"
   },
   "about_debug_failed": {
-    "message": "调整 DeBug 模式失败"
+    "message": "调整日志开关失败"
   },
   "about_debug_active": {
-    "message": "DeBug 下请勿随意分享日志"
+    "message": "日志记录已开启，排障完成后请手动关闭。请勿随意分享日志"
+  },
+  "about_debug_inactive": {
+    "message": "日志记录已关闭，不生成新日志。开启后请重新复现问题，再导出日志"
   },
   "about_debug_unavailable": {
-    "message": "DeBug 状态暂不可用，请重新打开设置重试"
+    "message": "日志开关状态暂不可用，请重新打开设置重试"
   },
   "about_debug_exportTitle": {
-    "message": "导出包含 DeBug 数据的日志"
+    "message": "导出包含详细诊断数据的日志"
   },
   "about_debug_exportWarning": {
-    "message": "日志包含详细业务数据，可能涉及隐私。关闭 DeBug 不会删除这些记录，请仅将导出文件提供给可信人员。是否继续导出？"
+    "message": "日志包含详细业务数据，可能涉及隐私。关闭日志不会删除这些记录，请仅将导出文件提供给可信人员。是否继续导出？"
   },
   "about_debug_warningRecord": {
     "message": "记录完整的业务请求、响应及诊断数据"

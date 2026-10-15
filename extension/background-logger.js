@@ -161,8 +161,9 @@
     return true;
   }
 
+  /** 恢复开关后按需预热日志存储；关闭时不读取历史，主动统计和导出仍可读取 */
   function initialize() {
-    return enqueueStorage(initializeNow);
+    return root.STBackgroundDebug.initialize().then(state => state.enabled ? enqueueStorage(initializeNow) : true);
   }
 
   function normalizeStoredLogs(raw, healthInput) {
@@ -519,11 +520,12 @@
     return statsFrom(next.logs, next.health, logBytes);
   }
 
-  async function appendNow(input, sender) {
+  async function appendNow(input, sender, recordingSession) {
+    if (!root.STBackgroundDebug.snapshot().enabled || root.STBackgroundDebug.snapshot().sessionId !== recordingSession) return null;
     const prepared = await prepareStored();
-    let raw = input?.entry && typeof input.entry === "object" ? input.entry : input;
+    if (!root.STBackgroundDebug.snapshot().enabled || root.STBackgroundDebug.snapshot().sessionId !== recordingSession) return null;
+    const raw = input;
     const debugEnabled = root.STBackgroundDebug?.allows(raw) === true;
-    if (!debugEnabled && raw?.debugData) { raw = { ...raw }; delete raw.debugData; }
     let entry;
     try {
       entry = schema.normalizeEntry(raw);
@@ -547,8 +549,15 @@
     return commitPrepared({ ...prepared, logs: compacted.logs, health: nextHealth, logBytes: compacted.logBytes, changed: true });
   }
 
-  function append(input, sender) {
-    return enqueueStorage(() => appendNow(input, sender));
+  /** 开启时串行追加并返回统计；关闭或所属记录会话已结束时返回 null */
+  async function append(input, sender) {
+    // 关闭时不入存储队列，也不规范化迟到消息或计算历史统计
+    const state = root.STBackgroundDebug.snapshot();
+    if (!state.enabled) return null;
+    const raw = input?.entry && typeof input.entry === "object" ? input.entry : input;
+    // 已结束会话的在途消息整条丢弃，不降为普通摘要，也不读取历史日志。
+    if (raw?.debugData && !root.STBackgroundDebug.allows(raw)) return null;
+    return enqueueStorage(() => appendNow(raw, sender, state.sessionId));
   }
 
   async function statsNow() {
