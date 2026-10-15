@@ -1099,7 +1099,7 @@
           globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "observe-failed", message: "商店功能处理失败", level: "error", phase: "observe" });});
       }
     };
-    observer = root.STObserverUtils?.createDebouncedObserver?.(callback, DETAIL_OBSERVER_DEBOUNCE_MS)
+    observer = root.STObserverUtils?.createDebouncedObserver?.(callback, DETAIL_OBSERVER_DEBOUNCE_MS, { records: false })
       || new MutationObserver(callback);
     // 只监听商店主内容容器；Steam 内部跳转会深层替换标题节点，保留 subtree。
     root.STObserverUtils?.createVisibilityGatedObserver?.(observer, target, { childList: true, subtree: true })

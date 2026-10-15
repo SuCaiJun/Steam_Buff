@@ -589,7 +589,7 @@
     if (!target) {
       return;
     }
-    observer = root.STObserverUtils?.createDebouncedObserver?.(() => queueScan(0), SCAN_DEBOUNCE_MS)
+    observer = root.STObserverUtils?.createDebouncedObserver?.(() => queueScan(0), SCAN_DEBOUNCE_MS, { records: false })
       || new MutationObserver(() => scheduleScan());
     // 只监听搜索表单/商店头部或主内容容器，避免全页商品流变化触发联想扫描。
     const options = {

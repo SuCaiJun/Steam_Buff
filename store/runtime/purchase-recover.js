@@ -150,7 +150,7 @@
       if (needRecover()) {
         schedRecover("mutation");
       }
-    }, OBSERVER_DEBOUNCE_MS);
+    }, OBSERVER_DEBOUNCE_MS, { records: false });
     window.__stStoreRecoverObs = utils.createVisibilityGatedObserver(rawObserver, target, {
       childList: true,
       subtree: true,

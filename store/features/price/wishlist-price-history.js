@@ -1001,7 +1001,7 @@
     boundScroller?.addEventListener("scroll", handleViewportChange, { passive: true });
     window.addEventListener("resize", handleViewportChange);
     document.addEventListener("keydown", handleKeyDown);
-    observer = window.STObserverUtils?.createDebouncedObserver?.(refreshBoundContainer, ROW_OBSERVER_DEBOUNCE_MS)
+    observer = window.STObserverUtils?.createDebouncedObserver?.(refreshBoundContainer, ROW_OBSERVER_DEBOUNCE_MS, { records: false })
       || new MutationObserver(refreshBoundContainer);
     // 注: live 排序会替换行容器及两层虚拟 Panel；稳定目标只包围愿望单控制区与列表。
     // 事件只做精准行命中，观察器保持 1000ms 防抖且每次只同步当前可见行。

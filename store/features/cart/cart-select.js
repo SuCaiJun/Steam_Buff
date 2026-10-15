@@ -1335,7 +1335,7 @@
       }
       return;
     }
-    const rawObserver = utils.createDebouncedObserver(scheduleScan, OBSERVER_DEBOUNCE_MS);
+    const rawObserver = utils.createDebouncedObserver(scheduleScan, OBSERVER_DEBOUNCE_MS, { records: false });
     observer = utils.createVisibilityGatedObserver(rawObserver, target, { childList: true, subtree: true });
     observer.__stTarget = target;
     observerTargetMissingLogged = false;
