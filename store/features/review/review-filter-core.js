@@ -48,36 +48,6 @@
     return Number.isFinite(out) ? out : fallback;
   }
 
-  function readSlashPattern(value) {
-    if (!value.startsWith("/")) {
-      return null;
-    }
-    const idx = value.lastIndexOf("/");
-    if (idx <= 0) {
-      return null;
-    }
-    return {
-      source: value.slice(1, idx),
-      flags: value.slice(idx + 1) || "i",
-    };
-  }
-
-  function compilePattern(value) {
-    const text = String(value || "").trim();
-    if (!text) {
-      return null;
-    }
-
-    try {
-      const slash = readSlashPattern(text);
-      return slash
-        ? new RegExp(slash.source, slash.flags)
-        : new RegExp(text, "i");
-    } catch {
-      return null;
-    }
-  }
-
   function makeId(type, value, index) {
     let hash = 0;
     const src = `${type}:${value}`;
@@ -115,15 +85,6 @@
       .map((rule, index) => ({ ...rule, id: rule.id || makeId(rule.type, rule.value, index) }));
   }
 
-  function matchParts(value) {
-    const raw = String(value || "");
-    return {
-      raw,
-      compact: compactText(raw),
-      lower: normText(raw),
-    };
-  }
-
   function normalizeConfig(value = {}) {
     const src = { ...DEFAULTS, ...(value || {}) };
     const maxPlaytimeHours = Math.max(0, num(src.maxPlaytimeHours, 0));
@@ -138,7 +99,7 @@
       enabled: src.enabled !== false,
       rules,
       keywordText: keywordRules.map(rule => normText(rule.value)),
-      regexps: regexRules.map(rule => compilePattern(rule.value)).filter(Boolean),
+      regexRules: regexRules.map(rule => ({ id: rule.id, value: rule.value })),
       nicknameText: nicknameRules.map(rule => normText(rule.value)),
       maxPlaytimeHours,
       maxReviewPlaytimeHours,
@@ -221,20 +182,13 @@
     return `review-${stableHash(`${nickname}|${playtime}|${body}`)}`;
   }
 
-  function textMatches(info, conf) {
-    const body = matchParts(info.reviewText || "");
-    if (conf.keywordText.some(keyword => body.lower.includes(keyword))) {
-      return { reason: "keyword" };
-    }
-    if (conf.regexps.some(re => {
-      re.lastIndex = 0;
-      const raw = re.test(body.raw);
-      re.lastIndex = 0;
-      return raw || re.test(body.compact);
-    })) {
-      return { reason: "pattern" };
-    }
-    return null;
+  function keywordMatches(info, conf) {
+    const body = normText(info.reviewText || "");
+    return conf.keywordText.some(keyword => body.includes(keyword));
+  }
+
+  function needsRegex(info, conf) {
+    return conf.enabled && conf.regexRules.length > 0 && !keywordMatches(info, conf);
   }
 
   function nicknameValues(info) {
@@ -265,19 +219,23 @@
 
   function normalized(conf) {
     return Array.isArray(conf?.keywordText)
-      && Array.isArray(conf?.regexps)
+      && Array.isArray(conf?.regexRules)
       && Array.isArray(conf?.nicknameText);
   }
 
-  function reviewHidden(info, conf) {
+  // 正则结果由隔离会话显式提供；缺失结果属于调用契约错误，不能当作未命中
+  function reviewHidden(info, conf, regexMatched) {
     const cfg = normalized(conf) ? conf : normalizeConfig(conf);
     if (!cfg.enabled) {
       return null;
     }
 
-    const matched = textMatches(info, cfg);
-    if (matched) {
-      return matched;
+    if (keywordMatches(info, cfg)) {
+      return { reason: "keyword" };
+    }
+    if (cfg.regexRules.length) {
+      if (typeof regexMatched !== "boolean") throw new TypeError("评测正则缺少隔离匹配结果");
+      if (regexMatched) return { reason: "pattern" };
     }
 
     const nick = nicknameMatches(info, cfg);
@@ -320,7 +278,7 @@
     return cfg.enabled
       && (
         cfg.keywordText.length > 0
-        || cfg.regexps.length > 0
+        || cfg.regexRules.length > 0
         || cfg.nicknameText.length > 0
         || cfg.maxPlaytimeHours > 0
         || cfg.maxReviewPlaytimeHours > 0
@@ -341,7 +299,9 @@
     parseReviewCount,
     parseNickname,
     reviewId,
+    // reviewHidden 接收显式 Worker 命中结果；needsRegex 只接受 normalizeConfig 的输出
     reviewHidden,
+    needsRegex,
     active,
   };
 });

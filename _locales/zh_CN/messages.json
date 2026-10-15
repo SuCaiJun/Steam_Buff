@@ -4463,6 +4463,23 @@
   "settings_reviewFilter_rule_hint": {
     "message": "换行会作为同一条规则保存"
   },
+  "reviewFilter_regexUnavailable": {
+    "message": "正则过滤暂不可用，其他过滤条件继续生效。请重新打开页面后重试。"
+  },
+  "reviewFilter_regexPaused": {
+    "message": "第 $index$ 条规则无效或运行超时，已在本页暂停。其他规则继续生效，请在设置中检查该规则。",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_rule_regexTimeout": {
+    "message": "正则校验超时，请简化规则后重试。"
+  },
+  "settings_reviewFilter_rule_regexUnavailable": {
+    "message": "正则校验暂不可用，请重新打开页面后重试。"
+  },
   "settings_reviewFilter_rule_invalidRegex": {
     "message": "正则表达式无效：$message$",
     "placeholders": {

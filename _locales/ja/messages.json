@@ -4463,6 +4463,23 @@
   "settings_reviewFilter_rule_hint": {
     "message": "改行は同じルールの一部として保存されます"
   },
+  "reviewFilter_regexUnavailable": {
+    "message": "正規表現フィルターを利用できません。他の条件は引き続き有効です。ページを開き直して再試行してください。"
+  },
+  "reviewFilter_regexPaused": {
+    "message": "ルール $index$ が無効、または処理時間を超えたため、このページで一時停止しました。他のルールは有効です。設定でこのルールを確認してください。",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_rule_regexTimeout": {
+    "message": "正規表現の検証がタイムアウトしました。ルールを簡略化して再試行してください。"
+  },
+  "settings_reviewFilter_rule_regexUnavailable": {
+    "message": "正規表現の検証を利用できません。ページを開き直して再試行してください。"
+  },
   "settings_reviewFilter_rule_invalidRegex": {
     "message": "無効な正規表現: $message$",
     "placeholders": {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.0.31",
+  "version": "2.0.32",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -181,6 +181,7 @@
         "shared/config.js",
         "shared/error-boundary.js",
         "shared/i18n.js",
+        "shared/review-regex.js",
         "store/features/review/review-filter-core.js",
         "store/features/review/review-filter.js",
         "store/features/review/review-filter-community.js"
@@ -210,6 +211,16 @@
     }
   ],
   "web_accessible_resources": [
+    {
+      "resources": ["shared/review-regex-host.html"],
+      "matches": [
+        "https://*.steampowered.com/*",
+        "https://steampowered.com/*",
+        "https://steamcommunity.com/*",
+        "https://*.steamcommunity.com/*",
+        "https://steamloopback.host/*"
+      ]
+    },
     {
       "resources": [
         "shared/config.js",

@@ -4463,6 +4463,23 @@
   "settings_reviewFilter_rule_hint": {
     "message": "줄바꿈은 같은 규칙의 일부로 저장됩니다"
   },
+  "reviewFilter_regexUnavailable": {
+    "message": "정규식 필터를 사용할 수 없습니다. 다른 필터는 계속 적용됩니다. 페이지를 다시 열고 시도하세요."
+  },
+  "reviewFilter_regexPaused": {
+    "message": "규칙 $index$이(가) 잘못되었거나 처리 시간이 초과되어 이 페이지에서 일시 중지되었습니다. 다른 규칙은 계속 적용됩니다. 설정에서 해당 규칙을 확인하세요.",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_rule_regexTimeout": {
+    "message": "정규식 검사 시간이 초과되었습니다. 규칙을 단순화하고 다시 시도하세요."
+  },
+  "settings_reviewFilter_rule_regexUnavailable": {
+    "message": "정규식 검사를 사용할 수 없습니다. 페이지를 다시 열고 시도하세요."
+  },
   "settings_reviewFilter_rule_invalidRegex": {
     "message": "잘못된 정규식: $message$",
     "placeholders": {

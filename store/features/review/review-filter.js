@@ -61,11 +61,53 @@
   let generation = 0;
   let panelDirty = false;
   let layoutDirty = false;
+  let flushing = false;
+  let workVersion = 0;
+  let activeBatch = [];
+  let continueBatch = null;
+  let regexNotice = null;
   const pending = new Set();
   const tracked = new Map();
   const owners = new Map();
   const hiddenReviews = new Map();
+  const regexOwners = new Map();
   const log = window.STLoggerFactory.createLogger(logDomain(), "review-filter");
+  const regexSession = globalThis.STReviewRegex.createSession({
+    urlFor: file => chrome.runtime.getURL(file),
+    onIssue: reportRegexIssue,
+  });
+
+  function showRegexIssue(issue) {
+    if (!target) return;
+    if (!regexNotice) {
+      regexNotice = document.createElement("p");
+      regexNotice.setAttribute("role", "status");
+      target.prepend(regexNotice);
+    }
+    const index = config.rules.findIndex(rule => rule.id === issue.ruleId) + 1;
+    regexNotice.textContent = issue.reason === "unavailable"
+      ? i18n("reviewFilter.regexUnavailable", "正则过滤暂不可用，其他过滤条件继续生效。请重新打开页面后重试。")
+      : window.STI18n.text("reviewFilter.regexPaused", "第 $index$ 条规则无效或运行超时，已在本页暂停。其他规则继续生效，请在设置中检查该规则。", { index });
+  }
+
+  function reportRegexIssue(issue) {
+    showRegexIssue(issue);
+    const affected = issue.reason === "unavailable" ? regexOwners.values() : [regexOwners.get(issue.ruleId)];
+    for (const cards of affected) {
+      if (!cards) continue;
+      for (const card of cards) {
+        tracked.get(card).regexStale = true;
+        pending.add(card);
+      }
+    }
+    if (issue.reason === "unavailable") {
+      log.error("review-filter-regex-unavailable", "评测正则隔离匹配不可用", { error: issue.error });
+    } else {
+      log.warn("review-filter-regex-paused", "评测正则规则已在当前配置内暂停", {
+        ruleId: issue.ruleId, reason: issue.reason, timeoutMs: issue.timeoutMs,
+      });
+    }
+  }
 
   function i18n(key, fallback) {
     return globalThis.STI18n.text(key, fallback);
@@ -276,6 +318,11 @@
   }
 
   function releaseOwner(card, state, removeSummary) {
+    if (state?.regexRuleId) {
+      const cards = regexOwners.get(state.regexRuleId);
+      cards.delete(card);
+      if (!cards.size) regexOwners.delete(state.regexRuleId);
+    }
     if (!state?.hidden) return;
     const cards = owners.get(state.id);
     cards?.delete(card);
@@ -285,12 +332,8 @@
     }
   }
 
-  function applyCard(card) {
-    const info = readCard(card);
-    if (!info) return false;
+  function applyCard(card, info, hidden, regexRuleId) {
     const previous = tracked.get(card);
-    if (previous && sameInfo(previous.info, info)) return false;
-    const hidden = core.reviewHidden(info, config);
     const id = core.reviewId(info);
     releaseOwner(card, previous, true);
     if (hidden) {
@@ -314,7 +357,12 @@
       reviewText: info.reviewText,
       nicknameCandidates: info.nicknameCandidates,
     };
-    tracked.set(card, { info: snapshot, id, hidden: !!hidden });
+    if (hidden?.reason === "pattern") {
+      let cards = regexOwners.get(regexRuleId);
+      if (!cards) regexOwners.set(regexRuleId, cards = new Set());
+      cards.add(card);
+    }
+    tracked.set(card, { info: snapshot, id, hidden: !!hidden, regexRuleId: hidden?.reason === "pattern" ? regexRuleId : null });
     if (!!hidden !== !!previous?.hidden) layoutDirty = true;
     return true;
   }
@@ -331,29 +379,76 @@
   }
 
   // 优化: 分帧耗尽当前候选集合后再复制摘要，帧间新增候选不触发第二套扫描
-  function flush() {
+  async function flush() {
     frame = null;
-    if (!started || !config?.enabled || document.hidden) return;
+    if (!started || !config?.enabled || document.hidden || flushing) return;
+    flushing = true;
+    const version = ++workVersion;
     const began = performance.now();
     let count = 0;
     try {
+      const batch = [];
+      activeBatch = batch;
       for (const card of pending) {
         pending.delete(card);
-        if (card.isConnected && target?.contains(card)) panelDirty = applyCard(card) || panelDirty;
+        if (card.isConnected && target?.contains(card)) {
+          const info = readCard(card);
+          const previous = tracked.get(card);
+          if (info && (!previous || previous.regexStale || !sameInfo(previous.info, info))) {
+            if (core.needsRegex(info, config)) batch.push({ card, info, regexMatched: false, regexRuleId: null });
+            else panelDirty = applyCard(card, info, core.reviewHidden(info, config, false), null) || panelDirty;
+          }
+        }
         if (++count >= BATCH_SIZE || performance.now() - began >= BATCH_MS) break;
       }
+      if (batch.length) {
+        const result = await regexSession.match(batch.map(item => item.info.reviewText));
+        if (version !== workVersion || result.cancelled) return;
+        batch.forEach((item, index) => {
+          item.regexMatched = result.matches[index];
+          item.regexRuleId = result.ruleIds[index];
+        });
+      }
+      let appliedAt = performance.now();
+      for (let index = 0; index < batch.length; index++) {
+        const item = batch[index];
+        const { card, info } = item;
+        if (!card.isConnected || !target.contains(card)) continue;
+        // 等待 Worker 期间文字可能已变化，迟到结果不能覆盖新候选
+        const latest = readCard(card);
+        if (pending.has(card) || !latest || !sameInfo(latest, info)) {
+          pending.add(card);
+          continue;
+        }
+        panelDirty = applyCard(card, info, core.reviewHidden(info, config, item.regexMatched), item.regexRuleId) || panelDirty;
+        if (index + 1 < batch.length && performance.now() - appliedAt >= BATCH_MS) {
+          await new Promise(resolve => {
+            continueBatch = resolve;
+            frame = requestAnimationFrame(() => { frame = null; continueBatch = null; resolve(); });
+          });
+          if (version !== workVersion) return;
+          appliedAt = performance.now();
+        }
+      }
     } catch (error) {
+      if (version !== workVersion) return;
       pending.clear();
       log.error("review-filter-scan-failed", error, { error, path: location.pathname });
       finishBatch();
       return;
+    } finally {
+      if (version === workVersion) {
+        flushing = false;
+        activeBatch = [];
+      }
     }
+    if (version !== workVersion) return;
     if (pending.size) frame = requestAnimationFrame(flush);
     else finishBatch();
   }
 
   function queueScan(delay = SCAN_MS) {
-    if (scanTimer || frame !== null || !pending.size || document.hidden || !started) return;
+    if (scanTimer || frame !== null || flushing || !pending.size || document.hidden || !started) return;
     scanTimer = setTimeout(() => {
       scanTimer = null;
       flush();
@@ -410,11 +505,18 @@
   }
 
   function cancelWork() {
+    workVersion += 1;
+    for (const item of activeBatch) pending.add(item.card);
+    activeBatch = [];
+    flushing = false;
+    regexSession.cancel();
     if (started && (layoutTimer || layoutRetryTimer)) layoutDirty = true;
     clearTimeout(scanTimer);
     clearTimeout(layoutTimer);
     clearTimeout(layoutRetryTimer);
     if (frame !== null) cancelAnimationFrame(frame);
+    continueBatch?.();
+    continueBatch = null;
     scanTimer = layoutTimer = layoutRetryTimer = frame = null;
   }
 
@@ -508,6 +610,8 @@
       return false;
     }
     api.styles?.ensureFeatureStyle?.("review-filter");
+    regexSession.configure(config.regexRules);
+    for (const issue of regexSession.issues()) showRegexIssue(issue);
     started = true;
     window.addEventListener("pageshow", resume);
     document.addEventListener("visibilitychange", resume);
@@ -529,6 +633,8 @@
     started = false;
     config = null;
     cancelWork();
+    regexNotice?.remove();
+    regexNotice = null;
     observer?.disconnect();
     observer = null;
     target = null;
@@ -538,6 +644,7 @@
     tracked.forEach((_state, card) => restoreCard(card));
     tracked.clear();
     owners.clear();
+    regexOwners.clear();
     hiddenReviews.clear();
     panelDirty = layoutDirty = false;
     api.styles?.removeFeatureStyle?.("review-filter");

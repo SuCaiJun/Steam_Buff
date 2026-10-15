@@ -4463,6 +4463,23 @@
   "settings_reviewFilter_rule_hint": {
     "message": "換行內容會儲存為同一條規則"
   },
+  "reviewFilter_regexUnavailable": {
+    "message": "正則過濾暫不可用，其他過濾條件繼續生效。請重新開啟頁面後重試。"
+  },
+  "reviewFilter_regexPaused": {
+    "message": "第 $index$ 條規則無效或執行逾時，已在本頁暫停。其他規則繼續生效，請在設定中檢查該規則。",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_rule_regexTimeout": {
+    "message": "正則驗證逾時，請簡化規則後重試。"
+  },
+  "settings_reviewFilter_rule_regexUnavailable": {
+    "message": "正則驗證暫不可用，請重新開啟頁面後重試。"
+  },
   "settings_reviewFilter_rule_invalidRegex": {
     "message": "規則運算式無效：$message$",
     "placeholders": {

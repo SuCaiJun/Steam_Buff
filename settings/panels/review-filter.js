@@ -74,7 +74,7 @@
     return { ...conf, rules: current };
   }
 
-  function validateReviewRule(type, value) {
+  async function validateReviewRule(type, value) {
     const text = String(value || "").trim();
     if (!text) {
       return uiText("settings.reviewFilter.rule.enterContent", "请先输入屏蔽内容。");
@@ -82,16 +82,24 @@
     if (type !== "regex") {
       return "";
     }
+    let failure = null;
+    const session = globalThis.STReviewRegex.createSession({
+      urlFor: file => chrome.runtime.getURL(file),
+      onIssue: issue => { if (issue.reason === "unavailable") failure = issue.error; },
+    });
+    session.configure([{ id: "validation", value: text }]);
     try {
-      const slash = text.startsWith("/") ? text.lastIndexOf("/") : -1;
-      if (slash > 0) {
-        new RegExp(text.slice(1, slash), text.slice(slash + 1) || "i");
-      } else {
-        new RegExp(text, "i");
+      const result = await session.match([]);
+      if (result.unavailable) throw failure;
+      if (result.issues.some(issue => issue.reason === "timeout")) {
+        return uiText("settings.reviewFilter.rule.regexTimeout", "正则校验超时，请简化规则后重试。");
+      }
+      if (result.errors.length) {
+        return uiText("settings.reviewFilter.rule.invalidRegex", "正则表达式无效：$message$", { message: result.errors[0].error.message });
       }
       return "";
-    } catch (error) {
-      return uiText("settings.reviewFilter.rule.invalidRegex", "正则表达式无效：$message$", { message: error?.message || String(error) });
+    } finally {
+      session.cancel();
     }
   }
 
@@ -466,11 +474,26 @@
       }
     }
 
-    function addRule(shadow) {
+    // 校验期间复用保存禁用态；隔离宿主失败由本次用户操作统一记录
+    async function checkRule(shadow, type, value) {
+      if (savePending) return null;
+      setSavePending(shadow, true);
+      try {
+        return await validateReviewRule(type, value);
+      } catch (error) {
+        log.error("review-filter-rule-validation-failed", "评测正则规则校验失败", { error });
+        return uiText("settings.reviewFilter.rule.regexUnavailable", "正则校验暂不可用，请重新打开页面后重试。");
+      } finally {
+        setSavePending(shadow, false);
+      }
+    }
+
+    async function addRule(shadow) {
       const type = shadow.querySelector("[data-review-rule-type]")?.value || "keyword";
       const input = shadow.querySelector("[data-review-rule-value]");
       const value = String(input?.value || "").replace(/\r\n?/g, "\n").trim();
-      const error = validateReviewRule(type, value);
+      const error = await checkRule(shadow, type, value);
+      if (error === null || !shadow.host.isConnected) return;
       if (error) {
         dialog(shadow, { title: uiText("settings.reviewFilter.rule.addFailed", "无法添加规则"), message: error });
         return;
@@ -482,12 +505,11 @@
         value,
         enabled: true,
       });
-      setRules(shadow, rules, { activeType: type }).then((saved) => {
-        if (saved && input) {
-          input.value = "";
-          input.focus();
-        }
-      });
+      const saved = await setRules(shadow, rules, { activeType: type });
+      if (saved && input) {
+        input.value = "";
+        input.focus();
+      }
     }
 
     function updateRule(shadow, id, patch) {
@@ -553,7 +575,7 @@
         layer.classList.remove("show");
         window.setTimeout(() => layer.remove(), 120);
       };
-      layer.addEventListener("click", (event) => {
+      layer.addEventListener("click", async (event) => {
         const action = event.target.closest("[data-dialog-action]")?.dataset.dialogAction;
         if (!action) {
           return;
@@ -566,7 +588,8 @@
         }
         const type = layer.querySelector(".review-rule-dialog-type")?.value || rule.type;
         const value = String(layer.querySelector(".review-rule-dialog-value")?.value || "").replace(/\r\n?/g, "\n").trim();
-        const error = validateReviewRule(type, value);
+        const error = await checkRule(shadow, type, value);
+        if (error === null || !layer.isConnected) return;
         if (error) {
           const hint = layer.querySelector(".review-rule-dialog-error");
           if (hint) {
@@ -575,11 +598,7 @@
           }
           return;
         }
-        updateRule(shadow, id, { type, value }).then((saved) => {
-          if (saved) {
-            close();
-          }
-        });
+        if (await updateRule(shadow, id, { type, value })) close();
       });
       layer.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {

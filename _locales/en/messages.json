@@ -4463,6 +4463,23 @@
   "settings_reviewFilter_rule_hint": {
     "message": "Line breaks are saved as part of the same rule"
   },
+  "reviewFilter_regexUnavailable": {
+    "message": "Regular expression filtering is unavailable. Other filters remain active. Reopen this page to try again."
+  },
+  "reviewFilter_regexPaused": {
+    "message": "Rule $index$ is invalid or took too long and has been paused on this page. Other rules remain active. Check this rule in settings.",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_rule_regexTimeout": {
+    "message": "Regular expression validation timed out. Simplify the rule and try again."
+  },
+  "settings_reviewFilter_rule_regexUnavailable": {
+    "message": "Regular expression validation is unavailable. Reopen this page to try again."
+  },
   "settings_reviewFilter_rule_invalidRegex": {
     "message": "Invalid regular expression: $message$",
     "placeholders": {
