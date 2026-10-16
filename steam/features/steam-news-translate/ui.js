@@ -72,6 +72,8 @@
   const BLOCK_TEXT_SELECTOR = "p,li,tr,[role='row'],blockquote,pre,dd,dt,h1,h2,h3,h4,h5,h6";
   const NEWS_ENTRY_SELECTOR = "a[href^='steam://openurl/https://store.steampowered.com/news/app/']";
   const APP_ICON_SELECTOR = "img[src*='/community_assets/images/apps/']";
+  const NEWS_PANEL_SELECTOR = "div._3CJsgSK-y815Zeoe6bz6dh > div._1XLRr8eh1ip-E17C8Jzrmc";
+  const OWN_SURFACE_SELECTOR = `.${BUTTON_CLASS},.${TOOL_CLASS},.${BOX_CLASS},.${SEL_ACTION_CLASS},.${SEL_TIP_CLASS}`;
   const LIBRARY_EVENT_TITLE_CONTAINER_CLASS = "ZHAfj0MPg1zDLXRnCzSsx";
   const EVENT_TYPE_CLASS = "Udzrpqr8534T5DvVZveNP";
   const LIBRARY_EVENT_BODY_CONTAINER_CLASS = "_32mHvRSmD7AVK9OIOPlaFu";
@@ -185,17 +187,31 @@
     return toolbar?.isConnected && panel.contains(toolbar) ? toolbar : null;
   }
 
-  function activeNewsSurface(root) {
-    if (!root?.isConnected || root.id !== "popup_target") {
+  function newsPanelFromTargets(targets) {
+    let panel = null;
+    for (const target of targets) {
+      const candidate = target.querySelector?.(NEWS_PANEL_SELECTOR) || null;
+      if (!candidate) {
+        continue;
+      }
+      if (panel && panel !== candidate) {
+        return null;
+      }
+      panel = candidate;
+    }
+    return panel?.isConnected ? panel : null;
+  }
+
+  function activeNewsSurface(panel) {
+    if (!panel?.isConnected) {
       return null;
     }
-    const links = newsEntryLinks(root);
+    const links = newsEntryLinks(panel);
     if (!links.length) {
       return null;
     }
     const cards = links.map(newsCardFromLink);
-    const panel = newsPanelFromCard(cards[0]);
-    if (!panel?.isConnected || cards.some((card) => !card?.isConnected || newsPanelFromCard(card) !== panel)) {
+    if (cards.some((card) => !card?.isConnected || newsPanelFromCard(card) !== panel)) {
       return null;
     }
     const panelTop = panel.getBoundingClientRect().top;
@@ -204,7 +220,7 @@
     if (!card || !target) {
       return null;
     }
-    return Object.freeze({ card, link: links[cards.indexOf(card)], panel, root, target });
+    return Object.freeze({ card, link: links[cards.indexOf(card)], panel, target });
   }
 
   function newsContentResult(valid, reason, nodes = {}) {
@@ -808,14 +824,28 @@
     await Promise.all(Array.from({ length: size }, () => runWorker()));
   }
 
+  function newsContentMeta(contract) {
+    const newsMeta = contract.valid ? newsEntryMeta(contract.link) : null;
+    const steamTypeLabel = contract.valid ? nodeText(contract.typeHost) : "";
+    return {
+      title: contract.valid ? nodeText(contract.link).slice(0, TITLE_MAX_TEXT) : "",
+      gameName: "",
+      appid: newsMeta?.appid || "",
+      gid: newsMeta?.gid || "",
+      newsHref: newsMeta?.href || "",
+      steamTypeLabel,
+      steamStatusLabel: "",
+      contentType: steamTypeLabel || DEFAULT_CONTENT_TYPE,
+    };
+  }
+
   function extract(card) {
     const contract = newsContentSurface(card);
     const host = contract.valid ? contract.bodyHost : null;
     const titleHost = contract.valid ? contract.link : null;
-    const titleText = titleHost ? nodeText(titleHost).slice(0, TITLE_MAX_TEXT) : "";
+    const meta = newsContentMeta(contract);
+    const titleText = meta.title;
     const text = host ? collectText(host) : "";
-    const newsMeta = contract.valid ? newsEntryMeta(contract.link) : null;
-    const steamTypeLabel = contract.valid ? nodeText(contract.typeHost) : "";
     return {
       contractValid: contract.valid,
       contractReason: contract.reason,
@@ -824,18 +854,9 @@
       text,
       titleHost,
       titleText,
-      meta: {
-        title: titleText,
-        gameName: "",
-        appid: newsMeta?.appid || "",
-        gid: newsMeta?.gid || "",
-        newsHref: newsMeta?.href || "",
-        steamTypeLabel,
-        steamStatusLabel: "",
-        contentType: steamTypeLabel || DEFAULT_CONTENT_TYPE,
-      },
+      meta,
       titleHash: hashText(titleText),
-      hash: hashText(`${newsMeta?.gid || ""}\n---steam-buff-news-id---\n${titleText}\n---steam-buff-news---\n${text}`),
+      hash: hashText(`${meta.gid}\n---steam-buff-news-id---\n${titleText}\n---steam-buff-news---\n${text}`),
       length: titleText.length + text.length,
     };
   }
@@ -874,6 +895,10 @@
 
   function removeButtonRecord(rt, card) {
     const record = mounted.get(card);
+    if (record) {
+      record.pending = false;
+      delete record.jobId;
+    }
     stopButtonMotion(record?.button);
     record?.button?.remove?.();
     mounted.delete(card);
@@ -1507,6 +1532,9 @@
       const result = aiProgressive
         ? await translateAiNeededText(rt, card, data, needs, record, jobId)
         : await translateNeededText(data, needs);
+      if (!jobActive(card, record, jobId)) {
+        return;
+      }
       if (!aiProgressive && (!card.isConnected || !stillCurrent(data, needs))) {
         setButton(button, "idle");
         return;
@@ -1561,7 +1589,7 @@
 
   function currentButtonCard(rt, fallbackCard, button) {
     const target = button?.parentElement || null;
-    const surface = activeNewsSurface(rt.popupRoot);
+    const surface = activeNewsSurface(rt.newsPanel);
     if (surface?.card?.isConnected && surface.target === target) {
       return surface.card;
     }
@@ -1668,30 +1696,28 @@
     return true;
   }
 
-  // 注: steamloopback 不注入划词 runner，新闻正文划词只挂在 #popup_target 已验证正文上
+  // 注: steamloopback 不注入划词 runner，划词事件仅挂在已确认的新闻面板
   function newsSelectionUi(el) {
     return !!el?.closest?.(`.${SEL_ACTION_CLASS}, .${SEL_TIP_CLASS}`);
   }
 
-  function newsSelectionHost(rt) {
-    if (!rt?.activeCard?.isConnected) {
+  // 选区归属由面板内的真实节点确定，窗口恢复后的缓存可能与实际选区所属文章不一致
+  function newsSelectionContent(rt, selection) {
+    const panel = rt.newsPanel;
+    const anchor = selection.anchorNode;
+    const focus = selection.focusNode;
+    if (!panel?.isConnected || !anchor || !focus || !panel.contains(anchor) || !panel.contains(focus)) {
       return null;
     }
-    const contract = newsContentSurface(rt.activeCard);
-    return contract.valid ? rt.activeCard : null;
-  }
-
-  function newsSelectionText(host) {
-    const selection = window.getSelection?.();
-    if (!selection || selection.isCollapsed || !host?.isConnected) {
-      return "";
+    let card = anchor.nodeType === 1 ? anchor : anchor.parentElement;
+    while (card && card !== panel && newsPanelFromCard(card) !== panel) {
+      card = card.parentElement;
     }
-    const node = selection.anchorNode;
-    const el = node?.nodeType === 1 ? node : node?.parentElement;
-    if (!el || !host.contains(el)) {
-      return "";
+    if (!card || card === panel || !card.contains(focus)) {
+      return null;
     }
-    return clean(selection.toString()).replace(/\s*\n\s*/g, "\n").trim();
+    const contract = newsContentSurface(card);
+    return contract.valid ? contract : null;
   }
 
   function newsSelectionTrigger(rt) {
@@ -1829,6 +1855,7 @@
   }
 
   function hideNewsSelection(rt) {
+    rt.selSeq = (rt.selSeq || 0) + 1;
     if (rt.selTimer) {
       window.clearTimeout(rt.selTimer);
       rt.selTimer = 0;
@@ -1887,8 +1914,15 @@
   }
 
   function finishNewsSelection(rt, event) {
-    const host = newsSelectionHost(rt);
-    const text = newsSelectionText(host);
+    const selection = window.getSelection?.();
+    if (!selection || selection.isCollapsed) {
+      return;
+    }
+    const contract = newsSelectionContent(rt, selection);
+    if (!contract) {
+      return;
+    }
+    const text = clean(selection.toString()).replace(/\s*\n\s*/g, "\n").trim();
     if (!text) {
       return;
     }
@@ -1896,7 +1930,7 @@
       text,
       trigger: newsSelectionTrigger(rt),
       point: newsSelectionPoint(event),
-      meta: rt.activeCard ? extract(rt.activeCard).meta : {},
+      meta: newsContentMeta(contract),
     };
     if (ctx.trigger === "icon" || ctx.trigger === "dot") {
       showNewsSelAction(rt, ctx);
@@ -1914,7 +1948,7 @@
   }
 
   function bindNewsSelection(rt) {
-    const root = rt.popupRoot;
+    const root = rt.newsPanel;
     if (!root?.isConnected || rt.config?.enabled !== true || rt.config?.selection === false) {
       unbindNewsSelection(rt);
       return;
@@ -1964,11 +1998,8 @@
   function clearMounted(rt) {
     hideNewsSelection(rt);
     for (const card of rt.cards) {
-      const record = mounted.get(card);
-      stopButtonMotion(record?.button);
-      record?.button?.remove?.();
       card.querySelectorAll?.(`.${TOOL_CLASS},.${BOX_CLASS}`)?.forEach((el) => el.remove());
-      mounted.delete(card);
+      removeButtonRecord(rt, card);
     }
     rt.cards.clear();
     rt.activeCard = null;
@@ -1983,14 +2014,35 @@
     );
   }
 
-  function newsSurfaceMutation(records) {
+  function ownNewsSurfaceNode(node) {
+    const element = node?.nodeType === 1 ? node : node?.parentElement;
+    return !!element?.closest?.(OWN_SURFACE_SELECTOR);
+  }
+
+  function newsSurfaceMutation(rt, records) {
     return Array.from(records || []).some((record) => {
-      if (record.type !== "childList") {
+      if (record.type !== "childList" || ownNewsSurfaceNode(record.target)) {
         return false;
       }
-      return Array.from(record.addedNodes || []).some(nodeHasNewsSurfaceSignal) ||
-        Array.from(record.removedNodes || []).some(nodeHasNewsSurfaceSignal);
+      const nodes = [...record.addedNodes, ...record.removedNodes].filter((node) => !ownNewsSurfaceNode(node));
+      if (!nodes.length) {
+        return false;
+      }
+      if (!rt.activeCard?.isConnected || !mounted.get(rt.activeCard)?.button?.isConnected) {
+        return true;
+      }
+      return record.target === rt.newsPanel || record.target === rt.activeCard || nodes.some(nodeHasNewsSurfaceSignal);
     });
+  }
+
+  function setNewsPanel(rt, panel) {
+    if (rt.newsPanel !== panel) {
+      unbindNewsSelection(rt);
+      clearMounted(rt);
+      rt.newsPanel = panel;
+    }
+    rt.surfaceHandle?.setTarget(rt.config?.enabled === true ? panel : null);
+    bindNewsSelection(rt);
   }
 
   function refreshMountedSurface(rt) {
@@ -1998,10 +2050,13 @@
       clearMounted(rt);
       return false;
     }
-    const surface = activeNewsSurface(rt.popupRoot);
+    const surface = activeNewsSurface(rt.newsPanel);
     if (!surface) {
       clearMounted(rt);
       return false;
+    }
+    if (rt.activeCard !== surface.card) {
+      hideNewsSelection(rt);
     }
     if (!mount(rt, surface)) {
       clearMounted(rt);
@@ -2015,18 +2070,22 @@
   function onMainPopupSurface(rt, active, context) {
     rt.popupRoot = active ? context?.root || null : null;
     if (!active || !rt.popupRoot?.isConnected) {
-      unbindNewsSelection(rt);
-      clearMounted(rt);
+      rt.popupTargets = [];
+      setNewsPanel(rt, null);
       return;
     }
-    bindNewsSelection(rt);
+    rt.popupTargets = context.targets;
+    if (context?.reason !== "scroll" && context?.reason !== "mutation") {
+      setNewsPanel(rt, newsPanelFromTargets(rt.popupTargets));
+    }
+    if (!rt.newsPanel?.isConnected || rt.config?.enabled !== true) {
+      return;
+    }
     if (context?.reason === "scroll" && !rt.activeCard) {
       return;
     }
     if (context?.reason === "mutation" &&
-        rt.activeCard?.isConnected &&
-        mounted.get(rt.activeCard)?.button?.isConnected &&
-        !newsSurfaceMutation(context.records)) {
+        !newsSurfaceMutation(rt, context.records)) {
       return;
     }
     refreshMountedSurface(rt);
@@ -2067,23 +2126,38 @@
   function applyConfig(rt, config) {
     const source = config && typeof config === "object" ? config : localConfig(rt, "invalid-config");
     const featureEnabled = localFeatureEnabled(rt);
+    const previous = rt.config;
     rt.config = {
       ...source,
       enabled: source.enabled === true && featureEnabled,
       featureEnabled,
     };
     logConfigState(rt);
+    if (previous.enabled === rt.config.enabled &&
+        previous.selection === rt.config.selection &&
+        previous.selectionTrigger === rt.config.selectionTrigger &&
+        previous.selectionAction === rt.config.selectionAction) {
+      return;
+    }
     if (rt.config.enabled !== true) {
+      rt.surfaceHandle?.setTarget(null);
       unbindNewsSelection(rt);
       clearMounted(rt);
       return;
     }
-    bindNewsSelection(rt);
-    refreshMountedSurface(rt);
+    if (document.hidden) {
+      return;
+    }
+    setNewsPanel(rt, newsPanelFromTargets(rt.popupTargets));
+    if (previous.enabled !== true) {
+      refreshMountedSurface(rt);
+    } else {
+      hideNewsSelection(rt);
+    }
   }
 
   function hasNewsPopupContext(rt) {
-    return rt.cards?.size > 0 || !!rt.popupRoot?.querySelector?.(NEWS_ENTRY_SELECTOR);
+    return !!rt.newsPanel?.isConnected;
   }
 
   async function refreshConfig(rt, options = {}) {
@@ -2158,6 +2232,8 @@
       contractMismatchCards: new WeakSet(),
       activeCard: null,
       popupRoot: null,
+      popupTargets: [],
+      newsPanel: null,
       surfaceHandle: null,
       configWarnAt: 0,
       selSeq: 0,
@@ -2176,6 +2252,8 @@
         rt.surfaceHandle?.dispose?.();
         rt.surfaceHandle = null;
         rt.popupRoot = null;
+        rt.popupTargets = [];
+        rt.newsPanel = null;
         window.removeEventListener("message", rt.onMessage);
         unbindNewsSelection(rt);
         rt.selAction?.remove?.();
@@ -2201,16 +2279,17 @@
       },
       onDispose() {
         rt.popupRoot = null;
-        unbindNewsSelection(rt);
-        clearMounted(rt);
+        rt.popupTargets = [];
+        setNewsPanel(rt, null);
       },
     });
+    rt.surfaceHandle.setTarget(rt.config.enabled === true ? rt.newsPanel : null);
     // 配置刷新迁移到统一调度器，避免新闻弹窗功能持有独立巡检。
     window.STScheduler.register(
       SCHEDULER_TASK,
       () => refreshConfig(rt).catch((error) => {
         globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "steam-news-translate", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });}),
-      () => !rt.stopped,
+      () => !rt.stopped && !document.hidden && !!rt.popupRoot?.isConnected,
       { intervalMs: CONFIG_REFRESH_MS }
     );
     scope?.schedulerTask?.("config-refresh", SCHEDULER_TASK);
