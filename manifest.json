@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.0.38",
+  "version": "2.0.39",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -181,7 +181,13 @@
         "shared/config.js",
         "shared/error-boundary.js",
         "shared/i18n.js",
+        "shared/settings-bus.js",
+        "ai/config.js",
+        "shared/price-comparison-catalog.js",
+        "settings/catalog.js",
+        "settings/storage.js",
         "shared/review-regex.js",
+        "store/features/review/review-filter-style.js",
         "store/features/review/review-filter-core.js",
         "store/features/review/review-filter.js",
         "store/features/review/review-filter-community.js"
@@ -204,6 +210,7 @@
         "shared/config.js",
         "shared/error-boundary.js",
         "shared/i18n.js",
+        "store/features/review/review-filter-style.js",
         "store/runtime/styles.js",
         "store/features/cart/cart-select-checkout.js"
       ],

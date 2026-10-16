@@ -468,7 +468,8 @@
     });
   }
 
-  async function getAll() {
+  /** 读取并归一化功能开关；force 透传设置总线，供设置变化后的调用绕过旧快照缓存 */
+  async function getAll(options = {}) {
     const defs = defaults();
     const ids = Object.keys(defs);
     if (globalThis.STSettingsBus?.loadSettingsSnapshot) {
@@ -476,7 +477,7 @@
         owner: "settings:storage",
         ids,
         defaults: defs,
-        force: false,
+        force: options.force === true,
         reason: "settings-storage-get-all",
       });
     }

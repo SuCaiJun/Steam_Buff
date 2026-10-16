@@ -243,6 +243,7 @@
     "store/runtime/assets.js",
     "store/runtime/format.js",
     "store/runtime/dom.js",
+    "store/features/review/review-filter-style.js",
     "store/runtime/styles.js",
     "shared/logger-schema.js",
     "extension/runtime/logger.js",

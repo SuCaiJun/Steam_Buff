@@ -58,6 +58,7 @@
   let layoutScriptInjected = false;
   let started = false;
   let configUnavailable = false;
+  let style = null;
   let generation = 0;
   let panelDirty = false;
   let layoutDirty = false;
@@ -605,11 +606,24 @@
     if (seq !== generation) return false;
     config = core.normalizeConfig(raw);
     if (!core.active(config)) return false;
+    try {
+      const dependency = api.features.reviewFilterStyle;
+      if (typeof dependency?.ensure !== "function" || typeof dependency?.remove !== "function") {
+        throw new TypeError("评测过滤样式模块尚未加载");
+      }
+      if (!dependency.ensure()) throw new Error("评测过滤样式未挂载");
+      style = dependency;
+    } catch (error) {
+      config = null;
+      log.error("review-filter-style-failed", "评测过滤样式加载失败", { error, path: location.pathname });
+      return false;
+    }
     if (!setupObserver()) {
+      style.remove();
+      style = null;
       config = null;
       return false;
     }
-    api.styles?.ensureFeatureStyle?.("review-filter");
     regexSession.configure(config.regexRules);
     for (const issue of regexSession.issues()) showRegexIssue(issue);
     started = true;
@@ -647,7 +661,10 @@
     regexOwners.clear();
     hiddenReviews.clear();
     panelDirty = layoutDirty = false;
-    api.styles?.removeFeatureStyle?.("review-filter");
+    if (style) {
+      style.remove();
+      style = null;
+    }
     updatePanel();
     // 已停用过滤标记的社区卡片需由原生布局从隐藏停放区移回列表
     if (wasActive && dom === COMMUNITY_DOM && layoutScriptInjected) fireLayoutEvent();

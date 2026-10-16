@@ -4087,14 +4087,7 @@
       id: "st-store-common-feature-style",
       css: STORE_COMMON_FEATURE_CSS,
     },
-    "review-filter": {
-      id: "st-review-filter-style",
-      css: `
-      [data-st-review-filter-hidden="1"] {
-        display: none !important;
-      }
-    `,
-    },
+    "review-filter": api.features.reviewFilterStyle,
     "cart-select-checkout": {
       id: "st_cart_restore_checkout_style",
       css: `
