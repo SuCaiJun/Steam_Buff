@@ -284,6 +284,8 @@
       return { started: false, reason: "already-started", stop: old.stop };
     }
 
+    // 编译结果归属规则对象，编辑副本不会覆盖已生效规则
+    const filterExpressions = new WeakMap();
     const state = {
       started: true,
       ch: typeof BroadcastChannel === "function" ? new BroadcastChannel(CH) : null,
@@ -925,23 +927,29 @@
       return Array.from(text(value)).length;
     }
 
+    // 仅语法错误作为输入校验结果返回；其他异常由应用筛选的责任层记录
+    function compileFilterRegex(value) {
+      try {
+        return { expression: new RegExp(text(value), "i"), error: null };
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+        return { expression: null, error };
+      }
+    }
+
     function matchesText(filter, candidates) {
       const values = candidates.map(value => text(value)).filter(Boolean);
+      if (filter.op === "regex") {
+        const expression = filterExpressions.get(filter);
+        if (!expression) throw new Error("正则筛选缺少已验证表达式");
+        return values.some(value => expression.test(value));
+      }
       const query = text(filter.value);
       const normalizedQuery = query.toLocaleLowerCase();
       if (filter.op === "startsWith") return values.some(value => value.toLocaleLowerCase().startsWith(normalizedQuery));
       if (filter.op === "endsWith") return values.some(value => value.toLocaleLowerCase().endsWith(normalizedQuery));
       if (filter.op === "lengthGt") return values.some(value => unicodeLength(value) > Number(filter.value));
       if (filter.op === "lengthLt") return values.some(value => unicodeLength(value) < Number(filter.value));
-      if (filter.op === "regex") {
-        let expression;
-        try {
-          expression = new RegExp(query, "i");
-        } catch {
-          return false;
-        }
-        return values.some(value => expression.test(value));
-      }
       const found = values.some(value => {
         const normalized = value.toLocaleLowerCase();
         if (filter.op === "contains" || filter.op === "notContains") return normalized.includes(normalizedQuery);
@@ -1199,10 +1207,10 @@
       picker.querySelector(initialSelector)?.focus({ preventScroll: true });
     }
 
-    function applyFilters() {
-      if (!state.filterDraft) return;
-      const editor = document.getElementById(BATCH_MODAL).querySelector("[data-lin-filter-editor]");
-      const invalid = state.filterDraft.some(filter => {
+    // 校验与编译共用一条路径；失败只返回原因，不替换已生效筛选
+    function validateFilterDraft(filters) {
+      let regexError = null;
+      const invalid = filters.some(filter => {
         if (!filterAvailability(filter.field).ready) return true;
         if (usesFilterOptionValues(filter.field, filter.op)) return !filter.values.length;
         if (isRangeField(filter.field)) {
@@ -1217,17 +1225,32 @@
           return !/^\d+$/.test(text(filter.value)) || !Number.isSafeInteger(Number(filter.value));
         }
         if (filter.op === "regex") {
-          try { new RegExp(filter.value, "i"); } catch { return true; }
+          const compiled = compileFilterRegex(filter.value);
+          if (compiled.error) {
+            regexError = compiled.error;
+            return true;
+          }
+          filterExpressions.set(filter, compiled.expression);
         }
         return false;
       });
-      if (invalid) {
+      return { invalid, regexError };
+    }
+
+    function applyFilters() {
+      if (!state.filterDraft) return;
+      const editor = document.getElementById(BATCH_MODAL).querySelector("[data-lin-filter-editor]");
+      let validation;
+      try {
+        validation = validateFilterDraft(state.filterDraft);
+      } catch (error) {
+        log.error("independent-name-filter-apply-failed", "应用独立名称筛选失败", { error });
+        editor.querySelector("[data-lin-filter-msg]").textContent = i18n("common.operationFailed", "操作失败");
+        return;
+      }
+      if (validation.invalid) {
         const unavailable = state.filterDraft.map(filter => filterAvailability(filter.field)).find(result => !result.ready);
-        const invalidRegex = state.filterDraft.find(filter => filter.op === "regex" && text(filter.value));
-        let regexMessage = "";
-        if (invalidRegex) {
-          try { new RegExp(invalidRegex.value, "i"); } catch { regexMessage = i18n("steam.independentName.filterRegexInvalid", "正则表达式格式错误，请修改后重试"); }
-        }
+        const regexMessage = validation.regexError ? i18n("steam.independentName.filterRegexInvalid", "正则表达式格式错误，请修改后重试") : "";
         editor.querySelector("[data-lin-filter-msg]").textContent = unavailable?.message || regexMessage || i18n("steam.independentName.filterIncomplete", "请填写筛选值或选择游戏类型");
         return;
       }

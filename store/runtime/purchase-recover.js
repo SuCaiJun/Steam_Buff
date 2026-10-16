@@ -67,6 +67,7 @@
   }
 
   function recover(reason) {
+    if (document.hidden) return;
     const pageInfo = api.ctx?.pageInfo?.();
     if (!pageInfo || pageInfo.type !== "app") return;
     if (!needRecover()) return;
@@ -146,16 +147,22 @@
       return;
     }
 
-    const rawObserver = utils.createDebouncedObserver(() => {
-      if (needRecover()) {
-        schedRecover("mutation");
-      }
-    }, OBSERVER_DEBOUNCE_MS, { records: false });
+    const checkRecovery = reason => {
+      if (!document.hidden && needRecover()) schedRecover(reason);
+    };
+    const rawObserver = utils.createDebouncedObserver(() => checkRecovery("mutation"), OBSERVER_DEBOUNCE_MS, { records: false });
+    rawObserver.__stTarget = target;
     window.__stStoreRecoverObs = utils.createVisibilityGatedObserver(rawObserver, target, {
       childList: true,
       subtree: true,
+    }, {
+      resolveTarget() {
+        // startObserver 以同一目标判断复用，恢复重定位时同步更新
+        rawObserver.__stTarget = observerTarget();
+        return rawObserver.__stTarget;
+      },
+      onResume: () => checkRecovery("visibility"),
     });
-    window.__stStoreRecoverObs.__stTarget = target;
 
     // 只监听 App 页购买区父容器，找不到精准目标时不启动观察器。
     log("info", "purchase-recover-observer-start", "商店购买区恢复监听已启动", recoverMeta(api.ctx?.pageInfo?.(), "observer-setup", {

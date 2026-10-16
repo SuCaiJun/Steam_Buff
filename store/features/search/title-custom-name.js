@@ -1082,7 +1082,7 @@
     const target = observeTarget();
     if (!target) {
       log.warn("title-custom-name-observer-target-missing", "商店标题自定义名监听目标未找到", {
-        selector: "responsive_page_template_content | game_highlights | app title parent",
+        selector: "game_highlights | app title parent",
         path: location.pathname,
         viewport: {
           width: window.innerWidth,
@@ -1093,6 +1093,7 @@
       return;
     }
     const callback = () => {
+      if (!started || document.hidden || !isDetailPath() || !api.settings?.on?.(FEATURE_ID)) return;
       const info = pageInfo();
       if (info && (!state || state.appid !== info.appid || !detailMountedOnCurrentTitle())) {
         refresh().catch((error) => {
@@ -1102,7 +1103,10 @@
     observer = root.STObserverUtils?.createDebouncedObserver?.(callback, DETAIL_OBSERVER_DEBOUNCE_MS, { records: false })
       || new MutationObserver(callback);
     // 只监听商店主内容容器；Steam 内部跳转会深层替换标题节点，保留 subtree。
-    root.STObserverUtils?.createVisibilityGatedObserver?.(observer, target, { childList: true, subtree: true })
+    root.STObserverUtils?.createVisibilityGatedObserver?.(observer, target, { childList: true, subtree: true }, {
+      resolveTarget: () => started && isDetailPath() && api.settings?.on?.(FEATURE_ID) ? observeTarget() : null,
+      onResume: callback,
+    })
       || observer.observe(target, { childList: true, subtree: true });
     log.info("title-custom-name-observer-start", "商店标题自定义名监听已启动", {
       targetId: target.id || "",

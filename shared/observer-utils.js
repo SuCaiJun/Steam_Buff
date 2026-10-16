@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "steam-buff-observer-utils-v2";
+  const VERSION = "steam-buff-observer-utils-v3";
 
   if (window.STObserverUtils?.version === VERSION) {
     return;
@@ -155,23 +155,37 @@
     });
   }
 
-  // 优化: Store React 页面切到后台时仍会持续变更 DOM，隐藏页先断开观察器，回到前台再恢复。
-  function createVisibilityGatedObserver(observer, target, options) {
+  /**
+   * 隐藏时断开监听并取消观察器积压；首次前台连接使用 target
+   * 第四参数可选：resolveTarget 在恢复时返回当前 Node 或 null，onResume 在重连后同步补处理一次
+   * 空目标保持断开且不自动重试；恢复不重放 MutationRecord，也不冒充 DOM 变化
+   * 返回同一观察器；显式 disconnect 会注销可见性监听，后续不再恢复
+   * 钩子须为函数，类型错误和同步异常向调用栈传播；调用方负责异步失败
+   */
+  function createVisibilityGatedObserver(observer, target, options, { resolveTarget, onResume } = {}) {
     if (!observer || !target) {
       return observer;
+    }
+    if ((resolveTarget !== undefined && typeof resolveTarget !== "function")
+      || (onResume !== undefined && typeof onResume !== "function")) {
+      throw new TypeError("Observer 可见性回调参数无效");
     }
 
     const observe = observer.observe.bind(observer);
     const disconnect = observer.disconnect.bind(observer);
     let connected = false;
     let disposed = false;
+    let hidden = document.hidden;
 
-    function connect() {
+    function connect(resuming = false) {
       if (disposed || connected || document.hidden) {
         return;
       }
+      if (resuming && resolveTarget) target = resolveTarget();
+      if (!target) return;
       observe(target, options);
       connected = true;
+      if (resuming) onResume?.(target);
     }
 
     function pause() {
@@ -183,10 +197,13 @@
     }
 
     function handleVisibilityChange() {
-      if (document.hidden) {
+      const nextHidden = document.hidden;
+      if (disposed || nextHidden === hidden) return;
+      hidden = nextHidden;
+      if (hidden) {
         pause();
       } else {
-        connect();
+        connect(true);
       }
     }
 
