@@ -2646,8 +2646,8 @@
       }
 
       .st_cart_select_check {
-        width: 12px;
-        height: 12px;
+        width: 14px;
+        height: 14px;
         cursor: pointer;
       }
 
@@ -2755,20 +2755,17 @@
       }
 
       .st_cart_select_check input:checked + .st_cart_select_mark {
-        border-color: var(--st-color-steam-blue);
+        border: 0;
+        background: transparent;
+        box-shadow: none;
       }
 
       .st_cart_select_check input:checked + .st_cart_select_mark::after {
-        content: "√";
+        content: "";
         position: absolute;
         inset: 0;
-        display: grid;
-        place-items: center;
-        color: var(--st-color-white);
-        font-size: 12px;
-        font-weight: 700;
-        line-height: 1;
-        transform: translateY(-1px);
+        background: var(--st-color-white);
+        mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'currentColor'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M18%2013v6a2%202%200%200%201-2%202H5a2%202%200%200%201-2-2V8a2%202%200%200%201%202-2h10'%20stroke-width%3D'2.7'%2F%3E%3Cpath%20d%3D'm7%2012%204%204L22%204'%20stroke-width%3D'3.7'%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
       }
 
       .st_cart_select_check input:focus-visible + .st_cart_select_mark {
@@ -2776,7 +2773,7 @@
         outline-offset: 2px;
       }
 
-      .st_cart_select_check:hover .st_cart_select_mark {
+      .st_cart_select_check:hover input:not(:checked) + .st_cart_select_mark {
         border-color: var(--st-color-steam-blue);
       }
 
