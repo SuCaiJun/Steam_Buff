@@ -1248,7 +1248,7 @@
   }
 
   function jobActive(card, record, jobId) {
-    return !!card?.isConnected && record?.pending === true && record?.jobId === jobId;
+    return !!card?.isConnected && mounted.get(card) === record && record?.pending === true && record?.jobId === jobId;
   }
 
   function titleTextCurrent(data) {
@@ -1386,6 +1386,9 @@
         failedCount += 1;
         trackFailedUnits(task);
       } catch (error) {
+        if (!jobActive(card, record, jobId)) {
+          return;
+        }
         failedCount += 1;
         trackFailedUnits(task);
           log.warn("news-popup-ai-chunk-failed", "AI 新闻分块翻译失败", {
@@ -1423,6 +1426,9 @@
           failedCount += 1;
           trackFailedUnits(task);
         } catch (error) {
+          if (!jobActive(card, record, jobId)) {
+            return;
+          }
           failedCount += 1;
           trackFailedUnits(task);
           log.warn("news-popup-ai-retry-failed", "AI 新闻失败段落补偿翻译失败", {
@@ -1442,6 +1448,9 @@
     await Promise.all([titleTask, bodyQueueTask]);
     if (needs.body) {
       await retryFailedBodyUnits();
+    }
+    if (!jobActive(card, record, jobId)) {
+      throw staleJobError();
     }
 
     const host = data.host?.isConnected ? data.host : null;
@@ -1482,7 +1491,7 @@
 
   async function translateCard(rt, card, record) {
     const button = record.button;
-    if (rt.pendingCards?.has(card) || record.pending === true) {
+    if (record.pending === true) {
       setButton(button, "loading", i18n("steam.newsTranslate.translating", "正在翻译..."));
       return;
     }
@@ -1514,7 +1523,6 @@
       return;
     }
 
-    rt.pendingCards?.add(card);
     record.pending = true;
     const jobId = `${data.hash}:${Date.now().toString(36)}`;
     record.jobId = jobId;
@@ -1563,6 +1571,9 @@
         service: result.meta.body?.service || result.meta.title?.service || "",
       });
     } catch (error) {
+      if (!jobActive(card, record, jobId)) {
+        return;
+      }
       if (isStaleJobError(error)) {
         if (card.isConnected) {
           setButton(button, "idle");
@@ -1581,9 +1592,11 @@
         needsBody: needs.body,
       }, error);
     } finally {
-      rt.pendingCards?.delete(card);
-      record.pending = false;
-      delete record.jobId;
+      // 旧请求只能释放自己的任务，不能修改恢复后新按钮的状态。
+      if (record.jobId === jobId) {
+        record.pending = false;
+        delete record.jobId;
+      }
     }
   }
 
@@ -1620,7 +1633,7 @@
       }
     }
     const existing = mounted.get(card);
-    if (button.dataset.busy === "1" || existing?.pending === true || rt.pendingCards?.has(card)) {
+    if (button.dataset.busy === "1" || existing?.pending === true) {
       setButton(button, "loading", i18n("steam.newsTranslate.translating", "正在翻译..."));
       return;
     }
@@ -2227,7 +2240,6 @@
       config: { enabled: false },
       cards: new Set(),
       cache: new Map(),
-      pendingCards: new WeakSet(),
       translated: new WeakMap(),
       contractMismatchCards: new WeakSet(),
       activeCard: null,
