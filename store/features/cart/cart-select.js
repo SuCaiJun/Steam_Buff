@@ -24,6 +24,7 @@
   const SCAN_MS = 700;
   const OBSERVER_DEBOUNCE_MS = 1000;
   const EMPTY_SCAN_RETRY_MAX = 12;
+  const SIDE_TOTAL_ROW_SELECTOR = "._2bIzQo07mxubFvscA8RIA8 > ._2DjadWLFH3keW9rGWZKxSk.qV80oahDZsbXiS6lIDLND";
   const MATCH = globalThis.STConfig?.matchers;
   const log = window.STLoggerFactory.createLogger("store", "cart-select");
 
@@ -674,36 +675,19 @@
   }
 
   function sideAnchor() {
-    const total = Array.from(document.querySelectorAll("div, span, p"))
-      .filter(visible)
-      .find(el => {
-        const text = compactText(el);
-        return /^预计总额\s*[¥$€£]|^Estimated Total\s*[¥$€£]/i.test(text);
-      });
-    if (total) return { el: total, pos: "afterend" };
-
-    const note = Array.from(document.querySelectorAll("div, span, p"))
-      .filter(visible)
-      .find(el => {
-        const text = compactText(el);
-        return text.length <= 120
-          && (/销售税|tax/i.test(text))
-          && (/付款|结算|checkout|payment/i.test(text));
-      });
-    if (note) return { el: note, pos: "beforebegin" };
-
-    const btn = checkoutButtons()[0];
-    return btn ? { el: btn, pos: "beforebegin" } : null;
+    // 原生购物车同时保留宽屏和窄屏总额行，只使用当前可见的一行。
+    return Array.from(document.querySelectorAll(SIDE_TOTAL_ROW_SELECTOR)).find(visible) || null;
   }
 
   function ensureSideSummary() {
     const anchor = sideAnchor();
     if (!anchor) {
+      document.getElementById("st_cart_select_side_summary")?.remove();
       if (items.length && !lastSideAnchorMissing) {
         lastSideAnchorMissing = true;
         log.warn("cart-select-side-summary-target-missing", "购物车侧边汇总挂载目标未找到", {
           totalCount: items.length,
-          selector: "Estimated Total | tax note | checkout button",
+          selector: SIDE_TOTAL_ROW_SELECTOR,
           path: location.pathname,
         });
       }
@@ -734,13 +718,8 @@
       box.append(totalRow, countRow);
     }
 
-    const { el, pos } = anchor;
-    if ((pos === "afterend" && box.previousElementSibling !== el)
-      || (pos === "beforebegin" && box.nextElementSibling !== el)) {
-      el.insertAdjacentElement(pos, box);
-    }
-    if (pos === "afterend") {
-      el.classList.add("st_cart_select_total_row");
+    if (box.previousElementSibling !== anchor) {
+      anchor.insertAdjacentElement("afterend", box);
     }
     return box;
   }
@@ -1404,7 +1383,6 @@
     });
     document.querySelectorAll(".st_cart_select_actions").forEach(node => node.classList.remove("st_cart_select_actions"));
     document.querySelectorAll(".st_cart_select_remove_all_anchor").forEach(node => node.classList.remove("st_cart_select_remove_all_anchor"));
-    document.querySelectorAll(".st_cart_select_total_row").forEach(node => node.classList.remove("st_cart_select_total_row"));
     document.querySelectorAll(".st_cart_select_cart_title").forEach(node => node.classList.remove("st_cart_select_cart_title"));
     lastBridgeFailureKey = "";
     lastBridgeFailureAt = 0;

@@ -339,6 +339,7 @@
       "store/api/subscription-info.js",
       "store/features/reminders/app-card-badge-scanner.js",
       "store/features/cart/cart-select.js",
+      "store/features/search/search-suggestions.js",
       "store/features/reminders/subscription-info.js",
       "store/features/reminders/family-library-owned-marker.js",
     ]),
@@ -3145,7 +3146,7 @@
 
   function storePageTypeFromMeta(meta = {}) {
     const type = String(meta.pageType || meta.storePageType || "other");
-    return Object.hasOwn(STORE_FEATURE_CHUNKS, type) ? type : "other";
+    return type === "age" || Object.hasOwn(STORE_FEATURE_CHUNKS, type) ? type : "other";
   }
 
   function isStoreHistorySender(sender) {
@@ -3158,7 +3159,7 @@
 
   function storeFiles(meta = {}, sender) {
     const type = storePageTypeFromMeta(meta);
-    if (type === "age") {
+    if (type === "age" && meta.incremental !== true) {
       return { files: [], skipped: true, reason: "no-store-feature" };
     }
     if (type === "history" && !isStoreHistorySender(sender)) {
@@ -3167,7 +3168,7 @@
     return {
       files: [
         ...STORE_BASE_SCRIPTS,
-        ...(STORE_FEATURE_CHUNKS[type] || STORE_FEATURE_CHUNKS.other),
+        ...(type === "age" ? [] : STORE_FEATURE_CHUNKS[type]),
         ...STORE_START_SCRIPTS,
       ],
     };
@@ -3383,32 +3384,57 @@
   }
 
   async function injectContentFiles(request, sender, sendResponse) {
-    const target = senderTarget(sender);
+    const incremental = request.bundle === "store-runtime" && request.meta?.incremental === true;
+    const target = incremental
+      ? (typeof sender?.tab?.id === "number" && typeof sender.documentId === "string"
+        ? { tabId: sender.tab.id, documentIds: [sender.documentId] } : null)
+      : senderTarget(sender);
     const bundle = contentBundle(request, sender);
     const files = Array.isArray(bundle?.files) ? bundle.files : [];
     if (!target || !bundle) {
-      sendResponse({ success: false, error: "无法定位注入目标或脚本包不被允许" });
+      sendResponse({
+        success: false, error: "无法定位注入目标或脚本包不被允许",
+        ...(incremental ? { files: [] } : {}),
+      });
       return;
     }
     if (bundle.skipped || !files.length) {
-      sendResponse({ success: true, skipped: true, reason: bundle.reason || "empty-bundle" });
+      sendResponse({
+        success: incremental ? !bundle.skipped : true,
+        skipped: true, reason: bundle.reason || "empty-bundle",
+        ...(incremental ? { files: [], error: bundle.reason || "empty-bundle" } : {}),
+      });
       return;
     }
 
+    const injected = [];
     try {
-      await execScript({
-        target,
-        world: "ISOLATED",
-        files,
-      });
-      sendResponse({ success: true });
+      if (incremental) {
+        if (!Array.isArray(request.meta.loadedFiles) || request.meta.loadedFiles.some(file => typeof file !== "string")) {
+          throw new TypeError("商店分包请求缺少有效的 loadedFiles");
+        }
+        const loaded = new Set(request.meta.loadedFiles);
+        for (const file of files) {
+          if (loaded.has(file)) continue;
+          await execScript({ target, world: "ISOLATED", files: [file] });
+          injected.push(file);
+          loaded.add(file);
+        }
+      } else {
+        await execScript({ target, world: "ISOLATED", files });
+      }
+      sendResponse(incremental ? { success: true, files: injected } : { success: true });
     } catch (error) {
       logError("injection", "content-files-inject-failed", "内容脚本文件按需注入失败", error, {
         bundle: String(request?.bundle || ""),
         count: files.length,
         firstFile: files[0] || "",
       });
-      sendResponse({ success: false, error: error?.message || String(error) });
+      const message = error?.message || String(error);
+      sendResponse({
+        success: false, error: message,
+        ...(incremental ? { files: injected } : {}),
+      });
     }
   }
 

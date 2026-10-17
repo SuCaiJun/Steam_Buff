@@ -192,5 +192,12 @@ function addFamilySharingNotice(appId, protocol) {
   api.features.familySharing = Object.freeze({
     add: addFamilySharingNotice,
     needsRestore,
+    stop() {
+      document.querySelectorAll("." + MODULE_CLASSES.FAMILY_SHARING).forEach(node => {
+        api.dom.loading.clear(node);
+        node.remove();
+      });
+      return true;
+    },
   });
 })();

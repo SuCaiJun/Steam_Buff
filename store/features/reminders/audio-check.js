@@ -398,6 +398,13 @@
 
   api.features.audioCheck = Object.freeze({
     add: addAudioCheck,
+    stop() {
+      document.querySelectorAll("." + MODULE_CLASSES.AUDIO_CHECK).forEach(node => {
+        api.dom.loading.clear(node);
+        node.remove();
+      });
+      return true;
+    },
   });
 
   api.features.workshopCheck = Object.freeze({

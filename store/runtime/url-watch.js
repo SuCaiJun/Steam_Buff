@@ -12,72 +12,75 @@
   "use strict";
 
   const api = window.STStore;
-  if (!api) return;
-
   const URL_FALLBACK_VISIBLE_MS = 5000;
-  const URL_FALLBACK_HIDDEN_MS = 30000;
-  const log = globalThis.STLoggerFactory?.createLogger?.("store", "url-watch");
-  let lastRecoverUrl = location.href;
+  const TASK = "store:url-watch";
+  const log = globalThis.STLoggerFactory.createLogger("store", "url-watch");
+  const patches = new Map();
+  let lastUrl = location.href;
 
-  function pageMeta(extra = {}) {
-    const info = api.ctx?.pageInfo?.() || {};
-    return {
-      pageType: info.type || "unknown",
-      appid: Number(info.appId) || 0,
-      path: location.pathname,
-      ...extra,
-    };
-  }
-
+  /** URL 先做常量比较；同一实体的追踪参数变化不刷新功能门禁。 */
   function notifyUrlChange(reason = "urlchange") {
-    if (lastRecoverUrl === location.href) return;
-    lastRecoverUrl = location.href;
-    log?.info?.("store-url-change-detected", "Steam 商店页检测到内部 URL 变化", pageMeta({ reason }));
-    // Steam 商店会在同一个文档内切换 app/search/wishlist，URL 变化时需要让页面级功能重新判定入口。
-    api.settingsGate?.refresh?.(reason);
-    api.purchaseRecover?.schedule?.(reason);
+    if (lastUrl === location.href && !(api.reg.state.failed && reason !== "urlchange")) {
+      return Promise.resolve([]);
+    }
+    lastUrl = location.href;
+    const route = api.reg.route();
+    if (route.key === api.reg.state.desired?.key && !api.reg.state.failed) return Promise.resolve([]);
+    log.info("store-url-change-detected", "Steam 商店页检测到页面或实体变化", {
+      path: route.path, pageType: route.type, appid: Number(route.info?.appId) || 0, reason,
+    });
+    return api.reg.navigate(reason);
   }
 
+  function onPopState() { void notifyUrlChange("popstate"); }
+  function onHashChange() { void notifyUrlChange("hashchange"); }
+  function onPageShow() { void notifyUrlChange("pageshow"); }
+  function onVisibilityChange() {
+    if (!document.hidden) void notifyUrlChange("visible");
+  }
+
+  /** history 包装保留既有契约；隔离世界看不到页面调用时由统一调度器检查 URL。 */
   function watchUrlChange() {
     if (window.__stStoreUrlWatchSetup) return;
     window.__stStoreUrlWatchSetup = true;
-    log?.info?.("store-url-watch-start", "Steam 商店页 URL 变化监听已启动", pageMeta({
-      fallbackVisibleMs: URL_FALLBACK_VISIBLE_MS,
-      fallbackHiddenMs: URL_FALLBACK_HIDDEN_MS,
-    }));
-
+    lastUrl = location.href;
     function patchHistory(name) {
-      const orig = history[name];
-      if (typeof orig !== "function" || orig.__steamBuffPatched) return;
-      const repl = function(...args) {
-        const rt = orig.apply(this, args);
-        notifyUrlChange(name);
-        return rt;
+      const original = history[name];
+      const replacement = function(...args) {
+        const result = original.apply(this, args);
+        void notifyUrlChange(name);
+        return result;
       };
-      repl.__steamBuffPatched = true;
-      history[name] = repl;
+      patches.set(name, { original, replacement });
+      history[name] = replacement;
     }
-
-    // Steam 商店页存在 SPA 内跳转，优先监听 history 和浏览器事件，低频定时只做兜底。
     patchHistory("pushState");
     patchHistory("replaceState");
-    window.addEventListener("popstate", () => notifyUrlChange("popstate"));
-    window.addEventListener("hashchange", () => notifyUrlChange("hashchange"));
-    window.addEventListener("pageshow", () => notifyUrlChange("pageshow"));
-
-    function fallback() {
-      notifyUrlChange("urlchange");
-      const delay = document.visibilityState === "hidden"
-        ? URL_FALLBACK_HIDDEN_MS
-        : URL_FALLBACK_VISIBLE_MS;
-      setTimeout(fallback, delay);
-    }
-
-    setTimeout(fallback, URL_FALLBACK_VISIBLE_MS);
+    window.addEventListener("popstate", onPopState);
+    window.addEventListener("hashchange", onHashChange);
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.STScheduler.register(TASK, () => { void notifyUrlChange(); },
+      () => !document.hidden && window.STPageContext.storePageType() !== "",
+      { intervalMs: URL_FALLBACK_VISIBLE_MS });
+    log.info("store-url-watch-start", "Steam 商店页 URL 变化监听已启动", {
+      path: location.pathname, fallbackVisibleMs: URL_FALLBACK_VISIBLE_MS,
+    });
   }
 
-  api.urlWatch = Object.freeze({
-    watch: watchUrlChange,
-    notify: notifyUrlChange,
-  });
+  /** 文档运行时释放时成对注销，不残留递归定时器或 history 包装。 */
+  function stop() {
+    window.STScheduler.unregister(TASK);
+    window.removeEventListener("popstate", onPopState);
+    window.removeEventListener("hashchange", onHashChange);
+    window.removeEventListener("pageshow", onPageShow);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+    for (const [name, patch] of patches) {
+      if (history[name] === patch.replacement) history[name] = patch.original;
+    }
+    patches.clear();
+    window.__stStoreUrlWatchSetup = false;
+  }
+
+  api.urlWatch = Object.freeze({ watch: watchUrlChange, notify: notifyUrlChange, stop });
 })();

@@ -1863,5 +1863,10 @@
   api.features.priceHistory = Object.freeze({
     add: addPriceHistoryTag,
     shouldSkip: skipPrice,
+    stop() {
+      seq += 1;
+      clearExistingPriceNodes();
+      return true;
+    },
   });
 })();

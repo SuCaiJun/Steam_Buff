@@ -34,8 +34,7 @@
   const SETTINGS_LOAD_PENDING = `${SETTINGS_LOAD_MARK}:pending`;
   const SETTINGS_RAIL_LOAD_MARK = "__steamBuffSettingsRailChunk";
   const SETTINGS_RAIL_LOAD_PENDING = `${SETTINGS_RAIL_LOAD_MARK}:pending`;
-  const STORE_LOAD_MARK = "__steamBuffStoreChunk";
-  const STORE_LOAD_PENDING = `${STORE_LOAD_MARK}:pending`;
+  const storeLoadState = { chunks: new Set(), files: new Set(), pending: null };
   const CONTENT_BUNDLES = Object.freeze({
     steamContentDeps: "steam-content-deps",
     settingsShared: "settings-shared",
@@ -396,7 +395,7 @@
     return globalThis.STPageContext?.settingsPage?.() === "settings-web";
   }
 
-  function injectContentBundle(bundle, meta = {}) {
+  function injectContentBundle(bundle, meta = {}, options = {}) {
     const id = String(bundle || "").trim();
     if (!id) {
       return Promise.resolve({ success: true });
@@ -409,7 +408,7 @@
       }, {
         timeoutMs: 12_000,
         dedupeKey: `CONTENT_FILES_INJECT:${id}:${JSON.stringify(meta || {})}`,
-        expectSuccess: true,
+        expectSuccess: options.expectSuccess !== false,
       });
     }
     return new Promise((resolve, reject) => {
@@ -424,7 +423,7 @@
             reject(new Error(err.message || "内容脚本按需注入请求失败"));
             return;
           }
-          if (!response?.success) {
+          if (!response?.success && options.expectSuccess !== false) {
             reject(new Error(response?.error || "内容脚本按需注入失败"));
             return;
           }
@@ -685,6 +684,8 @@
       loadStrategy: "content-script-light-boot",
     });
     if (globalThis.STPageContext?.snapshot?.().domain === "store") {
+      const store = globalThis.STStore = globalThis.STStore || {};
+      store.loadChunk = loadStoreRuntime;
       loadStoreRuntime().catch(() => {});
     }
   }
@@ -693,45 +694,40 @@
     return globalThis.STPageContext?.storePageType?.() || "other";
   }
 
-  async function loadStoreRuntime() {
+  function loadStoreRuntime() {
     const ctx = globalThis.STPageContext?.snapshot?.() || {};
     if (ctx.domain !== "store") {
-      return false;
+      return Promise.resolve(false);
     }
-    if (globalThis[STORE_LOAD_MARK] === "ready" || globalThis[STORE_LOAD_MARK] === STORE_LOAD_PENDING) {
+    if (storeLoadState.pending) return storeLoadState.pending;
+    // 成功文件逐个确认；等待中的导航完成后继续补最新页面，不重放基础模块。
+    storeLoadState.pending = (async () => {
+      let type;
+      do {
+        type = storePageType();
+        if (storeLoadState.chunks.has(type)) break;
+        const response = await injectContentBundle(CONTENT_BUNDLES.storeRuntime, {
+          pageType: type, incremental: true, loadedFiles: Array.from(storeLoadState.files),
+        }, { expectSuccess: false });
+        if (!Array.isArray(response?.files)) throw new TypeError("商店分包注入响应缺少 files");
+        for (const file of response.files) storeLoadState.files.add(file);
+        if (response.success !== true) throw new Error(response.error || "商店分包注入失败");
+        storeLoadState.chunks.add(type);
+      } while (type !== storePageType());
+      activateLightRuntime("store", { pageType: type, loadStrategy: "runtime-page-chunk" });
       return true;
-    }
-    globalThis[STORE_LOAD_MARK] = STORE_LOAD_PENDING;
-    const type = storePageType();
-    try {
-      if (type === "age") {
-        globalThis[STORE_LOAD_MARK] = "ready";
-        activateLightRuntime("store", {
-          pageType: type,
-          reason: "no-store-feature",
-        });
-        return true;
-      }
-      await injectContentBundle(CONTENT_BUNDLES.storeRuntime, { pageType: type });
-      globalThis[STORE_LOAD_MARK] = "ready";
-      activateLightRuntime("store", {
-        pageType: type,
-        loadStrategy: "runtime-page-chunk",
-      });
-      return true;
-    } catch (error) {
-      globalThis[STORE_LOAD_MARK] = "";
-      log({
-        level: "error",
-        domain: "store",
-        feature: "store-loader",
-        event: "store-runtime-inject-failed",
-        message: "商店页运行时按需加载失败",
-        error,
-        meta: pageMeta({ pageType: type }),
+    })().catch(error => {
+      error.code = "STORE_CHUNK_LOAD_FAILED";
+      globalThis.STLoggerFactory.reportError(error, {
+        domain: "store", feature: "store-loader", event: "store-runtime-inject-failed",
+        message: "商店页运行时按需加载失败", level: "error",
+        meta: pageMeta({ pageType: storePageType() }),
       });
       throw error;
-    }
+    }).finally(() => {
+      storeLoadState.pending = null;
+    });
+    return storeLoadState.pending;
   }
 
   // Steam CEF 常先进入 about:blank 或脚本半就绪状态；依赖未齐时必须继续排队重试，不能直接终止注入链路

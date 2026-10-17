@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : 商店页功能注册器
+ * @File          : 商店页功能注册与页面实例生命周期
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
@@ -14,181 +14,259 @@
   const api = window.STStore = window.STStore || {};
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
   const log = window.STLoggerFactory.createLogger("store", "feature-registry");
-
   api.dataIndex = window.STDataIndex;
   api.batchQueue = window.STBatchQueue;
   api.virtualList = window.STVirtualList;
-
   runtime?.registerAdapter?.({
-    id: "store",
-    domain: "store",
-    publicApi: "window.STStore",
-    registry: "window.STStore.reg",
-    loadStrategy: "runtime-page-chunk",
-    meta: {
-      entry: "store/runtime/feature-registry.js",
-      migration: "由 content.js 根据商店页面类型按需注入必要 feature chunk。",
-    },
+    id: "store", domain: "store", publicApi: "window.STStore",
+    registry: "window.STStore.reg", loadStrategy: "runtime-page-chunk",
+    meta: { entry: "store/runtime/feature-registry.js" },
   });
 
   /**
    * @typedef {Object} StoreFeatureDef
-   * @property {string} id - 功能 ID，必须与 settings/catalog.js 的设置 key 对齐。
-   * @property {string=} settingsKey - 设置 key，默认使用 id。
-   * @property {string=} loadStrategy - 加载策略，例如 runtime-page-chunk。
-   * @property {string[]=} modes - 功能运行模式。
-   * @property {string[]=} pageScope - 页面白名单。
-   * @property {string[]=} dependencies - 依赖脚本或共享能力。
-   * @property {string=} cost - 启动成本分类。
-   * @property {(api: object) => boolean=} shouldRun - 二次准入判断。
-   * @property {(api: object) => Promise<unknown>|unknown} start - 功能启动函数。
-   * @property {(api: object) => void=} stop - 功能清理函数。
+   * @property {string} id - 稳定功能标识。
+   * @property {string=} settingsKey - 设置门禁标识。
+   * @property {string[]=} settingsIds - 影响该实例的设置标识。
+   * @property {string[]=} pageScope - 已确认的页面白名单。
+   * @property {string=} module - api.features 中的模块名。
+   * @property {boolean=} documentScoped - 实例是否属于整个文档。
+   * @property {Function=} gate - 组合功能的附加门禁。
+   * @property {Function} start - 使用当前页面快照启动实例。
+   * @property {Function} stop - 清理实例并使旧异步结果失效。
    */
 
   class FeatureRegistry {
     constructor() {
       this.state = {
-        items: [],
-        started: false,
+        items: [], definitions: new Map(), pages: new Map(), settings: new Map(),
+        active: new Map(), applied: new Map(), dirty: new Set(), started: false,
+        desired: null, sequence: 0, queue: Promise.resolve(), pending: null, failed: false,
       };
     }
 
-    /**
-     * 登记商店页功能并同步写入统一 runtime 元数据。
-     * @param {StoreFeatureDef} feature - 商店功能定义。
-     * @returns {void}
-     */
+    /** 登记唯一功能定义，同时建立页面和设置索引。 */
     add(feature) {
-      if (!feature?.id || typeof feature.start !== "function") {
-        throw new Error("无效的商店功能配置");
+      if (!feature?.id || typeof feature.start !== "function" || typeof feature.stop !== "function") {
+        throw new TypeError("无效的商店功能生命周期配置");
       }
-      if (this.state.items.some((item) => item.id === feature.id)) return;
-      this.state.items.push(feature);
+      if (this.state.definitions.has(feature.id)) return;
+      const scopes = feature.pageScope || window.STPageContext.featureScope(feature.id);
+      const definition = { ...feature, pageScope: scopes };
+      this.state.items.push(definition);
+      this.state.definitions.set(feature.id, definition);
+      for (const page of scopes) this.index(this.state.pages, page, feature.id);
+      const settingsIds = new Set([feature.settingsKey || feature.id, ...(feature.settingsIds || []), "store-enhancements"]);
+      for (const id of settingsIds) this.index(this.state.settings, id, feature.id);
       runtime?.registerFeature?.({
-        domain: "store",
-        id: feature.id,
-        settingsKey: feature.settingsKey || feature.id,
-        loadStrategy: feature.loadStrategy || "runtime-page-chunk",
-        modes: this.toList(feature.modes),
-        pageScope: this.toList(feature.pageScope),
-        dependencies: this.toList(feature.dependencies),
-        cost: feature.cost || "startup-light",
-        dispose: typeof feature.stop === "function",
-        meta: {
-          loadedBy: "content.js",
-        },
+        domain: "store", id: feature.id, settingsKey: feature.settingsKey || feature.id,
+        loadStrategy: "runtime-page-chunk", modes: feature.modes || [],
+        pageScope: scopes, dependencies: feature.dependencies || [],
+        cost: feature.cost || "startup-light", dispose: true,
+        meta: { loadedBy: "content.js" },
       });
     }
 
-    /**
-     * 将元数据字段归一化为字符串数组。
-     * @param {unknown} value - 原始字段值。
-     * @returns {string[]} 字符串数组。
-     */
-    toList(value) {
-      return Array.isArray(value) ? value : [];
+    /** 索引只在登记阶段建立，不在路由事件中扫描完整定义表。 */
+    index(index, key, id) {
+      if (!index.has(key)) index.set(key, new Set());
+      index.get(key).add(id);
     }
 
-    /**
-     * 通过页面上下文和设置快照判断功能是否允许启动。
-     * @param {StoreFeatureDef} feature - 商店功能定义。
-     * @returns {{allowed: boolean, reason?: string}} 准入结果。
-     */
+    /** 复用现有上下文契约，区分详情类型与具体商品实体。 */
+    route() {
+      const type = window.STPageContext.storePageType();
+      const page = window.STPageContext.storePage();
+      const info = api.ctx.pageInfo();
+      const path = location.pathname;
+      const key = page + ":" + (info?.key || path);
+      return { type, page, info, path, key };
+    }
+
+    /** 只取当前页面已登记的功能。 */
+    pageIds(route = this.route()) {
+      return new Set([
+        ...(this.state.pages.get(route.page) || []),
+        ...(this.state.pages.get("store-" + route.type) || []),
+      ]);
+    }
+
+    /** 设置事件按索引定位功能，依赖关系仍使用设置目录的正式契约。 */
+    settingIds(id) {
+      const ids = new Set(this.state.settings.get(id) || []);
+      for (const child of window.STSettings.catalog.dependentsOf(id)) {
+        for (const target of this.state.settings.get(child) || []) ids.add(target);
+      }
+      return ids;
+    }
+
+    /** 设置、会员和页面准入沿用原有门禁。 */
     canRun(feature) {
-      return window.STPageContext?.canRunFeature?.({
-        domain: "store",
-        id: feature.id,
-        settingsKey: feature.settingsKey || feature.id,
-        pageScope: this.toList(feature.pageScope),
-        modes: this.toList(feature.modes),
-        dependencies: this.toList(feature.dependencies),
-        cost: feature.cost || "startup-light",
-        settingsSnapshot: api.settings?.all?.() || {},
-        settingOn: id => api.settings?.on?.(id),
-      }) || { allowed: true, reason: "" };
+      if (!api.settings.on("store-enhancements")) return { allowed: false, reason: "settings-disabled" };
+      const gate = window.STPageContext.canRunFeature({
+        domain: "store", id: feature.id, settingsKey: feature.settingsKey || feature.id,
+        pageScope: feature.pageScope, settingsSnapshot: api.settings.all(),
+        settingOn: id => api.settings.on(id),
+      });
+      if (gate.allowed && feature.gate && !feature.gate(api)) {
+        return { allowed: false, reason: "settings-disabled" };
+      }
+      return gate;
     }
 
-    /**
-     * 按登记顺序启动所有命中当前页面的商店功能。
-     * @returns {Promise<Array<{id: string, status: string, reason?: string, result?: unknown, error?: string}>>} 启动结果列表。
-     */
-    async start() {
-      if (this.state.started) return [];
+    instanceKey(feature, route) {
+      return feature.documentScoped ? "document" : route.key;
+    }
+
+    /** 停止先使记录失效；异步启动结果不得重新认领新页面。 */
+    stopRecord(record, reason) {
+      record.live = false;
+      this.state.active.delete(record.feature.id);
+      this.state.applied.set(record.feature.id, false);
+      const failStatus = error => {
+        this.state.active.set(record.feature.id, record);
+        return this.failStatus(record.feature, error, "stop");
+      };
+      try {
+        return Promise.resolve(record.feature.stop(api)).then(() => ({
+          id: record.feature.id, status: "stopped", reason,
+        }), failStatus);
+      } catch (error) {
+        return Promise.resolve(failStatus(error));
+      }
+    }
+
+    /** 同一失败只由注册器记录一次，其他功能继续挂载。 */
+    failStatus(feature, error, phase) {
+      this.state.dirty.add(feature.id);
+      log.error("feature-" + phase + "-failed", "商店页功能生命周期执行失败", {
+        featureId: feature.id, path: location.pathname, phase, error,
+      });
+      runtime?.markFeature?.({
+        domain: "store", id: feature.id, status: "failed", error,
+        meta: { path: location.pathname, phase },
+      });
+      return { id: feature.id, status: "failed", error: error?.message || String(error) };
+    }
+
+    /** 每个实例独立跟踪完成状态，网络等待不阻塞后续页面的挂载队列。 */
+    mount(feature, route) {
+      if (route.key !== this.route().key) return Promise.resolve({ id: feature.id, status: "cancelled" });
+      if (feature.module && !api.features[feature.module]) {
+        return Promise.resolve(this.failStatus(feature, new Error("商店功能模块未加载：" + feature.module), "start"));
+      }
+      const record = { feature, key: this.instanceKey(feature, route), live: true };
+      const previous = this.state.active.get(feature.id);
+      if (previous) previous.live = false;
+      this.state.active.set(feature.id, record);
+      const context = {
+        ...route,
+        isCurrent: () => record.live && route.key === this.route().key,
+      };
+      let value;
+      try {
+        value = feature.start(api, context);
+      } catch (error) {
+        this.state.active.delete(feature.id);
+        return Promise.resolve(this.failStatus(feature, error, "start"));
+      }
+      this.state.applied.set(feature.id, true);
+      return Promise.resolve(value).then(result => {
+        if (!record.live) return { id: feature.id, status: "cancelled" };
+        const skipped = result === false || result?.started === false;
+        if (skipped) {
+          this.state.active.delete(feature.id);
+          this.state.applied.set(feature.id, false);
+        }
+        const status = skipped ? "skipped" : "started";
+        this.state.dirty.delete(feature.id);
+        runtime?.markFeature?.({
+          domain: "store", id: feature.id, status,
+          meta: { path: route.path, hasStop: true },
+        });
+        return { id: feature.id, status };
+      }, error => {
+        if (!record.live) return { id: feature.id, status: "cancelled" };
+        this.state.active.delete(feature.id);
+        this.state.applied.set(feature.id, false);
+        return this.failStatus(feature, error, "start");
+      });
+    }
+
+    /** 初始启动一次；路由切换使用 navigate，不能重跑完整 start。 */
+    start() {
+      if (this.state.started) return Promise.resolve([]);
       this.state.started = true;
-      const results = [];
-      for (const feature of this.state.items) {
-        try {
-          const gate = this.canRun(feature);
-          if (!gate.allowed) {
-            runtime?.markFeature?.({
-              domain: "store",
-              id: feature.id,
-              status: "skipped",
-              reason: gate.reason || "can-run-false",
-              meta: {
-                path: window.STPageContext?.snapshot?.().path || location.pathname,
-                page: gate.page || "",
-                pageType: gate.pageType || "",
-              },
-            });
-            results.push({ id: feature.id, status: "skipped", reason: gate.reason || "can-run-false" });
-            continue;
-          }
-          if (typeof feature.shouldRun === "function" && !feature.shouldRun(api)) {
-            runtime?.markFeature?.({
-              domain: "store",
-              id: feature.id,
-              status: "skipped",
-              reason: "should-run-false",
-              meta: { path: window.STPageContext?.snapshot?.().path || location.pathname },
-            });
-            results.push({ id: feature.id, status: "skipped", reason: "should-run-false" });
-            continue;
-          }
-          const result = await feature.start(api);
-          runtime?.markFeature?.({
-            domain: "store",
-            id: feature.id,
-            status: "started",
-            meta: {
-              path: location.pathname,
-              hasStop: typeof feature.stop === "function",
-            },
-          });
-          results.push({ id: feature.id, status: "started", result });
-        } catch (error) {
-          const captured = globalThis.STErrorBoundary?.capture?.(error, {
-            domain: "store",
-            feature: feature.id,
-            phase: "feature-mount",
-            event: "feature-start-failed",
-            message: "商店页功能启动失败",
-            userMessage: window.STI18n.text(
-              "store.runtime.featureStartFailed",
-              "商店增强功能启动失败，其他功能已继续加载",
-            ),
-            meta: {
-              path: location.pathname,
-            },
-          });
-          if (!captured) {
-            log.error("feature-start-failed", "商店页功能启动失败", {
-              featureId: feature.id,
-              path: location.pathname,
-              error,
-            });
-          }
-          runtime?.markFeature?.({
-            domain: "store",
-            id: feature.id,
-            status: "failed",
-            error,
-            meta: { path: location.pathname },
-          });
-          results.push({ id: feature.id, status: "failed", error: String(error) });
+      this.state.desired = this.route();
+      return this.refresh("startup", { ids: this.pageIds() });
+    }
+
+    /** 初始启动、设置刷新与购买区恢复共享同一份功能定义。 */
+    refresh(reason = "settings", change = {}) {
+      const route = this.route();
+      const ids = change.ids || this.pageIds(route);
+      const jobs = [];
+      for (const id of ids) {
+        const feature = this.state.definitions.get(id);
+        if (!feature) continue;
+        const allowed = this.canRun(feature).allowed === true;
+        const record = this.state.active.get(id);
+        const restart = change.restart?.has(id) === true;
+        if (!allowed) {
+          this.state.dirty.delete(id);
+          this.state.applied.set(id, false);
+          jobs.push(record ? this.stopRecord(record, reason) : Promise.resolve({ id, status: "skipped" }));
+        } else if (record && record.key === this.instanceKey(feature, route) && !restart && !change.recover) {
+          jobs.push(Promise.resolve({ id, status: "unchanged" }));
+        } else if (record && !change.recover) {
+          jobs.push(this.stopRecord(record, reason).then(row => (
+            row.status === "failed" ? row : this.mount(feature, route)
+          )));
+        } else {
+          jobs.push(this.mount(feature, route));
         }
       }
-      return results;
+      return Promise.all(jobs);
+    }
+
+    /** 导航时先清理旧页面，再串行补依赖；只允许最新页面启动实例。 */
+    navigate(reason = "urlchange") {
+      const route = this.route();
+      if (this.state.desired?.key === route.key && !this.state.failed) {
+        return this.state.pending || Promise.resolve([]);
+      }
+      const sequence = ++this.state.sequence;
+      this.state.desired = route;
+      this.state.failed = false;
+      const ids = this.pageIds(route);
+      const stops = [];
+      for (const record of Array.from(this.state.active.values())) {
+        if (!ids.has(record.feature.id) || record.key !== this.instanceKey(record.feature, route)) {
+          stops.push(this.stopRecord(record, reason));
+        }
+      }
+      const work = this.state.queue.then(async () => {
+        const stopped = await Promise.all(stops);
+        const failed = stopped.filter(row => row.status === "failed");
+        if (sequence !== this.state.sequence) return { rows: [] };
+        await api.loadChunk();
+        if (sequence !== this.state.sequence) return { rows: [] };
+        if (route.key !== this.route().key) return { redirect: true };
+        const selected = this.pageIds(route);
+        for (const row of failed) selected.delete(row.id);
+        return { jobs: this.refresh(reason, { ids: selected }).then(rows => [...failed, ...rows]) };
+      }).catch(error => {
+        if (sequence === this.state.sequence) this.state.failed = true;
+        if (error.code !== "STORE_CHUNK_LOAD_FAILED") {
+          log.error("store-route-transition-failed", "商店页路由切换失败", { path: route.path, reason, error });
+        }
+        return { rows: [{ id: "store-enhancements", status: "failed" }] };
+      });
+      this.state.queue = work.then(() => undefined);
+      this.state.pending = work.then(result => (
+        result.redirect ? this.navigate("load-completed") : result.jobs || result.rows
+      ));
+      return this.state.pending;
     }
   }
 
