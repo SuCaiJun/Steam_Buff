@@ -53,6 +53,7 @@
   let started = false;
   let tries = 0;
   let refreshSeq = 0;
+  let detailRefresh = null;
   let modalSeq = 0;
   let lastDetailTargetMissing = false;
   let lastWishlistTargetMissing = false;
@@ -1017,8 +1018,15 @@
     if (!isDetailPath()) {
       return;
     }
-    const seq = ++refreshSeq;
     const info = pageInfo();
+    // 同一轮详情读取只重挂当前标题，保留在途结果与原绘制等待。
+    if (info && detailRefresh?.appid === info.appid && detailRefresh.seq === refreshSeq) {
+      const title = titleEl();
+      if (title) state.steamTitle = text(title.childNodes[0] || title);
+      renderTitle();
+      return detailRefresh.task;
+    }
+    const seq = ++refreshSeq;
     const title = titleEl();
     if (!info || !title) {
       if (info && tries < RETRY_MAX) {
@@ -1043,15 +1051,25 @@
     };
     renderTitle();
     scheduleDetailSettleCheck(seq);
+    const request = { appid: info.appid, seq, task: readDetailName(info.appid, seq) };
+    detailRefresh = request;
     try {
-      if (state.loading && !await api.dom.loading.afterPaint(() => seq === refreshSeq && started && pageInfo()?.appid === info.appid)) return;
-      const item = await loadName(info.appid);
-      if (seq !== refreshSeq || state?.appid !== info.appid) return;
+      await request.task;
+    } finally {
+      if (detailRefresh === request) detailRefresh = null;
+    }
+  }
+
+  async function readDetailName(appid, seq) {
+    try {
+      if (state.loading && !await api.dom.loading.afterPaint(() => seq === refreshSeq && started && pageInfo()?.appid === appid)) return;
+      const item = await loadName(appid);
+      if (seq !== refreshSeq || state?.appid !== appid) return;
       state.item = item;
-      nameCache.set(info.appid, item);
+      nameCache.set(appid, item);
     } catch (error) {
       globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "refresh-failed", message: "刷新功能状态失败", level: "warn", phase: "refresh" });
-      if (seq !== refreshSeq || state?.appid !== info.appid) return;
+      if (seq !== refreshSeq || state?.appid !== appid) return;
       state.item = null;
     }
     state.loading = false;
@@ -1159,6 +1177,7 @@
 
   function stop() {
     refreshSeq += 1;
+    detailRefresh = null;
     started = false;
     tries = 0;
     observer?.disconnect();
