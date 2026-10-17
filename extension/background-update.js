@@ -113,37 +113,6 @@
     return `HTTP状态码错误: ${status}`;
   }
 
-  function timeoutError(timeoutMs) {
-    const error = new Error(`请求超时（${Math.round(timeoutMs)}ms）`);
-    error.name = "TimeoutError";
-    return error;
-  }
-
-  async function fetchWithTimeout(url, init, timeoutMs = UPDATE_FETCH_TIMEOUT_MS) {
-    const timeout = Number(timeoutMs) || 0;
-    if (timeout <= 0) {
-      return fetch(url, init);
-    }
-    if (typeof AbortController === "function") {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(timeoutError(timeout)), timeout);
-      try {
-        return await fetch(url, { ...init, signal: controller.signal });
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    let timer = 0;
-    return Promise.race([
-      fetch(url, init),
-      new Promise((_, reject) => {
-        timer = setTimeout(() => reject(timeoutError(timeout)), timeout);
-      }),
-    ]).finally(() => {
-      if (timer) clearTimeout(timer);
-    });
-  }
-
   function cleanText(value) {
     return String(value || "")
       .replace(/\r\n?/g, "\n")
@@ -218,28 +187,32 @@
     let phase = "network";
     let responseFacts;
     try {
-      const response = await fetchWithTimeout(CFG.urls.updateLatest, {
-        method: "GET",
-        headers: CFG.client.versionedHeaders(CFG.urls.updateLatest, { Accept: "application/json" }),
-        cache: "no-cache",
-        credentials: "omit",
-      }, UPDATE_FETCH_TIMEOUT_MS);
-      responseFacts = root.STLoggerSchema?.httpFacts?.(response);
-      phase = "response-read";
-      const text = await response.text();
-      responseFacts = { ...responseFacts, bodyLength: text.length };
-      phase = "http";
-      if (!response.ok) {
-        throw new Error(httpError(response.status, text));
-      }
-      phase = "parse";
-      const data = parseJson(text);
-      if (!data) {
-        throw new Error("官网最新版本返回解析失败");
-      }
-      phase = "validate";
-      responseFacts = { ...responseFacts, ...root.STLoggerSchema?.resultFacts?.(data, ["data"]) };
-      const result = resultFromLatest(normalizeLatest(data), Date.now(), false);
+      const result = await root.STNetworkRequest.run(UPDATE_FETCH_TIMEOUT_MS, async (signal, check) => {
+        const response = await fetch(CFG.urls.updateLatest, {
+          method: "GET",
+          headers: CFG.client.versionedHeaders(CFG.urls.updateLatest, { Accept: "application/json" }),
+          cache: "no-cache",
+          credentials: "omit",
+          signal,
+        });
+        responseFacts = root.STLoggerSchema?.httpFacts?.(response);
+        phase = "response-read";
+        const text = await response.text();
+        responseFacts = { ...responseFacts, bodyLength: text.length };
+        phase = "http";
+        if (!response.ok) {
+          throw new Error(httpError(response.status, text));
+        }
+        phase = "parse";
+        const data = parseJson(text);
+        check();
+        if (!data) {
+          throw new Error("官网最新版本返回解析失败");
+        }
+        phase = "validate";
+        responseFacts = { ...responseFacts, ...root.STLoggerSchema?.resultFacts?.(data, ["data"]) };
+        return resultFromLatest(normalizeLatest(data), Date.now(), false);
+      });
       phase = "cache-save";
       if (persistCache) {
         await writeCache(result);

@@ -316,39 +316,30 @@
     let phase = "network";
     let diagnostics;
     try {
-      const method = String(request.method || "GET").toUpperCase();
-      const headers = root.STConfig?.client?.versionedHeaders
-        ? root.STConfig.client.versionedHeaders(request.url, request.headers || {})
-        : { ...(request.headers || {}) };
-      const init = { method, headers, credentials: "omit", cache: "no-cache" };
-      if (request.data !== undefined && method !== "GET" && method !== "HEAD") {
-        init.body = typeof request.data === "string" ? request.data : JSON.stringify(request.data);
-      }
-      let response;
-      if (timeoutMs > 0 && typeof AbortController === "function") {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(timeoutError(timeoutMs)), timeoutMs);
-        try {
-          response = await fetch(request.url, { ...init, signal: controller.signal });
-        } finally {
-          clearTimeout(timer);
+      return await root.STNetworkRequest.run(timeoutMs, async (signal) => {
+        const method = String(request.method || "GET").toUpperCase();
+        const headers = root.STConfig?.client?.versionedHeaders
+          ? root.STConfig.client.versionedHeaders(request.url, request.headers || {})
+          : { ...(request.headers || {}) };
+        const init = { method, headers, credentials: "omit", cache: "no-cache" };
+        if (request.data !== undefined && method !== "GET" && method !== "HEAD") {
+          init.body = typeof request.data === "string" ? request.data : JSON.stringify(request.data);
         }
-      } else {
-        response = await fetch(request.url, init);
-      }
-      diagnostics = root.STLoggerSchema?.httpFacts?.(response);
-      phase = "response-read";
-      const data = await response.text();
-      diagnostics = { ...diagnostics, bodyLength: data.length };
-      phase = "http";
-      if (!response.ok && request.allowHttpError !== true) {
-        const error = new Error(text("common.backgroundRequestFailed", "后台请求失败"));
-        error.status = response.status;
-        throw error;
-      }
-      return { success: true, data, status: response.status, ok: response.ok,
-        diagnostics: root.STLoggerSchema?.normalizeResponse?.(diagnostics, { urlPolicy: root.STConfig?.diagnosticUrlPolicy?.(response.url) }),
-      };
+        const response = await fetch(request.url, { ...init, signal });
+        diagnostics = root.STLoggerSchema?.httpFacts?.(response);
+        phase = "response-read";
+        const data = await response.text();
+        diagnostics = { ...diagnostics, bodyLength: data.length };
+        phase = "http";
+        if (!response.ok && request.allowHttpError !== true) {
+          const error = new Error(text("common.backgroundRequestFailed", "后台请求失败"));
+          error.status = response.status;
+          throw error;
+        }
+        return { success: true, data, status: response.status, ok: response.ok,
+          diagnostics: root.STLoggerSchema?.normalizeResponse?.(diagnostics, { urlPolicy: root.STConfig?.diagnosticUrlPolicy?.(response.url) }),
+        };
+      }, request.signal);
     } catch (error) {
       if (error && typeof error === "object" && Object.isExtensible(error)) {
         error.phase = phase;
@@ -365,6 +356,7 @@
     const operationId = String(request.operationId || "").trim() || root.STLoggerFactory?.createOperationId?.() || "";
     const requestId = String(request.requestId || "").trim() || root.STLoggerFactory?.createRequestId?.() || "";
     const logFailures = options.logFailures !== false;
+    const direct = inServiceWorker();
 
     function reportFailure(event, message, details) {
       if (logFailures) log.warn(event, message, details);
@@ -400,7 +392,7 @@
         }
         fn(value);
       };
-      if (timeoutMs > 0) {
+      if (timeoutMs > 0 && !direct) {
         timer = setTimeout(() => {
           const error = timeoutError(timeoutMs);
           reportFailure("auth-client-bg-request-timeout", "鉴权后台请求超时", requestMeta({
@@ -411,7 +403,7 @@
       }
       try {
         // 后台 Service Worker 不能给自己发 STORE_FETCH，刷新令牌必须在进程内发网
-        if (inServiceWorker()) {
+        if (direct) {
           fetchDirect(request, timeoutMs).then((response) => {
             replyFacts = root.STLoggerSchema?.responseFacts?.(response);
             if (done) {

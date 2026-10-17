@@ -29,6 +29,7 @@
   importScripts(chrome.runtime.getURL("shared/logger-factory.js"));
   importScripts(chrome.runtime.getURL("extension/background-debug.js"));
   importScripts(chrome.runtime.getURL("shared/error-boundary.js"));
+  importScripts(chrome.runtime.getURL("shared/utils/network-request.js"));
   importScripts(chrome.runtime.getURL("shared/lifecycle-prompt-contract.js"));
   importScripts(chrome.runtime.getURL("extension/background-lifecycle.js"));
   importScripts(chrome.runtime.getURL("extension/background-update.js"));
@@ -460,7 +461,7 @@
   let aiReady = false;
   let aiLoadError = "";
   let aiActive = 0;
-  const aiQueue = [];
+  const aiQueue = new Map();
   const aiPermissionSessions = new Map();
   const aiPermissionTabs = new Map();
   const aiPermissionWindows = new Map();
@@ -1423,31 +1424,6 @@
     return error;
   }
 
-  async function fetchWithTimeout(url, init, timeoutMs) {
-    const timeout = normalizeTimeout(timeoutMs, 0);
-    if (timeout <= 0) {
-      return fetch(url, init);
-    }
-    if (typeof AbortController === "function") {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(timeoutError(timeout)), timeout);
-      try {
-        return await fetch(url, { ...init, signal: controller.signal });
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    let timer = 0;
-    return Promise.race([
-      fetch(url, init),
-      new Promise((_, reject) => {
-        timer = setTimeout(() => reject(timeoutError(timeout)), timeout);
-      }),
-    ]).finally(() => {
-      if (timer) clearTimeout(timer);
-    });
-  }
-
   /* 商店页跨域代理 */
   async function storeFetch(request, sender, sendResponse) {
     const startedAt = Date.now();
@@ -1508,13 +1484,16 @@
     let phase = "network";
     let responseFacts;
     try {
-      const response = await fetchWithTimeout(url.toString(), init, request.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
-      responseFacts = { ...globalThis.STLoggerSchema.httpFacts(response), networkDurationMs: Date.now() - startedAt };
-      phase = "response-read";
-      const readStartedAt = Date.now();
-      const data = await response.text();
-      responseFacts.bodyLength = data.length;
-      responseFacts.readDurationMs = Date.now() - readStartedAt;
+      const { response, data } = await globalThis.STNetworkRequest.run(request.timeoutMs ?? STORE_FETCH_TIMEOUT_MS, async (signal) => {
+        const response = await fetch(url.toString(), { ...init, signal });
+        responseFacts = { ...globalThis.STLoggerSchema.httpFacts(response), networkDurationMs: Date.now() - startedAt };
+        phase = "response-read";
+        const readStartedAt = Date.now();
+        const data = await response.text();
+        responseFacts.bodyLength = data.length;
+        responseFacts.readDurationMs = Date.now() - readStartedAt;
+        return { response, data };
+      }, request.signal);
       backgroundLogger("store-fetch").debug("proxy-response-details", "后台代理请求诊断正文", {
         operationId: request.operationId, requestId: request.requestId,
         debugData: () => ({ request: { url: url.toString(), method, headers: init.headers, body }, response: { status: response.status, headers: cleanResponseHeaders(response.headers), body: data } }),
@@ -1559,7 +1538,7 @@
       sendResponse({ success: true, data, status: response.status, ok: response.ok, headers: cleanResponseHeaders(response.headers), diagnostics });
     } catch (error) {
       const msg = error.message || String(error);
-      storeLogNetwork(request, {
+      if (error?.name !== "AbortError") storeLogNetwork(request, {
         feature: "store-fetch",
         event: "request-thrown",
         message: "后台代理请求异常",
@@ -1726,25 +1705,28 @@
     return { historicalPeak: peak, hltb };
   }
 
-  async function fetchDiagnosticText(url, init, timeoutMs) {
+  async function fetchDiagnosticText(url, init, timeoutMs, signal, consume = result => result) {
     let phase = "network";
     let diagnostics;
     const startedAt = Date.now();
     try {
-      const response = await fetchWithTimeout(url, init, timeoutMs);
-      diagnostics = { ...globalThis.STLoggerSchema.httpFacts(response), networkDurationMs: Date.now() - startedAt };
-      phase = "response-read";
-      const readStartedAt = Date.now();
-      const data = await response.text();
-      diagnostics.bodyLength = data.length;
-      diagnostics.readDurationMs = Date.now() - readStartedAt;
-      backgroundLogger("api-request").debug("api-response-details", "API 请求诊断正文", {
-        debugData: () => ({ request: { url, method: init.method, headers: init.headers, body: init.body }, response: { status: response.status, body: data } }),
-      });
-      return { response, data, diagnostics };
+      return await globalThis.STNetworkRequest.run(timeoutMs, async (signal, check) => {
+        const response = await fetch(url, { ...init, signal });
+        diagnostics = { ...globalThis.STLoggerSchema.httpFacts(response), networkDurationMs: Date.now() - startedAt };
+        phase = "response-read";
+        const readStartedAt = Date.now();
+        const data = await response.text();
+        diagnostics.bodyLength = data.length;
+        diagnostics.readDurationMs = Date.now() - readStartedAt;
+        backgroundLogger("api-request").debug("api-response-details", "API 请求诊断正文", {
+          debugData: () => ({ request: { url, method: init.method, headers: init.headers, body: init.body }, response: { status: response.status, body: data } }),
+        });
+        check();
+        return consume({ response, data, diagnostics }, check);
+      }, signal);
     } catch (error) {
       if (error && typeof error === "object" && Object.isExtensible(error)) {
-        error.phase = phase;
+        error.phase ||= phase;
         error.diagnostics = diagnostics;
       }
       throw error;
@@ -2662,15 +2644,19 @@
   }
 
   function drainAiQueue() {
-    while (aiQueue.length) {
-      const task = aiQueue[0];
+    while (aiQueue.size) {
+      const task = aiQueue.values().next().value;
       if (aiActive >= task.limit) {
         return;
       }
-      aiQueue.shift();
+      aiQueue.delete(task);
+      task.signal?.removeEventListener("abort", task.cancel);
       aiActive += 1;
       Promise.resolve()
-        .then(task.job)
+        .then(() => {
+          if (task.signal?.aborted) throw task.signal.reason;
+          return task.job();
+        })
         .then(task.resolve, task.reject)
         .finally(() => {
           aiActive = Math.max(0, aiActive - 1);
@@ -2679,37 +2665,51 @@
     }
   }
 
-  function runAiLimited(limit, job) {
+  function runAiLimited(limit, job, signal) {
     return new Promise((resolve, reject) => {
-      aiQueue.push({ limit, job, resolve, reject });
+      if (signal?.aborted) {
+        reject(signal.reason);
+        return;
+      }
+      const task = { limit, job, resolve, reject, signal };
+      task.cancel = () => {
+        if (!aiQueue.delete(task)) return;
+        signal.removeEventListener("abort", task.cancel);
+        reject(signal.reason);
+        drainAiQueue();
+      };
+      aiQueue.set(task, task);
+      signal?.addEventListener("abort", task.cancel, { once: true });
       drainAiQueue();
     });
   }
 
-  async function fetchAiChat(url, next, timeoutMs) {
-    const { response, data: text, diagnostics } = await fetchDiagnosticText(url, {
+  async function fetchAiChat(url, next, timeoutMs, signal) {
+    return await fetchDiagnosticText(url, {
       method: "POST", headers: next.headers, body: JSON.stringify(next.body), cache: "no-cache", credentials: "omit",
-    }, timeoutMs);
-    let phase = "http";
-    try {
-      if (!response.ok) {
-        const error = new Error(httpError(response.status, text));
-        error.status = response.status;
+    }, timeoutMs, signal, ({ response, data: text, diagnostics }, check) => {
+      let phase = "http";
+      try {
+        if (!response.ok) {
+          const error = new Error(httpError(response.status, text));
+          error.status = response.status;
+          throw error;
+        }
+        phase = "parse";
+        const data = parseJson(text);
+        check();
+        phase = "validate";
+        const content = globalThis.STAI?.chatText?.(data);
+        if (!content) throw new Error("AI 响应格式异常");
+        return { content, status: response.status };
+      } catch (error) {
+        if (error && typeof error === "object" && Object.isExtensible(error)) {
+          error.phase = phase;
+          error.diagnostics = diagnostics;
+        }
         throw error;
       }
-      phase = "parse";
-      const data = parseJson(text);
-      phase = "validate";
-      const content = globalThis.STAI?.chatText?.(data);
-      if (!content) throw new Error("AI 响应格式异常");
-      return { content, status: response.status };
-    } catch (error) {
-      if (error && typeof error === "object" && Object.isExtensible(error)) {
-        error.phase = phase;
-        error.diagnostics = diagnostics;
-      }
-      throw error;
-    }
+    });
   }
 
   function aiChat(request, sender, sendResponse) {
@@ -2751,14 +2751,14 @@
           error.code = "AI_HOST_PERMISSION_REQUIRED";
           throw error;
         }
-        return runAiLimited(limit, () => fetchAiChat(url.toString(), next, timeoutMs));
+        return runAiLimited(limit, () => fetchAiChat(url.toString(), next, timeoutMs, request.signal), request.signal);
       })
       .then((res) => {
         sendResponse({ success: true, text: res.content, status: res.status });
       })
       .catch((error) => {
         const msg = error.message || String(error);
-        logError("ai", "request-failed", "AI 请求失败", error, {
+        if (error?.name !== "AbortError") logError("ai", "request-failed", "AI 请求失败", error, {
           operationId: request.operationId, requestId: request.requestId, phase: error.phase || "permission",
           request: globalThis.STLoggerSchema.requestFacts({ ...next, url: url.toString(), method: "POST", timeoutMs, endpointKey: "ai-chat" }),
           response: error.diagnostics,
@@ -3711,7 +3711,59 @@
     globalThis.STBackgroundUserNamesSync.handleMessage(request, sendResponse);
   }
 
+  const NETWORK_REQUEST_TYPES = new Set(["STORE_FETCH", "AI_CHAT_COMPLETIONS"]);
+  const networkRequests = new Map();
+
+  function networkRequestKey(request, sender, type = request.type) {
+    if (!NETWORK_REQUEST_TYPES.has(type) || sender.id !== chrome.runtime.id
+      || typeof request.networkRequestId !== "string" || !request.networkRequestId.length || request.networkRequestId.length > 128) {
+      throw new TypeError("网络取消请求的来源或标识无效");
+    }
+    // 文档内路由变化不改变取消归属；documentId 缺省时保留 frame/URL 边界。
+    const document = sender.documentId === undefined ? sender.url : sender.documentId;
+    return JSON.stringify([sender.id, document, sender.tab?.id, sender.frameId, type, request.networkRequestId]);
+  }
+
+  function networkRoute(route) {
+    return (request, sender, sendResponse) => {
+      // 旧调用方没有取消标识，仍由请求本身的完整超时负责收尾。
+      if (request.networkRequestId === undefined) return route(request, sender, sendResponse);
+      const key = networkRequestKey(request, sender);
+      if (networkRequests.has(key)) throw new Error("网络请求标识重复");
+      const controller = new AbortController();
+      networkRequests.set(key, controller);
+      const finish = (response) => {
+        networkRequests.delete(key);
+        sendResponse(response);
+      };
+      try {
+        const task = route({ ...request, signal: controller.signal }, sender, finish);
+        if (task && typeof task.catch === "function") return task.catch((error) => {
+          networkRequests.delete(key);
+          throw error;
+        });
+        return task;
+      } catch (error) {
+        networkRequests.delete(key);
+        throw error;
+      }
+    };
+  }
+
+  function cancelNetworkRequest(request, sender, sendResponse) {
+    if (request.reason !== "timeout" && request.reason !== "abort") throw new TypeError("网络取消原因无效");
+    const key = networkRequestKey(request, sender, request.requestType);
+    const controller = networkRequests.get(key);
+    if (controller && !controller.signal.aborted) {
+      const error = new Error(request.reason === "timeout" ? "前台等待请求超时" : "请求已取消");
+      error.name = request.reason === "timeout" ? "TimeoutError" : "AbortError";
+      controller.abort(error);
+    }
+    sendResponse({ success: true, cancelled: !!controller });
+  }
+
   const ROUTE_POLICY = Object.freeze({
+    NETWORK_REQUEST_CANCEL: "发送方取消自己的普通代理或非流式 AI 请求",
     UPDATE_CHECK: "设置中心更新检查",
     STORE_FETCH: "允许列表内跨域请求代理",
     [PLAYER_STATS_FETCH]: "Steam 商店详情页或库详情页固定在线人数请求",
@@ -3766,7 +3818,8 @@
       }
     },
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
-    STORE_FETCH: storeFetch,
+    NETWORK_REQUEST_CANCEL: cancelNetworkRequest,
+    STORE_FETCH: networkRoute(storeFetch),
     [PLAYER_STATS_FETCH]: playerStatsFetch,
     TRANSLATE_INJECT: translateInject,
     CONTENT_FILES_INJECT: injectContentFiles,
@@ -3779,7 +3832,7 @@
     [CHROMIUM_WINDOW_OPEN]: openChromiumWindowRequest,
     [STEAM_ROOT_MENU_OPEN_CHROMIUM]: openSteamRootMenuChromiumRequest,
     [AI_GATEWAY_PERMISSION_COMPLETE]: completeAiGatewayPermission,
-    AI_CHAT_COMPLETIONS: aiChat,
+    AI_CHAT_COMPLETIONS: networkRoute(aiChat),
     AI_TRANSLATE_CACHE_GET: cacheGet,
     AI_TRANSLATE_CACHE_SET: cacheSet,
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: openOnboardingLocalPage,
