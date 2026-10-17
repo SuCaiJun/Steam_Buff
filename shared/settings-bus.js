@@ -238,17 +238,23 @@
     return count;
   }
 
+  /** strict 读取失败时拒绝 Promise，由调用方记录最终错误；默认保留空对象降级语义。 */
   function rawGet(keys, options = {}) {
     const box = store();
     if (!box) {
+      if (options.strict === true) return Promise.reject(new Error("本地设置存储不可用"));
       return Promise.resolve({});
     }
     stats.reads += 1;
     const cleanKeys = normalizeKeys(keys);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       try {
         box.get(keys, (rt) => {
           if (root.chrome?.runtime?.lastError) {
+            if (options.strict === true) {
+              reject(root.chrome.runtime.lastError);
+              return;
+            }
             log.warn("settings-bus-read-failed", "设置总线读取失败", {
               owner: ownerOf(options),
               reason: text(options.reason || "read"),
@@ -261,6 +267,10 @@
           resolve(rt || {});
         });
       } catch (error) {
+        if (options.strict === true) {
+          reject(error);
+          return;
+        }
         log.warn("settings-bus-read-failed", "设置总线读取失败", {
           owner: ownerOf(options),
           reason: text(options.reason || "read"),
@@ -364,6 +374,7 @@
     });
   }
 
+  /** strict 必须重新读取存储；失败不归一化、不缓存、不广播，成功缺省键仍使用目录默认值。 */
   async function loadSettingsSnapshot(options = {}) {
     const owner = ownerOf(options);
     const defaults = options.defaults && typeof options.defaults === "object" ? options.defaults : {};
@@ -372,14 +383,14 @@
     const storageKeys = ids.map(keyBuilder);
     // 同一组设置可能由不同上下文使用不同的键规则，缓存必须按实际存储键隔离
     const cacheKey = `${POLICY.cacheKeyPrefix}${storageKeys.join(",")}`;
-    if (options.force !== true) {
+    if (options.force !== true && options.strict !== true) {
       const cached = cacheGet(owner, cacheKey);
       if (cached) {
         root.STPageContext?.setSettingsSnapshot?.(cached);
         return { ...cached };
       }
     }
-    const rt = await rawGet(storageKeys, { owner, reason: "snapshot-read" });
+    const rt = await rawGet(storageKeys, { owner, reason: "snapshot-read", strict: options.strict === true });
     const out = {};
     for (const id of ids) {
       const def = Object.hasOwn(defaults, id) ? defaults[id] : true;

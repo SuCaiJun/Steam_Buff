@@ -35,7 +35,7 @@
     if (typeof storage?.getAll !== "function" || typeof storage?.getReviewFilter !== "function") {
       throw new TypeError("社区评测过滤设置读取模块尚未加载");
     }
-    const all = await storage.getAll({ force: true });
+    const all = await storage.getAll({ force: true, strict: true });
     if (!all || typeof all !== "object" || Array.isArray(all) || typeof all[FEATURE] !== "boolean") {
       throw new TypeError("社区评测过滤开关返回格式错误");
     }

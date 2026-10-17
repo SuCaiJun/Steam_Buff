@@ -415,28 +415,38 @@
     return chrome.storage.local;
   }
 
-  function get(keys) {
+  function get(keys, options = {}) {
     if (globalThis.STSettingsBus?.rawGet) {
       return globalThis.STSettingsBus.rawGet(keys, {
         owner: "settings:storage",
         reason: "settings-storage-read",
+        strict: options.strict === true,
       });
     }
     const box = area();
     if (!box) {
+      if (options.strict === true) return Promise.reject(new Error("本地设置存储不可用"));
       return Promise.resolve({});
     }
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       try {
         box.get(keys, (rt) => {
           if (chrome.runtime.lastError) {
+            if (options.strict === true) {
+              reject(chrome.runtime.lastError);
+              return;
+            }
             resolve({});
             return;
           }
           resolve(rt || {});
         });
       } catch (error) {
+        if (options.strict === true) {
+          reject(error);
+          return;
+        }
         globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "storage", event: "get-failed", message: "读取本地设置失败", level: "warn", phase: "get" });
         resolve({});
       }
@@ -468,7 +478,10 @@
     });
   }
 
-  /** 读取并归一化功能开关；force 透传设置总线，供设置变化后的调用绕过旧快照缓存 */
+  /**
+   * 读取并归一化功能开关；force 绕过快照缓存，strict 要求本次存储读取成功，失败交由调用方处理。
+   * strict 同时绕过缓存；成功读取时未保存的键仍使用目录默认值，不传选项保持原行为。
+   */
   async function getAll(options = {}) {
     const defs = defaults();
     const ids = Object.keys(defs);
@@ -478,11 +491,12 @@
         ids,
         defaults: defs,
         force: options.force === true,
+        strict: options.strict === true,
         reason: "settings-storage-get-all",
       });
     }
     const keys = ids.map(key);
-    const rt = await get(keys);
+    const rt = await get(keys, { strict: options.strict === true });
     const out = {};
 
     for (const id of ids) {
