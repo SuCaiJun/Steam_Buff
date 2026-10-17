@@ -344,7 +344,9 @@
             return;
           }
           if (!response?.success) {
-            reject(new Error(response?.error || "AI 缓存请求失败"));
+            const error = new Error(response?.error || "AI 缓存请求失败");
+            error.code = response?.code;
+            reject(error);
             return;
           }
           resolve(response.data);
@@ -355,13 +357,14 @@
     });
   }
 
-  async function readCache(keys) {
-    if (!keys.length) {
-      return {};
-    }
+  async function readCacheBatch(keys) {
     try {
       return await msg("AI_TRANSLATE_CACHE_GET", { keys });
     } catch (error) {
+      if (error.code === "AI_CACHE_REQUEST_REJECTED") {
+        report("warn", "ai-cache-read-rejected", "AI 翻译缓存读取被拒绝，继续无缓存翻译", { keyCount: keys.length, error });
+        return {};
+      }
       reportThrottled("warn", "ai-cache-read-fallback", "AI 翻译缓存读取降级", {
         keyCount: keys.length,
         error,
@@ -370,20 +373,43 @@
     }
   }
 
-  async function writeCache(entries) {
-    if (!entries.length) {
-      return false;
+  async function readCache(keys) {
+    const out = {};
+    for (const batch of cache.batchKeys(keys)) {
+      Object.assign(out, await readCacheBatch(batch));
     }
+    return out;
+  }
+
+  async function writeCacheBatch(entries) {
     try {
       await msg("AI_TRANSLATE_CACHE_SET", { entries });
       return true;
     } catch (error) {
+      if (error.code === "AI_CACHE_REQUEST_REJECTED") {
+        report("warn", "ai-cache-write-rejected", "AI 翻译缓存写入被拒绝，继续保留完整译文", { entryCount: entries.length, error });
+        return false;
+      }
       reportThrottled("warn", "ai-cache-write-fallback", "AI 翻译缓存写入降级", {
         entryCount: entries.length,
         error,
       });
       return cache?.setMany?.(entries) || false;
     }
+  }
+
+  async function writeCache(entries) {
+    const { batches, skipped } = cache.batchEntries(entries);
+    if (skipped) {
+      report("warn", "ai-cache-write-skipped", "AI 翻译文本超出缓存限额，已跳过缓存并保留完整译文", {
+        entryCount: entries.length, skippedCount: skipped,
+      });
+    }
+    let ok = skipped === 0 && batches.length > 0;
+    for (const batch of batches) {
+      if (!await writeCacheBatch(batch)) ok = false;
+    }
+    return ok;
   }
 
   async function translateChunk(conf, data, items, out, options = {}) {

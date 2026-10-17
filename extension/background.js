@@ -3618,26 +3618,71 @@
     }
   }
 
-  function cacheGet(request, sender, sendResponse) {
-    const store = globalThis.STAITranslateCache;
-    if (!store?.getMany) {
-      sendResponse({ success: true, data: {} });
-      return;
+  function cacheSenderAllowed(sender) {
+    if (sender?.id !== chrome.runtime.id || !Number.isInteger(sender?.tab?.id) || sender.tab.id < 0
+      || !Number.isInteger(sender?.frameId) || sender.frameId < 0 || typeof sender.url !== "string") return false;
+    try {
+      let url = new URL(sender.url);
+      // manifest 的 match_about_blank 使用浏览器提供的真实继承 origin，不取顶层 tab.url。
+      if (url.protocol === "about:" && url.pathname === "blank") {
+        if (typeof sender.origin !== "string") return false;
+        url = new URL(sender.origin);
+      } else if (sender.origin !== undefined && sender.origin !== url.origin) {
+        return false;
+      }
+      return url.protocol === "https:" && MATCH.isSteamTranslateHost(url.hostname);
+    } catch (error) {
+      if (error instanceof TypeError) return false;
+      throw error;
     }
-    store.getMany(request.keys)
-      .then((data) => sendResponse({ success: true, data }))
-      .catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "cache-get-failed", message: "读取 AI 缓存失败", level: "error", phase: "cacheGet" }); return sendResponse({ success: false, error: error?.message || String(error) }); });
   }
 
-  function cacheSet(request, sender, sendResponse) {
+  async function cacheRequest(request, sender, sendResponse, reading) {
+    const reject = (error) => sendResponse({ success: false, code: "AI_CACHE_REQUEST_REJECTED", error });
+    if (!cacheSenderAllowed(sender)) {
+      reject("AI 缓存只允许 Steam 翻译内容脚本访问");
+      return;
+    }
+    const field = reading ? "keys" : "entries";
+    const type = reading ? "AI_TRANSLATE_CACHE_GET" : "AI_TRANSLATE_CACHE_SET";
+    if (!request || typeof request !== "object" || Array.isArray(request) || request.type !== type
+      || !Object.hasOwn(request, "type") || !Object.hasOwn(request, field)
+      || Object.keys(request).some((key) => !["type", field, "operationId", "requestId"].includes(key))
+      || ["operationId", "requestId"].some((key) => Object.hasOwn(request, key)
+        && (typeof request[key] !== "string" || request[key].length > 128))) {
+      reject("AI 缓存请求格式无效");
+      return;
+    }
     const store = globalThis.STAITranslateCache;
-    if (!store?.setMany) {
+    if (!store?.ready) {
       sendResponse({ success: false, error: "AI 缓存模块未加载" });
       return;
     }
-    store.setMany(request.entries)
-      .then((ok) => sendResponse({ success: ok !== false }))
-      .catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "cache-set-failed", message: "保存 AI 缓存失败", level: "error", phase: "cacheSet" }); return sendResponse({ success: false, error: error?.message || String(error) }); });
+    try {
+      const input = reading ? store.validateKeys(request.keys) : store.validateEntries(request.entries);
+      const result = reading ? await store.getMany(input) : await store.setMany(input);
+      sendResponse(reading ? { success: true, data: result } : { success: result !== false });
+    } catch (error) {
+      if (error?.code === "AI_CACHE_REQUEST_REJECTED") {
+        reject(error.message);
+        return;
+      }
+      globalThis.STLoggerFactory.reportError(error, {
+        domain: "extension", feature: "background", event: reading ? "cache-get-failed" : "cache-set-failed",
+        message: reading ? "读取 AI 缓存失败" : "保存 AI 缓存失败", level: "error", phase: reading ? "cacheGet" : "cacheSet",
+        operationId: request.operationId, requestId: request.requestId,
+      });
+      const message = error?.message || String(error);
+      sendResponse({ success: false, error: message });
+    }
+  }
+
+  function cacheGet(request, sender, sendResponse) {
+    return cacheRequest(request, sender, sendResponse, true);
+  }
+
+  function cacheSet(request, sender, sendResponse) {
+    return cacheRequest(request, sender, sendResponse, false);
   }
 
   function authCommitSender(sender) {
