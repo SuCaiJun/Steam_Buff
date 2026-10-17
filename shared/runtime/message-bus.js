@@ -164,7 +164,8 @@
       const cancelRemote = (reason) => {
         if (!cancellable || !sent) return;
         const reportFailure = (error) => {
-          if (logFailures) log.warn("message-bus-cancel-failed", "取消后台网络请求失败", messageMeta(type, { error }, message));
+          // 原请求失败可由业务层记录；取消消息失败只在总线可见，必须在此保留原始异常
+          log.warn("message-bus-cancel-failed", "取消后台网络请求失败", messageMeta(type, { error }, message));
         };
         try {
           chromeApi.sendMessage({

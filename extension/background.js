@@ -444,6 +444,7 @@
   const AI_FORECAST_SESSION_CLEANUP_PERIOD_MINUTES = 24 * 60;
   const SHARED_CONFIG = "shared/config.js";
   const OBSERVER_UTILS = "shared/observer-utils.js";
+  const MESSAGE_BUS = "shared/runtime/message-bus.js";
   const TRANS_VENDOR_WRAPPER = "translate/vendor-wrapper.js";
   const TRANS_LIB = "vendor/xnx3-translate/translate.js";
   const AI_CONFIG = "ai/config.js";
@@ -3359,8 +3360,8 @@
         target,
         world: "ISOLATED",
         files: state.lib === true
-          ? [TRANS_VENDOR_WRAPPER, SHARED_CONFIG, OBSERVER_UTILS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER]
-          : [SHARED_CONFIG, OBSERVER_UTILS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER],
+          ? [TRANS_VENDOR_WRAPPER, SHARED_CONFIG, OBSERVER_UTILS, MESSAGE_BUS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER]
+          : [SHARED_CONFIG, OBSERVER_UTILS, MESSAGE_BUS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER],
       });
       await execScript({
         target,
