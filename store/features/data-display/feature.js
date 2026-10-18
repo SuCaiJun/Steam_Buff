@@ -14,7 +14,7 @@
   const api = window.STStore;
   if (!api) return;
 
-  const FEATURE_ID = "data-display-enhancements";
+  const SETTINGS_KEY = "price-history";
   const OWNER = "store:data-display";
   const ROOT_ID = "st-store-data-display";
   const SUPPORTED_TYPES = Object.freeze(new Set(["app", "sub", "bundle"]));
@@ -132,7 +132,7 @@
       pageType: info.type || "",
       selector: "#game_area_purchase / .game_area_purchase_game",
       candidateCount: candidateCount(),
-      settingsKey: FEATURE_ID,
+      settingsKey: SETTINGS_KEY,
       viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
     }));
       return null;
@@ -144,7 +144,7 @@
       pageType: info.type || "",
       selector,
       candidateCount: candidateCount(),
-      settingsKey: FEATURE_ID,
+      settingsKey: SETTINGS_KEY,
     }));
       return null;
     }
@@ -153,7 +153,7 @@
       rootId: ROOT_ID,
       pageType: info.type || "",
       parentSelector: selector,
-      settingsKey: FEATURE_ID,
+      settingsKey: SETTINGS_KEY,
       rect: rectMeta(root),
       visible: true,
     }));
@@ -217,7 +217,7 @@
       appid: Number(controller.info.appId) || 0,
       subid: Number(option.id) || 0,
       provider: "isthereanydeal",
-      settingsKey: FEATURE_ID,
+      settingsKey: SETTINGS_KEY,
     }));
     try {
       if (typeof api.thirdPartyData?.getStorePriceChartPack !== "function") {
@@ -430,6 +430,11 @@
   api.features.dataDisplay = Object.freeze({
     start,
     stop,
+    /**
+     * 只读既有精准目标和最近自有节点，供当前实体的有限协调使用。
+     * @returns {{target: Element|null, host: Element|null}} host 可能已断开，用于识别原生重绘。
+     */
+    mountState() { return { target: mountAnchor(), host: activeRoot }; },
     stateFromResult,
     pageInfoForService,
   });

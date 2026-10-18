@@ -38,6 +38,7 @@
   const SELECTION_SCAN_YIELD = 2000;
   const BACKEND_PAGE_SIZE = 1000;
   const BACKEND_PAGE_RETRY = 1;
+  const BACKEND_RECOVER_READS = new Set(["current-app", "prepare-list"]);
   const APP_SCAN_YIELD = 2000;
   const SEARCH_DEBOUNCE_MS = 180;
   const SEARCH_SCAN_YIELD = 5000;
@@ -59,6 +60,7 @@
   const s = root[ID] = root[ID] || {};
   const pend = new Map();
   const qpend = new Map();
+  let backendRecovery = null;
   const styles = window.SteamBuff?.styles;
   const DATA_INDEX = window.SteamBuff?.dataIndex || window.STDataIndex;
   const VIRTUAL_LIST = window.SteamBuff?.virtualList || window.STVirtualList;
@@ -609,28 +611,54 @@
       return Promise.reject(new Error(i18n("steam.libraryCustomName.channelUnavailable", "通信通道不可用")));
     }
     const id = rid();
+    const message = { script: ID, side: "ui", type, rid: id, ...data };
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
         pend.delete(id);
         reject(backendTimeoutError());
       }, RESP_MS);
-      pend.set(id, { resolve, reject, timer });
-      ch.postMessage({
-        script: ID,
-        side: "ui",
-        type,
-        rid: id,
-        ...data,
-      });
+      pend.set(id, { resolve, reject, timer, message, scope: s.scope, readyRetried: false });
+      ch.postMessage(message);
     });
+  }
+
+  // 同一挂载实例的并发只读超时共用一次恢复和通道重建，避免相互关闭新通道
+  function recoverBackendRead(phase) {
+    if (backendRecovery?.scope === s.scope) return backendRecovery.promise;
+    const recovery = { scope: s.scope, promise: null };
+    recovery.promise = (async () => {
+      log.warn("library-custom-name-backend-retry", "名称只读请求超时，开始定向恢复客户端后台", { phase });
+      await window.SteamBuff.ctx.recoverNameBackend(ID);
+      if (!s.started || s.scope !== recovery.scope) throw new Error("名称功能已停止，恢复结果已取消");
+      resetBackendChannel();
+    })().finally(() => {
+      if (backendRecovery === recovery) backendRecovery = null;
+    });
+    backendRecovery = recovery;
+    return recovery.promise;
   }
 
   async function backend(type, data, opt = {}) {
     const retry = Math.max(0, Number(opt.retry) || 0);
+    const scope = s.scope;
     for (let attempt = 0; attempt <= retry; attempt += 1) {
       try {
         return await backendOnce(type, data);
       } catch (error) {
+        if (isBackendTimeout(error) && BACKEND_RECOVER_READS.has(type)) {
+          if (!s.started || s.scope !== scope) throw new Error("名称功能已停止，恢复请求已取消");
+          try {
+            await recoverBackendRead(type);
+          } catch (recoveryError) {
+            if (!s.started || s.scope !== scope) throw recoveryError;
+            error.cause = recoveryError;
+            throw error;
+          }
+          if (!s.started || s.scope !== scope) throw new Error("名称功能已停止，恢复结果已取消");
+          const result = await backendOnce(type, data);
+          log.warn("library-custom-name-backend-recovered", "名称后台通道已恢复并重新取得只读结果", { phase: type });
+          return result;
+        }
         if (attempt >= retry || !isBackendTimeout(error)) {
           throw error;
         }
@@ -721,6 +749,23 @@
   function onBackend(event) {
     const data = event.data || {};
     if (data.script !== ID || data.side !== "backend") {
+      return;
+    }
+
+    if (data.type === "backend-ready") {
+      if (!s.started || !s.ch) return;
+      // 后台晚到时只补发仍在等待的只读请求，每个请求最多一次，不重放保存命令
+      for (const [id, wait] of pend) {
+        if (wait.scope !== s.scope || wait.readyRetried || !BACKEND_RECOVER_READS.has(wait.message.type)) continue;
+        wait.readyRetried = true;
+        try {
+          s.ch.postMessage(wait.message);
+        } catch (error) {
+          window.clearTimeout(wait.timer);
+          pend.delete(id);
+          wait.reject(error);
+        }
+      }
       return;
     }
 

@@ -92,7 +92,13 @@
     moduleFeature("wishlist-price-history", "wishlistPriceHistory", undefined, {
       settingsIds: ["wishlist-price-history-hover-through"],
     }),
-    moduleFeature("search-suggestions", "searchSuggestions"),
+    moduleFeature("search-suggestions", "searchSuggestions", undefined, {
+      settingsIds: [
+        "search-suggestions-user-custom", "search-suggestions-user-alias",
+        "search-suggestions-community", "search-suggestions-community-alias",
+        "search-suggestions-ai", "search-suggestions-pinyin", "search-suggestions-mnemonic",
+      ],
+    }),
     moduleFeature("store-title-custom-name", "titleCustomName", undefined, {
       settingsIds: ["store-title-community-fallback", "store-title-community-fallback-ai", "store-title-hide-custom-name"],
     }),
@@ -108,7 +114,9 @@
       },
     }),
     moduleFeature("data-display-enhancements", "dataDisplay", DETAILS, {
+      settingsKey: "price-history",
       settingsIds: ["price-history", "price-forecast", "price-forecast-discount", "price-forecast-seasonal"],
+      mountState(api) { return api.features.dataDisplay.mountState(); },
       gate() { return canRun("price-history") || canRun("price-forecast"); },
       start(api, context) {
         return api.features.dataDisplay.start(context.info, {
@@ -123,9 +131,11 @@
       start(api, context) { return api.features.regionalPricePopover.start(context.info.appId); },
     }),
     moduleFeature("audio-check", "audioCheck", ["store-app"], {
+      settingsIds: ["store-detail-reminders-unsupported-only"],
       start(api) { return api.features.audioCheck.add(); },
     }),
     moduleFeature("workshop-check", "workshopCheck", ["store-app"], {
+      settingsIds: ["store-detail-reminders-unsupported-only"],
       start(api, context) { return api.features.workshopCheck.add(context.info.appId); },
       stop(api) { return api.features.workshopCheck.remove(); },
     }),

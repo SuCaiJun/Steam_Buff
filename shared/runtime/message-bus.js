@@ -24,6 +24,7 @@
   };
   const ROUTES = Object.freeze({
     CONTENT_FILES_INJECT: { timeoutMs: 12 * 1000, owner: "runtime" },
+    STEAM_NAME_BACKEND_RECOVER: { timeoutMs: 7 * 1000, owner: "library-name-recovery" },
     STEAM_BUFF_OPEN_SETTINGS: { timeoutMs: 5 * 1000, owner: "settings" },
     STORE_FETCH: { timeoutMs: 12 * 1000, owner: "network" },
     PLAYER_STATS_FETCH: { timeoutMs: 12 * 1000, owner: "store" },

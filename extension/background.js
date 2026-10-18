@@ -372,6 +372,7 @@
   const STEAM_LOOPBACK_INJECT_REQUEST = "STEAM_LOOPBACK_INJECT_REQUEST";
   const STEAM_LOOPBACK_RECOVERY_MARK = "__steamBuffLoopbackRecovery";
   const STEAM_LOOPBACK_RECOVERY_TARGET_KEY = "steamBuffSteamLoopbackRecoveryTargetV1";
+  const STEAM_LOOPBACK_RECOVERY_STATE_KEY = "steamBuffSteamLoopbackRecoveryCampaignV1";
   const STEAM_LOOPBACK_RECOVERY_ALARM_PREFIX = "steam-buff-loopback-recovery-attempt-";
   const STEAM_LOOPBACK_RECOVERY_FINAL_ALARM = "steam-buff-loopback-recovery-final";
   const STEAM_LOOPBACK_RECOVERY_DELAY_MS = 180000;
@@ -406,8 +407,13 @@
   const TAB_INJECT_DELAYS = Object.freeze([0, 1000]);
   const pendingTabInjects = new Map();
   const steamFrameInjectionFlights = new Map();
+  const steamNameRecoveryFlights = new Map();
+  let steamLoopbackTargetWrite = Promise.resolve();
   let steamLoopbackRecoveryScheduleFlight = null;
   let steamLoopbackRecoveryFinished = false;
+  let steamLoopbackRecoveryState;
+  let steamLoopbackRecoveryRevision = 0;
+  let steamLoopbackRecoveryChanges = Promise.resolve();
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
   const PLAYER_STATS_GMCHARTS_TTL_MS = 60 * 60 * 1000;
   const PLAYER_STATS_STEAM_CURRENT_TTL_MS = 10 * 60 * 1000;
@@ -913,15 +919,37 @@
     if (!target) {
       return;
     }
-    await storageLocalSet({ [STEAM_LOOPBACK_RECOVERY_TARGET_KEY]: target });
+    await updateSteamLoopbackRecoveryTarget(async () => {
+      await validateSteamLoopbackRecoveryTarget(target);
+      await storageLocalSet({ [STEAM_LOOPBACK_RECOVERY_TARGET_KEY]: target });
+    });
   }
 
   async function readSteamLoopbackRecoveryTarget() {
     return normalizeSteamLoopbackRecoveryTarget(await storageLocalGet(STEAM_LOOPBACK_RECOVERY_TARGET_KEY));
   }
 
-  function clearSteamLoopbackRecoveryTarget() {
-    return storageLocalRemove(STEAM_LOOPBACK_RECOVERY_TARGET_KEY);
+  // 登记和失效清理串行执行，旧目标的迟到失败不能删除新登记
+  async function updateSteamLoopbackRecoveryTarget(change) {
+    const previous = steamLoopbackTargetWrite;
+    let release;
+    steamLoopbackTargetWrite = new Promise(resolve => { release = resolve; });
+    await previous;
+    try {
+      return await change();
+    } finally {
+      release();
+    }
+  }
+
+  async function clearSteamLoopbackRecoveryTarget(expected) {
+    return updateSteamLoopbackRecoveryTarget(async () => {
+      const current = await readSteamLoopbackRecoveryTarget();
+      if (!current || current.tabId !== expected.tabId || current.frameId !== expected.frameId
+        || current.observedAt !== expected.observedAt) return false;
+      await storageLocalRemove(STEAM_LOOPBACK_RECOVERY_TARGET_KEY);
+      return true;
+    });
   }
 
   // 注:每轮最多 3 个三分钟级 alarm；优先验证真实 sender，再用 tabs.query 补充，不直接注入 FILES 或启动常驻轮询。
@@ -966,76 +994,139 @@
     await Promise.all(steamLoopbackRecoveryAlarmNames().map(clearAlarm));
   }
 
-  async function ensureSteamLoopbackRecoveryAlarms(replace = false) {
-    const startedAt = Date.now();
+  // 轮次进度由 session 保存；普通 tab 更新只复用本轮，不根据 alarm 缺失猜测是否需要重建
+  async function changeSteamLoopbackRecoveryState(change) {
+    const previous = steamLoopbackRecoveryChanges;
+    let release;
+    steamLoopbackRecoveryChanges = new Promise(resolve => { release = resolve; });
+    await previous;
+    try {
+      return await change();
+    } finally {
+      release();
+    }
+  }
+
+  async function readSteamLoopbackRecoveryState() {
+    if (steamLoopbackRecoveryState !== undefined) return steamLoopbackRecoveryState;
+    const value = await sessionStorageGet(STEAM_LOOPBACK_RECOVERY_STATE_KEY);
+    if (value === undefined) {
+      steamLoopbackRecoveryState = null;
+      return null;
+    }
+    if (!value || !Number.isFinite(value.startedAt) || value.startedAt <= 0
+      || typeof value.finished !== "boolean" || !Number.isFinite(value.finalAt) || value.finalAt < 0
+      || !Array.isArray(value.attempts) || new Set(value.attempts).size !== value.attempts.length
+      || value.attempts.some(attempt => !STEAM_LOOPBACK_RECOVERY_ATTEMPTS.includes(attempt))
+      || (value.finalAt > 0) !== value.attempts.includes(STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS)) {
+      throw new TypeError("Steam CEF 后台恢复轮次记录无效");
+    }
+    steamLoopbackRecoveryState = value;
+    return value;
+  }
+
+  async function writeSteamLoopbackRecoveryState(state) {
+    await sessionStorageSet({ [STEAM_LOOPBACK_RECOVERY_STATE_KEY]: state });
+    steamLoopbackRecoveryState = state;
+  }
+
+  function isSteamLoopbackRecoveryCurrent(state, revision) {
+    return !steamLoopbackRecoveryFinished && revision === steamLoopbackRecoveryRevision
+      && steamLoopbackRecoveryState?.startedAt === state.startedAt && !steamLoopbackRecoveryState.finished;
+  }
+
+  // 首次注入及旧守卫未携带轮次号，绑定接收修订；显式恢复轮次还需匹配已读取的进度
+  function ownsSteamLoopbackRecovery(owner) {
+    return !!owner && owner.revision === steamLoopbackRecoveryRevision
+      && (owner.startedAt === null || owner.startedAt === steamLoopbackRecoveryState?.startedAt);
+  }
+
+  async function ensureSteamLoopbackRecoveryAlarms(state, revision) {
+    const startedAt = state.startedAt;
     for (const attempt of STEAM_LOOPBACK_RECOVERY_ATTEMPTS) {
-      if (steamLoopbackRecoveryFinished) {
-        return;
-      }
+      if (!isSteamLoopbackRecoveryCurrent(state, revision)) return;
       const name = steamLoopbackRecoveryAlarmName(attempt);
-      if (replace) {
-        chrome.alarms.create(name, {
-          when: startedAt + STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1),
-        });
-        continue;
-      }
-      const existing = await getAlarm(name);
-      if (steamLoopbackRecoveryFinished) {
-        return;
-      }
-      if (!existing) {
-        chrome.alarms.create(name, {
-          when: startedAt + STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1),
-        });
-      }
+      await chrome.alarms.create(name, {
+        when: startedAt + STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1),
+      });
     }
   }
 
   function startSteamLoopbackRecoveryCampaign(replace = false) {
+    if (!replace && steamLoopbackRecoveryFinished) return Promise.resolve();
+    if (!replace && steamLoopbackRecoveryScheduleFlight) return steamLoopbackRecoveryScheduleFlight;
     if (replace) {
       steamLoopbackRecoveryFinished = false;
-      const flight = ensureSteamLoopbackRecoveryAlarms(true);
-      flight.catch((error) => {
-        logError("injection", "steam-loopback-recovery-alarm-failed", "Steam CEF 后台恢复 alarm 重建失败", error);
-      });
-      return flight;
+      steamLoopbackRecoveryRevision += 1;
     }
-    if (steamLoopbackRecoveryFinished) {
-      return Promise.resolve();
-    }
-    if (steamLoopbackRecoveryScheduleFlight) {
-      return steamLoopbackRecoveryScheduleFlight;
-    }
-    const flight = ensureSteamLoopbackRecoveryAlarms();
+    const revision = steamLoopbackRecoveryRevision;
+    const flight = changeSteamLoopbackRecoveryState(async () => {
+      const previous = await readSteamLoopbackRecoveryState();
+      if (revision !== steamLoopbackRecoveryRevision) return;
+      if (!replace && previous) {
+        steamLoopbackRecoveryFinished = previous.finished;
+        return;
+      }
+      await clearSteamLoopbackRecoveryAlarms();
+      if (revision !== steamLoopbackRecoveryRevision) return;
+      const state = {
+        startedAt: Math.max(Date.now(), (previous?.startedAt || 0) + 1),
+        attempts: [], finished: false, finalAt: 0,
+      };
+      await writeSteamLoopbackRecoveryState(state);
+      if (!isSteamLoopbackRecoveryCurrent(state, revision)) return;
+      await ensureSteamLoopbackRecoveryAlarms(state, revision);
+    }).catch(async (error) => {
+      logError("injection", "steam-loopback-recovery-alarm-failed", "Steam CEF 后台恢复轮次或 alarm 创建失败", error);
+      if (revision === steamLoopbackRecoveryRevision) await stopSteamLoopbackRecoveryCampaign();
+    });
+    // 保留已结束的启动任务，普通 tab 更新不重新创建本轮计时器或反复记录同一错误
     steamLoopbackRecoveryScheduleFlight = flight;
-    flight.then(
-      () => {
-        if (steamLoopbackRecoveryScheduleFlight === flight) {
-          steamLoopbackRecoveryScheduleFlight = null;
-        }
-      },
-      (error) => {
-        if (steamLoopbackRecoveryScheduleFlight === flight) {
-          steamLoopbackRecoveryScheduleFlight = null;
-        }
-        logError("injection", "steam-loopback-recovery-alarm-failed", "Steam CEF 后台恢复 alarm 创建失败", error);
-      },
-    );
     return flight;
   }
 
-  function stopSteamLoopbackRecoveryCampaign() {
-    if (steamLoopbackRecoveryFinished) {
-      return false;
+  async function finishSteamLoopbackRecoveryState(state) {
+    const firstStop = state?.finished !== true;
+    try {
+      await writeSteamLoopbackRecoveryState(state
+        ? { ...state, finished: true }
+        : { startedAt: Date.now(), attempts: [], finished: true, finalAt: 0 });
+    } catch (error) {
+      logError("injection", "steam-loopback-recovery-state-clear-failed", "Steam CEF 后台恢复轮次结束状态保存失败", error);
     }
+    try {
+      await clearSteamLoopbackRecoveryAlarms();
+    } catch (error) {
+      logError("injection", "steam-loopback-recovery-state-clear-failed", "Steam CEF 后台恢复 alarm 清理失败", error);
+    }
+    return firstStop;
+  }
+
+  // 返回是否首次请求结束本轮；保存/清理失败单独报告，不改变真实注入结果
+  async function stopSteamLoopbackRecoveryCampaign(owner) {
+    if (owner !== undefined && !ownsSteamLoopbackRecovery(owner)) return false;
+    if (steamLoopbackRecoveryFinished) return false;
     steamLoopbackRecoveryFinished = true;
-    Promise.all([
-      clearSteamLoopbackRecoveryAlarms(),
-      clearSteamLoopbackRecoveryTarget(),
-    ]).catch((error) => {
-      logError("injection", "steam-loopback-recovery-state-clear-failed", "Steam CEF 后台恢复状态清理失败", error);
+    const revision = ++steamLoopbackRecoveryRevision;
+    return changeSteamLoopbackRecoveryState(async () => {
+      let state;
+      try {
+        state = await readSteamLoopbackRecoveryState();
+      } catch (error) {
+        logError("injection", "steam-loopback-recovery-state-clear-failed", "Steam CEF 后台恢复轮次读取失败", error);
+        if (revision === steamLoopbackRecoveryRevision) {
+          try {
+            await clearSteamLoopbackRecoveryAlarms();
+          } catch (clearError) {
+            logError("injection", "steam-loopback-recovery-state-clear-failed", "Steam CEF 后台恢复 alarm 清理失败", clearError);
+          }
+        }
+        return true;
+      }
+      if (revision !== steamLoopbackRecoveryRevision) return false;
+      // 目标登记供名称恢复继续使用，仅结束轮次及清理 alarm
+      return finishSteamLoopbackRecoveryState(state);
     });
-    return true;
   }
 
   function steamLoopbackRecoveryAttempt(name) {
@@ -1071,31 +1162,49 @@
     }
   }
 
-  async function injectSteamLoopbackRecoveryGuard(target, recovery) {
+  async function injectSteamLoopbackRecoveryGuard(target, recovery, state, revision) {
+    if (!isSteamLoopbackRecoveryCurrent(state, revision)) return false;
     const scriptTarget = steamLoopbackRecoveryScriptTarget(target);
-    await execScript({
-      target: scriptTarget,
-      world: "ISOLATED",
-      func: (mark, value) => {
-        globalThis[mark] = value;
-      },
-      args: [STEAM_LOOPBACK_RECOVERY_MARK, recovery],
-    });
-    await execScript({
-      target: scriptTarget,
-      world: "ISOLATED",
-      files: STEAM_LOOPBACK_GUARD_FILES,
-    });
+    let guardInjected = false;
+    try {
+      await execScript({
+        target: scriptTarget,
+        world: "ISOLATED",
+        func: (mark, value) => {
+          globalThis[mark] = value;
+        },
+        args: [STEAM_LOOPBACK_RECOVERY_MARK, recovery],
+      });
+      if (!isSteamLoopbackRecoveryCurrent(state, revision)) return false;
+      await execScript({
+        target: scriptTarget,
+        world: "ISOLATED",
+        files: STEAM_LOOPBACK_GUARD_FILES,
+      });
+      guardInjected = true;
+      return isSteamLoopbackRecoveryCurrent(state, revision);
+    } finally {
+      if (!guardInjected) {
+        try {
+          await execScript({
+            target: scriptTarget,
+            world: "ISOLATED",
+            func: (mark, startedAt, attempt) => {
+              const value = globalThis[mark];
+              if (value?.startedAt === startedAt && value?.attempt === attempt) globalThis[mark] = null;
+            },
+            args: [STEAM_LOOPBACK_RECOVERY_MARK, recovery.startedAt, recovery.attempt],
+          });
+        } catch (error) {
+          logError("injection", "steam-loopback-recovery-mark-clear-failed", "Steam CEF 后台恢复遗留标记清理失败", error);
+        }
+      }
+    }
   }
 
-  async function runSteamLoopbackRecoveryAttempt(alarm, attempt) {
-    if (steamLoopbackRecoveryFinished) {
-      return;
-    }
-    const scheduledTime = Number(alarm?.scheduledTime);
-    const startedAt = Number.isFinite(scheduledTime)
-      ? Math.max(1, scheduledTime - STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1))
-      : Date.now() - STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1);
+  async function runSteamLoopbackRecoveryAttempt(alarm, attempt, state, revision) {
+    if (!isSteamLoopbackRecoveryCurrent(state, revision)) return;
+    const startedAt = state.startedAt;
     const retry = {
       attempt,
       maxAttempts: STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS,
@@ -1112,10 +1221,11 @@
     let exactTargetInjected = false;
     try {
       storedTarget = await readSteamLoopbackRecoveryTarget();
+      if (!isSteamLoopbackRecoveryCurrent(state, revision)) return;
       if (storedTarget) {
         storedTargetAgeMs = Math.max(0, Date.now() - storedTarget.observedAt);
         await validateSteamLoopbackRecoveryTarget(storedTarget);
-        await injectSteamLoopbackRecoveryGuard(storedTarget, recovery);
+        if (!await injectSteamLoopbackRecoveryGuard(storedTarget, recovery, state, revision)) return;
         exactTargetInjected = true;
       }
     } catch (error) {
@@ -1123,7 +1233,9 @@
     }
     let candidates = [];
     try {
+      if (!isSteamLoopbackRecoveryCurrent(state, revision)) return;
       const tabs = await tabsQueryAll();
+      if (!isSteamLoopbackRecoveryCurrent(state, revision)) return;
       candidates = tabs.filter(ok);
       if (exactTargetInjected) {
         candidates = candidates.filter((tab) => tab.id !== storedTarget.tabId);
@@ -1131,6 +1243,7 @@
     } catch (error) {
       failures.push(error);
     }
+    if (!isSteamLoopbackRecoveryCurrent(state, revision)) return;
     backgroundLogger("injection").info(
       "steam-loopback-runtime-recovery-attempt",
       "Steam CEF 后台开始有限恢复检查",
@@ -1149,12 +1262,13 @@
     let injectedTargets = exactTargetInjected ? 1 : 0;
     for (const tab of candidates) {
       try {
-        await injectSteamLoopbackRecoveryGuard(tab.id, recovery);
+        if (!await injectSteamLoopbackRecoveryGuard(tab.id, recovery, state, revision)) return;
         injectedTargets += 1;
       } catch (error) {
         failures.push(error);
       }
     }
+    if (!isSteamLoopbackRecoveryCurrent(state, revision)) return;
     if (attempt < STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS && (!injectedTargets || failures.length)) {
       const error = failures[0] || new Error("未发现可注入的 Steam CEF sender 或 tab");
       backgroundLogger("injection").warn(
@@ -1179,10 +1293,16 @@
     }
   }
 
-  function failSteamLoopbackRecoveryCampaign() {
-    if (!stopSteamLoopbackRecoveryCampaign()) {
-      return;
-    }
+  async function failSteamLoopbackRecoveryCampaign(alarm, revision) {
+    const stopped = await changeSteamLoopbackRecoveryState(async () => {
+      const state = await readSteamLoopbackRecoveryState();
+      if (!state || !isSteamLoopbackRecoveryCurrent(state, revision)
+        || !state.finalAt || state.finalAt !== alarm?.scheduledTime) return false;
+      steamLoopbackRecoveryFinished = true;
+      steamLoopbackRecoveryRevision += 1;
+      return finishSteamLoopbackRecoveryState(state);
+    });
+    if (!stopped) return;
     const error = new Error("SharedJSContext 未在有限恢复窗口内建立");
     error.name = "SteamLoopbackRecoveryError";
     logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF SharedJSContext 后台有限恢复最终失败", error, {
@@ -1196,21 +1316,40 @@
     });
   }
 
-  function handleSteamLoopbackRecoveryAlarm(alarm) {
-    if (alarm?.name === STEAM_LOOPBACK_RECOVERY_FINAL_ALARM) {
-      failSteamLoopbackRecoveryCampaign();
-      return;
-    }
+  async function handleSteamLoopbackRecoveryAlarm(alarm) {
     const attempt = steamLoopbackRecoveryAttempt(alarm?.name);
-    if (!attempt) {
+    if (!attempt && alarm?.name !== STEAM_LOOPBACK_RECOVERY_FINAL_ALARM) return;
+    const revision = steamLoopbackRecoveryRevision;
+    let claimed;
+    try {
+      if (alarm.name === STEAM_LOOPBACK_RECOVERY_FINAL_ALARM) {
+        await failSteamLoopbackRecoveryCampaign(alarm, revision);
+        return;
+      }
+      claimed = await changeSteamLoopbackRecoveryState(async () => {
+        const state = await readSteamLoopbackRecoveryState();
+        if (!state || !isSteamLoopbackRecoveryCurrent(state, revision) || state.attempts.includes(attempt)
+          || alarm.scheduledTime !== state.startedAt + STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1)) return null;
+        const next = { ...state, attempts: [...state.attempts, attempt] };
+        if (attempt === STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS) next.finalAt = Date.now() + STEAM_LOOPBACK_RECOVERY_FINAL_GRACE_MS;
+        // 先持久记录本次预算，再执行发现/注入；Worker 重启和重复投递都不能重放
+        await writeSteamLoopbackRecoveryState(next);
+        if (!isSteamLoopbackRecoveryCurrent(next, revision)) return null;
+        if (attempt === STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS) {
+          await chrome.alarms.create(STEAM_LOOPBACK_RECOVERY_FINAL_ALARM, { when: next.finalAt });
+        }
+        return { state: next, revision };
+      });
+    } catch (error) {
+      logError("injection", "steam-loopback-recovery-alarm-failed", "Steam CEF 后台恢复轮次进度或 alarm 处理失败", error);
+      if (revision === steamLoopbackRecoveryRevision) await stopSteamLoopbackRecoveryCampaign();
       return;
     }
-    if (attempt === STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS) {
-      chrome.alarms.create(STEAM_LOOPBACK_RECOVERY_FINAL_ALARM, {
-        when: Date.now() + STEAM_LOOPBACK_RECOVERY_FINAL_GRACE_MS,
-      });
-    }
-    runSteamLoopbackRecoveryAttempt(alarm, attempt).catch((error) => {
+    if (!claimed) return;
+    try {
+      await runSteamLoopbackRecoveryAttempt(alarm, attempt, claimed.state, claimed.revision);
+    } catch (error) {
+      if (!isSteamLoopbackRecoveryCurrent(claimed.state, claimed.revision)) return;
       if (attempt < STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS) {
         backgroundLogger("injection").warn(
           "steam-loopback-runtime-inject-retry",
@@ -1226,8 +1365,10 @@
             meta: { reason: "shared-context-not-recovered" },
           },
         );
+      } else {
+        logError("injection", "steam-loopback-recovery-alarm-failed", "Steam CEF 后台恢复检查或结束状态处理失败", error);
       }
-    });
+    }
   }
 
   function injectSoon() {
@@ -3456,6 +3597,15 @@
     if (retry && Number.isInteger(Number(request?.retry?.delayMs)) && Number(request.retry.delayMs) >= 0) {
       retry.delayMs = Number(request.retry.delayMs);
     }
+    if (request?.retry?.startedAt !== undefined) {
+      const startedAt = request.retry.startedAt;
+      if (!retry || !STEAM_LOOPBACK_RECOVERY_ATTEMPTS.includes(retry.attempt)
+        || retry.maxAttempts !== STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS || !Number.isFinite(startedAt) || startedAt <= 0) {
+        sendResponse({ success: false, error: "无效的 Steam CEF 恢复轮次" });
+        return;
+      }
+      retry.startedAt = startedAt;
+    }
     const previousFailureReason = STEAM_LOOPBACK_FAILURE_REASONS.has(
       String(request?.diagnostics?.previousFailureReason || ""),
     )
@@ -3496,6 +3646,23 @@
       pageHint: String(request.pageHint || ""),
     };
     const sharedContext = isSteamSharedContext(meta);
+    const recoveryOwner = sharedContext
+      ? { revision: steamLoopbackRecoveryRevision, startedAt: retry?.startedAt ?? null }
+      : null;
+    if (sharedContext && recoveryOwner.startedAt !== null) {
+      try {
+        await changeSteamLoopbackRecoveryState(readSteamLoopbackRecoveryState);
+      } catch (error) {
+        logError("injection", "steam-loopback-recovery-alarm-failed", "Steam CEF 注入请求所属恢复轮次读取失败", error);
+        const message = error?.message || String(error);
+        sendResponse({ success: false, error: message });
+        return;
+      }
+      if (!ownsSteamLoopbackRecovery(recoveryOwner) || steamLoopbackRecoveryFinished || steamLoopbackRecoveryState?.finished) {
+        sendResponse({ success: true, skipped: true, reason: "steam-loopback-recovery-stale" });
+        return;
+      }
+    }
     if (sharedContext) {
       try {
         await rememberSteamLoopbackRecoveryTarget(tabId, frameId);
@@ -3530,7 +3697,7 @@
         },
       };
       if (finalAttempt) {
-        const shouldLogFinalFailure = !sharedContext || stopSteamLoopbackRecoveryCampaign();
+        const shouldLogFinalFailure = !sharedContext || await stopSteamLoopbackRecoveryCampaign(recoveryOwner);
         if (shouldLogFinalFailure) {
           logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF 完整运行时注入范围检查最终失败", error, {
             retry: logRetry,
@@ -3545,7 +3712,7 @@
           "Steam CEF 完整运行时注入范围检查失败，等待有限重试",
           details,
         );
-        if (sharedContext && retry?.attempt === 1) {
+        if (sharedContext && retry?.attempt === 1 && ownsSteamLoopbackRecovery(recoveryOwner)) {
           startSteamLoopbackRecoveryCampaign(true);
         }
       }
@@ -3574,15 +3741,16 @@
         );
       }
       if (sharedContext) {
-        stopSteamLoopbackRecoveryCampaign();
+        await stopSteamLoopbackRecoveryCampaign(recoveryOwner);
       }
       sendResponse({ success: true, injected });
     } catch (error) {
       const reason = STEAM_LOOPBACK_BACKGROUND_FAILURE_REASONS.has(String(error?.reason || ""))
         ? String(error.reason)
         : "background-inject-failed";
-      if (finalAttempt) {
-        const shouldLogFinalFailure = !sharedContext || stopSteamLoopbackRecoveryCampaign();
+      // 末轮仍需等待守卫短重试耗尽，避免将下一次合法短重试判为过期
+      if (finalAttempt && (!requestRetry || requestRetry.attempt >= requestRetry.maxAttempts)) {
+        const shouldLogFinalFailure = !sharedContext || await stopSteamLoopbackRecoveryCampaign(recoveryOwner);
         if (shouldLogFinalFailure) {
           logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF 完整运行时注入最终失败", error, {
             retry: logRetry,
@@ -3590,6 +3758,7 @@
             ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
             meta: {
               reason,
+              ...(requestRetry ? { requestRetry } : {}),
               ...(retryScope ? { retryScope } : {}),
               ...(diagnostics.previousFailureReason ? { previousFailureReason: diagnostics.previousFailureReason } : {}),
             },
@@ -3606,16 +3775,18 @@
             ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
             meta: {
               reason,
+              ...(requestRetry ? { requestRetry } : {}),
               ...(retryScope ? { retryScope } : {}),
               ...(diagnostics.previousFailureReason ? { previousFailureReason: diagnostics.previousFailureReason } : {}),
             },
           },
         );
-        if (sharedContext && retry?.attempt === 1) {
+        if (sharedContext && retry?.attempt === 1 && ownsSteamLoopbackRecovery(recoveryOwner)) {
           startSteamLoopbackRecoveryCampaign(true);
         }
       }
-      sendResponse({ success: false, error: error?.message || String(error) });
+      const message = error?.message || String(error);
+      sendResponse({ success: false, error: message });
     }
   }
 
@@ -3808,6 +3979,88 @@
     sendResponse({ success: true, cancelled: !!controller });
   }
 
+  // 只使用已记录且重新验证的 SharedJSContext；名称恢复不触发全功能启动或扩散注入
+  async function recoverSteamNameBackend(request, sender, sendResponse) {
+    const featureId = request.featureId;
+    const knownFeature = ["library-sort-title", "library-custom-name"].includes(featureId);
+    try {
+      if (!isSteamRuntimeSender(sender) || !knownFeature) {
+        throw new Error("名称后台恢复请求不在允许范围内");
+      }
+      if (!Array.isArray(request.appids) || request.appids.length > 200
+        || request.appids.some(id => !Number.isInteger(id) || id <= 0)) {
+        throw new TypeError("名称恢复 AppID 列表无效");
+      }
+      const source = await execScript({
+        target: { tabId: sender.tab.id, frameIds: [sender.frameId] }, world: "MAIN",
+        func: () => window.SteamBuff?.ctx?.isMainUi?.() === true || window.SteamBuff?.ctx?.isPropertyDialog?.() === true,
+      });
+      if (source[0]?.result !== true) throw new Error("名称恢复只允许 Steam 主窗口或属性窗口请求");
+      const target = await readSteamLoopbackRecoveryTarget();
+      if (!target) {
+        throw new Error("尚未记录真实 SharedJSContext，名称后台尚未就绪");
+      }
+      const key = `${target.tabId}:${target.frameId}:${featureId}`;
+      let flight = steamNameRecoveryFlights.get(key);
+      if (!flight) {
+        flight = (async () => {
+          try {
+            try {
+              await validateSteamLoopbackRecoveryTarget(target);
+            } catch (error) {
+              if (error.reason === "stored-target-scope-mismatch" || /^No tab with id: \d+/.test(error.message)) {
+                await clearSteamLoopbackRecoveryTarget(target);
+              }
+              throw error;
+            }
+            const results = await execScript({
+              target: steamLoopbackRecoveryScriptTarget(target), world: "MAIN",
+              args: [featureId, request.appids],
+              func: async (id, appids) => {
+                if (document.title !== "SharedJSContext") throw new Error("名称后台目标已变化");
+                const api = window.SteamBuff;
+                if (!api?.reg?.list || !api.reg.canStart) throw new Error("名称运行时依赖尚未就绪");
+                const feature = api.reg.list().find(item => item.id === id);
+                if (!feature || api.reg.canStart(feature, "backend").allowed !== true) {
+                  throw new Error("当前名称功能未启用");
+                }
+                const key = id === "library-sort-title" ? "__SteamBuffLibrarySortTitle" : "__SteamBuffLibraryCustomNameBackend";
+                if (!window[key]) {
+                  if (!api?.runtimeKernel?.disposeOwner || !api.reg?.markStopped || !api.reg?.startFeature) {
+                    throw new Error("名称运行时依赖尚未就绪");
+                  }
+                  if (api.reg.state.starting.has(`${id}:backend:backend.js`)) throw new Error("名称功能仍在启动");
+                  api.runtimeKernel.disposeOwner(`steam:${id}:backend`);
+                  api.reg.markStopped(id);
+                  const results = await api.reg.startFeature(id);
+                  if (!results.some(item => item.context === "backend" && item.status === "started")) {
+                    throw new Error("当前名称功能未启用或启动失败");
+                  }
+                }
+                if (typeof window[key]?.recover !== "function") throw new Error("当前名称后台不支持定向恢复");
+                return window[key].recover(appids);
+              },
+            });
+            const result = results[0]?.result;
+            if (result?.ready !== true) throw new Error("名称后台未返回就绪回执");
+            return result;
+          } finally {
+            if (steamNameRecoveryFlights.get(key) === flight) steamNameRecoveryFlights.delete(key);
+          }
+        })();
+        steamNameRecoveryFlights.set(key, flight);
+      }
+      const result = await flight;
+      sendResponse({ success: true, ...result });
+    } catch (error) {
+      logError("library-name-recovery", "steam-name-backend-recovery-failed", "Steam 名称后台定向恢复失败", error, {
+        requestId: typeof request.requestId === "string" ? request.requestId : undefined,
+        ...(knownFeature ? { featureId } : {}),
+      });
+      sendResponse({ success: false, error: error.message });
+    }
+  }
+
   const ROUTE_POLICY = Object.freeze({
     NETWORK_REQUEST_CANCEL: "发送方取消自己的普通代理或非流式 AI 请求",
     UPDATE_CHECK: "设置中心更新检查",
@@ -3816,6 +4069,7 @@
     TRANSLATE_INJECT: "翻译 runner 按需注入",
     CONTENT_FILES_INJECT: "当前 frame 内容脚本按需注入",
     [STEAM_LOOPBACK_INJECT_REQUEST]: "Steam CEF 白名单 frame 按需注入",
+    STEAM_NAME_BACKEND_RECOVER: "Steam 主窗口或属性窗口定向恢复名称后台",
     [AI_GATEWAY_PERMISSION_CHECK]: "AI 设置页检查当前网关精确域名权限",
     [AI_GATEWAY_PERMISSION_REQUEST]: "用户操作触发的 AI 网关按域名授权",
     [AI_GATEWAY_PERMISSION_OPEN]: "Steam 设置页创建一次性 AI 网关授权会话",
@@ -3870,6 +4124,7 @@
     TRANSLATE_INJECT: translateInject,
     CONTENT_FILES_INJECT: injectContentFiles,
     [STEAM_LOOPBACK_INJECT_REQUEST]: steamLoopbackInjectRequest,
+    STEAM_NAME_BACKEND_RECOVER: recoverSteamNameBackend,
     [AI_GATEWAY_PERMISSION_CHECK]: checkAiGatewayPermission,
     [AI_GATEWAY_PERMISSION_REQUEST]: requestAiGatewayPermission,
     [AI_GATEWAY_PERMISSION_OPEN]: openAiGatewayPermission,

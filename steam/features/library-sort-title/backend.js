@@ -755,13 +755,26 @@
     return changed;
   }
 
+  function stableReportRecovery(rt, phase) {
+    if (rt.stablePendingIds.size || !rt.stableRetryStartedAt) return;
+    log.warn("library-sort-title-stable-recovered", "稳定模式待处理 AppOverview 数据已恢复", {
+      phase, attempt: rt.stableRetryAttempt, durationMs: Date.now() - rt.stableRetryStartedAt,
+    });
+    rt.stableRetryAttempt = 0;
+    rt.stableRetryStartedAt = 0;
+    rt.stableRetryExhausted = false;
+    rt.stableRetryWarned = false;
+    rt.stableFailureKeys.clear();
+  }
+
   function stableRunRetry(rt) {
     rt.stableRetryScheduled = false;
     if (rt.scheduled !== true || rt.stablePendingIds.size === 0) return;
     rt.stableRetryAttempt += 1;
     const applyApps = [];
     const restoreApps = [];
-    for (const id of Array.from(rt.stablePendingIds)) {
+    const pendingIds = Array.from(rt.stablePendingIds);
+    for (const id of pendingIds) {
       const app = appOverview(id);
       if (!app) {
         stableQueuePending(rt, id, rt.stablePendingRestoreIds.has(id) ? "app-overview-not-ready" : "app-overview-read", rt.stablePendingRestoreIds.has(id));
@@ -771,20 +784,10 @@
     }
     if (applyApps.length && rt.customSortEnabled) stableSyncApps(rt, applyApps, { notify: true });
     if (restoreApps.length) stableSyncApps(rt, restoreApps, { restore: true, notify: true });
+    const resolvedIds = pendingIds.filter(id => !rt.stablePendingIds.has(id));
+    if (resolvedIds.length) invalidate(rt, resolvedIds, "stable-retry");
     if (rt.stablePendingIds.size === 0) {
-      if (rt.stableRetryAttempt > 0) {
-        log.warn("library-sort-title-stable-recovered", "稳定模式待处理 AppOverview 已恢复", {
-          phase: "stable-retry",
-          attempt: rt.stableRetryAttempt,
-          durationMs: Date.now() - rt.stableRetryStartedAt,
-        });
-      }
-      rt.stableBootstrapped = rt.customSortEnabled === true;
-      rt.stableRetryAttempt = 0;
-      rt.stableRetryStartedAt = 0;
-      rt.stableRetryExhausted = false;
-      rt.stableRetryWarned = false;
-      rt.stableFailureKeys.clear();
+      stableReportRecovery(rt, "stable-retry");
       return;
     }
     if (rt.stableRetryAttempt >= STABLE_RETRY_MAX) {
@@ -829,6 +832,24 @@
     }
     const changed = stableSyncApps(rt, values, { restore, notify: true });
     if (restore && rt.stablePendingRestoreIds.size === 0) rt.stableDisplayIds.clear();
+    return changed;
+  }
+
+  // 原生通知完成后读取当前映射；只补齐本次 AppID，不能把局部恢复升级为全库同步
+  function stableSyncCurrent(rt, ids) {
+    if (!rt.customSortEnabled) return 0;
+    const apps = [];
+    for (const id of ids) {
+      const app = appOverview(id);
+      if (!app || !appOverviewReady(app)) {
+        stableQueuePending(rt, id, "app-overview-not-ready");
+        continue;
+      }
+      const expected = stableTargetName(app, rt);
+      if ((expected && app.display_name !== expected) || rt.stablePendingIds.has(id)) apps.push(app);
+    }
+    const changed = apps.length ? stableSyncApps(rt, apps) : 0;
+    stableReportRecovery(rt, "current-app-overview");
     return changed;
   }
 
@@ -921,6 +942,7 @@
     if (typeof BroadcastChannel !== "function") return false;
     try {
       rt.channel = new BroadcastChannel(CHANNEL);
+      rt.channelReady = false;
       rt.onMessage = (event) => {
         const data = event?.data || {};
         if (data.script !== ID || data.side !== "ui") return;
@@ -932,6 +954,16 @@
       log.warn("library-sort-title-channel-unavailable", "库列表名称共享模型无法建立跨上下文通道", { error });
       return false;
     }
+  }
+
+  // 首轮模型初始化后通知已在等待的 UI；每条新通道只公告一次
+  function announceBackendReady(rt) {
+    if (rt.channelReady || !rt.channel || !rt.changeOk
+      || (rt.groupLabelsEnabled && !rt.groupIndexReady)
+      || (rt.customSortEnabled && (!rt.sortOk || !rt.stableBootstrapped))
+      || Number(window.appStore?.m_mapApps?.size || 0) <= 0) return;
+    rt.channelReady = true;
+    post(rt, { type: "backend-ready" });
   }
 
   function settingsValue(api, id, fallback) {
@@ -1047,9 +1079,9 @@
     return null;
   }
 
-  function hookSort(rt) {
-    const owner = findSortOwner();
+  function hookSort(rt, owner = findSortOwner()) {
     if (!owner) return false;
+    rt.sortOwner = owner;
     return patch(owner, "SetSortAs", S_FLAG, (original) => function sortHook(...args) {
       const currentRt = window[RT];
       if (currentRt?.scheduled !== true) return original.apply(this, args);
@@ -1120,9 +1152,7 @@
         for (const app of apps) {
           const id = Number(app?.appid) || 0;
           if (!id) continue;
-          if (!appOverviewReady(app)) {
-            stableQueuePending(currentRt, id, "app-overview-not-ready");
-          } else {
+          if (appOverviewReady(app)) {
             stableApplyInPlace(app, currentRt);
           }
         }
@@ -1134,9 +1164,23 @@
         const current = appOverview(id);
         if (current) syncSortAs(current, currentRt);
       }
+      stableSyncCurrent(currentRt, ids);
       if (ids.length) invalidate(currentRt, ids, "overview-change");
       return result;
     });
+  }
+
+  function ensureNameHooks(rt, discover = false) {
+    if (rt.customSortEnabled && (!rt.sortOk || rt.sortOwner?.SetSortAs?.[S_FLAG] !== true)) {
+      if (rt.sortOwner) rt.sortOk = hookSort(rt, rt.sortOwner);
+      else if (discover) rt.sortOk = hookSort(rt);
+    }
+    if (rt.customSortEnabled && rt.nameMode === window.STConfig.libraryNameMode.values.STEAM_SORT) {
+      bindCustomSortEvents(rt, window.appStore);
+    }
+    if (!rt.changeOk || window.collectionStore?.OnAppOverviewChange?.[O_FLAG] !== true) {
+      rt.changeOk = hookOverviewChange(rt, window.collectionStore);
+    }
   }
 
   function refreshGroupIndex(rt, reason) {
@@ -1307,6 +1351,7 @@
       scheduled: true,
       scope: scope || null,
       channel: null,
+      channelReady: false,
       onMessage: null,
       revision: 0,
       model: new Map(),
@@ -1336,6 +1381,7 @@
       notifying: false,
       customEventsOff: null,
       sortOk: false,
+      sortOwner: null,
       changeOk: false,
       collectionOk: false,
       settingsObserver: null,
@@ -1362,13 +1408,7 @@
         broadcastSettings(rt);
       }
       if (rt.groupLabelsEnabled && !rt.groupIndexReady) ensureGroupIndex(rt);
-      if (rt.customSortEnabled && !rt.sortOk) rt.sortOk = hookSort(rt);
-      if (rt.customSortEnabled
-        && rt.nameMode === window.STConfig.libraryNameMode.values.STEAM_SORT
-        && !rt.customEventsOff) {
-        bindCustomSortEvents(rt, window.appStore);
-      }
-      if (!rt.changeOk) rt.changeOk = hookOverviewChange(rt, window.collectionStore);
+      ensureNameHooks(rt, true);
       if (!rt.collectionOk) rt.collectionOk = hookCollectionEvents(rt);
       if (rt.originalNameSearch && !rt.sortAsBootstrapped
         && Number(window.appStore?.m_mapApps?.size || 0) > 0) {
@@ -1378,11 +1418,13 @@
       if (rt.customSortEnabled && !rt.stableBootstrapped
         && Number(window.appStore?.m_mapApps?.size || 0) > 0) {
         stableSyncAll(rt, false);
-        rt.stableBootstrapped = rt.stablePendingIds.size === 0;
+        // 首轮已把未就绪项目入队，后续只重试这些 AppID
+        rt.stableBootstrapped = true;
       }
       if (rt.stablePendingIds.size && !rt.stableRetryScheduled) {
         stableStartRetry(rt, { restart: rt.stableRetryExhausted });
       }
+      announceBackendReady(rt);
       const groupIndexReady = !rt.groupLabelsEnabled || rt.groupIndexReady;
       const ready = groupIndexReady && rt.changeOk && (!rt.customSortEnabled || rt.sortOk);
       setSchedulerInterval(rt, ready ? SYNC_MS : BOOT_MS);
@@ -1393,6 +1435,18 @@
     };
     rt.run = run;
     rt.schedule = schedule;
+    // 重建名称通道时保留模型与待处理队列，恢复请求不重新执行启动全库遍历
+    rt.recover = (appids = []) => {
+      if (!rt.scheduled) throw new Error("库名称后台已停止");
+      if (rt.channel && rt.onMessage) rt.channel.removeEventListener("message", rt.onMessage);
+      rt.channel?.close?.();
+      if (!openChannel(rt)) throw new Error("库名称后台通道恢复失败");
+      ensureNameHooks(rt);
+      const ids = Array.from(new Set(appids.map(Number).filter(id => Number.isInteger(id) && id > 0))).slice(0, 200);
+      stableSyncCurrent(rt, ids);
+      announceBackendReady(rt);
+      return { ready: true, pendingCount: rt.stablePendingIds.size };
+    };
     rt.stop = () => {
       window.STScheduler?.unregister?.(SCHEDULER_TASK);
       rt.scheduled = false;

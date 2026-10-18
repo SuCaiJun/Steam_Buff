@@ -1727,15 +1727,34 @@
     return false;
   }
 
+  async function recoverNameBackend(data) {
+    try {
+      const result = await globalThis.STMessageBus.request({
+        type: "STEAM_NAME_BACKEND_RECOVER",
+        featureId: data.featureId,
+        appids: data.appids,
+        requestId: safeRid(data.rid),
+      }, { timeoutMs: 7000, expectSuccess: true });
+      postName({ type: "recover-backend-result", rid: data.rid, ok: true, data: result });
+    } catch (error) {
+      postName({ type: "recover-backend-result", rid: data.rid, ok: false, error: error.message });
+    }
+  }
+
   function handleName(data) {
     if (!trustedNamePage()) {
       return;
     }
     if (data.script !== NAME_ID || data.side !== "page"
-        || !["query", "open-account"].includes(data.type)) {
+        || !["query", "open-account", "recover-backend"].includes(data.type)) {
       return;
     }
     if (seenName(data)) {
+      return;
+    }
+    if (data.type === "recover-backend") {
+      if (globalThis.STPageContext?.snapshot?.().domain !== "steam") return;
+      void recoverNameBackend(data);
       return;
     }
     if (data.type === "open-account") {

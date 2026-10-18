@@ -13,7 +13,7 @@
 
   const MARK = "__steamBuffLoopbackGuard";
   const RECOVERY_MARK = "__steamBuffLoopbackRecovery";
-  const VERSION = "steam-loopback-guard-v21";
+  const VERSION = "steam-loopback-guard-v22";
   const REQUEST_TYPE = "STEAM_LOOPBACK_INJECT_REQUEST";
   const ROOT_MENU_TITLE = "Steam Root Menu";
   const ROOT_MENU_TARGET_SELECTOR = "#popup_target";
@@ -459,6 +459,7 @@
           attempt: requestAttempt,
           maxAttempts: REQUEST_MAX_ATTEMPTS,
           ...(requestLastRetryDelay ? { delayMs: requestLastRetryDelay } : {}),
+          ...(recovery ? { startedAt: recovery.startedAt } : {}),
         },
         ...(diagnostics ? { diagnostics } : {}),
       }, (response) => finishRequest(sequence, response));

@@ -14,6 +14,9 @@
   const api = window.STStore = window.STStore || {};
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
   const log = window.STLoggerFactory.createLogger("store", "feature-registry");
+  const DOM_TASK = "store:route-dom";
+  const DOM_CHECK_MS = 1000;
+  const DOM_CHECK_LIMIT = 10;
   api.dataIndex = window.STDataIndex;
   api.batchQueue = window.STBatchQueue;
   api.virtualList = window.STVirtualList;
@@ -32,6 +35,7 @@
    * @property {string=} module - api.features 中的模块名。
    * @property {boolean=} documentScoped - 实例是否属于整个文档。
    * @property {Function=} gate - 组合功能的附加门禁。
+   * @property {Function=} mountState - 返回模块自身的 {target, host} 节点快照，缺失节点为 null。
    * @property {Function} start - 使用当前页面快照启动实例。
    * @property {Function} stop - 清理实例并使旧异步结果失效。
    */
@@ -42,6 +46,7 @@
         items: [], definitions: new Map(), pages: new Map(), settings: new Map(),
         active: new Map(), applied: new Map(), dirty: new Set(), started: false,
         desired: null, sequence: 0, queue: Promise.resolve(), pending: null, failed: false,
+        domWatch: null,
       };
     }
 
@@ -118,6 +123,81 @@
       return feature.documentScoped ? "document" : route.key;
     }
 
+    /** 挂载协调只有有限次可见检查；换页和停用时立即取消旧窗口。 */
+    stopDomWatch() {
+      if (!this.state.domWatch) return;
+      this.state.domWatch = null;
+      window.STScheduler.unregister(DOM_TASK);
+    }
+
+    forgetDom(id) {
+      const watch = this.state.domWatch;
+      if (!watch) return;
+      watch.entries.delete(id);
+      if (!watch.entries.size) this.stopDomWatch();
+    }
+
+    /** 模块负责解析自己的精准目标，注册器只保存节点身份。 */
+    trackDom(feature, route, reconcile) {
+      if (!feature.mountState) return;
+      let watch = this.state.domWatch;
+      if (!watch || watch.key !== route.key) {
+        if (reconcile) return;
+        this.stopDomWatch();
+        watch = { key: route.key, entries: new Map(), remaining: DOM_CHECK_LIMIT, pending: false };
+        this.state.domWatch = watch;
+        window.STScheduler.register(DOM_TASK, () => { void this.reconcileDom(watch); },
+          () => this.state.domWatch === watch && !watch.pending && !document.hidden
+            && this.route().key === watch.key,
+          { intervalMs: DOM_CHECK_MS });
+      }
+      watch.entries.set(feature.id, { feature, ...feature.mountState(api) });
+    }
+
+    rememberDom(feature, route) {
+      const watch = this.state.domWatch;
+      const entry = watch?.key === route.key && watch.entries.get(feature.id);
+      if (entry) Object.assign(entry, feature.mountState(api));
+    }
+
+    /** 无变化只读节点身份；目标到位或自有节点丢失才重挂对应实例。 */
+    async reconcileDom(watch) {
+      if (this.state.domWatch !== watch || watch.pending || document.hidden
+        || this.route().key !== watch.key) return [];
+      watch.pending = true;
+      watch.remaining -= 1;
+      try {
+        const ids = new Set();
+        const stops = [];
+        for (const [id, entry] of watch.entries) {
+          const next = entry.feature.mountState(api);
+          const changed = next.target !== entry.target
+            || (entry.host && (!entry.host.isConnected || next.host !== entry.host));
+          if (!changed) continue;
+          Object.assign(entry, next);
+          if (next.target) {
+            ids.add(id);
+          } else {
+            const record = this.state.active.get(id);
+            if (record) stops.push(this.stopRecord(record, "dom-target-missing"));
+          }
+        }
+        const stopped = await Promise.all(stops);
+        if (this.state.domWatch !== watch || this.route().key !== watch.key) return stopped;
+        const restored = ids.size ? await this.refresh("dom-ready", {
+          ids, restart: ids, domReconcile: true,
+        }) : [];
+        return [...stopped, ...restored];
+      } catch (error) {
+        this.stopDomWatch();
+        log.error("store-dom-reconcile-failed", "商店页挂载目标协调失败", { path: location.pathname, error });
+        return [];
+      } finally {
+        watch.pending = false;
+        if (this.state.domWatch === watch && watch.remaining <= 0) this.stopDomWatch();
+      }
+    }
+
     /** 停止先使记录失效；异步启动结果不得重新认领新页面。 */
     stopRecord(record, reason) {
       record.live = false;
@@ -150,7 +230,7 @@
     }
 
     /** 每个实例独立跟踪完成状态，网络等待不阻塞后续页面的挂载队列。 */
-    mount(feature, route) {
+    mount(feature, route, reconcile = false) {
       if (route.key !== this.route().key) return Promise.resolve({ id: feature.id, status: "cancelled" });
       if (feature.module && !api.features[feature.module]) {
         return Promise.resolve(this.failStatus(feature, new Error("商店功能模块未加载：" + feature.module), "start"));
@@ -165,9 +245,11 @@
       };
       let value;
       try {
+        this.trackDom(feature, route, reconcile);
         value = feature.start(api, context);
       } catch (error) {
         this.state.active.delete(feature.id);
+        this.forgetDom(feature.id);
         return Promise.resolve(this.failStatus(feature, error, "start"));
       }
       this.state.applied.set(feature.id, true);
@@ -179,16 +261,18 @@
           this.state.applied.set(feature.id, false);
         }
         const status = skipped ? "skipped" : "started";
+        this.rememberDom(feature, route);
         this.state.dirty.delete(feature.id);
         runtime?.markFeature?.({
           domain: "store", id: feature.id, status,
           meta: { path: route.path, hasStop: true },
         });
         return { id: feature.id, status };
-      }, error => {
+      }).catch(error => {
         if (!record.live) return { id: feature.id, status: "cancelled" };
         this.state.active.delete(feature.id);
         this.state.applied.set(feature.id, false);
+        this.forgetDom(feature.id);
         return this.failStatus(feature, error, "start");
       });
     }
@@ -213,6 +297,7 @@
         const record = this.state.active.get(id);
         const restart = change.restart?.has(id) === true;
         if (!allowed) {
+          this.forgetDom(id);
           this.state.dirty.delete(id);
           this.state.applied.set(id, false);
           jobs.push(record ? this.stopRecord(record, reason) : Promise.resolve({ id, status: "skipped" }));
@@ -220,10 +305,10 @@
           jobs.push(Promise.resolve({ id, status: "unchanged" }));
         } else if (record && !change.recover) {
           jobs.push(this.stopRecord(record, reason).then(row => (
-            row.status === "failed" ? row : this.mount(feature, route)
+            row.status === "failed" ? row : this.mount(feature, route, change.domReconcile)
           )));
         } else {
-          jobs.push(this.mount(feature, route));
+          jobs.push(this.mount(feature, route, change.domReconcile));
         }
       }
       return Promise.all(jobs);
@@ -236,6 +321,7 @@
         return this.state.pending || Promise.resolve([]);
       }
       const sequence = ++this.state.sequence;
+      this.stopDomWatch();
       this.state.desired = route;
       this.state.failed = false;
       const ids = this.pageIds(route);

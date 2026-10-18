@@ -24,6 +24,8 @@
   const HEADER_ATTR = "data-steam-buff-library-header";
   // BroadcastChannel 不缓存建立前的消息，超时后由现有低频调度重新请求当前可见行
   const SNAPSHOT_REQUEST_TIMEOUT_MS = 3000;
+  const SNAPSHOT_DATA_RETRIES = 3;
+  const BACKEND_RECOVERY_RETRY_MS = 30000;
   const ENTRY_CACHE_LIMIT = 4096;
   const REPAIR_MAX_ATTEMPTS = 3;
   const REPAIR_WINDOW_MS = 1000;
@@ -102,6 +104,29 @@
     return null;
   }
 
+  // 名称是 host span 的唯一直接文本节点，后面的状态 span 必须保留
+  function textNode(span) {
+    let text = null;
+    for (const child of span?.childNodes || []) {
+      if (child.nodeType !== 3) continue;
+      if (text) return null;
+      text = child;
+    }
+    return text;
+  }
+
+  function textValue(span) {
+    return clean(textNode(span)?.nodeValue);
+  }
+
+  function writeText(span, value, baseline = "") {
+    const node = textNode(span);
+    if (!node) return false;
+    if (node.nodeValue !== value) node.nodeValue = value;
+    syncReactText(span, value, baseline);
+    return true;
+  }
+
   // 当前 Steam 库行名称 host Fiber 的 children 是官方名称字符串
   function syncReactText(span, value, baseline = "") {
     const key = fiberKey(span);
@@ -167,8 +192,7 @@
     if (!span) return;
     const originalText = span.getAttribute(ORIGINAL_TEXT_ATTR);
     if (originalText !== null) {
-      syncReactText(span, originalText, originalText);
-      if (span.textContent !== originalText) span.textContent = originalText;
+      writeText(span, originalText, originalText);
       removeAttributeIfPresent(span, ORIGINAL_TEXT_ATTR);
     }
     removeAttributeIfPresent(span, DISPLAY_ATTR);
@@ -199,7 +223,7 @@
     removeAttributeIfPresent(span, DISPLAY_ATTR);
     removeAttributeIfPresent(span, HEADER_ATTR);
     removeAttributeIfPresent(span, ORIGINAL_OWNER_ATTR);
-    if (clean(baseline) && span.textContent !== baseline) span.textContent = baseline;
+    if (clean(baseline)) writeText(span, baseline, baseline);
   }
 
   function removeInjected(parent, selector) {
@@ -207,24 +231,24 @@
   }
 
   function showText(original, value, attr, marker, baselineValue = "") {
-    if (!original) return false;
+    if (!textNode(original)) return false;
     // 清理旧版本曾留下的 display:none，避免升级后继续出现图标有名称空白
     restoreOriginal(original);
     resetTracking(original, marker, baselineValue);
     const text = clean(value);
     const savedText = original.getAttribute(ORIGINAL_TEXT_ATTR);
     const baseline = savedText === null
-      ? (clean(baselineValue) ? baselineValue : clean(original.textContent))
+      ? (clean(baselineValue) ? baselineValue : textValue(original))
       : savedText;
     if (!text || text === baseline) {
       restoreText(original);
+      if (text) writeText(original, text, baseline);
       return false;
     }
     if (savedText === null) {
       setAttributeIfChanged(original, ORIGINAL_TEXT_ATTR, baseline);
     }
-    if (original.textContent !== text) original.textContent = text;
-    syncReactText(original, text, baseline);
+    writeText(original, text, baseline);
     setAttributeIfChanged(original, attr, marker);
     setAttributeIfChanged(original, ORIGINAL_OWNER_ATTR, marker);
     return true;
@@ -256,10 +280,17 @@
       && previousApplied === expected
       && Boolean(name)
       && Boolean(expected)
-      && clean(name.textContent) !== expected;
+      && textValue(name) !== expected;
     const nativeOwnsBase = settings.customSortEnabled === true
       && clean(entry.finalDisplayName) === clean(entry.baseDisplayName);
-    if (nativeOwnsBase) {
+    const currentText = textValue(name);
+    const knownName = currentText === expected || currentText === clean(entry.officialName)
+      || currentText === previousApplied || name?.hasAttribute?.(DISPLAY_ATTR) === true;
+    const ownsText = name?.getAttribute(ORIGINAL_OWNER_ATTR) === String(entry.appid)
+      && name.hasAttribute(ORIGINAL_TEXT_ATTR);
+    // 只修复模型能够确认的名称；原生分支等附加文字不能被当作错误名称覆盖
+    // 扩展补写的文本即使已正确，也必须保留还原记录
+    if (nativeOwnsBase && !ownsText && (currentText === expected || !knownName)) {
       releaseTextTracking(name);
     } else {
       showText(
@@ -270,8 +301,7 @@
         entry.officialName,
       );
     }
-    const managed = name?.hasAttribute?.(DISPLAY_ATTR) === true
-      && clean(name.textContent) === expected;
+    const managed = Boolean(textNode(name)) && textValue(name) === expected;
     if (managed) appliedRows?.set?.(row, expected);
     else appliedRows?.delete?.(row);
     return mismatch;
@@ -380,6 +410,13 @@
       pendingAt: 0,
       pendingIds: [],
       pendingAll: false,
+      snapshotRetryAt: 0,
+      snapshotRetryAttempts: 0,
+      snapshotExhaustedIds: new Set(),
+      checkStartupSnapshot: true,
+      backendRecovery: null,
+      backendRetryAt: 0,
+      displayVerification: null,
       refreshIds: new Set(),
       refreshAll: false,
       repairIds: new Set(),
@@ -490,13 +527,40 @@
             let retry = false;
             for (const row of rowList(state.rows, id)) {
               const name = nameSpan(row);
-              if (!name || clean(name.textContent) === clean(entry.finalDisplayName)) continue;
+              if (!name || textValue(name) === clean(entry.finalDisplayName)) continue;
               if (applyEntry(row, entry, id, state.appliedRows, state.settings)) retry = true;
             }
             if (retry) next.push(id);
           }
         });
         if (next.length) queueRepair(next);
+      });
+    }
+
+    function verifyRecoveredDisplay() {
+      const verification = state.displayVerification;
+      if (!verification || document.hidden) return;
+      state.displayVerification = null;
+      let checked = 0, unverified = 0, customNames = 0, sourceUnavailable = 0;
+      for (const appid of verification.appids) {
+        const rows = rowList(state.rows, appid);
+        if (!rows.length) continue;
+        const entry = state.entries.get(appid);
+        const fresh = verification.receivedIds.has(appid);
+        if (!fresh) sourceUnavailable += 1;
+        else if (clean(entry?.customName)) customNames += 1;
+        for (const row of rows) {
+          checked += 1;
+          const name = nameSpan(row);
+          if (!fresh || !entry || !textNode(name) || textValue(name) !== clean(entry.finalDisplayName)) unverified += 1;
+        }
+      }
+      const verified = checked > 0 && unverified === 0
+        && (state.settings.customSortEnabled !== true || customNames > 0);
+      const event = verified ? "library-sort-title-display-recovered" : "library-sort-title-display-unverified";
+      log.warn(event, verified ? "名称恢复后的挂载行显示已核实" : "名称通信已恢复，挂载行显示尚未全部核实", {
+        checked, unverified, customNames, sourceUnavailable, phase: verification.phase,
+        durationMs: Date.now() - verification.startedAt,
       });
     }
 
@@ -520,6 +584,7 @@
         state.headerCells.clear();
       });
       queueRepair(repairs);
+      verifyRecoveredDisplay();
     }
 
     function removeCell(cell) {
@@ -532,6 +597,7 @@
       if (index >= 0) rows.splice(index, 1);
       if (!rows.length) {
         state.rows.delete(previous.appid);
+        state.snapshotExhaustedIds.delete(previous.appid);
         state.refreshIds.delete(previous.appid);
         state.repairIds.delete(previous.appid);
         state.repairState.delete(previous.appid);
@@ -560,7 +626,7 @@
         state.headerCells.add(cell);
         if (appid) {
           state.dirtyIds.add(appid);
-          if (!state.entries.has(appid) && !state.refreshAll) {
+          if (!state.entries.has(appid) && !state.snapshotExhaustedIds.has(appid) && !state.refreshAll) {
             state.refreshIds.add(appid);
             state.requestedKey = "";
           }
@@ -625,17 +691,53 @@
       const pending = new Set(state.pendingIds);
       for (const rawId of Array.from(ids || [])) {
         const appid = Number(rawId) || 0;
-        if (!appid || !state.rows.has(appid) || pending.has(appid)) continue;
+        if (!appid || !state.rows.has(appid) || pending.has(appid) || state.snapshotExhaustedIds.has(appid)) continue;
         if (!state.entries.has(appid) || state.refreshIds.has(appid)) state.refreshIds.add(appid);
       }
     }
 
+    // 只有真实就绪、相关数据失效或卸载才传入需要解除耗尽状态的 AppID
+    function resetSnapshotRetry(resetIds = []) {
+      state.snapshotRetryAt = 0;
+      state.snapshotRetryAttempts = 0;
+      for (const id of resetIds) state.snapshotExhaustedIds.delete(id);
+    }
+
+    // 同时只运行一次恢复，成功后等待匹配快照；失败后由现有心跳在冷却结束后重试
+    async function recoverBackend() {
+      if (state.backendRecovery || !state.started || performance.now() < state.backendRetryAt) return;
+      const recovery = { startedAt: Date.now() };
+      state.backendRecovery = recovery;
+      state.backendRetryAt = 0;
+      log.warn("library-sort-title-backend-retry", "库名称快照超时，开始定向恢复客户端后台");
+      try {
+        await api.ctx.recoverNameBackend(ID, Array.from(state.rows.keys()));
+        if (!state.started || state.backendRecovery !== recovery) return;
+        state.channel.removeEventListener("message", onMessage);
+        state.channel.close();
+        state.channel = new BroadcastChannel(CHANNEL);
+        state.channel.addEventListener("message", onMessage);
+        resetSnapshotRetry(state.snapshotExhaustedIds);
+        requeuePending();
+        queueRefresh(Array.from(state.rows.keys()), true);
+        if (inLibrary(api)) request();
+      } catch (error) {
+        if (state.started && state.backendRecovery === recovery) {
+          state.backendRecovery = null;
+          state.backendRetryAt = performance.now() + BACKEND_RECOVERY_RETRY_MS;
+          log.error("library-sort-title-backend-recovery-failed", "库名称后台定向恢复失败", { error });
+        }
+      }
+    }
+
     function request(ids = Array.from(state.rows.keys())) {
+      if (!state.pendingRid && performance.now() < state.snapshotRetryAt) return;
       if (state.pendingRid) {
         if (Date.now() - state.pendingAt < SNAPSHOT_REQUEST_TIMEOUT_MS) {
           queuePendingRows(ids);
           return;
         }
+        void recoverBackend();
         requeuePending();
       }
       const fullRequest = state.refreshAll;
@@ -651,6 +753,8 @@
           .filter((appid) => state.rows.has(appid) && !state.entries.has(appid))
           .sort((a, b) => a - b);
       }
+      list = list.filter(appid => !state.snapshotExhaustedIds.has(appid));
+      if (fullRequest) state.refreshAll = false;
       const key = list.join(",");
       if (!list.length) return;
       if (key === state.requestedKey) return;
@@ -695,6 +799,9 @@
         }
         for (const appid of state.refreshIds) {
           if (!state.rows.has(appid)) state.refreshIds.delete(appid);
+        }
+        for (const appid of state.snapshotExhaustedIds) {
+          if (!state.rows.has(appid)) state.snapshotExhaustedIds.delete(appid);
         }
         state.rebuild = false;
         state.applyAll = true;
@@ -761,11 +868,26 @@
       state.repairIds.clear();
       state.repairState.clear();
       state.appliedRows = new WeakMap();
+      state.backendRecovery = null;
+      state.backendRetryAt = 0;
+      state.displayVerification = null;
+      resetSnapshotRetry(state.snapshotExhaustedIds);
+      state.checkStartupSnapshot = true;
     }
 
     function onMessage(event) {
       const data = event?.data || {};
       if (data.script !== ID || data.side !== "backend") return;
+      if (!state.started) return;
+      if (data.type === "backend-ready") {
+        requeuePending();
+        resetSnapshotRetry(state.snapshotExhaustedIds);
+        state.checkStartupSnapshot = true;
+        state.backendRetryAt = 0;
+        queueRefresh(Array.from(state.rows.keys()), true);
+        if (inLibrary(api)) request();
+        return;
+      }
       if (data.type === "invalidate") {
         const targeted = Array.isArray(data.appids) && data.appids.length > 0;
         const invalidated = targeted
@@ -780,11 +902,13 @@
         }
         const ids = targeted ? invalidated.filter((appid) => state.rows.has(appid)) : Array.from(state.rows.keys());
         if (targeted && !ids.length) return;
+        resetSnapshotRetry(targeted ? ids : state.snapshotExhaustedIds);
         queueRefresh(ids, !targeted);
         request(ids);
         return;
       }
       if (data.type === "settings") {
+        resetSnapshotRetry(state.snapshotExhaustedIds);
         requeuePending();
         state.entries.clear();
         state.settings = data.settings || state.settings;
@@ -801,14 +925,60 @@
         || String(data.rid || "") !== state.pendingRid) return;
       const requestedIds = state.pendingIds.slice();
       const requestedSet = new Set(requestedIds);
+      state.snapshotRetryAt = 0;
       state.pendingRid = "";
       state.pendingAt = 0;
       state.pendingIds = [];
       state.pendingAll = false;
       state.revision = Number(data.revision) || state.revision;
+      const receivedIds = new Set();
       for (const entry of Array.isArray(data.entries) ? data.entries : []) {
         const appid = Number(entry?.appid) || 0;
-        if (appid && requestedSet.has(appid)) cacheEntry(state.entries, entry);
+        if (!appid || !requestedSet.has(appid) || typeof entry.officialName !== "string"
+          || typeof entry.customName !== "string" || typeof entry.baseDisplayName !== "string"
+          || !clean(entry.finalDisplayName)) continue;
+        cacheEntry(state.entries, entry);
+        receivedIds.add(appid);
+      }
+      const missingIds = requestedIds.filter(appid => !receivedIds.has(appid) && state.rows.has(appid));
+      if (state.checkStartupSnapshot || state.backendRecovery || missingIds.length) {
+        state.displayVerification = {
+          appids: requestedIds, receivedIds, startedAt: state.backendRecovery?.startedAt || Date.now(),
+          phase: state.backendRecovery ? "backend-recovery" : "startup",
+        };
+      }
+      // 缺失或不可读的数据不能用旧缓存冒充恢复，只按缺失 AppID 有限重读
+      if (missingIds.length && state.snapshotRetryAttempts < SNAPSHOT_DATA_RETRIES) {
+        state.snapshotRetryAttempts += 1;
+        state.snapshotRetryAt = performance.now() + SNAPSHOT_REQUEST_TIMEOUT_MS;
+        queueRefresh(missingIds);
+      } else {
+        state.checkStartupSnapshot = false;
+        if (missingIds.length) {
+          for (const id of missingIds) {
+            state.snapshotExhaustedIds.add(id);
+            state.refreshIds.delete(id);
+          }
+          state.displayVerification = null;
+          log.error("library-sort-title-snapshot-unavailable", "库名称快照数据在有限重读后仍不可用", {
+            requestId: String(data.rid), attempt: state.snapshotRetryAttempts,
+            requestedCount: requestedIds.length, missingCount: missingIds.length,
+          });
+          resetSnapshotRetry();
+        }
+        if (!missingIds.length) {
+          resetSnapshotRetry();
+          state.backendRetryAt = 0;
+          if (state.backendRecovery) {
+            log.warn("library-sort-title-backend-recovered", "库名称后台通信已恢复并收到匹配快照", {
+              durationMs: Date.now() - state.backendRecovery.startedAt,
+            });
+            state.backendRecovery = null;
+          }
+        } else if (state.backendRecovery) {
+          state.backendRecovery = null;
+          state.backendRetryAt = performance.now() + BACKEND_RECOVERY_RETRY_MS;
+        }
       }
       trimEntryCache(state.entries, state.rows);
       const headers = Array.isArray(data.headers) ? data.headers : [];
@@ -828,7 +998,7 @@
       }
       if (state.refreshAll || state.refreshIds.size) {
         state.requestedKey = "";
-        schedule();
+        if (!state.snapshotRetryAt) schedule();
       }
     }
 

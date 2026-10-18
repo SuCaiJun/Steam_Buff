@@ -49,6 +49,7 @@
   const cache = new Map();
   let options = core.defaultOptions();
   let started = false;
+  let generation = 0;
   let observer = null;
   let scanPending = false;
 
@@ -309,6 +310,12 @@
 
   /* 候选渲染 */
   function clear(input) {
+    const state = states.get(input);
+    if (state) {
+      clearTimeout(state.timer);
+      state.timer = 0;
+      state.seq += 1;
+    }
     const layer = host(input);
     if (layer) {
       layer.remove();
@@ -411,7 +418,9 @@
     return link;
   }
 
-  function render(input, keyword, items, tries = 0) {
+  function render(input, keyword, items, tries = 0, seq = states.get(input)?.seq, ticket = generation) {
+    if (!started || ticket !== generation || !input.isConnected || states.get(input)?.seq !== seq
+      || core.readyKeyword(input.value) !== keyword) return;
     if (!items.length) {
       clear(input);
       return;
@@ -419,7 +428,7 @@
     const layer = host(input);
     if (!layer) {
       if (tries < 4) {
-        setTimeout(() => render(input, keyword, items, tries + 1), 120);
+        setTimeout(() => render(input, keyword, items, tries + 1, seq, ticket), 120);
       }
       return;
     }
@@ -477,7 +486,7 @@
   }
 
   async function update(input) {
-    if (!api.settings?.on?.("search-suggestions")) {
+    if (!started || !input.isConnected || !api.settings?.on?.("search-suggestions")) {
       clear(input);
       return;
     }
@@ -493,17 +502,18 @@
       return;
     }
     const mode = modes();
+    const ticket = generation;
+    const seq = (state.seq || 0) + 1;
+    state.seq = seq;
     const hit = cached(keyword, src, mode);
     if (hit) {
       render(input, keyword, hit);
       return;
     }
 
-    const seq = (state.seq || 0) + 1;
-    state.seq = seq;
     const items = await requestSuggestions(keyword, src, mode).catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "update-failed", message: "商店功能处理失败", level: "error", phase: "update" }); return []; });
-    // 输入框内容或请求序号变化说明这是旧响应，直接丢弃，避免覆盖新关键词结果。
-    if (state.seq !== seq || core.readyKeyword(input.value) !== keyword) {
+    // 功能代次、输入内容或请求序号变化时，丢弃旧响应。
+    if (ticket !== generation || state.seq !== seq || core.readyKeyword(input.value) !== keyword) {
       return;
     }
     setCache(keyword, src, mode, items);
@@ -513,7 +523,7 @@
   // 中文 IME 组合输入期间不触发请求，compositionend 后再按防抖节奏查询。
   function schedule(input) {
     const state = states.get(input);
-    if (!state || state.composing) {
+    if (!started || !state || state.composing) {
       return;
     }
     clearTimeout(state.timer);
@@ -545,6 +555,7 @@
   }
 
   function scan() {
+    if (!started) return;
     for (const input of document.querySelectorAll(INPUT_SEL)) {
       if (input instanceof HTMLInputElement && input.offsetParent !== null) {
         bind(input);
@@ -558,8 +569,10 @@
       return;
     }
     scanPending = true;
+    const ticket = generation;
     const waitMs = Math.max(0, Number(delay) || 0);
     setTimeout(() => {
+      if (!started || ticket !== generation) return;
       scanPending = false;
       scan();
     }, waitMs);
@@ -605,7 +618,9 @@
   }
 
   function refresh() {
+    const ticket = generation;
     loadOptions().then(() => {
+      if (!started || ticket !== generation) return;
       scan();
       for (const input of document.querySelectorAll(INPUT_SEL)) {
         if (input instanceof HTMLInputElement) {
@@ -625,6 +640,7 @@
       return true;
     }
     started = true;
+    generation += 1;
     addStyle();
     refresh();
     observe();
@@ -636,6 +652,7 @@
       return false;
     }
     started = false;
+    generation += 1;
     observer?.disconnect?.();
     observer = null;
     scanPending = false;

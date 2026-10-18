@@ -70,6 +70,7 @@
 
   /** 文档运行时释放时成对注销，不残留递归定时器或 history 包装。 */
   function stop() {
+    api.reg.stopDomWatch();
     window.STScheduler.unregister(TASK);
     window.removeEventListener("popstate", onPopState);
     window.removeEventListener("hashchange", onHashChange);

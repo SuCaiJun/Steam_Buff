@@ -17,6 +17,7 @@
   const BATCH_MODAL = "__RickyLibraryIndependentNameBatchModal";
   const MENU_ENTRY_ATTR = "data-steam-buff-independent-name-entry";
   const MENU_CLOSING_CLASS = "st-lin-context-closing";
+  const MENU_MOUSE_OVERLAY_SELECTOR = ":scope > ._3Knd7Am6tTwTTu605YN4IX";
   // SteamUI GameAction_AddToFavorites 的已验证本地化文案（扩展支持的五种语言）。
   const STEAM_FAVORITE_LABELS = Object.freeze([
     "添加至收藏夹",
@@ -321,6 +322,7 @@
       importSelection: new Set(),
       batchSession: null,
       singleSession: null,
+      singleContextMenu: null,
       currentGame: null,
       singleAiRun: null,
       singleBusy: false,
@@ -469,6 +471,8 @@
 
     function closeSingleModal() {
       closeSingleReadingPreview();
+      const contextMenu = state.singleContextMenu;
+      state.singleContextMenu = null;
       const run = state.singleAiRun;
       state.singleAiRun = null;
       run?.controller.abort();
@@ -485,6 +489,7 @@
       if (modal) {
         modal.hidden = true;
       }
+      synchronizeClosedContextMenu(contextMenu);
     }
 
     function bindSingleModal(modal) {
@@ -662,7 +667,7 @@
       }
     }
 
-    async function openSingleModal(game) {
+    async function openSingleModal(game, contextMenu = null) {
       const appid = Number(game?.appid) || 0;
       const officialName = text(game?.official_name);
       if (!appid || !officialName) {
@@ -682,6 +687,7 @@
         document.body.appendChild(modal);
       }
       state.opener = document.activeElement;
+      state.singleContextMenu = contextMenu;
       state.currentGame = { appid, official_name: officialName };
       const currentGame = state.currentGame;
       state.singleBusy = true;
@@ -2991,6 +2997,28 @@
       }
     }
 
+    function synchronizeClosedContextMenu(record) {
+      if (!record || record.instance.visible !== false
+        || !record.menu.isConnected || !record.mouseOverlay?.isConnected) {
+        return;
+      }
+      try {
+        const manager = record.instance.m_ContextMenuManager;
+        if (typeof manager?.BShouldRenderMouseOverlay !== "function"
+          || typeof manager.OnMenusChanged?.Dispatch !== "function") {
+          throw new TypeError("Steam 原生菜单界面同步接口不可用");
+        }
+        if (manager.BShouldRenderMouseOverlay()) {
+          return;
+        }
+        // 当前菜单已逻辑关闭但 DOM 仍挂载时，通知原管理器完成界面同步。
+        manager.OnMenusChanged.Dispatch();
+        log.warn("independent-name-native-menu-sync-requested", "原生菜单关闭后节点仍挂载，已请求 Steam 同步菜单界面", { appid: record.appid });
+      } catch (error) {
+        log.error("independent-name-native-menu-sync-failed", "Steam 原生菜单关闭后的界面同步失败", { error, appid: record.appid });
+      }
+    }
+
     function installContextMenuLifecycle(menu, entry, instance, game, generation) {
       const originalHide = instance.m_fnOnHideCallback;
       if (typeof originalHide !== "function") {
@@ -3001,6 +3029,7 @@
         : state.contextMenuGeneration + 1;
       const record = {
         menu,
+        mouseOverlay: menu.parentElement?.parentElement?.querySelector(MENU_MOUSE_OVERLAY_SELECTOR) || null,
         entry,
         instance,
         appid: Number(game?.appid) || 0,
@@ -3167,7 +3196,7 @@
           ) {
             return;
           }
-          openSingleModal(current).catch((error) => {
+          openSingleModal(current, record).catch((error) => {
             log.warn("independent-name-open-failed", "独立版单游戏名称弹窗打开失败", {
               error,
               appid: Number(current?.appid) || 0,

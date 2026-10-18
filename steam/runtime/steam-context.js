@@ -19,6 +19,7 @@
   const log = window.STLoggerFactory.createLogger("steam", "steam-context");
   let namesRaw = null;
   let namesSnapshot = {};
+  const nameRecoveries = new Map();
 
   /* Steam 客户端上下文识别 */
   function isShared() {
@@ -265,6 +266,65 @@
     return namesSnapshot;
   }
 
+  /**
+   * 名称只读请求超时后，通过现有 content 属性桥接定向恢复后台
+   * 同一功能的并发恢复共用任务；完成、超时或页面离开后释放监听
+   * @param {"library-sort-title"|"library-custom-name"} featureId 名称功能 ID
+   * @param {number[]} appids 当前显示快照批次内的正整数 AppID，管理请求传空数组
+   * @returns {Promise<{ready: boolean, pendingCount?: number}>} 就绪回执；失败或页面离开时拒绝
+   */
+  function recoverNameBackend(featureId, appids = []) {
+    if (!["library-sort-title", "library-custom-name"].includes(featureId)
+      || (!isMainUi() && !isPropertyDialog())) {
+      return Promise.reject(new Error("当前页面不能恢复库名称后台"));
+    }
+    if (!Array.isArray(appids) || appids.some(id => !Number.isInteger(id) || id <= 0)) {
+      return Promise.reject(new TypeError("名称恢复 AppID 列表无效"));
+    }
+    if (nameRecoveries.has(featureId)) return nameRecoveries.get(featureId);
+    const rid = `name-recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const requestAttr = "data-steam-buff-name-request";
+    const responseAttr = "data-steam-buff-name-response";
+    const element = document.documentElement;
+    const ids = Array.from(new Set(appids)).slice(0, 200);
+    const flight = new Promise((resolve, reject) => {
+      let timer;
+      const finish = (error, result) => {
+        window.clearTimeout(timer);
+        observer.disconnect();
+        window.removeEventListener("pagehide", onLeave);
+        if (error) reject(error);
+        else resolve(result);
+      };
+      const onLeave = () => finish(new Error("页面已离开，名称后台恢复已取消"));
+      const observer = new MutationObserver(() => {
+        try {
+          const data = JSON.parse(element.getAttribute(responseAttr) || "null");
+          if (data?.script !== "library-custom-name" || data.side !== "content"
+            || data.type !== "recover-backend-result" || data.rid !== rid) return;
+          if (data.ok !== true || data.data?.ready !== true) throw new Error(data.error || "库名称后台恢复失败");
+          finish(null, data.data);
+        } catch (error) {
+          finish(error);
+        }
+      });
+      observer.observe(element, { attributes: true, attributeFilter: [responseAttr] });
+      window.addEventListener("pagehide", onLeave, { once: true });
+      timer = window.setTimeout(() => finish(new Error("库名称后台恢复没有响应")), 8000);
+      try {
+        element.setAttribute(requestAttr, JSON.stringify({
+          script: "library-custom-name", side: "page", type: "recover-backend", rid, featureId, appids: ids,
+        }));
+      } catch (error) {
+        finish(error);
+      }
+    }).finally(() => {
+      if (nameRecoveries.get(featureId) === flight) nameRecoveries.delete(featureId);
+    });
+    nameRecoveries.set(featureId, flight);
+    return flight;
+  }
+
   api.ctx = {
     isShared,
     isUi,
@@ -285,5 +345,6 @@
     settingValue,
     independentNamesOn,
     userNames,
+    recoverNameBackend,
   };
 })();

@@ -340,6 +340,13 @@
   }
 
   async function prepareList(rt, rid, data) {
+    if (rt.previewFlights.has(rid)) return;
+    if (rt.preview?.sid === rid) {
+      post(rt.ch, { type: "prepare-list-result", rid, ok: true, sid: rid, total: rt.preview.rows.length, scanned: rt.preview.scanned });
+      return;
+    }
+    // 就绪公告重放同一请求时复用扫描；已完成请求复用现有预览会话
+    rt.previewFlights.add(rid);
     const sid = rid || `${now()}`;
     const list = [];
     let scanned = 0;
@@ -366,11 +373,14 @@
       rt.preview = {
         sid,
         rows: list,
+        scanned,
         time: now(),
       };
       post(rt.ch, { type: "prepare-list-result", rid, ok: true, sid, total: list.length, scanned });
     } catch (error) {
       post(rt.ch, { type: "prepare-list-result", rid, ok: false, error: error?.message || String(error) });
+    } finally {
+      rt.previewFlights.delete(rid);
     }
   }
 
@@ -1326,12 +1336,14 @@
       return { started: false, reason: "broadcast-channel-unavailable" };
     }
 
-    const ch = new BroadcastChannel(CH);
+    let ch = new BroadcastChannel(CH);
+    let channelHandle = null;
     const rt = {
       ch,
       q: null,
       preview: null,
       previewToken: "",
+      previewFlights: new Set(),
       queueSeq: 0,
       lastDone: null,
       onMsg(event) {
@@ -1388,6 +1400,10 @@
         }
       },
       stop() {
+        rt.previewToken = "";
+        rt.preview = null;
+        rt.previewFlights.clear();
+        channelHandle?.dispose?.();
         ch.removeEventListener("message", rt.onMsg);
         if (typeof ch.close === "function") {
           ch.close();
@@ -1398,8 +1414,24 @@
       },
     };
 
+    // 只重建通信监听；正在执行或暂停的保存队列继续使用同一 rt
+    rt.recover = () => {
+      if (window[RT] !== rt) throw new Error("名称管理后台已停止");
+      channelHandle?.dispose?.();
+      ch.removeEventListener("message", rt.onMsg);
+      ch.close();
+      ch = new BroadcastChannel(CH);
+      rt.ch = ch;
+      channelHandle = scope?.listener?.("backend-channel-message", ch, "message", rt.onMsg) || null;
+      if (!channelHandle) ch.addEventListener("message", rt.onMsg);
+      post(ch, { type: "backend-ready" });
+      return { ready: true };
+    };
+
     window[RT] = rt;
-    scope?.listener?.("backend-channel-message", ch, "message", rt.onMsg);
+    channelHandle = scope?.listener?.("backend-channel-message", ch, "message", rt.onMsg) || null;
+    if (!channelHandle) ch.addEventListener("message", rt.onMsg);
+    post(ch, { type: "backend-ready" });
     return { started: true, stop: rt.stop };
   }
 
