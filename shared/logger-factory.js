@@ -11,7 +11,7 @@
 ((root) => {
   "use strict";
 
-  const LOGGER_FACTORY_VERSION = "steam-buff-logger-factory-v5-logging-state";
+  const LOGGER_FACTORY_VERSION = "steam-buff-logger-factory-v6-performance";
   const schema = root.STLoggerSchema;
   if (!schema) {
     return;
@@ -316,6 +316,7 @@
     diagnostics = normalizeDiagnostics({ enabled: debugState.enabled, exposeDebug: debugState.enabled, minLevel: debugState.enabled ? "debug" : "info" });
     root.STEAM_BUFF_DIAGNOSTICS = diagnosticSnapshot();
     refreshDebugApi();
+    root.STPerformanceMonitor?.setDiagnosticsEnabled(debugState.enabled);
     for (const listener of debugListeners) {
       try { listener(debugState); } catch (error) { reportError(error, { domain: "shared", feature: "logger-factory", event: "debug-subscriber-failed", message: "日志开关状态订阅处理失败" }); }
     }

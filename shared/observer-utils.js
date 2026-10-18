@@ -11,22 +11,47 @@
 (() => {
   "use strict";
 
-  const VERSION = "steam-buff-observer-utils-v3";
+  const VERSION = "steam-buff-observer-utils-v4";
 
   if (window.STObserverUtils?.version === VERSION) {
     return;
   }
 
+  const connections = new WeakMap();
+  let createdCount = 0;
+  let connectedCount = 0;
+
+  // 只统计本工具成功 observe 后尚未显式 disconnect 的实例，不保存目标节点引用
+  function setConnected(observer, connected) {
+    const before = connections.get(observer) === true;
+    if (before === connected) return;
+    connections.set(observer, connected);
+    connectedCount += connected ? 1 : -1;
+  }
+
+  function invokeCallback(callback, items) {
+    const monitor = window.STPerformanceMonitor;
+    const sample = monitor?.beginTask("observerCallback");
+    try {
+      return callback(items);
+    } finally {
+      monitor?.endTask(sample);
+    }
+  }
+
   function wrapDisconnect(observer, cleanup) {
+    createdCount += 1;
     const disconnect = observer.disconnect.bind(observer);
     const observe = observer.observe.bind(observer);
     observer.observe = (target, options) => {
-      window.STPerformanceMonitor?.recordObserver?.(target);
-      return observe(target, options);
+      const result = observe(target, options);
+      setConnected(observer, true);
+      return result;
     };
     observer.disconnect = () => {
       cleanup();
       disconnect();
+      setConnected(observer, false);
     };
     return observer;
   }
@@ -67,7 +92,7 @@
 
     function deliver(items) {
       try {
-        callback(items);
+        invokeCallback(callback, items);
       } catch (error) {
         cancel();
         throw error;
@@ -132,7 +157,7 @@
       pending = [];
       timer = 0;
       lastRun = Date.now();
-      callback(items);
+      invokeCallback(callback, items);
     }
 
     const observer = new MutationObserver((mutations) => {
@@ -184,6 +209,7 @@
       if (resuming && resolveTarget) target = resolveTarget();
       if (!target) return;
       observe(target, options);
+      setConnected(observer, true);
       connected = true;
       if (resuming) onResume?.(target);
     }
@@ -193,6 +219,7 @@
         return;
       }
       disconnect();
+      setConnected(observer, false);
       connected = false;
     }
 
@@ -215,6 +242,7 @@
       disposed = true;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       disconnect();
+      setConnected(observer, false);
       connected = false;
     };
 
@@ -224,6 +252,10 @@
 
   window.STObserverUtils = Object.freeze({
     version: VERSION,
+    /** createdCount 为工具创建累计数；connectedCount 包括可见性工具接管的原生实例 */
+    getMetrics() {
+      return { scope: "STObserverUtils", createdCount, connectedCount };
+    },
     createDebouncedObserver,
     createThrottledObserver,
     createVisibilityGatedObserver,

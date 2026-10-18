@@ -13,7 +13,7 @@
 
   const MIN_TICK_MS = 1000;
   const DEFAULT_TASK_MS = 10000;
-  const SCHEDULER_VERSION = "steam-buff-scheduler-v1";
+  const SCHEDULER_VERSION = "steam-buff-scheduler-v2";
 
   const existing = window.STScheduler;
   if (existing?.version === SCHEDULER_VERSION && typeof existing.register === 'function') {
@@ -61,7 +61,7 @@
         errorCount: 0,
       });
 
-      window.STPerformanceMonitor?.recordTimer?.(name);
+      window.STPerformanceMonitor?.forgetSchedulerTask(name);
       this.start();
       logScheduler("info", "scheduler-task-registered", "调度任务已注册", {
         name,
@@ -72,6 +72,7 @@
 
     unregister(name) {
       const existed = this.tasks.delete(name);
+      window.STPerformanceMonitor?.forgetSchedulerTask(name);
 
       if (this.tasks.size === 0) {
         this.stop();
@@ -155,8 +156,16 @@
 
         // 检查执行条件
         if (task.condition) {
+          const monitor = window.STPerformanceMonitor;
+          const sample = monitor?.beginTask("schedulerCondition", name);
           try {
-            if (!task.condition()) {
+            let allowed;
+            try {
+              allowed = task.condition();
+            } finally {
+              monitor?.endTask(sample);
+            }
+            if (!allowed) {
               task.nextRunAt = now + task.intervalMs;
               continue;
             }
@@ -171,8 +180,14 @@
         }
 
         // 执行任务
+        const monitor = window.STPerformanceMonitor;
+        const sample = monitor?.beginTask("schedulerCallback", name);
         try {
-          task.callback();
+          try {
+            task.callback();
+          } finally {
+            monitor?.endTask(sample);
+          }
           task.lastRun = now;
           task.nextRunAt = now + task.intervalMs;
           task.errorCount = 0;
@@ -216,6 +231,22 @@
         return this.defaultTaskInterval;
       }
       return Math.max(MIN_TICK_MS, Math.floor(intervalMs));
+    }
+
+    /** 按需读取自身资源；active 只代表未暂停，不执行 condition 或承诺任务本次可运行 */
+    getMetrics() {
+      let activeTaskCount = 0;
+      for (const task of this.tasks.values()) {
+        if (task.status === "active") activeTaskCount += 1;
+      }
+      return {
+        scope: "STScheduler",
+        running: this.running,
+        heartbeatCount: this.timerId === null ? 0 : 1,
+        registeredTaskCount: this.tasks.size,
+        activeTaskCount,
+        pausedTaskCount: this.tasks.size - activeTaskCount,
+      };
     }
 
     getTasks() {

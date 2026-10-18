@@ -403,14 +403,7 @@
     diagnostics() {
       const schedulerTasks = safeCall(() => window.STScheduler?.getTasks?.()) || {};
       const monitor = window.STPerformanceMonitor;
-      const perf = monitor?.metrics ? {
-        injectCount: monitor.metrics.injectCount,
-        timerCount: typeof monitor.getTimerCount === "function"
-          ? monitor.getTimerCount()
-          : monitor.metrics.timerCount,
-        observerCount: monitor.metrics.observerCount,
-        activeFeatureCount: monitor.metrics.activeFeatures,
-      } : null;
+      const perf = monitor?.getResourceSummary?.() ?? null;
       return {
         id: this.id,
         version: this.version,
@@ -425,12 +418,7 @@
         schedulerTasks,
         messageBus: safeCall(() => window.STMessageBus?.diagnostics?.()) || null,
         settingsBus: safeCall(() => window.STSettingsBus?.diagnostics?.()) || null,
-        performance: perf ? {
-          injectCount: perf.injectCount,
-          timerCount: perf.timerCount,
-          observerCount: perf.observerCount,
-          activeFeatureCount: perf.activeFeatureCount,
-        } : null,
+        performance: perf,
         errors: this.errors.slice(),
       };
     }
