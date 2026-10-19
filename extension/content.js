@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v27";
+  const RUN_VERSION = "steam-buff-runtime-v30";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";

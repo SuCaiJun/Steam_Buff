@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.0.52",
+  "version": "2.0.55",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -22,6 +22,7 @@
     }
   },
   "permissions": [
+    "debugger",
     "scripting",
     "storage",
     "alarms",

@@ -22,10 +22,9 @@
   const ORIGINAL_DISPLAY_ATTR = "data-steam-buff-original-display";
   const ORIGINAL_OWNER_ATTR = "data-steam-buff-original-owner";
   const HEADER_ATTR = "data-steam-buff-library-header";
-  // BroadcastChannel 不缓存建立前的消息，超时后由现有低频调度重新请求当前可见行
+  // BroadcastChannel 不缓存建立前的消息，缺项补读只处理当前挂载 AppID。
   const SNAPSHOT_REQUEST_TIMEOUT_MS = 3000;
   const SNAPSHOT_DATA_RETRIES = 3;
-  const BACKEND_RECOVERY_RETRY_MS = 30000;
   const ENTRY_CACHE_LIMIT = 4096;
   const REPAIR_MAX_ATTEMPTS = 3;
   const REPAIR_WINDOW_MS = 1000;
@@ -415,7 +414,8 @@
       snapshotExhaustedIds: new Set(),
       checkStartupSnapshot: true,
       backendRecovery: null,
-      backendRetryAt: 0,
+      backendBlocked: false,
+      connectOnCollect: true,
       displayVerification: null,
       refreshIds: new Set(),
       refreshAll: false,
@@ -703,42 +703,59 @@
       for (const id of resetIds) state.snapshotExhaustedIds.delete(id);
     }
 
-    // 同时只运行一次恢复，成功后等待匹配快照；失败后由现有心跳在冷却结束后重试
-    async function recoverBackend() {
-      if (state.backendRecovery || !state.started || performance.now() < state.backendRetryAt) return;
-      const recovery = { startedAt: Date.now() };
+    function cancelBackendRecovery() {
+      const recovery = state.backendRecovery;
+      state.backendRecovery = null;
+      recovery?.controller?.abort();
+    }
+
+    // 首次显示、重新可见和真实通信超时共用接入；失败后等待下一次真实生命周期事件。
+    async function recoverBackend(phase = "timeout") {
+      if (state.backendRecovery || state.backendBlocked || !state.started) return;
+      const recovery = { startedAt: Date.now(), phase, waitingSnapshot: false, controller: new window.AbortController() };
       state.backendRecovery = recovery;
-      state.backendRetryAt = 0;
-      log.warn("library-sort-title-backend-retry", "库名称快照超时，开始定向恢复客户端后台");
+      if (phase === "timeout") log.warn("library-sort-title-backend-retry", "库名称快照超时，开始定向恢复客户端后台");
       try {
-        await api.ctx.recoverNameBackend(ID, Array.from(state.rows.keys()));
-        if (!state.started || state.backendRecovery !== recovery) return;
+        await api.ctx.recoverNameBackend(ID, Array.from(state.rows.keys()), recovery.controller.signal);
+        if (!state.started || state.backendRecovery !== recovery || recovery.controller.signal.aborted) return;
         state.channel.removeEventListener("message", onMessage);
         state.channel.close();
         state.channel = new BroadcastChannel(CHANNEL);
         state.channel.addEventListener("message", onMessage);
+        recovery.waitingSnapshot = true;
         resetSnapshotRetry(state.snapshotExhaustedIds);
         requeuePending();
         queueRefresh(Array.from(state.rows.keys()), true);
         if (inLibrary(api)) request();
       } catch (error) {
-        if (state.started && state.backendRecovery === recovery) {
+        if (state.started && state.backendRecovery === recovery && !recovery.controller.signal.aborted) {
           state.backendRecovery = null;
-          state.backendRetryAt = performance.now() + BACKEND_RECOVERY_RETRY_MS;
+          state.backendBlocked = true;
           log.error("library-sort-title-backend-recovery-failed", "库名称后台定向恢复失败", { error });
         }
       }
     }
 
     function request(ids = Array.from(state.rows.keys())) {
+      if (state.backendBlocked || (state.backendRecovery && !state.backendRecovery.waitingSnapshot)) return;
       if (!state.pendingRid && performance.now() < state.snapshotRetryAt) return;
       if (state.pendingRid) {
         if (Date.now() - state.pendingAt < SNAPSHOT_REQUEST_TIMEOUT_MS) {
           queuePendingRows(ids);
           return;
         }
+        if (state.backendRecovery?.waitingSnapshot) {
+          cancelBackendRecovery();
+          state.backendBlocked = true;
+          requeuePending();
+          log.error("library-sort-title-backend-recovery-failed", "库名称后台接入后仍未收到匹配快照", {
+            error: new Error("名称后台快照没有响应"),
+          });
+          return;
+        }
         void recoverBackend();
         requeuePending();
+        return;
       }
       const fullRequest = state.refreshAll;
       let list;
@@ -817,6 +834,10 @@
       const ids = all ? Array.from(state.rows.keys()) : Array.from(state.dirtyIds);
       state.applyAll = false;
       if (all || ids.length || state.headerCells.size) applyVisible(ids, all);
+      if (state.connectOnCollect) {
+        state.connectOnCollect = false;
+        void recoverBackend("visible");
+      }
       request(ids);
     }
 
@@ -868,8 +889,9 @@
       state.repairIds.clear();
       state.repairState.clear();
       state.appliedRows = new WeakMap();
-      state.backendRecovery = null;
-      state.backendRetryAt = 0;
+      cancelBackendRecovery();
+      state.backendBlocked = false;
+      state.connectOnCollect = true;
       state.displayVerification = null;
       resetSnapshotRetry(state.snapshotExhaustedIds);
       state.checkStartupSnapshot = true;
@@ -880,10 +902,15 @@
       if (data.script !== ID || data.side !== "backend") return;
       if (!state.started) return;
       if (data.type === "backend-ready") {
+        // 就绪公告使旧属性回执失效，但本轮仍须收到快照，超时不能重新恢复
+        if (state.backendRecovery) {
+          state.backendRecovery.waitingSnapshot = true;
+          state.backendRecovery.controller.abort();
+        }
         requeuePending();
         resetSnapshotRetry(state.snapshotExhaustedIds);
         state.checkStartupSnapshot = true;
-        state.backendRetryAt = 0;
+        state.backendBlocked = false;
         queueRefresh(Array.from(state.rows.keys()), true);
         if (inLibrary(api)) request();
         return;
@@ -968,16 +995,17 @@
         }
         if (!missingIds.length) {
           resetSnapshotRetry();
-          state.backendRetryAt = 0;
+          state.backendBlocked = false;
           if (state.backendRecovery) {
-            log.warn("library-sort-title-backend-recovered", "库名称后台通信已恢复并收到匹配快照", {
-              durationMs: Date.now() - state.backendRecovery.startedAt,
-            });
-            state.backendRecovery = null;
+            if (state.backendRecovery.phase === "timeout") {
+              log.warn("library-sort-title-backend-recovered", "库名称后台通信已恢复并收到匹配快照", {
+                durationMs: Date.now() - state.backendRecovery.startedAt,
+              });
+            }
+            cancelBackendRecovery();
           }
         } else if (state.backendRecovery) {
-          state.backendRecovery = null;
-          state.backendRetryAt = performance.now() + BACKEND_RECOVERY_RETRY_MS;
+          cancelBackendRecovery();
         }
       }
       trimEntryCache(state.entries, state.rows);
@@ -1011,8 +1039,14 @@
 
     function onVisibility() {
       // Steam 窗口失焦时保留已显示文本，只暂停观察以避免重新可见时闪回原名
-      if (document.hidden) pause();
+      if (document.hidden) {
+        cancelBackendRecovery();
+        pause();
+      }
       else {
+        cancelBackendRecovery();
+        state.backendBlocked = false;
+        state.connectOnCollect = true;
         state.rebuild = true;
         schedule();
       }
