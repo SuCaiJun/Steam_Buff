@@ -248,8 +248,10 @@
         !titleContainer.classList?.contains(LIBRARY_EVENT_TITLE_CONTAINER_CLASS)) {
       return newsContentResult(false, "title-container-mismatch", { link, titleContainer });
     }
-    const bodyContainer = titleContainer.nextElementSibling || null;
-    if (!bodyContainer?.classList?.contains(LIBRARY_EVENT_BODY_CONTAINER_CLASS)) {
+    // 直播播放器位于标题与正文之间，正文只按当前卡片的直属容器定位
+    const bodyContainer = Array.from(card.children)
+      .find((child) => child.classList.contains(LIBRARY_EVENT_BODY_CONTAINER_CLASS)) || null;
+    if (!bodyContainer) {
       return newsContentResult(false, "body-container-mismatch", { link, titleContainer, bodyContainer });
     }
     const bodyHost = bodyContainer.firstElementChild || null;
