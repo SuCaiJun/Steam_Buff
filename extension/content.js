@@ -103,6 +103,8 @@
   const NAME_REQ_ATTR = "data-steam-buff-name-request";
   const NAME_RES_ATTR = "data-steam-buff-name-response";
   const PLAYER_STATS_ID = "player-stats";
+  const STEAM_PLAYER_STATS_ID = "steam-player-stats";
+  const THIRD_PARTY_SERVICES_ID = "third-party-services";
   const PLAYER_STATS_REQ_ATTRS = Object.freeze({
     gmcharts: "data-steam-buff-player-stats-request-gmcharts",
     "steam-current": "data-steam-buff-player-stats-request-steam-current",
@@ -146,6 +148,8 @@
     "download-batch-actions": true,
     "download-auto-shutdown": true,
     [NEWS_TRANSLATE_ID]: true,
+    [STEAM_PLAYER_STATS_ID]: true,
+    [THIRD_PARTY_SERVICES_ID]: false,
     [NAME_MODE_ID]: CFG.libraryNameMode.values.STEAM_SORT,
   });
   const STEAM_SETTING_IDS = Object.freeze([
@@ -157,6 +161,8 @@
     "download-batch-actions",
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
+    STEAM_PLAYER_STATS_ID,
+    THIRD_PARTY_SERVICES_ID,
     NAME_MODE_ID,
   ]);
   const STEAM_FEATURE_IDS = Object.freeze([
@@ -167,6 +173,7 @@
     "download-batch-actions",
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
+    PLAYER_STATS_ID,
   ]);
   const STEAM_FEATURE_SETTING_IDS = Object.freeze({
     [SORT_TITLE_ID]: SORT_TITLE_ID,
@@ -175,6 +182,7 @@
     "download-batch-actions": "download-batch-actions",
     "download-auto-shutdown": "download-auto-shutdown",
     [NEWS_TRANSLATE_ID]: NEWS_TRANSLATE_ID,
+    [PLAYER_STATS_ID]: STEAM_PLAYER_STATS_ID,
   });
   const SEEN_NAME_MAX = 200;
   const BOOT_MS = 250;
@@ -741,6 +749,9 @@
   }
 
   function settingKey(id) {
+    if (id === THIRD_PARTY_SERVICES_ID) {
+      return `${SETTINGS_PREFIX}thirdPartyServices.enabled`;
+    }
     if (id === NAME_MODE_ID) {
       return `${SETTINGS_PREFIX}${id}.value`;
     }
@@ -1823,11 +1834,20 @@
     for (const id of STEAM_SETTING_IDS) {
       settings[id] = decodeSteamSetting(id, all[id]);
     }
+    // 仅向客户端传递玩家统计的有效状态，依赖关闭不改写用户保存的开关
+    settings[STEAM_PLAYER_STATS_ID] = settings[STEAM_PLAYER_STATS_ID] === true &&
+      settings[THIRD_PARTY_SERVICES_ID] === true;
     settings.customNamesAllowed = customNamesAllowedFrom(membership);
     if (typeof membership.permissions?.cloudNameFetch === "boolean") {
       settings.cloudNameFetchAllowed = membership.permissions.cloudNameFetch;
     }
     return settings;
+  }
+
+  // 新增的玩家统计设置只更新对应功能，不触发无关的云名称同步
+  function steamSettingsNeedNameSync(keys) {
+    return keys.includes(MEMBERSHIP_KEY) || STEAM_SETTING_IDS.some(id =>
+      id !== STEAM_PLAYER_STATS_ID && id !== THIRD_PARTY_SERVICES_ID && keys.includes(settingKey(id)));
   }
 
   function disabledSteamFeatureIds(prev = {}, next = {}) {
@@ -1873,6 +1893,9 @@
     if (!wasSteamName && isSteamName) {
       out.push(NATIVE_CUSTOM_SORT_EVENTS_ID);
       out.push(NAME_ID);
+    }
+    if (prev[STEAM_PLAYER_STATS_ID] !== true && next[STEAM_PLAYER_STATS_ID] === true) {
+      out.push(PLAYER_STATS_ID);
     }
     return out;
   }
@@ -2638,11 +2661,13 @@
     }
     onPhase("locale-load");
     await writeUiLocale();
-    onPhase("user-names-sync");
-    await syncUserNamesSnapshot({
-      settings,
-      reason: options.reason || "settings-ready",
-    });
+    if (options.syncUserNames !== false) {
+      onPhase("user-names-sync");
+      await syncUserNamesSnapshot({
+        settings,
+        reason: options.reason || "settings-ready",
+      });
+    }
     onPhase("settings-ready");
   }
 
@@ -2675,7 +2700,7 @@
           if (hit || membershipHit) {
             settingsCache = null;
             if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
-              writeSteamSettings().catch((error) => {
+              writeSteamSettings({ syncUserNames: steamSettingsNeedNameSync(keys) }).catch((error) => {
                 globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-settings-changes-failed", message: "监听设置更新失败", level: "error", phase: "watchSettingsChanges" });});
             }
           }
@@ -2701,7 +2726,7 @@
         if (hit || membershipHit) {
           settingsCache = null;
           if (globalThis.STPageContext?.snapshot?.().domain === "steam") {
-            writeSteamSettings().catch((error) => {
+            writeSteamSettings({ syncUserNames: steamSettingsNeedNameSync(Object.keys(changes)) }).catch((error) => {
               globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-settings-changes-failed", message: "监听设置更新失败", level: "error", phase: "watchSettingsChanges" });});
           }
         }

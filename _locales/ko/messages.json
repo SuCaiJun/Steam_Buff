@@ -393,6 +393,15 @@
   "settings_feature_steam_news_translate_desc": {
     "message": "Steam 라이브러리 뉴스 팝업에서 현재 뉴스 기사를 수동으로 번역합니다."
   },
+  "settings_feature_steam_player_stats_name": {
+    "message": "플레이어 통계"
+  },
+  "settings_feature_steam_player_stats_desc": {
+    "message": "Steam 라이브러리 게임 상세 페이지에 온라인 플레이어 수, 최고 기록과 추세 그래프를 표시합니다."
+  },
+  "settings_feature_steam_player_stats_lock": {
+    "message": "먼저 타사 서비스에서 타사 데이터 서비스를 활성화하세요."
+  },
   "settings_feature_purchase_history_classifier_name": {
     "message": "구매 내역 분류기"
   },

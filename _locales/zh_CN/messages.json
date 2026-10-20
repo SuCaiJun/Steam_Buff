@@ -393,6 +393,15 @@
   "settings_feature_steam_news_translate_desc": {
     "message": "在 Steam 客户端库首页新闻弹窗中手动翻译当前新闻"
   },
+  "settings_feature_steam_player_stats_name": {
+    "message": "玩家统计"
+  },
+  "settings_feature_steam_player_stats_desc": {
+    "message": "在 Steam 库游戏详情页显示在线人数、峰值和趋势图。"
+  },
+  "settings_feature_steam_player_stats_lock": {
+    "message": "需在「第三方服务」中开启「启用第三方数据服务」"
+  },
   "settings_feature_purchase_history_classifier_name": {
     "message": "消费历史分类器"
   },

@@ -974,6 +974,15 @@
           enabled: true,
           deps: depAll(["translate"]),
         },
+        {
+          id: "steam-player-stats",
+          name: "玩家统计",
+          desc: "在 Steam 库游戏详情页显示在线人数、峰值和趋势图。",
+          area: "steam",
+          enabled: true,
+          deps: depAll(["third-party-services"]),
+          lock: "需在「第三方服务」中开启「启用第三方数据服务」",
+        },
       ]),
     },
     {

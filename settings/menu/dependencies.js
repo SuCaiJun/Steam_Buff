@@ -24,6 +24,7 @@
     return `<img class="feature-icon-img" src="${safeUrl}" alt="" aria-hidden="true">`;
   }
 
+  // getThirdPartyServices 按需返回第三方服务面板当前配置，供相应依赖读取启用值
   function create(options = {}) {
     const catalog = options.catalog || root.STSettings?.catalog || {};
     const getStates = typeof options.getStates === "function" ? options.getStates : () => ({});
@@ -64,6 +65,10 @@
     }
 
     function depReady(id, seen) {
+      // 第三方服务由配置面板保存启用值，不读取目录中的同名占位开关
+      if (id === "third-party-services") {
+        return options.getThirdPartyServices().enabled === true;
+      }
       if (state(id) === false) {
         return false;
       }

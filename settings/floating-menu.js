@@ -224,6 +224,7 @@
     deps = globalThis.STSettingsMenuDependencies.create({
       catalog: api.catalog,
       getStates,
+      getThirdPartyServices: () => getConfig("thirdPartyServices"),
       getMembership,
       esc,
       escAttr,

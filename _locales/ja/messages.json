@@ -393,6 +393,15 @@
   "settings_feature_steam_news_translate_desc": {
     "message": "Steamライブラリのニュースポップアップで、現在のニュース記事を手動で翻訳します。"
   },
+  "settings_feature_steam_player_stats_name": {
+    "message": "プレイヤー統計"
+  },
+  "settings_feature_steam_player_stats_desc": {
+    "message": "Steamライブラリのゲーム詳細ページにオンライン人数、ピーク人数、推移グラフを表示します。"
+  },
+  "settings_feature_steam_player_stats_lock": {
+    "message": "先に「サードパーティサービス」でデータサービスを有効にしてください。"
+  },
   "settings_feature_purchase_history_classifier_name": {
     "message": "購入履歴分類"
   },

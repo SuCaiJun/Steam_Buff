@@ -393,6 +393,15 @@
   "settings_feature_steam_news_translate_desc": {
     "message": "Manually translate the current news article in Steam library news pop-ups."
   },
+  "settings_feature_steam_player_stats_name": {
+    "message": "Player Statistics"
+  },
+  "settings_feature_steam_player_stats_desc": {
+    "message": "Show online player counts, peaks, and trends on Steam library game details pages."
+  },
+  "settings_feature_steam_player_stats_lock": {
+    "message": "Enable third-party data services in Third-Party Services first."
+  },
   "settings_feature_purchase_history_classifier_name": {
     "message": "Purchase History Classifier"
   },

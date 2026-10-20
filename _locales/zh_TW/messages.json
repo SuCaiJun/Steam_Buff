@@ -393,6 +393,15 @@
   "settings_feature_steam_news_translate_desc": {
     "message": "在 Steam 用戶端收藏庫首頁新聞彈出視窗中手動翻譯目前新聞"
   },
+  "settings_feature_steam_player_stats_name": {
+    "message": "玩家統計"
+  },
+  "settings_feature_steam_player_stats_desc": {
+    "message": "在 Steam 收藏庫遊戲詳細頁面顯示線上人數、峰值和趨勢圖。"
+  },
+  "settings_feature_steam_player_stats_lock": {
+    "message": "需在「第三方服務」中開啟「啟用第三方資料服務」"
+  },
   "settings_feature_purchase_history_classifier_name": {
     "message": "消費歷史分類器"
   },

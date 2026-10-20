@@ -179,16 +179,17 @@
     {
       id: "player-stats",
       name: "库详情页在线人数",
-      settingsKey: "player-stats",
+      settingsKey: "steam-player-stats",
       loadStrategy: "on-demand-entry",
       modes: ["ui"],
       pageScope: ["main-ui", "/library/app/:appid"],
       entries: {
         ui: "ui.js",
       },
-      shouldRun(api, context) {
+      shouldRun(api, context, snapshot) {
         return context === "ui" &&
-          api.ctx?.isMainUi?.() === true;
+          api.ctx?.isMainUi?.() === true &&
+          snapshot.settingsSnapshot["steam-player-stats"] === true;
       },
     },
   ];
