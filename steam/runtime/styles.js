@@ -1029,12 +1029,12 @@
         pointer-events: none !important;
       }
 
-      .${NEWS_TRANSLATE_BUTTON_CLASS}:hover {
+      .${NEWS_TRANSLATE_BUTTON_CLASS}:hover:not(:disabled) {
         border-color: var(--st-news-button-border-hover) !important;
         background: var(--st-news-button-bg-hover) !important;
       }
 
-      .${NEWS_TRANSLATE_BUTTON_CLASS}:hover .${NEWS_TRANSLATE_ICON_CLASS} {
+      .${NEWS_TRANSLATE_BUTTON_CLASS}:hover:not(:disabled) .${NEWS_TRANSLATE_ICON_CLASS} {
         opacity: 1 !important;
         filter: var(--st-news-icon-filter-hover) !important;
       }
@@ -1057,6 +1057,11 @@
       .${NEWS_TRANSLATE_BUTTON_CLASS}:disabled {
         cursor: wait !important;
         opacity: 1 !important;
+      }
+
+      .${NEWS_TRANSLATE_BUTTON_CLASS}[data-state="unavailable"] {
+        cursor: not-allowed !important;
+        opacity: 0.55 !important;
       }
 
       .${NEWS_TRANSLATE_BUTTON_CLASS}[data-state="loading"]::before {

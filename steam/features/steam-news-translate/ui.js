@@ -29,7 +29,6 @@
   const CONFIG_RES = "STEAM_BUFF_NEWS_TRANSLATE_CONFIG_RESPONSE";
   const TEXT_REQ = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_REQUEST";
   const TEXT_RES = "STEAM_BUFF_NEWS_TRANSLATE_TEXT_RESPONSE";
-  const MIN_TEXT = 24;
   const MAX_TEXT = 20000;
   const CONFIG_REFRESH_MS = 15000;
   const REQUEST_TIMEOUT_MS = 120_000;
@@ -71,8 +70,11 @@
   ].join(",");
   const BLOCK_TEXT_SELECTOR = "p,li,tr,[role='row'],blockquote,pre,dd,dt,h1,h2,h3,h4,h5,h6";
   const NEWS_ENTRY_SELECTOR = "a[href^='steam://openurl/https://store.steampowered.com/news/app/']";
-  const APP_ICON_SELECTOR = "img[src*='/community_assets/images/apps/']";
   const NEWS_PANEL_SELECTOR = "div._3CJsgSK-y815Zeoe6bz6dh > div._1XLRr8eh1ip-E17C8Jzrmc";
+  const NEWS_LIST_CLASS = "_3GCEyyVil-cCS-8hoI2Zo1";
+  const NEWS_CARD_CLASS = "_1KsYSVzmvIfRivBTcx-_GE";
+  const NEWS_TOOLBAR_SLOT_CLASS = "_2pA5CW91XQQDfo6yZEdPd-";
+  const NEWS_TOOLBAR_CLASS = "_2tSyrRxMCRWK6K09JErgI_";
   const OWN_SURFACE_SELECTOR = `.${BUTTON_CLASS},.${TOOL_CLASS},.${BOX_CLASS},.${SEL_ACTION_CLASS},.${SEL_TIP_CLASS}`;
   const LIBRARY_EVENT_TITLE_CONTAINER_CLASS = "ZHAfj0MPg1zDLXRnCzSsx";
   const EVENT_TYPE_CLASS = "Udzrpqr8534T5DvVZveNP";
@@ -166,25 +168,10 @@
     return news ? { appid: news[1], gid: news[2], kind: "news", href: raw } : null;
   }
 
-  function newsEntryLinks(root) {
-    return Array.from(root?.querySelectorAll?.(NEWS_ENTRY_SELECTOR) || []).filter((link) => !!newsEntryMeta(link));
-  }
-
-  function newsCardFromLink(link) {
-    return link?.parentElement?.parentElement?.parentElement || null;
-  }
-
-  function newsPanelFromCard(card) {
-    return card?.parentElement?.parentElement || null;
-  }
-
-  function newsToolbarFromPanel(panel) {
-    const icons = Array.from(panel?.querySelectorAll?.(APP_ICON_SELECTOR) || []);
-    if (icons.length !== 1) {
-      return null;
-    }
-    const toolbar = icons[0].parentElement?.parentElement || null;
-    return toolbar?.isConnected && panel.contains(toolbar) ? toolbar : null;
+  // 只接受所属容器的唯一直属节点，正文、播放器里的同名后代不参与结构识别
+  function newsChild(root, className) {
+    const children = Array.from(root?.children || []).filter((child) => child.classList.contains(className));
+    return children.length === 1 ? children[0] : null;
   }
 
   function newsPanelFromTargets(targets) {
@@ -202,31 +189,55 @@
     return panel?.isConnected ? panel : null;
   }
 
+  // 返回原生列表、工具栏与当前卡片；结构缺失写入 reason，正文有效性保留在 contract
   function activeNewsSurface(panel) {
+    const surface = { panel, list: null, toolbarSlot: null, target: null, card: null, contract: null, reason: "" };
     if (!panel?.isConnected) {
-      return null;
+      surface.reason = "panel-disconnected";
+      return surface;
     }
-    const links = newsEntryLinks(panel);
-    if (!links.length) {
-      return null;
+    surface.list = newsChild(panel, NEWS_LIST_CLASS);
+    surface.toolbarSlot = newsChild(panel, NEWS_TOOLBAR_SLOT_CLASS);
+    const toolbars = Array.from(surface.toolbarSlot?.querySelectorAll(`.${NEWS_TOOLBAR_CLASS}`) || []);
+    surface.target = toolbars.length === 1 ? toolbars[0] : null;
+    if (!surface.list || !surface.target) {
+      surface.reason = !surface.list ? "news-list-mismatch" : "news-toolbar-mismatch";
+      return surface;
     }
-    const cards = links.map(newsCardFromLink);
-    if (cards.some((card) => !card?.isConnected || newsPanelFromCard(card) !== panel)) {
-      return null;
+    const panelRect = panel.getBoundingClientRect();
+    const top = Math.max(0, panelRect.top);
+    const bottom = Math.min(window.innerHeight, panelRect.bottom);
+    const left = Math.max(0, panelRect.left);
+    const right = Math.min(window.innerWidth, panelRect.right);
+    let largestArea = 0;
+    // 选择面板与窗口交集内显示最多的卡片，等面积时保留原生顺序
+    for (const candidate of surface.list.children) {
+      if (!candidate.classList.contains(NEWS_CARD_CLASS)) {
+        continue;
+      }
+      const rect = candidate.getBoundingClientRect();
+      const width = Math.max(0, Math.min(rect.right, right) - Math.max(rect.left, left));
+      const height = Math.max(0, Math.min(rect.bottom, bottom) - Math.max(rect.top, top));
+      const area = width * height;
+      if (area > largestArea) {
+        largestArea = area;
+        surface.card = candidate;
+      }
     }
-    const panelTop = panel.getBoundingClientRect().top;
-    const card = cards.find((candidate) => candidate.getBoundingClientRect().bottom > panelTop + 1) || null;
-    const target = newsToolbarFromPanel(panel);
-    if (!card || !target) {
-      return null;
+    if (!surface.card) {
+      surface.reason = "news-card-missing";
+      return surface;
     }
-    return Object.freeze({ card, link: links[cards.indexOf(card)], panel, target });
+    surface.contract = newsContentSurface(surface.card);
+    return surface;
   }
 
   function newsContentResult(valid, reason, nodes = {}) {
     return {
       valid,
       reason,
+      card: nodes.card || null,
+      panel: nodes.panel || null,
       link: nodes.link || null,
       titleContainer: nodes.titleContainer || null,
       bodyContainer: nodes.bodyContainer || null,
@@ -235,36 +246,39 @@
     };
   }
 
+  // 挂载、整卡翻译与划词共用卡片归属和内容契约，不根据正文链接反推文章
   function newsContentSurface(card) {
+    const list = card?.parentElement || null;
+    const panel = list?.parentElement || null;
+    const nodes = { card, panel };
     if (!card?.isConnected) {
-      return newsContentResult(false, "card-disconnected");
+      return newsContentResult(false, "card-disconnected", nodes);
     }
-    const link = card.querySelector?.(NEWS_ENTRY_SELECTOR) || null;
-    if (!newsEntryMeta(link)) {
-      return newsContentResult(false, "news-link-missing", { link });
+    if (!card.classList.contains(NEWS_CARD_CLASS) || !list.classList.contains(NEWS_LIST_CLASS) ||
+        !panel?.matches(NEWS_PANEL_SELECTOR)) {
+      return newsContentResult(false, "card-container-mismatch", nodes);
     }
-    const titleContainer = link.parentElement?.parentElement || null;
-    if (titleContainer?.parentElement !== card ||
-        !titleContainer.classList?.contains(LIBRARY_EVENT_TITLE_CONTAINER_CLASS)) {
-      return newsContentResult(false, "title-container-mismatch", { link, titleContainer });
+    nodes.titleContainer = newsChild(card, LIBRARY_EVENT_TITLE_CONTAINER_CLASS);
+    if (!nodes.titleContainer) {
+      return newsContentResult(false, "title-container-mismatch", nodes);
     }
+    const links = Array.from(nodes.titleContainer.querySelectorAll(NEWS_ENTRY_SELECTOR));
+    nodes.link = links.length === 1 ? links[0] : null;
+    if (!newsEntryMeta(nodes.link)) {
+      return newsContentResult(false, "news-link-missing", nodes);
+    }
+    nodes.typeHost = nodes.titleContainer.querySelector(`.${EVENT_TYPE_CLASS}`);
     // 直播播放器位于标题与正文之间，正文只按当前卡片的直属容器定位
-    const bodyContainer = Array.from(card.children)
-      .find((child) => child.classList.contains(LIBRARY_EVENT_BODY_CONTAINER_CLASS)) || null;
-    if (!bodyContainer) {
-      return newsContentResult(false, "body-container-mismatch", { link, titleContainer, bodyContainer });
+    nodes.bodyContainer = newsChild(card, LIBRARY_EVENT_BODY_CONTAINER_CLASS);
+    if (!nodes.bodyContainer) {
+      return newsContentResult(false, "body-container-mismatch", nodes);
     }
-    const bodyHost = bodyContainer.firstElementChild || null;
-    if (!bodyHost?.classList?.contains(EVENT_DETAILS_BODY_CLASS) ||
-        !bodyHost.classList.contains(LIBRARY_EVENT_DETAILS_BODY_CLASS)) {
-      return newsContentResult(false, "body-host-mismatch", { link, titleContainer, bodyContainer, bodyHost });
+    nodes.bodyHost = nodes.bodyContainer.firstElementChild || null;
+    if (!nodes.bodyHost?.classList.contains(EVENT_DETAILS_BODY_CLASS) ||
+        !nodes.bodyHost.classList.contains(LIBRARY_EVENT_DETAILS_BODY_CLASS)) {
+      return newsContentResult(false, "body-host-mismatch", nodes);
     }
-    const typeHost = titleContainer.querySelector?.(`.${EVENT_TYPE_CLASS}`) || null;
-    return newsContentResult(true, "", { link, titleContainer, bodyContainer, bodyHost, typeHost });
-  }
-
-  function classSignature(el) {
-    return clean(el?.getAttribute?.("class") || "").slice(0, 240);
+    return newsContentResult(true, "", nodes);
   }
 
   function skipTextParent(el) {
@@ -863,22 +877,56 @@
     };
   }
 
-  function mountableData(data) {
-    return data.contractValid && (!!data.titleText || data.text.length >= MIN_TEXT);
-  }
-
-  function logContentContractMismatch(rt, card, data) {
-    if (data.contractValid || !card || rt.contractMismatchCards.has(card)) {
+  // 记录面板或卡片的真实契约状态变化，重复 mutation 不生成日志，也不读取正文
+  function reportNewsSurface(rt, surface) {
+    const { panel, card } = surface;
+    const reason = surface.reason || surface.contract?.reason || "";
+    const previous = rt.surfaceState;
+    if (previous?.panel === panel && previous.card === card && previous.reason === reason) {
       return;
     }
-    rt.contractMismatchCards.add(card);
-    log.warn("news-popup-content-contract-mismatch", "新闻弹窗正文结构与已验证契约不一致", {
-      reason: data.contractReason,
-      cardChildCount: card.children?.length || 0,
-      titleContainerClass: classSignature(data.contract?.titleContainer),
-      bodyContainerClass: classSignature(data.contract?.bodyContainer),
-      bodyHostClass: classSignature(data.contract?.bodyHost),
-    });
+    rt.surfaceState = { panel, card, reason };
+    if (!panel?.isConnected || reason === "news-card-missing") {
+      return;
+    }
+    if (reason) {
+      const details = { reason };
+      if (card) details.cardChildCount = card.children.length;
+      log.warn("news-popup-content-contract-mismatch", "新闻弹窗结构与已验证契约不一致", details);
+    } else if (previous?.reason && previous.reason !== "news-card-missing" &&
+        previous.panel === panel && (!previous.card || previous.card === card)) {
+      log.warn("news-popup-content-contract-restored", "新闻弹窗结构已恢复", {});
+    }
+  }
+
+  function unavailableContentMessage(contract) {
+    const bodyIssue = contract.reason === "body-container-mismatch" || contract.reason === "body-host-mismatch";
+    return bodyIssue
+      ? i18n("steam.newsTranslate.bodyTargetMissing", "未找到可替换的正文区域")
+      : i18n("steam.newsTranslate.cardUnrecognized", "未识别当前新闻卡");
+  }
+
+  // 宿主替换时更换任务记录并保留按钮，旧异步结果不能取得新记录的所有权
+  function syncButtonContract(record, contract) {
+    const previous = record.contract;
+    const replaced = previous && (previous.link !== contract.link || previous.bodyHost !== contract.bodyHost);
+    if (replaced) {
+      record.pending = false;
+      delete record.jobId;
+      record = { button: record.button, target: record.target, contract: null };
+    }
+    record.contract = contract;
+    if (previous?.valid === contract.valid && previous.reason === contract.reason && !replaced) {
+      return record;
+    }
+    if (!contract.valid || replaced) {
+      record.pending = false;
+      delete record.jobId;
+      setButton(record.button, contract.valid ? "idle" : "unavailable", contract.valid ? "" : unavailableContentMessage(contract));
+    } else if (previous?.valid === false) {
+      setButton(record.button, "idle");
+    }
+    return record;
   }
 
   function hashText(text) {
@@ -1036,20 +1084,15 @@
   function setButton(button, state, message = "") {
     button.dataset.state = state;
     const loading = state === "loading";
+    const disabled = loading || state === "unavailable";
     if (loading) {
       button.dataset.busy = "1";
     } else {
       delete button.dataset.busy;
     }
-    if ("disabled" in button) {
-      button.disabled = loading;
-    } else if (loading) {
-      button.setAttribute("disabled", "");
-    } else {
-      button.removeAttribute("disabled");
-    }
+    button.disabled = disabled;
     button.setAttribute("aria-busy", loading ? "true" : "false");
-    button.setAttribute("aria-disabled", loading ? "true" : "false");
+    button.setAttribute("aria-disabled", disabled ? "true" : "false");
     button.title = message || i18n("steam.newsTranslate.buttonTitle", "Steam Buff 翻译");
     button.setAttribute("aria-label", button.title);
     if (loading) {
@@ -1499,8 +1542,7 @@
     }
     const data = extract(card);
     if (!data.contractValid) {
-      logContentContractMismatch(rt, card, data);
-      setButton(button, "error", i18n("steam.newsTranslate.bodyTargetMissing", "未找到可替换的正文区域"));
+      refreshMountedSurface(rt);
       return;
     }
     const existing = rt.translated.get(card);
@@ -1602,69 +1644,36 @@
     }
   }
 
-  function currentButtonCard(rt, fallbackCard, button) {
-    const target = button?.parentElement || null;
-    const surface = activeNewsSurface(rt.newsPanel);
-    if (surface?.card?.isConnected && surface.target === target) {
-      return surface.card;
-    }
-    if (fallbackCard?.isConnected) {
-      const record = mounted.get(fallbackCard);
-      if (!target || record?.target === target || record?.button === button) {
-        return fallbackCard;
-      }
-    }
-    if (fallbackCard?.isConnected) {
-      return fallbackCard;
-    }
-    return rt.activeCard?.isConnected ? rt.activeCard : null;
-  }
-
-  function activateButton(rt, fallbackCard, button) {
-    const card = currentButtonCard(rt, fallbackCard, button);
-    if (!card?.isConnected) {
-      setButton(button, "error", i18n("steam.newsTranslate.cardUnrecognized", "未识别当前新闻卡"));
-      refreshMountedSurface(rt);
+  function activateButton(rt, button) {
+    if (rt.stopped || document.hidden || !button.isConnected || button.disabled) {
       return;
     }
-    if (card !== fallbackCard) {
-      const fallbackRecord = mounted.get(fallbackCard);
-      if (fallbackRecord?.button === button) {
-        mounted.delete(fallbackCard);
-        rt.cards.delete(fallbackCard);
-      }
-    }
-    const existing = mounted.get(card);
-    if (button.dataset.busy === "1" || existing?.pending === true) {
-      setButton(button, "loading", i18n("steam.newsTranslate.translating", "正在翻译..."));
+    const target = button.parentElement;
+    const surface = refreshMountedSurface(rt);
+    if (!surface || surface.target !== target) {
       return;
     }
-    const target = button.parentElement || mounted.get(card)?.target || null;
-    mounted.set(card, { button, target });
-    rt.cards.add(card);
-    rt.activeCard = card;
-    translateCard(rt, card, mounted.get(card) || { button }).catch((error) => {
+    const record = mounted.get(surface.card);
+    if (!record || record.button.disabled || record.pending === true) {
+      return;
+    }
+    translateCard(rt, surface.card, record).catch((error) => {
       globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "steam-news-translate", event: "activate-button-failed", message: "处理新闻翻译失败", level: "error", phase: "activateButton" });});
   }
 
   function mount(rt, surface) {
-    const { card, target } = surface;
+    const { card, target, contract } = surface;
     const existing = mounted.get(card);
-    const data = extract(card);
-    if (!mountableData(data)) {
-      logContentContractMismatch(rt, card, data);
-      return false;
-    }
     if (existing?.button?.isConnected && existing.target === target) {
+      mounted.set(card, syncButtonContract(existing, contract));
       rt.activeCard = card;
-      return true;
+      return;
     }
 
     clearLegacyBoxes(card);
     if (existing?.button?.isConnected) {
       removeButtonRecord(rt, card);
     }
-    // 当前 Steam 新闻面板的 app 图标固定向上两级即原生右侧工具栏。
     clearTargetButtons(rt, target, card);
     const button = document.createElement("button");
     button.type = "button";
@@ -1688,10 +1697,10 @@
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (button.dataset.busy === "1" || button.dataset.state === "loading") {
+      if (button.disabled || button.dataset.busy === "1" || button.dataset.state === "loading") {
         return;
       }
-      activateButton(rt, card, button);
+      activateButton(rt, button);
     });
     button.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") {
@@ -1702,13 +1711,14 @@
       button.click();
     });
     target.appendChild(button);
-    mounted.set(card, { button, target });
+    const record = { button, target, contract: null };
+    syncButtonContract(record, contract);
+    mounted.set(card, record);
     rt.cards.add(card);
     rt.activeCard = card;
     log.info("news-popup-button-mounted", "新闻弹窗翻译按钮已挂载", {
-      textLength: data.length,
+      contentReady: contract.valid,
     });
-    return true;
   }
 
   // 注: steamloopback 不注入划词 runner，划词事件仅挂在已确认的新闻面板
@@ -1724,15 +1734,13 @@
     if (!panel?.isConnected || !anchor || !focus || !panel.contains(anchor) || !panel.contains(focus)) {
       return null;
     }
-    let card = anchor.nodeType === 1 ? anchor : anchor.parentElement;
-    while (card && card !== panel && newsPanelFromCard(card) !== panel) {
-      card = card.parentElement;
-    }
-    if (!card || card === panel || !card.contains(focus)) {
+    const element = anchor.nodeType === 1 ? anchor : anchor.parentElement;
+    const card = element?.closest(`.${NEWS_CARD_CLASS}`) || null;
+    if (!card?.contains(focus)) {
       return null;
     }
     const contract = newsContentSurface(card);
-    return contract.valid ? contract : null;
+    return contract.valid && contract.panel === panel ? contract : null;
   }
 
   function newsSelectionTrigger(rt) {
@@ -2020,33 +2028,26 @@
     rt.activeCard = null;
   }
 
-  function nodeHasNewsSurfaceSignal(node) {
-    return node?.nodeType === 1 && (
-      node.matches?.(NEWS_ENTRY_SELECTOR) ||
-      node.matches?.(APP_ICON_SELECTOR) ||
-      node.querySelector?.(NEWS_ENTRY_SELECTOR) ||
-      node.querySelector?.(APP_ICON_SELECTOR)
-    );
-  }
-
   function ownNewsSurfaceNode(node) {
     const element = node?.nodeType === 1 ? node : node?.parentElement;
     return !!element?.closest?.(OWN_SURFACE_SELECTOR);
   }
 
   function newsSurfaceMutation(rt, records) {
+    const surface = rt.surface;
     return Array.from(records || []).some((record) => {
-      if (record.type !== "childList" || ownNewsSurfaceNode(record.target)) {
+      if (record.type !== "childList") {
         return false;
       }
-      const nodes = [...record.addedNodes, ...record.removedNodes].filter((node) => !ownNewsSurfaceNode(node));
-      if (!nodes.length) {
+      // 正文深层的图片、视频与引用链接不改变卡片契约，先排除无关目标再检查节点
+      const target = record.target;
+      const relevant = target === rt.newsPanel || target === surface?.list || surface?.toolbarSlot?.contains(target) ||
+        target === surface?.card || target === surface?.contract?.bodyContainer || surface?.contract?.titleContainer?.contains(target);
+      if (!relevant || ownNewsSurfaceNode(target)) {
         return false;
       }
-      if (!rt.activeCard?.isConnected || !mounted.get(rt.activeCard)?.button?.isConnected) {
-        return true;
-      }
-      return record.target === rt.newsPanel || record.target === rt.activeCard || nodes.some(nodeHasNewsSurfaceSignal);
+      return Array.from(record.addedNodes).some((node) => !ownNewsSurfaceNode(node)) ||
+        Array.from(record.removedNodes).some((node) => !ownNewsSurfaceNode(node));
     });
   }
 
@@ -2055,31 +2056,33 @@
       unbindNewsSelection(rt);
       clearMounted(rt);
       rt.newsPanel = panel;
+      rt.surface = null;
+      rt.surfaceState = null;
     }
     rt.surfaceHandle?.setTarget(rt.config?.enabled === true ? panel : null);
     bindNewsSelection(rt);
   }
 
+  // 返回当前真实 surface 或 null，点击直接复用本次解析结果，不保留旧卡片 fallback
   function refreshMountedSurface(rt) {
     if (rt.stopped || rt.config?.enabled !== true) {
       clearMounted(rt);
-      return false;
+      return null;
     }
     const surface = activeNewsSurface(rt.newsPanel);
-    if (!surface) {
+    rt.surface = surface;
+    reportNewsSurface(rt, surface);
+    if (surface.reason) {
       clearMounted(rt);
-      return false;
+      return null;
     }
     if (rt.activeCard !== surface.card) {
       hideNewsSelection(rt);
     }
-    if (!mount(rt, surface)) {
-      clearMounted(rt);
-      return false;
-    }
+    mount(rt, surface);
     pruneMounted(rt, new Set([surface.card]));
     rt.activeCard = surface.card;
-    return true;
+    return surface;
   }
 
   function onMainPopupSurface(rt, active, context) {
@@ -2094,9 +2097,6 @@
       setNewsPanel(rt, newsPanelFromTargets(rt.popupTargets));
     }
     if (!rt.newsPanel?.isConnected || rt.config?.enabled !== true) {
-      return;
-    }
-    if (context?.reason === "scroll" && !rt.activeCard) {
       return;
     }
     if (context?.reason === "mutation" &&
@@ -2243,7 +2243,8 @@
       cards: new Set(),
       cache: new Map(),
       translated: new WeakMap(),
-      contractMismatchCards: new WeakSet(),
+      surface: null,
+      surfaceState: null,
       activeCard: null,
       popupRoot: null,
       popupTargets: [],
@@ -2268,6 +2269,8 @@
         rt.popupRoot = null;
         rt.popupTargets = [];
         rt.newsPanel = null;
+        rt.surface = null;
+        rt.surfaceState = null;
         window.removeEventListener("message", rt.onMessage);
         unbindNewsSelection(rt);
         rt.selAction?.remove?.();
