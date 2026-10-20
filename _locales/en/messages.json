@@ -5701,6 +5701,9 @@
   "store_steampy_loading": {
     "message": "Loading prices..."
   },
+  "store_steampy_clickToView": {
+    "message": "Click to view"
+  },
   "store_steampy_proxyPurchase": {
     "message": "PY Assisted Purchase"
   },

@@ -162,7 +162,7 @@
     return `￥${value.toFixed(2)}`;
   }
 
-  function createRow(name, cut, price, url, extraClass = "") {
+  function createRow(name, cut, price, url, { extraClass = "", hidePrice = false } = {}) {
     const row = document.createElement(url ? "a" : "div");
     row.className = `${ROOT_CLASS}_row ${extraClass}`.trim();
     if (url) {
@@ -179,11 +179,11 @@
 
     const cutNode = document.createElement("span");
     cutNode.className = `${ROOT_CLASS}_cut`;
-    cutNode.textContent = cut > 0 ? `-${cut}%` : "";
+    cutNode.textContent = !hidePrice && cut > 0 ? `-${cut}%` : "";
 
     const priceNode = document.createElement("span");
     priceNode.className = `${ROOT_CLASS}_price`;
-    priceNode.textContent = fmtPrice(price);
+    priceNode.textContent = hidePrice ? t("store_steampy_clickToView", "点击查看") : fmtPrice(price);
 
     const valueNode = document.createElement("span");
     valueNode.className = `${ROOT_CLASS}_value`;
@@ -281,7 +281,8 @@
         "PY CDK",
         pct(base, keyPrice),
         keyPrice,
-        id ? STEAMPY.cdkDetail(id) : null
+        id ? STEAMPY.cdkDetail(id) : null,
+        { hidePrice: api.format.shouldHidePyCdkPrice(keyPrice) }
       ));
     }
 

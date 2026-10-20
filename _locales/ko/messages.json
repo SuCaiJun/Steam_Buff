@@ -5701,6 +5701,9 @@
   "store_steampy_loading": {
     "message": "가격을 불러오는 중..."
   },
+  "store_steampy_clickToView": {
+    "message": "클릭하여 보기"
+  },
   "store_steampy_proxyPurchase": {
     "message": "PY 지원 구매"
   },

@@ -5704,6 +5704,9 @@
   "store_steampy_proxyPurchase": {
     "message": "PY 代购"
   },
+  "store_steampy_clickToView": {
+    "message": "点击查看"
+  },
   "store_drmWarning_detected": {
     "message": "此游戏使用第三方DRM: $names$",
     "placeholders": {

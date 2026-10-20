@@ -658,9 +658,12 @@
     });
 
     for (const row of summary.steampy || []) {
+      const price = row.kind === "cdk" && api.format.shouldHidePyCdkPrice(row.amount)
+        ? { ...row, cut: 0, text: i18n("store_steampy_clickToView", "点击查看") }
+        : row;
       appendPriceLine(rows, {
         label: row.label.replace(/^SteamPY\s*/, "PY "),
-        price: row,
+        price,
         url: steamPyDetail(row),
       });
     }

@@ -13,6 +13,12 @@
 
   const api = window.STStore = window.STStore || {};
   const CURRENCY_SYMBOLS = api.config.CURRENCY_SYMBOLS;
+  const PY_CDK_MIN_PRICE = 1;
+
+  // 只调整有效正数报价的展示；1 元及以上仍正常显示价格。
+  function shouldHidePyCdkPrice(amount) {
+    return Number.isFinite(amount) && amount > 0 && amount < PY_CDK_MIN_PRICE;
+  }
 
 function getCurrencySymbol(currency) {
     return CURRENCY_SYMBOLS.hasOwnProperty(currency) ? CURRENCY_SYMBOLS[currency] : currency;
@@ -70,6 +76,7 @@ function parseResponse(response) {
 }
 
   api.format = Object.freeze({
+    shouldHidePyCdkPrice,
     getCurrencySymbol,
     formatPrice,
     formatDate,

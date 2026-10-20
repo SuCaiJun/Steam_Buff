@@ -5701,6 +5701,9 @@
   "store_steampy_loading": {
     "message": "正在讀取價格..."
   },
+  "store_steampy_clickToView": {
+    "message": "點擊查看"
+  },
   "store_steampy_proxyPurchase": {
     "message": "PY 代購"
   },

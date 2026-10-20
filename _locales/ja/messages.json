@@ -5701,6 +5701,9 @@
   "store_steampy_loading": {
     "message": "価格を読み込み中..."
   },
+  "store_steampy_clickToView": {
+    "message": "クリックして確認"
+  },
   "store_steampy_proxyPurchase": {
     "message": "PYアシスト購入"
   },
