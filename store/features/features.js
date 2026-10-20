@@ -24,10 +24,14 @@
     settingOn: key => api.settings.on(key),
   }).allowed === true;
 
-  /** 只封装已存在的模块方法，不探测备用入口。 */
+  /**
+   * prepareStyles 同步复用模块样式，返回值不参与启停；异常交由注册器隔离
+   * 卡片与角标传 detail/badge，其余模块不传参数；此阶段不创建业务节点或发起请求
+   */
   function moduleFeature(id, module, pageScope, options = {}) {
     return {
       id, module, pageScope, cost: "dom-scan",
+      prepare(api) { api.features[module].prepareStyles?.(); },
       start(api) { return api.features[module].start(); },
       stop(api) { return api.features[module].stop(); },
       ...options,
@@ -39,6 +43,7 @@
     return [
       moduleFeature(prefix + "-detail-card", module, ["store-app"], {
         settingsIds,
+        prepare(api) { api.features[module].prepareStyles("detail"); },
         start(api, context) { return api.features[module].addDetail(context.info.appId, location.protocol); },
         stop(api) { return api.features[module].stopDetail(); },
       }),
@@ -46,6 +51,7 @@
         ["store", STORE_LISTS], ["wishlist", ["store-wishlist"]], ["cart", ["store-cart"]],
       ].map(([kind, scopes]) => moduleFeature(prefix + "-" + kind + "-badge", module, scopes, {
         settingsIds,
+        prepare(api) { api.features[module].prepareStyles("badge"); },
         start(api) { return api.features[module].startBadges(kind); },
         stop(api) { return api.features[module].stopBadges(kind); },
       })),
@@ -54,7 +60,6 @@
 
   /** 沿用 DLC 精准目标和十秒等待边界，等待任务随页面实例取消。 */
   function startDlc(api, context) {
-    api.features.dlc.styles();
     if (document.querySelector(".game_area_dlc_section")) return api.features.dlc.add();
     const deadline = performance.now() + 10000;
     window.STScheduler.register(DLC_WAIT_TASK, () => {
@@ -75,8 +80,8 @@
       modes: ["details", "wishlist", "search", "cart", "history", "other"],
       pageScope: [...DETAILS, "store-wishlist", "store-search", "store-cart", "store-account-history", "store-other"],
       dependencies: ["store/runtime/settings-gate.js", "store/runtime/context.js"],
+      prepare() { api.styles.ensureFeatureStyle("store-common-feature"); },
       start() {
-        api.styles.ensureFeatureStyle("store-common-feature");
         api.tooltip.init();
         return true;
       },
@@ -153,6 +158,7 @@
       start(api, context) { return api.features.playerStats.start(context.info.appId); },
     }),
     moduleFeature("dlc-tools", "dlc", ["store-app"], {
+      prepare(api) { api.features.dlc.styles(); },
       start: startDlc,
       stop(api) {
         window.STScheduler.unregister(DLC_WAIT_TASK);

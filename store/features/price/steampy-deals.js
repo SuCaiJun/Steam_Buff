@@ -297,21 +297,36 @@
     return rows;
   }
 
-  function compact(root) {
+  function compact(root, width) {
     const section = root.closest(".game_area_purchase_game");
     if (!section) return;
-    const isCompact = section.getBoundingClientRect().width < NARROW_WIDTH;
+    const isCompact = (width ?? section.getBoundingClientRect().width) < NARROW_WIDTH;
     root.classList.toggle("compact", isCompact);
     section.classList.toggle(`${ROOT_CLASS}_host_compact`, isCompact);
   }
 
+  function compactPanels(panels) {
+    const measured = panels.map(root => ({ root, section: root.closest(".game_area_purchase_game") }))
+      .filter(item => item.section)
+      .map(item => ({ root: item.root, width: item.section.getBoundingClientRect().width }));
+    measured.forEach(item => compact(item.root, item.width));
+  }
+
   function hookResize(root) {
-    compact(root);
     if (typeof ResizeObserver === "function") {
       const section = root.closest(".game_area_purchase_game");
       if (!section) return;
-      const observer = new ResizeObserver(() => compact(root));
-      observer.observe(section);
+      // 优化: 首次尺寸由浏览器布局阶段交付，不在每张骨架插入后强制读取布局
+      const observer = new ResizeObserver(entries => {
+        for (const entry of entries) {
+          if (entry.target === section && entry.borderBoxSize.length) {
+            compact(root, entry.borderBoxSize[0].inlineSize);
+          }
+        }
+      });
+      window.STObserverUtils.createVisibilityGatedObserver(observer, section, { box: "border-box" }, {
+        resolveTarget: () => root.isConnected ? section : null,
+      });
       const key = `resize:${root.dataset.steamPyResourceId || root.dataset.steamAppId || "app"}`;
       const disposeObserver = track(() => observer.disconnect());
       const handle = window.STRuntime?.current?.()?.registerResource?.({
@@ -332,7 +347,7 @@
     if (resizeHooked) return;
     resizeHooked = true;
     const onResize = () => {
-      document.querySelectorAll(`.${ROOT_CLASS}`).forEach(compact);
+      compactPanels(Array.from(document.querySelectorAll(`.${ROOT_CLASS}`)));
     };
     window.addEventListener("resize", onResize);
     const disposeResize = track(() => window.removeEventListener("resize", onResize));
@@ -360,14 +375,14 @@
     const usePy = needPy();
     const payload = sectionPayload(section, appId);
     const cached = payload && apiCache.get(`steampy_deal::${appId}::${payload.type}::${payload.id}`);
-    if (cached) { setRows(root, pyRows(cached, base)); compact(root); return; }
+    if (cached) { setRows(root, pyRows(cached, base)); return; }
 
     const valid = () => root.isConnected && anyEnabled() && location.pathname.includes(`/app/${appId}`);
     api.dom.loading.afterPaint(valid).then(ready => ready && usePy ? fetchPy(section, appId) : null).then(py => {
       if (!valid()) return;
       const rows = usePy ? pyRows(py, base) : [];
       setRows(root, rows);
-      compact(root);
+      if (typeof ResizeObserver !== "function") compact(root);
     }).catch((error) => {
       globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "create-panel-failed", message: "商店功能处理失败", level: "error", phase: "createPanel" });
       if (valid()) setRows(root, []);
@@ -377,15 +392,16 @@
   function render(appId) {
     if (!anyEnabled()) return false;
 
-    const sections = visibleSections();
+    const sections = visibleSections().filter(section => !hasPanel(section, appId));
     if (!sections.length) return false;
 
     ensureStyle();
 
+    const positions = new Map(sections.map(section => [section, window.getComputedStyle(section).position]));
+    const mounted = [];
     let rendered = false;
     sections.forEach(section => {
-      if (hasPanel(section, appId)) return;
-      if (window.getComputedStyle(section).position === "static") {
+      if (positions.get(section) === "static") {
         section.style.position = "relative";
       }
       const panel = createPanel(section, appId);
@@ -394,9 +410,11 @@
       api.dom.loading.activate(panel);
       loadPanel(panel, section, appId);
       hookResize(panel);
+      mounted.push(panel);
       rendered = true;
     });
 
+    if (typeof ResizeObserver !== "function") compactPanels(mounted);
     return rendered;
   }
 
@@ -440,6 +458,7 @@
   }
 
   api.features.steamPyDeals = Object.freeze({
+    prepareStyles: ensureStyle,
     add,
     has,
     stop,

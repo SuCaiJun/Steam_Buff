@@ -1372,6 +1372,7 @@
   }
 
   api.features.familyLibraryOwnedMarker = Object.freeze({
+    prepareStyles(kind) { ensureFeatureStyles(kind === "detail" ? "detail-style" : "badge-style"); },
     add: addFamilyLibraryDetailCard,
     addDetail: addFamilyLibraryDetailCard,
     startBadges,

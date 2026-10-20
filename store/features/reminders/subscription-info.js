@@ -460,6 +460,7 @@
   }
 
   api.features.subscriptionInfo = Object.freeze({
+    prepareStyles: addStyles,
     addDetail,
     startBadges,
     startLists,

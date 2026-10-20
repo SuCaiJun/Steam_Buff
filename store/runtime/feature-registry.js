@@ -36,6 +36,7 @@
    * @property {boolean=} documentScoped - 实例是否属于整个文档。
    * @property {Function=} gate - 组合功能的附加门禁。
    * @property {Function=} mountState - 返回模块自身的 {target, host} 节点快照，缺失节点为 null。
+   * @property {Function=} prepare - 同步准备本模块样式，不创建业务节点或开始网络请求
    * @property {Function} start - 使用当前页面快照启动实例。
    * @property {Function} stop - 清理实例并使旧异步结果失效。
    */
@@ -230,7 +231,7 @@
     }
 
     /** 每个实例独立跟踪完成状态，网络等待不阻塞后续页面的挂载队列。 */
-    mount(feature, route, reconcile = false) {
+    mount(feature, route, reconcile = false, prepared = false) {
       if (route.key !== this.route().key) return Promise.resolve({ id: feature.id, status: "cancelled" });
       if (feature.module && !api.features[feature.module]) {
         return Promise.resolve(this.failStatus(feature, new Error("商店功能模块未加载：" + feature.module), "start"));
@@ -245,8 +246,16 @@
       };
       let value;
       try {
-        this.trackDom(feature, route, reconcile);
-        value = feature.start(api, context);
+        const start = () => {
+          this.trackDom(feature, route, reconcile);
+          return feature.start(api, context);
+        };
+        if (prepared) {
+          value = start();
+        } else {
+          feature.prepare?.(api);
+          value = start();
+        }
       } catch (error) {
         this.state.active.delete(feature.id);
         this.forgetDom(feature.id);
@@ -285,33 +294,49 @@
       return this.refresh("startup", { ids: this.pageIds() });
     }
 
-    /** 初始启动、设置刷新与购买区恢复共享同一份功能定义。 */
+    /** 同一轮先准备待挂载模块的样式，再共享同步可见性读取；异步重启独立准备样式 */
     refresh(reason = "settings", change = {}) {
       const route = this.route();
       const ids = change.ids || this.pageIds(route);
       const jobs = [];
+      const plans = [];
       for (const id of ids) {
         const feature = this.state.definitions.get(id);
         if (!feature) continue;
         const allowed = this.canRun(feature).allowed === true;
         const record = this.state.active.get(id);
         const restart = change.restart?.has(id) === true;
-        if (!allowed) {
-          this.forgetDom(id);
-          this.state.dirty.delete(id);
-          this.state.applied.set(id, false);
-          jobs.push(record ? this.stopRecord(record, reason) : Promise.resolve({ id, status: "skipped" }));
-        } else if (record && record.key === this.instanceKey(feature, route) && !restart && !change.recover) {
-          jobs.push(Promise.resolve({ id, status: "unchanged" }));
-        } else if (record && !change.recover) {
-          jobs.push(this.stopRecord(record, reason).then(row => (
-            row.status === "failed" ? row : this.mount(feature, route, change.domReconcile)
-          )));
-        } else {
-          jobs.push(this.mount(feature, route, change.domReconcile));
+        const prepared = allowed && (!record || change.recover === true);
+        if (prepared) {
+          try {
+            feature.prepare?.(api);
+          } catch (error) {
+            jobs.push(Promise.resolve(this.failStatus(feature, error, "start")));
+            continue;
+          }
         }
+        plans.push({ id, feature, allowed, record, restart, prepared });
       }
-      return Promise.all(jobs);
+      const apply = () => {
+        for (const { id, feature, allowed, record, restart, prepared } of plans) {
+          if (!allowed) {
+            this.forgetDom(id);
+            this.state.dirty.delete(id);
+            this.state.applied.set(id, false);
+            jobs.push(record ? this.stopRecord(record, reason) : Promise.resolve({ id, status: "skipped" }));
+          } else if (record && record.key === this.instanceKey(feature, route) && !restart && !change.recover) {
+            jobs.push(Promise.resolve({ id, status: "unchanged" }));
+          } else if (record && !change.recover) {
+            jobs.push(this.stopRecord(record, reason).then(row => (
+              row.status === "failed" ? row : this.mount(feature, route, change.domReconcile)
+            )));
+          } else {
+            jobs.push(this.mount(feature, route, change.domReconcile, prepared));
+          }
+        }
+        return Promise.all(jobs);
+      };
+      return plans.filter(plan => plan.prepared).length > 1 ? api.dom.withInsertSnapshot(apply) : apply();
     }
 
     /** 导航时先清理旧页面，再串行补依赖；只允许最新页面启动实例。 */

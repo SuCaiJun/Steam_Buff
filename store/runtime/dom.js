@@ -295,11 +295,46 @@ const INSERT_PRIORITIES = {
     
 };
 
+let insertStyleSnapshot = null;
+
+/**
+ * 优化: 多模块同步挂载先读取原生锚点可见性，避免每插入一张卡片就重新计算祖先样式
+ * @param {Function} run - 不改变原生锚点隐藏样式的同步挂载；Promise 后续阶段不复用快照
+ * @returns {*} 回调原返回值；快照只覆盖现有原生锚点，finally 中立即释放
+ */
+function withInsertSnapshot(run) {
+    if (insertStyleSnapshot) return run();
+    const snapshot = new WeakMap();
+    const targets = document.querySelectorAll('#game_area_purchase, .game_area_purchase_game, .rightcol.game_meta_data');
+    for (const target of targets) {
+        let node = target;
+        while (node && node.nodeType === Node.ELEMENT_NODE) {
+            if (snapshot.has(node)) break;
+            const style = window.getComputedStyle(node);
+            snapshot.set(node, style.display === 'none' || style.visibility === 'hidden');
+            node = node.parentElement;
+        }
+    }
+    insertStyleSnapshot = snapshot;
+    try {
+        return run();
+    } finally {
+        insertStyleSnapshot = null;
+    }
+}
+
 function hasHiddenAncestor(element, includeSelf = true) {
     let node = includeSelf ? element : element.parentElement;
     while (node && node.nodeType === Node.ELEMENT_NODE) {
-        const style = window.getComputedStyle(node);
-        if (node.hidden || style.display === 'none' || style.visibility === 'hidden') {
+        if (node.hidden) return true;
+        let styleHidden;
+        if (insertStyleSnapshot?.has(node)) {
+            styleHidden = insertStyleSnapshot.get(node);
+        } else {
+            const style = window.getComputedStyle(node);
+            styleHidden = style.display === 'none' || style.visibility === 'hidden';
+        }
+        if (styleHidden) {
             return true;
         }
         node = node.parentElement;
@@ -1004,6 +1039,7 @@ function afterLoadingPaint(valid = () => true) {
     INSERT_PRIORITIES,
     hasHiddenAncestor,
     isUsableInsertTarget,
+    withInsertSnapshot,
     isUsableExistingModule,
     findInsertTarget,
     insertModule,

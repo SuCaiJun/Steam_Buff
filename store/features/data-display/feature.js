@@ -396,6 +396,10 @@
     await festivalReady;
   }
 
+  function prepareStyles() {
+    api.styles?.ensureFeatureStyle?.("data-display", { owner: OWNER, key: "style" });
+  }
+
   function start(pageInfo = api.ctx?.pageInfo?.(), startOptions = {}) {
     const info = pageInfo || {};
     if (!SUPPORTED_TYPES.has(info.type)) {
@@ -409,7 +413,7 @@
     if (!options.chartEnabled && !options.forecastEnabled) {
       return { started: false, reason: "all-sections-disabled" };
     }
-    api.styles?.ensureFeatureStyle?.("data-display", { owner: OWNER, key: "style" });
+    prepareStyles();
     const root = mount(info, options);
     if (!root) return { started: false, reason: "mount-failed" };
     const ticket = seq + 1;
@@ -428,6 +432,7 @@
 
   api.features = api.features || {};
   api.features.dataDisplay = Object.freeze({
+    prepareStyles,
     start,
     stop,
     /**

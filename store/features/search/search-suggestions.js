@@ -661,6 +661,7 @@
   }
 
   api.features.searchSuggestions = Object.freeze({
+    prepareStyles: addStyle,
     start,
     stop,
     scan,

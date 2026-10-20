@@ -17,6 +17,9 @@
   const STORE_KEY = "steam_buff_diag_logs";
   const FALLBACK_KEY = "steam_buff_diag_fallback_logs";
   const STORAGE_VERSION = 2;
+  const DATABASE_NAME = "steam_buff_diagnostics";
+  const DATABASE_VERSION = 1;
+  const DATABASE_STORE = "state";
   const MB = 1024 * 1024;
   const lifecycleInfoEvents = schema.lifecycleInfoEvents;
   const POLICY = Object.freeze({
@@ -36,8 +39,8 @@
   });
   let storageQueue = Promise.resolve();
   let initialized = false;
-  let writing = false;
   let cachedBox = null;
+  let databaseReady = null;
 
   function emptyFallbackMerge() {
     return { generationId: "", signatures: [], health: defaultHealth() };
@@ -99,37 +102,73 @@
     });
   }
 
-  function storageSet(value) {
+  function storageRemove(keys) {
     return new Promise((resolve, reject) => {
       try {
-        writing = true;
-        storageArea().set(value, () => {
+        storageArea().remove(keys, () => {
           const error = root.chrome?.runtime?.lastError?.message || "";
-          writing = false;
           if (error) reject(new Error(error));
           else resolve(true);
         });
       } catch (error) {
-        writing = false;
         reject(error);
       }
     });
   }
 
-  function storageRemove(keys) {
+  /** 正文只由后台持久化，避免 storage.onChanged 向所有页面复制整个日志盒。 */
+  async function openLogDatabase() {
+    if (databaseReady) return databaseReady;
+    const pending = new Promise((resolve, reject) => {
+      const request = root.indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+      let settled = false;
+      request.onupgradeneeded = () => request.result.createObjectStore(DATABASE_STORE);
+      request.onerror = () => {
+        settled = true;
+        reject(request.error);
+      };
+      request.onblocked = () => {
+        settled = true;
+        reject(new Error("日志数据库连接被其他上下文阻塞"));
+      };
+      request.onsuccess = () => {
+        const database = request.result;
+        if (settled) {
+          database.close();
+          return;
+        }
+        settled = true;
+        const release = () => {
+          if (databaseReady === pending) databaseReady = null;
+        };
+        database.onversionchange = () => {
+          database.close();
+          release();
+        };
+        database.onclose = release;
+        resolve(database);
+      };
+    });
+    databaseReady = pending;
+    try {
+      return await pending;
+    } catch (error) {
+      if (databaseReady === pending) databaseReady = null;
+      throw error;
+    }
+  }
+
+  /** 请求成功不等于提交成功；事务完成后才确认写入并更新缓存。 */
+  async function databaseOperation(mode, value) {
+    const database = await openLogDatabase();
     return new Promise((resolve, reject) => {
-      try {
-        writing = true;
-        storageArea().remove(keys, () => {
-          const error = root.chrome?.runtime?.lastError?.message || "";
-          writing = false;
-          if (error) reject(new Error(error));
-          else resolve(true);
-        });
-      } catch (error) {
-        writing = false;
-        reject(error);
-      }
+      const transaction = database.transaction(DATABASE_STORE, mode);
+      const store = transaction.objectStore(DATABASE_STORE);
+      const request = mode === "readonly" ? store.get(STORE_KEY) : store.put(value, STORE_KEY);
+      let requestError = null;
+      request.onerror = () => { requestError = request.error; };
+      transaction.oncomplete = () => resolve(request.result);
+      transaction.onabort = () => reject(transaction.error || requestError || new Error("日志数据库事务已中止"));
     });
   }
 
@@ -142,21 +181,21 @@
 
   async function initializeNow() {
     if (initialized) return true;
-    const value = await storageGet([STORE_KEY, FALLBACK_KEY]);
-    const main = value[STORE_KEY];
+    let main = await databaseOperation("readonly");
+    const value = await storageGet([FALLBACK_KEY]);
     const fallback = value[FALLBACK_KEY];
-    const mainReady = validBox(main);
     const fallbackReady = fallback === undefined || validBox(fallback);
-    if (!mainReady) {
-      const removeKeys = fallbackReady && fallback !== undefined ? [STORE_KEY] : [STORE_KEY, FALLBACK_KEY];
-      await storageRemove(removeKeys);
-      const box = emptyBox();
-      await storageSet({ [STORE_KEY]: box });
-      cachedBox = box;
-    } else {
-      cachedBox = normalizeBox(main);
-      if (!fallbackReady) await storageRemove([FALLBACK_KEY]);
+    if (main === undefined) {
+      // 已使用的 v2 日志盒只复制一次，原 storage 副本保留到用户主动清空日志。
+      const legacy = await storageGet([STORE_KEY]);
+      main = legacy[STORE_KEY];
+      if (main !== undefined && !validBox(main)) throw new TypeError("历史诊断日志格式错误，已保留原始记录");
+      if (main === undefined) main = emptyBox();
+      await databaseOperation("readwrite", main);
     }
+    if (!validBox(main)) throw new TypeError("日志数据库记录格式错误");
+    if (!fallbackReady) await storageRemove([FALLBACK_KEY]);
+    cachedBox = normalizeBox(main);
     initialized = true;
     return true;
   }
@@ -206,8 +245,9 @@
 
   async function mainBox() {
     if (cachedBox) return cachedBox;
-    const value = await storageGet([STORE_KEY]);
-    cachedBox = validBox(value[STORE_KEY]) ? normalizeBox(value[STORE_KEY]) : emptyBox();
+    const value = await databaseOperation("readonly");
+    if (!validBox(value)) throw new TypeError("日志数据库记录缺失或格式错误");
+    cachedBox = normalizeBox(value);
     return cachedBox;
   }
 
@@ -514,7 +554,7 @@
     prepared.logs = next.logs;
     prepared.health = next.health;
     if (prepared.changed || !cachedBox) {
-      await storageSet({ [STORE_KEY]: next });
+      await databaseOperation("readwrite", next);
       cachedBox = next;
     }
     return statsFrom(next.logs, next.health, logBytes);
@@ -619,10 +659,10 @@
   }
 
   async function clearNow() {
-    await storageRemove([STORE_KEY, FALLBACK_KEY]);
     const box = emptyBox();
-    await storageSet({ [STORE_KEY]: box });
+    await databaseOperation("readwrite", box);
     cachedBox = box;
+    await storageRemove([STORE_KEY, FALLBACK_KEY]);
     return statsFrom([], box.health);
   }
 
@@ -632,11 +672,6 @@
       return clearNow();
     });
   }
-
-  root.chrome?.storage?.onChanged?.addListener?.((changes, areaName) => {
-    if (areaName !== "local" || writing) return;
-    if (changes?.[STORE_KEY]) cachedBox = null;
-  });
 
   root.STBackgroundLogger = Object.freeze({
     ready: true,

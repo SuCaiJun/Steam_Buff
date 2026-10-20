@@ -1209,6 +1209,7 @@
   }
 
   api.features.titleCustomName = Object.freeze({
+    prepareStyles: addStyle,
     start,
     refresh,
     stop,

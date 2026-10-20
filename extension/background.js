@@ -363,6 +363,48 @@
     "store/features/features.js",
     "store/main.js",
   ]);
+  const STORE_INJECT_BATCH_SIZE = 16;
+  // 登记加载期读取和初始化契约要求的依赖；业务启动仍等待基础脚本和当前页面模块全部就绪
+  const STORE_SCRIPT_DEPENDENCIES = Object.freeze({
+    "shared/styles/components.js": ["shared/styles/theme.js", "shared/utils/dom.js"],
+    "shared/utils/dom.js": ["shared/logger-factory.js"],
+    "shared/page-context.js": ["shared/config.js"],
+    "shared/runtime/kernel.js": ["shared/page-context.js", "shared/logger-factory.js"],
+    "extension/runtime/logger.js": ["shared/logger-schema.js"],
+    "shared/logger-factory.js": ["shared/logger-schema.js", "extension/runtime/logger.js"],
+    "shared/performance-monitor.js": ["shared/logger-factory.js"],
+    "shared/scheduler.js": ["shared/logger-factory.js"],
+    "shared/runtime/message-bus.js": ["shared/logger-factory.js"],
+    "shared/settings-bus.js": ["shared/logger-factory.js"],
+    "shared/i18n.js": ["shared/logger-factory.js"],
+    "shared/auth-client.js": ["shared/auth-session.js", "shared/logger-factory.js"],
+    "store/runtime/context.js": ["store/runtime/config.js"],
+    "store/runtime/cache.js": ["shared/scheduler.js", "shared/runtime/kernel.js", "store/runtime/context.js"],
+    "store/runtime/family-library-cache.js": ["shared/logger-factory.js"],
+    "store/runtime/format.js": ["store/runtime/config.js"],
+    "store/runtime/dom.js": ["shared/styles/components.js"],
+    "store/runtime/styles.js": ["shared/styles/components.js", "store/features/review/review-filter-style.js"],
+    "store/runtime/feature-registry.js": ["shared/data-index.js", "shared/batch-queue.js", "shared/virtual-list.js", "shared/runtime/kernel.js", "shared/logger-factory.js"],
+    "store/runtime/settings-gate.js": ["settings/storage.js", "settings/membership.js", "shared/logger-factory.js"],
+    "store/runtime/url-watch.js": ["store/runtime/feature-registry.js", "shared/logger-factory.js"],
+    "store/runtime/purchase-recover.js": ["store/runtime/dom.js", "shared/logger-factory.js"],
+    "settings/catalog.js": ["shared/price-comparison-catalog.js"],
+    "settings/membership.js": ["shared/logger-factory.js"],
+    "settings/storage.js": ["settings/catalog.js", "settings/membership.js", "shared/logger-factory.js", "shared/i18n.js", "shared/settings-bus.js"],
+    "settings/ui/styles.js": ["shared/styles/components.js"],
+    "settings/ui/dialogs.js": ["shared/logger-factory.js"],
+    "settings/ui/toast.js": ["shared/logger-factory.js"],
+    "store/api/request.js": ["store/runtime/cache.js", "shared/config.js", "shared/runtime/message-bus.js", "shared/logger-factory.js"],
+    "store/features/player-stats/feature.js": ["shared/utils/player-stats.js", "shared/utils/player-stats-ui.js"],
+    "store/features/data-display/view.js": ["store/features/data-display/charts.js", "store/features/data-display/forecast-pack.js", "store/features/data-display/ai-forecast.js"],
+    "store/features/data-display/feature.js": ["store/features/data-display/view.js"],
+    "store/features/reminders/subscription-info.js": ["store/api/subscription-info.js"],
+    "store/features/dlc/dlc-checkboxes.js": ["store/features/dlc/dlc-bridge.js", "store/features/dlc/dlc-scan.js"],
+    "store/features/review/review-filter.js": ["store/features/review/review-filter-core.js"],
+    "store/features/search/title-custom-name.js": ["store/features/price/wishlist-dom.js"],
+    "store/features/notes/game-notes.js": ["store/features/price/wishlist-dom.js"],
+    "store/main.js": ["store/features/features.js"],
+  });
   const CONTENT_MARK = "steamBuffContentStarted";
   const CONTENT_MARK_VERSION = "steam-buff-runtime-v37";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
@@ -3117,12 +3159,29 @@
         if (!Array.isArray(request.meta.loadedFiles) || request.meta.loadedFiles.some(file => typeof file !== "string")) {
           throw new TypeError("商店分包请求缺少有效的 loadedFiles");
         }
-        const loaded = new Set(request.meta.loadedFiles);
-        for (const file of files) {
-          if (loaded.has(file)) continue;
-          await execScript({ target, world: "ISOLATED", files: [file] });
-          injected.push(file);
-          loaded.add(file);
+        const pending = new Set(files.filter(file => !request.meta.loadedFiles.includes(file)));
+        const base = new Set(STORE_BASE_SCRIPTS);
+        const starts = new Set(STORE_START_SCRIPTS);
+        while (pending.size) {
+          const basePending = Array.from(pending).some(file => base.has(file));
+          const modulesPending = Array.from(pending).some(file => !starts.has(file));
+          const remaining = new Set(pending);
+          const batch = [];
+          while (batch.length < STORE_INJECT_BATCH_SIZE) {
+            const file = Array.from(remaining).find(file => {
+              if (basePending && !base.has(file)) return false;
+              if (!basePending && modulesPending && starts.has(file)) return false;
+              return (STORE_SCRIPT_DEPENDENCIES[file] || []).every(parent => !remaining.has(parent));
+            });
+            if (!file) break;
+            batch.push(file);
+            remaining.delete(file);
+          }
+          if (!batch.length) throw new Error("商店脚本依赖无法完成加载");
+          // 原生 API 先读取整批资源再按序执行；资源加载失败时本批未执行，不确认其中任何文件
+          await execScript({ target, world: "ISOLATED", files: batch, injectImmediately: true });
+          injected.push(...batch);
+          batch.forEach(file => pending.delete(file));
         }
       } else {
         await execScript({ target, world: "ISOLATED", files });

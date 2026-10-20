@@ -537,6 +537,7 @@
   }
 
   api.features.gameNotes = Object.freeze({
+    prepareStyles: addStyle,
     start,
     refresh,
     stop,
