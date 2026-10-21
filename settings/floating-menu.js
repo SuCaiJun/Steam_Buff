@@ -279,6 +279,15 @@
     });
   }
 
+  async function loadGameLinksConfig() {
+    try {
+      return await api.storage.getGameLinks();
+    } catch (error) {
+      log.error("game-links-config-load-failed", "相关链接设置读取失败", { error });
+      return { unavailable: true };
+    }
+  }
+
   async function loadState() {
     states = await api.storage?.getAll?.() || api.catalog?.defaults?.() || {};
     membership = await api.storage?.getMembership?.() || { active: false, features: {} };
@@ -292,6 +301,7 @@
       ai: await api.storage?.getAi?.() || api.catalog?.aiDefaults?.() || {},
       thirdPartyServices: await api.storage?.getThirdPartyServices?.() || api.catalog?.thirdPartyServicesDefaults?.() || {},
       storePriceChart: await api.storage?.getStorePriceChart?.() || api.catalog?.storePriceChartDefaults?.() || {},
+      gameLinks: await loadGameLinksConfig(),
     };
   }
 

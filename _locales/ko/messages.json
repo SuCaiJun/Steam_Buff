@@ -5674,12 +5674,6 @@
   "store_priceHistory_unknownDate": {
     "message": "날짜를 알 수 없음"
   },
-  "store_priceHistory_viewDetails": {
-    "message": " 상세 정보"
-  },
-  "store_priceHistory_viewDetailsPrefix": {
-    "message": "보기 "
-  },
   "store_cartCheckout_restoreButton": {
     "message": "저장된 장바구니 항목 복원"
   },
@@ -6583,5 +6577,189 @@
   },
   "steam_independentName_transfer_wrongFile": {
     "message": "선택한 형식의 파일을 지정하세요."
+  },
+  "gameLinks_title": {
+    "message": "관련 링크"
+  },
+  "gameLinks_linkUnavailable": {
+    "message": "이 게임의 링크에 필요한 데이터가 없습니다"
+  },
+  "gameLinks_loadingConfig": {
+    "message": "링크 설정을 불러오는 중"
+  },
+  "gameLinks_configFailed": {
+    "message": "링크 설정을 읽지 못했습니다. 다시 불러오세요. 저장된 설정은 덮어쓰지 않았습니다."
+  },
+  "gameLinks_reset": {
+    "message": "기본값 복원"
+  },
+  "gameLinks_layout": {
+    "message": "배치"
+  },
+  "gameLinks_columns_1": {
+    "message": "한 줄에 1개"
+  },
+  "gameLinks_columns_2": {
+    "message": "한 줄에 2개"
+  },
+  "gameLinks_name": {
+    "message": "링크 이름"
+  },
+  "gameLinks_template": {
+    "message": "웹 주소"
+  },
+  "gameLinks_tokensHint": {
+    "message": "{APPID}: 게임 앱 ID; {GAME_NAME}: Steam 게임 이름; {CUSTOM_NAME}: 사용자 지정 게임 이름(없으면 Steam 게임 이름);"
+  },
+  "gameLinks_add": {
+    "message": "링크 추가"
+  },
+  "gameLinks_saveEdit": {
+    "message": "변경 사항 저장"
+  },
+  "gameLinks_nameRequired": {
+    "message": "링크 이름을 입력하세요"
+  },
+  "gameLinks_urlRequired": {
+    "message": "웹 주소를 입력하세요"
+  },
+  "gameLinks_tokenUnknown": {
+    "message": "{APPID}, {GAME_NAME}, {CUSTOM_NAME}만 지원합니다. 중괄호를 확인하세요."
+  },
+  "gameLinks_tokenLocation": {
+    "message": "프로토콜, 호스트 또는 로그인 정보에는 자리표시자를 사용할 수 없습니다."
+  },
+  "gameLinks_invalidUrl": {
+    "message": "로그인 정보가 없는 유효한 HTTP/HTTPS URL을 입력하세요."
+  },
+  "gameLinks_saveFailed": {
+    "message": "링크 설정을 저장하지 못했습니다. 이전 설정은 유지되었습니다. 다시 시도하세요."
+  },
+  "gameLinks_actionFailed": {
+    "message": "링크 작업에 실패했습니다. 다시 시도하세요."
+  },
+  "gameLinks_retry": {
+    "message": "다시 불러오기"
+  },
+  "gameLinks_preset_baidu": {
+    "message": "바이두 검색"
+  },
+  "gameLinks_preset_steam_guides": {
+    "message": "Steam 가이드"
+  },
+  "gameLinks_preset_itad": {
+    "message": "IsThereAnyDeal"
+  },
+  "gameLinks_preset_steamdb": {
+    "message": "SteamDB"
+  },
+  "gameLinks_preset_pcgamingwiki": {
+    "message": "PCGamingWiki"
+  },
+  "gameLinks_preset_bilibili": {
+    "message": "Bilibili"
+  },
+  "gameLinks_preset_protondb": {
+    "message": "ProtonDB"
+  },
+  "gameLinks_preset_youtube": {
+    "message": "YouTube"
+  },
+  "settings_feature_game_links_name": {
+    "message": "관련 링크"
+  },
+  "settings_feature_game_links_desc": {
+    "message": "상점 사이드바에 게임 자료, 리뷰 및 검색 링크를 표시하고 사용자 URL 템플릿을 지원합니다."
+  },
+  "gameLinks_typeLabel": {
+    "message": "유형"
+  },
+  "gameLinks_scopeLabel": {
+    "message": "표시 범위"
+  },
+  "gameLinks_type_web": {
+    "message": "웹페이지"
+  },
+  "gameLinks_type_qrcode": {
+    "message": "QR 코드"
+  },
+  "gameLinks_scope_all": {
+    "message": "전체"
+  },
+  "gameLinks_scope_store": {
+    "message": "웹 상점"
+  },
+  "gameLinks_scope_library": {
+    "message": "클라이언트 라이브러리"
+  },
+  "gameLinks_editTitle": {
+    "message": "링크 편집"
+  },
+  "gameLinks_builtinPreview": {
+    "message": "미리 보기: 기본 주소 사용"
+  },
+  "gameLinks_builtinUrlPlaceholder": {
+    "message": "비워 두면 기본 주소 사용"
+  },
+  "gameLinks_qrImage": {
+    "message": "링크 QR 코드"
+  },
+  "gameLinks_qrHint": {
+    "message": "휴대폰으로 스캔하여 열기"
+  },
+  "gameLinks_qrFailed": {
+    "message": "QR 코드를 생성할 수 없습니다."
+  },
+  "settings_feature_steam_game_links_name": {
+    "message": "관련 링크"
+  },
+  "settings_feature_steam_game_links_desc": {
+    "message": "Steam 라이브러리 게임 상세 페이지의 플레이어 통계 아래에 각 링크의 표시 범위에 맞는 관련 링크를 표시합니다."
+  },
+  "gameLinks_dragLabel": {
+    "message": "$name$을(를) 드래그하거나 위아래 화살표 키로 순서 변경",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_enableItem": {
+    "message": "$name$ 사용",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_disableItem": {
+    "message": "$name$ 사용 안 함",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_editItem": {
+    "message": "$name$ 편집",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_deleteItem": {
+    "message": "$name$ 삭제",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_customNameHint": {
+    "message": "사용자 게임 이름, 없으면 Steam 게임 이름 사용"
+  },
+  "gameLinks_previewPrefix": {
+    "message": "미리 보기: "
   }
 }

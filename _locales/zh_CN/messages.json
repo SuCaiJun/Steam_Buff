@@ -5674,12 +5674,6 @@
   "store_priceHistory_unknownDate": {
     "message": "未知日期"
   },
-  "store_priceHistory_viewDetails": {
-    "message": "查看详情"
-  },
-  "store_priceHistory_viewDetailsPrefix": {
-    "message": "在"
-  },
   "store_cartCheckout_restoreButton": {
     "message": "恢复暂存购物车数据"
   },
@@ -6583,5 +6577,189 @@
   },
   "steam_independentName_transfer_wrongFile": {
     "message": "请选择对应格式的文件。"
+  },
+  "gameLinks_title": {
+    "message": "相关链接"
+  },
+  "gameLinks_linkUnavailable": {
+    "message": "当前游戏缺少链接所需的数据"
+  },
+  "gameLinks_loadingConfig": {
+    "message": "正在加载链接设置"
+  },
+  "gameLinks_configFailed": {
+    "message": "链接设置读取失败，请重试读取。原配置尚未覆盖。"
+  },
+  "gameLinks_reset": {
+    "message": "恢复默认"
+  },
+  "gameLinks_layout": {
+    "message": "排版"
+  },
+  "gameLinks_columns_1": {
+    "message": "1行1个"
+  },
+  "gameLinks_columns_2": {
+    "message": "1行2个"
+  },
+  "gameLinks_name": {
+    "message": "链接名称"
+  },
+  "gameLinks_template": {
+    "message": "网址"
+  },
+  "gameLinks_tokensHint": {
+    "message": "{APPID} 替换为游戏 APPID；{GAME_NAME} 替换为 Steam 游戏名称；{CUSTOM_NAME} 替换为自定义游戏名称，没有时使用 Steam 游戏名称；"
+  },
+  "gameLinks_add": {
+    "message": "添加链接"
+  },
+  "gameLinks_saveEdit": {
+    "message": "保存修改"
+  },
+  "gameLinks_nameRequired": {
+    "message": "请填写链接名称"
+  },
+  "gameLinks_urlRequired": {
+    "message": "请填写网址"
+  },
+  "gameLinks_tokenUnknown": {
+    "message": "仅支持 {APPID}、{GAME_NAME} 和 {CUSTOM_NAME} 占位符，请检查花括号。"
+  },
+  "gameLinks_tokenLocation": {
+    "message": "占位符不能用于协议、域名或登录信息。"
+  },
+  "gameLinks_invalidUrl": {
+    "message": "请填写有效的 HTTP/HTTPS 地址，且不要包含登录信息。"
+  },
+  "gameLinks_saveFailed": {
+    "message": "链接设置保存失败，已保留原配置，请重试。"
+  },
+  "gameLinks_actionFailed": {
+    "message": "链接操作失败，请重试。"
+  },
+  "gameLinks_retry": {
+    "message": "重试读取"
+  },
+  "gameLinks_preset_baidu": {
+    "message": "百度搜索"
+  },
+  "gameLinks_preset_steam_guides": {
+    "message": "Steam 社区指南"
+  },
+  "gameLinks_preset_itad": {
+    "message": "IsThereAnyDeal"
+  },
+  "gameLinks_preset_steamdb": {
+    "message": "SteamDB"
+  },
+  "gameLinks_preset_pcgamingwiki": {
+    "message": "PCGamingWiki"
+  },
+  "gameLinks_preset_bilibili": {
+    "message": "Bilibili"
+  },
+  "gameLinks_preset_protondb": {
+    "message": "ProtonDB"
+  },
+  "gameLinks_preset_youtube": {
+    "message": "YouTube"
+  },
+  "settings_feature_game_links_name": {
+    "message": "相关链接"
+  },
+  "settings_feature_game_links_desc": {
+    "message": "在商店详情右侧显示游戏资料、评分和搜索入口，支持自定义 URL 模板。"
+  },
+  "gameLinks_typeLabel": {
+    "message": "类型"
+  },
+  "gameLinks_scopeLabel": {
+    "message": "显示范围"
+  },
+  "gameLinks_type_web": {
+    "message": "网页"
+  },
+  "gameLinks_type_qrcode": {
+    "message": "二维码"
+  },
+  "gameLinks_scope_all": {
+    "message": "全部"
+  },
+  "gameLinks_scope_store": {
+    "message": "网页商店"
+  },
+  "gameLinks_scope_library": {
+    "message": "客户端库"
+  },
+  "gameLinks_editTitle": {
+    "message": "编辑链接"
+  },
+  "gameLinks_builtinPreview": {
+    "message": "预览：使用内置地址"
+  },
+  "gameLinks_builtinUrlPlaceholder": {
+    "message": "留空使用内置地址"
+  },
+  "gameLinks_qrImage": {
+    "message": "链接二维码"
+  },
+  "gameLinks_qrHint": {
+    "message": "使用手机扫码打开"
+  },
+  "gameLinks_qrFailed": {
+    "message": "二维码暂时无法生成。"
+  },
+  "settings_feature_steam_game_links_name": {
+    "message": "相关链接"
+  },
+  "settings_feature_steam_game_links_desc": {
+    "message": "在 Steam 库游戏详情页玩家统计下方显示相关链接，按每项显示范围筛选。"
+  },
+  "gameLinks_dragLabel": {
+    "message": "拖拽 $name$ 排序，也可使用上下方向键",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_enableItem": {
+    "message": "启用 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_disableItem": {
+    "message": "停用 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_editItem": {
+    "message": "编辑 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_deleteItem": {
+    "message": "删除 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_customNameHint": {
+    "message": "自定义游戏名称；没有时使用 Steam 游戏名称"
+  },
+  "gameLinks_previewPrefix": {
+    "message": "预览："
   }
 }

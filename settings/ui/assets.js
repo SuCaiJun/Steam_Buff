@@ -20,6 +20,7 @@
     "price-forecast": "images/features/price-forecast.svg",
     "wishlist-price-history": "images/features/wishlist-price-history.svg",
     "data-display-enhancements": "images/features/data-display-enhancements.svg",
+    "game-links": "images/features/game-links.svg",
     "search-suggestions": "images/features/search-suggestions.svg",
     "library-sort-title": "images/features/store-title-custom-name.svg",
     "library-group-labels": "images/features/library-group-labels.svg",
@@ -28,6 +29,14 @@
     "review-filter": "images/features/review-filter.svg",
     "translate": "images/ui/settings-translate.svg",
     "ai": "images/features/ai.svg",
+  });
+
+  const GAME_LINK_ICONS = Object.freeze({
+    drag: "images/ui/game-link-drag.svg",
+    enabled: "images/ui/game-link-enabled.svg",
+    disabled: "images/ui/game-link-disabled.svg",
+    edit: "images/ui/game-link-edit.svg",
+    delete: "images/ui/game-link-delete.svg",
   });
 
   function runtimeUrl(path) {
@@ -58,6 +67,11 @@
     },
     drawerIcon() {
       return runtimeUrl("images/ui/chevron-right.svg");
+    },
+    gameLinkIcon(type) {
+      const file = GAME_LINK_ICONS[type];
+      if (!file) throw new Error(`缺少相关链接操作图标：${type}`);
+      return runtimeUrl(file);
     },
     featureIcon(id) {
       const key = String(id || "");

@@ -161,37 +161,12 @@
     return span;
   }
 
-  function appendLink(parent, text, url) {
-    const link = document.createElement("a");
-    externalNavigation.applyToLink(link, safeUrl(url));
-    if (typeof applyStyles === "function") {
-      applyStyles(link, {
-        color: colors.steamBlue,
-        textDecoration: "underline",
-      });
-    }
-    link.textContent = String(text ?? "");
-    parent.appendChild(link);
-    return link;
-  }
-
   function setMessage(node, first, second = "") {
     clearNode(node);
     appendText(node, first);
     if (second) {
       appendBreak(node);
       appendText(node, second);
-    }
-  }
-
-  function safeUrl(value, fallback = "#") {
-    const raw = String(value || "").trim();
-    if (!raw || raw === "#") return fallback;
-    try {
-      const url = new URL(raw, location.origin);
-      return url.protocol === "http:" || url.protocol === "https:" ? url.href : fallback;
-    } catch {
-      return fallback;
     }
   }
 
@@ -1673,11 +1648,6 @@
       appendBreak(node);
       mountMonitorLine(node, context);
     }
-    appendBreak(node);
-    appendBreak(node);
-    appendText(node, t("store_priceHistory_viewDetailsPrefix", "在"));
-    appendLink(node, summary.source?.name || PROVIDER_LABEL, current.url || low.url || summary.source?.url);
-    appendText(node, t("store_priceHistory_viewDetails", "查看详情"));
     return context;
   }
 

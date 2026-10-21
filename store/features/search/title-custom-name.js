@@ -58,6 +58,8 @@
   let lastDetailTargetMissing = false;
   let lastWishlistTargetMissing = false;
   const nameCache = new Map();
+  const nameListeners = new Set();
+  let publishedName = '';
   const namePending = new Set();
 
   /* 授权与接口请求 */
@@ -213,6 +215,23 @@
     return host;
   }
 
+  /** 只读取当前已加载的选定名称，不查询网络；无名称时返回空字符串。 */
+  function currentName(appid) {
+    const id = Number(appid);
+    const item = state?.appid === id ? state.item : nameCache.get(id);
+    return item?.name_source === 'none' ? '' : text(item?.name);
+  }
+
+  function publishName(appid) {
+    const name = currentName(appid), signature = JSON.stringify([appid, name]);
+    if (signature === publishedName) return;
+    publishedName = signature;
+    for (const listener of nameListeners) {
+      try { listener({ appId: appid }); }
+      catch (error) { log.error('title-name-subscriber-failed', '通知当前游戏名称变化失败', { appid, error }); }
+    }
+  }
+
   function renderTitle() {
     const title = titleEl();
     if (!title || !state) {
@@ -235,6 +254,7 @@
     const host = ensureHost(title);
     const steamTitle = state.steamTitle || text(title.childNodes[0] || title);
     renderNameHost(host, state.appid, decorateName(state.item, steamTitle), steamTitle, "detail", state.loading === true);
+    publishName(state.appid);
     return true;
   }
 
@@ -1176,6 +1196,7 @@
   }
 
   function stop() {
+    const previousAppId = state?.appid;
     refreshSeq += 1;
     detailRefresh = null;
     started = false;
@@ -1189,6 +1210,7 @@
     detailSettleChecks = 0;
     state = null;
     nameCache.clear();
+    if (previousAppId) publishName(previousAppId);
     namePending.clear();
     const host = document.getElementById(HOST_ID);
     if (host) { api.dom.loading.clear(host); host.remove(); }
@@ -1215,6 +1237,13 @@
     stop,
     openEditor: openModal,
     shouldShowName,
+    currentName,
+    /** 订阅已选名称的真实变化，返回释放句柄；不向订阅者传递名称记录。 */
+    subscribeNames(listener) {
+      if (typeof listener !== 'function') throw new TypeError('名称订阅者必须是函数');
+      nameListeners.add(listener);
+      return { dispose: () => nameListeners.delete(listener) };
+    },
   });
 })(typeof globalThis !== "undefined" ? globalThis : window, () => {
   "use strict";

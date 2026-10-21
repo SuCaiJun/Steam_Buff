@@ -36,6 +36,7 @@
   importScripts(chrome.runtime.getURL("vendor/fflate/fflate.js"));
   importScripts(chrome.runtime.getURL("ai/config.js"));
   importScripts(chrome.runtime.getURL("shared/price-comparison-catalog.js"));
+  importScripts(chrome.runtime.getURL("shared/game-links.js"));
   importScripts(chrome.runtime.getURL("settings/catalog.js"));
   importScripts(chrome.runtime.getURL("settings/membership.js"));
   importScripts(chrome.runtime.getURL("settings/storage.js"));
@@ -146,6 +147,7 @@
     "shared/auth-client.js",
     "shared/account-profile.js",
     "shared/price-comparison-catalog.js",
+    "shared/game-links.js",
     "settings/catalog.js",
     "settings/membership.js",
     "settings/storage.js",
@@ -214,6 +216,7 @@
     "settings/panels/translate.js",
     "settings/panels/third-party-services.js",
     "settings/panels/store-price-chart.js",
+    "settings/panels/game-links.js",
     "settings/menu/dependencies.js",
     "settings/menu/panels.js",
     "settings/menu/shell.js",
@@ -260,6 +263,7 @@
     "shared/i18n.js",
     "shared/auth-session.js",
     "shared/auth-client.js",
+    "shared/game-links.js",
     "settings/catalog.js",
     "settings/membership.js",
     "settings/storage.js",
@@ -280,6 +284,10 @@
       "store/api/exchange-rates.js",
       "store/api/providers/isthereanydeal.js",
       "store/api/third-party-data.js",
+      "shared/utils/game-links-ui.js",
+      "vendor/qrcode-generator/qrcode-generator.js",
+      "extension/runtime/qrcode.js",
+      "store/features/game-links/feature.js",
       "store/features/data-display/forecast-pack.js",
       "vendor/markdown-it/markdown-it.min.js",
       "vendor/dompurify/purify.min.js",
@@ -388,7 +396,7 @@
     "store/runtime/settings-gate.js": ["settings/storage.js", "settings/membership.js", "shared/logger-factory.js"],
     "store/runtime/url-watch.js": ["store/runtime/feature-registry.js", "shared/logger-factory.js"],
     "store/runtime/purchase-recover.js": ["store/runtime/dom.js", "shared/logger-factory.js"],
-    "settings/catalog.js": ["shared/price-comparison-catalog.js"],
+    "settings/catalog.js": ["shared/price-comparison-catalog.js", "shared/game-links.js"],
     "settings/membership.js": ["shared/logger-factory.js"],
     "settings/storage.js": ["settings/catalog.js", "settings/membership.js", "shared/logger-factory.js", "shared/i18n.js", "shared/settings-bus.js"],
     "settings/ui/styles.js": ["shared/styles/components.js"],
@@ -396,6 +404,8 @@
     "settings/ui/toast.js": ["shared/logger-factory.js"],
     "store/api/request.js": ["store/runtime/cache.js", "shared/config.js", "shared/runtime/message-bus.js", "shared/logger-factory.js"],
     "store/features/player-stats/feature.js": ["shared/utils/player-stats.js", "shared/utils/player-stats-ui.js"],
+    "store/features/game-links/feature.js": ["shared/game-links.js", "shared/utils/game-links-ui.js", "extension/runtime/qrcode.js", "store/runtime/styles.js"],
+    "extension/runtime/qrcode.js": ["vendor/qrcode-generator/qrcode-generator.js"],
     "store/features/data-display/view.js": ["store/features/data-display/charts.js", "store/features/data-display/forecast-pack.js", "store/features/data-display/ai-forecast.js"],
     "store/features/data-display/feature.js": ["store/features/data-display/view.js"],
     "store/features/reminders/subscription-info.js": ["store/api/subscription-info.js"],
@@ -406,7 +416,7 @@
     "store/main.js": ["store/features/features.js"],
   });
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v37";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v46";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_RUNTIME_READY_WAIT_MS = 6000;
@@ -2962,6 +2972,10 @@
     switch (bundle) {
       case "steam-content-deps":
         return isSteamRuntimeSender(sender) ? { files: STEAM_CONTENT_SHARED_SCRIPTS } : null;
+      case "game-links-library":
+        return Number.isSafeInteger(request.meta?.appId) && request.meta.appId > 0 && isSteamLoopbackAppDetailsSender(sender, request.meta.appId, request.meta.route) ? { files: [
+          ...SETTINGS_SHARED_SCRIPTS,
+        ] } : null;
       case "settings-shared":
         return isSettingsSender(sender) ? { files: SETTINGS_SHARED_SCRIPTS } : null;
       case "settings-ui":
@@ -3019,7 +3033,7 @@
         await execScript({
           target,
           world: "ISOLATED",
-          files: [AI_CONFIG, "shared/price-comparison-catalog.js", "settings/catalog.js", "settings/storage.js"],
+          files: [AI_CONFIG, "shared/price-comparison-catalog.js", "shared/game-links.js", "settings/catalog.js", "settings/storage.js"],
         });
         sendResponse({ success: true });
         return;

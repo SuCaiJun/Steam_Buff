@@ -44,9 +44,6 @@
 
   // Steam 收藏分组只识别名称末尾连续的 ASCII 方括号
   const COLLECTION_TAG_SUFFIX_RE = /(?:\[([^\]\r\n]*)\]\s*)+$/;
-  // 这是自定义排序名称的既有显示规则，不改变 Steam 保存值
-  const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
-  const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Za-z0-9]+)\]\s*/g;
 
   const log = window.STLoggerFactory.createLogger("steam", ID);
 
@@ -203,13 +200,8 @@
     if (!app || typeof app !== "object") {
       return "";
     }
-    if (app[ORIG]) {
-      return clean(app[ORIG]);
-    }
-    const id = Number(app.appid) || 0;
-    if (id && names().has(id)) {
-      return names().get(id);
-    }
+    const cached = window.STSteamAppNames.cachedName(app);
+    if (cached) return cached;
     try {
       if (argument && typeof argument.display_name === "function") {
         const value = clean(argument.display_name());
@@ -223,16 +215,7 @@
   }
 
   function viewCustomName(value) {
-    const source = raw(value);
-    if (!source) {
-      return "";
-    }
-    const visible = source
-      .replace(MNEMONIC_TAG_RE, " ")
-      .replace(/\s{2,}/g, " ")
-      .replace(TAG_RE, "")
-      .trim();
-    return visible || source;
+    return window.STSteamAppNames.nativeName(value);
   }
 
   function independentActive(rt) {
@@ -1074,12 +1057,9 @@
       ensureGroupIndex(rt);
     }
     const official = officialName(app);
-    const customName = independentActive(rt)
-      ? mineNameOf(id, rt)
-      : (rt.customSortEnabled ? clean(app.custom_sort_as_display) : "");
-    const visibleCustomName = independentActive(rt)
-      ? customName
-      : (customName ? viewCustomName(customName) : "");
+    const { customName, visibleName: visibleCustomName } = window.STSteamAppNames.selectedName(app, {
+      nameMode: rt.nameMode, customSortEnabled: rt.customSortEnabled, mineName: mineNameOf(id, rt),
+    });
     const base = visibleCustomName || official;
     const labels = rt.groupTagsByApp.get(id) || [];
     const finalDisplayName = labelsActive(rt) ? appendLabels(base, labels) : base;

@@ -242,6 +242,7 @@
       translate: {},
       thirdPartyServices: {},
       storePriceChart: {},
+      gameLinks: root.STGameLinks.defaults(),
       ...(options.configs || {}),
     };
     const instances = {};
@@ -253,6 +254,7 @@
       translate: "translate",
       thirdPartyServices: "thirdPartyServices",
       storePriceChart: "storePriceChart",
+      gameLinks: "gameLinks",
     };
 
     function getConfig(name) {
@@ -403,7 +405,18 @@
       return instances.storePriceChart;
     }
 
+    function gameLinks() {
+      if (!instances.gameLinks) {
+        instances.gameLinks = root.STSettingsGameLinksPanel.create({
+          storage, config: getConfig("gameLinks"), esc, escAttr, fieldInput,
+          onConfigChange: next => setConfig("gameLinks", next),
+        });
+      }
+      return instances.gameLinks;
+    }
+
     return Object.freeze({
+      gameLinks,
       review,
       searchSuggestion,
       familyLibrary,

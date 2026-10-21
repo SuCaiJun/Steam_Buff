@@ -381,6 +381,7 @@
     "uiLocale",
     "familyLibrary",
     "storePriceChart",
+    "gameLinks",
     "searchSuggestions",
     "reviewFilter",
     "translate",
@@ -709,6 +710,15 @@
           ]),
         },
         {
+          id: "game-links",
+          name: "相关链接",
+          desc: "在商店详情右侧显示游戏资料、评分和搜索入口，支持自定义 URL 模板。",
+          area: "store",
+          enabled: true,
+          panel: "game-links",
+          deps: depAll(["store-enhancements"]),
+        },
+        {
           id: "store-title-custom-name",
           name: "游戏商店自定义名称",
           desc: "在 Steam 商店游戏标题旁显示用户自定义名称、社区名称或 AI 名称，并支持提交自己的名称。",
@@ -973,6 +983,13 @@
           area: "steam",
           enabled: true,
           deps: depAll(["translate"]),
+        },
+        {
+          id: "steam-game-links",
+          name: "相关链接",
+          desc: "在 Steam 库游戏详情页玩家统计下方显示相关链接，按每项显示范围筛选。",
+          area: "steam",
+          enabled: true,
         },
         {
           id: "steam-player-stats",
@@ -1296,6 +1313,9 @@
     if (name === "storePriceChart") {
       return storePriceChartDefaults();
     }
+    if (name === "gameLinks") {
+      return globalThis.STGameLinks.defaults();
+    }
     if (name === "searchSuggestions") {
       return searchSuggestionDefaults();
     }
@@ -1316,7 +1336,7 @@
 
   function isPanelStorageKey(name) {
     const key = String(name || "");
-    if (key === UI_LOCALE_KEY || key === "st.settings.storePriceChart") {
+    if (key === UI_LOCALE_KEY || key === "st.settings.storePriceChart" || key === "st.settings.gameLinks") {
       return true;
     }
     if (!key.startsWith("st.settings.") || key.startsWith("st.settings.cloud.") || key.startsWith("st.settings.rail.")) {

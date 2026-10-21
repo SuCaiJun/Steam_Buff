@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v37";
+  const RUN_VERSION = "steam-buff-runtime-v46";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -104,6 +104,7 @@
   const NAME_RES_ATTR = "data-steam-buff-name-response";
   const PLAYER_STATS_ID = "player-stats";
   const STEAM_PLAYER_STATS_ID = "steam-player-stats";
+  const STEAM_GAME_LINKS_ID = "steam-game-links";
   const THIRD_PARTY_SERVICES_ID = "third-party-services";
   const PLAYER_STATS_REQ_ATTRS = Object.freeze({
     gmcharts: "data-steam-buff-player-stats-request-gmcharts",
@@ -149,6 +150,7 @@
     "download-auto-shutdown": true,
     [NEWS_TRANSLATE_ID]: true,
     [STEAM_PLAYER_STATS_ID]: true,
+    [STEAM_GAME_LINKS_ID]: true,
     [THIRD_PARTY_SERVICES_ID]: false,
     [NAME_MODE_ID]: CFG.libraryNameMode.values.STEAM_SORT,
   });
@@ -162,6 +164,7 @@
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
     STEAM_PLAYER_STATS_ID,
+    STEAM_GAME_LINKS_ID,
     THIRD_PARTY_SERVICES_ID,
     NAME_MODE_ID,
   ]);
@@ -174,6 +177,7 @@
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
     PLAYER_STATS_ID,
+    "game-links",
   ]);
   const STEAM_FEATURE_SETTING_IDS = Object.freeze({
     [SORT_TITLE_ID]: SORT_TITLE_ID,
@@ -183,6 +187,7 @@
     "download-auto-shutdown": "download-auto-shutdown",
     [NEWS_TRANSLATE_ID]: NEWS_TRANSLATE_ID,
     [PLAYER_STATS_ID]: STEAM_PLAYER_STATS_ID,
+    "game-links": STEAM_GAME_LINKS_ID,
   });
   const SEEN_NAME_MAX = 200;
   const BOOT_MS = 250;
@@ -1847,7 +1852,7 @@
   // 新增的玩家统计设置只更新对应功能，不触发无关的云名称同步
   function steamSettingsNeedNameSync(keys) {
     return keys.includes(MEMBERSHIP_KEY) || STEAM_SETTING_IDS.some(id =>
-      id !== STEAM_PLAYER_STATS_ID && id !== THIRD_PARTY_SERVICES_ID && keys.includes(settingKey(id)));
+      id !== STEAM_PLAYER_STATS_ID && id !== STEAM_GAME_LINKS_ID && id !== THIRD_PARTY_SERVICES_ID && keys.includes(settingKey(id)));
   }
 
   function disabledSteamFeatureIds(prev = {}, next = {}) {
@@ -1897,6 +1902,7 @@
     if (prev[STEAM_PLAYER_STATS_ID] !== true && next[STEAM_PLAYER_STATS_ID] === true) {
       out.push(PLAYER_STATS_ID);
     }
+    if (prev[STEAM_GAME_LINKS_ID] !== true && next[STEAM_GAME_LINKS_ID] === true) out.push("game-links");
     return out;
   }
 
@@ -1964,6 +1970,42 @@
   function isSteamPlayerStatsBridgeTarget() {
     const ctx = globalThis.STPageContext?.snapshot?.() || {};
     return ctx.domain === "steam" && (ctx.title === "Steam" || ctx.steam?.aboutMain === true);
+  }
+
+  let gameLinksDataLoad = null, gameLinksWatching = false;
+  function watchGameLinks() {
+    if (gameLinksWatching || !isSteamPlayerStatsBridgeTarget()) return;
+    gameLinksWatching = true;
+    const protocol = CFG.gameLinks;
+    function post(data) { window.postMessage({ source: protocol.bridge, side: "content", ...data }, "*"); }
+    async function dataReady(appId, route) {
+      if (!gameLinksDataLoad) gameLinksDataLoad = globalThis.STMessageBus.request({
+        type: "CONTENT_FILES_INJECT", bundle: "game-links-library", meta: { appId, route },
+      }, { timeoutMs: 12000, expectSuccess: true, logFailures: false }).catch(error => { gameLinksDataLoad = null; throw error; });
+      await gameLinksDataLoad;
+    }
+    async function handle(data) {
+      try {
+        if (!await enabled(STEAM_GAME_LINKS_ID)) { post({ action: data.action, rid: data.rid, appId: data.appId, success: false, reported: true }); return; }
+        await dataReady(data.appId, data.route);
+        const value = await globalThis.STSettings.storage.getGameLinks();
+        post({ action: data.action, rid: data.rid, appId: data.appId, success: true, value });
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "game-links", event: "library-data-failed", message: "读取库相关链接数据失败", level: "error" });
+        post({ action: data.action, rid: data.rid, appId: data.appId, success: false, reported: true });
+      }
+    }
+    window.addEventListener("message", event => {
+      const data = event.data;
+      if (event.source !== window || data?.source !== protocol.bridge || data.side !== "page"
+          || data.action !== "config" || typeof data.rid !== "string"
+          || !Number.isSafeInteger(data.appId) || data.appId <= 0 || data.route !== `/library/app/${data.appId}`) return;
+      void handle(data);
+    });
+    globalThis.STSettingsBus.subscribe(event => {
+      const changedKeys = event.changedKeys.filter(key => key === protocol.key);
+      if (changedKeys.length) post({ action: "changed", changedKeys });
+    }, { owner: "extension:game-links", key: "library-config", keys: [protocol.key] });
   }
 
   function watchPlayerStatsReq() {
@@ -2795,6 +2837,7 @@
     watchNameReq();
     watchUserNamesReq();
     watchPlayerStatsReq();
+    watchGameLinks();
 
     if (!gd.lock()) {
       if (pageRuntimeReady()) {
@@ -2840,6 +2883,7 @@
           "shared/logger-schema.js",
           "extension/runtime/logger.js",
           "shared/logger-factory.js",
+          "shared/client-environment.js",
           "shared/config.js",
           "shared/error-boundary.js",
           "shared/i18n.js",
@@ -2855,6 +2899,11 @@
           "shared/dialog-lifecycle.js",
           "shared/utils/player-stats.js",
           "shared/utils/player-stats-ui.js",
+          "shared/game-links.js",
+          "shared/utils/game-links-ui.js",
+          "shared/utils/steam-app-names.js",
+          "vendor/qrcode-generator/qrcode-generator.js",
+          "extension/runtime/qrcode.js",
           "shared/page-context.js",
           "shared/runtime/kernel.js",
           "shared/runtime/surface-manager.js",
@@ -2862,6 +2911,7 @@
           "steam/runtime/paths.js",
           "steam/runtime/steam-context.js",
           "steam/runtime/context-router.js",
+          "steam/shared/library-detail-cards.js",
           "steam/runtime/surface-hosts.js",
           "steam/runtime/styles.js",
           "steam/runtime/download-toolbar.js",

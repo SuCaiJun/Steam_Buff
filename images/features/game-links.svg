@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+  <!--
+   * @Author        : Ricky
+   * @Url           : sucaijun.com
+   * @Email         : Ricky@LiHai.La
+   * @Project       : Steam Buff
+   * @Description   : 相关链接设置入口图标
+   * @File          : 相关链接图标
+   * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+   * @Remind        : 二次开发请保留原版权信息，谢谢。
+  -->
+  <path d="M14 2v2h4.59L9.3 13.3l1.4 1.4L20 5.41V10h2V2h-8ZM5 2a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-5h-2v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5V2H5Z"/>
+</svg>

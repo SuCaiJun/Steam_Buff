@@ -157,6 +157,11 @@
     moduleFeature("player-stats", "playerStats", ["store-app"], {
       start(api, context) { return api.features.playerStats.start(context.info.appId); },
     }),
+    moduleFeature("game-links", "gameLinks", ["store-app"], {
+      cost: "startup-light",
+      start(api, context) { return api.features.gameLinks.start(context.info.appId); },
+      mountState(api) { return api.features.gameLinks.mountState(); },
+    }),
     moduleFeature("dlc-tools", "dlc", ["store-app"], {
       prepare(api) { api.features.dlc.styles(); },
       start: startDlc,

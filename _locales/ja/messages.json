@@ -5674,12 +5674,6 @@
   "store_priceHistory_unknownDate": {
     "message": "日付不明"
   },
-  "store_priceHistory_viewDetails": {
-    "message": " 詳細"
-  },
-  "store_priceHistory_viewDetailsPrefix": {
-    "message": "表示 "
-  },
   "store_cartCheckout_restoreButton": {
     "message": "保存したカートの商品を復元"
   },
@@ -6583,5 +6577,189 @@
   },
   "steam_independentName_transfer_wrongFile": {
     "message": "選択した形式のファイルを指定してください。"
+  },
+  "gameLinks_title": {
+    "message": "関連リンク"
+  },
+  "gameLinks_linkUnavailable": {
+    "message": "このゲームのリンクに必要なデータがありません"
+  },
+  "gameLinks_loadingConfig": {
+    "message": "リンク設定を読み込み中"
+  },
+  "gameLinks_configFailed": {
+    "message": "リンク設定を読み込めませんでした。再読み込みしてください。保存済みの設定は上書きされていません。"
+  },
+  "gameLinks_reset": {
+    "message": "初期設定に戻す"
+  },
+  "gameLinks_layout": {
+    "message": "レイアウト"
+  },
+  "gameLinks_columns_1": {
+    "message": "1行に1件"
+  },
+  "gameLinks_columns_2": {
+    "message": "1行に2件"
+  },
+  "gameLinks_name": {
+    "message": "リンク名"
+  },
+  "gameLinks_template": {
+    "message": "URL"
+  },
+  "gameLinks_tokensHint": {
+    "message": "{APPID}: ゲームの App ID；{GAME_NAME}: Steam のゲーム名；{CUSTOM_NAME}: カスタムゲーム名（未設定の場合は Steam のゲーム名）；"
+  },
+  "gameLinks_add": {
+    "message": "リンクを追加"
+  },
+  "gameLinks_saveEdit": {
+    "message": "変更を保存"
+  },
+  "gameLinks_nameRequired": {
+    "message": "リンク名を入力してください"
+  },
+  "gameLinks_urlRequired": {
+    "message": "URL を入力してください"
+  },
+  "gameLinks_tokenUnknown": {
+    "message": "{APPID}、{GAME_NAME}、{CUSTOM_NAME} のみ使用できます。中括弧を確認してください。"
+  },
+  "gameLinks_tokenLocation": {
+    "message": "スキーム、ホスト名、認証情報には使用できません。"
+  },
+  "gameLinks_invalidUrl": {
+    "message": "認証情報を含まない有効な HTTP/HTTPS URL を入力してください。"
+  },
+  "gameLinks_saveFailed": {
+    "message": "保存できませんでした。元の設定は保持されています。もう一度お試しください。"
+  },
+  "gameLinks_actionFailed": {
+    "message": "操作に失敗しました。もう一度お試しください。"
+  },
+  "gameLinks_retry": {
+    "message": "再読み込み"
+  },
+  "gameLinks_preset_baidu": {
+    "message": "百度検索"
+  },
+  "gameLinks_preset_steam_guides": {
+    "message": "Steam ガイド"
+  },
+  "gameLinks_preset_itad": {
+    "message": "IsThereAnyDeal"
+  },
+  "gameLinks_preset_steamdb": {
+    "message": "SteamDB"
+  },
+  "gameLinks_preset_pcgamingwiki": {
+    "message": "PCGamingWiki"
+  },
+  "gameLinks_preset_bilibili": {
+    "message": "Bilibili"
+  },
+  "gameLinks_preset_protondb": {
+    "message": "ProtonDB"
+  },
+  "gameLinks_preset_youtube": {
+    "message": "YouTube"
+  },
+  "settings_feature_game_links_name": {
+    "message": "関連リンク"
+  },
+  "settings_feature_game_links_desc": {
+    "message": "ストアのサイドバーにゲーム情報、レビュー、検索リンクを表示します。カスタム URL テンプレートに対応。"
+  },
+  "gameLinks_typeLabel": {
+    "message": "種類"
+  },
+  "gameLinks_scopeLabel": {
+    "message": "表示範囲"
+  },
+  "gameLinks_type_web": {
+    "message": "ウェブページ"
+  },
+  "gameLinks_type_qrcode": {
+    "message": "QRコード"
+  },
+  "gameLinks_scope_all": {
+    "message": "すべて"
+  },
+  "gameLinks_scope_store": {
+    "message": "ウェブストア"
+  },
+  "gameLinks_scope_library": {
+    "message": "クライアントのライブラリ"
+  },
+  "gameLinks_editTitle": {
+    "message": "リンクを編集"
+  },
+  "gameLinks_builtinPreview": {
+    "message": "プレビュー：標準URLを使用"
+  },
+  "gameLinks_builtinUrlPlaceholder": {
+    "message": "空欄の場合は標準URLを使用"
+  },
+  "gameLinks_qrImage": {
+    "message": "リンクのQRコード"
+  },
+  "gameLinks_qrHint": {
+    "message": "スマートフォンで読み取って開く"
+  },
+  "gameLinks_qrFailed": {
+    "message": "QRコードを生成できませんでした。"
+  },
+  "settings_feature_steam_game_links_name": {
+    "message": "関連リンク"
+  },
+  "settings_feature_steam_game_links_desc": {
+    "message": "Steamライブラリのゲーム詳細にあるプレイヤー統計の下に、各リンクの表示範囲に応じた関連リンクを表示します。"
+  },
+  "gameLinks_dragLabel": {
+    "message": "$name$ をドラッグするか上下矢印キーで並べ替え",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_enableItem": {
+    "message": "$name$ を有効にする",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_disableItem": {
+    "message": "$name$ を無効にする",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_editItem": {
+    "message": "$name$ を編集",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_deleteItem": {
+    "message": "$name$ を削除",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_customNameHint": {
+    "message": "カスタムゲーム名。未設定の場合は Steam の名前を使用"
+  },
+  "gameLinks_previewPrefix": {
+    "message": "プレビュー："
   }
 }

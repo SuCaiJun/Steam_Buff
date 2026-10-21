@@ -28,6 +28,7 @@
   const AI_PREFIX = `${PREFIX}ai.`;
   const THIRD_PARTY_SERVICES_PREFIX = `${PREFIX}thirdPartyServices.`;
   const STORE_PRICE_CHART_KEY = `${PREFIX}storePriceChart`;
+  const GAME_LINKS_KEY = "st.settings.gameLinks";
   const UI_LOCALE_KEY = globalThis.STI18n?.STORAGE_KEY || api.catalog?.UI_LOCALE_KEY || "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
@@ -1040,6 +1041,7 @@
       uiLocale,
       familyLibrary,
       storePriceChart,
+      gameLinks,
       searchSuggestions,
       reviewFilter,
       translate,
@@ -1050,6 +1052,7 @@
       getUiLocale(),
       getFamilyLibrary(),
       getStorePriceChart(),
+      getGameLinks(),
       getSearchSuggestions(),
       getReviewFilter(),
       getTranslate(),
@@ -1061,6 +1064,7 @@
       uiLocale,
       familyLibrary,
       storePriceChart,
+      gameLinks,
       searchSuggestions,
       reviewFilter,
       translate,
@@ -1074,6 +1078,7 @@
       setAll(sections.features || {}, diagnostics),
       setUiLocale(sections.uiLocale, diagnostics),
       setFamilyLibrary(sections.familyLibrary || {}, diagnostics),
+      setGameLinks(sections.gameLinks, diagnostics),
       setSearchSuggestions(sections.searchSuggestions || {}, diagnostics),
       setReviewFilter(sections.reviewFilter || {}, diagnostics),
       setTranslate(sections.translate || {}, diagnostics),
@@ -1085,6 +1090,18 @@
     ];
     const out = await Promise.all(jobs);
     return out.every(value => value !== false);
+  }
+
+  /** 相关链接采用严格配置契约，读取异常交由页面或备份入口提示，不静默覆盖已有配置。 */
+  async function getGameLinks() {
+    const rt = await get([GAME_LINKS_KEY], { strict: true });
+    return globalThis.STGameLinks.normalize(rt[GAME_LINKS_KEY]);
+  }
+
+  async function setGameLinks(values, diagnostics = {}) {
+    const next = globalThis.STGameLinks.normalize(values);
+    const ok = await put({ [GAME_LINKS_KEY]: next }, diagnostics);
+    return ok ? next : false;
   }
 
   api.storage = Object.freeze({
@@ -1122,6 +1139,8 @@
     getStorePriceChart,
     setStorePriceChart,
     setStorePriceChartSettings,
+    getGameLinks,
+    setGameLinks,
     getRailPos,
     setRailPos,
     getPanelSettings,

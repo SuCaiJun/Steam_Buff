@@ -33,17 +33,8 @@
     return String(value ?? "").trim();
   }
 
-  function currentAppId() {
-    const route = String(api.ctx?.route?.() || "");
-    const match = route.match(/^\/library\/app\/(\d+)$/);
-    const appId = Number.parseInt(match?.[1] || "", 10);
-    return Number.isInteger(appId) && appId > 0 ? appId : 0;
-  }
-
-  // Steam 当前库详情 DOM 的右栏卡片槽位都直属于该列容器；不依赖可能缺失且会随语言变化的卡片标题。
-  function libraryColumnTarget() {
-    return document.querySelector("div._2aor4XVOYzN1PBSREk0UbO");
-  }
+  const currentAppId = api.libraryDetailCards.currentAppId;
+  const libraryColumnTarget = api.libraryDetailCards.target;
 
   function requestStats(payload) {
     const root = document.documentElement;
@@ -100,45 +91,18 @@
     logger: window.STLoggerFactory?.createLogger?.("steam", ID),
   });
 
-  let routeSubscription = null;
-  let mountFrame = 0;
-
-  function mountForCurrentRoute() {
-    const appId = currentAppId();
-    const target = appId ? libraryColumnTarget() : null;
-    if (!appId || !target) {
-      controller.stop();
-      return;
-    }
-    controller.start(appId, target);
-  }
-
-  function scheduleMount() {
-    if (mountFrame) return;
-    mountFrame = window.requestAnimationFrame(() => {
-      mountFrame = 0;
-      mountForCurrentRoute();
-    });
-  }
+  let mount = null;
 
   function stop() {
-    if (mountFrame) {
-      window.cancelAnimationFrame(mountFrame);
-      mountFrame = 0;
-    }
-    routeSubscription?.dispose?.();
-    routeSubscription = null;
-    controller.stop();
+    mount?.dispose();
+    mount = null;
   }
 
   api.reg.addEntry(ID, "ui.js", () => {
     if (api.ctx?.isMainUi?.() !== true) {
       return { started: false, reason: "not-main-ui" };
     }
-    if (!routeSubscription) {
-      routeSubscription = api.contextRouter?.subscribe?.(scheduleMount) || null;
-    }
-    scheduleMount();
+    if (!mount) mount = api.libraryDetailCards.register(ID, controller);
     return { started: true, stop };
   });
 })();

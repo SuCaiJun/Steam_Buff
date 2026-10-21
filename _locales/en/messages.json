@@ -5674,12 +5674,6 @@
   "store_priceHistory_unknownDate": {
     "message": "Unknown date"
   },
-  "store_priceHistory_viewDetails": {
-    "message": " for details"
-  },
-  "store_priceHistory_viewDetailsPrefix": {
-    "message": "View "
-  },
   "store_cartCheckout_restoreButton": {
     "message": "Restore saved cart items"
   },
@@ -6583,5 +6577,189 @@
   },
   "steam_independentName_transfer_wrongFile": {
     "message": "Choose a file in the selected format."
+  },
+  "gameLinks_title": {
+    "message": "Related links"
+  },
+  "gameLinks_linkUnavailable": {
+    "message": "Required link data is unavailable for this game"
+  },
+  "gameLinks_loadingConfig": {
+    "message": "Loading link settings"
+  },
+  "gameLinks_configFailed": {
+    "message": "Link settings could not be read. Retry to load them; the saved configuration has not been overwritten."
+  },
+  "gameLinks_reset": {
+    "message": "Restore defaults"
+  },
+  "gameLinks_layout": {
+    "message": "Layout"
+  },
+  "gameLinks_columns_1": {
+    "message": "1 per row"
+  },
+  "gameLinks_columns_2": {
+    "message": "2 per row"
+  },
+  "gameLinks_name": {
+    "message": "Link name"
+  },
+  "gameLinks_template": {
+    "message": "URL"
+  },
+  "gameLinks_tokensHint": {
+    "message": "{APPID}: game App ID; {GAME_NAME}: Steam game name; {CUSTOM_NAME}: custom game name, or the Steam game name if none is set;"
+  },
+  "gameLinks_add": {
+    "message": "Add link"
+  },
+  "gameLinks_saveEdit": {
+    "message": "Save changes"
+  },
+  "gameLinks_nameRequired": {
+    "message": "Enter a link name"
+  },
+  "gameLinks_urlRequired": {
+    "message": "Enter a URL"
+  },
+  "gameLinks_tokenUnknown": {
+    "message": "Only {APPID}, {GAME_NAME} and {CUSTOM_NAME} are supported. Check the braces."
+  },
+  "gameLinks_tokenLocation": {
+    "message": "Placeholders cannot be used in the scheme, host, or credentials."
+  },
+  "gameLinks_invalidUrl": {
+    "message": "Enter a valid HTTP/HTTPS URL without credentials."
+  },
+  "gameLinks_saveFailed": {
+    "message": "Could not save link settings. The previous configuration was kept. Try again."
+  },
+  "gameLinks_actionFailed": {
+    "message": "The link action failed. Try again."
+  },
+  "gameLinks_retry": {
+    "message": "Retry loading"
+  },
+  "gameLinks_preset_baidu": {
+    "message": "Baidu search"
+  },
+  "gameLinks_preset_steam_guides": {
+    "message": "Steam guides"
+  },
+  "gameLinks_preset_itad": {
+    "message": "IsThereAnyDeal"
+  },
+  "gameLinks_preset_steamdb": {
+    "message": "SteamDB"
+  },
+  "gameLinks_preset_pcgamingwiki": {
+    "message": "PCGamingWiki"
+  },
+  "gameLinks_preset_bilibili": {
+    "message": "Bilibili"
+  },
+  "gameLinks_preset_protondb": {
+    "message": "ProtonDB"
+  },
+  "gameLinks_preset_youtube": {
+    "message": "YouTube"
+  },
+  "settings_feature_game_links_name": {
+    "message": "Related links"
+  },
+  "settings_feature_game_links_desc": {
+    "message": "Show game resources, reviews, and search links in the store sidebar, with custom URL templates."
+  },
+  "gameLinks_typeLabel": {
+    "message": "Type"
+  },
+  "gameLinks_scopeLabel": {
+    "message": "Show in"
+  },
+  "gameLinks_type_web": {
+    "message": "Web page"
+  },
+  "gameLinks_type_qrcode": {
+    "message": "QR code"
+  },
+  "gameLinks_scope_all": {
+    "message": "Everywhere"
+  },
+  "gameLinks_scope_store": {
+    "message": "Web store"
+  },
+  "gameLinks_scope_library": {
+    "message": "Client library"
+  },
+  "gameLinks_editTitle": {
+    "message": "Edit link"
+  },
+  "gameLinks_builtinPreview": {
+    "message": "Preview: built-in address"
+  },
+  "gameLinks_builtinUrlPlaceholder": {
+    "message": "Leave blank to use the built-in address"
+  },
+  "gameLinks_qrImage": {
+    "message": "Link QR code"
+  },
+  "gameLinks_qrHint": {
+    "message": "Scan with your phone to open"
+  },
+  "gameLinks_qrFailed": {
+    "message": "The QR code could not be generated."
+  },
+  "settings_feature_steam_game_links_name": {
+    "message": "Related links"
+  },
+  "settings_feature_steam_game_links_desc": {
+    "message": "Show related links below player statistics on Steam library game details pages, filtered by each link’s visibility."
+  },
+  "gameLinks_dragLabel": {
+    "message": "Drag $name$ to reorder, or use the up and down arrow keys",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_enableItem": {
+    "message": "Enable $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_disableItem": {
+    "message": "Disable $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_editItem": {
+    "message": "Edit $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_deleteItem": {
+    "message": "Delete $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_customNameHint": {
+    "message": "Custom game name; uses the Steam name when unavailable"
+  },
+  "gameLinks_previewPrefix": {
+    "message": "Preview: "
   }
 }

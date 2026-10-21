@@ -520,6 +520,22 @@
     diagnosticUrlPolicy,
     origin,
     externalNavigation,
+    gameLinks: Object.freeze({
+      key: "st.settings.gameLinks",
+      bridge: "steam-buff-game-links",
+      nameChannel: "steam-buff-game-links-name",
+      icons: Object.freeze({ web: "images/ui/game-link-web.svg", qrcode: "images/ui/game-link-qrcode.svg" }),
+    }),
+    gameLinkTemplates: Object.freeze({
+      itad: "https://isthereanydeal.com/steam/app/{APPID}/",
+      steamdb: "https://steamdb.info/app/{APPID}/",
+      pcgamingwiki: "https://pcgamingwiki.com/api/appid.php?appid={APPID}",
+      bilibili: "https://search.bilibili.com/all?keyword={GAME_NAME}",
+      baidu: "https://www.baidu.com/s?wd={GAME_NAME}",
+      "steam-guides": "https://steamcommunity.com/app/{APPID}/guides/",
+      protondb: "https://www.protondb.com/app/{APPID}",
+      youtube: "https://www.youtube.com/results?search_query={GAME_NAME}",
+    }),
     libraryNameMode: Object.freeze({
       key: LIBRARY_NAME_MODE_KEY,
       values: LIBRARY_NAME_MODES,

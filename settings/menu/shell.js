@@ -176,6 +176,9 @@
     }
 
     function itemPanelHtml(cat, item) {
+      if (item?.panel === "game-links") {
+        return panels.gameLinks().html();
+      }
       if (item?.panel === "family-library") {
         return panels.familyLibrary().html(cat);
       }

@@ -357,7 +357,7 @@
     }
   }
 
-  function cacheKey(endpointKey, requestData) {
+  function cacheKey(endpointKey) {
     return `itad:${endpointKey}`;
   }
 
@@ -366,7 +366,7 @@
   }
 
   async function withCache(endpointKey, requestData, ttl, loader) {
-    const key = cacheKey(endpointKey, requestData);
+    const key = cacheKey(endpointKey);
     const cached = api.cache?.get?.(key, requestData);
     if (cached) {
       return {

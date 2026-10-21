@@ -5674,12 +5674,6 @@
   "store_priceHistory_unknownDate": {
     "message": "未知日期"
   },
-  "store_priceHistory_viewDetails": {
-    "message": "查看詳細資料"
-  },
-  "store_priceHistory_viewDetailsPrefix": {
-    "message": "在"
-  },
   "store_cartCheckout_restoreButton": {
     "message": "還原暫存購物車資料"
   },
@@ -6583,5 +6577,189 @@
   },
   "steam_independentName_transfer_wrongFile": {
     "message": "請選擇對應格式的檔案。"
+  },
+  "gameLinks_title": {
+    "message": "相關連結"
+  },
+  "gameLinks_linkUnavailable": {
+    "message": "目前遊戲缺少連結所需的資料"
+  },
+  "gameLinks_loadingConfig": {
+    "message": "正在載入連結設定"
+  },
+  "gameLinks_configFailed": {
+    "message": "連結設定讀取失敗，請重試讀取。原設定尚未覆寫。"
+  },
+  "gameLinks_reset": {
+    "message": "恢復預設"
+  },
+  "gameLinks_layout": {
+    "message": "排版"
+  },
+  "gameLinks_columns_1": {
+    "message": "1行1個"
+  },
+  "gameLinks_columns_2": {
+    "message": "1行2個"
+  },
+  "gameLinks_name": {
+    "message": "連結名稱"
+  },
+  "gameLinks_template": {
+    "message": "網址"
+  },
+  "gameLinks_tokensHint": {
+    "message": "{APPID} 替換為遊戲 APPID；{GAME_NAME} 替換為 Steam 遊戲名稱；{CUSTOM_NAME} 替換為自訂遊戲名稱，沒有時使用 Steam 遊戲名稱；"
+  },
+  "gameLinks_add": {
+    "message": "新增連結"
+  },
+  "gameLinks_saveEdit": {
+    "message": "儲存修改"
+  },
+  "gameLinks_nameRequired": {
+    "message": "請填寫連結名稱"
+  },
+  "gameLinks_urlRequired": {
+    "message": "請填寫網址"
+  },
+  "gameLinks_tokenUnknown": {
+    "message": "僅支援 {APPID}、{GAME_NAME} 和 {CUSTOM_NAME} 預留位置，請檢查大括號。"
+  },
+  "gameLinks_tokenLocation": {
+    "message": "預留位置不能用於通訊協定、網域或登入資訊。"
+  },
+  "gameLinks_invalidUrl": {
+    "message": "請填寫有效的 HTTP/HTTPS 位址，且不要包含登入資訊。"
+  },
+  "gameLinks_saveFailed": {
+    "message": "連結設定儲存失敗，已保留原設定，請重試。"
+  },
+  "gameLinks_actionFailed": {
+    "message": "連結操作失敗，請重試。"
+  },
+  "gameLinks_retry": {
+    "message": "重試讀取"
+  },
+  "gameLinks_preset_baidu": {
+    "message": "百度搜尋"
+  },
+  "gameLinks_preset_steam_guides": {
+    "message": "Steam 社群指南"
+  },
+  "gameLinks_preset_itad": {
+    "message": "IsThereAnyDeal"
+  },
+  "gameLinks_preset_steamdb": {
+    "message": "SteamDB"
+  },
+  "gameLinks_preset_pcgamingwiki": {
+    "message": "PCGamingWiki"
+  },
+  "gameLinks_preset_bilibili": {
+    "message": "Bilibili"
+  },
+  "gameLinks_preset_protondb": {
+    "message": "ProtonDB"
+  },
+  "gameLinks_preset_youtube": {
+    "message": "YouTube"
+  },
+  "settings_feature_game_links_name": {
+    "message": "相關連結"
+  },
+  "settings_feature_game_links_desc": {
+    "message": "在商店詳情右側顯示遊戲資料、評分和搜尋入口，支援自訂 URL 範本。"
+  },
+  "gameLinks_typeLabel": {
+    "message": "類型"
+  },
+  "gameLinks_scopeLabel": {
+    "message": "顯示範圍"
+  },
+  "gameLinks_type_web": {
+    "message": "網頁"
+  },
+  "gameLinks_type_qrcode": {
+    "message": "QR 碼"
+  },
+  "gameLinks_scope_all": {
+    "message": "全部"
+  },
+  "gameLinks_scope_store": {
+    "message": "網頁商店"
+  },
+  "gameLinks_scope_library": {
+    "message": "用戶端收藏庫"
+  },
+  "gameLinks_editTitle": {
+    "message": "編輯連結"
+  },
+  "gameLinks_builtinPreview": {
+    "message": "預覽：使用內建網址"
+  },
+  "gameLinks_builtinUrlPlaceholder": {
+    "message": "留空使用內建網址"
+  },
+  "gameLinks_qrImage": {
+    "message": "連結 QR 碼"
+  },
+  "gameLinks_qrHint": {
+    "message": "使用手機掃碼開啟"
+  },
+  "gameLinks_qrFailed": {
+    "message": "暫時無法產生 QR 碼。"
+  },
+  "settings_feature_steam_game_links_name": {
+    "message": "相關連結"
+  },
+  "settings_feature_steam_game_links_desc": {
+    "message": "在 Steam 收藏庫遊戲詳情頁的玩家統計下方顯示相關連結，依各項顯示範圍篩選。"
+  },
+  "gameLinks_dragLabel": {
+    "message": "拖曳 $name$ 排序，也可使用上下方向鍵",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_enableItem": {
+    "message": "啟用 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_disableItem": {
+    "message": "停用 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_editItem": {
+    "message": "編輯 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_deleteItem": {
+    "message": "刪除 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_customNameHint": {
+    "message": "自訂遊戲名稱；沒有時使用 Steam 遊戲名稱"
+  },
+  "gameLinks_previewPrefix": {
+    "message": "預覽："
   }
 }
