@@ -188,8 +188,19 @@
   }
 
   function rememberScrollTarget(event) {
-    // 优化: 回顶部常驻，滚动只记录真实容器，不读位置或排绘制任务
+    // 优化: 滚动只记录真实容器。半屏显隐由标记观察负责，这里不读位置或排绘制任务
     scroll.rememberScrollTarget(event?.target);
+  }
+
+  function bindTopWatch() {
+    const watch = root.STSettingsScrollTargets?.watchHalfViewport;
+    if (typeof watch !== "function") {
+      // 兼容: 滚动目标模块未加载时无法观察半屏，按钮保持可见
+      topBtn.hidden = false;
+      return;
+    }
+    const release = watch(topBtn);
+    addDisposer(() => release.dispose());
   }
 
   function reviewCountBadge(count) {
@@ -325,7 +336,7 @@
     reviewCount.textContent = "0";
     reviewBtn.appendChild(reviewCount);
     topBtn = button("top", tr("settings.shell.topButton", "回到顶部"), topUrl());
-    topBtn.hidden = false;
+    topBtn.hidden = true;
 
     const translateItem = document.createElement("div");
     translateItem.className = "item page-translate-slot";
@@ -484,6 +495,7 @@
     // 优化: Document 捕获覆盖文档和内层容器，避免文档事件在 Window 再执行一次
     listen(document, "scroll", rememberScrollTarget, { passive: true, capture: true });
     listen(root, REVIEW_UPDATE_EVT, (event) => updateReviewButton(event.detail || {}));
+    bindTopWatch();
   }
 
   function dispose(options = {}) {

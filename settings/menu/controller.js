@@ -194,12 +194,22 @@
       }));
     }
 
-    function updateTopButton() {
-      if (topBtn) topBtn.hidden = false;
+    function bindTopWatch() {
+      if (!topBtn) {
+        return;
+      }
+      const watch = globalThis.STSettingsScrollTargets?.watchHalfViewport;
+      if (typeof watch !== "function") {
+        // 兼容: 滚动目标模块未加载时无法观察半屏，按钮保持可见
+        topBtn.hidden = false;
+        return;
+      }
+      const release = watch(topBtn);
+      addDisposer(() => release.dispose());
     }
 
     function rememberScrollTarget(event) {
-      // 优化: 常驻按钮不随滚动更新，只为点击回顶部保留真实目标
+      // 优化: 滚动只记录真实容器。半屏显隐由标记观察负责，这里不读位置
       scroll.rememberScrollTarget(event?.target);
     }
 
@@ -497,7 +507,7 @@
       // 文档和内层容器由同一个捕获入口记录
       listen(document, "scroll", rememberScrollTarget, { passive: true, capture: true });
 
-      updateTopButton();
+      bindTopWatch();
       return dispose;
     }
 
@@ -510,7 +520,6 @@
       setOpen,
       toTop,
       toggle,
-      updateTopButton,
       getRailState: () => ({ top: railTop, side: railSide }),
     });
   }

@@ -11,7 +11,7 @@
 ((root) => {
   "use strict";
 
-  const VERSION = "steam-buff-settings-scroll-targets-v1";
+  const VERSION = "steam-buff-settings-scroll-targets-v2";
   if (root.STSettingsScrollTargets?.version === VERSION) {
     return;
   }
@@ -154,10 +154,70 @@
     });
   }
 
+  // 观察 body 上的半屏标记，滚出视口上沿时显示 button，仍在视口内或位于下沿之外时隐藏
+  // button 不是元素时返回空释放函数；body 或 IntersectionObserver 不可用时保持按钮隐藏，同样返回空释放函数
+  // dispose 先移除标记再断开观察，不改按钮当前的 hidden
+  // 注: 商店页在滚动回调里读 scrollTop 会强制整页布局，显隐不能读 scrollTop、scrollY 或矩形
+  function watchHalfViewport(button) {
+    if (!button || button.nodeType !== 1) {
+      return { dispose() {} };
+    }
+    button.hidden = true;
+    const doc = root.document;
+    const Observer = root.IntersectionObserver;
+    if (!doc?.body || typeof Observer !== "function") {
+      return { dispose() {} };
+    }
+    const sentinel = doc.createElement("div");
+    sentinel.setAttribute("data-st-half-viewport", "");
+    sentinel.setAttribute("aria-hidden", "true");
+    sentinel.style.position = "absolute";
+    sentinel.style.top = "50vh";
+    sentinel.style.left = "0";
+    sentinel.style.width = "1px";
+    sentinel.style.height = "1px";
+    sentinel.style.pointerEvents = "none";
+    sentinel.style.opacity = "0";
+    doc.body.appendChild(sentinel);
+    let observer = null;
+    try {
+      observer = new Observer((entries) => {
+        const entry = entries?.[entries.length - 1];
+        const top = entry?.boundingClientRect?.top;
+        if (!entry || typeof top !== "number") {
+          return;
+        }
+        const hide = entry.isIntersecting || top >= 0;
+        if (button.hidden !== hide) {
+          button.hidden = hide;
+        }
+      });
+      observer.observe(sentinel);
+    } catch (error) {
+      sentinel.remove();
+      root.STLoggerFactory?.reportError(error, {
+        domain: "settings",
+        feature: "scroll-targets",
+        event: "half-viewport-watch-failed",
+        message: "半屏回到顶部观察失败",
+        level: "warn",
+        phase: "watchHalfViewport",
+      });
+      return { dispose() {} };
+    }
+    return {
+      dispose() {
+        sentinel.remove();
+        observer.disconnect();
+      },
+    };
+  }
+
   const shared = create();
   const api = Object.freeze({
     version: VERSION,
     create,
+    watchHalfViewport,
     fixedScrollTargets: shared.fixedScrollTargets,
     scrollTargets: shared.scrollTargets,
     scrollY: shared.scrollY,
