@@ -21,28 +21,23 @@
   const ORIGINAL_TEXT_ATTR = "data-steam-buff-original-text";
   const ORIGINAL_DISPLAY_ATTR = "data-steam-buff-original-display";
   const ORIGINAL_OWNER_ATTR = "data-steam-buff-original-owner";
-  const ORIGINAL_TITLE_ATTR = "data-steam-buff-original-title";
   const HEADER_ATTR = "data-steam-buff-library-header";
-  // BroadcastChannel 不缓存建立前的消息，超时后由现有低频调度重新请求当前可见行
+  // BroadcastChannel 不缓存建立前的消息，缺项补读只处理当前挂载 AppID。
   const SNAPSHOT_REQUEST_TIMEOUT_MS = 3000;
+  const SNAPSHOT_DATA_RETRIES = 3;
   const ENTRY_CACHE_LIMIT = 4096;
   const REPAIR_MAX_ATTEMPTS = 3;
   const REPAIR_WINDOW_MS = 1000;
   const REPAIR_SUSPEND_MS = 5000;
-  const HOVER_SYNC_MAX_ATTEMPTS = 2;
   const GRID_SELECTOR = "div[role='grid'].ReactVirtualized__List";
   const CONTAINER_SELECTOR = ".ReactVirtualized__Grid__innerScrollContainer";
   const CELL_SELECTOR = ":scope > div[role='gridcell']";
   const ROW_SELECTOR = "[draggable='true']";
-  const SETTINGS_ATTRIBUTE = "data-steam-buff-settings";
-  const USER_NAMES_ATTRIBUTE = "data-steam-buff-user-names";
   const LIST_OBSERVER_OPTIONS = Object.freeze({
     childList: true,
     characterData: true,
     subtree: true,
   });
-  const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
-  const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Za-z0-9]+)\]\s*/g;
   const reactTextState = new WeakMap();
 
   const log = window.STLoggerFactory.createLogger("steam", `${ID}-ui`);
@@ -53,33 +48,6 @@
 
   function clean(value) {
     return typeof value === "string" ? value.trim() : "";
-  }
-
-  function viewCustomName(value) {
-    const source = typeof value === "string" ? value : "";
-    if (!source) return "";
-    const visible = source
-      .replace(MNEMONIC_TAG_RE, " ")
-      .replace(/\s{2,}/g, " ")
-      .replace(TAG_RE, "")
-      .trim();
-    return visible || source;
-  }
-
-  function independentSettings(settings = {}) {
-    return settings.independentNames === true;
-  }
-
-  function mineNameOf(appid) {
-    const id = Number(appid) || 0;
-    if (!id) return "";
-    try {
-      const data = JSON.parse(document.documentElement?.dataset?.steamBuffUserNames || "{}") || {};
-      const value = data[id] ?? data[String(id)];
-      return clean(typeof value === "string" ? value : value?.custom_name);
-    } catch {
-      return "";
-    }
   }
 
   function setAttributeIfChanged(node, name, value) {
@@ -133,6 +101,29 @@
       if (!legacyInjected) return span;
     }
     return null;
+  }
+
+  // 名称是 host span 的唯一直接文本节点，后面的状态 span 必须保留
+  function textNode(span) {
+    let text = null;
+    for (const child of span?.childNodes || []) {
+      if (child.nodeType !== 3) continue;
+      if (text) return null;
+      text = child;
+    }
+    return text;
+  }
+
+  function textValue(span) {
+    return clean(textNode(span)?.nodeValue);
+  }
+
+  function writeText(span, value, baseline = "") {
+    const node = textNode(span);
+    if (!node) return false;
+    if (node.nodeValue !== value) node.nodeValue = value;
+    syncReactText(span, value, baseline);
+    return true;
   }
 
   // 当前 Steam 库行名称 host Fiber 的 children 是官方名称字符串
@@ -200,8 +191,7 @@
     if (!span) return;
     const originalText = span.getAttribute(ORIGINAL_TEXT_ATTR);
     if (originalText !== null) {
-      syncReactText(span, originalText, originalText);
-      if (span.textContent !== originalText) span.textContent = originalText;
+      writeText(span, originalText, originalText);
       removeAttributeIfPresent(span, ORIGINAL_TEXT_ATTR);
     }
     removeAttributeIfPresent(span, DISPLAY_ATTR);
@@ -232,7 +222,7 @@
     removeAttributeIfPresent(span, DISPLAY_ATTR);
     removeAttributeIfPresent(span, HEADER_ATTR);
     removeAttributeIfPresent(span, ORIGINAL_OWNER_ATTR);
-    if (clean(baseline) && span.textContent !== baseline) span.textContent = baseline;
+    if (clean(baseline)) writeText(span, baseline, baseline);
   }
 
   function removeInjected(parent, selector) {
@@ -240,46 +230,27 @@
   }
 
   function showText(original, value, attr, marker, baselineValue = "") {
-    if (!original) return false;
+    if (!textNode(original)) return false;
     // 清理旧版本曾留下的 display:none，避免升级后继续出现图标有名称空白
     restoreOriginal(original);
     resetTracking(original, marker, baselineValue);
     const text = clean(value);
     const savedText = original.getAttribute(ORIGINAL_TEXT_ATTR);
     const baseline = savedText === null
-      ? (clean(baselineValue) ? baselineValue : clean(original.textContent))
+      ? (clean(baselineValue) ? baselineValue : textValue(original))
       : savedText;
     if (!text || text === baseline) {
       restoreText(original);
+      if (text) writeText(original, text, baseline);
       return false;
     }
     if (savedText === null) {
       setAttributeIfChanged(original, ORIGINAL_TEXT_ATTR, baseline);
     }
-    if (original.textContent !== text) original.textContent = text;
-    syncReactText(original, text, baseline);
+    writeText(original, text, baseline);
     setAttributeIfChanged(original, attr, marker);
     setAttributeIfChanged(original, ORIGINAL_OWNER_ATTR, marker);
     return true;
-  }
-
-  function restoreRowTitle(row) {
-    if (!row) return;
-    const originalTitle = row.getAttribute(ORIGINAL_TITLE_ATTR);
-    if (originalTitle === null) return;
-    if (originalTitle) setAttributeIfChanged(row, "title", originalTitle);
-    else removeAttributeIfPresent(row, "title");
-    removeAttributeIfPresent(row, ORIGINAL_TITLE_ATTR);
-  }
-
-  function applyRowTitle(row, value) {
-    if (!row) return;
-    if (!row.hasAttribute(ORIGINAL_TITLE_ATTR)) {
-      setAttributeIfChanged(row, ORIGINAL_TITLE_ATTR, row.getAttribute("title") || "");
-    }
-    const title = clean(value);
-    if (title) setAttributeIfChanged(row, "title", title);
-    else restoreRowTitle(row);
   }
 
   function restoreContainer(container) {
@@ -289,9 +260,6 @@
     for (const original of Array.from(container?.querySelectorAll?.(`[${ORIGINAL_TEXT_ATTR}]`) || [])) {
       restoreText(original);
     }
-    for (const row of Array.from(container?.querySelectorAll?.(`[${ORIGINAL_TITLE_ATTR}]`) || [])) {
-      restoreRowTitle(row);
-    }
     removeInjected(container, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}]), [${HEADER_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
   }
 
@@ -299,12 +267,9 @@
     if (!row) return false;
     removeInjected(row, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
     const name = nameSpan(row);
-    const previousOwner = name?.getAttribute?.(ORIGINAL_OWNER_ATTR);
-    if (previousOwner !== null && previousOwner !== String(appid)) restoreRowTitle(row);
     if (!entry || Number(entry.appid) <= 0) {
       appliedRows?.delete?.(row);
       resetTracking(name, appid);
-      restoreRowTitle(row);
       removeInjected(row, `[${DISPLAY_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
       return false;
     }
@@ -314,10 +279,17 @@
       && previousApplied === expected
       && Boolean(name)
       && Boolean(expected)
-      && clean(name.textContent) !== expected;
-    const stableOwnsBase = settings.stableMode === true
+      && textValue(name) !== expected;
+    const nativeOwnsBase = settings.customSortEnabled === true
       && clean(entry.finalDisplayName) === clean(entry.baseDisplayName);
-    if (stableOwnsBase) {
+    const currentText = textValue(name);
+    const knownName = currentText === expected || currentText === clean(entry.officialName)
+      || currentText === previousApplied || name?.hasAttribute?.(DISPLAY_ATTR) === true;
+    const ownsText = name?.getAttribute(ORIGINAL_OWNER_ATTR) === String(entry.appid)
+      && name.hasAttribute(ORIGINAL_TEXT_ATTR);
+    // 只修复模型能够确认的名称；原生分支等附加文字不能被当作错误名称覆盖
+    // 扩展补写的文本即使已正确，也必须保留还原记录
+    if (nativeOwnsBase && !ownsText && (currentText === expected || !knownName)) {
       releaseTextTracking(name);
     } else {
       showText(
@@ -328,35 +300,26 @@
         entry.officialName,
       );
     }
-    const title = settings.customTitleEnabled === true
-      ? expected
-      : (settings.stableMode === true ? clean(entry.officialName) : "");
-    applyRowTitle(row, title);
-    const managed = name?.hasAttribute?.(DISPLAY_ATTR) === true
-      && clean(name.textContent) === expected;
+    const managed = Boolean(textNode(name)) && textValue(name) === expected;
     if (managed) appliedRows?.set?.(row, expected);
     else appliedRows?.delete?.(row);
     return mismatch;
   }
 
-  function applyHeaders(container, headers, hide) {
+  function applyHeaders(container, byName, cells = null) {
     if (!container) return;
-    removeInjected(container, `[${HEADER_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
-    const byName = new Map((Array.isArray(headers) ? headers : [])
-      .filter((item) => item && typeof item.name === "string")
-      .map((item) => [item.name, hide ? item.displayName : item.name]));
-    for (const span of Array.from(container?.querySelectorAll?.(`[${HEADER_ATTR}][${ORIGINAL_TEXT_ATTR}]`) || [])) {
-      const marker = span.getAttribute(HEADER_ATTR);
-      const current = clean(span.textContent);
-      const owner = byName.has(marker) ? marker : (byName.has(current) ? current : "");
-      if (owner) {
-        showText(span, byName.get(owner), HEADER_ATTR, owner, owner);
-      } else {
-        restoreText(span);
+    const targets = cells || Array.from(container.querySelectorAll(CELL_SELECTOR));
+    for (const cell of targets) {
+      removeInjected(cell, `[${HEADER_ATTR}]:not([${ORIGINAL_TEXT_ATTR}])`);
+      for (const span of Array.from(cell.querySelectorAll(`[${HEADER_ATTR}][${ORIGINAL_TEXT_ATTR}]`))) {
+        const marker = span.getAttribute(HEADER_ATTR);
+        const current = clean(span.textContent);
+        const owner = byName.has(marker) && (current === marker || current === byName.get(marker))
+          ? marker : (byName.has(current) ? current : "");
+        if (owner) showText(span, byName.get(owner), HEADER_ATTR, owner, owner);
+        else restoreText(span);
       }
-    }
-    if (!byName.size) return;
-    for (const cell of Array.from(container.querySelectorAll(CELL_SELECTOR))) {
+      if (!byName.size) continue;
       if (cell.querySelector(ROW_SELECTOR)) continue;
       for (const span of Array.from(cell.querySelectorAll("span"))) {
         if (span.hasAttribute(ORIGINAL_TEXT_ATTR) || span.hasAttribute(DISPLAY_ATTR) || span.hasAttribute(HEADER_ATTR)) continue;
@@ -367,13 +330,17 @@
     }
   }
 
-  function visibleRows(container) {
+  function visibleRows(container, cells) {
     const result = new Map();
     for (const cell of Array.from(container.querySelectorAll(CELL_SELECTOR))) {
       const row = cell.querySelector(ROW_SELECTOR);
-      if (!row) continue;
+      if (!row) {
+        cells.set(cell, { row: null, appid: 0 });
+        continue;
+      }
       const item = rowItem(row);
       const appid = Number(item?.appid) || 0;
+      cells.set(cell, { row, appid });
       if (!appid) continue;
       const rows = result.get(appid);
       if (rows) rows.push(row);
@@ -386,32 +353,6 @@
     const rows = rowsByAppid.get(Number(appid) || 0);
     if (Array.isArray(rows)) return rows;
     return rows ? [rows] : [];
-  }
-
-  function provisionalEntry(row, appid, settings = {}) {
-    const id = Number(appid) || 0;
-    if (!id || settings.stableMode === true) return null;
-    if (settings.customSortEnabled !== true && !independentSettings(settings)) return null;
-    const item = rowItem(row);
-    if (Number(item?.appid) !== id) return null;
-    const officialName = clean(item.display_name);
-    const independent = independentSettings(settings);
-    const customName = independent
-      ? mineNameOf(id)
-      : clean(item.custom_sort_as_display);
-    const baseDisplayName = independent
-      ? (customName || officialName)
-      : (viewCustomName(customName) || officialName);
-    if (!baseDisplayName) return null;
-    return {
-      appid: id,
-      officialName,
-      customName,
-      baseDisplayName,
-      groupTags: [],
-      finalDisplayName: baseDisplayName,
-      provisional: true,
-    };
   }
 
   function cacheEntry(entries, entry) {
@@ -437,6 +378,7 @@
     if (typeof BroadcastChannel !== "function" || !window.STScheduler?.register) {
       return { started: false, reason: "runtime-unavailable" };
     }
+    if (typeof api.contextRouter?.subscribe !== "function") throw new Error("Steam 库路由订阅入口未加载");
 
     const state = {
       started: true,
@@ -450,28 +392,36 @@
       frame: 0,
       repairFrame: 0,
       rows: new Map(),
+      cells: new Map(),
+      dirtyCells: new Set(),
+      removedCells: new Set(),
+      dirtyIds: new Set(),
+      headerCells: new Set(),
+      rebuild: true,
+      applyAll: false,
+      routeHandle: null,
       entries: new Map(),
       headers: [],
+      headerNames: new Map(),
       settings: { hideCollectionTags: true },
       requestedKey: "",
       pendingRid: "",
       pendingAt: 0,
       pendingIds: [],
       pendingAll: false,
+      snapshotRetryAt: 0,
+      snapshotRetryAttempts: 0,
+      snapshotExhaustedIds: new Set(),
+      checkStartupSnapshot: true,
+      backendRecovery: null,
+      backendBlocked: false,
+      connectOnCollect: true,
+      displayVerification: null,
       refreshIds: new Set(),
       refreshAll: false,
       repairIds: new Set(),
       repairState: new Map(),
       appliedRows: new WeakMap(),
-      hoveredAppid: 0,
-      hoveredRow: null,
-      hoverFrame: 0,
-      hoverAttempts: 0,
-      hoverRows: new Map(),
-      hoverOverHandle: null,
-      hoverOutHandle: null,
-      hoverOverDirect: false,
-      hoverOutDirect: false,
       rid: 0,
       revision: 0,
     };
@@ -495,13 +445,6 @@
       state.repairFrame = 0;
     }
 
-    function cancelHoverFrame() {
-      if (!state.hoverFrame) return;
-      if (typeof window.cancelAnimationFrame === "function") window.cancelAnimationFrame(state.hoverFrame);
-      else window.clearTimeout(state.hoverFrame);
-      state.hoverFrame = 0;
-    }
-
     function observeList() {
       if (!state.observer || !state.container) return;
       state.observer.observe(state.container, LIST_OBSERVER_OPTIONS);
@@ -510,142 +453,15 @@
     function withoutListObservation(callback) {
       const observer = state.observer;
       if (!observer) return callback();
+      // disconnect 会丢掉尚未交付的原生记录，先纳入本次局部更新。
+      recordCells(observer.takeRecords());
+      updateCells();
       observer.disconnect();
       try {
         return callback();
       } finally {
         if (state.observer === observer && state.container) observeList();
-      }
-    }
-
-    function restoreHoverRow(row) {
-      if (!row) return;
-      restoreText(nameSpan(row));
-      restoreRowTitle(row);
-    }
-
-    function restoreHoverRows() {
-      for (const row of state.hoverRows.keys()) restoreHoverRow(row);
-      state.hoverRows.clear();
-    }
-
-    function sameHoverPosition(row, source) {
-      if (!row || !source || row === source) return false;
-      const current = row.getBoundingClientRect?.();
-      const origin = source.getBoundingClientRect?.();
-      if (!current || !origin || current.width <= 0 || current.height <= 0) return false;
-      return Math.abs(current.left - origin.left) <= 2
-        && Math.abs(current.top - origin.top) <= 2
-        && Math.abs(current.height - origin.height) <= 2;
-    }
-
-    // Steam 悬停副本位于库容器外，只按真实行位置和 Fiber AppID 精确匹配
-    function hoverRowsFor(appid, source) {
-      const id = Number(appid) || 0;
-      if (!id || !source || !state.container || !document.contains(source)) return [];
-      const rows = [];
-      for (const row of Array.from(document.querySelectorAll(ROW_SELECTOR))) {
-        if (state.container.contains(row)) continue;
-        if (getComputedStyle(row).pointerEvents !== "none") continue;
-        if (!sameHoverPosition(row, source)) continue;
-        if (Number(rowItem(row)?.appid) !== id) continue;
-        rows.push(row);
-      }
-      return rows;
-    }
-
-    function syncHoverRows(appid, source) {
-      const id = Number(appid) || 0;
-      const entry = state.entries.get(id);
-      if (!id || !source || !entry || state.hoveredAppid !== id) return false;
-      const matches = hoverRowsFor(id, source);
-      const matched = new Set(matches);
-      for (const row of matches) {
-        applyEntry(row, entry, id, null, state.settings);
-        state.hoverRows.set(row, id);
-      }
-      for (const [row, rowId] of state.hoverRows) {
-        if (rowId !== id || (matched.has(row) && row.isConnected)) continue;
-        restoreHoverRow(row);
-        state.hoverRows.delete(row);
-      }
-      return matches.length > 0;
-    }
-
-    function scheduleHoverSync(appid = state.hoveredAppid, source = state.hoveredRow) {
-      const id = Number(appid) || 0;
-      if (!id || !source || state.hoverFrame || !state.started) return;
-      state.hoverFrame = raf(() => {
-        state.hoverFrame = 0;
-        if (state.hoveredAppid !== id || state.hoveredRow !== source) return;
-        if (syncHoverRows(id, source)) {
-          state.hoverAttempts = 0;
-          return;
-        }
-        if (state.hoverAttempts >= HOVER_SYNC_MAX_ATTEMPTS) return;
-        state.hoverAttempts += 1;
-        scheduleHoverSync(id, source);
-      });
-    }
-
-    function hoveredRowFromEvent(event) {
-      const target = event?.target;
-      const row = target?.closest?.(ROW_SELECTOR);
-      if (!row || !state.container?.contains(row)) return null;
-      return row;
-    }
-
-    function relatedInside(row, relatedTarget) {
-      return Boolean(relatedTarget?.nodeType && row?.contains?.(relatedTarget));
-    }
-
-    function onMouseOver(event) {
-      const row = hoveredRowFromEvent(event);
-      if (!row || relatedInside(row, event.relatedTarget)) return;
-      const id = Number(rowItem(row)?.appid) || 0;
-      if (!id || (state.hoveredAppid === id && state.hoveredRow === row)) return;
-      restoreHoverRows();
-      cancelHoverFrame();
-      state.hoveredAppid = id;
-      state.hoveredRow = row;
-      state.hoverAttempts = 0;
-      scheduleHoverSync(id, row);
-    }
-
-    function onMouseOut(event) {
-      const row = hoveredRowFromEvent(event);
-      if (!row || relatedInside(row, event.relatedTarget)) return;
-      const id = Number(rowItem(row)?.appid) || 0;
-      if (!id || state.hoveredAppid !== id || state.hoveredRow !== row) return;
-      state.hoveredAppid = 0;
-      state.hoveredRow = null;
-      state.hoverAttempts = 0;
-      cancelHoverFrame();
-      restoreHoverRows();
-    }
-
-    function detachHoverListeners() {
-      if (state.hoverOverDirect && state.container) state.container.removeEventListener("mouseover", onMouseOver, true);
-      if (state.hoverOutDirect && state.container) state.container.removeEventListener("mouseout", onMouseOut, true);
-      state.hoverOverHandle?.dispose?.();
-      state.hoverOutHandle?.dispose?.();
-      state.hoverOverHandle = null;
-      state.hoverOutHandle = null;
-      state.hoverOverDirect = false;
-      state.hoverOutDirect = false;
-    }
-
-    function attachHoverListeners() {
-      if (!state.container || state.hoverOverHandle || state.hoverOverDirect) return;
-      state.hoverOverHandle = state.scope?.listener?.("library-hover-over", state.container, "mouseover", onMouseOver, true) || null;
-      state.hoverOutHandle = state.scope?.listener?.("library-hover-out", state.container, "mouseout", onMouseOut, true) || null;
-      if (!state.hoverOverHandle) {
-        state.container.addEventListener("mouseover", onMouseOver, true);
-        state.hoverOverDirect = true;
-      }
-      if (!state.hoverOutHandle) {
-        state.container.addEventListener("mouseout", onMouseOut, true);
-        state.hoverOutDirect = true;
+        if (state.dirtyIds.size || state.headerCells.size) schedule();
       }
     }
 
@@ -711,7 +527,7 @@
             let retry = false;
             for (const row of rowList(state.rows, id)) {
               const name = nameSpan(row);
-              if (!name || clean(name.textContent) === clean(entry.finalDisplayName)) continue;
+              if (!name || textValue(name) === clean(entry.finalDisplayName)) continue;
               if (applyEntry(row, entry, id, state.appliedRows, state.settings)) retry = true;
             }
             if (retry) next.push(id);
@@ -721,25 +537,125 @@
       });
     }
 
-    function applyVisible() {
+    function verifyRecoveredDisplay() {
+      const verification = state.displayVerification;
+      if (!verification || document.hidden) return;
+      state.displayVerification = null;
+      let checked = 0, unverified = 0, customNames = 0, sourceUnavailable = 0;
+      for (const appid of verification.appids) {
+        const rows = rowList(state.rows, appid);
+        if (!rows.length) continue;
+        const entry = state.entries.get(appid);
+        const fresh = verification.receivedIds.has(appid);
+        if (!fresh) sourceUnavailable += 1;
+        else if (clean(entry?.customName)) customNames += 1;
+        for (const row of rows) {
+          checked += 1;
+          const name = nameSpan(row);
+          if (!fresh || !entry || !textNode(name) || textValue(name) !== clean(entry.finalDisplayName)) unverified += 1;
+        }
+      }
+      const verified = checked > 0 && unverified === 0
+        && (state.settings.customSortEnabled !== true || customNames > 0);
+      const event = verified ? "library-sort-title-display-recovered" : "library-sort-title-display-unverified";
+      log.warn(event, verified ? "名称恢复后的挂载行显示已核实" : "名称通信已恢复，挂载行显示尚未全部核实", {
+        checked, unverified, customNames, sourceUnavailable, phase: verification.phase,
+        durationMs: Date.now() - verification.startedAt,
+      });
+    }
+
+    function applyVisible(ids = state.rows.keys(), all = false) {
       const repairs = [];
       withoutListObservation(() => {
-        for (const appid of state.rows.keys()) {
+        const targets = all ? state.rows.keys() : new Set([...ids, ...state.dirtyIds]);
+        for (const appid of targets) {
           if (repairSuspended(appid)) continue;
-          const cached = state.entries.get(appid);
+          const entry = state.entries.get(appid);
+          if (!entry) continue;
           let retry = false;
           for (const row of rowList(state.rows, appid)) {
-            const entry = cached || provisionalEntry(row, appid, state.settings);
-            if (!entry) continue;
-            const appliedRows = cached ? state.appliedRows : null;
-            if (applyEntry(row, entry, appid, appliedRows, state.settings)) retry = true;
+            if (applyEntry(row, entry, appid, state.appliedRows, state.settings)) retry = true;
           }
           if (retry) repairs.push(appid);
         }
-        applyHeaders(state.container, state.headers, state.settings.hideCollectionTags === true);
+        applyHeaders(state.container, state.headerNames,
+          all ? null : Array.from(state.headerCells));
+        state.dirtyIds.clear();
+        state.headerCells.clear();
       });
       queueRepair(repairs);
-      scheduleHoverSync();
+      verifyRecoveredDisplay();
+    }
+
+    function removeCell(cell) {
+      const previous = state.cells.get(cell);
+      if (!previous) return;
+      state.cells.delete(cell);
+      const rows = state.rows.get(previous.appid);
+      if (!rows) return;
+      const index = rows.indexOf(previous.row);
+      if (index >= 0) rows.splice(index, 1);
+      if (!rows.length) {
+        state.rows.delete(previous.appid);
+        state.snapshotExhaustedIds.delete(previous.appid);
+        state.refreshIds.delete(previous.appid);
+        state.repairIds.delete(previous.appid);
+        state.repairState.delete(previous.appid);
+      }
+    }
+
+    function updateCells() {
+      for (const cell of state.removedCells) {
+        if (cell.parentElement !== state.container) removeCell(cell);
+      }
+      state.removedCells.clear();
+      for (const cell of state.dirtyCells) {
+        if (cell.parentElement !== state.container) continue;
+        const row = cell.querySelector(ROW_SELECTOR);
+        const appid = Number(rowItem(row)?.appid) || 0;
+        const previous = state.cells.get(cell);
+        if (previous?.row !== row || previous?.appid !== appid) {
+          removeCell(cell);
+          state.cells.set(cell, { row, appid });
+          if (appid) {
+            const rows = state.rows.get(appid);
+            if (rows) rows.push(row);
+            else state.rows.set(appid, [row]);
+          }
+        }
+        state.headerCells.add(cell);
+        if (appid) {
+          state.dirtyIds.add(appid);
+          if (!state.entries.has(appid) && !state.snapshotExhaustedIds.has(appid) && !state.refreshAll) {
+            state.refreshIds.add(appid);
+            state.requestedKey = "";
+          }
+        }
+      }
+      state.dirtyCells.clear();
+    }
+
+    function recordCells(records) {
+      for (const record of records) {
+        if (record.type === "childList" && record.target === state.container) {
+          for (const node of record.removedNodes) {
+            if (state.cells.has(node)) state.removedCells.add(node);
+          }
+          for (const node of record.addedNodes) {
+            if (node.nodeType === 1 && node.matches("div[role='gridcell']")
+              && node.parentElement === state.container) state.dirtyCells.add(node);
+          }
+          continue;
+        }
+        const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+        const cell = target?.closest("div[role='gridcell']");
+        if (cell?.parentElement === state.container) state.dirtyCells.add(cell);
+      }
+    }
+
+    function onListMutation(records) {
+      recordCells(records);
+      if (state.dirtyCells.size || state.removedCells.size) schedule();
     }
 
     function queueRefresh(ids = [], all = false) {
@@ -775,18 +691,71 @@
       const pending = new Set(state.pendingIds);
       for (const rawId of Array.from(ids || [])) {
         const appid = Number(rawId) || 0;
-        if (!appid || !state.rows.has(appid) || pending.has(appid)) continue;
+        if (!appid || !state.rows.has(appid) || pending.has(appid) || state.snapshotExhaustedIds.has(appid)) continue;
         if (!state.entries.has(appid) || state.refreshIds.has(appid)) state.refreshIds.add(appid);
       }
     }
 
+    // 只有真实就绪、相关数据失效或卸载才传入需要解除耗尽状态的 AppID
+    function resetSnapshotRetry(resetIds = []) {
+      state.snapshotRetryAt = 0;
+      state.snapshotRetryAttempts = 0;
+      for (const id of resetIds) state.snapshotExhaustedIds.delete(id);
+    }
+
+    function cancelBackendRecovery() {
+      const recovery = state.backendRecovery;
+      state.backendRecovery = null;
+      recovery?.controller?.abort();
+    }
+
+    // 首次显示、重新可见和真实通信超时共用接入；失败后等待下一次真实生命周期事件。
+    async function recoverBackend(phase = "timeout") {
+      if (state.backendRecovery || state.backendBlocked || !state.started) return;
+      const recovery = { startedAt: Date.now(), phase, waitingSnapshot: false, controller: new window.AbortController() };
+      state.backendRecovery = recovery;
+      if (phase === "timeout") log.warn("library-sort-title-backend-retry", "库名称快照超时，开始定向恢复客户端后台");
+      try {
+        await api.ctx.recoverNameBackend(ID, Array.from(state.rows.keys()), recovery.controller.signal);
+        if (!state.started || state.backendRecovery !== recovery || recovery.controller.signal.aborted) return;
+        state.channel.removeEventListener("message", onMessage);
+        state.channel.close();
+        state.channel = new BroadcastChannel(CHANNEL);
+        state.channel.addEventListener("message", onMessage);
+        recovery.waitingSnapshot = true;
+        resetSnapshotRetry(state.snapshotExhaustedIds);
+        requeuePending();
+        queueRefresh(Array.from(state.rows.keys()), true);
+        if (inLibrary(api)) request();
+      } catch (error) {
+        if (state.started && state.backendRecovery === recovery && !recovery.controller.signal.aborted) {
+          state.backendRecovery = null;
+          state.backendBlocked = true;
+          log.error("library-sort-title-backend-recovery-failed", "库名称后台定向恢复失败", { error });
+        }
+      }
+    }
+
     function request(ids = Array.from(state.rows.keys())) {
+      if (state.backendBlocked || (state.backendRecovery && !state.backendRecovery.waitingSnapshot)) return;
+      if (!state.pendingRid && performance.now() < state.snapshotRetryAt) return;
       if (state.pendingRid) {
         if (Date.now() - state.pendingAt < SNAPSHOT_REQUEST_TIMEOUT_MS) {
           queuePendingRows(ids);
           return;
         }
+        if (state.backendRecovery?.waitingSnapshot) {
+          cancelBackendRecovery();
+          state.backendBlocked = true;
+          requeuePending();
+          log.error("library-sort-title-backend-recovery-failed", "库名称后台接入后仍未收到匹配快照", {
+            error: new Error("名称后台快照没有响应"),
+          });
+          return;
+        }
+        void recoverBackend();
         requeuePending();
+        return;
       }
       const fullRequest = state.refreshAll;
       let list;
@@ -801,6 +770,8 @@
           .filter((appid) => state.rows.has(appid) && !state.entries.has(appid))
           .sort((a, b) => a - b);
       }
+      list = list.filter(appid => !state.snapshotExhaustedIds.has(appid));
+      if (fullRequest) state.refreshAll = false;
       const key = list.join(",");
       if (!list.length) return;
       if (key === state.requestedKey) return;
@@ -827,32 +798,47 @@
         detach();
         return;
       }
-      const found = locate();
-      if (!found) {
-        detach();
-        return;
+      if (state.rebuild || !state.container?.isConnected) {
+        const found = locate();
+        if (!found) {
+          detach();
+          return;
+        }
+        if (state.container !== found.container) {
+          detach();
+          state.root = found.grid;
+          state.container = found.container;
+        }
+        state.cells.clear();
+        state.rows = visibleRows(state.container, state.cells);
+        for (const appid of state.repairState.keys()) {
+          if (!state.rows.has(appid)) state.repairState.delete(appid);
+        }
+        for (const appid of state.refreshIds) {
+          if (!state.rows.has(appid)) state.refreshIds.delete(appid);
+        }
+        for (const appid of state.snapshotExhaustedIds) {
+          if (!state.rows.has(appid)) state.snapshotExhaustedIds.delete(appid);
+        }
+        state.rebuild = false;
+        state.applyAll = true;
       }
-      if (state.container !== found.container) {
-        detach();
-        state.root = found.grid;
-        state.container = found.container;
-      }
-      attachHoverListeners();
       if (!state.observer) {
-        state.observer = new MutationObserver(() => schedule());
+        state.observer = new MutationObserver(onListMutation);
         observeList();
         state.observerHandle = scope?.observer?.("library-list", state.observer) || null;
       }
-      state.rows = visibleRows(state.container);
+      updateCells();
       trimEntryCache(state.entries, state.rows);
-      for (const appid of Array.from(state.repairState.keys())) {
-        if (!state.rows.has(appid)) state.repairState.delete(appid);
+      const all = state.applyAll;
+      const ids = all ? Array.from(state.rows.keys()) : Array.from(state.dirtyIds);
+      state.applyAll = false;
+      if (all || ids.length || state.headerCells.size) applyVisible(ids, all);
+      if (state.connectOnCollect) {
+        state.connectOnCollect = false;
+        void recoverBackend("visible");
       }
-      for (const appid of Array.from(state.refreshIds)) {
-        if (!state.rows.has(appid)) state.refreshIds.delete(appid);
-      }
-      applyVisible();
-      request();
+      request(ids);
     }
 
     function schedule() {
@@ -863,26 +849,36 @@
       });
     }
 
+    function tick() {
+      if (!state.container?.isConnected || !state.observer) state.rebuild = true;
+      if (state.rebuild || state.applyAll || state.dirtyCells.size || state.removedCells.size
+        || state.dirtyIds.size || state.headerCells.size) schedule();
+      if (state.pendingRid && Date.now() - state.pendingAt >= SNAPSHOT_REQUEST_TIMEOUT_MS) request(state.pendingIds);
+      else if (!state.pendingRid && (state.refreshAll || state.refreshIds.size)) request();
+    }
+
     function pause() {
       cancelFrame();
       cancelRepairFrame();
-      cancelHoverFrame();
       state.observer?.disconnect?.();
+      state.observerHandle?.dispose?.();
       state.observer = null;
       state.observerHandle = null;
-      state.hoveredAppid = 0;
-      state.hoveredRow = null;
-      state.hoverAttempts = 0;
-      restoreHoverRows();
+      state.rebuild = true;
     }
 
     function detach() {
-      detachHoverListeners();
       pause();
       if (state.container) restoreContainer(state.container);
       state.root = null;
       state.container = null;
       state.rows.clear();
+      state.cells.clear();
+      state.dirtyCells.clear();
+      state.removedCells.clear();
+      state.dirtyIds.clear();
+      state.headerCells.clear();
+      state.applyAll = false;
       state.requestedKey = "";
       state.pendingRid = "";
       state.pendingAt = 0;
@@ -893,11 +889,32 @@
       state.repairIds.clear();
       state.repairState.clear();
       state.appliedRows = new WeakMap();
+      cancelBackendRecovery();
+      state.backendBlocked = false;
+      state.connectOnCollect = true;
+      state.displayVerification = null;
+      resetSnapshotRetry(state.snapshotExhaustedIds);
+      state.checkStartupSnapshot = true;
     }
 
     function onMessage(event) {
       const data = event?.data || {};
       if (data.script !== ID || data.side !== "backend") return;
+      if (!state.started) return;
+      if (data.type === "backend-ready") {
+        // 就绪公告使旧属性回执失效，但本轮仍须收到快照，超时不能重新恢复
+        if (state.backendRecovery) {
+          state.backendRecovery.waitingSnapshot = true;
+          state.backendRecovery.controller.abort();
+        }
+        requeuePending();
+        resetSnapshotRetry(state.snapshotExhaustedIds);
+        state.checkStartupSnapshot = true;
+        state.backendBlocked = false;
+        queueRefresh(Array.from(state.rows.keys()), true);
+        if (inLibrary(api)) request();
+        return;
+      }
       if (data.type === "invalidate") {
         const targeted = Array.isArray(data.appids) && data.appids.length > 0;
         const invalidated = targeted
@@ -912,17 +929,22 @@
         }
         const ids = targeted ? invalidated.filter((appid) => state.rows.has(appid)) : Array.from(state.rows.keys());
         if (targeted && !ids.length) return;
+        resetSnapshotRetry(targeted ? ids : state.snapshotExhaustedIds);
         queueRefresh(ids, !targeted);
         request(ids);
         return;
       }
       if (data.type === "settings") {
+        resetSnapshotRetry(state.snapshotExhaustedIds);
         requeuePending();
         state.entries.clear();
         state.settings = data.settings || state.settings;
         state.headers = Array.isArray(data.headers) ? data.headers : state.headers;
+        updateHeaderNames();
+        state.applyAll = true;
         queueRefresh(Array.from(state.rows.keys()), true);
         request();
+        schedule();
         return;
       }
       if (data.type !== "snapshot"
@@ -930,40 +952,117 @@
         || String(data.rid || "") !== state.pendingRid) return;
       const requestedIds = state.pendingIds.slice();
       const requestedSet = new Set(requestedIds);
+      state.snapshotRetryAt = 0;
       state.pendingRid = "";
       state.pendingAt = 0;
       state.pendingIds = [];
       state.pendingAll = false;
       state.revision = Number(data.revision) || state.revision;
+      const receivedIds = new Set();
       for (const entry of Array.isArray(data.entries) ? data.entries : []) {
         const appid = Number(entry?.appid) || 0;
-        if (appid && requestedSet.has(appid)) cacheEntry(state.entries, entry);
+        if (!appid || !requestedSet.has(appid) || typeof entry.officialName !== "string"
+          || typeof entry.customName !== "string" || typeof entry.baseDisplayName !== "string"
+          || !clean(entry.finalDisplayName)) continue;
+        cacheEntry(state.entries, entry);
+        receivedIds.add(appid);
+      }
+      const missingIds = requestedIds.filter(appid => !receivedIds.has(appid) && state.rows.has(appid));
+      if (state.checkStartupSnapshot || state.backendRecovery || missingIds.length) {
+        state.displayVerification = {
+          appids: requestedIds, receivedIds, startedAt: state.backendRecovery?.startedAt || Date.now(),
+          phase: state.backendRecovery ? "backend-recovery" : "startup",
+        };
+      }
+      // 缺失或不可读的数据不能用旧缓存冒充恢复，只按缺失 AppID 有限重读
+      if (missingIds.length && state.snapshotRetryAttempts < SNAPSHOT_DATA_RETRIES) {
+        state.snapshotRetryAttempts += 1;
+        state.snapshotRetryAt = performance.now() + SNAPSHOT_REQUEST_TIMEOUT_MS;
+        queueRefresh(missingIds);
+      } else {
+        state.checkStartupSnapshot = false;
+        if (missingIds.length) {
+          for (const id of missingIds) {
+            state.snapshotExhaustedIds.add(id);
+            state.refreshIds.delete(id);
+          }
+          state.displayVerification = null;
+          log.error("library-sort-title-snapshot-unavailable", "库名称快照数据在有限重读后仍不可用", {
+            requestId: String(data.rid), attempt: state.snapshotRetryAttempts,
+            requestedCount: requestedIds.length, missingCount: missingIds.length,
+          });
+          resetSnapshotRetry();
+        }
+        if (!missingIds.length) {
+          resetSnapshotRetry();
+          state.backendBlocked = false;
+          if (state.backendRecovery) {
+            if (state.backendRecovery.phase === "timeout") {
+              log.warn("library-sort-title-backend-recovered", "库名称后台通信已恢复并收到匹配快照", {
+                durationMs: Date.now() - state.backendRecovery.startedAt,
+              });
+            }
+            cancelBackendRecovery();
+          }
+        } else if (state.backendRecovery) {
+          cancelBackendRecovery();
+        }
       }
       trimEntryCache(state.entries, state.rows);
-      state.headers = Array.isArray(data.headers) ? data.headers : [];
+      const headers = Array.isArray(data.headers) ? data.headers : [];
+      const headersChanged = headers.length !== state.headers.length || headers.some((item, index) =>
+        item.name !== state.headers[index].name || item.displayName !== state.headers[index].displayName);
+      const settingsChanged = data.settings && Object.keys(data.settings).some(key => data.settings[key] !== state.settings[key]);
+      const hideChanged = data.settings && data.settings.hideCollectionTags !== state.settings.hideCollectionTags;
+      state.headers = headers;
       state.settings = data.settings || state.settings;
-      applyVisible();
+      if (headersChanged || hideChanged) updateHeaderNames();
+      const all = state.applyAll || headersChanged || settingsChanged;
+      state.applyAll = false;
+      if (document.hidden) {
+        state.applyAll = true;
+      } else {
+        applyVisible(requestedIds, all);
+      }
       if (state.refreshAll || state.refreshIds.size) {
         state.requestedKey = "";
-        schedule();
+        if (!state.snapshotRetryAt) schedule();
       }
+    }
+
+    function updateHeaderNames() {
+      const hide = state.settings.hideCollectionTags === true;
+      state.headerNames = new Map(state.headers
+        .filter(item => item && typeof item.name === "string")
+        .map(item => [item.name, hide ? item.displayName : item.name]));
     }
 
     function onVisibility() {
       // Steam 窗口失焦时保留已显示文本，只暂停观察以避免重新可见时闪回原名
-      if (document.hidden) pause();
-      else schedule();
+      if (document.hidden) {
+        cancelBackendRecovery();
+        pause();
+      }
+      else {
+        cancelBackendRecovery();
+        state.backendBlocked = false;
+        state.connectOnCollect = true;
+        state.rebuild = true;
+        schedule();
+      }
     }
 
     state.channel.addEventListener("message", onMessage);
     scope?.listener?.("visibilitychange", document, "visibilitychange", onVisibility);
-    window.STScheduler.register(TASK, schedule, () => inLibrary(api), { intervalMs: 1000 });
+    state.routeHandle = api.contextRouter.subscribe(() => schedule());
+    window.STScheduler.register(TASK, tick, () => inLibrary(api), { intervalMs: 1000 });
     scope?.schedulerTask?.("library-list", TASK);
     window.__SteamBuffLibrarySortTitleUi = state;
 
     state.stop = () => {
       window.STScheduler?.unregister?.(TASK);
       detach();
+      state.routeHandle.dispose();
       state.channel.removeEventListener("message", onMessage);
       state.channel.close();
       state.started = false;

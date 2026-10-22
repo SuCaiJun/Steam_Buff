@@ -455,7 +455,9 @@
     if (!card) return;
     const body = card.querySelector(".st-data-display-ai-card__summary");
     const button = card.querySelector(".st-data-display-ai-card__detail-button");
-    if (body) body.textContent = cardText(state);
+    if (body) {
+      body.textContent = cardText(state);
+    }
     const blocked = !state.session
       && (!state.sessionLoaded || dataState(state) !== "ready");
     if (button) button.disabled = blocked;
@@ -497,6 +499,7 @@
   function dialogStatus(state) {
     if (state.phase === "error") return state.errorText || i18n("store.aiForecast.failed", "AI 预测失败，请稍后重试。");
     if (state.persistenceError) return state.persistenceError;
+    if (!state.session && dataState(state) !== "ready") return cardText(state);
     return "";
   }
 
@@ -658,7 +661,7 @@
   }
 
   async function streamConversation(state, conf, messages, initial, contextMessages = messages) {
-    const streamApi = window.STMessageBus?.stream;
+    const streamApi = window.STMessageBus?.ready && window.STMessageBus?.stream;
     if (typeof streamApi !== "function") {
       state.phase = "error";
       state.errorText = i18n("store.aiForecast.streamUnavailable", "AI 流式通道未就绪。");
@@ -788,6 +791,7 @@
     state.errorText = "";
     updateUi(state);
     try {
+      if (!await api.dom.loading.afterPaint(() => !state.disposed)) return false;
       const conf = await loadAiConfig();
       if (!aiReady(conf)) {
         state.phase = "error";
@@ -838,6 +842,7 @@
       ];
       return streamConversation(state, conf, messages, false);
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "data-display", event: "send-followup-failed", message: "发送 AI 追问失败", level: "error", phase: "sendFollowup" });
       state.phase = "error";
       state.errorText = text(error?.message) || i18n("store.aiForecast.followupFailed", "AI 追问失败，请稍后重试。");
       updateUi(state);
@@ -861,7 +866,8 @@
 
   function beginSessionLoad(state) {
     if (state.sessionPromise) return state.sessionPromise;
-    state.sessionPromise = readSession(state.key, state.entityKey)
+    state.sessionPromise = api.dom.loading.afterPaint(() => !state.disposed)
+      .then(ready => ready ? readSession(state.key, state.entityKey) : null)
       .then((session) => {
         if (state.disposed) return null;
         state.session = session;
@@ -889,12 +895,14 @@
     if (!root || !wrap) return null;
     if (result?.ok !== true) {
       const current = states.get(root);
+      if (current?.card) api.dom.loading.clear(current.card);
       current?.card?.remove?.();
       if (current) current.card = null;
       return null;
     }
     if (!root.parentNode) return null;
     const state = stateFor(root, result, pageInfo);
+    if (state.card) api.dom.loading.clear(state.card);
     state.card?.remove?.();
     const card = el("article", "st-data-display-ai-card");
     const header = el("div", "st-data-display-ai-card__header");
@@ -908,8 +916,8 @@
     card.append(header, el("div", "st-data-display-ai-card__summary"));
     root.parentNode.insertBefore(card, root.nextSibling);
     state.card = card;
-    beginSessionLoad(state);
     updateCard(state);
+    beginSessionLoad(state);
     return card;
   }
 
@@ -919,6 +927,7 @@
     state.disposed = true;
     state.streamJob?.cancel?.();
     clearStreamRenderTimer(state);
+    if (state.card) api.dom.loading.clear(state.card);
     state.card?.remove?.();
     state.dialog?.remove?.();
     document.documentElement.classList.remove("st-ai-forecast-dialog-open");
@@ -929,5 +938,13 @@
   api.features.dataDisplayAiForecast = Object.freeze({
     render,
     dispose,
+    /** 简版直接打开现有对话；会话读取与预测材料准备都从这次点击开始 */
+    async open(root, result, pageInfo, trigger) {
+      if (!root?.isConnected || result?.ok !== true) return false;
+      const state = stateFor(root, result, pageInfo);
+      beginSessionLoad(state);
+      await openDialog(state, trigger);
+      return true;
+    },
   });
 })();

@@ -19,7 +19,6 @@
   const RAIL_MIN_TOP = 24;
   const RAIL_MARGIN = 24;
   const DRAG_THRESHOLD = 10;
-  const TOP_SHOW_Y = 1500;
   const OPEN_EVT = "STSettingsOpen";
   const OPEN_CAT = "steamBuffOpenCat";
   const OPEN_ACK = "steamBuffOpenAck";
@@ -134,7 +133,8 @@
   function version() {
     try {
       return chrome.runtime.getManifest().version || "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-menu", event: "version-failed", message: "设置中心处理失败", level: "warn", phase: "version" });
       return "";
     }
   }
@@ -142,7 +142,8 @@
   function homepage() {
     try {
       return chrome.runtime.getManifest().homepage_url || "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-menu", event: "homepage-failed", message: "设置中心处理失败", level: "warn", phase: "homepage" });
       return "";
     }
   }
@@ -223,6 +224,7 @@
     deps = globalThis.STSettingsMenuDependencies.create({
       catalog: api.catalog,
       getStates,
+      getThirdPartyServices: () => getConfig("thirdPartyServices"),
       getMembership,
       esc,
       escAttr,
@@ -277,6 +279,15 @@
     });
   }
 
+  async function loadGameLinksConfig() {
+    try {
+      return await api.storage.getGameLinks();
+    } catch (error) {
+      log.error("game-links-config-load-failed", "相关链接设置读取失败", { error });
+      return { unavailable: true };
+    }
+  }
+
   async function loadState() {
     states = await api.storage?.getAll?.() || api.catalog?.defaults?.() || {};
     membership = await api.storage?.getMembership?.() || { active: false, features: {} };
@@ -290,6 +301,7 @@
       ai: await api.storage?.getAi?.() || api.catalog?.aiDefaults?.() || {},
       thirdPartyServices: await api.storage?.getThirdPartyServices?.() || api.catalog?.thirdPartyServicesDefaults?.() || {},
       storePriceChart: await api.storage?.getStorePriceChart?.() || api.catalog?.storePriceChartDefaults?.() || {},
+      gameLinks: await loadGameLinksConfig(),
     };
   }
 
@@ -419,6 +431,9 @@
       key: "shadow-root",
       type: "feature-lifecycle",
       dispose() {
+        globalThis.STSettingsDialogs?.cancel();
+        globalThis.STSettingsPages?.get("about")?.dispose?.();
+        globalThis.STSettingsCloudUi?.dispose?.(shadow);
         globalThis.STSettingsMenu?.dispose?.();
         host.remove();
         if (document.documentElement?.dataset) {
@@ -466,7 +481,6 @@
         dragThreshold: DRAG_THRESHOLD,
         minTop: RAIL_MIN_TOP,
         margin: RAIL_MARGIN,
-        topShowY: TOP_SHOW_Y,
         openEvent: OPEN_EVT,
         openCatDataset: OPEN_CAT,
         openAckDataset: OPEN_ACK,

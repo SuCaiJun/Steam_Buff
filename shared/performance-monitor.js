@@ -11,27 +11,51 @@
 (() => {
   "use strict";
 
-  const MONITOR_VERSION = "steam-buff-performance-monitor-v1";
-  const CPU_PRECISION = 1000;
+  const MONITOR_VERSION = "steam-buff-performance-monitor-v2";
+  const SCHEMA_VERSION = 2;
 
   const existing = window.STPerformanceMonitor;
   if (existing?.version === MONITOR_VERSION && typeof existing.printReport === "function") {
     return;
   }
+  existing?.setDiagnosticsEnabled?.(false);
 
+  function taskStats() {
+    return { count: 0, totalSyncMs: 0, maxSyncMs: 0 };
+  }
+
+  function addTask(stats, duration) {
+    stats.count += 1;
+    stats.totalSyncMs += duration;
+    stats.maxSyncMs = Math.max(stats.maxSyncMs, duration);
+  }
+
+  /**
+   * 每个页面上下文的诊断摘要；资源数来自资源所有者，不估算扩展 CPU 或全局资源总量
+   * 日志开启时仅计时已接入的同步回调；Promise 等待、后台和未接入入口不属于业务耗时
+   * schemaVersion=2 移除 cpuUsage/timerCount/observerCount；缺少可选统计源时返回 null
+   */
   class PerformanceMonitor {
     constructor() {
       this.version = MONITOR_VERSION;
       this.started = false;
-      this.timerNames = new Set();
-      this.monitorCostMs = 0;
-      this.metrics = {
-        injectCount: 0,
-        timerCount: 0,
-        observerCount: 0,
-        activeFeatures: 0,
-        startTime: Date.now(),
-      };
+      this.startTime = Date.now();
+      this.startAt = performance.now();
+      this.injectCount = 0;
+      this.activeFeatureCount = null;
+      this.bookkeepingMs = 0;
+      this.captureEnabled = false;
+      this.captureEpoch = 0;
+      this.captureStart = null;
+      this.captureEnd = null;
+      this.business = null;
+      this.schedulerTimings = new Map();
+      this.longTaskObserver = null;
+      this.longTaskStatus = "disabled";
+      this.longTasks = null;
+      this.longTaskWindowStart = null;
+      this.onVisibilityChange = () => this.syncLongTaskObserver();
+      this.setDiagnosticsEnabled(window.STLoggerFactory?.getDebugState?.().enabled === true);
     }
 
     start() {
@@ -46,58 +70,60 @@
     }
 
     recordInject() {
-      this.measure(() => {
-        this.metrics.injectCount += 1;
-      });
-    }
-
-    recordTimer(name) {
-      this.measure(() => {
-        const key = String(name || "unknown");
-        this.timerNames.add(key);
-        this.metrics.timerCount = this.getTimerCount();
-      });
-    }
-
-    recordObserver() {
-      this.measure(() => {
-        this.metrics.observerCount += 1;
-      });
+      const start = performance.now();
+      this.injectCount += 1;
+      this.bookkeepingMs += performance.now() - start;
     }
 
     updateActiveFeatures(count) {
-      const value = Number(count);
-      this.metrics.activeFeatures = Number.isFinite(value) ? Math.max(0, value) : 0;
+      if (!Number.isInteger(count) || count < 0) throw new TypeError("活跃功能数量无效");
+      this.activeFeatureCount = count;
+    }
+
+    // 内核诊断复用此入口，避免通过 getReport() 再次进入内核诊断
+    getResourceSummary() {
+      return {
+        schemaVersion: SCHEMA_VERSION,
+        scope: "current-page-context",
+        injectCount: this.injectCount,
+        activeFeatureCount: window.STPageContext
+          ? window.STPageContext.getActiveFeatures().length
+          : this.activeFeatureCount,
+        scheduler: window.STScheduler ? window.STScheduler.getMetrics() : null,
+        observers: window.STObserverUtils ? window.STObserverUtils.getMetrics() : null,
+      };
     }
 
     getSummary() {
-      const uptime = Date.now() - this.metrics.startTime;
-      const schedulerTasks = window.STScheduler?.getTasks?.() || {};
-      const activeFeatures = window.STPageContext?.getActiveFeatures?.() || [];
-      const runtimeDiagnostics = window.STRuntime?.current?.()?.diagnostics?.() || null;
-      const runtimeAdapters = Array.isArray(runtimeDiagnostics?.adapters) ? runtimeDiagnostics.adapters : [];
-      const runtimeFeatures = Array.isArray(runtimeDiagnostics?.features) ? runtimeDiagnostics.features : [];
-      const runtimeResources = Array.isArray(runtimeDiagnostics?.resources) ? runtimeDiagnostics.resources : [];
-      const runtimeErrors = Array.isArray(runtimeDiagnostics?.errors) ? runtimeDiagnostics.errors : [];
+      const now = performance.now();
+      const uptime = now - this.startAt;
+      const runtime = window.STRuntime?.current?.()?.diagnostics() ?? null;
       return {
-        injectCount: this.metrics.injectCount,
-        timerCount: this.getTimerCount(),
-        observerCount: this.metrics.observerCount,
-        activeFeatureCount: activeFeatures.length,
-        startTime: this.metrics.startTime,
+        ...this.getResourceSummary(),
+        startTime: this.startTime,
         uptimeMs: uptime,
         uptimeMin: Math.floor(uptime / 60000),
-        cpuUsage: this.getCpuUsage(uptime),
-        schedulerRunning: window.STScheduler?.running === true,
-        schedulerTaskCount: Object.keys(schedulerTasks).length,
-        runtime: runtimeDiagnostics ? {
-          id: runtimeDiagnostics.id,
-          version: runtimeDiagnostics.version,
-          status: runtimeDiagnostics.status,
-          adapterCount: runtimeAdapters.length,
-          featureCount: runtimeFeatures.length,
-          resourceCount: runtimeResources.length,
-          errorCount: runtimeErrors.length,
+        monitorBookkeepingMs: this.bookkeepingMs,
+        monitorBookkeepingRatioPct: uptime > 0 ? this.bookkeepingMs / uptime * 100 : null,
+        capture: {
+          enabled: this.captureEnabled,
+          status: this.captureStart === null ? "not-started" : this.captureEnabled ? "recording" : "stopped",
+          durationMs: this.captureStart === null ? null : (this.captureEnd ?? now) - this.captureStart,
+        },
+        business: this.business ? Object.fromEntries(Object.entries(this.business).map(([key, value]) => [key, { ...value }])) : null,
+        longTasks: {
+          scope: "page-main-thread",
+          status: this.longTaskStatus,
+          ...(this.longTasks ?? { count: null, totalDurationMs: null, maxDurationMs: null }),
+        },
+        runtime: runtime ? {
+          id: runtime.id,
+          version: runtime.version,
+          status: runtime.status,
+          adapterCount: runtime.adapters.length,
+          featureCount: runtime.features.length,
+          registeredResourceCount: runtime.resources.length,
+          errorCount: runtime.errors.length,
         } : null,
       };
     }
@@ -107,56 +133,137 @@
     }
 
     getDetails() {
-      const schedulerTasks = window.STScheduler?.getTasks?.() || {};
       return {
         ...this.getSummary(),
-        activeFeatures: window.STPageContext?.getActiveFeatures?.() || [],
-        schedulerTasks,
-        runtimeDetails: window.STRuntime?.current?.()?.diagnostics?.() || null,
+        activeFeatures: window.STPageContext?.getActiveFeatures() ?? null,
+        schedulerTasks: window.STScheduler?.getTasks() ?? null,
+        schedulerTaskTimings: Object.fromEntries(Array.from(this.schedulerTimings, ([name, timing]) => [name,
+          Object.fromEntries(Object.entries(timing).map(([kind, stats]) => [kind, { ...stats }])),
+        ])),
+        runtimeDetails: window.STRuntime?.current?.()?.diagnostics() ?? null,
       };
     }
 
     printReport() {
       const report = this.getSummary();
-      const summary = {
-        injectCount: report.injectCount,
-        timerCount: report.timerCount,
-        observerCount: report.observerCount,
-        activeFeatureCount: report.activeFeatureCount,
-        cpuUsage: report.cpuUsage,
-        uptimeMin: report.uptimeMin,
-        schedulerTaskCount: report.schedulerTaskCount,
-      };
-
-      console.table(summary);
+      window.STLoggerFactory?.createLogger("shared", "performance-monitor")
+        .debug("performance-report", "性能诊断摘要", { debugData: report });
       return report;
     }
 
-    getTimerCount() {
-      // 指标表示“统一调度器数量”，不是任务数量；底层最多只允许一个心跳。
-      if (window.STScheduler) {
-        return 1;
+    /** 日志总开关驱动采集；关闭时排空已收到的长任务并断开，不改变业务调度 */
+    setDiagnosticsEnabled(enabled) {
+      if (enabled === this.captureEnabled) return;
+      if (!enabled) {
+        if (this.longTaskObserver) {
+          this.recordLongTasks(this.longTaskObserver.takeRecords(), this.captureEpoch);
+          this.longTaskObserver.disconnect();
+          this.longTaskObserver = null;
+          document.removeEventListener("visibilitychange", this.onVisibilityChange);
+          this.longTaskStatus = "stopped";
+        }
+        this.captureEnd = performance.now();
+        this.captureEnabled = false;
+        this.captureEpoch += 1;
+        return;
       }
-      return this.timerNames.size > 0 ? 1 : 0;
-    }
-
-    getCpuUsage(uptime) {
-      if (!uptime) {
-        return "0.000%";
+      this.captureEnabled = true;
+      this.captureEpoch += 1;
+      this.captureStart = performance.now();
+      this.captureEnd = null;
+      this.business = { schedulerCallback: taskStats(), schedulerCondition: taskStats(), observerCallback: taskStats() };
+      this.schedulerTimings.clear();
+      this.longTasks = null;
+      const Observer = window.PerformanceObserver;
+      if (!Observer?.supportedEntryTypes.includes("longtask")) {
+        this.longTaskStatus = "unsupported";
+        return;
       }
-      // 刚启动时 uptime 可能只有几毫秒，至少用 1 秒窗口估算，避免瞬时百分比误导判断。
-      const effectiveUptime = Math.max(1000, uptime);
-      const usage = (this.monitorCostMs / effectiveUptime) * 100;
-      return `${Math.round(usage * CPU_PRECISION) / CPU_PRECISION}%`;
-    }
-
-    measure(fn) {
-      const startedAt = performance.now();
+      const epoch = this.captureEpoch;
       try {
-        return fn();
-      } finally {
-        this.monitorCostMs += performance.now() - startedAt;
+        this.longTaskObserver = new Observer(list => this.recordLongTasks(list.getEntries(), epoch));
+        this.longTasks = { count: 0, totalDurationMs: 0, maxDurationMs: 0 };
+        document.addEventListener("visibilitychange", this.onVisibilityChange);
+        this.syncLongTaskObserver();
+      } catch (error) {
+        this.reportFailure(error);
       }
+    }
+
+    syncLongTaskObserver() {
+      if (!this.longTaskObserver) return;
+      if (document.hidden) {
+        this.recordLongTasks(this.longTaskObserver.takeRecords(), this.captureEpoch);
+        this.longTaskObserver.disconnect();
+        this.longTaskStatus = "paused-hidden";
+      } else if (this.longTaskStatus !== "observing") {
+        try {
+          // 不回放采集前或隐藏期间的长任务
+          this.longTaskWindowStart = performance.now();
+          this.longTaskObserver.observe({ type: "longtask" });
+          this.longTaskStatus = "observing";
+        } catch (error) {
+          this.reportFailure(error);
+        }
+      }
+    }
+
+    reportFailure(error) {
+      this.longTaskObserver?.disconnect();
+      this.longTaskObserver = null;
+      this.longTasks = null;
+      this.longTaskStatus = "failed";
+      document.removeEventListener("visibilitychange", this.onVisibilityChange);
+      window.STLoggerFactory.reportError(error, {
+        domain: "shared", feature: "performance-monitor", event: "long-task-observer-failed", message: "页面长任务采集启动失败", level: "warn",
+      });
+    }
+
+    /** 只包围同步执行区间；返回 null 表示未采集，不能作为零耗时样本 */
+    beginTask(kind, name) {
+      if (!this.captureEnabled) return null;
+      const start = performance.now();
+      if (!Object.hasOwn(this.business, kind) || (kind !== "observerCallback" && !name)) {
+        throw new TypeError("业务计时入口无效");
+      }
+      let timing = null;
+      if (kind !== "observerCallback") {
+        let task = this.schedulerTimings.get(name);
+        if (!task) {
+          task = { schedulerCallback: taskStats(), schedulerCondition: taskStats() };
+          this.schedulerTimings.set(name, task);
+        }
+        timing = task[kind];
+      }
+      const startedAt = performance.now();
+      this.bookkeepingMs += startedAt - start;
+      return { kind, timing, epoch: this.captureEpoch, startedAt };
+    }
+
+    endTask(sample) {
+      if (!sample || !this.captureEnabled || sample.epoch !== this.captureEpoch) return;
+      const start = performance.now();
+      const duration = start - sample.startedAt;
+      addTask(this.business[sample.kind], duration);
+      // 直接更新样本持有的计数器，任务在回调内注销时不会重新插回明细 Map
+      if (sample.timing) addTask(sample.timing, duration);
+      this.bookkeepingMs += performance.now() - start;
+    }
+
+    forgetSchedulerTask(name) {
+      this.schedulerTimings.delete(name);
+    }
+
+    recordLongTasks(entries, epoch) {
+      if (!this.captureEnabled || epoch !== this.captureEpoch || !this.longTasks || this.longTaskStatus !== "observing") return;
+      const start = performance.now();
+      for (const entry of entries) {
+        if (entry.startTime < this.longTaskWindowStart) continue;
+        this.longTasks.count += 1;
+        this.longTasks.totalDurationMs += entry.duration;
+        this.longTasks.maxDurationMs = Math.max(this.longTasks.maxDurationMs, entry.duration);
+      }
+      this.bookkeepingMs += performance.now() - start;
     }
   }
 

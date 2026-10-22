@@ -166,12 +166,13 @@
 
   // readings 解析一个名称及现有两字段，返回逐字候选和同源的全拼/助记符预览
   // replace 表示现有内容不能安全定位，调用方必须等用户明确应用整组预览；不修改传入字段
+  // pinyinMatches 只表示名称与全拼能逐字对应，不受手工助记符影响。
   // selectReading 只接受该位置的真实候选并返回新模型；库缺失或返回契约失效时抛出异常
   function readings(name, fields = {}, lib = root.pinyinPro) {
     const body = stripTags(name);
     const chars = Array.from(body);
     if (!body || !CJK_RE.test(body)) {
-      return { body, chars, parts: [], groups: [], replace: false, pinyin: "", mnemonic: "" };
+      return { body, chars, parts: [], groups: [], replace: false, pinyinMatches: false, pinyin: "", mnemonic: "" };
     }
     if (typeof lib?.pinyin !== "function" || typeof lib?.polyphonic !== "function" || typeof lib?.convert !== "function") {
       throw new TypeError("Pinyin reading API unavailable");
@@ -208,6 +209,7 @@
     const matched = current ? matchParts(current, variants) : defaults;
     const parts = matched || defaults;
     const pair = readingPair({ body, chars, groups }, parts);
+    pair.pinyinMatches = !!current && !!matched;
     pair.replace = !matched || (!!fields.mnemonic && fields.mnemonic !== pair.mnemonic);
     return pair;
   }

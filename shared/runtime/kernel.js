@@ -385,6 +385,8 @@
     }
 
     markError(event, error, meta = {}) {
+      // 部分入口先加载内核；日志状态确认开启后才生成内存诊断记录
+      if (!window.STLoggerFactory || !window.STLoggerFactory.getDebugState().enabled) return null;
       const entry = {
         event: text(event),
         error: errText(error),
@@ -401,14 +403,7 @@
     diagnostics() {
       const schedulerTasks = safeCall(() => window.STScheduler?.getTasks?.()) || {};
       const monitor = window.STPerformanceMonitor;
-      const perf = monitor?.metrics ? {
-        injectCount: monitor.metrics.injectCount,
-        timerCount: typeof monitor.getTimerCount === "function"
-          ? monitor.getTimerCount()
-          : monitor.metrics.timerCount,
-        observerCount: monitor.metrics.observerCount,
-        activeFeatureCount: monitor.metrics.activeFeatures,
-      } : null;
+      const perf = monitor?.getResourceSummary?.() ?? null;
       return {
         id: this.id,
         version: this.version,
@@ -423,12 +418,7 @@
         schedulerTasks,
         messageBus: safeCall(() => window.STMessageBus?.diagnostics?.()) || null,
         settingsBus: safeCall(() => window.STSettingsBus?.diagnostics?.()) || null,
-        performance: perf ? {
-          injectCount: perf.injectCount,
-          timerCount: perf.timerCount,
-          observerCount: perf.observerCount,
-          activeFeatureCount: perf.activeFeatureCount,
-        } : null,
+        performance: perf,
         errors: this.errors.slice(),
       };
     }

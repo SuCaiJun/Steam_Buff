@@ -132,6 +132,7 @@
 
   function renderWorkshopLine(container, line, result) {
     if (!line) return;
+    api.dom.detailLoading.clear(line);
     container?.classList?.remove("supported", "not-supported", "error");
     line.classList.remove("is-loading", "is-supported", "is-not-supported", "is-error");
     line.dataset.workshopDone = "1";
@@ -164,9 +165,17 @@
   }
 
   function updateWorkshop(container, appId, line) {
-    loadWorkshop(appId).then((result) => {
+    const valid = () => container.isConnected && container.dataset.steamAppId === appId;
+    const cached = workshopCache.get(appId);
+    if (cached) {
+      renderWorkshopLine(container, line, cached);
+      return;
+    }
+    api.dom.detailLoading.activate(line);
+    api.dom.loading.afterPaint(valid).then(ready => ready ? loadWorkshop(appId) : null).then((result) => {
       if (!container?.isConnected || container.dataset.steamAppId !== appId) return;
       if (result?.ok && result.supported && unsupportedOnly()) {
+        api.dom.detailLoading.clear(container);
         container.remove();
         return;
       }
@@ -202,7 +211,7 @@
     if (!line) {
       line = document.createElement("div");
       line.className = "es_workshop_check_text es_workshop_check_status is-loading";
-      line.textContent = i18n("store.workshop.loading", "正在检查 Steam 创意工坊状态...");
+      api.dom.detailLoading.show(line, "note");
       body.appendChild(line);
     }
     return line;
@@ -218,7 +227,12 @@
 
   function mountWorkshopCheck(appId, afterElement = null) {
     removeInlineWorkshopLines();
+    const cached = workshopCache.get(appId);
     const current = currentWorkshopCard(appId);
+    if (cached?.supported && unsupportedOnly()) {
+      if (current) { api.dom.detailLoading.clear(current); current.remove(); }
+      return null;
+    }
     if (current) {
       if (current.classList.contains("supported") && unsupportedOnly()) {
         current.remove();
@@ -256,15 +270,25 @@
     return container;
   }
 
+  // 隐藏的已支持结果是终态，购买区恢复不能把它当成缺失模块
+  function needsWorkshopRestore(appId) {
+    const id = String(appId || "");
+    if (workshopCache.get(id)?.supported && unsupportedOnly()) return false;
+    return !Array.from(document.querySelectorAll('.' + WORKSHOP_MODULE_CLASS))
+      .some(node => node.dataset.steamAppId === id && isUsableExistingModule(node));
+  }
+
   function addWorkshopCheck(appId = pageAppId()) {
-    if (!appId) return null;
-    return mountWorkshopCheck(appId);
+    const id = text(appId);
+    if (!id) return null;
+    return mountWorkshopCheck(id);
   }
 
   function removeWorkshopCheck() {
     let removed = false;
     removeInlineWorkshopLines();
     document.querySelectorAll(`.${WORKSHOP_MODULE_CLASS}`).forEach((node) => {
+      api.dom.detailLoading.clear(node);
       node.remove();
       removed = true;
     });
@@ -374,10 +398,18 @@
 
   api.features.audioCheck = Object.freeze({
     add: addAudioCheck,
+    stop() {
+      document.querySelectorAll("." + MODULE_CLASSES.AUDIO_CHECK).forEach(node => {
+        api.dom.detailLoading.clear(node);
+        node.remove();
+      });
+      return true;
+    },
   });
 
   api.features.workshopCheck = Object.freeze({
     add: addWorkshopCheck,
+    needsRestore: needsWorkshopRestore,
     remove: removeWorkshopCheck,
   });
 })();

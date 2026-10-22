@@ -165,7 +165,7 @@
         if (!target || typeof utils?.createDebouncedObserver !== "function" || typeof utils?.createVisibilityGatedObserver !== "function") {
             return null;
         }
-        const rawObserver = utils.createDebouncedObserver(callback, OBSERVER_DEBOUNCE_MS);
+        const rawObserver = utils.createDebouncedObserver(callback, OBSERVER_DEBOUNCE_MS, { records: false });
         return utils.createVisibilityGatedObserver(rawObserver, target, {
             childList: true,
             subtree: true

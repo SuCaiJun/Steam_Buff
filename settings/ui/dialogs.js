@@ -39,6 +39,13 @@
         node.appendChild(em);
         continue;
       }
+      if (part.danger === true) {
+        const span = document.createElement("span");
+        span.className = "settings-dialog-danger";
+        span.textContent = value;
+        node.appendChild(span);
+        continue;
+      }
       node.appendChild(document.createTextNode(value));
     }
   }
@@ -84,6 +91,8 @@
     };
   }
 
+  let activeCancel = null;
+
   function dialog(shadow, options = {}) {
     const startedAt = Date.now();
     const panel = shadow?.querySelector?.(".panel");
@@ -96,6 +105,7 @@
     }
 
     const restoreTarget = shadow.activeElement;
+    activeCancel?.();
     panel.querySelector(".settings-dialog-layer")?.remove();
     const layer = document.createElement("div");
     const box = document.createElement("div");
@@ -116,6 +126,8 @@
     message.className = "settings-dialog-message";
     message.id = "st-settings-dialog-message";
     fillMessage(message, options);
+    if (typeof options.render === "function") options.render(message);
+    if (options.className) box.classList.add(options.className);
     actions.className = "settings-dialog-actions";
     const countdownClears = [];
 
@@ -146,6 +158,7 @@
           return;
         }
         done = true;
+        if (activeCancel === cancel) activeCancel = null;
         for (const clear of countdownClears) {
           clear();
         }
@@ -163,18 +176,39 @@
         });
         resolve(value);
       };
+      const cancel = () => close("cancel");
+      activeCancel = cancel;
 
       life = globalThis.STDialogLifecycle?.open?.({
         root: layer,
         restore: restoreTarget,
-        initial: () => layer.querySelector(".dialog-btn:not(:disabled)") || layer.querySelector(".dialog-btn"),
+        initial: () => options.initial?.(message) || layer.querySelector(".dialog-btn:not(:disabled)") || layer.querySelector(".dialog-btn"),
         onEscape: () => close("cancel"),
       });
 
+      let actionPending = false;
+      async function act(action) {
+        if (actionPending) return;
+        actionPending = true;
+        const controls = Array.from(box.querySelectorAll("input,select,button"));
+        const disabled = controls.map(node => node.disabled);
+        try {
+          const result = options.onAction(action, message);
+          if (result === false) return;
+          controls.forEach(node => { node.disabled = true; });
+          if (await result !== false) close(action);
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "dialog", event: "dialog-action-failed", message: "设置弹窗操作失败", level: "error" });
+        } finally {
+          actionPending = false;
+          controls.forEach((node, index) => { node.disabled = disabled[index]; });
+        }
+      }
       layer.addEventListener("click", (event) => {
         const action = event.target.closest("[data-dialog-action]");
         if (action && action.disabled !== true) {
-          close(action.dataset.dialogAction || "");
+          if (typeof options.onAction === "function") void act(action.dataset.dialogAction || "");
+          else close(action.dataset.dialogAction || "");
         }
       });
 
@@ -185,7 +219,7 @@
     });
   }
 
-  const api = Object.freeze({ dialog });
+  const api = Object.freeze({ dialog, cancel() { activeCancel?.(); } });
   globalThis.STSettingsDialogs = api;
 
   if (typeof module === "object" && module.exports) {

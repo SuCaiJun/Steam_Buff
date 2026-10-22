@@ -19,6 +19,7 @@
   const INSTALLED_VERSION_KEY = contract.installedVersionKey;
   const SUPPORT_DECISION_KEY = contract.supportDecisionKey;
   const PENDING_UPDATE_KEY = contract.pendingUpdateKey;
+  const TRANSLATE_ENABLED_KEY = "st.settings.translate.enabled";
   const log = root.STLoggerFactory?.createLogger?.("background", "lifecycle-prompts") || {
     info() {},
   };
@@ -54,6 +55,7 @@
     return Number.isFinite(next) && next > 0 ? next : Date.now();
   }
 
+  // 安装时仅初始化缺失的翻译总开关，升级和已有选择保持不变；初始化在首轮内容注入前执行
   async function initialize(details = {}, now = Date.now()) {
     const reason = String(details?.reason || "");
     if (reason !== "install" && reason !== "update") {
@@ -66,13 +68,17 @@
     }
 
     const installedAt = timestamp(now);
-    const stored = await storageGet([STARTED_AT_KEY, INSTALLED_VERSION_KEY]);
+    const stored = await storageGet([STARTED_AT_KEY, INSTALLED_VERSION_KEY, TRANSLATE_ENABLED_KEY]);
     const storedStartedAt = Number(stored[STARTED_AT_KEY]);
     const storedVersion = String(stored[INSTALLED_VERSION_KEY] || "").trim();
     const startedAt = storedStartedAt > 0 ? storedStartedAt : installedAt;
     const initializeVersion = reason === "install" || !storedVersion;
     const versionChanged = reason === "update" && !!storedVersion && storedVersion !== currentVersion;
+    const initializeTranslate = reason === "install" && !Object.hasOwn(stored, TRANSLATE_ENABLED_KEY);
     const patch = {};
+    if (initializeTranslate) {
+      patch[TRANSLATE_ENABLED_KEY] = true;
+    }
     if (!(Number(stored[STARTED_AT_KEY]) > 0)) {
       patch[STARTED_AT_KEY] = startedAt;
     }
@@ -97,6 +103,7 @@
       previousVersion: String(details?.previousVersion || "").trim(),
       startedAt,
       versionInitialized: initializeVersion,
+      translateDefaultInitialized: initializeTranslate,
       versionChanged,
       updatePromptPending: versionChanged,
     });

@@ -460,6 +460,7 @@
       historyCache.set(appid, result);
       return result;
     }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "load-history-failed", message: "加载历史价格失败", level: "error", phase: "loadHistory" });
       const result = {
         ok: false,
         code: error?.code || "ITAD_HISTORY_REQUEST_FAILED",
@@ -518,7 +519,8 @@
       }
       pyCache.set(appid, null);
       return null;
-    })().catch(() => {
+    })().catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "load-py-failed", message: "加载第三方价格失败", level: "error", phase: "loadPy" });
       pyCache.set(appid, null);
       return null;
     }).finally(() => {
@@ -656,9 +658,12 @@
     });
 
     for (const row of summary.steampy || []) {
+      const price = row.kind === "cdk" && api.format.shouldHidePyCdkPrice(row.amount)
+        ? { ...row, cut: 0, text: i18n("store_steampy_clickToView", "点击查看") }
+        : row;
       appendPriceLine(rows, {
         label: row.label.replace(/^SteamPY\s*/, "PY "),
-        price: row,
+        price,
         url: steamPyDetail(row),
       });
     }
@@ -999,7 +1004,7 @@
     boundScroller?.addEventListener("scroll", handleViewportChange, { passive: true });
     window.addEventListener("resize", handleViewportChange);
     document.addEventListener("keydown", handleKeyDown);
-    observer = window.STObserverUtils?.createDebouncedObserver?.(refreshBoundContainer, ROW_OBSERVER_DEBOUNCE_MS)
+    observer = window.STObserverUtils?.createDebouncedObserver?.(refreshBoundContainer, ROW_OBSERVER_DEBOUNCE_MS, { records: false })
       || new MutationObserver(refreshBoundContainer);
     // 注: live 排序会替换行容器及两层虚拟 Panel；稳定目标只包围愿望单控制区与列表。
     // 事件只做精准行命中，观察器保持 1000ms 防抖且每次只同步当前可见行。

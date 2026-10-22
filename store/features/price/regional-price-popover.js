@@ -116,6 +116,7 @@
         try {
           out[index] = await loader(items[index]);
         } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "worker-failed", message: "商店功能处理失败", level: "warn", phase: "worker" });
           out[index] = { cc: items[index], error };
         }
       }
@@ -134,7 +135,8 @@
         from.setDate(from.getDate() - 10);
         const rates = await api.exchangeRates.load(currencies, from, new Date());
         rateIndex = api.exchangeRates.index(rates.rates);
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "load-rows-failed", message: "商店功能处理失败", level: "warn", phase: "loadRows" });
         rateIndex = new Map();
       }
     }
@@ -205,15 +207,38 @@
     const tooltip = api.tooltip;
     if (!tooltip) return;
     const ownerSession = state.session;
+    // 悬浮层仍显示同一目标时，鼠标和焦点事件只取消隐藏，不重建骨架或结果
+    if (ownerSession.active === state && tooltip.isOwner(OWNER) && (state.loading || state.rows)) {
+      tooltip.cancelHide(OWNER);
+      return;
+    }
     ownerSession.active = state;
+    const ticket = ++state.showSeq;
+    const valid = () => current === ownerSession && ownerSession.active === state && state.showSeq === ticket && state.target.isConnected && tooltip.isOwner(OWNER);
+    if (state.rows) { tooltip.show(renderContent(state.rows), state.target, TOOLTIP_OPTIONS); return; }
     const loading = document.createElement("div");
     loading.className = "st-regional-price-tooltip__loading";
-    loading.textContent = i18n("store.regionalPrice.loading", "正在加载区域价格");
+    state.loading = loading;
+    api.dom.loading.show(loading, "card");
     tooltip.show(loading, state.target, TOOLTIP_OPTIONS);
-    if (!state.rowsTask) state.rowsTask = loadRows(state.targetRef, state.regions);
-    const rows = await state.rowsTask;
-    if (current !== ownerSession || ownerSession.active !== state || !tooltip.isOwner(OWNER)) return;
-    tooltip.show(renderContent(rows), state.target, TOOLTIP_OPTIONS);
+    api.dom.loading.activate(loading);
+    try {
+      if (!await api.dom.loading.afterPaint(valid)) return;
+      if (!state.rowsTask) state.rowsTask = loadRows(state.targetRef, state.regions);
+      const rows = await state.rowsTask;
+      state.rows = rows;
+      if (!valid()) return;
+      tooltip.show(renderContent(rows), state.target, TOOLTIP_OPTIONS);
+    } catch (error) {
+      if (!valid()) return;
+      api.dom.loading.clear(loading);
+      loading.textContent = i18n("common.requestFailed", "请求失败，请稍后重试");
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "regional-price-show-failed", message: "区域价格加载失败", level: "error", phase: "show" });
+      state.rowsTask = null;
+    } finally {
+      api.dom.loading.clear(loading);
+      if (state.loading === loading) state.loading = null;
+    }
   }
 
   function scheduleHide(state) {
@@ -247,6 +272,9 @@
       target,
       regions: configured.regions,
       rowsTask: null,
+      rows: null,
+      loading: null,
+      showSeq: 0,
       listeners: [],
       originalTabIndex: target.getAttribute("tabindex"),
       session: ownerSession,
@@ -305,6 +333,7 @@
       const results = await Promise.all(bindings.map(({ target, targetRef }) => bindTargetForSession(ownerSession, target, targetRef)));
       result = results.find(item => !item.started) || { started: true };
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "start-failed", message: "启动功能失败", level: "warn", phase: "start" });
       if (current === ownerSession) stop();
       return { started: false, reason: "settings-unavailable", error };
     }

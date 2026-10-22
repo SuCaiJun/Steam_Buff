@@ -129,6 +129,7 @@
       keys: keys.slice(),
       owner: ownerOf(options),
       reason: text(options?.reason || "write"),
+      operationId: text(options?.operationId || ""),
       createdAt: now(),
     });
   }
@@ -151,8 +152,9 @@
     }
     const owner = matched[0].owner;
     const reason = matched[0].reason;
+    const operationId = matched[0].operationId;
     return matched.every((item) => item.owner === owner && item.reason === reason)
-      ? { owner, reason }
+      ? { owner, reason, operationId: matched.every(item => item.operationId === operationId) ? operationId : "" }
       : null;
   }
 
@@ -236,17 +238,23 @@
     return count;
   }
 
+  /** strict 读取失败时拒绝 Promise，由调用方记录最终错误；默认保留空对象降级语义。 */
   function rawGet(keys, options = {}) {
     const box = store();
     if (!box) {
+      if (options.strict === true) return Promise.reject(new Error("本地设置存储不可用"));
       return Promise.resolve({});
     }
     stats.reads += 1;
     const cleanKeys = normalizeKeys(keys);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       try {
         box.get(keys, (rt) => {
           if (root.chrome?.runtime?.lastError) {
+            if (options.strict === true) {
+              reject(root.chrome.runtime.lastError);
+              return;
+            }
             log.warn("settings-bus-read-failed", "设置总线读取失败", {
               owner: ownerOf(options),
               reason: text(options.reason || "read"),
@@ -259,6 +267,10 @@
           resolve(rt || {});
         });
       } catch (error) {
+        if (options.strict === true) {
+          reject(error);
+          return;
+        }
         log.warn("settings-bus-read-failed", "设置总线读取失败", {
           owner: ownerOf(options),
           reason: text(options.reason || "read"),
@@ -287,6 +299,7 @@
               publish({
                 owner: ownerOf(options),
                 reason: options.reason || "write",
+                operationId: options.operationId,
                 changedKeys: keys,
               });
             } else if (options.reason === "settings-cloud-apply") {
@@ -333,6 +346,7 @@
               publish({
                 owner: ownerOf(options),
                 reason: options.reason || "remove",
+                operationId: options.operationId,
                 changedKeys: cleanKeys,
               });
             }
@@ -360,6 +374,7 @@
     });
   }
 
+  /** strict 必须重新读取存储；失败不归一化、不缓存、不广播，成功缺省键仍使用目录默认值。 */
   async function loadSettingsSnapshot(options = {}) {
     const owner = ownerOf(options);
     const defaults = options.defaults && typeof options.defaults === "object" ? options.defaults : {};
@@ -368,14 +383,14 @@
     const storageKeys = ids.map(keyBuilder);
     // 同一组设置可能由不同上下文使用不同的键规则，缓存必须按实际存储键隔离
     const cacheKey = `${POLICY.cacheKeyPrefix}${storageKeys.join(",")}`;
-    if (options.force !== true) {
+    if (options.force !== true && options.strict !== true) {
       const cached = cacheGet(owner, cacheKey);
       if (cached) {
         root.STPageContext?.setSettingsSnapshot?.(cached);
         return { ...cached };
       }
     }
-    const rt = await rawGet(storageKeys, { owner, reason: "snapshot-read" });
+    const rt = await rawGet(storageKeys, { owner, reason: "snapshot-read", strict: options.strict === true });
     const out = {};
     for (const id of ids) {
       const def = Object.hasOwn(defaults, id) ? defaults[id] : true;
@@ -422,6 +437,7 @@
 
   function reportSubscriberFailure(item, event, error) {
     log.warn("settings-bus-subscriber-failed", "设置订阅回调失败", {
+      operationId: event.operationId,
       owner: item.owner,
       key: item.key,
       reason: event.reason,
@@ -441,6 +457,7 @@
       time: now(),
       owner: text(input.owner || "settings-bus"),
       reason: text(input.reason || "change"),
+      operationId: text(input.operationId || ""),
       changedKeys: list(input.changedKeys),
       snapshot: input.snapshot && typeof input.snapshot === "object" ? { ...input.snapshot } : null,
     };
@@ -453,6 +470,7 @@
       root.dispatchEvent?.(new CustomEvent(EVENT, { detail: event }));
     } catch (error) {
       log.warn("settings-bus-dispatch-failed", "设置快照变更事件派发失败", {
+        operationId: event.operationId,
         owner: event.owner,
         reason: event.reason,
         keyCount: event.changedKeys.length,
@@ -493,6 +511,7 @@
         publish({
           owner: source?.owner || "chrome.storage.onChanged",
           reason: source?.reason || "storage-change",
+          operationId: source?.operationId,
           changedKeys: keys,
         });
       });
@@ -556,6 +575,69 @@
     return count;
   }
 
+  // 页面展示快照不写入 storage；beginUpdate/commitUpdate 防止较早的异步读取覆盖新快照
+  // subscribe 只比较声明字段，返回 dispose，并由 Runtime 按 owner/key 管理订阅生命周期
+  // 快照顶层只读，调用方提供的嵌套数据也应作为快照使用，禁止就地修改
+  function createSnapshotStore(options = {}) {
+    const owner = text(options.owner);
+    const key = text(options.key);
+    if (!owner || !key) throw new TypeError("展示快照必须声明 owner 和 key");
+    if (typeof root.STLoggerFactory?.createLogger !== "function") {
+      throw new Error("展示快照缺少日志依赖");
+    }
+    const storeLog = root.STLoggerFactory.createLogger("settings", "snapshot-store");
+    const listeners = new Map();
+    let generation = 0;
+    let snapshot = null;
+
+    function commitUpdate(ticket, next, source = {}) {
+      if (ticket !== generation) return false;
+      if (!next || typeof next !== "object" || Array.isArray(next)) {
+        throw new TypeError("展示快照必须是对象");
+      }
+      const previous = snapshot;
+      const committed = Object.freeze({ ...next });
+      snapshot = committed;
+      for (const item of Array.from(listeners.values())) {
+        if (snapshot !== committed) break;
+        if (listeners.get(item.key) !== item) continue;
+        if (!item.fields.some(field => !Object.is(previous?.[field], committed[field]))) continue;
+        try {
+          item.callback(committed, Object.freeze({
+            owner, reason: text(source.reason), operationId: text(source.operationId),
+          }));
+        } catch (error) {
+          storeLog.error("settings-snapshot-subscriber-failed", "展示快照订阅更新失败", {
+            owner, key: item.key, reason: text(source.reason), operationId: text(source.operationId), error,
+          });
+        }
+      }
+      return true;
+    }
+
+    function subscribeFields(fields, callback, subscription = {}) {
+      const selected = list(fields);
+      const listenerKey = text(subscription.key);
+      if (!selected.length || !listenerKey || typeof callback !== "function") {
+        throw new TypeError("展示快照订阅必须声明字段、key 和同步回调");
+      }
+      const item = { fields: selected, key: listenerKey, callback };
+      listeners.set(listenerKey, item);
+      const dispose = () => {
+        if (listeners.get(listenerKey) === item) listeners.delete(listenerKey);
+      };
+      runtime()?.registerResource?.({ owner, key: `${key}:${listenerKey}`, type: "snapshot-subscription", dispose });
+      return Object.freeze({ dispose });
+    }
+
+    return Object.freeze({
+      getSnapshot: () => snapshot,
+      beginUpdate: () => ++generation,
+      commitUpdate,
+      subscribe: subscribeFields,
+    });
+  }
+
   function diagnostics() {
     prune();
     return {
@@ -588,6 +670,7 @@
     rawSet,
     rawRemove,
     loadSettingsSnapshot,
+    createSnapshotStore,
     isSettingsChange,
     subscribe,
     publish,

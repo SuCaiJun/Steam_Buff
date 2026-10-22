@@ -27,12 +27,16 @@
     },
   });
   importScripts(chrome.runtime.getURL("shared/logger-factory.js"));
+  importScripts(chrome.runtime.getURL("extension/background-debug.js"));
+  importScripts(chrome.runtime.getURL("shared/error-boundary.js"));
+  importScripts(chrome.runtime.getURL("shared/utils/network-request.js"));
   importScripts(chrome.runtime.getURL("shared/lifecycle-prompt-contract.js"));
   importScripts(chrome.runtime.getURL("extension/background-lifecycle.js"));
   importScripts(chrome.runtime.getURL("extension/background-update.js"));
   importScripts(chrome.runtime.getURL("vendor/fflate/fflate.js"));
   importScripts(chrome.runtime.getURL("ai/config.js"));
   importScripts(chrome.runtime.getURL("shared/price-comparison-catalog.js"));
+  importScripts(chrome.runtime.getURL("shared/game-links.js"));
   importScripts(chrome.runtime.getURL("settings/catalog.js"));
   importScripts(chrome.runtime.getURL("settings/membership.js"));
   importScripts(chrome.runtime.getURL("settings/storage.js"));
@@ -143,6 +147,7 @@
     "shared/auth-client.js",
     "shared/account-profile.js",
     "shared/price-comparison-catalog.js",
+    "shared/game-links.js",
     "settings/catalog.js",
     "settings/membership.js",
     "settings/storage.js",
@@ -204,12 +209,14 @@
     "settings/ui/feature-row.js",
     "settings/ui/scroll-targets.js",
     "settings/ui/page-translate.js",
+    "shared/review-regex.js",
     "settings/panels/review-filter.js",
     "settings/panels/search-suggestions.js",
     "settings/panels/ai.js",
     "settings/panels/translate.js",
     "settings/panels/third-party-services.js",
     "settings/panels/store-price-chart.js",
+    "settings/panels/game-links.js",
     "settings/menu/dependencies.js",
     "settings/menu/panels.js",
     "settings/menu/shell.js",
@@ -240,6 +247,7 @@
     "store/runtime/assets.js",
     "store/runtime/format.js",
     "store/runtime/dom.js",
+    "store/features/review/review-filter-style.js",
     "store/runtime/styles.js",
     "shared/logger-schema.js",
     "extension/runtime/logger.js",
@@ -255,6 +263,7 @@
     "shared/i18n.js",
     "shared/auth-session.js",
     "shared/auth-client.js",
+    "shared/game-links.js",
     "settings/catalog.js",
     "settings/membership.js",
     "settings/storage.js",
@@ -275,6 +284,10 @@
       "store/api/exchange-rates.js",
       "store/api/providers/isthereanydeal.js",
       "store/api/third-party-data.js",
+      "shared/utils/game-links-ui.js",
+      "vendor/qrcode-generator/qrcode-generator.js",
+      "extension/runtime/qrcode.js",
+      "store/features/game-links/feature.js",
       "store/features/data-display/forecast-pack.js",
       "vendor/markdown-it/markdown-it.min.js",
       "vendor/dompurify/purify.min.js",
@@ -283,6 +296,7 @@
       "store/features/data-display/charts.js",
       "store/features/data-display/view.js",
       "store/features/data-display/feature.js",
+      "store/features/data-display/panel.js",
       "store/features/reminders/app-card-badge-scanner.js",
       "store/features/price/regional-price-popover.js",
       "store/features/price/price-history.js",
@@ -296,6 +310,7 @@
       "store/features/dlc/dlc-scan.js",
       "store/features/dlc/dlc-checkboxes.js",
       "store/features/cart/cart-select.js",
+      "shared/review-regex.js",
       "store/features/review/review-filter-core.js",
       "store/features/review/review-filter.js",
       "store/features/search/search-suggestions.js",
@@ -311,6 +326,7 @@
       "store/features/reminders/app-card-badge-scanner.js",
       "store/features/price/wishlist-price-history-core.js",
       "store/features/price/wishlist-price-history.js",
+      "shared/review-regex.js",
       "store/features/review/review-filter-core.js",
       "store/features/search/search-suggestions.js",
       "store/features/reminders/subscription-info.js",
@@ -322,6 +338,7 @@
     search: Object.freeze([
       "store/api/subscription-info.js",
       "store/features/reminders/app-card-badge-scanner.js",
+      "shared/review-regex.js",
       "store/features/review/review-filter-core.js",
       "store/features/search/search-suggestions.js",
       "store/features/reminders/subscription-info.js",
@@ -332,6 +349,7 @@
       "store/api/subscription-info.js",
       "store/features/reminders/app-card-badge-scanner.js",
       "store/features/cart/cart-select.js",
+      "store/features/search/search-suggestions.js",
       "store/features/reminders/subscription-info.js",
       "store/features/reminders/family-library-owned-marker.js",
     ]),
@@ -341,6 +359,7 @@
     other: Object.freeze([
       "store/api/subscription-info.js",
       "store/features/reminders/app-card-badge-scanner.js",
+      "shared/review-regex.js",
       "store/features/review/review-filter-core.js",
       "store/features/search/search-suggestions.js",
       "store/features/reminders/subscription-info.js",
@@ -353,21 +372,65 @@
     "store/features/features.js",
     "store/main.js",
   ]);
+  const STORE_INJECT_BATCH_SIZE = 16;
+  // 登记加载期读取和初始化契约要求的依赖；业务启动仍等待基础脚本和当前页面模块全部就绪
+  const STORE_SCRIPT_DEPENDENCIES = Object.freeze({
+    "shared/styles/components.js": ["shared/styles/theme.js", "shared/utils/dom.js"],
+    "shared/utils/dom.js": ["shared/logger-factory.js"],
+    "shared/page-context.js": ["shared/config.js"],
+    "shared/runtime/kernel.js": ["shared/page-context.js", "shared/logger-factory.js"],
+    "extension/runtime/logger.js": ["shared/logger-schema.js"],
+    "shared/logger-factory.js": ["shared/logger-schema.js", "extension/runtime/logger.js"],
+    "shared/performance-monitor.js": ["shared/logger-factory.js"],
+    "shared/scheduler.js": ["shared/logger-factory.js"],
+    "shared/runtime/message-bus.js": ["shared/logger-factory.js"],
+    "shared/settings-bus.js": ["shared/logger-factory.js"],
+    "shared/i18n.js": ["shared/logger-factory.js"],
+    "shared/auth-client.js": ["shared/auth-session.js", "shared/logger-factory.js"],
+    "store/runtime/context.js": ["store/runtime/config.js"],
+    "store/runtime/cache.js": ["shared/scheduler.js", "shared/runtime/kernel.js", "store/runtime/context.js"],
+    "store/runtime/family-library-cache.js": ["shared/logger-factory.js"],
+    "store/runtime/format.js": ["store/runtime/config.js"],
+    "store/runtime/dom.js": ["shared/styles/components.js"],
+    "store/runtime/styles.js": ["shared/styles/components.js", "store/features/review/review-filter-style.js"],
+    "store/runtime/feature-registry.js": ["shared/data-index.js", "shared/batch-queue.js", "shared/virtual-list.js", "shared/runtime/kernel.js", "shared/logger-factory.js"],
+    "store/runtime/settings-gate.js": ["settings/storage.js", "settings/membership.js", "shared/logger-factory.js"],
+    "store/runtime/url-watch.js": ["store/runtime/feature-registry.js", "shared/logger-factory.js"],
+    "store/runtime/purchase-recover.js": ["store/runtime/dom.js", "shared/logger-factory.js"],
+    "settings/catalog.js": ["shared/price-comparison-catalog.js", "shared/game-links.js"],
+    "settings/membership.js": ["shared/logger-factory.js"],
+    "settings/storage.js": ["settings/catalog.js", "settings/membership.js", "shared/logger-factory.js", "shared/i18n.js", "shared/settings-bus.js"],
+    "settings/ui/styles.js": ["shared/styles/components.js"],
+    "settings/ui/dialogs.js": ["shared/logger-factory.js"],
+    "settings/ui/toast.js": ["shared/logger-factory.js"],
+    "store/api/request.js": ["store/runtime/cache.js", "shared/config.js", "shared/runtime/message-bus.js", "shared/logger-factory.js"],
+    "store/features/player-stats/feature.js": ["shared/utils/player-stats.js", "shared/utils/player-stats-ui.js"],
+    "store/features/game-links/feature.js": ["shared/game-links.js", "shared/utils/game-links-ui.js", "extension/runtime/qrcode.js", "store/runtime/styles.js"],
+    "extension/runtime/qrcode.js": ["vendor/qrcode-generator/qrcode-generator.js"],
+    "store/features/data-display/view.js": ["store/features/data-display/charts.js", "store/features/data-display/forecast-pack.js", "store/features/data-display/ai-forecast.js"],
+    "store/features/data-display/feature.js": ["store/features/data-display/view.js"],
+    "store/features/data-display/panel.js": ["store/features/data-display/feature.js", "store/runtime/dom.js"],
+    "store/features/reminders/subscription-info.js": ["store/api/subscription-info.js"],
+    "store/features/dlc/dlc-checkboxes.js": ["store/features/dlc/dlc-bridge.js", "store/features/dlc/dlc-scan.js"],
+    "store/features/review/review-filter.js": ["store/features/review/review-filter-core.js"],
+    "store/features/search/title-custom-name.js": ["store/features/price/wishlist-dom.js"],
+    "store/features/notes/game-notes.js": ["store/features/price/wishlist-dom.js"],
+    "store/main.js": ["store/features/features.js"],
+  });
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v27";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v46";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_RUNTIME_READY_WAIT_MS = 6000;
   const STEAM_RUNTIME_READY_POLL_MS = 250;
   const STEAM_LOOPBACK_INJECT_REQUEST = "STEAM_LOOPBACK_INJECT_REQUEST";
-  const STEAM_LOOPBACK_RECOVERY_MARK = "__steamBuffLoopbackRecovery";
-  const STEAM_LOOPBACK_RECOVERY_TARGET_KEY = "steamBuffSteamLoopbackRecoveryTargetV1";
-  const STEAM_LOOPBACK_RECOVERY_ALARM_PREFIX = "steam-buff-loopback-recovery-attempt-";
-  const STEAM_LOOPBACK_RECOVERY_FINAL_ALARM = "steam-buff-loopback-recovery-final";
-  const STEAM_LOOPBACK_RECOVERY_DELAY_MS = 180000;
-  const STEAM_LOOPBACK_RECOVERY_FINAL_GRACE_MS = 30000;
-  const STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS = 4;
-  const STEAM_LOOPBACK_RECOVERY_ATTEMPTS = Object.freeze([2, 3, 4]);
+  // 仅在扩展升级时退役旧启动恢复状态，不再创建或消费这些 alarm。
+  const STEAM_LOOPBACK_LEGACY_ALARMS = Object.freeze([
+    "steam-buff-loopback-recovery-attempt-2",
+    "steam-buff-loopback-recovery-attempt-3",
+    "steam-buff-loopback-recovery-attempt-4",
+    "steam-buff-loopback-recovery-final",
+  ]);
   const STEAM_LOOPBACK_FAILURE_REASONS = new Set([
     "callback-timeout",
     "runtime-last-error",
@@ -396,8 +459,9 @@
   const TAB_INJECT_DELAYS = Object.freeze([0, 1000]);
   const pendingTabInjects = new Map();
   const steamFrameInjectionFlights = new Map();
-  let steamLoopbackRecoveryScheduleFlight = null;
-  let steamLoopbackRecoveryFinished = false;
+  const steamNameRecoveryFlights = new Map();
+  let steamTargetDiscoveryFlight = null;
+  let steamStartupInjectionFlight = null;
   const STORE_FETCH_TIMEOUT_MS = 12 * 1000;
   const PLAYER_STATS_GMCHARTS_TTL_MS = 60 * 60 * 1000;
   const PLAYER_STATS_STEAM_CURRENT_TTL_MS = 10 * 60 * 1000;
@@ -434,6 +498,7 @@
   const AI_FORECAST_SESSION_CLEANUP_PERIOD_MINUTES = 24 * 60;
   const SHARED_CONFIG = "shared/config.js";
   const OBSERVER_UTILS = "shared/observer-utils.js";
+  const MESSAGE_BUS = "shared/runtime/message-bus.js";
   const TRANS_VENDOR_WRAPPER = "translate/vendor-wrapper.js";
   const TRANS_LIB = "vendor/xnx3-translate/translate.js";
   const AI_CONFIG = "ai/config.js";
@@ -451,7 +516,7 @@
   let aiReady = false;
   let aiLoadError = "";
   let aiActive = 0;
-  const aiQueue = [];
+  const aiQueue = new Map();
   const aiPermissionSessions = new Map();
   const aiPermissionTabs = new Map();
   const aiPermissionWindows = new Map();
@@ -504,8 +569,10 @@
         method: String(entry?.method || "GET"),
         endpointKey: String(entry?.endpointKey || feature),
         url: entry?.url,
+        ...entry?.request,
       },
-      response: Number(entry?.status) ? { status: Number(entry.status) } : undefined,
+      response: entry?.response || (Number(entry?.status) ? { status: Number(entry.status) } : undefined),
+      phase: entry?.phase,
     });
   }
 
@@ -745,7 +812,8 @@
         args: [CONTENT_MARK, CONTENT_MARK_VERSION],
       });
       return frames.length > 0 && frames.every(frame => frame?.result === true);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "ping-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "ping" });
       return false;
     }
   }
@@ -802,123 +870,86 @@
     }
     try {
       return await existing;
-    } catch {
+    } catch (error) {
       clearSteamFrameInjectionFlight(key, existing);
       const replacement = steamFrameInjectionFlights.get(key);
       if (replacement) {
         return replacement;
       }
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "inject-steam-loopback-frame-if-needed-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "injectSteamLoopbackFrameIfNeeded" });
       return startSteamLoopbackFrameInjection(tabId, frameId, key);
     }
   }
 
-  function tabsQueryAll() {
-    return new Promise((resolve, reject) => {
-      chrome.tabs.query({}, (tabs) => {
-        const err = chrome.runtime.lastError;
-        if (err) {
-          reject(new Error(err.message || "读取标签页失败"));
-          return;
-        }
-        if (!Array.isArray(tabs)) {
-          reject(new Error("tabs-query-invalid"));
-          return;
-        }
-        resolve(tabs);
-      });
-    });
-  }
-
-  async function injectAll() {
-    try {
-      const tabs = await tabsQueryAll();
-      const candidates = tabs.filter(ok);
-      if (candidates.length) {
-        startSteamLoopbackRecoveryCampaign();
+  // Chrome 标签页查询不覆盖 Steam 的隐藏 CEF 页面；只使用已实测的 TargetInfo.tabId。
+  function discoverSteamRuntimeTargets() {
+    if (steamTargetDiscoveryFlight) return steamTargetDiscoveryFlight;
+    const flight = (async () => {
+      if (typeof chrome.debugger?.getTargets !== "function") {
+        throw new Error("Steam 目标发现需要 debugger 权限及 getTargets API");
       }
-      for (const tab of candidates) {
-        injectIfNeeded(tab.id);
+      const targets = await chrome.debugger.getTargets();
+      if (!Array.isArray(targets)) throw new TypeError("Steam 调试目标列表无效");
+      const candidates = [];
+      for (const target of targets) {
+        if (target?.type !== "page" || isExcludedSteamTitle(target.title)
+          || (!isSteam(target.url) && !isSteamCefAboutBlank(target.url))) continue;
+        if (!Number.isInteger(target.tabId) || target.tabId < 0) {
+          throw new Error("Steam CEF 目标缺少可用的真实 tabId");
+        }
+        if (typeof target.id !== "string" || !target.id) throw new Error("Steam CEF 目标缺少真实 Target ID");
+        candidates.push({ id: target.tabId, targetId: target.id, title: target.title, url: target.url });
       }
-    } catch (error) {
-      logError("injection", "tabs-query-failed", "后台读取标签页失败", error);
+      return candidates;
+    })();
+    steamTargetDiscoveryFlight = flight;
+    const clear = () => { if (steamTargetDiscoveryFlight === flight) steamTargetDiscoveryFlight = null; };
+    flight.then(clear, clear);
+    return flight;
+  }
+
+  function isDiscoveredSteamSharedTarget(target) {
+    return target.title === "SharedJSContext" && isSteam(target.url);
+  }
+
+  async function validateSteamSharedTarget(target) {
+    const rows = await execScript({
+      target: { tabId: target.tabId, frameIds: [target.frameId] }, world: "ISOLATED",
+      func: () => ({ title: document.title, url: location.href }),
+    });
+    if (!Array.isArray(rows) || rows.length !== 1 || !isDiscoveredSteamSharedTarget(rows[0]?.result || {})) {
+      throw new Error("发现的 Steam CEF 目标已不再是 SharedJSContext");
     }
   }
 
-  function storageLocalGet(key) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.get([key], (result) => {
-        const error = chrome.runtime.lastError;
-        if (error) {
-          reject(new Error(error.message || "读取后台恢复目标失败"));
-          return;
+  // 共享环境统一入口；并发合并和旧 document 失败后的接管只由 frame 注入维护
+  async function ensureSteamSharedRuntime(discovered) {
+    const targets = discovered || await discoverSteamRuntimeTargets();
+    const shared = targets.filter(isDiscoveredSteamSharedTarget);
+    if (shared.length !== 1) throw new Error(`SharedJSContext 目标必须唯一，当前为 ${shared.length} 个`);
+    const target = { tabId: shared[0].id, frameId: 0 };
+    await validateSteamSharedTarget(target);
+    await injectSteamLoopbackFrameIfNeeded(target.tabId, target.frameId);
+    return target;
+  }
+
+  function injectAll() {
+    if (steamStartupInjectionFlight) return steamStartupInjectionFlight;
+    const flight = (async () => {
+      try {
+        const candidates = await discoverSteamRuntimeTargets();
+        for (const tab of candidates.filter(tab => !isDiscoveredSteamSharedTarget(tab))) {
+          await injectIfNeeded(tab.id);
         }
-        resolve(result?.[key]);
-      });
-    });
-  }
-
-  function storageLocalSet(data) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.set(data, () => {
-        const error = chrome.runtime.lastError;
-        if (error) {
-          reject(new Error(error.message || "保存后台恢复目标失败"));
-          return;
-        }
-        resolve();
-      });
-    });
-  }
-
-  function storageLocalRemove(key) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.remove(key, () => {
-        const error = chrome.runtime.lastError;
-        if (error) {
-          reject(new Error(error.message || "清理后台恢复目标失败"));
-          return;
-        }
-        resolve();
-      });
-    });
-  }
-
-  function normalizeSteamLoopbackRecoveryTarget(value) {
-    const tabId = Number(value?.tabId);
-    const frameId = Number(value?.frameId);
-    const observedAt = Number(value?.observedAt);
-    if (!Number.isInteger(tabId) || tabId < 0 || !Number.isInteger(frameId) || frameId < 0 || !Number.isFinite(observedAt) || observedAt <= 0) {
-      return null;
-    }
-    return { tabId, frameId, observedAt };
-  }
-
-  async function rememberSteamLoopbackRecoveryTarget(tabId, frameId) {
-    const target = normalizeSteamLoopbackRecoveryTarget({ tabId, frameId, observedAt: Date.now() });
-    if (!target) {
-      return;
-    }
-    await storageLocalSet({ [STEAM_LOOPBACK_RECOVERY_TARGET_KEY]: target });
-  }
-
-  async function readSteamLoopbackRecoveryTarget() {
-    return normalizeSteamLoopbackRecoveryTarget(await storageLocalGet(STEAM_LOOPBACK_RECOVERY_TARGET_KEY));
-  }
-
-  function clearSteamLoopbackRecoveryTarget() {
-    return storageLocalRemove(STEAM_LOOPBACK_RECOVERY_TARGET_KEY);
-  }
-
-  // 注:每轮最多 3 个三分钟级 alarm；优先验证真实 sender，再用 tabs.query 补充，不直接注入 FILES 或启动常驻轮询。
-  function steamLoopbackRecoveryAlarmName(attempt) {
-    return `${STEAM_LOOPBACK_RECOVERY_ALARM_PREFIX}${attempt}`;
-  }
-
-  function steamLoopbackRecoveryAlarmNames() {
-    return [
-      ...STEAM_LOOPBACK_RECOVERY_ATTEMPTS.map(steamLoopbackRecoveryAlarmName),
-      STEAM_LOOPBACK_RECOVERY_FINAL_ALARM,
-    ];
+        if (candidates.some(isDiscoveredSteamSharedTarget)) await ensureSteamSharedRuntime(candidates);
+      } catch (error) {
+        logError("injection", "steam-runtime-discovery-failed", "Steam CEF 目标发现或启动接入失败", error);
+      }
+    })();
+    steamStartupInjectionFlight = flight;
+    const clear = () => { if (steamStartupInjectionFlight === flight) steamStartupInjectionFlight = null; };
+    flight.then(clear, clear);
+    return flight;
   }
 
   function getAlarm(name) {
@@ -947,272 +978,14 @@
     });
   }
 
-  async function clearSteamLoopbackRecoveryAlarms() {
-    await Promise.all(steamLoopbackRecoveryAlarmNames().map(clearAlarm));
-  }
-
-  async function ensureSteamLoopbackRecoveryAlarms(replace = false) {
-    const startedAt = Date.now();
-    for (const attempt of STEAM_LOOPBACK_RECOVERY_ATTEMPTS) {
-      if (steamLoopbackRecoveryFinished) {
-        return;
-      }
-      const name = steamLoopbackRecoveryAlarmName(attempt);
-      if (replace) {
-        chrome.alarms.create(name, {
-          when: startedAt + STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1),
-        });
-        continue;
-      }
-      const existing = await getAlarm(name);
-      if (steamLoopbackRecoveryFinished) {
-        return;
-      }
-      if (!existing) {
-        chrome.alarms.create(name, {
-          when: startedAt + STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1),
-        });
-      }
-    }
-  }
-
-  function startSteamLoopbackRecoveryCampaign(replace = false) {
-    if (replace) {
-      steamLoopbackRecoveryFinished = false;
-      const flight = ensureSteamLoopbackRecoveryAlarms(true);
-      flight.catch((error) => {
-        logError("injection", "steam-loopback-recovery-alarm-failed", "Steam CEF 后台恢复 alarm 重建失败", error);
-      });
-      return flight;
-    }
-    if (steamLoopbackRecoveryFinished) {
-      return Promise.resolve();
-    }
-    if (steamLoopbackRecoveryScheduleFlight) {
-      return steamLoopbackRecoveryScheduleFlight;
-    }
-    const flight = ensureSteamLoopbackRecoveryAlarms();
-    steamLoopbackRecoveryScheduleFlight = flight;
-    flight.then(
-      () => {
-        if (steamLoopbackRecoveryScheduleFlight === flight) {
-          steamLoopbackRecoveryScheduleFlight = null;
-        }
-      },
-      (error) => {
-        if (steamLoopbackRecoveryScheduleFlight === flight) {
-          steamLoopbackRecoveryScheduleFlight = null;
-        }
-        logError("injection", "steam-loopback-recovery-alarm-failed", "Steam CEF 后台恢复 alarm 创建失败", error);
-      },
-    );
-    return flight;
-  }
-
-  function stopSteamLoopbackRecoveryCampaign() {
-    if (steamLoopbackRecoveryFinished) {
-      return false;
-    }
-    steamLoopbackRecoveryFinished = true;
-    Promise.all([
-      clearSteamLoopbackRecoveryAlarms(),
-      clearSteamLoopbackRecoveryTarget(),
-    ]).catch((error) => {
-      logError("injection", "steam-loopback-recovery-state-clear-failed", "Steam CEF 后台恢复状态清理失败", error);
-    });
-    return true;
-  }
-
-  function steamLoopbackRecoveryAttempt(name) {
-    if (!String(name || "").startsWith(STEAM_LOOPBACK_RECOVERY_ALARM_PREFIX)) {
-      return 0;
-    }
-    const attempt = Number(String(name).slice(STEAM_LOOPBACK_RECOVERY_ALARM_PREFIX.length));
-    return STEAM_LOOPBACK_RECOVERY_ATTEMPTS.includes(attempt) ? attempt : 0;
-  }
-
-  function steamLoopbackRecoveryScriptTarget(target) {
-    if (typeof target === "number") {
-      return { tabId: target, allFrames: true };
-    }
-    return { tabId: target.tabId, frameIds: [target.frameId] };
-  }
-
-  async function validateSteamLoopbackRecoveryTarget(target) {
-    const results = await execScript({
-      target: steamLoopbackRecoveryScriptTarget(target),
-      world: "ISOLATED",
-      func: () => ({
-        title: String(document.title || ""),
-        url: String(location.href || ""),
-      }),
-    });
-    const frame = results?.[0]?.result;
-    if (!frame || !isSteamSharedContext(frame)) {
-      const error = new Error("保存的 Steam CEF sender 已不再是 SharedJSContext");
-      error.name = "SteamLoopbackRecoveryTargetError";
-      error.reason = "stored-target-scope-mismatch";
-      throw error;
-    }
-  }
-
-  async function injectSteamLoopbackRecoveryGuard(target, recovery) {
-    const scriptTarget = steamLoopbackRecoveryScriptTarget(target);
-    await execScript({
-      target: scriptTarget,
-      world: "ISOLATED",
-      func: (mark, value) => {
-        globalThis[mark] = value;
-      },
-      args: [STEAM_LOOPBACK_RECOVERY_MARK, recovery],
-    });
-    await execScript({
-      target: scriptTarget,
-      world: "ISOLATED",
-      files: STEAM_LOOPBACK_GUARD_FILES,
-    });
-  }
-
-  async function runSteamLoopbackRecoveryAttempt(alarm, attempt) {
-    if (steamLoopbackRecoveryFinished) {
-      return;
-    }
-    const scheduledTime = Number(alarm?.scheduledTime);
-    const startedAt = Number.isFinite(scheduledTime)
-      ? Math.max(1, scheduledTime - STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1))
-      : Date.now() - STEAM_LOOPBACK_RECOVERY_DELAY_MS * (attempt - 1);
-    const retry = {
-      attempt,
-      maxAttempts: STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS,
-      delayMs: STEAM_LOOPBACK_RECOVERY_DELAY_MS,
-    };
-    const recovery = {
-      ...retry,
-      startedAt,
-      previousFailureReason: "shared-context-not-recovered",
-    };
-    const failures = [];
-    let storedTarget = null;
-    let storedTargetAgeMs = null;
-    let exactTargetInjected = false;
+  async function retireSteamLoopbackRecovery() {
     try {
-      storedTarget = await readSteamLoopbackRecoveryTarget();
-      if (storedTarget) {
-        storedTargetAgeMs = Math.max(0, Date.now() - storedTarget.observedAt);
-        await validateSteamLoopbackRecoveryTarget(storedTarget);
-        await injectSteamLoopbackRecoveryGuard(storedTarget, recovery);
-        exactTargetInjected = true;
-      }
+      await Promise.all(STEAM_LOOPBACK_LEGACY_ALARMS.map(clearAlarm));
+      await chrome.storage.session.remove("steamBuffSteamLoopbackRecoveryCampaignV1");
+      await chrome.storage.local.remove("steamBuffSteamLoopbackRecoveryTargetV1");
     } catch (error) {
-      failures.push(error);
+      logError("injection", "steam-loopback-legacy-cleanup-failed", "旧 Steam CEF 启动恢复状态清理失败", error);
     }
-    let candidates = [];
-    try {
-      const tabs = await tabsQueryAll();
-      candidates = tabs.filter(ok);
-      if (exactTargetInjected) {
-        candidates = candidates.filter((tab) => tab.id !== storedTarget.tabId);
-      }
-    } catch (error) {
-      failures.push(error);
-    }
-    backgroundLogger("injection").info(
-      "steam-loopback-runtime-recovery-attempt",
-      "Steam CEF 后台开始有限恢复检查",
-      {
-        retry,
-        context: { execution: "background" },
-        meta: {
-          targetSource: exactTargetInjected ? "sender" : candidates.length ? "query" : "none",
-          storedTarget: !!storedTarget,
-          storedTargetAgeMs,
-          exactTargetInjected,
-          candidateTabs: candidates.length,
-        },
-      },
-    );
-    let injectedTargets = exactTargetInjected ? 1 : 0;
-    for (const tab of candidates) {
-      try {
-        await injectSteamLoopbackRecoveryGuard(tab.id, recovery);
-        injectedTargets += 1;
-      } catch (error) {
-        failures.push(error);
-      }
-    }
-    if (attempt < STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS && (!injectedTargets || failures.length)) {
-      const error = failures[0] || new Error("未发现可注入的 Steam CEF sender 或 tab");
-      backgroundLogger("injection").warn(
-        "steam-loopback-runtime-inject-retry",
-        "Steam CEF 后台恢复检查未能覆盖目标页面，等待下一次有限重试",
-        {
-          error,
-          retry,
-          context: { execution: "background" },
-          meta: {
-            reason: "shared-context-not-recovered",
-            targetSource: exactTargetInjected ? "sender" : candidates.length ? "query" : "none",
-            storedTarget: !!storedTarget,
-            storedTargetAgeMs,
-            exactTargetInjected,
-            candidateTabs: candidates.length,
-            injectedTargets,
-            failedTargets: failures.length,
-          },
-        },
-      );
-    }
-  }
-
-  function failSteamLoopbackRecoveryCampaign() {
-    if (!stopSteamLoopbackRecoveryCampaign()) {
-      return;
-    }
-    const error = new Error("SharedJSContext 未在有限恢复窗口内建立");
-    error.name = "SteamLoopbackRecoveryError";
-    logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF SharedJSContext 后台有限恢复最终失败", error, {
-      retry: {
-        attempt: STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS,
-        maxAttempts: STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS,
-        delayMs: STEAM_LOOPBACK_RECOVERY_DELAY_MS,
-      },
-      context: { execution: "background" },
-      meta: { reason: "shared-context-not-recovered" },
-    });
-  }
-
-  function handleSteamLoopbackRecoveryAlarm(alarm) {
-    if (alarm?.name === STEAM_LOOPBACK_RECOVERY_FINAL_ALARM) {
-      failSteamLoopbackRecoveryCampaign();
-      return;
-    }
-    const attempt = steamLoopbackRecoveryAttempt(alarm?.name);
-    if (!attempt) {
-      return;
-    }
-    if (attempt === STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS) {
-      chrome.alarms.create(STEAM_LOOPBACK_RECOVERY_FINAL_ALARM, {
-        when: Date.now() + STEAM_LOOPBACK_RECOVERY_FINAL_GRACE_MS,
-      });
-    }
-    runSteamLoopbackRecoveryAttempt(alarm, attempt).catch((error) => {
-      if (attempt < STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS) {
-        backgroundLogger("injection").warn(
-          "steam-loopback-runtime-inject-retry",
-          "Steam CEF 后台恢复检查失败，等待下一次有限重试",
-          {
-            error,
-            retry: {
-              attempt,
-              maxAttempts: STEAM_LOOPBACK_RECOVERY_MAX_ATTEMPTS,
-              delayMs: STEAM_LOOPBACK_RECOVERY_DELAY_MS,
-            },
-            context: { execution: "background" },
-            meta: { reason: "shared-context-not-recovered" },
-          },
-        );
-      }
-    });
   }
 
   function injectSoon() {
@@ -1239,7 +1012,6 @@
     if (!ok(tab)) {
       return;
     }
-    startSteamLoopbackRecoveryCampaign();
     const tabId = tab.id;
     clearPendingTabInject(tabId);
     const handles = TAB_INJECT_DELAYS.map((delay, index) => globalThis.setTimeout(() => {
@@ -1365,21 +1137,20 @@
           out[lower] = String(value || "");
         }
       });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "clean-response-headers-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "cleanResponseHeaders" });
     }
     return out;
   }
 
   function storeLogNetwork(request, entry) {
-    if (request?.silentLog === true) {
-      return;
-    }
     logNetwork({
       ...entry,
       service: request?.service,
       operationId: request?.operationId,
       requestId: request?.requestId,
       endpointKey: request?.endpointKey,
+      request: globalThis.STLoggerSchema.requestFacts({ ...request, endpointKey: request?.endpointKey || entry.feature }),
     });
   }
 
@@ -1411,31 +1182,6 @@
     return error;
   }
 
-  async function fetchWithTimeout(url, init, timeoutMs) {
-    const timeout = normalizeTimeout(timeoutMs, 0);
-    if (timeout <= 0) {
-      return fetch(url, init);
-    }
-    if (typeof AbortController === "function") {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(timeoutError(timeout)), timeout);
-      try {
-        return await fetch(url, { ...init, signal: controller.signal });
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    let timer = 0;
-    return Promise.race([
-      fetch(url, init),
-      new Promise((_, reject) => {
-        timer = setTimeout(() => reject(timeoutError(timeout)), timeout);
-      }),
-    ]).finally(() => {
-      if (timer) clearTimeout(timer);
-    });
-  }
-
   /* 商店页跨域代理 */
   async function storeFetch(request, sender, sendResponse) {
     if (!isStoreSender(sender) && !isSettingsSender(sender) && !isSteamRuntimeSender(sender)) {
@@ -1443,6 +1189,16 @@
       return;
     }
     const startedAt = Date.now();
+    request.requestId ||= globalThis.STLoggerFactory.createRequestId();
+    request.operationId ||= globalThis.STLoggerFactory.createOperationId();
+    const checkpoint = (event, message, response) => {
+      if (request.traceRequest === true) backgroundLogger("store-fetch").info(event, message, {
+        operationId: request.operationId, requestId: request.requestId,
+        request: globalThis.STLoggerSchema.requestFacts({ ...request, endpointKey: request.endpointKey || "store-fetch" }),
+        response, durationMs: Date.now() - startedAt,
+      });
+    };
+    checkpoint("api-request-received", "后台已收到关键 API 请求");
     let url;
     try {
       url = new URL(request.url);
@@ -1487,9 +1243,26 @@
       init.body = body;
     }
 
+    let phase = "network";
+    let responseFacts;
     try {
-      const response = await fetchWithTimeout(url.toString(), init, request.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
-      const data = await response.text();
+      const { response, data } = await globalThis.STNetworkRequest.run(request.timeoutMs ?? STORE_FETCH_TIMEOUT_MS, async (signal) => {
+        const response = await fetch(url.toString(), { ...init, signal });
+        responseFacts = { ...globalThis.STLoggerSchema.httpFacts(response), networkDurationMs: Date.now() - startedAt };
+        phase = "response-read";
+        const readStartedAt = Date.now();
+        const data = await response.text();
+        responseFacts.bodyLength = data.length;
+        responseFacts.readDurationMs = Date.now() - readStartedAt;
+        return { response, data };
+      }, request.signal);
+      backgroundLogger("store-fetch").debug("proxy-response-details", "后台代理请求诊断正文", {
+        operationId: request.operationId, requestId: request.requestId,
+        debugData: () => ({ request: { url: url.toString(), method, headers: init.headers, body }, response: { status: response.status, headers: cleanResponseHeaders(response.headers), body: data } }),
+      });
+      phase = "http";
+      const diagnostics = globalThis.STLoggerSchema.normalizeResponse(responseFacts, { urlPolicy: CFG.diagnosticUrlPolicy(response.url) });
+      checkpoint("api-response-ready", "后台已完成关键 API 请求并准备回复", responseFacts);
       if (!response.ok && !request.allowHttpError) {
         const msg = httpError(response.status, data);
         const requestError = new Error(msg);
@@ -1505,8 +1278,10 @@
           status: response.status,
           durationMs: Date.now() - startedAt,
           error: requestError,
+          response: responseFacts,
+          phase,
         });
-        sendResponse({ success: false, error: msg, data, status: response.status, ok: false, headers: cleanResponseHeaders(response.headers) });
+        sendResponse({ success: false, error: msg, data, status: response.status, ok: false, headers: cleanResponseHeaders(response.headers), diagnostics });
         return;
       }
       if (!response.ok) {
@@ -1518,12 +1293,14 @@
           url: url.toString(),
           status: response.status,
           durationMs: Date.now() - startedAt,
+          response: responseFacts,
+          phase,
         });
       }
-      sendResponse({ success: true, data, status: response.status, ok: response.ok, headers: cleanResponseHeaders(response.headers) });
+      sendResponse({ success: true, data, status: response.status, ok: response.ok, headers: cleanResponseHeaders(response.headers), diagnostics });
     } catch (error) {
       const msg = error.message || String(error);
-      storeLogNetwork(request, {
+      if (error?.name !== "AbortError") storeLogNetwork(request, {
         feature: "store-fetch",
         event: "request-thrown",
         message: "后台代理请求异常",
@@ -1532,6 +1309,8 @@
         status: 0,
         durationMs: Date.now() - startedAt,
         error,
+        response: responseFacts,
+        phase,
       });
       sendResponse({
         success: false,
@@ -1539,6 +1318,7 @@
         status: 0,
         ok: false,
         errorKind: "transport",
+        diagnostics: responseFacts ? globalThis.STLoggerSchema.normalizeResponse(responseFacts, { urlPolicy: CFG.diagnosticUrlPolicy(responseFacts.finalUrl) }) : undefined,
         ...(error?.name ? { errorName: String(error.name) } : {}),
         ...(error?.code ? { errorCode: String(error.code) } : {}),
       });
@@ -1615,7 +1395,8 @@
   async function writePlayerStatsCache(key, appId, ttlMs, value) {
     try {
       await sessionStorageSet({ [key]: { appId, expiresAt: Date.now() + ttlMs, value } });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "write-player-stats-cache-failed", message: "保存在线人数缓存失败", level: "error", phase: "writePlayerStatsCache" });
       // 缓存不可用时仍返回本次真实请求结果。
     }
   }
@@ -1646,6 +1427,7 @@
     try {
       payload = JSON.parse(data);
     } catch (error) {
+      globalThis.STLoggerSchema?.markJsonError?.(error);
       const result = new TypeError("Steam 实时在线人数响应不是 JSON");
       result.cause = error;
       throw result;
@@ -1662,6 +1444,7 @@
     try {
       payload = JSON.parse(data);
     } catch (error) {
+      globalThis.STLoggerSchema?.markJsonError?.(error);
       const result = new TypeError("Augmented Steam 玩家统计响应不是 JSON");
       result.cause = error;
       throw result;
@@ -1684,13 +1467,45 @@
     return { historicalPeak: peak, hltb };
   }
 
+  async function fetchDiagnosticText(url, init, timeoutMs, signal, consume = result => result) {
+    let phase = "network";
+    let diagnostics;
+    const startedAt = Date.now();
+    try {
+      return await globalThis.STNetworkRequest.run(timeoutMs, async (signal, check) => {
+        const response = await fetch(url, { ...init, signal });
+        diagnostics = { ...globalThis.STLoggerSchema.httpFacts(response), networkDurationMs: Date.now() - startedAt };
+        phase = "response-read";
+        const readStartedAt = Date.now();
+        const data = await response.text();
+        diagnostics.bodyLength = data.length;
+        diagnostics.readDurationMs = Date.now() - readStartedAt;
+        backgroundLogger("api-request").debug("api-response-details", "API 请求诊断正文", {
+          debugData: () => ({ request: { url, method: init.method, headers: init.headers, body: init.body }, response: { status: response.status, body: data } }),
+        });
+        check();
+        return consume({ response, data, diagnostics }, check);
+      }, signal);
+    } catch (error) {
+      if (error && typeof error === "object" && Object.isExtensible(error)) {
+        error.phase ||= phase;
+        error.diagnostics = diagnostics;
+      }
+      throw error;
+    }
+  }
+
   async function fetchGmChartsPlayerStats(request, appId) {
     const startedAt = Date.now();
     const url = CFG.vendors.gmCharts.chartData(appId);
     const requestMeta = { ...request, method: "GET", service: "gmcharts", endpointKey: "gmcharts-chart-data", logUrl: url };
+    let diagnostics;
+    let phase = "network";
     try {
-      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
-      const data = await response.text();
+      const result = await fetchDiagnosticText(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const { response, data } = result;
+      diagnostics = result.diagnostics;
+      phase = "http";
       if (!response.ok) {
         const error = new Error(`gmCharts 请求失败（HTTP ${response.status}）`);
         error.name = "HttpError";
@@ -1698,10 +1513,10 @@
         error.status = response.status;
         throw error;
       }
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "gmCharts 在线人数数据请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "gmCharts 在线人数数据请求完成", method: "GET", url, status: response.status, response: diagnostics, durationMs: Date.now() - startedAt });
       return data;
     } catch (error) {
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "gmCharts 在线人数数据请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "gmCharts 在线人数数据请求失败", method: "GET", url, status: Number(error?.status) || 0, response: diagnostics || error.diagnostics, phase: error.phase || phase, durationMs: Date.now() - startedAt, error });
       throw error;
     }
   }
@@ -1710,9 +1525,13 @@
     const startedAt = Date.now();
     const url = CFG.vendors.steamApi.currentPlayers(appId);
     const requestMeta = { ...request, method: "GET", service: "steam-api", endpointKey: "steam-current-players", logUrl: url };
+    let diagnostics;
+    let phase = "network";
     try {
-      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
-      const data = await response.text();
+      const result = await fetchDiagnosticText(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const { response, data } = result;
+      diagnostics = result.diagnostics;
+      phase = "http";
       if (!response.ok) {
         const error = new Error(`Steam 实时在线人数请求失败（HTTP ${response.status}）`);
         error.name = "HttpError";
@@ -1720,11 +1539,12 @@
         error.status = response.status;
         throw error;
       }
+      phase = "parse";
       const currentPlayers = parseSteamCurrentPlayers(data);
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Steam 实时在线人数请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Steam 实时在线人数请求完成", method: "GET", url, status: response.status, response: diagnostics, durationMs: Date.now() - startedAt });
       return currentPlayers;
     } catch (error) {
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Steam 实时在线人数请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Steam 实时在线人数请求失败", method: "GET", url, status: Number(error?.status) || 0, response: diagnostics || error.diagnostics, phase: error.phase || phase, durationMs: Date.now() - startedAt, error });
       throw error;
     }
   }
@@ -1733,9 +1553,13 @@
     const startedAt = Date.now();
     const url = CFG.vendors.augmentedSteam.app(appId);
     const requestMeta = { ...request, method: "GET", service: "augmented-steam", endpointKey: "augmented-steam-app", logUrl: url };
+    let diagnostics;
+    let phase = "network";
     try {
-      const response = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
-      const data = await response.text();
+      const result = await fetchDiagnosticText(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const { response, data } = result;
+      diagnostics = result.diagnostics;
+      phase = "http";
       if (!response.ok) {
         const error = new Error(`Augmented Steam 玩家统计请求失败（HTTP ${response.status}）`);
         error.name = "HttpError";
@@ -1743,11 +1567,12 @@
         error.status = response.status;
         throw error;
       }
+      phase = "parse";
       const playerStats = parseAugmentedSteamPlayerStats(data);
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Augmented Steam 玩家统计请求完成", method: "GET", url, status: response.status, durationMs: Date.now() - startedAt });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: "request-success", message: "Augmented Steam 玩家统计请求完成", method: "GET", url, status: response.status, response: diagnostics, durationMs: Date.now() - startedAt });
       return playerStats;
     } catch (error) {
-      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Augmented Steam 玩家统计请求失败", method: "GET", url, status: Number(error?.status) || 0, durationMs: Date.now() - startedAt, error });
+      storeLogNetwork(requestMeta, { feature: "player-stats", event: error?.name === "HttpError" ? "http-failed" : "request-thrown", message: "Augmented Steam 玩家统计请求失败", method: "GET", url, status: Number(error?.status) || 0, response: diagnostics || error.diagnostics, phase: error.phase || phase, durationMs: Date.now() - startedAt, error });
       throw error;
     }
   }
@@ -1785,6 +1610,7 @@
       const augmentedPeak = await fetchCachedPlayerStatsValue({ prefix: PLAYER_STATS_AUGMENTED_PEAK_CACHE_PREFIX, appId, ttlMs: PLAYER_STATS_AUGMENTED_PEAK_TTL_MS, kind: "augmented-peak", fetchValue: () => fetchAugmentedSteamHistoricalPeak(request, appId) });
       sendResponse({ success: true, part, historicalPeak: augmentedPeak.value.historicalPeak, hltb: augmentedPeak.value.hltb, status: 200, ok: true, headers: {}, source: { augmentedPeakCache: augmentedPeak.cache } });
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "player-stats-fetch-failed", message: "请求在线人数失败", level: "error", phase: "playerStatsFetch" });
       sendResponse({ success: false, part, error: error?.message || String(error), status: Number(error?.status) || 0, ok: false, errorKind: "transport", ...(error?.name ? { errorName: String(error.name) } : {}), ...(error?.code ? { errorCode: String(error.code) } : {}) });
     }
   }
@@ -1856,12 +1682,12 @@
     }
     hasAiGatewayPermission(origin)
       .then((granted) => sendResponse({ success: true, granted, origin, sourceTabId, sourceFrameId }))
-      .catch((error) => sendResponse({
+      .catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "check-ai-gateway-permission-failed", message: "检查 AI 网关权限失败", level: "error", phase: "checkAiGatewayPermission" }); return sendResponse({
         success: false,
         granted: false,
         code: error?.code || "AI_HOST_PERMISSION_CHECK_FAILED",
         error: error?.message || "AI 网关权限检查失败",
-      }));
+      }); });
   }
 
   function requestAiGatewayPermission(request, sender, sendResponse) {
@@ -2278,7 +2104,8 @@
     const targetUrl = String(url || "").trim();
     try {
       new URL(targetUrl);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "open-chromium-window-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "openChromiumWindow" });
       sendResponse({ success: false, code: "CHROMIUM_WINDOW_URL_INVALID", error: "Chromium 打开地址无效" });
       return;
     }
@@ -2316,7 +2143,8 @@
       chrome.windows.update(windowId, { focused: true }, () => {
         void chrome.runtime.lastError;
       });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "refocus-steam-root-menu-chromium-window-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "refocusSteamRootMenuChromiumWindow" });
       // 已创建的窗口仍可使用，延后聚焦失败不覆盖打开结果。
     }
   }
@@ -2336,7 +2164,8 @@
     try {
       const url = new URL(target);
       return url.protocol === "http:" || url.protocol === "https:" ? target : "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "steam-root-menu-web-url-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "steamRootMenuWebUrl" });
       return "";
     }
   }
@@ -2362,7 +2191,8 @@
             openerTitle = String(window.opener?.document?.title || "");
             const value = window.opener?.settingsStore?.clientSettings?.[settingKey];
             configuredUrl = typeof value === "string" ? value.trim() : "";
-          } catch {
+          } catch (error) {
+            globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "steam-root-menu-context-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "steamRootMenuContext" });
             configuredUrl = "";
           }
           return {
@@ -2383,7 +2213,8 @@
         return null;
       }
       return Object.freeze({ configuredUrl: steamRootMenuWebUrl(frame.configuredUrl) });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "steam-root-menu-context-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "steamRootMenuContext" });
       return null;
     }
   }
@@ -2575,15 +2406,19 @@
   }
 
   function drainAiQueue() {
-    while (aiQueue.length) {
-      const task = aiQueue[0];
+    while (aiQueue.size) {
+      const task = aiQueue.values().next().value;
       if (aiActive >= task.limit) {
         return;
       }
-      aiQueue.shift();
+      aiQueue.delete(task);
+      task.signal?.removeEventListener("abort", task.cancel);
       aiActive += 1;
       Promise.resolve()
-        .then(task.job)
+        .then(() => {
+          if (task.signal?.aborted) throw task.signal.reason;
+          return task.job();
+        })
         .then(task.resolve, task.reject)
         .finally(() => {
           aiActive = Math.max(0, aiActive - 1);
@@ -2592,32 +2427,51 @@
     }
   }
 
-  function runAiLimited(limit, job) {
+  function runAiLimited(limit, job, signal) {
     return new Promise((resolve, reject) => {
-      aiQueue.push({ limit, job, resolve, reject });
+      if (signal?.aborted) {
+        reject(signal.reason);
+        return;
+      }
+      const task = { limit, job, resolve, reject, signal };
+      task.cancel = () => {
+        if (!aiQueue.delete(task)) return;
+        signal.removeEventListener("abort", task.cancel);
+        reject(signal.reason);
+        drainAiQueue();
+      };
+      aiQueue.set(task, task);
+      signal?.addEventListener("abort", task.cancel, { once: true });
       drainAiQueue();
     });
   }
 
-  function fetchAiChat(url, next, timeoutMs) {
-    return fetchWithTimeout(url, {
-      method: "POST",
-      headers: next.headers,
-      body: JSON.stringify(next.body),
-      cache: "no-cache",
-      credentials: "omit",
-    }, timeoutMs)
-      .then((response) => response.text().then((text) => {
+  async function fetchAiChat(url, next, timeoutMs, signal) {
+    return await fetchDiagnosticText(url, {
+      method: "POST", headers: next.headers, body: JSON.stringify(next.body), cache: "no-cache", credentials: "omit",
+    }, timeoutMs, signal, ({ response, data: text, diagnostics }, check) => {
+      let phase = "http";
+      try {
         if (!response.ok) {
-          throw new Error(httpError(response.status, text));
+          const error = new Error(httpError(response.status, text));
+          error.status = response.status;
+          throw error;
         }
+        phase = "parse";
         const data = parseJson(text);
+        check();
+        phase = "validate";
         const content = globalThis.STAI?.chatText?.(data);
-        if (!content) {
-          throw new Error("AI 响应格式异常");
-        }
+        if (!content) throw new Error("AI 响应格式异常");
         return { content, status: response.status };
-      }));
+      } catch (error) {
+        if (error && typeof error === "object" && Object.isExtensible(error)) {
+          error.phase = phase;
+          error.diagnostics = diagnostics;
+        }
+        throw error;
+      }
+    });
   }
 
   function aiChat(request, sender, sendResponse) {
@@ -2640,7 +2494,8 @@
     let url;
     try {
       url = new URL(next.url);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "ai-chat-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "aiChat" });
       sendResponse({ success: false, error: "无效的 AI 网关地址" });
       return;
     }
@@ -2658,14 +2513,18 @@
           error.code = "AI_HOST_PERMISSION_REQUIRED";
           throw error;
         }
-        return runAiLimited(limit, () => fetchAiChat(url.toString(), next, timeoutMs));
+        return runAiLimited(limit, () => fetchAiChat(url.toString(), next, timeoutMs, request.signal), request.signal);
       })
       .then((res) => {
         sendResponse({ success: true, text: res.content, status: res.status });
       })
       .catch((error) => {
         const msg = error.message || String(error);
-        logError("ai", "request-failed", "AI 请求失败", error);
+        if (error?.name !== "AbortError") logError("ai", "request-failed", "AI 请求失败", error, {
+          operationId: request.operationId, requestId: request.requestId, phase: error.phase || "permission",
+          request: globalThis.STLoggerSchema.requestFacts({ ...next, url: url.toString(), method: "POST", timeoutMs, endpointKey: "ai-chat" }),
+          response: error.diagnostics,
+        });
         sendResponse({ success: false, code: error?.code || "AI_REQUEST_FAILED", error: msg });
       });
   }
@@ -2687,7 +2546,8 @@
     try {
       port.postMessage(payload);
       return true;
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "stream-port-post-failed", message: "发送 AI 流式结果失败", level: "warn", phase: "streamPortPost" });
       return false;
     }
   }
@@ -2719,6 +2579,8 @@
       ? setTimeout(() => controller.abort(timeoutError(timeout)), timeout)
       : 0;
     let reader = null;
+    let phase = "network";
+    let diagnostics;
     try {
       const response = await fetch(url, {
         method: "POST",
@@ -2728,6 +2590,8 @@
         credentials: "omit",
         signal: controller.signal,
       });
+      diagnostics = globalThis.STLoggerSchema.httpFacts(response);
+      phase = "http";
       if (!response.ok) {
         const error = new Error(httpError(response.status, ""));
         error.name = "HttpError";
@@ -2735,6 +2599,7 @@
         error.status = response.status;
         throw error;
       }
+      phase = "validate";
       if (!response.body?.getReader) {
         const error = new Error("AI 服务未返回可读取的流式响应");
         error.code = "AI_STREAM_BODY_UNAVAILABLE";
@@ -2749,6 +2614,7 @@
       let finished = false;
 
       const consume = (block) => {
+        phase = "parse";
         const event = parseAiStreamEvent(block);
         if (event.done) {
           finished = true;
@@ -2761,6 +2627,7 @@
       };
 
       while (!finished) {
+        phase = "response-read";
         const part = await reader.read();
         if (part.done) break;
         buffer += decoder.decode(part.value, { stream: true });
@@ -2782,10 +2649,17 @@
       if (finished) {
         try {
           await reader.cancel();
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "fetch-ai-chat-stream-failed", message: "清理 AI 流式请求失败", level: "warn", phase: "fetchAiChatStream" });
         }
       }
       return { content, chunks, status: response.status };
+    } catch (error) {
+      if (error && typeof error === "object" && Object.isExtensible(error)) {
+        error.phase = phase;
+        error.diagnostics = diagnostics;
+      }
+      throw error;
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -2841,7 +2715,8 @@
       let url;
       try {
         url = new URL(next.url);
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "ai-stream-connect-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "aiStreamConnect", operationId, requestId });
         fail("AI_URL_INVALID", "无效的 AI 网关地址");
         return;
       }
@@ -2885,6 +2760,7 @@
           status: result.status,
           chunkCount: result.chunks,
           durationMs: Date.now() - startedAt,
+          debugData: () => ({ request: { url: url.toString(), headers: next.headers, body: next.body }, response: result }),
         });
         streamPortPost(port, {
           event: "done",
@@ -2901,7 +2777,11 @@
           requestId,
           model,
           status: Number(error?.status) || 0,
+          phase: error.phase || "permission",
+          request: globalThis.STLoggerSchema.requestFacts({ ...next, url: url.toString(), method: "POST", timeoutMs, endpointKey: "ai-chat-stream" }),
+          response: error.diagnostics,
           durationMs: Date.now() - startedAt,
+          debugData: () => ({ request: { url: url.toString(), headers: next.headers, body: next.body }, response: error.diagnostics, error }),
         });
         fail(error?.code || error?.name || "AI_STREAM_FAILED", message, Number(error?.status) || 0);
       });
@@ -3028,7 +2908,7 @@
 
   function storePageTypeFromMeta(meta = {}) {
     const type = String(meta.pageType || meta.storePageType || "other");
-    return Object.hasOwn(STORE_FEATURE_CHUNKS, type) ? type : "other";
+    return type === "age" || Object.hasOwn(STORE_FEATURE_CHUNKS, type) ? type : "other";
   }
 
   function isStoreHistorySender(sender) {
@@ -3041,7 +2921,7 @@
 
   function storeFiles(meta = {}, sender) {
     const type = storePageTypeFromMeta(meta);
-    if (type === "age") {
+    if (type === "age" && meta.incremental !== true) {
       return { files: [], skipped: true, reason: "no-store-feature" };
     }
     if (type === "history" && !isStoreHistorySender(sender)) {
@@ -3050,7 +2930,7 @@
     return {
       files: [
         ...STORE_BASE_SCRIPTS,
-        ...(STORE_FEATURE_CHUNKS[type] || STORE_FEATURE_CHUNKS.other),
+        ...(type === "age" ? [] : STORE_FEATURE_CHUNKS[type]),
         ...STORE_START_SCRIPTS,
       ],
     };
@@ -3098,6 +2978,10 @@
     switch (bundle) {
       case "steam-content-deps":
         return isSteamRuntimeSender(sender) ? { files: STEAM_CONTENT_SHARED_SCRIPTS } : null;
+      case "game-links-library":
+        return Number.isSafeInteger(request.meta?.appId) && request.meta.appId > 0 && isSteamLoopbackAppDetailsSender(sender, request.meta.appId, request.meta.route) ? { files: [
+          ...SETTINGS_SHARED_SCRIPTS,
+        ] } : null;
       case "settings-shared":
         return isSettingsSender(sender) ? { files: SETTINGS_SHARED_SCRIPTS } : null;
       case "settings-ui":
@@ -3128,7 +3012,8 @@
   // 手动入口只准备依赖，任务由同一 isolated world 中的 runner 执行，不覆盖已有自动翻译配置
   // 旧请求仍按配置启动；仅注入请求来源 frame
   async function translateInject(request, sender, sendResponse) {
-    const manual = request.action === "manual-page";
+    const configOnly = request.action === "manual-page-config";
+    const manual = configOnly || request.action === "manual-page";
     const target = manual && typeof sender?.documentId === "string"
       ? { tabId: sender.tab?.id, documentIds: [sender.documentId] }
       : translateTarget(sender);
@@ -3149,6 +3034,16 @@
     };
 
     try {
+      // 首次点击只准备配置读取模块，不加载设置面板或启动自动翻译。
+      if (configOnly) {
+        await execScript({
+          target,
+          world: "ISOLATED",
+          files: [AI_CONFIG, "shared/price-comparison-catalog.js", "shared/game-links.js", "settings/catalog.js", "settings/storage.js"],
+        });
+        sendResponse({ success: true });
+        return;
+      }
       await execScript({
         target,
         world: "ISOLATED",
@@ -3230,8 +3125,8 @@
         target,
         world: "ISOLATED",
         files: state.lib === true
-          ? [TRANS_VENDOR_WRAPPER, SHARED_CONFIG, OBSERVER_UTILS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER]
-          : [SHARED_CONFIG, OBSERVER_UTILS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER],
+          ? [TRANS_VENDOR_WRAPPER, SHARED_CONFIG, OBSERVER_UTILS, MESSAGE_BUS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER]
+          : [SHARED_CONFIG, OBSERVER_UTILS, MESSAGE_BUS, AI_CONFIG, AI_CACHE, TRANS_AI_PROMPTS, TRANS_AI, TRANS_RUNNER],
       });
       await execScript({
         target,
@@ -3248,39 +3143,81 @@
     } catch (error) {
       const msg = error.message || String(error);
       logError("translate", "inject-failed", "翻译注入失败", error, {
-        ...(manual ? { action: "manual-page", operationId: request.operationId, documentId: sender.documentId } : {}),
+        ...(manual ? { action: request.action, operationId: request.operationId, documentId: sender.documentId } : {}),
       });
       sendResponse({ success: false, error: msg });
     }
   }
 
   async function injectContentFiles(request, sender, sendResponse) {
-    const target = senderTarget(sender);
+    const incremental = request.bundle === "store-runtime" && request.meta?.incremental === true;
+    const target = incremental
+      ? (typeof sender?.tab?.id === "number" && typeof sender.documentId === "string"
+        ? { tabId: sender.tab.id, documentIds: [sender.documentId] } : null)
+      : senderTarget(sender);
     const bundle = contentBundle(request, sender);
     const files = Array.isArray(bundle?.files) ? bundle.files : [];
     if (!target || !bundle) {
-      sendResponse({ success: false, error: "无法定位注入目标或脚本包不被允许" });
+      sendResponse({
+        success: false, error: "无法定位注入目标或脚本包不被允许",
+        ...(incremental ? { files: [] } : {}),
+      });
       return;
     }
     if (bundle.skipped || !files.length) {
-      sendResponse({ success: true, skipped: true, reason: bundle.reason || "empty-bundle" });
+      sendResponse({
+        success: incremental ? !bundle.skipped : true,
+        skipped: true, reason: bundle.reason || "empty-bundle",
+        ...(incremental ? { files: [], error: bundle.reason || "empty-bundle" } : {}),
+      });
       return;
     }
 
+    const injected = [];
     try {
-      await execScript({
-        target,
-        world: "ISOLATED",
-        files,
-      });
-      sendResponse({ success: true });
+      if (incremental) {
+        if (!Array.isArray(request.meta.loadedFiles) || request.meta.loadedFiles.some(file => typeof file !== "string")) {
+          throw new TypeError("商店分包请求缺少有效的 loadedFiles");
+        }
+        const pending = new Set(files.filter(file => !request.meta.loadedFiles.includes(file)));
+        const base = new Set(STORE_BASE_SCRIPTS);
+        const starts = new Set(STORE_START_SCRIPTS);
+        while (pending.size) {
+          const basePending = Array.from(pending).some(file => base.has(file));
+          const modulesPending = Array.from(pending).some(file => !starts.has(file));
+          const remaining = new Set(pending);
+          const batch = [];
+          while (batch.length < STORE_INJECT_BATCH_SIZE) {
+            const file = Array.from(remaining).find(file => {
+              if (basePending && !base.has(file)) return false;
+              if (!basePending && modulesPending && starts.has(file)) return false;
+              return (STORE_SCRIPT_DEPENDENCIES[file] || []).every(parent => !remaining.has(parent));
+            });
+            if (!file) break;
+            batch.push(file);
+            remaining.delete(file);
+          }
+          if (!batch.length) throw new Error("商店脚本依赖无法完成加载");
+          // 原生 API 先读取整批资源再按序执行；资源加载失败时本批未执行，不确认其中任何文件
+          await execScript({ target, world: "ISOLATED", files: batch, injectImmediately: true });
+          injected.push(...batch);
+          batch.forEach(file => pending.delete(file));
+        }
+      } else {
+        await execScript({ target, world: "ISOLATED", files });
+      }
+      sendResponse(incremental ? { success: true, files: injected } : { success: true });
     } catch (error) {
       logError("injection", "content-files-inject-failed", "内容脚本文件按需注入失败", error, {
         bundle: String(request?.bundle || ""),
         count: files.length,
         firstFile: files[0] || "",
       });
-      sendResponse({ success: false, error: error?.message || String(error) });
+      const message = error?.message || String(error);
+      sendResponse({
+        success: false, error: message,
+        ...(incremental ? { files: injected } : {}),
+      });
     }
   }
 
@@ -3300,6 +3237,15 @@
       : undefined;
     if (retry && Number.isInteger(Number(request?.retry?.delayMs)) && Number(request.retry.delayMs) >= 0) {
       retry.delayMs = Number(request.retry.delayMs);
+    }
+    if (request?.retry?.startedAt !== undefined) {
+      const startedAt = request.retry.startedAt;
+      if (!retry || ![2, 3, 4].includes(retry.attempt)
+        || retry.maxAttempts !== 4 || !Number.isFinite(startedAt) || startedAt <= 0) {
+        sendResponse({ success: false, error: "无效的 Steam CEF 恢复轮次" });
+        return;
+      }
+      retry.startedAt = startedAt;
     }
     const previousFailureReason = STEAM_LOOPBACK_FAILURE_REASONS.has(
       String(request?.diagnostics?.previousFailureReason || ""),
@@ -3325,7 +3271,7 @@
     const recoveredByRequest = Number(requestRetry?.attempt) > 1;
     const logRetry = recoveredByBackground ? retry : recoveredByRequest ? requestRetry : retry;
     const retryScope = recoveredByBackground ? "background-alarm" : recoveredByRequest ? "guard-request" : "";
-    const finalAttempt = !retry || retry.attempt >= retry.maxAttempts;
+    const finalAttempt = requestRetry ? requestRetry.attempt >= requestRetry.maxAttempts : !retry || retry.attempt >= retry.maxAttempts;
     const context = { execution: "background", frameId };
 
     const urls = steamLoopbackCandidateUrls({
@@ -3341,25 +3287,6 @@
       pageHint: String(request.pageHint || ""),
     };
     const sharedContext = isSteamSharedContext(meta);
-    if (sharedContext) {
-      try {
-        await rememberSteamLoopbackRecoveryTarget(tabId, frameId);
-      } catch (error) {
-        backgroundLogger("injection").warn(
-          "steam-loopback-recovery-target-store-failed",
-          "Steam CEF SharedJSContext 精确恢复目标保存失败",
-          {
-            error,
-            retry: logRetry,
-            context,
-            meta: {
-              reason: "recovery-target-store-failed",
-              ...(retryScope ? { retryScope } : {}),
-            },
-          },
-        );
-      }
-    }
     if (!shouldInjectSteamLoopbackRuntime(meta)) {
       const error = new Error("steam-loopback-scope-mismatch");
       error.name = "SteamLoopbackScopeError";
@@ -3375,24 +3302,18 @@
         },
       };
       if (finalAttempt) {
-        const shouldLogFinalFailure = !sharedContext || stopSteamLoopbackRecoveryCampaign();
-        if (shouldLogFinalFailure) {
-          logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF 完整运行时注入范围检查最终失败", error, {
-            retry: logRetry,
-            context,
-            ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
-            meta: details.meta,
-          });
-        }
+        logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF 完整运行时注入范围检查最终失败", error, {
+          retry: logRetry,
+          context,
+          ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
+          meta: details.meta,
+        });
       } else {
         backgroundLogger("injection").warn(
           "steam-loopback-runtime-inject-retry",
           "Steam CEF 完整运行时注入范围检查失败，等待有限重试",
           details,
         );
-        if (sharedContext && retry?.attempt === 1) {
-          startSteamLoopbackRecoveryCampaign(true);
-        }
       }
       sendResponse({ success: true, skipped: true, reason: "steam-loopback-scope-mismatch" });
       return;
@@ -3418,28 +3339,30 @@
           recoveryDetails,
         );
       }
-      if (sharedContext) {
-        stopSteamLoopbackRecoveryCampaign();
-      }
       sendResponse({ success: true, injected });
+      // 主窗口无需等待共享环境启动；名称请求与这里共用同一次引导。
+      if (!sharedContext && (meta.title === "Steam" || urls.some(isSteamMainAboutBlank))) {
+        ensureSteamSharedRuntime().catch((error) => {
+          logError("injection", "steam-shared-bootstrap-failed", "Steam 主窗口接入共享环境失败", error);
+        });
+      }
     } catch (error) {
       const reason = STEAM_LOOPBACK_BACKGROUND_FAILURE_REASONS.has(String(error?.reason || ""))
         ? String(error.reason)
         : "background-inject-failed";
-      if (finalAttempt) {
-        const shouldLogFinalFailure = !sharedContext || stopSteamLoopbackRecoveryCampaign();
-        if (shouldLogFinalFailure) {
-          logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF 完整运行时注入最终失败", error, {
-            retry: logRetry,
-            context,
-            ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
-            meta: {
-              reason,
-              ...(retryScope ? { retryScope } : {}),
-              ...(diagnostics.previousFailureReason ? { previousFailureReason: diagnostics.previousFailureReason } : {}),
-            },
-          });
-        }
+      // 新守卫提供本组短请求预算；旧守卫的 retry 元数据仍可正常接收。
+      if (finalAttempt && (!requestRetry || requestRetry.attempt >= requestRetry.maxAttempts)) {
+        logError("injection", "steam-loopback-runtime-inject-failed", "Steam CEF 完整运行时注入最终失败", error, {
+          retry: logRetry,
+          context,
+          ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
+          meta: {
+            reason,
+            ...(requestRetry ? { requestRetry } : {}),
+            ...(retryScope ? { retryScope } : {}),
+            ...(diagnostics.previousFailureReason ? { previousFailureReason: diagnostics.previousFailureReason } : {}),
+          },
+        });
       } else {
         backgroundLogger("injection").warn(
           "steam-loopback-runtime-inject-retry",
@@ -3451,39 +3374,83 @@
             ...(diagnostics.elapsedMs !== undefined ? { durationMs: diagnostics.elapsedMs } : {}),
             meta: {
               reason,
+              ...(requestRetry ? { requestRetry } : {}),
               ...(retryScope ? { retryScope } : {}),
               ...(diagnostics.previousFailureReason ? { previousFailureReason: diagnostics.previousFailureReason } : {}),
             },
           },
         );
-        if (sharedContext && retry?.attempt === 1) {
-          startSteamLoopbackRecoveryCampaign(true);
-        }
       }
-      sendResponse({ success: false, error: error?.message || String(error) });
+      const message = error?.message || String(error);
+      sendResponse({ success: false, error: message });
+    }
+  }
+
+  function cacheSenderAllowed(sender) {
+    if (sender?.id !== chrome.runtime.id || !Number.isInteger(sender?.tab?.id) || sender.tab.id < 0
+      || !Number.isInteger(sender?.frameId) || sender.frameId < 0 || typeof sender.url !== "string") return false;
+    try {
+      let url = new URL(sender.url);
+      // manifest 的 match_about_blank 使用浏览器提供的真实继承 origin，不取顶层 tab.url。
+      if (url.protocol === "about:" && url.pathname === "blank") {
+        if (typeof sender.origin !== "string") return false;
+        url = new URL(sender.origin);
+      } else if (sender.origin !== undefined && sender.origin !== url.origin) {
+        return false;
+      }
+      return url.protocol === "https:" && MATCH.isSteamTranslateHost(url.hostname);
+    } catch (error) {
+      if (error instanceof TypeError) return false;
+      throw error;
+    }
+  }
+
+  async function cacheRequest(request, sender, sendResponse, reading) {
+    const reject = (error) => sendResponse({ success: false, code: "AI_CACHE_REQUEST_REJECTED", error });
+    if (!cacheSenderAllowed(sender)) {
+      reject("AI 缓存只允许 Steam 翻译内容脚本访问");
+      return;
+    }
+    const field = reading ? "keys" : "entries";
+    const type = reading ? "AI_TRANSLATE_CACHE_GET" : "AI_TRANSLATE_CACHE_SET";
+    if (!request || typeof request !== "object" || Array.isArray(request) || request.type !== type
+      || !Object.hasOwn(request, "type") || !Object.hasOwn(request, field)
+      || Object.keys(request).some((key) => !["type", field, "operationId", "requestId"].includes(key))
+      || ["operationId", "requestId"].some((key) => Object.hasOwn(request, key)
+        && (typeof request[key] !== "string" || request[key].length > 128))) {
+      reject("AI 缓存请求格式无效");
+      return;
+    }
+    const store = globalThis.STAITranslateCache;
+    if (!store?.ready) {
+      sendResponse({ success: false, error: "AI 缓存模块未加载" });
+      return;
+    }
+    try {
+      const input = reading ? store.validateKeys(request.keys) : store.validateEntries(request.entries);
+      const result = reading ? await store.getMany(input) : await store.setMany(input);
+      sendResponse(reading ? { success: true, data: result } : { success: result !== false });
+    } catch (error) {
+      if (error?.code === "AI_CACHE_REQUEST_REJECTED") {
+        reject(error.message);
+        return;
+      }
+      globalThis.STLoggerFactory.reportError(error, {
+        domain: "extension", feature: "background", event: reading ? "cache-get-failed" : "cache-set-failed",
+        message: reading ? "读取 AI 缓存失败" : "保存 AI 缓存失败", level: "error", phase: reading ? "cacheGet" : "cacheSet",
+        operationId: request.operationId, requestId: request.requestId,
+      });
+      const message = error?.message || String(error);
+      sendResponse({ success: false, error: message });
     }
   }
 
   function cacheGet(request, sender, sendResponse) {
-    const store = globalThis.STAITranslateCache;
-    if (!store?.getMany) {
-      sendResponse({ success: true, data: {} });
-      return;
-    }
-    store.getMany(request.keys)
-      .then((data) => sendResponse({ success: true, data }))
-      .catch((error) => sendResponse({ success: false, error: error?.message || String(error) }));
+    return cacheRequest(request, sender, sendResponse, true);
   }
 
   function cacheSet(request, sender, sendResponse) {
-    const store = globalThis.STAITranslateCache;
-    if (!store?.setMany) {
-      sendResponse({ success: false, error: "AI 缓存模块未加载" });
-      return;
-    }
-    store.setMany(request.entries)
-      .then((ok) => sendResponse({ success: ok !== false }))
-      .catch((error) => sendResponse({ success: false, error: error?.message || String(error) }));
+    return cacheRequest(request, sender, sendResponse, false);
   }
 
   function authCommitSender(sender) {
@@ -3532,6 +3499,7 @@
         auth: expose ? decision?.auth || null : null,
       });
     }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "commit-auth-message-failed", message: "提交登录状态失败", level: "error", phase: "commitAuthMessage" });
       sendResponse({
         success: false,
         error: error?.message || "登录状态写入失败",
@@ -3556,13 +3524,137 @@
     globalThis.STBackgroundUserNamesSync.handleMessage(request, sendResponse);
   }
 
+  const NETWORK_REQUEST_TYPES = new Set(["STORE_FETCH", "AI_CHAT_COMPLETIONS"]);
+  const networkRequests = new Map();
+
+  function networkRequestKey(request, sender, type = request.type) {
+    if (!NETWORK_REQUEST_TYPES.has(type) || sender.id !== chrome.runtime.id
+      || typeof request.networkRequestId !== "string" || !request.networkRequestId.length || request.networkRequestId.length > 128) {
+      throw new TypeError("网络取消请求的来源或标识无效");
+    }
+    // 文档内路由变化不改变取消归属；documentId 缺省时保留 frame/URL 边界。
+    const document = sender.documentId === undefined ? sender.url : sender.documentId;
+    return JSON.stringify([sender.id, document, sender.tab?.id, sender.frameId, type, request.networkRequestId]);
+  }
+
+  function networkRoute(route) {
+    return (request, sender, sendResponse) => {
+      // 旧调用方没有取消标识，仍由请求本身的完整超时负责收尾。
+      if (request.networkRequestId === undefined) return route(request, sender, sendResponse);
+      const key = networkRequestKey(request, sender);
+      if (networkRequests.has(key)) throw new Error("网络请求标识重复");
+      const controller = new AbortController();
+      networkRequests.set(key, controller);
+      const finish = (response) => {
+        networkRequests.delete(key);
+        sendResponse(response);
+      };
+      try {
+        const task = route({ ...request, signal: controller.signal }, sender, finish);
+        if (task && typeof task.catch === "function") return task.catch((error) => {
+          networkRequests.delete(key);
+          throw error;
+        });
+        return task;
+      } catch (error) {
+        networkRequests.delete(key);
+        throw error;
+      }
+    };
+  }
+
+  function cancelNetworkRequest(request, sender, sendResponse) {
+    if (request.reason !== "timeout" && request.reason !== "abort") throw new TypeError("网络取消原因无效");
+    const key = networkRequestKey(request, sender, request.requestType);
+    const controller = networkRequests.get(key);
+    if (controller && !controller.signal.aborted) {
+      const error = new Error(request.reason === "timeout" ? "前台等待请求超时" : "请求已取消");
+      error.name = request.reason === "timeout" ? "TimeoutError" : "AbortError";
+      controller.abort(error);
+    }
+    sendResponse({ success: true, cancelled: !!controller });
+  }
+
+  // 真实目标发现与首次引导共用入口；已有 runtime 只恢复请求指定的名称功能。
+  async function recoverSteamNameBackend(request, sender, sendResponse) {
+    const featureId = request.featureId;
+    const knownFeature = ["library-sort-title", "library-custom-name"].includes(featureId);
+    try {
+      if (!isSteamRuntimeSender(sender) || !knownFeature) {
+        throw new Error("名称后台恢复请求不在允许范围内");
+      }
+      if (!Array.isArray(request.appids) || request.appids.length > 200
+        || request.appids.some(id => !Number.isInteger(id) || id <= 0)) {
+        throw new TypeError("名称恢复 AppID 列表无效");
+      }
+      const source = await execScript({
+        target: { tabId: sender.tab.id, frameIds: [sender.frameId] }, world: "MAIN",
+        func: () => window.SteamBuff?.ctx?.isMainUi?.() === true || window.SteamBuff?.ctx?.isPropertyDialog?.() === true,
+      });
+      if (source[0]?.result !== true) throw new Error("名称恢复只允许 Steam 主窗口或属性窗口请求");
+      const target = await ensureSteamSharedRuntime();
+      const key = `${target.tabId}:${target.frameId}:${featureId}`;
+      let flight = steamNameRecoveryFlights.get(key);
+      if (!flight) {
+        flight = (async () => {
+          try {
+            const results = await execScript({
+              target: { tabId: target.tabId, frameIds: [target.frameId] }, world: "MAIN",
+              args: [featureId, request.appids],
+              func: async (id, appids) => {
+                if (document.title !== "SharedJSContext") throw new Error("名称后台目标已变化");
+                const api = window.SteamBuff;
+                if (!api?.reg?.list || !api.reg.canStart) throw new Error("名称运行时依赖尚未就绪");
+                const feature = api.reg.list().find(item => item.id === id);
+                if (!feature || api.reg.canStart(feature, "backend").allowed !== true) {
+                  throw new Error("当前名称功能未启用");
+                }
+                const key = id === "library-sort-title" ? "__SteamBuffLibrarySortTitle" : "__SteamBuffLibraryCustomNameBackend";
+                if (!window[key]) {
+                  if (!api?.runtimeKernel?.disposeOwner || !api.reg?.markStopped || !api.reg?.startFeature) {
+                    throw new Error("名称运行时依赖尚未就绪");
+                  }
+                  if (api.reg.state.starting.has(`${id}:backend:backend.js`)) throw new Error("名称功能仍在启动");
+                  api.runtimeKernel.disposeOwner(`steam:${id}:backend`);
+                  api.reg.markStopped(id);
+                  const results = await api.reg.startFeature(id);
+                  if (!results.some(item => item.context === "backend" && item.status === "started")) {
+                    throw new Error("当前名称功能未启用或启动失败");
+                  }
+                }
+                if (typeof window[key]?.recover !== "function") throw new Error("当前名称后台不支持定向恢复");
+                return window[key].recover(appids);
+              },
+            });
+            const result = results[0]?.result;
+            if (result?.ready !== true) throw new Error("名称后台未返回就绪回执");
+            return result;
+          } finally {
+            if (steamNameRecoveryFlights.get(key) === flight) steamNameRecoveryFlights.delete(key);
+          }
+        })();
+        steamNameRecoveryFlights.set(key, flight);
+      }
+      const result = await flight;
+      sendResponse({ success: true, ...result });
+    } catch (error) {
+      logError("library-name-recovery", "steam-name-backend-recovery-failed", "Steam 名称后台定向恢复失败", error, {
+        requestId: typeof request.requestId === "string" ? request.requestId : undefined,
+        ...(knownFeature ? { featureId } : {}),
+      });
+      sendResponse({ success: false, error: error.message });
+    }
+  }
+
   const ROUTE_POLICY = Object.freeze({
+    NETWORK_REQUEST_CANCEL: "发送方取消自己的普通代理或非流式 AI 请求",
     UPDATE_CHECK: "设置中心更新检查",
     STORE_FETCH: "允许列表内跨域请求代理",
     [PLAYER_STATS_FETCH]: "Steam 商店详情页或库详情页固定在线人数请求",
     TRANSLATE_INJECT: "翻译 runner 按需注入",
     CONTENT_FILES_INJECT: "当前 frame 内容脚本按需注入",
     [STEAM_LOOPBACK_INJECT_REQUEST]: "Steam CEF 白名单 frame 按需注入",
+    STEAM_NAME_BACKEND_RECOVER: "Steam 主窗口或属性窗口定向恢复名称后台",
     [AI_GATEWAY_PERMISSION_CHECK]: "AI 设置页检查当前网关精确域名权限",
     [AI_GATEWAY_PERMISSION_REQUEST]: "用户操作触发的 AI 网关按域名授权",
     [AI_GATEWAY_PERMISSION_OPEN]: "Steam 设置页创建一次性 AI 网关授权会话",
@@ -3578,6 +3670,8 @@
     LOG_EXPORT: "诊断日志导出",
     LOG_CLEAR: "诊断日志清空",
     LOG_STATS: "诊断日志状态",
+    LOG_DEBUG_GET: "读取日志开关状态",
+    LOG_DEBUG_SET: "设置中心确认后启停日志",
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: "云端安装引导页打开本地步骤",
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: "安装引导页打开设置中心",
     SETTINGS_CLOUD_SYNC: "设置云同步检查、上传、下载和冲突处理",
@@ -3586,12 +3680,36 @@
   });
 
   const ROUTES = Object.freeze({
+    async LOG_DEBUG_GET(request, sender, sendResponse) {
+      try {
+        const state = await globalThis.STBackgroundDebug.initialize();
+        sendResponse({ success: true, state });
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "debug-mode", event: "debug-state-read-failed", message: "读取日志开关状态失败" });
+        const message = error.message;
+        sendResponse({ success: false, error: message });
+      }
+    },
+    async LOG_DEBUG_SET(request, sender, sendResponse) {
+      try {
+        if (!isSettingsSender(sender) && !isSteamRuntimeSender(sender)) throw new Error("日志开关只允许设置中心操作");
+        if (request.enabled === true && request.confirmed !== true) throw new Error("开启日志需要隐私确认");
+        const state = await globalThis.STBackgroundDebug.setEnabled(request.enabled, request.operationId);
+        sendResponse({ success: true, state });
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "debug-mode", event: "debug-state-save-failed", message: "保存日志开关状态失败", operationId: request.operationId });
+        const message = error.message;
+        sendResponse({ success: false, error: message });
+      }
+    },
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
-    STORE_FETCH: storeFetch,
+    NETWORK_REQUEST_CANCEL: cancelNetworkRequest,
+    STORE_FETCH: networkRoute(storeFetch),
     [PLAYER_STATS_FETCH]: playerStatsFetch,
     TRANSLATE_INJECT: translateInject,
     CONTENT_FILES_INJECT: injectContentFiles,
     [STEAM_LOOPBACK_INJECT_REQUEST]: steamLoopbackInjectRequest,
+    STEAM_NAME_BACKEND_RECOVER: recoverSteamNameBackend,
     [AI_GATEWAY_PERMISSION_CHECK]: checkAiGatewayPermission,
     [AI_GATEWAY_PERMISSION_REQUEST]: requestAiGatewayPermission,
     [AI_GATEWAY_PERMISSION_OPEN]: openAiGatewayPermission,
@@ -3600,7 +3718,7 @@
     [CHROMIUM_WINDOW_OPEN]: openChromiumWindowRequest,
     [STEAM_ROOT_MENU_OPEN_CHROMIUM]: openSteamRootMenuChromiumRequest,
     [AI_GATEWAY_PERMISSION_COMPLETE]: completeAiGatewayPermission,
-    AI_CHAT_COMPLETIONS: aiChat,
+    AI_CHAT_COMPLETIONS: networkRoute(aiChat),
     AI_TRANSLATE_CACHE_GET: cacheGet,
     AI_TRANSLATE_CACHE_SET: cacheSet,
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: openOnboardingLocalPage,
@@ -3609,7 +3727,7 @@
     USER_NAMES_COMMIT: commitUserNames,
     AUTH_COMMIT: commitAuthMessage,
     LOG_APPEND(request, sender, sendResponse) {
-      globalThis.STBackgroundLogger.append(request, sender)
+      globalThis.STBackgroundDebug.initialize().then(() => globalThis.STBackgroundLogger.append(request, sender))
         .then((stats) => sendResponse({ success: true, stats }))
         .catch((error) => sendResponse({ success: false, error: error?.message || String(error) }));
     },
@@ -3639,18 +3757,38 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const route = messageRoute(request);
     if (route) {
-      route(request, sender, sendResponse);
+      const fail = (error) => {
+        // LOG_* 的存储故障不能递归写入同一日志链；回复由前台责任层处理。
+        if (!String(request.type).startsWith("LOG_")) globalThis.STLoggerFactory.reportError(error, {
+          domain: "extension", feature: "message-router", event: "message-route-failed", message: "后台消息操作失败", operationId: request.operationId, requestId: request.requestId, phase: request.type,
+        });
+        sendResponse({ success: false, error: error?.message || "后台操作失败" });
+      };
+      try {
+        const task = route(request, sender, sendResponse);
+        if (task && typeof task.catch === "function") task.catch(fail);
+      } catch (error) { fail(error); }
       return true;
     }
     return false;
   });
   chrome.runtime.onConnect.addListener(aiStreamConnect);
+  globalThis.addEventListener("error", event => globalThis.STLoggerFactory.reportError(event.error || event.message, {
+    domain: "extension", feature: "background-runtime", event: "background-unhandled-error", message: "后台未捕获异常",
+  }));
+  globalThis.addEventListener("unhandledrejection", event => globalThis.STLoggerFactory.reportError(event.reason, {
+    domain: "extension", feature: "background-runtime", event: "background-unhandled-rejection", message: "后台未处理异步异常",
+  }));
 
   chrome.runtime.onInstalled.addListener((details) => {
     const lifecycleReady = globalThis.STBackgroundLifecycle.initialize(details)
       .then(() => null)
       .catch((error) => error);
+    // 日志状态或存储失败不阻断安装后的业务启动
     globalThis.STBackgroundLogger.initialize()
+      .catch((error) => {
+        backgroundLogger("background-runtime").error("background-session-failed", "后台日志存储初始化失败", { error });
+      })
       .then(async () => {
         const lifecycleError = await lifecycleReady;
         if (lifecycleError) {
@@ -3660,17 +3798,14 @@
             { error: lifecycleError },
           );
         }
+        await retireSteamLoopbackRecovery();
         injectSoon();
         if (details?.reason === "install") openOnboardingPage();
-      })
-      .catch((error) => {
-        backgroundLogger("background-runtime").error("background-session-failed", "后台日志存储初始化失败", { error });
       });
   });
   chrome.runtime.onStartup.addListener(() => {
     injectSoon();
   });
-  chrome.alarms?.onAlarm?.addListener(handleSteamLoopbackRecoveryAlarm);
   chrome.alarms?.onAlarm?.addListener(handleAiForecastSessionCleanupAlarm);
   chrome.tabs?.onCreated?.addListener(injectTabSoon);
   chrome.tabs?.onUpdated?.addListener((_tabId, _changeInfo, tab) => injectTabSoon(tab));
@@ -3681,12 +3816,13 @@
   ensureAiForecastSessionCleanupAlarm().catch((error) => {
     logError("ai", "ai-forecast-session-cleanup-alarm-failed", "AI 预测会话清理任务创建失败", error);
   });
+  // 日志初始化只影响诊断能力，原有启动注入仍继续执行
   globalThis.STBackgroundLogger.initialize()
+    .catch((error) => {
+      backgroundLogger("background-runtime").error("background-session-failed", "后台日志存储初始化失败", { error });
+    })
     .then(() => {
       backgroundLogger("background-runtime").info("background-session-ready", "后台日志与消息运行时已就绪");
       injectSoon();
-    })
-    .catch((error) => {
-      backgroundLogger("background-runtime").error("background-session-failed", "后台日志存储初始化失败", { error });
     });
 })();

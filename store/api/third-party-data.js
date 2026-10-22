@@ -353,6 +353,7 @@
     return {
       country: options.country || config.isthereanydeal?.country,
       shops: options.shops || config.isthereanydeal?.shops,
+      includeSteam: options.includeSteam !== false,
       pageCountry: options.pageCountry || config.country || "",
       requestId: options.requestId,
       since: options.since || DEFAULT_HISTORY_SINCE,
@@ -472,7 +473,8 @@
     if (typeof provider?.getInfo !== "function") return null;
     try {
       return await provider.getInfo(id, options, config);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "api-third-party-data", event: "optional-game-info-failed", message: "商店功能处理失败", level: "warn", phase: "optionalGameInfo" });
       return null;
     }
   }
@@ -700,7 +702,7 @@
         provider.getPrices(ids, opt, config),
         provider.getHistoryLow(ids, opt, config),
         includeHistory ? Promise.all(ids.map(id => provider.getHistory(id, opt, config))) : Promise.resolve([]),
-        includeHistory
+        includeHistory && options.includeInfo !== false
           ? Promise.all(ids.map(id => optionalGameInfo(provider, id, opt, config)))
           : Promise.resolve([]),
       ]);
@@ -878,6 +880,7 @@
         },
       };
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "api-third-party-data", event: "ensure-store-price-chart-rates-failed", message: "商店功能处理失败", level: "warn", phase: "ensureStorePriceChartRates" });
       return {
         ...result,
         data: {
@@ -891,17 +894,25 @@
     }
   }
 
+  /**
+   * scope=compact 只查询主区 Steam，不准备图表汇率；默认 full 保持既有调用契约。
+   * previous 只能复用同商品、同主区且未过期的本入口结果；展开仅补缺少的商店。
+   * 展开补查其他商店失败时保留已复用的主区数据，并把缺少的商店标为不可用；取消仍中断整次加载
+   * shouldContinue 在每个排队区域开始前检查，收起或换页后不再启动后续请求。
+   */
   async function getStorePriceChartPack(pageInfo = {}, options = {}) {
+    const scope = options.scope === undefined ? "full" : options.scope;
+    if (scope !== "compact" && scope !== "full") throw new TypeError("价格加载范围无效");
     const status = await statusFor("prices", options);
     if (status.state) return status.state;
     const { config, provider } = status;
-    const appid = numericPageId(pageInfo);
-    if (text(pageInfo.type).toLowerCase() !== "app" || appid <= 0) {
-      return getPricePack(pageInfo, options);
+    const itemId = Number(targetKey(pageInfo).split("/")[1]) || 0;
+    if (!["app", "sub", "bundle"].includes(text(pageInfo.type).toLowerCase()) || itemId <= 0) {
+      return getPricePack(pageInfo, { ...options, ...(scope === "compact" ? { shops: [61] } : {}) });
     }
     const requestedItems = Array.isArray(options.items) && options.items.length
       ? options.items
-      : [{ type: "app", id: appid }];
+      : [{ type: text(pageInfo.type).toLowerCase(), id: itemId }];
     const items = provider.normalizeSteamItems(requestedItems);
     const mainCountry = text(config.isthereanydeal?.country).toLowerCase() === "auto"
       ? text(options.pageCountry || "CN").toUpperCase()
@@ -920,11 +931,28 @@
       additionalSteamRegions: settings.additionalSteamRegions,
       shops: config.isthereanydeal?.shops,
     });
-    const additionalCountries = selection.additionalSteamRegions;
-    const shops = selection.shops;
+    const additionalCountries = scope === "compact" ? [] : selection.additionalSteamRegions;
+    const shops = scope === "compact" ? [61] : selection.shops;
+    const previous = options.previous;
+    const previousTtl = Number(previous?.cache?.ttlMs) - (now() - Number(previous?.updatedAt));
+    const reuse = previous?.ok === true && previous.provider === provider.id
+      && previous.data?.mainCountry === mainCountry && previousTtl > 0
+      && previous.data?.loadScope === "compact"
+      && previous.data?.requestSince === (options.since || DEFAULT_HISTORY_SINCE)
+      && previous.data?.requestUntil === (options.until || "")
+      && JSON.stringify(previous.data.items.map(item => item.key)) === JSON.stringify(items.map(item => item.key));
+    const cachedPart = data => ({ data, cache: { hit: true, ttlMs: previousTtl } });
+    const continueLoading = () => {
+      if (options.shouldContinue && !options.shouldContinue()) {
+        const error = new Error("价格详情加载已停止");
+        error.code = "STORE_PRICE_LOAD_CANCELLED";
+        throw error;
+      }
+    };
     try {
+      continueLoading();
       const lookupOptions = requestOptions(config, { ...options, country: mainCountry, shops });
-      const lookup = await provider.lookupSteamItems(items, config, lookupOptions);
+      const lookup = reuse ? cachedPart(previous.data.lookup) : await provider.lookupSteamItems(items, config, lookupOptions);
       const id = providerGameId({ lookup: lookup.data }, items[0]);
       if (!id) {
         return failure("PROVIDER_GAME_NOT_FOUND", "ITAD 暂未收录当前 Steam 商品。", {
@@ -935,7 +963,8 @@
         });
       }
       const loadCountry = async (country, selectedShops) => {
-        const opt = requestOptions(config, { ...options, country, shops: selectedShops });
+        continueLoading();
+        const opt = requestOptions(config, { ...options, country, shops: selectedShops, includeSteam: selectedShops.includes(61) });
         try {
           const [prices, storeLow, history] = await Promise.all([
             provider.getPrices([id], opt, config),
@@ -953,6 +982,7 @@
         let cursor = 0;
         async function worker() {
           while (cursor < additionalCountries.length) {
+            continueLoading();
             const index = cursor;
             cursor += 1;
             out[index] = await loadCountry(additionalCountries[index], [61]);
@@ -961,12 +991,52 @@
         await Promise.all(Array.from({ length: Math.min(2, additionalCountries.length) }, worker));
         return out;
       };
+      const loadMain = async () => {
+        if (!reuse) return loadCountry(mainCountry, shops);
+        const main = {
+          ok: true, country: mainCountry, shops,
+          prices: cachedPart(previous.data.prices),
+          storeLow: cachedPart(previous.data.storeLow),
+          history: cachedPart(previous.data.history[id]),
+        };
+        const missingShops = shops.filter(shopId => shopId !== 61);
+        if (!missingShops.length) return main;
+        const keepMain = (error) => {
+          log?.warn?.("store-price-shop-supplement-failed", "展开详情时其他商店价格补查失败，已保留主区数据", {
+            error,
+            country: mainCountry,
+            shopCount: missingShops.length,
+          });
+          return { ...main, shopError: error };
+        };
+        let extra;
+        try {
+          extra = await loadCountry(mainCountry, missingShops);
+        } catch (error) {
+          if (error?.code === "STORE_PRICE_LOAD_CANCELLED") throw error;
+          return keepMain(error);
+        }
+        if (!extra.ok) return keepMain(extra.error);
+        const prices = dataItem(main.prices.data, id);
+        const extraPrices = dataItem(extra.prices.data, id);
+        const low = dataItem(main.storeLow.data, id);
+        const extraLow = dataItem(extra.storeLow.data, id);
+        return {
+          ...main,
+          prices: { ...extra.prices, data: [{ ...prices, deals: [...(prices?.deals || []), ...(extraPrices?.deals || [])] }] },
+          storeLow: { ...extra.storeLow, data: [{ ...low, lows: [...(low?.lows || []), ...(extraLow?.lows || [])] }] },
+          history: { ...extra.history, data: { ...main.history.data, events: [...main.history.data.events, ...extra.history.data.events] } },
+        };
+      };
       const [main, additional] = await Promise.all([
-        loadCountry(mainCountry, shops),
+        loadMain(),
         loadAdditional(),
       ]);
       if (!main.ok) throw main.error;
-      const info = await optionalGameInfo(provider, id, lookupOptions, config);
+      continueLoading();
+      const info = reuse && previous.data.info[id]
+        ? cachedPart(previous.data.info[id])
+        : options.includeInfo === false ? null : await optionalGameInfo(provider, id, lookupOptions, config);
       const unavailableSeries = (item) => {
         const profile = priceCatalog.getPriceSourceRegion(provider.id, item.country);
         const error = item.error;
@@ -1013,21 +1083,42 @@
             availability: { status: "available" },
           }
           : unavailableSeries(item)),
-        ...shops.filter(shopId => shopId !== 61).map(shopId => ({
-          id: priceCatalog.shopSeriesId(shopId),
-          type: "shop",
-          country: mainCountry,
-          shopId,
-          label: priceCatalog.shopSeriesLabel(shopId),
-          current: selectedCurrentDeal(main.prices.data, id, shopId),
-          storeLow: selectedStoreLow(main.storeLow.data, id, shopId),
-          events: selectedHistoryEvents(main.history.data, shopId),
-          availability: { status: "available" },
-        })),
+        ...shops.filter(shopId => shopId !== 61).map(shopId => {
+          const series = {
+            id: priceCatalog.shopSeriesId(shopId),
+            type: "shop",
+            country: mainCountry,
+            shopId,
+            label: priceCatalog.shopSeriesLabel(shopId),
+          };
+          if (!main.shopError) {
+            return {
+              ...series,
+              current: selectedCurrentDeal(main.prices.data, id, shopId),
+              storeLow: selectedStoreLow(main.storeLow.data, id, shopId),
+              events: selectedHistoryEvents(main.history.data, shopId),
+              availability: { status: "available" },
+            };
+          }
+          return {
+            ...series,
+            current: null,
+            storeLow: null,
+            events: [],
+            availability: {
+              status: "unavailable",
+              code: text(main.shopError.code || "PROVIDER_REQUEST_FAILED"),
+              message: text(main.shopError.message || "其他商店价格暂不可用。"),
+            },
+          };
+        }),
       ];
       const sources = [main, ...additional.filter(item => item.ok)];
       const result = success("prices", provider, {
         items,
+        loadScope: scope,
+        requestSince: options.since || DEFAULT_HISTORY_SINCE,
+        requestUntil: options.until || "",
         lookup: lookup.data,
         ids: [id],
         mainCountry,
@@ -1039,16 +1130,20 @@
         history: { [id]: main.history.data },
         info: info?.data?.id ? { [id]: info.data } : {},
       }, {
-        hit: lookup.cache?.hit === true
+        hit: !main.shopError
+          && lookup.cache?.hit === true
           && additional.every(item => item.ok)
           && sources.every(item => item.prices.cache?.hit === true && item.storeLow.cache?.hit === true && item.history.cache?.hit === true)
           && (info === null || info.cache?.hit === true),
-        ttlMs: Math.min(
+        // 补查失败不能沿用主区剩余缓存时间，否则展开会在有效期内跳过重试
+        ttlMs: main.shopError ? 0 : Math.min(
           lookup.cache?.ttlMs || 0,
           ...sources.flatMap(item => [item.prices.cache?.ttlMs || 0, item.storeLow.cache?.ttlMs || 0, item.history.cache?.ttlMs || 0]),
         ),
       });
-      return ensureStorePriceChartRates(result, { months: settings.lowCriterion === "price" ? 0 : 12 });
+      return scope === "compact"
+        ? result
+        : ensureStorePriceChartRates(result, { months: settings.lowCriterion === "price" ? 0 : 12 });
     } catch (error) {
       return errorState(error, "prices", provider);
     }

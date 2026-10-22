@@ -137,7 +137,8 @@
           }
           resolve(rt || {});
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "boot", event: "get-failed", message: "读取本地设置失败", level: "warn", phase: "get" });
         resolve({});
       }
     });

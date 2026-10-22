@@ -12,7 +12,8 @@
   "use strict";
 
   const VERSION = "steam-buff-logger-schema-v2";
-  if (root.STLoggerSchema?.version === VERSION) {
+  const IMPLEMENTATION_VERSION = "steam-buff-logger-schema-v2-debug-data";
+  if (root.STLoggerSchema?.implementationVersion === IMPLEMENTATION_VERSION) {
     return;
   }
 
@@ -23,6 +24,8 @@
   const ERROR_STACK_MAX = 32 * 1024;
   const ERROR_TOTAL_MAX = 64 * 1024;
   const META_MAX = 4 * 1024;
+  const DEBUG_DATA_MAX = 3 * 1024 * 1024;
+  const CREDENTIAL_KEY = /(?:authorization|cookie|token|password|secret|sessionid|api[_-]?key|device[_-]?code|user[_-]?code|cloud[_-]?key|encryption[_-]?key|^key$)/iu;
   const META_MAX_DEPTH = 6;
   const META_MAX_NODES = 256;
   const META_MAX_ARRAY_ITEMS = 64;
@@ -43,9 +46,11 @@
     "sessionid",
     "password",
     "secret",
+    "device_code",
+    "user_code",
   ]));
-  const SENSITIVE_KEY = /(?:authorization|cookie|set-cookie|access[_-]?token|refresh[_-]?token|api[_-]?key|token|sessionid|password|secret|headers?|requestbody|responsebody|requestdata|responsetext|prompt|messages|content|custom[_-]?name|nickname|remark)/iu;
-  const ASSIGNMENT_SECRET = /\b(authorization|cookie|set-cookie|access[_-]?token|refresh[_-]?token|api[_-]?key|token|sessionid|password|secret)\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^,\s;&]+)/giu;
+  const SENSITIVE_KEY = /(?:authorization|cookie|set-cookie|access[_-]?token|refresh[_-]?token|api[_-]?key|token|sessionid|password|secret|device[_-]?code|user[_-]?code|headers?|requestbody|responsebody|requestdata|responsetext|prompt|messages|content|custom[_-]?name|nickname|remark)/iu;
+  const ASSIGNMENT_SECRET = /["']?\b(authorization|cookie|set-cookie|access[_-]?token|refresh[_-]?token|api[_-]?key|token|sessionid|password|secret|device[_-]?code|user[_-]?code)\b["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^,\s;&]+)/giu;
   const BEARER_SECRET = /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/giu;
   const WINDOWS_USER_PATH = /(\b[A-Za-z]:[\\/]+Users[\\/]+)[^\\/\s"'?#&]+/giu;
   const POSIX_USER_PATH = /((?:^|[\s("'=])\/(?:home|Users)\/|file:\/\/\/(?:home|Users)\/)[^/\s"'?#&]+/gu;
@@ -59,6 +64,13 @@
     "background-session-ready",
   ]));
   const PERSIST_INFO_EVENTS = Object.freeze(new Set([
+    "api-request-received",
+    "api-response-ready",
+    "api-request-start",
+    "api-response-received",
+    "api-response-parsed",
+    "onboarding-api-request-start",
+    "onboarding-api-response-received",
     "update-manual-check-start",
     "update-manual-check-success",
     "update-new-version-found",
@@ -206,7 +218,7 @@
   function safeUrl(value, policy = {}) {
     const raw = String(value || "").trim();
     if (!raw) return { url: "", credentialsRedacted: false, omitted: false };
-    const explicitPolicy = policy.allowPath === true
+    const explicitPolicy = policy.originOnly === true || policy.allowPath === true
       || !!policy.baseUrl
       || policy.preserveQuery === true
       || Array.isArray(policy.allowedQueryKeys)
@@ -216,6 +228,9 @@
     try {
       const base = policy.baseUrl ? String(policy.baseUrl) : undefined;
       const parsed = base ? new URL(raw, base) : new URL(raw);
+      if (policy.originOnly === true) {
+        return { url: `${parsed.protocol}//${parsed.host}/`, credentialsRedacted: true, omitted: false };
+      }
       const allowedQuery = new Set(Array.isArray(policy.allowedQueryKeys) ? policy.allowedQueryKeys.map(String) : []);
       const credentialQuery = new Set([
         ...CREDENTIAL_QUERY,
@@ -361,9 +376,21 @@
     return deepest;
   }
 
+  const sensitiveJsonErrors = new WeakSet();
+
+  function markJsonError(error) {
+    if (error && typeof error === "object") sensitiveJsonErrors.add(error);
+    return error;
+  }
+
   function normalizedErrorFields(error) {
-    const message = limitedText(error?.message || String(error || ""), ERROR_MESSAGE_MAX, 12 * 1024, 4 * 1024);
-    const stack = limitedText(error?.stack || "", ERROR_STACK_MAX, 24 * 1024, 8 * 1024);
+    const sensitiveJson = error && typeof error === "object" && sensitiveJsonErrors.has(error);
+    const safeMessage = sensitiveJson ? "JSON 解析失败，原始输入已省略" : error?.message || String(error || "");
+    const safeStack = sensitiveJson
+      ? `${error.name}: ${safeMessage}\n${String(error.stack || "").split("\n").filter(line => /^\s*at\s/u.test(line)).join("\n")}`
+      : error?.stack || "";
+    const message = limitedText(safeMessage, ERROR_MESSAGE_MAX, 12 * 1024, 4 * 1024);
+    const stack = limitedText(safeStack, ERROR_STACK_MAX, 24 * 1024, 8 * 1024);
     const out = {
       name: sourcePart(error?.name || "Error", 256) || "Error",
       message: message.value,
@@ -618,6 +645,80 @@
     return truncatedMeta(json, originalBytes);
   }
 
+  // 诊断正文只接受调用方明确提供的数据；凭据始终脱敏，容量截断必须保留标记。
+  function normalizeDebugData(value, canonical = false) {
+    if (!value || typeof value !== "object" || !value.sessionId) return undefined;
+    let body;
+    let originalBytes;
+    let incomplete = value.incomplete === true;
+    if (canonical) {
+      if (typeof value.text !== "string" || value.format !== "json") return undefined;
+      const clean = normalizeDebugData({ sessionId: value.sessionId, data: JSON.parse(value.text) });
+      if (!clean) return undefined;
+      return { ...clean, originalBytes: Math.max(clean.originalBytes, Number(value.originalBytes) || 0), truncated: clean.truncated || value.truncated === true };
+    } else {
+      const ancestors = [];
+      const seenErrors = new WeakSet();
+      try {
+        body = JSON.stringify(value.data, function(key, item) {
+        if (CREDENTIAL_KEY.test(key)) return "[REDACTED]";
+        if (typeof item === "string") {
+          // 请求与响应中的 JSON 正文按 JSON 契约脱敏，避免转义引号泄漏凭据尾部。
+          if (/^\s*[\[{]/u.test(item)) {
+            try {
+              const parsed = JSON.parse(item);
+              return JSON.stringify(parsed, (field, data) => CREDENTIAL_KEY.test(field) ? "[REDACTED]" : typeof data === "string" ? data.replace(ASSIGNMENT_SECRET, "$1=[REDACTED]").replace(BEARER_SECRET, "Bearer [REDACTED]") : data);
+            } catch {
+              // 非 JSON 正文仍按明确的凭据文本格式脱敏。
+            }
+          }
+          return item.replace(ASSIGNMENT_SECRET, "$1=[REDACTED]").replace(BEARER_SECRET, "Bearer [REDACTED]");
+        }
+        if (typeof item === "bigint") return String(item);
+        if (isRealError(item)) {
+          if (seenErrors.has(item)) { incomplete = true; return "[CircularError]"; }
+          seenErrors.add(item);
+          return { name: item.name, message: item.message, stack: item.stack, code: item.code, status: item.status, cause: item.cause };
+        }
+        if (typeof item === "function" || typeof item === "symbol") {
+          incomplete = true;
+          return `[Unsupported:${typeof item}]`;
+        }
+        if (item && typeof item === "object") {
+          while (ancestors.length && ancestors[ancestors.length - 1] !== this) ancestors.pop();
+          if (ancestors.includes(item)) { incomplete = true; return "[Circular]"; }
+          ancestors.push(item);
+        }
+        return item;
+        });
+      } catch {
+        // 对象 getter/toJSON 失败属于数据不可序列化，保留主日志并明确标记。
+        incomplete = true;
+        body = JSON.stringify({ unavailable: "diagnostic-serialization-failed" });
+      }
+      if (typeof body !== "string") return undefined;
+      originalBytes = byteLength(body);
+    }
+    let limited = { value: body, truncated: false };
+    if (byteLength(body) > DEBUG_DATA_MAX) {
+      let budget = DEBUG_DATA_MAX - 128;
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const preview = truncateText(body, budget, budget, 0).value;
+        limited = { value: JSON.stringify({ truncated: true, preview }), truncated: true };
+        const size = byteLength(limited.value);
+        if (size <= DEBUG_DATA_MAX) break;
+        budget = Math.max(0, budget - (size - DEBUG_DATA_MAX));
+      }
+    }
+    return {
+      sessionId: String(value.sessionId),
+      format: "json",
+      text: limited.value,
+      originalBytes,
+      truncated: incomplete || limited.truncated,
+    };
+  }
+
   function normalizeContext(value) {
     if (!value || typeof value !== "object") return undefined;
     const execution = String(value.execution || "");
@@ -640,6 +741,63 @@
     }
     const frameId = finiteNumber(value.frameId);
     if (frameId !== null && frameId >= 0) out.frameId = Math.round(frameId);
+    if (typeof value.online === "boolean") out.online = value.online;
+    return out;
+  }
+
+  // 仅提取已知请求契约和响应容器；不遍历接口正文。
+  function valueType(value) {
+    return value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+  }
+
+  function requestFacts(value = {}) {
+    const headers = value.headers;
+    const header = name => headers?.get
+      ? headers.get(name)
+      : headers?.[name] ?? headers?.[name.toLowerCase()];
+    const method = String(value.method || "GET").toUpperCase();
+    return {
+      method,
+      endpointKey: value.endpointKey,
+      url: value.logUrl || value.url,
+      timeoutMs: value.timeoutMs,
+      params: value.logParams,
+      ...(header("Content-Type") ? { mediaType: header("Content-Type") } : {}),
+      ...(header("Accept") ? { accept: header("Accept") } : {}),
+      hasAuth: !!header("Authorization"),
+      hasBody: method !== "GET" && method !== "HEAD" && (value.body !== undefined || value.data != null),
+    };
+  }
+
+  function httpFacts(response) {
+    if (!response) return undefined;
+    return {
+      status: response.status,
+      httpOk: response.ok,
+      redirected: response.redirected,
+      finalUrl: response.url,
+      mediaType: response.headers?.get("content-type"),
+      retryAfter: response.headers?.get("retry-after"),
+    };
+  }
+
+  function responseFacts(response) {
+    const out = { replyType: valueType(response) };
+    if (!response || typeof response !== "object" || Array.isArray(response)) return out;
+    if (typeof response.success === "boolean") out.transportSuccess = response.success;
+    if (typeof response.ok === "boolean") out.httpOk = response.ok;
+    if (typeof response.status === "number") out.status = response.status;
+    if (typeof response.data === "string") out.bodyLength = response.data.length;
+    return { ...out, ...normalizeResponse(response.diagnostics, { canonicalInput: true }) };
+  }
+
+  function resultFacts(value, fields = []) {
+    const out = { resultShape: valueType(value) };
+    if (Array.isArray(value)) out.resultCount = value.length;
+    if (fields.length && value && typeof value === "object" && !Array.isArray(value)) {
+      out.fieldTypes = {};
+      for (const key of fields) out.fieldTypes[key] = valueType(value[key]);
+    }
     return out;
   }
 
@@ -662,6 +820,12 @@
     if (value.params && typeof value.params === "object") out.params = normalizeMeta(value.params);
     const timeoutMs = finiteNumber(value.timeoutMs);
     if (timeoutMs !== null && timeoutMs >= 0) out.timeoutMs = Math.round(timeoutMs);
+    for (const key of ["mediaType", "accept"]) {
+      if (typeof value[key] === "string" && value[key]) out[key] = sourcePart(value[key], 256);
+    }
+    for (const key of ["hasAuth", "hasBody"]) {
+      if (typeof value[key] === "boolean") out[key] = value[key];
+    }
     return out;
   }
 
@@ -683,8 +847,29 @@
         out.messageOriginalBytes = Math.max(message.originalBytes, finiteNumber(value.messageOriginalBytes) || 0);
       }
     }
-    if (["array", "object", "null"].includes(String(value.resultShape || ""))) {
+    if (["array", "object", "null", "undefined", "string", "number", "boolean"].includes(String(value.resultShape || ""))) {
       out.resultShape = String(value.resultShape);
+    }
+    if (["array", "object", "null", "undefined", "string", "number", "boolean"].includes(value.replyType)) out.replyType = value.replyType;
+    for (const key of ["transportSuccess", "httpOk", "redirected"]) {
+      if (typeof value[key] === "boolean") out[key] = value[key];
+    }
+    for (const key of ["bodyLength", "resultCount", "networkDurationMs", "readDurationMs"]) {
+      if (typeof value[key] === "number" && Number.isFinite(value[key]) && value[key] >= 0) out[key] = Math.round(value[key]);
+    }
+    for (const key of ["mediaType", "retryAfter"]) {
+      if (typeof value[key] === "string" && value[key]) out[key] = sourcePart(value[key], 256);
+    }
+    if (value.finalUrl) {
+      const url = safeUrl(value.finalUrl, options.canonicalInput ? { allowPath: true, preserveQuery: true } : options.urlPolicy || {});
+      if (url.url) out.finalUrl = url.url;
+    }
+    if (value.fieldTypes) {
+      const types = {};
+      for (const key of Object.keys(value.fieldTypes).slice(0, 16)) {
+        if (["array", "object", "null", "undefined", "string", "number", "boolean"].includes(value.fieldTypes[key])) types[sourcePart(key, 80)] = value.fieldTypes[key];
+      }
+      if (Object.keys(types).length) out.fieldTypes = types;
     }
     return Object.keys(out).length ? out : undefined;
   }
@@ -766,7 +951,7 @@
       urlPolicy: options.requestUrlPolicy,
       canonicalUrl: options.canonicalInput === true,
     });
-    const response = normalizeResponse(input.response, { canonicalInput: options.canonicalInput === true });
+    const response = normalizeResponse(input.response, { canonicalInput: options.canonicalInput === true, urlPolicy: options.responseUrlPolicy || options.requestUrlPolicy });
     const retry = normalizeRetry(input.retry);
     const recovery = normalizeRecovery(input.recovery);
     const context = normalizeContext(input.context);
@@ -786,6 +971,8 @@
     if (recovery) out.recovery = recovery;
     if (context) out.context = context;
     if (meta) out.meta = meta;
+    const debugData = normalizeDebugData(input.debugData, options.canonicalInput === true);
+    if (debugData) out.debugData = debugData;
     if (options.allowAggregation === true) {
       const group = optionalId(input.fingerprint);
       const repeatCount = finiteNumber(input.repeatCount);
@@ -869,6 +1056,7 @@
 
   function shouldPersist(entry, options = {}) {
     if (!entry) return false;
+    if (options.debugEnabled === true) return true;
     if (entry.level === "debug" && options.forcePersist !== true) return false;
     // 事件降噪名单只约束普通 info；显式 debug 和真实 network/warn/error/fatal 不按事件名丢弃。
     if (entry.level === "info" && NEVER_PERSIST_EVENTS.has(entry.event)) return false;
@@ -906,6 +1094,7 @@
 
   root.STLoggerSchema = Object.freeze({
     version: VERSION,
+    implementationVersion: IMPLEMENTATION_VERSION,
     levels: readonlySet(LEVELS),
     executions: readonlySet(EXECUTIONS),
     limits: Object.freeze({
@@ -918,6 +1107,7 @@
       metaNodes: META_MAX_NODES,
       metaArrayItems: META_MAX_ARRAY_ITEMS,
       metaObjectKeys: META_MAX_OBJECT_KEYS,
+      debugDataBytes: DEBUG_DATA_MAX,
     }),
     lifecycleInfoEvents: readonlySet(LIFECYCLE_INFO_EVENTS),
     persistInfoEvents: readonlySet(PERSIST_INFO_EVENTS),
@@ -932,10 +1122,17 @@
     sourceFromStack,
     isErrorObject: isRealError,
     normalizeError,
+    markJsonError,
     normalizeMeta,
+    normalizeDebugData,
     normalizeContext,
     normalizeRequest,
     normalizeResponse,
+    requestFacts,
+    responseFacts,
+    httpFacts,
+    resultFacts,
+    valueType,
     normalizeRetry,
     normalizeRecovery,
     createEntry,

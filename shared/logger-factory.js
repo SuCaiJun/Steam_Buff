@@ -11,7 +11,7 @@
 ((root) => {
   "use strict";
 
-  const LOGGER_FACTORY_VERSION = "steam-buff-logger-factory-v2";
+  const LOGGER_FACTORY_VERSION = "steam-buff-logger-factory-v6-performance";
   const schema = root.STLoggerSchema;
   if (!schema) {
     return;
@@ -48,12 +48,17 @@
     "retry",
     "recovery",
     "context",
+    "debugData",
   ]));
 
-  const sampleState = new Map();
   const contextExecution = execution();
   const sessionId = root.STLogger?.sessionId || schema.createSessionId(contextExecution);
-  let diagnostics = normalizeDiagnostics(root.STEAM_BUFF_DIAGNOSTICS || {});
+  const initialDebugState = root.STLogger?.getDebugState?.();
+  let debugState = Object.freeze({ enabled: false, sessionId: "", revision: 0 });
+  let diagnostics = normalizeDiagnostics({ ...root.STEAM_BUFF_DIAGNOSTICS, enabled: false, exposeDebug: false, background: true });
+  root.STEAM_BUFF_DIAGNOSTICS = diagnostics;
+  const debugListeners = new Set();
+  const reportedErrors = new WeakMap();
 
   function normalizePart(value, fallback) {
     const text = String(value || "").trim();
@@ -135,6 +140,7 @@
     return schema.normalizeContext({
       execution: contextExecution,
       extensionVersion: manifestVersion(),
+      online: root.navigator?.onLine,
       pageType: page.pageType || page.page || "",
       route: page.path || root.location?.pathname || "",
       ...extra,
@@ -154,31 +160,10 @@
     return details;
   }
 
-  function scopeAllowed(entry) {
-    if (diagnostics.domains.size && !diagnostics.domains.has(entry.domain)) return false;
-    if (diagnostics.features.size && !diagnostics.features.has(entry.feature)) return false;
-    if (diagnostics.levels.size && !diagnostics.levels.has(entry.level)) return false;
-    return LEVEL_WEIGHT[entry.level] >= LEVEL_WEIGHT[diagnostics.minLevel];
-  }
-
-  function sampleAllowed(entry) {
-    if (diagnostics.sampleEvery <= 1) return true;
-    const key = `${entry.domain}:${entry.feature}:${entry.level}:${entry.event}`;
-    const count = (sampleState.get(key) || 0) + 1;
-    sampleState.set(key, count);
-    return count % diagnostics.sampleEvery === 1;
-  }
-
-  function isNoiseEligible(entry) {
-    return entry?.level === "info";
-  }
-
   function publish(entry) {
-    // 只有普通 info 允许关闭后台传输或按显式诊断范围采样；debug 开启后与 network/warn/error/fatal 一样逐条保存。
-    if (isNoiseEligible(entry) && !diagnostics.background) return;
-    if (diagnostics.enabled && isNoiseEligible(entry) && (!scopeAllowed(entry) || !sampleAllowed(entry))) return;
+    if (!debugState.enabled) return;
     const forcePersist = diagnostics.enabled && entry.level === "debug";
-    if (!schema.shouldPersist(entry, { forcePersist })) return;
+    if (!schema.shouldPersist(entry, { forcePersist, debugEnabled: debugState.enabled })) return;
     try {
       const transport = root.STLogger?.append?.(entry, forcePersist ? { forcePersist: true } : undefined);
       transport?.catch?.(() => null);
@@ -188,23 +173,52 @@
   }
 
   function log(level, domain, feature, event, message, details = {}, scopedSessionId = "", options = {}) {
+    // 关闭时不读取诊断数据、提取异常或生成日志条目
+    if (!debugState.enabled) return null;
     try {
+      const normalizedLevel = normalizeLevel(level);
+      // 同一异常传播到外层时不重复生成最终失败；真实重试 warn 仍各自保留。
+      const error = details.error;
+      if (["error", "fatal"].includes(normalizedLevel) && error && typeof error === "object") {
+        const operation = String(details.operationId || "");
+        if (reportedErrors.get(error)?.has(operation)) return null;
+      }
+      const cleanDetails = splitDetails(details);
+      let data;
+      let incomplete = false;
+      try {
+        data = typeof details.debugData === "function" ? details.debugData() : details.debugData === undefined ? details : details.debugData;
+      } catch {
+        // 诊断数据提供失败不能丢失原始业务错误，也不能递归写日志。
+        data = { unavailable: "diagnostic-provider-failed" };
+        incomplete = true;
+      }
+      cleanDetails.debugData = { sessionId: debugState.sessionId, data, incomplete };
       const entry = schema.createEntry({
-        level: normalizeLevel(level),
+        level: normalizedLevel,
         domain: normalizePart(domain, "shared"),
         feature: normalizePart(feature, "unknown"),
         event,
         message,
         sessionId: String(scopedSessionId || "").trim() || sessionId,
-        ...splitDetails(details),
-      }, { requestUrlPolicy: options.requestUrlPolicy });
+        ...cleanDetails,
+      }, {
+        requestUrlPolicy: options.requestUrlPolicy || root.STConfig?.diagnosticUrlPolicy?.(details.request?.url),
+        responseUrlPolicy: root.STConfig?.diagnosticUrlPolicy?.(details.response?.finalUrl),
+      });
       publish(entry);
+      if (["error", "fatal"].includes(normalizedLevel) && error && typeof error === "object") {
+        const operations = reportedErrors.get(error) || new Set();
+        operations.add(String(details.operationId || ""));
+        reportedErrors.set(error, operations);
+      }
       return entry;
     } catch {
       return null;
     }
   }
 
+  /** 创建模块日志入口；总开关关闭时各级方法返回 null，且不读取本次 details */
   function createLogger(domain, feature, defaults = {}) {
     const scopedDomain = normalizePart(domain, "shared");
     const scopedFeature = normalizePart(feature, "unknown");
@@ -218,28 +232,32 @@
       ...(scopedOperationId ? { operationId: scopedOperationId } : {}),
       ...((details && typeof details === "object") ? details : {}),
     });
+    const emit = (level, event, message, details) => {
+      if (!debugState.enabled) return null;
+      return log(level, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
+    };
     return Object.freeze({
       domain: scopedDomain,
       feature: scopedFeature,
       sessionId: scopedSessionId,
       operationId: scopedOperationId,
       debug(event, message, details = {}) {
-        return log(LogLevel.DEBUG, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
+        return emit(LogLevel.DEBUG, event, message, details);
       },
       info(event, message, details = {}) {
-        return log(LogLevel.INFO, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
+        return emit(LogLevel.INFO, event, message, details);
       },
       network(event, message, details = {}) {
-        return log(LogLevel.NETWORK, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
+        return emit(LogLevel.NETWORK, event, message, details);
       },
       warn(event, message, details = {}) {
-        return log(LogLevel.WARN, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
+        return emit(LogLevel.WARN, event, message, details);
       },
       error(event, message, details = {}) {
-        return log(LogLevel.ERROR, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
+        return emit(LogLevel.ERROR, event, message, details);
       },
       fatal(event, message, details = {}) {
-        return log(LogLevel.FATAL, scopedDomain, scopedFeature, event, message, withDefaults(details), scopedSessionId, { requestUrlPolicy });
+        return emit(LogLevel.FATAL, event, message, details);
       },
     });
   }
@@ -273,16 +291,9 @@
   }
 
   function configureDiagnostics(options = {}) {
-    const rawOptions = options && typeof options === "object" ? options : {};
-    const nextOptions = { ...diagnosticSnapshot(), ...rawOptions };
-    if (Object.hasOwn(rawOptions, "domain") && !Object.hasOwn(rawOptions, "domains")) {
-      nextOptions.domains = rawOptions.domain;
+    if (Object.hasOwn(options, "enabled") && options.enabled !== debugState.enabled) {
+      throw new Error("请在设置中心日志卡片使用“开启日志”开关调整日志记录");
     }
-    if (Object.hasOwn(rawOptions, "feature") && !Object.hasOwn(rawOptions, "features")) {
-      nextOptions.features = rawOptions.feature;
-    }
-    diagnostics = normalizeDiagnostics(nextOptions);
-    refreshDebugApi();
     return diagnosticSnapshot();
   }
 
@@ -291,9 +302,36 @@
   }
 
   function disableDiagnostics() {
-    diagnostics = normalizeDiagnostics({});
+    return configureDiagnostics({ enabled: false });
+  }
+
+  /** 后台确认的会话状态更新日志快照；不触发 runtime 刷新。 */
+  function applyDebugState(value) {
+    if (!value || typeof value.enabled !== "boolean" || !Number.isInteger(value.revision)) return false;
+    if (value.revision < debugState.revision) return false;
+    if (value.enabled && !value.sessionId) return false;
+    if (value.enabled === debugState.enabled && value.sessionId === debugState.sessionId && value.revision === debugState.revision) return true;
+    if (value.revision === debugState.revision && value.enabled === debugState.enabled && String(value.sessionId || "") === debugState.sessionId) return true;
+    debugState = Object.freeze({ enabled: value.enabled, sessionId: String(value.sessionId || ""), revision: value.revision });
+    diagnostics = normalizeDiagnostics({ enabled: debugState.enabled, exposeDebug: debugState.enabled, minLevel: debugState.enabled ? "debug" : "info" });
+    root.STEAM_BUFF_DIAGNOSTICS = diagnosticSnapshot();
     refreshDebugApi();
-    return diagnosticSnapshot();
+    root.STPerformanceMonitor?.setDiagnosticsEnabled(debugState.enabled);
+    for (const listener of debugListeners) {
+      try { listener(debugState); } catch (error) { reportError(error, { domain: "shared", feature: "logger-factory", event: "debug-subscriber-failed", message: "日志开关状态订阅处理失败" }); }
+    }
+    return true;
+  }
+
+  /** 统一异常记录出口；展示由调用页面决定，原异常和关联 ID 保留。 */
+  function reportError(error, context = {}) {
+    if (!debugState.enabled) return null;
+    if (error && typeof error === "object" && reportedErrors.get(error)?.size
+      && (!context.operationId || reportedErrors.get(error).has(String(context.operationId)))) return null;
+    return log(context.level === "fatal" ? "fatal" : context.level === "warn" ? "warn" : "error",
+      context.domain || "shared", context.feature || "error-boundary",
+      context.event || "operation-failed", context.message || "操作失败",
+      { ...(context.details || {}), ...(context.operationId ? { operationId: context.operationId } : {}), ...(context.requestId ? { requestId: context.requestId } : {}), phase: context.phase ?? context.details?.phase, error });
   }
 
   function safeLogUrl(value, policy = {}) {
@@ -319,6 +357,15 @@
     enableDiagnostics,
     disableDiagnostics,
     getDiagnostics: diagnosticSnapshot,
+    applyDebugState,
+    getDebugState: () => debugState,
+    subscribeDebug(listener) {
+      if (typeof listener !== "function") throw new TypeError("日志开关订阅必须是函数");
+      debugListeners.add(listener);
+      return () => debugListeners.delete(listener);
+    },
+    reportError,
   });
+  if (initialDebugState) applyDebugState(initialDebugState);
   refreshDebugApi();
 })(typeof globalThis !== "undefined" ? globalThis : self);

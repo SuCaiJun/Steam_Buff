@@ -35,11 +35,16 @@
   "settings_shell_pageTranslateFailed": {
     "message": "Translation incomplete: $error$. Click again to retry",
     "placeholders": {
-      "error": { "content": "$1" }
+      "error": {
+        "content": "$1"
+      }
     }
   },
   "settings_shell_pageTranslateUnavailable": {
     "message": "Manual translation is unavailable on this page"
+  },
+  "settings_shell_pageTranslateSettingsMissing": {
+    "message": "Translation settings are unavailable; refresh and retry"
   },
   "settings_shell_pageTranslateRuntimeMissing": {
     "message": "Manual translation runtime is unavailable; refresh and retry"
@@ -352,24 +357,6 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "Add the Steam original name to the runtime search field when a custom sort title exists."
   },
-  "settings_feature_library_sort_title_stable_mode_name": {
-    "message": "Name Display Mode"
-  },
-  "settings_feature_library_sort_title_stable_mode_desc": {
-    "message": "Smooth mode processes only currently visible items. Stable mode refreshes by replacing AppOverview objects and may stutter in very large libraries."
-  },
-  "settings_feature_library_sort_title_stable_mode_option_false": {
-    "message": "Smooth Mode"
-  },
-  "settings_feature_library_sort_title_stable_mode_option_true": {
-    "message": "Stable Mode"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_name": {
-    "message": "Show Custom Name in Hover Tooltip"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_desc": {
-    "message": "When enabled, Steam's native tooltip displays the custom name and collection tags while hovering over a library item. When disabled, it uses the original Steam name."
-  },
   "settings_feature_library_group_labels_name": {
     "message": "Show Collections After Names"
   },
@@ -405,6 +392,15 @@
   },
   "settings_feature_steam_news_translate_desc": {
     "message": "Manually translate the current news article in Steam library news pop-ups."
+  },
+  "settings_feature_steam_player_stats_name": {
+    "message": "Player Statistics"
+  },
+  "settings_feature_steam_player_stats_desc": {
+    "message": "Show online player counts, peaks, and trends on Steam library game details pages."
+  },
+  "settings_feature_steam_player_stats_lock": {
+    "message": "Enable third-party data services in Third-Party Services first."
   },
   "settings_feature_purchase_history_classifier_name": {
     "message": "Purchase History Classifier"
@@ -3502,7 +3498,7 @@
     "message": "Clear complete"
   },
   "steam_libraryCustomName_clearingBatch": {
-    "message": "Clearing Steam batch $batch$ $written$/$max$$cloud$",
+    "message": "Clearing Steam batch $batch$ $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -3512,9 +3508,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -3579,9 +3572,6 @@
   "steam_libraryCustomName_cloudApiTimeout": {
     "message": "The cloud name service did not respond"
   },
-  "steam_libraryCustomName_cloudCancel": {
-    "message": "If disabled, this save will only update the local Steam library and will not sync to SucaiJun Cloud.\n\nCloud sharing helps other players receive more accurate custom-name suggestions. Disable it?"
-  },
   "steam_libraryCustomName_cloudDiskFailed": {
     "message": "Steam CloudStorage disk write failed: $result$",
     "placeholders": {
@@ -3599,32 +3589,8 @@
   "steam_libraryCustomName_cloudNameMissing": {
     "message": "No cloud name was found for the current game"
   },
-  "steam_libraryCustomName_cloudPaused": {
-    "message": "SucaiJun Cloud upload is paused"
-  },
-  "steam_libraryCustomName_cloudPreparing": {
-    "message": "Waiting for the Steam write batch to start. Preparing the SucaiJun Cloud upload."
-  },
-  "steam_libraryCustomName_cloudResumed": {
-    "message": "SucaiJun Cloud upload resumed"
-  },
-  "steam_libraryCustomName_cloudTip": {
-    "message": "Sync custom sort names to SucaiJun Cloud (Steam Buff Cloud). You can restore them later with Get Cloud Names and use them on Store pages.\n\nNote:\n1. Do not upload names that violate local laws. Violations may result in account suspension.\n2. Uploaded names may be used to improve the community game-name library and provide more accurate names to other players."
-  },
-  "steam_libraryCustomName_cloudUpload": {
-    "message": "SucaiJun Cloud upload"
-  },
-  "steam_libraryCustomName_cloudUploadSuffix": {
-    "message": ", with SucaiJun Cloud upload running in parallel"
-  },
-  "steam_libraryCustomName_confirmDisableCloud": {
-    "message": "Disable"
-  },
   "steam_libraryCustomName_confirmOverwrite": {
     "message": "Confirm overwrite"
-  },
-  "steam_libraryCustomName_continueCloudUpload": {
-    "message": "Continue uploading"
   },
   "steam_libraryCustomName_continueSave": {
     "message": "Continue saving"
@@ -3662,9 +3628,6 @@
         "content": "$1"
       }
     }
-  },
-  "steam_libraryCustomName_disableCloudTitle": {
-    "message": "Disable SucaiJun Cloud upload?"
   },
   "steam_libraryCustomName_disabled": {
     "message": "Display Custom Library Names is disabled"
@@ -4139,7 +4102,7 @@
     "message": "Save progress"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "Total: $total$, processed: $processed$, skipped: $skipped$, failed: $failed$, queued: $queued$",
+    "message": "Total: $total$, processed: $processed$, skipped: $skipped$, failed: $failed$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -4152,9 +4115,6 @@
       },
       "failed": {
         "content": "$4"
-      },
-      "queued": {
-        "content": "$5"
       }
     }
   },
@@ -4166,9 +4126,6 @@
   },
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "The Steam save queue did not respond. Reopen the bulk window to confirm the result."
-  },
-  "steam_libraryCustomName_savingWithCloud": {
-    "message": "Writing to Steam while uploading to SucaiJun Cloud"
   },
   "steam_libraryCustomName_searchPlaceholder": {
     "message": "Search game / AppID / pending name"
@@ -4212,9 +4169,6 @@
       }
     }
   },
-  "steam_libraryCustomName_steamDoneWaitingCloud": {
-    "message": "Steam write completed. Waiting for the SucaiJun Cloud upload to finish."
-  },
   "steam_libraryCustomName_storageLimitTip": {
     "message": "The item and capacity limits are Steam's official limits for custom sort names. Names beyond these limits may fail to save locally or to Steam Cloud."
   },
@@ -4233,22 +4187,8 @@
   "steam_libraryCustomName_typeTool": {
     "message": "Tools"
   },
-  "steam_libraryCustomName_uploadCloud": {
-    "message": "Upload names to cloud"
-  },
-  "steam_libraryCustomName_uploadCloudLabel": {
-    "message": "Upload names to cloud"
-  },
   "steam_libraryCustomName_waitingQuery": {
     "message": "Waiting for query"
-  },
-  "steam_libraryCustomName_waitingSteamBatch": {
-    "message": "Waiting for the Steam sync window for batch $batch$ to end. SucaiJun Cloud upload is paused.",
-    "placeholders": {
-      "batch": {
-        "content": "$1"
-      }
-    }
   },
   "steam_libraryCustomName_writeBatchWaiting": {
     "message": "Write batch $batch$ completed. Waiting $seconds$ seconds for Steam Cloud sync.",
@@ -4265,7 +4205,7 @@
     "message": "Steam rejected the write"
   },
   "steam_libraryCustomName_writingBatch": {
-    "message": "Writing Steam batch $batch$ $written$/$max$$cloud$",
+    "message": "Writing Steam batch $batch$ $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -4275,9 +4215,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -4534,6 +4471,23 @@
   },
   "settings_reviewFilter_rule_hint": {
     "message": "Line breaks are saved as part of the same rule"
+  },
+  "reviewFilter_regexUnavailable": {
+    "message": "Regular expression filtering is unavailable. Other filters remain active. Reopen this page to try again."
+  },
+  "reviewFilter_regexPaused": {
+    "message": "Rule $index$ is invalid or took too long and has been paused on this page. Other rules remain active. Check this rule in settings.",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_rule_regexTimeout": {
+    "message": "Regular expression validation timed out. Simplify the rule and try again."
+  },
+  "settings_reviewFilter_rule_regexUnavailable": {
+    "message": "Regular expression validation is unavailable. Reopen this page to try again."
   },
   "settings_reviewFilter_rule_invalidRegex": {
     "message": "Invalid regular expression: $message$",
@@ -5720,12 +5674,6 @@
   "store_priceHistory_unknownDate": {
     "message": "Unknown date"
   },
-  "store_priceHistory_viewDetails": {
-    "message": " for details"
-  },
-  "store_priceHistory_viewDetailsPrefix": {
-    "message": "View "
-  },
   "store_cartCheckout_restoreButton": {
     "message": "Restore saved cart items"
   },
@@ -5746,6 +5694,9 @@
   },
   "store_steampy_loading": {
     "message": "Loading prices..."
+  },
+  "store_steampy_clickToView": {
+    "message": "Click to view"
   },
   "store_steampy_proxyPurchase": {
     "message": "PY Assisted Purchase"
@@ -5830,23 +5781,17 @@
   "steam_independentName_open": {
     "message": "Custom names"
   },
-  "steam_independentName_readingButton": {
-    "message": "Sounds"
-  },
-  "steam_independentName_readingTitle": {
-    "message": "Pronunciation"
-  },
-  "steam_independentName_readingNone": {
-    "message": "No alternative pronunciations to choose"
-  },
   "steam_independentName_readingFailed": {
-    "message": "Could not load pronunciations. Close and reopen the editor."
+    "message": "Reading candidates could not load. Reopen name settings."
   },
   "steam_independentName_readingPreviewHint": {
     "message": "The existing values cannot be matched character by character. Applying this preview replaces both pinyin and mnemonic."
   },
   "steam_independentName_readingApply": {
     "message": "Replace pinyin and mnemonic"
+  },
+  "steam_independentName_readingPreview": {
+    "message": "Pinyin preview"
   },
   "steam_independentName_readingPosition": {
     "message": "Character $n$: $context$",
@@ -5885,8 +5830,16 @@
   "steam_independentName_aliasHint": {
     "message": "Press Enter or Space to add"
   },
-  "steam_independentName_saveRow": {
+  "steam_independentName_saveAll": {
     "message": "Save"
+  },
+  "steam_independentName_savedAll": {
+    "message": "Saved $n$ games",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
   },
   "steam_independentName_colOfficial": {
     "message": "Steam original name"
@@ -5896,6 +5849,12 @@
   },
   "steam_independentName_colCustom": {
     "message": "Custom name"
+  },
+  "steam_independentName_referenceName": {
+    "message": "Reference name:"
+  },
+  "steam_independentName_referenceHint": {
+    "message": "Click to fill in the custom name"
   },
   "steam_independentName_colAlias": {
     "message": "Aliases"
@@ -5912,30 +5871,56 @@
   "steam_independentName_quotaUsed": {
     "message": "Used $count$ / $quota$",
     "placeholders": {
-        "count": {
-            "content": "$1"
-        },
-        "quota": {
-            "content": "$2"
-        }
+      "count": {
+        "content": "$1"
+      },
+      "quota": {
+        "content": "$2"
+      }
     }
   },
   "steam_independentName_rows": {
     "message": "$n$ games",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_title": {
-    "message": "Custom name"
+    "message": "Steam Buff · Custom name"
   },
   "steam_independentName_batch": {
     "message": "Batch settings"
   },
+  "steam_independentName_aiGenerate": {
+    "message": "Generate with AI"
+  },
+  "steam_independentName_aiGenerating": {
+    "message": "Generating…"
+  },
+  "steam_independentName_aiInvalidName": {
+    "message": "AI did not return a valid single game name. Please try again."
+  },
+  "steam_independentName_aiInvalidReadings": {
+    "message": "The generated name could not produce valid pinyin and initials, or exceeded the length limit. Please try again."
+  },
+  "steam_independentName_aiGenerated": {
+    "message": "Generated. Review the fields and confirm to save."
+  },
+  "steam_independentName_aiFailed": {
+    "message": "AI generation failed: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_batchSort": {
+    "message": "Batch sorting"
+  },
   "steam_independentName_batchTitle": {
-    "message": "Batch custom name settings"
+    "message": "Steam Buff · Batch custom name settings"
   },
   "steam_independentName_saving": {
     "message": "Saving..."
@@ -5986,9 +5971,9 @@
   "steam_independentName_imported": {
     "message": "Imported $n$ items",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_importAll": {
@@ -6006,18 +5991,18 @@
   "steam_independentName_importPromptStats": {
     "message": "The file has $file$ names, $matched$ match the library; $existing$ already have custom names, $unset$ are unset",
     "placeholders": {
-        "file": {
-            "content": "$1"
-        },
-        "matched": {
-            "content": "$2"
-        },
-        "existing": {
-            "content": "$3"
-        },
-        "unset": {
-            "content": "$4"
-        }
+      "file": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      },
+      "existing": {
+        "content": "$3"
+      },
+      "unset": {
+        "content": "$4"
+      }
     }
   },
   "steam_independentName_listTimeout": {
@@ -6025,5 +6010,829 @@
   },
   "steam_independentName_listFailed": {
     "message": "Failed to load the name list"
+  },
+  "steam_libraryCustomName_fetchPermissionMissing": {
+    "message": "Cloud name access has not synced. Update the server and refresh Account Center."
+  },
+  "steam_libraryCustomName_fetchPermissionDenied": {
+    "message": "Your current entitlements do not include fetching cloud names."
+  },
+  "steam_independentName_filter": {
+    "message": "Filter"
+  },
+  "steam_independentName_addFilter": {
+    "message": "+ Add filter"
+  },
+  "steam_independentName_clearFilters": {
+    "message": "Clear filters"
+  },
+  "steam_independentName_addAndFilter": {
+    "message": "+ Add AND condition"
+  },
+  "steam_independentName_applyFilter": {
+    "message": "Apply"
+  },
+  "steam_independentName_removeFilter": {
+    "message": "Remove filter"
+  },
+  "steam_independentName_filterValue": {
+    "message": "Filter value"
+  },
+  "steam_independentName_filterOperator": {
+    "message": "Filter operator"
+  },
+  "steam_independentName_filterIncomplete": {
+    "message": "Enter a filter value or select an application type"
+  },
+  "steam_independentName_filterRegexInvalid": {
+    "message": "Invalid regular expression. Update it and try again."
+  },
+  "steam_independentName_typeMissing": {
+    "message": "Application type data is unavailable. Update the extension and retry."
+  },
+  "steam_independentName_gameType": {
+    "message": "Application type"
+  },
+  "steam_independentName_typeGame": {
+    "message": "Game"
+  },
+  "steam_independentName_typeSoftware": {
+    "message": "Software"
+  },
+  "steam_independentName_typeTool": {
+    "message": "Tool"
+  },
+  "steam_independentName_typeAudio": {
+    "message": "Audio"
+  },
+  "steam_independentName_typeVideo": {
+    "message": "Video"
+  },
+  "steam_independentName_typeOther": {
+    "message": "Other"
+  },
+  "steam_independentName_filterOpIn": {
+    "message": "Is one of"
+  },
+  "steam_independentName_filterOpNotIn": {
+    "message": "Is not one of"
+  },
+  "steam_independentName_filterOpNotEmpty": {
+    "message": "Is not empty"
+  },
+  "steam_independentName_filterOpEmpty": {
+    "message": "Is empty"
+  },
+  "steam_independentName_filterOpContains": {
+    "message": "Contains"
+  },
+  "steam_independentName_filterOpNotContains": {
+    "message": "Does not contain"
+  },
+  "steam_independentName_filterOpEquals": {
+    "message": "Equals"
+  },
+  "steam_independentName_filterOpNotEquals": {
+    "message": "Does not equal"
+  },
+  "steam_independentName_filterOpStartsWith": {
+    "message": "Starts with"
+  },
+  "steam_independentName_filterOpEndsWith": {
+    "message": "Ends with"
+  },
+  "steam_independentName_filterOpLengthGt": {
+    "message": "Length greater than"
+  },
+  "steam_independentName_filterOpLengthLt": {
+    "message": "Length less than"
+  },
+  "steam_independentName_filterOpRegex": {
+    "message": "Matches regular expression"
+  },
+  "steam_independentName_filterOpCountGt": {
+    "message": "Count greater than"
+  },
+  "steam_independentName_filterOpCountLt": {
+    "message": "Count less than"
+  },
+  "steam_independentName_saveChanges": {
+    "message": "Save changes"
+  },
+  "steam_independentName_nameQuota": {
+    "message": "Name quota:"
+  },
+  "steam_independentName_batchStats": {
+    "message": "Total $total$ · Filtered $filtered$ · Selected $selected$ · Unsaved $dirty$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "filtered": {
+        "content": "$2"
+      },
+      "selected": {
+        "content": "$3"
+      },
+      "dirty": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_selectedCount": {
+    "message": "$n$ selected",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectGame": {
+    "message": "Select $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectAll": {
+    "message": "Select all"
+  },
+  "steam_independentName_invertSelection": {
+    "message": "Invert selection"
+  },
+  "steam_independentName_clearSelection": {
+    "message": "Clear selection"
+  },
+  "steam_independentName_fetchCommunity": {
+    "message": "Get community names"
+  },
+  "steam_independentName_fetchingCommunity": {
+    "message": "Getting community names..."
+  },
+  "steam_independentName_replaceCommunityTitle": {
+    "message": "Replace names for selected games?"
+  },
+  "steam_independentName_replaceCommunityPrompt": {
+    "message": "$n$ selected; $existing$ already have custom names. Confirm to retrieve and replace them with community names. Games without a community name keep their current content.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      },
+      "existing": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_communityFilled": {
+    "message": "Filled $filled$; no community name $missing$; newer edits preserved $preserved$. Click Save changes.",
+    "placeholders": {
+      "filled": {
+        "content": "$1"
+      },
+      "missing": {
+        "content": "$2"
+      },
+      "preserved": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_independentName_exportFailed": {
+    "message": "Export failed. Please retry."
+  },
+  "about_debug_title": {
+    "message": "Enable logging"
+  },
+  "about_debug_warning": {
+    "message": "Once enabled, full business requests, responses and diagnostic data will be recorded. This may include account details, game information and input content.\nLogin tokens, cookies, passwords and keys will still be redacted.\nLogging stays enabled after restarting. Reproduce the issue, export the logs, then turn logging off manually.\n\nOnly share logs with trusted people. Never share them publicly. Enable this mode only when necessary. Are you sure you want to continue?"
+  },
+  "about_debug_enable": {
+    "message": "Continue"
+  },
+  "about_debug_failed": {
+    "message": "Could not change logging"
+  },
+  "about_debug_active": {
+    "message": "Logging is enabled. Turn it off manually after troubleshooting. Share logs only with trusted people."
+  },
+  "about_debug_inactive": {
+    "message": "Logging is off; no new logs are generated. Enable it, reproduce the issue, then export the logs."
+  },
+  "about_debug_unavailable": {
+    "message": "Logging status is unavailable. Reopen settings to retry."
+  },
+  "about_debug_exportTitle": {
+    "message": "Export logs containing detailed diagnostic data"
+  },
+  "about_debug_exportWarning": {
+    "message": "These logs contain detailed business data and may include private information. Turning logging off does not delete these records. Share exported files only with trusted people. Continue exporting?"
+  },
+  "about_debug_warningRecord": {
+    "message": "full business requests, responses and diagnostic data will be recorded"
+  },
+  "about_debug_warningAccount": {
+    "message": "account details"
+  },
+  "about_debug_warningGames": {
+    "message": "game information"
+  },
+  "about_debug_warningInput": {
+    "message": "input content"
+  },
+  "about_debug_warningShare": {
+    "message": "Only share logs with trusted people. Never share them publicly."
+  },
+  "steam_independentName_bulk_menu": {
+    "message": "Batch actions"
+  },
+  "steam_independentName_bulk_add": {
+    "message": "Add"
+  },
+  "steam_independentName_bulk_generate": {
+    "message": "Generate"
+  },
+  "steam_independentName_bulk_clear": {
+    "message": "Clear"
+  },
+  "steam_independentName_bulk_other": {
+    "message": "Other"
+  },
+  "steam_independentName_bulk_name": {
+    "message": "Edit names"
+  },
+  "steam_independentName_bulk_aliases": {
+    "message": "Add aliases"
+  },
+  "steam_independentName_bulk_mnemonic": {
+    "message": "Set mnemonics"
+  },
+  "steam_independentName_bulk_pinyin": {
+    "message": "Set full pinyin"
+  },
+  "steam_independentName_bulk_generate_mnemonic": {
+    "message": "Generate mnemonics"
+  },
+  "steam_independentName_bulk_generate_pinyin": {
+    "message": "Generate full pinyin"
+  },
+  "steam_independentName_bulk_clear_name": {
+    "message": "Clear names"
+  },
+  "steam_independentName_bulk_clear_aliases": {
+    "message": "Clear aliases"
+  },
+  "steam_independentName_bulk_clear_mnemonic": {
+    "message": "Clear mnemonics"
+  },
+  "steam_independentName_bulk_clear_pinyin": {
+    "message": "Clear full pinyin"
+  },
+  "steam_independentName_bulk_cancelSelection": {
+    "message": "Deselect all"
+  },
+  "steam_independentName_bulk_selectFirst": {
+    "message": "Select games first"
+  },
+  "steam_independentName_bulk_replace": {
+    "message": "Find and replace"
+  },
+  "steam_independentName_bulk_sequence": {
+    "message": "Numbering"
+  },
+  "steam_independentName_bulk_insert": {
+    "message": "Insert content"
+  },
+  "steam_independentName_bulk_manual": {
+    "message": "Manual editing"
+  },
+  "steam_independentName_bulk_find": {
+    "message": "Find text"
+  },
+  "steam_independentName_bulk_value": {
+    "message": "Content to add"
+  },
+  "steam_independentName_bulk_replacement": {
+    "message": "Replace with"
+  },
+  "steam_independentName_bulk_type": {
+    "message": "Sequence type"
+  },
+  "steam_independentName_bulk_start": {
+    "message": "Starting number"
+  },
+  "steam_independentName_bulk_prefix": {
+    "message": "Prefix"
+  },
+  "steam_independentName_bulk_suffix": {
+    "message": "Suffix"
+  },
+  "steam_independentName_bulk_number": {
+    "message": "Numbers"
+  },
+  "steam_independentName_bulk_chinese": {
+    "message": "Chinese numerals"
+  },
+  "steam_independentName_bulk_lower": {
+    "message": "Lowercase letters"
+  },
+  "steam_independentName_bulk_upper": {
+    "message": "Uppercase letters"
+  },
+  "steam_independentName_bulk_insertType": {
+    "message": "Content type"
+  },
+  "steam_independentName_bulk_text": {
+    "message": "Text"
+  },
+  "steam_independentName_bulk_position": {
+    "message": "Insert position"
+  },
+  "steam_independentName_bulk_before": {
+    "message": "Before name"
+  },
+  "steam_independentName_bulk_after": {
+    "message": "After name"
+  },
+  "steam_independentName_bulk_original": {
+    "message": "Use the original name when the custom name is empty"
+  },
+  "steam_independentName_bulk_old": {
+    "message": "Before"
+  },
+  "steam_independentName_bulk_next": {
+    "message": "After"
+  },
+  "steam_independentName_bulk_unset": {
+    "message": "Not set"
+  },
+  "steam_independentName_bulk_apply": {
+    "message": "Apply changes"
+  },
+  "steam_independentName_bulk_calculating": {
+    "message": "Calculating preview…"
+  },
+  "steam_independentName_bulk_summary": {
+    "message": "Selected $total$ · Changed $changed$ · Unchanged $unchanged$ · Invalid $invalid$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "unchanged": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_bulk_applied": {
+    "message": "Changed $n$ games. Click Save changes to save them.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_bulk_updated": {
+    "message": "The target content has changed. Close and reopen this action window."
+  },
+  "steam_independentName_bulk_invalidSequence": {
+    "message": "The starting number must be a positive integer, and the entire sequence must stay within the safe integer range."
+  },
+  "steam_independentName_bulk_tooLong": {
+    "message": "Content exceeds the input length limit."
+  },
+  "steam_independentName_bulk_aliasLimit": {
+    "message": "Each game can have up to 10 aliases. Resolve games at the limit first."
+  },
+  "steam_independentName_bulk_nameRequired": {
+    "message": "Set a custom name before saving a mnemonic or pinyin."
+  },
+  "steam_independentName_bulk_originalMissing": {
+    "message": "The original Steam name is unavailable."
+  },
+  "steam_independentName_bulk_clearWarning": {
+    "message": "Clearing names also clears mnemonics, pinyin and their locks. Aliases are retained."
+  },
+  "steam_independentName_bulk_overwriteWarning": {
+    "message": "Review the result. Applying replaces existing target fields, including manually locked content."
+  },
+  "steam_independentName_bulk_noGeneration": {
+    "message": "No content generated. The existing value is retained."
+  },
+  "steam_independentName_bulk_failed": {
+    "message": "The batch action failed. Please try again."
+  },
+  "steam_independentName_bulk_clearedLock": {
+    "message": "The cleared field will be locked so name changes do not fill it automatically."
+  },
+  "steam_independentName_bulk_selection": {
+    "message": "Selection"
+  },
+  "steam_independentName_transfer_import": {
+    "message": "Import custom names"
+  },
+  "steam_independentName_transfer_export": {
+    "message": "Export custom names"
+  },
+  "steam_independentName_transfer_format": {
+    "message": "Format"
+  },
+  "steam_independentName_transfer_json": {
+    "message": "JSON"
+  },
+  "steam_independentName_transfer_xlsx": {
+    "message": "Excel (.xlsx)"
+  },
+  "steam_independentName_transfer_choose": {
+    "message": "Choose file"
+  },
+  "steam_independentName_transfer_template": {
+    "message": "Download Excel template"
+  },
+  "steam_independentName_transfer_scope": {
+    "message": "Range"
+  },
+  "steam_independentName_transfer_all": {
+    "message": "All data"
+  },
+  "steam_independentName_transfer_selected": {
+    "message": "Selected data"
+  },
+  "steam_independentName_transfer_saved": {
+    "message": "Exports saved values. Save any drafts you want to include first."
+  },
+  "steam_independentName_transfer_hint": {
+    "message": "The first row must include APPID and 自定义名称 or 别名. Column order is flexible."
+  },
+  "steam_independentName_transfer_jsonHint": {
+    "message": "JSON uses an items array and aliases arrays. Existing export files are supported."
+  },
+  "steam_independentName_transfer_aliases": {
+    "message": "Alias format: \"alias one\",\"alias two\". Use English double quotes; English or Chinese commas may separate items."
+  },
+  "steam_independentName_transfer_empty": {
+    "message": "Empty values"
+  },
+  "steam_independentName_transfer_skip": {
+    "message": "Skip empty values"
+  },
+  "steam_independentName_transfer_clear": {
+    "message": "Clear corresponding fields"
+  },
+  "steam_independentName_transfer_preview": {
+    "message": "Import preview"
+  },
+  "steam_independentName_transfer_sheet": {
+    "message": "Worksheet"
+  },
+  "steam_independentName_transfer_back": {
+    "message": "Choose another file"
+  },
+  "steam_independentName_transfer_nameHint": {
+    "message": "Importing a name resets its mnemonic and pinyin. Auxiliary values in the file take priority. Edit the preview directly; Regenerate pinyin generates full pinyin, then its mnemonic, updating both fields."
+  },
+  "steam_independentName_transfer_generatePinyin": {
+    "message": "Regenerate pinyin"
+  },
+  "steam_independentName_transfer_apply": {
+    "message": "Apply to main-window drafts"
+  },
+  "steam_independentName_transfer_validOnly": {
+    "message": "Import valid rows only"
+  },
+  "steam_independentName_transfer_working": {
+    "message": "Processing…"
+  },
+  "steam_independentName_transfer_summary": {
+    "message": "$total$ rows · $changed$ changed · $same$ unchanged · $invalid$ invalid",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "same": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_transfer_applied": {
+    "message": "Imported and selected $n$ drafts. Click Save changes.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_line": {
+    "message": "Row $n$",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_before": {
+    "message": "Before"
+  },
+  "steam_independentName_transfer_next": {
+    "message": "After"
+  },
+  "steam_independentName_transfer_unavailable": {
+    "message": "APPID is not in the current library"
+  },
+  "steam_independentName_transfer_duplicate": {
+    "message": "Duplicate APPID. Correct it before importing."
+  },
+  "steam_independentName_transfer_updated": {
+    "message": "Target values or account changed. Choose the file again to preview."
+  },
+  "steam_independentName_transfer_failed": {
+    "message": "File operation failed. Please try again."
+  },
+  "steam_independentName_transfer_generated": {
+    "message": "Regenerated $n$ games",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_exported": {
+    "message": "Exported $n$ games",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_wrongFile": {
+    "message": "Choose a file in the selected format."
+  },
+  "gameLinks_title": {
+    "message": "Related links"
+  },
+  "gameLinks_linkUnavailable": {
+    "message": "Required link data is unavailable for this game"
+  },
+  "gameLinks_loadingConfig": {
+    "message": "Loading link settings"
+  },
+  "gameLinks_configFailed": {
+    "message": "Link settings could not be read. Retry to load them; the saved configuration has not been overwritten."
+  },
+  "gameLinks_reset": {
+    "message": "Restore defaults"
+  },
+  "gameLinks_layout": {
+    "message": "Layout"
+  },
+  "gameLinks_columns_1": {
+    "message": "1 per row"
+  },
+  "gameLinks_columns_2": {
+    "message": "2 per row"
+  },
+  "gameLinks_name": {
+    "message": "Link name"
+  },
+  "gameLinks_template": {
+    "message": "URL"
+  },
+  "gameLinks_tokensHint": {
+    "message": "{APPID}: game App ID; {GAME_NAME}: Steam game name; {CUSTOM_NAME}: custom game name, or the Steam game name if none is set;"
+  },
+  "gameLinks_add": {
+    "message": "Add link"
+  },
+  "gameLinks_saveEdit": {
+    "message": "Save changes"
+  },
+  "gameLinks_nameRequired": {
+    "message": "Enter a link name"
+  },
+  "gameLinks_urlRequired": {
+    "message": "Enter a URL"
+  },
+  "gameLinks_tokenUnknown": {
+    "message": "Only {APPID}, {GAME_NAME} and {CUSTOM_NAME} are supported. Check the braces."
+  },
+  "gameLinks_tokenLocation": {
+    "message": "Placeholders cannot be used in the scheme, host, or credentials."
+  },
+  "gameLinks_invalidUrl": {
+    "message": "Enter a valid HTTP/HTTPS URL without credentials."
+  },
+  "gameLinks_saveFailed": {
+    "message": "Could not save link settings. The previous configuration was kept. Try again."
+  },
+  "gameLinks_actionFailed": {
+    "message": "The link action failed. Try again."
+  },
+  "gameLinks_retry": {
+    "message": "Retry loading"
+  },
+  "gameLinks_preset_baidu": {
+    "message": "Baidu search"
+  },
+  "gameLinks_preset_steam_guides": {
+    "message": "Steam guides"
+  },
+  "gameLinks_preset_itad": {
+    "message": "IsThereAnyDeal"
+  },
+  "gameLinks_preset_steamdb": {
+    "message": "SteamDB"
+  },
+  "gameLinks_preset_pcgamingwiki": {
+    "message": "PCGamingWiki"
+  },
+  "gameLinks_preset_bilibili": {
+    "message": "Bilibili"
+  },
+  "gameLinks_preset_protondb": {
+    "message": "ProtonDB"
+  },
+  "gameLinks_preset_youtube": {
+    "message": "YouTube"
+  },
+  "settings_feature_game_links_name": {
+    "message": "Related links"
+  },
+  "settings_feature_game_links_desc": {
+    "message": "Show game resources, reviews, and search links in the store sidebar, with custom URL templates."
+  },
+  "gameLinks_typeLabel": {
+    "message": "Type"
+  },
+  "gameLinks_scopeLabel": {
+    "message": "Show in"
+  },
+  "gameLinks_type_web": {
+    "message": "Web page"
+  },
+  "gameLinks_type_qrcode": {
+    "message": "QR code"
+  },
+  "gameLinks_scope_all": {
+    "message": "Everywhere"
+  },
+  "gameLinks_scope_store": {
+    "message": "Web store"
+  },
+  "gameLinks_scope_library": {
+    "message": "Client library"
+  },
+  "gameLinks_editTitle": {
+    "message": "Edit link"
+  },
+  "gameLinks_builtinPreview": {
+    "message": "Preview: built-in address"
+  },
+  "gameLinks_builtinUrlPlaceholder": {
+    "message": "Leave blank to use the built-in address"
+  },
+  "gameLinks_qrImage": {
+    "message": "Link QR code"
+  },
+  "gameLinks_qrHint": {
+    "message": "Scan with your phone to open"
+  },
+  "gameLinks_qrFailed": {
+    "message": "The QR code could not be generated."
+  },
+  "settings_feature_steam_game_links_name": {
+    "message": "Related links"
+  },
+  "settings_feature_steam_game_links_desc": {
+    "message": "Show related links below player statistics on Steam library game details pages, filtered by each link’s visibility."
+  },
+  "gameLinks_dragLabel": {
+    "message": "Drag $name$ to reorder, or use the up and down arrow keys",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_enableItem": {
+    "message": "Enable $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_disableItem": {
+    "message": "Disable $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_editItem": {
+    "message": "Edit $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_deleteItem": {
+    "message": "Delete $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_customNameHint": {
+    "message": "Custom game name; uses the Steam name when unavailable"
+  },
+  "gameLinks_previewPrefix": {
+    "message": "Preview: "
+  },
+  "store_detail_expand": {
+    "message": "Expand details ↓"
+  },
+  "store_detail_collapse": {
+    "message": "Collapse details ↑"
+  },
+  "store_detail_loading": {
+    "message": "Preparing game information…"
+  },
+  "store_detail_ai": {
+    "message": "AI chat"
+  },
+  "store_detail_low": {
+    "message": "Historical low reference"
+  },
+  "store_detail_forecast": {
+    "message": "Estimated in $days$ days · -$cut$%",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_festival": {
+    "message": "$name$ starts in $days$ days",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_calendarError": {
+    "message": "Event information is temporarily unavailable"
+  },
+  "store_detail_calendarEmpty": {
+    "message": "No upcoming events have been announced"
+  },
+  "settings_feature_store_detail_compact_name": {
+    "message": "Compact store details"
+  },
+  "settings_feature_store_detail_compact_desc": {
+    "message": "Show core notices, main-region prices and predictions by default. Expand details to load regional comparisons and the full chart."
+  },
+  "settings_feature_store_upcoming_festivals_name": {
+    "message": "Upcoming events"
+  },
+  "settings_feature_store_upcoming_festivals_desc": {
+    "message": "Show the next event. If it is not a seasonal sale, also show the next seasonal sale."
+  },
+  "store_detail_audioYes": {
+    "message": "Simplified Chinese audio"
+  },
+  "store_detail_audioNo": {
+    "message": "No Simplified Chinese audio"
+  },
+  "store_detail_workshopYes": {
+    "message": "Workshop supported"
+  },
+  "store_detail_workshopNo": {
+    "message": "No Workshop support"
+  },
+  "store_detail_sharingNo": {
+    "message": "No Family Sharing"
+  },
+  "store_detail_detailsLoading": {
+    "message": "Loading details · Collapse ↑"
   }
 }

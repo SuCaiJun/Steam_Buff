@@ -12,8 +12,8 @@
   "use strict";
 
   const MARK = "__steamBuffLoopbackGuard";
-  const RECOVERY_MARK = "__steamBuffLoopbackRecovery";
-  const VERSION = "steam-loopback-guard-v21";
+  const LIFECYCLE = "__steamBuffLoopbackGuardLifecycle";
+  const VERSION = "steam-loopback-guard-v24";
   const REQUEST_TYPE = "STEAM_LOOPBACK_INJECT_REQUEST";
   const ROOT_MENU_TITLE = "Steam Root Menu";
   const ROOT_MENU_TARGET_SELECTOR = "#popup_target";
@@ -48,31 +48,10 @@
     "好友列表",
   ]);
 
-  function recoveryRequest() {
-    const value = globalThis[RECOVERY_MARK];
-    const attempt = Number(value?.attempt);
-    const maxAttempts = Number(value?.maxAttempts);
-    if (!Number.isInteger(attempt) || attempt < 2 || attempt > REQUEST_MAX_ATTEMPTS || maxAttempts !== REQUEST_MAX_ATTEMPTS) {
-      return null;
-    }
-    return {
-      attempt,
-      maxAttempts,
-      delayMs: Number.isInteger(Number(value?.delayMs)) && Number(value.delayMs) >= 0
-        ? Number(value.delayMs)
-        : 0,
-      startedAt: Number.isFinite(Number(value?.startedAt)) && Number(value.startedAt) > 0
-        ? Number(value.startedAt)
-        : Date.now(),
-      previousFailureReason: String(value?.previousFailureReason || "shared-context-not-recovered"),
-    };
-  }
-
-  const recovery = recoveryRequest();
-  if (globalThis[MARK] === VERSION && !recovery) {
+  if (globalThis[MARK] === VERSION) {
     return;
   }
-  globalThis[RECOVERY_MARK] = null;
+  globalThis[LIFECYCLE]?.stop();
   globalThis[MARK] = VERSION;
   let requestPending = false;
   let requestCompleted = false;
@@ -81,14 +60,15 @@
   let requestSequence = 0;
   let requestLocalAttempt = 0;
   let requestLocalRetryDelay = 0;
+  let checkTimer = 0;
+  let stopped = false;
+  let mainLifecycleBound = false;
   let rootMenuHost = null;
   let rootMenuTarget = null;
   let rootMenuRequestPending = false;
   let rootMenuVisibilityBound = false;
-  const requestStartedAt = recovery?.startedAt || Date.now();
-  const requestAttempt = recovery?.attempt || 1;
-  let requestLastFailureReason = recovery?.previousFailureReason || "";
-  const requestLastRetryDelay = recovery?.delayMs || 0;
+  let requestStartedAt = Date.now();
+  let requestLastFailureReason = "";
 
   function text(value) {
     return String(value || "").trim();
@@ -438,8 +418,7 @@
         failRequest(sequence, "send-message-unavailable");
         return;
       }
-      const diagnostics = requestLastFailureReason || requestLocalAttempt > 1
-        ? {
+      const diagnostics = {
           ...(requestLastFailureReason ? { previousFailureReason: requestLastFailureReason } : {}),
           elapsedMs: Math.max(0, Date.now() - requestStartedAt),
           requestRetry: {
@@ -447,8 +426,7 @@
             maxAttempts: REQUEST_LOCAL_MAX_ATTEMPTS,
             ...(requestLocalRetryDelay ? { delayMs: requestLocalRetryDelay } : {}),
           },
-        }
-        : undefined;
+        };
       sendMessage.call(chrome.runtime, {
         type: REQUEST_TYPE,
         title: title(),
@@ -456,9 +434,9 @@
         propertyDialog: propertyDialog === true,
         pageHint: propertyDialog === true ? "property-dialog" : "",
         retry: {
-          attempt: requestAttempt,
+          // 保留旧后台接收的首次请求元数据，实际预算仅由 requestRetry 表达。
+          attempt: 1,
           maxAttempts: REQUEST_MAX_ATTEMPTS,
-          ...(requestLastRetryDelay ? { delayMs: requestLastRetryDelay } : {}),
         },
         ...(diagnostics ? { diagnostics } : {}),
       }, (response) => finishRequest(sequence, response));
@@ -468,11 +446,19 @@
   }
 
   function check(tries = 0) {
+    if (stopped) return;
     const currentTitle = title();
     const currentHref = href();
     if (currentTitle === ROOT_MENU_TITLE) {
       initRootMenu();
       return;
+    }
+    // 主窗口身份可能晚于 document_start，识别成功时再绑定且仅绑定一次
+    if (!mainLifecycleBound && !excludedTitle(currentTitle)
+      && (currentTitle === "Steam" || isMainSteamAboutBlank(currentHref))) {
+      mainLifecycleBound = true;
+      document.addEventListener("visibilitychange", onMainVisible);
+      window.addEventListener("pagehide", lifecycle.stop, { once: true });
     }
     const propertyDialog = isPropertyDialogShell();
     if (shouldRequestRuntime(propertyDialog)) {
@@ -481,10 +467,41 @@
     }
     if (shouldWait(currentTitle, currentHref, propertyDialog)) {
       if (tries < MAX_TRIES) {
-        window.setTimeout(() => check(tries + 1), WAIT_MS);
+        checkTimer = window.setTimeout(() => { checkTimer = 0; check(tries + 1); }, WAIT_MS);
+      } else {
+        // 未识别的页面结束本轮等待，释放锁以允许后续精确补注入
+        if (globalThis[LIFECYCLE] === lifecycle && globalThis[MARK] === VERSION) globalThis[MARK] = "";
+        lifecycle.stop();
       }
     }
   }
 
+  // 只有主窗口在隐藏启动耗尽后重新可见，才重新发起一组短请求。
+  function onMainVisible() {
+    if (document.hidden || stopped || requestPending || requestRetryTimer || !requestCompleted
+      || globalThis[MARK] === VERSION || excludedTitle()
+      || (title() !== "Steam" && !isMainSteamAboutBlank())) return;
+    requestCompleted = false;
+    requestLocalAttempt = 0;
+    requestLocalRetryDelay = 0;
+    requestLastFailureReason = "";
+    requestStartedAt = Date.now();
+    globalThis[MARK] = VERSION;
+    check();
+  }
+
+  const lifecycle = { stop() {
+    stopped = true;
+    requestPending = false;
+    requestSequence += 1;
+    clearRequestTimeout();
+    window.clearTimeout(requestRetryTimer);
+    window.clearTimeout(checkTimer);
+    document.removeEventListener("visibilitychange", onMainVisible);
+    window.removeEventListener("pagehide", lifecycle.stop);
+    mainLifecycleBound = false;
+    if (globalThis[LIFECYCLE] === lifecycle) delete globalThis[LIFECYCLE];
+  } };
+  globalThis[LIFECYCLE] = lifecycle;
   check();
 })();

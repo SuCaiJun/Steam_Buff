@@ -24,6 +24,7 @@
     return `<img class="feature-icon-img" src="${safeUrl}" alt="" aria-hidden="true">`;
   }
 
+  // getThirdPartyServices 按需返回第三方服务面板当前配置，供相应依赖读取启用值
   function create(options = {}) {
     const catalog = options.catalog || root.STSettings?.catalog || {};
     const getStates = typeof options.getStates === "function" ? options.getStates : () => ({});
@@ -53,11 +54,21 @@
       return getMembership() || membershipGate.empty?.() || { active: false, features: {}, identity: "赞助者身份" };
     }
 
+    // 名称方案的可见性沿用运行时的有效模式，保留会员失效时回到 Steam 方案的语义
+    function visible(item) {
+      if (!item.visibleInLibraryNameMode) return true;
+      return root.STConfig.effectiveLibraryNameMode(getStates(), memberState()) === item.visibleInLibraryNameMode;
+    }
+
     function dependency(item) {
       return catalog.dependency?.(item) || { mode: "all", ids: [] };
     }
 
     function depReady(id, seen) {
+      // 第三方服务由配置面板保存启用值，不读取目录中的同名占位开关
+      if (id === "third-party-services") {
+        return options.getThirdPartyServices().enabled === true;
+      }
       if (state(id) === false) {
         return false;
       }
@@ -69,7 +80,7 @@
     }
 
     function available(item, seen = new Set()) {
-      if (item?.disabled === true) {
+      if (item?.disabled === true || !visible(item)) {
         return false;
       }
       if (membershipGate.canUse?.(item, memberState()) === false) {
@@ -119,6 +130,7 @@
           helpIconUrl,
           drawerIconUrl,
           available,
+          visible,
           depNames,
           lockText,
           state,
@@ -183,6 +195,7 @@
       }
 
       const enabled = available(item);
+      row.hidden = !visible(item);
       const checked = item.disabled === true ? false : state(id) !== false;
       const tip = enabled ? "" : lockText(item);
       const title = row.querySelector(".feature-title");
@@ -240,6 +253,7 @@
 
     return Object.freeze({
       available,
+      visible,
       depNames,
       lockText,
       depAvailable,

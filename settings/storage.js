@@ -28,6 +28,7 @@
   const AI_PREFIX = `${PREFIX}ai.`;
   const THIRD_PARTY_SERVICES_PREFIX = `${PREFIX}thirdPartyServices.`;
   const STORE_PRICE_CHART_KEY = `${PREFIX}storePriceChart`;
+  const GAME_LINKS_KEY = "st.settings.gameLinks";
   const UI_LOCALE_KEY = globalThis.STI18n?.STORAGE_KEY || api.catalog?.UI_LOCALE_KEY || "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
@@ -73,7 +74,8 @@
       if (typeof value === "string") {
         try {
           value = JSON.parse(value);
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "storage", event: "normalize-stored-failed", message: "设置中心处理失败", level: "warn", phase: "normalizeStored" });
           value = null;
         }
       }
@@ -414,28 +416,39 @@
     return chrome.storage.local;
   }
 
-  function get(keys) {
+  function get(keys, options = {}) {
     if (globalThis.STSettingsBus?.rawGet) {
       return globalThis.STSettingsBus.rawGet(keys, {
         owner: "settings:storage",
         reason: "settings-storage-read",
+        strict: options.strict === true,
       });
     }
     const box = area();
     if (!box) {
+      if (options.strict === true) return Promise.reject(new Error("本地设置存储不可用"));
       return Promise.resolve({});
     }
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       try {
         box.get(keys, (rt) => {
           if (chrome.runtime.lastError) {
+            if (options.strict === true) {
+              reject(chrome.runtime.lastError);
+              return;
+            }
             resolve({});
             return;
           }
           resolve(rt || {});
         });
-      } catch {
+      } catch (error) {
+        if (options.strict === true) {
+          reject(error);
+          return;
+        }
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "storage", event: "get-failed", message: "读取本地设置失败", level: "warn", phase: "get" });
         resolve({});
       }
     });
@@ -459,13 +472,18 @@
         box.set(data, () => {
           resolve(!chrome.runtime.lastError);
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "storage", event: "put-failed", message: "保存本地设置失败", level: "error", phase: "put" });
         resolve(false);
       }
     });
   }
 
-  async function getAll() {
+  /**
+   * 读取并归一化功能开关；force 绕过快照缓存，strict 要求本次存储读取成功，失败交由调用方处理。
+   * strict 同时绕过缓存；成功读取时未保存的键仍使用目录默认值，不传选项保持原行为。
+   */
+  async function getAll(options = {}) {
     const defs = defaults();
     const ids = Object.keys(defs);
     if (globalThis.STSettingsBus?.loadSettingsSnapshot) {
@@ -473,12 +491,13 @@
         owner: "settings:storage",
         ids,
         defaults: defs,
-        force: false,
+        force: options.force === true,
+        strict: options.strict === true,
         reason: "settings-storage-get-all",
       });
     }
     const keys = ids.map(key);
-    const rt = await get(keys);
+    const rt = await get(keys, { strict: options.strict === true });
     const out = {};
 
     for (const id of ids) {
@@ -626,7 +645,8 @@
         box.remove([...AUTH_CLEAR_KEYS], () => {
           resolve(!chrome.runtime.lastError);
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "storage", event: "clear-auth-failed", message: "设置中心处理失败", level: "warn", phase: "clearAuth", operationId });
         resolve(false);
       }
     });
@@ -1021,6 +1041,7 @@
       uiLocale,
       familyLibrary,
       storePriceChart,
+      gameLinks,
       searchSuggestions,
       reviewFilter,
       translate,
@@ -1031,6 +1052,7 @@
       getUiLocale(),
       getFamilyLibrary(),
       getStorePriceChart(),
+      getGameLinks(),
       getSearchSuggestions(),
       getReviewFilter(),
       getTranslate(),
@@ -1042,6 +1064,7 @@
       uiLocale,
       familyLibrary,
       storePriceChart,
+      gameLinks,
       searchSuggestions,
       reviewFilter,
       translate,
@@ -1055,6 +1078,7 @@
       setAll(sections.features || {}, diagnostics),
       setUiLocale(sections.uiLocale, diagnostics),
       setFamilyLibrary(sections.familyLibrary || {}, diagnostics),
+      setGameLinks(sections.gameLinks, diagnostics),
       setSearchSuggestions(sections.searchSuggestions || {}, diagnostics),
       setReviewFilter(sections.reviewFilter || {}, diagnostics),
       setTranslate(sections.translate || {}, diagnostics),
@@ -1066,6 +1090,18 @@
     ];
     const out = await Promise.all(jobs);
     return out.every(value => value !== false);
+  }
+
+  /** 相关链接采用严格配置契约，读取异常交由页面或备份入口提示，不静默覆盖已有配置。 */
+  async function getGameLinks() {
+    const rt = await get([GAME_LINKS_KEY], { strict: true });
+    return globalThis.STGameLinks.normalize(rt[GAME_LINKS_KEY]);
+  }
+
+  async function setGameLinks(values, diagnostics = {}) {
+    const next = globalThis.STGameLinks.normalize(values);
+    const ok = await put({ [GAME_LINKS_KEY]: next }, diagnostics);
+    return ok ? next : false;
   }
 
   api.storage = Object.freeze({
@@ -1103,6 +1139,8 @@
     getStorePriceChart,
     setStorePriceChart,
     setStorePriceChartSettings,
+    getGameLinks,
+    setGameLinks,
     getRailPos,
     setRailPos,
     getPanelSettings,

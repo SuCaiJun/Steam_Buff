@@ -205,5 +205,10 @@ function addDRMWarnings() {
 
   api.features.drmWarning = Object.freeze({
     add: addDRMWarnings,
+    stop() {
+      document.querySelectorAll("." + MODULE_CLASSES.DRM_WARNING).forEach(node => node.remove());
+      api.features?.dataDisplayPanel?.changed();
+      return true;
+    },
   });
 })();

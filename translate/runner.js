@@ -164,7 +164,8 @@
       if (!el.matches(":popover-open")) {
         el.showPopover();
       }
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "open-overlay-failed", message: "翻译功能处理失败", level: "warn", phase: "openOverlay" });
     }
   }
 
@@ -177,7 +178,8 @@
         if (el.matches(":popover-open")) {
           el.hidePopover();
         }
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "close-overlay-failed", message: "翻译功能处理失败", level: "warn", phase: "closeOverlay" });
       }
     }
     el.hidden = true;
@@ -277,7 +279,8 @@
         meta,
         dispose,
       });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "register-resource-failed", message: "翻译功能处理失败", level: "warn", phase: "registerResource" });
       return null;
     }
   }
@@ -1023,7 +1026,8 @@
   function assetUrl(path) {
     try {
       return chrome.runtime.getURL(path);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "asset-url-failed", message: "翻译功能处理失败", level: "error", phase: "assetUrl" });
       return path;
     }
   }
@@ -2112,6 +2116,8 @@
   }
 
   function edgeRequest(trans, texts, from, to) {
+    const startedAt = Date.now();
+    const requestId = globalThis.STLoggerFactory?.createRequestId?.();
     return new Promise((resolve, reject) => {
       let url = "";
       try {
@@ -2122,6 +2128,18 @@
       }
 
       const xhr = new XMLHttpRequest();
+      let settled = false;
+      const fail = (error, phase) => {
+        if (settled) return;
+        settled = true;
+        loggerFor("api-request")?.error("translate-api-request-failed", "翻译接口请求失败", {
+          requestId, phase, durationMs: Date.now() - startedAt,
+          request: { method: "POST", endpointKey: "translate-edge", url, hasBody: true, mediaType: "application/json", params: { inputCount: texts.length } },
+          response: { status: xhr.status, mediaType: xhr.getResponseHeader("content-type"), bodyLength: xhr.responseText.length }, error,
+          debugData: () => ({ request: { url, method: "POST", data: texts }, response: { status: xhr.status, body: xhr.responseText } }),
+        });
+        reject(error);
+      };
       xhr.open("POST", url, true);
       xhr.setRequestHeader("Content-Type", "application/json");
       xhr.onreadystatechange = () => {
@@ -2129,16 +2147,23 @@
           return;
         }
         if (xhr.status !== 200) {
-          reject(new Error(`划词翻译请求失败${xhr.status ? `：${xhr.status}` : ""}`));
+          fail(new Error(`划词翻译请求失败${xhr.status ? `：${xhr.status}` : ""}`), xhr.status ? "http" : "xhr-completion");
           return;
         }
         try {
-          resolve(JSON.parse(xhr.responseText || "[]"));
+          const result = JSON.parse(xhr.responseText || "[]");
+          loggerFor("api-request")?.debug("translate-api-response-details", "翻译接口详细响应", {
+            requestId,
+            debugData: () => ({ request: { url, method: "POST", data: texts }, response: { status: xhr.status, body: xhr.responseText } }),
+          });
+          resolve(result);
+          settled = true;
         } catch (error) {
-          reject(error);
+          globalThis.STLoggerSchema?.markJsonError?.(error);
+          fail(error, "parse");
         }
       };
-      xhr.onerror = () => reject(new Error("划词翻译请求失败"));
+      xhr.onerror = () => fail(new Error("划词翻译请求失败"), "network");
       xhr.send(JSON.stringify(texts));
     });
   }
@@ -2290,7 +2315,8 @@
           return point;
         }
       }
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "focus-point-failed", message: "翻译功能处理失败", level: "warn", phase: "focusPoint" });
       // 部分页选区焦点节点不可建 Range，回退到最后一个选区矩形。
     }
     return rangePoint(selection.getRangeAt(selection.rangeCount - 1));
@@ -2614,8 +2640,10 @@
     return !job.cancelled && location.href === job.href && document.body === job.body;
   }
 
-  function cancelManual(job) {
+  function cancelManual(job, reason) {
+    if (job.cancelled) return;
     job.cancelled = true;
+    job.controller.abort(reason);
     for (const finish of [...job.requests]) finish();
   }
 
@@ -2742,7 +2770,7 @@
     });
   }
 
-  // 为本次请求补足超时和取消出口；迟到响应不再进入 vendor 渲染回调
+  // AI 分块共用手动任务信号；取消先中止网络，再完成 vendor 回调，迟到响应不再渲染
   function manualRequests(job) {
     const request = job.trans.request;
     const original = request.post;
@@ -2761,18 +2789,32 @@
           || response.text.some(text => typeof text !== "string" || !text.trim()))) {
           response = { result: 0, info: "翻译服务返回了不完整的结果", from: data.from, to: data.to, text: [] };
         }
+        if (response.result !== 1 && job.conf.service === AI_SERVICE) cancelManual(job);
         callback(response, input || data, xhr);
       };
       const cancel = () => finish(null, data);
       job.requests.add(cancel);
-      timer = window.setTimeout(cancel, MANUAL_BATCH_TIMEOUT_MS);
+      timer = window.setTimeout(() => {
+        const error = new Error("手动翻译请求超时");
+        error.name = "TimeoutError";
+        logRuntime("error", "manual-page-timeout", "手动翻译请求超时", { error, phase: "manualRequests" });
+        if (job.conf.service === AI_SERVICE) cancelManual(job, error);
+        else cancel();
+      }, MANUAL_BATCH_TIMEOUT_MS);
       try {
         if (data.from === "auto" && job.conf.service === EDGE_SERVICE) {
           // Edge 自动识别必须省略 from；复用划词入口的已确认 JSON 请求协议，不能发送 from=auto
           return edgeRequest(job.trans, JSON.parse(decodeURIComponent(data.text)), data.from, data.to).then(
             response => finish({ result: 1, from: data.from, to: data.to, text: response.map(item => edgeText([item])) }, data),
             () => cancel(),
-          ).catch(() => cancel());
+          ).catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "runner", event: "manual-requests-failed", message: "翻译功能处理失败", level: "error", phase: "manualRequests" }); return cancel(); });
+        }
+        if (job.conf.service === AI_SERVICE) {
+          return original.call(this, path, data, finish, () => cancel(), {
+            signal: job.controller.signal,
+            // pushState 不触发 popstate；每个异步边界仍按当前文档核对任务，防止下一块继续发网
+            checkActive: () => { if (!manualActive(job)) cancelManual(job); },
+          });
         }
         return original.call(this, path, data, finish, () => cancel());
       }
@@ -2812,7 +2854,7 @@
     const trans = rt();
     if (!trans || !document.body || !conf?.to || !conf.service) return Promise.reject(new Error("翻译服务或目标语言未配置"));
     if (!topFrame() || globalThis.STPageContext.translateAllowed({ scope: "steam" }).allowed !== true) return Promise.reject(new Error("当前页面不支持手动翻译"));
-    const job = { trans, href: location.href, body: document.body, cancelled: false, requests: new Set(), changed: 0 };
+    const job = { trans, href: location.href, body: document.body, cancelled: false, controller: new AbortController(), requests: new Set(), changed: 0 };
     manualJob = job;
     const onLeave = () => cancelManual(job);
     window.addEventListener("pagehide", onLeave);

@@ -97,16 +97,21 @@
     root.dataset.entityId = text(pageInfo.appId || pageInfo.id);
     root.dataset.chartEnabled = options.chartEnabled === false ? "false" : "true";
     root.dataset.forecastEnabled = options.forecastEnabled === false ? "false" : "true";
+    root.dataset.compact = options.compact === true ? "true" : "false";
+    root.dataset.discountForecastEnabled = options.discountForecastEnabled === false ? "false" : "true";
+    root.dataset.upcomingEnabled = options.upcomingEnabled === true ? "true" : "false";
     const range = el("div", "st-data-display-range");
     const chart = el("div", "st-data-display__chart-row");
     const forecast = el("div", "st-data-display__forecast");
+    const upcoming = el("div", "st-data-display__upcoming st-detail-calendar");
     range.hidden = !sectionEnabled(root, "chartEnabled");
     chart.hidden = !sectionEnabled(root, "chartEnabled");
     forecast.hidden = !sectionEnabled(root, "forecastEnabled");
     root.append(
       range,
       chart,
-      forecast
+      forecast,
+      upcoming
     );
     renderLoading(root);
     return root;
@@ -270,7 +275,8 @@
     return i18n("store.dataDisplay.festivalEvidenceInsufficient", "没有足够的同名同类型活动折扣记录。");
   }
 
-  function forecastSections(summary = {}, result = {}, pageInfo = {}) {
+  // 简版和完整文案共享同一组预测输入与结果，不重新实现折扣模型
+  function forecastValues(summary = {}, result = {}) {
     const events = (Array.isArray(summary.historyEvents) ? summary.historyEvents : [])
       .map(event => ({ ...event, time: eventTime(event), amount: eventAmount(event), cut: Number(event?.cut) || 0 }))
       .filter(event => event.time > 0)
@@ -302,6 +308,11 @@
     const correctedCut = Number(correction?.predictedCut) > 0
       ? Number(correction.predictedCut)
       : predictedCut;
+    return { events, discounted, currentCut, base, currency, now, discountAnalysis, predictedDays, predictedCut, correction, correctedCut };
+  }
+
+  function forecastSections(summary = {}, result = {}, pageInfo = {}) {
+    const { events, discounted, currentCut, base, currency, now, discountAnalysis, predictedDays, predictedCut, correction, correctedCut } = forecastValues(summary, result);
     const lowOutlook = discountAnalysis.historicalLowOutlook || {};
     const lowReference = historicalLowText(lowOutlook, currency);
     const lowEvidence = lowReference && !["unavailable", "free-history"].includes(lowOutlook.state)
@@ -496,9 +507,19 @@
   }
 
   function renderForecastReferences(root, result = {}, pageInfo = {}) {
+    if (root.dataset.compact === "true") {
+      renderCompact(root, result, pageInfo);
+      return;
+    }
+    if (result.data?.loadScope === "compact") { renderPending(root); return; }
     const wrap = root.querySelector(".st-data-display__forecast");
     if (!wrap || !sectionEnabled(root, "forecastEnabled")) return;
+    api.dom.loading.clear(wrap);
     wrap.replaceChildren();
+    if (root.dataset.state === "loading") {
+      wrap.textContent = i18n("common.loading", "正在加载");
+      return;
+    }
     if (result?.ok !== true) {
       aiForecast?.render?.(root, wrap, result, pageInfo);
       return;
@@ -512,7 +533,11 @@
         el("div", "st-data-display-forecast-model__meta", section.meta),
         el("div", "st-data-display-forecast-model__detail", section.detail)
       );
+      if (section.settingId === "price-forecast-seasonal" && result.festivalStatus === "loading") {
+        card.querySelector(".st-data-display-forecast-model__body").textContent = i18n("common.loading", "正在加载");
+      }
       wrap.appendChild(card);
+      api.dom.loading.activate(card);
     });
     aiForecast?.render?.(root, wrap, result, pageInfo);
   }
@@ -523,9 +548,9 @@
     return state;
   }
 
-  function renderProductSelector(root, enabled = true) {
+  function renderProductControl(root, enabled = true) {
     const state = productOptionsState(root);
-    if (!state || !state.options.length) return null;
+    if (!state || state.options.length < 2) return null;
     const select = el("select", "st-data-display-range__product-select");
     select.setAttribute("aria-label", i18n("store.dataDisplay.productSelector", "选择 Steam 商品版本"));
     state.options.forEach((item) => {
@@ -537,7 +562,7 @@
     });
     select.value = String(state.selectedId);
     select.title = text(state.options.find(item => String(item.id) === String(state.selectedId))?.name);
-    select.disabled = !enabled || state.options.length <= 1;
+    select.disabled = !enabled;
     select.addEventListener("change", () => {
       root.__stDataDisplaySelectProduct?.(select.value);
     });
@@ -553,7 +578,14 @@
       selectedId: String(selectedId || normalized[0]?.id || ""),
     };
     root.__stDataDisplaySelectProduct = typeof onChange === "function" ? onChange : null;
+    const panel = api.features?.dataDisplayPanel?.current();
+    if (panel) {
+      const selector = renderProductControl(root, root.dataset.state !== "loading");
+      panel.selector.replaceChildren(...(selector ? [selector] : []));
+      panel.selector.hidden = !selector;
+    }
     const state = root.__stChartState || {};
+    if (root.dataset.compact === "true") return;
     if (sectionEnabled(root, "chartEnabled") && root.querySelector(".st-data-display-range")) {
       renderRangeControls(
         root,
@@ -598,6 +630,11 @@
     const controls = root.querySelector(".st-data-display-range");
     if (!sectionEnabled(root, "chartEnabled")) return;
     if (!controls) return;
+    if (api.features?.dataDisplayPanel?.current()) {
+      controls.replaceChildren();
+      renderChartRangeControls(chartRangeContainer(root), root, months, enabled);
+      return;
+    }
     const brandLockup = noTranslate(el("div", "st-data-display-range__brand-lockup"));
     const brand = api.assets.createBrandMark({ className: "st-data-display-range__brand" });
     const slogan = el("div", "st-data-display-range__slogan");
@@ -607,7 +644,7 @@
     });
     brandLockup.append(brand, slogan);
     const actions = el("div", "st-data-display-range__actions");
-    const productSelector = renderProductSelector(
+    const productSelector = renderProductControl(
       root,
       productOptionsState(root)?.options.length > 1
         && root.dataset.state !== "unsupported"
@@ -625,6 +662,7 @@
     const state = root.__stChartState || {};
     const months = Number.isFinite(Number(state.months)) ? Number(state.months) : DEFAULT_RANGE_MONTHS;
     const summary = priceSummary(state.result || {}, state.pageInfo || {});
+    api.dom.loading.clear(row);
     row.replaceChildren();
     const host = el("div", "st-data-display__chart-host");
     const chart = summary.chartSeries?.length
@@ -653,20 +691,42 @@
     }
     state.allAttempted = true;
     const row = root.querySelector(".st-data-display__chart-row");
-    row?.replaceChildren(charts?.createSkeleton?.() || el("div", "st-data-display-chart--empty", i18n("store.dataDisplay.loadingRates", "正在加载汇率")));
+    api.dom.loading.clear(row);
+    const loading = charts.createEmpty(i18n("common.loading", "正在加载"));
+    row.replaceChildren(loading);
+    api.dom.loading.activate(row);
     renderRangeControls(root, months, false);
-    const updated = await api.thirdPartyData?.ensureStorePriceChartRates?.(state.result, { months: 0 });
-    if (!root.isConnected || root.__stChartState !== state) return;
-    if (updated) state.result = updated;
-    renderChart(root);
+    const valid = () => root.isConnected && root.__stChartState === state;
+    try {
+      if (!await api.dom.loading.afterPaint(valid)) return;
+      const updated = await api.thirdPartyData.ensureStorePriceChartRates(state.result, { months: 0 });
+      if (!valid()) return;
+      if (updated) state.result = updated;
+      renderChart(root);
+    } catch (error) {
+      if (!valid()) return;
+      state.allAttempted = false;
+      api.dom.loading.clear(loading);
+      row.replaceChildren(charts.createEmpty(i18n("common.requestFailed", "请求失败，请稍后重试")));
+      renderRangeControls(root, months, true);
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "data-display", event: "chart-rates-load-failed", message: "历史价格汇率加载失败", level: "error", phase: "selectChartRange" });
+    } finally {
+      api.dom.loading.clear(loading);
+    }
   }
 
   function renderLoading(root) {
     root.dataset.state = "loading";
+    if (root.dataset.compact === "true") {
+      renderCompact(root, {}, {});
+      return;
+    }
     if (sectionEnabled(root, "chartEnabled")) {
       const state = root.__stChartState || {};
       const row = root.querySelector(".st-data-display__chart-row");
-      row?.replaceChildren(charts?.createSkeleton?.() || el("div", "st-data-display-chart--empty", i18n("common.loading", "正在加载")));
+      api.dom.loading.clear(row);
+      row.replaceChildren(charts.createEmpty(i18n("common.loading", "正在加载")));
+      api.dom.loading.activate(row);
       renderRangeControls(root, Number.isFinite(Number(state.months)) ? Number(state.months) : DEFAULT_RANGE_MONTHS, false);
     }
     if (sectionEnabled(root, "forecastEnabled")) {
@@ -676,6 +736,10 @@
 
   function renderNonReady(root, state, message) {
     root.dataset.state = state;
+    if (root.dataset.compact === "true") {
+      renderCompact(root, { ok: false, userMessage: message, ...root.__stLastResult }, root.__stLastPageInfo);
+      return;
+    }
     if (sectionEnabled(root, "chartEnabled")) {
       const chartState = root.__stChartState || {};
       const row = root.querySelector(".st-data-display__chart-row");
@@ -687,6 +751,7 @@
         );
         if (help) empty.appendChild(help);
       }
+      api.dom.loading.clear(row);
       row?.replaceChildren(empty);
       renderRangeControls(root, Number.isFinite(Number(chartState.months)) ? Number(chartState.months) : DEFAULT_RANGE_MONTHS, false);
     }
@@ -696,8 +761,12 @@
   }
 
   function renderReady(root, result, pageInfo = {}) {
-    const summary = priceSummary(result, pageInfo);
     root.dataset.state = "ready";
+    if (root.dataset.compact === "true") {
+      renderCompact(root, result, pageInfo);
+      return;
+    }
+    if (result.data?.loadScope === "compact") { renderPending(root); return; }
     if (sectionEnabled(root, "chartEnabled")) {
       const previous = root.__stChartState || {};
       root.__stChartState = {
@@ -722,6 +791,9 @@
 
   function renderState(root, state, result = {}, pageInfo = {}) {
     if (!root) return;
+    root.__stLastResult = result;
+    root.__stLastPageInfo = pageInfo;
+    renderUpcoming(root, result);
     if (state === "loading") {
       renderLoading(root);
       return;
@@ -733,11 +805,88 @@
     renderNonReady(root, state, result.userMessage || i18n("store.dataDisplay.thirdPartyUnavailable", "第三方价格数据暂不可用。"));
   }
 
+  function renderPending(root) {
+    const row = root.querySelector(".st-data-display__chart-row");
+    if (row) row.replaceChildren(el("div", "st-detail-caption", i18n("common.loading", "正在加载")));
+  }
+
+  /** 只渲染主区摘要；价格失败和节日失败各自展示，不生成完整证据文案或 AI 会话 */
+  function renderCompact(root, result = {}, pageInfo = {}) {
+    const panel = api.features?.dataDisplayPanel?.current();
+    if (!panel) return;
+    panel.price.replaceChildren();
+    panel.right.replaceChildren();
+    const summary = priceSummary(result, pageInfo);
+    if (sectionEnabled(root, "chartEnabled")) {
+      panel.price.append(
+        el("div", "st-detail-label", i18n("store.detail.low", "历史低价参考")),
+        el("div", "st-detail-amount", result.ok ? moneyText(summary.historicalLow?.price) : i18n("common.none", "暂无")),
+        el("div", "st-detail-caption", result.ok
+          ? text(globalThis.STPriceComparisonCatalog?.getSteamPriceRegion?.(summary.mainCountry)?.label || summary.mainCountry)
+          : result.userMessage || i18n("common.loading", "正在加载")),
+      );
+    }
+    if (sectionEnabled(root, "forecastEnabled") && sectionEnabled(root, "discountForecastEnabled")) {
+      const label = el("div", "st-detail-label", i18n("settings.feature.price-forecast-discount.name", "未来折扣推测"));
+      const value = el("div", "st-detail-amount");
+      const caption = el("div", "st-detail-caption");
+      if (result.ok) {
+        const model = forecastValues(summary, result);
+        if (model.predictedDays && Number(model.base) > 0 && model.correctedCut > 0) {
+          value.textContent = priceAtCut(model.base, model.correctedCut, model.currency);
+          caption.textContent = i18n("store.detail.forecast", "预计 $days$ 天后 · -$cut$%", { days: model.predictedDays, cut: model.correctedCut });
+        } else {
+          value.textContent = i18n("common.none", "暂无");
+          caption.textContent = model.discountAnalysis.state === "free"
+            ? i18n("store.dataDisplay.forecastFree", "当前是免费游戏，不需要预测折扣。")
+            : i18n("store.dataDisplay.forecastInsufficient", "样本数据不足，暂时算不出下一次折扣。");
+        }
+      } else caption.textContent = result.userMessage || i18n("common.loading", "正在加载");
+      panel.right.append(label, value, caption);
+    }
+    panel.ai.disabled = result.ok !== true;
+    renderUpcoming(root, result);
+  }
+
+  /** 简版仅一至两句倒计时；完整模式另保留北京时间日期区间 */
+  function renderUpcoming(root, result = {}) {
+    const panel = api.features?.dataDisplayPanel?.current();
+    const compact = root.dataset.compact === "true";
+    const host = compact && panel ? el("div", "st-detail-calendar") : root.querySelector(".st-data-display__upcoming");
+    if (!host) return;
+    host.replaceChildren();
+    host.hidden = !sectionEnabled(root, "upcomingEnabled");
+    if (host.hidden) return;
+    const { items } = forecastPack.upcomingFestivals(result.festivalData);
+    if (!items.length) {
+      host.appendChild(el("p", "", result.festivalStatus === "loading"
+        ? i18n("common.loading", "正在加载")
+        : result.festivalStatus === "error"
+          ? i18n("store.detail.calendarError", "节日信息暂不可用")
+          : i18n("store.detail.calendarEmpty", "暂无已公布的未来节日")));
+    }
+    for (const item of items) {
+      const days = Math.ceil((Date.parse(item.startsAt) - Date.now()) / 86400000);
+      const line = el("p", "", i18n("store.detail.festival", "$name$将在 $days$ 天后开启", { name: item.name, days }));
+      if (!compact) {
+        const beijingDate = value => new Date(Date.parse(value) + 8 * 3600000).toISOString().slice(0, 10);
+        line.appendChild(span("st-detail-caption", "（" + beijingDate(item.startsAt) + "—" + beijingDate(item.endsAt) + "）"));
+      }
+      host.appendChild(line);
+    }
+    if (compact && panel) {
+      panel.right.querySelector(".st-detail-calendar")?.remove();
+      panel.right.appendChild(host);
+    }
+  }
+
   api.features = api.features || {};
   api.features.dataDisplayView = Object.freeze({
     createShell,
     renderState,
     renderProductOptions,
+    renderPending,
+    renderUpcoming,
     renderForecastState: renderForecastReferences,
     currentDeal,
     lowDeal,

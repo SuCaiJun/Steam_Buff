@@ -16,6 +16,8 @@
   const MODAL = "__RickyLibraryIndependentNameModal";
   const BATCH_MODAL = "__RickyLibraryIndependentNameBatchModal";
   const MENU_ENTRY_ATTR = "data-steam-buff-independent-name-entry";
+  const MENU_CLOSING_CLASS = "st-lin-context-closing";
+  const MENU_MOUSE_OVERLAY_SELECTOR = ":scope > ._3Knd7Am6tTwTTu605YN4IX";
   // SteamUI GameAction_AddToFavorites 的已验证本地化文案（扩展支持的五种语言）。
   const STEAM_FAVORITE_LABELS = Object.freeze([
     "添加至收藏夹",
@@ -28,13 +30,128 @@
   const RES_ATTR = "data-steam-buff-user-names-response";
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
+  const TRANSFER_LIB = "steam/features/library-independent-name/transfer.js";
+  const IO_LABELS = Object.freeze({
+    import: "导入自定义名称", export: "导出自定义名称", format: "格式", json: "JSON", xlsx: "Excel (.xlsx)",
+    choose: "选择文件", template: "下载 Excel 模板", scope: "范围", all: "全部数据", selected: "已勾选数据",
+    saved: "导出已保存内容；存在未保存草稿，请先保存需要导出的修改。", hint: "首行需包含 APPID，以及自定义名称或别名；列顺序不限。", jsonHint: "JSON 顶层使用 items 数组，别名使用 aliases 数组；支持原有导出文件。",
+    aliases: '别名格式："别名一","别名二"，每项使用英文双引号，中英文逗号均可。',
+    empty: "空值处理", skip: "跳过空值", clear: "清空对应字段", preview: "导入预览", sheet: "工作表", back: "重新选择文件",
+    nameHint: "实际导入名称时重置助记符和拼音；文件中的辅助字段优先。预览可直接编辑，重新生成拼音会先生成拼音全拼，再生成助记符，并更新这两个字段。",
+    generatePinyin: "重新生成拼音", apply: "应用到主窗口草稿",
+    validOnly: "仅导入有效行", working: "正在处理…", summary: "总 $total$ 行 · 修改 $changed$ 款 · 无变化 $same$ 款 · 无效 $invalid$ 行",
+    applied: "已导入 $n$ 款到草稿并勾选，请点击保存修改。", line: "第 $n$ 行", before: "修改前", next: "修改后",
+    unavailable: "APPID 不在当前游戏库中", duplicate: "APPID 重复，请修改后再导入", updated: "目标内容或账号已更新，请重新选择文件预览。",
+    failed: "文件操作失败，请重试。", generated: "已重新生成 $n$ 款", exported: "已导出 $n$ 款", wrongFile: "请选择对应格式的文件。",
+  });
+  const ioText = (key, params) => i18n(`steam.independentName.transfer.${key}`, IO_LABELS[key], params);
   // 行槽必须保持这个高度，表头在滚动区外，占位才是行数乘这个高度
-  const ROW_HEIGHT = 56;
+  const ROW_HEIGHT = 64;
   const VIEWPORT_HEIGHT = 420;
   const OVERSCAN = 8;
   const ALIAS_MAX = 10;
   const SEARCH_MS = 180;
   const READINGS_MS = 300;
+  const FILTER_ICON_PATH = "images/ui/filter.svg";
+  const FILTER_DELETE_ICON_PATH = "images/ui/delete.svg";
+  const BULK_LABELS = Object.freeze({
+    menu: "批量操作", add: "添加", generate: "生成", clear: "清空", selection: "选择", other: "其他",
+    name: "修改名称", aliases: "添加别名", mnemonic: "添加助记符", pinyin: "添加拼音全拼",
+    "generate-mnemonic": "生成助记符", "generate-pinyin": "生成拼音全拼",
+    "clear-name": "清空名称", "clear-aliases": "清空别名", "clear-mnemonic": "清空助记符", "clear-pinyin": "清空拼音全拼",
+    cancelSelection: "取消全选", selectFirst: "请先勾选游戏", replace: "查找替换", sequence: "序号格式", insert: "新增内容", manual: "手动编辑",
+    find: "查找关键词", value: "新增内容", replacement: "替换为", type: "序号类型", start: "起始序号", prefix: "前缀", suffix: "后缀",
+    number: "数字", chinese: "中文数字", lower: "英文小写", upper: "英文大写", insertType: "新增类型", text: "文本", position: "新增位置", before: "名称前", after: "名称后",
+    original: "自定义名称为空时使用原名称", old: "修改前", next: "修改后", unset: "未设置", apply: "应用修改", calculating: "正在计算预览…",
+    summary: "已选 $total$ 款 · 修改 $changed$ 款 · 无变化 $unchanged$ 款 · 无效 $invalid$ 款",
+    applied: "已修改 $n$ 款，请点击保存修改。", updated: "目标内容已更新，请关闭后重新打开操作窗。",
+    invalidSequence: "起始序号必须是正整数，且整个序号范围不能超出精确整数范围。", tooLong: "内容超过输入长度上限。",
+    aliasLimit: "每个游戏最多 10 个别名，请先处理满额游戏。", nameRequired: "请先设置自定义名称，再保存助记符或拼音。",
+    originalMissing: "Steam 原名称不可用。", clearWarning: "清空名称会同时清空助记符、拼音及其锁状态，保留别名。",
+    overwriteWarning: "请核对修改后内容；应用会替换已有目标字段，包括手工锁定的内容。", noGeneration: "未生成内容，保留原值。",
+    failed: "批量操作失败，请重试。", clearedLock: "清空后锁定该辅助字段，名称变化时不自动补回。",
+  });
+
+  function bulkText(key, params) {
+    return i18n(`steam.independentName.bulk.${key}`, BULK_LABELS[key], params);
+  }
+
+  // 两个序号标签共用同一转换；中文以四位分组，英文使用从 1 开始的字母编号。
+  function formatSequence(number, type) {
+    if (!Number.isSafeInteger(number) || number < 1) throw new RangeError("序号超出正整数范围");
+    if (type === "number") return String(number);
+    if (type === "lower" || type === "upper") {
+      let output = "";
+      while (number > 0) {
+        number -= 1;
+        output = String.fromCharCode((type === "lower" ? 97 : 65) + number % 26) + output;
+        number = Math.floor(number / 26);
+      }
+      return output;
+    }
+    if (type !== "chinese") throw new TypeError("未知序号类型");
+    const digits = "零一二三四五六七八九";
+    const groups = [];
+    while (number) { groups.push(number % 10000); number = Math.floor(number / 10000); }
+    let output = "";
+    let gap = false;
+    for (let index = groups.length - 1; index >= 0; index -= 1) {
+      const value = groups[index];
+      if (!value) { gap = !!output; continue; }
+      if (output && (gap || value < 1000)) output += "零";
+      let part = "";
+      let innerGap = false;
+      for (let place = 3; place >= 0; place -= 1) {
+        const digit = Math.floor(value / 10 ** place) % 10;
+        if (!digit) { innerGap = !!part; continue; }
+        if (innerGap) part += "零";
+        part += digits[digit] + ["", "十", "百", "千"][place];
+        innerGap = false;
+      }
+      output += part + ["", "万", "亿", "万亿"][index];
+      gap = false;
+    }
+    return output.replace(/^一十/, "十");
+  }
+  const FILTER_GROUPS = Object.freeze([
+    ["名称", ["custom_name", "aliases", "mnemonic", "pinyin", "original_language"]],
+    ["应用", ["app_type", "sources", "collections", "modes", "status", "privacy"]],
+    ["内容", ["languages", "genres", "features", "tags"]],
+    ["硬件", ["hardware"]],
+    ["辅助功能", ["accessibility"]],
+    ["评价", ["review_score", "metacritic_score"]],
+    ["时间", ["date_added", "date_release", "date_last_played", "playtime_minutes"]],
+  ]);
+  const LANGUAGE_LABELS = Object.freeze({
+    sc_schinese: "简体中文", schinese: "简体中文", tchinese: "繁体中文", english: "英文", koreana: "韩语", japanese: "日语",
+    german: "德语", french: "法语", italian: "意大利语", spanish: "西班牙语", latam: "拉丁美洲西班牙语", russian: "俄语",
+    portuguese: "葡萄牙语", brazilian: "巴西葡萄牙语", polish: "波兰语", dutch: "荷兰语", danish: "丹麦语", finnish: "芬兰语",
+    norwegian: "挪威语", swedish: "瑞典语", hungarian: "匈牙利语", czech: "捷克语", romanian: "罗马尼亚语", turkish: "土耳其语",
+    greek: "希腊语", bulgarian: "保加利亚语", ukrainian: "乌克兰语", thai: "泰语", arabic: "阿拉伯语", vietnamese: "越南语",
+    indonesian: "印尼语", malay: "马来语",
+  });
+  const ACCESSIBILITY_LABELS = Object.freeze({
+    adjustable_difficulty: "可调整难度", save_anytime: "随时保存", adjustable_text: "可调整文字大小", subtitles: "字幕选项",
+    color_alternatives: "可选颜色", contrast: "对比度控制", camera_comfort: "镜头舒适度", playable_without_vision: "无需视觉也可游玩",
+    custom_volume: "自定义音量控制", stereo: "立体声", surround: "环绕声", narrated_menus: "朗读游戏菜单", keyboard_only: "可以仅用键盘",
+    mouse_only: "可以仅用鼠标", touch_only: "可以仅用触控", without_quick_time: "无需快速反应事件即可游玩", own_pace: "可按自己的节奏游玩",
+    speech_to_text: "聊天语音转文字", text_to_speech: "聊天文字转语音",
+  });
+  const REVIEW_LABELS = Object.freeze({ 9: "好评如潮", 8: "特别好评", 7: "好评", 6: "多半好评", 5: "褒贬不一", 4: "多半差评", 3: "差评", 2: "特别差评", 1: "差评如潮", 0: "无评测分数" });
+  const DATE_PRESET_DEFS = Object.freeze([
+    ["30m", "近30分钟"], ["1h", "近1小时"], ["6h", "近6小时"], ["24h", "近24小时"],
+    ["today", "今日"], ["yesterday", "昨日"], ["3d", "近3日"], ["7d", "近7日"],
+    ["14d", "近14日"], ["30d", "近30日"], ["custom", "自定义"],
+  ]);
+  const FIELD_LABELS = Object.freeze({
+    sources: "游戏来源", original_language: "原名称语言", collections: "收藏分组", modes: "游戏模式", status: "游戏状态", privacy: "私密筛选",
+    languages: "游戏语言", genres: "游戏题材", features: "游戏特色", tags: "商店标签", hardware: "硬件支持", accessibility: "辅助功能",
+    review_score: "Steam 评测", metacritic_score: "Metacritic 分数", date_added: "添加到库日期", date_release: "发行日期", date_last_played: "最后运行日期", playtime_minutes: "游戏时间",
+  });
+  const ORIGINAL_LANGUAGE_OPTIONS = Object.freeze([
+    ["zh_hans", "简体中文"], ["zh_hant", "繁体中文"], ["english", "英文"], ["japanese", "日语"],
+    ["korean", "韩语"], ["russian", "俄语"], ["other", "其他"],
+  ]);
 
   function i18n(key, fallback, params) {
     return globalThis.STI18n.text(key, fallback, params);
@@ -46,6 +163,14 @@
 
   function text(value) {
     return String(value || "").trim();
+  }
+
+  function assetUrl(path) {
+    return window.SteamBuff?.path?.url ? window.SteamBuff.path.url(path) : path;
+  }
+
+  function iconHtml(path, className, label = "") {
+    return `<img class="${className}" src="${esc(assetUrl(path))}" alt="${esc(label)}" aria-hidden="${label ? "false" : "true"}" draggable="false">`;
   }
 
   function steamFavoriteMenuItem(menu) {
@@ -96,6 +221,11 @@
       && aliases(left) === aliases(right);
   }
 
+  // 编辑界面沿用精确文本去重；保存层的大小写和空白归一化保持现有契约。
+  function hasAlias(aliases, value, except = -1) {
+    return aliases.some((item, index) => index !== except && item === value);
+  }
+
   function adoptDrafts(drafts, cloudFor) {
     const next = new Map();
     for (const [appid, draft] of drafts) {
@@ -110,17 +240,18 @@
     return next;
   }
 
-  function request(type, extra = {}) {
+  function request(type, extra = {}, timeoutMs = 20000, signal) {
     const rid = extra.rid || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     return new Promise((resolve, reject) => {
       let observer = null;
       const timer = window.setTimeout(() => {
-        observer?.disconnect();
-        reject(new Error(i18n("steam.independentName.timeout", "名称服务响应超时")));
-      }, 20000);
+        finish(false, { error: i18n("steam.independentName.timeout", "名称服务响应超时") });
+      }, timeoutMs);
+      const onAbort = () => finish(false, { error: i18n("common.cancel", "取消") });
       function finish(ok, payload) {
         window.clearTimeout(timer);
         observer?.disconnect();
+        signal?.removeEventListener("abort", onAbort);
         if (ok) resolve(payload);
         else reject(new Error(payload?.error || i18n("steam.independentName.requestFailed", "名称请求失败")));
       }
@@ -142,6 +273,8 @@
         attributes: true,
         attributeFilter: [RES_ATTR],
       });
+      if (signal?.aborted) { onAbort(); return; }
+      signal?.addEventListener("abort", onAbort, { once: true });
       postReq({ type, rid, ...extra });
     });
   }
@@ -152,15 +285,31 @@
       return { started: false, reason: "already-started", stop: old.stop };
     }
 
+    // 编译结果归属规则对象，编辑副本不会覆盖已生效规则
+    const filterExpressions = new WeakMap();
     const state = {
       started: true,
       ch: typeof BroadcastChannel === "function" ? new BroadcastChannel(CH) : null,
       rows: [],
+      rowsByAppid: new Map(),
       filtered: [],
+      filteredIds: new Set(),
+      filteredSelected: 0,
       snapshot: { items: {}, count: 0, quota: -1 },
+      meta: { options: {}, capabilities: {} },
       drafts: new Map(),
       search: "",
       searchTimer: 0,
+      selected: new Set(),
+      selectedDrafts: new Set(),
+      filters: [],
+      filterDraft: null,
+      filterSession: null,
+      filterPicker: null,
+      filterPickerAnchor: null,
+      referenceRun: null,
+      referencePending: null,
+      referenceSession: null,
       virtual: VIRTUAL?.createVirtualWindow?.({
         rowHeight: ROW_HEIGHT,
         viewportHeight: VIEWPORT_HEIGHT,
@@ -169,10 +318,13 @@
       scrollTop: 0,
       busy: false,
       message: "",
-      pendingImport: null,
+      transfer: null,
+      importSelection: new Set(),
       batchSession: null,
       singleSession: null,
+      singleContextMenu: null,
       currentGame: null,
+      singleAiRun: null,
       singleBusy: false,
       singleMessage: "",
       opener: null,
@@ -180,14 +332,24 @@
       aliasEditor: null,
       aliasSession: null,
       singleReading: null,
-      readingEditor: null,
+      singleReadingPreview: null,
+      singleReadingSession: null,
+      batchReadings: new Map(),
+      batchReadingTimer: 0,
+      batchSaving: false,
       readingTimer: 0,
+      actionsMenu: null,
+      bulk: null,
+      bulkSession: null,
+      contextMenu: null,
+      contextMenuGeneration: 0,
     };
     let painted = null;
     let libsTask = null;
+    let transferLibsTask = null;
 
-    function cloudOf(appid) {
-      const row = state.snapshot.items?.[String(appid)] || state.snapshot.items?.[appid] || {};
+    function cloudOf(appid, snapshot = state.snapshot) {
+      const row = snapshot.items?.[String(appid)] || snapshot.items?.[appid] || {};
       return {
         custom_name: text(row.custom_name),
         aliases: Array.isArray(row.aliases) ? row.aliases.slice() : [],
@@ -220,14 +382,33 @@
         base: cloud,
       };
       state.drafts.set(appid, draft);
+      syncSelectedDraft(appid);
       return draft;
+    }
+
+    // 维护勾选与草稿的交集，输入时只更新当前 AppID，避免逐字遍历勾选集合
+    function syncSelectedDraft(appid) {
+      const draft = state.drafts.get(appid);
+      if (state.selected.has(appid) && draft?.edited) {
+        state.selectedDrafts.add(appid);
+        return draft;
+      }
+      state.selectedDrafts.delete(appid);
+      return null;
+    }
+
+    function syncSelectedDrafts() {
+      state.selectedDrafts.clear();
+      for (const appid of state.selected) syncSelectedDraft(appid);
     }
 
     function adoptSnapshot(snapshot) {
       if (snapshot) {
         state.snapshot = snapshot;
+        if (snapshot.meta && typeof snapshot.meta === "object") state.meta = snapshot.meta;
       }
       state.drafts = adoptDrafts(state.drafts, cloudOf);
+      syncSelectedDrafts();
     }
 
     function css() {
@@ -235,13 +416,24 @@
     }
 
     function closeBatchModal() {
-      closeReadingEditor(false);
-      closeAliasEditor();
-      if (state.importRid) {
-        postReq({ type: "cancel-import", rid: state.importRid });
-        state.importRid = "";
+      closeTransfer();
+      closeActionsMenu(false);
+      closeBulkEditor();
+      closeFilterEditor();
+      closeReferenceConfirm();
+      if (state.referenceRun) {
+        postReq({ type: "cancel-reference", rid: state.referenceRun.rid });
+        state.referenceRun.controller.abort();
+        state.referenceRun = null;
       }
+      window.clearTimeout(state.batchReadingTimer);
+      state.batchReadings.clear();
+      closeAliasEditor();
       state.aliasPending.clear();
+      state.filters = [];
+      state.filterDraft = null;
+      state.search = "";
+      state.meta = { options: {}, capabilities: {} };
       painted = null;
       const session = state.batchSession;
       state.batchSession = null;
@@ -266,12 +458,24 @@
         root: modal,
         restore: state.opener,
         initial: () => modal.querySelector("[data-lin-search]") || modal.querySelector("[data-lin-close]"),
-        onEscape: () => closeBatchModal(),
+        onEscape: () => {
+          if (state.transfer) closeTransfer();
+          else if (state.actionsMenu) closeActionsMenu();
+          else if (state.filterDraft) closeFilterEditor();
+          else if (state.referencePending) closeReferenceConfirm();
+          else closeBatchModal();
+        },
       });
       state.batchSession.focusInitial?.();
     }
 
     function closeSingleModal() {
+      closeSingleReadingPreview();
+      const contextMenu = state.singleContextMenu;
+      state.singleContextMenu = null;
+      const run = state.singleAiRun;
+      state.singleAiRun = null;
+      run?.controller.abort();
       window.clearTimeout(state.readingTimer);
       state.singleReading = null;
       const session = state.singleSession;
@@ -285,6 +489,7 @@
       if (modal) {
         modal.hidden = true;
       }
+      synchronizeClosedContextMenu(contextMenu);
     }
 
     function bindSingleModal(modal) {
@@ -330,36 +535,48 @@
       const status = appid ? syncStatus(appid) : { kind: "", text: "" };
       const message = state.singleMessage || status.text || "";
       const disabled = state.singleBusy || !appid ? "disabled" : "";
+      const original = Array.from(game.official_name || "");
+      const last = original.pop() || "";
       return `
         <div class="st-lin-single-dialog">
           <header class="st-lin-head">
-            <h2 id="st-lin-single-title">${esc(i18n("steam.independentName.title", "自定义名称"))}</h2>
+            <h2 id="st-lin-single-title">${esc(i18n("steam.independentName.title", "Steam Buff · 自定义名称"))}</h2>
             <button class="st-lin-close" type="button" data-lin-single-close aria-label="${esc(i18n("common.close", "关闭"))}">×</button>
           </header>
           <div class="st-lin-single-form" data-appid="${appid}">
             <span class="st-lin-label">${esc(i18n("steam.independentName.colAppid", "AppID"))}</span>
             <output>${appid || ""}</output>
-            <span class="st-lin-label">${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</span>
-            <output title="${esc(game.official_name)}">${esc(game.official_name)}</output>
+            <span class="st-lin-label st-lin-single-official-label">${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</span>
+            <div class="st-lin-single-official"><span title="${esc(game.official_name)}">${esc(original.join(""))}<span class="st-lin-single-official-tail"><span data-lin-single-original-end>${esc(last)}</span><button class="st-lin-btn st-lin-single-ai" type="button" data-lin-single-ai ${disabled} aria-busy="${state.singleAiRun ? "true" : "false"}">${esc(state.singleAiRun ? i18n("steam.independentName.aiGenerating", "生成中…") : i18n("steam.independentName.aiGenerate", "Ai生成"))}</button></span></span></div>
             <label for="st-lin-single-name">${esc(i18n("steam.independentName.colCustom", "自定义名称"))}</label>
-            <input id="st-lin-single-name" data-lin-single-name type="text" maxlength="200" value="${esc(draft.custom_name)}" ${disabled}>
+            <div class="st-lin-single-name-field">
+              <input id="st-lin-single-name" data-lin-single-name type="text" maxlength="200" value="${esc(draft.custom_name)}" ${disabled}>
+              <div class="st-lin-single-reference" data-lin-single-reference ${game.reference_name ? "" : "hidden"}>
+                <span>${esc(i18n("steam.independentName.referenceName", "参考名称："))}</span>
+                <button type="button" data-lin-single-use-reference aria-controls="st-lin-single-name" title="${esc(i18n("steam.independentName.referenceHint", "点击填入自定义名称"))}" ${disabled}>${esc(game.reference_name || "")}</button>
+              </div>
+            </div>
             <span class="st-lin-label">${esc(i18n("steam.independentName.colAlias", "别名"))}</span>
             ${singleAliasHtml(appid, draft.aliases || [])}
             <label for="st-lin-single-mnemonic">${esc(i18n("steam.independentName.colMnemonic", "助记符"))}</label>
             <input id="st-lin-single-mnemonic" data-lin-single-mnemonic type="text" maxlength="200" value="${esc(draft.mnemonic)}" ${disabled}>
             <label for="st-lin-single-pinyin">${esc(i18n("steam.independentName.colPinyin", "拼音全拼"))}</label>
             <input id="st-lin-single-pinyin" data-lin-single-pinyin type="text" maxlength="200" value="${esc(draft.pinyin)}" ${disabled}>
-            <div class="st-lin-readings st-lin-single-readings" data-lin-single-readings>${state.singleBusy ? "" : readingsHtml(singleReading(appid))}</div>
+            <div class="st-lin-readings st-lin-single-readings" data-lin-single-readings>${state.singleBusy ? "" : readingsHtml(singleReading(appid), "inline")}</div>
           </div>
           <p class="st-lin-msg ${status.kind === "rejected" ? "st-lin-sync-error" : ""}" data-lin-single-msg role="status">${esc(message)}</p>
           <footer class="st-lin-single-footer">
-            <button class="st-lin-btn" type="button" data-lin-open-batch>${esc(i18n("steam.independentName.batch", "批量设置"))}</button>
+            <div class="st-lin-single-actions">
+              <button class="st-lin-btn" type="button" data-lin-open-batch>${esc(i18n("steam.independentName.batch", "批量设置"))}</button>
+              <button class="st-lin-btn" type="button" disabled>${esc(i18n("steam.independentName.batchSort", "批量排序"))}</button>
+            </div>
             <div class="st-lin-single-actions">
               <button class="st-lin-btn" type="button" data-lin-single-cancel>${esc(i18n("common.cancel", "取消"))}</button>
               <button class="st-lin-btn st-lin-primary" type="button" data-lin-single-confirm ${disabled}>${esc(i18n("common.confirm", "确认"))}</button>
             </div>
           </footer>
         </div>
+        <section class="st-lin-reading-layer" data-lin-reading-dialog role="dialog" aria-modal="true" aria-labelledby="st-lin-reading-title" tabindex="-1" hidden></section>
       `;
     }
 
@@ -368,6 +585,7 @@
       if (!modal || !state.currentGame) {
         return;
       }
+      closeSingleReadingPreview();
       const active = document.activeElement;
       const focusKey = active?.dataset ? Object.keys(active.dataset).find((key) => key.startsWith("linSingle")) : "";
       const start = active?.selectionStart;
@@ -384,12 +602,78 @@
       }
     }
 
-    async function openSingleModal(game) {
+    async function loadSingleReference(game) {
+      try {
+        const result = await request("reference", { appid: game.appid });
+        if (state.currentGame !== game || !state.started) return;
+        if (typeof result.name !== "string") {
+          throw new TypeError("社区参考名称响应格式错误");
+        }
+        game.reference_name = text(result.name);
+        const modal = document.getElementById(MODAL);
+        const reference = modal?.querySelector("[data-lin-single-reference]");
+        const button = reference?.querySelector("[data-lin-single-use-reference]");
+        if (!reference || !button) return;
+        button.textContent = game.reference_name;
+        button.disabled = state.singleBusy;
+        reference.hidden = !game.reference_name;
+      } catch (error) {
+        if (state.currentGame !== game || !state.started) return;
+        log.warn("independent-name-reference-failed", "社区参考名称读取失败", { error, appid: game.appid });
+      }
+    }
+
+    // 一次生成绑定当前弹窗对象；结果和两项读音全部校验后才改草稿，关闭后不回填
+    async function generateSingleName() {
+      const game = state.currentGame;
+      if (!game || state.singleBusy || state.singleAiRun) return;
+      const run = {
+        rid: `ai-name-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        controller: new AbortController(),
+        started: performance.now(),
+      };
+      state.singleAiRun = run;
+      state.singleBusy = true;
+      state.singleMessage = i18n("steam.independentName.aiGenerating", "生成中…");
+      renderSingleModal();
+      log.info("independent-name-ai-started", "当前游戏的 AI 名称生成已开始", { appid: game.appid, operationId: run.rid, requestId: run.rid });
+      try {
+        const result = await request("ai-generate", { appid: game.appid, name: game.official_name, rid: run.rid, operationId: run.rid }, 30000, run.controller.signal);
+        if (state.singleAiRun !== run || state.currentGame !== game || !state.started) return;
+        if (typeof result.name !== "string" || !result.name.trim() || result.name.trim().length > 200 || /[\r\n]/.test(result.name.trim())) {
+          throw new TypeError(i18n("steam.independentName.aiInvalidName", "AI 未返回有效的单个游戏名称，请重试。"));
+        }
+        const name = result.name.trim();
+        const generated = window.SteamBuff.libraryCustomNameMnemonic.readings(name, {}, window.pinyinPro);
+        if (typeof generated.pinyin !== "string" || typeof generated.mnemonic !== "string" || !generated.pinyin || !generated.mnemonic || generated.pinyin.length > 200 || generated.mnemonic.length > 200) {
+          throw new TypeError(i18n("steam.independentName.aiInvalidReadings", "生成名称无法生成有效的拼音和助记符，或结果超过长度上限，请重试。"));
+        }
+        const draft = ensureEdited(game.appid);
+        Object.assign(draft, { custom_name: name, pinyin: generated.pinyin, mnemonic: generated.mnemonic, pinyin_locked: false, mnemonic_locked: false, readingsPrepared: true });
+        state.singleReading = null;
+        state.singleMessage = i18n("steam.independentName.aiGenerated", "已生成，请核对后点击确认保存。");
+        log.info("independent-name-ai-generated", "AI 名称及本地拼音已填入当前游戏草稿", { appid: game.appid, operationId: run.rid, requestId: run.rid, durationMs: Math.round(performance.now() - run.started) });
+      } catch (error) {
+        if (run.controller.signal.aborted || state.singleAiRun !== run || state.currentGame !== game || !state.started) return;
+        const detail = error.message || String(error);
+        state.singleMessage = i18n("steam.independentName.aiFailed", "Ai生成失败：$error$", { error: detail });
+        log.error("independent-name-ai-failed", "当前游戏的 AI 名称生成失败", { error, appid: game.appid, operationId: run.rid, requestId: run.rid, durationMs: Math.round(performance.now() - run.started) });
+      } finally {
+        if (state.singleAiRun === run && state.currentGame === game && state.started) {
+          state.singleAiRun = null;
+          state.singleBusy = false;
+          renderSingleModal();
+        }
+      }
+    }
+
+    async function openSingleModal(game, contextMenu = null) {
       const appid = Number(game?.appid) || 0;
       const officialName = text(game?.official_name);
       if (!appid || !officialName) {
         return;
       }
+      closeSingleModal();
       css();
       closeBatchModal();
       let modal = document.getElementById(MODAL);
@@ -403,7 +687,9 @@
         document.body.appendChild(modal);
       }
       state.opener = document.activeElement;
+      state.singleContextMenu = contextMenu;
       state.currentGame = { appid, official_name: officialName };
+      const currentGame = state.currentGame;
       state.singleBusy = true;
       state.singleMessage = i18n("steam.independentName.loading", "正在加载...");
       state.aliasPending.delete(appid);
@@ -412,7 +698,7 @@
       bindSingleModal(modal);
       try {
         const [snap] = await Promise.all([request("snapshot"), loadLibs()]);
-        if (!state.currentGame || state.currentGame.appid !== appid) {
+        if (state.currentGame !== currentGame) {
           return;
         }
         adoptSnapshot(snap.data || state.snapshot);
@@ -420,7 +706,9 @@
         state.singleMessage = "";
         renderSingleModal();
         state.singleSession?.focusInitial?.();
+        void loadSingleReference(currentGame);
       } catch (error) {
+        if (state.currentGame !== currentGame) return;
         state.singleBusy = false;
         state.singleMessage = error?.message || String(error);
         log.warn("independent-name-open-failed", "独立版单游戏名称弹窗打开失败", { error, appid });
@@ -428,24 +716,574 @@
       }
     }
 
-    function applySearch() {
+    function filterFields() {
+      const labels = {
+        custom_name: i18n("steam.independentName.colCustom", "自定义名称"),
+        aliases: i18n("steam.independentName.colAlias", "别名"),
+        mnemonic: i18n("steam.independentName.colMnemonic", "助记符"),
+        pinyin: i18n("steam.independentName.colPinyin", "拼音全拼"),
+        app_type: i18n("steam.independentName.gameType", "游戏类型"),
+        ...Object.fromEntries(Object.entries(FIELD_LABELS).map(([key, value]) => [key, i18n(`steam.independentName.filterField${key}`, value)])),
+      };
+      return FILTER_GROUPS.flatMap(([, fields]) => fields.map(field => [field, labels[field] || field]));
+    }
+
+    function filterGroups() {
+      const labels = Object.fromEntries(filterFields());
+      return FILTER_GROUPS.map(([group, fields]) => [group, fields.map(field => [field, labels[field]])]);
+    }
+
+    function gameTypes() {
+      return [
+        ["game", i18n("steam.independentName.typeGame", "游戏")],
+        ["software", i18n("steam.independentName.typeSoftware", "软件")],
+        ["tool", i18n("steam.independentName.typeTool", "工具")],
+        ["audio", i18n("steam.independentName.typeAudio", "音频")],
+        ["video", i18n("steam.independentName.typeVideo", "视频")],
+        ["other", i18n("steam.independentName.typeOther", "其他")],
+      ];
+    }
+
+    function isDiscreteField(field) {
+      return ["app_type", "sources", "original_language", "collections", "modes", "status", "privacy", "languages", "genres", "features", "tags", "hardware", "accessibility", "review_score"].includes(field);
+    }
+
+    const FILTER_SET_OPERATORS = Object.freeze(["equals", "notEquals", "contains", "notContains"]);
+    const FILTER_TEXT_OPERATORS = Object.freeze(["startsWith", "endsWith", "lengthGt", "lengthLt", "regex"]);
+    const FILTER_EMPTY_OPERATORS = Object.freeze(["empty", "notEmpty"]);
+
+    function isAliasField(field) {
+      return field === "aliases";
+    }
+
+    function usesFilterOptionValues(field, op) {
+      return isDiscreteField(field) && FILTER_SET_OPERATORS.includes(op);
+    }
+
+    function defaultFilterOperator(field) {
+      if (isRangeField(field)) return "between";
+      if (isDiscreteField(field)) return "equals";
+      return "notEmpty";
+    }
+
+    function isRangeField(field) {
+      return ["metacritic_score", "date_added", "date_release", "date_last_played", "playtime_minutes"].includes(field);
+    }
+
+    function isDateField(field) {
+      return ["date_added", "date_release", "date_last_played"].includes(field);
+    }
+
+    function operators(field) {
+      const keys = isRangeField(field)
+        ? ["between", "unknown"]
+        : isAliasField(field)
+          ? ["equals", "notEquals", "startsWith", "endsWith", "contains", "notContains", "empty", "notEmpty", "regex", "countGt", "countLt"]
+          : ["equals", "notEquals", "startsWith", "endsWith", "contains", "notContains", "empty", "notEmpty", "lengthGt", "lengthLt", "regex"];
+      const labels = {
+        notEmpty: "不为空", empty: "为空",
+        contains: "包含", notContains: "不包含", equals: "等于", notEquals: "不等于", between: "范围内", unknown: "未提供",
+        startsWith: "以…开头", endsWith: "以…结尾", lengthGt: "长度大于", lengthLt: "长度小于", regex: "正则匹配", countGt: "数量大于", countLt: "数量小于",
+      };
+      return keys.map(key => [key, i18n(`steam.independentName.filterOp${key[0].toUpperCase()}${key.slice(1)}`, labels[key])]);
+    }
+
+    function newFilter() {
+      return { field: "custom_name", op: "notEmpty", value: "", values: [], min: "", max: "", preset: "", dateStart: "", dateEnd: "" };
+    }
+
+    function gameType(type) {
+      if (!Number.isSafeInteger(type)) throw new TypeError(i18n("steam.independentName.typeMissing", "游戏类型数据不可用，请更新扩展后重试"));
+      // Steam AppOverview 的 EProtoAppType 枚举；其余实际类型归入“其他”
+      return ({ 1: "game", 2: "software", 4: "tool", 8192: "audio", 2048: "video" })[type] || "other";
+    }
+
+    function filterAvailability(field) {
+      if (field === "custom_name" || field === "aliases" || field === "mnemonic" || field === "pinyin") {
+        return { ready: true, message: "" };
+      }
+      if (field === "app_type") {
+        const ready = state.rows.length > 0 && state.rows.some(row => Number.isSafeInteger(row.app_type));
+        return { ready, message: ready ? "" : i18n("steam.independentName.typeMissing", "游戏类型数据不可用，请更新扩展后重试") };
+      }
+      if (state.meta?.capabilities?.[field] === false) {
+        const label = filterFields().find(([key]) => key === field)?.[1] || field;
+        return { ready: false, message: i18n("steam.independentName.metadataUnavailable", "$field$数据不可用，请更新扩展后重试", { field: label }) };
+      }
+      const ready = state.rows.some(row => rowMetadata(row, field).ready);
+      const label = filterFields().find(([key]) => key === field)?.[1] || field;
+      return { ready, message: ready ? "" : i18n("steam.independentName.metadataUnavailable", "$field$数据不可用，请更新扩展后重试", { field: label }) };
+    }
+
+    function optionList(field) {
+      const fallback = {
+        sources: [["mine", "自己的游戏"], ["family", "家庭组游戏"]],
+        original_language: ORIGINAL_LANGUAGE_OPTIONS,
+        modes: [["single", "单人"], ["multiplayer", "多人"], ["coop", "合作"], ["local_multiplayer", "本地多人"]],
+        status: [["ready", "准备就绪"], ["installed", "已本地安装"], ["played", "已玩过"], ["unplayed", "未玩过"]],
+        privacy: [["normal", "正常"], ["private", "私密"], ["hidden", "隐藏"]],
+        languages: Object.entries(LANGUAGE_LABELS),
+        genres: [["action", "动作"], ["adventure", "冒险"], ["casual", "休闲"], ["indie", "独立"], ["massively_multiplayer", "大型多人在线"], ["racing", "竞速"], ["rpg", "角色扮演"], ["simulation", "模拟"], ["sports", "体育"], ["strategy", "策略"]],
+        features: [["trading_cards", "集换式卡牌"], ["workshop", "创意工坊"], ["achievements", "成就"], ["steam_cloud", "Steam 云"], ["remote_play", "远程同乐"], ["family_sharing", "家庭共享"]],
+        tags: [["19", "动作"], ["21", "冒险"], ["122", "角色扮演"], ["492", "独立"], ["597", "休闲"], ["599", "模拟"], ["699", "竞速"], ["701", "体育"]],
+        hardware: [["controller_full", "完全支持控制器"], ["controller_partial", "部分支持控制器"], ["controller_recommended", "建议使用控制器"], ["vr", "VR"], ["non_vr", "非 VR"], ["deck_0", "Steam Deck：未知"], ["deck_1", "Steam Deck：Unsupported"], ["deck_2", "Steam Deck：Playable"], ["deck_3", "Steam Deck：Verified"]],
+        accessibility: Object.entries(ACCESSIBILITY_LABELS),
+        review_score: Object.entries(REVIEW_LABELS),
+      };
+      const dynamic = state.meta?.options?.[field === "collections" ? "collections" : field === "tags" ? "tags" : field === "languages" ? "languages" : field === "original_language" ? "originalLanguages" : ""];
+      const source = Array.isArray(dynamic) && dynamic.length ? dynamic.map(item => [String(item.value), text(item.label)]) : fallback[field] || [];
+      const unique = new Map();
+      for (const [rawValue, rawLabel] of source) {
+        const value = field === "languages" ? (String(rawValue) === "sc_schinese" ? "schinese" : String(rawValue)) : String(rawValue);
+        const label = text(rawLabel);
+        if (value && label && !unique.has(value)) unique.set(value, label);
+      }
+      return Array.from(unique, ([value, label]) => [value, label]);
+    }
+
+    function sortedFilterOptions(field, selected = []) {
+      const selectedSet = new Set(selected.map(String));
+      const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+      return optionList(field).slice().sort((left, right) => {
+        const leftSelected = selectedSet.has(String(left[0])) ? 0 : 1;
+        const rightSelected = selectedSet.has(String(right[0])) ? 0 : 1;
+        return leftSelected - rightSelected || collator.compare(left[1], right[1]) || collator.compare(left[0], right[0]);
+      });
+    }
+
+    function filterValueDisplay(field, values) {
+      const labels = new Map((field === "app_type" ? gameTypes() : optionList(field)).map(([value, label]) => [String(value), label]));
+      const selected = values.map(String).map(value => labels.get(value) || value);
+      const placeholder = i18n("steam.independentName.filterChooseValue", "选择或输入");
+      const text = selected.length > 2 ? `${selected.slice(0, 2).join("、")} +${selected.length - 2}` : selected.join("、");
+      return { text: text || placeholder, title: selected.join("、") || placeholder };
+    }
+
+    function filterOptionMenuHtml(field, filter) {
+      const options = field === "app_type" ? gameTypes() : sortedFilterOptions(field, filter.values);
+      const searchLabel = i18n("steam.independentName.filterOptionSearch", "搜索选项");
+      const inputPlaceholder = i18n("steam.independentName.filterChooseValue", "选择或输入");
+      const optionsHtml = options.map(([key, label]) => `<label class="st-lin-filter-option"><input type="checkbox" data-lin-filter-option="${esc(key)}" ${field === "app_type" ? `data-lin-filter-type="${esc(key)}"` : ""} data-lin-filter-search-text="${esc(`${key} ${label}`.toLocaleLowerCase())}" ${filter.values.includes(key) ? "checked" : ""}> <span>${esc(label)}</span></label>`).join("");
+      const display = filterValueDisplay(field, filter.values);
+      const valueLabel = i18n("steam.independentName.filterValue", "筛选值");
+      return `<div class="st-lin-filter-value-select"><input class="st-lin-btn st-lin-filter-value-button" type="text" role="combobox" data-lin-filter-values data-lin-filter-option-search value="${filter.values.length ? esc(display.text) : ""}" placeholder="${esc(inputPlaceholder)}" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-label="${esc(valueLabel)}" title="${esc(display.title)}"><div class="st-lin-filter-option-menu" data-lin-filter-option-menu popover="manual" hidden><div class="st-lin-filter-types">${optionsHtml}</div></div></div>`;
+    }
+
+    function datePresets() {
+      return DATE_PRESET_DEFS.map(([value, label]) => [value, i18n(`steam.independentName.datePreset${value}`, label)]);
+    }
+
+    function dateRange(filter, now = Date.now()) {
+      if (!isDateField(filter.field)) return null;
+      if (filter.preset && filter.preset !== "custom") {
+        const seconds = Math.floor(now / 1000);
+        const durations = { "30m": 30 * 60, "1h": 60 * 60, "6h": 6 * 60 * 60, "24h": 24 * 60 * 60, "3d": 3 * 86400, "7d": 7 * 86400, "14d": 14 * 86400, "30d": 30 * 86400 };
+        if (durations[filter.preset]) return { min: seconds - durations[filter.preset], max: seconds };
+        const today = new Date(now);
+        today.setHours(0, 0, 0, 0);
+        const start = Math.floor(today.getTime() / 1000);
+        if (filter.preset === "today") return { min: start, max: seconds };
+        if (filter.preset === "yesterday") return { min: start - 86400, max: start - 1 };
+      }
+      if (filter.preset === "custom") {
+        const start = filter.dateStart ? new Date(`${filter.dateStart}T00:00:00`).getTime() : NaN;
+        const end = filter.dateEnd ? new Date(`${filter.dateEnd}T23:59:59`).getTime() : NaN;
+        return { min: Number.isFinite(start) ? Math.floor(start / 1000) : -Infinity, max: Number.isFinite(end) ? Math.floor(end / 1000) : Infinity };
+      }
+      return null;
+    }
+
+    function rowMetadata(row, field) {
+      const metadata = row?.metadata;
+      if (!metadata || metadata.ready?.[field] === false) return { ready: false, values: [] };
+      if (field === "date_added" || field === "date_release" || field === "date_last_played") {
+        const value = metadata.dates?.[{ date_added: "added", date_release: "release", date_last_played: "last_played" }[field]];
+        return { ready: Number.isFinite(value), value };
+      }
+      if (field === "metacritic_score" || field === "playtime_minutes") {
+        const value = metadata[field];
+        return { ready: Number.isFinite(value), value };
+      }
+      const value = metadata[field];
+      if (field === "privacy" && Array.isArray(value) && value.length === 0 && metadata.ready?.privacy !== false) {
+        return { ready: true, values: ["normal"], empty: true };
+      }
+      if (field === "original_language") {
+        const values = Array.isArray(value) ? value.map(String) : value == null ? [] : [String(value)];
+        return { ready: value !== undefined && value !== null, values, empty: values.length === 0 };
+      }
+      if (field === "languages") {
+        const values = Array.isArray(value) ? value.map(item => String(item) === "sc_schinese" ? "schinese" : String(item)) : [];
+        return { ready: Array.isArray(value), values, empty: Array.isArray(value) && values.length === 0 };
+      }
+      const values = Array.isArray(value) ? value.map(String) : value === undefined || value === null ? [] : [String(value)];
+      return { ready: value !== undefined && value !== null, values, empty: values.length === 0 };
+    }
+
+    function optionLabels(field) {
+      return new Map((field === "app_type" ? gameTypes() : optionList(field)).map(([value, label]) => [String(value), label]));
+    }
+
+    function displayValues(field, values) {
+      const labels = optionLabels(field);
+      return values.filter(value => labels.has(String(value))).map(value => labels.get(String(value)));
+    }
+
+    function unicodeLength(value) {
+      return Array.from(text(value)).length;
+    }
+
+    // 仅语法错误作为输入校验结果返回；其他异常由应用筛选的责任层记录
+    function compileFilterRegex(value) {
+      try {
+        return { expression: new RegExp(text(value), "i"), error: null };
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+        return { expression: null, error };
+      }
+    }
+
+    function matchesText(filter, candidates) {
+      const values = candidates.map(value => text(value)).filter(Boolean);
+      if (filter.op === "regex") {
+        const expression = filterExpressions.get(filter);
+        if (!expression) throw new Error("正则筛选缺少已验证表达式");
+        return values.some(value => expression.test(value));
+      }
+      const query = text(filter.value);
+      const normalizedQuery = query.toLocaleLowerCase();
+      if (filter.op === "startsWith") return values.some(value => value.toLocaleLowerCase().startsWith(normalizedQuery));
+      if (filter.op === "endsWith") return values.some(value => value.toLocaleLowerCase().endsWith(normalizedQuery));
+      if (filter.op === "lengthGt") return values.some(value => unicodeLength(value) > Number(filter.value));
+      if (filter.op === "lengthLt") return values.some(value => unicodeLength(value) < Number(filter.value));
+      const found = values.some(value => {
+        const normalized = value.toLocaleLowerCase();
+        if (filter.op === "contains" || filter.op === "notContains") return normalized.includes(normalizedQuery);
+        return normalized === normalizedQuery;
+      });
+      return filter.op === "notContains" || filter.op === "notEquals" ? !found : found;
+    }
+
+    function matchesDiscrete(filter, metadata) {
+      if (!metadata.ready) return false;
+      if (filter.op === "empty") return metadata.empty ?? metadata.values.length === 0;
+      if (filter.op === "notEmpty") return !(metadata.empty ?? metadata.values.length === 0);
+      if (FILTER_TEXT_OPERATORS.includes(filter.op)) {
+        const labels = optionLabels(filter.field);
+        if (metadata.values.some(value => !labels.has(String(value)))) return false;
+        return matchesText(filter, displayValues(filter.field, metadata.values));
+      }
+      const wanted = new Set(filter.values.map(String));
+      const foundValues = new Set(metadata.values.map(String));
+      if (filter.field === "original_language") {
+        const intersects = Array.from(foundValues).some(value => wanted.has(value));
+        const exact = foundValues.size === wanted.size && Array.from(foundValues).every(value => wanted.has(value));
+        if (filter.op === "contains") return intersects;
+        if (filter.op === "notContains") return !intersects;
+        if (filter.op === "equals") return exact;
+        return !exact;
+      }
+      const found = Array.from(foundValues).some(value => wanted.has(value));
+      return filter.op === "equals" || filter.op === "contains" ? found : !found;
+    }
+
+    function matchesAppType(filter, row) {
+      if (!Number.isSafeInteger(row?.app_type)) return false;
+      return matchesDiscrete(filter, { ready: true, values: [gameType(row.app_type)], empty: false });
+    }
+
+    function matchesRange(filter, metadata) {
+      if (filter.op === "unknown") return !metadata.ready;
+      if (!metadata.ready) return false;
+      const value = Number(metadata.value);
+      const preset = dateRange(filter);
+      const min = preset ? preset.min : (filter.min == null || filter.min === "" ? -Infinity : Number(filter.min));
+      const max = preset ? preset.max : (filter.max == null || filter.max === "" ? Infinity : Number(filter.max));
+      return Number.isFinite(value) && Number.isFinite(min) && Number.isFinite(max) && min <= max && value >= min && value <= max;
+    }
+
+    function matchesRow(row) {
+      const draft = draftOf(row.appid);
       const q = text(state.search).toLowerCase();
-      if (!q) {
-        state.filtered = state.rows;
+      if (q && ![row.official_name, String(row.appid), draft.custom_name, draft.mnemonic, draft.pinyin, ...draft.aliases].join(" ").toLowerCase().includes(q)) return false;
+      return state.filters.every(filter => {
+        if (filter.field === "app_type") return matchesAppType(filter, row);
+        if (isDiscreteField(filter.field)) return matchesDiscrete(filter, rowMetadata(row, filter.field));
+        if (isRangeField(filter.field)) return matchesRange(filter, rowMetadata(row, filter.field));
+        const values = (filter.field === "aliases" ? draft.aliases : [draft[filter.field]]).map(value => text(value).toLowerCase()).filter(Boolean);
+        if (filter.op === "empty") return values.length === 0;
+        if (filter.op === "notEmpty") return values.length > 0;
+        if (filter.op === "countGt" || filter.op === "countLt") {
+          const count = values.length;
+          return filter.op === "countGt" ? count > Number(filter.value) : count < Number(filter.value);
+        }
+        return matchesText(filter, values);
+      });
+    }
+
+    // 普通选择限定筛选结果；本次导入草稿保留隐藏目标，防止主窗口保存漏项。
+    function applySearch() {
+      state.filtered = state.rows.filter(matchesRow);
+      const visible = state.filteredIds = new Set(state.filtered.map(row => row.appid));
+      state.filteredSelected = 0;
+      for (const appid of state.selected) {
+        if (visible.has(appid)) state.filteredSelected += 1;
+        else if (!state.importSelection.has(appid)) {
+          state.selected.delete(appid);
+          state.selectedDrafts.delete(appid);
+        }
+      }
+    }
+
+    function refreshDraftFilter(appid) {
+      if (!state.filters.length && !text(state.search)) return;
+      const row = state.rowsByAppid.get(appid);
+      if (!row || matchesRow(row)) return;
+      const index = state.filtered.findIndex(item => item.appid === appid);
+      if (index < 0) return;
+      state.filtered = state.filtered.slice();
+      state.filtered.splice(index, 1);
+      state.filteredIds.delete(appid);
+      if (state.selected.delete(appid)) state.filteredSelected -= 1;
+      state.selectedDrafts.delete(appid);
+      renderTable();
+    }
+
+    function renderFilterChips() {
+      const modal = document.getElementById(BATCH_MODAL);
+      const chips = modal?.querySelector("[data-lin-filter-chips]");
+      if (!chips) return;
+      setHtml(chips, state.filters.map((filter, index) => {
+        const field = filterFields().find(([key]) => key === filter.field)?.[1] || filter.field;
+        const op = operators(filter.field).find(([key]) => key === filter.op)[1];
+        const value = usesFilterOptionValues(filter.field, filter.op)
+          ? displayValues(filter.field, filter.values).join(" / ")
+          : isRangeField(filter.field) ? (isDateField(filter.field) && filter.preset
+            ? (datePresets().find(([key]) => key === filter.preset)?.[1] || filter.preset)
+            : `${filter.min || filter.dateStart || "-∞"} ~ ${filter.max || filter.dateEnd || "∞"}`)
+            : FILTER_EMPTY_OPERATORS.includes(filter.op) ? "" : filter.value;
+        const removeLabel = i18n("steam.independentName.removeFilter", "移除筛选");
+        return `<span class="st-lin-filter-chip"><button type="button" data-lin-filter-edit>${esc(`${field} ${op} ${value}`)}</button><button class="st-lin-filter-chip-remove" type="button" data-lin-filter-remove="${index}" aria-label="${esc(removeLabel)}" title="${esc(removeLabel)}">${iconHtml(FILTER_DELETE_ICON_PATH, "st-lin-filter-delete-icon")}</button></span>`;
+      }).join(""), "library-independent-name-filter-chips");
+      const clear = modal.querySelector("[data-lin-filter-clear]");
+      clear.hidden = state.filters.length === 0;
+      clear.disabled = state.filters.length === 0 || !!state.referenceRun;
+    }
+
+    // 原 select 保留值、options 和 change 契约；弹层从同一运算符目录生成，不维护第二套筛选规则
+    function filterOperatorHtml(filter, index, ready) {
+      const label = i18n("steam.independentName.filterOperator", "筛选关系");
+      const list = operators(filter.field);
+      const current = list.find(([key]) => key === filter.op)[1];
+      const id = `st-lin-filter-operator-${index}`;
+      const options = list.map(([key, text]) => `<option value="${key}" ${key === filter.op ? "selected" : ""}>${esc(text)}</option>`).join("");
+      const choices = list.map(([key, text]) => `<button class="st-lin-filter-operator-option" type="button" role="option" data-lin-filter-op-value="${key}" aria-selected="${key === filter.op}" tabindex="${key === filter.op ? 0 : -1}"><span>${esc(text)}</span><span aria-hidden="true">${key === filter.op ? "✓" : ""}</span></button>`).join("");
+      return `<div class="st-lin-filter-operator"><select data-lin-filter-op hidden aria-label="${esc(label)}" ${ready ? "" : "disabled"}>${options}</select><button class="st-lin-btn st-lin-filter-operator-button" type="button" data-lin-filter-op-trigger aria-label="${esc(`${label}: ${current}`)}" aria-haspopup="listbox" aria-controls="${id}" aria-expanded="false" ${ready ? "" : "disabled"}><span>${esc(current)}</span><span aria-hidden="true">▾</span></button><div id="${id}" class="st-lin-filter-operator-menu" data-lin-filter-op-menu role="listbox" aria-label="${esc(label)}" popover="manual" hidden>${choices}</div></div>`;
+    }
+
+    function renderFilterEditor() {
+      const editor = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-filter-editor]");
+      if (!editor || !state.filterDraft) return;
+      closeFilterPicker();
+      setHtml(editor.querySelector("[data-lin-filter-rows]"), state.filterDraft.map((filter, index) => {
+        const field = filterFields().find(([key]) => key === filter.field)?.[1] || filter.field;
+        const value = usesFilterOptionValues(filter.field, filter.op)
+          ? filterOptionMenuHtml(filter.field, filter)
+          : isRangeField(filter.field)
+              ? isDateField(filter.field)
+                ? `<div class="st-lin-filter-date"><select data-lin-filter-date-preset aria-label="${esc(i18n("steam.independentName.filterDatePreset", "日期范围"))}" ${filter.op === "unknown" ? "hidden" : ""}>${datePresets().map(([key, label]) => `<option value="${esc(key)}" ${filter.preset === key ? "selected" : ""}>${esc(label)}</option>`).join("")}</select><div class="st-lin-filter-range" ${filter.preset !== "custom" || filter.op === "unknown" ? "hidden" : ""}><label class="st-lin-filter-date-bound"><span>${esc(i18n("steam.independentName.filterDateStart", "开始日期"))}</span><input data-lin-filter-date-start type="date" value="${esc(filter.dateStart)}"></label><label class="st-lin-filter-date-bound"><span>${esc(i18n("steam.independentName.filterDateEnd", "结束日期"))}</span><input data-lin-filter-date-end type="date" value="${esc(filter.dateEnd)}"></label></div></div>`
+                : `<div class="st-lin-filter-range"><input data-lin-filter-min type="number" value="${esc(filter.min)}" placeholder="${esc(i18n("steam.independentName.filterMin", "最小"))}" ${filter.op === "unknown" ? "hidden" : ""}><input data-lin-filter-max type="number" value="${esc(filter.max)}" placeholder="${esc(i18n("steam.independentName.filterMax", "最大"))}" ${filter.op === "unknown" ? "hidden" : ""}></div>`
+              : `<input data-lin-filter-value type="${["lengthGt", "lengthLt", "countGt", "countLt"].includes(filter.op) ? "number" : "text"}" ${["lengthGt", "lengthLt", "countGt", "countLt"].includes(filter.op) ? "min=\"0\" step=\"1\" inputmode=\"numeric\"" : "maxlength=\"200\""} aria-label="${esc(i18n("steam.independentName.filterValue", "筛选值"))}" value="${esc(filter.value)}" ${FILTER_EMPTY_OPERATORS.includes(filter.op) ? "hidden" : ""}>`;
+        const fieldPicker = filterGroups().map(([group, fields]) => `<div class="st-lin-filter-picker-group"><strong>${esc(group)}</strong>${fields.map(([key, label]) => {
+          const availability = filterAvailability(key);
+          const selected = key === filter.field;
+          return `<button class="st-lin-btn st-lin-filter-picker-option" type="button" data-lin-filter-field-value="${key}" aria-current="${selected ? "true" : "false"}" ${availability.ready ? "" : `disabled title="${esc(availability.message)}" aria-disabled="true"`}>${esc(label)}</button>`;
+        }).join("")}</div>`).join("");
+        const availability = filterAvailability(filter.field);
+        const unavailable = availability.ready ? "" : `<p class="st-lin-filter-unavailable" data-lin-filter-unavailable role="status">${esc(availability.message)}</p>`;
+        const renderedValue = availability.ready ? value : unavailable;
+        const removeLabel = i18n("steam.independentName.removeFilter", "移除筛选");
+        return `<div class="st-lin-filter-row" data-lin-filter-row="${index}"><div class="st-lin-filter-field"><button class="st-lin-btn st-lin-filter-field-button" type="button" data-lin-filter-field aria-expanded="false">${esc(field)} <span aria-hidden="true">▾</span></button><div class="st-lin-filter-picker" data-lin-filter-picker popover="manual" hidden><div class="st-lin-filter-picker-scroll">${fieldPicker}</div></div></div>${filterOperatorHtml(filter, index, availability.ready)}<div class="st-lin-filter-value">${renderedValue}</div><button class="st-lin-btn st-lin-filter-delete" type="button" data-lin-filter-delete="${index}" aria-label="${esc(removeLabel)}" title="${esc(removeLabel)}">${iconHtml(FILTER_DELETE_ICON_PATH, "st-lin-filter-delete-icon")}</button></div>`;
+      }).join(""), "library-independent-name-filter-editor");
+      const unavailable = state.filterDraft.map(filter => filterAvailability(filter.field)).find(result => !result.ready);
+      const message = editor.querySelector("[data-lin-filter-msg]");
+      if (message) message.textContent = unavailable?.message || "";
+    }
+
+    function openFilterEditor(opener, add) {
+      if (state.referenceRun || state.busy) return;
+      const editor = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-filter-editor]");
+      if (!editor) return;
+      state.filterDraft = state.filters.map(filter => ({ ...filter, values: filter.values.slice() }));
+      if (add || !state.filterDraft.length) state.filterDraft.push(newFilter());
+      renderFilterEditor();
+      editor.hidden = false;
+      editor.addEventListener("scroll", closeFilterPicker, { passive: true });
+      editor.querySelector("[data-lin-filter-editor-scroll]")?.addEventListener("scroll", closeFilterPicker, { passive: true });
+      state.filterSession = window.STDialogLifecycle.open({ root: editor, restore: opener, initial: () => editor.querySelector("[data-lin-filter-field]"), onEscape: () => {
+        if (state.filterPicker) closeFilterPicker();
+        else closeFilterEditor();
+      } });
+      state.filterSession.focusInitial();
+    }
+
+    function closeFilterEditor() {
+      const editor = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-filter-editor]");
+      if (editor) {
+        closeFilterPicker();
+        editor.removeEventListener("scroll", closeFilterPicker);
+        editor.querySelector("[data-lin-filter-editor-scroll]")?.removeEventListener("scroll", closeFilterPicker);
+        editor.hidden = true;
+      }
+      state.filterDraft = null;
+      state.filterSession?.close();
+      state.filterSession = null;
+    }
+
+    // 菜单进入 top layer，避免条件列表滚动容器裁剪；展开和视口调整只计算当前菜单
+    function positionFilterPicker(picker = state.filterPicker, anchorButton = state.filterPickerAnchor) {
+      if (!picker || !anchorButton) return;
+      const anchor = anchorButton.getBoundingClientRect();
+      if (picker.matches("[data-lin-filter-option-menu]")) {
+        picker.style.width = `${Math.min(Math.max(anchor.width, 220), window.innerWidth - 16)}px`;
+      }
+      if (picker.matches("[data-lin-filter-op-menu]")) {
+        picker.style.width = `${Math.min(Math.max(anchor.width, 144), window.innerWidth - 16)}px`;
+        const available = Math.max(anchor.top - 16, window.innerHeight - anchor.bottom - 16);
+        picker.style.maxHeight = `${Math.max(0, available)}px`;
+      }
+      if (picker.matches("[data-lin-actions-menu]")) {
+        // 两侧都放不下整份菜单时只缩小内部滚动区，保留触发按钮和三角之间的间隙。
+        const available = Math.max(anchor.top - 16, window.innerHeight - anchor.bottom - 16);
+        picker.querySelector(".st-lin-actions-scroll").style.maxHeight = `${Math.max(0, available - 2)}px`;
+      }
+      const rect = picker.getBoundingClientRect();
+      const left = Math.max(8, Math.min(anchor.left, window.innerWidth - rect.width - 8));
+      picker.style.left = `${left}px`;
+      if (picker.matches("[data-lin-actions-menu]")) picker.style.setProperty("--st-lin-actions-arrow-x", `${Math.max(12, Math.min(anchor.left + anchor.width / 2 - left, rect.width - 12))}px`);
+      const below = anchor.bottom + 8 + rect.height <= window.innerHeight - 8;
+      picker.dataset.linFilterPlacement = below ? "below" : "above";
+      picker.style.top = `${below ? anchor.bottom + 8 : Math.max(8, anchor.top - rect.height - 8)}px`;
+    }
+
+    function onFilterResize() {
+      if (state.filterPicker) positionFilterPicker(state.filterPicker);
+    }
+
+    function closeFilterPicker(restoreFocus = true) {
+      const picker = state.filterPicker;
+      if (!picker) return;
+      const button = state.filterPickerAnchor;
+      state.filterPicker = null;
+      state.filterPickerAnchor = null;
+      window.removeEventListener("resize", onFilterResize);
+      picker.hidePopover();
+      picker.hidden = true;
+      button?.setAttribute("aria-expanded", "false");
+      if (picker.matches("[data-lin-filter-op-menu]")) {
+        for (const option of picker.querySelectorAll("[data-lin-filter-op-value]")) option.tabIndex = option.getAttribute("aria-selected") === "true" ? 0 : -1;
+      }
+      if (picker.matches("[data-lin-filter-option-menu]")) {
+        for (const option of picker.querySelectorAll("[data-lin-filter-option]")) option.closest("label").hidden = false;
+        const row = button?.closest("[data-lin-filter-row]");
+        const filter = row && state.filterDraft?.[Number(row.dataset.linFilterRow)];
+        if (button && filter) {
+          const display = filterValueDisplay(filter.field, filter.values);
+          button.value = filter.values.length ? display.text : "";
+          button.title = display.title;
+        }
+      }
+      if (restoreFocus) button?.focus({ preventScroll: true });
+    }
+
+    function toggleFilterPicker(button, picker, initialSelector) {
+      if (button.disabled) return;
+      if (state.filterPicker === picker) {
+        closeFilterPicker(false);
         return;
       }
-      state.filtered = state.rows.filter((row) => {
-        const draft = draftOf(row.appid);
-        const hay = [
-          row.official_name,
-          String(row.appid),
-          draft.custom_name,
-          draft.mnemonic,
-          draft.pinyin,
-          ...(draft.aliases || []),
-        ].join(" ").toLowerCase();
-        return hay.includes(q);
+      closeFilterPicker(false);
+      picker.hidden = false;
+      picker.showPopover();
+      state.filterPicker = picker;
+      state.filterPickerAnchor = button;
+      button.setAttribute("aria-expanded", "true");
+      positionFilterPicker();
+      window.addEventListener("resize", onFilterResize);
+      picker.querySelector(initialSelector)?.focus({ preventScroll: true });
+    }
+
+    // 校验与编译共用一条路径；失败只返回原因，不替换已生效筛选
+    function validateFilterDraft(filters) {
+      let regexError = null;
+      const invalid = filters.some(filter => {
+        if (!filterAvailability(filter.field).ready) return true;
+        if (usesFilterOptionValues(filter.field, filter.op)) return !filter.values.length;
+        if (isRangeField(filter.field)) {
+          const hasRange = isDateField(filter.field)
+            ? !!filter.preset || !!filter.dateStart || !!filter.dateEnd || filter.min !== "" || filter.max !== ""
+            : filter.min !== "" || filter.max !== "";
+          return filter.op !== "unknown" && !hasRange;
+        }
+        if (FILTER_EMPTY_OPERATORS.includes(filter.op)) return false;
+        if (!text(filter.value)) return true;
+        if (["lengthGt", "lengthLt", "countGt", "countLt"].includes(filter.op)) {
+          return !/^\d+$/.test(text(filter.value)) || !Number.isSafeInteger(Number(filter.value));
+        }
+        if (filter.op === "regex") {
+          const compiled = compileFilterRegex(filter.value);
+          if (compiled.error) {
+            regexError = compiled.error;
+            return true;
+          }
+          filterExpressions.set(filter, compiled.expression);
+        }
+        return false;
       });
+      return { invalid, regexError };
+    }
+
+    function applyFilters() {
+      if (!state.filterDraft) return;
+      const editor = document.getElementById(BATCH_MODAL).querySelector("[data-lin-filter-editor]");
+      let validation;
+      try {
+        validation = validateFilterDraft(state.filterDraft);
+      } catch (error) {
+        log.error("independent-name-filter-apply-failed", "应用独立名称筛选失败", { error });
+        editor.querySelector("[data-lin-filter-msg]").textContent = i18n("common.operationFailed", "操作失败");
+        return;
+      }
+      if (validation.invalid) {
+        const unavailable = state.filterDraft.map(filter => filterAvailability(filter.field)).find(result => !result.ready);
+        const regexMessage = validation.regexError ? i18n("steam.independentName.filterRegexInvalid", "正则表达式格式错误，请修改后重试") : "";
+        editor.querySelector("[data-lin-filter-msg]").textContent = unavailable?.message || regexMessage || i18n("steam.independentName.filterIncomplete", "请填写筛选值或选择游戏类型");
+        return;
+      }
+      if (state.filterDraft.some(filter => filter.field === "app_type") && state.rows.some(row => !Number.isSafeInteger(row.app_type))) {
+        editor.querySelector("[data-lin-filter-msg]").textContent = i18n("steam.independentName.typeMissing", "游戏类型数据不可用，请更新扩展后重试");
+        return;
+      }
+      state.filters = state.filterDraft;
+      closeFilterEditor();
+      applySearch();
+      renderFilterChips();
+      renderTable();
+    }
+
+    function changeSelection(mode) {
+      if (state.referenceRun || state.busy) return;
+      if (mode === "clear") { state.selected.clear(); state.importSelection.clear(); }
+      else for (const row of state.filtered) {
+        if (mode === "clear-filtered" || (mode === "invert" && state.selected.has(row.appid))) { state.selected.delete(row.appid); state.importSelection.delete(row.appid); }
+        else state.selected.add(row.appid);
+      }
+      state.filteredSelected = mode === "clear" || mode === "clear-filtered" ? 0
+        : mode === "invert" ? state.filtered.length - state.filteredSelected : state.filtered.length;
+      syncSelectedDrafts();
+      const modal = document.getElementById(BATCH_MODAL);
+      for (const input of modal.querySelectorAll("[data-lin-select]")) input.checked = state.selected.has(Number(input.dataset.linSelect));
+      refreshBatchSave();
     }
 
     function aliasHtml(appid, aliases) {
@@ -473,10 +1311,11 @@
     function makeReading(appid) {
       const base = readingBase(appid);
       const control = { appid, base, model: null, error: "" };
+      if (!text(base.name) || !text(base.pinyin)) return control;
       try {
         control.model = window.SteamBuff.libraryCustomNameMnemonic.readings(base.name, base, window.pinyinPro);
       } catch (error) {
-        control.error = i18n("steam.independentName.readingFailed", "读音候选加载失败，请关闭后重新打开编辑区");
+        control.error = i18n("steam.independentName.readingFailed", "读音候选加载失败，请重新打开名称设置");
         log.error("independent-name-readings-failed", "名称读音候选解析失败", { error, appid });
       }
       return control;
@@ -490,7 +1329,7 @@
       return state.singleReading;
     }
 
-    function readingsHtml(control) {
+    function readingsHtml(control, mode = "batch") {
       if (control?.error) return `<p class="st-lin-msg" role="status">${esc(control.error)}</p>`;
       const model = control?.model;
       if (!model) return "";
@@ -502,13 +1341,109 @@
           ${group.options.map((option) => `<button class="st-lin-reading-option" type="button" data-lin-reading-index="${group.index}" data-lin-reading-value="${esc(option.value)}" aria-pressed="${model.parts[group.index] === option.value}" aria-label="${esc(`${group.char} · ${context} · ${option.label}`)}">${esc(option.label)}</button>`).join("")}
         </div>`;
       }).join("");
+      if (mode === "inline") return `<div class="st-lin-reading-groups">${groups}</div>`;
+      const preview = mode === "dialog";
+      const hint = i18n("steam.independentName.readingPreviewHint", "现有内容无法逐字对应。下方是生成预览，应用后将替换全拼和助记符。");
+      const apply = `<button class="st-lin-btn" type="button" data-lin-reading-apply>${esc(i18n("steam.independentName.readingApply", "替换全拼和助记符"))}</button>`;
       return `<div class="st-lin-reading-groups">${groups}</div>
-        <div class="st-lin-reading-preview" data-lin-reading-preview ${model.replace ? "" : "hidden"}>
-          <p class="st-lin-msg">${esc(i18n("steam.independentName.readingPreviewHint", "现有内容无法逐字对应。下方是生成预览，应用后将替换全拼和助记符。"))}</p>
+        <div class="st-lin-reading-preview" data-lin-reading-preview ${model.replace || preview ? "" : "hidden"}>
+          <p class="st-lin-msg">${esc(hint)}</p>
           <span>${esc(i18n("steam.independentName.colPinyin", "拼音全拼"))}</span><output data-lin-reading-full>${esc(model.pinyin)}</output>
           <span>${esc(i18n("steam.independentName.colMnemonic", "助记符"))}</span><output data-lin-reading-mnemonic>${esc(model.mnemonic)}</output>
-          <button class="st-lin-btn" type="button" data-lin-reading-apply>${esc(i18n("steam.independentName.readingApply", "替换全拼和助记符"))}</button>
+          ${preview ? `<footer class="st-lin-reading-actions"><button class="st-lin-btn" type="button" data-lin-reading-cancel>${esc(i18n("common.cancel", "取消"))}</button>${apply}</footer>` : apply}
         </div>`;
+    }
+
+    function closeSingleReadingPreview() {
+      const session = state.singleReadingSession;
+      state.singleReadingSession = null;
+      state.singleReadingPreview = null;
+      const layer = document.getElementById(MODAL)?.querySelector("[data-lin-reading-dialog]");
+      if (layer) layer.hidden = true;
+      session?.close?.();
+    }
+
+    function stopReadingKeyPropagation(event) {
+      event.stopPropagation();
+    }
+
+    function openSingleReadingPreview(opener, control) {
+      if (!state.currentGame || state.singleBusy) return;
+      const layer = document.getElementById(MODAL)?.querySelector("[data-lin-reading-dialog]");
+      if (!layer || control.error || !control.model?.groups.length) return;
+      window.clearTimeout(state.readingTimer);
+      state.readingTimer = 0;
+      state.singleReadingPreview = {
+        ...control,
+        model: window.SteamBuff.libraryCustomNameMnemonic.selectReading(control.model, Number(opener.dataset.linReadingIndex), opener.dataset.linReadingValue),
+      };
+      setHtml(layer, `
+        <div class="st-lin-reading-dialog">
+          <header class="st-lin-head">
+            <h3 id="st-lin-reading-title">${esc(i18n("steam.independentName.readingPreview", "拼音预览"))}</h3>
+            <button class="st-lin-close" type="button" data-lin-reading-cancel aria-label="${esc(i18n("common.close", "关闭"))}">×</button>
+          </header>
+          <p class="st-lin-reading-name">${esc(control.base.name)}</p>
+          ${readingsHtml(state.singleReadingPreview, "dialog")}
+        </div>
+      `, "library-independent-name-reading-preview");
+      layer.hidden = false;
+      // 子弹窗独立处理 Tab 和 Escape，避免父弹窗再次处理同一按键。
+      layer.addEventListener("keydown", stopReadingKeyPropagation);
+      state.singleReadingSession = window.STDialogLifecycle.open({
+        root: layer,
+        restore: opener,
+        initial: () => layer.querySelector('[data-lin-reading-value][aria-pressed="true"]') || layer.querySelector("[data-lin-reading-cancel]"),
+        onEscape: closeSingleReadingPreview,
+      });
+      state.singleReadingSession.focusInitial();
+    }
+
+    function onSingleReadingPreviewClick(event) {
+      const control = state.singleReadingPreview;
+      if (!control) return false;
+      if (event.target.matches("[data-lin-reading-dialog]") || event.target.closest("[data-lin-reading-cancel]")) {
+        closeSingleReadingPreview();
+        return true;
+      }
+      const choice = event.target.closest("[data-lin-reading-value]");
+      const apply = event.target.closest("[data-lin-reading-apply]");
+      if (!choice && !apply) return true;
+      if (state.currentGame?.appid !== control.appid || !sameReadingBase(control.base, readingBase(control.appid))) {
+        state.singleMessage = i18n("steam.independentName.draftConflict", "名称内容已更新，请重新打开后编辑。");
+        renderSingleModal();
+        return true;
+      }
+      const layer = document.getElementById(MODAL).querySelector("[data-lin-reading-dialog]");
+      if (choice) selectReadingChoice(control, choice, layer);
+      if (apply) {
+        applyReading(control);
+        closeSingleReadingPreview();
+        state.singleReading = null;
+        const current = singleReading(control.appid);
+        const panel = document.getElementById(MODAL).querySelector("[data-lin-single-readings]");
+        for (const button of panel.querySelectorAll("[data-lin-reading-value]")) {
+          button.setAttribute("aria-pressed", String(current.model.parts[Number(button.dataset.linReadingIndex)] === button.dataset.linReadingValue));
+        }
+      }
+      return true;
+    }
+
+    function onSingleReadingClick(event) {
+      const choice = event.target.closest("[data-lin-reading-value]");
+      if (!choice) return false;
+      const control = state.singleReading;
+      if (state.singleBusy || !control?.model || control.error) return true;
+      const panel = document.getElementById(MODAL).querySelector("[data-lin-single-readings]");
+      if (!sameReadingBase(control.base, readingBase(control.appid))) {
+        setHtml(panel, readingsHtml(singleReading(control.appid), "inline"), "library-independent-name-readings");
+        return true;
+      }
+      if (control.model.pinyinMatches) {
+        selectReadingChoice(control, choice, panel, false);
+        applyReading(control);
+      } else openSingleReadingPreview(choice, control);
+      return true;
     }
 
     // 单游戏只解析当前名称，输入法完成后合并输入变化；候选点击不重建输入框或候选按钮
@@ -519,71 +1454,418 @@
         state.readingTimer = 0;
         if (!state.currentGame || state.singleBusy) return;
         const panel = document.getElementById(MODAL)?.querySelector("[data-lin-single-readings]");
-        if (panel) setHtml(panel, readingsHtml(singleReading(state.currentGame.appid)), "library-independent-name-readings");
+        if (panel) setHtml(panel, readingsHtml(singleReading(state.currentGame.appid), "inline"), "library-independent-name-readings");
       }, READINGS_MS);
     }
 
-    function closeReadingEditor(restore = true) {
-      const control = state.readingEditor;
-      if (!control) return;
-      state.readingEditor = null;
-      window.removeEventListener("resize", onReadingResize);
-      control.opener.setAttribute("aria-expanded", "false");
-      if (control.root.matches(":popover-open")) control.root.hidePopover();
-      if (restore && control.opener.isConnected) control.opener.focus({ preventScroll: true });
+    function batchReading(appid) {
+      const cached = state.batchReadings.get(appid);
+      if (!cached || !sameReadingBase(cached.base, readingBase(appid))) {
+        state.batchReadings.set(appid, makeReading(appid));
+      }
+      return state.batchReadings.get(appid);
     }
 
-    function onReadingResize() {
-      closeReadingEditor();
+    function refreshBatchReading(appid) {
+      const row = document.getElementById(BATCH_MODAL)?.querySelector(`tr[data-appid="${appid}"]`);
+      const panel = row?.querySelector("[data-lin-batch-readings]");
+      if (!panel) return;
+      setHtml(panel, readingsHtml(batchReading(appid)), "library-independent-name-readings");
     }
 
-    function positionReadingEditor(control) {
-      const rect = control.opener.getBoundingClientRect();
-      const panel = control.root;
-      const gap = 8;
-      const width = Math.min(440, window.innerWidth - gap * 2);
-      const below = window.innerHeight - rect.bottom - gap * 2;
-      const above = rect.top - gap * 2;
-      panel.style.width = `${width}px`;
-      panel.style.maxHeight = `${Math.max(0, Math.max(below, above))}px`;
-      const height = panel.getBoundingClientRect().height;
-      panel.style.left = `${Math.max(gap, Math.min(rect.right - width, window.innerWidth - width - gap))}px`;
-      panel.style.top = `${below >= height ? rect.bottom + gap : Math.max(gap, rect.top - height - gap)}px`;
+    function scheduleBatchReadings(event) {
+      const target = event.target;
+      if (!target.matches(".st-lin-name, .st-lin-pinyin, .st-lin-mnemonic")) return;
+      window.clearTimeout(state.batchReadingTimer);
+      state.batchReadingTimer = 0;
+      if (event.isComposing) return;
+      const appid = Number(target.closest("tr[data-appid]")?.dataset.appid) || 0;
+      state.batchReadingTimer = window.setTimeout(() => {
+        state.batchReadingTimer = 0;
+        if (state.started && appid) {
+          refreshBatchReading(appid);
+          refreshDraftFilter(appid);
+        }
+      }, READINGS_MS);
     }
 
-    // 批量只打开一个当前行浮层，离开行窗口或滚动即关闭，不给虚拟行增加节点高度
-    async function openReadingEditor(appid, opener) {
-      if (state.readingEditor?.appid === appid) { closeReadingEditor(); return; }
-      closeReadingEditor(false);
-      const panel = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-reading-editor]");
-      if (!panel || !appid) return;
-      const control = { appid, opener, root: panel, model: null, base: readingBase(appid), error: "" };
-      state.readingEditor = control;
-      setHtml(panel, `<header class="st-lin-head"><strong>${esc(i18n("steam.independentName.readingTitle", "读音选择"))}</strong><button class="st-lin-btn" type="button" data-lin-reading-close>${esc(i18n("common.close", "关闭"))}</button></header>
-        <p class="st-lin-reading-name">${esc(control.base.name)}</p>
-        <div class="st-lin-readings" data-lin-reading-content><p class="st-lin-msg" role="status">${esc(i18n("steam.independentName.loading", "正在加载..."))}</p></div>`, "library-independent-name-reading-editor");
-      opener.setAttribute("aria-expanded", "true");
-      panel.showPopover();
-      positionReadingEditor(control);
-      window.addEventListener("resize", onReadingResize);
-      panel.querySelector("[data-lin-reading-close]").focus({ preventScroll: true });
-      try {
-        await loadLibs();
-        if (state.readingEditor !== control) return;
-        Object.assign(control, makeReading(appid));
-        const html = readingsHtml(control) || `<p class="st-lin-msg">${esc(i18n("steam.independentName.readingNone", "未检测到需要选择的读音"))}</p>`;
-        setHtml(panel.querySelector("[data-lin-reading-content]"), html, "library-independent-name-readings");
-        positionReadingEditor(control);
-      } catch (error) {
-        if (state.readingEditor !== control) return;
-        control.error = i18n("steam.independentName.readingFailed", "读音候选加载失败，请关闭后重新打开编辑区");
-        setHtml(panel.querySelector("[data-lin-reading-content]"), readingsHtml(control), "library-independent-name-readings");
-        log.error("independent-name-readings-failed", "名称读音候选加载失败", { error, appid });
+    function actionsMenuHtml() {
+      const action = key => `<button class="st-lin-btn" type="button" data-lin-bulk-action="${key}" disabled>${esc(bulkText(key))}</button>`;
+      const group = (key, contents) => `<div class="st-lin-actions-group" data-lin-actions-group="${key}"><strong>${esc(bulkText(key))}</strong><div>${contents}</div></div>`;
+      return group("add", ["name", "aliases", "mnemonic", "pinyin"].map(action).join(""))
+        + group("generate", `<button class="st-lin-btn" type="button" data-lin-reference-many disabled>${esc(i18n("steam.independentName.fetchCommunity", "获取社区名称"))}</button>` + ["generate-mnemonic", "generate-pinyin"].map(action).join(""))
+        + group("clear", ["clear-name", "clear-aliases", "clear-mnemonic", "clear-pinyin"].map(action).join(""))
+        + group("selection", `<button class="st-lin-btn" type="button" data-lin-selection="all">${esc(i18n("steam.independentName.selectAll", "全选"))}</button><button class="st-lin-btn" type="button" data-lin-selection="invert">${esc(i18n("steam.independentName.invertSelection", "反选"))}</button><button class="st-lin-btn" type="button" data-lin-selection="clear">${esc(bulkText("cancelSelection"))}</button>`)
+        + group("other", `<button class="st-lin-btn" type="button" data-lin-import>${esc(i18n("steam.independentName.import", "导入"))}</button><button class="st-lin-btn" type="button" data-lin-export disabled>${esc(i18n("steam.independentName.export", "导出"))}</button>`);
+    }
+
+    function closeActionsMenu(restore = true) {
+      const menu = state.actionsMenu;
+      if (!menu) return;
+      state.actionsMenu = null;
+      menu.hidePopover();
+      menu.hidden = true;
+      document.removeEventListener("pointerdown", onActionsOutside, true);
+      window.removeEventListener("resize", onActionsResize);
+      const button = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-actions-toggle]");
+      button?.setAttribute("aria-expanded", "false");
+      if (restore) button?.focus({ preventScroll: true });
+    }
+
+    function onActionsOutside(event) {
+      if (!state.actionsMenu?.contains(event.target) && !event.target.closest("[data-lin-actions-toggle]")) closeActionsMenu(false);
+    }
+
+    function onActionsResize() {
+      positionFilterPicker(state.actionsMenu, document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-actions-toggle]"));
+    }
+
+    function toggleActionsMenu(button) {
+      if (state.actionsMenu) { closeActionsMenu(false); return; }
+      if (state.busy || state.batchSaving || state.referenceRun || state.bulk) return;
+      const menu = document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-menu]");
+      menu.hidden = false;
+      menu.showPopover();
+      state.actionsMenu = menu;
+      button.setAttribute("aria-expanded", "true");
+      onActionsResize();
+      document.addEventListener("pointerdown", onActionsOutside, true);
+      window.addEventListener("resize", onActionsResize);
+      menu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
+    }
+
+    function bulkRoot() {
+      return document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-bulk-editor]");
+    }
+
+    function closeBulkEditor(reason = "cancel") {
+      const bulk = state.bulk;
+      if (bulk && reason !== "applied") log.info("independent-name-bulk-cancelled", "选中游戏批量操作已取消，未应用草稿", { operation: bulk.kind, operationId: bulk.operationId, count: bulk.rows.length, durationMs: Math.round(performance.now() - bulk.startedAt) });
+      if (bulk?.frame) window.cancelAnimationFrame(bulk.frame);
+      if (bulk?.commitFrame) {
+        window.cancelAnimationFrame(bulk.commitFrame.id);
+        bulk.commitFrame.resolve();
+      }
+      state.bulk = null;
+      const root = bulkRoot();
+      if (root) root.hidden = true;
+      refreshBatchSave();
+      state.bulkSession?.close();
+      state.bulkSession = null;
+    }
+
+    function bulkParameters() {
+      const bulk = state.bulk;
+      const params = bulk.params[bulk.tab];
+      const input = (key, type = "text") => `<label><span>${esc(bulkText(key === "value" && bulk.tab === "replace" ? "replacement" : key))}</span><input data-lin-bulk-param="${key}" type="${type}" value="${esc(params[key])}" ${type === "number" ? 'min="1" step="1"' : 'maxlength="200"'}></label>`;
+      const select = (key, values) => `<label><span>${esc(bulkText(key))}</span><select data-lin-bulk-param="${key}">${values.map(value => `<option value="${value}" ${params[key] === value ? "selected" : ""}>${esc(bulkText(value))}</option>`).join("")}</select></label>`;
+      const numbering = () => select("type", ["number", "chinese", "lower", "upper"]) + input("start", "number") + input("prefix") + input("suffix");
+      let html = "";
+      if (bulk.kind === "name") {
+        if (bulk.tab === "replace") html = input("find") + input("value");
+        if (bulk.tab === "sequence") html = numbering();
+        if (bulk.tab === "insert") html = select("insertType", ["text", "sequence"]) + select("position", ["before", "after"]) + (params.insertType === "text" ? input("value") : numbering());
+      } else if (["aliases", "mnemonic", "pinyin"].includes(bulk.kind)) html = input("value");
+      setHtml(bulkRoot().querySelector("[data-lin-bulk-params]"), html, "library-independent-name-bulk-params");
+    }
+
+    async function openBulkEditor(kind) {
+      if (!state.selected.size || state.busy || state.referenceRun || state.batchSaving || state.bulk) return;
+      window.clearTimeout(state.searchTimer);
+      applySearch();
+      const rows = state.rows.filter(row => state.selected.has(row.appid));
+      if (!rows.length) { refreshBatchSave(); return; }
+      if (typeof state.snapshot.userId !== "string" || !state.snapshot.userId) throw new TypeError("名称快照缺少当前账号");
+      closeActionsMenu(false);
+      const root = bulkRoot();
+      const bulk = {
+        kind, tab: kind === "name" ? "replace" : "value", userId: state.snapshot.userId,
+        operationId: `bulk-${Date.now()}-${Math.random().toString(36).slice(2)}`, startedAt: performance.now(),
+        rows: rows.map(row => ({ appid: row.appid, official_name: row.official_name, base: { ...draftOf(row.appid), aliases: draftOf(row.appid).aliases.slice() } })),
+        params: { replace: { find: "", value: "" }, sequence: { type: "number", start: "1", prefix: "", suffix: "" }, insert: { insertType: "text", position: "before", value: "", type: "number", start: "1", prefix: "", suffix: "" }, manual: {}, value: { value: "" } },
+        manual: new Map(), useOriginal: false, preview: [], revision: 0, frame: 0, ready: false, running: true, error: "", changed: 0, invalid: 0, clearedNames: 0,
+        virtual: VIRTUAL.createVirtualWindow({ rowHeight: 80, viewportHeight: 320, overscan: 4 }),
+      };
+      bulk.index = new Map(bulk.rows.map((row, index) => [row.appid, index]));
+      state.bulk = bulk;
+      const tabs = kind === "name" ? `<div class="st-lin-bulk-tabs" role="tablist">${["replace", "sequence", "insert", "manual"].map(tab => `<button class="st-lin-btn" type="button" role="tab" id="st-lin-bulk-tab-${tab}" aria-controls="st-lin-bulk-panel" aria-selected="${tab === bulk.tab}" tabindex="${tab === bulk.tab ? 0 : -1}" data-lin-bulk-tab="${tab}">${esc(bulkText(tab))}</button>`).join("")}</div>` : "";
+      setHtml(root, `<div class="st-lin-bulk-dialog"><header class="st-lin-head"><h3 id="st-lin-bulk-title">Steam Buff · ${esc(bulkText(kind))}</h3><button class="st-lin-btn" type="button" data-lin-bulk-cancel>${esc(i18n("common.close", "关闭"))}</button></header>${tabs}<div id="st-lin-bulk-panel" ${kind === "name" ? 'role="tabpanel" aria-labelledby="st-lin-bulk-tab-replace"' : ""}><div class="st-lin-bulk-params" data-lin-bulk-params></div>${kind === "name" ? `<label class="st-lin-bulk-original"><input type="checkbox" data-lin-bulk-original>${esc(bulkText("original"))}</label>` : ""}<div class="st-lin-bulk-columns"><span>AppID · ${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</span><span>${esc(bulkText("old"))}</span><span>${esc(bulkText("next"))}</span></div><div class="st-lin-bulk-scroll" data-lin-bulk-scroll><div data-lin-bulk-rows></div></div></div><p class="st-lin-msg" data-lin-bulk-warning></p><p class="st-lin-msg" role="status" data-lin-bulk-status></p><footer class="st-lin-filter-actions"><button class="st-lin-btn" type="button" data-lin-bulk-cancel>${esc(i18n("common.cancel", "取消"))}</button><button class="st-lin-btn st-lin-primary" type="button" data-lin-bulk-apply disabled>${esc(bulkText("apply"))}</button></footer></div>`, "library-independent-name-bulk-editor");
+      root.hidden = false;
+      bulkParameters();
+      root.querySelector("[data-lin-bulk-scroll]").addEventListener("scroll", () => { if (state.bulk === bulk && !bulk.composing) renderBulkRows(); }, { passive: true });
+      state.bulkSession = window.STDialogLifecycle.open({ root, restore: document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-toggle]"), initial: () => root.querySelector("input") || root.querySelector("[data-lin-bulk-cancel]"), onEscape: closeBulkEditor });
+      state.bulkSession.focusInitial();
+      refreshBulkStatus();
+      refreshBatchSave();
+      log.info("independent-name-bulk-start", "已打开选中游戏批量操作", { operation: kind, operationId: bulk.operationId, count: rows.length });
+      await loadLibs();
+      if (state.bulk !== bulk || !state.started) return;
+      bulk.ready = true;
+      scheduleBulkPreview();
+    }
+
+    function bulkField(kind) {
+      return kind === "name" || kind === "clear-name" ? "custom_name" : kind.replace(/^(generate|clear)-/, "");
+    }
+
+    // 只产生目标字段补丁。名称派生字段复用 fillGenerated，并先用既有读音契约校验生成结果。
+    function bulkRow(row, index) {
+      const bulk = state.bulk;
+      const base = row.base;
+      const field = bulkField(bulk.kind);
+      const params = bulk.params[bulk.tab];
+      const source = base.custom_name || (bulk.useOriginal && typeof row.official_name === "string" ? row.official_name : "");
+      let patch = {};
+      let value;
+      let error = "";
+      let note = "";
+      if (bulk.kind === "name") {
+        if (!base.custom_name && bulk.useOriginal && !source) error = bulkText("originalMissing");
+        if (bulk.tab === "replace" && params.find && source.includes(params.find)) value = source.split(params.find).join(params.value);
+        if (bulk.tab === "manual" && bulk.manual.has(row.appid)) value = bulk.manual.get(row.appid);
+        if (bulk.tab === "sequence" || bulk.tab === "insert") {
+          const added = bulk.tab === "insert" && params.insertType === "text" ? params.value : params.prefix + formatSequence(Number(params.start) + index, params.type) + params.suffix;
+          if (bulk.tab === "sequence") value = added;
+          else if (added) value = params.position === "before" ? added + source : source + added;
+        }
+        if (value !== undefined && !error) {
+          value = text(value);
+          if (!base.custom_name && bulk.useOriginal && bulk.tab !== "sequence" && value === source) value = undefined;
+        }
+        if (value !== undefined && !error) {
+          patch.custom_name = value;
+          if (value !== base.custom_name) {
+            const next = { ...base, custom_name: value };
+            const pair = value && (!base.mnemonic_locked || !base.pinyin_locked) ? window.SteamBuff.libraryCustomNameMnemonic.readings(value, {}, window.pinyinPro) : null;
+            fillGenerated(next, base.custom_name, value, pair);
+            for (const key of ["mnemonic", "pinyin", "mnemonic_locked", "pinyin_locked"]) if (next[key] !== base[key]) patch[key] = next[key];
+          }
+        }
+      } else if (bulk.kind.startsWith("clear-")) {
+        patch[field] = field === "aliases" ? [] : "";
+        if (field === "custom_name") Object.assign(patch, { mnemonic: "", pinyin: "", mnemonic_locked: false, pinyin_locked: false });
+        if (field === "mnemonic" || field === "pinyin") patch[`${field}_locked`] = true;
+      } else {
+        value = text(params.value);
+        if (field !== "aliases" && !base.custom_name) error = bulkText("nameRequired");
+        if (bulk.kind.startsWith("generate-") && !error) {
+          value = window.SteamBuff.libraryCustomNameMnemonic.readings(base.custom_name, {}, window.pinyinPro)[field];
+          if (!value) note = bulkText("noGeneration");
+        }
+        if (value && !error) {
+          if (field === "aliases") {
+            if (value.length > 40) error = bulkText("tooLong");
+            else if (!hasAlias(base.aliases, value)) {
+              if (base.aliases.length >= ALIAS_MAX) error = bulkText("aliasLimit");
+              else patch.aliases = [...base.aliases, value];
+            }
+          } else { patch[field] = value; patch[`${field}_locked`] = true; }
+        }
+      }
+      if (Object.values(patch).some(value => typeof value === "string" && value.length > 200)) error = bulkText("tooLong");
+      const changed = !error && Object.keys(patch).some(key => JSON.stringify(base[key]) !== JSON.stringify(patch[key]));
+      return { appid: row.appid, original: row.official_name, before: bulk.kind === "name" ? source : base[field], next: patch[field] ?? (bulk.kind === "name" ? source : base[field]), source, patch, changed, error, note };
+    }
+
+    function refreshBulkStatus() {
+      const bulk = state.bulk;
+      if (!bulk) return;
+      const root = bulkRoot();
+      root.querySelector("[data-lin-bulk-status]").textContent = bulk.error || (bulk.running ? bulkText("calculating") : bulkText("summary", { total: bulk.rows.length, changed: bulk.changed, unchanged: bulk.rows.length - bulk.changed - bulk.invalid, invalid: bulk.invalid }));
+      root.querySelector("[data-lin-bulk-apply]").disabled = bulk.running || bulk.composing || !!bulk.error || bulk.invalid > 0 || !bulk.changed;
+      for (const field of root.querySelectorAll("input, select, [data-lin-bulk-tab]")) field.disabled = bulk.committing === true;
+      const clearsName = bulk.kind === "clear-name" || bulk.clearedNames > 0;
+      const warning = clearsName ? bulkText("clearWarning") : ["clear-mnemonic", "clear-pinyin"].includes(bulk.kind) ? bulkText("clearedLock") : bulk.kind !== "name" && bulk.kind !== "aliases" ? bulkText("overwriteWarning") : "";
+      root.querySelector("[data-lin-bulk-warning]").textContent = warning;
+    }
+
+    function renderBulkRows() {
+      const bulk = state.bulk;
+      if (!bulk) return;
+      const root = bulkRoot();
+      const scroller = root.querySelector("[data-lin-bulk-scroll]");
+      const range = bulk.virtual.update({ scrollTop: scroller.scrollTop, viewportHeight: scroller.clientHeight || 320 }).range(bulk.preview.length);
+      const display = value => Array.isArray(value) ? value.join(" · ") : value || bulkText("unset");
+      const active = document.activeElement;
+      const focus = active?.matches("[data-lin-bulk-manual]") ? { appid: active.dataset.linBulkManual, start: active.selectionStart, end: active.selectionEnd } : null;
+      setHtml(root.querySelector("[data-lin-bulk-rows]"), `<div style="height:${range.before}px"></div>${bulk.preview.slice(range.start, range.end).map(row => `<div class="st-lin-bulk-row" ${row.changed ? 'data-changed="true"' : ""}><span title="${esc(row.original)}"><b>${row.appid}</b><small>${esc(row.original)}</small></span><span title="${esc(display(row.before))}">${esc(display(row.before))}</span><span>${bulk.kind === "name" && bulk.tab === "manual" ? `<input type="text" maxlength="200" data-lin-bulk-manual="${row.appid}" value="${esc(bulk.manual.has(row.appid) ? bulk.manual.get(row.appid) : row.source)}" aria-label="${row.appid} ${esc(bulkText("next"))}">` : `<span title="${esc(display(row.next))}">${esc(display(row.next))}</span>`}<small class="st-lin-bulk-error">${esc(row.error || row.note)}</small></span></div>`).join("")}<div style="height:${range.after}px"></div>`, "library-independent-name-bulk-preview");
+      if (focus) {
+        const input = root.querySelector(`[data-lin-bulk-manual="${focus.appid}"]`);
+        input?.focus({ preventScroll: true });
+        input?.setSelectionRange(focus.start, focus.end);
       }
     }
 
-    function onReadingToggle(event) {
-      if (event.newState === "closed" && state.readingEditor?.root === event.currentTarget) closeReadingEditor(false);
+    // 输入只作废旧批次；每帧最多计算 16 个选中项，不注册轮询或逐次预览日志。
+    function scheduleBulkPreview() {
+      const bulk = state.bulk;
+      if (!bulk) return;
+      if (bulk.frame) window.cancelAnimationFrame(bulk.frame);
+      const revision = ++bulk.revision;
+      bulk.running = true;
+      bulk.error = "";
+      refreshBulkStatus();
+      if (!bulk.ready || bulk.composing) return;
+      const params = bulk.params[bulk.tab];
+      if (bulk.kind === "name" && (bulk.tab === "sequence" || bulk.tab === "insert" && params.insertType === "sequence") && (!/^[1-9]\d*$/.test(params.start) || !Number.isSafeInteger(Number(params.start) + bulk.rows.length - 1))) {
+        bulk.running = false; bulk.error = bulkText("invalidSequence"); refreshBulkStatus(); return;
+      }
+      const results = [];
+      const step = () => {
+        bulk.frame = 0;
+        if (state.bulk !== bulk || !state.started || revision !== bulk.revision) return;
+        if (bulk.userId !== state.snapshot.userId) { bulk.running = false; bulk.error = bulkText("updated"); refreshBulkStatus(); return; }
+        try {
+          const end = Math.min(results.length + 16, bulk.rows.length);
+          while (results.length < end) results.push(bulkRow(bulk.rows[results.length], results.length));
+          if (results.length < bulk.rows.length) { bulk.frame = window.requestAnimationFrame(step); return; }
+          bulk.preview = results;
+          bulk.changed = results.filter(row => row.changed).length;
+          bulk.invalid = results.filter(row => row.error).length;
+          bulk.clearedNames = results.filter(row => row.changed && row.patch.custom_name === "").length;
+          bulk.running = false;
+          renderBulkRows();
+          refreshBulkStatus();
+        } catch (error) { bulk.running = false; bulk.error = bulkText("failed"); refreshBulkStatus(); log.error("independent-name-bulk-preview-failed", "批量名称预览失败", { error, operation: bulk.kind, operationId: bulk.operationId, count: bulk.rows.length, durationMs: Math.round(performance.now() - bulk.startedAt) }); }
+      };
+      bulk.frame = window.requestAnimationFrame(step);
+    }
+
+    function switchBulkTab(tab) {
+      const bulk = state.bulk;
+      if (!bulk || bulk.running && bulk.committing) return;
+      bulk.tab = tab;
+      for (const button of bulkRoot().querySelectorAll("[data-lin-bulk-tab]")) {
+        const selected = button.dataset.linBulkTab === tab;
+        button.setAttribute("aria-selected", String(selected));
+        button.tabIndex = selected ? 0 : -1;
+      }
+      bulkRoot().querySelector("#st-lin-bulk-panel").setAttribute("aria-labelledby", `st-lin-bulk-tab-${tab}`);
+      bulkParameters();
+      scheduleBulkPreview();
+    }
+
+    function onBulkInput(event) {
+      const bulk = state.bulk;
+      if (!bulk || bulk.committing || !event.target.closest("[data-lin-bulk-editor]")) return false;
+      bulk.composing = event.isComposing === true;
+      const field = event.target;
+      if (bulk.composing) {
+        if (bulk.frame) window.cancelAnimationFrame(bulk.frame);
+        bulk.frame = 0;
+        bulk.revision += 1;
+        if (!field.matches("[data-lin-bulk-manual]")) bulk.running = true;
+        refreshBulkStatus();
+      }
+      if (field.matches("[data-lin-bulk-param]")) {
+        bulk.params[bulk.tab][field.dataset.linBulkParam] = field.value;
+        if (field.dataset.linBulkParam === "insertType") { bulkParameters(); bulkRoot().querySelector('[data-lin-bulk-param="insertType"]').focus(); }
+        if (!bulk.composing) scheduleBulkPreview();
+      } else if (field.matches("[data-lin-bulk-original]")) {
+        bulk.useOriginal = field.checked; scheduleBulkPreview();
+      } else if (field.matches("[data-lin-bulk-manual]")) {
+        const appid = Number(field.dataset.linBulkManual);
+        bulk.manual.set(appid, field.value);
+        if (bulk.composing) return true;
+        if (bulk.running) { if (!bulk.composing) scheduleBulkPreview(); return true; }
+        const index = bulk.index.get(appid);
+        const previous = bulk.preview[index];
+        const next = bulkRow(bulk.rows[index], index);
+        bulk.preview[index] = next;
+        bulk.changed += Number(next.changed) - Number(previous.changed);
+        bulk.invalid += Number(!!next.error) - Number(!!previous.error);
+        bulk.clearedNames += Number(next.changed && next.patch.custom_name === "") - Number(previous.changed && previous.patch.custom_name === "");
+        field.closest(".st-lin-bulk-row").dataset.changed = String(next.changed);
+        field.parentElement.querySelector("small").textContent = next.error;
+        refreshBulkStatus();
+      }
+      return true;
+    }
+
+    function reportFailure(error, bulk = state.bulk) {
+      if (!state.started || state.bulk !== bulk) return;
+      if (bulk) { bulk.running = false; bulk.committing = false; bulk.error = error.message || bulkText("failed"); refreshBulkStatus(); }
+      else { state.message = bulkText("failed"); renderTable(); }
+      log.error("independent-name-bulk-failed", "选中游戏批量操作失败", { error, operation: bulk?.kind, operationId: bulk?.operationId, count: bulk?.rows.length, durationMs: bulk ? Math.round(performance.now() - bulk.startedAt) : undefined });
+    }
+
+    // 在独立 Map 中分批校验、合并；最后替换草稿集合，取消或账号变化不留下半批草稿。
+    async function applyBulkEditor() {
+      const bulk = state.bulk;
+      if (!bulk || bulk.running || bulk.composing || bulk.error || bulk.invalid || !bulk.changed) return;
+      bulk.running = true;
+      bulk.committing = true;
+      refreshBulkStatus();
+      const previousDrafts = state.drafts;
+      const nextDrafts = new Map(previousDrafts);
+      const unchanged = (row, base) => {
+        return sameNameDraft(draftOf(row.appid), base);
+      };
+      for (let index = 0; index < bulk.preview.length; index += 1) {
+        if (state.bulk !== bulk || !state.started) return;
+        if (bulk.userId !== state.snapshot.userId || previousDrafts !== state.drafts) throw new Error(bulkText("updated"));
+        const row = bulk.preview[index];
+        if (row.changed) {
+          const current = draftOf(row.appid);
+          const base = bulk.rows[index].base;
+          if (!unchanged(row, base)) throw new Error(bulkText("updated"));
+          nextDrafts.set(row.appid, { ...current, aliases: current.aliases.slice(), edited: true, conflict: false, base: previousDrafts.get(row.appid)?.base || cloudOf(row.appid), ...row.patch });
+        }
+        if ((index + 1) % 16 === 0) await new Promise(resolve => { bulk.commitFrame = { resolve, id: window.requestAnimationFrame(() => { bulk.commitFrame = null; resolve(); }) }; });
+      }
+      if (state.bulk !== bulk || !state.started) return;
+      if (bulk.userId !== state.snapshot.userId || previousDrafts !== state.drafts) throw new Error(bulkText("updated"));
+      // 分批等待期间的就地修改也必须拒绝；校验结束到替换 Map 之间没有异步间隙。
+      for (let index = 0; index < bulk.preview.length; index += 1) if (bulk.preview[index].changed && !unchanged(bulk.preview[index], bulk.rows[index].base)) throw new Error(bulkText("updated"));
+      state.drafts = nextDrafts;
+      syncSelectedDrafts();
+      state.message = bulkText("applied", { n: bulk.changed });
+      log.info("independent-name-bulk-applied", "选中游戏批量修改已应用到草稿", { operation: bulk.kind, operationId: bulk.operationId, count: bulk.rows.length, changed: bulk.changed, durationMs: Math.round(performance.now() - bulk.startedAt) });
+      closeBulkEditor("applied");
+      renderTable();
+    }
+
+    function refreshBatchSave() {
+      const modal = document.getElementById(BATCH_MODAL);
+      const button = modal?.querySelector("[data-lin-save-all]");
+      if (!button) return;
+      const locked = state.busy || !!state.referenceRun || !!state.bulk || !!state.transfer;
+      // 输入和滚动复用已维护的筛选内计数，三态同步不遍历整库或重建列表
+      const selectAll = modal.querySelector("[data-lin-select-all]");
+      selectAll.checked = state.filtered.length > 0 && state.filteredSelected === state.filtered.length;
+      selectAll.indeterminate = state.filteredSelected > 0 && state.filteredSelected < state.filtered.length;
+      selectAll.disabled = locked || state.filtered.length === 0;
+      selectAll.title = selectAll.checked ? bulkText("cancelSelection") : i18n("steam.independentName.selectAll", "全选");
+      button.disabled = state.batchSaving || locked || state.selectedDrafts.size === 0;
+      button.textContent = state.batchSaving
+        ? i18n("steam.independentName.saving", "正在保存...")
+        : i18n("steam.independentName.saveChanges", "保存修改");
+      const quota = Number(state.snapshot.quota);
+      const quotaText = quota === -1 ? i18n("steam.independentName.quotaUnlimited", "额度不限") : i18n("steam.independentName.quotaUsed", "已用 $count$ / $quota$", { count: state.snapshot.count, quota });
+      modal.querySelector("[data-lin-stats]").textContent = `${i18n("steam.independentName.batchStats", "总 $total$ 款 · 筛选后 $filtered$ 款 · 已勾选 $selected$ 款 · 未保存修改 $dirty$ 款", { total: state.rows.length, filtered: state.filtered.length, selected: state.selected.size, dirty: state.drafts.size })} · ${i18n("steam.independentName.nameQuota", "名称额度：")} ${quotaText}`;
+      modal.querySelector("[data-lin-selected-count]").textContent = i18n("steam.independentName.selectedCount", "已选 $n$ 款", { n: state.selected.size });
+      modal.querySelector("[data-lin-export]").disabled = locked || state.batchSaving;
+      const reference = modal.querySelector("[data-lin-reference-many]");
+      reference.disabled = locked || state.batchSaving || !state.selected.size;
+      reference.textContent = state.referenceRun ? i18n("steam.independentName.fetchingCommunity", "正在获取社区名称...") : i18n("steam.independentName.fetchCommunity", "获取社区名称");
+      for (const control of modal.querySelectorAll("[data-lin-selection], [data-lin-select], [data-lin-search], [data-lin-filter-open], [data-lin-filter-add], [data-lin-import]")) control.disabled = locked;
+      modal.querySelector("[data-lin-actions-toggle]").disabled = locked || state.batchSaving;
+      for (const control of modal.querySelectorAll("[data-lin-bulk-action]")) {
+        control.disabled = locked || state.batchSaving || !state.selected.size;
+        control.title = state.selected.size ? "" : bulkText("selectFirst");
+      }
+      modal.querySelector("[data-lin-filter-clear]").disabled = locked || !state.filters.length;
+      modal.querySelector("[data-lin-filter-chips]").inert = locked;
+    }
+
+    function selectReadingChoice(control, choice, root, preview = true) {
+      control.model = window.SteamBuff.libraryCustomNameMnemonic.selectReading(control.model, Number(choice.dataset.linReadingIndex), choice.dataset.linReadingValue);
+      const group = choice.closest(".st-lin-reading-group");
+      for (const button of group.querySelectorAll("[data-lin-reading-value]")) button.setAttribute("aria-pressed", String(button === choice));
+      if (preview) {
+        root.querySelector("[data-lin-reading-full]").textContent = control.model.pinyin;
+        root.querySelector("[data-lin-reading-mnemonic]").textContent = control.model.mnemonic;
+      }
     }
 
     function applyReading(control) {
@@ -603,7 +1885,8 @@
         : root.querySelector("[data-lin-single-mnemonic]");
       if (pinyin) pinyin.value = draft.pinyin;
       if (mnemonic) mnemonic.value = draft.mnemonic;
-      root.querySelector("[data-lin-reading-preview]").hidden = true;
+      if (control.root) control.root.querySelector("[data-lin-reading-preview]").hidden = true;
+      refreshBatchSave();
     }
 
     function onReadingClick(event, control) {
@@ -612,21 +1895,13 @@
       if (!choice && !apply) return false;
       if (!control?.model || control.error) return true;
       if (!sameReadingBase(control.base, readingBase(control.appid))) {
-        const root = control.root || document.getElementById(MODAL)?.querySelector("[data-lin-single-readings]");
-        if (control.root) closeReadingEditor();
-        else setHtml(root, readingsHtml(singleReading(control.appid)), "library-independent-name-readings");
+        refreshBatchReading(control.appid);
         return true;
       }
       if (choice) {
-        control.model = window.SteamBuff.libraryCustomNameMnemonic.selectReading(control.model, Number(choice.dataset.linReadingIndex), choice.dataset.linReadingValue);
-        const group = choice.closest(".st-lin-reading-group");
-        for (const button of group.querySelectorAll("[data-lin-reading-value]")) button.setAttribute("aria-pressed", String(button === choice));
-        const root = control.root || document.getElementById(MODAL);
-        root.querySelector("[data-lin-reading-full]").textContent = control.model.pinyin;
-        root.querySelector("[data-lin-reading-mnemonic]").textContent = control.model.mnemonic;
+        selectReadingChoice(control, choice, control.root);
       }
       if (apply || !control.model.replace) applyReading(control);
-      if (control.root) positionReadingEditor(control);
       return true;
     }
 
@@ -643,9 +1918,8 @@
       if (appid) modal?.querySelector(`tr[data-appid="${appid}"] [data-lin-alias-edit]`)?.focus?.({ preventScroll: true });
     }
 
-    // 编辑区只维护当前游戏的别名副本；确认后写回行草稿，行保存仍走原有通道
+    // 编辑区只维护当前游戏的别名副本，确认后写回待统一保存的草稿。
     function openAliasEditor(appid, opener) {
-      closeReadingEditor(false);
       const modal = document.getElementById(BATCH_MODAL);
       const editor = modal?.querySelector("[data-lin-alias-editor]");
       if (!editor || !appid) return;
@@ -711,7 +1985,7 @@
       if (!draft) return false;
       const alias = text(draft.input);
       if (!alias) return draft.editing < 0;
-      if (draft.aliases.some((item, index) => index !== draft.editing && item === alias)) {
+      if (hasAlias(draft.aliases, alias, draft.editing)) {
         draft.message = i18n("steam.independentName.aliasDuplicate", "这个别名已存在");
         renderAliasEditor();
         return false;
@@ -742,8 +2016,10 @@
           return true;
         }
         if (JSON.stringify(draft.aliases) !== JSON.stringify(current)) ensureEdited(draft.appid).aliases = draft.aliases.slice();
+        refreshDraftFilter(draft.appid);
         const summary = document.getElementById(BATCH_MODAL)?.querySelector(`tr[data-appid="${draft.appid}"] [data-lin-alias-edit]`);
         if (summary) setHtml(summary, aliasSummaryHtml(draft.aliases), "library-independent-name-alias-summary");
+        refreshBatchSave();
         closeAliasEditor();
       } else if (event.target.closest("[data-lin-alias-commit]")) {
         commitAliasInput();
@@ -812,6 +2088,10 @@
 
     function rowsHtml(range) {
       const list = state.filtered.slice(range.start, range.end);
+      const visible = new Set(list.map(row => row.appid));
+      for (const appid of state.batchReadings.keys()) {
+        if (!visible.has(appid)) state.batchReadings.delete(appid);
+      }
       return list.map((row) => {
         const draft = draftOf(row.appid);
         const conflict = draft.conflict
@@ -821,13 +2101,12 @@
         const official = esc(row.official_name);
         return `
           <tr data-appid="${row.appid}">
-            <td class="st-lin-appid">${slot(String(row.appid))}</td>
+            <td class="st-lin-appid">${slot(`<label class="st-lin-row-select"><input type="checkbox" data-lin-select="${row.appid}" aria-label="${esc(i18n("steam.independentName.selectGame", "勾选 $name$", { name: row.official_name }))}" ${state.selected.has(row.appid) ? "checked" : ""} ${state.referenceRun ? "disabled" : ""}><span>${row.appid}</span></label>`)}</td>
             <td class="st-lin-official">${slot(`<span class="st-lin-clip" title="${official}">${official}</span>`)}</td>
-            <td class="st-lin-custom">${slot(`<input class="st-lin-name" type="text" maxlength="200" value="${esc(draft.custom_name)}" title="${esc(conflict)}">${conflict ? `<div class="st-lin-sync-error" title="${esc(conflict)}">${esc(conflict)}</div>` : ""}`)}</td>
+            <td class="st-lin-custom">${slot(`<input class="st-lin-name" type="text" maxlength="200" value="${esc(draft.custom_name)}" title="${esc(conflict)}">${conflict ? `<div class="st-lin-sync-error" title="${esc(conflict)}">${esc(conflict)}</div>` : statusLine(status)}`)}</td>
             <td class="st-lin-alias">${slot(aliasHtml(row.appid, draft.aliases))}</td>
             <td class="st-lin-mnemonic">${slot(`<input class="st-lin-mnemonic" type="text" maxlength="200" value="${esc(draft.mnemonic)}">`)}</td>
-            <td class="st-lin-pinyin">${slot(`<div class="st-lin-pinyin-entry"><input class="st-lin-pinyin" type="text" maxlength="200" value="${esc(draft.pinyin)}"><button class="st-lin-btn" type="button" data-lin-reading-edit="${row.appid}" aria-controls="st-lin-reading-popover" aria-expanded="false">${esc(i18n("steam.independentName.readingButton", "读音"))}</button></div>`)}</td>
-            <td class="st-lin-action">${slot(`<button class="st-lin-btn" type="button" data-lin-save title="${esc(status.text)}">${esc(i18n("steam.independentName.saveRow", "保存"))}</button>${statusLine(status)}`)}</td>
+            <td class="st-lin-pinyin">${slot(`<input class="st-lin-pinyin" type="text" maxlength="200" value="${esc(draft.pinyin)}"><div class="st-lin-batch-readings" data-lin-batch-readings>${readingsHtml(batchReading(row.appid))}</div>`)}</td>
           </tr>
         `;
       }).join("");
@@ -909,7 +2188,7 @@
       if (reason === "scroll" && sameWindow(range)) {
         return;
       }
-      closeReadingEditor(false);
+      window.clearTimeout(state.batchReadingTimer);
       const focus = rememberEditing(body);
       setHtml(body, `
         <div style="height:${range.before}px"></div>
@@ -920,13 +2199,9 @@
       `, "library-independent-name-rows");
       painted = { start: range.start, end: range.end, before: range.before, after: range.after };
       restoreFocus(body, focus);
+      refreshBatchSave();
       const msg = modal.querySelector("[data-lin-msg]");
       if (msg) {
-        const quota = Number(state.snapshot.quota);
-        const count = Number(state.snapshot.count) || 0;
-        const quotaText = quota === -1
-          ? i18n("steam.independentName.quotaUnlimited", "额度不限")
-          : i18n("steam.independentName.quotaUsed", "已用 $count$ / $quota$", { count, quota });
         let rejectedText = "";
         for (const id of Object.keys(state.snapshot.syncErrors || {})) {
           const status = syncStatus(id);
@@ -935,7 +2210,8 @@
             break;
           }
         }
-        msg.textContent = state.message || rejectedText || `${i18n("steam.independentName.rows", "共 $n$ 款游戏", { n: total })} · ${quotaText}`;
+        msg.textContent = state.message || rejectedText;
+        msg.hidden = !msg.textContent;
       }
     }
 
@@ -943,27 +2219,52 @@
       return `
         <div class="st-lin-dialog">
           <header class="st-lin-head">
-            <h2 id="st-lin-batch-title">${esc(i18n("steam.independentName.batchTitle", "批量设置自定义名称"))}</h2>
+            <h2 id="st-lin-batch-title">${esc(i18n("steam.independentName.batchTitle", "Steam Buff · 批量设置自定义名称"))}</h2>
             <button class="st-lin-btn" type="button" data-lin-close>${esc(i18n("common.close", "关闭"))}</button>
           </header>
-          <div class="st-lin-toolbar">
-            <input data-lin-search type="search" placeholder="${esc(i18n("steam.independentName.search", "搜索名称 / AppID / 别名"))}">
-            <button class="st-lin-btn" type="button" data-lin-export>${esc(i18n("steam.independentName.export", "导出"))}</button>
-            <button class="st-lin-btn" type="button" data-lin-import>${esc(i18n("steam.independentName.import", "导入"))}</button>
-            <input data-lin-file type="file" accept="application/json" hidden>
+          <div class="st-lin-top">
+            <div class="st-lin-filter-shell" data-lin-filter-shell>
+              <div class="st-lin-filter-bar">
+                <button class="st-lin-filter-icon-button" type="button" data-lin-filter-open aria-label="${esc(i18n("steam.independentName.filter", "筛选"))}" title="${esc(i18n("steam.independentName.filter", "筛选"))}">${iconHtml(FILTER_ICON_PATH, "st-lin-filter-icon")}</button>
+                <div class="st-lin-filter-chips" data-lin-filter-chips></div>
+                <button class="st-lin-btn st-lin-link st-lin-filter-add" type="button" data-lin-filter-add>${esc(i18n("steam.independentName.addFilter", "+ 添加筛选"))}</button>
+                <button class="st-lin-btn st-lin-link st-lin-filter-clear" type="button" data-lin-filter-clear hidden disabled>${esc(i18n("steam.independentName.clearFilters", "清空筛选"))}</button>
+              </div>
+              <section class="st-lin-filter-editor" data-lin-filter-editor role="dialog" aria-modal="true" aria-label="${esc(i18n("steam.independentName.filter", "筛选"))}" hidden>
+                <div class="st-lin-filter-editor-scroll" data-lin-filter-editor-scroll>
+                  <div data-lin-filter-rows></div>
+                  <button class="st-lin-btn st-lin-link" type="button" data-lin-filter-row-add>${esc(i18n("steam.independentName.addAndFilter", "+ 添加 AND 条件"))}</button>
+                  <p class="st-lin-msg" data-lin-filter-msg role="status"></p>
+                  <div class="st-lin-filter-actions">
+                    <button class="st-lin-btn" type="button" data-lin-filter-cancel>${esc(i18n("common.cancel", "取消"))}</button>
+                    <button class="st-lin-btn st-lin-primary" type="button" data-lin-filter-apply>${esc(i18n("steam.independentName.applyFilter", "应用"))}</button>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <p class="st-lin-msg st-lin-filter-stats" data-lin-stats></p>
+            <div class="st-lin-toolbar st-lin-selection-bar">
+              <button class="st-lin-btn st-lin-primary" type="button" data-lin-save-all disabled>${esc(i18n("steam.independentName.saveChanges", "保存修改"))}</button>
+              <span class="st-lin-msg" data-lin-selected-count></span>
+              <div class="st-lin-file-tools">
+                <button class="st-lin-btn" type="button" data-lin-actions-toggle aria-controls="st-lin-actions-menu" aria-expanded="false">${esc(bulkText("menu"))} ▾</button>
+                <div id="st-lin-actions-menu" class="st-lin-actions-menu" data-lin-actions-menu popover="manual" hidden><div class="st-lin-actions-scroll">${actionsMenuHtml()}</div></div>
+                <input data-lin-search type="search" value="${esc(state.search)}" aria-label="${esc(i18n("steam.independentName.search", "搜索名称 / AppID / 别名"))}" placeholder="${esc(i18n("steam.independentName.search", "搜索名称 / AppID / 别名"))}">
+                <input data-lin-file type="file" accept="application/json" hidden>
+              </div>
+            </div>
+            <p class="st-lin-msg" data-lin-msg role="status" hidden></p>
           </div>
-          <p class="st-lin-msg" data-lin-msg role="status"></p>
           <div class="st-lin-cols">
             <table class="st-lin-table">
               <thead>
                 <tr>
-                  <th class="st-lin-appid">${esc(i18n("steam.independentName.colAppid", "AppID"))}</th>
+                  <th class="st-lin-appid"><label class="st-lin-row-select"><input type="checkbox" data-lin-select-all aria-label="${esc(i18n("steam.independentName.selectAll", "全选"))}"><span>${esc(i18n("steam.independentName.colAppid", "AppID"))}</span></label></th>
                   <th class="st-lin-official">${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</th>
                   <th class="st-lin-custom">${esc(i18n("steam.independentName.colCustom", "自定义名称"))}</th>
                   <th class="st-lin-alias">${esc(i18n("steam.independentName.colAlias", "别名"))}</th>
                   <th class="st-lin-mnemonic">${esc(i18n("steam.independentName.colMnemonic", "助记符"))}</th>
                   <th class="st-lin-pinyin">${esc(i18n("steam.independentName.colPinyin", "拼音全拼"))}</th>
-                  <th class="st-lin-action"></th>
                 </tr>
               </thead>
             </table>
@@ -971,18 +2272,20 @@
           <div class="st-lin-scroll" data-lin-scroll>
             <div data-lin-body></div>
           </div>
-          <div class="st-lin-import" data-lin-import-dialog hidden>
-            <h3>${esc(i18n("steam.independentName.importPromptTitle", "是否导入已存在自定义名称的游戏？"))}</h3>
-            <p data-lin-import-msg></p>
-            <div class="st-lin-import-actions">
-              <button class="st-lin-btn" type="button" data-lin-import-cancel>${esc(i18n("steam.independentName.importCancel", "取消导入"))}</button>
-              <button class="st-lin-btn" type="button" data-lin-import-unset>${esc(i18n("steam.independentName.importUnset", "仅未设置"))}</button>
-              <button class="st-lin-btn" type="button" data-lin-import-all>${esc(i18n("steam.independentName.importAll", "全部导入"))}</button>
+        </div>
+        <section class="st-lin-alias-layer" data-lin-reference-confirm role="dialog" aria-modal="true" aria-labelledby="st-lin-reference-title" hidden>
+          <div class="st-lin-reference-dialog">
+            <h3 id="st-lin-reference-title">${esc(i18n("steam.independentName.replaceCommunityTitle", "替换已勾选游戏的名称？"))}</h3>
+            <p data-lin-reference-confirm-msg></p>
+            <div class="st-lin-filter-actions">
+              <button class="st-lin-btn" type="button" data-lin-reference-cancel>${esc(i18n("common.cancel", "取消"))}</button>
+              <button class="st-lin-btn st-lin-primary" type="button" data-lin-reference-accept>${esc(i18n("common.confirm", "确认"))}</button>
             </div>
           </div>
-        </div>
+        </section>
         <section class="st-lin-alias-layer" data-lin-alias-editor role="dialog" aria-modal="true" aria-labelledby="st-lin-alias-title" hidden></section>
-        <section id="st-lin-reading-popover" class="st-lin-reading-popover" data-lin-reading-editor popover="auto" aria-label="${esc(i18n("steam.independentName.readingTitle", "读音选择"))}"></section>
+        <section class="st-lin-alias-layer" data-lin-bulk-editor role="dialog" aria-modal="true" aria-labelledby="st-lin-bulk-title" hidden></section>
+        <section class="st-lin-alias-layer" data-lin-transfer role="dialog" aria-modal="true" aria-labelledby="st-lin-transfer-title" hidden></section>
       `;
     }
 
@@ -1003,7 +2306,7 @@
         script.onerror = () => reject(new Error(path));
         document.documentElement.appendChild(script);
       });
-      // 同一编辑会话切换浮层时复用正在加载的依赖，失败后允许下一次主动打开重试
+      // 名称编辑共用正在加载的依赖，失败后允许下一次主动打开重试
       libsTask = (async () => {
         await load(PINYIN_LIB);
         await load(MNEMONIC_CORE);
@@ -1015,7 +2318,7 @@
       }
     }
 
-    function fillGenerated(draft, prevName, nextName) {
+    function fillGenerated(draft, prevName, nextName, generated) {
       if (!nextName) {
         draft.mnemonic = "";
         draft.pinyin = "";
@@ -1029,10 +2332,10 @@
       const core = window.SteamBuff?.libraryCustomNameMnemonic;
       // 锁定表示用户改过，默认生成才套用大写助记符和音节首字母大写的拼音
       if (!draft.mnemonic_locked) {
-        draft.mnemonic = core?.mnemonic?.(nextName, window.pinyinPro?.pinyin) || draft.mnemonic;
+        draft.mnemonic = (generated ? generated.mnemonic : core?.mnemonic?.(nextName, window.pinyinPro?.pinyin)) || draft.mnemonic;
       }
       if (!draft.pinyin_locked) {
-        draft.pinyin = core?.pinyinFull?.(nextName, window.pinyinPro?.pinyin) || draft.pinyin;
+        draft.pinyin = (generated ? generated.pinyin : core?.pinyinFull?.(nextName, window.pinyinPro?.pinyin)) || draft.pinyin;
       }
     }
 
@@ -1041,6 +2344,8 @@
         throw new Error(i18n("steam.independentName.channelMissing", "名称列表通道不可用"));
       }
       state.rows = [];
+      state.rowsByAppid.clear();
+      state.meta = { options: {}, capabilities: {} };
       let offset = 0;
       let done = false;
       while (!done) {
@@ -1064,6 +2369,15 @@
           state.ch.postMessage({ script: ID, side: "ui", type: "list", rid, offset });
         });
         state.rows.push(...(page.rows || []));
+        for (const row of page.rows || []) state.rowsByAppid.set(row.appid, row);
+        if (page.meta && typeof page.meta === "object") {
+          state.meta = {
+            ...state.meta,
+            ...page.meta,
+            options: { ...(state.meta?.options || {}), ...(page.meta.options || {}) },
+            capabilities: { ...(state.meta?.capabilities || {}), ...(page.meta.capabilities || {}) },
+          };
+        }
         offset = Number(page.offset) || state.rows.length;
         done = page.done === true;
       }
@@ -1079,51 +2393,58 @@
         modal.addEventListener("keydown", onBatchKey);
         modal.addEventListener("input", onBatchInput);
         modal.addEventListener("change", onBatchChange);
+        modal.addEventListener("compositionend", onBatchInput);
+        modal.addEventListener("compositionend", scheduleBatchReadings);
         document.body.appendChild(modal);
       }
       state.opener = document.activeElement;
       state.aliasPending.clear();
+      state.busy = true;
       painted = null;
       setHtml(modal, batchModalHtml(), "library-independent-name-batch-modal");
-      modal.querySelector("[data-lin-reading-editor]").addEventListener("toggle", onReadingToggle);
+      renderFilterChips();
       modal.hidden = false;
       bindBatchModal(modal);
       const scroller = modal.querySelector("[data-lin-scroll]");
       scroller?.addEventListener("scroll", () => {
-        closeReadingEditor(false);
         state.scrollTop = scroller.scrollTop;
         renderTable("scroll");
       }, { passive: true });
       state.message = i18n("steam.independentName.loading", "正在加载...");
       renderTable();
       try {
-        const snap = await request("snapshot");
+        const [snap] = await Promise.all([request("snapshot"), loadLibs()]);
         adoptSnapshot(snap.data || state.snapshot);
         await loadRows();
         applySearch();
         state.message = "";
+        state.busy = false;
         renderTable();
       } catch (error) {
+        state.busy = false;
         state.message = error?.message || String(error);
         log.warn("independent-name-open-failed", "独立版名称页打开失败", { error });
         renderTable();
       }
     }
 
-    async function saveRow(appid) {
-      const row = state.rows.find((item) => item.appid === appid)
+    function savedItem(appid, value = draftOf(appid)) {
+      const row = state.rowsByAppid.get(appid)
         || (state.currentGame?.appid === appid ? state.currentGame : null);
-      const draft = draftOf(appid);
-      await loadLibs();
+      const draft = { ...value, aliases: value.aliases.slice() };
       const cloud = cloudOf(appid);
-      fillGenerated(draft, cloud.custom_name, draft.custom_name);
-      if (text(draft.mnemonic) && text(draft.mnemonic) !== text(cloud.mnemonic) && cloud.custom_name === draft.custom_name) {
+      // 导入或显式生成的读音已经就绪；保存不能覆盖结果，也不把同名的新读音误判为手工输入
+      const prepared = value.importPrepared || value.readingsPrepared;
+      if (!prepared) fillGenerated(draft, cloud.custom_name, draft.custom_name);
+      if (!prepared && text(draft.mnemonic) && text(draft.mnemonic) !== text(cloud.mnemonic) && cloud.custom_name === draft.custom_name) {
         draft.mnemonic_locked = true;
       }
-      if (text(draft.pinyin) && text(draft.pinyin) !== text(cloud.pinyin) && cloud.custom_name === draft.custom_name) {
+      if (!prepared && text(draft.pinyin) && text(draft.pinyin) !== text(cloud.pinyin) && cloud.custom_name === draft.custom_name) {
         draft.pinyin_locked = true;
       }
-      const saved = {
+      return {
+        appid,
+        steam_name: row?.official_name || "",
         custom_name: draft.custom_name,
         aliases: Array.isArray(draft.aliases) ? draft.aliases.slice() : [],
         mnemonic: draft.mnemonic,
@@ -1131,23 +2452,18 @@
         mnemonic_locked: draft.mnemonic_locked === true,
         pinyin_locked: draft.pinyin_locked === true,
       };
-      await request("save", {
-        item: {
-          appid,
-          steam_name: row?.official_name || "",
-          custom_name: saved.custom_name,
-          aliases: saved.aliases,
-          mnemonic: saved.mnemonic,
-          pinyin: saved.pinyin,
-          mnemonic_locked: saved.mnemonic_locked,
-          pinyin_locked: saved.pinyin_locked,
-        },
-      });
+    }
+
+    async function saveRow(appid) {
+      await loadLibs();
+      const saved = savedItem(appid);
+      await request("save", { item: saved });
       const snap = await request("snapshot");
       // 只清掉这次已经发出的内容，保存期间又改过的同一行草稿要留下
       const current = state.drafts.get(appid);
       if (current?.edited && sameNameDraft(current, saved)) {
         state.drafts.delete(appid);
+        state.importSelection.delete(appid);
       }
       adoptSnapshot(snap.data || state.snapshot);
       state.message = syncStatus(appid).text;
@@ -1159,149 +2475,449 @@
       renderTable();
     }
 
-    // 文件里没有锁定字段时视为未锁定，不能因为助记符或拼音非空就当成用户手工锁定
-    function importLock(item, key) {
-      if (!item || typeof item !== "object" || !Object.prototype.hasOwnProperty.call(item, key)) {
-        return false;
+    async function saveAllDrafts() {
+      if (state.batchSaving || state.referenceRun || state.busy || !state.selectedDrafts.size) return;
+      const items = [];
+      for (const appid of state.selected) {
+        const draft = syncSelectedDraft(appid);
+        if (draft) items.push(savedItem(appid, draft));
       }
-      return item[key] === true;
-    }
-
-    function exportJson() {
-      const items = state.rows.map((row) => {
-        const draft = cloudOf(row.appid);
-        return {
-          appid: row.appid,
-          name: row.official_name,
-          custom_name: draft.custom_name,
-          aliases: draft.aliases,
-          mnemonic: draft.mnemonic,
-          pinyin: draft.pinyin,
-          mnemonic_locked: draft.mnemonic_locked === true,
-          pinyin_locked: draft.pinyin_locked === true,
-        };
-      }).filter((item) => item.custom_name || (item.aliases || []).length);
-      const blob = new Blob([JSON.stringify({ items }, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "steam-buff-independent-names.json";
-      a.click();
-      URL.revokeObjectURL(url);
-      log.info("independent-name-export-success", "独立版名称已导出", { count: items.length });
-    }
-
-    function parseImportFile(parsed) {
-      const source = Array.isArray(parsed?.items) ? parsed.items : [];
-      const byId = new Map(state.rows.map((row) => [row.appid, row]));
-      const matched = [];
-      let existing = 0;
-      let unset = 0;
-      for (const item of source) {
-        const appid = Number(item?.appid) || 0;
-        const custom_name = text(item?.custom_name);
-        if (!appid || !custom_name || !byId.has(appid)) {
-          continue;
+      if (!items.length) return;
+      state.batchSaving = true;
+      refreshBatchSave();
+      try {
+        const result = await request("save-all", { items });
+        if (!result.data?.items || typeof result.data.items !== "object" || Array.isArray(result.data.items)) {
+          throw new TypeError("批量保存响应缺少名称快照");
         }
-        const hasMine = !!cloudOf(appid).custom_name;
-        if (hasMine) {
-          existing += 1;
-        } else {
-          unset += 1;
+        for (const item of items) {
+          const current = state.drafts.get(item.appid);
+          if (current?.edited && sameNameDraft(current, item)) {
+            state.drafts.delete(item.appid); state.importSelection.delete(item.appid);
+          }
         }
-        matched.push({
-          appid,
-          steam_name: byId.get(appid).official_name,
-          custom_name,
-          aliases: Array.isArray(item.aliases) ? item.aliases.slice(0, ALIAS_MAX) : [],
-          mnemonic: text(item.mnemonic),
-          pinyin: text(item.pinyin),
-          mnemonic_locked: importLock(item, "mnemonic_locked"),
-          pinyin_locked: importLock(item, "pinyin_locked"),
-          hasMine,
-        });
+        adoptSnapshot(result.data);
+        applySearch();
+        state.message = i18n("steam.independentName.savedAll", "已保存 $n$ 款游戏", { n: items.length });
+        log.info("independent-name-save-all-success", "独立版自定义名称批量已保存", { count: items.length });
+      } catch (error) {
+        state.message = error?.message || String(error);
+        log.warn("independent-name-save-all-failed", "独立版自定义名称批量保存失败", { error, count: items.length });
+      } finally {
+        state.batchSaving = false;
+        if (state.started) renderTable();
       }
-      return {
-        file: source.length,
-        matched: matched.length,
-        existing,
-        unset,
-        items: matched,
-      };
     }
 
-    function closeImportDialog() {
-      const box = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-import-dialog]");
-      if (box) {
-        box.hidden = true;
-      }
-      state.pendingImport = null;
+    function closeReferenceConfirm() {
+      const box = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-reference-confirm]");
+      if (box) box.hidden = true;
+      state.referencePending = null;
+      state.referenceSession?.close();
+      state.referenceSession = null;
     }
 
-    function showImportDialog(stats) {
-      const box = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-import-dialog]");
-      const msg = box?.querySelector("[data-lin-import-msg]");
-      if (!box || !msg) {
+    function fetchSelectedCommunity(opener) {
+      if (!state.selected.size || state.referenceRun || state.batchSaving || state.busy) return;
+      window.clearTimeout(state.searchTimer);
+      applySearch();
+      if (!state.selected.size) { refreshBatchSave(); return; }
+      const appids = Array.from(state.selected);
+      const existing = appids.filter(appid => !!text(draftOf(appid).custom_name)).length;
+      if (!existing) {
+        void fetchCommunity(appids);
         return;
       }
-      msg.textContent = i18n(
-        "steam.independentName.importPromptStats",
-        "文件中名称 $file$ 项，库内匹配 $matched$ 项；其中已有自定义名称 $existing$ 项，未设置 $unset$ 项",
-        stats,
-      );
+      const box = document.getElementById(BATCH_MODAL).querySelector("[data-lin-reference-confirm]");
+      state.referencePending = appids;
+      box.querySelector("[data-lin-reference-confirm-msg]").textContent = i18n("steam.independentName.replaceCommunityPrompt", "已勾选 $n$ 款，其中 $existing$ 款已有自定义名称。确认后获取社区名称并替换；没有社区名称的游戏保留原内容。", { n: appids.length, existing });
       box.hidden = false;
-      box.querySelector("[data-lin-import-cancel]")?.focus?.();
+      state.referenceSession = window.STDialogLifecycle.open({ root: box, restore: opener, initial: () => box.querySelector("[data-lin-reference-cancel]"), onEscape: closeReferenceConfirm });
+      state.referenceSession.focusInitial();
     }
 
-    async function importParsed(parsed, mode) {
-      await loadLibs();
-      const items = (parsed.items || []).filter((item) => mode !== "unset" || !item.hasMine).map((item) => {
-        const next = {
-          appid: item.appid,
-          steam_name: item.steam_name,
-          custom_name: item.custom_name,
-          aliases: item.aliases,
-          mnemonic: item.mnemonic,
-          pinyin: item.pinyin,
-          mnemonic_locked: item.mnemonic_locked === true,
-          pinyin_locked: item.pinyin_locked === true,
-        };
-        fillGenerated(next, "", next.custom_name);
-        return next;
-      });
-      const quota = Number(state.snapshot.quota);
-      if (quota >= 0) {
-        const existing = new Set(Object.keys(state.snapshot.items || {}).map(Number));
-        let next = existing.size;
-        for (const item of items) {
-          if (item.custom_name && !existing.has(item.appid)) {
-            next += 1;
-          }
-          if (!item.custom_name && existing.has(item.appid)) {
-            next -= 1;
-          }
-        }
-        if (next > quota) {
-          throw new Error(i18n("steam.independentName.quotaExceeded", "导入后将超过自定义名称额度"));
-        }
-      }
-      const rid = `import-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      state.importRid = rid;
-      state.message = i18n("steam.independentName.importing", "正在导入 $n$ 条，关闭窗口可取消", { n: items.length });
-      renderTable();
+    // 查询结果先全部校验再填入草稿；用户在等待期间改过的行保留较新的内容
+    async function fetchCommunity(appids) {
+      if (state.referenceRun || !appids.length) return;
+      const before = new Map(appids.map(appid => { const draft = draftOf(appid); return [appid, { ...draft, aliases: draft.aliases.slice() }]; }));
+      const run = { rid: `${Date.now()}-${Math.random().toString(36).slice(2)}`, controller: new AbortController() };
+      state.referenceRun = run;
+      state.message = "";
+      refreshBatchSave();
+      log.info("independent-name-community-start", "已开始获取勾选游戏的社区名称", { count: appids.length, requestId: run.rid });
       try {
-        await request("import", { items, rid });
+        const result = await request("reference-many", { appids, rid: run.rid }, Math.max(20000, Math.ceil(appids.length / 100) * 20000), run.controller.signal);
+        if (state.referenceRun !== run || !state.started) return;
+        const expected = new Set(appids);
+        if (!Array.isArray(result.rows) || result.rows.length !== appids.length || result.rows.some(row => !row || !expected.delete(row.appid) || typeof row.name !== "string")) throw new TypeError("社区名称响应格式错误");
+        let filled = 0;
+        let missing = 0;
+        let preserved = 0;
+        for (let index = 0; index < result.rows.length; index += 1) {
+          if (state.referenceRun !== run || !state.started) return;
+          const row = result.rows[index];
+          const name = text(row.name);
+          if (!name) missing += 1;
+          else if (!state.selected.has(row.appid) || !sameNameDraft(draftOf(row.appid), before.get(row.appid))) preserved += 1;
+          else {
+            const draft = ensureEdited(row.appid);
+            const previous = draft.custom_name;
+            draft.custom_name = name;
+            fillGenerated(draft, previous, name);
+            filled += 1;
+          }
+          if ((index + 1) % 100 === 0) await new Promise(resolve => window.setTimeout(resolve, 0));
+        }
+        applySearch();
+        state.message = i18n("steam.independentName.communityFilled", "已填入 $filled$ 款，无社区名称 $missing$ 款，保留新修改 $preserved$ 款；请点击保存修改。", { filled, missing, preserved });
+        log.info("independent-name-community-success", "社区名称已填入待保存草稿", { count: appids.length, filled, missing, preserved, requestId: run.rid });
+      } catch (error) {
+        if (state.referenceRun !== run || !state.started) return;
+        postReq({ type: "cancel-reference", rid: run.rid });
+        state.message = error?.message || i18n("steam.independentName.requestFailed", "名称请求失败");
+        log.error("independent-name-community-failed", "勾选游戏的社区名称获取失败", { error, count: appids.length, requestId: run.rid });
       } finally {
-        if (state.importRid === rid) {
-          state.importRid = "";
+        if (state.referenceRun === run) {
+          state.referenceRun = null;
+          if (state.started) renderTable();
         }
       }
-      const snap = await request("snapshot");
-      adoptSnapshot(snap.data || state.snapshot);
-      state.message = i18n("steam.independentName.imported", "已导入 $n$ 条", { n: items.length });
-      log.info("independent-name-import-success", "独立版名称已导入", { count: items.length, mode });
+    }
+
+    const transferRoot = () => document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-transfer]");
+
+    async function loadTransferLibs() {
+      if (window.STNameTransfer) return;
+      if (!transferLibsTask) transferLibsTask = (async () => {
+        for (const path of ["shared/user-names-snapshot.js", TRANSFER_LIB]) {
+          if (path.startsWith("shared/") && window.STUserNamesSnapshot) continue;
+          await new Promise((resolve, reject) => {
+            const script = document.createElement("script"); script.src = api.path.url(path);
+            script.onload = () => { script.remove(); resolve(); };
+            script.onerror = () => { script.remove(); reject(new Error(`无法加载 ${path}`)); };
+            document.documentElement.appendChild(script);
+          });
+        }
+      })();
+      try { await transferLibsTask; } finally { transferLibsTask = null; }
+    }
+
+    function closeTransfer(reason = "cancel") {
+      const io = state.transfer;
+      if (!io) return;
+      state.transfer = null;
+      io.worker?.close();
+      if (io.frame) { window.cancelAnimationFrame(io.frame.id); io.frame.resolve(); }
+      transferRoot().hidden = true;
+      refreshBatchSave();
+      io.session?.close();
+      if (reason === "cancel") log.info("independent-name-transfer-cancelled", "名称文件操作已取消", { operation: io.kind, operationId: io.id, durationMs: Math.round(performance.now() - io.started) });
+    }
+
+    function reportError(error, io) {
+      if (!state.started) return;
+      if (!io) {
+        state.message = error.message || ioText("failed");
+        log.error("independent-name-transfer-failed", "名称文件弹窗打开失败", { error, phase: "open" });
+        renderTable(); return;
+      }
+      if (state.transfer !== io) return;
+      io.working = false; io.error = error.message || ioText("failed");
+      refreshTransferStatus();
+      log.error("independent-name-transfer-failed", "名称文件操作失败", { error, operation: io.kind, operationId: io.id, phase: io.phase, durationMs: Math.round(performance.now() - io.started) });
+    }
+
+    function transferOptions(io) {
+      const choice = (key, values, current) => `<label>${esc(ioText(key))}<select data-lin-io-${key}>${values.map(value => `<option value="${value}" ${current === value ? "selected" : ""} ${key === "scope" && value === "selected" && !state.selected.size ? "disabled" : ""}>${esc(ioText(value))}</option>`).join("")}</select></label>`;
+      return choice("format", ["json", "xlsx"], io.format) + (io.kind === "export" ? choice("scope", ["all", "selected"], io.scope) : "");
+    }
+
+    async function openTransfer(kind) {
+      if (state.transfer || state.busy || state.batchSaving || state.referenceRun || state.bulk) return;
+      window.clearTimeout(state.searchTimer);
       applySearch();
-      renderTable();
+      closeActionsMenu(false);
+      const io = { kind, format: "json", scope: state.selected.size ? "selected" : "all", phase: "format", records: [], rows: [], manual: new Map(), bases: new Map(), clearEmpty: false, validOnly: false, changed: 0, invalid: 0, working: true, revision: 0, userId: state.snapshot.userId, id: `transfer-${Date.now()}-${Math.random().toString(36).slice(2)}`, started: performance.now(), virtual: VIRTUAL.createVirtualWindow({ rowHeight: 112, viewportHeight: 336, overscan: 4 }) };
+      state.transfer = io;
+      const root = transferRoot(); root.tabIndex = -1;
+      setHtml(root, `<div class="st-lin-transfer-dialog"><header class="st-lin-head"><h3 id="st-lin-transfer-title">Steam Buff · ${esc(ioText(kind))}</h3><button class="st-lin-btn" type="button" data-lin-io-close>${esc(i18n("common.close", "关闭"))}</button></header><div class="st-lin-transfer-options" data-lin-io-options>${transferOptions(io)}</div><p data-lin-io-hint>${esc(io.kind === "import" ? ioText("hint") : state.drafts.size ? ioText("saved") : "")}</p><div data-lin-io-sheet-box hidden><label>${esc(ioText("sheet"))}<select data-lin-io-sheet></select></label></div><div data-lin-io-preview hidden><p>${esc(ioText("nameHint"))}</p><p>${esc(ioText("aliases"))}</p><div class="st-lin-transfer-options"><label>${esc(ioText("empty"))}<select data-lin-io-empty><option value="skip">${esc(ioText("skip"))}</option><option value="clear">${esc(ioText("clear"))}</option></select></label><button class="st-lin-btn" type="button" data-lin-io-generate>${esc(ioText("generatePinyin"))}</button><label><input type="checkbox" data-lin-io-valid-only>${esc(ioText("validOnly"))}</label></div><div class="st-lin-transfer-scroll" data-lin-io-scroll tabindex="0"><div class="st-lin-transfer-columns">${["APPID", ...["colCustom", "colAlias", "colMnemonic", "colPinyin"].map(key => i18n("steam.independentName." + key, key))].map(value => `<b>${esc(value)}</b>`).join("")}</div><div data-lin-io-rows></div></div></div><p class="st-lin-msg" role="status" data-lin-io-status></p><footer class="st-lin-filter-actions"><button class="st-lin-btn" type="button" data-lin-io-template>${esc(ioText("template"))}</button><button class="st-lin-btn" type="button" data-lin-io-back hidden>${esc(ioText("back"))}</button><button class="st-lin-btn" type="button" data-lin-io-close>${esc(i18n("common.cancel", "取消"))}</button><button class="st-lin-btn st-lin-primary" type="button" data-lin-io-primary>${esc(ioText(kind === "import" ? "choose" : "export"))}</button></footer></div>`, "independent-name-transfer-dialog");
+      root.hidden = false;
+      io.session = window.STDialogLifecycle.open({ root, restore: document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-toggle]"), initial: () => io.working || !io.ready ? root.querySelector("[data-lin-io-close]") : io.phase === "preview" ? root.querySelector('[data-lin-io-field="custom_name"]') || root.querySelector("[data-lin-io-close]") : root.querySelector("select"), onEscape: () => closeTransfer() });
+      io.session.focusInitial();
+      root.querySelector("[data-lin-io-scroll]").addEventListener("scroll", () => { if (state.transfer === io && !io.composing) renderTransferRows(); }, { passive: true });
+      refreshBatchSave(); refreshTransferStatus();
+      log.info("independent-name-transfer-start", "已打开名称文件操作", { operation: kind, operationId: io.id });
+      try {
+        await loadTransferLibs();
+        if (state.transfer === io) { io.ready = true; io.working = false; refreshTransferStatus(); }
+      } catch (error) { reportError(error, io); }
+    }
+
+    function refreshTransferStatus() {
+      const io = state.transfer, root = transferRoot();
+      if (!io || !root) return;
+      root.querySelector("[data-lin-io-status]").textContent = io.error || (io.working ? ioText("working") : io.phase === "preview" ? (io.message ? io.message + " · " : "") + ioText("summary", { total: io.rows.length, changed: io.changed, same: io.rows.length - io.changed - io.invalid, invalid: io.invalid }) : io.message || "");
+      const primary = root.querySelector("[data-lin-io-primary]");
+      primary.textContent = ioText(io.phase === "preview" ? "apply" : io.kind === "import" ? "choose" : "export");
+      primary.disabled = !io.ready || io.working || io.composing || (io.phase === "preview" && (io.error || !io.changed || io.invalid > 0 && !io.validOnly));
+      for (const control of root.querySelectorAll("input, select, [data-lin-io-generate], [data-lin-io-template], [data-lin-io-back]")) control.disabled = !io.ready || io.working;
+      root.querySelector("#st-lin-transfer-title").textContent = "Steam Buff · " + ioText(io.phase === "preview" ? "preview" : io.kind);
+      root.querySelector("[data-lin-io-hint]").textContent = io.phase === "preview" ? "" : io.kind === "import" ? ioText(io.format === "json" ? "jsonHint" : "hint") : state.drafts.size ? ioText("saved") : "";
+      root.querySelector("[data-lin-io-options]").hidden = io.phase === "preview";
+      root.querySelector("[data-lin-io-preview]").hidden = io.phase !== "preview";
+      root.querySelector("[data-lin-io-back]").hidden = io.phase !== "preview";
+      root.querySelector("[data-lin-io-template]").hidden = io.kind !== "import" || io.phase === "preview";
+      const active = document.activeElement;
+      if (!root.contains(active) || active.disabled || active.closest("[hidden]")) {
+        if (io.working || !io.ready) root.querySelector("[data-lin-io-close]").focus({ preventScroll: true });
+        else io.session?.focusInitial();
+      }
+    }
+
+    function yieldTransfer(io) {
+      return new Promise(resolve => { io.frame = { resolve, id: window.requestAnimationFrame(() => { io.frame = null; resolve(); }) }; });
+    }
+
+    function transferWorker(io) {
+      if (!io.worker) io.worker = window.STNameTransfer.createSession(api.path.url);
+      return io.worker;
+    }
+
+    function downloadTransfer(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      try { const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); }
+      finally { URL.revokeObjectURL(url); }
+    }
+
+    async function exportTransfer(template = false) {
+      const io = state.transfer;
+      if (!io || io.working) return;
+      io.working = true; io.error = ""; refreshTransferStatus();
+      const rows = state.rows, selected = new Set(state.selected), snapshot = state.snapshot;
+      const items = [];
+      if (!template) for (let index = 0; index < rows.length; index += 1) {
+        if (state.transfer !== io) return;
+        const row = rows[index];
+        if (io.scope === "all" || selected.has(row.appid)) items.push({ appid: row.appid, name: row.official_name, ...cloudOf(row.appid, snapshot) });
+        if ((index + 1) % 100 === 0) await yieldTransfer(io);
+      }
+      const format = template ? "xlsx" : io.format;
+      const result = await transferWorker(io).request({ type: "export", format, items });
+      if (state.transfer !== io) return;
+      if (state.snapshot.userId !== io.userId) throw new Error(ioText("updated"));
+      downloadTransfer(result.blob, template ? "steam-buff-name-template.xlsx" : `steam-buff-independent-names.${format}`);
+      io.working = false; io.message = template ? "" : ioText("exported", { n: items.length }); refreshTransferStatus();
+      log.info("independent-name-export-success", "独立版名称文件已导出", { operationId: io.id, format, scope: template ? "template" : io.scope, count: items.length });
+    }
+
+    async function readTransferFile(file) {
+      const io = state.transfer;
+      if (!io || io.kind !== "import" || io.working) return;
+      if (!file.name.toLowerCase().endsWith("." + io.format)) throw new Error(ioText("wrongFile"));
+      io.worker?.close(); io.worker = null;
+      io.working = true; io.error = ""; io.message = ""; io.manual.clear(); io.bases.clear(); refreshTransferStatus();
+      const result = await transferWorker(io).request({ type: "read", format: io.format, file });
+      if (state.transfer !== io) return;
+      if (io.format === "xlsx") {
+        const select = transferRoot().querySelector("[data-lin-io-sheet]");
+        setHtml(select, result.sheets.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join(""), "independent-name-import-sheets");
+        transferRoot().querySelector("[data-lin-io-sheet-box]").hidden = result.sheets.length < 2;
+        await readTransferSheet(result.sheets[0]);
+      } else { io.records = result.records; await rebuildTransfer(io); }
+    }
+
+    async function readTransferSheet(name) {
+      const io = state.transfer;
+      io.working = true; io.error = ""; io.message = ""; refreshTransferStatus();
+      const result = await transferWorker(io).request({ type: "sheet", name });
+      if (state.transfer !== io) return;
+      io.records = result.records; io.manual.clear(); io.bases.clear();
+      await rebuildTransfer(io);
+    }
+
+    function compileTransferRow(io, index) {
+      const core = window.STNameTransfer, record = io.records[index], manual = io.manual.get(index) || {};
+      const id = Number(Object.hasOwn(manual, "appid") ? manual.appid : record.values.appid);
+      if (!io.bases.has(id)) { const base = draftOf(id); io.bases.set(id, { ...base, aliases: base.aliases.slice() }); }
+      const base = io.bases.get(id);
+      const row = { index, line: record.line, before: base, ...core.compile(record, base, io.clearEmpty, manual) };
+      if (!state.rowsByAppid.has(row.appid)) row.errors.push(ioText("unavailable"));
+      row.changed = !row.errors.length && !sameNameDraft(row.next, base);
+      return row;
+    }
+
+    // 改空值策略或 APPID 时只重算文件目标，16 项一批；普通字段输入只更新当前行。
+    async function rebuildTransfer(io) {
+      const active = document.activeElement;
+      io.focus = active?.matches("[data-lin-io-field]") ? { row: active.dataset.linIoRow, field: active.dataset.linIoField, start: active.selectionStart, end: active.selectionEnd } : null;
+      const revision = ++io.revision;
+      io.working = true; io.error = ""; io.phase = "preview"; refreshTransferStatus();
+      const rows = [], counts = new Map();
+      for (let index = 0; index < io.records.length; index += 1) {
+        if (state.transfer !== io || revision !== io.revision) return;
+        const row = compileTransferRow(io, index); rows.push(row);
+        counts.set(row.appid, (counts.get(row.appid) || 0) + 1);
+        if ((index + 1) % 16 === 0) await yieldTransfer(io);
+      }
+      let changed = 0, invalid = 0;
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index];
+        if (counts.get(row.appid) > 1) row.errors.push(ioText("duplicate"));
+        row.changed = !row.errors.length && row.changed;
+        changed += Number(row.changed); invalid += Number(row.errors.length > 0);
+        if ((index + 1) % 16 === 0) await yieldTransfer(io);
+        if (state.transfer !== io || revision !== io.revision) return;
+      }
+      if (state.snapshot.userId !== io.userId) throw new Error(ioText("updated"));
+      io.rows = rows; io.counts = counts; io.changed = changed; io.invalid = invalid; io.working = false;
+      renderTransferRows(); refreshTransferStatus();
+    }
+
+    function renderTransferRows() {
+      const io = state.transfer, root = transferRoot();
+      if (!io || io.phase !== "preview" || io.composing) return;
+      const core = window.STNameTransfer, scroll = root.querySelector("[data-lin-io-scroll]");
+      const range = io.virtual.update({ scrollTop: Math.max(0, scroll.scrollTop - 32), viewportHeight: scroll.clientHeight || 336 }).range(io.rows.length);
+      const active = document.activeElement;
+      const focus = active?.matches("[data-lin-io-field]") ? { row: active.dataset.linIoRow, field: active.dataset.linIoField, start: active.selectionStart, end: active.selectionEnd } : io.focus;
+      io.focus = null;
+      const fieldValue = (row, field) => {
+        const manual = io.manual.get(row.index);
+        if (manual && Object.hasOwn(manual, field)) return manual[field];
+        if (field === "appid") return io.records[row.index].values.appid ?? "";
+        if (row.errors.length && Object.hasOwn(io.records[row.index].values, field)) {
+          const raw = io.records[row.index].values[field];
+          return field === "aliases" && Array.isArray(raw) ? (raw.every(value => typeof value === "string") ? core.quoteAliases(raw) : JSON.stringify(raw)) : String(raw ?? "");
+        }
+        return field === "aliases" ? core.quoteAliases(row.next.aliases) : row.next[field];
+      };
+      setHtml(root.querySelector("[data-lin-io-rows]"), `<div style="height:${range.before}px"></div>${io.rows.slice(range.start, range.end).map(row => `<div class="st-lin-transfer-row" data-lin-io-preview-row="${row.index}" data-changed="${row.changed}">${["appid", ...core.fields].map((field, col) => `<label><span class="st-lin-transfer-mobile-label">${esc(core.headers[col])}</span><input type="text" data-lin-io-field="${field}" data-lin-io-row="${row.index}" value="${esc(fieldValue(row, field))}" aria-label="${esc(ioText("line", { n: row.line }))} ${esc(core.headers[col])}"><small title="${esc(field === "appid" ? state.rowsByAppid.get(row.appid)?.official_name || "" : field === "aliases" ? core.quoteAliases(row.before.aliases) : row.before[field])}">${esc(field === "appid" ? ioText("line", { n: row.line }) : ioText("before") + "：" + (field === "aliases" ? core.quoteAliases(row.before.aliases) : row.before[field]))}</small></label>`).join("")}<p class="st-lin-transfer-row-status" title="${esc(row.errors.join("；"))}">${esc(row.errors.join("；"))}</p></div>`).join("")}<div style="height:${range.after}px"></div>`, "independent-name-import-preview");
+      if (focus) { const input = root.querySelector(`[data-lin-io-row="${focus.row}"][data-lin-io-field="${focus.field}"]`); input?.focus({ preventScroll: true }); input?.setSelectionRange(focus.start, focus.end); }
+      if (!root.contains(document.activeElement) || document.activeElement.disabled || document.activeElement.closest("[hidden]")) scroll.focus({ preventScroll: true });
+    }
+
+    function onTransferInput(event) {
+      const io = state.transfer, field = event.target;
+      if (!io || io.working || !field.matches("[data-lin-io-field]")) return;
+      io.error = ""; io.message = "";
+      const index = Number(field.dataset.linIoRow);
+      io.manual.set(index, { ...io.manual.get(index), [field.dataset.linIoField]: field.value });
+      io.composing = event.isComposing === true;
+      if (io.composing) { refreshTransferStatus(); return; }
+      if (field.dataset.linIoField === "appid") { void rebuildTransfer(io).catch(error => reportError(error, io)); return; }
+      const previous = io.rows[index], row = compileTransferRow(io, index);
+      if (io.counts.get(row.appid) > 1) row.errors.push(ioText("duplicate"));
+      row.changed = !row.errors.length && row.changed;
+      io.rows[index] = row;
+      io.changed += Number(row.changed) - Number(previous.changed);
+      io.invalid += Number(!!row.errors.length) - Number(!!previous.errors.length);
+      const element = field.closest("[data-lin-io-preview-row]");
+      element.dataset.changed = String(row.changed);
+      const status = element.querySelector(".st-lin-transfer-row-status");
+      status.textContent = row.errors.join("；"); status.title = status.textContent;
+      if (field.dataset.linIoField === "custom_name") for (const input of element.querySelectorAll("[data-lin-io-field]")) {
+        const key = input.dataset.linIoField;
+        if (["mnemonic", "pinyin"].includes(key) && !Object.hasOwn(io.manual.get(index), key)) input.value = row.next[key];
+      }
+      refreshTransferStatus();
+    }
+
+    async function generateTransfer() {
+      const io = state.transfer;
+      if (!io || io.working || io.composing) return;
+      io.working = true; io.error = ""; refreshTransferStatus();
+      await loadLibs();
+      const edits = new Map(io.manual), core = window.SteamBuff.libraryCustomNameMnemonic;
+      let count = 0;
+      for (let index = 0; index < io.rows.length; index += 1) {
+        if (state.transfer !== io) return;
+        const row = io.rows[index];
+        if (!row.errors.length && row.next.custom_name) {
+          const { pinyin, mnemonic } = core.readings(row.next.custom_name, {}, window.pinyinPro);
+          if (typeof pinyin !== "string" || typeof mnemonic !== "string") throw new TypeError("读音生成返回值必须是文本");
+          // 严格核心对无汉字名称返回空结果；这类项目保留预览原值，不能阻止其他有效项目生成。
+          if (pinyin.trim()) { edits.set(index, { ...edits.get(index), pinyin, mnemonic }); count += 1; }
+        }
+        if ((index + 1) % 16 === 0) await yieldTransfer(io);
+      }
+      if (state.transfer !== io) return;
+      io.manual = edits;
+      await rebuildTransfer(io);
+      if (state.transfer === io) {
+        io.message = ioText("generated", { n: count }); refreshTransferStatus();
+        log.info("independent-name-import-generated", "导入预览拼音全拼和助记符已重新生成", { operationId: io.id, fields: ["pinyin", "mnemonic"], count });
+      }
+    }
+
+    async function applyTransfer() {
+      const io = state.transfer;
+      if (!io || io.working || io.composing || !io.changed || io.invalid && !io.validOnly) return;
+      io.working = true; io.error = ""; refreshTransferStatus();
+      const current = state.drafts, prepared = new Map(), selected = new Set();
+      for (let index = 0; index < io.rows.length; index += 1) {
+        if (state.transfer !== io) return;
+        const row = io.rows[index];
+        if (!row.errors.length && row.changed) {
+          if (!sameNameDraft(draftOf(row.appid), row.before)) throw new Error(ioText("updated"));
+          prepared.set(row.appid, { ...row.next, aliases: row.next.aliases.slice(), edited: true, importPrepared: true, conflict: false, base: current.get(row.appid)?.base || cloudOf(row.appid) });
+          selected.add(row.appid);
+        }
+        if ((index + 1) % 16 === 0) await yieldTransfer(io);
+      }
+      if (state.transfer !== io) return;
+      if (state.snapshot.userId !== io.userId || state.drafts !== current) throw new Error(ioText("updated"));
+      for (const row of io.rows) if (selected.has(row.appid) && !sameNameDraft(draftOf(row.appid), row.before)) throw new Error(ioText("updated"));
+      // 分批准备期间，未导入的草稿可能被就地更新；提交时才复制当前集合，只合并本次字段补丁。
+      const next = new Map(current);
+      for (const [appid, draft] of prepared) next.set(appid, draft);
+      state.drafts = next; state.selected = selected; state.importSelection = new Set(selected);
+      syncSelectedDrafts(); applySearch();
+      state.message = ioText("applied", { n: selected.size });
+      log.info("independent-name-import-success", "名称文件已应用到主窗口草稿", { operationId: io.id, format: io.format, count: selected.size, invalid: io.invalid, durationMs: Math.round(performance.now() - io.started) });
+      closeTransfer("applied"); renderTable();
+    }
+
+    function onTransferClick(event) {
+      const io = state.transfer, target = event.target;
+      if (!io || !target.closest("[data-lin-transfer]")) return;
+      if (target.closest("[data-lin-io-close]")) { closeTransfer(); return; }
+      if (io.working || io.composing) return;
+      let task;
+      if (target.closest("[data-lin-io-template]")) task = exportTransfer(true);
+      else if (target.closest("[data-lin-io-back]")) {
+        io.worker?.close(); io.worker = null; io.records = []; io.rows = []; io.manual.clear(); io.bases.clear(); io.phase = "format"; io.error = "";
+        transferRoot().querySelector("[data-lin-io-sheet-box]").hidden = true; refreshTransferStatus();
+      } else if (target.closest("[data-lin-io-primary]")) {
+        if (io.phase === "preview") task = applyTransfer();
+        else if (io.kind === "export") task = exportTransfer();
+        else {
+          const input = document.getElementById(BATCH_MODAL).querySelector("[data-lin-file]");
+          input.accept = io.format === "json" ? ".json,application/json" : ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+          input.click();
+        }
+      } else {
+        const button = target.closest("[data-lin-io-generate]");
+        if (button) task = generateTransfer();
+      }
+      if (task) void task.catch(error => reportError(error, io));
+    }
+
+    function onTransferChange(event) {
+      const io = state.transfer, target = event.target;
+      if (io.working || io.composing) return;
+      let task;
+      if (target.matches("[data-lin-io-format]")) {
+        io.format = target.value; io.error = ""; io.message = "";
+        io.worker?.close(); io.worker = null;
+        transferRoot().querySelector("[data-lin-io-sheet-box]").hidden = true;
+      }
+      else if (target.matches("[data-lin-io-scope]")) io.scope = target.value;
+      else if (target.matches("[data-lin-io-empty]")) { io.clearEmpty = target.value === "clear"; task = rebuildTransfer(io); }
+      else if (target.matches("[data-lin-io-valid-only]")) io.validOnly = target.checked;
+      else if (target.matches("[data-lin-io-sheet]")) task = readTransferSheet(target.value);
+      else if (target.matches("[data-lin-file]") && target.files?.[0]) { const file = target.files[0]; target.value = ""; task = readTransferFile(file); }
+      refreshTransferStatus();
+      if (task) void task.catch(error => reportError(error, io));
     }
 
     function addSingleAlias(appid, value) {
@@ -1310,40 +2926,166 @@
         return;
       }
       const draft = ensureEdited(appid);
-      if (draft.aliases.length >= ALIAS_MAX || draft.aliases.includes(alias)) {
+      if (draft.aliases.length >= ALIAS_MAX || hasAlias(draft.aliases, alias)) {
         return;
       }
       draft.aliases.push(alias);
       renderSingleModal();
     }
 
-    function closeNativeMenu(entry) {
+    function nativeMenuInstance(entry) {
+      const root = entry?.parentElement;
+      for (let fiber = reactFiber(root), depth = 0; fiber && depth < 16; fiber = fiber.return, depth += 1) {
+        const instance = fiber.memoizedProps?.instance;
+        if (
+          instance
+          && typeof instance.SetOnHideCallback === "function"
+          && typeof instance.Hide === "function"
+          && typeof instance.HideSubMenu === "function"
+          && typeof instance.m_fnOnHideCallback === "function"
+        ) {
+          return instance;
+        }
+      }
+      return null;
+    }
+
+    function nativeMenuItemCloseCallback(entry) {
       const root = entry?.parentElement;
       for (let fiber = reactFiber(root), depth = 0; fiber && depth < 16; fiber = fiber.return, depth += 1) {
         const close = fiber.memoizedProps?.fnOnMenuItemSelected;
         if (typeof close !== "function") {
           continue;
         }
-        try {
-          close();
-          return;
-        } catch (error) {
-          log.warn("independent-name-native-menu-close-failed", "Steam 原生菜单关闭回调执行失败", { error });
-          break;
-        }
+        return close;
       }
-      root?.dispatchEvent?.(new KeyboardEvent("keydown", {
-        key: "Escape",
-        code: "Escape",
-        bubbles: true,
-      }));
+      return null;
     }
 
-    function addContextMenuEntry(game) {
+    function nativeMenuItemClose(entry) {
+      const close = nativeMenuItemCloseCallback(entry);
+      if (!close) {
+        return false;
+      }
+      try {
+        close();
+        return true;
+      } catch (error) {
+        log.warn("independent-name-native-menu-close-failed", "Steam 原生菜单关闭回调执行失败", { error });
+        return false;
+      }
+    }
+
+    function cleanupContextMenu(record = state.contextMenu) {
+      if (!record || record.cleaned) {
+        return;
+      }
+      record.cleaned = true;
+      try {
+        record.entry?.remove?.();
+      } finally {
+        if (record.instance.m_fnOnHideCallback === record.wrappedHide) {
+          try {
+            record.instance.SetOnHideCallback(record.originalHide);
+          } catch (error) {
+            log.warn("independent-name-native-menu-hook-restore-failed", "Steam 原生菜单关闭回调恢复失败", { error });
+          }
+        }
+        if (state.contextMenu === record) {
+          state.contextMenu = null;
+        }
+      }
+    }
+
+    function synchronizeClosedContextMenu(record) {
+      if (!record || record.instance.visible !== false
+        || !record.menu.isConnected || !record.mouseOverlay?.isConnected) {
+        return;
+      }
+      try {
+        const manager = record.instance.m_ContextMenuManager;
+        if (typeof manager?.BShouldRenderMouseOverlay !== "function"
+          || typeof manager.OnMenusChanged?.Dispatch !== "function") {
+          throw new TypeError("Steam 原生菜单界面同步接口不可用");
+        }
+        if (manager.BShouldRenderMouseOverlay()) {
+          return;
+        }
+        // 当前菜单已逻辑关闭但 DOM 仍挂载时，通知原管理器完成界面同步。
+        manager.OnMenusChanged.Dispatch();
+        log.warn("independent-name-native-menu-sync-requested", "原生菜单关闭后节点仍挂载，已请求 Steam 同步菜单界面", { appid: record.appid });
+      } catch (error) {
+        log.error("independent-name-native-menu-sync-failed", "Steam 原生菜单关闭后的界面同步失败", { error, appid: record.appid });
+      }
+    }
+
+    function installContextMenuLifecycle(menu, entry, instance, game, generation) {
+      const originalHide = instance.m_fnOnHideCallback;
+      if (typeof originalHide !== "function") {
+        return null;
+      }
+      const operationGeneration = Number.isSafeInteger(generation)
+        ? generation
+        : state.contextMenuGeneration + 1;
+      const record = {
+        menu,
+        mouseOverlay: menu.parentElement?.parentElement?.querySelector(MENU_MOUSE_OVERLAY_SELECTOR) || null,
+        entry,
+        instance,
+        appid: Number(game?.appid) || 0,
+        generation: operationGeneration,
+        originalHide,
+        wrappedHide: null,
+        cleaned: false,
+      };
+      record.wrappedHide = (...args) => {
+        // 注: 移除入口会让下方子菜单项移到鼠标处，必须先停止菜单命中。
+        menu.classList.add(MENU_CLOSING_CLASS);
+        let result;
+        try {
+          result = originalHide.apply(instance, args);
+        } catch (error) {
+          log.warn("independent-name-native-menu-original-hide-failed", "Steam 原生菜单隐藏回调执行失败", { error });
+        } finally {
+          cleanupContextMenu(record);
+        }
+        return result;
+      };
+      try {
+        instance.SetOnHideCallback(record.wrappedHide);
+      } catch (error) {
+        log.warn("independent-name-native-menu-hook-failed", "Steam 原生菜单关闭回调挂接失败", { error });
+        return null;
+      }
+      state.contextMenuGeneration = Math.max(state.contextMenuGeneration, record.generation);
+      state.contextMenu = record;
+      return record;
+    }
+
+    function updateContextMenuGame(record, game, generation) {
+      const appid = Number(game?.appid) || 0;
+      const operationGeneration = Number.isSafeInteger(generation)
+        ? generation
+        : state.contextMenuGeneration + 1;
+      state.contextMenuGeneration = Math.max(state.contextMenuGeneration, operationGeneration);
+      record.generation = operationGeneration;
+      record.appid = appid;
+      record.entry.__steamBuffIndependentNameGame = {
+        appid,
+        official_name: text(game?.official_name),
+      };
+      record.entry.__steamBuffIndependentNameGeneration = record.generation;
+    }
+
+    function addContextMenuEntry(game, generation) {
       const appid = Number(game?.appid) || 0;
       if (!appid) {
         return false;
       }
+      const operationGeneration = Number.isSafeInteger(generation)
+        ? generation
+        : state.contextMenuGeneration + 1;
+      state.contextMenuGeneration = Math.max(state.contextMenuGeneration, operationGeneration);
       const popup = document.getElementById("popup_target");
       const items = popup?.querySelectorAll?.("div[role='menuitem'].contextMenuItem") || [];
       let matched = null;
@@ -1364,44 +3106,111 @@
       if (!favorite) {
         return false;
       }
+      const instance = nativeMenuInstance(matched);
+      const close = nativeMenuItemCloseCallback(matched);
+      if (!instance || !close) {
+        log.warn("independent-name-native-menu-close-unavailable", "Steam 原生菜单关闭回调不可用，跳过扩展入口", { appid });
+        return false;
+      }
+      if (instance.visible !== true) {
+        return false;
+      }
+      menu.classList.remove(MENU_CLOSING_CLASS);
+      const active = state.contextMenu;
+      if (active && (active.menu !== menu || active.instance !== instance)) {
+        cleanupContextMenu(active);
+      }
       const children = Array.from(menu.children || []);
       const favoriteIndex = children.indexOf(favorite);
       const next = favoriteIndex >= 0 ? children[favoriteIndex + 1] || null : null;
       const existing = menu.querySelector?.(`[${MENU_ENTRY_ATTR}]`);
-      if (existing) {
-        existing.__steamBuffIndependentNameGame = {
-          appid,
-          official_name: text(game?.official_name),
-        };
-        if (existing !== next) {
-          menu.insertBefore(existing, next);
-        }
+      if (active && active.menu === menu && active.instance === instance && active.entry === existing) {
+        updateContextMenuGame(active, game, operationGeneration);
         return true;
       }
-      const entry = favorite.cloneNode?.(true);
-      if (!entry) {
+      if (active && active.menu === menu && active.instance === instance) {
+        cleanupContextMenu(active);
+      }
+      if (existing) {
+        existing.remove?.();
+      }
+      if (typeof document.createElement !== "function" || typeof menu.insertBefore !== "function") {
         return false;
       }
+      const entry = document.createElement("div");
+      entry.className = `${text(favorite.className) || "contextMenuItem"} st-lin-context-entry`;
       entry.setAttribute("role", "menuitem");
       entry.setAttribute("tabindex", "-1");
       entry.setAttribute(MENU_ENTRY_ATTR, "");
-      entry.classList?.add?.("st-lin-context-entry");
       entry.textContent = i18n("steam.independentName.open", "自定义名称");
       entry.__steamBuffIndependentNameGame = {
         appid,
         official_name: text(game?.official_name),
       };
-      entry.addEventListener("click", () => {
-        closeNativeMenu(entry);
-        const current = entry.__steamBuffIndependentNameGame;
-        openSingleModal(current).catch((error) => {
-          log.warn("independent-name-open-failed", "独立版单游戏名称弹窗打开失败", {
+      const record = installContextMenuLifecycle(menu, entry, instance, game, operationGeneration);
+      if (!record) {
+        return false;
+      }
+      entry.__steamBuffIndependentNameGeneration = record.generation;
+      entry.addEventListener("mouseenter", () => {
+        if (
+          state.started !== true
+          || window.__SteamBuffLibraryIndependentNameUi !== state
+          || state.contextMenu !== record
+          || record.cleaned
+        ) {
+          return;
+        }
+        try {
+          instance.HideSubMenu();
+        } catch (error) {
+          log.error("independent-name-native-submenu-hide-failed", "Steam 原生子菜单收起失败", {
             error,
-            appid: Number(current?.appid) || 0,
+            appid: record.appid,
+          });
+        }
+      });
+      entry.addEventListener("click", () => {
+        const current = entry.__steamBuffIndependentNameGame;
+        const generation = entry.__steamBuffIndependentNameGeneration;
+        if (
+          state.started !== true
+          || window.__SteamBuffLibraryIndependentNameUi !== state
+          || state.contextMenu !== record
+          || record.cleaned
+          || record.generation !== generation
+          || record.appid !== Number(current?.appid) || !current
+        ) {
+          return;
+        }
+        if (!nativeMenuItemClose(entry)) {
+          return;
+        }
+        window.requestAnimationFrame(() => {
+          if (
+            state.started !== true
+            || window.__SteamBuffLibraryIndependentNameUi !== state
+            || state.contextMenuGeneration !== generation
+            || document.hidden
+            || entry.__steamBuffIndependentNameGame !== current
+          ) {
+            return;
+          }
+          openSingleModal(current, record).catch((error) => {
+            log.warn("independent-name-open-failed", "独立版单游戏名称弹窗打开失败", {
+              error,
+              appid: Number(current?.appid) || 0,
+            });
           });
         });
       });
-      menu.insertBefore(entry, next);
+      try {
+        menu.insertBefore(entry, next);
+      } catch (error) {
+        cleanupContextMenu(record);
+        log.warn("independent-name-native-menu-entry-insert-failed", "独立版右键菜单入口插入失败", { error, appid });
+        return false;
+      }
       return true;
     }
 
@@ -1413,17 +3222,20 @@
       if (!appid || !officialName) {
         return;
       }
+      const generation = state.contextMenuGeneration + 1;
+      state.contextMenuGeneration = generation;
       // 当前 Steam 菜单在原生 contextmenu 结束时已创建，下一帧只覆盖同一次用户操作的 React 提交
       window.requestAnimationFrame(() => {
         if (state.started !== true || window.__SteamBuffLibraryIndependentNameUi !== state) {
           return;
         }
-        addContextMenuEntry({ appid, official_name: officialName });
+        addContextMenuEntry({ appid, official_name: officialName }, generation);
       });
     }
 
     function onSingleClick(event) {
-      if (!state.singleBusy && onReadingClick(event, state.singleReading)) return;
+      if (onSingleReadingPreviewClick(event)) return;
+      if (onSingleReadingClick(event)) return;
       if (event.target.closest("[data-lin-single-close], [data-lin-single-cancel]")) {
         closeSingleModal();
         return;
@@ -1433,6 +3245,20 @@
         openBatchModal().catch((error) => {
           log.warn("independent-name-open-failed", "独立版批量名称页打开失败", { error });
         });
+        return;
+      }
+      if (state.singleAiRun) return;
+      if (event.target.closest("[data-lin-single-ai]")) {
+        void generateSingleName();
+        return;
+      }
+      if (event.target.closest("[data-lin-single-use-reference]") && state.currentGame && !state.singleBusy) {
+        const name = state.currentGame.reference_name;
+        const input = document.getElementById(MODAL)?.querySelector("[data-lin-single-name]");
+        if (!name || !input) return;
+        input.value = name;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.focus({ preventScroll: true });
         return;
       }
       const del = event.target.closest("[data-lin-single-alias-del]");
@@ -1509,17 +3335,118 @@
     }
 
     function onBatchClick(event) {
-      if (event.target.closest("[data-lin-reading-close]")) { closeReadingEditor(); return; }
-      if (onReadingClick(event, state.readingEditor)) return;
-      const reading = event.target.closest("[data-lin-reading-edit]");
-      if (reading) {
-        openReadingEditor(Number(reading.dataset.linReadingEdit), reading).catch((error) => {
-          closeReadingEditor();
-          state.message = i18n("steam.independentName.readingFailed", "读音候选加载失败，请关闭后重新打开编辑区");
-          log.error("independent-name-readings-failed", "名称读音选择浮层打开失败", { error, appid: Number(reading.dataset.linReadingEdit) });
-          renderTable();
-        });
+      if (state.transfer) {
+        try { onTransferClick(event); } catch (error) { reportError(error, state.transfer); }
         return;
+      }
+      const target = event.target;
+      if (state.bulk) {
+        if (!target.closest("[data-lin-bulk-editor]")) return;
+        if (target.closest("[data-lin-bulk-cancel]")) { closeBulkEditor(); return; }
+        const tab = target.closest("[data-lin-bulk-tab]");
+        if (tab) { switchBulkTab(tab.dataset.linBulkTab); return; }
+        if (target.closest("[data-lin-bulk-apply]")) {
+          const bulk = state.bulk;
+          void applyBulkEditor().catch(error => reportFailure(error, bulk));
+        }
+        return;
+      }
+      const toggle = target.closest("[data-lin-actions-toggle]");
+      if (toggle) { toggleActionsMenu(toggle); return; }
+      const action = target.closest("[data-lin-bulk-action]");
+      if (action) {
+        if (action.disabled) return;
+        const task = openBulkEditor(action.dataset.linBulkAction);
+        const bulk = state.bulk;
+        void task.catch(error => reportFailure(error, bulk));
+        return;
+      }
+      if (state.filterDraft) {
+        const editor = target.closest("[data-lin-filter-editor]");
+        if (!editor || target.closest("[data-lin-filter-cancel]")) { closeFilterEditor(); return; }
+        if (state.filterPicker && !state.filterPicker.contains(target) && !target.closest("[data-lin-filter-field], [data-lin-filter-values], [data-lin-filter-op-trigger]")) closeFilterPicker(false);
+        if (target.closest("[data-lin-filter-apply]")) { applyFilters(); return; }
+        if (target.closest("[data-lin-filter-row-add]")) { state.filterDraft.push(newFilter()); renderFilterEditor(); return; }
+        const del = target.closest("[data-lin-filter-delete]");
+        if (del) { state.filterDraft.splice(Number(del.dataset.linFilterDelete), 1); renderFilterEditor(); return; }
+        const row = target.closest("[data-lin-filter-row]");
+        if (!row) return;
+        const operator = target.closest("[data-lin-filter-op-value]");
+        if (operator) {
+          const select = row.querySelector("[data-lin-filter-op]");
+          select.value = operator.dataset.linFilterOpValue;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          return;
+        }
+        const operatorTrigger = target.closest("[data-lin-filter-op-trigger]");
+        if (operatorTrigger) {
+          toggleFilterPicker(operatorTrigger, row.querySelector("[data-lin-filter-op-menu]"), '[aria-selected="true"]');
+          return;
+        }
+        const value = target.closest("[data-lin-filter-field-value]");
+        if (value) {
+          if (value.disabled) return;
+          const filter = state.filterDraft[Number(row.dataset.linFilterRow)];
+          filter.field = value.dataset.linFilterFieldValue;
+          filter.op = defaultFilterOperator(filter.field);
+          filter.value = "";
+          filter.values = [];
+          filter.min = "";
+          filter.max = "";
+          filter.preset = isDateField(filter.field) ? "30m" : "";
+          filter.dateStart = "";
+          filter.dateEnd = "";
+          renderFilterEditor();
+          editor.querySelector(`[data-lin-filter-row="${row.dataset.linFilterRow}"] [data-lin-filter-field]`).focus({ preventScroll: true });
+          return;
+        }
+        const field = target.closest("[data-lin-filter-field]");
+        if (field) {
+          const picker = row.querySelector("[data-lin-filter-picker]");
+          toggleFilterPicker(field, picker, "button");
+          return;
+        }
+        const values = target.closest("[data-lin-filter-values]");
+        if (values) {
+          const picker = row.querySelector("[data-lin-filter-option-menu]");
+          toggleFilterPicker(values, picker, null);
+        }
+        return;
+      }
+      if (target.closest("[data-lin-reference-cancel]")) { closeReferenceConfirm(); return; }
+      if (target.closest("[data-lin-reference-accept]")) {
+        const appids = state.referencePending;
+        closeReferenceConfirm();
+        if (appids) void fetchCommunity(appids);
+        return;
+      }
+      if (target.closest("[data-lin-filter-open], [data-lin-filter-add], [data-lin-filter-edit]")) {
+        openFilterEditor(target.closest("button"), !!target.closest("[data-lin-filter-add]"));
+        return;
+      }
+      const remove = target.closest("[data-lin-filter-remove]");
+      if (remove && !state.referenceRun) {
+        state.filters.splice(Number(remove.dataset.linFilterRemove), 1);
+        applySearch(); renderFilterChips(); renderTable(); return;
+      }
+      if (target.closest("[data-lin-filter-clear]") && !state.referenceRun) {
+        state.filters = []; applySearch(); renderFilterChips(); renderTable(); return;
+      }
+      const selection = target.closest("[data-lin-selection]");
+      if (selection) { changeSelection(selection.dataset.linSelection); return; }
+      const community = target.closest("[data-lin-reference-many]");
+      if (community) {
+        if (community.disabled) return;
+        closeActionsMenu();
+        fetchSelectedCommunity(document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-toggle]"));
+        return;
+      }
+      const panel = event.target.closest("[data-lin-batch-readings]");
+      if (panel) {
+        const appid = Number(panel.closest("tr")?.dataset.appid) || 0;
+        const control = state.batchReadings.get(appid);
+        if (control) control.root = panel;
+        if (onReadingClick(event, control)) return;
       }
       if (onAliasClick(event)) return;
       const alias = event.target.closest("[data-lin-alias-edit]");
@@ -1531,48 +3458,37 @@
         closeBatchModal();
         return;
       }
-      if (event.target.closest("[data-lin-import-cancel]")) {
-        closeImportDialog();
-        return;
-      }
-      if (event.target.closest("[data-lin-import-unset]") || event.target.closest("[data-lin-import-all]")) {
-        const mode = event.target.closest("[data-lin-import-all]") ? "all" : "unset";
-        const pending = state.pendingImport;
-        closeImportDialog();
-        if (!pending) {
-          return;
-        }
-        importParsed(pending, mode).catch((error) => {
-          state.message = error?.message || String(error);
-          log.warn("independent-name-import-failed", "独立版名称导入失败", { error });
-          renderTable();
-        });
-        return;
-      }
-      const save = event.target.closest("[data-lin-save]");
+      const save = event.target.closest("[data-lin-save-all]");
       if (save) {
-        const appid = Number(save.closest("tr")?.dataset.appid) || 0;
-        saveRow(appid).catch((error) => {
-          state.message = error?.message || String(error);
-          log.warn("independent-name-save-failed", "独立版自定义名称保存失败", { error, appid });
-          renderTable();
-        });
+        void saveAllDrafts();
         return;
       }
       if (event.target.closest("[data-lin-export]")) {
-        exportJson();
+        void openTransfer("export").catch(error => reportError(error, state.transfer));
         return;
       }
       if (event.target.closest("[data-lin-import]")) {
-        document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-file]")?.click();
+        void openTransfer("import").catch(error => reportError(error, state.transfer));
       }
     }
 
     function onBatchKey(event) {
-      if (state.readingEditor && event.key === "Escape") {
+      if (state.transfer) return;
+      if (!event.isComposing && onFilterOperatorKey(event)) return;
+      if (state.bulk) {
+        const tab = event.target.closest("[data-lin-bulk-tab]");
+        if (!tab || event.isComposing || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
         event.preventDefault();
-        event.stopImmediatePropagation();
-        closeReadingEditor();
+        const tabs = Array.from(bulkRoot().querySelectorAll("[data-lin-bulk-tab]"));
+        const index = tabs.indexOf(tab);
+        const next = tabs[event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+        switchBulkTab(next.dataset.linBulkTab);
+        next.focus();
+        return;
+      }
+      if (event.key === "Escape" && state.filterPicker && event.target.closest?.("[data-lin-filter-option-search]")) {
+        event.preventDefault();
+        closeFilterPicker();
         return;
       }
       const input = event.target.closest("[data-lin-alias-editor-input]");
@@ -1586,7 +3502,71 @@
       commitAliasInput();
     }
 
+    // 单选弹层只在明确选择时修改运算符，方向键仅移动焦点；Tab 返回触发器后继续正常导航
+    function onFilterOperatorKey(event) {
+      const trigger = event.target.closest("[data-lin-filter-op-trigger]");
+      const option = event.target.closest("[data-lin-filter-op-value]");
+      if (trigger && ["ArrowDown", "ArrowUp"].includes(event.key)) {
+        event.preventDefault();
+        if (!trigger.disabled) {
+          const picker = trigger.closest("[data-lin-filter-row]").querySelector("[data-lin-filter-op-menu]");
+          if (state.filterPicker !== picker) toggleFilterPicker(trigger, picker, '[aria-selected="true"]');
+        }
+        return true;
+      }
+      if (!option || state.filterPicker !== option.closest("[data-lin-filter-op-menu]")) return false;
+      if (event.key === "Tab") { closeFilterPicker(); return true; }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return false;
+      event.preventDefault();
+      const options = Array.from(state.filterPicker.querySelectorAll("[data-lin-filter-op-value]"));
+      const index = options.indexOf(option);
+      const next = options[event.key === "Home" ? 0 : event.key === "End" ? options.length - 1
+        : Math.max(0, Math.min(options.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))];
+      option.tabIndex = -1;
+      next.tabIndex = 0;
+      next.focus({ preventScroll: true });
+      next.scrollIntoView({ block: "nearest" });
+      return true;
+    }
+
     function onBatchInput(event) {
+      if (state.transfer) {
+        try { onTransferInput(event); } catch (error) { reportError(error, state.transfer); }
+        return;
+      }
+      if (state.bulk) {
+        try { onBulkInput(event); } catch (error) { reportFailure(error); }
+        return;
+      }
+      if (event.target.matches?.("[data-lin-select], [data-lin-select-all]")) return;
+      if (event.target.matches?.("[data-lin-filter-option-search]")) {
+        const query = text(event.target.value).toLocaleLowerCase();
+        const menu = event.target.closest("[data-lin-filter-option-menu]")
+          || event.target.closest("[data-lin-filter-row]")?.querySelector("[data-lin-filter-option-menu]");
+        for (const option of menu?.querySelectorAll("[data-lin-filter-option]") || []) {
+          option.closest("label").hidden = !!query && !text(option.dataset.linFilterSearchText).includes(query);
+        }
+        return;
+      }
+      if (event.target.matches?.("[data-lin-filter-value]") && state.filterDraft) {
+        const index = Number(event.target.closest("[data-lin-filter-row]").dataset.linFilterRow);
+        state.filterDraft[index].value = event.target.value;
+        return;
+      }
+      if (event.target.matches?.("[data-lin-filter-min], [data-lin-filter-max]") && state.filterDraft) {
+        const index = Number(event.target.closest("[data-lin-filter-row]").dataset.linFilterRow);
+        const filter = state.filterDraft[index];
+        if (event.target.matches("[data-lin-filter-min]")) filter.min = event.target.value;
+        else filter.max = event.target.value;
+        return;
+      }
+      if (event.target.matches?.("[data-lin-filter-date-start], [data-lin-filter-date-end]") && state.filterDraft) {
+        const index = Number(event.target.closest("[data-lin-filter-row]").dataset.linFilterRow);
+        const filter = state.filterDraft[index];
+        if (event.target.matches("[data-lin-filter-date-start]")) filter.dateStart = event.target.value;
+        else filter.dateEnd = event.target.value;
+        return;
+      }
       if (event.target.matches?.("[data-lin-alias-editor-input]") && state.aliasEditor) {
         state.aliasEditor.input = event.target.value;
         const editor = event.target.closest("[data-lin-alias-editor]");
@@ -1597,6 +3577,7 @@
       }
       const search = event.target.closest("[data-lin-search]");
       if (search) {
+        if (state.referenceRun || state.busy) return;
         state.search = search.value;
         window.clearTimeout(state.searchTimer);
         state.searchTimer = window.setTimeout(() => {
@@ -1611,9 +3592,14 @@
         return;
       }
       const draft = ensureEdited(appid);
-      if (state.readingEditor?.appid === appid) closeReadingEditor(false);
       if (event.target.classList.contains("st-lin-name")) {
+        const previous = draft.custom_name;
         draft.custom_name = event.target.value;
+        fillGenerated(draft, previous, draft.custom_name);
+        const mnemonic = tr.querySelector("input.st-lin-mnemonic");
+        const pinyin = tr.querySelector("input.st-lin-pinyin");
+        if (mnemonic) mnemonic.value = draft.mnemonic;
+        if (pinyin) pinyin.value = draft.pinyin;
       } else if (event.target.classList.contains("st-lin-mnemonic")) {
         draft.mnemonic = event.target.value;
         draft.mnemonic_locked = true;
@@ -1621,27 +3607,71 @@
         draft.pinyin = event.target.value;
         draft.pinyin_locked = true;
       }
+      refreshBatchSave();
+      scheduleBatchReadings(event);
     }
 
     function onBatchChange(event) {
-      const file = event.target.closest("[data-lin-file]");
-      if (!file?.files?.[0]) {
+      if (state.transfer) {
+        try { onTransferChange(event); } catch (error) { reportError(error, state.transfer); }
         return;
       }
-      const selected = file.files[0];
-      file.value = "";
-      selected.text().then((textValue) => {
-        const parsed = parseImportFile(JSON.parse(textValue));
-        state.pendingImport = parsed;
-        showImportDialog(parsed);
-      }).catch((error) => {
-        state.message = error?.message || String(error);
-        log.warn("independent-name-import-failed", "独立版名称导入失败", { error });
-        renderTable();
-      });
+      if (state.bulk) {
+        if (event.target.matches("select, [data-lin-bulk-original]")) {
+          try { onBulkInput(event); } catch (error) { reportFailure(error); }
+        }
+        return;
+      }
+      const selectAll = event.target.closest("[data-lin-select-all]");
+      if (selectAll) {
+        if (!selectAll.disabled) changeSelection(selectAll.checked ? "all" : "clear-filtered");
+        return;
+      }
+      const selection = event.target.closest("[data-lin-select]");
+      if (selection) {
+        if (state.referenceRun || state.busy) return;
+        const appid = Number(selection.dataset.linSelect);
+        const wasSelected = state.selected.has(appid);
+        if (selection.checked) state.selected.add(appid);
+        else { state.selected.delete(appid); state.importSelection.delete(appid); }
+        if (state.filteredIds.has(appid) && wasSelected !== selection.checked) state.filteredSelected += selection.checked ? 1 : -1;
+        syncSelectedDraft(appid);
+        refreshBatchSave();
+        return;
+      }
+      const filterRow = event.target.closest("[data-lin-filter-row]");
+      if (filterRow && state.filterDraft) {
+        const filter = state.filterDraft[Number(filterRow.dataset.linFilterRow)];
+        if (event.target.matches("[data-lin-filter-op]")) {
+          filter.op = event.target.value;
+          const index = filterRow.dataset.linFilterRow;
+          renderFilterEditor();
+          document.getElementById(BATCH_MODAL).querySelector(`[data-lin-filter-row="${index}"] [data-lin-filter-op-trigger]`).focus({ preventScroll: true });
+        } else if (event.target.matches("[data-lin-filter-date-preset]")) {
+          filter.preset = event.target.value;
+          renderFilterEditor();
+          document.getElementById(BATCH_MODAL).querySelector(`[data-lin-filter-row="${filterRow.dataset.linFilterRow}"] [data-lin-filter-date-preset]`)?.focus({ preventScroll: true });
+        } else if (event.target.matches("[data-lin-filter-option], [data-lin-filter-type]")) {
+          const type = event.target.dataset.linFilterOption || event.target.dataset.linFilterType;
+          filter.values = filter.values.filter(value => value !== type);
+          if (event.target.checked) filter.values.push(type);
+          const input = filterRow.querySelector("[data-lin-filter-values]");
+          const display = filterValueDisplay(filter.field, filter.values);
+          if (input) {
+            input.value = display.text;
+            input.title = display.title;
+            input.setAttribute("aria-label", `${i18n("steam.independentName.filterValue", "筛选值")}: ${display.title}`);
+          }
+        }
+        return;
+      }
     }
 
     function onVisibility() {
+      if (document.hidden) {
+        cleanupContextMenu();
+        return;
+      }
       // modal 不存在时 hidden 是 undefined，不能把它当成窗口仍打开
       if (state.started !== true || window.__SteamBuffLibraryIndependentNameUi !== state || document.hidden) {
         return;
@@ -1670,6 +3700,7 @@
 
     const stop = () => {
       state.started = false;
+      cleanupContextMenu();
       closeSingleModal();
       closeBatchModal();
       if (!scope?.listener) {
@@ -1678,6 +3709,7 @@
       document.removeEventListener("visibilitychange", onVisibility);
       window.clearTimeout(state.searchTimer);
       window.clearTimeout(state.readingTimer);
+      window.clearTimeout(state.batchReadingTimer);
       state.ch?.close?.();
       document.getElementById(MODAL)?.remove();
       document.getElementById(BATCH_MODAL)?.remove();

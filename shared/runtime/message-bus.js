@@ -18,11 +18,13 @@
   const DEFAULT_TIMEOUT_MS = 12 * 1000;
   const MAX_IN_FLIGHT = 80;
   const AI_STREAM_TYPE = "AI_CHAT_COMPLETIONS_STREAM";
+  const NETWORK_REQUEST_TYPES = new Set(["STORE_FETCH", "AI_CHAT_COMPLETIONS"]);
   const log = root.STLoggerFactory?.createLogger?.("shared", "message-bus") || {
     warn() {},
   };
   const ROUTES = Object.freeze({
     CONTENT_FILES_INJECT: { timeoutMs: 12 * 1000, owner: "runtime" },
+    STEAM_NAME_BACKEND_RECOVER: { timeoutMs: 7 * 1000, owner: "library-name-recovery" },
     STEAM_BUFF_OPEN_SETTINGS: { timeoutMs: 5 * 1000, owner: "settings" },
     STORE_FETCH: { timeoutMs: 12 * 1000, owner: "network" },
     PLAYER_STATS_FETCH: { timeoutMs: 12 * 1000, owner: "store" },
@@ -48,6 +50,8 @@
     LOG_EXPORT: { timeoutMs: 12 * 1000, owner: "logger" },
     LOG_CLEAR: { timeoutMs: 8 * 1000, owner: "logger" },
     LOG_STATS: { timeoutMs: 8 * 1000, owner: "logger" },
+    LOG_DEBUG_GET: { timeoutMs: 8 * 1000, owner: "logger" },
+    LOG_DEBUG_SET: { timeoutMs: 8 * 1000, owner: "logger" },
   });
 
   const inFlight = new Map();
@@ -143,16 +147,44 @@
       return Promise.reject(new Error("chrome.runtime.sendMessage 不可用"));
     }
 
-    const dedupeKey = text(options.dedupeKey || message.dedupeKey);
+    const signal = options.signal;
+    const cancellable = NETWORK_REQUEST_TYPES.has(type);
+    if (signal && !cancellable) return Promise.reject(new TypeError("该消息不支持网络取消"));
+    const dedupeKey = signal ? "" : text(options.dedupeKey || message.dedupeKey);
     if (dedupeKey && inFlight.has(dedupeKey)) {
       bump(type, "deduped");
       return inFlight.get(dedupeKey);
     }
 
     const timeoutMs = timeoutFor(type, options);
+    if (cancellable) message.networkRequestId = root.crypto.randomUUID();
     const job = new Promise((resolve, reject) => {
       let done = false;
       let timer = 0;
+      let sent = false;
+      const cancelRemote = (reason) => {
+        if (!cancellable || !sent) return;
+        const reportFailure = (error) => {
+          // 原请求失败可由业务层记录；取消消息失败只在总线可见，必须在此保留原始异常
+          log.warn("message-bus-cancel-failed", "取消后台网络请求失败", messageMeta(type, { error }, message));
+        };
+        try {
+          chromeApi.sendMessage({
+            type: "NETWORK_REQUEST_CANCEL", requestType: type,
+            networkRequestId: message.networkRequestId, reason,
+          }, () => {
+            const error = chromeApi.lastError;
+            if (error) reportFailure(new Error(error.message || "取消后台网络请求失败"));
+          });
+        } catch (error) { reportFailure(error); }
+      };
+      const onAbort = () => {
+        if (done) return;
+        const error = new Error("请求已取消", { cause: signal.reason });
+        error.name = "AbortError";
+        cancelRemote("abort");
+        finish(reject, error);
+      };
 
       const finish = (fn, value) => {
         if (done) {
@@ -165,8 +197,15 @@
         if (dedupeKey) {
           inFlight.delete(dedupeKey);
         }
+        signal?.removeEventListener("abort", onAbort);
         fn(value);
       };
+
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+      signal?.addEventListener("abort", onAbort, { once: true });
 
       if (timeoutMs > 0) {
         timer = root.setTimeout(() => {
@@ -180,6 +219,7 @@
               error,
             }, message));
           }
+          cancelRemote("timeout");
           finish(reject, error);
         }, timeoutMs);
       }
@@ -187,6 +227,7 @@
       try {
         stats.lastSentAt = Date.now();
         bump(type, "sent");
+        sent = true;
         chromeApi.sendMessage(message, (response) => {
           if (done) {
             return;

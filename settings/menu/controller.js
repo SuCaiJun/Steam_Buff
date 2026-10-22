@@ -20,7 +20,6 @@
     dragThreshold: 10,
     minTop: 24,
     margin: 24,
-    topShowY: 1500,
     openEvent: "STSettingsOpen",
     openCatDataset: "steamBuffOpenCat",
     openAckDataset: "steamBuffOpenAck",
@@ -107,7 +106,6 @@
     let railTop = options.initialTop ?? null;
     let railSide = options.initialSide === "left" ? "left" : "right";
     let bound = false;
-    let topButtonRaf = 0;
     let disposers = [];
     const scroll = createScrollTargets();
 
@@ -175,7 +173,8 @@
       ]);
       try {
         window.scrollTo({ top: 0, behavior: "smooth" });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "menu-controller", event: "to-top-failed", message: "设置中心处理失败", level: "warn", phase: "toTop" });
         window.scrollTo(0, 0);
       }
 
@@ -185,7 +184,8 @@
         }
         try {
           el.scrollTo({ top: 0, behavior: "smooth" });
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "menu-controller", event: "to-top-failed", message: "设置中心处理失败", level: "warn", phase: "toTop" });
           el.scrollTop = 0;
         }
       }
@@ -194,41 +194,23 @@
       }));
     }
 
-    function updateTopButton() {
+    function bindTopWatch() {
       if (!topBtn) {
         return;
       }
-      const hide = scroll.scrollY() < cfg.topShowY;
-      if (topBtn.hidden === hide) {
+      const watch = globalThis.STSettingsScrollTargets?.watchHalfViewport;
+      if (typeof watch !== "function") {
+        // 兼容: 滚动目标模块未加载时无法观察半屏，按钮保持可见
+        topBtn.hidden = false;
         return;
       }
-      topBtn.hidden = hide;
-      if (rail) {
-        window.requestAnimationFrame(() => {
-          applyRailTop(railTop, false);
-        });
-      }
+      const release = watch(topBtn);
+      addDisposer(() => release.dispose());
     }
 
-    function cancelTopButtonUpdate() {
-      if (!topButtonRaf) {
-        return;
-      }
-      const cancel = window.cancelAnimationFrame || window.clearTimeout;
-      cancel.call(window, topButtonRaf);
-      topButtonRaf = 0;
-    }
-
-    function scheduleTopButton(event) {
+    function rememberScrollTarget(event) {
+      // 优化: 滚动只记录真实容器。半屏显隐由标记观察负责，这里不读位置
       scroll.rememberScrollTarget(event?.target);
-      if (topButtonRaf) {
-        return;
-      }
-      const raf = window.requestAnimationFrame || ((fn) => window.setTimeout(fn, 16));
-      topButtonRaf = raf.call(window, () => {
-        topButtonRaf = 0;
-        updateTopButton();
-      });
     }
 
     function addDisposer(dispose) {
@@ -250,11 +232,11 @@
         return false;
       }
       bound = false;
-      cancelTopButtonUpdate();
       for (const disposeOne of disposers.splice(0)) {
         try {
           disposeOne();
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "menu-controller", event: "dispose-failed", message: "释放界面资源失败", level: "warn", phase: "dispose" });
         }
       }
       scroll.clear?.();
@@ -274,6 +256,8 @@
         return;
       }
 
+      globalThis.STSettingsDialogs?.cancel();
+      globalThis.STSettingsPages?.get("about")?.dispose();
       panel.classList.remove("open");
       window.setTimeout(() => {
         if (!panel.classList.contains("open") && !panel.querySelector(".settings-dialog-layer")) {
@@ -395,7 +379,8 @@
         drag.active = false;
         try {
           rail.releasePointerCapture(event.pointerId);
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "menu-controller", event: "bind-failed", message: "设置中心处理失败", level: "warn", phase: "bind" });
           // 指针捕获可能已被浏览器释放，忽略即可。
         }
         rail.classList.remove("dragging");
@@ -519,10 +504,10 @@
         openCat(document.documentElement.dataset[cfg.openCatDataset] || getActiveCat());
       });
 
-      listen(window, "scroll", scheduleTopButton, { passive: true });
-      listen(document, "scroll", scheduleTopButton, { passive: true, capture: true });
+      // 文档和内层容器由同一个捕获入口记录
+      listen(document, "scroll", rememberScrollTarget, { passive: true, capture: true });
 
-      updateTopButton();
+      bindTopWatch();
       return dispose;
     }
 
@@ -535,7 +520,6 @@
       setOpen,
       toTop,
       toggle,
-      updateTopButton,
       getRailState: () => ({ top: railTop, side: railSide }),
     });
   }

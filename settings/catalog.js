@@ -381,6 +381,7 @@
     "uiLocale",
     "familyLibrary",
     "storePriceChart",
+    "gameLinks",
     "searchSuggestions",
     "reviewFilter",
     "translate",
@@ -416,6 +417,20 @@
       name: "商店增强",
       desc: "Steam 商店详情、愿望单、购物车、搜索和数据展示增强。",
       items: Object.freeze([
+        {
+          id: "store-detail-compact",
+          name: "商店详情简版显示",
+          desc: "默认显示核心提醒、主区域价格和预测；展开详情后加载区域比价和完整图表。",
+          area: "store",
+          enabled: true,
+        },
+        {
+          id: "store-upcoming-festivals",
+          name: "未来节日",
+          desc: "显示下一个节日的开始时间；必要时同时显示下一个季节性特卖。",
+          area: "store",
+          enabled: true,
+        },
         {
           id: "store-detail-reminders",
           name: "商店详情的提醒与检查",
@@ -709,6 +724,15 @@
           ]),
         },
         {
+          id: "game-links",
+          name: "相关链接",
+          desc: "在商店详情右侧显示游戏资料、评分和搜索入口，支持自定义 URL 模板。",
+          area: "store",
+          enabled: true,
+          panel: "game-links",
+          deps: depAll(["store-enhancements"]),
+        },
+        {
           id: "store-title-custom-name",
           name: "游戏商店自定义名称",
           desc: "在 Steam 商店游戏标题旁显示用户自定义名称、社区名称或 AI 名称，并支持提交自己的名称。",
@@ -912,27 +936,7 @@
               area: "steam",
               enabled: false,
               deps: depAll(["library-sort-title"]),
-            },
-            {
-              id: "library-sort-title-stable-mode",
-              name: "名称显示模式",
-              desc: "流畅模式只处理当前可见项目；稳定模式使用 AppOverview 替换刷新方法，库中游戏数量过多时可能会卡顿",
-              area: "steam",
-              control: "mode",
-              enabled: true,
-              options: Object.freeze([
-                { value: false, label: "流畅模式" },
-                { value: true, label: "稳定模式" },
-              ]),
-              deps: depAll(["library-sort-title"]),
-            },
-            {
-              id: "library-sort-title-hover-custom-name",
-              name: "悬停提示显示自定义名称",
-              desc: "开启后，鼠标悬停库列表项目时的 Steam 原生提示框显示自定义名称和分组标签；关闭时恢复 Steam 原始名称",
-              area: "steam",
-              enabled: false,
-              deps: depAll(["library-sort-title"]),
+              visibleInLibraryNameMode: "steam-sort",
             },
           ]),
         },
@@ -993,6 +997,22 @@
           area: "steam",
           enabled: true,
           deps: depAll(["translate"]),
+        },
+        {
+          id: "steam-game-links",
+          name: "相关链接",
+          desc: "在 Steam 库游戏详情页玩家统计下方显示相关链接，按每项显示范围筛选。",
+          area: "steam",
+          enabled: true,
+        },
+        {
+          id: "steam-player-stats",
+          name: "玩家统计",
+          desc: "在 Steam 库游戏详情页显示在线人数、峰值和趋势图。",
+          area: "steam",
+          enabled: true,
+          deps: depAll(["third-party-services"]),
+          lock: "需在「第三方服务」中开启「启用第三方数据服务」",
         },
       ]),
     },
@@ -1190,7 +1210,8 @@
 
   function dependentsOf(id) {
     return featureItems()
-      .filter((item) => dependency(item).ids.includes(id))
+      .filter((item) => dependency(item).ids.includes(id)
+        || (item.visibleInLibraryNameMode && id === globalThis.STConfig.libraryNameMode.key))
       .map((item) => item.id);
   }
 
@@ -1306,6 +1327,9 @@
     if (name === "storePriceChart") {
       return storePriceChartDefaults();
     }
+    if (name === "gameLinks") {
+      return globalThis.STGameLinks.defaults();
+    }
     if (name === "searchSuggestions") {
       return searchSuggestionDefaults();
     }
@@ -1326,7 +1350,7 @@
 
   function isPanelStorageKey(name) {
     const key = String(name || "");
-    if (key === UI_LOCALE_KEY || key === "st.settings.storePriceChart") {
+    if (key === UI_LOCALE_KEY || key === "st.settings.storePriceChart" || key === "st.settings.gameLinks") {
       return true;
     }
     if (!key.startsWith("st.settings.") || key.startsWith("st.settings.cloud.") || key.startsWith("st.settings.rail.")) {

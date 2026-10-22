@@ -12,7 +12,7 @@
   "use strict";
 
   const api = window.SteamBuff = window.SteamBuff || {};
-  const VERSION = "steam-buff-surface-hosts-v4";
+  const VERSION = "steam-buff-surface-hosts-v5";
   const DOWNLOAD_HOST_ID = "download-toolbar";
   const DOWNLOAD_ROUTE = "/library/downloads";
   const DOWNLOAD_ROOT = "__RickyDownloadSurfaceHost";
@@ -25,6 +25,7 @@
   const MAIN_POPUP_HOST_ID = "main-popup";
   const MAIN_POPUP_TASK = "surface-host-main-popup";
   const MAIN_POPUP_ROOT_ID = "popup_target";
+  const MAIN_POPUP_SLOT_SELECTOR = "div._2Nq6ov7A1hGcHXVOXNt_OE > div._37MAYpIjl0IDA1xVhhsuX8";
   const MAIN_POPUP_SCAN_MS = 1000;
   const MAIN_POPUP_SCROLL_DEBOUNCE_MS = 120;
   const TOAST_MS = 4200;
@@ -50,6 +51,12 @@
   };
   const mainPopupState = {
     root: null,
+    slots: [],
+    targets: new Map(),
+    scrollTargets: new Set(),
+    records: [],
+    frame: 0,
+    routeHandle: null,
     schedulerStarted: false,
     scrollTimer: 0,
   };
@@ -299,12 +306,13 @@
       reason,
       records: Object.freeze(Array.from(records)),
       root: mainPopupState.root,
+      targets: Object.freeze(mainPopupState.slots.flatMap((slot) => Array.from(slot.children))),
     });
   }
 
   function publishMainPopup(reason, records = []) {
     const root = mainPopupState.root;
-    mainPopupHost.setContext(mainPopupContext(reason, records), !!root?.isConnected);
+    mainPopupHost.setContext(mainPopupContext(reason, records), !!root?.isConnected && !document.hidden);
   }
 
   function clearMainPopupScrollTimer() {
@@ -316,53 +324,120 @@
   }
 
   function onMainPopupScroll(event) {
-    if (!mainPopupState.root?.contains?.(event.target)) {
+    if (!mainPopupState.scrollTargets.has(event.target)) {
       return;
     }
     clearMainPopupScrollTimer();
     mainPopupState.scrollTimer = window.setTimeout(() => {
       mainPopupState.scrollTimer = 0;
-      if (mainPopupState.root?.isConnected) {
+      if (mainPopupState.scrollTargets.has(event.target) && event.target.isConnected && !document.hidden) {
         publishMainPopup("scroll");
       }
     }, MAIN_POPUP_SCROLL_DEBOUNCE_MS);
   }
 
-  function detachMainPopupRoot() {
+  function disconnectMainPopupTargets() {
     clearMainPopupScrollTimer();
-    mainPopupState.root?.removeEventListener?.("scroll", onMainPopupScroll, true);
     mainPopupHost.disconnectObserver();
+    for (const target of mainPopupState.scrollTargets) {
+      target.removeEventListener("scroll", onMainPopupScroll);
+    }
+    mainPopupState.scrollTargets.clear();
+  }
+
+  function clearMainPopupWork() {
+    disconnectMainPopupTargets();
+    if (mainPopupState.frame) {
+      window.cancelAnimationFrame(mainPopupState.frame);
+      mainPopupState.frame = 0;
+    }
+    mainPopupState.records = [];
+  }
+
+  function queueMainPopupMutation(records) {
+    mainPopupState.records.push(...records);
+    if (mainPopupState.frame) {
+      return;
+    }
+    mainPopupState.frame = window.requestAnimationFrame(() => {
+      mainPopupState.frame = 0;
+      const pending = mainPopupState.records;
+      mainPopupState.records = [];
+      const lifecycle = pending.some((record) => mainPopupState.slots.includes(record.target));
+      publishMainPopup(lifecycle ? "popup" : "mutation", pending);
+    });
+  }
+
+  function mainPopupContainsTarget(target) {
+    return !!target?.isConnected && mainPopupState.slots.some((slot) => slot.contains(target));
+  }
+
+  function observeMainPopupTargets() {
+    disconnectMainPopupTargets();
+    if (document.hidden || !mainPopupState.slots.length || mainPopupHost.diagnostics().stopped) {
+      return;
+    }
+    // 原生弹窗槽位只监听直接挂载；正文的深层变化仅在使用方确认面板后监听
+    const observer = mainPopupHost.observe(mainPopupState.slots[0], queueMainPopupMutation, { childList: true });
+    for (const slot of mainPopupState.slots.slice(1)) {
+      observer.observe(slot, { childList: true });
+    }
+    for (const target of new Set(mainPopupState.targets.values())) {
+      if (!mainPopupContainsTarget(target)) {
+        continue;
+      }
+      observer.observe(target, { childList: true, subtree: true });
+      target.addEventListener("scroll", onMainPopupScroll, { passive: true });
+      mainPopupState.scrollTargets.add(target);
+    }
+  }
+
+  function setMainPopupTarget(owner, target) {
+    if (target != null && !mainPopupContainsTarget(target)) {
+      throw new TypeError("主窗口弹窗监听目标不在原生弹窗槽位内");
+    }
+    const previous = mainPopupState.targets.get(owner) || null;
+    if (previous === target) {
+      return;
+    }
+    if (target) {
+      mainPopupState.targets.set(owner, target);
+    } else {
+      mainPopupState.targets.delete(owner);
+    }
+    observeMainPopupTargets();
+  }
+
+  function detachMainPopupRoot() {
+    clearMainPopupWork();
+    mainPopupState.targets.clear();
+    mainPopupState.slots = [];
     mainPopupState.root = null;
   }
 
   function setMainPopupRoot(root) {
-    if (mainPopupState.root === root && root?.isConnected) {
-      return;
-    }
     detachMainPopupRoot();
     if (!root?.isConnected || root.id !== MAIN_POPUP_ROOT_ID) {
       publishMainPopup("root-missing");
       return;
     }
     mainPopupState.root = root;
-    mainPopupHost.observe(
-      root,
-      (records) => publishMainPopup("mutation", records),
-      { childList: true, subtree: true }
-    );
-    root.addEventListener("scroll", onMainPopupScroll, true);
+    mainPopupState.slots = Array.from(root.querySelectorAll(MAIN_POPUP_SLOT_SELECTOR));
+    observeMainPopupTargets();
     publishMainPopup("root");
   }
 
   function refreshMainPopupHost() {
-    const root = mainUi() ? document.getElementById(MAIN_POPUP_ROOT_ID) : null;
-    if (root !== mainPopupState.root || !root?.isConnected) {
+    const inLibrary = mainUi() && String(api.ctx?.route?.() || "").startsWith("/library/");
+    const root = inLibrary && !document.hidden ? document.getElementById(MAIN_POPUP_ROOT_ID) : null;
+    if (root !== mainPopupState.root ||
+        (root && (!mainPopupState.slots.length || mainPopupState.slots.some((slot) => !slot.isConnected)))) {
       setMainPopupRoot(root);
     }
   }
 
   function shouldRunMainPopupHost() {
-    return mainPopupHost.diagnostics().entryCount > 0 && mainUi();
+    return mainPopupHost.diagnostics().entryCount > 0 && mainUi() && !document.hidden;
   }
 
   function startMainPopupHost() {
@@ -370,7 +445,7 @@
       refreshMainPopupHost();
       return true;
     }
-    if (!window.STScheduler?.register || !mainUi()) {
+    if (!window.STScheduler?.register || !api.contextRouter?.subscribe || !mainUi()) {
       return false;
     }
     window.STScheduler.register(
@@ -380,11 +455,16 @@
       { intervalMs: MAIN_POPUP_SCAN_MS }
     );
     mainPopupState.schedulerStarted = true;
+    document.addEventListener("visibilitychange", refreshMainPopupHost);
+    mainPopupState.routeHandle = api.contextRouter.subscribe(refreshMainPopupHost);
     refreshMainPopupHost();
     return true;
   }
 
   function stopMainPopupHost() {
+    document.removeEventListener("visibilitychange", refreshMainPopupHost);
+    mainPopupState.routeHandle?.dispose?.();
+    mainPopupState.routeHandle = null;
     if (mainPopupState.schedulerStarted) {
       window.STScheduler?.unregister?.(MAIN_POPUP_TASK);
       mainPopupState.schedulerStarted = false;
@@ -397,6 +477,8 @@
     onStop: stopMainPopupHost,
   });
 
+  // onSurfaceChange(active, context) 只发布库窗口弹窗生命周期；targets 是槽位实际承载的直接子节点
+  // 返回句柄的 setTarget(element|null) 接管或释放槽位内已确认面板的观察与滚动；越界抛错，dispose 后不再接管
   function registerMainPopup(input = {}) {
     const id = String(input.id || "").trim();
     if (!id || typeof input.onSurfaceChange !== "function") {
@@ -405,6 +487,8 @@
     if (!startMainPopupHost()) {
       throw new Error("MainPopupHost 当前不可用");
     }
+    const owner = {};
+    let disposed = false;
     const handle = mainPopupHost.register({
       id,
       order: input.order,
@@ -412,11 +496,20 @@
       onActiveChange(active, context) {
         input.onSurfaceChange(active, context);
       },
-      onDispose: input.onDispose,
+      onDispose() {
+        disposed = true;
+        setMainPopupTarget(owner, null);
+        input.onDispose?.();
+      },
     });
     return Object.freeze({
       id,
       active: handle.active,
+      setTarget(target) {
+        if (!disposed) {
+          setMainPopupTarget(owner, target);
+        }
+      },
       dispose() {
         handle.dispose();
         if (mainPopupHost.diagnostics().entryCount === 0) {

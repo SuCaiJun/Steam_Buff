@@ -243,16 +243,14 @@
       #${LIBRARY_CUSTOM_NAME_BAR} * {
         -webkit-app-region: no-drag !important;
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option {
+      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn {
         border-color: var(--st-lcn-property-border);
         background: var(--st-lcn-property-bg);
       }
       #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn {
         padding: 0 16px;
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn:hover:not(:disabled),
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option:hover {
+      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn:hover:not(:disabled) {
         background: var(--st-lcn-property-bg-hover);
       }
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-btn.success {
@@ -276,19 +274,6 @@
         to {
           transform: rotate(360deg);
         }
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-action-option {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        min-height: var(--st-control-height-compact);
-        border: 1px solid var(--st-lcn-property-border);
-        border-radius: var(--st-control-radius);
-        padding: 0 16px;
-        color: var(--st-color-white);
-        cursor: pointer;
-        font-size: 12px;
-        white-space: nowrap;
       }
       #${LIBRARY_CUSTOM_NAME_ONE},
       #${LIBRARY_CUSTOM_NAME_MODAL},
@@ -498,14 +483,6 @@
         align-items: center;
         margin-top: 16px;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-action-option {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        min-height: var(--st-control-height-compact);
-        margin-left: 2px;
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip {
         position: relative;
         display: inline-flex;
@@ -513,13 +490,6 @@
         gap: 3px;
         cursor: help;
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip {
-        cursor: pointer;
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-btn .st-lcn-tip {
-        pointer-events: auto;
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip-mark,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip-mark {
         display: inline-flex;
         align-items: center;
@@ -537,10 +507,6 @@
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip-text {
         cursor: help;
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:hover .st-lcn-tip-mark,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:focus .st-lcn-tip-mark,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:focus-within .st-lcn-tip-mark,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip.is-open .st-lcn-tip-mark,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:hover .st-lcn-tip-mark,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:focus .st-lcn-tip-mark,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:focus-within .st-lcn-tip-mark,
@@ -549,7 +515,6 @@
         border-color: var(--st-lcn-tip-border-hover);
         background: var(--st-lcn-tip-bg-hover);
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip-popover,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip-popover {
         position: absolute;
         left: 50%;
@@ -575,29 +540,12 @@
         pointer-events: none;
         transition: opacity .12s ease, transform .12s ease;
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip-popover {
-        left: auto;
-        right: 0;
-        transform: translateY(4px);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-actions .st-lcn-tip-popover {
-        top: calc(100% + 8px);
-        bottom: auto;
-        z-index: 6;
-      }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:hover .st-lcn-tip-popover,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:focus .st-lcn-tip-popover,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip:focus-within .st-lcn-tip-popover,
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip.is-open .st-lcn-tip-popover {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:hover .st-lcn-tip-popover,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:focus .st-lcn-tip-popover,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip:focus-within .st-lcn-tip-popover,
-      #${LIBRARY_CUSTOM_NAME_BAR} .st-lcn-tip.is-open .st-lcn-tip-popover {
-        opacity: 1;
-        transform: translateY(0);
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-msg {
         min-height: 18px;
@@ -1081,12 +1029,12 @@
         pointer-events: none !important;
       }
 
-      .${NEWS_TRANSLATE_BUTTON_CLASS}:hover {
+      .${NEWS_TRANSLATE_BUTTON_CLASS}:hover:not(:disabled) {
         border-color: var(--st-news-button-border-hover) !important;
         background: var(--st-news-button-bg-hover) !important;
       }
 
-      .${NEWS_TRANSLATE_BUTTON_CLASS}:hover .${NEWS_TRANSLATE_ICON_CLASS} {
+      .${NEWS_TRANSLATE_BUTTON_CLASS}:hover:not(:disabled) .${NEWS_TRANSLATE_ICON_CLASS} {
         opacity: 1 !important;
         filter: var(--st-news-icon-filter-hover) !important;
       }
@@ -1109,6 +1057,11 @@
       .${NEWS_TRANSLATE_BUTTON_CLASS}:disabled {
         cursor: wait !important;
         opacity: 1 !important;
+      }
+
+      .${NEWS_TRANSLATE_BUTTON_CLASS}[data-state="unavailable"] {
+        cursor: not-allowed !important;
+        opacity: 0.55 !important;
       }
 
       .${NEWS_TRANSLATE_BUTTON_CLASS}[data-state="loading"]::before {
@@ -1223,6 +1176,9 @@
       .st-lin-context-entry {
         color: var(--st-color-text-primary);
       }
+      .st-lin-context-closing {
+        pointer-events: none;
+      }
       #${LIBRARY_INDEPENDENT_NAME_MODAL},
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} {
         position: fixed;
@@ -1256,10 +1212,568 @@
         overflow-y: auto;
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-dialog {
-        grid-template-rows: auto auto auto auto minmax(0, 1fr);
+        grid-template-rows: auto auto auto minmax(0, 1fr);
         width: min(1100px, calc(100vw - 48px));
         height: min(640px, calc(100vh - 48px));
         gap: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-top {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-shell {
+        position: relative;
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+        padding: 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-surface-subtle);
+        box-shadow: inset 0 1px 0 var(--st-color-white-alpha-06);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-bar,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chips,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-file-tools {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        min-width: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-bar {
+        min-height: 24px;
+        font-size: 14px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 24px;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 6px;
+        color: var(--st-color-text-secondary-alt);
+        background: var(--st-color-bg-input);
+        cursor: pointer;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon-button:hover,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon-button:focus-visible {
+        border-color: var(--st-color-steam-blue-alpha-72);
+        color: var(--st-color-steam-blue);
+        background: var(--st-color-steam-blue-alpha-12);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon {
+        display: block;
+        width: 14px;
+        height: 14px;
+        object-fit: contain;
+        filter: var(--st-filter-icon-steam-blue);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon-button:hover .st-lin-filter-icon,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon-button:focus-visible .st-lin-filter-icon {
+        filter: var(--st-filter-icon-steam-blue-hover);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-bar .st-lin-filter-add,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-bar .st-lin-filter-clear {
+        height: 24px;
+        padding-inline: 8px;
+        font: inherit;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-stats {
+        margin: 0;
+        min-height: 18px;
+        padding-inline: 12px;
+        color: var(--st-color-text-secondary-alt);
+        line-height: 1.5;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-selection-bar {
+        flex-wrap: wrap;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-file-tools {
+        margin-left: auto;
+        flex: 0 1 400px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-file-tools input[type="search"] {
+        width: 160px;
+        min-width: 120px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-btn:disabled {
+        cursor: default;
+        opacity: .45;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-btn.st-lin-link {
+        border-color: transparent;
+        background: transparent;
+        color: var(--st-color-steam-blue);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 6px;
+        background: var(--st-color-bg-input);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip button {
+        min-height: 30px;
+        padding: 4px 8px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        text-align: left;
+        overflow-wrap: anywhere;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip > button:first-child:hover,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip > button:first-child:focus-visible {
+        background: var(--st-color-white-alpha-08);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip-remove {
+        display: inline-flex;
+        flex: 0 0 30px;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        padding: 0 !important;
+        color: var(--st-color-danger-soft);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip-remove:hover,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip-remove:focus-visible {
+        background: var(--st-color-danger-alpha-12) !important;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        z-index: 3;
+        box-sizing: border-box;
+        width: min(700px, 100%);
+        max-height: min(520px, calc(100vh - 160px));
+        display: block;
+        padding: 0;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 12px;
+        background: var(--st-color-steam-property-window);
+        color-scheme: dark;
+        font-size: 14px;
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor::before,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor::after,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker::before,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker::after,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu::before,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu::after {
+        content: "";
+        position: absolute;
+        top: -7px;
+        left: 14px;
+        z-index: 1;
+        width: 0;
+        height: 0;
+        border-style: solid;
+        pointer-events: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor::before,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker::before,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu::before {
+        border-width: 0 7px 7px;
+        border-color: transparent transparent var(--st-color-border-normal);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor::after,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker::after,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu::after {
+        top: -6px;
+        left: 15px;
+        border-width: 0 6px 6px;
+        border-color: transparent transparent var(--st-color-steam-property-window);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor[data-lin-filter-placement="above"]::before,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker[data-lin-filter-placement="above"]::before,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu[data-lin-filter-placement="above"]::before {
+        top: auto;
+        bottom: -7px;
+        border-width: 7px 7px 0;
+        border-color: var(--st-color-border-normal) transparent transparent;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor[data-lin-filter-placement="above"]::after,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker[data-lin-filter-placement="above"]::after,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu[data-lin-filter-placement="above"]::after {
+        top: auto;
+        bottom: -6px;
+        border-width: 6px 6px 0;
+        border-color: var(--st-color-steam-property-window) transparent transparent;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor-scroll {
+        box-sizing: border-box;
+        display: grid;
+        gap: 8px;
+        max-height: min(520px, calc(100vh - 160px));
+        overflow-y: auto;
+        padding: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-shell [hidden],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor[hidden],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker[hidden],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu[hidden] {
+        display: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(88px, 1fr) minmax(0, 2.75fr) 32px;
+        align-items: start;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-field {
+        position: relative;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-filter-field] {
+        width: 100%;
+        text-align: left;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-field-button {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        overflow: hidden;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-field-button span {
+        margin-inline-start: 8px;
+        color: var(--st-color-text-secondary-alt);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        z-index: 4;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+        width: min(344px, calc(100vw - 16px));
+        max-width: calc(100vw - 16px);
+        max-height: min(440px, calc(100vh - 32px));
+        padding: 0;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 12px;
+        background: var(--st-color-steam-property-window);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker-scroll {
+        box-sizing: border-box;
+        display: grid;
+        gap: 12px;
+        max-height: min(440px, calc(100vh - 32px));
+        overflow-y: auto;
+        padding: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker .st-lin-btn {
+        box-sizing: border-box;
+        width: 100%;
+        height: 28px;
+        min-height: 28px;
+        padding: 4px 6px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        border-radius: 5px;
+        font-size: 12px;
+        line-height: 18px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker-option[aria-current="true"] {
+        border-color: var(--st-color-steam-blue-alpha-72);
+        background: var(--st-color-steam-blue-alpha-12);
+        color: var(--st-color-steam-blue);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker .st-lin-btn:disabled {
+        opacity: .5;
+        cursor: default;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-unavailable {
+        margin: 0;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker-group {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        min-width: 0;
+        padding: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker-group strong {
+        grid-column: 1 / -1;
+        padding: 0 0 2px;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 16px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-field-button,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-operator-button,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-delete,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-value-button,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row select,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row input[type="text"],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row input[type="number"],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row input[type="date"] {
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        height: 32px;
+        min-height: 32px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 6px;
+        background: var(--st-color-bg-input);
+        color: inherit;
+        padding: 0 8px;
+        font: inherit;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row input:focus-visible,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row select:focus-visible,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-btn:focus-visible {
+        outline: 2px solid var(--st-color-steam-blue);
+        outline-offset: 2px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator { min-width: 0; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-button {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-menu {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        box-sizing: border-box;
+        min-width: 144px;
+        padding: 4px 0;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-menu[hidden] { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        box-sizing: border-box;
+        width: 100%;
+        height: 32px;
+        padding: 0 12px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: start;
+        cursor: pointer;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option[aria-selected="true"] {
+        background: var(--st-color-bg-input);
+        color: var(--st-color-steam-blue);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option:hover,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option:focus-visible {
+        background: var(--st-color-surface-control-hover);
+        outline: 1px solid var(--st-color-border-normal);
+        outline-offset: -1px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-value,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-value-select {
+        min-width: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-value-button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-sizing: border-box;
+        width: 100%;
+        overflow: hidden;
+        text-align: left;
+        cursor: text;
+        appearance: none;
+        -webkit-appearance: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        min-width: 0;
+        padding: 2px 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu {
+        position: fixed;
+        inset: auto;
+        z-index: 4;
+        box-sizing: border-box;
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+        max-height: min(300px, calc(100vh - 32px));
+        overflow: visible;
+        margin: 0;
+        padding: 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu .st-lin-filter-types {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+        max-height: 220px;
+        overflow-y: auto;
+        align-content: start;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-date {
+        display: grid;
+        gap: 8px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types label {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        min-height: 34px;
+        box-sizing: border-box;
+        gap: 6px;
+        padding: 0 8px;
+        overflow: hidden;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 6px;
+        background: var(--st-color-bg-input);
+        cursor: pointer;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types label:has(input:checked) {
+        border-color: var(--st-color-steam-blue-alpha-72);
+        background: var(--st-color-steam-blue-alpha-12);
+        color: var(--st-color-steam-blue);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types label span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-range {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-date-bound {
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-date-bound > span {
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-date-bound input::-webkit-calendar-picker-indicator {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        padding: 0;
+        cursor: pointer;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types input,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} input[data-lin-select],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} input[data-lin-select-all] {
+        accent-color: var(--st-color-steam-blue);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-delete {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        padding: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-delete-icon {
+        display: block;
+        width: 16px;
+        height: 16px;
+        object-fit: contain;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip-remove .st-lin-filter-delete-icon {
+        width: 14px;
+        height: 14px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 4px;
+        padding: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-actions .st-lin-btn {
+        width: auto;
+        min-width: 76px;
+        min-height: 32px;
+        padding: 5px 14px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-filter-row-add] {
+        justify-self: start;
+        width: auto;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reference-dialog {
+        box-sizing: border-box;
+        width: min(560px, 100%);
+        padding: 24px;
+        display: grid;
+        gap: 16px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reference-dialog :where(h3, p) {
+        margin: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-row-select {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0 8px;
+        min-width: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table input[data-lin-select],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table input[data-lin-select-all] {
+        color-scheme: dark;
+        width: 14px;
+        height: 14px;
+        flex: 0 0 14px;
+        margin: 0;
+      }
+      @media (max-width: 720px) {
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-file-tools {
+          flex-basis: 100%;
+        }
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row {
+          grid-template-columns: minmax(0, 1fr) 96px 32px;
+        }
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-value {
+          grid-column: 1 / 3;
+          grid-row: 2;
+        }
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-head,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head,
@@ -1304,7 +1818,33 @@
         white-space: nowrap;
         text-overflow: ellipsis;
       }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-official {
+        min-width: 0;
+        line-height: 32px;
+        overflow-wrap: anywhere;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-official-label {
+        align-self: start;
+        padding-top: 6px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-official-tail {
+        display: inline-block;
+        white-space: nowrap;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-official .st-lin-single-ai {
+        display: inline-block;
+        margin-inline-start: 8px;
+        vertical-align: baseline;
+        white-space: nowrap;
+        font: inherit;
+        line-height: normal;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-btn:disabled {
+        cursor: default;
+        opacity: .45;
+      }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-form > input,
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-name-field > input,
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-aliases input {
         box-sizing: border-box;
         width: 100%;
@@ -1315,12 +1855,93 @@
         background: var(--st-color-bg-input, #0e1621);
         color: inherit;
       }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-name-field {
+        min-width: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} label[for="st-lin-single-name"] {
+        align-self: start;
+        padding-top: 6px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-reference {
+        margin-top: 6px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--st-color-text-secondary-alt);
+        overflow-wrap: anywhere;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-reference button {
+        padding: 2px 4px;
+        border: 0;
+        border-radius: 3px;
+        background: transparent;
+        color: var(--st-color-steam-blue);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-reference button:hover {
+        text-decoration: underline;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-reference button:disabled {
+        opacity: .5;
+        cursor: default;
+      }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-readings {
         grid-column: 2;
         min-width: 0;
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-readings:empty {
         display: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        box-sizing: border-box;
+        padding: 24px;
+        background: var(--st-color-overlay);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-layer[hidden] {
+        display: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-dialog {
+        box-sizing: border-box;
+        display: grid;
+        gap: 16px;
+        width: min(520px, 100%);
+        max-height: calc(100vh - 48px);
+        min-width: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 16px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-dialog h3 {
+        flex: 1;
+        margin: 0;
+        font-size: 16px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-name {
+        margin: 0;
+        overflow-wrap: anywhere;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-dialog .st-lin-reading-preview {
+        margin-top: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 8px;
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-reading-groups,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-groups {
@@ -1396,43 +2017,26 @@
         background: var(--st-color-bg-input);
         color: var(--st-color-text-primary);
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-pinyin-entry {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-width: 0;
-        height: 28px;
-        flex: 0 0 28px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-pinyin-entry input {
-        flex: 1;
-        min-width: 0;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-pinyin-entry button {
-        flex: 0 0 auto;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-popover {
-        position: fixed;
-        inset: auto;
-        box-sizing: border-box;
-        margin: 0;
-        padding: 16px;
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-batch-readings {
+        margin-top: 4px;
+        min-height: 0;
+        max-height: 24px;
         overflow-y: auto;
         overscroll-behavior: contain;
-        border: 1px solid var(--st-color-border-primary);
-        border-radius: 8px;
-        background: var(--st-color-steam-property-window);
-        color: var(--st-color-text-primary);
-        box-shadow: var(--st-shadow-panel-large);
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-popover strong {
-        flex: 1;
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-batch-readings:empty {
+        display: none;
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reading-name {
-        margin: 16px 0;
-        overflow-wrap: anywhere;
-        color: var(--st-color-text-secondary-alt);
-        font-size: 12px;
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-batch-readings .st-lin-reading-groups {
+        gap: 4px 12px;
+        max-height: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table .st-lin-reading-option {
+        min-height: 20px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table .st-lin-clip,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-appid .st-lin-slot {
+        line-height: 28px;
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-aliases {
         display: flex;
@@ -1456,7 +2060,8 @@
         padding-top: 8px;
         border-top: 1px solid var(--st-color-white-alpha-06);
       }
-      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-primary {
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-primary,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-primary {
         border-color: var(--st-color-border-primary, var(--st-color-steam-blue-alpha-38));
         background: var(--st-color-steam-blue-alpha-38, rgba(102,192,244,0.28));
       }
@@ -1494,8 +2099,7 @@
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-custom { width: 18%; }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias { width: 22%; }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-mnemonic { width: 12%; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-pinyin { width: 12%; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-action { width: 8%; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-pinyin { width: 20%; }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table th,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table td {
         box-sizing: border-box;
@@ -1515,12 +2119,12 @@
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-slot {
         box-sizing: border-box;
-        height: 56px;
-        padding: 8px;
+        height: 64px;
+        padding: 4px 8px;
         overflow: hidden;
         display: flex;
         flex-direction: column;
-        justify-content: center;
+        justify-content: flex-start;
         box-shadow: inset 0 -1px 0 var(--st-color-white-alpha-06);
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-slot > * {
@@ -1588,6 +2192,167 @@
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-layer[hidden] {
         display: none;
       }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        box-sizing: border-box;
+        width: min(344px, calc(100vw - 24px));
+        max-height: calc(100vh - 24px);
+        overflow: visible;
+        padding: 0;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu[hidden] { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu::before,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu::after {
+        content: "";
+        position: absolute;
+        top: -7px;
+        left: var(--st-lin-actions-arrow-x);
+        width: 0;
+        height: 0;
+        transform: translateX(-50%);
+        border-style: solid;
+        pointer-events: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu::before {
+        border-width: 0 7px 7px;
+        border-color: transparent transparent var(--st-color-border-normal);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu::after {
+        top: -6px;
+        border-width: 0 6px 6px;
+        border-color: transparent transparent var(--st-color-steam-property-window);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu[data-lin-filter-placement="above"]::before {
+        top: auto;
+        bottom: -7px;
+        border-width: 7px 7px 0;
+        border-color: var(--st-color-border-normal) transparent transparent;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu[data-lin-filter-placement="above"]::after {
+        top: auto;
+        bottom: -6px;
+        border-width: 6px 6px 0;
+        border-color: var(--st-color-steam-property-window) transparent transparent;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-scroll {
+        box-sizing: border-box;
+        max-height: calc(100vh - 26px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 12px;
+        border-radius: inherit;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-group + .st-lin-actions-group { margin-top: 12px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-group strong {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-group > div {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-group:is([data-lin-actions-group="add"], [data-lin-actions-group="clear"], [data-lin-actions-group="other"]) > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-group .st-lin-btn {
+        min-width: 0;
+        padding-inline: 4px;
+        white-space: normal;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-dialog {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 0;
+        width: min(960px, 100%);
+        max-height: calc(100vh - 48px);
+        padding: 16px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-dialog h3 { flex: 1; margin: 0; font-size: 16px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-tabs {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 8px;
+        overflow-x: auto;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-tabs button { white-space: nowrap; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-tabs [aria-selected="true"] {
+        color: var(--st-color-steam-blue);
+        border-color: var(--st-color-steam-blue);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} #st-lin-bulk-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-params {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+        flex: 0 0 auto;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-params:empty { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-params label { display: grid; gap: 6px; min-width: 0; font-size: 12px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-dialog :where(input[type="text"], input[type="number"], select) {
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        height: 32px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 4px;
+        padding: 0 8px;
+        background: var(--st-color-bg-input);
+        color: inherit;
+        font: inherit;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-dialog select:focus-visible {
+        outline: 2px solid var(--st-color-steam-blue);
+        outline-offset: 2px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-original { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-columns,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.4fr);
+        gap: 12px;
+        font-size: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-columns { padding: 8px; background: var(--st-color-surface-subtle); scrollbar-gutter: stable; overflow-y: auto; flex: 0 0 auto; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-scroll {
+        height: 320px;
+        min-height: 80px;
+        overflow-y: auto;
+        scrollbar-gutter: stable;
+        overscroll-behavior: contain;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-row {
+        height: 80px;
+        box-sizing: border-box;
+        padding: 8px;
+        box-shadow: inset 0 -1px 0 var(--st-color-white-alpha-06);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-row > span { min-width: 0; overflow: hidden; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-row :where(small, b, span > span) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-row small { margin-top: 6px; color: var(--st-color-text-secondary-alt); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-row[data-changed="true"] > span:last-child { color: var(--st-color-steam-blue); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-row small.st-lin-bulk-error:not(:empty) { color: var(--st-color-text-primary); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-dialog .st-lin-msg { flex: 0 0 auto; margin: 0; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-dialog .st-lin-msg:empty { display: none; }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-dialog {
         box-sizing: border-box;
         color-scheme: dark;
@@ -1715,12 +2480,6 @@
         white-space: nowrap;
         text-overflow: ellipsis;
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-action .st-lin-btn {
-        width: 100%;
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-      }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-sync-error,
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-sync-note,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-sync-error,
@@ -1748,36 +2507,67 @@
         color: var(--st-color-text-secondary-alt);
         font-size: 12px;
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import {
-        position: absolute;
-        inset: 16px;
-        z-index: 2;
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog {
+        box-sizing: border-box;
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        gap: 16px;
-        padding: 24px;
-        border: 1px solid var(--st-color-border-normal, var(--st-color-white-alpha-08));
+        gap: 12px;
+        width: min(1160px, 100%);
+        min-width: 0;
+        max-height: calc(100vh - 48px);
+        padding: 16px;
+        overflow-y: auto;
+        border: 1px solid var(--st-color-border-normal);
         border-radius: 8px;
-        background: var(--st-color-steam-property-window, #171d25);
-        box-shadow: 0 16px 36px var(--st-color-black-alpha-55, rgba(0,0,0,0.55));
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import[hidden] {
-        display: none;
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog h3 { flex: 1; margin: 0; font-size: 16px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog p { margin: 0; font-size: 12px; color: var(--st-color-text-secondary-alt); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog p:empty { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-options][hidden] { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options label,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-sheet-box] label { display: grid; min-width: 0; gap: 6px; font-size: 12px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options label:has(input[type="checkbox"]) { display: flex; align-items: center; height: 32px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog :where(input[type="text"], select) {
+        box-sizing: border-box;
+        height: 32px;
+        min-width: 0;
+        width: 100%;
+        padding: 0 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 4px;
+        background: var(--st-color-bg-input);
+        color: inherit;
+        font: inherit;
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import h3 {
-        margin: 0;
-        font-size: 16px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import p {
-        margin: 0;
-        color: var(--st-color-text-secondary-alt);
-        white-space: pre-wrap;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-import-actions {
-        display: flex;
-        justify-content: flex-end;
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog select { min-width: 140px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-preview] { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-preview][hidden] { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-scroll { height: 368px; min-height: 112px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-columns,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row {
+        display: grid;
+        grid-template-columns: 110px minmax(180px, 1.2fr) minmax(240px, 1.5fr) minmax(140px, 1fr) minmax(180px, 1.2fr);
+        min-width: 930px;
         gap: 8px;
+        box-sizing: border-box;
+        padding: 8px;
+        font-size: 12px;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-columns { position: sticky; top: 0; z-index: 1; height: 32px; background: var(--st-color-steam-property-window); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row { height: 112px; grid-template-rows: 62px 26px; box-shadow: inset 0 -1px 0 var(--st-color-white-alpha-06); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row label { min-width: 0; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row small { display: block; margin-top: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--st-color-text-secondary-alt); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-mobile-label { display: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row[data-changed="true"] input { border-color: var(--st-color-steam-blue); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row .st-lin-transfer-row-status { grid-column: 1 / -1; color: var(--st-color-danger-soft-text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      @media (max-width: 600px) {
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog { padding: 12px; gap: 8px; }
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options { gap: 8px; }
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog .st-lin-filter-actions { flex-wrap: wrap; }
       }
       `,
     },

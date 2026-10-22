@@ -276,59 +276,35 @@
     report(level, event, message, meta);
   }
 
-  function send(conf, msgs, meta = {}, options = {}) {
-    return new Promise((resolve, reject) => {
-      const startedAt = Date.now();
-      try {
-        const payload = {
-          type: "AI_CHAT_COMPLETIONS",
-          ai: conf.ai || {},
-          messages: msgs,
-        };
-        const timeoutMs = timeoutOption(options);
-        if (timeoutMs) {
-          payload.timeoutMs = timeoutMs;
-        }
-        chrome.runtime.sendMessage(payload, (response) => {
-          const err = chrome.runtime.lastError;
-          if (err) {
-            const requestError = new Error(err.message || String(err));
-            report("error", "ai-chat-request-failed", "AI 翻译请求失败", {
-              ...meta,
-              durationMs: Date.now() - startedAt,
-              error: requestError,
-            });
-            reject(requestError);
-            return;
-          }
-          if (!response?.success) {
-            const requestError = new Error(response?.error || "AI 请求失败");
-            report("error", "ai-chat-request-failed", "AI 翻译请求失败", {
-              ...meta,
-              durationMs: Date.now() - startedAt,
-              status: response?.status || 0,
-              error: requestError,
-            });
-            reject(requestError);
-            return;
-          }
-          report("info", "ai-chat-request-success", "AI 翻译请求完成", {
-            ...meta,
-            durationMs: Date.now() - startedAt,
-            status: response.status || 0,
-            resultLength: String(response.text || "").length,
-          });
-          resolve(response.text || "");
-        });
-      } catch (error) {
-        report("error", "ai-chat-request-failed", "AI 翻译请求异常", {
-          ...meta,
-          durationMs: Date.now() - startedAt,
-          error,
-        });
-        reject(error);
-      }
+  function checkCancelled(options) {
+    options.checkActive?.();
+    options.signal?.throwIfAborted();
+  }
+
+  async function send(conf, msgs, meta = {}, options = {}) {
+    checkCancelled(options);
+    const startedAt = Date.now();
+    const timeoutMs = timeoutOption(options);
+    const payload = { type: "AI_CHAT_COMPLETIONS", ai: conf.ai || {}, messages: msgs };
+    if (timeoutMs) payload.timeoutMs = timeoutMs;
+    const response = await globalThis.STMessageBus.send(payload, {
+      signal: options.signal,
+      ...(timeoutMs ? { timeoutMs } : {}),
+      logFailures: false,
     });
+    checkCancelled(options);
+    if (!response?.success) {
+      const error = new Error(response?.error || "AI 请求失败");
+      error.code = response?.code;
+      throw error;
+    }
+    report("info", "ai-chat-request-success", "AI 翻译请求完成", {
+      ...meta,
+      durationMs: Date.now() - startedAt,
+      status: response.status || 0,
+      resultLength: String(response.text || "").length,
+    });
+    return response.text || "";
   }
 
   function msg(type, data) {
@@ -344,7 +320,9 @@
             return;
           }
           if (!response?.success) {
-            reject(new Error(response?.error || "AI 缓存请求失败"));
+            const error = new Error(response?.error || "AI 缓存请求失败");
+            error.code = response?.code;
+            reject(error);
             return;
           }
           resolve(response.data);
@@ -355,13 +333,14 @@
     });
   }
 
-  async function readCache(keys) {
-    if (!keys.length) {
-      return {};
-    }
+  async function readCacheBatch(keys) {
     try {
       return await msg("AI_TRANSLATE_CACHE_GET", { keys });
     } catch (error) {
+      if (error.code === "AI_CACHE_REQUEST_REJECTED") {
+        report("warn", "ai-cache-read-rejected", "AI 翻译缓存读取被拒绝，继续无缓存翻译", { keyCount: keys.length, error });
+        return {};
+      }
       reportThrottled("warn", "ai-cache-read-fallback", "AI 翻译缓存读取降级", {
         keyCount: keys.length,
         error,
@@ -370,20 +349,48 @@
     }
   }
 
-  async function writeCache(entries) {
-    if (!entries.length) {
-      return false;
+  async function readCache(keys, options) {
+    const out = {};
+    for (const batch of cache.batchKeys(keys)) {
+      checkCancelled(options);
+      Object.assign(out, await readCacheBatch(batch));
+      checkCancelled(options);
     }
+    return out;
+  }
+
+  async function writeCacheBatch(entries) {
     try {
       await msg("AI_TRANSLATE_CACHE_SET", { entries });
       return true;
     } catch (error) {
+      if (error.code === "AI_CACHE_REQUEST_REJECTED") {
+        report("warn", "ai-cache-write-rejected", "AI 翻译缓存写入被拒绝，继续保留完整译文", { entryCount: entries.length, error });
+        return false;
+      }
       reportThrottled("warn", "ai-cache-write-fallback", "AI 翻译缓存写入降级", {
         entryCount: entries.length,
         error,
       });
       return cache?.setMany?.(entries) || false;
     }
+  }
+
+  async function writeCache(entries, options) {
+    checkCancelled(options);
+    const { batches, skipped } = cache.batchEntries(entries);
+    if (skipped) {
+      report("warn", "ai-cache-write-skipped", "AI 翻译文本超出缓存限额，已跳过缓存并保留完整译文", {
+        entryCount: entries.length, skippedCount: skipped,
+      });
+    }
+    let ok = skipped === 0 && batches.length > 0;
+    for (const batch of batches) {
+      checkCancelled(options);
+      if (!await writeCacheBatch(batch)) ok = false;
+      checkCancelled(options);
+    }
+    return ok;
   }
 
   async function translateChunk(conf, data, items, out, options = {}) {
@@ -394,6 +401,7 @@
       model: modelName(conf),
       timeoutMs: timeoutMs || undefined,
     }), options);
+    checkCancelled(options);
     const list = parseResult(content, items.length);
     list.forEach((item, idx) => {
       out[items[idx].idx] = item;
@@ -401,7 +409,7 @@
     await writeCache(items.map((item, idx) => ({
       key: item.cacheKey,
       text: list[idx],
-    })));
+    })), options);
   }
 
   async function translateChunks(conf, data, items, out, options = {}) {
@@ -414,6 +422,7 @@
     const size = Math.min(concurrency(conf), list.length);
     async function worker() {
       while (next < list.length) {
+        checkCancelled(options);
         const idx = next;
         next += 1;
         await translateChunk(conf, data, list[idx], out, options);
@@ -422,7 +431,8 @@
     await Promise.all(Array.from({ length: size }, () => worker()));
   }
 
-  async function translate(conf, data, options = {}) {
+  async function translateTask(conf, data, options) {
+    checkCancelled(options);
     const startedAt = Date.now();
     const texts = parseTexts(data);
     if (!texts.length) {
@@ -447,10 +457,11 @@
         cacheKey: await cacheKey(conf, data, text),
       };
     }));
+    checkCancelled(options);
     const todo = pending.filter(Boolean);
 
     /* AI 翻译缓存 */
-    const cached = await readCache(todo.map((item) => item.cacheKey));
+    const cached = await readCache(todo.map((item) => item.cacheKey), options);
     const next = [];
     for (const item of todo) {
       if (Object.hasOwn(cached, item.cacheKey)) {
@@ -461,6 +472,7 @@
     }
 
     await translateChunks(conf, data, next, out, options);
+    checkCancelled(options);
     report("info", "ai-translate-success", "AI 翻译完成", dataMeta(data, {
       textCount: texts.length,
       uniqueCount: uniq.length,
@@ -477,9 +489,27 @@
     };
   }
 
-  function fail(error, data) {
+  // 同一翻译调用的分块共用信号；首个失败取消其余分块，外部取消不记录业务失败
+  async function translate(conf, data, options = {}) {
+    const controller = new AbortController();
+    const abort = () => controller.abort(options.signal.reason);
+    if (options.signal?.aborted) abort();
+    else options.signal?.addEventListener("abort", abort, { once: true });
+    try {
+      return await translateTask(conf, data, { ...options, signal: controller.signal });
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        report("error", "ai-translate-failed", "AI 翻译失败", dataMeta(data, { error, phase: "translate" }));
+      }
+      controller.abort(error);
+      throw error;
+    } finally {
+      options.signal?.removeEventListener("abort", abort);
+    }
+  }
+
+  function failRequest(error, data) {
     const info = errorText(error, "AI 翻译失败");
-    report("error", "ai-translate-failed", "AI 翻译失败", dataMeta(data, { error }));
     return {
       result: 0,
       info,
@@ -508,23 +538,25 @@
 
     const orig = req.post;
     req.steamBuffAiPostHook = true;
-    req.post = function(path, data, func, abnormalFunc) {
+    // AI 第五参数传递 signal、timeoutMs 及同步任务有效性检查；其他服务保持 vendor 四参数协议
+    req.post = function(path, data, func, abnormalFunc, options = {}) {
       if (path !== PATH) {
         return orig.call(this, path, data, func, abnormalFunc);
       }
 
       const conf = globalThis.STEAM_BUFF_TRANSLATE_CONFIG || {};
-      translate(conf, data)
-        .then((response) => {
-          if (typeof func === "function") {
-            func(response, data);
-          }
-        })
-        .catch((error) => {
-          if (typeof func === "function") {
-            func(fail(error, data), data);
-          }
-        });
+      (async () => {
+        let response;
+        try {
+          response = await translate(conf, data, options);
+        } catch (error) {
+          // translate 已记录最终失败；取消也须完成 vendor 回调以释放其请求状态
+          response = failRequest(error, data);
+        }
+        if (typeof func === "function") func(response, data);
+      })().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "translate", feature: "ai-adapter", event: "install-post-hook-failed", message: "翻译结果回调失败", level: "error", phase: "installPostHook" });
+      });
       return undefined;
     };
   }
@@ -573,6 +605,8 @@
     return true;
   }
 
+  // translate(conf, data, { signal?, timeoutMs?, checkActive? }) 返回完整译文 Promise
+  // checkActive 在异步边界核对任务归属，可取消父信号；取消或失败拒绝并中止所有分块
   globalThis.STTranslateAI = Object.freeze({
     SERVICE,
     apply,

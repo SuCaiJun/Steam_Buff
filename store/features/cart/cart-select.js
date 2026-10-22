@@ -24,6 +24,7 @@
   const SCAN_MS = 700;
   const OBSERVER_DEBOUNCE_MS = 1000;
   const EMPTY_SCAN_RETRY_MAX = 12;
+  const SIDE_TOTAL_ROW_SELECTOR = "._2bIzQo07mxubFvscA8RIA8 > ._2DjadWLFH3keW9rGWZKxSk.qV80oahDZsbXiS6lIDLND";
   const MATCH = globalThis.STConfig?.matchers;
   const log = window.STLoggerFactory.createLogger("store", "cart-select");
 
@@ -674,36 +675,19 @@
   }
 
   function sideAnchor() {
-    const total = Array.from(document.querySelectorAll("div, span, p"))
-      .filter(visible)
-      .find(el => {
-        const text = compactText(el);
-        return /^预计总额\s*[¥$€£]|^Estimated Total\s*[¥$€£]/i.test(text);
-      });
-    if (total) return { el: total, pos: "afterend" };
-
-    const note = Array.from(document.querySelectorAll("div, span, p"))
-      .filter(visible)
-      .find(el => {
-        const text = compactText(el);
-        return text.length <= 120
-          && (/销售税|tax/i.test(text))
-          && (/付款|结算|checkout|payment/i.test(text));
-      });
-    if (note) return { el: note, pos: "beforebegin" };
-
-    const btn = checkoutButtons()[0];
-    return btn ? { el: btn, pos: "beforebegin" } : null;
+    // 原生购物车同时保留宽屏和窄屏总额行，只使用当前可见的一行。
+    return Array.from(document.querySelectorAll(SIDE_TOTAL_ROW_SELECTOR)).find(visible) || null;
   }
 
   function ensureSideSummary() {
     const anchor = sideAnchor();
     if (!anchor) {
+      document.getElementById("st_cart_select_side_summary")?.remove();
       if (items.length && !lastSideAnchorMissing) {
         lastSideAnchorMissing = true;
         log.warn("cart-select-side-summary-target-missing", "购物车侧边汇总挂载目标未找到", {
           totalCount: items.length,
-          selector: "Estimated Total | tax note | checkout button",
+          selector: SIDE_TOTAL_ROW_SELECTOR,
           path: location.pathname,
         });
       }
@@ -734,13 +718,8 @@
       box.append(totalRow, countRow);
     }
 
-    const { el, pos } = anchor;
-    if ((pos === "afterend" && box.previousElementSibling !== el)
-      || (pos === "beforebegin" && box.nextElementSibling !== el)) {
-      el.insertAdjacentElement(pos, box);
-    }
-    if (pos === "afterend") {
-      el.classList.add("st_cart_select_total_row");
+    if (box.previousElementSibling !== anchor) {
+      anchor.insertAdjacentElement("afterend", box);
     }
     return box;
   }
@@ -847,7 +826,10 @@
       btn.className = "st_cart_restore_btn";
       btn.textContent = t("store_cartSelect_restoreButton", "恢复暂存购物车数据");
       btn.addEventListener("click", () => {
-        manualRestoreMissing().catch(() => setRestorePanel(t("store_cartSelect_restoreFailed", "恢复失败，请重试"), "bad"));
+        manualRestoreMissing().catch(error => {
+          globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart-select", event: "cart-restore-failed", message: "恢复暂存购物车失败" });
+          setRestorePanel(t("store_cartSelect_restoreFailed", "恢复失败，请重试"), "bad");
+        });
       });
       panel.append(text, btn);
     }
@@ -922,7 +904,8 @@
       if (!observer) {
         observe();
       }
-      showRestorePrompt().catch(() => {});
+      showRestorePrompt().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "scan-failed", message: "商店功能处理失败", level: "error", phase: "scan" });});
     }
     return items;
   }
@@ -930,7 +913,8 @@
   function scheduleScan() {
     clearTimeout(scanTimer);
     scanTimer = setTimeout(() => {
-      scan().catch(() => {});
+      scan().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "schedule-scan-failed", message: "商店功能处理失败", level: "error", phase: "scheduleScan" });});
     }, SCAN_MS);
   }
 
@@ -938,7 +922,8 @@
     clearTimeout(restorePromptTimer);
     restorePromptTimer = setTimeout(() => {
       restorePromptTimer = null;
-      showRestorePrompt().catch(() => {});
+      showRestorePrompt().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "schedule-restore-prompt-failed", message: "商店功能处理失败", level: "error", phase: "scheduleRestorePrompt" });});
     }, SCAN_MS);
   }
 
@@ -972,6 +957,7 @@
       try {
         await selectionSaveTask;
       } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "clear-selection-failed", message: "清理购物车选择失败", level: "warn", phase: "clearSelection" });
         // 发起选择事务的用户操作已经记录失败；这里仅等待回滚完成后重新计算清理状态。
         void error;
       }
@@ -1194,7 +1180,8 @@
 
     event.preventDefault();
     event.stopImmediatePropagation();
-    goCheckout(btn).catch(() => {
+    goCheckout(btn).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "on-checkout-click-failed", message: "提交购物车选择失败", level: "error", phase: "onCheckoutClick" });
       busy = false;
       toast(t("store_cartSelect_checkoutFailed", "购物车选择处理失败"), true);
     });
@@ -1327,7 +1314,7 @@
       }
       return;
     }
-    const rawObserver = utils.createDebouncedObserver(scheduleScan, OBSERVER_DEBOUNCE_MS);
+    const rawObserver = utils.createDebouncedObserver(scheduleScan, OBSERVER_DEBOUNCE_MS, { records: false });
     observer = utils.createVisibilityGatedObserver(rawObserver, target, { childList: true, subtree: true });
     observer.__stTarget = target;
     observerTargetMissingLogged = false;
@@ -1362,7 +1349,8 @@
     bindRemoveAllConfirm();
     observe();
     await scan();
-    showRestorePrompt().catch(() => {});
+    showRestorePrompt().catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });});
     log.info("cart-select-start-success", "购物车选择功能已启动", {
       totalCount: items.length,
       selectedCount: selectedItems().length,
@@ -1395,7 +1383,6 @@
     });
     document.querySelectorAll(".st_cart_select_actions").forEach(node => node.classList.remove("st_cart_select_actions"));
     document.querySelectorAll(".st_cart_select_remove_all_anchor").forEach(node => node.classList.remove("st_cart_select_remove_all_anchor"));
-    document.querySelectorAll(".st_cart_select_total_row").forEach(node => node.classList.remove("st_cart_select_total_row"));
     document.querySelectorAll(".st_cart_select_cart_title").forEach(node => node.classList.remove("st_cart_select_cart_title"));
     lastBridgeFailureKey = "";
     lastBridgeFailureAt = 0;

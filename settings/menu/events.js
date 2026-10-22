@@ -15,7 +15,6 @@
     dragThreshold: 10,
     minTop: 24,
     margin: 24,
-    topShowY: 1500,
     openEvent: "STSettingsOpen",
     openCatDataset: "steamBuffOpenCat",
     openAckDataset: "steamBuffOpenAck",
@@ -94,7 +93,8 @@
       for (const disposeOne of disposers.splice(0)) {
         try {
           disposeOne();
-        } catch {
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "menu-events", event: "dispose-failed", message: "释放界面资源失败", level: "warn", phase: "dispose" });
         }
       }
     }
@@ -434,6 +434,9 @@
         return;
       }
 
+      if (panels.gameLinks().handleClick(event, shadow)) {
+        return;
+      }
       if (panels.review().handleClick(event, shadow)) {
         return;
       }
@@ -473,6 +476,7 @@
     });
 
     listen(shadow, "input", (event) => {
+      panels.gameLinks().handleInput(event, shadow);
       panels.storePriceChart().handleInput(event, shadow);
     });
 
@@ -543,6 +547,9 @@
         return;
       }
 
+      if (panels.gameLinks().handleChange(event, shadow)) {
+        return;
+      }
       if (panels.thirdPartyServices().handleChange(event, shadow)) {
         return;
       }
@@ -551,6 +558,16 @@
         return;
       }
     });
+
+    let gameLinkPointerActive = false;
+    listen(shadow, "pointerdown", (event) => {
+      if (event.target.closest("[data-game-link-row]")) gameLinkPointerActive = panels.gameLinks().handlePointer(event, shadow);
+    });
+    for (const type of ["pointermove", "pointerup", "pointercancel", "lostpointercapture"]) {
+      listen(shadow, type, (event) => {
+        if (gameLinkPointerActive) gameLinkPointerActive = panels.gameLinks().handlePointer(event, shadow);
+      });
+    }
 
     function orderValuesFromList(list) {
       return Array.from(list.querySelectorAll("[data-setting-order-item]"))
@@ -653,6 +670,7 @@
     });
 
     listen(shadow, "keydown", (event) => {
+      if (panels.gameLinks().handleKeyDown(event, shadow)) return;
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
         return;
       }

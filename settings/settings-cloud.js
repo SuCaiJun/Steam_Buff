@@ -78,7 +78,8 @@
         box.get(keys, (data) => {
           resolve(root.chrome?.runtime?.lastError ? {} : (data || {}));
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "settings-cloud", event: "local-get-failed", message: "设置中心处理失败", level: "warn", phase: "localGet" });
         resolve({});
       }
     });
@@ -94,7 +95,8 @@
         box.set(data, () => {
           resolve(!root.chrome?.runtime?.lastError);
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "settings-cloud", event: "local-set-failed", message: "设置中心处理失败", level: "error", phase: "localSet" });
         resolve(false);
       }
     });
@@ -315,7 +317,8 @@
   function localVersion() {
     try {
       return String(root.chrome?.runtime?.getManifest?.()?.version || "");
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "settings-cloud", event: "local-version-failed", message: "设置中心处理失败", level: "warn", phase: "localVersion" });
       return "";
     }
   }

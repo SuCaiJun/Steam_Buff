@@ -19,6 +19,12 @@
   const { cleanAuth, nextAuth } = authSession;
 
   const CONTRACT = globalThis.STOnboardingContract;
+  if (!CONTRACT) {
+    throw new Error("安装引导缺少步骤依赖，请先加载 onboarding/contract.js");
+  }
+  if (!globalThis.STConfig?.urls || !globalThis.STConfig.libraryNameMode) {
+    throw new Error("安装引导缺少配置依赖，请先加载 shared/config.js");
+  }
   const LOCAL_STEPS = CONTRACT.LOCAL_STEPS;
   const OPEN_SETTINGS_MESSAGE = CONTRACT.MESSAGES.openSettings;
   const SETTINGS_PREFIX = "st.settings.";
@@ -31,9 +37,7 @@
   const THIRD_PARTY_PREFIX = `${SETTINGS_PREFIX}thirdPartyServices.`;
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = "steam_buff_membership";
-  const CONFIG_PATH = "shared/config.js";
   const SETTINGS_CATALOG_PATH = "settings/catalog.js";
-  const AI_CONFIG_PATH = "ai/config.js";
   const FLOW_TIMEOUT_MS = 10_000;
   const ITAD_TEST_TIMEOUT_MS = 12_000;
   const AI_TEST_TIMEOUT_MS = 20_000;
@@ -47,11 +51,10 @@
   const AI_GATEWAY_PERMISSION_OPEN = "AI_GATEWAY_PERMISSION_OPEN";
   const AI_GATEWAY_PERMISSION_CANCEL = "AI_GATEWAY_PERMISSION_CANCEL";
   const AI_GATEWAY_PERMISSION_RESULT = "AI_GATEWAY_PERMISSION_RESULT";
-  const log = globalThis.STLoggerFactory?.createLogger?.("onboarding", "local-flow") || {
-    info() {},
-    warn() {},
-    error() {},
-  };
+  if (typeof globalThis.STLoggerFactory?.createLogger !== "function") {
+    throw new Error("安装引导缺少日志依赖，请先加载 shared/logger-factory.js");
+  }
+  const log = globalThis.STLoggerFactory.createLogger("onboarding", "local-flow");
 
   const state = {
     phase: "loading",
@@ -114,7 +117,6 @@
   };
 
   let catalogJob = null;
-  let configJob = null;
   let loginPollTimer = 0;
   let loginCopyTimer = 0;
   let celebration = null;
@@ -134,6 +136,10 @@
 
   function createOperationId() {
     return globalThis.STLoggerFactory?.createOperationId?.() || "";
+  }
+
+  function createRequestId() {
+    return globalThis.STLoggerFactory?.createRequestId?.() || "";
   }
 
   function el(tag, className, text) {
@@ -243,19 +249,26 @@
   }
 
   async function settingsCatalog() {
-    if (window.STSettings?.catalog?.featureItems) return window.STSettings.catalog;
+    if (typeof window.STSettings?.catalog?.featureItems === "function") return window.STSettings.catalog;
     if (!catalogJob) {
       const api = chromeApi();
       const src = api?.runtime?.getURL
         ? api.runtime.getURL(SETTINGS_CATALOG_PATH)
         : `../${SETTINGS_CATALOG_PATH}`;
-      catalogJob = loadScript(src).catch((error) => {
-        catalogJob = null;
-        throw error;
-      });
+      catalogJob = loadScript(src);
     }
-    await catalogJob;
-    return window.STSettings?.catalog || null;
+    const job = catalogJob;
+    try {
+      await job;
+    } catch (error) {
+      if (catalogJob === job) catalogJob = null;
+      throw error;
+    }
+    if (typeof window.STSettings?.catalog?.featureItems !== "function") {
+      if (catalogJob === job) catalogJob = null;
+      throw new Error("设置目录模块未初始化");
+    }
+    return window.STSettings.catalog;
   }
 
   // 只取设置中心「客户端增强」分类的顶层布尔功能，不含子选项和二选一方案
@@ -310,16 +323,8 @@
     });
   }
 
-  async function sharedConfig() {
-    if (window.STConfig?.urls) return window.STConfig;
-    if (!configJob) {
-      const api = chromeApi();
-      const src = api?.runtime?.getURL
-        ? api.runtime.getURL(CONFIG_PATH)
-        : `../${CONFIG_PATH}`;
-      configJob = loadScript(src).catch(() => false);
-    }
-    await configJob;
+  function sharedConfig() {
+    // index.html 已先加载必需配置；缺失时直接报错，不能静默重复加载。
     if (!window.STConfig?.urls) throw new Error("配置加载失败，请稍后重试。");
     return window.STConfig;
   }
@@ -327,46 +332,78 @@
   function parseJson(text) {
     try {
       return JSON.parse(text || "{}");
-    } catch {
-      throw new Error("接口返回解析失败，请稍后重试。");
+    } catch (cause) {
+      globalThis.STLoggerSchema?.markJsonError?.(cause);
+      throw new Error("接口返回解析失败，请稍后重试。", { cause });
     }
   }
 
-  function storeFetch(url, data, token = "", method = "POST", base = "") {
+  // API 发网、消息超时和请求日志复用公共封装；这里只区分引导页的无效消息回复
+  async function onboardingApiRequest(options) {
     const api = chromeApi();
     if (!api?.runtime?.sendMessage) {
-      return Promise.reject(new Error("当前是本地预览模式，安装为扩展后可在此获取授权码。"));
+      throw new Error("当前是本地预览模式，安装为扩展后可测试连接或获取授权码。");
     }
+    const requestApi = globalThis.STSettingsApiRequest;
+    if (!requestApi?.request || !requestApi?.parseJson) {
+      throw new Error("引导页请求封装未加载，请重新打开引导页。");
+    }
+    try {
+      return await requestApi.request({
+        ...options,
+        retries: 0,
+        // 授权等待轮询只记录异常和状态变化，不新增逐次成功日志
+        deferSuccessLog: true,
+        validateResponse(response) {
+          return response.success === true && typeof response.status === "number" && Number.isFinite(response.status)
+            && response.status > 0 && typeof response.data === "string";
+        },
+        validateMessage: "后台请求回复格式异常：缺少 HTTP 状态码或响应内容。",
+      });
+    } catch (cause) {
+      // STORE_FETCH 的正式失败回复包含 success:false 和 error；空回复不属于网络错误
+      if (cause && Object.hasOwn(cause, "response") && !cause.response?.success
+        && !(cause.response?.success === false && typeof cause.response.error === "string" && cause.response.error.trim())) {
+        const error = new Error("后台未返回有效请求结果，请重新打开引导页后重试。", { cause });
+        error.name = "MessageError";
+        error.code = "BACKGROUND_RESPONSE_INVALID";
+        error.response = cause.response;
+        throw error;
+      }
+      throw cause;
+    }
+  }
+
+  async function storeFetch(url, data, token = "", method = "POST", base = "", diagnostics = {}) {
     const headers = {
       Accept: "application/json",
       "Content-Type": "application/json",
     };
     if (token) headers.Authorization = `Bearer ${token}`;
-    return new Promise((resolve, reject) => {
-      try {
-        api.runtime.sendMessage({
-          type: "STORE_FETCH",
-          url: `${base}${url}`,
-          method,
-          headers,
-          data: data || {},
-          allowHttpError: true,
-          timeoutMs: 12_000,
-        }, (res) => {
-          const error = api.runtime.lastError;
-          if (error || !res?.success) {
-            reject(new Error(error?.message || res?.error || "登录请求失败，请稍后重试。"));
-            return;
-          }
-          resolve({
-            status: res.status || 0,
-            body: parseJson(res.data),
-          });
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
+    const requestId = createRequestId();
+    const operationId = diagnostics.operationId || state.loginOperationId || createOperationId();
+    const options = {
+      url: `${base}${url}`, method, headers, data: data || {},
+      label: "引导页用户中心接口",
+      allowHttpError: true, timeoutMs: 12_000, operationId, requestId,
+      endpointKey: `onboarding:${url}`, service: "sucaijun-api", traceRequest: diagnostics.traceRequest === true,
+    };
+    const details = { operationId, requestId, request: globalThis.STLoggerSchema.requestFacts(options) };
+    const startedAt = Date.now();
+    const response = await onboardingApiRequest(options);
+    let body;
+    try {
+      body = globalThis.STSettingsApiRequest.parseJson(response.data, "接口返回解析失败，请稍后重试。");
+    } catch (error) {
+      log.error("onboarding-api-request-failed", "安装引导 API 响应解析失败", {
+        ...details, phase: "parse", response: globalThis.STLoggerSchema.responseFacts(response),
+        durationMs: Date.now() - startedAt, error,
+      });
+      throw error;
+    }
+    const summary = { ...globalThis.STLoggerSchema.responseFacts(response), ...globalThis.STLoggerSchema.resultFacts(body, ["code", "device_code", "user_code", "interval", "expires_in"]), businessCode: body?.code, message: body?.message };
+    if (options.traceRequest) log.info("api-response-parsed", "设备登录接口回复已解析", { ...details, response: summary, durationMs: Date.now() - startedAt });
+    return { status: response.status, body, diagnostics: summary, requestId, operationId };
   }
 
   function okCode(res) {
@@ -374,133 +411,74 @@
     return code >= 200 && code < 300;
   }
 
-  function storageGet(key) {
-    const api = chromeApi();
-    if (api?.storage?.local) {
-      return new Promise((resolve) => {
-        try {
-          api.storage.local.get(key, (data) => resolve(api.runtime?.lastError ? null : data?.[key]));
-        } catch {
-          resolve(null);
-        }
-      });
-    }
-    try {
-      const raw = localStorage.getItem(key);
-      return Promise.resolve(raw ? parseJson(raw) : null);
-    } catch {
-      return Promise.resolve(null);
-    }
+  async function storageGet(key) {
+    const data = await storageGetMany([key]);
+    return data[key] ?? null;
   }
 
   function storageSet(key, value, diagnostics = {}) {
-    const operationId = String(diagnostics?.operationId || "");
-    const api = chromeApi();
-    if (api?.storage?.local) {
-      return new Promise((resolve) => {
-        try {
-          api.storage.local.set({ [key]: value }, () => {
-            const error = api.runtime?.lastError;
-            if (error) {
-              log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
-                operationId,
-                storageKey: key,
-                error,
-              });
-              resolve(false);
-              return;
-            }
-            resolve(true);
-          });
-        } catch (error) {
-          log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
-            operationId,
-            storageKey: key,
-            error,
-          });
-          resolve(false);
-        }
-      });
-    }
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-      return Promise.resolve(true);
-    } catch (error) {
-      log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
-        operationId,
-        storageKey: key,
-        error,
-      });
-      return Promise.resolve(false);
-    }
+    return storageSetMany({ [key]: value }, diagnostics);
   }
 
-  function storageGetMany(keys) {
+  function storageApi() {
     const api = chromeApi();
-    if (api?.storage?.local) {
+    if (api?.storage?.local) return api;
+    if (window.location.protocol === "chrome-extension:" || api?.runtime?.id) {
+      throw new Error("扩展本地存储不可用，请重新打开安装引导");
+    }
+    // 普通网页预览沿用来源独立的 localStorage，扩展页不能退回该存储。
+    return null;
+  }
+
+  async function storageGetMany(keys) {
+    const api = storageApi();
+    if (api) {
       return new Promise((resolve, reject) => {
         api.storage.local.get(keys, data => {
           const error = api.runtime?.lastError;
-          if (error) reject(new Error(error.message));
-          else if (!data || typeof data !== "object") reject(new Error("设置读取结果无效"));
+          if (error) reject(new Error("设置读取失败", { cause: error }));
+          else if (!data || typeof data !== "object" || Array.isArray(data)) reject(new Error("设置读取结果无效"));
           else resolve(data);
         });
       });
     }
     const out = {};
-    try {
-      keys.forEach(key => {
-        const raw = localStorage.getItem(key);
-        if (raw == null) return;
-        // 本地预览原有的 string / JSON 两种写入格式。
-        try { out[key] = JSON.parse(raw); } catch { out[key] = raw; }
-      });
-      return Promise.resolve(out);
-    } catch (error) { return Promise.reject(error); }
+    keys.forEach(key => {
+      const raw = localStorage.getItem(key);
+      if (raw == null) return;
+      // 本地预览原有的 string / JSON 两种写入格式。
+      try { out[key] = JSON.parse(raw); } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "storage-get-many-failed", message: "安装引导处理失败", level: "warn", phase: "storageGetMany" }); out[key] = raw; }
+    });
+    return out;
   }
 
-  function storageSetMany(data, diagnostics = {}) {
+  async function storageSetMany(data, diagnostics = {}) {
     const operationId = String(diagnostics?.operationId || "");
     const payload = data && typeof data === "object" ? data : {};
-    const api = chromeApi();
-    if (api?.storage?.local) {
-      return new Promise((resolve) => {
-        try {
+    try {
+      const api = storageApi();
+      if (api) {
+        await new Promise((resolve, reject) => {
           api.storage.local.set(payload, () => {
             const error = api.runtime?.lastError;
-            if (error) {
-              log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
-                operationId,
-                storageKey: Object.keys(payload).join(","),
-                error,
-              });
-              resolve(false);
-              return;
-            }
-            resolve(true);
+            if (error) reject(new Error("设置保存失败", { cause: error }));
+            else resolve();
           });
-        } catch (error) {
-          log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
-            operationId,
-            storageKey: Object.keys(payload).join(","),
-            error,
-          });
-          resolve(false);
-        }
-      });
-    }
-    try {
-      Object.entries(payload).forEach(([key, value]) => {
-        localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
-      });
-      return Promise.resolve(true);
+        });
+      } else {
+        Object.entries(payload).forEach(([key, value]) => {
+          localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+        });
+      }
+      return true;
     } catch (error) {
-      log.warn("onboarding-storage-write-failed", "安装引导状态保存失败", {
+      log.error("onboarding-storage-write-failed", "安装引导状态保存失败", {
         operationId,
         storageKey: Object.keys(payload).join(","),
         error,
       });
-      return Promise.resolve(false);
+      return false;
     }
   }
 
@@ -577,7 +555,8 @@
       });
       const page = Number(data.page);
       return Number.isSafeInteger(page) && page > 0 ? page : 0;
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "read-committed-page-failed", message: "安装引导处理失败", level: "error", phase: "readCommittedPage" });
       return 0;
     }
   }
@@ -591,7 +570,8 @@
         results: state.results,
         page,
       }));
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "write-committed-page-failed", message: "安装引导处理失败", level: "error", phase: "writeCommittedPage" });
       // sessionStorage 不可用时仅保留内存态
     }
   }
@@ -659,14 +639,9 @@
     clampCommittedPage();
   }
 
-  async function ensureAiModule() {
-    if (globalThis.STAI?.normalize) return globalThis.STAI;
-    const api = chromeApi();
-    const src = api?.runtime?.getURL
-      ? api.runtime.getURL(AI_CONFIG_PATH)
-      : `../${AI_CONFIG_PATH}`;
-    await loadScript(src).catch(() => false);
-    if (!globalThis.STAI?.normalize) throw new Error("AI 配置模块未加载");
+  function ensureAiModule() {
+    // AI 配置与引导脚本在 index.html 中按固定顺序加载。
+    if (typeof globalThis.STAI?.normalize !== "function") throw new Error("AI 配置模块未加载");
     return globalThis.STAI;
   }
 
@@ -826,6 +801,10 @@
     state.thirdParty.messageError = false;
     render();
     const startedAt = Date.now();
+    const details = { operationId, requestId };
+    let response;
+    let payload;
+    let phase = "configuration";
     log.info("onboarding-itad-test-start", "安装引导开始测试 ITAD 连接", {
       operationId,
       requestId,
@@ -835,9 +814,9 @@
       const cfg = await sharedConfig();
       const url = cfg.vendors?.isthereanydeal?.statsMostPopular?.(1, 0);
       if (!url) throw new Error("ITAD 测试接口配置未就绪。");
-      const res = await runtimeSend({
-        type: "STORE_FETCH",
+      const options = {
         url,
+        label: "引导页 ITAD 测试接口",
         method: "GET",
         headers: {
           Accept: "application/json",
@@ -845,28 +824,36 @@
         },
         allowHttpError: true,
         timeoutMs: ITAD_TEST_TIMEOUT_MS,
-      }, ITAD_TEST_TIMEOUT_MS + 1_000);
-      const status = Number(res?.status) || 0;
-      if (!res?.success && status <= 0) {
-        throw Object.assign(new Error(res?.error || "网络请求失败，请检查网络连接或稍后重试。"), {
-          code: "NETWORK_FAILED",
-        });
-      }
+        operationId,
+        requestId,
+        endpointKey: "onboarding:itad-test",
+        service: "itad",
+        requestUrlPolicy: { allowPath: true, allowedQueryKeys: ["limit", "offset"] },
+        traceRequest: true,
+      };
+      details.request = globalThis.STLoggerSchema.requestFacts(options);
+      phase = "request";
+      response = await onboardingApiRequest(options);
+      phase = "http";
+      const status = response.status;
       if (status < 200 || status >= 300) {
         const failure = itadFailureFromStatus(status);
         state.thirdParty.verified = false;
         state.thirdParty.message = failure.message;
         state.thirdParty.messageError = true;
-        log.warn("onboarding-itad-test-failed", "安装引导 ITAD 连接测试失败", {
-          operationId,
-          requestId,
+        log.error("onboarding-itad-test-failed", "安装引导 ITAD 连接测试失败", {
+          ...details,
+          phase,
+          response: globalThis.STLoggerSchema.responseFacts(response),
           status,
           durationMs: Date.now() - startedAt,
           errorCode: failure.code,
         });
         return;
       }
-      const payload = parseJson(res.data);
+      phase = "parse";
+      payload = globalThis.STSettingsApiRequest.parseJson(response.data, "ITAD 测试接口响应解析失败。");
+      phase = "validate";
       if (!payload || (typeof payload !== "object" && !Array.isArray(payload))) {
         throw Object.assign(new Error("ITAD 测试接口响应格式异常。"), { code: "RESPONSE_SHAPE_INVALID" });
       }
@@ -875,8 +862,8 @@
       state.thirdParty.message = "测试通过，可进入下一步。";
       state.thirdParty.messageError = false;
       log.info("onboarding-itad-test-success", "安装引导 ITAD 连接测试成功", {
-        operationId,
-        requestId,
+        ...details,
+        response: { ...globalThis.STLoggerSchema.responseFacts(response), ...globalThis.STLoggerSchema.resultFacts(payload) },
         status,
         durationMs: Date.now() - startedAt,
       });
@@ -885,8 +872,9 @@
       state.thirdParty.message = error?.message || String(error);
       state.thirdParty.messageError = true;
       log.error("onboarding-itad-test-failed", "安装引导 ITAD 连接测试异常", {
-        operationId,
-        requestId,
+        ...details,
+        phase,
+        response: { ...globalThis.STLoggerSchema.responseFacts(response || error.response), ...(payload === undefined ? {} : globalThis.STLoggerSchema.resultFacts(payload)) },
         durationMs: Date.now() - startedAt,
         errorCode: error?.code || "TEST_THROWN",
         error,
@@ -928,8 +916,9 @@
         if (String(message?.requestId || "") !== requestId) return false;
         try {
           sendResponse?.({ success: true, received: true });
-        } catch {
-          // ignore response channel errors
+        } catch (error) {
+          globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "wait-ai-permission-result-failed", message: "安装引导处理失败", level: "warn", phase: "waitAiPermissionResult", requestId });
+          // 忽略响应通道错误
         }
         finish(message?.granted === true ? null : aiPermissionError(message));
         return false;
@@ -986,7 +975,7 @@
           operationId,
         }, 5_000);
       } catch {
-        // keep original permission error
+        // 保留原始权限错误
       }
       throw error;
     }
@@ -1126,7 +1115,8 @@
       if (apex && next.hostname === apex && host) next.hostname = host;
       next.searchParams.set("code", code);
       return next.toString();
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "login-full-url-failed", message: "安装引导处理失败", level: "warn", phase: "loginFullUrl" });
       const sep = target.includes("?") ? "&" : "?";
       return `${target}${sep}code=${encodeURIComponent(code)}`;
     }
@@ -1138,7 +1128,8 @@
       next.search = "";
       next.hash = "";
       return next.toString().replace(/\/$/, "");
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "login-display-url-failed", message: "安装引导处理失败", level: "warn", phase: "loginDisplayUrl" });
       return window.STConfig?.urls?.device || "";
     }
   }
@@ -1157,7 +1148,10 @@
       return ok;
     };
     if (navigator.clipboard?.writeText) {
-      return navigator.clipboard.writeText(text).then(() => done(true)).catch(() => done(false));
+      return navigator.clipboard.writeText(text).then(() => done(true)).catch(error => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "login", event: "clipboard-copy-failed", message: "复制登录内容失败", level: "warn" });
+        return done(false);
+      });
     }
     const input = document.createElement("textarea");
     input.value = text;
@@ -1169,7 +1163,8 @@
     let ok = true;
     try {
       ok = document.execCommand("copy");
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "login", event: "clipboard-copy-failed", message: "复制登录内容失败", level: "warn" });
       ok = false;
     }
     input.remove();
@@ -1292,9 +1287,15 @@
     render();
     try {
       const cfg = await sharedConfig();
-      const res = await storeFetch("/auth/device/start", { device_name: "Steam Buff 引导页" }, "", "POST", cfg.urls.loginAuthBase);
+      const res = await storeFetch("/auth/device/start", { device_name: "Steam Buff 引导页" }, "", "POST", cfg.urls.loginAuthBase, { traceRequest: true });
       if (!okCode(res) || !res.body?.device_code) {
-        throw new Error(res.body?.message || "获取授权码失败");
+        const error = new Error(res.body?.message || "获取授权码失败");
+        log.error("onboarding-api-response-invalid", "设备登录接口返回未通过校验", {
+          operationId: res.operationId, requestId: res.requestId, phase: "validate",
+          request: { method: "POST", endpointKey: "onboarding:/auth/device/start", url: `${cfg.urls.loginAuthBase}/auth/device/start` },
+          response: res.diagnostics, error,
+        });
+        throw error;
       }
       state.loginDevice = {
         device_code: res.body.device_code,
@@ -1448,6 +1449,7 @@
       if (!url) throw new Error("使用教程地址未配置");
       cfg.externalNavigation.open(url);
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "open-tutorial-failed", message: "打开引导教程失败", level: "error", phase: "openTutorial" });
       setNote(error?.message || String(error), true);
     }
   }
@@ -1630,7 +1632,8 @@
     const heading = $(`[data-step-panel="${activeStep().id}"] h1`);
     try {
       heading?.focus({ preventScroll: true });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "focus-heading-failed", message: "安装引导处理失败", level: "warn", phase: "focusHeading" });
       heading?.focus();
     }
   }
@@ -1857,17 +1860,29 @@
 
     const abort = new AbortController();
     const timeout = window.setTimeout(() => abort.abort(), FLOW_TIMEOUT_MS);
+    const requestId = createRequestId();
+    let requestUrl;
+    let responseFacts;
+    let phase = "configuration";
     try {
       const cfg = await sharedConfig();
+      requestUrl = cfg.urls.onboardingFlow;
+      phase = "network";
       const response = await fetch(cfg.urls.onboardingFlow, {
         headers: { Accept: "application/json" },
         signal: abort.signal,
       });
       const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+      responseFacts = globalThis.STLoggerSchema.httpFacts(response);
+      phase = "http";
       if (!response.ok || !contentType.includes("application/json")) {
         throw new Error("引导配置响应无效");
       }
-      const pageCount = CONTRACT.cloudPageCount(await response.json());
+      phase = "parse";
+      const flow = await response.json();
+      responseFacts = { ...responseFacts, ...globalThis.STLoggerSchema.resultFacts(flow) };
+      phase = "validate";
+      const pageCount = CONTRACT.cloudPageCount(flow);
       if (!pageCount) throw new Error("引导配置内容无效");
       state.cloudCount = pageCount;
       state.total = CONTRACT.totalPageCount(pageCount);
@@ -1911,7 +1926,9 @@
       }
       render();
     } catch (error) {
+      if (phase === "parse" && error?.name === "SyntaxError") globalThis.STLoggerSchema.markJsonError(error);
       log.error("onboarding-flow-load-failed", "安装引导配置加载失败", {
+        requestId, phase, request: { method: "GET", endpointKey: "onboarding-flow", url: requestUrl, timeoutMs: FLOW_TIMEOUT_MS }, response: responseFacts,
         error,
       });
       setPhase("error", "引导配置加载失败", "无法验证云端页面数量，请刷新页面或返回首页。");

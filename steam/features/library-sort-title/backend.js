@@ -9,14 +9,12 @@
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
 
-// 流畅模式只维护库列表名称显示快照；稳定模式保留 1.0.5 之前的 AppOverview 替换刷新路径
+// 名称和内存排序键共用 AppOverview 替换及定向刷新路径。
 (() => {
   "use strict";
 
   const ID = "library-sort-title";
-  const STABLE_MODE_ID = "library-sort-title-stable-mode";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
-  const HOVER_TITLE_ID = "library-sort-title-hover-custom-name";
   const GROUP_LABELS_ID = "library-group-labels";
   const GROUPED_MODE_ID = "library-group-labels-grouped-mode";
   const HIDE_COLLECTION_TAGS_ID = "library-group-labels-hide-collection-tags";
@@ -29,6 +27,7 @@
   const ORIGS = "__RickyStOriginalNames";
   const PATCHES = "__RickyStPatchedMethods";
   const CUSTOM_SORT_EVENTS = "__SteamBuffNativeCustomSortEvents";
+  const CLOUD_SORT_NAMESPACE = 3;
   const S_FLAG = "__RickyStSetSortAsPatched";
   const O_FLAG = "__RickyStOverviewChangePatched";
   const COLLECTION_FLAG = "__RickyStCollectionEventsPatched";
@@ -45,9 +44,6 @@
 
   // Steam 收藏分组只识别名称末尾连续的 ASCII 方括号
   const COLLECTION_TAG_SUFFIX_RE = /(?:\[([^\]\r\n]*)\]\s*)+$/;
-  // 这是自定义排序名称的既有显示规则，不改变 Steam 保存值
-  const TAG_RE = /^(?:\[[^\]\r\n]*\]\s*)+/;
-  const MNEMONIC_TAG_RE = /\s*\[#(?:[A-Za-z0-9]+)\]\s*/g;
 
   const log = window.STLoggerFactory.createLogger("steam", ID);
 
@@ -204,13 +200,8 @@
     if (!app || typeof app !== "object") {
       return "";
     }
-    if (app[ORIG]) {
-      return clean(app[ORIG]);
-    }
-    const id = Number(app.appid) || 0;
-    if (id && names().has(id)) {
-      return names().get(id);
-    }
+    const cached = window.STSteamAppNames.cachedName(app);
+    if (cached) return cached;
     try {
       if (argument && typeof argument.display_name === "function") {
         const value = clean(argument.display_name());
@@ -224,38 +215,21 @@
   }
 
   function viewCustomName(value) {
-    const source = raw(value);
-    if (!source) {
-      return "";
-    }
-    const visible = source
-      .replace(MNEMONIC_TAG_RE, " ")
-      .replace(/\s{2,}/g, " ")
-      .replace(TAG_RE, "")
-      .trim();
-    return visible || source;
+    return window.STSteamAppNames.nativeName(value);
   }
 
   function independentActive(rt) {
     return rt?.nameMode === window.STConfig.libraryNameMode.values.INDEPENDENT;
   }
 
-  function readMineNames() {
-    const rawValue = document.documentElement?.dataset?.steamBuffUserNames || "{}";
+  function readMineNames(api) {
     const map = new Map();
-    try {
-      const data = JSON.parse(rawValue) || {};
-      if (!data || typeof data !== "object") {
-        return map;
+    for (const [id, value] of Object.entries(api.ctx.userNames())) {
+      const appid = Number(id) || 0;
+      const name = clean(typeof value === "string" ? value : value?.custom_name);
+      if (appid && name) {
+        map.set(appid, name);
       }
-      for (const [id, value] of Object.entries(data)) {
-        const appid = Number(id) || 0;
-        const name = clean(typeof value === "string" ? value : value?.custom_name);
-        if (appid && name) {
-          map.set(appid, name);
-        }
-      }
-    } catch {
     }
     return map;
   }
@@ -296,9 +270,8 @@
   function stableSyncMineIds(rt, ids) {
     const apps = [];
     for (const id of ids) {
-      const app = appOverview(id);
+      const app = stableReadOverview(rt, id, "mine-name-overview");
       if (app) apps.push(app);
-      else stableQueuePending(rt, id, "mine-name-overview");
     }
     if (apps.length) stableSyncApps(rt, apps);
   }
@@ -312,13 +285,13 @@
     return custom ? viewCustomName(custom) : official;
   }
 
-  function originalSearchName(app) {
-    const custom = clean(app?.custom_sort_as_display);
+  function originalSearchName(app, customSortAsDisplay, originalSortAs) {
+    const custom = clean(customSortAsDisplay);
     if (!custom) {
       return "";
     }
     const visible = viewCustomName(custom);
-    const candidates = [app?.original_sort_as, app?.[ORIG], Number(app?.appid) ? names().get(Number(app.appid)) : ""];
+    const candidates = [originalSortAs, app?.[ORIG], Number(app?.appid) ? names().get(Number(app.appid)) : ""];
     for (const value of candidates) {
       const name = clean(value);
       if (name && !sameName(name, custom) && !sameName(name, visible)) {
@@ -328,30 +301,24 @@
     return "";
   }
 
-  function originalSearchSortAs(app, rt = window[RT]) {
-    if (independentActive(rt) || rt?.originalNameSearch !== true || !hasCustomName(app, rt)) {
+  function originalSearchSortAs(app, rt, customSortAsDisplay, originalSortAs) {
+    if (independentActive(rt) || rt?.originalNameSearch !== true || !clean(customSortAsDisplay)) {
       return "";
     }
-    const original = originalSearchName(app);
-    return original ? `${clean(app.custom_sort_as_display).toLocaleLowerCase()} ${original.toLocaleLowerCase()}` : "";
+    const original = originalSearchName(app, customSortAsDisplay, originalSortAs);
+    return original ? `${clean(customSortAsDisplay).toLocaleLowerCase()} ${original.toLocaleLowerCase()}` : "";
   }
 
   function restoreOriginalSortAs(app, rt = window[RT]) {
     const id = Number(app?.appid) || 0;
-    const record = rt?.sortAsOriginals?.get(id);
-    if (!id || !record) {
-      return false;
-    }
-    rt.sortAsOriginals.delete(id);
-    if (app.sort_as === record.original || app.sort_as !== record.composite) {
-      return false;
-    }
-    app.sort_as = record.original;
-    return true;
+    if (!id || !rt?.sortAsOriginals?.has(id)) return false;
+    return syncSortAs(app, rt, true);
   }
 
-  function restoreAllOriginalSortAs(rt = window[RT]) {
-    for (const [appid] of Array.from(rt?.sortAsOriginals || [])) {
+  function restoreAllOriginalSortAs(rt = window[RT], source = null) {
+    for (const [appid, record] of Array.from(rt?.sortAsOriginals || [])) {
+      // 失败副本的排序记录由同一批定向恢复处理，不能绕过写回与通知。
+      if ((source && record.source !== source) || rt.stablePendingIds.has(appid)) continue;
       const app = typeof window.appStore?.GetAppOverviewByAppID === "function"
         ? window.appStore.GetAppOverviewByAppID(appid)
         : null;
@@ -359,20 +326,134 @@
     }
   }
 
-  function syncSortAs(app, rt = window[RT]) {
-    if (!app || typeof app !== "object") {
-      return false;
-    }
-    const next = originalSearchSortAs(app, rt);
+  // 读回异常后的副本仍可能已经生效，先确认它的记录再判断原生排序基线
+  function sortAsRecord(app, rt) {
     const id = Number(app.appid) || 0;
-    if (next && app.sort_as !== next) {
-      if (id && !rt.sortAsOriginals.has(id)) {
-        rt.sortAsOriginals.set(id, { original: app.sort_as, composite: next });
-      }
-      app.sort_as = next;
-      return true;
+    const record = rt.sortAsOriginals.get(id);
+    if (!record?.pending) return record;
+    if (record.pending.app === app) {
+      rememberSortAs(app, rt, record.pending.update);
+      return rt.sortAsOriginals.get(id);
     }
-    return !next && restoreOriginalSortAs(app, rt);
+    delete record.pending;
+    return record;
+  }
+
+  // 这里只计算待提交记录；Steam 更新后以新值为基线，副本写回成功再记账。
+  function sortAsUpdate(app, rt, restore = false) {
+    const id = Number(app.appid) || 0;
+    const record = sortAsRecord(app, rt);
+    // 云回调可能规范化覆盖值；覆盖前的原生恢复字段决定它实际读取的是哪份值
+    const cloudInitialized = window.appStore?.m_bIsInitialized;
+    const cloudReplaced = record?.source === "independent" && record.cloudPending === true
+      && cloudInitialized === true && record.owner !== app;
+    const owned = record && (cloudReplaced ? !record.originalSortAs : app.sort_as === record.composite);
+    const baseline = owned ? record.original : app.sort_as;
+    let customSortAsDisplay = app.custom_sort_as_display;
+    let cloudManual;
+    const independentSort = record?.source === "independent" || (independentActive(rt)
+      && (rt.mineNames.has(id) || rt.stableDisplayIds.has(id)));
+    if (independentSort && cloudInitialized === true) {
+      const store = window.appStore;
+      if (typeof store.GetCustomSortAs !== "function") throw new TypeError("Steam 手动排序读取入口不可用");
+      cloudManual = store.GetCustomSortAs(id);
+      if (cloudManual !== undefined && typeof cloudManual !== "string") {
+        throw new TypeError("Steam 手动排序读取结果必须为字符串或 undefined");
+      }
+      // 原生云回调会跳过同值键；无云值时仍保留 SetSortAs 的原生手动排序字段。
+      if (cloudManual) customSortAsDisplay = cloudManual;
+    }
+    const manual = clean(customSortAsDisplay);
+    const original = manual && (cloudManual || (owned && record.source === "independent"))
+      ? raw(customSortAsDisplay).toLocaleLowerCase() : baseline;
+    // Steam 云排序回调会把当前 sort_as 留作清空后的原键，不能留下本实例的覆盖值。
+    const copiedOverlay = cloudReplaced
+      ? !record.originalSortAs && !!app.original_sort_as
+      : app.original_sort_as === record?.composite;
+    let originalSortAs = record?.source === "independent" && manual && copiedOverlay
+      ? record.original : app.original_sort_as;
+    // 同值回调也会漏填清空恢复键；只有已知的独立覆盖记录可以补回原生基线。
+    if (cloudManual && record?.source === "independent" && !originalSortAs) originalSortAs = baseline;
+    let next = "";
+    const source = independentActive(rt) ? "independent" : "original-search";
+    if (!restore && rt.customSortEnabled) {
+      next = source === "independent"
+        ? (manual ? "" : mineNameOf(app.appid, rt).toLocaleLowerCase())
+        : originalSearchSortAs(app, rt, customSortAsDisplay, originalSortAs);
+    }
+    const value = next || original;
+    return {
+      before: app,
+      source,
+      value,
+      originalSortAs,
+      customSortAsDisplay,
+      changed: app.sort_as !== value || app.original_sort_as !== originalSortAs
+        || app.custom_sort_as_display !== customSortAsDisplay,
+      // 首轮覆盖早于原生初始化时，订阅建立前的恢复也必须保留这个来源
+      record: next && next !== original ? {
+        original, composite: next, source, originalSortAs,
+        cloudPending: source === "independent" && cloudInitialized === false,
+      } : null,
+    };
+  }
+
+  function applySortAs(app, update) {
+    if (app.sort_as !== update.value) app.sort_as = update.value;
+    if (app.original_sort_as !== update.originalSortAs) app.original_sort_as = update.originalSortAs;
+    if (app.custom_sort_as_display !== update.customSortAsDisplay) app.custom_sort_as_display = update.customSortAsDisplay;
+  }
+
+  function stableSortUpdate(app, rt, restore = false) {
+    try {
+      return sortAsUpdate(app, rt, restore);
+    } catch (error) {
+      stableQueuePending(rt, app.appid, "native-sort-read", restore);
+      if (!rt.stableFailureKeys.has("native-sort-read")) {
+        rt.stableFailureKeys.add("native-sort-read");
+        log.error("library-sort-title-stable-failed", "读取 Steam 原生手动排序失败", {
+          phase: "native-sort-read", appid: Number(app.appid), error,
+        });
+      }
+      return null;
+    }
+  }
+
+  function rememberSortAs(app, rt, update) {
+    const id = Number(app.appid) || 0;
+    if (!id) return;
+    if (update.record) {
+      update.record.owner = app;
+      rt.sortAsOriginals.set(id, update.record);
+    }
+    else rt.sortAsOriginals.delete(id);
+  }
+
+  // 待确认副本与已确认基线留在同一份记录里，确认失败不能丢失它们的归属
+  function stageSortWrite(app, rt, update) {
+    const id = Number(app.appid) || 0;
+    let record = rt.sortAsOriginals.get(id);
+    if (!record) {
+      record = {
+        original: update.before.sort_as,
+        composite: update.before.sort_as,
+        source: update.source,
+        originalSortAs: update.before.original_sort_as,
+        owner: update.before,
+        cloudPending: update.record?.cloudPending === true,
+      };
+      rt.sortAsOriginals.set(id, record);
+    }
+    record.pending = { app, update };
+  }
+
+  function syncSortAs(app, rt = window[RT], restore = false) {
+    if (!app || typeof app !== "object") return false;
+    const update = stableSortUpdate(app, rt, restore);
+    if (!update) return false;
+    applySortAs(app, update);
+    rememberSortAs(app, rt, update);
+    return update.changed;
   }
 
   function collectionName(collection) {
@@ -534,12 +615,10 @@
   function settingsSnapshot(rt) {
     return {
       customSortEnabled: rt.customSortEnabled,
-      stableMode: rt.stableMode,
       groupLabelsEnabled: rt.groupLabelsEnabled,
       groupedModeEnabled: rt.groupedModeEnabled,
       groupedByCollection: groupedMode(),
       hideCollectionTags: rt.hideCollectionTags,
-      customTitleEnabled: rt.customTitleEnabled,
       independentNames: independentActive(rt),
     };
   }
@@ -565,6 +644,36 @@
     }
   }
 
+  // 初始化完成后的映射缺项不是加载故障，后续原生新增通知仍会按 AppID 应用名称
+  function stableReadOverview(rt, id, reason, restore = false) {
+    try {
+      const store = window.appStore;
+      if (typeof store?.GetAppOverviewByAppID !== "function") {
+        throw new TypeError("Steam AppOverview 读取入口不可用");
+      }
+      const app = store.GetAppOverviewByAppID(id);
+      if (app) return app;
+      if (store.m_bIsInitialized === true) {
+        if (typeof store.m_mapApps?.has !== "function") {
+          throw new TypeError("Steam AppOverview 映射查询入口不可用");
+        }
+        if (!store.m_mapApps.has(id)) {
+          stableResolvePending(rt, id);
+          return null;
+        }
+      }
+    } catch (error) {
+      if (!rt.stableFailureKeys.has("app-overview-read")) {
+        rt.stableFailureKeys.add("app-overview-read");
+        log.error("library-sort-title-stable-failed", "读取 Steam AppOverview 失败", {
+          phase: "app-overview-read", appid: id, error,
+        });
+      }
+    }
+    stableQueuePending(rt, id, reason, restore);
+    return null;
+  }
+
   function stableTargetName(app, rt, restore = false) {
     if (!restore) {
       const next = displayBaseName(app, rt);
@@ -578,20 +687,25 @@
     return clean(app?.[ORIG]) || (id ? clean(names().get(id)) : "") || clean(app?.display_name);
   }
 
-  function stableApplyInPlace(app, rt, restore = false) {
+  function stableApplyInPlace(app, rt, restore = false, sortUpdate = null) {
     const id = Number(app?.appid) || 0;
     if (!id || !appOverviewReady(app)) return false;
-    if (restore && !rt.stableDisplayIds.has(id)) return false;
+    if (restore && !rt.stableDisplayIds.has(id) && !rt.stablePendingRestoreIds.has(id)
+      && !rt.sortAsOriginals.has(id)) return false;
+    const update = sortUpdate || stableSortUpdate(app, rt, restore);
+    if (!update) return false;
+    const sortChanged = update.changed;
+    applySortAs(app, update);
+    // 副本的恢复记录必须等映射写回成功后提交，写回失败不能污染当前对象的基线。
+    if (!sortUpdate) rememberSortAs(app, rt, update);
     const next = stableTargetName(app, rt, restore);
-    if (!next || app.display_name === next) {
-      if (restore) rt.stableDisplayIds.delete(id);
-      else if (rt.stableMode && hasCustomName(app, rt)) rt.stableDisplayIds.add(id);
-      return false;
-    }
-    app.display_name = next;
+    const displayChanged = !!next && app.display_name !== next;
+    if (displayChanged) app.display_name = next;
     if (restore) rt.stableDisplayIds.delete(id);
-    else rt.stableDisplayIds.add(id);
-    return true;
+    else if (displayChanged || sortChanged || (rt.customSortEnabled && hasCustomName(app, rt))) {
+      rt.stableDisplayIds.add(id);
+    }
+    return displayChanged || sortChanged;
   }
 
   function stableClone(app) {
@@ -658,7 +772,8 @@
     rt.stableFailureKeys?.clear();
   }
 
-  function stableCommit(rt, replacements, notify = true, restore = false) {
+  function stableCommit(rt, replacements, notify = true, restore = false, sortUpdates) {
+    if (!Array.isArray(replacements) || !replacements.length) return 0;
     const store = window.appStore;
     let map = null;
     try {
@@ -668,31 +783,75 @@
     }
     let mapWritable = false;
     try {
-      mapWritable = typeof map?.set === "function";
+      mapWritable = typeof map?.merge === "function" && typeof map?.get === "function";
+      if (!mapWritable) throw new TypeError("Steam AppOverview 批量写回入口不可用");
     } catch (error) {
       stableLogOnce(rt, "map-write", "error", "library-sort-title-stable-failed", "稳定模式检查 AppOverview 写回接口失败", { error });
     }
-    if (!map || !mapWritable || !Array.isArray(replacements) || !replacements.length) {
-      for (const replacement of replacements || []) {
+    if (!map || !mapWritable) {
+      for (const replacement of replacements) {
         stableQueuePending(rt, replacement?.appid, "app-overview-map-unavailable", restore);
       }
       return 0;
     }
     const applied = [];
-    for (const replacement of replacements) {
-      const id = Number(replacement?.appid) || 0;
-      if (!id) continue;
-      try {
-        store.m_mapApps.set(replacement.appid, replacement);
-        applied.push(replacement);
-      } catch (error) {
-        stableQueuePending(rt, id, "app-overview-replace", restore);
-        stableLogOnce(rt, "app-overview-replace", "error", "library-sort-title-stable-failed", "稳定模式写回 AppOverview 失败", {
-          phase: "app-overview-replace",
-          appid: id,
-          error,
-        });
+    const stopping = restore && rt.scheduled !== true;
+    let remaining = new Map(replacements.map(app => [Number(app.appid), app]));
+    // 正常提交只做一批；停止时拆分异常批次，最后只对未完成项目补一轮
+    for (let pass = 0; pass < (stopping ? 2 : 1) && remaining.size; pass += 1) {
+      const retry = new Map();
+      const batches = [remaining];
+      while (batches.length) {
+        const batch = batches.pop();
+        const failed = new Map();
+        for (const [id, app] of batch) stageSortWrite(app, rt, sortUpdates.get(id));
+        let writeError = null;
+        // 优化: 原生 merge 在事务结束后统一触发响应式计算，逐项 set 会反复重算库筛选
+        try {
+          map.merge(batch);
+        } catch (error) {
+          writeError = error;
+          if (!rt.stableFailureKeys.has("app-overview-replace")) {
+            rt.stableFailureKeys.add("app-overview-replace");
+            log.error("library-sort-title-stable-failed", "稳定模式批量写回 AppOverview 失败", {
+              phase: "app-overview-replace", changed: batch.size, error,
+            });
+          }
+        }
+        for (const [id, app] of batch) {
+          try {
+            if (map.get(id) !== app) {
+              const record = rt.sortAsOriginals.get(id);
+              if (record?.pending?.app === app) {
+                delete record.pending;
+                // 明确未生效时，首次写回的临时基线不能冒充已确认的覆盖记录
+                if (record.original === record.composite) rt.sortAsOriginals.delete(id);
+              }
+              throw writeError || new Error("Steam AppOverview 批量写回未生效");
+            }
+            rememberSortAs(app, rt, sortUpdates.get(id));
+            applied.push(app);
+          } catch (error) {
+            stableQueuePending(rt, id, "app-overview-replace", restore);
+            failed.set(id, app);
+            if (!rt.stableFailureKeys.has("app-overview-replace")) {
+              rt.stableFailureKeys.add("app-overview-replace");
+              log.error("library-sort-title-stable-failed", "确认 AppOverview 写回结果失败", {
+                phase: "app-overview-replace", appid: id, error,
+              });
+            }
+          }
+        }
+        // 只拆分未确认项目，避免持续故障或静默拒绝让同一尾批反复遍历
+        if (stopping && writeError && failed.size > 1) {
+          const entries = Array.from(failed);
+          const middle = Math.floor(entries.length / 2);
+          batches.push(new Map(entries.slice(middle)), new Map(entries.slice(0, middle)));
+        } else {
+          for (const [id, app] of failed) retry.set(id, app);
+        }
       }
+      remaining = retry;
     }
     if (!applied.length) {
       return 0;
@@ -737,8 +896,9 @@
     return applied.length;
   }
 
-  function stableSyncApps(rt, apps, { restore = false, notify = true } = {}) {
+  function stableSyncApps(rt, apps, { restore = false, notify = true, plannedSortUpdates = null } = {}) {
     const replacements = [];
+    const sortUpdates = new Map();
     for (const app of Array.from(apps || [])) {
       const id = Number(app?.appid) || 0;
       if (!id || (restore && !rt.stableDisplayIds.has(id) && !rt.stablePendingRestoreIds.has(id))) continue;
@@ -752,19 +912,47 @@
         stableQueuePending(rt, id, "app-overview-clone", restore);
         continue;
       }
-      const changed = stableApplyInPlace(replacement, rt, restore);
+      const update = plannedSortUpdates?.get(id) || stableSortUpdate(app, rt, restore);
+      if (!update) continue;
+      let changed = false;
+      try {
+        changed = stableApplyInPlace(replacement, rt, restore, update);
+      } catch (error) {
+        stableQueuePending(rt, id, "app-overview-apply", restore);
+        if (!rt.stableFailureKeys.has("app-overview-apply")) {
+          rt.stableFailureKeys.add("app-overview-apply");
+          log.error("library-sort-title-stable-failed", "应用库名称或排序键失败", {
+            phase: "app-overview-apply", appid: id, error,
+          });
+        }
+        continue;
+      }
       // 待通知对象即使显示值已相同，也必须重新提交一次，确保 Steam UI 收到刷新事件。
       if (changed || wasPending) {
         replacements.push(replacement);
+        sortUpdates.set(id, update);
       } else if (!restore) {
+        rememberSortAs(app, rt, update);
         stableResolvePending(rt, id);
       }
     }
-    const changed = stableCommit(rt, replacements, notify, restore);
+    const changed = stableCommit(rt, replacements, notify, restore, sortUpdates);
     if (restore && rt.stablePendingRestoreIds.size === 0) {
       rt.stableDisplayIds.clear();
     }
     return changed;
+  }
+
+  function stableReportRecovery(rt, phase) {
+    if (rt.stablePendingIds.size || !rt.stableRetryStartedAt) return;
+    log.warn("library-sort-title-stable-recovered", "稳定模式待处理 AppOverview 数据已恢复", {
+      phase, attempt: rt.stableRetryAttempt, durationMs: Date.now() - rt.stableRetryStartedAt,
+    });
+    rt.stableRetryAttempt = 0;
+    rt.stableRetryStartedAt = 0;
+    rt.stableRetryExhausted = false;
+    rt.stableRetryWarned = false;
+    rt.stableFailureKeys.clear();
   }
 
   function stableRunRetry(rt) {
@@ -773,30 +961,18 @@
     rt.stableRetryAttempt += 1;
     const applyApps = [];
     const restoreApps = [];
-    for (const id of Array.from(rt.stablePendingIds)) {
-      const app = appOverview(id);
-      if (!app) {
-        stableQueuePending(rt, id, rt.stablePendingRestoreIds.has(id) ? "app-overview-not-ready" : "app-overview-read", rt.stablePendingRestoreIds.has(id));
-        continue;
-      }
-      (rt.stablePendingRestoreIds.has(id) ? restoreApps : applyApps).push(app);
+    const pendingIds = Array.from(rt.stablePendingIds);
+    for (const id of pendingIds) {
+      const restore = rt.stablePendingRestoreIds.has(id);
+      const app = stableReadOverview(rt, id, restore ? "app-overview-not-ready" : "app-overview-read", restore);
+      if (app) (restore ? restoreApps : applyApps).push(app);
     }
-    if (applyApps.length && rt.stableMode) stableSyncApps(rt, applyApps, { notify: true });
+    if (applyApps.length && rt.customSortEnabled) stableSyncApps(rt, applyApps, { notify: true });
     if (restoreApps.length) stableSyncApps(rt, restoreApps, { restore: true, notify: true });
+    const resolvedIds = pendingIds.filter(id => !rt.stablePendingIds.has(id));
+    if (resolvedIds.length) invalidate(rt, resolvedIds, "stable-retry");
     if (rt.stablePendingIds.size === 0) {
-      if (rt.stableRetryAttempt > 0) {
-        log.warn("library-sort-title-stable-recovered", "稳定模式待处理 AppOverview 已恢复", {
-          phase: "stable-retry",
-          attempt: rt.stableRetryAttempt,
-          durationMs: Date.now() - rt.stableRetryStartedAt,
-        });
-      }
-      rt.stableBootstrapped = rt.stableMode === true;
-      rt.stableRetryAttempt = 0;
-      rt.stableRetryStartedAt = 0;
-      rt.stableRetryExhausted = false;
-      rt.stableRetryWarned = false;
-      rt.stableFailureKeys.clear();
+      stableReportRecovery(rt, "stable-retry");
       return;
     }
     if (rt.stableRetryAttempt >= STABLE_RETRY_MAX) {
@@ -844,6 +1020,34 @@
     return changed;
   }
 
+  // 原生通知完成后读取当前映射；只补齐本次 AppID，不能把局部恢复升级为全库同步
+  function stableSyncCurrent(rt, ids) {
+    if (!rt.customSortEnabled) return 0;
+    const apps = [];
+    const sortUpdates = new Map();
+    for (const id of ids) {
+      const app = stableReadOverview(rt, id, "app-overview-not-ready");
+      if (!app) continue;
+      if (!appOverviewReady(app)) {
+        stableQueuePending(rt, id, "app-overview-not-ready");
+        continue;
+      }
+      // 原生云回调通过 Object.assign 替换对象，不会保留本实例的非枚举原名标记
+      const knownOriginal = names().get(id);
+      if (knownOriginal && !app[ORIG]) saveOriginalName(app, knownOriginal);
+      const expected = stableTargetName(app, rt);
+      const update = stableSortUpdate(app, rt);
+      if (!update) continue;
+      sortUpdates.set(id, update);
+      if ((expected && app.display_name !== expected) || update.changed
+        || rt.stablePendingIds.has(id)) apps.push(app);
+      else rememberSortAs(app, rt, update);
+    }
+    const changed = apps.length ? stableSyncApps(rt, apps, { plannedSortUpdates: sortUpdates }) : 0;
+    stableReportRecovery(rt, "current-app-overview");
+    return changed;
+  }
+
   function modelEntry(rt, appid) {
     const id = Number(appid) || 0;
     if (!id) return null;
@@ -853,12 +1057,9 @@
       ensureGroupIndex(rt);
     }
     const official = officialName(app);
-    const customName = independentActive(rt)
-      ? mineNameOf(id, rt)
-      : (rt.customSortEnabled ? clean(app.custom_sort_as_display) : "");
-    const visibleCustomName = independentActive(rt)
-      ? customName
-      : (customName ? viewCustomName(customName) : "");
+    const { customName, visibleName: visibleCustomName } = window.STSteamAppNames.selectedName(app, {
+      nameMode: rt.nameMode, customSortEnabled: rt.customSortEnabled, mineName: mineNameOf(id, rt),
+    });
     const base = visibleCustomName || official;
     const labels = rt.groupTagsByApp.get(id) || [];
     const finalDisplayName = labelsActive(rt) ? appendLabels(base, labels) : base;
@@ -870,7 +1071,6 @@
       rt.customSortEnabled,
       rt.nameMode,
       visibleCustomName,
-      rt.stableMode,
       rt.groupLabelsEnabled,
       rt.groupedModeEnabled,
       groupedMode(),
@@ -934,6 +1134,7 @@
     if (typeof BroadcastChannel !== "function") return false;
     try {
       rt.channel = new BroadcastChannel(CHANNEL);
+      rt.channelReady = false;
       rt.onMessage = (event) => {
         const data = event?.data || {};
         if (data.script !== ID || data.side !== "ui") return;
@@ -945,6 +1146,16 @@
       log.warn("library-sort-title-channel-unavailable", "库列表名称共享模型无法建立跨上下文通道", { error });
       return false;
     }
+  }
+
+  // 首轮模型初始化后通知已在等待的 UI；每条新通道只公告一次
+  function announceBackendReady(rt) {
+    if (rt.channelReady || !rt.channel || !rt.changeOk
+      || (rt.groupLabelsEnabled && !rt.groupIndexReady)
+      || (rt.customSortEnabled && (!rt.sortOk || !rt.stableBootstrapped))
+      || Number(window.appStore?.m_mapApps?.size || 0) <= 0) return;
+    rt.channelReady = true;
+    post(rt, { type: "backend-ready" });
   }
 
   function settingsValue(api, id, fallback) {
@@ -966,55 +1177,50 @@
   function syncSettings(api, rt) {
     const customSortEnabled = settingsValue(api, ID, true) !== false;
     const nameMode = nameModeOf(api);
-    const stableMode = customSortEnabled && settingsValue(api, STABLE_MODE_ID, true) === true;
     const groupLabelsEnabled = settingsValue(api, GROUP_LABELS_ID, true) !== false;
     const groupedModeEnabled = settingsValue(api, GROUPED_MODE_ID, false) === true;
     const hideCollectionTags = groupLabelsEnabled && settingsValue(api, HIDE_COLLECTION_TAGS_ID, true) !== false;
-    const customTitleEnabled = customSortEnabled && settingsValue(api, HOVER_TITLE_ID, false) === true;
     const originalNameSearch = nameMode !== window.STConfig.libraryNameMode.values.INDEPENDENT &&
       customSortEnabled && settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true;
-    const mineNames = readMineNames();
+    const mineNames = readMineNames(api);
     const mineSignature = Array.from(mineNames.entries()).map(([id, name]) => `${id}:${name}`).join("|");
     const previousMine = rt.mineNames;
     const mineChanged = rt.mineSignature !== mineSignature;
     const wasIndependent = independentActive(rt);
     const changed = rt.customSortEnabled !== customSortEnabled
-      || rt.stableMode !== stableMode
       || rt.groupLabelsEnabled !== groupLabelsEnabled
       || rt.groupedModeEnabled !== groupedModeEnabled
       || rt.hideCollectionTags !== hideCollectionTags
-      || rt.customTitleEnabled !== customTitleEnabled
       || rt.originalNameSearch !== originalNameSearch
       || rt.nameMode !== nameMode
       || mineChanged;
     if (!changed) return false;
     const groupChanged = rt.groupLabelsEnabled !== groupLabelsEnabled;
-    const stableChanged = rt.stableMode !== stableMode;
-    if (rt.stableMode && !stableMode) {
+    const displayChanged = rt.customSortEnabled !== customSortEnabled;
+    if (rt.customSortEnabled && !customSortEnabled) {
       stableResetRetry(rt);
       stableSyncAll(rt, true);
     }
-    if (!rt.stableMode && stableMode) {
+    if (!rt.customSortEnabled && customSortEnabled) {
       stableResetRetry(rt);
       rt.stableDisplayIds.clear();
     }
     rt.customSortEnabled = customSortEnabled;
-    rt.stableMode = stableMode;
-    if (stableChanged) rt.stableBootstrapped = false;
+    if (displayChanged) rt.stableBootstrapped = false;
     rt.groupLabelsEnabled = groupLabelsEnabled;
     rt.groupedModeEnabled = groupedModeEnabled;
     rt.hideCollectionTags = hideCollectionTags;
-    rt.customTitleEnabled = customTitleEnabled;
     rt.originalNameSearch = originalNameSearch;
     rt.nameMode = nameMode;
     if (rt.nameMode !== window.STConfig.libraryNameMode.values.STEAM_SORT && rt.customEventsOff) {
       rt.customEventsOff();
       rt.customEventsOff = null;
     }
+    if (!rt.customSortEnabled || !independentActive(rt)) releaseCloudSortSubscription(rt);
     rt.mineNames = mineNames;
     rt.mineSignature = mineSignature;
     const sourceChanged = wasIndependent !== independentActive(rt);
-    if ((mineChanged || sourceChanged) && rt.stableMode && rt.stableBootstrapped) {
+    if ((mineChanged || sourceChanged) && rt.customSortEnabled && rt.stableBootstrapped) {
       stableSyncMineIds(rt, sourceChanged
         ? stableSourceIds(previousMine, mineNames, rt.stableDisplayIds)
         : changedMineIds(previousMine, mineNames));
@@ -1028,7 +1234,7 @@
       if (changedApps.length && !groupChanged) invalidate(rt, changedApps, "settings-index");
     }
     if (rt.originalNameSearch) syncSortAsAll(rt);
-    else restoreAllOriginalSortAs(rt);
+    else if (!independentActive(rt)) restoreAllOriginalSortAs(rt, "original-search");
     broadcastSettings(rt);
     return true;
   }
@@ -1066,23 +1272,19 @@
     return null;
   }
 
-  function hookSort(rt) {
-    const owner = findSortOwner();
+  function hookSort(rt, owner = findSortOwner()) {
     if (!owner) return false;
+    rt.sortOwner = owner;
     return patch(owner, "SetSortAs", S_FLAG, (original) => function sortHook(...args) {
       const currentRt = window[RT];
       if (currentRt?.scheduled !== true) return original.apply(this, args);
-      if (currentRt.stableMode) {
-        const name = officialName(this, args[0]);
-        if (name && !this[ORIG]) saveOriginalName(this, name);
-      }
+      const name = officialName(this, args[0]);
+      if (name && !this[ORIG]) saveOriginalName(this, name);
       const result = original.apply(this, args);
-      if (!currentRt.stableMode) {
-        const name = officialName(this, args[0]);
-        if (name && !this[ORIG]) saveOriginalName(this, name);
-      }
+      // SetSortAs 已重新计算原生键，即使恰好与覆盖值相同也不能沿用旧基线。
+      currentRt.sortAsOriginals.delete(Number(this.appid) || 0);
       syncSortAs(this, window[RT]);
-      if (currentRt.stableMode) stableSyncApps(currentRt, [this]);
+      if (currentRt.customSortEnabled) stableSyncApps(currentRt, [this]);
       invalidate(currentRt, [this.appid], "custom-sort");
       return result;
     });
@@ -1113,12 +1315,12 @@
     if (recordBulk(rt, appid, data.sortAs, true)) return;
     const app = appOverview(appid) || data.app;
     if (app) setCustomName(app, data.sortAs, rt);
-    if (app && rt.stableMode) stableSyncApps(rt, [app]);
+    if (app && rt.customSortEnabled) stableSyncApps(rt, [app]);
     invalidate(rt, [appid], "custom-sort-save");
     scheduleTimeout(rt, "custom-sort-recheck", () => {
       const current = appOverview(appid);
       if (current) setCustomName(current, data.sortAs, rt);
-      if (current && rt.stableMode) stableSyncApps(rt, [current]);
+      if (current && rt.customSortEnabled) stableSyncApps(rt, [current]);
       invalidate(rt, [appid], "custom-sort-recheck");
     }, AFTER_SAVE_RECHECK_MS);
   }
@@ -1137,17 +1339,15 @@
       const apps = Array.isArray(args[0]) ? args[0] : [];
       const currentRt = window[RT];
       if (currentRt?.scheduled !== true) return original.apply(this, args);
-      if (currentRt.stableMode && apps.length && bulkOn(currentRt)) {
+      if (currentRt.customSortEnabled && apps.length && bulkOn(currentRt)) {
         for (const app of apps) recordBulk(currentRt, app?.appid, app?.custom_sort_as_display);
         return undefined;
       }
-      if (currentRt.stableMode && !currentRt.notifying) {
+      if (currentRt.customSortEnabled && !currentRt.notifying) {
         for (const app of apps) {
           const id = Number(app?.appid) || 0;
           if (!id) continue;
-          if (!appOverviewReady(app)) {
-            stableQueuePending(currentRt, id, "app-overview-not-ready");
-          } else {
+          if (appOverviewReady(app)) {
             stableApplyInPlace(app, currentRt);
           }
         }
@@ -1155,13 +1355,125 @@
       const result = original.apply(this, args);
       if (currentRt.notifying) return result;
       const ids = apps.map((app) => Number(app?.appid) || 0).filter(Boolean);
-      for (const id of ids) {
-        const current = appOverview(id);
-        if (current) syncSortAs(current, currentRt);
-      }
+      stableSyncCurrent(currentRt, ids);
       if (ids.length) invalidate(currentRt, ids, "overview-change");
       return result;
     });
+  }
+
+  function releaseCloudSortSubscription(rt) {
+    const subscription = rt.cloudSortSubscription;
+    if (!subscription) return true;
+    subscription.active = false;
+    subscription.pending.clear();
+    try {
+      subscription.handle?.Unregister();
+      rt.cloudSortSubscription = null;
+      return true;
+    } catch (error) {
+      if (!rt.stableFailureKeys.has("cloud-sort-unsubscribe")) {
+        rt.stableFailureKeys.add("cloud-sort-unsubscribe");
+        log.error("library-sort-title-stable-failed", "注销 Steam 云排序变化订阅失败", {
+          phase: "cloud-sort-unsubscribe", error,
+        });
+      }
+      return false;
+    }
+  }
+
+  function bindCloudSortEvents(rt) {
+    if (!rt.customSortEnabled || !independentActive(rt)) return releaseCloudSortSubscription(rt);
+    const store = window.appStore;
+    if (store?.m_bIsInitialized !== true || !store.m_cloudStorage) return false;
+    const storage = store.m_cloudStorage;
+    if (rt.cloudSortSubscription?.storage === storage) return rt.cloudSortSubscription.active;
+    if (!releaseCloudSortSubscription(rt)) return false;
+    const subscription = { storage, handle: null, active: false, queued: false, pending: new Set() };
+    rt.cloudSortSubscription = subscription;
+    const current = () => subscription.active && rt.scheduled && rt.cloudSortSubscription === subscription
+      && window.appStore?.m_cloudStorage === storage && rt.customSortEnabled && independentActive(rt);
+    const queue = id => {
+      const record = rt.sortAsOriginals.get(id);
+      if (!rt.mineNames.has(id) && !record && !rt.stablePendingIds.has(id)) return;
+      // 先记录来源，确保异步批次前停用或恢复时也不会误认规范化后的覆盖值
+      if (record?.source === "independent") record.cloudPending = true;
+      subscription.pending.add(id);
+    };
+    const sync = async (initial, keys) => {
+      if (!current()) return;
+      let ownsFlush = false;
+      try {
+        if (initial) {
+          // 原生初始化可能晚于首轮显示同步，只补本实例已覆盖或待处理的 AppID
+          for (const id of rt.stableDisplayIds) queue(id);
+          for (const id of rt.stablePendingIds) queue(id);
+        } else {
+          if (!Array.isArray(keys) || keys.some(key => typeof key !== "string")) {
+            throw new TypeError("Steam 云排序变化键列表无效");
+          }
+          for (const key of keys) {
+            if (!/^\d+$/.test(key)) continue;
+            const id = Number(key);
+            if (Number.isSafeInteger(id) && id > 0) queue(id);
+          }
+        }
+        if (subscription.queued || !subscription.pending.size) return;
+        subscription.queued = true;
+        ownsFlush = true;
+        // 原生派发不等待回调 Promise；合并同轮变化并等原生对象替换完成
+        await Promise.resolve();
+        subscription.queued = false;
+        if (!current()) { subscription.pending.clear(); return; }
+        const ids = Array.from(subscription.pending);
+        subscription.pending.clear();
+        stableSyncCurrent(rt, ids);
+        invalidate(rt, ids, "cloud-sort-change");
+        rt.stableFailureKeys.delete("cloud-sort-sync");
+      } catch (error) {
+        if (ownsFlush) { subscription.queued = false; subscription.pending.clear(); }
+        if (!rt.stableFailureKeys.has("cloud-sort-sync")) {
+          rt.stableFailureKeys.add("cloud-sort-sync");
+          log.error("library-sort-title-stable-failed", "同步 Steam 云排序变化失败", {
+            phase: "cloud-sort-sync", error,
+          });
+        }
+      }
+    };
+    try {
+      if (typeof storage.RegisterForChangeNotifications !== "function") {
+        throw new TypeError("Steam 云排序变化订阅入口不可用");
+      }
+      subscription.handle = storage.RegisterForChangeNotifications((namespace, keys) => {
+        // 注册时尚未激活，原生传入的全部键快照不进入扩展业务处理
+        if (namespace === CLOUD_SORT_NAMESPACE) return sync(false, keys);
+      });
+      if (typeof subscription.handle?.Unregister !== "function") {
+        throw new TypeError("Steam 云排序订阅注销句柄无效");
+      }
+      subscription.active = true;
+      if (rt.stableBootstrapped) void sync(true);
+      return true;
+    } catch (error) {
+      // 保留未激活的订阅占位，避免每轮调度重复注册；停用时统一清理
+      log.error("library-sort-title-stable-failed", "订阅 Steam 云排序变化失败", {
+        phase: "cloud-sort-subscribe", error,
+      });
+      return false;
+    }
+  }
+
+  function ensureNameHooks(rt, discover = false) {
+    if (rt.customSortEnabled && (!rt.sortOk || rt.sortOwner?.SetSortAs?.[S_FLAG] !== true)) {
+      if (rt.sortOwner) rt.sortOk = hookSort(rt, rt.sortOwner);
+      else if (discover) rt.sortOk = hookSort(rt);
+    }
+    if (rt.customSortEnabled && rt.nameMode === window.STConfig.libraryNameMode.values.STEAM_SORT) {
+      bindCustomSortEvents(rt, window.appStore);
+    }
+    bindCloudSortEvents(rt);
+    if (!rt.changeOk || window.collectionStore?.OnAppOverviewChange?.[O_FLAG] !== true) {
+      rt.changeOk = hookOverviewChange(rt, window.collectionStore);
+    }
   }
 
   function refreshGroupIndex(rt, reason) {
@@ -1199,12 +1511,13 @@
     }) && ready;
     const uiOwner = prototypeOwner(window.uiStore, "UpdateGameListSelection");
     ready = patch(uiOwner, "UpdateGameListSelection", G_FLAG, (original) => function groupedModeHook(...args) {
-      const before = groupedMode();
       const result = original.apply(this, args);
+      const currentRt = window[RT];
       const after = groupedMode();
-      if (before !== after) {
-        window[RT].lastGroupedMode = after;
-        broadcastSettings(window[RT]);
+      // 原生设置先提交分组状态再发此通知；与上次已同步状态比较，不能比较调用前后读数。
+      if (currentRt?.scheduled === true && after !== null && after !== currentRt.lastGroupedMode) {
+        currentRt.lastGroupedMode = after;
+        broadcastSettings(currentRt);
       }
       return result;
     }) && ready;
@@ -1280,16 +1593,16 @@
       const app = appOverview(appid);
       if (app) {
         setCustomName(app, sortAs, rt);
-        if (rt.stableMode) stableApps.push(app);
+        if (rt.customSortEnabled) stableApps.push(app);
       }
     }
     if (stableApps.length) stableSyncApps(rt, stableApps);
     if (ids.length) {
       invalidate(rt, ids, `custom-name-bulk:${clean(data.reason) || "done"}`);
-      if (rt.stableMode) {
+      if (rt.customSortEnabled) {
         // Steam 云同步可能在保存返回后替换 AppOverview；按本批 AppID 延迟复查，避免再次全库扫描。
         scheduleTimeout(rt, "stable-bulk-delayed-recheck", () => {
-          if (!rt.stableMode) return;
+          if (!rt.customSortEnabled) return;
           const delayedApps = [];
           for (const [appid, sortAs] of state.map) {
             const current = appOverview(appid);
@@ -1326,10 +1639,12 @@
     const old = window[RT];
     if (old?.scheduled) return { started: false, reason: "already-started", stop: old.stop };
     if (!window.STScheduler?.register) return { started: false, reason: "scheduler-unavailable" };
+    if (typeof api.ctx.userNames !== "function") throw new Error("Steam 名称快照读取入口未加载");
     const rt = {
       scheduled: true,
       scope: scope || null,
       channel: null,
+      channelReady: false,
       onMessage: null,
       revision: 0,
       model: new Map(),
@@ -1338,14 +1653,12 @@
       groupIndexReady: false,
       customSortEnabled: settingsValue(api, ID, true) !== false,
       nameMode: nameModeOf(api),
-      mineNames: readMineNames(),
+      mineNames: readMineNames(api),
       mineSignature: "",
-      stableMode: settingsValue(api, STABLE_MODE_ID, true) === true,
       groupLabelsEnabled: settingsValue(api, GROUP_LABELS_ID, true) !== false,
       groupedModeEnabled: settingsValue(api, GROUPED_MODE_ID, false) === true,
       lastGroupedMode: null,
       hideCollectionTags: settingsValue(api, HIDE_COLLECTION_TAGS_ID, true) !== false,
-      customTitleEnabled: settingsValue(api, HOVER_TITLE_ID, false) === true,
       originalNameSearch: settingsValue(api, ORIGINAL_NAME_SEARCH_ID, false) === true,
       sortAsOriginals: new Map(),
       stableDisplayIds: new Set(),
@@ -1360,7 +1673,9 @@
       stableFailureKeys: new Set(),
       notifying: false,
       customEventsOff: null,
+      cloudSortSubscription: null,
       sortOk: false,
+      sortOwner: null,
       changeOk: false,
       collectionOk: false,
       settingsObserver: null,
@@ -1387,30 +1702,27 @@
         broadcastSettings(rt);
       }
       if (rt.groupLabelsEnabled && !rt.groupIndexReady) ensureGroupIndex(rt);
-      if (rt.customSortEnabled && !rt.sortOk) rt.sortOk = hookSort(rt);
-      if (rt.customSortEnabled
-        && rt.nameMode === window.STConfig.libraryNameMode.values.STEAM_SORT
-        && !rt.customEventsOff) {
-        bindCustomSortEvents(rt, window.appStore);
-      }
-      if (!rt.changeOk) rt.changeOk = hookOverviewChange(rt, window.collectionStore);
+      ensureNameHooks(rt, true);
       if (!rt.collectionOk) rt.collectionOk = hookCollectionEvents(rt);
       if (rt.originalNameSearch && !rt.sortAsBootstrapped
         && Number(window.appStore?.m_mapApps?.size || 0) > 0) {
         syncSortAsAll(rt);
         rt.sortAsBootstrapped = true;
       }
-      if (rt.stableMode && !rt.stableBootstrapped
+      if (rt.customSortEnabled && !rt.stableBootstrapped
         && Number(window.appStore?.m_mapApps?.size || 0) > 0) {
         stableSyncAll(rt, false);
-        rt.stableBootstrapped = rt.stablePendingIds.size === 0;
+        // 首轮已把未就绪项目入队，后续只重试这些 AppID
+        rt.stableBootstrapped = true;
       }
       if (rt.stablePendingIds.size && !rt.stableRetryScheduled) {
         stableStartRetry(rt, { restart: rt.stableRetryExhausted });
       }
+      announceBackendReady(rt);
       const groupIndexReady = !rt.groupLabelsEnabled || rt.groupIndexReady;
       const ready = groupIndexReady && rt.changeOk && (!rt.customSortEnabled || rt.sortOk);
-      setSchedulerInterval(rt, ready ? SYNC_MS : BOOT_MS);
+      const cloudPending = rt.customSortEnabled && independentActive(rt) && !rt.cloudSortSubscription;
+      setSchedulerInterval(rt, ready && !cloudPending ? SYNC_MS : BOOT_MS);
     };
     const schedule = () => {
       if (!rt.scheduled || rt.delay) return;
@@ -1418,29 +1730,55 @@
     };
     rt.run = run;
     rt.schedule = schedule;
-    rt.stop = () => {
-      window.STScheduler?.unregister?.(SCHEDULER_TASK);
-      rt.scheduled = false;
-      clearTimers(rt);
-      if (rt.stableDisplayIds.size) {
-        stableResetRetry(rt);
-        stableSyncAll(rt, true);
-      }
-      restoreAllOriginalSortAs(rt);
-      rt.customEventsOff?.();
-      rt.customEventsOff = null;
-      rt.settingsObserver?.disconnect?.();
-      rt.settingsObserver = null;
+    // 重建名称通道时保留模型与待处理队列，恢复请求不重新执行启动全库遍历
+    rt.recover = (appids = []) => {
+      if (!rt.scheduled) throw new Error("库名称后台已停止");
       if (rt.channel && rt.onMessage) rt.channel.removeEventListener("message", rt.onMessage);
       rt.channel?.close?.();
-      restorePatches();
-      rt.model.clear();
-      rt.groupTagsByApp.clear();
-      names().clear();
-      for (const event of EVENTS) window.removeEventListener(event, schedule);
-      document.removeEventListener("visibilitychange", schedule);
-      if (window[RT] === rt) delete window[RT];
-      rt.scope = null;
+      if (!openChannel(rt)) throw new Error("库名称后台通道恢复失败");
+      ensureNameHooks(rt);
+      const ids = Array.from(new Set(appids.map(Number).filter(id => Number.isInteger(id) && id > 0))).slice(0, 200);
+      stableSyncCurrent(rt, ids);
+      announceBackendReady(rt);
+      return { ready: true, pendingCount: rt.stablePendingIds.size };
+    };
+    rt.stop = () => {
+      window.STScheduler?.unregister?.(SCHEDULER_TASK);
+      // 先停止异步来源，避免还原期间重新应用自定义名称
+      rt.scheduled = false;
+      releaseCloudSortSubscription(rt);
+      clearTimers(rt);
+      try {
+        if (rt.stableDisplayIds.size) {
+          stableResetRetry(rt);
+          stableSyncAll(rt, true);
+        }
+        restoreAllOriginalSortAs(rt);
+        if (rt.stablePendingRestoreIds.size) {
+          log.warn("library-sort-title-stable-failed", "名称后台已停止，部分项目未能确认还原", {
+            phase: "stop-restore", pendingCount: rt.stablePendingRestoreIds.size,
+          });
+        }
+      } catch (error) {
+        log.error("library-sort-title-stable-failed", "名称后台停止时还原失败", {
+          phase: "stop-restore", error,
+        });
+      } finally {
+        rt.customEventsOff?.();
+        rt.customEventsOff = null;
+        rt.settingsObserver?.disconnect?.();
+        rt.settingsObserver = null;
+        if (rt.channel && rt.onMessage) rt.channel.removeEventListener("message", rt.onMessage);
+        rt.channel?.close?.();
+        restorePatches();
+        rt.model.clear();
+        rt.groupTagsByApp.clear();
+        names().clear();
+        for (const event of EVENTS) window.removeEventListener(event, schedule);
+        document.removeEventListener("visibilitychange", schedule);
+        if (window[RT] === rt) delete window[RT];
+        rt.scope = null;
+      }
     };
     window[RT] = rt;
     openChannel(rt);

@@ -23,8 +23,10 @@
   const FEEDBACK_URL = CFG.urls.feedback;
   const DONATIONS_API = CFG.supporter("/donations?limit=100");
   const DONATION_CACHE_MS = 60 * 60 * 1000;
-  const ABOUT_DONOR_MARQUEE_SPEED_PX_PER_SECOND = 8;
+  const ABOUT_DONOR_MARQUEE_SPEED_PX_PER_SECOND = 25;
   const ABOUT_DONOR_MARQUEE_DURATION_VAR = "--about-donors-marquee-duration";
+  const ABOUT_DONOR_MARQUEE_ENTRY_OFFSET_VAR = "--about-donors-marquee-entry-offset";
+  const ABOUT_DONOR_MARQUEE_ENTRY_DURATION_VAR = "--about-donors-marquee-entry-duration";
   const vendorCatalog = globalThis.STVendorCatalog;
   if (!Array.isArray(vendorCatalog?.openSourceLibs)) {
     throw new Error("[Steam Buff] 关于页面依赖 STVendorCatalog 未加载");
@@ -393,6 +395,29 @@
       margin-bottom: 8px;
     }
 
+    .about-debug-toggle {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 0 5px 5px;
+      flex: 0 0 auto;
+      border: 0;
+      background: transparent;
+      color: var(--st-color-text-secondary-alt);
+      font: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .about-debug-toggle:focus-visible { outline: 2px solid var(--st-color-steam-blue); outline-offset: 3px; }
+    .about-debug-toggle:disabled { opacity: .6; cursor: wait; }
+    .about-debug-track { width: 26px; height: 14px; border-radius: 9px; background: var(--st-color-text-subtle); padding: 2px; box-sizing: border-box; }
+    .about-debug-track::after { content: ""; display: block; width: 10px; height: 10px; border-radius: 50%; background: var(--st-color-white); }
+    .about-debug-toggle[aria-checked="true"] .about-debug-track { background: var(--st-color-warning-soft); }
+    .about-debug-toggle[aria-checked="true"] .about-debug-track::after { transform: translateX(12px); }
+    .about-debug-note { color: var(--st-color-warning-soft); font-size: 11px; line-height: 1.5; margin: 0 0 8px; }
+    .about-debug-note-active { color: var(--st-color-danger); font-weight: 700; }
+
     .about-card-icon {
       width: 30px;
       height: 30px;
@@ -608,12 +633,20 @@
       align-items: center;
       gap: 10px;
       min-width: max-content;
-      animation: about-marquee var(--about-donors-marquee-duration) linear infinite;
+      visibility: hidden;
+      animation:
+        about-marquee-entry var(--about-donors-marquee-entry-duration) linear both,
+        about-marquee var(--about-donors-marquee-duration) linear var(--about-donors-marquee-entry-duration) infinite;
       white-space: nowrap;
     }
 
     .about-marquee:hover .about-marquee-track {
       animation-play-state: paused;
+    }
+
+    @keyframes about-marquee-entry {
+      from { visibility: visible; transform: translateX(var(--about-donors-marquee-entry-offset)); }
+      to { visibility: visible; transform: translateX(0); }
     }
 
     @keyframes about-marquee {
@@ -724,6 +757,7 @@
         display: grid;
         grid-template-columns: 1fr;
         animation: none;
+        visibility: visible;
         white-space: normal;
       }
     }
@@ -829,6 +863,89 @@
   let donorsLoadedAt = 0;
   let logDetails = new Map();
   const log = globalThis.STLoggerFactory.createLogger("settings", "about");
+  let debugReady = false;
+  let debugReadFailed = false;
+  let debugBusy = false;
+  let debugBinding = null;
+
+  function bindDebug(shadow, ctx) {
+    if (debugBinding?.shadow === shadow) return;
+    debugBinding?.dispose();
+    const binding = { shadow, dispose: null };
+    const release = globalThis.STLoggerFactory.subscribeDebug(() => ctx.refresh("about"));
+    binding.dispose = () => {
+      release();
+      if (debugBinding === binding) { debugBinding = null; debugReady = false; debugBusy = false; }
+    };
+    debugBinding = binding;
+    globalThis.STRuntime?.current?.()?.registerResource({ owner: "settings:about", key: "debug-state", type: "settings-ui", dispose: binding.dispose });
+  }
+
+  async function refreshDebugState(shadow, ctx) {
+    bindDebug(shadow, ctx);
+    const binding = debugBinding;
+    try {
+      const response = await sendLogMessage("LOG_DEBUG_GET");
+      if (binding !== debugBinding) return;
+      if (!globalThis.STLoggerFactory.applyDebugState(response.state)) throw new TypeError("日志开关状态回复格式错误");
+      debugReady = true;
+      debugReadFailed = false;
+    } catch (error) {
+      if (binding === debugBinding) debugReadFailed = true;
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "about", event: "debug-state-read-failed", message: "读取日志开关状态失败" });
+    }
+    if (binding === debugBinding) ctx.refresh("about");
+  }
+
+  function debugWarning() {
+    const message = text("about.debug.warning", "开启后将记录完整的业务请求、响应及诊断数据，可能包含账号资料、游戏信息、输入内容等隐私信息。\n登录令牌、Cookie、密码和密钥仍会脱敏。\n日志将持续记录，重启后仍保持开启，请在复现问题并导出日志后手动关闭。\n\n请仅将日志提供给可信人员，切勿公开分享。非必要情况下请勿开启，确定继续吗？");
+    const highlights = [
+      [text("about.debug.warningRecord", "记录完整的业务请求、响应及诊断数据"), { danger: true }],
+      [text("about.debug.warningAccount", "账号资料"), { danger: true }],
+      [text("about.debug.warningGames", "游戏信息"), { danger: true }],
+      [text("about.debug.warningInput", "输入内容"), { danger: true }],
+      [text("about.debug.warningShare", "请仅将日志提供给可信人员，切勿公开分享。"), { emphasize: true }],
+    ];
+    const punctuation = /^[，。、,.!?;:！？；：]$/u;
+    let parts = [{ text: message }];
+    // 只匹配自有翻译文案；标点不进入着色段。
+    for (const [phrase, style] of highlights) {
+      const marked = phrase.split(/([，。、,.!?;:！？；：])/u).filter(Boolean)
+        .map(value => ({ text: value, ...(punctuation.test(value) ? {} : style) }));
+      parts = parts.flatMap(part => part.danger || part.emphasize ? [part] : part.text.split(phrase)
+        .flatMap((value, index) => [...(index ? marked : []), ...(value ? [{ text: value }] : [])]));
+    }
+    return { message, messageParts: parts };
+  }
+
+  async function toggleDebug(shadow, ctx) {
+    if (debugBusy || !debugReady) return;
+    const binding = debugBinding;
+    const enabled = !globalThis.STLoggerFactory.getDebugState().enabled;
+    const operationId = globalThis.STLoggerFactory.createOperationId();
+    debugBusy = true;
+    ctx.refresh("about");
+    try {
+      if (enabled) {
+        const action = await ctx.dialog(shadow, {
+          title: text("about.debug.title", "开启日志"),
+          ...debugWarning(),
+          actions: [
+            { id: "cancel", label: text("common.cancel", "取消") },
+            { id: "enable", label: text("about.debug.enable", "继续"), primary: true, countdownSeconds: 5 },
+          ],
+        });
+        if (action !== "enable" || binding !== debugBinding) return;
+      }
+      const response = await sendLogMessage("LOG_DEBUG_SET", { enabled, confirmed: enabled, operationId });
+      if (!globalThis.STLoggerFactory.applyDebugState(response.state)) throw new TypeError("日志开关状态回复格式错误");
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "about", event: "debug-state-save-failed", message: "调整日志开关失败", operationId });
+      if (binding === debugBinding) await ctx.dialog(shadow, { title: text("about.debug.failed", "调整日志开关失败"), message: error.message });
+    } finally {
+      if (binding === debugBinding) { debugBusy = false; ctx.refresh("about"); }
+    }
+  }
 
   function text(key, fallback, params) {
     return globalThis.STI18n.text(key, fallback, params);
@@ -1022,7 +1139,7 @@
   function sendLogMessage(type, payload = {}) {
     return new Promise((resolve, reject) => {
       try {
-        if (globalThis.STMessageBus?.send) {
+        if (globalThis.STMessageBus?.ready && globalThis.STMessageBus?.send) {
           globalThis.STMessageBus.send({ type, ...(payload || {}) }, {
             timeoutMs: type === "LOG_EXPORT" ? 12_000 : 8_000,
           }).then((response) => {
@@ -1365,7 +1482,8 @@
       const response = await sendLogMessage("LOG_STATS");
       logStats = response.stats || null;
       ctx.refresh("about");
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "about", event: "log-stats-read-failed", message: "读取日志统计失败", level: "warn" });
       logStats = null;
       ctx.refresh("about");
     }
@@ -1423,20 +1541,27 @@
 
   function applyDonorMarqueeSpeed(shadow) {
     const body = shadow?.querySelector?.(".body");
+    const marquee = shadow?.querySelector?.(".about-marquee");
     const track = shadow?.querySelector?.(".about-marquee-track");
-    if (!body || !track || typeof track.getBoundingClientRect !== "function") {
+    if (!body || !marquee || !track || typeof track.getBoundingClientRect !== "function") {
       return;
     }
 
+    const entryOffsetPx = Number(marquee.getBoundingClientRect().width);
     const trackWidth = Number(track.getBoundingClientRect().width);
     const distancePx = trackWidth / 2;
-    if (!Number.isFinite(distancePx) || distancePx <= 0) {
+    if (!Number.isFinite(distancePx) || distancePx <= 0 || !Number.isFinite(entryOffsetPx) || entryOffsetPx <= 0) {
       body.style.removeProperty(ABOUT_DONOR_MARQUEE_DURATION_VAR);
+      body.style.removeProperty(ABOUT_DONOR_MARQUEE_ENTRY_OFFSET_VAR);
+      body.style.removeProperty(ABOUT_DONOR_MARQUEE_ENTRY_DURATION_VAR);
       return;
     }
 
     const durationSeconds = distancePx / ABOUT_DONOR_MARQUEE_SPEED_PX_PER_SECOND;
+    const entryDurationSeconds = entryOffsetPx / ABOUT_DONOR_MARQUEE_SPEED_PX_PER_SECOND;
     body.style.setProperty(ABOUT_DONOR_MARQUEE_DURATION_VAR, `${durationSeconds}s`);
+    body.style.setProperty(ABOUT_DONOR_MARQUEE_ENTRY_OFFSET_VAR, `${entryOffsetPx}px`);
+    body.style.setProperty(ABOUT_DONOR_MARQUEE_ENTRY_DURATION_VAR, `${entryDurationSeconds}s`);
   }
 
   function scheduleDonorMarqueeSpeed(shadow) {
@@ -1458,7 +1583,8 @@
       donorsLoadedAt = Date.now();
       ctx.refresh("about");
       scheduleDonorMarqueeSpeed(shadow);
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "pages-about", event: "load-donors-failed", message: "加载支持者列表失败", level: "warn", phase: "loadDonors" });
       donors = [];
       donorsLoadedAt = Date.now();
       ctx.refresh("about");
@@ -1472,6 +1598,14 @@
     log.info("diag-log-export-start", "开始导出日志", { operationId });
     try {
       const response = await sendLogMessage("LOG_EXPORT", { operationId });
+      if (response.summary?.debug?.containsDetailedData) {
+        const action = await ctx.dialog(shadow, {
+          title: text("about.debug.exportTitle", "导出包含详细诊断数据的日志"),
+          message: text("about.debug.exportWarning", "日志包含详细业务数据，可能涉及隐私。关闭日志不会删除这些记录，请仅将导出文件提供给可信人员。是否继续导出？"),
+          actions: [{ id: "cancel", label: text("common.cancel", "取消") }, { id: "export", label: text("common.export", "导出"), primary: true }],
+        });
+        if (action !== "export") return;
+      }
       const pack = await globalThis.STSettingsDiagnosticsExport?.build?.(response);
       if (!pack?.blob) {
         throw new Error(text("about.logs.buildFailed", "日志生成失败"));
@@ -1533,7 +1667,8 @@
     }
     try {
       element.focus({ preventScroll: true });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "pages-about", event: "focus-element-failed", message: "恢复界面焦点失败", level: "warn", phase: "focusElement" });
       element.focus();
     }
     return true;
@@ -1748,6 +1883,7 @@
       }
       show(shadow, ctx, next, manual);
     } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "about", event: "update-check-failed", message: "检查更新失败", level: manual ? "error" : "warn", phase: "check" });
       busy = false;
       ctx.refresh("about");
       if (manual) {
@@ -1765,7 +1901,8 @@
     ctx.refresh("about");
     try {
       info = await requestStatus();
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "pages-about", event: "refresh-status-failed", message: "刷新更新状态失败", level: "warn", phase: "refreshStatus" });
     } finally {
       busy = false;
       ctx.refresh("about");
@@ -1838,7 +1975,9 @@
         <div class="about-card-head">
           <div class="about-card-icon${iconClass}">${icon(item.icon)}</div>
           <div class="about-card-title">${item.title}</div>
+          ${item.headAction || ""}
         </div>
+        ${item.note || ""}
         <div class="about-card-desc${item.mono ? " mono" : ""}">${item.desc}</div>
         <div class="about-card-actions">${item.actions}</div>
       </div>
@@ -1944,6 +2083,8 @@
         action: "diag-log",
         icon: "pulse",
         title: `${ctx.esc(text("about.card.logs.title", "日志"))} <span class="about-log-health ${health.cls}" title="${ctx.esc(health.title)}"></span>`,
+        headAction: `<button type="button" class="about-debug-toggle" role="switch" aria-checked="${globalThis.STLoggerFactory.getDebugState().enabled}" ${!debugReady || debugBusy ? "disabled" : ""}><span>${ctx.esc(text("about.debug.title", "开启日志"))}</span><span class="about-debug-track" aria-hidden="true"></span></button>`,
+        note: debugReadFailed ? `<div class="about-debug-note">${ctx.esc(text("about.debug.unavailable", "日志开关状态暂不可用，请重新打开设置重试"))}</div>` : globalThis.STLoggerFactory.getDebugState().enabled ? `<div class="about-debug-note about-debug-note-active">${ctx.esc(text("about.debug.active", "日志记录已开启，排障完成后请手动关闭。请勿随意分享日志"))}</div>` : `<div class="about-debug-note">${ctx.esc(text("about.debug.inactive", "日志记录已关闭，不生成新日志。开启后请重新复现问题，再导出日志"))}</div>`,
         desc: ctx.esc(logSummary()),
         mono: true,
         actions: `<button class="about-action-link about-log-export" type="button">${ctx.esc(text("about.card.logs.export", "导出日志"))}</button><button class="about-action-link danger divider about-log-clear" type="button">${ctx.esc(text("about.card.logs.clear", "清空日志"))}</button>`,
@@ -2016,6 +2157,10 @@
   }
 
   function handle(event, shadow, ctx) {
+    if (event.target.closest(".about-debug-toggle")) {
+      void toggleDebug(shadow, ctx);
+      return true;
+    }
     const more = event.target.closest("[data-about-log]");
     if (more) {
       showCurrentLog(shadow, ctx);
@@ -2070,11 +2215,13 @@
   }
 
   function onOpen(shadow, ctx) {
+    void refreshDebugState(shadow, ctx);
     refreshStatus(ctx);
     scheduleDonorMarqueeSpeed(shadow);
   }
 
   function onPanelOpen(shadow, ctx) {
+    void refreshDebugState(shadow, ctx);
     info = emptyUpdateInfo(ctx);
     ctx.refresh("about");
     scheduleDonorMarqueeSpeed(shadow);
@@ -2091,6 +2238,7 @@
     handle,
     onOpen,
     onPanelOpen,
+    dispose() { debugBinding?.dispose(); },
     style: STYLE,
   });
 })();

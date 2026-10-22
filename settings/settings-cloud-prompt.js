@@ -19,11 +19,10 @@
   const PROMPT_TYPE = "SETTINGS_CLOUD_PROMPT";
   const SYNC_TYPE = "SETTINGS_CLOUD_SYNC";
   const HOST_ID = "__SteamBuffSettingsCloudPrompt";
-  const log = root.STLoggerFactory?.createLogger?.("settings", "settings-cloud-prompt") || {
-    info() {},
-    warn() {},
-    error() {},
-  };
+  if (typeof root.STLoggerFactory?.createLogger !== "function") {
+    throw new Error("设置云同步弹窗缺少日志依赖，请先加载 shared/logger-factory.js");
+  }
+  const log = root.STLoggerFactory.createLogger("settings", "settings-cloud-prompt");
   let prompting = false;
 
   function tr(key, fallback, params) {
@@ -36,7 +35,7 @@
 
   function request(payload) {
     const message = { type: SYNC_TYPE, ...payload };
-    if (root.STMessageBus?.request) {
+    if (root.STMessageBus?.ready && root.STMessageBus?.request) {
       return root.STMessageBus.request(message, { expectSuccess: false });
     }
     return new Promise((resolve) => {
@@ -44,7 +43,8 @@
         chrome.runtime.sendMessage(message, (res) => {
           resolve(chrome.runtime.lastError ? { success: false } : (res || {}));
         });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "settings-cloud-prompt", event: "request-failed", message: "发送请求失败", level: "error", phase: "request" });
         resolve({ success: false });
       }
     });
@@ -238,7 +238,7 @@
     }
   }
 
-  if (root.STMessageBus?.listen) {
+  if (root.STMessageBus?.ready && root.STMessageBus?.listen) {
     root.STMessageBus.listen(PROMPT_TYPE, (request) => {
       handle(request).catch((error) => {
         log.warn("settings-cloud-prompt-failed", "设置云同步弹窗失败", { error });

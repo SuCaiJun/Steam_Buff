@@ -17,12 +17,15 @@
   const STORE_KEY = "steam_buff_diag_logs";
   const FALLBACK_KEY = "steam_buff_diag_fallback_logs";
   const STORAGE_VERSION = 2;
+  const DATABASE_NAME = "steam_buff_diagnostics";
+  const DATABASE_VERSION = 1;
+  const DATABASE_STORE = "state";
   const MB = 1024 * 1024;
   const lifecycleInfoEvents = schema.lifecycleInfoEvents;
   const POLICY = Object.freeze({
     version: STORAGE_VERSION,
-    targetBytes: 5 * MB,
-    hardBytes: Math.floor(5.5 * MB),
+    targetBytes: Math.floor(3.3 * MB),
+    hardBytes: Math.floor(3.5 * MB),
     maxAgeMs: 7 * 24 * 60 * 60 * 1000,
   });
   const LEVELS = Object.freeze(["debug", "info", "network", "warn", "error", "fatal"]);
@@ -36,8 +39,8 @@
   });
   let storageQueue = Promise.resolve();
   let initialized = false;
-  let writing = false;
   let cachedBox = null;
+  let databaseReady = null;
 
   function emptyFallbackMerge() {
     return { generationId: "", signatures: [], health: defaultHealth() };
@@ -99,41 +102,78 @@
     });
   }
 
-  function storageSet(value) {
+  function storageRemove(keys) {
     return new Promise((resolve, reject) => {
       try {
-        writing = true;
-        storageArea().set(value, () => {
+        storageArea().remove(keys, () => {
           const error = root.chrome?.runtime?.lastError?.message || "";
-          writing = false;
           if (error) reject(new Error(error));
           else resolve(true);
         });
       } catch (error) {
-        writing = false;
         reject(error);
       }
     });
   }
 
-  function storageRemove(keys) {
+  /** 正文只由后台持久化，避免 storage.onChanged 向所有页面复制整个日志盒。 */
+  async function openLogDatabase() {
+    if (databaseReady) return databaseReady;
+    const pending = new Promise((resolve, reject) => {
+      const request = root.indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+      let settled = false;
+      request.onupgradeneeded = () => request.result.createObjectStore(DATABASE_STORE);
+      request.onerror = () => {
+        settled = true;
+        reject(request.error);
+      };
+      request.onblocked = () => {
+        settled = true;
+        reject(new Error("日志数据库连接被其他上下文阻塞"));
+      };
+      request.onsuccess = () => {
+        const database = request.result;
+        if (settled) {
+          database.close();
+          return;
+        }
+        settled = true;
+        const release = () => {
+          if (databaseReady === pending) databaseReady = null;
+        };
+        database.onversionchange = () => {
+          database.close();
+          release();
+        };
+        database.onclose = release;
+        resolve(database);
+      };
+    });
+    databaseReady = pending;
+    try {
+      return await pending;
+    } catch (error) {
+      if (databaseReady === pending) databaseReady = null;
+      throw error;
+    }
+  }
+
+  /** 请求成功不等于提交成功；事务完成后才确认写入并更新缓存。 */
+  async function databaseOperation(mode, value) {
+    const database = await openLogDatabase();
     return new Promise((resolve, reject) => {
-      try {
-        writing = true;
-        storageArea().remove(keys, () => {
-          const error = root.chrome?.runtime?.lastError?.message || "";
-          writing = false;
-          if (error) reject(new Error(error));
-          else resolve(true);
-        });
-      } catch (error) {
-        writing = false;
-        reject(error);
-      }
+      const transaction = database.transaction(DATABASE_STORE, mode);
+      const store = transaction.objectStore(DATABASE_STORE);
+      const request = mode === "readonly" ? store.get(STORE_KEY) : store.put(value, STORE_KEY);
+      let requestError = null;
+      request.onerror = () => { requestError = request.error; };
+      transaction.oncomplete = () => resolve(request.result);
+      transaction.onabort = () => reject(transaction.error || requestError || new Error("日志数据库事务已中止"));
     });
   }
 
   function enqueueStorage(job) {
+    // 调用方接收原始 task 的失败；仅队列尾恢复，避免一次失败阻断后续存储任务。
     const task = storageQueue.catch(() => null).then(job);
     storageQueue = task.catch(() => null);
     return task;
@@ -141,27 +181,28 @@
 
   async function initializeNow() {
     if (initialized) return true;
-    const value = await storageGet([STORE_KEY, FALLBACK_KEY]);
-    const main = value[STORE_KEY];
+    let main = await databaseOperation("readonly");
+    const value = await storageGet([FALLBACK_KEY]);
     const fallback = value[FALLBACK_KEY];
-    const mainReady = validBox(main);
     const fallbackReady = fallback === undefined || validBox(fallback);
-    if (!mainReady) {
-      const removeKeys = fallbackReady && fallback !== undefined ? [STORE_KEY] : [STORE_KEY, FALLBACK_KEY];
-      await storageRemove(removeKeys);
-      const box = emptyBox();
-      await storageSet({ [STORE_KEY]: box });
-      cachedBox = box;
-    } else {
-      cachedBox = normalizeBox(main);
-      if (!fallbackReady) await storageRemove([FALLBACK_KEY]);
+    if (main === undefined) {
+      // 已使用的 v2 日志盒只复制一次，原 storage 副本保留到用户主动清空日志。
+      const legacy = await storageGet([STORE_KEY]);
+      main = legacy[STORE_KEY];
+      if (main !== undefined && !validBox(main)) throw new TypeError("历史诊断日志格式错误，已保留原始记录");
+      if (main === undefined) main = emptyBox();
+      await databaseOperation("readwrite", main);
     }
+    if (!validBox(main)) throw new TypeError("日志数据库记录格式错误");
+    if (!fallbackReady) await storageRemove([FALLBACK_KEY]);
+    cachedBox = normalizeBox(main);
     initialized = true;
     return true;
   }
 
+  /** 恢复开关后按需预热日志存储；关闭时不读取历史，主动统计和导出仍可读取 */
   function initialize() {
-    return enqueueStorage(initializeNow);
+    return root.STBackgroundDebug.initialize().then(state => state.enabled ? enqueueStorage(initializeNow) : true);
   }
 
   function normalizeStoredLogs(raw, healthInput) {
@@ -204,8 +245,9 @@
 
   async function mainBox() {
     if (cachedBox) return cachedBox;
-    const value = await storageGet([STORE_KEY]);
-    cachedBox = validBox(value[STORE_KEY]) ? normalizeBox(value[STORE_KEY]) : emptyBox();
+    const value = await databaseOperation("readonly");
+    if (!validBox(value)) throw new TypeError("日志数据库记录缺失或格式错误");
+    cachedBox = normalizeBox(value);
     return cachedBox;
   }
 
@@ -218,7 +260,7 @@
       try {
         const entryInput = item?.entry && typeof item.entry === "object" ? item.entry : item;
         const entry = schema.normalizeEntry(entryInput, { allowAggregation: true });
-        if (schema.shouldPersist(entry, { forcePersist: item?.forcePersist === true })) {
+        if (schema.shouldPersist(entry, { forcePersist: item?.forcePersist === true, debugEnabled: !!entry.debugData })) {
           normalized.logs.push({
             entry,
             fallbackId: String(item?.fallbackId || ""),
@@ -283,20 +325,21 @@
     const failures = new Set(fresh.filter(item => ["error", "fatal"].includes(item.level) && item.operationId).map(item => item.operationId));
     const byteSizes = fresh.map(entry => schema.byteLength(JSON.stringify(entry)));
     let totalBytes = fresh.length ? 2 + (fresh.length - 1) + byteSizes.reduce((total, value) => total + value, 0) : 2;
-    if (fresh.length > 1 && totalBytes > POLICY.targetBytes) {
+    if (totalBytes > POLICY.targetBytes) {
       const evictionOrder = fresh
         .map((entry, index) => ({ index, priority: retentionPriority(entry, failures) }))
         .sort((left, right) => left.priority - right.priority || left.index - right.index);
       const removed = new Set();
       for (const candidate of evictionOrder) {
-        if (fresh.length - removed.size <= 1 || totalBytes <= POLICY.targetBytes) break;
+        if (totalBytes <= POLICY.targetBytes) break;
+        if (fresh.length - removed.size <= 1 && totalBytes <= POLICY.hardBytes) break;
+        totalBytes -= byteSizes[candidate.index] + (fresh.length - removed.size > 1 ? 1 : 0);
         removed.add(candidate.index);
-        totalBytes -= byteSizes[candidate.index] + 1;
         recordDrop(health, fresh[candidate.index]);
       }
-      return { logs: fresh.filter((_entry, index) => !removed.has(index)), health };
+      return { logs: fresh.filter((_entry, index) => !removed.has(index)), health, logBytes: totalBytes };
     }
-    return { logs: fresh, health };
+    return { logs: fresh, health, logBytes: totalBytes };
   }
 
   function fallbackSignature(entry) {
@@ -376,7 +419,7 @@
     return { logs, health, fallbackMerge: mergeState, merged: merged || healthChanged };
   }
 
-  function statsFrom(logs, health) {
+  function statsFrom(logs, health, logBytes = sizeOf(logs)) {
     const list = Array.isArray(logs) ? logs : [];
     const counts = levelCounts(list);
     let firstTime = "";
@@ -389,12 +432,13 @@
     }
     return {
       count: list.length,
-      sizeBytes: sizeOf(list),
+      sizeBytes: logBytes,
       firstTime,
       lastTime,
       errorCount: counts.error + counts.fatal,
       levelCounts: counts,
       loggerHealth: normalizeHealth(health),
+      debugEntryCount: list.filter(entry => !!entry.debugData).length,
       policy: POLICY,
     };
   }
@@ -466,6 +510,7 @@
       fallback,
       logs: compacted.logs,
       health: compacted.health,
+      logBytes: compacted.logBytes,
       fallbackMerge: merged.fallbackMerge,
       changed: main._dirty === true
         || merged.merged
@@ -483,17 +528,44 @@
       health: prepared.health,
       fallbackMerge: normalizeFallbackMerge(prepared.fallbackMerge),
     };
+    // 硬上限包含存储盒元数据；超限时按相同保留优先级逐条淘汰。
+    let logBytes = prepared.logBytes ?? sizeOf(next.logs);
+    let metadataBytes = schema.byteLength(JSON.stringify({ ...next, logs: [] })) - 2;
+    if (metadataBytes + logBytes > POLICY.hardBytes) {
+      const failures = new Set(next.logs.filter(item => ["error", "fatal"].includes(item.level) && item.operationId).map(item => item.operationId));
+      const order = next.logs.map((entry, index) => ({ index, priority: retentionPriority(entry, failures) }))
+        .sort((a, b) => a.priority - b.priority || a.index - b.index);
+      const removed = new Set();
+      for (const candidate of order) {
+        logBytes -= schema.byteLength(JSON.stringify(next.logs[candidate.index])) + (next.logs.length - removed.size > 1 ? 1 : 0);
+        removed.add(candidate.index);
+        recordDrop(next.health, next.logs[candidate.index]);
+        metadataBytes = schema.byteLength(JSON.stringify({ ...next, logs: [] })) - 2;
+        if (metadataBytes + logBytes <= POLICY.hardBytes) break;
+      }
+      next.logs = next.logs.filter((_entry, index) => !removed.has(index));
+      prepared.changed = true;
+    }
+    if (metadataBytes + logBytes > POLICY.hardBytes) {
+      const error = new Error("日志存储元数据超过硬上限");
+      error.code = "LOG_CAPACITY_EXCEEDED";
+      throw error;
+    }
+    prepared.logs = next.logs;
+    prepared.health = next.health;
     if (prepared.changed || !cachedBox) {
-      await storageSet({ [STORE_KEY]: next });
+      await databaseOperation("readwrite", next);
       cachedBox = next;
     }
-    return statsFrom(next.logs, next.health);
+    return statsFrom(next.logs, next.health, logBytes);
   }
 
-  async function appendNow(input, sender) {
+  async function appendNow(input, sender, recordingSession) {
+    if (!root.STBackgroundDebug.snapshot().enabled || root.STBackgroundDebug.snapshot().sessionId !== recordingSession) return null;
     const prepared = await prepareStored();
-    const raw = input?.entry && typeof input.entry === "object" ? input.entry : input;
-    const forcePersist = input?.forcePersist === true;
+    if (!root.STBackgroundDebug.snapshot().enabled || root.STBackgroundDebug.snapshot().sessionId !== recordingSession) return null;
+    const raw = input;
+    const debugEnabled = root.STBackgroundDebug?.allows(raw) === true;
     let entry;
     try {
       entry = schema.normalizeEntry(raw);
@@ -507,18 +579,25 @@
       const frameId = Number(sender.frameId);
       if (Number.isInteger(frameId) && frameId >= 0) entry.context = { ...entry.context, frameId };
     }
-    if (!schema.shouldPersist(entry, { forcePersist })) return commitPrepared(prepared);
+    if (!schema.shouldPersist(entry, { forcePersist: debugEnabled, debugEnabled })) return commitPrepared(prepared);
     const logs = prepared.logs.slice();
     // 每个真实事件按发生顺序独立保存；容量只由统一保留策略处理，不聚合或去重 debug/network/warn/error/fatal。
     logs.push(entry);
     const compacted = compact(logs, prepared.health);
     const nextHealth = normalizeHealth(compacted.health);
     nextHealth.truncatedFieldCount += schema.countTruncatedFields(entry);
-    return commitPrepared({ ...prepared, logs: compacted.logs, health: nextHealth, changed: true });
+    return commitPrepared({ ...prepared, logs: compacted.logs, health: nextHealth, logBytes: compacted.logBytes, changed: true });
   }
 
-  function append(input, sender) {
-    return enqueueStorage(() => appendNow(input, sender));
+  /** 开启时串行追加并返回统计；关闭或所属记录会话已结束时返回 null */
+  async function append(input, sender) {
+    // 关闭时不入存储队列，也不规范化迟到消息或计算历史统计
+    const state = root.STBackgroundDebug.snapshot();
+    if (!state.enabled) return null;
+    const raw = input?.entry && typeof input.entry === "object" ? input.entry : input;
+    // 已结束会话的在途消息整条丢弃，不降为普通摘要，也不读取历史日志。
+    if (raw?.debugData && !root.STBackgroundDebug.allows(raw)) return null;
+    return enqueueStorage(() => appendNow(raw, sender, state.sessionId));
   }
 
   async function statsNow() {
@@ -563,6 +642,11 @@
         loggerHealth: stats.loggerHealth,
         runtimeHealth: runtimeHealth(logs),
         retentionPolicy: POLICY,
+        debug: {
+          containsDetailedData: logs.some(entry => !!entry.debugData),
+          entryCount: logs.filter(entry => !!entry.debugData).length,
+          incompleteEntryCount: logs.filter(entry => entry.debugData?.truncated === true).length,
+        },
         files: ["logs.jsonl", "config.json", "env.json", "summary.json"],
         format: "zip",
       },
@@ -575,10 +659,10 @@
   }
 
   async function clearNow() {
-    await storageRemove([STORE_KEY, FALLBACK_KEY]);
     const box = emptyBox();
-    await storageSet({ [STORE_KEY]: box });
+    await databaseOperation("readwrite", box);
     cachedBox = box;
+    await storageRemove([STORE_KEY, FALLBACK_KEY]);
     return statsFrom([], box.health);
   }
 
@@ -588,11 +672,6 @@
       return clearNow();
     });
   }
-
-  root.chrome?.storage?.onChanged?.addListener?.((changes, areaName) => {
-    if (areaName !== "local" || writing) return;
-    if (changes?.[STORE_KEY]) cachedBox = null;
-  });
 
   root.STBackgroundLogger = Object.freeze({
     ready: true,

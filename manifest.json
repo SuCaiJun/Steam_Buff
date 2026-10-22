@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.0.4",
+  "version": "2.1.0",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -22,6 +22,7 @@
     }
   },
   "permissions": [
+    "debugger",
     "scripting",
     "storage",
     "alarms",
@@ -181,6 +182,14 @@
         "shared/config.js",
         "shared/error-boundary.js",
         "shared/i18n.js",
+        "shared/settings-bus.js",
+        "ai/config.js",
+        "shared/price-comparison-catalog.js",
+        "shared/game-links.js",
+        "settings/catalog.js",
+        "settings/storage.js",
+        "shared/review-regex.js",
+        "store/features/review/review-filter-style.js",
         "store/features/review/review-filter-core.js",
         "store/features/review/review-filter.js",
         "store/features/review/review-filter-community.js"
@@ -203,6 +212,7 @@
         "shared/config.js",
         "shared/error-boundary.js",
         "shared/i18n.js",
+        "store/features/review/review-filter-style.js",
         "store/runtime/styles.js",
         "store/features/cart/cart-select-checkout.js"
       ],
@@ -212,6 +222,19 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "shared/review-regex-host.html"
+      ],
+      "matches": [
+        "https://*.steampowered.com/*",
+        "https://steampowered.com/*",
+        "https://steamcommunity.com/*",
+        "https://*.steamcommunity.com/*",
+        "https://steamloopback.host/*"
+      ]
+    },
+    {
+      "resources": [
+        "shared/client-environment.js",
         "shared/config.js",
         "shared/i18n.js",
         "shared/performance-monitor.js",
@@ -222,6 +245,7 @@
         "shared/batch-queue.js",
         "shared/virtual-list.js",
         "shared/dialog-lifecycle.js",
+        "shared/user-names-snapshot.js",
         "shared/page-context.js",
         "shared/runtime/kernel.js",
         "shared/runtime/surface-manager.js",
@@ -236,18 +260,29 @@
         "steam/runtime/paths.js",
         "steam/runtime/steam-context.js",
         "steam/runtime/context-router.js",
+        "steam/shared/library-detail-cards.js",
         "steam/runtime/surface-hosts.js",
         "steam/runtime/cleanup-stale.js",
         "steam/runtime/styles.js",
         "steam/runtime/download-toolbar.js",
         "shared/utils/player-stats.js",
         "shared/utils/player-stats-ui.js",
+        "shared/game-links.js",
+        "shared/utils/game-links-ui.js",
+        "shared/utils/steam-app-names.js",
+        "vendor/qrcode-generator/qrcode-generator.js",
+        "extension/runtime/qrcode.js",
+        "images/ui/game-link-web.svg",
+        "images/ui/game-link-qrcode.svg",
         "steam/runtime/feature-registry.js",
         "steam/features/*.js",
         "steam/features/*/*.js",
         "steam/main.js",
         "vendor/fflate/*.js",
+        "vendor/sheetjs/*.js",
         "vendor/pinyin-pro/*.js",
+        "images/ui/filter.svg",
+        "images/ui/delete.svg",
         "images/ui/source-tip.svg",
         "images/ui/download-actions.svg",
         "images/features/translate.svg"
@@ -317,6 +352,8 @@
         "images/ui/settings-translate.svg",
         "images/ui/help.svg",
         "images/ui/chevron-right.svg",
+        "images/ui/game-link-web.svg",
+        "images/ui/game-link-qrcode.svg",
         "images/features/store-detail-reminders.svg",
         "images/features/subscription-info.svg",
         "images/features/family-library-owned-marker.svg",
@@ -325,13 +362,19 @@
         "images/features/price-forecast.svg",
         "images/features/wishlist-price-history.svg",
         "images/features/data-display-enhancements.svg",
+        "images/features/game-links.svg",
         "images/features/search-suggestions.svg",
         "images/features/store-title-custom-name.svg",
         "images/features/library-group-labels.svg",
         "images/features/cart-select.svg",
         "images/features/review-filter.svg",
         "images/features/translate.svg",
-        "images/features/ai.svg"
+        "images/features/ai.svg",
+        "images/ui/game-link-drag.svg",
+        "images/ui/game-link-enabled.svg",
+        "images/ui/game-link-disabled.svg",
+        "images/ui/game-link-edit.svg",
+        "images/ui/game-link-delete.svg"
       ],
       "matches": [
         "https://*.steampowered.com/*",

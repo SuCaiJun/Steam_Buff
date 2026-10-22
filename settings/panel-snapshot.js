@@ -163,6 +163,12 @@
         }
         continue;
       }
+      if (name === "gameLinks") {
+        out[name] = root.STGameLinks.normalize(src[name]);
+        if (Object.hasOwn(src, name)) box.imported += out[name].items.length;
+        else box.defaulted += out[name].items.length;
+        continue;
+      }
       out[name] = copyKnown(src[name], sectionDefaults(name), box);
     }
     for (const name of Object.keys(src)) {

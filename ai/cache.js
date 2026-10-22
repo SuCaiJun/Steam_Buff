@@ -21,9 +21,98 @@
   const INDEX_KEY = "st.ai.translate.index";
   const TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const MAX_ITEMS = 1800;
+  const LIMITS = Object.freeze({ batchItems: 30, textBytes: 64 * 1024, batchBytes: 256 * 1024 });
+  const encoder = new TextEncoder();
   const log = globalThis.STLoggerFactory?.createLogger?.("translate", "ai-cache") || null;
   const activeFailures = new Set();
   let writeTask = Promise.resolve();
+
+  function requestError(message) {
+    const error = new TypeError(message);
+    error.code = "AI_CACHE_REQUEST_REJECTED";
+    return error;
+  }
+
+  function isCacheKey(key) {
+    // cacheKey 现有 SHA-256 与后备哈希分别生成 64 位和 16 位小写十六进制值。
+    return typeof key === "string" && (key.length === KEY_PREFIX.length + 64 || key.length === KEY_PREFIX.length + 16)
+      && /^st\.ai\.translate\.cache\.v1\.(?:[a-f0-9]{64}|[a-f0-9]{16})$/.test(key);
+  }
+
+  function keyList(keys, limit) {
+    if (!Array.isArray(keys)) throw requestError("AI 缓存键必须为数组");
+    const length = keys.length;
+    if (limit !== undefined && length > limit) throw requestError("AI 缓存读取批次超限");
+    const list = [];
+    for (let i = 0; i < length; i += 1) {
+      const key = keys[i];
+      if (!isCacheKey(key)) throw requestError("AI 缓存键格式无效");
+      list.push(key);
+    }
+    return Array.from(new Set(list));
+  }
+
+  function validateKeys(keys) {
+    return keyList(keys, LIMITS.batchItems);
+  }
+
+  function entryInfo(item) {
+    if (!item || typeof item !== "object" || Array.isArray(item) || Object.keys(item).length !== 2
+      || !Object.hasOwn(item, "key") || !Object.hasOwn(item, "text")) throw requestError("AI 缓存条目格式无效");
+    const { key, text } = item;
+    if (!isCacheKey(key) || typeof text !== "string") throw requestError("AI 缓存条目格式无效");
+    if (text.length > LIMITS.textBytes || encoder.encode(text).byteLength > LIMITS.textBytes) return null;
+    const entry = { key, text };
+    return { entry, bytes: encoder.encode(JSON.stringify(entry)).byteLength };
+  }
+
+  function validateEntries(entries) {
+    if (!Array.isArray(entries)) throw requestError("AI 缓存条目必须为数组");
+    const length = entries.length;
+    if (length > LIMITS.batchItems) throw requestError("AI 缓存写入批次超限");
+    const list = [];
+    let bytes = 2;
+    for (let i = 0; i < length; i += 1) {
+      const info = entryInfo(entries[i]);
+      if (!info) throw requestError("AI 缓存单条文本超限");
+      bytes += info.bytes + (list.length ? 1 : 0);
+      if (bytes > LIMITS.batchBytes) throw requestError("AI 缓存写入总字节超限");
+      list.push(info.entry);
+    }
+    return list;
+  }
+
+  function batchKeys(keys) {
+    const list = keyList(keys);
+    const batches = [];
+    for (let i = 0; i < list.length; i += LIMITS.batchItems) batches.push(list.slice(i, i + LIMITS.batchItems));
+    return batches;
+  }
+
+  function batchEntries(entries) {
+    if (!Array.isArray(entries)) throw requestError("AI 缓存条目必须为数组");
+    const length = entries.length;
+    const batches = [];
+    let batch = [];
+    let bytes = 2;
+    let skipped = 0;
+    for (let i = 0; i < length; i += 1) {
+      const info = entryInfo(entries[i]);
+      if (!info || info.bytes + 2 > LIMITS.batchBytes) {
+        skipped += 1;
+        continue;
+      }
+      if (batch.length && (batch.length >= LIMITS.batchItems || bytes + 1 + info.bytes > LIMITS.batchBytes)) {
+        batches.push(batch);
+        batch = [];
+        bytes = 2;
+      }
+      bytes += info.bytes + (batch.length ? 1 : 0);
+      batch.push(info.entry);
+    }
+    if (batch.length) batches.push(batch);
+    return { batches, skipped };
+  }
 
   function reportFailure(action, error, meta = {}) {
     activeFailures.add(action);
@@ -139,11 +228,11 @@
 
   async function indexKeys() {
     const rt = await get([INDEX_KEY]);
-    return Array.isArray(rt[INDEX_KEY]) ? rt[INDEX_KEY].filter((key) => typeof key === "string" && key.startsWith(KEY_PREFIX)) : [];
+    return Array.isArray(rt[INDEX_KEY]) ? rt[INDEX_KEY].filter(isCacheKey) : [];
   }
 
   async function saveIndex(keys) {
-    const list = Array.from(new Set((keys || []).filter((key) => typeof key === "string" && key.startsWith(KEY_PREFIX))));
+    const list = Array.from(new Set(keys.filter(isCacheKey)));
     return put({ [INDEX_KEY]: list });
   }
 
@@ -192,7 +281,7 @@
 
   /* AI 翻译缓存 */
   async function getMany(keys) {
-    const list = Array.from(new Set((keys || []).filter(Boolean)));
+    const list = validateKeys(keys);
     if (!list.length) {
       return {};
     }
@@ -200,11 +289,16 @@
     const map = await get(list);
     const out = {};
     const expired = [];
+    let bytes = 2;
 
     for (const key of list) {
       const item = map[key];
       if (fresh(item, now)) {
-        out[key] = item.text;
+        const info = entryInfo({ key, text: item.text });
+        if (info && bytes + info.bytes + 1 <= LIMITS.batchBytes) {
+          out[key] = item.text;
+          bytes += info.bytes + 1;
+        }
       } else if (item) {
         expired.push(key);
       }
@@ -218,14 +312,13 @@
   }
 
   async function writeMany(entries) {
-    const list = (entries || []).filter((item) => item?.key && typeof item.text === "string");
-    if (!list.length) {
+    if (!entries.length) {
       return false;
     }
     const now = Date.now();
     const data = {};
     const keys = [];
-    for (const item of list) {
+    for (const item of entries) {
       data[item.key] = {
         text: item.text,
         time: now,
@@ -237,7 +330,7 @@
       return false;
     }
     const index = await indexKeys();
-    const recent = Array.from(new Set(keys.filter((key) => typeof key === "string" && key.startsWith(KEY_PREFIX))));
+    const recent = Array.from(new Set(keys));
     const recentSet = new Set(recent);
     const ordered = [...index.filter((key) => !recentSet.has(key)), ...recent];
     const overflowCount = Math.max(0, ordered.length - MAX_ITEMS);
@@ -251,10 +344,12 @@
     return true;
   }
 
-  function setMany(entries) {
+  async function setMany(entries) {
+    // 入队前复制已完整校验的条目，排队期间调用方不能再改写存储目标。
+    const list = validateEntries(entries);
     const task = writeTask.then(
-      () => writeMany(entries),
-      () => writeMany(entries),
+      () => writeMany(list),
+      () => writeMany(list),
     );
     writeTask = task.then(() => undefined, () => undefined);
     return task;
@@ -298,6 +393,11 @@
     STORE_KEY,
     INDEX_KEY,
     TTL_MS,
+    limits: LIMITS,
+    validateKeys,
+    validateEntries,
+    batchKeys,
+    batchEntries,
     cacheKey,
     getMany,
     setMany,

@@ -27,7 +27,6 @@
   const RAIL_MIN_TOP = 24;
   const RAIL_MARGIN = 24;
   const DRAG_THRESHOLD = 10;
-  const TOP_SHOW_Y = 1500;
   const OWNER = "settings:floating-rail";
 
   const runtime = root.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
@@ -44,7 +43,6 @@
   let railTop = null;
   let railSide = "right";
   let mounted = false;
-  let topFrameRaf = 0;
   let latestReview = { count: 0, items: [] };
   let disposers = [];
 
@@ -157,33 +155,18 @@
     }
     return {
       scrollTargets: targets,
-      scrollY() {
-        const top = root.scrollY || document.documentElement.scrollTop || document.body?.scrollTop || 0;
-        if (top > 0) {
-          return top;
-        }
-        for (const el of targets()) {
-          if (el.scrollTop > 0) {
-            return el.scrollTop;
-          }
-        }
-        return 0;
-      },
       rememberScrollTarget() {},
     };
   }
 
   const scroll = root.STSettingsScrollTargets?.create?.() || fallbackScrollTargets();
 
-  function scrollY() {
-    return scroll.scrollY();
-  }
-
   function toTop() {
     const targets = scroll.scrollTargets();
     try {
       root.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-rail", event: "to-top-failed", message: "设置中心处理失败", level: "warn", phase: "toTop" });
       root.scrollTo(0, 0);
     }
 
@@ -193,7 +176,8 @@
       }
       try {
         el.scrollTo({ top: 0, behavior: "smooth" });
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-rail", event: "to-top-failed", message: "设置中心处理失败", level: "warn", phase: "toTop" });
         el.scrollTop = 0;
       }
     }
@@ -203,27 +187,20 @@
     });
   }
 
-  function updateTopButton() {
-    if (!topBtn) {
-      return;
-    }
-    const hide = scrollY() < TOP_SHOW_Y;
-    if (topBtn.hidden !== hide) {
-      topBtn.hidden = hide;
-      root.requestAnimationFrame?.(() => applyRailPos(railTop, railSide, false));
-    }
+  function rememberScrollTarget(event) {
+    // 优化: 滚动只记录真实容器。半屏显隐由标记观察负责，这里不读位置或排绘制任务
+    scroll.rememberScrollTarget(event?.target);
   }
 
-  function scheduleTopButton(event) {
-    // 合并到下一帧前记住容器；共享模块最多 8 个，scrollTop 为 0 不记，这里不打日志
-    scroll.rememberScrollTarget(event?.target);
-    if (topFrameRaf) {
+  function bindTopWatch() {
+    const watch = root.STSettingsScrollTargets?.watchHalfViewport;
+    if (typeof watch !== "function") {
+      // 兼容: 滚动目标模块未加载时无法观察半屏，按钮保持可见
+      topBtn.hidden = false;
       return;
     }
-    topFrameRaf = root.requestAnimationFrame?.(() => {
-      topFrameRaf = 0;
-      updateTopButton();
-    }) || 0;
+    const release = watch(topBtn);
+    addDisposer(() => release.dispose());
   }
 
   function reviewCountBadge(count) {
@@ -405,7 +382,8 @@
       drag.active = false;
       try {
         rail.releasePointerCapture(event.pointerId);
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-rail", event: "bind-drag-failed", message: "设置中心处理失败", level: "warn", phase: "bindDrag" });
       }
       rail.classList.remove("dragging");
       if (save && drag.moved) {
@@ -514,9 +492,10 @@
     bindDrag();
     // 注: 窗口/Steam UI 尺寸变化只重排，不写入存储，避免覆盖用户手动拖动的位置。
     listen(root, "resize", () => applyRailPos(railTop, railSide, false));
-    listen(root, "scroll", scheduleTopButton, { passive: true });
-    listen(document, "scroll", scheduleTopButton, { passive: true, capture: true });
+    // 优化: Document 捕获覆盖文档和内层容器，避免文档事件在 Window 再执行一次
+    listen(document, "scroll", rememberScrollTarget, { passive: true, capture: true });
     listen(root, REVIEW_UPDATE_EVT, (event) => updateReviewButton(event.detail || {}));
+    bindTopWatch();
   }
 
   function dispose(options = {}) {
@@ -525,13 +504,11 @@
     for (const disposeOne of disposers.splice(0)) {
       try {
         disposeOne();
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-rail", event: "dispose-failed", message: "释放界面资源失败", level: "warn", phase: "dispose" });
       }
     }
-    if (topFrameRaf) {
-      root.cancelAnimationFrame?.(topFrameRaf);
-      topFrameRaf = 0;
-    }
+    scroll.clear?.();
     mounted = false;
     if (host) {
       delete host.dataset[RAIL_MARK];
@@ -582,7 +559,6 @@
     render();
     bind();
     applyRailPos(railTop, railSide, false);
-    updateTopButton();
     updateReviewButton(latestReview);
     syncReviewFilterState();
     mounted = true;

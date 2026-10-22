@@ -14,7 +14,7 @@
   const api = window.STStore;
   if (!api) return;
 
-  const FEATURE_ID = "data-display-enhancements";
+  const SETTINGS_KEY = "price-history";
   const OWNER = "store:data-display";
   const ROOT_ID = "st-store-data-display";
   const SUPPORTED_TYPES = Object.freeze(new Set(["app", "sub", "bundle"]));
@@ -91,9 +91,11 @@
     return true;
   }
 
-  // 注: app 页固定挂在购买容器首位；异步提醒卡片始终插在容器外，不会再推动历史价格换位。
+  // 统一面板接管详情布局；独立调用仍沿用原购买锚点的挂载契约。
   function insertAtAnchor(anchor, root) {
     if (!anchor?.parentNode) return false;
+    const panel = api.features?.dataDisplayPanel?.current();
+    if (panel) { panel.data.appendChild(root); return true; }
     if (anchor.id === "game_area_purchase") {
       anchor.insertBefore(root, anchor.firstElementChild);
       return true;
@@ -109,7 +111,9 @@
 
   function removeCurrent() {
     const current = document.getElementById(ROOT_ID);
+    current?.__stDataDisplayController?.dispose();
     api.features?.dataDisplayAiForecast?.dispose?.(current);
+    if (current) api.dom.loading.clear(current);
     current?.remove?.();
     activeRoot = null;
   }
@@ -120,6 +124,8 @@
       forecastEnabled: options.forecastEnabled !== false,
       discountForecastEnabled: options.discountForecastEnabled !== false,
       seasonalForecastEnabled: options.seasonalForecastEnabled !== false,
+      compact: options.compact === undefined ? api.settings.on("store-detail-compact") : options.compact === true,
+      upcomingEnabled: options.upcomingEnabled === undefined ? api.settings.on("store-upcoming-festivals") : options.upcomingEnabled === true,
     };
   }
 
@@ -131,7 +137,7 @@
       pageType: info.type || "",
       selector: "#game_area_purchase / .game_area_purchase_game",
       candidateCount: candidateCount(),
-      settingsKey: FEATURE_ID,
+      settingsKey: SETTINGS_KEY,
       viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
     }));
       return null;
@@ -143,7 +149,7 @@
       pageType: info.type || "",
       selector,
       candidateCount: candidateCount(),
-      settingsKey: FEATURE_ID,
+      settingsKey: SETTINGS_KEY,
     }));
       return null;
     }
@@ -152,7 +158,7 @@
       rootId: ROOT_ID,
       pageType: info.type || "",
       parentSelector: selector,
-      settingsKey: FEATURE_ID,
+      settingsKey: SETTINGS_KEY,
       rect: rectMeta(root),
       visible: true,
     }));
@@ -200,69 +206,84 @@
     );
   }
 
-  async function requestSelectedPrice(controller, option) {
-    const requestSequence = controller.priceRequestSequence + 1;
-    controller.priceRequestSequence = requestSequence;
+  // 一个商品分别缓存主区与完整结果；同范围进行中任务共用，旧页面和旧选择不写 UI
+  async function requestSelectedPrice(controller, option, scope = controller.compact ? "compact" : "full", keepExisting = false) {
+    const requestSequence = ++controller.priceRequestSequence;
     controller.selectedSubId = String(option.id);
     controller.selectedProductName = text(option.name);
-    controller.selectedPageInfo = selectedProductInfo(controller.info, option);
-    controller.priceData = null;
-    api.features?.dataDisplayAiForecast?.dispose?.(controller.root);
-    renderControllerState(controller, "loading", {});
+    controller.selectedPageInfo = controller.info.type === "app" ? selectedProductInfo(controller.info, option) : controller.info;
+    if (!keepExisting) {
+      controller.priceData = null;
+      api.features?.dataDisplayAiForecast?.dispose?.(controller.root);
+      renderControllerState(controller, "loading", {});
+    }
+    let product = controller.products.get(controller.selectedSubId);
+    if (!product) { product = { pending: new Map() }; controller.products.set(controller.selectedSubId, product); }
+    const fresh = value => value?.ok === true && Number(value.updatedAt) + Number(value.cache?.ttlMs) > Date.now();
+    const cached = fresh(product[scope]) ? product[scope] : null;
+    const valid = () => controller.isCurrent() && requestSequence === controller.priceRequestSequence;
+    const panel = api.features?.dataDisplayPanel;
     const startedAt = Date.now();
-    log?.info?.("data-display-load-start", "数据展示开始加载价格数据", pageMeta({
-      pageType: controller.info.type || "",
-      appid: Number(controller.info.appId) || 0,
-      subid: Number(option.id) || 0,
-      provider: "isthereanydeal",
-      settingsKey: FEATURE_ID,
-    }));
+    const meta = () => pageMeta({
+      pageType: controller.info.type || "", scope,
+      appid: controller.info.type === "app" ? Number(controller.info.appId) || 0 : 0,
+      itemType: controller.selectedPageInfo.type, itemId: Number(option.id),
+      ...(controller.selectedPageInfo.type === "sub" ? { subid: Number(option.id) } : {}),
+      settingsKey: SETTINGS_KEY,
+    });
+    panel?.loading("price", true);
     try {
-      if (typeof api.thirdPartyData?.getStorePriceChartPack !== "function") {
-        throw new Error("第三方价格图表服务未就绪");
+      let result = cached;
+      if (!result) {
+        let task = product.pending.get(scope);
+        if (!task) {
+          task = { cancelled: false, promise: null };
+          product.pending.set(scope, task);
+          const shouldContinue = () => !task.cancelled && controller.isCurrent()
+            && controller.selectedSubId === String(option.id) && (scope === "compact" || !controller.compact);
+          task.promise = (async () => {
+            if (!await api.dom.loading.afterPaint(shouldContinue)) return null;
+            log?.info?.("data-display-load-start", "数据展示开始加载价格数据", meta());
+            const opts = {
+              pageCountry: api.ctx.country(), scope,
+              includeInfo: controller.options.forecastEnabled,
+              items: [{ type: controller.info.type === "app" ? "sub" : controller.info.type, id: option.id }],
+              previous: product.compact,
+              shouldContinue,
+            };
+            const value = await api.thirdPartyData.getStorePriceChartPack(pageInfoForService(controller.info), opts);
+            if (value?.ok && !task.cancelled) product[scope] = value;
+            return value;
+          })();
+          const clearPending = () => { if (product.pending.get(scope) === task) product.pending.delete(scope); };
+          task.promise.then(clearPending, clearPending);
+        }
+        result = await task.promise;
       }
-      const result = await api.thirdPartyData.getStorePriceChartPack(pageInfoForService(controller.info), {
-        pageCountry: api.ctx?.country?.(),
-        items: [{ type: "sub", id: option.id }],
-      });
-      if (requestSequence !== controller.priceRequestSequence || controller.root !== activeRoot) return result;
+      if (!result || !valid() || (scope === "full" && controller.compact)) return result;
       controller.priceData = result;
-      const state = stateFromResult(result);
-      renderControllerState(controller, state, result);
-      log?.[result?.ok === true ? "info" : "warn"]?.(
-        result?.ok === true ? "data-display-load-success" : "data-display-load-failed",
-        result?.ok === true ? "数据展示价格数据加载完成" : "数据展示价格数据不可用",
-        pageMeta({
-          pageType: controller.info.type || "",
-          appid: Number(controller.info.appId) || 0,
-          subid: Number(option.id) || 0,
-          provider: result?.provider || "isthereanydeal",
-          durationMs: Date.now() - startedAt,
-          cacheHit: result?.cache?.hit === true,
-          errorCode: result?.code || "",
-        }),
+      const currentPanel = panel?.current();
+      if (currentPanel) delete currentPanel.root.dataset.detailsLoading;
+      panel?.setMode(controller.compact);
+      renderControllerState(controller, stateFromResult(result), result);
+      log?.[result.ok ? "info" : "warn"]?.(
+        result.ok ? "data-display-load-success" : "data-display-load-failed",
+        result.ok ? "数据展示价格数据加载完成" : "数据展示价格数据不可用",
+        { ...meta(), provider: result.provider, durationMs: Date.now() - startedAt, cacheHit: result.cache?.hit === true, errorCode: result.code || "" },
       );
       return result;
     } catch (error) {
-      if (requestSequence !== controller.priceRequestSequence || controller.root !== activeRoot) return null;
-      const result = {
-        ok: false,
-        code: text(error?.code || "PROVIDER_REQUEST_FAILED"),
-        userMessage: text(error?.message) || globalThis.STI18n.text(
-          "store.dataDisplay.thirdPartyLoadFailed",
-          "第三方价格数据加载失败，请稍后重试。",
-        ),
-      };
+      if (!valid() || (scope === "full" && controller.compact)) return null;
+      const result = { ok: false, code: error.code || "PROVIDER_REQUEST_FAILED", userMessage: error.message };
       controller.priceData = result;
+      const currentPanel = panel?.current();
+      if (currentPanel) delete currentPanel.root.dataset.detailsLoading;
+      panel?.setMode(controller.compact);
       renderControllerState(controller, "error", result);
-      log?.error?.("data-display-load-failed", "数据展示价格数据加载异常", pageMeta({
-        pageType: controller.info.type || "",
-        appid: Number(controller.info.appId) || 0,
-        subid: Number(option.id) || 0,
-        durationMs: Date.now() - startedAt,
-        error,
-      }));
+      log?.error?.("data-display-load-failed", "商店详情价格加载失败", { ...meta(), durationMs: Date.now() - startedAt, error });
       return result;
+    } finally {
+      if (valid()) panel?.loading("price", false);
     }
   }
 
@@ -284,111 +305,137 @@
   }
 
   async function load(root, info, ticket, options) {
-    const startedAt = Date.now();
-    const priceNeeded = options.chartEnabled || options.forecastEnabled;
-    const festivalsNeeded = options.forecastEnabled;
-    const isCurrent = () => ticket === seq && root === activeRoot;
+    const panel = api.features?.dataDisplayPanel;
+    const calendarTask = "store:detail-calendar";
     const controller = {
-      root,
-      info,
-      ticket,
-      options,
-      subOptions: [],
-      selectedSubId: "",
-      selectedProductName: "",
-      selectedPageInfo: info,
-      priceData: null,
-      festivalData: null,
-      festivalStatus: festivalsNeeded ? "loading" : "disabled",
-      priceRequestSequence: 0,
-      selectProduct: (id) => {
+      root, info, ticket, options, compact: options.compact, disposed: false,
+      subOptions: [], selectedSubId: "", selectedPageInfo: info, products: new Map(),
+      priceData: null, festivalData: null, festivalStatus: "loading", priceRequestSequence: 0,
+      isCurrent: () => !controller.disposed && ticket === seq && root === activeRoot,
+      dispose() {
+        if (controller.disposed) return;
+        controller.disposed = true;
+        api.features.dataDisplayAiForecast?.dispose(root);
+        panel?.unbind(root);
+        window.STScheduler.unregister(calendarTask);
+        document.removeEventListener("visibilitychange", resumeCalendar);
+        panel?.loading("price", false);
+        panel?.loading("initial", false);
+      },
+      selectProduct(id) {
         const option = productOptionById(controller, id);
-        if (!option || String(option.id) === controller.selectedSubId) return;
-        void requestSelectedPrice(controller, option);
+        if (option && String(option.id) !== controller.selectedSubId) void requestSelectedPrice(controller, option);
       },
     };
     root.__stDataDisplayController = controller;
-
-    const festivalReady = festivalsNeeded
-      ? Promise.resolve().then(() => {
-        if (!api.thirdPartyData?.getSteamFestivals) throw new Error("Steam 节日数据服务未就绪");
-        return api.thirdPartyData.getSteamFestivals({ beforeMonths: 36, afterMonths: 12 });
-      }).then((result) => {
-        controller.festivalData = result;
+    const renderResult = () => ({ ...(controller.priceData || {}), festivalData: controller.festivalData, festivalStatus: controller.festivalStatus });
+    function renderCalendar() {
+      if (!controller.isCurrent()) return;
+      view.renderUpcoming(root, renderResult());
+      const next = api.features.dataDisplayForecastPack.upcomingFestivals(controller.festivalData).nextChange;
+      if (Number.isFinite(next)) window.STScheduler.reschedule(calendarTask, { intervalMs: Math.max(1000, next - Date.now() + 1) });
+      else window.STScheduler.unregister(calendarTask);
+    }
+    function resumeCalendar() { if (!document.hidden) renderCalendar(); }
+    panel?.setMode(controller.compact);
+    panel?.bind({
+      owner: root,
+      onMode(compact) {
+        controller.compact = compact;
+        root.dataset.compact = String(compact);
+        const option = productOptionById(controller, controller.selectedSubId);
+        if (compact) {
+          controller.priceRequestSequence += 1;
+          const product = controller.products.get(controller.selectedSubId);
+          const pending = product?.pending.get("full");
+          if (pending) { pending.cancelled = true; product.pending.delete("full"); }
+          panel.loading("price", false);
+          const currentPanel = panel.current();
+          if (currentPanel) delete currentPanel.root.dataset.detailsLoading;
+          if (product?.compact) controller.priceData = product.compact;
+          api.features.dataDisplayAiForecast?.dispose(root);
+          if (controller.priceData) renderControllerState(controller, stateFromResult(controller.priceData), controller.priceData);
+          // 收起只取消完整范围；主区尚在加载时复用原任务，并由当前选择接收结果
+          if (option && (product?.pending.has("compact") || !controller.priceData)) {
+            void requestSelectedPrice(controller, option, "compact", !!controller.priceData);
+          }
+          return;
+        }
+        if (option) {
+          const currentPanel = panel.current();
+          if (currentPanel) currentPanel.root.dataset.detailsLoading = "true";
+          panel.setMode(false, true);
+          view.renderPending(root);
+          void requestSelectedPrice(controller, option, "full", true);
+        } else renderControllerState(controller, controller.priceData ? stateFromResult(controller.priceData) : "unsupported", controller.priceData || {});
+      },
+      onAi: options.forecastEnabled ? trigger => api.features.dataDisplayAiForecast.open(root, renderResult(), controller.selectedPageInfo, trigger) : null,
+      onDispose: () => controller.dispose(),
+    });
+    panel?.loading("initial", true);
+    const priceNeeded = options.chartEnabled || options.forecastEnabled;
+    const festivalsNeeded = options.forecastEnabled || options.upcomingEnabled;
+    const loadFestivals = async () => {
+      if (!festivalsNeeded) { controller.festivalStatus = "disabled"; return; }
+      const startedAt = Date.now();
+      try {
+        controller.festivalData = await api.thirdPartyData.getSteamFestivals({ beforeMonths: options.forecastEnabled ? 36 : 0, afterMonths: 12 });
         controller.festivalStatus = "ready";
-        if (!isCurrent()) return result;
+        if (!controller.isCurrent()) return;
+        const result = controller.festivalData;
         log?.info?.("steam-festivals-load-success", "Steam 节日数据加载完成", pageMeta({
-          pageType: info.type || "",
-          itemCount: (result.before?.length || 0) + (result.after?.length || 0),
-          anchorDate: result.anchorDate,
-          beforeMonths: result.beforeMonths,
-          afterMonths: result.afterMonths,
+          pageType: info.type || "", itemCount: result.before.length + result.after.length,
+          anchorDate: result.anchorDate, beforeMonths: result.beforeMonths, afterMonths: result.afterMonths,
           durationMs: Date.now() - startedAt,
         }));
-        if (controller.priceData) {
-          view?.renderForecastState?.(root, { ...controller.priceData, festivalData: result, festivalStatus: controller.festivalStatus }, controller.selectedPageInfo);
-        }
-        return result;
-      }, (error) => {
-        controller.festivalStatus = "error";
-        if (isCurrent()) {
-          log?.warn?.("steam-festivals-load-failed", "Steam 节日数据加载失败", pageMeta({
-            pageType: info.type || "",
-            durationMs: Date.now() - startedAt,
-            error,
-          }));
-          if (controller.priceData) {
-            view?.renderForecastState?.(root, { ...controller.priceData, festivalStatus: controller.festivalStatus }, controller.selectedPageInfo);
-          }
-        }
-        return null;
-      })
-      : Promise.resolve(null);
-
-    if (!priceNeeded) {
-      await festivalReady;
-      return;
-    }
-
-    if (info.type === "app") {
-      try {
-        const firstOption = await loadAppProductOptions(controller);
-        if (!isCurrent()) return;
-        await Promise.all([requestSelectedPrice(controller, firstOption), festivalReady]);
+        window.STScheduler.register(calendarTask, renderCalendar,
+          () => controller.isCurrent() && !document.hidden && root.isConnected,
+          { intervalMs: 86400000 });
+        document.addEventListener("visibilitychange", resumeCalendar);
+        renderCalendar();
       } catch (error) {
-        if (!isCurrent()) return;
-        const result = {
-          ok: false,
-          code: text(error?.code || "STEAM_PRODUCT_OPTIONS_UNAVAILABLE"),
-          userMessage: text(error?.message) || "Steam 商品版本暂时不可用。",
-        };
-        controller.priceData = result;
-        view?.renderState?.(root, "unsupported", result, info);
-        view?.renderProductOptions?.(root, controller.subOptions, controller.selectedSubId, controller.selectProduct);
-        log?.error?.("data-display-product-options-failed", "Steam 商品版本加载失败", pageMeta({
-          pageType: info.type || "",
-          appid: Number(info.appId) || 0,
-          durationMs: Date.now() - startedAt,
-          error,
+        controller.festivalStatus = "error";
+        if (controller.isCurrent()) log?.warn?.("steam-festivals-load-failed", "Steam 节日数据加载失败", pageMeta({
+          pageType: info.type || "", durationMs: Date.now() - startedAt, error,
         }));
       }
-      return;
+      if (controller.isCurrent() && controller.priceData) {
+        view.renderForecastState(root, renderResult(), controller.selectedPageInfo);
+        view.renderUpcoming(root, renderResult());
+      }
+    };
+    try {
+      if (!await api.dom.loading.afterPaint(controller.isCurrent)) return;
+      const calendar = loadFestivals();
+      if (!priceNeeded) {
+        await calendar;
+        if (controller.isCurrent()) {
+          root.dataset.state = "ready";
+          view.renderForecastState(root, renderResult(), info);
+          view.renderUpcoming(root, renderResult());
+        }
+        return;
+      }
+      if (info.type === "app") {
+        const option = await loadAppProductOptions(controller);
+        if (controller.isCurrent()) await Promise.all([requestSelectedPrice(controller, option), calendar]);
+      } else {
+        const option = { id: String(info.appId || info.id), name: text(info.productName) };
+        controller.subOptions = [option];
+        await Promise.all([requestSelectedPrice(controller, option), calendar]);
+      }
+    } catch (error) {
+      if (!controller.isCurrent()) return;
+      controller.priceData = { ok: false, code: error.code || "STEAM_PRODUCT_OPTIONS_UNAVAILABLE", userMessage: error.message };
+      renderControllerState(controller, "unsupported", controller.priceData);
+      log?.error?.("data-display-product-options-failed", "商店详情商品加载失败", pageMeta({ error }));
+    } finally {
+      if (controller.isCurrent()) panel?.loading("initial", false);
     }
+  }
 
-    controller.priceData = await Promise.resolve().then(() => {
-      if (!api.thirdPartyData?.getPricePack) throw new Error("第三方数据服务未就绪");
-      return api.thirdPartyData.getPricePack(pageInfoForService(info), {
-        pageCountry: api.ctx?.country?.(),
-        items: [{ type: info.type, id: info.appId || info.id }],
-      });
-    }).catch((error) => {
-      if (!isCurrent()) return null;
-      const result = { ok: false, code: text(error?.code || "PROVIDER_REQUEST_FAILED"), userMessage: text(error?.message) || "第三方价格数据加载失败，请稍后重试。" };
-      view?.renderState?.(root, "error", result, info);
-      return result;
-    });
-    if (isCurrent() && controller.priceData) view?.renderState?.(root, stateFromResult(controller.priceData), { ...controller.priceData, festivalStatus: controller.festivalStatus }, info);
-    await festivalReady;
+  function prepareStyles() {
+    api.styles?.ensureFeatureStyle?.("data-display", { owner: OWNER, key: "style" });
   }
 
   function start(pageInfo = api.ctx?.pageInfo?.(), startOptions = {}) {
@@ -401,10 +448,10 @@
       return { started: false, reason: "view-missing" };
     }
     const options = displayOptions(startOptions);
-    if (!options.chartEnabled && !options.forecastEnabled) {
+    if (!options.chartEnabled && !options.forecastEnabled && !options.upcomingEnabled) {
       return { started: false, reason: "all-sections-disabled" };
     }
-    api.styles?.ensureFeatureStyle?.("data-display", { owner: OWNER, key: "style" });
+    prepareStyles();
     const root = mount(info, options);
     if (!root) return { started: false, reason: "mount-failed" };
     const ticket = seq + 1;
@@ -423,8 +470,14 @@
 
   api.features = api.features || {};
   api.features.dataDisplay = Object.freeze({
+    prepareStyles,
     start,
     stop,
+    /**
+     * 只读既有精准目标和最近自有节点，供当前实体的有限协调使用。
+     * @returns {{target: Element|null, host: Element|null}} host 可能已断开，用于识别原生重绘。
+     */
+    mountState() { return { target: mountAnchor(), host: activeRoot }; },
     stateFromResult,
     pageInfoForService,
   });

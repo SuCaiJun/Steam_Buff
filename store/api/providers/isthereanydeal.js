@@ -84,12 +84,12 @@
     return /^[A-Z]{2}$/.test(raw) ? raw : "CN";
   }
 
-  function cleanShops(value) {
+  function cleanShops(value, includeSteam = true) {
     const raw = Array.isArray(value) ? value : [SHOP_STEAM];
     const shops = Array.from(new Set(raw
       .map(item => parseInt(item, 10))
       .filter(item => item > 0 && !!priceCatalog?.getItadPriceShop?.(item))));
-    return [SHOP_STEAM, ...shops.filter(item => item !== SHOP_STEAM)];
+    return includeSteam ? [SHOP_STEAM, ...shops.filter(item => item !== SHOP_STEAM)] : shops;
   }
 
   function vendor() {
@@ -114,7 +114,9 @@
   }
 
   function shopsFrom(config = {}, options = {}) {
-    return cleanShops(options.shops || providerConfig(config).shops || [SHOP_STEAM]);
+    const shops = cleanShops(options.shops || providerConfig(config).shops || [SHOP_STEAM], options.includeSteam !== false);
+    if (!shops.length) throw new TypeError("价格查询缺少有效商店。");
+    return shops;
   }
 
   function expectedCurrencyFrom(country, options = {}) {
@@ -159,7 +161,7 @@
     if (["prices", "history", "overview", "storeLow"].includes(endpointKey)
       && Array.isArray(options.shops)
       && options.shops.length) {
-      url.searchParams.set("shops", cleanShops(options.shops).join(","));
+      url.searchParams.set("shops", cleanShops(options.shops, false).join(","));
     }
     if (options.id) {
       url.searchParams.set("id", cleanId(options.id));
@@ -357,7 +359,7 @@
     }
   }
 
-  function cacheKey(endpointKey, requestData) {
+  function cacheKey(endpointKey) {
     return `itad:${endpointKey}`;
   }
 
@@ -366,7 +368,7 @@
   }
 
   async function withCache(endpointKey, requestData, ttl, loader) {
-    const key = cacheKey(endpointKey, requestData);
+    const key = cacheKey(endpointKey);
     const cached = api.cache?.get?.(key, requestData);
     if (cached) {
       return {

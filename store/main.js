@@ -11,59 +11,50 @@
 (() => {
   "use strict";
 
-  const log = window.STLoggerFactory.createLogger('store', 'main');
   const api = window.STStore;
-  if (!api?.reg) return;
+  const log = window.STLoggerFactory.createLogger("store", "main");
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
 
-  function pageType() {
-    return window.STPageContext?.snapshot?.().pageType || "other";
-  }
-
-  /**
-   * 汇总商店功能注册器启动结果。
-   * @param {Array<{status: string}>} results - 功能启动结果列表。
-   * @returns {{total: number, started: number, skipped: number, failed: number}} 启动摘要。
-   */
+  /** 聚合真实完成状态，不把被取消的旧页面计为已启动。 */
   function summary(results) {
-    const list = Array.isArray(results) ? results : [];
     return {
-      total: list.length,
-      started: list.filter(item => item.status === "started").length,
-      skipped: list.filter(item => item.status === "skipped").length,
-      failed: list.filter(item => item.status === "failed").length,
+      total: results.length,
+      started: results.filter(item => item.status === "started").length,
+      skipped: results.filter(item => item.status === "skipped").length,
+      failed: results.filter(item => item.status === "failed").length,
     };
   }
 
+  /** 等待当前分包确认完成，再启动当前页面，避免在旧 chunk 上抢跑。 */
   async function start() {
     const startedAt = Date.now();
-    const meta = {
-      pageType: pageType(),
-      path: location.pathname,
-    };
     try {
-      await window.STI18n?.ready?.();
+      await window.STI18n.ready();
+      await api.loadChunk();
+      await api.settingsGate.load();
+      if (document.readyState === "loading") {
+        await new Promise(resolve => document.addEventListener("DOMContentLoaded", resolve, { once: true }));
+      }
+      await api.loadChunk();
+      api.settingsGate.watch();
+      api.urlWatch.watch();
+      const meta = { pageType: window.STPageContext.storePageType(), path: location.pathname };
       runtime?.activateAdapter?.("store", meta);
       log.info("runtime-start", "Steam 商店页运行时开始启动", meta);
       const results = await api.reg.start();
-      runtime?.activateAdapter?.("store", {
-        ...meta,
-        ...summary(results),
-      });
+      runtime?.activateAdapter?.("store", { ...meta, ...summary(results) });
       log.info("runtime-ready", "Steam 商店页运行时已就绪", {
-        ...meta,
-        ...summary(results),
-        durationMs: Date.now() - startedAt,
+        ...meta, ...summary(results), durationMs: Date.now() - startedAt,
       });
     } catch (error) {
-      runtime?.markError?.("store-runtime-failed", error, meta);
-      log.error("runtime-failed", "Steam 商店页运行时启动失败", {
-        ...meta,
-        durationMs: Date.now() - startedAt,
-        error,
-      });
+      runtime?.markError?.("store-runtime-failed", error, { path: location.pathname });
+      if (error.code !== "STORE_CHUNK_LOAD_FAILED") {
+        log.error("runtime-failed", "Steam 商店页运行时启动失败", {
+          path: location.pathname, durationMs: Date.now() - startedAt, error,
+        });
+      }
     }
   }
 
-  start();
+  void start();
 })();

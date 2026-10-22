@@ -18,7 +18,7 @@
   }
   const { cleanAuth, expired, nextAuth, refreshRejected, commitAuth } = authSession;
   const AUTH_COMMIT_TIMEOUT_MS = 8 * 1000;
-  // 同一进程里同一枚 refresh token 只发一次刷新
+  // 当前上下文内的刷新任务由 refreshStored 按端点、账号、会话和序号合并
   // 写存储统一排队：服务工作线程在同一条链里读、判断、写；其他上下文把 AUTH_COMMIT 交给它
   const refreshInflight = new Map();
   let commitChain = Promise.resolve();
@@ -35,6 +35,7 @@
     try {
       return JSON.parse(source || "{}");
     } catch (error) {
+      root.STLoggerSchema?.markJsonError?.(error);
       const parseError = new Error(text("common.authResponseParseFailed", "鉴权接口响应解析失败"), { cause: error });
       parseError.name = "ParseError";
       throw parseError;
@@ -74,6 +75,7 @@
     return !inServiceWorker()
       && typeof chrome !== "undefined"
       && typeof chrome.runtime?.sendMessage === "function"
+      && root.STMessageBus?.ready
       && typeof root.STMessageBus?.request === "function";
   }
 
@@ -185,53 +187,176 @@
     return run;
   }
 
-  async function fetchDirect(request, timeoutMs) {
-    const method = String(request.method || "GET").toUpperCase();
-    const headers = root.STConfig?.client?.versionedHeaders
-      ? root.STConfig.client.versionedHeaders(request.url, request.headers || {})
-      : { ...(request.headers || {}) };
-    const init = {
-      method,
-      headers,
-      credentials: "omit",
-      cache: "no-cache",
-    };
-    if (request.data !== undefined && method !== "GET" && method !== "HEAD") {
-      init.body = typeof request.data === "string" ? request.data : JSON.stringify(request.data);
-    }
-    let response;
-    if (timeoutMs > 0 && typeof AbortController === "function") {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(timeoutError(timeoutMs)), timeoutMs);
-      try {
-        response = await fetch(request.url, { ...init, signal: controller.signal });
-      } finally {
-        clearTimeout(timer);
+  function ownerChangedError() {
+    const error = new Error("账号已切换");
+    error.code = "owner-changed";
+    return error;
+  }
+
+  async function refreshOwnerMatches(storage, input) {
+    if (!input.ownerId) return true;
+    const view = await readCommitView(storage, input);
+    return view.storedUserId === input.ownerId
+      && authSession.authKey(view.stored) === authSession.authKey(input.sent);
+  }
+
+  // 提交回执可能晚于换号；每个消费方返回前只采用当前存储里的同一会话
+  async function confirmRefreshResult(storage, input, decision) {
+    if (!["write", "keep", "clear"].includes(decision.action)) return decision;
+    let view;
+    try {
+      view = await readCommitView(storage, input);
+    } catch (error) {
+      if (input.logFailures !== false) {
+        root.STLoggerFactory.createLogger("shared", "auth-client").error("auth-client-refresh-confirm-failed", "刷新后读取当前登录状态失败", {
+          operationId: String(input.operationId || ""), requestId: String(input.requestId || ""), phase: "confirm", error,
+        });
       }
-    } else {
-      response = await fetch(request.url, init);
-    }
-    const data = await response.text();
-    if (!response.ok && request.allowHttpError !== true) {
-      const error = new Error(text("common.backgroundRequestFailed", "后台请求失败"));
-      error.status = response.status;
       throw error;
     }
-    return {
-      success: true,
-      data,
-      status: response.status,
-      ok: response.ok,
-    };
+    if (decision.action === "clear" && !view.stored) return decision;
+    if (view.ownerId && view.storedUserId !== view.ownerId) {
+      return { action: "owner-changed", status: decision.status, message: decision.message };
+    }
+    if (decision.action === "clear" || authSession.authKey(view.stored) !== authSession.authKey(decision.auth)) {
+      return { action: "session-changed", status: decision.status, message: decision.message };
+    }
+    return { ...decision, auth: view.stored };
+  }
+
+  // 刷新决策只有这一处：requestRefresh 返回既有 {status, body} 契约，凭据仍由 commitStored 提交
+  // 同一端点、账号、会话和 access_seq 共用进行中的任务；不同身份不能共享刷新结果
+  // 返回提交决策及真实响应状态，不把换号后的凭据交给原请求；失败保留原始异常
+  async function refreshStored(storage, input, requestRefresh) {
+    const sent = cleanAuth(input.sent);
+    if (!sent?.refresh_token || !input.refreshUrl || typeof requestRefresh !== "function") {
+      throw new TypeError("刷新登录状态需要已捕获的 refresh token、已配置的端点和请求适配器");
+    }
+    const bound = { ...input, sent, ownerId: String(input.ownerId || "").trim() };
+    const key = JSON.stringify([input.refreshUrl, bound.ownerId, sent.refresh_token, sent.access_seq]);
+    if (refreshInflight.has(key)) {
+      const decision = await refreshInflight.get(key);
+      return { ...await confirmRefreshResult(storage, bound, decision), joined: true };
+    }
+    const job = refreshStoredOnce(storage, bound, requestRefresh);
+    refreshInflight.set(key, job);
+    try {
+      const decision = await job;
+      return { ...await confirmRefreshResult(storage, bound, decision), joined: false };
+    } finally {
+      if (refreshInflight.get(key) === job) refreshInflight.delete(key);
+    }
+  }
+
+  async function refreshStoredOnce(storage, input, requestRefresh) {
+    if (input.logFailures !== false && typeof root.STLoggerFactory?.createLogger !== "function") {
+      throw new Error("共享认证刷新缺少日志依赖");
+    }
+    const refreshLog = input.logFailures === false ? null : root.STLoggerFactory.createLogger("shared", "auth-client");
+    if (!(await refreshOwnerMatches(storage, input))) throw ownerChangedError();
+    const startedAt = Date.now();
+    let response;
+    let phase = "request";
+    const details = error => ({
+      operationId: String(input.operationId || ""),
+      requestId: String(input.requestId || ""),
+      ...error.apiDiagnostics,
+      phase: error.apiDiagnostics?.phase || phase,
+      request: error.apiDiagnostics?.request || {
+        method: "POST", endpointKey: "auth-refresh", url: input.refreshUrl,
+        timeoutMs: input.timeoutMs || DEFAULT_TIMEOUT_MS, hasBody: true, mediaType: "application/json",
+      },
+      response: error.apiDiagnostics?.response || {
+        ...root.STLoggerSchema?.responseFacts?.(response),
+        ...root.STLoggerSchema?.resultFacts?.(response?.body, ["access_token", "refresh_token", "expires_in"]),
+        businessCode: response?.body?.code, message: response?.body?.message,
+      },
+      durationMs: Date.now() - startedAt,
+      error,
+    });
+    try {
+      response = await requestRefresh(input.sent, input);
+      phase = "business";
+      const code = Number(response?.body?.code) || Number(response?.status) || 0;
+      const rejected = refreshRejected(code);
+      if (!rejected && (code < 200 || code >= 300 || !response?.body?.access_token)) {
+        const error = new Error(input.failureMessage
+          ? response?.body?.message || input.failureMessage
+          : `鉴权令牌刷新响应无效（状态 ${code || "未知"}）`);
+        error.status = code;
+        throw error;
+      }
+      phase = "commit";
+      const decision = await commitStored(storage, {
+        ...input,
+        kind: rejected ? "reject" : "refresh",
+        incoming: rejected ? undefined : nextAuth(response.body, input.sent),
+      });
+      if (input.logFailures !== false) {
+        if (rejected && decision.action === "clear") {
+          const error = new Error(`鉴权令牌刷新响应无效（状态 ${code}）`);
+          error.status = code;
+          refreshLog.error("auth-client-refresh-failed", "鉴权令牌刷新失败", details(error));
+        } else if (decision.action === "keep") {
+          refreshLog.warn("auth-client-refresh-stale", "丢弃过期的登录刷新响应", {
+            operationId: String(input.operationId || ""), requestId: String(input.requestId || ""),
+          });
+        }
+      }
+      return { ...decision, status: code, message: String(response?.body?.message || "") };
+    } catch (error) {
+      if (error?.code === "owner-changed") throw error;
+      if (!(await refreshOwnerMatches(storage, input))) throw ownerChangedError();
+      if (input.logFailures !== false) refreshLog.error("auth-client-refresh-failed", "鉴权令牌刷新失败", details(error));
+      throw error;
+    }
+  }
+
+  async function fetchDirect(request, timeoutMs) {
+    let phase = "network";
+    let diagnostics;
+    try {
+      return await root.STNetworkRequest.run(timeoutMs, async (signal) => {
+        const method = String(request.method || "GET").toUpperCase();
+        const headers = root.STConfig?.client?.versionedHeaders
+          ? root.STConfig.client.versionedHeaders(request.url, request.headers || {})
+          : { ...(request.headers || {}) };
+        const init = { method, headers, credentials: "omit", cache: "no-cache" };
+        if (request.data !== undefined && method !== "GET" && method !== "HEAD") {
+          init.body = typeof request.data === "string" ? request.data : JSON.stringify(request.data);
+        }
+        const response = await fetch(request.url, { ...init, signal });
+        diagnostics = root.STLoggerSchema?.httpFacts?.(response);
+        phase = "response-read";
+        const data = await response.text();
+        diagnostics = { ...diagnostics, bodyLength: data.length };
+        phase = "http";
+        if (!response.ok && request.allowHttpError !== true) {
+          const error = new Error(text("common.backgroundRequestFailed", "后台请求失败"));
+          error.status = response.status;
+          throw error;
+        }
+        return { success: true, data, status: response.status, ok: response.ok,
+          diagnostics: root.STLoggerSchema?.normalizeResponse?.(diagnostics, { urlPolicy: root.STConfig?.diagnosticUrlPolicy?.(response.url) }),
+        };
+      }, request.signal);
+    } catch (error) {
+      if (error && typeof error === "object" && Object.isExtensible(error)) {
+        error.phase = phase;
+        error.diagnostics = diagnostics;
+      }
+      throw error;
+    }
   }
 
   function fetchBg(request = {}, options = {}) {
     const startedAt = Date.now();
     const timeoutMs = Number(request.timeoutMs) || DEFAULT_TIMEOUT_MS;
     const method = String(request.method || "GET").toUpperCase();
-    const operationId = String(request.operationId || "").trim();
+    const operationId = String(request.operationId || "").trim() || root.STLoggerFactory?.createOperationId?.() || "";
     const requestId = String(request.requestId || "").trim() || root.STLoggerFactory?.createRequestId?.() || "";
     const logFailures = options.logFailures !== false;
+    const direct = inServiceWorker();
 
     function reportFailure(event, message, details) {
       if (logFailures) log.warn(event, message, details);
@@ -242,20 +367,18 @@
         service: "steam-buff-api",
         operationId,
         requestId,
-        request: {
-          method,
-          endpointKey: "auth-request",
-          url: request.url,
-          timeoutMs,
-        },
+        request: root.STLoggerSchema?.requestFacts?.({ ...request, method, endpointKey: "auth-request", timeoutMs }),
         durationMs: Date.now() - startedAt,
         ...extra,
+        phase: extra.error?.phase || (extra.error?.name === "TimeoutError" ? "timeout" : "message-response"),
+        response: extra.response || extra.error?.diagnostics,
       };
     }
 
     return new Promise((resolve, reject) => {
       let done = false;
       let timer = 0;
+      let replyFacts;
       const finish = (fn, value) => {
         if (done) {
           return;
@@ -264,9 +387,12 @@
         if (timer) {
           clearTimeout(timer);
         }
+        if (fn === reject && value && typeof value === "object" && Object.isExtensible(value)) {
+          value.apiDiagnostics = requestMeta({ error: value, response: replyFacts });
+        }
         fn(value);
       };
-      if (timeoutMs > 0) {
+      if (timeoutMs > 0 && !direct) {
         timer = setTimeout(() => {
           const error = timeoutError(timeoutMs);
           reportFailure("auth-client-bg-request-timeout", "鉴权后台请求超时", requestMeta({
@@ -277,8 +403,9 @@
       }
       try {
         // 后台 Service Worker 不能给自己发 STORE_FETCH，刷新令牌必须在进程内发网
-        if (inServiceWorker()) {
+        if (direct) {
           fetchDirect(request, timeoutMs).then((response) => {
+            replyFacts = root.STLoggerSchema?.responseFacts?.(response);
             if (done) {
               return;
             }
@@ -286,6 +413,7 @@
               const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
               reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
                 reason: "invalid-response",
+                response: root.STLoggerSchema?.responseFacts?.(response),
                 error,
               }));
               finish(reject, error);
@@ -294,8 +422,11 @@
             if (!response?.success) {
               const error = new Error(backgroundRequestMessage(response));
               error.status = Number(response?.status) || 0;
+              if (response?.errorName) error.name = response.errorName;
+              if (response?.errorCode) error.code = response.errorCode;
+              if (response?.errorKind === "transport") error.phase = "network";
               reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-                response: error.status ? { status: error.status } : undefined,
+                response: root.STLoggerSchema?.responseFacts?.(response),
                 error,
               }));
               finish(reject, error);
@@ -313,7 +444,7 @@
           });
           return;
         }
-        if (root.STMessageBus?.send) {
+        if (root.STMessageBus?.ready && root.STMessageBus?.send) {
           root.STMessageBus.send({
             type: "STORE_FETCH",
             timeoutMs,
@@ -326,6 +457,7 @@
             timeoutMs,
             logFailures: false,
           }).then((response) => {
+            replyFacts = root.STLoggerSchema?.responseFacts?.(response);
             if (done) {
               return;
             }
@@ -333,6 +465,7 @@
               const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
               reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
                 reason: "invalid-response",
+                response: root.STLoggerSchema?.responseFacts?.(response),
                 error,
               }));
               finish(reject, error);
@@ -341,8 +474,11 @@
             if (!response?.success) {
               const error = new Error(backgroundRequestMessage(response));
               error.status = Number(response?.status) || 0;
+              if (response?.errorName) error.name = response.errorName;
+              if (response?.errorCode) error.code = response.errorCode;
+              if (response?.errorKind === "transport") error.phase = "network";
               reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-                response: error.status ? { status: error.status } : undefined,
+                response: root.STLoggerSchema?.responseFacts?.(response),
                 error,
               }));
               finish(reject, error);
@@ -369,6 +505,7 @@
           endpointKey: "auth-request",
           service: "steam-buff-api",
         }, (response) => {
+          replyFacts = root.STLoggerSchema?.responseFacts?.(response);
           if (done) {
             return;
           }
@@ -385,6 +522,7 @@
             const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
             reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
               reason: "invalid-response",
+              response: root.STLoggerSchema?.responseFacts?.(response),
               error,
             }));
             finish(reject, error);
@@ -393,8 +531,11 @@
           if (!response?.success) {
             const error = new Error(backgroundRequestMessage(response));
             error.status = Number(response?.status) || 0;
+            if (response?.errorName) error.name = response.errorName;
+            if (response?.errorCode) error.code = response.errorCode;
+            if (response?.errorKind === "transport") error.phase = "network";
             reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-              response: error.status ? { status: error.status } : undefined,
+              response: root.STLoggerSchema?.responseFacts?.(response),
               error,
             }));
             finish(reject, error);
@@ -444,12 +585,6 @@
       return (await storage.clearAuth(diagnostics)) !== false;
     }
 
-    function ownerChangedError() {
-      const error = new Error("账号已切换");
-      error.code = "owner-changed";
-      return error;
-    }
-
     function sessionKey(auth) {
       return String(auth?.refresh_token || auth?.access_token || "");
     }
@@ -485,13 +620,6 @@
       return snap.userId === ownerId && sameSession(snap.auth, boundAuth);
     }
 
-    function staleRefresh(diagnostics) {
-      log.warn("auth-client-refresh-stale", "丢弃过期的登录刷新响应", {
-        operationId: diagnostics.operationId || "",
-        requestId: diagnostics.requestId || "",
-      });
-    }
-
     function sessionChanged(diagnostics) {
       log.warn("auth-client-session-changed", "登录会话已变化，已停止原来的请求", {
         operationId: diagnostics.operationId || "",
@@ -512,110 +640,38 @@
     }
 
     async function refreshAuth(auth, diagnostics = {}) {
-      const token = String(auth?.refresh_token || "");
-      if (token && refreshInflight.has(token)) {
-        return refreshInflight.get(token);
-      }
-      const job = refreshAuthOnce(auth, diagnostics);
-      if (!token) {
-        return job;
-      }
-      refreshInflight.set(token, job);
-      try {
-        return await job;
-      } finally {
-        if (refreshInflight.get(token) === job) {
-          refreshInflight.delete(token);
-        }
-      }
-    }
-
-    async function refreshAuthOnce(auth, diagnostics = {}) {
-      if (!(await commitAllowed(auth, diagnostics))) {
-        throw ownerChangedError();
-      }
       if (!auth?.refresh_token || !refreshUrl) {
+        if (!(await commitAllowed(auth, diagnostics))) throw ownerChangedError();
         await clearAuth(diagnostics);
         return null;
       }
-      const startedAt = Date.now();
-      // 401 刷新属于这次认证请求，超时与 ownerId 都沿用调用方，业务入口不再各写一套
       const timeoutMs = Number(diagnostics.timeoutMs) > 0 ? Number(diagnostics.timeoutMs) : DEFAULT_TIMEOUT_MS;
-      try {
+      const decision = await refreshStored(storage, {
+        ...diagnostics, sent: auth, refreshUrl, timeoutMs,
+      }, async (sent, bound) => {
         const response = await fetchBg({
           url: refreshUrl,
           method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          data: {
-            refresh_token: auth.refresh_token,
-          },
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          data: { refresh_token: sent.refresh_token },
           allowHttpError: true,
           timeoutMs,
-          operationId: diagnostics.operationId || "",
-          requestId: diagnostics.requestId || "",
+          operationId: bound.operationId || "",
+          requestId: bound.requestId || "",
         }, { logFailures: false });
-        const body = parseJson(response.data);
-        const code = Number(body?.code) || Number(response.status) || 0;
-        // 注: 只有服务端确认 401 且存储仍是这次发出的令牌才清除；超时、断网、5xx 和非预期正文保留现有凭据
-        if (refreshRejected(code)) {
-          const decision = await commitStored(storage, commitInput("reject", auth, diagnostics));
-          if (decision.action === "owner-changed") {
-            throw ownerChangedError();
-          }
-          if (decision.action === "session-changed") {
-            sessionChanged(diagnostics);
-          }
-          if (decision.action === "clear") {
-            const error = new Error(`鉴权令牌刷新响应无效（状态 ${code}）`);
-            error.status = code;
-            log.warn("auth-client-refresh-failed", "鉴权令牌刷新失败", {
-              operationId: diagnostics.operationId || "",
-              requestId: diagnostics.requestId || "",
-              response: { status: code },
-              durationMs: Date.now() - startedAt,
-              error,
-            });
-            return null;
-          }
-          staleRefresh(diagnostics);
-          return decision.auth;
-        }
-        if (code < 200 || code >= 300 || !body?.access_token) {
-          const error = new Error(`鉴权令牌刷新响应无效（状态 ${code || "未知"}）`);
-          error.status = code;
+        try {
+          return { ...response, body: parseJson(response.data) };
+        } catch (error) {
+          error.apiDiagnostics = {
+            ...error.apiDiagnostics, phase: "parse",
+            response: root.STLoggerSchema?.responseFacts?.(response),
+          };
           throw error;
         }
-        const decision = await commitStored(storage, commitInput("refresh", auth, diagnostics, {
-          incoming: nextAuth(body, auth),
-        }));
-        if (decision.action === "owner-changed") {
-          throw ownerChangedError();
-        }
-        if (decision.action === "session-changed") {
-          sessionChanged(diagnostics);
-        }
-        if (decision.action !== "write") {
-          staleRefresh(diagnostics);
-        }
-        return decision.auth;
-      } catch (error) {
-        if (error?.code === "owner-changed") {
-          throw error;
-        }
-        if (!(await commitAllowed(auth, diagnostics))) {
-          throw ownerChangedError();
-        }
-        log.warn("auth-client-refresh-failed", "鉴权令牌刷新失败", {
-          operationId: diagnostics.operationId || "",
-          requestId: diagnostics.requestId || "",
-          durationMs: Date.now() - startedAt,
-          error,
-        });
-        throw error;
-      }
+      });
+      if (decision.action === "owner-changed") throw ownerChangedError();
+      if (decision.action === "session-changed") sessionChanged(diagnostics);
+      return decision.auth || null;
     }
 
     async function readyAuth(diagnostics = {}) {
@@ -795,6 +851,7 @@
     validateResponse,
     fetchBg,
     commitStored,
+    refreshStored,
     createClient,
   });
 })(typeof globalThis !== "undefined" ? globalThis : window);

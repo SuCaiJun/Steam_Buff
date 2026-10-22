@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : 商店页功能总入口
+ * @File          : 商店页唯一功能生命周期定义
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
@@ -12,477 +12,185 @@
   "use strict";
 
   const api = window.STStore;
-  if (!api) return;
-
-  const CC_OVERRIDE = api.config.CC_OVERRIDE;
-  const TooltipManager = api.tooltip;
-  const on = (id) => api.settings?.on?.(id);
-  const log = window.STLoggerFactory?.createLogger?.("store", "features");
-
-  function addPriceHistoryTag(...args) {
-    return api.features.priceHistory?.add?.(...args) || Promise.resolve();
-  }
-
-  function addAudioCheck(...args) {
-    return api.features.audioCheck?.add?.(...args);
-  }
-
-  function addWorkshopCheck(...args) {
-    return api.features.workshopCheck?.add?.(...args);
-  }
-
-  function addFamilySharingNotice(...args) {
-    return api.features.familySharing?.add?.(...args);
-  }
-
-  function addFamilyLibraryDetailCard(...args) {
-    return api.features.familyLibraryOwnedMarker?.addDetail?.(...args) || Promise.resolve();
-  }
-
-  function startFamilyLibraryBadges(...args) {
-    return api.features.familyLibraryOwnedMarker?.startBadges?.(...args);
-  }
-
-  function addDRMWarnings(...args) {
-    return api.features.drmWarning?.add?.(...args);
-  }
-
-  function addSubscriptionInfo(...args) {
-    return api.features.subscriptionInfo?.addDetail?.(...args) || Promise.resolve();
-  }
-
-  function startSubscriptionBadges(...args) {
-    return api.features.subscriptionInfo?.startBadges?.(...args);
-  }
-
-  function skipPrice() {
-    return !!api.features.priceHistory?.shouldSkip?.();
-  }
-
-  function addSteamPyDeals(...args) {
-    return api.features.steamPyDeals?.add?.(...args) || Promise.resolve();
-  }
-
-  function startWishlistPriceHistory(...args) {
-    return api.features.wishlistPriceHistory?.start?.(...args);
-  }
-
-  function addDLCCheckboxes(...args) {
-    return api.features.dlc?.add?.(...args);
-  }
-
-  function addDLCCheckboxesStyles(...args) {
-    return api.features.dlc?.styles?.(...args);
-  }
-
-  function startCartSelect(...args) {
-    return api.features.cartSelect?.start?.(...args);
-  }
-
-  function canRun(id) {
-    const fallbackAllowed = on(id);
-    return globalThis.STPageContext?.canRunFeature?.({
-      domain: "store",
-      id,
-      settingsKey: id,
-      settingOn: on,
-    })?.allowed ?? fallbackAllowed;
-  }
-
-  function addCartSelectStyles(...args) {
-    return api.features.cartSelect?.styles?.(...args);
-  }
-
-  function startReviewFilter(...args) {
-    return api.features.reviewFilter?.start?.(...args);
-  }
-
-  function startSearchSuggestions(...args) {
-    return api.features.searchSuggestions?.start?.(...args);
-  }
-
-  function startTitleCustomName(...args) {
-    return api.features.titleCustomName?.start?.(...args);
-  }
-
-  function startGameNotes(...args) {
-    return api.features.gameNotes?.start?.(...args);
-  }
-
-  function startDataDisplay(...args) {
-    return api.features.dataDisplay?.start?.(...args);
-  }
-
-  function startRegionalPricePopover(...args) {
-    return api.features.regionalPricePopover?.start?.(...args);
-  }
-
-  function startPurchaseHistoryClassifier(...args) {
-    return api.features.purchaseHistoryClassifier?.start?.(...args);
-  }
-
-  function startCustomWalletAmount(...args) {
-    return api.features.customWalletAmount?.start?.(...args);
-  }
-
-  function startPlayerStats(...args) {
-    return api.features.playerStats?.start?.(...args);
-  }
-
-  function stopFeature(feature, label) {
-    try {
-      return !!feature?.stop?.();
-    } catch (error) {
-      log?.error?.("feature-stop-failed", "商店页子功能停止失败", {
-        featureId: label,
-        error,
-      });
-      return false;
-    }
-  }
-
-  function stopStartedFeatures() {
-    const stopped = [
-      stopFeature(api.features.subscriptionInfo, "subscription-info"),
-      stopFeature(api.features.familyLibraryOwnedMarker, "family-library-owned-marker"),
-      stopFeature(api.features.steamPyDeals, "steampy-deals"),
-      stopFeature(api.features.wishlistPriceHistory, "wishlist-price-history"),
-      stopFeature(api.features.dlc, "dlc-checkboxes"),
-      stopFeature(api.features.cartSelect, "cart-select"),
-      stopFeature(api.features.reviewFilter, "review-filter"),
-      stopFeature(api.features.searchSuggestions, "search-suggestions"),
-      stopFeature(api.features.titleCustomName, "store-title-custom-name"),
-      stopFeature(api.features.gameNotes, "game-notes"),
-      stopFeature(api.features.dataDisplay, "data-display"),
-      stopFeature(api.features.regionalPricePopover, "regional-price-popover"),
-      stopFeature(api.features.purchaseHistoryClassifier, "purchase-history-classifier"),
-      stopFeature(api.features.customWalletAmount, "custom-wallet-amount"),
-      stopFeature(api.features.playerStats, "player-stats"),
-      stopFeature(api.purchaseRecover, "purchase-recover"),
-    ].filter(Boolean).length;
-    api.purchaseRecover?.setRestore?.(null);
-    log?.info?.("feature-stop-summary", "商店页聚合入口已停止子功能", {
-      stopped,
-      path: location.pathname,
-    });
-    return stopped;
-  }
+  const DETAILS = ["store-app", "store-sub", "store-bundle"];
+  const STORE_LISTS = ["store-details", "store-search", "store-other"];
+  const PURCHASE_IDS = new Set([
+    "audio-check", "workshop-check", "family-sharing", "family-library-detail-card",
+    "third-party-check", "subscription-detail-card", "steampy-deals",
+  ]);
+  const DLC_WAIT_TASK = "store:dlc-mount";
+  const canRun = id => window.STPageContext.canRunFeature({
+    domain: "store", id, settingsKey: id, settingsSnapshot: api.settings.all(),
+    settingOn: key => api.settings.on(key),
+  }).allowed === true;
 
   /**
-   * 获取当前商店页面实体信息。
-   * @returns {{type: string, appId: string}|null} 当前页面实体信息。
+   * prepareStyles 同步复用模块样式，返回值不参与启停；异常交由注册器隔离
+   * 卡片与角标传 detail/badge，其余模块不传参数；此阶段不创建业务节点或发起请求
    */
-  function getCurrentStorePageInfo() {
-    return api.ctx?.pageInfo?.() || null;
+  function moduleFeature(id, module, pageScope, options = {}) {
+    return {
+      id, module, pageScope, cost: "dom-scan",
+      prepare(api) { api.features[module].prepareStyles?.(); },
+      start(api) { return api.features[module].start(); },
+      stop(api) { return api.features[module].stop(); },
+      ...options,
+    };
   }
 
-  /**
-   * 初始化详情页价格历史查询入口。
-   * @returns {void}
-   */
-  function initPriceQuery() {
-    const urlMatch = location.href.match(/(app|sub|bundle)\/(\d+)/);
-    let appId = "";
-    let type = "";
-    const subIds = [];
-    const bundleids = [];
-    if (urlMatch && urlMatch.length === 3) {
-        type = urlMatch[1];
-        appId = urlMatch[2];
-    }
-
-    document.querySelectorAll("input[name=subid]").forEach(function(sub) {
-        subIds.push(sub.value);
-    });
-    document.querySelectorAll("input[name=bundleid]").forEach(function(sub) {
-        bundleids.push(sub.value);
-    });
-
-    let cc = "cn";
-    if (CC_OVERRIDE.length > 0) {
-        cc = CC_OVERRIDE.toUpperCase(); 
-    } else {
-        const ccMatch = document.cookie.match(/steamCountry=([a-zA-Z]{2})/);
-        if (ccMatch && ccMatch.length === 2) {
-            cc = ccMatch[1].toLowerCase();
-        }
-    }
-
-    if (on("price-history")) {
-        addPriceHistoryTag(appId, type, subIds, bundleids, cc, location.protocol);
-    }
-    
+  /** 详情卡片和三类列表角标共享同一份启停定义。 */
+  function badgeFeatures(prefix, module, settingsIds = []) {
+    return [
+      moduleFeature(prefix + "-detail-card", module, ["store-app"], {
+        settingsIds,
+        prepare(api) { api.features[module].prepareStyles("detail"); },
+        start(api, context) { return api.features[module].addDetail(context.info.appId, location.protocol); },
+        stop(api) { return api.features[module].stopDetail(); },
+      }),
+      ...[
+        ["store", STORE_LISTS], ["wishlist", ["store-wishlist"]], ["cart", ["store-cart"]],
+      ].map(([kind, scopes]) => moduleFeature(prefix + "-" + kind + "-badge", module, scopes, {
+        settingsIds,
+        prepare(api) { api.features[module].prepareStyles("badge"); },
+        start(api) { return api.features[module].startBadges(kind); },
+        stop(api) { return api.features[module].stopBadges(kind); },
+      })),
+    ];
   }
 
-  /**
-   * 启动购买区内的详情页增强功能。
-   * @param {string} appId - Steam 应用 ID。
-   * @returns {void}
-   */
-  function initPurchaseAreaFeatures(appId) {
-    if (on("audio-check")) {
-        addAudioCheck();
-    }
-
-    if (on("workshop-check")) {
-        addWorkshopCheck(appId);
-    }
-
-    if (on("family-sharing")) {
-        addFamilySharingNotice(appId, location.protocol);
-    }
-
-    if (canRun("family-library-detail-card")) {
-        addFamilyLibraryDetailCard(appId);
-    }
-
-    if (on("third-party-check")) {
-        addDRMWarnings();
-    }
-
-    if (canRun("subscription-detail-card")) {
-        addSubscriptionInfo(appId, location.protocol);
-    }
-
-    addSteamPyDeals(appId);
-  }
-
-  /**
-   * 根据页面类型启动额外页面功能。
-   * @returns {void}
-   */
-  function initAdditionalFeatures() {
-    const pageInfo = getCurrentStorePageInfo();
-    if (pageInfo) {
-        const type = pageInfo.type;
-        const appId = pageInfo.appId;
-
-        if (type === "app" || type === "sub" || type === "bundle") {
-            const chartEnabled = canRun("price-history");
-            const forecastEnabled = canRun("price-forecast");
-            const discountForecastEnabled = canRun("price-forecast-discount");
-            const seasonalForecastEnabled = canRun("price-forecast-seasonal");
-            if (chartEnabled || forecastEnabled) {
-                startDataDisplay(pageInfo, {
-                    chartEnabled,
-                    forecastEnabled,
-                    discountForecastEnabled,
-                    seasonalForecastEnabled,
-                });
-            }
-        }
-        
-        if (type === "app") {
-            initPurchaseAreaFeatures(appId);
-            if (canRun("player-stats")) {
-                startPlayerStats(appId);
-            }
-            if (canRun("price-history")) {
-                void startRegionalPricePopover(appId);
-            }
-            
-            if (on("dlc-tools")) {
-                waitForElement('.game_area_dlc_section', () => {
-                    addDLCCheckboxes();
-                });
-            }
-        }
-    }
-  }
-
-  /**
-   * Steam 商店购买区被重绘后恢复当前启用的增强模块。
-   * @param {string} reason - 触发恢复的原因。
-   * @returns {void}
-   */
-  function recover(reason) {
-    const pageInfo = getCurrentStorePageInfo();
-    if (!pageInfo || pageInfo.type !== "app") return;
-
-    initPurchaseAreaFeatures(pageInfo.appId);
-  }
-
-  /**
-   * 注入商店页聚合入口的共享样式。
-   * @returns {void}
-   */
-  function initStyles() {
-    api.styles?.ensureFeatureStyle?.("store-common-feature");
-    
-    if (on("dlc-tools")) {
-        addDLCCheckboxesStyles();
-    }
-
-    if (on("cart-select")) {
-        addCartSelectStyles();
-    }
-  }
-
-  /**
-   * 在 DOM 可用后执行回调。
-   * @param {Function} callback - DOM ready 后执行的回调。
-   * @returns {void}
-   */
-  function waitForDOMReady(callback) {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', callback);
-    } else {
-        callback();
-    }
-  }
-
-  /**
-   * 等待指定元素出现后执行回调。
-   * @param {string} selector - CSS 选择器。
-   * @param {Function} callback - 找到元素后的回调。
-   * @param {number} timeout - 最长等待毫秒数。
-   * @returns {void}
-   */
-  function waitForElement(selector, callback, timeout = 10000) {
-    const startTime = Date.now();
-    
-    function check() {
-        const element = document.querySelector(selector);
-        if (element) {
-            callback(element);
-            return;
-        }
-        
-        if (Date.now() - startTime > timeout) {
-            return;
-        }
-        
-        setTimeout(check, 100);
-    }
-    
-    check();
-  }
-
-  /**
-   * 启动商店页聚合入口并按设置分发到具体功能。
-   * @returns {Promise<void>} 启动完成后 resolve。
-   */
-  async function init() {
-    if (location.pathname.match(/^\/agecheck\/(app|sub|bundle)\/\d+\/?/)) {
+  /** 沿用 DLC 精准目标和十秒等待边界，等待任务随页面实例取消。 */
+  function startDlc(api, context) {
+    if (document.querySelector(".game_area_dlc_section")) return api.features.dlc.add();
+    const deadline = performance.now() + 10000;
+    window.STScheduler.register(DLC_WAIT_TASK, () => {
+      if (!context.isCurrent() || performance.now() >= deadline) {
+        window.STScheduler.unregister(DLC_WAIT_TASK);
         return;
-    }
-
-    await api.settingsGate?.load?.();
-    api.settingsGate?.watch?.();
-
-    if (typeof TooltipManager !== 'undefined') {
-        TooltipManager.init();
-    }
-
-    initStyles();
-
-    if (canRun("cart-select")) {
-        await Promise.resolve(startCartSelect());
-    }
-
-    if (canRun("subscription-store-badge")) {
-        startSubscriptionBadges("store");
-    }
-
-    if (canRun("subscription-wishlist-badge")) {
-        startSubscriptionBadges("wishlist");
-    }
-
-    if (canRun("subscription-cart-badge")) {
-        startSubscriptionBadges("cart");
-    }
-
-    if (canRun("family-library-store-badge")) {
-        startFamilyLibraryBadges("store");
-    }
-
-    if (canRun("family-library-wishlist-badge")) {
-        startFamilyLibraryBadges("wishlist");
-    }
-
-    if (canRun("family-library-cart-badge")) {
-        startFamilyLibraryBadges("cart");
-    }
-
-    // Steam 商店 React/客户端内嵌页可能二次渲染购买区，这里负责补回被跳过或被删掉的模块。
-    api.purchaseRecover?.setRestore?.((appId, reason) => recover(reason));
-    api.purchaseRecover?.setup?.();
-
-    if (on("review-filter")) {
-        startReviewFilter();
-    }
-
-    if (on("wishlist-price-history")) {
-        startWishlistPriceHistory();
-    }
-
-    if (on("search-suggestions")) {
-      startSearchSuggestions();
-    }
-
-    if (on("store-title-custom-name")) {
-      startTitleCustomName();
-    }
-
-    if (on("game-notes")) {
-      startGameNotes();
-    }
-
-    if (on("purchase-history-classifier")) {
-      startPurchaseHistoryClassifier();
-    }
-
-    if (canRun("custom-wallet-amount")) {
-      startCustomWalletAmount();
-    }
-
-    if (location.href.match(/(app|sub|bundle)\/\d+/)) {
-        initPriceQuery();
-        
-        initAdditionalFeatures();
-    }
+      }
+      if (!document.querySelector(".game_area_dlc_section")) return;
+      window.STScheduler.unregister(DLC_WAIT_TASK);
+      api.features.dlc.add();
+    }, () => !document.hidden && context.isCurrent(), { intervalMs: 1000 });
+    return true;
   }
 
-  /**
-   * 记录商店聚合入口启动失败，避免静默吞错。
-   * @param {unknown} error - 捕获到的异常。
-   * @returns {void}
-   */
-  function handleInitError(error) {
-    window.STRuntime?.current?.()?.markError?.("store-enhancements-init-failed", error, {
-      path: location.pathname,
-    });
-    log?.error?.("feature-start-failed", "商店页聚合入口启动失败", {
-      path: location.pathname,
-      error,
-    });
-  }
-
-api.reg.add({
-    id: "store-enhancements",
-    settingsKey: "store-enhancements",
-    loadStrategy: "runtime-page-chunk",
-    modes: ["details", "wishlist", "search", "cart", "history", "other"],
-    pageScope: [
-        "store-app",
-        "store-sub",
-        "store-bundle",
-        "store-wishlist",
-        "store-search",
-        "store-cart",
-        "store-account-history",
-        "store-other",
-    ],
-    dependencies: ["store/runtime/settings-gate.js", "store/runtime/context.js"],
-    cost: "dom-scan",
-    start() {
-        waitForDOMReady(() => {
-            init().catch(handleInitError);
+  const definitions = [
+    {
+      id: "store-enhancements", documentScoped: true, cost: "startup-light",
+      modes: ["details", "wishlist", "search", "cart", "history", "other"],
+      pageScope: [...DETAILS, "store-wishlist", "store-search", "store-cart", "store-account-history", "store-other"],
+      dependencies: ["store/runtime/settings-gate.js", "store/runtime/context.js"],
+      prepare() { api.styles.ensureFeatureStyle("store-common-feature"); },
+      start() {
+        api.tooltip.init();
+        return true;
+      },
+      stop() { return true; },
+    },
+    moduleFeature("cart-select", "cartSelect", ["store-cart"], {
+      start(api) { api.features.cartSelect.styles(); return api.features.cartSelect.start(); },
+    }),
+    moduleFeature("store-detail-panel", "dataDisplayPanel", DETAILS, {
+      settingsKey: "store-enhancements",
+      settingsIds: ["store-detail-compact"],
+      cost: "startup-light",
+      start(api, context) { return api.features.dataDisplayPanel.start(context.info); },
+      mountState(api) { return api.features.dataDisplayPanel.mountState(); },
+    }),
+    ...badgeFeatures("subscription", "subscriptionInfo"),
+    ...badgeFeatures("family-library", "familyLibraryOwnedMarker", ["family-library-exclude-self"]),
+    // 商店评测运行模块只随 details chunk 加载，列表页只加载共用过滤核心。
+    moduleFeature("review-filter", "reviewFilter", DETAILS),
+    moduleFeature("wishlist-price-history", "wishlistPriceHistory", undefined, {
+      settingsIds: ["wishlist-price-history-hover-through"],
+    }),
+    moduleFeature("search-suggestions", "searchSuggestions", undefined, {
+      settingsIds: [
+        "search-suggestions-user-custom", "search-suggestions-user-alias",
+        "search-suggestions-community", "search-suggestions-community-alias",
+        "search-suggestions-ai", "search-suggestions-pinyin", "search-suggestions-mnemonic",
+      ],
+    }),
+    moduleFeature("store-title-custom-name", "titleCustomName", undefined, {
+      settingsIds: ["store-title-community-fallback", "store-title-community-fallback-ai", "store-title-hide-custom-name"],
+    }),
+    moduleFeature("game-notes", "gameNotes"),
+    moduleFeature("purchase-history-classifier", "purchaseHistoryClassifier"),
+    moduleFeature("custom-wallet-amount", "customWalletAmount"),
+    moduleFeature("price-history", "priceHistory", DETAILS, {
+      start(api, context) {
+        return api.features.priceHistory.add(
+          context.info.appId, context.info.type, api.ctx.subIds(), api.ctx.bundleIds(),
+          api.ctx.country(), location.protocol,
+        );
+      },
+    }),
+    moduleFeature("data-display-enhancements", "dataDisplay", DETAILS, {
+      settingsKey: "store-enhancements",
+      settingsIds: ["price-history", "price-forecast", "price-forecast-discount", "price-forecast-seasonal", "store-detail-compact", "store-upcoming-festivals"],
+      mountState(api) { return api.features.dataDisplay.mountState(); },
+      gate() { return canRun("price-history") || canRun("price-forecast") || canRun("store-upcoming-festivals"); },
+      start(api, context) {
+        return api.features.dataDisplay.start(context.info, {
+          chartEnabled: canRun("price-history"), forecastEnabled: canRun("price-forecast"),
+          discountForecastEnabled: canRun("price-forecast-discount"),
+          seasonalForecastEnabled: canRun("price-forecast-seasonal"),
+          compact: api.settings.on("store-detail-compact"),
+          upcomingEnabled: canRun("store-upcoming-festivals"),
         });
-        return { started: true, stop: stopStartedFeatures };
+      },
+    }),
+    moduleFeature("regional-price-popover", "regionalPricePopover", ["store-app"], {
+      settingsKey: "price-history",
+      start(api, context) { return api.features.regionalPricePopover.start(context.info.appId); },
+    }),
+    moduleFeature("audio-check", "audioCheck", ["store-app"], {
+      settingsIds: ["store-detail-reminders-unsupported-only"],
+      start(api) { return api.features.audioCheck.add(); },
+    }),
+    moduleFeature("workshop-check", "workshopCheck", ["store-app"], {
+      settingsIds: ["store-detail-reminders-unsupported-only"],
+      start(api, context) { return api.features.workshopCheck.add(context.info.appId); },
+      stop(api) { return api.features.workshopCheck.remove(); },
+    }),
+    moduleFeature("family-sharing", "familySharing", ["store-app"], {
+      start(api, context) { return api.features.familySharing.add(context.info.appId, location.protocol); },
+    }),
+    moduleFeature("third-party-check", "drmWarning", ["store-app"], {
+      start(api) { return api.features.drmWarning.add(); },
+    }),
+    moduleFeature("steampy-deals", "steamPyDeals", ["store-app"], {
+      settingsIds: ["steampy-cdk-price", "steampy-proxy-price"],
+      start(api, context) { return api.features.steamPyDeals.add(context.info.appId); },
+    }),
+    moduleFeature("player-stats", "playerStats", ["store-app"], {
+      start(api, context) { return api.features.playerStats.start(context.info.appId); },
+    }),
+    moduleFeature("game-links", "gameLinks", ["store-app"], {
+      cost: "startup-light",
+      start(api, context) { return api.features.gameLinks.start(context.info.appId); },
+      mountState(api) { return api.features.gameLinks.mountState(); },
+    }),
+    moduleFeature("dlc-tools", "dlc", ["store-app"], {
+      prepare(api) { api.features.dlc.styles(); },
+      start: startDlc,
+      stop(api) {
+        window.STScheduler.unregister(DLC_WAIT_TASK);
+        return api.features.dlc.stop();
+      },
+    }),
+    {
+      id: "purchase-recover", settingsKey: "store-enhancements", pageScope: ["store-app"],
+      start(api) {
+        api.purchaseRecover.setRestore(() => api.reg.refresh("purchase-recover", {
+          ids: PURCHASE_IDS, recover: true,
+        }));
+        api.purchaseRecover.setup();
+        return true;
+      },
+      stop(api) { return api.purchaseRecover.stop(); },
     },
-    stop() {
-        return stopStartedFeatures();
-    },
-});
+  ];
+
+  for (const definition of definitions) api.reg.add(definition);
 })();

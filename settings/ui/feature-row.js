@@ -22,6 +22,7 @@
     const esc = fallback(options.esc, "esc");
     const escAttr = fallback(options.escAttr, "escAttr");
     const available = typeof options.available === "function" ? options.available : () => true;
+    const visible = typeof options.visible === "function" ? options.visible : () => true;
     const depNames = typeof options.depNames === "function" ? options.depNames : () => "上级开关";
     const lockText = typeof options.lockText === "function" ? options.lockText : (item) => item.lock || `需开启 ${depNames(item)}`;
     const state = typeof options.state === "function" ? options.state : () => true;
@@ -131,7 +132,7 @@
       const badgeClass = item.member === true ? "feature-badge member" : "feature-badge";
       const badge = item.badge ? itemBadge(item) : "";
       return `
-        <article class="feature toggle-row${enabled ? "" : " disabled"}"${tip ? ` title="${escAttr(tip)}"` : ""}>
+        <article class="feature toggle-row${enabled ? "" : " disabled"}"${visible(item) ? "" : " hidden"}${tip ? ` title="${escAttr(tip)}"` : ""}>
           <div class="feature-main row-info">
             <div class="feature-title row-name">
               <span>${esc(itemName(item))}</span>

@@ -140,6 +140,7 @@
   }
 
   function clearNode(node) {
+    api.dom.loading.clear(node);
     node.replaceChildren();
   }
 
@@ -160,37 +161,12 @@
     return span;
   }
 
-  function appendLink(parent, text, url) {
-    const link = document.createElement("a");
-    externalNavigation.applyToLink(link, safeUrl(url));
-    if (typeof applyStyles === "function") {
-      applyStyles(link, {
-        color: colors.steamBlue,
-        textDecoration: "underline",
-      });
-    }
-    link.textContent = String(text ?? "");
-    parent.appendChild(link);
-    return link;
-  }
-
   function setMessage(node, first, second = "") {
     clearNode(node);
     appendText(node, first);
     if (second) {
       appendBreak(node);
       appendText(node, second);
-    }
-  }
-
-  function safeUrl(value, fallback = "#") {
-    const raw = String(value || "").trim();
-    if (!raw || raw === "#") return fallback;
-    try {
-      const url = new URL(raw, location.origin);
-      return url.protocol === "http:" || url.protocol === "https:" ? url.href : fallback;
-    } catch {
-      return fallback;
     }
   }
 
@@ -221,7 +197,8 @@
   function monitorTimezone() {
     try {
       return String(Intl.DateTimeFormat().resolvedOptions().timeZone || "").trim();
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "monitor-timezone-failed", message: "商店功能处理失败", level: "warn", phase: "monitorTimezone" });
       return "";
     }
   }
@@ -342,7 +319,8 @@
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       }).format(value).replace(/\s+/g, "");
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "monitor-amount-text-failed", message: "商店功能处理失败", level: "warn", phase: "monitorAmountText" });
       return `${code} ${value.toFixed(2)}`;
     }
   }
@@ -385,7 +363,8 @@
     const monitor = monitorCache.get(context.key);
 
     if (state === "loading") {
-      appendSpan(host, t("store_priceHistory_monitorReading", "正在读取..."), "st-price-monitor-status");
+      host.appendChild(api.dom.loading.create("line"));
+      api.dom.loading.activate(host);
       return;
     }
     if (state === "error") {
@@ -420,20 +399,26 @@
     context.host = host;
     monitorHosts.set(context.key, host);
     node.appendChild(host);
-    renderMonitorHost(host, context, "ready");
+    renderMonitorHost(host, context, monitorCache.has(context.key) ? "ready" : "loading");
     return context;
   }
 
+  function isCurrentMonitorContext(context) {
+    return context?.host?.isConnected && monitorHosts.get(context.key) === context.host;
+  }
+
   function refreshMonitorHost(context, state = "ready") {
-    const host = monitorHosts.get(context.key) || context.host;
-    if (host) renderMonitorHost(host, context, state);
+    if (isCurrentMonitorContext(context)) renderMonitorHost(context.host, context, state);
   }
 
   async function hydrateMonitors(contexts) {
-    const entries = (contexts || []).filter(context => context?.host?.isConnected);
+    const entries = (contexts || []).filter(isCurrentMonitorContext);
     if (!entries.length) return;
     try {
-      if (!await hasMonitorAuth()) return;
+      if (!await hasMonitorAuth()) {
+        entries.forEach(context => refreshMonitorHost(context));
+        return;
+      }
     } catch (error) {
       entries.forEach(context => refreshMonitorHost(context, "error"));
       log.warn("price-monitor-auth-failed", "打折监控鉴权检查失败", {
@@ -443,11 +428,19 @@
       return;
     }
 
-    entries.forEach(context => refreshMonitorHost(context, "loading"));
+    const current = entries.filter(isCurrentMonitorContext);
+    if (!current.length) return;
+    current.forEach(context => {
+      if (!monitorCache.has(context.key) && !context.host.querySelector(".st-store-skeleton")) {
+        refreshMonitorHost(context, "loading");
+      }
+    });
+    // 查询前给监控行一次绘制机会，旧购买卡片的结果不能写入替换后的行
+    if (!await api.dom.loading.afterPaint(() => current.some(isCurrentMonitorContext))) return;
     const startedAt = Date.now();
     try {
       const body = await monitorPost(MONITOR_QUERY_URL, {
-        items: entries.map(context => ({
+        items: current.filter(isCurrentMonitorContext).map(context => ({
           item_type: context.target.type,
           item_id: context.target.id,
         })),
@@ -460,24 +453,24 @@
           found.set(`${monitor.itemType}:${monitor.itemId}`, monitor);
         }
       });
-      entries.forEach((context) => {
+      current.filter(isCurrentMonitorContext).forEach((context) => {
         context.monitorDenied = false;
         monitorCache.set(context.key, found.get(context.key) || null);
         refreshMonitorHost(context);
       });
       log.info("price-monitor-query-success", "打折监控读取完成", {
-        count: entries.length,
+        count: current.length,
         configuredCount: found.size,
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
-      entries.forEach((context) => {
+      current.filter(isCurrentMonitorContext).forEach((context) => {
         context.monitorDenied = error?.status === 403;
         if (context.monitorDenied) monitorCache.set(context.key, null);
         refreshMonitorHost(context, error?.status === 403 ? "denied" : "error");
       });
       log.warn("price-monitor-query-failed", "打折监控读取失败", {
-        count: entries.length,
+        count: current.length,
         durationMs: Date.now() - startedAt,
         status: error?.status || 0,
         error,
@@ -518,7 +511,8 @@
         maximumFractionDigits: 0,
       }).formatToParts(0).find(item => item.type === "currency");
       return part?.value || code;
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "monitor-currency-symbol-failed", message: "商店功能处理失败", level: "warn", phase: "monitorCurrencySymbol" });
       return code;
     }
   }
@@ -1136,6 +1130,7 @@
           updateMonitorExplanation(modal);
         }
       } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "open-monitor-modal-failed", message: "商店功能处理失败", level: "error", phase: "openMonitorModal" });
         showMonitorErrorDialog(
           modal,
           t("store_priceHistory_monitorAuthErrorTitle", "鉴权检查失败"),
@@ -1433,7 +1428,7 @@
   }
 
   function clearExistingPriceNodes() {
-    document.querySelectorAll("#game_area_purchase .game_lowest_price, .game_lowest_price").forEach(node => node.remove());
+    document.querySelectorAll("#game_area_purchase .game_lowest_price, .game_lowest_price").forEach(node => { api.dom.loading.clear(node); node.remove(); });
     monitorHosts.clear();
     closeMonitorModal();
   }
@@ -1443,9 +1438,7 @@
     node.dataset.stPriceHistoryTarget = targetKey(target);
     node.dataset.stPriceHistoryProvider = "store-data-service";
     node.dataset.stPriceHistoryState = "loading";
-    node.textContent = target.surface === "dlc"
-      ? t("store_priceHistory_dlcLoading", "史低读取中...")
-      : t("store_priceHistory_loading", "正在读取历史最低价格...");
+    api.dom.loading.show(node, "line");
   }
 
   function styleDlcNode(node) {
@@ -1489,6 +1482,7 @@
       } else {
         mount.parent.append(node);
       }
+      api.dom.loading.activate(node);
       nodes[key] = { node, target };
     });
     return nodes;
@@ -1555,6 +1549,7 @@
 
   function removeActiveNode(node, queryId) {
     if (!activeNode(node, queryId)) return false;
+    api.dom.loading.clear(node);
     node.remove();
     return true;
   }
@@ -1653,11 +1648,6 @@
       appendBreak(node);
       mountMonitorLine(node, context);
     }
-    appendBreak(node);
-    appendBreak(node);
-    appendText(node, t("store_priceHistory_viewDetailsPrefix", "在"));
-    appendLink(node, summary.source?.name || PROVIDER_LABEL, current.url || low.url || summary.source?.url);
-    appendText(node, t("store_priceHistory_viewDetails", "查看详情"));
     return context;
   }
 
@@ -1668,7 +1658,8 @@
       if (!result?.started || !activeNode(node, queryId)) return;
       node.title = "";
       node.setAttribute("aria-label", historyLabel);
-    }).catch(() => {
+    }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "price", event: "bind-dlc-regional-price-failed", message: "商店功能处理失败", level: "error", phase: "bindDlcRegionalPrice" });
       // 保留已存在的历史价格 title，区域价格绑定失败时不制造空白悬浮目标。
     });
   }
@@ -1799,10 +1790,12 @@
       provider: "isthereanydeal",
     });
 
-    return storePriceChartSettings()
-      .then(chartSettings => queryPricePack(appId, type, subIds, bundleids, cc, targets, chartSettings)
-        .then(result => ({ chartSettings, result })))
+    return api.dom.loading.afterPaint(() => Object.values(nodes).some(({ node }) => activeNode(node, queryId)))
+      .then(ready => ready ? storePriceChartSettings() : null)
+      .then(chartSettings => chartSettings ? queryPricePack(appId, type, subIds, bundleids, cc, targets, chartSettings)
+        .then(result => ({ chartSettings, result })) : { chartSettings: null, result: null })
       .then(async ({ chartSettings, result }) => {
+        if (!chartSettings) return nodes;
         if (result?.ok === true) {
           await renderPack(nodes, queryId, result, appId, cc, chartSettings);
         } else {
@@ -1831,6 +1824,7 @@
           type: type || "app",
           durationMs: Date.now() - startedAt,
           errorCode: error?.code || error?.name || "PRICE_HISTORY_QUERY_FAILED",
+          error,
         });
         return nodes;
       });
@@ -1839,5 +1833,10 @@
   api.features.priceHistory = Object.freeze({
     add: addPriceHistoryTag,
     shouldSkip: skipPrice,
+    stop() {
+      seq += 1;
+      clearExistingPriceNodes();
+      return true;
+    },
   });
 })();

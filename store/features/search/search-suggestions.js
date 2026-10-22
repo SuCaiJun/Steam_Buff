@@ -38,7 +38,8 @@
   const FALLBACK_IMG = (() => {
     try {
       return root.chrome?.runtime?.getURL?.("images/store/search-fallback.png") || "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "callback-failed", message: "商店功能处理失败", level: "warn", phase: "callback" });
       return "";
     }
   })();
@@ -48,6 +49,7 @@
   const cache = new Map();
   let options = core.defaultOptions();
   let started = false;
+  let generation = 0;
   let observer = null;
   let scanPending = false;
 
@@ -98,7 +100,7 @@
       limit: options.limit,
     });
     try {
-      // URL query contract: keyword=sources=modes=limit; JSON body stays empty.
+      // URL 查询契约：keyword、sources、modes、limit 放在查询参数中；JSON 请求体保持为空。
       const query = new URLSearchParams({
         keyword: String(keyword || ""),
         sources: Object.keys(sources || {}).filter(key => sources[key]).join(","),
@@ -308,6 +310,12 @@
 
   /* 候选渲染 */
   function clear(input) {
+    const state = states.get(input);
+    if (state) {
+      clearTimeout(state.timer);
+      state.timer = 0;
+      state.seq += 1;
+    }
     const layer = host(input);
     if (layer) {
       layer.remove();
@@ -410,7 +418,9 @@
     return link;
   }
 
-  function render(input, keyword, items, tries = 0) {
+  function render(input, keyword, items, tries = 0, seq = states.get(input)?.seq, ticket = generation) {
+    if (!started || ticket !== generation || !input.isConnected || states.get(input)?.seq !== seq
+      || core.readyKeyword(input.value) !== keyword) return;
     if (!items.length) {
       clear(input);
       return;
@@ -418,7 +428,7 @@
     const layer = host(input);
     if (!layer) {
       if (tries < 4) {
-        setTimeout(() => render(input, keyword, items, tries + 1), 120);
+        setTimeout(() => render(input, keyword, items, tries + 1, seq, ticket), 120);
       }
       return;
     }
@@ -467,7 +477,8 @@
             fallbackSearch(input, item);
           }
         };
-        reportClick(keyword, item).catch(() => {}).finally(go);
+        reportClick(keyword, item).catch((error) => {
+          globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "bind-clicks-failed", message: "商店功能处理失败", level: "error", phase: "bindClicks" });}).finally(go);
         // 点击统计只是热度参考，网络失败或接口慢都不能阻断用户跳转。
         setTimeout(go, 180);
       });
@@ -475,7 +486,7 @@
   }
 
   async function update(input) {
-    if (!api.settings?.on?.("search-suggestions")) {
+    if (!started || !input.isConnected || !api.settings?.on?.("search-suggestions")) {
       clear(input);
       return;
     }
@@ -491,17 +502,18 @@
       return;
     }
     const mode = modes();
+    const ticket = generation;
+    const seq = (state.seq || 0) + 1;
+    state.seq = seq;
     const hit = cached(keyword, src, mode);
     if (hit) {
       render(input, keyword, hit);
       return;
     }
 
-    const seq = (state.seq || 0) + 1;
-    state.seq = seq;
-    const items = await requestSuggestions(keyword, src, mode).catch(() => []);
-    // 输入框内容或请求序号变化说明这是旧响应，直接丢弃，避免覆盖新关键词结果。
-    if (state.seq !== seq || core.readyKeyword(input.value) !== keyword) {
+    const items = await requestSuggestions(keyword, src, mode).catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "update-failed", message: "商店功能处理失败", level: "error", phase: "update" }); return []; });
+    // 功能代次、输入内容或请求序号变化时，丢弃旧响应。
+    if (ticket !== generation || state.seq !== seq || core.readyKeyword(input.value) !== keyword) {
       return;
     }
     setCache(keyword, src, mode, items);
@@ -511,12 +523,12 @@
   // 中文 IME 组合输入期间不触发请求，compositionend 后再按防抖节奏查询。
   function schedule(input) {
     const state = states.get(input);
-    if (!state || state.composing) {
+    if (!started || !state || state.composing) {
       return;
     }
     clearTimeout(state.timer);
     state.timer = setTimeout(() => {
-      update(input).catch(() => clear(input));
+      update(input).catch((error) => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "schedule-failed", message: "商店功能处理失败", level: "error", phase: "schedule" }); return clear(input); });
     }, DEBOUNCE_MS);
   }
 
@@ -543,6 +555,7 @@
   }
 
   function scan() {
+    if (!started) return;
     for (const input of document.querySelectorAll(INPUT_SEL)) {
       if (input instanceof HTMLInputElement && input.offsetParent !== null) {
         bind(input);
@@ -556,8 +569,10 @@
       return;
     }
     scanPending = true;
+    const ticket = generation;
     const waitMs = Math.max(0, Number(delay) || 0);
     setTimeout(() => {
+      if (!started || ticket !== generation) return;
       scanPending = false;
       scan();
     }, waitMs);
@@ -587,7 +602,7 @@
     if (!target) {
       return;
     }
-    observer = root.STObserverUtils?.createDebouncedObserver?.(() => queueScan(0), SCAN_DEBOUNCE_MS)
+    observer = root.STObserverUtils?.createDebouncedObserver?.(() => queueScan(0), SCAN_DEBOUNCE_MS, { records: false })
       || new MutationObserver(() => scheduleScan());
     // 只监听搜索表单/商店头部或主内容容器，避免全页商品流变化触发联想扫描。
     const options = {
@@ -603,14 +618,17 @@
   }
 
   function refresh() {
+    const ticket = generation;
     loadOptions().then(() => {
+      if (!started || ticket !== generation) return;
       scan();
       for (const input of document.querySelectorAll(INPUT_SEL)) {
         if (input instanceof HTMLInputElement) {
           applyNativeResults(input);
         }
       }
-    }).catch(() => {});
+    }).catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "refresh-failed", message: "刷新功能状态失败", level: "error", phase: "refresh" });});
   }
 
   function start() {
@@ -622,6 +640,7 @@
       return true;
     }
     started = true;
+    generation += 1;
     addStyle();
     refresh();
     observe();
@@ -633,6 +652,7 @@
       return false;
     }
     started = false;
+    generation += 1;
     observer?.disconnect?.();
     observer = null;
     scanPending = false;
@@ -641,6 +661,7 @@
   }
 
   api.features.searchSuggestions = Object.freeze({
+    prepareStyles: addStyle,
     start,
     stop,
     scan,

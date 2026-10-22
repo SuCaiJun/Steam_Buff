@@ -15,8 +15,6 @@
   const CH = "__steam_library_custom_name_Ricky";
   const RT = "__SteamBuffLibraryCustomNameBackend";
   const SORT_TITLE_RT = "__SteamBuffLibrarySortTitle";
-  const CUSTOM_SORT_EVENTS = "__SteamBuffNativeCustomSortEvents";
-  const NAME_REQ_ATTR = "data-steam-buff-name-request";
   const ORIG = "__RickyStOriginalName";
   const STEAM_CUSTOM_NS = 3;
   const STEAM_OK = 1;
@@ -30,8 +28,6 @@
   const PAGE_MAX = 1000;
   const PROGRESS_LOG_EVERY = 50;
   const SAVE_DONE_KEEP_MS = 120000;
-  const AUTO_UPLOAD_WINDOW_MS = 30000;
-  const AUTO_UPLOAD_MESSAGE_LAG_MS = 5000;
 
   function i18n(key, fallback, params) {
     return globalThis.STI18n.text(key, fallback, params);
@@ -82,138 +78,6 @@
       });
     } catch {
     }
-  }
-
-  function autoUploadFresh(item) {
-    return !!item && now() - item.at <= AUTO_UPLOAD_WINDOW_MS;
-  }
-
-  function sameAutoUpload(intent, saved) {
-    if (!intent || !saved || intent.appid !== saved.appid || intent.sortAs !== saved.sortAs) {
-      return false;
-    }
-    return saved.at >= intent.at || intent.at - saved.at <= AUTO_UPLOAD_MESSAGE_LAG_MS;
-  }
-
-  function queueAutoUpload(rt, payload) {
-    const root = document.documentElement;
-    if (!root) {
-      return { ok: false, reason: "document-root-unavailable" };
-    }
-    try {
-      rt.autoUploadSeq += 1;
-      root.setAttribute(NAME_REQ_ATTR, JSON.stringify({
-        script: ID,
-        side: "page",
-        type: "feedback",
-        rid: `auto-${now()}-${rt.autoUploadSeq}`,
-        ...payload,
-      }));
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, reason: "bridge-write-failed", error };
-    }
-  }
-
-  // 属性弹窗可能在 Steam 异步保存返回前销毁；意图和保存结果都在 SharedJSContext 暂存并按精确值配对
-  function settleAutoUpload(rt) {
-    const intent = rt.autoUploadIntent;
-    const saved = rt.lastNativeSave;
-    if (!autoUploadFresh(intent)) {
-      rt.autoUploadIntent = null;
-      return;
-    }
-    if (!autoUploadFresh(saved)) {
-      rt.lastNativeSave = null;
-      return;
-    }
-    if (!sameAutoUpload(intent, saved)) {
-      return;
-    }
-
-    rt.autoUploadIntent = null;
-    rt.lastNativeSave = null;
-    if (saved.ok !== true || saved.changed !== true || saved.shortcut === true || saved.comparable !== true) {
-      return;
-    }
-
-    const app = row(saved.app || appById(saved.appid));
-    const steamName = text(app?.official_name);
-    if (!steamName || !intent.customName) {
-      return;
-    }
-    const queued = queueAutoUpload(rt, {
-      operationId: intent.operationId || "",
-      appid: saved.appid,
-      steam_name: steamName,
-      custom_name: intent.customName,
-    });
-    const meta = {
-      operationId: intent.operationId || "",
-      appid: saved.appid,
-      ...(queued.reason ? { reason: queued.reason } : {}),
-      ...(queued.error ? { error: queued.error } : {}),
-    };
-    if (queued.ok) {
-      log.info("library-custom-name-auto-upload-queued", "库自定义名称已交由素材君云端提交桥接", meta);
-    } else {
-      log.warn("library-custom-name-auto-upload-queue-failed", "库自定义名称无法交由素材君云端提交桥接", meta);
-    }
-  }
-
-  function armAutoUpload(rt, data) {
-    const appid = Number(data?.appid) || 0;
-    const app = currentApp({ appid });
-    if (!app || !text(row(app)?.official_name) || bindCustomSortEvents(rt) !== true) {
-      return false;
-    }
-    rt.autoUploadIntent = {
-      operationId: window.STLoggerFactory?.createOperationId?.() || "",
-      appid,
-      sortAs: raw(data?.sortAs),
-      customName: text(data?.customName),
-      at: now(),
-    };
-    settleAutoUpload(rt);
-    return true;
-  }
-
-  function cancelAutoUpload(rt, data) {
-    const appid = Number(data?.appid) || 0;
-    if (!appid || rt.autoUploadIntent?.appid === appid) {
-      rt.autoUploadIntent = null;
-    }
-  }
-
-  function onCustomSortAfter(rt, data) {
-    const appid = Number(data?.appid) || 0;
-    if (!appid) {
-      return;
-    }
-    rt.lastNativeSave = {
-      appid,
-      sortAs: raw(data?.sortAs),
-      app: data?.app || null,
-      ok: data?.ok === true,
-      changed: data?.changed === true,
-      shortcut: data?.shortcut === true,
-      comparable: data?.comparable === true,
-      at: now(),
-    };
-    settleAutoUpload(rt);
-  }
-
-  function bindCustomSortEvents(rt) {
-    const events = window[CUSTOM_SORT_EVENTS];
-    if (!events?.subscribe || !events?.ensure) {
-      return false;
-    }
-    if (!rt.customEventsOff) {
-      rt.customEventsOff = events.subscribe(ID, {
-        after: (data) => onCustomSortAfter(rt, data),
-      });
-    }
-    return typeof rt.customEventsOff === "function" && events.ensure(window.appStore) === true;
   }
 
   const log = window.STLoggerFactory.createLogger("steam", ID);
@@ -476,6 +340,13 @@
   }
 
   async function prepareList(rt, rid, data) {
+    if (rt.previewFlights.has(rid)) return;
+    if (rt.preview?.sid === rid) {
+      post(rt.ch, { type: "prepare-list-result", rid, ok: true, sid: rid, total: rt.preview.rows.length, scanned: rt.preview.scanned });
+      return;
+    }
+    // 就绪公告重放同一请求时复用扫描；已完成请求复用现有预览会话
+    rt.previewFlights.add(rid);
     const sid = rid || `${now()}`;
     const list = [];
     let scanned = 0;
@@ -502,11 +373,14 @@
       rt.preview = {
         sid,
         rows: list,
+        scanned,
         time: now(),
       };
       post(rt.ch, { type: "prepare-list-result", rid, ok: true, sid, total: list.length, scanned });
     } catch (error) {
       post(rt.ch, { type: "prepare-list-result", rid, ok: false, error: error?.message || String(error) });
+    } finally {
+      rt.previewFlights.delete(rid);
     }
   }
 
@@ -1462,18 +1336,16 @@
       return { started: false, reason: "broadcast-channel-unavailable" };
     }
 
-    const ch = new BroadcastChannel(CH);
+    let ch = new BroadcastChannel(CH);
+    let channelHandle = null;
     const rt = {
       ch,
       q: null,
       preview: null,
       previewToken: "",
+      previewFlights: new Set(),
       queueSeq: 0,
       lastDone: null,
-      customEventsOff: null,
-      autoUploadIntent: null,
-      lastNativeSave: null,
-      autoUploadSeq: 0,
       onMsg(event) {
         const data = event.data || {};
         if (data.script !== ID || data.side !== "ui") {
@@ -1481,25 +1353,6 @@
         }
         const rid = text(data.rid);
 
-        if (data.type === "auto-upload-ready") {
-          const app = currentApp(data);
-          const ready = !!app && !!text(row(app)?.official_name) && bindCustomSortEvents(rt) === true;
-          post(ch, {
-            type: "auto-upload-ready-result",
-            rid,
-            ok: true,
-            ready,
-          });
-          return;
-        }
-        if (data.type === "auto-upload-intent") {
-          armAutoUpload(rt, data);
-          return;
-        }
-        if (data.type === "auto-upload-cancel") {
-          cancelAutoUpload(rt, data);
-          return;
-        }
         if (data.type === "current-app") {
           const app = currentApp(data);
           post(ch, {
@@ -1507,7 +1360,6 @@
             rid,
             ok: !!app,
             app: app ? row(app) : null,
-            nativeSaveReady: bindCustomSortEvents(rt),
           });
           return;
         }
@@ -1548,10 +1400,10 @@
         }
       },
       stop() {
-        rt.customEventsOff?.();
-        rt.customEventsOff = null;
-        rt.autoUploadIntent = null;
-        rt.lastNativeSave = null;
+        rt.previewToken = "";
+        rt.preview = null;
+        rt.previewFlights.clear();
+        channelHandle?.dispose?.();
         ch.removeEventListener("message", rt.onMsg);
         if (typeof ch.close === "function") {
           ch.close();
@@ -1562,9 +1414,24 @@
       },
     };
 
+    // 只重建通信监听；正在执行或暂停的保存队列继续使用同一 rt
+    rt.recover = () => {
+      if (window[RT] !== rt) throw new Error("名称管理后台已停止");
+      channelHandle?.dispose?.();
+      ch.removeEventListener("message", rt.onMsg);
+      ch.close();
+      ch = new BroadcastChannel(CH);
+      rt.ch = ch;
+      channelHandle = scope?.listener?.("backend-channel-message", ch, "message", rt.onMsg) || null;
+      if (!channelHandle) ch.addEventListener("message", rt.onMsg);
+      post(ch, { type: "backend-ready" });
+      return { ready: true };
+    };
+
     window[RT] = rt;
-    bindCustomSortEvents(rt);
-    scope?.listener?.("backend-channel-message", ch, "message", rt.onMsg);
+    channelHandle = scope?.listener?.("backend-channel-message", ch, "message", rt.onMsg) || null;
+    if (!channelHandle) ch.addEventListener("message", rt.onMsg);
+    post(ch, { type: "backend-ready" });
     return { started: true, stop: rt.stop };
   }
 

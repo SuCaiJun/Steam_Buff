@@ -13,7 +13,7 @@
 
   const settings = root.STSettings = root.STSettings || {};
   const KEY = "steam_buff_membership";
-  const PERMISSION_KEYS = ["customNames", "gameNotes", "priceMonitor", "searchSuggestions", "settingsCloud"];
+  const PERMISSION_KEYS = ["customNames", "gameNotes", "priceMonitor", "searchSuggestions", "settingsCloud", "cloudNameFetch"];
   const log = root.STLoggerFactory?.createLogger?.("settings", "membership") || {
     warn() {},
   };
@@ -76,7 +76,9 @@
       searchSuggestions: typeof search.enabled === "boolean" ? search.enabled : undefined,
       settingsCloud: undefined,
     };
-    return Object.fromEntries(PERMISSION_KEYS.map((key) => [
+    return Object.fromEntries(PERMISSION_KEYS.filter((key) =>
+      key !== "cloudNameFetch" || !auth || Object.hasOwn(explicit, key),
+    ).map((key) => [
       key,
       auth && (Object.hasOwn(explicit, key)
         ? explicit[key]

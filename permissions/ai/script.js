@@ -135,6 +135,7 @@
       status.className = "authorization-status";
       status.textContent = "";
     }).catch((error) => {
+      root.STLoggerFactory.reportError(error, { domain: "settings", feature: "ai-permission", event: "permission-context-failed", message: "读取 AI 授权上下文失败", requestId: context.requestId });
       showInvalid(error?.message || text("aiPermissionPageExpired", "授权请求已失效，请返回设置中心重新发起。"));
     });
 
@@ -164,6 +165,7 @@
           status.textContent = response?.error || text("aiPermissionPageDenied", "未获得访问权限，请返回设置页重试。");
         })
         .catch((error) => {
+          root.STLoggerFactory.reportError(error, { domain: "settings", feature: "ai-permission", event: "permission-request-failed", message: "AI 网关授权操作失败", requestId: context.requestId });
           if (error?.code === "AI_HOST_PERMISSION_SESSION_EXPIRED") {
             showInvalid(error.message);
             return;

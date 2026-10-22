@@ -623,6 +623,7 @@
   root.STUserNamesSnapshot = Object.freeze({
     ready: true,
     BATCH_MAX,
+    aliasKey,
     emptySnapshot,
     emptyIndex,
     normalize,

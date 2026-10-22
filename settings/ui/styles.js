@@ -346,6 +346,10 @@
           color: var(--st-color-danger);
         }
 
+        .settings-dialog-danger {
+          color: var(--st-color-danger);
+        }
+
         .filtered-review-dialog {
           width: min(680px, calc(100% - 24px));
           max-height: min(620px, calc(100vh - 110px));
@@ -1438,6 +1442,7 @@
           border-bottom: none;
         }
 
+        .feature[hidden],
         .translate-row[hidden],
         .settings-row[hidden] {
           display: none;
@@ -2259,8 +2264,65 @@
 
 `;
 
+  const GAME_LINKS_CSS = `
+    .game-links-form [hidden],.game-links-dialog [hidden]{display:none}
+    .game-links-list{display:grid;gap:8px}
+    .game-links-row{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:16px;box-sizing:border-box;min-height:64px;padding:8px 16px;border:1px solid var(--st-color-border-light);border-radius:var(--st-radius-md);background:var(--st-color-surface-subtle);cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;transition:background-color var(--st-motion-fast),border-color var(--st-motion-fast)}
+    .game-links-row:hover{background:var(--st-color-surface-subtle-hover);border-color:var(--st-color-border-hover)}
+    .game-links-list.is-sorting .game-links-row{transition:transform 160ms cubic-bezier(.2,.8,.2,1)}
+    .game-links-list.is-sorting .game-links-row.dragging{transition:none}
+    .game-links-list.is-settling .game-links-row{transition:none}
+    .game-links-row.dragging{border-style:dashed;border-color:var(--st-color-steam-blue);background:var(--st-color-primary-surface);cursor:grabbing}
+    .game-links-list.is-sorting .game-links-row.dragging>*{opacity:0;pointer-events:none}
+    .game-links-row.game-links-drag-preview{position:fixed;z-index:10;margin:0;pointer-events:none;opacity:1;background:var(--st-color-bg-card);border-color:var(--st-color-steam-blue);box-shadow:var(--st-shadow-dialog);cursor:grabbing;transition:none}
+    @media(prefers-reduced-motion:reduce){.game-links-list.is-sorting .game-links-row{transition:none}}
+    .game-links-copy{min-width:0;overflow-wrap:anywhere}
+    .game-links-copy strong{font-weight:var(--st-font-weight-medium)}
+    .game-links-row[data-enabled="false"] .game-links-copy{opacity:.55}
+    .game-links-meta{display:block;margin-top:4px;color:var(--st-color-text-muted);font-size:12px;font-weight:400}
+    .game-links-row-actions{display:flex;align-items:center;gap:8px}
+    .game-links-icon-button,.game-links-drag-handle{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:32px;flex-shrink:0;padding:8px;border:0;border-radius:var(--st-radius-sm);background:transparent;color:var(--st-color-text-secondary);cursor:pointer}
+    .game-links-drag-handle{width:24px;padding:4px;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;color:var(--st-color-text-muted)}
+    .game-links-icon{display:block;width:16px;height:16px;background:currentColor;mask-repeat:no-repeat;mask-position:center;mask-size:contain;pointer-events:none}
+    .game-links-icon-button:hover,.game-links-drag-handle:hover{background:var(--st-color-surface-subtle-hover);color:var(--st-color-text-primary)}
+    .game-links-icon-button[aria-pressed="true"]{color:var(--st-color-success)}
+    .game-links-icon-button[data-game-links-action="delete"]:hover{color:var(--st-color-danger-text);background:var(--st-color-danger-surface)}
+    .game-links-icon-button:focus-visible,.game-links-drag-handle:focus-visible{outline:2px solid var(--st-color-steam-blue);outline-offset:2px}
+    .game-links-icon-button:disabled,.game-links-drag-handle:disabled{opacity:.5;cursor:wait}
+    .game-links-form[aria-busy="true"] .game-links-row{cursor:wait}
+    .game-links-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0}
+    .game-links-footer{padding-top:8px}
+    .game-links-layout{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-inline-start:auto;font-size:12px;color:var(--st-color-text-muted)}
+    .game-links-layout .setting-mode{width:auto;min-width:0}
+    .game-links-layout .setting-mode-option:focus-within{outline:2px solid var(--st-color-steam-blue);outline-offset:2px}
+    .game-links-layout .setting-mode-option:has(input:disabled){opacity:.5;cursor:wait}
+    .game-links-form[data-order-saving] .game-links-icon-button:disabled,.game-links-form[data-order-saving] .game-links-layout .setting-mode-option:has(input:disabled){opacity:1}
+    .settings-dialog.game-links-dialog{width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 64px);overflow:auto}
+    .game-links-dialog .settings-dialog-message{white-space:normal}
+    .game-links-dialog .settings-dialog-title{margin-bottom:16px}
+    .game-links-field{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;min-width:0}
+    .game-links-field input,.game-links-field select{box-sizing:border-box;width:100%;min-width:0}
+    .game-links-selects{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .game-links-preview{overflow-wrap:anywhere;font-size:12px;color:var(--st-color-text-muted)}
+    .game-links-preview a{color:var(--st-color-steam-blue);text-decoration:none}
+    .game-links-preview a:hover,.game-links-preview a:focus-visible{text-decoration:underline}
+    .game-links-status{font-size:12px;color:var(--st-color-danger-text)}
+    .game-links-editor [data-game-links-message]{color:var(--st-color-text-muted)}
+    @media(max-width:560px){.game-links-selects{grid-template-columns:1fr}.game-links-row{gap:8px;padding:8px}.game-links-row-actions{gap:0}}
+    @media(max-width:400px){
+      [data-settings-drawer="game-links"] > .settings-drawer-head{flex-direction:column;gap:8px;padding:8px}
+      [data-settings-drawer="game-links"] > .settings-drawer-head .icon-pad{display:none}
+      [data-settings-drawer="game-links"] > .settings-drawer-head .settings-drawer-actions{width:100%;justify-content:space-between}
+      [data-settings-drawer="game-links"] > .settings-drawer-content > .settings-drawer-body{padding:8px}
+      .game-links-row{grid-template-columns:16px minmax(0,1fr)}
+      .game-links-drag-handle{width:16px;padding:0}
+      .game-links-row-actions{grid-column:1/-1;justify-self:end}
+      .game-links-icon-button{width:24px;height:24px;padding:4px}
+    }
+  `;
+
   function css(extra = "") {
-    return `${themeVariablesCss()}${SHARED_DIALOG_CSS}\n${BASE_CSS}\n${String(extra || "")}`;
+    return `${themeVariablesCss()}${SHARED_DIALOG_CSS}\n${BASE_CSS}\n${GAME_LINKS_CSS}\n${String(extra || "")}`;
   }
 
   const api = Object.freeze({ css });

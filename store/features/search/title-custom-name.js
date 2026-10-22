@@ -37,10 +37,6 @@
   const RETRY_MAX = 30;
   const DETAIL_SETTLE_MAX = 10;
   const DETAIL_OBSERVER_DEBOUNCE_MS = 1000;
-  const WISHLIST_RENDER_DEBOUNCE_MS = 1000;
-  const WISHLIST_OBSERVER_DEBOUNCE_MS = 1000;
-  const WISHLIST_SETTLE_RETRY_MS = 300;
-  const WISHLIST_SETTLE_MAX = 8;
 
   function i18n(key, fallback, params) {
     return root.STI18n.text(key, fallback, params);
@@ -51,25 +47,19 @@
   const dom = root.STDomUtils || {};
   let state = null;
   let observer = null;
-  let wishlistObserver = null;
-  let wishlistShellObserver = null;
-  let wishlistContainer = null;
-  let wishlistShell = null;
-  let wishlistTimer = 0;
-  let wishlistSettleTimer = 0;
-  let wishlistSettleChecks = 0;
+  let wishlistSubscription = null;
   let detailSettleTimer = 0;
   let detailSettleChecks = 0;
-  let renderingWishlist = false;
-  let pendingWishlistRender = false;
   let started = false;
   let tries = 0;
   let refreshSeq = 0;
+  let detailRefresh = null;
   let modalSeq = 0;
   let lastDetailTargetMissing = false;
   let lastWishlistTargetMissing = false;
-  let lastWishlistRenderKey = "";
   const nameCache = new Map();
+  const nameListeners = new Set();
+  let publishedName = '';
   const namePending = new Set();
 
   /* 授权与接口请求 */
@@ -225,6 +215,23 @@
     return host;
   }
 
+  /** 只读取当前已加载的选定名称，不查询网络；无名称时返回空字符串。 */
+  function currentName(appid) {
+    const id = Number(appid);
+    const item = state?.appid === id ? state.item : nameCache.get(id);
+    return item?.name_source === 'none' ? '' : text(item?.name);
+  }
+
+  function publishName(appid) {
+    const name = currentName(appid), signature = JSON.stringify([appid, name]);
+    if (signature === publishedName) return;
+    publishedName = signature;
+    for (const listener of nameListeners) {
+      try { listener({ appId: appid }); }
+      catch (error) { log.error('title-name-subscriber-failed', '通知当前游戏名称变化失败', { appid, error }); }
+    }
+  }
+
   function renderTitle() {
     const title = titleEl();
     if (!title || !state) {
@@ -246,19 +253,23 @@
     lastDetailTargetMissing = false;
     const host = ensureHost(title);
     const steamTitle = state.steamTitle || text(title.childNodes[0] || title);
-    renderNameHost(host, state.appid, decorateName(state.item, steamTitle), steamTitle, "detail");
+    renderNameHost(host, state.appid, decorateName(state.item, steamTitle), steamTitle, "detail", state.loading === true);
+    publishName(state.appid);
     return true;
   }
 
-  function renderNameHost(host, appid, item, steamTitle, mode) {
+  function renderNameHost(host, appid, item, steamTitle, mode, loading = false) {
     const hidden = api.settings?.all?.()?.["store-title-hide-custom-name"] === true;
-    const visibleName = !hidden && shouldShowName(item, steamTitle) ? text(item?.name) : "";
+    const visibleName = !loading && !hidden && shouldShowName(item, steamTitle) ? text(item?.name) : "";
     const label = visibleName ? `[${visibleName}]` : "";
     const idText = String(appid || "");
-    const key = JSON.stringify([appid, text(item?.name), text(item?.name_source), steamTitle, mode]);
+    const key = JSON.stringify([appid, text(item?.name), text(item?.name_source), steamTitle, mode, loading, hidden]);
     const labelReady = (host.dataset.label || "") === label;
     const idReady = (host.dataset.stAppid || "") === idText;
-    if (host._stTitleCustomNameKey === key && host.querySelector(".st-title-custom-name-btn") && labelReady && idReady) {
+    const contentReady = loading
+      ? hidden ? host.childElementCount === 0 : !!host.querySelector(".st-store-skeleton")
+      : !!host.querySelector(".st-title-custom-name-btn");
+    if (host._stTitleCustomNameKey === key && contentReady && labelReady && idReady) {
       return;
     }
     host._stTitleCustomNameKey = key;
@@ -266,11 +277,20 @@
     if (!idReady) host.dataset.stAppid = idText;
     if (label) host.dataset.label = label;
     else delete host.dataset.label;
+    api.dom.loading.clear(host);
+    host.replaceChildren();
+    // 名称和编辑入口作为一个加载区域，结果结束前不暴露可点击按钮
+    if (loading) {
+      if (!hidden) host.appendChild(api.dom.loading.create("line"));
+      api.dom.loading.activate(host);
+      return;
+    }
     const button = document.createElement("button");
     button.className = "st-title-custom-name-btn";
     button.type = "button";
     button.textContent = i18n("store.titleCustomName.edit", "编辑");
-    host.replaceChildren(button);
+    host.appendChild(button);
+    api.dom.loading.activate(host);
     if (mode === "detail") {
       log.info("title-custom-name-button-mounted", "商店标题自定义名按钮已挂载", {
         appid,
@@ -540,7 +560,8 @@
         item = await loadName(source.appid);
         if (openSeq !== modalSeq) return;
         nameCache.set(Number(source.appid), item);
-      } catch {
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "warn", phase: "openModal" });
         if (openSeq !== modalSeq) return;
         item = null;
       }
@@ -585,6 +606,7 @@
       const aliases = Array.isArray(item?.aliases) ? item.aliases : (item?.alias ? [item.alias] : []);
       setAliasList(modal, aliases);
     }).catch(error => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "error", phase: "openModal" });
       if (modalLoadCurrent(modal, source.appid, loadSeq)) setMsg(error?.message || String(error));
     });
     modalNote(source.appid).then(note => {
@@ -594,6 +616,7 @@
       textarea.value = String(note?.note || "");
       updateCount(modal);
     }).catch(error => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "error", phase: "openModal" });
       if (modalLoadCurrent(modal, source.appid, loadSeq)) setMsg(error?.message || String(error));
     });
   }
@@ -649,9 +672,9 @@
     }
     if (event.target.closest("[data-title-custom-name-save]")) {
       if (modal.dataset.activeTab === "note") {
-        saveNoteFromModal(false).catch(error => setMsg(error?.message || String(error)));
+        saveNoteFromModal(false).catch(error => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" }); return setMsg(error?.message || String(error)); });
       } else {
-        submitName().catch(error => setMsg(error?.message || String(error)));
+        submitName().catch(error => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" }); return setMsg(error?.message || String(error)); });
       }
     }
   }
@@ -927,144 +950,58 @@
     return host;
   }
 
-  function wishlistHostReady(row) {
+  function renderWishlistRow(row, completed = false) {
     const appid = rowAppid(row);
-    if (!appid) return true;
-    const parent = wishlistTitleHost(row);
-    const host = row.querySelector(".st-title-custom-name-wishlist");
-    return !!host && host.parentElement === parent && host.dataset.stAppid === String(appid);
-  }
-
-  function wishlistRowsReady() {
-    const rows = wishlistRows().filter(row => rowAppid(row));
-    return rows.length > 0 && rows.every(wishlistHostReady);
+    if (!appid) {
+      const host = row.querySelector(".st-title-custom-name-wishlist");
+      if (host) { api.dom.loading.clear(host); host.remove(); }
+      row.querySelector(".st-title-custom-name-wishlist-row")?.classList.remove("st-title-custom-name-wishlist-row");
+      row.querySelector(".st-title-custom-name-wishlist-title")?.classList.remove("st-title-custom-name-wishlist-title");
+      return 0;
+    }
+    const host = ensureWishlistHost(row);
+    if (!host) return 0;
+    const steamTitle = steamTitleFromRow(row);
+    const loading = !completed && !nameCache.has(appid)
+      && (!host._stTitleCustomNameKey || host.dataset.stAppid !== String(appid) || !!host.querySelector(".st-store-skeleton"));
+    renderNameHost(host, appid, decorateName(nameCache.get(appid) || null, steamTitle), steamTitle, "wishlist", loading);
+    return loading ? appid : 0;
   }
 
   function renderWishlistName(appid) {
-    wishlistRows().forEach(row => {
-      if (rowAppid(row) !== Number(appid)) return;
-      const host = ensureWishlistHost(row);
-      if (!host) return;
-        renderNameHost(host, appid, decorateName(nameCache.get(Number(appid)) || null, steamTitleFromRow(row)), steamTitleFromRow(row), "wishlist");
-    });
+    for (const row of wishlistRows()) {
+      if (rowAppid(row) === Number(appid)) renderWishlistRow(row, true);
+    }
   }
 
-  async function renderWishlistRows() {
-    if (!isWishlistPath()) return false;
-    if (renderingWishlist) {
-      pendingWishlistRender = true;
-      return false;
-    }
-    renderingWishlist = true;
-    pendingWishlistRender = false;
+  function renderWishlistRows(targets) {
+    addStyle();
+    return targets.map(row => renderWishlistRow(row)).filter(Boolean);
+  }
+
+  async function loadWishlistNames(appids) {
     const seq = refreshSeq;
-    try {
-      addStyle();
-      const rows = wishlistRows();
-      const appids = [];
-      for (const row of rows) {
-        const appid = rowAppid(row);
-        if (!appid) continue;
-        appids.push(appid);
-        const host = ensureWishlistHost(row);
-        if (!host) continue;
-        renderNameHost(host, appid, decorateName(nameCache.get(appid) || null, steamTitleFromRow(row)), steamTitleFromRow(row), "wishlist");
-      }
-      await batchFetchWishlistNames(appids, seq);
-      if (seq !== refreshSeq || !started || !api.settings?.on?.(FEATURE_ID)) return false;
-      appids.forEach(renderWishlistName);
-      const summaryKey = `${rows.length}:${appids.length}`;
-      if (summaryKey !== lastWishlistRenderKey) {
-        lastWishlistRenderKey = summaryKey;
-        log.info("title-custom-name-wishlist-render-summary", "愿望单自定义名称渲染摘要", {
-          rowCount: rows.length,
-          appidCount: appids.length,
-          path: location.pathname,
-        });
-      }
-      return true;
-    } finally {
-      renderingWishlist = false;
-      if (pendingWishlistRender && started && api.settings?.on?.(FEATURE_ID)) {
-        pendingWishlistRender = false;
-        scheduleWishlistRender();
-      }
+    await batchFetchWishlistNames(appids, seq);
+    if (seq !== refreshSeq || !started || !isWishlistPath() || !api.settings.on(FEATURE_ID) || document.hidden) return;
+    const ids = new Set(appids);
+    for (const row of wishlistRows()) {
+      if (ids.has(rowAppid(row))) renderWishlistRow(row, true);
     }
-  }
-
-  function scheduleWishlistRender(delay = WISHLIST_RENDER_DEBOUNCE_MS) {
-    clearTimeout(wishlistTimer);
-    const waitMs = Math.max(0, Number(delay) || 0);
-    wishlistTimer = setTimeout(() => {
-      renderWishlistRows().catch(() => {});
-    }, waitMs);
-  }
-
-  function bindWishlistShell(container) {
-    const shell = wishlistDom?.listShell?.(container) || null;
-    if (wishlistShell === shell && wishlistShellObserver) return;
-    wishlistShellObserver?.disconnect();
-    wishlistShellObserver = null;
-    wishlistShell = shell;
-    if (!shell) return;
-    const refreshContainer = () => {
-      const next = wishlistDom?.listContainer?.();
-      if (!next || next === wishlistContainer) return;
-      bindWishlistObserver(next);
-      scheduleWishlistRender(0);
-      scheduleWishlistSettleCheck();
-    };
-    wishlistShellObserver = root.STObserverUtils?.createDebouncedObserver?.(refreshContainer, WISHLIST_OBSERVER_DEBOUNCE_MS)
-      || new MutationObserver(refreshContainer);
-    root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistShellObserver, shell, { childList: true })
-      || wishlistShellObserver.observe(shell, { childList: true });
-  }
-
-  function bindWishlistObserver(container) {
-    if (wishlistContainer === container && wishlistObserver) {
-      bindWishlistShell(container);
-      return;
-    }
-    wishlistObserver?.disconnect();
-    wishlistContainer = container;
-    wishlistSettleChecks = 0;
-    wishlistObserver = root.STObserverUtils?.createDebouncedObserver?.(() => scheduleWishlistRender(0), WISHLIST_OBSERVER_DEBOUNCE_MS)
-      || new MutationObserver(() => scheduleWishlistRender());
-    // 只监听愿望单真实列表容器；虚拟列表会深层替换行节点，保留 subtree。
-    root.STObserverUtils?.createVisibilityGatedObserver?.(wishlistObserver, container, { childList: true, subtree: true })
-      || wishlistObserver.observe(container, { childList: true, subtree: true });
-    bindWishlistShell(container);
-  }
-
-  function scheduleWishlistSettleCheck() {
-    if (wishlistSettleTimer || wishlistSettleChecks >= WISHLIST_SETTLE_MAX) return;
-    wishlistSettleTimer = setTimeout(() => {
-      wishlistSettleTimer = 0;
-      if (!started || !isWishlistPath() || !api.settings?.on?.(FEATURE_ID)) return;
-      const container = wishlistDom?.listContainer?.();
-      if (container && container !== wishlistContainer) {
-        bindWishlistObserver(container);
-      }
-      if (wishlistRowsReady()) return;
-      wishlistSettleChecks += 1;
-      renderWishlistRows().catch(() => {});
-      scheduleWishlistSettleCheck();
-    }, WISHLIST_SETTLE_RETRY_MS);
   }
 
   function startWishlist() {
     if (!isWishlistPath()) return false;
-    const container = wishlistDom?.listContainer?.();
-    if (!container) {
-      log.debug("title-custom-name-wishlist-observer-target-missing", "愿望单自定义名称监听目标尚未挂载", {
-        path: location.pathname,
+    if (wishlistSubscription) {
+      wishlistSubscription.refresh();
+    } else {
+      if (!wishlistDom.listContainer()) {
+        log.debug("title-custom-name-wishlist-observer-target-missing", "愿望单自定义名称监听目标尚未挂载", { path: location.pathname });
+      }
+      wishlistSubscription = wishlistDom.observeRows(FEATURE_ID, {
+        render: renderWishlistRows,
+        load: loadWishlistNames,
       });
-      scheduleWishlistSettleCheck();
-      return false;
     }
-    renderWishlistRows().catch(() => {});
-    bindWishlistObserver(container);
-    scheduleWishlistSettleCheck();
     return true;
   }
 
@@ -1085,7 +1022,8 @@
       }
       detailSettleChecks += 1;
       if (!detailMountedOnCurrentTitle()) {
-        refresh().catch(() => {});
+        refresh().catch((error) => {
+          globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "schedule-detail-settle-check-failed", message: "商店功能处理失败", level: "error", phase: "scheduleDetailSettleCheck" });});
         return;
       }
       scheduleDetailSettleCheck(seq);
@@ -1100,14 +1038,22 @@
     if (!isDetailPath()) {
       return;
     }
-    const seq = ++refreshSeq;
     const info = pageInfo();
+    // 同一轮详情读取只重挂当前标题，保留在途结果与原绘制等待。
+    if (info && detailRefresh?.appid === info.appid && detailRefresh.seq === refreshSeq) {
+      const title = titleEl();
+      if (title) state.steamTitle = text(title.childNodes[0] || title);
+      renderTitle();
+      return detailRefresh.task;
+    }
+    const seq = ++refreshSeq;
     const title = titleEl();
     if (!info || !title) {
       if (info && tries < RETRY_MAX) {
         tries += 1;
         setTimeout(() => {
-          if (seq === refreshSeq) refresh().catch(() => {});
+          if (seq === refreshSeq) refresh().catch((error) => {
+            globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "refresh-failed", message: "刷新功能状态失败", level: "error", phase: "refresh" });});
         }, RETRY_MS);
       }
       return;
@@ -1121,18 +1067,32 @@
       appid: info.appid,
       steamTitle: text(title.childNodes[0] || title),
       item: nameCache.get(info.appid) || null,
+      loading: !nameCache.has(info.appid),
     };
     renderTitle();
     scheduleDetailSettleCheck(seq);
+    const request = { appid: info.appid, seq, task: readDetailName(info.appid, seq) };
+    detailRefresh = request;
     try {
-      const item = await loadName(info.appid);
-      if (seq !== refreshSeq || state?.appid !== info.appid) return;
+      await request.task;
+    } finally {
+      if (detailRefresh === request) detailRefresh = null;
+    }
+  }
+
+  async function readDetailName(appid, seq) {
+    try {
+      if (state.loading && !await api.dom.loading.afterPaint(() => seq === refreshSeq && started && pageInfo()?.appid === appid)) return;
+      const item = await loadName(appid);
+      if (seq !== refreshSeq || state?.appid !== appid) return;
       state.item = item;
-      nameCache.set(info.appid, item);
-    } catch {
-      if (seq !== refreshSeq || state?.appid !== info.appid) return;
+      nameCache.set(appid, item);
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "refresh-failed", message: "刷新功能状态失败", level: "warn", phase: "refresh" });
+      if (seq !== refreshSeq || state?.appid !== appid) return;
       state.item = null;
     }
+    state.loading = false;
     renderTitle();
     scheduleDetailSettleCheck(seq);
   }
@@ -1147,10 +1107,6 @@
       state.item = decorateName(state.item, state.steamTitle);
       renderTitle();
     }
-    lastWishlistRenderKey = "";
-    if (isWishlistPath()) {
-      renderWishlistRows().catch(() => {});
-    }
   }
 
   function observeTarget() {
@@ -1164,7 +1120,7 @@
     const target = observeTarget();
     if (!target) {
       log.warn("title-custom-name-observer-target-missing", "商店标题自定义名监听目标未找到", {
-        selector: "responsive_page_template_content | game_highlights | app title parent",
+        selector: "game_highlights | app title parent",
         path: location.pathname,
         viewport: {
           width: window.innerWidth,
@@ -1175,15 +1131,20 @@
       return;
     }
     const callback = () => {
+      if (!started || document.hidden || !isDetailPath() || !api.settings?.on?.(FEATURE_ID)) return;
       const info = pageInfo();
       if (info && (!state || state.appid !== info.appid || !detailMountedOnCurrentTitle())) {
-        refresh().catch(() => {});
+        refresh().catch((error) => {
+          globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "observe-failed", message: "商店功能处理失败", level: "error", phase: "observe" });});
       }
     };
-    observer = root.STObserverUtils?.createDebouncedObserver?.(callback, DETAIL_OBSERVER_DEBOUNCE_MS)
+    observer = root.STObserverUtils?.createDebouncedObserver?.(callback, DETAIL_OBSERVER_DEBOUNCE_MS, { records: false })
       || new MutationObserver(callback);
     // 只监听商店主内容容器；Steam 内部跳转会深层替换标题节点，保留 subtree。
-    root.STObserverUtils?.createVisibilityGatedObserver?.(observer, target, { childList: true, subtree: true })
+    root.STObserverUtils?.createVisibilityGatedObserver?.(observer, target, { childList: true, subtree: true }, {
+      resolveTarget: () => started && isDetailPath() && api.settings?.on?.(FEATURE_ID) ? observeTarget() : null,
+      onResume: callback,
+    })
       || observer.observe(target, { childList: true, subtree: true });
     log.info("title-custom-name-observer-start", "商店标题自定义名监听已启动", {
       targetId: target.id || "",
@@ -1209,7 +1170,8 @@
         observe();
         const appid = state?.appid || pageInfo()?.appid;
         if (!nameCache.has(appid)) {
-          refresh().catch(() => {});
+          refresh().catch((error) => {
+            globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });});
         }
       }
       log.info("title-custom-name-start-skipped", "商店标题自定义名已启动，本次只触发刷新", {
@@ -1223,7 +1185,8 @@
       startWishlist();
     } else if (isDetailPath()) {
       observe();
-      refresh().catch(() => {});
+      refresh().catch((error) => {
+        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });});
     }
     log.info("title-custom-name-start-success", "商店标题自定义名已启动", {
       path: location.pathname,
@@ -1233,30 +1196,25 @@
   }
 
   function stop() {
+    const previousAppId = state?.appid;
     refreshSeq += 1;
+    detailRefresh = null;
     started = false;
     tries = 0;
     observer?.disconnect();
-    wishlistObserver?.disconnect();
-    wishlistShellObserver?.disconnect();
+    wishlistSubscription?.dispose();
+    wishlistSubscription = null;
     observer = null;
-    wishlistObserver = null;
-    wishlistShellObserver = null;
-    wishlistContainer = null;
-    wishlistShell = null;
     clearTimeout(detailSettleTimer);
-    clearTimeout(wishlistTimer);
-    clearTimeout(wishlistSettleTimer);
     detailSettleTimer = 0;
-    wishlistTimer = 0;
-    wishlistSettleTimer = 0;
     detailSettleChecks = 0;
-    wishlistSettleChecks = 0;
     state = null;
     nameCache.clear();
+    if (previousAppId) publishName(previousAppId);
     namePending.clear();
-    document.getElementById(HOST_ID)?.remove();
-    document.querySelectorAll(".st-title-custom-name-wishlist").forEach(node => node.remove());
+    const host = document.getElementById(HOST_ID);
+    if (host) { api.dom.loading.clear(host); host.remove(); }
+    document.querySelectorAll(".st-title-custom-name-wishlist").forEach(node => { api.dom.loading.clear(node); node.remove(); });
     document.querySelectorAll(".st-title-custom-name-wishlist-row").forEach(node => {
       node.classList.remove("st-title-custom-name-wishlist-row");
     });
@@ -1267,18 +1225,25 @@
     closeModal();
     lastDetailTargetMissing = false;
     lastWishlistTargetMissing = false;
-    lastWishlistRenderKey = "";
     log.info("title-custom-name-stop-success", "商店标题自定义名已停止并清理资源", {
       path: location.pathname,
     });
   }
 
   api.features.titleCustomName = Object.freeze({
+    prepareStyles: addStyle,
     start,
     refresh,
     stop,
     openEditor: openModal,
     shouldShowName,
+    currentName,
+    /** 订阅已选名称的真实变化，返回释放句柄；不向订阅者传递名称记录。 */
+    subscribeNames(listener) {
+      if (typeof listener !== 'function') throw new TypeError('名称订阅者必须是函数');
+      nameListeners.add(listener);
+      return { dispose: () => nameListeners.delete(listener) };
+    },
   });
 })(typeof globalThis !== "undefined" ? globalThis : window, () => {
   "use strict";

@@ -177,18 +177,32 @@
       },
     },
     {
+      id: "game-links",
+      name: "库详情页相关链接",
+      settingsKey: "steam-game-links",
+      loadStrategy: "on-demand-entry",
+      modes: ["backend", "ui"],
+      pageScope: ["SharedJSContext", "main-ui", "/library/app/:appid"],
+      entries: { backend: "backend.js", ui: "ui.js" },
+      shouldRun(api, context, snapshot) {
+        return snapshot.settingsSnapshot["steam-game-links"] === true &&
+          ((context === "backend" && api.ctx.isShared() === true) || (context === "ui" && api.ctx.isMainUi() === true));
+      },
+    },
+    {
       id: "player-stats",
       name: "库详情页在线人数",
-      settingsKey: "player-stats",
+      settingsKey: "steam-player-stats",
       loadStrategy: "on-demand-entry",
       modes: ["ui"],
       pageScope: ["main-ui", "/library/app/:appid"],
       entries: {
         ui: "ui.js",
       },
-      shouldRun(api, context) {
+      shouldRun(api, context, snapshot) {
         return context === "ui" &&
-          api.ctx?.isMainUi?.() === true;
+          api.ctx?.isMainUi?.() === true &&
+          snapshot.settingsSnapshot["steam-player-stats"] === true;
       },
     },
   ];

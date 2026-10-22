@@ -35,11 +35,16 @@
   "settings_shell_pageTranslateFailed": {
     "message": "翻譯未完成：$error$。請再次點擊重試",
     "placeholders": {
-      "error": { "content": "$1" }
+      "error": {
+        "content": "$1"
+      }
     }
   },
   "settings_shell_pageTranslateUnavailable": {
     "message": "目前頁面不支援手動翻譯"
+  },
+  "settings_shell_pageTranslateSettingsMissing": {
+    "message": "翻譯設定未載入，請重新整理網頁後重試"
   },
   "settings_shell_pageTranslateRuntimeMissing": {
     "message": "手動翻譯執行環境未載入，請重新整理網頁後重試"
@@ -352,24 +357,6 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "存在自訂排序名稱時，將 Steam 原名加入執行階段搜尋欄位"
   },
-  "settings_feature_library_sort_title_stable_mode_name": {
-    "message": "名稱顯示模式"
-  },
-  "settings_feature_library_sort_title_stable_mode_desc": {
-    "message": "流暢模式只處理目前可見項目；穩定模式使用 AppOverview 替換重新整理方式，收藏庫中的遊戲數量過多時可能會卡頓"
-  },
-  "settings_feature_library_sort_title_stable_mode_option_false": {
-    "message": "流暢模式"
-  },
-  "settings_feature_library_sort_title_stable_mode_option_true": {
-    "message": "穩定模式"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_name": {
-    "message": "懸停提示顯示自訂名稱"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_desc": {
-    "message": "開啟後，滑鼠懸停於收藏庫清單項目時，Steam 原生提示框會顯示自訂名稱和群組標籤；關閉時恢復 Steam 原始名稱"
-  },
   "settings_feature_library_group_labels_name": {
     "message": "群組顯示在名稱後方"
   },
@@ -405,6 +392,15 @@
   },
   "settings_feature_steam_news_translate_desc": {
     "message": "在 Steam 用戶端收藏庫首頁新聞彈出視窗中手動翻譯目前新聞"
+  },
+  "settings_feature_steam_player_stats_name": {
+    "message": "玩家統計"
+  },
+  "settings_feature_steam_player_stats_desc": {
+    "message": "在 Steam 收藏庫遊戲詳細頁面顯示線上人數、峰值和趨勢圖。"
+  },
+  "settings_feature_steam_player_stats_lock": {
+    "message": "需在「第三方服務」中開啟「啟用第三方資料服務」"
   },
   "settings_feature_purchase_history_classifier_name": {
     "message": "消費歷史分類器"
@@ -3502,7 +3498,7 @@
     "message": "清空完成"
   },
   "steam_libraryCustomName_clearingBatch": {
-    "message": "正在清空 Steam 第 $batch$ 批 $written$/$max$$cloud$",
+    "message": "正在清空 Steam 第 $batch$ 批 $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -3512,9 +3508,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -3579,9 +3572,6 @@
   "steam_libraryCustomName_cloudApiTimeout": {
     "message": "雲端名稱服務沒有回應"
   },
-  "steam_libraryCustomName_cloudCancel": {
-    "message": "關閉後，本次儲存只會寫入本機 Steam 遊戲庫，不會同步至素材君雲端。\n\n雲端共享可協助更多玩家取得更準確的自訂名稱建議。確定要關閉嗎？"
-  },
   "steam_libraryCustomName_cloudDiskFailed": {
     "message": "Steam CloudStorage 寫入磁碟失敗：$result$",
     "placeholders": {
@@ -3599,32 +3589,8 @@
   "steam_libraryCustomName_cloudNameMissing": {
     "message": "雲端找不到目前遊戲的名稱"
   },
-  "steam_libraryCustomName_cloudPaused": {
-    "message": "素材君雲端上傳已暫停"
-  },
-  "steam_libraryCustomName_cloudPreparing": {
-    "message": "正在等待 Steam 寫入批次開始，並準備素材君雲端上傳"
-  },
-  "steam_libraryCustomName_cloudResumed": {
-    "message": "素材君雲端上傳繼續執行"
-  },
-  "steam_libraryCustomName_cloudTip": {
-    "message": "將自訂排序名稱同步至素材君雲端（Steam Buff 雲端）。之後可透過「取得雲端名稱」還原，並在商店等頁面使用。\n\n注意：\n1. 請勿上傳違反當地法律規範的名稱；若發現違規內容，帳號可能會遭停權。\n2. 上傳的名稱可能用於改善社群遊戲名稱庫，協助更多玩家取得更準確的名稱。"
-  },
-  "steam_libraryCustomName_cloudUpload": {
-    "message": "素材君雲端上傳"
-  },
-  "steam_libraryCustomName_cloudUploadSuffix": {
-    "message": "，素材君雲端上傳同步進行"
-  },
-  "steam_libraryCustomName_confirmDisableCloud": {
-    "message": "確認關閉"
-  },
   "steam_libraryCustomName_confirmOverwrite": {
     "message": "確認覆寫"
-  },
-  "steam_libraryCustomName_continueCloudUpload": {
-    "message": "繼續上傳"
   },
   "steam_libraryCustomName_continueSave": {
     "message": "繼續儲存"
@@ -3662,9 +3628,6 @@
         "content": "$1"
       }
     }
-  },
-  "steam_libraryCustomName_disableCloudTitle": {
-    "message": "確認關閉素材君雲端上傳"
   },
   "steam_libraryCustomName_disabled": {
     "message": "收藏庫清單顯示自訂名稱已關閉"
@@ -4139,7 +4102,7 @@
     "message": "儲存進度"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "總計：$total$，處理：$processed$，略過：$skipped$，失敗：$failed$，已入隊：$queued$",
+    "message": "總計:$total$，處理:$processed$，略過:$skipped$，失敗:$failed$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -4152,9 +4115,6 @@
       },
       "failed": {
         "content": "$4"
-      },
-      "queued": {
-        "content": "$5"
       }
     }
   },
@@ -4166,9 +4126,6 @@
   },
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "Steam 儲存佇列狀態沒有回應，請重新開啟批次視窗確認結果"
-  },
-  "steam_libraryCustomName_savingWithCloud": {
-    "message": "正在寫入 Steam，素材君雲端上傳同步進行"
   },
   "steam_libraryCustomName_searchPlaceholder": {
     "message": "搜尋遊戲 / AppID / 待寫入名稱"
@@ -4212,9 +4169,6 @@
       }
     }
   },
-  "steam_libraryCustomName_steamDoneWaitingCloud": {
-    "message": "Steam 寫入完成，正在等待素材君雲端上傳完成"
-  },
   "steam_libraryCustomName_storageLimitTip": {
     "message": "儲存數量和容量上限是 Steam 官方對自訂排序名稱的限制。超過限制的自訂排序名稱可能無法成功儲存或無法儲存至 Steam 雲端！"
   },
@@ -4233,22 +4187,8 @@
   "steam_libraryCustomName_typeTool": {
     "message": "工具"
   },
-  "steam_libraryCustomName_uploadCloud": {
-    "message": "將名稱上傳至雲端"
-  },
-  "steam_libraryCustomName_uploadCloudLabel": {
-    "message": "將名稱上傳至雲端"
-  },
   "steam_libraryCustomName_waitingQuery": {
     "message": "等待查詢"
-  },
-  "steam_libraryCustomName_waitingSteamBatch": {
-    "message": "等待 Steam 第 $batch$ 批同步視窗結束，素材君雲端上傳已暫停",
-    "placeholders": {
-      "batch": {
-        "content": "$1"
-      }
-    }
   },
   "steam_libraryCustomName_writeBatchWaiting": {
     "message": "第 $batch$ 批寫入完成，等待 Steam 雲端同步 $seconds$ 秒",
@@ -4265,7 +4205,7 @@
     "message": "Steam 拒絕寫入"
   },
   "steam_libraryCustomName_writingBatch": {
-    "message": "正在寫入 Steam 第 $batch$ 批 $written$/$max$$cloud$",
+    "message": "正在寫入 Steam 第 $batch$ 批 $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -4275,9 +4215,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -4534,6 +4471,23 @@
   },
   "settings_reviewFilter_rule_hint": {
     "message": "換行內容會儲存為同一條規則"
+  },
+  "reviewFilter_regexUnavailable": {
+    "message": "正則過濾暫不可用，其他過濾條件繼續生效。請重新開啟頁面後重試。"
+  },
+  "reviewFilter_regexPaused": {
+    "message": "第 $index$ 條規則無效或執行逾時，已在本頁暫停。其他規則繼續生效，請在設定中檢查該規則。",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_rule_regexTimeout": {
+    "message": "正則驗證逾時，請簡化規則後重試。"
+  },
+  "settings_reviewFilter_rule_regexUnavailable": {
+    "message": "正則驗證暫不可用，請重新開啟頁面後重試。"
   },
   "settings_reviewFilter_rule_invalidRegex": {
     "message": "規則運算式無效：$message$",
@@ -5720,12 +5674,6 @@
   "store_priceHistory_unknownDate": {
     "message": "未知日期"
   },
-  "store_priceHistory_viewDetails": {
-    "message": "查看詳細資料"
-  },
-  "store_priceHistory_viewDetailsPrefix": {
-    "message": "在"
-  },
   "store_cartCheckout_restoreButton": {
     "message": "還原暫存購物車資料"
   },
@@ -5746,6 +5694,9 @@
   },
   "store_steampy_loading": {
     "message": "正在讀取價格..."
+  },
+  "store_steampy_clickToView": {
+    "message": "點擊查看"
   },
   "store_steampy_proxyPurchase": {
     "message": "PY 代購"
@@ -5830,23 +5781,17 @@
   "steam_independentName_open": {
     "message": "自訂名稱"
   },
-  "steam_independentName_readingButton": {
-    "message": "讀音"
-  },
-  "steam_independentName_readingTitle": {
-    "message": "讀音選擇"
-  },
-  "steam_independentName_readingNone": {
-    "message": "未偵測到需要選擇的讀音"
-  },
   "steam_independentName_readingFailed": {
-    "message": "讀音候選載入失敗，請關閉後重新開啟編輯區"
+    "message": "讀音候選載入失敗，請重新開啟名稱設定"
   },
   "steam_independentName_readingPreviewHint": {
     "message": "現有內容無法逐字對應。下方是產生的預覽，套用後將取代全拼與助記符。"
   },
   "steam_independentName_readingApply": {
     "message": "取代全拼與助記符"
+  },
+  "steam_independentName_readingPreview": {
+    "message": "拼音預覽"
   },
   "steam_independentName_readingPosition": {
     "message": "第 $n$ 個字：$context$",
@@ -5885,8 +5830,16 @@
   "steam_independentName_aliasHint": {
     "message": "Enter 或空白鍵新增"
   },
-  "steam_independentName_saveRow": {
+  "steam_independentName_saveAll": {
     "message": "儲存"
+  },
+  "steam_independentName_savedAll": {
+    "message": "已儲存 $n$ 款遊戲",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
   },
   "steam_independentName_colOfficial": {
     "message": "Steam 英文原名"
@@ -5896,6 +5849,12 @@
   },
   "steam_independentName_colCustom": {
     "message": "自訂名稱"
+  },
+  "steam_independentName_referenceName": {
+    "message": "參考名稱："
+  },
+  "steam_independentName_referenceHint": {
+    "message": "點擊填入自訂名稱"
   },
   "steam_independentName_colAlias": {
     "message": "別名"
@@ -5912,30 +5871,56 @@
   "steam_independentName_quotaUsed": {
     "message": "已用 $count$ / $quota$",
     "placeholders": {
-        "count": {
-            "content": "$1"
-        },
-        "quota": {
-            "content": "$2"
-        }
+      "count": {
+        "content": "$1"
+      },
+      "quota": {
+        "content": "$2"
+      }
     }
   },
   "steam_independentName_rows": {
     "message": "共 $n$ 款遊戲",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_title": {
-    "message": "自訂名稱"
+    "message": "Steam Buff · 自訂名稱"
   },
   "steam_independentName_batch": {
     "message": "批次設定"
   },
+  "steam_independentName_aiGenerate": {
+    "message": "Ai生成"
+  },
+  "steam_independentName_aiGenerating": {
+    "message": "生成中…"
+  },
+  "steam_independentName_aiInvalidName": {
+    "message": "AI 未傳回有效的單一遊戲名稱，請重試。"
+  },
+  "steam_independentName_aiInvalidReadings": {
+    "message": "生成名稱無法產生有效的拼音和助記符，或結果超過長度上限，請重試。"
+  },
+  "steam_independentName_aiGenerated": {
+    "message": "已生成，請核對後點擊確認儲存。"
+  },
+  "steam_independentName_aiFailed": {
+    "message": "Ai生成失敗：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_batchSort": {
+    "message": "批次排序"
+  },
   "steam_independentName_batchTitle": {
-    "message": "批次設定自訂名稱"
+    "message": "Steam Buff · 批次設定自訂名稱"
   },
   "steam_independentName_saving": {
     "message": "正在儲存..."
@@ -5986,9 +5971,9 @@
   "steam_independentName_imported": {
     "message": "已匯入 $n$ 條",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_importAll": {
@@ -6006,18 +5991,18 @@
   "steam_independentName_importPromptStats": {
     "message": "檔案中名稱 $file$ 項，庫內匹配 $matched$ 項；其中已有自訂名稱 $existing$ 項，未設定 $unset$ 項",
     "placeholders": {
-        "file": {
-            "content": "$1"
-        },
-        "matched": {
-            "content": "$2"
-        },
-        "existing": {
-            "content": "$3"
-        },
-        "unset": {
-            "content": "$4"
-        }
+      "file": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      },
+      "existing": {
+        "content": "$3"
+      },
+      "unset": {
+        "content": "$4"
+      }
     }
   },
   "steam_independentName_listTimeout": {
@@ -6025,5 +6010,829 @@
   },
   "steam_independentName_listFailed": {
     "message": "名稱列表讀取失敗"
+  },
+  "steam_libraryCustomName_fetchPermissionMissing": {
+    "message": "取得雲端名稱權限尚未同步，請更新後端並重新整理使用者中心"
+  },
+  "steam_libraryCustomName_fetchPermissionDenied": {
+    "message": "目前權益未開通取得雲端名稱"
+  },
+  "steam_independentName_filter": {
+    "message": "篩選"
+  },
+  "steam_independentName_addFilter": {
+    "message": "+ 新增篩選"
+  },
+  "steam_independentName_clearFilters": {
+    "message": "清除篩選"
+  },
+  "steam_independentName_addAndFilter": {
+    "message": "+ 新增 AND 條件"
+  },
+  "steam_independentName_applyFilter": {
+    "message": "套用"
+  },
+  "steam_independentName_removeFilter": {
+    "message": "移除篩選"
+  },
+  "steam_independentName_filterValue": {
+    "message": "篩選值"
+  },
+  "steam_independentName_filterOperator": {
+    "message": "篩選關係"
+  },
+  "steam_independentName_filterIncomplete": {
+    "message": "請填寫篩選值或選擇遊戲類型"
+  },
+  "steam_independentName_filterRegexInvalid": {
+    "message": "正規表示式格式錯誤，請修改後重試"
+  },
+  "steam_independentName_typeMissing": {
+    "message": "遊戲類型資料無法使用，請更新擴充功能後重試"
+  },
+  "steam_independentName_gameType": {
+    "message": "遊戲類型"
+  },
+  "steam_independentName_typeGame": {
+    "message": "遊戲"
+  },
+  "steam_independentName_typeSoftware": {
+    "message": "軟體"
+  },
+  "steam_independentName_typeTool": {
+    "message": "工具"
+  },
+  "steam_independentName_typeAudio": {
+    "message": "音訊"
+  },
+  "steam_independentName_typeVideo": {
+    "message": "影片"
+  },
+  "steam_independentName_typeOther": {
+    "message": "其他"
+  },
+  "steam_independentName_filterOpIn": {
+    "message": "屬於"
+  },
+  "steam_independentName_filterOpNotIn": {
+    "message": "不屬於"
+  },
+  "steam_independentName_filterOpNotEmpty": {
+    "message": "不為空"
+  },
+  "steam_independentName_filterOpEmpty": {
+    "message": "為空"
+  },
+  "steam_independentName_filterOpContains": {
+    "message": "包含"
+  },
+  "steam_independentName_filterOpNotContains": {
+    "message": "不包含"
+  },
+  "steam_independentName_filterOpEquals": {
+    "message": "等於"
+  },
+  "steam_independentName_filterOpNotEquals": {
+    "message": "不等於"
+  },
+  "steam_independentName_filterOpStartsWith": {
+    "message": "以…開頭"
+  },
+  "steam_independentName_filterOpEndsWith": {
+    "message": "以…結尾"
+  },
+  "steam_independentName_filterOpLengthGt": {
+    "message": "長度大於"
+  },
+  "steam_independentName_filterOpLengthLt": {
+    "message": "長度小於"
+  },
+  "steam_independentName_filterOpRegex": {
+    "message": "正規表示式匹配"
+  },
+  "steam_independentName_filterOpCountGt": {
+    "message": "數量大於"
+  },
+  "steam_independentName_filterOpCountLt": {
+    "message": "數量小於"
+  },
+  "steam_independentName_saveChanges": {
+    "message": "儲存修改"
+  },
+  "steam_independentName_nameQuota": {
+    "message": "名稱額度："
+  },
+  "steam_independentName_batchStats": {
+    "message": "總共 $total$ 款 · 篩選後 $filtered$ 款 · 已勾選 $selected$ 款 · 未儲存修改 $dirty$ 款",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "filtered": {
+        "content": "$2"
+      },
+      "selected": {
+        "content": "$3"
+      },
+      "dirty": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_selectedCount": {
+    "message": "已選 $n$ 款",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectGame": {
+    "message": "勾選 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectAll": {
+    "message": "全選"
+  },
+  "steam_independentName_invertSelection": {
+    "message": "反選"
+  },
+  "steam_independentName_clearSelection": {
+    "message": "取消選取"
+  },
+  "steam_independentName_fetchCommunity": {
+    "message": "取得社群名稱"
+  },
+  "steam_independentName_fetchingCommunity": {
+    "message": "正在取得社群名稱..."
+  },
+  "steam_independentName_replaceCommunityTitle": {
+    "message": "取代已勾選遊戲的名稱？"
+  },
+  "steam_independentName_replaceCommunityPrompt": {
+    "message": "已勾選 $n$ 款，其中 $existing$ 款已有自訂名稱。確認後取得社群名稱並取代；沒有社群名稱的遊戲保留原內容。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      },
+      "existing": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_communityFilled": {
+    "message": "$filled$ 款已填入，$missing$ 款無社群名稱，$preserved$ 款保留新修改；請點擊儲存修改。",
+    "placeholders": {
+      "filled": {
+        "content": "$1"
+      },
+      "missing": {
+        "content": "$2"
+      },
+      "preserved": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_independentName_exportFailed": {
+    "message": "匯出失敗，請重試"
+  },
+  "about_debug_title": {
+    "message": "開啟日誌"
+  },
+  "about_debug_warning": {
+    "message": "開啟後將記錄完整的業務請求、回應及診斷資料，可能包含帳號資料、遊戲資訊、輸入內容等隱私資訊。\n登入權杖、Cookie、密碼和金鑰仍會遮蔽。\n日誌將持續記錄，重新啟動後仍保持開啟，請在重現問題並匯出日誌後手動關閉。\n\n請僅將日誌提供給可信任的人員，切勿公開分享。非必要情況下請勿開啟，確定繼續嗎？"
+  },
+  "about_debug_enable": {
+    "message": "繼續"
+  },
+  "about_debug_failed": {
+    "message": "調整日誌開關失敗"
+  },
+  "about_debug_active": {
+    "message": "日誌記錄已開啟，排查完成後請手動關閉。請勿隨意分享日誌"
+  },
+  "about_debug_inactive": {
+    "message": "日誌記錄已關閉，不產生新日誌。開啟後請重新重現問題，再匯出日誌"
+  },
+  "about_debug_unavailable": {
+    "message": "日誌開關狀態暫時無法取得，請重新開啟設定重試"
+  },
+  "about_debug_exportTitle": {
+    "message": "匯出包含詳細診斷資料的日誌"
+  },
+  "about_debug_exportWarning": {
+    "message": "日誌包含詳細業務資料，可能涉及隱私。關閉日誌不會刪除這些記錄，請僅將匯出檔案提供給可信任的人員。是否繼續匯出？"
+  },
+  "about_debug_warningRecord": {
+    "message": "記錄完整的業務請求、回應及診斷資料"
+  },
+  "about_debug_warningAccount": {
+    "message": "帳號資料"
+  },
+  "about_debug_warningGames": {
+    "message": "遊戲資訊"
+  },
+  "about_debug_warningInput": {
+    "message": "輸入內容"
+  },
+  "about_debug_warningShare": {
+    "message": "請僅將日誌提供給可信任的人員，切勿公開分享。"
+  },
+  "steam_independentName_bulk_menu": {
+    "message": "批次操作"
+  },
+  "steam_independentName_bulk_add": {
+    "message": "新增"
+  },
+  "steam_independentName_bulk_generate": {
+    "message": "產生"
+  },
+  "steam_independentName_bulk_clear": {
+    "message": "清空"
+  },
+  "steam_independentName_bulk_other": {
+    "message": "其他"
+  },
+  "steam_independentName_bulk_name": {
+    "message": "修改名稱"
+  },
+  "steam_independentName_bulk_aliases": {
+    "message": "新增別名"
+  },
+  "steam_independentName_bulk_mnemonic": {
+    "message": "新增助記符"
+  },
+  "steam_independentName_bulk_pinyin": {
+    "message": "新增拼音全拼"
+  },
+  "steam_independentName_bulk_generate_mnemonic": {
+    "message": "產生助記符"
+  },
+  "steam_independentName_bulk_generate_pinyin": {
+    "message": "產生拼音全拼"
+  },
+  "steam_independentName_bulk_clear_name": {
+    "message": "清空名稱"
+  },
+  "steam_independentName_bulk_clear_aliases": {
+    "message": "清空別名"
+  },
+  "steam_independentName_bulk_clear_mnemonic": {
+    "message": "清空助記符"
+  },
+  "steam_independentName_bulk_clear_pinyin": {
+    "message": "清空拼音全拼"
+  },
+  "steam_independentName_bulk_cancelSelection": {
+    "message": "取消全選"
+  },
+  "steam_independentName_bulk_selectFirst": {
+    "message": "請先勾選遊戲"
+  },
+  "steam_independentName_bulk_replace": {
+    "message": "尋找取代"
+  },
+  "steam_independentName_bulk_sequence": {
+    "message": "序號格式"
+  },
+  "steam_independentName_bulk_insert": {
+    "message": "新增內容"
+  },
+  "steam_independentName_bulk_manual": {
+    "message": "手動編輯"
+  },
+  "steam_independentName_bulk_find": {
+    "message": "尋找關鍵字"
+  },
+  "steam_independentName_bulk_value": {
+    "message": "新增內容"
+  },
+  "steam_independentName_bulk_replacement": {
+    "message": "取代為"
+  },
+  "steam_independentName_bulk_type": {
+    "message": "序號類型"
+  },
+  "steam_independentName_bulk_start": {
+    "message": "起始序號"
+  },
+  "steam_independentName_bulk_prefix": {
+    "message": "前綴"
+  },
+  "steam_independentName_bulk_suffix": {
+    "message": "後綴"
+  },
+  "steam_independentName_bulk_number": {
+    "message": "數字"
+  },
+  "steam_independentName_bulk_chinese": {
+    "message": "中文數字"
+  },
+  "steam_independentName_bulk_lower": {
+    "message": "英文小寫"
+  },
+  "steam_independentName_bulk_upper": {
+    "message": "英文大寫"
+  },
+  "steam_independentName_bulk_insertType": {
+    "message": "新增類型"
+  },
+  "steam_independentName_bulk_text": {
+    "message": "文字"
+  },
+  "steam_independentName_bulk_position": {
+    "message": "新增位置"
+  },
+  "steam_independentName_bulk_before": {
+    "message": "名稱前"
+  },
+  "steam_independentName_bulk_after": {
+    "message": "名稱後"
+  },
+  "steam_independentName_bulk_original": {
+    "message": "自訂名稱為空時使用原名稱"
+  },
+  "steam_independentName_bulk_old": {
+    "message": "修改前"
+  },
+  "steam_independentName_bulk_next": {
+    "message": "修改後"
+  },
+  "steam_independentName_bulk_unset": {
+    "message": "未設定"
+  },
+  "steam_independentName_bulk_apply": {
+    "message": "套用修改"
+  },
+  "steam_independentName_bulk_calculating": {
+    "message": "正在計算預覽…"
+  },
+  "steam_independentName_bulk_summary": {
+    "message": "已選 $total$ 款 · 修改 $changed$ 款 · 無變更 $unchanged$ 款 · 無效 $invalid$ 款",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "unchanged": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_bulk_applied": {
+    "message": "已修改 $n$ 款，請點擊儲存修改。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_bulk_updated": {
+    "message": "目標內容已更新，請關閉後重新開啟操作視窗。"
+  },
+  "steam_independentName_bulk_invalidSequence": {
+    "message": "起始序號必須是正整數，且整個序號範圍不能超出精確整數範圍。"
+  },
+  "steam_independentName_bulk_tooLong": {
+    "message": "內容超過輸入長度上限。"
+  },
+  "steam_independentName_bulk_aliasLimit": {
+    "message": "每個遊戲最多 10 個別名，請先處理已達上限的遊戲。"
+  },
+  "steam_independentName_bulk_nameRequired": {
+    "message": "請先設定自訂名稱，再儲存助記符或拼音。"
+  },
+  "steam_independentName_bulk_originalMissing": {
+    "message": "Steam 原名稱無法使用。"
+  },
+  "steam_independentName_bulk_clearWarning": {
+    "message": "清空名稱會同時清空助記符、拼音及其鎖定狀態，保留別名。"
+  },
+  "steam_independentName_bulk_overwriteWarning": {
+    "message": "請核對修改後內容；套用會取代已有目標欄位，包括手動鎖定的內容。"
+  },
+  "steam_independentName_bulk_noGeneration": {
+    "message": "未產生內容，保留原值。"
+  },
+  "steam_independentName_bulk_failed": {
+    "message": "批次操作失敗，請重試。"
+  },
+  "steam_independentName_bulk_clearedLock": {
+    "message": "清空後鎖定該輔助欄位，名稱變更時不自動補回。"
+  },
+  "steam_independentName_bulk_selection": {
+    "message": "選擇"
+  },
+  "steam_independentName_transfer_import": {
+    "message": "匯入自訂名稱"
+  },
+  "steam_independentName_transfer_export": {
+    "message": "匯出自訂名稱"
+  },
+  "steam_independentName_transfer_format": {
+    "message": "格式"
+  },
+  "steam_independentName_transfer_json": {
+    "message": "JSON"
+  },
+  "steam_independentName_transfer_xlsx": {
+    "message": "Excel (.xlsx)"
+  },
+  "steam_independentName_transfer_choose": {
+    "message": "選擇檔案"
+  },
+  "steam_independentName_transfer_template": {
+    "message": "下載 Excel 範本"
+  },
+  "steam_independentName_transfer_scope": {
+    "message": "範圍"
+  },
+  "steam_independentName_transfer_all": {
+    "message": "全部資料"
+  },
+  "steam_independentName_transfer_selected": {
+    "message": "已勾選資料"
+  },
+  "steam_independentName_transfer_saved": {
+    "message": "匯出已儲存內容；有未儲存草稿，請先儲存需要匯出的修改。"
+  },
+  "steam_independentName_transfer_hint": {
+    "message": "首列需包含 APPID，以及自定义名称或别名；欄位順序不限。"
+  },
+  "steam_independentName_transfer_jsonHint": {
+    "message": "JSON 頂層使用 items 陣列，別名使用 aliases 陣列；支援原有匯出檔案。"
+  },
+  "steam_independentName_transfer_aliases": {
+    "message": "別名格式：\"別名一\",\"別名二\"，每項使用英文雙引號，中英文逗號皆可。"
+  },
+  "steam_independentName_transfer_empty": {
+    "message": "空值處理"
+  },
+  "steam_independentName_transfer_skip": {
+    "message": "略過空值"
+  },
+  "steam_independentName_transfer_clear": {
+    "message": "清空對應欄位"
+  },
+  "steam_independentName_transfer_preview": {
+    "message": "匯入預覽"
+  },
+  "steam_independentName_transfer_sheet": {
+    "message": "工作表"
+  },
+  "steam_independentName_transfer_back": {
+    "message": "重新選擇檔案"
+  },
+  "steam_independentName_transfer_nameHint": {
+    "message": "實際匯入名稱時重設助記符和拼音；檔案中的輔助欄位優先。預覽可直接編輯，重新產生拼音會先產生拼音全拼，再產生助記符，並更新這兩個欄位。"
+  },
+  "steam_independentName_transfer_generatePinyin": {
+    "message": "重新產生拼音"
+  },
+  "steam_independentName_transfer_apply": {
+    "message": "套用至主視窗草稿"
+  },
+  "steam_independentName_transfer_validOnly": {
+    "message": "僅匯入有效列"
+  },
+  "steam_independentName_transfer_working": {
+    "message": "處理中…"
+  },
+  "steam_independentName_transfer_summary": {
+    "message": "共 $total$ 列 · 修改 $changed$ 款 · 無變化 $same$ 款 · 無效 $invalid$ 列",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "same": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_transfer_applied": {
+    "message": "已匯入 $n$ 款至草稿並勾選，請點擊儲存修改。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_line": {
+    "message": "第 $n$ 列",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_before": {
+    "message": "修改前"
+  },
+  "steam_independentName_transfer_next": {
+    "message": "修改後"
+  },
+  "steam_independentName_transfer_unavailable": {
+    "message": "APPID 不在目前遊戲庫中"
+  },
+  "steam_independentName_transfer_duplicate": {
+    "message": "APPID 重複，請修改後再匯入"
+  },
+  "steam_independentName_transfer_updated": {
+    "message": "目標內容或帳號已更新，請重新選擇檔案預覽。"
+  },
+  "steam_independentName_transfer_failed": {
+    "message": "檔案操作失敗，請重試。"
+  },
+  "steam_independentName_transfer_generated": {
+    "message": "已重新產生 $n$ 款",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_exported": {
+    "message": "已匯出 $n$ 款",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_wrongFile": {
+    "message": "請選擇對應格式的檔案。"
+  },
+  "gameLinks_title": {
+    "message": "相關連結"
+  },
+  "gameLinks_linkUnavailable": {
+    "message": "目前遊戲缺少連結所需的資料"
+  },
+  "gameLinks_loadingConfig": {
+    "message": "正在載入連結設定"
+  },
+  "gameLinks_configFailed": {
+    "message": "連結設定讀取失敗，請重試讀取。原設定尚未覆寫。"
+  },
+  "gameLinks_reset": {
+    "message": "恢復預設"
+  },
+  "gameLinks_layout": {
+    "message": "排版"
+  },
+  "gameLinks_columns_1": {
+    "message": "1行1個"
+  },
+  "gameLinks_columns_2": {
+    "message": "1行2個"
+  },
+  "gameLinks_name": {
+    "message": "連結名稱"
+  },
+  "gameLinks_template": {
+    "message": "網址"
+  },
+  "gameLinks_tokensHint": {
+    "message": "{APPID} 替換為遊戲 APPID；{GAME_NAME} 替換為 Steam 遊戲名稱；{CUSTOM_NAME} 替換為自訂遊戲名稱，沒有時使用 Steam 遊戲名稱；"
+  },
+  "gameLinks_add": {
+    "message": "新增連結"
+  },
+  "gameLinks_saveEdit": {
+    "message": "儲存修改"
+  },
+  "gameLinks_nameRequired": {
+    "message": "請填寫連結名稱"
+  },
+  "gameLinks_urlRequired": {
+    "message": "請填寫網址"
+  },
+  "gameLinks_tokenUnknown": {
+    "message": "僅支援 {APPID}、{GAME_NAME} 和 {CUSTOM_NAME} 預留位置，請檢查大括號。"
+  },
+  "gameLinks_tokenLocation": {
+    "message": "預留位置不能用於通訊協定、網域或登入資訊。"
+  },
+  "gameLinks_invalidUrl": {
+    "message": "請填寫有效的 HTTP/HTTPS 位址，且不要包含登入資訊。"
+  },
+  "gameLinks_saveFailed": {
+    "message": "連結設定儲存失敗，已保留原設定，請重試。"
+  },
+  "gameLinks_actionFailed": {
+    "message": "連結操作失敗，請重試。"
+  },
+  "gameLinks_retry": {
+    "message": "重試讀取"
+  },
+  "gameLinks_preset_baidu": {
+    "message": "百度搜尋"
+  },
+  "gameLinks_preset_steam_guides": {
+    "message": "Steam 社群指南"
+  },
+  "gameLinks_preset_itad": {
+    "message": "IsThereAnyDeal"
+  },
+  "gameLinks_preset_steamdb": {
+    "message": "SteamDB"
+  },
+  "gameLinks_preset_pcgamingwiki": {
+    "message": "PCGamingWiki"
+  },
+  "gameLinks_preset_bilibili": {
+    "message": "Bilibili"
+  },
+  "gameLinks_preset_protondb": {
+    "message": "ProtonDB"
+  },
+  "gameLinks_preset_youtube": {
+    "message": "YouTube"
+  },
+  "settings_feature_game_links_name": {
+    "message": "相關連結"
+  },
+  "settings_feature_game_links_desc": {
+    "message": "在商店詳情右側顯示遊戲資料、評分和搜尋入口，支援自訂 URL 範本。"
+  },
+  "gameLinks_typeLabel": {
+    "message": "類型"
+  },
+  "gameLinks_scopeLabel": {
+    "message": "顯示範圍"
+  },
+  "gameLinks_type_web": {
+    "message": "網頁"
+  },
+  "gameLinks_type_qrcode": {
+    "message": "QR 碼"
+  },
+  "gameLinks_scope_all": {
+    "message": "全部"
+  },
+  "gameLinks_scope_store": {
+    "message": "網頁商店"
+  },
+  "gameLinks_scope_library": {
+    "message": "用戶端收藏庫"
+  },
+  "gameLinks_editTitle": {
+    "message": "編輯連結"
+  },
+  "gameLinks_builtinPreview": {
+    "message": "預覽：使用內建網址"
+  },
+  "gameLinks_builtinUrlPlaceholder": {
+    "message": "留空使用內建網址"
+  },
+  "gameLinks_qrImage": {
+    "message": "連結 QR 碼"
+  },
+  "gameLinks_qrHint": {
+    "message": "使用手機掃碼開啟"
+  },
+  "gameLinks_qrFailed": {
+    "message": "暫時無法產生 QR 碼。"
+  },
+  "settings_feature_steam_game_links_name": {
+    "message": "相關連結"
+  },
+  "settings_feature_steam_game_links_desc": {
+    "message": "在 Steam 收藏庫遊戲詳情頁的玩家統計下方顯示相關連結，依各項顯示範圍篩選。"
+  },
+  "gameLinks_dragLabel": {
+    "message": "拖曳 $name$ 排序，也可使用上下方向鍵",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_enableItem": {
+    "message": "啟用 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_disableItem": {
+    "message": "停用 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_editItem": {
+    "message": "編輯 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_deleteItem": {
+    "message": "刪除 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_customNameHint": {
+    "message": "自訂遊戲名稱；沒有時使用 Steam 遊戲名稱"
+  },
+  "gameLinks_previewPrefix": {
+    "message": "預覽："
+  },
+  "store_detail_expand": {
+    "message": "展開詳情 ↓"
+  },
+  "store_detail_collapse": {
+    "message": "收起詳情 ↑"
+  },
+  "store_detail_loading": {
+    "message": "正在整理遊戲資訊…"
+  },
+  "store_detail_ai": {
+    "message": "AI 對話"
+  },
+  "store_detail_low": {
+    "message": "歷史低價參考"
+  },
+  "store_detail_forecast": {
+    "message": "預計 $days$ 天後 · -$cut$%",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_festival": {
+    "message": "$name$將在 $days$ 天後開啟",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_calendarError": {
+    "message": "節日資訊暫時無法使用"
+  },
+  "store_detail_calendarEmpty": {
+    "message": "暫無已公布的未來節日"
+  },
+  "settings_feature_store_detail_compact_name": {
+    "message": "商店詳情簡版顯示"
+  },
+  "settings_feature_store_detail_compact_desc": {
+    "message": "預設顯示核心提醒、主要區域價格和預測；展開詳情後載入區域比價和完整圖表。"
+  },
+  "settings_feature_store_upcoming_festivals_name": {
+    "message": "未來節日"
+  },
+  "settings_feature_store_upcoming_festivals_desc": {
+    "message": "顯示下一個活動；若它不是季節性特賣，同時顯示下一場季節性特賣。"
+  },
+  "store_detail_audioYes": {
+    "message": "有簡中配音"
+  },
+  "store_detail_audioNo": {
+    "message": "無簡中配音"
+  },
+  "store_detail_workshopYes": {
+    "message": "支援創意工坊"
+  },
+  "store_detail_workshopNo": {
+    "message": "不支援創意工坊"
+  },
+  "store_detail_sharingNo": {
+    "message": "不支援家庭共享"
+  },
+  "store_detail_detailsLoading": {
+    "message": "正在載入詳情 · 收起 ↑"
   }
 }

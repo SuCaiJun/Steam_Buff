@@ -35,11 +35,16 @@
   "settings_shell_pageTranslateFailed": {
     "message": "翻訳未完了：$error$。もう一度クリックして再試行してください",
     "placeholders": {
-      "error": { "content": "$1" }
+      "error": {
+        "content": "$1"
+      }
     }
   },
   "settings_shell_pageTranslateUnavailable": {
     "message": "このページでは手動翻訳を利用できません"
+  },
+  "settings_shell_pageTranslateSettingsMissing": {
+    "message": "翻訳設定が読み込まれていません。ページを再読み込みしてください"
   },
   "settings_shell_pageTranslateRuntimeMissing": {
     "message": "翻訳機能が読み込まれていません。ページを再読み込みしてください"
@@ -352,24 +357,6 @@
   "settings_feature_library_sort_title_original_search_desc": {
     "message": "カスタム並べ替えタイトルがある場合、Steamの元の名前をランタイムの検索欄に追加します。"
   },
-  "settings_feature_library_sort_title_stable_mode_name": {
-    "message": "名前表示モード"
-  },
-  "settings_feature_library_sort_title_stable_mode_desc": {
-    "message": "スムーズモードは現在表示されている項目のみを処理します。安定モードは AppOverview を置き換える更新方式を使用するため、ライブラリ内のゲーム数が多い場合は動作が重くなることがあります。"
-  },
-  "settings_feature_library_sort_title_stable_mode_option_false": {
-    "message": "スムーズモード"
-  },
-  "settings_feature_library_sort_title_stable_mode_option_true": {
-    "message": "安定モード"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_name": {
-    "message": "ホバー時のツールチップにカスタム名を表示"
-  },
-  "settings_feature_library_sort_title_hover_custom_name_desc": {
-    "message": "有効にすると、ライブラリ項目にマウスを重ねた際、Steam 標準のツールチップにカスタム名とコレクションタグを表示します。無効にすると Steam の元の名前に戻ります。"
-  },
   "settings_feature_library_group_labels_name": {
     "message": "コレクションを名前の後に表示"
   },
@@ -405,6 +392,15 @@
   },
   "settings_feature_steam_news_translate_desc": {
     "message": "Steamライブラリのニュースポップアップで、現在のニュース記事を手動で翻訳します。"
+  },
+  "settings_feature_steam_player_stats_name": {
+    "message": "プレイヤー統計"
+  },
+  "settings_feature_steam_player_stats_desc": {
+    "message": "Steamライブラリのゲーム詳細ページにオンライン人数、ピーク人数、推移グラフを表示します。"
+  },
+  "settings_feature_steam_player_stats_lock": {
+    "message": "先に「サードパーティサービス」でデータサービスを有効にしてください。"
   },
   "settings_feature_purchase_history_classifier_name": {
     "message": "購入履歴分類"
@@ -3502,7 +3498,7 @@
     "message": "クリア完了"
   },
   "steam_libraryCustomName_clearingBatch": {
-    "message": "Steamバッチ $batch$ をクリア中 $written$/$max$$cloud$",
+    "message": "Steamバッチ $batch$ をクリア中 $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -3512,9 +3508,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -3579,9 +3572,6 @@
   "steam_libraryCustomName_cloudApiTimeout": {
     "message": "クラウドの名前サービスから応答がありませんでした"
   },
-  "steam_libraryCustomName_cloudCancel": {
-    "message": "無効にすると、この保存ではローカルの Steam ライブラリのみが更新され、SucaiJun Cloud には同期されません。\n\nクラウド共有により、他のプレイヤーがより正確なカスタム名の候補を受け取れるようになります。無効にしますか？"
-  },
   "steam_libraryCustomName_cloudDiskFailed": {
     "message": "Steam CloudStorage のディスク書き込みに失敗しました: $result$",
     "placeholders": {
@@ -3599,32 +3589,8 @@
   "steam_libraryCustomName_cloudNameMissing": {
     "message": "現在のゲームのクラウド名が見つかりませんでした"
   },
-  "steam_libraryCustomName_cloudPaused": {
-    "message": "SucaiJun Cloud へのアップロードは一時停止しています"
-  },
-  "steam_libraryCustomName_cloudPreparing": {
-    "message": "Steam の書き込みバッチが開始されるのを待っています。SucaiJun Cloud へのアップロードを準備しています。"
-  },
-  "steam_libraryCustomName_cloudResumed": {
-    "message": "SucaiJun Cloud へのアップロードを再開しました"
-  },
-  "steam_libraryCustomName_cloudTip": {
-    "message": "カスタム並べ替え名を SucaiJun Cloud（Steam Buff Cloud）に同期します。後で「クラウド名を取得」を使って復元し、ストアページで使用できます。\n\n注:\n1. 現地の法律に違反する名前をアップロードしないでください。違反するとアカウントが停止される場合があります。\n2. アップロードされた名前は、コミュニティのゲーム名ライブラリの改善や、他のプレイヤーへのより正確な名前の提供に使用される場合があります。"
-  },
-  "steam_libraryCustomName_cloudUpload": {
-    "message": "SucaiJun Cloud へのアップロード"
-  },
-  "steam_libraryCustomName_cloudUploadSuffix": {
-    "message": ", SucaiJun Cloud へのアップロードも並行して実行中"
-  },
-  "steam_libraryCustomName_confirmDisableCloud": {
-    "message": "無効にする"
-  },
   "steam_libraryCustomName_confirmOverwrite": {
     "message": "上書きを確認"
-  },
-  "steam_libraryCustomName_continueCloudUpload": {
-    "message": "アップロードを続行"
   },
   "steam_libraryCustomName_continueSave": {
     "message": "保存を続行"
@@ -3662,9 +3628,6 @@
         "content": "$1"
       }
     }
-  },
-  "steam_libraryCustomName_disableCloudTitle": {
-    "message": "SucaiJun Cloud へのアップロードを無効にしますか？"
   },
   "steam_libraryCustomName_disabled": {
     "message": "「カスタムライブラリ名を表示」は無効です"
@@ -4139,7 +4102,7 @@
     "message": "保存の進捗状況"
   },
   "steam_libraryCustomName_saveProgressLine": {
-    "message": "合計: $total$、処理済み: $processed$、スキップ: $skipped$、失敗: $failed$、キュー投入: $queued$",
+    "message": "合計: $total$、処理: $processed$、スキップ: $skipped$、失敗: $failed$",
     "placeholders": {
       "total": {
         "content": "$1"
@@ -4152,9 +4115,6 @@
       },
       "failed": {
         "content": "$4"
-      },
-      "queued": {
-        "content": "$5"
       }
     }
   },
@@ -4166,9 +4126,6 @@
   },
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "Steamの保存キューが応答しませんでした。結果を確認するには一括ウィンドウを再度開いてください。"
-  },
-  "steam_libraryCustomName_savingWithCloud": {
-    "message": "SucaiJun CloudにアップロードしながらSteamに書き込み中"
   },
   "steam_libraryCustomName_searchPlaceholder": {
     "message": "ゲーム / AppID / 保留中の名前を検索"
@@ -4212,9 +4169,6 @@
       }
     }
   },
-  "steam_libraryCustomName_steamDoneWaitingCloud": {
-    "message": "Steamへの書き込みが完了しました。SucaiJun Cloudへのアップロード完了を待っています。"
-  },
   "steam_libraryCustomName_storageLimitTip": {
     "message": "項目数と容量の上限は、カスタム並べ替え名に対するSteam公式の制限です。これらの上限を超える名前は、ローカルまたはSteam Cloudへの保存に失敗する場合があります。"
   },
@@ -4233,22 +4187,8 @@
   "steam_libraryCustomName_typeTool": {
     "message": "ツール"
   },
-  "steam_libraryCustomName_uploadCloud": {
-    "message": "名前をクラウドにアップロード"
-  },
-  "steam_libraryCustomName_uploadCloudLabel": {
-    "message": "名前をクラウドにアップロード"
-  },
   "steam_libraryCustomName_waitingQuery": {
     "message": "クエリを待っています"
-  },
-  "steam_libraryCustomName_waitingSteamBatch": {
-    "message": "Steamの同期ウィンドウでバッチ $batch$ が終了するのを待っています。SucaiJun Cloudへのアップロードは一時停止しています。",
-    "placeholders": {
-      "batch": {
-        "content": "$1"
-      }
-    }
   },
   "steam_libraryCustomName_writeBatchWaiting": {
     "message": "書き込みバッチ $batch$ が完了しました。Steam Cloudとの同期のため、$seconds$秒待っています。",
@@ -4265,7 +4205,7 @@
     "message": "Steamに書き込みを拒否されました"
   },
   "steam_libraryCustomName_writingBatch": {
-    "message": "Steamの書き込みバッチ $batch$ を処理中 $written$/$max$$cloud$",
+    "message": "Steamの書き込みバッチ $batch$ を処理中 $written$/$max$",
     "placeholders": {
       "batch": {
         "content": "$1"
@@ -4275,9 +4215,6 @@
       },
       "max": {
         "content": "$3"
-      },
-      "cloud": {
-        "content": "$4"
       }
     }
   },
@@ -4534,6 +4471,23 @@
   },
   "settings_reviewFilter_rule_hint": {
     "message": "改行は同じルールの一部として保存されます"
+  },
+  "reviewFilter_regexUnavailable": {
+    "message": "正規表現フィルターを利用できません。他の条件は引き続き有効です。ページを開き直して再試行してください。"
+  },
+  "reviewFilter_regexPaused": {
+    "message": "ルール $index$ が無効、または処理時間を超えたため、このページで一時停止しました。他のルールは有効です。設定でこのルールを確認してください。",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_reviewFilter_rule_regexTimeout": {
+    "message": "正規表現の検証がタイムアウトしました。ルールを簡略化して再試行してください。"
+  },
+  "settings_reviewFilter_rule_regexUnavailable": {
+    "message": "正規表現の検証を利用できません。ページを開き直して再試行してください。"
   },
   "settings_reviewFilter_rule_invalidRegex": {
     "message": "無効な正規表現: $message$",
@@ -5720,12 +5674,6 @@
   "store_priceHistory_unknownDate": {
     "message": "日付不明"
   },
-  "store_priceHistory_viewDetails": {
-    "message": " 詳細"
-  },
-  "store_priceHistory_viewDetailsPrefix": {
-    "message": "表示 "
-  },
   "store_cartCheckout_restoreButton": {
     "message": "保存したカートの商品を復元"
   },
@@ -5746,6 +5694,9 @@
   },
   "store_steampy_loading": {
     "message": "価格を読み込み中..."
+  },
+  "store_steampy_clickToView": {
+    "message": "クリックして確認"
   },
   "store_steampy_proxyPurchase": {
     "message": "PYアシスト購入"
@@ -5830,23 +5781,17 @@
   "steam_independentName_open": {
     "message": "カスタム名"
   },
-  "steam_independentName_readingButton": {
-    "message": "読み"
-  },
-  "steam_independentName_readingTitle": {
-    "message": "読みの選択"
-  },
-  "steam_independentName_readingNone": {
-    "message": "選択が必要な読みはありません"
-  },
   "steam_independentName_readingFailed": {
-    "message": "読み候補を読み込めませんでした。編集画面を閉じて開き直してください。"
+    "message": "読み候補を読み込めませんでした。名前設定を開き直してください。"
   },
   "steam_independentName_readingPreviewHint": {
     "message": "現在の内容を文字ごとに対応付けられません。プレビューを適用すると、ピンインと略語の両方が置き換わります。"
   },
   "steam_independentName_readingApply": {
     "message": "ピンインと略語を置換"
+  },
+  "steam_independentName_readingPreview": {
+    "message": "ピンインのプレビュー"
   },
   "steam_independentName_readingPosition": {
     "message": "$n$ 文字目：$context$",
@@ -5885,8 +5830,16 @@
   "steam_independentName_aliasHint": {
     "message": "Enter またはスペースで追加"
   },
-  "steam_independentName_saveRow": {
+  "steam_independentName_saveAll": {
     "message": "保存"
+  },
+  "steam_independentName_savedAll": {
+    "message": "$n$ 件のゲームを保存しました",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
   },
   "steam_independentName_colOfficial": {
     "message": "Steam 英語名"
@@ -5896,6 +5849,12 @@
   },
   "steam_independentName_colCustom": {
     "message": "カスタム名"
+  },
+  "steam_independentName_referenceName": {
+    "message": "参考名："
+  },
+  "steam_independentName_referenceHint": {
+    "message": "クリックしてカスタム名に入力"
   },
   "steam_independentName_colAlias": {
     "message": "エイリアス"
@@ -5912,30 +5871,56 @@
   "steam_independentName_quotaUsed": {
     "message": "使用 $count$ / $quota$",
     "placeholders": {
-        "count": {
-            "content": "$1"
-        },
-        "quota": {
-            "content": "$2"
-        }
+      "count": {
+        "content": "$1"
+      },
+      "quota": {
+        "content": "$2"
+      }
     }
   },
   "steam_independentName_rows": {
     "message": "$n$ 本のゲーム",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_title": {
-    "message": "カスタム名"
+    "message": "Steam Buff · カスタム名"
   },
   "steam_independentName_batch": {
     "message": "一括設定"
   },
+  "steam_independentName_aiGenerate": {
+    "message": "AI生成"
+  },
+  "steam_independentName_aiGenerating": {
+    "message": "生成中…"
+  },
+  "steam_independentName_aiInvalidName": {
+    "message": "AIから有効な単一のゲーム名が返されませんでした。再試行してください。"
+  },
+  "steam_independentName_aiInvalidReadings": {
+    "message": "生成された名前から有効なピンインと頭文字を生成できないか、文字数制限を超えています。再試行してください。"
+  },
+  "steam_independentName_aiGenerated": {
+    "message": "生成しました。内容を確認し、確定して保存してください。"
+  },
+  "steam_independentName_aiFailed": {
+    "message": "AI生成に失敗しました：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_batchSort": {
+    "message": "一括並べ替え"
+  },
   "steam_independentName_batchTitle": {
-    "message": "カスタム名の一括設定"
+    "message": "Steam Buff · カスタム名の一括設定"
   },
   "steam_independentName_saving": {
     "message": "保存中..."
@@ -5986,9 +5971,9 @@
   "steam_independentName_imported": {
     "message": "$n$ 件をインポートしました",
     "placeholders": {
-        "n": {
-            "content": "$1"
-        }
+      "n": {
+        "content": "$1"
+      }
     }
   },
   "steam_independentName_importAll": {
@@ -6006,18 +5991,18 @@
   "steam_independentName_importPromptStats": {
     "message": "ファイルは $file$ 件、ライブラリ一致は $matched$ 件。既にカスタム名があるのは $existing$ 件、未設定は $unset$ 件です",
     "placeholders": {
-        "file": {
-            "content": "$1"
-        },
-        "matched": {
-            "content": "$2"
-        },
-        "existing": {
-            "content": "$3"
-        },
-        "unset": {
-            "content": "$4"
-        }
+      "file": {
+        "content": "$1"
+      },
+      "matched": {
+        "content": "$2"
+      },
+      "existing": {
+        "content": "$3"
+      },
+      "unset": {
+        "content": "$4"
+      }
     }
   },
   "steam_independentName_listTimeout": {
@@ -6025,5 +6010,829 @@
   },
   "steam_independentName_listFailed": {
     "message": "名称リストの読み込みに失敗しました"
+  },
+  "steam_libraryCustomName_fetchPermissionMissing": {
+    "message": "クラウド名の権限が同期されていません。サーバーを更新し、ユーザーセンターを再読み込みしてください。"
+  },
+  "steam_libraryCustomName_fetchPermissionDenied": {
+    "message": "現在の権限ではクラウド名を取得できません。"
+  },
+  "steam_independentName_filter": {
+    "message": "絞り込み"
+  },
+  "steam_independentName_addFilter": {
+    "message": "+ 条件を追加"
+  },
+  "steam_independentName_clearFilters": {
+    "message": "条件をクリア"
+  },
+  "steam_independentName_addAndFilter": {
+    "message": "+ AND 条件を追加"
+  },
+  "steam_independentName_applyFilter": {
+    "message": "適用"
+  },
+  "steam_independentName_removeFilter": {
+    "message": "条件を削除"
+  },
+  "steam_independentName_filterValue": {
+    "message": "条件の値"
+  },
+  "steam_independentName_filterOperator": {
+    "message": "条件の演算子"
+  },
+  "steam_independentName_filterIncomplete": {
+    "message": "値を入力するか、種類を選択してください"
+  },
+  "steam_independentName_filterRegexInvalid": {
+    "message": "正規表現の形式が正しくありません。修正して再試行してください"
+  },
+  "steam_independentName_typeMissing": {
+    "message": "種類のデータを取得できません。拡張機能を更新して再試行してください"
+  },
+  "steam_independentName_gameType": {
+    "message": "種類"
+  },
+  "steam_independentName_typeGame": {
+    "message": "ゲーム"
+  },
+  "steam_independentName_typeSoftware": {
+    "message": "ソフトウェア"
+  },
+  "steam_independentName_typeTool": {
+    "message": "ツール"
+  },
+  "steam_independentName_typeAudio": {
+    "message": "音声"
+  },
+  "steam_independentName_typeVideo": {
+    "message": "動画"
+  },
+  "steam_independentName_typeOther": {
+    "message": "その他"
+  },
+  "steam_independentName_filterOpIn": {
+    "message": "いずれかに一致"
+  },
+  "steam_independentName_filterOpNotIn": {
+    "message": "いずれにも一致しない"
+  },
+  "steam_independentName_filterOpNotEmpty": {
+    "message": "空でない"
+  },
+  "steam_independentName_filterOpEmpty": {
+    "message": "空である"
+  },
+  "steam_independentName_filterOpContains": {
+    "message": "含む"
+  },
+  "steam_independentName_filterOpNotContains": {
+    "message": "含まない"
+  },
+  "steam_independentName_filterOpEquals": {
+    "message": "等しい"
+  },
+  "steam_independentName_filterOpNotEquals": {
+    "message": "等しくない"
+  },
+  "steam_independentName_filterOpStartsWith": {
+    "message": "次で始まる"
+  },
+  "steam_independentName_filterOpEndsWith": {
+    "message": "次で終わる"
+  },
+  "steam_independentName_filterOpLengthGt": {
+    "message": "長さが次より大きい"
+  },
+  "steam_independentName_filterOpLengthLt": {
+    "message": "長さが次より小さい"
+  },
+  "steam_independentName_filterOpRegex": {
+    "message": "正規表現に一致"
+  },
+  "steam_independentName_filterOpCountGt": {
+    "message": "個数が次より大きい"
+  },
+  "steam_independentName_filterOpCountLt": {
+    "message": "個数が次より小さい"
+  },
+  "steam_independentName_saveChanges": {
+    "message": "変更を保存"
+  },
+  "steam_independentName_nameQuota": {
+    "message": "名前の上限："
+  },
+  "steam_independentName_batchStats": {
+    "message": "$total$ 件 · 絞り込み $filtered$ 件 · 選択 $selected$ 件 · 未保存 $dirty$ 件",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "filtered": {
+        "content": "$2"
+      },
+      "selected": {
+        "content": "$3"
+      },
+      "dirty": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_selectedCount": {
+    "message": "$n$ 件選択",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectGame": {
+    "message": "$name$ を選択",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_selectAll": {
+    "message": "すべて選択"
+  },
+  "steam_independentName_invertSelection": {
+    "message": "選択を反転"
+  },
+  "steam_independentName_clearSelection": {
+    "message": "選択を解除"
+  },
+  "steam_independentName_fetchCommunity": {
+    "message": "コミュニティ名を取得"
+  },
+  "steam_independentName_fetchingCommunity": {
+    "message": "コミュニティ名を取得中..."
+  },
+  "steam_independentName_replaceCommunityTitle": {
+    "message": "選択したゲームの名前を置き換えますか？"
+  },
+  "steam_independentName_replaceCommunityPrompt": {
+    "message": "$n$ 件中 $existing$ 件にカスタム名があります。確認するとコミュニティ名で置き換えます。コミュニティ名がないゲームは現在の内容を保持します.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      },
+      "existing": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_communityFilled": {
+    "message": "$filled$ 件入力済み、名前なし $missing$ 件、新しい編集を保持 $preserved$ 件。変更を保存してください.",
+    "placeholders": {
+      "filled": {
+        "content": "$1"
+      },
+      "missing": {
+        "content": "$2"
+      },
+      "preserved": {
+        "content": "$3"
+      }
+    }
+  },
+  "steam_independentName_exportFailed": {
+    "message": "エクスポートに失敗しました。再試行してください"
+  },
+  "about_debug_title": {
+    "message": "ログを有効にする"
+  },
+  "about_debug_warning": {
+    "message": "有効にすると業務リクエスト、レスポンスおよび診断データをすべて記録します。アカウント情報、ゲーム情報、入力内容などの個人情報が含まれる可能性があります。\nログイントークン、Cookie、パスワード、キーは引き続き伏せられます。\n再起動後もログ記録は有効のままです。問題を再現してログをエクスポートした後、手動で無効にしてください。\n\nログは信頼できる相手にのみ提供し、公開しないでください。必要な場合にのみ有効にしてください。続行しますか？"
+  },
+  "about_debug_enable": {
+    "message": "続行"
+  },
+  "about_debug_failed": {
+    "message": "ログ設定の変更に失敗しました"
+  },
+  "about_debug_active": {
+    "message": "ログを記録中です。調査が終わったら手動で無効にしてください。ログを安易に共有しないでください。"
+  },
+  "about_debug_inactive": {
+    "message": "ログ記録は無効です。新しいログは生成されません。有効にして問題を再現してから、ログをエクスポートしてください。"
+  },
+  "about_debug_unavailable": {
+    "message": "ログ設定の状態を取得できません。設定を開き直してください。"
+  },
+  "about_debug_exportTitle": {
+    "message": "詳細な診断データを含むログをエクスポート"
+  },
+  "about_debug_exportWarning": {
+    "message": "ログには詳細な業務データや個人情報が含まれる可能性があります。ログ記録を無効にしても記録は削除されません。ファイルは信頼できる相手にのみ共有してください。エクスポートしますか？"
+  },
+  "about_debug_warningRecord": {
+    "message": "業務リクエスト、レスポンスおよび診断データをすべて記録します"
+  },
+  "about_debug_warningAccount": {
+    "message": "アカウント情報"
+  },
+  "about_debug_warningGames": {
+    "message": "ゲーム情報"
+  },
+  "about_debug_warningInput": {
+    "message": "入力内容"
+  },
+  "about_debug_warningShare": {
+    "message": "ログは信頼できる相手にのみ提供し、公開しないでください。"
+  },
+  "steam_independentName_bulk_menu": {
+    "message": "一括操作"
+  },
+  "steam_independentName_bulk_add": {
+    "message": "追加"
+  },
+  "steam_independentName_bulk_generate": {
+    "message": "生成"
+  },
+  "steam_independentName_bulk_clear": {
+    "message": "クリア"
+  },
+  "steam_independentName_bulk_other": {
+    "message": "その他"
+  },
+  "steam_independentName_bulk_name": {
+    "message": "名前を変更"
+  },
+  "steam_independentName_bulk_aliases": {
+    "message": "別名を追加"
+  },
+  "steam_independentName_bulk_mnemonic": {
+    "message": "略称を追加"
+  },
+  "steam_independentName_bulk_pinyin": {
+    "message": "ピンインを追加"
+  },
+  "steam_independentName_bulk_generate_mnemonic": {
+    "message": "略称を生成"
+  },
+  "steam_independentName_bulk_generate_pinyin": {
+    "message": "ピンインを生成"
+  },
+  "steam_independentName_bulk_clear_name": {
+    "message": "名前をクリア"
+  },
+  "steam_independentName_bulk_clear_aliases": {
+    "message": "別名をクリア"
+  },
+  "steam_independentName_bulk_clear_mnemonic": {
+    "message": "略称をクリア"
+  },
+  "steam_independentName_bulk_clear_pinyin": {
+    "message": "ピンインをクリア"
+  },
+  "steam_independentName_bulk_cancelSelection": {
+    "message": "選択をすべて解除"
+  },
+  "steam_independentName_bulk_selectFirst": {
+    "message": "先にゲームを選択してください"
+  },
+  "steam_independentName_bulk_replace": {
+    "message": "検索と置換"
+  },
+  "steam_independentName_bulk_sequence": {
+    "message": "連番形式"
+  },
+  "steam_independentName_bulk_insert": {
+    "message": "内容を追加"
+  },
+  "steam_independentName_bulk_manual": {
+    "message": "手動編集"
+  },
+  "steam_independentName_bulk_find": {
+    "message": "検索する文字列"
+  },
+  "steam_independentName_bulk_value": {
+    "message": "追加する内容"
+  },
+  "steam_independentName_bulk_replacement": {
+    "message": "置換後の文字列"
+  },
+  "steam_independentName_bulk_type": {
+    "message": "連番の種類"
+  },
+  "steam_independentName_bulk_start": {
+    "message": "開始番号"
+  },
+  "steam_independentName_bulk_prefix": {
+    "message": "接頭辞"
+  },
+  "steam_independentName_bulk_suffix": {
+    "message": "接尾辞"
+  },
+  "steam_independentName_bulk_number": {
+    "message": "数字"
+  },
+  "steam_independentName_bulk_chinese": {
+    "message": "漢数字"
+  },
+  "steam_independentName_bulk_lower": {
+    "message": "英小文字"
+  },
+  "steam_independentName_bulk_upper": {
+    "message": "英大文字"
+  },
+  "steam_independentName_bulk_insertType": {
+    "message": "追加する種類"
+  },
+  "steam_independentName_bulk_text": {
+    "message": "テキスト"
+  },
+  "steam_independentName_bulk_position": {
+    "message": "追加位置"
+  },
+  "steam_independentName_bulk_before": {
+    "message": "名前の前"
+  },
+  "steam_independentName_bulk_after": {
+    "message": "名前の後"
+  },
+  "steam_independentName_bulk_original": {
+    "message": "カスタム名が空の場合は元の名前を使用"
+  },
+  "steam_independentName_bulk_old": {
+    "message": "変更前"
+  },
+  "steam_independentName_bulk_next": {
+    "message": "変更後"
+  },
+  "steam_independentName_bulk_unset": {
+    "message": "未設定"
+  },
+  "steam_independentName_bulk_apply": {
+    "message": "変更を適用"
+  },
+  "steam_independentName_bulk_calculating": {
+    "message": "プレビューを計算中…"
+  },
+  "steam_independentName_bulk_summary": {
+    "message": "選択 $total$ 件 · 変更 $changed$ 件 · 変更なし $unchanged$ 件 · 無効 $invalid$ 件",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "unchanged": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_bulk_applied": {
+    "message": "$n$ 件を変更しました。「変更を保存」をクリックしてください。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_bulk_updated": {
+    "message": "対象の内容が更新されました。操作画面を閉じて開き直してください。"
+  },
+  "steam_independentName_bulk_invalidSequence": {
+    "message": "開始番号は正の整数にし、連番全体を正確に表現できる整数の範囲内にしてください。"
+  },
+  "steam_independentName_bulk_tooLong": {
+    "message": "入力可能な文字数を超えています。"
+  },
+  "steam_independentName_bulk_aliasLimit": {
+    "message": "別名はゲームごとに最大10個です。上限に達したゲームを先に確認してください。"
+  },
+  "steam_independentName_bulk_nameRequired": {
+    "message": "略称やピンインを保存する前にカスタム名を設定してください。"
+  },
+  "steam_independentName_bulk_originalMissing": {
+    "message": "Steamの元の名前を取得できません。"
+  },
+  "steam_independentName_bulk_clearWarning": {
+    "message": "名前をクリアすると略称、ピンイン、両方のロックもクリアされます。別名は保持されます。"
+  },
+  "steam_independentName_bulk_overwriteWarning": {
+    "message": "変更後の内容を確認してください。適用すると手動ロックされた内容を含め対象の項目を置き換えます。"
+  },
+  "steam_independentName_bulk_noGeneration": {
+    "message": "生成結果がないため、元の値を保持します。"
+  },
+  "steam_independentName_bulk_failed": {
+    "message": "一括操作に失敗しました。再試行してください。"
+  },
+  "steam_independentName_bulk_clearedLock": {
+    "message": "クリアした補助項目をロックし、名前の変更時に自動入力されないようにします。"
+  },
+  "steam_independentName_bulk_selection": {
+    "message": "選択"
+  },
+  "steam_independentName_transfer_import": {
+    "message": "カスタム名をインポート"
+  },
+  "steam_independentName_transfer_export": {
+    "message": "カスタム名をエクスポート"
+  },
+  "steam_independentName_transfer_format": {
+    "message": "形式"
+  },
+  "steam_independentName_transfer_json": {
+    "message": "JSON"
+  },
+  "steam_independentName_transfer_xlsx": {
+    "message": "Excel (.xlsx)"
+  },
+  "steam_independentName_transfer_choose": {
+    "message": "ファイルを選択"
+  },
+  "steam_independentName_transfer_template": {
+    "message": "Excel テンプレートをダウンロード"
+  },
+  "steam_independentName_transfer_scope": {
+    "message": "範囲"
+  },
+  "steam_independentName_transfer_all": {
+    "message": "すべてのデータ"
+  },
+  "steam_independentName_transfer_selected": {
+    "message": "選択したデータ"
+  },
+  "steam_independentName_transfer_saved": {
+    "message": "保存済みの内容を出力します。含めたい下書きは先に保存してください。"
+  },
+  "steam_independentName_transfer_hint": {
+    "message": "先頭行に APPID と 自定义名称 または 别名 が必要です。列の順序は自由です。"
+  },
+  "steam_independentName_transfer_jsonHint": {
+    "message": "JSON の最上位は items 配列、別名は aliases 配列です。従来の出力ファイルも対応しています。"
+  },
+  "steam_independentName_transfer_aliases": {
+    "message": "別名の形式：\"別名1\",\"別名2\"。半角の二重引用符で囲み、半角または全角のカンマで区切ります。"
+  },
+  "steam_independentName_transfer_empty": {
+    "message": "空の値の処理"
+  },
+  "steam_independentName_transfer_skip": {
+    "message": "空の値をスキップ"
+  },
+  "steam_independentName_transfer_clear": {
+    "message": "該当フィールドをクリア"
+  },
+  "steam_independentName_transfer_preview": {
+    "message": "インポートのプレビュー"
+  },
+  "steam_independentName_transfer_sheet": {
+    "message": "ワークシート"
+  },
+  "steam_independentName_transfer_back": {
+    "message": "別のファイルを選択"
+  },
+  "steam_independentName_transfer_nameHint": {
+    "message": "名前を取り込むと助記符とピンインがリセットされます。ファイルの補助値が優先されます。プレビューは直接編集できます。ピンインの再生成では完全ピンイン、続いて助記符を生成し、両方のフィールドを更新します。"
+  },
+  "steam_independentName_transfer_generatePinyin": {
+    "message": "ピンインを再生成"
+  },
+  "steam_independentName_transfer_apply": {
+    "message": "メイン画面の下書きに適用"
+  },
+  "steam_independentName_transfer_validOnly": {
+    "message": "有効な行のみ取り込む"
+  },
+  "steam_independentName_transfer_working": {
+    "message": "処理中…"
+  },
+  "steam_independentName_transfer_summary": {
+    "message": "$total$ 行 · 変更 $changed$ 件 · 変更なし $same$ 件 · 無効 $invalid$ 行",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "changed": {
+        "content": "$2"
+      },
+      "same": {
+        "content": "$3"
+      },
+      "invalid": {
+        "content": "$4"
+      }
+    }
+  },
+  "steam_independentName_transfer_applied": {
+    "message": "$n$ 件を下書きに取り込み選択しました。「変更を保存」を押してください。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_line": {
+    "message": "$n$ 行目",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_before": {
+    "message": "変更前"
+  },
+  "steam_independentName_transfer_next": {
+    "message": "変更後"
+  },
+  "steam_independentName_transfer_unavailable": {
+    "message": "APPID が現在のライブラリにありません"
+  },
+  "steam_independentName_transfer_duplicate": {
+    "message": "APPID が重複しています。修正してください。"
+  },
+  "steam_independentName_transfer_updated": {
+    "message": "対象の内容またはアカウントが更新されました。ファイルを選び直してください。"
+  },
+  "steam_independentName_transfer_failed": {
+    "message": "ファイル操作に失敗しました。再試行してください。"
+  },
+  "steam_independentName_transfer_generated": {
+    "message": "$n$ 件を再生成しました",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_exported": {
+    "message": "$n$ 件を出力しました",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_transfer_wrongFile": {
+    "message": "選択した形式のファイルを指定してください。"
+  },
+  "gameLinks_title": {
+    "message": "関連リンク"
+  },
+  "gameLinks_linkUnavailable": {
+    "message": "このゲームのリンクに必要なデータがありません"
+  },
+  "gameLinks_loadingConfig": {
+    "message": "リンク設定を読み込み中"
+  },
+  "gameLinks_configFailed": {
+    "message": "リンク設定を読み込めませんでした。再読み込みしてください。保存済みの設定は上書きされていません。"
+  },
+  "gameLinks_reset": {
+    "message": "初期設定に戻す"
+  },
+  "gameLinks_layout": {
+    "message": "レイアウト"
+  },
+  "gameLinks_columns_1": {
+    "message": "1行に1件"
+  },
+  "gameLinks_columns_2": {
+    "message": "1行に2件"
+  },
+  "gameLinks_name": {
+    "message": "リンク名"
+  },
+  "gameLinks_template": {
+    "message": "URL"
+  },
+  "gameLinks_tokensHint": {
+    "message": "{APPID}: ゲームの App ID；{GAME_NAME}: Steam のゲーム名；{CUSTOM_NAME}: カスタムゲーム名（未設定の場合は Steam のゲーム名）；"
+  },
+  "gameLinks_add": {
+    "message": "リンクを追加"
+  },
+  "gameLinks_saveEdit": {
+    "message": "変更を保存"
+  },
+  "gameLinks_nameRequired": {
+    "message": "リンク名を入力してください"
+  },
+  "gameLinks_urlRequired": {
+    "message": "URL を入力してください"
+  },
+  "gameLinks_tokenUnknown": {
+    "message": "{APPID}、{GAME_NAME}、{CUSTOM_NAME} のみ使用できます。中括弧を確認してください。"
+  },
+  "gameLinks_tokenLocation": {
+    "message": "スキーム、ホスト名、認証情報には使用できません。"
+  },
+  "gameLinks_invalidUrl": {
+    "message": "認証情報を含まない有効な HTTP/HTTPS URL を入力してください。"
+  },
+  "gameLinks_saveFailed": {
+    "message": "保存できませんでした。元の設定は保持されています。もう一度お試しください。"
+  },
+  "gameLinks_actionFailed": {
+    "message": "操作に失敗しました。もう一度お試しください。"
+  },
+  "gameLinks_retry": {
+    "message": "再読み込み"
+  },
+  "gameLinks_preset_baidu": {
+    "message": "百度検索"
+  },
+  "gameLinks_preset_steam_guides": {
+    "message": "Steam ガイド"
+  },
+  "gameLinks_preset_itad": {
+    "message": "IsThereAnyDeal"
+  },
+  "gameLinks_preset_steamdb": {
+    "message": "SteamDB"
+  },
+  "gameLinks_preset_pcgamingwiki": {
+    "message": "PCGamingWiki"
+  },
+  "gameLinks_preset_bilibili": {
+    "message": "Bilibili"
+  },
+  "gameLinks_preset_protondb": {
+    "message": "ProtonDB"
+  },
+  "gameLinks_preset_youtube": {
+    "message": "YouTube"
+  },
+  "settings_feature_game_links_name": {
+    "message": "関連リンク"
+  },
+  "settings_feature_game_links_desc": {
+    "message": "ストアのサイドバーにゲーム情報、レビュー、検索リンクを表示します。カスタム URL テンプレートに対応。"
+  },
+  "gameLinks_typeLabel": {
+    "message": "種類"
+  },
+  "gameLinks_scopeLabel": {
+    "message": "表示範囲"
+  },
+  "gameLinks_type_web": {
+    "message": "ウェブページ"
+  },
+  "gameLinks_type_qrcode": {
+    "message": "QRコード"
+  },
+  "gameLinks_scope_all": {
+    "message": "すべて"
+  },
+  "gameLinks_scope_store": {
+    "message": "ウェブストア"
+  },
+  "gameLinks_scope_library": {
+    "message": "クライアントのライブラリ"
+  },
+  "gameLinks_editTitle": {
+    "message": "リンクを編集"
+  },
+  "gameLinks_builtinPreview": {
+    "message": "プレビュー：標準URLを使用"
+  },
+  "gameLinks_builtinUrlPlaceholder": {
+    "message": "空欄の場合は標準URLを使用"
+  },
+  "gameLinks_qrImage": {
+    "message": "リンクのQRコード"
+  },
+  "gameLinks_qrHint": {
+    "message": "スマートフォンで読み取って開く"
+  },
+  "gameLinks_qrFailed": {
+    "message": "QRコードを生成できませんでした。"
+  },
+  "settings_feature_steam_game_links_name": {
+    "message": "関連リンク"
+  },
+  "settings_feature_steam_game_links_desc": {
+    "message": "Steamライブラリのゲーム詳細にあるプレイヤー統計の下に、各リンクの表示範囲に応じた関連リンクを表示します。"
+  },
+  "gameLinks_dragLabel": {
+    "message": "$name$ をドラッグするか上下矢印キーで並べ替え",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_enableItem": {
+    "message": "$name$ を有効にする",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_disableItem": {
+    "message": "$name$ を無効にする",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_editItem": {
+    "message": "$name$ を編集",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_deleteItem": {
+    "message": "$name$ を削除",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "gameLinks_customNameHint": {
+    "message": "カスタムゲーム名。未設定の場合は Steam の名前を使用"
+  },
+  "gameLinks_previewPrefix": {
+    "message": "プレビュー："
+  },
+  "store_detail_expand": {
+    "message": "詳細を展開 ↓"
+  },
+  "store_detail_collapse": {
+    "message": "詳細を折りたたむ ↑"
+  },
+  "store_detail_loading": {
+    "message": "ゲーム情報を準備中…"
+  },
+  "store_detail_ai": {
+    "message": "AIチャット"
+  },
+  "store_detail_low": {
+    "message": "過去最安値の参考"
+  },
+  "store_detail_forecast": {
+    "message": "約 $days$ 日後 · -$cut$%",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_festival": {
+    "message": "$name$は $days$ 日後に開始します",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_calendarError": {
+    "message": "イベント情報を取得できません"
+  },
+  "store_detail_calendarEmpty": {
+    "message": "発表済みの今後のイベントはありません"
+  },
+  "settings_feature_store_detail_compact_name": {
+    "message": "ストア詳細の簡易表示"
+  },
+  "settings_feature_store_detail_compact_desc": {
+    "message": "主な注意事項、メイン地域の価格と予測を初期表示します。詳細を展開すると地域別比較と完全なグラフを読み込みます。"
+  },
+  "settings_feature_store_upcoming_festivals_name": {
+    "message": "今後のイベント"
+  },
+  "settings_feature_store_upcoming_festivals_desc": {
+    "message": "次のイベントを表示します。季節セールでない場合は、次の季節セールも表示します。"
+  },
+  "store_detail_audioYes": {
+    "message": "簡体字中国語音声あり"
+  },
+  "store_detail_audioNo": {
+    "message": "簡体字中国語音声なし"
+  },
+  "store_detail_workshopYes": {
+    "message": "ワークショップ対応"
+  },
+  "store_detail_workshopNo": {
+    "message": "ワークショップ非対応"
+  },
+  "store_detail_sharingNo": {
+    "message": "ファミリーシェアリング非対応"
+  },
+  "store_detail_detailsLoading": {
+    "message": "詳細を読み込み中 · 折りたたむ ↑"
   }
 }

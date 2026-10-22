@@ -57,7 +57,8 @@
   function version() {
     try {
       return chrome.runtime.getManifest().version || "";
-    } catch {
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-update", event: "version-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "version" });
       return "";
     }
   }
@@ -110,37 +111,6 @@
   function httpError(status, text) {
     void text;
     return `HTTP状态码错误: ${status}`;
-  }
-
-  function timeoutError(timeoutMs) {
-    const error = new Error(`请求超时（${Math.round(timeoutMs)}ms）`);
-    error.name = "TimeoutError";
-    return error;
-  }
-
-  async function fetchWithTimeout(url, init, timeoutMs = UPDATE_FETCH_TIMEOUT_MS) {
-    const timeout = Number(timeoutMs) || 0;
-    if (timeout <= 0) {
-      return fetch(url, init);
-    }
-    if (typeof AbortController === "function") {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(timeoutError(timeout)), timeout);
-      try {
-        return await fetch(url, { ...init, signal: controller.signal });
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    let timer = 0;
-    return Promise.race([
-      fetch(url, init),
-      new Promise((_, reject) => {
-        timer = setTimeout(() => reject(timeoutError(timeout)), timeout);
-      }),
-    ]).finally(() => {
-      if (timer) clearTimeout(timer);
-    });
   }
 
   function cleanText(value) {
@@ -213,38 +183,59 @@
     const operationId = String(options.operationId || "");
     const persistCache = options.persistCache !== false;
     const logNewVersion = options.logNewVersion !== false;
-    const response = await fetchWithTimeout(CFG.urls.updateLatest, {
-      method: "GET",
-      headers: CFG.client.versionedHeaders(CFG.urls.updateLatest, { Accept: "application/json" }),
-      cache: "no-cache",
-      credentials: "omit",
-    }, UPDATE_FETCH_TIMEOUT_MS);
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(httpError(response.status, text));
-    }
-    const data = parseJson(text);
-    if (!data) {
-      throw new Error("官网最新版本返回解析失败");
-    }
-    const result = resultFromLatest(normalizeLatest(data), Date.now(), false);
-    if (persistCache) {
-      await writeCache(result);
-    }
-    if (manual) {
-      log("info", "update-manual-check-success", "手动检查更新成功", {
-        operationId,
-        current: result.current,
-        remote: result.remote,
-        hasNew: result.hasNew,
+    const requestId = root.STLoggerFactory?.createRequestId?.();
+    let phase = "network";
+    let responseFacts;
+    try {
+      const result = await root.STNetworkRequest.run(UPDATE_FETCH_TIMEOUT_MS, async (signal, check) => {
+        const response = await fetch(CFG.urls.updateLatest, {
+          method: "GET",
+          headers: CFG.client.versionedHeaders(CFG.urls.updateLatest, { Accept: "application/json" }),
+          cache: "no-cache",
+          credentials: "omit",
+          signal,
+        });
+        responseFacts = root.STLoggerSchema?.httpFacts?.(response);
+        phase = "response-read";
+        const text = await response.text();
+        responseFacts = { ...responseFacts, bodyLength: text.length };
+        phase = "http";
+        if (!response.ok) {
+          throw new Error(httpError(response.status, text));
+        }
+        phase = "parse";
+        const data = parseJson(text);
+        check();
+        if (!data) {
+          throw new Error("官网最新版本返回解析失败");
+        }
+        phase = "validate";
+        responseFacts = { ...responseFacts, ...root.STLoggerSchema?.resultFacts?.(data, ["data"]) };
+        return resultFromLatest(normalizeLatest(data), Date.now(), false);
       });
-    } else if (logNewVersion && result.hasNew) {
-      log("info", "update-new-version-found", "自动检查发现新版本", {
-        current: result.current,
-        remote: result.remote,
-      });
+      phase = "cache-save";
+      if (persistCache) {
+        await writeCache(result);
+      }
+      if (manual) {
+        log("info", "update-manual-check-success", "手动检查更新成功", {
+          operationId,
+          current: result.current,
+          remote: result.remote,
+          hasNew: result.hasNew,
+        });
+      } else if (logNewVersion && result.hasNew) {
+        log("info", "update-new-version-found", "自动检查发现新版本", {
+          current: result.current,
+          remote: result.remote,
+        });
+      }
+      return result;
+    } catch (error) {
+      if (error && typeof error === "object" && Object.isExtensible(error)) error.apiDiagnostics = { operationId, requestId, phase,
+        request: { method: "GET", endpointKey: "update-latest", url: CFG.urls.updateLatest, timeoutMs: UPDATE_FETCH_TIMEOUT_MS }, response: responseFacts };
+      throw error;
     }
-    return result;
   }
 
   let autoPending = null;
@@ -259,6 +250,7 @@
       autoPending = fetchLatest()
         .catch((error) => {
           log("error", "update-auto-check-failed", "自动检查更新失败", {
+            ...error.apiDiagnostics,
             error,
           });
           throw error;
@@ -296,11 +288,13 @@
     } catch (error) {
       if (manual) {
         log("error", "update-manual-check-failed", "手动检查更新失败", {
+          ...error.apiDiagnostics,
           operationId,
           error,
         });
       } else if (aboutStatus) {
         log("error", "update-about-status-check-failed", "关于页版本状态查询失败", {
+          ...error.apiDiagnostics,
           error,
         });
       }
