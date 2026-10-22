@@ -6761,5 +6761,78 @@
   },
   "gameLinks_previewPrefix": {
     "message": "预览："
+  },
+  "store_detail_expand": {
+    "message": "展开详情 ↓"
+  },
+  "store_detail_collapse": {
+    "message": "收起详情 ↑"
+  },
+  "store_detail_loading": {
+    "message": "正在整理游戏信息…"
+  },
+  "store_detail_ai": {
+    "message": "AI对话"
+  },
+  "store_detail_low": {
+    "message": "历史低价参考"
+  },
+  "store_detail_forecast": {
+    "message": "预计 $days$ 天后 · -$cut$%",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_festival": {
+    "message": "$name$将在 $days$ 天后开启",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_calendarError": {
+    "message": "节日信息暂不可用"
+  },
+  "store_detail_calendarEmpty": {
+    "message": "暂无已公布的未来节日"
+  },
+  "settings_feature_store_detail_compact_name": {
+    "message": "商店详情简版显示"
+  },
+  "settings_feature_store_detail_compact_desc": {
+    "message": "默认显示核心提醒、主区域价格和预测；展开详情后加载区域比价和完整图表。"
+  },
+  "settings_feature_store_upcoming_festivals_name": {
+    "message": "未来节日"
+  },
+  "settings_feature_store_upcoming_festivals_desc": {
+    "message": "显示下一个活动；若它不是季节性特卖，同时显示下一场季节性特卖。"
+  },
+  "store_detail_audioYes": {
+    "message": "有简中配音"
+  },
+  "store_detail_audioNo": {
+    "message": "无简中配音"
+  },
+  "store_detail_workshopYes": {
+    "message": "支持创意工坊"
+  },
+  "store_detail_workshopNo": {
+    "message": "不支持创意工坊"
+  },
+  "store_detail_sharingNo": {
+    "message": "不支持家庭共享"
+  },
+  "store_detail_detailsLoading": {
+    "message": "正在加载详情 · 收起 ↑"
   }
 }

@@ -355,6 +355,8 @@ function isUsableInsertTarget(target, targetClass) {
 }
 
 function isUsableExistingModule(element) {
+    const panel = element?.closest?.("#st-store-detail-panel");
+    if (panel) return !hasHiddenAncestor(panel, false);
     return !!element && !hasHiddenAncestor(element, false);
 }
 
@@ -387,6 +389,7 @@ function findInsertTarget(moduleClass) {
 }
 
 function insertModule(element, moduleClass, insertAtTop = false, insertBefore = false) {
+    if (api.features?.dataDisplayPanel?.insertNotice(element, moduleClass)) return true;
     const target = findInsertTarget(moduleClass);
     
     if (!target) {
@@ -997,6 +1000,28 @@ function showLoading(host, variant = "line") {
     return node;
 }
 
+/**
+ * 详情卡片以静态状态加入统一占位，不再创建独立扫光；角标和其他页面仍使用 loading。
+ * 清理后通知自有面板，在当前同步写入结束后统一检查首屏是否完成。
+ */
+const detailLoading = Object.freeze({
+    show(host) {
+        host.dataset.stDetailLoading = "1";
+        host.textContent = globalThis.STI18n.text("common.loading", "正在加载");
+        api.features?.dataDisplayPanel?.changed();
+        return host;
+    },
+    clear(host) {
+        const nodes = [
+            ...(host.dataset?.stDetailLoading ? [host] : []),
+            ...host.querySelectorAll('[data-st-detail-loading="1"]'),
+        ];
+        for (const node of nodes) { delete node.dataset.stDetailLoading; node.replaceChildren(); }
+        api.features?.dataDisplayPanel?.changed();
+    },
+    activate() { api.features?.dataDisplayPanel?.changed(); },
+});
+
 function paintLoadingFrame() {
     paintFrame = 0;
     if (document.hidden) { settlePaintWaiters(); return; }
@@ -1029,6 +1054,7 @@ function afterLoadingPaint(valid = () => true) {
   });
   api.dom = Object.freeze({
     loading: Object.freeze({ create: createSkeleton, show: showLoading, activate: activateLoading, clear: clearLoading, afterPaint: afterLoadingPaint }),
+    detailLoading,
     TooltipManager,
     chartTooltipContent,
     chartTooltipLabel,

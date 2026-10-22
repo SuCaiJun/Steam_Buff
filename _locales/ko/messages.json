@@ -6761,5 +6761,78 @@
   },
   "gameLinks_previewPrefix": {
     "message": "미리 보기: "
+  },
+  "store_detail_expand": {
+    "message": "상세 펼치기 ↓"
+  },
+  "store_detail_collapse": {
+    "message": "상세 접기 ↑"
+  },
+  "store_detail_loading": {
+    "message": "게임 정보 준비 중…"
+  },
+  "store_detail_ai": {
+    "message": "AI 대화"
+  },
+  "store_detail_low": {
+    "message": "역대 최저가 참고"
+  },
+  "store_detail_forecast": {
+    "message": "약 $days$일 후 · -$cut$%",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_festival": {
+    "message": "$name$이(가) $days$일 후 시작됩니다",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_calendarError": {
+    "message": "이벤트 정보를 불러올 수 없습니다"
+  },
+  "store_detail_calendarEmpty": {
+    "message": "발표된 예정 이벤트가 없습니다"
+  },
+  "settings_feature_store_detail_compact_name": {
+    "message": "상점 상세 간략 표시"
+  },
+  "settings_feature_store_detail_compact_desc": {
+    "message": "주요 안내, 기본 지역 가격 및 예측을 먼저 표시합니다. 상세를 펼치면 지역별 비교와 전체 차트를 불러옵니다."
+  },
+  "settings_feature_store_upcoming_festivals_name": {
+    "message": "예정 이벤트"
+  },
+  "settings_feature_store_upcoming_festivals_desc": {
+    "message": "다음 이벤트를 표시합니다. 계절 할인이 아니면 다음 계절 할인도 함께 표시합니다."
+  },
+  "store_detail_audioYes": {
+    "message": "중국어 간체 음성 지원"
+  },
+  "store_detail_audioNo": {
+    "message": "중국어 간체 음성 미지원"
+  },
+  "store_detail_workshopYes": {
+    "message": "창작마당 지원"
+  },
+  "store_detail_workshopNo": {
+    "message": "창작마당 미지원"
+  },
+  "store_detail_sharingNo": {
+    "message": "가족 공유 미지원"
+  },
+  "store_detail_detailsLoading": {
+    "message": "상세 로딩 중 · 접기 ↑"
   }
 }

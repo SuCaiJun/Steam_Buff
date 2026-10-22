@@ -6761,5 +6761,78 @@
   },
   "gameLinks_previewPrefix": {
     "message": "Preview: "
+  },
+  "store_detail_expand": {
+    "message": "Expand details ↓"
+  },
+  "store_detail_collapse": {
+    "message": "Collapse details ↑"
+  },
+  "store_detail_loading": {
+    "message": "Preparing game information…"
+  },
+  "store_detail_ai": {
+    "message": "AI chat"
+  },
+  "store_detail_low": {
+    "message": "Historical low reference"
+  },
+  "store_detail_forecast": {
+    "message": "Estimated in $days$ days · -$cut$%",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_festival": {
+    "message": "$name$ starts in $days$ days",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_calendarError": {
+    "message": "Event information is temporarily unavailable"
+  },
+  "store_detail_calendarEmpty": {
+    "message": "No upcoming events have been announced"
+  },
+  "settings_feature_store_detail_compact_name": {
+    "message": "Compact store details"
+  },
+  "settings_feature_store_detail_compact_desc": {
+    "message": "Show core notices, main-region prices and predictions by default. Expand details to load regional comparisons and the full chart."
+  },
+  "settings_feature_store_upcoming_festivals_name": {
+    "message": "Upcoming events"
+  },
+  "settings_feature_store_upcoming_festivals_desc": {
+    "message": "Show the next event. If it is not a seasonal sale, also show the next seasonal sale."
+  },
+  "store_detail_audioYes": {
+    "message": "Simplified Chinese audio"
+  },
+  "store_detail_audioNo": {
+    "message": "No Simplified Chinese audio"
+  },
+  "store_detail_workshopYes": {
+    "message": "Workshop supported"
+  },
+  "store_detail_workshopNo": {
+    "message": "No Workshop support"
+  },
+  "store_detail_sharingNo": {
+    "message": "No Family Sharing"
+  },
+  "store_detail_detailsLoading": {
+    "message": "Loading details · Collapse ↑"
   }
 }

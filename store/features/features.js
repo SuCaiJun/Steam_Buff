@@ -90,6 +90,13 @@
     moduleFeature("cart-select", "cartSelect", ["store-cart"], {
       start(api) { api.features.cartSelect.styles(); return api.features.cartSelect.start(); },
     }),
+    moduleFeature("store-detail-panel", "dataDisplayPanel", DETAILS, {
+      settingsKey: "store-enhancements",
+      settingsIds: ["store-detail-compact"],
+      cost: "startup-light",
+      start(api, context) { return api.features.dataDisplayPanel.start(context.info); },
+      mountState(api) { return api.features.dataDisplayPanel.mountState(); },
+    }),
     ...badgeFeatures("subscription", "subscriptionInfo"),
     ...badgeFeatures("family-library", "familyLibraryOwnedMarker", ["family-library-exclude-self"]),
     // 商店评测运行模块只随 details chunk 加载，列表页只加载共用过滤核心。
@@ -119,15 +126,17 @@
       },
     }),
     moduleFeature("data-display-enhancements", "dataDisplay", DETAILS, {
-      settingsKey: "price-history",
-      settingsIds: ["price-history", "price-forecast", "price-forecast-discount", "price-forecast-seasonal"],
+      settingsKey: "store-enhancements",
+      settingsIds: ["price-history", "price-forecast", "price-forecast-discount", "price-forecast-seasonal", "store-detail-compact", "store-upcoming-festivals"],
       mountState(api) { return api.features.dataDisplay.mountState(); },
-      gate() { return canRun("price-history") || canRun("price-forecast"); },
+      gate() { return canRun("price-history") || canRun("price-forecast") || canRun("store-upcoming-festivals"); },
       start(api, context) {
         return api.features.dataDisplay.start(context.info, {
           chartEnabled: canRun("price-history"), forecastEnabled: canRun("price-forecast"),
           discountForecastEnabled: canRun("price-forecast-discount"),
           seasonalForecastEnabled: canRun("price-forecast-seasonal"),
+          compact: api.settings.on("store-detail-compact"),
+          upcomingEnabled: canRun("store-upcoming-festivals"),
         });
       },
     }),

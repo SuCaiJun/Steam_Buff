@@ -6761,5 +6761,78 @@
   },
   "gameLinks_previewPrefix": {
     "message": "プレビュー："
+  },
+  "store_detail_expand": {
+    "message": "詳細を展開 ↓"
+  },
+  "store_detail_collapse": {
+    "message": "詳細を折りたたむ ↑"
+  },
+  "store_detail_loading": {
+    "message": "ゲーム情報を準備中…"
+  },
+  "store_detail_ai": {
+    "message": "AIチャット"
+  },
+  "store_detail_low": {
+    "message": "過去最安値の参考"
+  },
+  "store_detail_forecast": {
+    "message": "約 $days$ 日後 · -$cut$%",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_festival": {
+    "message": "$name$は $days$ 日後に開始します",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_calendarError": {
+    "message": "イベント情報を取得できません"
+  },
+  "store_detail_calendarEmpty": {
+    "message": "発表済みの今後のイベントはありません"
+  },
+  "settings_feature_store_detail_compact_name": {
+    "message": "ストア詳細の簡易表示"
+  },
+  "settings_feature_store_detail_compact_desc": {
+    "message": "主な注意事項、メイン地域の価格と予測を初期表示します。詳細を展開すると地域別比較と完全なグラフを読み込みます。"
+  },
+  "settings_feature_store_upcoming_festivals_name": {
+    "message": "今後のイベント"
+  },
+  "settings_feature_store_upcoming_festivals_desc": {
+    "message": "次のイベントを表示します。季節セールでない場合は、次の季節セールも表示します。"
+  },
+  "store_detail_audioYes": {
+    "message": "簡体字中国語音声あり"
+  },
+  "store_detail_audioNo": {
+    "message": "簡体字中国語音声なし"
+  },
+  "store_detail_workshopYes": {
+    "message": "ワークショップ対応"
+  },
+  "store_detail_workshopNo": {
+    "message": "ワークショップ非対応"
+  },
+  "store_detail_sharingNo": {
+    "message": "ファミリーシェアリング非対応"
+  },
+  "store_detail_detailsLoading": {
+    "message": "詳細を読み込み中 · 折りたたむ ↑"
   }
 }

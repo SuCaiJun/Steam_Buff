@@ -132,7 +132,7 @@
 
   function renderWorkshopLine(container, line, result) {
     if (!line) return;
-    api.dom.loading.clear(line);
+    api.dom.detailLoading.clear(line);
     container?.classList?.remove("supported", "not-supported", "error");
     line.classList.remove("is-loading", "is-supported", "is-not-supported", "is-error");
     line.dataset.workshopDone = "1";
@@ -171,11 +171,11 @@
       renderWorkshopLine(container, line, cached);
       return;
     }
-    api.dom.loading.activate(line);
+    api.dom.detailLoading.activate(line);
     api.dom.loading.afterPaint(valid).then(ready => ready ? loadWorkshop(appId) : null).then((result) => {
       if (!container?.isConnected || container.dataset.steamAppId !== appId) return;
       if (result?.ok && result.supported && unsupportedOnly()) {
-        api.dom.loading.clear(container);
+        api.dom.detailLoading.clear(container);
         container.remove();
         return;
       }
@@ -211,7 +211,7 @@
     if (!line) {
       line = document.createElement("div");
       line.className = "es_workshop_check_text es_workshop_check_status is-loading";
-      api.dom.loading.show(line, "note");
+      api.dom.detailLoading.show(line, "note");
       body.appendChild(line);
     }
     return line;
@@ -230,7 +230,7 @@
     const cached = workshopCache.get(appId);
     const current = currentWorkshopCard(appId);
     if (cached?.supported && unsupportedOnly()) {
-      if (current) { api.dom.loading.clear(current); current.remove(); }
+      if (current) { api.dom.detailLoading.clear(current); current.remove(); }
       return null;
     }
     if (current) {
@@ -288,7 +288,7 @@
     let removed = false;
     removeInlineWorkshopLines();
     document.querySelectorAll(`.${WORKSHOP_MODULE_CLASS}`).forEach((node) => {
-      api.dom.loading.clear(node);
+      api.dom.detailLoading.clear(node);
       node.remove();
       removed = true;
     });
@@ -400,7 +400,7 @@
     add: addAudioCheck,
     stop() {
       document.querySelectorAll("." + MODULE_CLASSES.AUDIO_CHECK).forEach(node => {
-        api.dom.loading.clear(node);
+        api.dom.detailLoading.clear(node);
         node.remove();
       });
       return true;

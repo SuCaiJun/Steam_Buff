@@ -222,27 +222,27 @@
     placeholder.appendChild(title);
     const body = document.createElement("div");
     placeholder.appendChild(body);
-    api.dom.loading.show(body, "note");
+    api.dom.detailLoading.show(body, "note");
     if (!insertModule(placeholder, MODULE_CLASSES.SUBSCRIPTION, false, true)) {
-      api.dom.loading.clear(placeholder);
+      api.dom.detailLoading.clear(placeholder);
       return Promise.resolve();
     }
-    api.dom.loading.activate(placeholder);
+    api.dom.detailLoading.activate(placeholder);
     const valid = () => detailActive && seq === detailSeq && placeholder.isConnected && pageAppId() === String(id);
     const task = api.dom.loading.afterPaint(valid).then(async ready => {
       if (!ready) return;
       const game = await fetchGame(id);
       if (!valid()) return;
-      api.dom.loading.clear(placeholder);
+      api.dom.detailLoading.clear(placeholder);
       placeholder.remove();
       renderDetail(game);
     }).catch(error => {
       if (!detailActive || seq !== detailSeq) return;
-      api.dom.loading.clear(placeholder);
+      api.dom.detailLoading.clear(placeholder);
       placeholder.remove();
       log?.warn?.("subscription-detail-failed", "第三方会员详情提醒加载失败", pageMeta({ appid: id, error }));
     }).finally(() => {
-      api.dom.loading.clear(placeholder);
+      api.dom.detailLoading.clear(placeholder);
       placeholder.remove();
       if (detailTask === task) detailTask = null;
     });
@@ -410,7 +410,7 @@
     detailSeq += 1;
     detailAppId = "";
     detailTask = null;
-    document.querySelectorAll(`.${MODULE_CLASSES.SUBSCRIPTION}`).forEach(node => { api.dom.loading.clear(node); node.remove(); });
+    document.querySelectorAll(`.${MODULE_CLASSES.SUBSCRIPTION}`).forEach(node => { api.dom.detailLoading.clear(node); node.remove(); });
     removeFeatureStyleIfIdle();
     return true;
   }

@@ -418,6 +418,20 @@
       desc: "Steam 商店详情、愿望单、购物车、搜索和数据展示增强。",
       items: Object.freeze([
         {
+          id: "store-detail-compact",
+          name: "商店详情简版显示",
+          desc: "默认显示核心提醒、主区域价格和预测；展开详情后加载区域比价和完整图表。",
+          area: "store",
+          enabled: true,
+        },
+        {
+          id: "store-upcoming-festivals",
+          name: "未来节日",
+          desc: "显示下一个节日的开始时间；必要时同时显示下一个季节性特卖。",
+          area: "store",
+          enabled: true,
+        },
+        {
           id: "store-detail-reminders",
           name: "商店详情的提醒与检查",
           desc: "统一控制商店详情页的可用性、语言和第三方组件检查。",

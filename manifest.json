@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.0.76",
+  "version": "2.0.78",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -221,7 +221,9 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["shared/review-regex-host.html"],
+      "resources": [
+        "shared/review-regex-host.html"
+      ],
       "matches": [
         "https://*.steampowered.com/*",
         "https://steampowered.com/*",

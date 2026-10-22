@@ -456,13 +456,7 @@
     const body = card.querySelector(".st-data-display-ai-card__summary");
     const button = card.querySelector(".st-data-display-ai-card__detail-button");
     if (body) {
-      const loading = !state.session?.summary && state.phase !== "error" && (!state.sessionLoaded || state.phase === "preparing" || state.phase === "generating" || dataState(state) === "loading");
-      if (loading) {
-        if (!body.querySelector(".st-store-skeleton")) api.dom.loading.show(body, "note");
-      } else {
-        api.dom.loading.clear(body);
-        body.textContent = cardText(state);
-      }
+      body.textContent = cardText(state);
     }
     const blocked = !state.session
       && (!state.sessionLoaded || dataState(state) !== "ready");
@@ -505,6 +499,7 @@
   function dialogStatus(state) {
     if (state.phase === "error") return state.errorText || i18n("store.aiForecast.failed", "AI 预测失败，请稍后重试。");
     if (state.persistenceError) return state.persistenceError;
+    if (!state.session && dataState(state) !== "ready") return cardText(state);
     return "";
   }
 
@@ -943,5 +938,13 @@
   api.features.dataDisplayAiForecast = Object.freeze({
     render,
     dispose,
+    /** 简版直接打开现有对话；会话读取与预测材料准备都从这次点击开始 */
+    async open(root, result, pageInfo, trigger) {
+      if (!root?.isConnected || result?.ok !== true) return false;
+      const state = stateFor(root, result, pageInfo);
+      beginSessionLoad(state);
+      await openDialog(state, trigger);
+      return true;
+    },
   });
 })();

@@ -209,7 +209,7 @@
     let removedCount = 0;
     document.querySelectorAll(`.${MODULE_CLASS}`).forEach((node) => {
       if (String(node.dataset.steamAppId || "") !== appIdText) return;
-      api.dom.loading.clear(node);
+      api.dom.detailLoading.clear(node);
       node.remove();
       removedCount += 1;
     });
@@ -1231,9 +1231,9 @@
     title.textContent = i18n("store.familyLibrary.title", "家庭库检查");
     const body = document.createElement("div");
     placeholder.append(title, body);
-    api.dom.loading.show(body, "note");
-    if (!api.dom.insertModule(placeholder, MODULE_CLASS, false, true)) { api.dom.loading.clear(placeholder); return; }
-    api.dom.loading.activate(placeholder);
+    api.dom.detailLoading.show(body, "note");
+    if (!api.dom.insertModule(placeholder, MODULE_CLASS, false, true)) { api.dom.detailLoading.clear(placeholder); return; }
+    api.dom.detailLoading.activate(placeholder);
     const valid = () => detailActive && detailAppId === String(id) && seq === detailSeq && placeholder.isConnected;
     try {
       if (!await api.dom.loading.afterPaint(valid)) return;
@@ -1249,7 +1249,7 @@
       ]);
       if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
       if (!valid()) return;
-      api.dom.loading.clear(placeholder);
+      api.dom.detailLoading.clear(placeholder);
       placeholder.remove();
       const container = mountCard(id, cache);
       if (!container) return;
@@ -1285,7 +1285,7 @@
         durationMs: Date.now() - startedAt,
       }));
     } finally {
-      api.dom.loading.clear(placeholder);
+      api.dom.detailLoading.clear(placeholder);
       placeholder.remove();
     }
   }
@@ -1331,7 +1331,7 @@
     clearDisposers(dialogDisposers);
     clearDisposers(blockingWaitClosers);
     removeFamilySharingResultListener();
-    document.querySelectorAll(`.${MODULE_CLASS}`).forEach(node => { api.dom.loading.clear(node); node.remove(); });
+    document.querySelectorAll(`.${MODULE_CLASS}`).forEach(node => { api.dom.detailLoading.clear(node); node.remove(); });
     document.querySelectorAll(".st_family_library_dialog_layer").forEach(node => node.remove());
     removeFeatureStyleIfIdle();
     return true;

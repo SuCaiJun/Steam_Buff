@@ -6761,5 +6761,78 @@
   },
   "gameLinks_previewPrefix": {
     "message": "預覽："
+  },
+  "store_detail_expand": {
+    "message": "展開詳情 ↓"
+  },
+  "store_detail_collapse": {
+    "message": "收起詳情 ↑"
+  },
+  "store_detail_loading": {
+    "message": "正在整理遊戲資訊…"
+  },
+  "store_detail_ai": {
+    "message": "AI 對話"
+  },
+  "store_detail_low": {
+    "message": "歷史低價參考"
+  },
+  "store_detail_forecast": {
+    "message": "預計 $days$ 天後 · -$cut$%",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "cut": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_festival": {
+    "message": "$name$將在 $days$ 天後開啟",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "days": {
+        "content": "$2"
+      }
+    }
+  },
+  "store_detail_calendarError": {
+    "message": "節日資訊暫時無法使用"
+  },
+  "store_detail_calendarEmpty": {
+    "message": "暫無已公布的未來節日"
+  },
+  "settings_feature_store_detail_compact_name": {
+    "message": "商店詳情簡版顯示"
+  },
+  "settings_feature_store_detail_compact_desc": {
+    "message": "預設顯示核心提醒、主要區域價格和預測；展開詳情後載入區域比價和完整圖表。"
+  },
+  "settings_feature_store_upcoming_festivals_name": {
+    "message": "未來節日"
+  },
+  "settings_feature_store_upcoming_festivals_desc": {
+    "message": "顯示下一個活動；若它不是季節性特賣，同時顯示下一場季節性特賣。"
+  },
+  "store_detail_audioYes": {
+    "message": "有簡中配音"
+  },
+  "store_detail_audioNo": {
+    "message": "無簡中配音"
+  },
+  "store_detail_workshopYes": {
+    "message": "支援創意工坊"
+  },
+  "store_detail_workshopNo": {
+    "message": "不支援創意工坊"
+  },
+  "store_detail_sharingNo": {
+    "message": "不支援家庭共享"
+  },
+  "store_detail_detailsLoading": {
+    "message": "正在載入詳情 · 收起 ↑"
   }
 }

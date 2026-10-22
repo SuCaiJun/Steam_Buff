@@ -123,7 +123,7 @@ function addFamilySharingNotice(appId, protocol) {
     loadingTitle.textContent = globalThis.STI18n.text("store.familySharing.title", "共享检查");
     const loadingBody = document.createElement("div");
     placeholderElement.append(loadingTitle, loadingBody);
-    api.dom.loading.show(loadingBody, "note");
+    api.dom.detailLoading.show(loadingBody, "note");
     placeholderElement.setAttribute('data-placeholder', 'true');
     placeholderElement.dataset.steamAppId = appIdText;
     
@@ -135,11 +135,11 @@ function addFamilySharingNotice(appId, protocol) {
         return;
     }
 
-    api.dom.loading.activate(placeholderElement);
+    api.dom.detailLoading.activate(placeholderElement);
     const valid = () => placeholderElement.isConnected && String(api.ctx.pageInfo()?.appId || "") === appIdText;
     api.dom.loading.afterPaint(valid).then(ready => ready ? fetchPlayersInfo(appId, protocol) : null).then(function(response) {
         if (!valid()) return;
-        api.dom.loading.clear(placeholderElement);
+        api.dom.detailLoading.clear(placeholderElement);
         let data = response;
         if (typeof data === 'string') {
             try {
@@ -178,7 +178,7 @@ function addFamilySharingNotice(appId, protocol) {
         }
     }).catch((error) => {
         if (!valid()) return;
-        api.dom.loading.clear(placeholderElement);
+        api.dom.detailLoading.clear(placeholderElement);
         placeholderElement.remove();
         log?.warn?.("family-sharing-request-failed", "家庭共享检查请求失败，已降级跳过", {
             appid: Number(appId) || 0,
@@ -194,7 +194,7 @@ function addFamilySharingNotice(appId, protocol) {
     needsRestore,
     stop() {
       document.querySelectorAll("." + MODULE_CLASSES.FAMILY_SHARING).forEach(node => {
-        api.dom.loading.clear(node);
+        api.dom.detailLoading.clear(node);
         node.remove();
       });
       return true;

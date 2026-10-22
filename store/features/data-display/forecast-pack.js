@@ -1143,11 +1143,32 @@
     };
   }
 
+  /** 已归一化日历只选未来最近活动和最近季节性活动；不依据名称猜类型 */
+  function upcomingFestivals(data, now = Date.now()) {
+    let next = null;
+    let seasonal = null;
+    for (const item of festivalItems(data)) {
+      const startsAt = Date.parse(item.startsAt);
+      if (!(startsAt > now)) continue;
+      if (!next || startsAt < Date.parse(next.startsAt)) next = item;
+      if (item.type === "seasonal_sale" && (!seasonal || startsAt < Date.parse(seasonal.startsAt))) seasonal = item;
+    }
+    const items = next ? [next] : [];
+    if (next && next.type !== "seasonal_sale" && seasonal) items.push(seasonal);
+    const nextChange = items.reduce((earliest, item) => {
+      const start = Date.parse(item.startsAt);
+      const days = Math.ceil((start - now) / DAY_MS);
+      return Math.min(earliest, start - Math.max(0, days - 1) * DAY_MS);
+    }, Infinity);
+    return { items, nextChange };
+  }
+
   const forecast = Object.freeze({
     discountForecast,
     historicalLowOutlook,
     festivalDiscountForecast,
     aiForecastEvidence,
+    upcomingFestivals,
     build,
   });
 
