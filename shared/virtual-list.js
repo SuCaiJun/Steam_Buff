@@ -23,7 +23,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function() {
   "use strict";
 
-  const VERSION = "steam-buff-virtual-list-v1";
+  const VERSION = "steam-buff-virtual-list-v2";
   const DEFAULT_PAGE = 120;
   const DEFAULT_ROW_HEIGHT = 48;
   const DEFAULT_OVERSCAN = 8;
@@ -156,10 +156,61 @@
     return { start, end, total: list.length };
   }
 
+  /**
+   * 可变高度的单页虚拟窗口：reset 在结果集改变时建索引，measure/offset/range 均为 O(log n)。
+   * keys 为唯一业务键，estimate 返回像素高度；只保留高度缓存，不创建 DOM 或注册监听。
+   * 调用方负责将焦点行继续保留在 DOM，释放观察器，以及宽度变化后清空测量缓存。
+   */
+  function createMeasuredWindow() {
+    const heights = new Map(); let keys = [], index = new Map(), sizes = [], tree = [], totalHeight = 0;
+    function offset(end) {
+      let value = 0;
+      for (let i = clamp(Math.floor(end), 0, keys.length); i > 0; i -= i & -i) value += tree[i];
+      return value;
+    }
+    function locate(position) {
+      let found = 0, sum = 0, bit = 1;
+      while (bit * 2 <= keys.length) bit *= 2;
+      for (; bit > 0; bit >>= 1) {
+        const next = found + bit;
+        if (next <= keys.length && sum + tree[next] <= position) { found = next; sum += tree[next]; }
+      }
+      return Math.min(found, Math.max(0, keys.length - 1));
+    }
+    return {
+      reset(nextKeys, estimate, clearMeasurements = false) {
+        if (!Array.isArray(nextKeys) || new Set(nextKeys).size !== nextKeys.length) throw new TypeError("虚拟列表业务键必须唯一");
+        if (clearMeasurements) heights.clear();
+        keys = nextKeys; index = new Map(); sizes = new Float64Array(keys.length); tree = new Float64Array(keys.length + 1); totalHeight = 0;
+        keys.forEach((key, i) => {
+          const size = heights.get(key) || Math.max(1, Number(estimate(key)) || 1);
+          index.set(key, i); sizes[i] = size; tree[i + 1] += size;
+          const parent = i + 1 + ((i + 1) & -(i + 1));
+          if (parent < tree.length) tree[parent] += tree[i + 1];
+          totalHeight += size;
+        });
+      },
+      measure(key, height) {
+        const i = index.get(key);
+        if (i === undefined || !Number.isFinite(height) || height <= 0 || Math.abs(height - sizes[i]) < 0.5) return false;
+        const delta = height - sizes[i]; sizes[i] = height; heights.set(key, height); totalHeight += delta;
+        for (let j = i + 1; j < tree.length; j += j & -j) tree[j] += delta;
+        return true;
+      },
+      offset,
+      indexOf(key) { return index.get(key); },
+      range(scrollTop, viewportHeight, overscan = 600) {
+        const top = Math.max(0, Number(scrollTop) || 0), height = Math.max(0, Number(viewportHeight) || 0);
+        return { start: keys.length ? locate(Math.max(0, top - overscan)) : 0, end: keys.length ? Math.min(keys.length, locate(top + height + overscan) + 1) : 0, total: keys.length, totalHeight };
+      },
+    };
+  }
+
   return {
     version: VERSION,
     applyVisibility,
     createPager,
     createVirtualWindow,
+    createMeasuredWindow,
   };
 });

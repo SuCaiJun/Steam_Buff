@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v46";
+  const RUN_VERSION = "steam-buff-runtime-v54";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -149,6 +149,7 @@
     "download-batch-actions": true,
     "download-auto-shutdown": true,
     [NEWS_TRANSLATE_ID]: true,
+    "steam-achievement-translate": true,
     [STEAM_PLAYER_STATS_ID]: true,
     [STEAM_GAME_LINKS_ID]: true,
     [THIRD_PARTY_SERVICES_ID]: false,
@@ -164,6 +165,7 @@
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
     STEAM_PLAYER_STATS_ID,
+    "steam-achievement-translate",
     STEAM_GAME_LINKS_ID,
     THIRD_PARTY_SERVICES_ID,
     NAME_MODE_ID,
@@ -177,6 +179,7 @@
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
     PLAYER_STATS_ID,
+    "steam-achievement-translate",
     "game-links",
   ]);
   const STEAM_FEATURE_SETTING_IDS = Object.freeze({
@@ -186,6 +189,7 @@
     "download-batch-actions": "download-batch-actions",
     "download-auto-shutdown": "download-auto-shutdown",
     [NEWS_TRANSLATE_ID]: NEWS_TRANSLATE_ID,
+    "steam-achievement-translate": "steam-achievement-translate",
     [PLAYER_STATS_ID]: STEAM_PLAYER_STATS_ID,
     "game-links": STEAM_GAME_LINKS_ID,
   });
@@ -1431,6 +1435,24 @@
     }
   }
 
+  // 仅在主窗口建立低频操作桥接，不传递 AI 配置或存储对象给页面脚本。
+  function ensureAchievementTranslateBridge() {
+    if (!isSteamNewsTranslateBridgeTarget() || globalThis.__stAchievementBridge) return;
+    globalThis.__stAchievementBridge = true;
+    window.addEventListener("message", async event => {
+      const data = event.data;
+      if (event.source !== window || event.origin !== window.location.origin || data?.source !== "steam-buff-achievement-translations-v1" || data.side !== "page" || typeof data.rid !== "string" || data.rid.length > 80 || !["load", "save", "translate"].includes(data.action)) return;
+      const reply = value => window.postMessage({ source: data.source, side: "content", rid: data.rid, ...value }, window.location.origin);
+      try {
+        const response = await globalThis.STMessageBus.send({ type: "ACHIEVEMENT_TRANSLATIONS", action: data.action, kind: data.kind, appId: data.appId, language: data.language, entries: data.entries, items: data.items, gameName: data.gameName, operationId: data.operationId, requestId: data.rid }, { timeoutMs: 90000, logFailures: false });
+        reply(response);
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "steam-achievement-translate", event: "achievement-bridge-failed", message: "成就翻译后台通信失败", level: "error", phase: data.action, operationId: data.operationId, requestId: data.rid });
+        reply({ success: false, error: "成就翻译后台通信失败，请重试", reported: true });
+      }
+    });
+  }
+
   function trustedNamePage() {
     const ctx = globalThis.STPageContext?.snapshot?.() || {};
     return ctx.domain === "steam" || ctx.domain === "store";
@@ -1849,10 +1871,10 @@
     return settings;
   }
 
-  // 新增的玩家统计设置只更新对应功能，不触发无关的云名称同步
+  // 玩家统计、相关链接与成就翻译只更新对应功能，不触发无关的云名称同步。
   function steamSettingsNeedNameSync(keys) {
     return keys.includes(MEMBERSHIP_KEY) || STEAM_SETTING_IDS.some(id =>
-      id !== STEAM_PLAYER_STATS_ID && id !== STEAM_GAME_LINKS_ID && id !== THIRD_PARTY_SERVICES_ID && keys.includes(settingKey(id)));
+      id !== STEAM_PLAYER_STATS_ID && id !== STEAM_GAME_LINKS_ID && id !== "steam-achievement-translate" && id !== THIRD_PARTY_SERVICES_ID && keys.includes(settingKey(id)));
   }
 
   function disabledSteamFeatureIds(prev = {}, next = {}) {
@@ -1903,6 +1925,7 @@
       out.push(PLAYER_STATS_ID);
     }
     if (prev[STEAM_GAME_LINKS_ID] !== true && next[STEAM_GAME_LINKS_ID] === true) out.push("game-links");
+    if (prev["steam-achievement-translate"] !== true && next["steam-achievement-translate"] === true) out.push("steam-achievement-translate");
     return out;
   }
 
@@ -2791,6 +2814,7 @@
     bindSettingsOpenRequest();
     watchSettingsChanges();
     ensureSteamNewsTranslateBridge();
+    ensureAchievementTranslateBridge();
     logOnce("content-script-start", {
       level: "info",
       domain: "extension",
@@ -2896,6 +2920,7 @@
           "shared/data-index.js",
           "shared/batch-queue.js",
           "shared/virtual-list.js",
+          "shared/achievement-translations.js",
           "shared/dialog-lifecycle.js",
           "shared/utils/player-stats.js",
           "shared/utils/player-stats-ui.js",

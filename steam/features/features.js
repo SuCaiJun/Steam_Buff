@@ -177,6 +177,20 @@
       },
     },
     {
+      id: "steam-achievement-translate",
+      name: "成就翻译",
+      settingsKey: "steam-achievement-translate",
+      loadStrategy: "on-demand-entry",
+      modes: ["backend", "ui"],
+      pageScope: ["SharedJSContext", "main-ui"],
+      entries: { backend: "backend.js", ui: "ui.js" },
+      shouldRun(api, context, snapshot = {}) {
+        const settings = snapshot.settingsSnapshot || api.ctx.settings();
+        return settings["steam-achievement-translate"] !== false &&
+          (context === "backend" || (context === "ui" && api.ctx.isMainUi()));
+      },
+    },
+    {
       id: "game-links",
       name: "库详情页相关链接",
       settingsKey: "steam-game-links",

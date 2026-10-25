@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.1.0",
+  "version": "2.1.8",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -244,6 +244,7 @@
         "shared/data-index.js",
         "shared/batch-queue.js",
         "shared/virtual-list.js",
+        "shared/achievement-translations.js",
         "shared/dialog-lifecycle.js",
         "shared/user-names-snapshot.js",
         "shared/page-context.js",

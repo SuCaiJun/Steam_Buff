@@ -40,6 +40,8 @@
   importScripts(chrome.runtime.getURL("settings/catalog.js"));
   importScripts(chrome.runtime.getURL("settings/membership.js"));
   importScripts(chrome.runtime.getURL("settings/storage.js"));
+  importScripts(chrome.runtime.getURL("shared/achievement-translations.js"));
+  importScripts(chrome.runtime.getURL("extension/background-achievements.js"));
   importScripts(chrome.runtime.getURL("settings/panel-snapshot.js"));
   importScripts(chrome.runtime.getURL("settings/settings-cloud.js"));
   importScripts(chrome.runtime.getURL("shared/auth-session.js"));
@@ -3445,6 +3447,23 @@
     return cacheRequest(request, sender, sendResponse, true);
   }
 
+  async function achievementTranslations(request, sender, sendResponse) {
+    if (sender?.id !== chrome.runtime.id || !isSteamRuntimeSender(sender)) {
+      sendResponse({ success: false, error: "成就翻译只允许 Steam 客户端访问" });
+      return;
+    }
+    try {
+      const settings = await globalThis.STSettings.storage.getPanelSettings();
+      const data = await globalThis.STAchievementTranslationStore.execute(request, settings,
+        input => new Promise(resolve => aiChat(input, sender, resolve)));
+      sendResponse({ success: true, data });
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "steam-achievement-translate", event: "achievement-request-failed", message: "处理成就翻译操作失败", level: "error", phase: request.action, appid: request.appId, operationId: request.operationId, requestId: request.requestId });
+      const message = error.message || "成就翻译操作失败";
+      sendResponse({ success: false, error: message, reported: true });
+    }
+  }
+
   function cacheSet(request, sender, sendResponse) {
     return cacheRequest(request, sender, sendResponse, false);
   }
@@ -3662,6 +3681,7 @@
     AI_CHAT_COMPLETIONS: "AI 网关连接测试与翻译代理",
     AI_TRANSLATE_CACHE_GET: "AI 翻译缓存读取",
     AI_TRANSLATE_CACHE_SET: "AI 翻译缓存写入",
+    ACHIEVEMENT_TRANSLATIONS: "成就译文读取、手动保存与 AI 翻译",
     LOG_APPEND: "诊断日志追加",
     LOG_EXPORT: "诊断日志导出",
     LOG_CLEAR: "诊断日志清空",
@@ -3717,6 +3737,7 @@
     AI_CHAT_COMPLETIONS: networkRoute(aiChat),
     AI_TRANSLATE_CACHE_GET: cacheGet,
     AI_TRANSLATE_CACHE_SET: cacheSet,
+    ACHIEVEMENT_TRANSLATIONS: achievementTranslations,
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: openOnboardingLocalPage,
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: openOnboardingSettings,
     SETTINGS_CLOUD_SYNC: globalThis.STBackgroundSettingsSync.handleMessage,

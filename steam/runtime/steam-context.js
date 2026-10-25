@@ -214,6 +214,69 @@
     return keys.length === 1 ? node[keys[0]] : null;
   }
 
+  /**
+   * 从已确认的成就面板读取所属页面组件的 AppID；失败、已分离的旧节点或分支归属不明返回 0
+   * 只读当前面板的有限 Fiber 父链，不读取封面、全局选中游戏或其他组件树
+   */
+  function achievementAppId(panel) {
+    if (!panel?.isConnected) return 0;
+    const id = (props) => props && Object.hasOwn(props, "appid") &&
+      Object.hasOwn(props, "bShowGameInfoInHeader") && typeof props.bShowGameInfoInHeader === "boolean" &&
+      Number.isSafeInteger(props.appid) && props.appid > 0 ? props.appid : 0;
+    function active(fiber) {
+      // 分支 AppID 不同时才检查 HostRoot，避免把上一轮 alternate 的参数当成当前页面
+      for (let depth = 0; fiber && depth < 512; depth += 1, fiber = fiber.return) {
+        if (!fiber.return) return fiber.tag === 3 && fiber.stateNode?.current === fiber;
+      }
+      return false;
+    }
+    for (let fiber = reactFiber(panel), depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
+      const props = fiber.memoizedProps;
+      if (!props || !Object.hasOwn(props, "bShowGameInfoInHeader") || !Object.hasOwn(props, "appid")) continue;
+      const first = id(props), other = fiber.alternate;
+      if (!other) return first;
+      const second = id(other.memoizedProps);
+      if (first === second) return first;
+      const current = [fiber, other].filter(active);
+      return current.length === 1 ? id(current[0].memoizedProps) : 0;
+    }
+    return 0;
+  }
+
+  /**
+   * 只读新版成就列表所属组件的 React Query schema；按 AppID 校验缓存，不发请求或遍历组件子树。
+   * 列表父链与组件依赖来自原生 AchievementsList / useQuery，未就绪时返回 null，由调用方提示刷新。
+   */
+  function achievementSchema(list, appId) {
+    if (!list?.isConnected || !Number.isSafeInteger(appId) || appId <= 0) return null;
+    for (let fiber = reactFiber(list), depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
+      const props = fiber.memoizedProps;
+      if (!props || !Object.hasOwn(props, "typeFilter") || !Object.hasOwn(props, "compareTo")) continue;
+      const first = fiber.dependencies?.firstContext;
+      // Steam 的上下文值可来自另一 JavaScript realm，不能用当前窗口的 instanceof Set 判定。
+      if (first?.memoizedValue?.appid !== appId || typeof first.memoizedValue.revealedAchievements?.has !== "function" || typeof first.memoizedValue.setRevealedAchievements !== "function") return null;
+      for (let dependency = first, count = 0; dependency && count < 8; count += 1, dependency = dependency.next) {
+        const client = dependency.memoizedValue;
+        if (typeof client?.getQueryData === "function") {
+          const schema = client.getQueryData(["achievements", appId, "schema"]);
+          return schema?.appid === appId ? schema : null;
+        }
+      }
+      return null;
+    }
+    return null;
+  }
+
+  /** 从当前原生分组标题所属组件读取稳定组 ID 与原名；不解析标题译文或遍历组件子树。 */
+  function achievementGroup(node) {
+    if (!node?.isConnected) return null;
+    for (let fiber = reactFiber(node), depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
+      const props = fiber.memoizedProps, group = props?.group;
+      if (props && Object.hasOwn(props, "groupSummary") && Number.isSafeInteger(group?.id) && group.id >= 0 && typeof group.name === "string") return { id: group.id, name: group.name };
+    }
+    return null;
+  }
+
   // 仅沿已取证的 ReactVirtualized 库行 Fiber 链读取 item，不扫描其他 React 节点
   function libraryRowItem(row) {
     let fiber = reactFiber(row);
@@ -353,6 +416,9 @@
     libraryRow,
     libraryRowItem,
     contextMenuOverview,
+    achievementAppId,
+    achievementSchema,
+    achievementGroup,
     settings,
     settingOn,
     settingValue,

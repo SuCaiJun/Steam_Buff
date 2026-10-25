@@ -999,6 +999,13 @@
           deps: depAll(["translate"]),
         },
         {
+          id: "steam-achievement-translate",
+          name: "成就翻译",
+          desc: "在新版成就页面提供统一管理入口，支持手动译文、单条或勾选批量 AI 翻译，并在本机长期保存。",
+          area: "steam",
+          enabled: true,
+        },
+        {
           id: "steam-game-links",
           name: "相关链接",
           desc: "在 Steam 库游戏详情页玩家统计下方显示相关链接，按每项显示范围筛选。",
