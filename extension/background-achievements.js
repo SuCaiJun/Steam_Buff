@@ -61,6 +61,21 @@
       transaction.onerror = () => { /* 事务的 abort 统一返回原始异常。 */ };
     });
   }
+  /** 显示链路按实际成就 ID 读取，单批复用现有大小限制，不读取整款游戏或分组记录 */
+  async function lookup(appId, language, items) {
+    model.scope(appId, language);
+    const rows = model.batch(items), db = await database();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE, "readonly"), store = transaction.objectStore(STORE);
+      const requests = rows.map(item => store.get([appId, language, item.id]));
+      transaction.oncomplete = () => {
+        try { resolve(model.records(requests.map(request => request.result).filter(Boolean), appId, language)); }
+        catch (error) { reject(error); }
+      };
+      transaction.onabort = () => reject(transaction.error || new Error("读取显示成就译文失败"));
+      transaction.onerror = () => { /* 事务的 abort 统一返回原始异常 */ };
+    });
+  }
   /** 单个 readwrite 事务比较修订号再写入；AI 迟到或另一窗口修改只能产生冲突，不能覆盖新值。 */
   async function save(appId, language, entries, entityKind = "achievement") {
     model.scope(appId, language);
@@ -97,6 +112,10 @@
     const language = settings.translate?.to || "chinese_simplified";
     const entityKind = model.kind(request.kind);
     model.scope(request.appId, language);
+    if (request.action === "lookup") {
+      if (entityKind !== "achievement") throw new TypeError("显示查询只接受成就");
+      return { language, records: await lookup(request.appId, language, request.items) };
+    }
     if (request.action !== "load" && request.language !== language) throw new Error("翻译目标语言已改变，请重新打开成就翻译");
     const aiReady = settings.features?.ai !== false && !!root.STAI.chatRequest(settings.ai, [{ role: "user", content: "test" }]);
     if (request.action === "load") {
@@ -114,5 +133,5 @@
     if (entityKind === "group" && translated.some(row => row.translatedDescription !== "")) throw new Error("AI 分组名称结果包含了额外说明");
     return { items: translated };
   }
-  root.STAchievementTranslationStore = Object.freeze({ load, save, execute });
+  root.STAchievementTranslationStore = Object.freeze({ load, save, lookup, execute });
 })(globalThis);

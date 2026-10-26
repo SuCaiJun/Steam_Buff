@@ -1001,7 +1001,7 @@
         {
           id: "steam-achievement-translate",
           name: "成就翻译",
-          desc: "在新版成就页面提供统一管理入口，支持手动译文、单条或勾选批量 AI 翻译，并在本机长期保存。",
+          desc: "在新版成就页面管理手动或 AI 译文，本机长期保存；已保存的译文也用于库页动态、成就卡片和原生成就通知。",
           area: "steam",
           enabled: true,
         },

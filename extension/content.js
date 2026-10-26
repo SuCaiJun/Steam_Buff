@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v54";
+  const RUN_VERSION = "steam-buff-runtime-v56";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -1435,13 +1435,15 @@
     }
   }
 
-  // 仅在主窗口建立低频操作桥接，不传递 AI 配置或存储对象给页面脚本。
+  // 主窗口保留编辑操作；SharedJSContext 只允许按实际成就 ID 查询，不向页面传递 AI 配置
   function ensureAchievementTranslateBridge() {
-    if (!isSteamNewsTranslateBridgeTarget() || globalThis.__stAchievementBridge) return;
+    const ctx = globalThis.STPageContext?.snapshot?.() || {};
+    const main = isSteamNewsTranslateBridgeTarget();
+    if ((!main && !(ctx.domain === "steam" && ctx.title === "SharedJSContext")) || globalThis.__stAchievementBridge) return;
     globalThis.__stAchievementBridge = true;
     window.addEventListener("message", async event => {
       const data = event.data;
-      if (event.source !== window || event.origin !== window.location.origin || data?.source !== "steam-buff-achievement-translations-v1" || data.side !== "page" || typeof data.rid !== "string" || data.rid.length > 80 || !["load", "save", "translate"].includes(data.action)) return;
+      if (event.source !== window || event.origin !== window.location.origin || data?.source !== "steam-buff-achievement-translations-v1" || data.side !== "page" || typeof data.rid !== "string" || data.rid.length > 80 || !(main ? ["load", "save", "translate", "lookup"] : ["lookup"]).includes(data.action)) return;
       const reply = value => window.postMessage({ source: data.source, side: "content", rid: data.rid, ...value }, window.location.origin);
       try {
         const response = await globalThis.STMessageBus.send({ type: "ACHIEVEMENT_TRANSLATIONS", action: data.action, kind: data.kind, appId: data.appId, language: data.language, entries: data.entries, items: data.items, gameName: data.gameName, operationId: data.operationId, requestId: data.rid }, { timeoutMs: 90000, logFailures: false });
@@ -1451,6 +1453,11 @@
         reply({ success: false, error: "成就翻译后台通信失败，请重试", reported: true });
       }
     });
+  }
+
+  function achievementTranslateSettingsChanged(keys) {
+    if (!globalThis.__stAchievementBridge || !keys.includes(transKey("to"))) return;
+    window.postMessage({ source: "steam-buff-achievement-translations-v1", side: "content", action: "invalidated" }, window.location.origin);
   }
 
   function trustedNamePage() {
@@ -2759,6 +2766,7 @@
       if (globalThis.STSettingsBus?.subscribe) {
         globalThis.STSettingsBus.subscribe((event) => {
           const keys = event.changedKeys || [];
+          achievementTranslateSettingsChanged(keys);
           const localeHit = keys.includes(UI_LOCALE_KEY);
           const membershipHit = keys.includes(MEMBERSHIP_KEY);
           const hit = STEAM_SETTING_IDS.some(id => keys.includes(settingKey(id)));
@@ -2785,6 +2793,7 @@
         if (area !== "local") {
           return;
         }
+        achievementTranslateSettingsChanged(Object.keys(changes));
         const localeHit = Object.hasOwn(changes || {}, UI_LOCALE_KEY);
         const membershipHit = Object.hasOwn(changes || {}, MEMBERSHIP_KEY);
         const hit = STEAM_SETTING_IDS.some(id => Object.hasOwn(changes, settingKey(id)));
@@ -2921,6 +2930,7 @@
           "shared/batch-queue.js",
           "shared/virtual-list.js",
           "shared/achievement-translations.js",
+          "steam/features/steam-achievement-translate/display.js",
           "shared/dialog-lifecycle.js",
           "shared/utils/player-stats.js",
           "shared/utils/player-stats-ui.js",

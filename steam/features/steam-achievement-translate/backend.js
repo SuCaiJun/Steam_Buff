@@ -16,6 +16,10 @@
     if (!api.ctx.isShared() || typeof window.SteamClient?.Apps?.GetMyAchievementsForApp !== "function") return { started: false, reason: "achievement-api-unavailable" };
     if (typeof window.STSteamAppNames?.cachedName !== "function") return { started: false, reason: "achievement-name-helper-unavailable" };
     const channel = new BroadcastChannel(model.CHANNEL), pending = new Set();
+    const client = window.STAchievementDisplay.createClient();
+    let display = null;
+    try { display = window.STAchievementDisplay.notifications(api, client, log); }
+    catch (error) { log.error("achievement-display-failed", "接入 Steam 原生成就通知失败", { error, phase: "notification-start" }); }
     let stopped = false;
     function assertRoute(appId) {
       if (model.routeAppId(api.ctx.routeSources().tempNav) !== appId) {
@@ -48,7 +52,10 @@
       } finally { pending.delete(data.rid); }
     };
     channel.postMessage({ type: "ready" });
-    const state = { started: true, stop() { stopped = true; channel.onmessage = null; channel.close(); pending.clear(); } };
+    const state = { started: true, notificationDisplay: !!display, stop() {
+      if (stopped) return;
+      stopped = true; display?.stop(); client.stop(); channel.onmessage = null; channel.close(); pending.clear();
+    } };
     api.state = api.state || {}; api.state[model.FEATURE] = state;
     return state;
   });

@@ -214,6 +214,14 @@
     return keys.length === 1 ? node[keys[0]] : null;
   }
 
+  // 仅在两个已知分支参数不同时检查当前 HostRoot，不遍历组件子树
+  function activeFiber(fiber) {
+    for (let depth = 0; fiber && depth < 512; depth += 1, fiber = fiber.return) {
+      if (!fiber.return) return fiber.tag === 3 && fiber.stateNode?.current === fiber;
+    }
+    return false;
+  }
+
   /**
    * 从已确认的成就面板读取所属页面组件的 AppID；失败、已分离的旧节点或分支归属不明返回 0
    * 只读当前面板的有限 Fiber 父链，不读取封面、全局选中游戏或其他组件树
@@ -223,13 +231,6 @@
     const id = (props) => props && Object.hasOwn(props, "appid") &&
       Object.hasOwn(props, "bShowGameInfoInHeader") && typeof props.bShowGameInfoInHeader === "boolean" &&
       Number.isSafeInteger(props.appid) && props.appid > 0 ? props.appid : 0;
-    function active(fiber) {
-      // 分支 AppID 不同时才检查 HostRoot，避免把上一轮 alternate 的参数当成当前页面
-      for (let depth = 0; fiber && depth < 512; depth += 1, fiber = fiber.return) {
-        if (!fiber.return) return fiber.tag === 3 && fiber.stateNode?.current === fiber;
-      }
-      return false;
-    }
     for (let fiber = reactFiber(panel), depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
       const props = fiber.memoizedProps;
       if (!props || !Object.hasOwn(props, "bShowGameInfoInHeader") || !Object.hasOwn(props, "appid")) continue;
@@ -237,10 +238,61 @@
       if (!other) return first;
       const second = id(other.memoizedProps);
       if (first === second) return first;
-      const current = [fiber, other].filter(active);
+      const current = [fiber, other].filter(activeFiber);
       return current.length === 1 ? id(current[0].memoizedProps) : 0;
     }
     return 0;
+  }
+
+  /**
+   * 读取库页实际成就卡片的有限父链；活动使用 strID，右栏 schema 使用 api_name
+   * 两种已取证结构由调用方明确指定；归属或原文不可读返回 null，不使用文字、图片或路由猜测 ID
+   */
+  function achievementDisplayItem(node, kind) {
+    if (!node?.isConnected) return null;
+    if (kind !== "activity" && kind !== "summary") throw new TypeError("原生成就卡片类型无效");
+    function item(props) {
+      if (!Number.isSafeInteger(props?.appid) || props.appid <= 0 || !props.achievement) return null;
+      const raw = props.achievement;
+      const id = kind === "activity" ? raw.strID : raw.api_name;
+      const title = kind === "activity" ? raw.strName : raw.name;
+      const description = kind === "activity" ? raw.strDescription : raw.description;
+      if (typeof id !== "string" || !id || typeof title !== "string" || typeof description !== "string") return null;
+      return { appId: props.appid, id, title, description };
+    }
+    for (let fiber = reactFiber(node), depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
+      const props = fiber.memoizedProps;
+      if (!props || !Object.hasOwn(props, "appid") || !Object.hasOwn(props, "achievement")) continue;
+      const first = item(props), other = fiber.alternate;
+      if (!other) return first;
+      const second = item(other.memoizedProps);
+      if (first && second && first.appId === second.appId && first.id === second.id && first.title === second.title && first.description === second.description) return first;
+      const current = [fiber, other].filter(activeFiber);
+      return current.length === 1 ? item(current[0].memoizedProps) : null;
+    }
+    return null;
+  }
+
+  /** 从单条原生通知容器的有限父链读取通知对象；其他类型只返回 type，不解析未知 payload */
+  function achievementNotificationItem(node) {
+    if (!node?.isConnected) return null;
+    for (let fiber = reactFiber(node), depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
+      if (!fiber.memoizedProps || !Object.hasOwn(fiber.memoizedProps, "notification")) continue;
+      let current = fiber;
+      if (fiber.alternate && fiber.memoizedProps.notification !== fiber.alternate.memoizedProps?.notification) {
+        const branches = [fiber, fiber.alternate].filter(activeFiber);
+        if (branches.length !== 1) return null;
+        current = branches[0];
+      }
+      const event = current.memoizedProps?.notification;
+      if (!event || typeof event.eType !== "number") return null;
+      if (event.eType !== 5) return { type: event.eType };
+      const data = event.data;
+      if (!Object.hasOwn(event, "notificationID") || typeof data?.appid !== "function" || typeof data.achievement_id !== "function" ||
+        typeof data.name !== "function" || typeof data.description !== "function") return null;
+      return { type: event.eType, notificationID: event.notificationID, appId: data.appid(), id: data.achievement_id(), title: data.name(), description: data.description() };
+    }
+    return null;
   }
 
   /**
@@ -417,6 +469,8 @@
     libraryRowItem,
     contextMenuOverview,
     achievementAppId,
+    achievementDisplayItem,
+    achievementNotificationItem,
     achievementSchema,
     achievementGroup,
     settings,

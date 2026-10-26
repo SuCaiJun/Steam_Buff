@@ -121,6 +121,8 @@
   function start(api, _feature, _context, scope) {
     if (!api.ctx.isMainUi()) return { started: false, reason: "not-main-ui" };
     prepareStyle();
+    const client = window.STAchievementDisplay.createClient();
+    const display = window.STAchievementDisplay.library(api, client, log);
     const pending = new Map(), channel = new BroadcastChannel(model.CHANNEL);
     let stopped = false, mounted = null, dialog = null, host = null, sequence = 0, frame = 0;
     const dirtyRows = new Set();
@@ -136,30 +138,25 @@
     }
     function request(action, data = {}, native = false) {
       if (stopped) return Promise.reject(abortError());
+      if (!native) return client.request(action, data);
       return new Promise((resolve, reject) => {
         const rid = crypto.randomUUID();
-        const payload = native ? { type: action, rid, ...data } : { source: model.BRIDGE, side: "page", action, rid, ...data };
-        const entry = { resolve, reject, payload, native, timer: setTimeout(() => finish(rid, { success: false, error: "成就翻译请求超时，请重试" }), native ? 20000 : 95000) };
+        const payload = { type: action, rid, ...data };
+        const entry = { resolve, reject, payload, timer: setTimeout(() => finish(rid, { success: false, error: "成就翻译请求超时，请重试" }), 20000) };
         pending.set(rid, entry);
-        if (native) channel.postMessage(payload);
-        else window.postMessage(payload, window.location.origin);
+        channel.postMessage(payload);
       });
-    }
-    function onMessage(event) {
-      const data = event.data;
-      if (event.source === window && event.origin === window.location.origin && data?.source === model.BRIDGE && data.side === "content" && pending.get(data.rid)?.native === false) finish(data.rid, data);
     }
     channel.onmessage = event => {
       const data = event.data;
       if (data?.type === "ready") {
-        for (const entry of pending.values()) if (entry.native) channel.postMessage(entry.payload);
+        for (const entry of pending.values()) channel.postMessage(entry.payload);
       } else {
         const entry = pending.get(data?.rid);
-        if (entry?.native === true && entry.payload.appId === data.appId &&
+        if (entry && entry.payload.appId === data.appId &&
           data.type === (entry.payload.type === "check" ? "checked" : "loaded")) finish(data.rid, data);
       }
     };
-    window.addEventListener("message", onMessage);
     function reportFailure(error, phase, current = mounted) {
       if (error.name === "AbortError") return;
       if (error.name === "AchievementContextError" && mounted === current && current) {
@@ -674,13 +671,14 @@
         return { ...item, translatedTitle: draft.title, translatedDescription: draft.description, expectedRevision: draft.revision, origin: draft.origin, clear: draft.clear };
       });
       if (!entries.length) { status("选中项没有待保存修改。"); return; }
-      const operationId = crypto.randomUUID(); d.saving = true; updateControls(); let saved = 0, cleared = 0, conflicts = 0;
+      const operationId = crypto.randomUUID(); d.saving = true; updateControls(); let saved = 0, cleared = 0, conflicts = 0, displaySaved = false;
       try {
         for (const kind of ["achievement", "group"]) for (const batch of model.batches(entries.filter(item => item.kind === kind))) {
           if (dialog !== d || mounted !== d.current) throw abortError();
           model.saveEntries(batch); await ensureContext(d.current, operationId);
           if (dialog !== d || mounted !== d.current) throw abortError();
           const response = await request("save", { kind, appId: d.current.appId, language: d.current.language, entries: batch, operationId });
+          if (kind === "achievement" && response.data.saved.length) displaySaved = true;
           for (const record of response.data.saved) {
             const key = `${kind === "group" ? "g" : "a"}:${record.id}`;
             d.current.records.set(key, record); d.drafts.delete(key); syncDirty(key, d); d.autoSelected.delete(key); indexSearch(d.current, d.current.entities.get(key));
@@ -694,7 +692,10 @@
       } catch (error) {
         log.warn("achievement-save-partial", "译文保存失败或部分完成", { operationId, appid: d.current.appId, savedCount: saved, clearedCount: cleared, error });
         if (dialog === d) status(`已保存 ${saved} 项；剩余未保存：${error.message}`, true);
-      } finally { d.saving = false; if (dialog === d) updateControls(); }
+      } finally {
+        if (displaySaved) client.changed(d.current.appId);
+        d.saving = false; if (dialog === d) updateControls();
+      }
     }
     async function translate(keys) {
       const d = dialog; if (!d || !d.current.ready || d.saving || d.job || !d.current.aiReady) return;
@@ -750,7 +751,7 @@
     }
     function stop() {
       if (stopped) return;
-      stopped = true; detach(); host?.dispose(); window.removeEventListener("message", onMessage);
+      stopped = true; detach(); host?.dispose(); display.stop(); client.stop();
       channel.onmessage = null; channel.close();
       for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(abortError()); }
       pending.clear(); api.styles.removeStyle("st-achievement-translation-style");
