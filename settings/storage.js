@@ -561,6 +561,22 @@
     }
   }
 
+  /** 更新频率只接受已公布选项，缺失配置采用六小时，读取异常不覆盖用户已有值 */
+  async function getUpdateCheck() {
+    const contract = globalThis.STConfig.updates;
+    const data = await get([contract.settingKey], { strict: true });
+    return { hours: contract.hours(data[contract.settingKey]) };
+  }
+
+  async function setUpdateCheck(value, diagnostics = {}) {
+    const contract = globalThis.STConfig.updates;
+    const hours = contract.hours(value.hours);
+    const ok = await put({ [contract.settingKey]: hours }, diagnostics);
+    logSave("update-check", ok, { hours, ...failureOperationMeta(ok, diagnostics) });
+    if (!ok) throw new Error("检查更新频率保存失败");
+    return true;
+  }
+
   async function getUiLocale() {
     const rt = await get([UI_LOCALE_KEY]);
     return localeOf(rt[UI_LOCALE_KEY]);
@@ -1039,6 +1055,7 @@
     const [
       features,
       uiLocale,
+      updateCheck,
       familyLibrary,
       storePriceChart,
       gameLinks,
@@ -1050,6 +1067,7 @@
     ] = await Promise.all([
       getAll(),
       getUiLocale(),
+      getUpdateCheck(),
       getFamilyLibrary(),
       getStorePriceChart(),
       getGameLinks(),
@@ -1062,6 +1080,7 @@
     return {
       features,
       uiLocale,
+      updateCheck,
       familyLibrary,
       storePriceChart,
       gameLinks,
@@ -1074,9 +1093,13 @@
   }
 
   async function setPanelSettings(sections = {}, diagnostics = {}) {
+    const updateCheck = sections.updateCheck === undefined ? { hours: globalThis.STConfig.updates.defaultHours } : sections.updateCheck;
+    if (!updateCheck || typeof updateCheck !== "object") throw new TypeError("更新频率配置格式错误");
+    globalThis.STConfig.updates.hours(updateCheck.hours);
     const jobs = [
       setAll(sections.features || {}, diagnostics),
       setUiLocale(sections.uiLocale, diagnostics),
+      setUpdateCheck(updateCheck, diagnostics),
       setFamilyLibrary(sections.familyLibrary || {}, diagnostics),
       setGameLinks(sections.gameLinks, diagnostics),
       setSearchSuggestions(sections.searchSuggestions || {}, diagnostics),
@@ -1112,6 +1135,8 @@
     set,
     getUiLocale,
     setUiLocale,
+    getUpdateCheck,
+    setUpdateCheck,
     getAuth,
     getAuthIdentity,
     setAuth,

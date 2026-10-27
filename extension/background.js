@@ -3790,6 +3790,7 @@
     return false;
   });
   chrome.runtime.onConnect.addListener(aiStreamConnect);
+  globalThis.STBackgroundUpdate.start();
   globalThis.addEventListener("error", event => globalThis.STLoggerFactory.reportError(event.error || event.message, {
     domain: "extension", feature: "background-runtime", event: "background-unhandled-error", message: "后台未捕获异常",
   }));

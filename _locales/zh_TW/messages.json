@@ -1419,9 +1419,6 @@
   "updateReminder_releaseNotes": {
     "message": "新版日誌"
   },
-  "updateReminder_muteToday": {
-    "message": "今天不再提醒"
-  },
   "updateReminder_openDownload": {
     "message": "開啟官方下載頁面"
   },
@@ -1877,9 +1874,6 @@
         "content": "$2"
       }
     }
-  },
-  "about_update_storeVersionDisabled": {
-    "message": "商店版本已停用主動更新檢查"
   },
   "about_logs_utf8Unavailable": {
     "message": "目前環境不支援 UTF-8 編碼"
@@ -6834,5 +6828,58 @@
   },
   "store_detail_detailsLoading": {
     "message": "正在載入詳情 · 收起 ↑"
+  },
+  "updateReminder_ignoreVersion": {
+    "message": "此版本不再提醒"
+  },
+  "updateReminder_snoozeCycle": {
+    "message": "本次不再提醒"
+  },
+  "updateReminder_openChrome": {
+    "message": "開啟 Chrome 商店"
+  },
+  "updateReminder_openEdge": {
+    "message": "開啟 Edge 商店"
+  },
+  "updateReminder_actionFailed": {
+    "message": "操作失敗，請重試。"
+  },
+  "settings_updateCheck_title": {
+    "message": "擴充功能更新"
+  },
+  "settings_updateCheck_frequency": {
+    "message": "檢查更新頻率"
+  },
+  "settings_updateCheck_hours": {
+    "message": "$hours$小時",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_updateCheck_off": {
+    "message": "不檢查"
+  },
+  "settings_updateCheck_loading": {
+    "message": "正在讀取設定…"
+  },
+  "settings_updateCheck_desc": {
+    "message": "擴充功能執行期間在背景檢查；選擇不檢查後仍可手動檢查更新。"
+  },
+  "settings_updateCheck_readFailed": {
+    "message": "設定讀取失敗，請重新開啟設定重試。"
+  },
+  "settings_updateCheck_saveFailed": {
+    "message": "儲存失敗，請重試。"
+  },
+  "about_update_storePending": {
+    "message": "商店尚未同步目標版本"
+  },
+  "about_update_unconfigured": {
+    "message": "更新發佈目標尚未設定"
+  },
+  "about_update_unavailable": {
+    "message": "暫時無法確認更新狀態"
   }
 }

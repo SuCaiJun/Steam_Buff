@@ -1419,9 +1419,6 @@
   "updateReminder_releaseNotes": {
     "message": "新版日志"
   },
-  "updateReminder_muteToday": {
-    "message": "今天不再提醒"
-  },
   "updateReminder_openDownload": {
     "message": "打开官网下载"
   },
@@ -1877,9 +1874,6 @@
         "content": "$2"
       }
     }
-  },
-  "about_update_storeVersionDisabled": {
-    "message": "商店版已禁用主动更新检查"
   },
   "about_logs_utf8Unavailable": {
     "message": "当前环境不支持 UTF-8 编码"
@@ -6834,5 +6828,58 @@
   },
   "store_detail_detailsLoading": {
     "message": "正在加载详情 · 收起 ↑"
+  },
+  "updateReminder_ignoreVersion": {
+    "message": "此版本不再提醒"
+  },
+  "updateReminder_snoozeCycle": {
+    "message": "本次不再提醒"
+  },
+  "updateReminder_openChrome": {
+    "message": "打开 Chrome 商店"
+  },
+  "updateReminder_openEdge": {
+    "message": "打开 Edge 商店"
+  },
+  "updateReminder_actionFailed": {
+    "message": "操作失败，请重试。"
+  },
+  "settings_updateCheck_title": {
+    "message": "扩展更新"
+  },
+  "settings_updateCheck_frequency": {
+    "message": "检查更新频率"
+  },
+  "settings_updateCheck_hours": {
+    "message": "$hours$小时",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_updateCheck_off": {
+    "message": "不检查"
+  },
+  "settings_updateCheck_loading": {
+    "message": "正在读取设置…"
+  },
+  "settings_updateCheck_desc": {
+    "message": "扩展运行期间在后台检查；选择不检查后仍可手动检查更新。"
+  },
+  "settings_updateCheck_readFailed": {
+    "message": "设置读取失败，请重新打开设置重试。"
+  },
+  "settings_updateCheck_saveFailed": {
+    "message": "保存失败，请重试。"
+  },
+  "about_update_storePending": {
+    "message": "商店尚未同步目标版本"
+  },
+  "about_update_unconfigured": {
+    "message": "更新发布目标尚未配置"
+  },
+  "about_update_unavailable": {
+    "message": "更新状态暂不可确认"
   }
 }

@@ -8,307 +8,286 @@
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
+
 ((root) => {
   "use strict";
-
-  if (root.STBackgroundUpdate?.ready) {
-    return;
-  }
-
+  if (root.STBackgroundUpdate?.ready) return;
   const CFG = root.STConfig;
   const CACHE_KEY = "steam_buff_update_check_cache";
-  const ABOUT_STATUS_SOURCE = "about-status";
-  const AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
-  const UPDATE_FETCH_TIMEOUT_MS = 10 * 1000;
-  const logger = root.STLoggerFactory.createLogger("background", "update");
+  const PLAN_KEY = "steam_buff_update_schedule";
+  const MUTE_KEY = "steam_buff_update_prompt_state";
+  const ALARM = "steam-buff-extension-update";
+  const PORT = "steam-buff-update-prompt";
+  const log = root.STLoggerFactory.createLogger("background", "update");
+  let queue = Promise.resolve();
+  let pending = null;
+  let activePort = null;
+  let started = false;
 
-  function log(level, event, message, details) {
-    const fn = logger[level] || logger.info;
-    fn(event, message, details || {});
+  // 队列只串行化短存储事务，网络请求在队列外执行，关闭自动检查可以立即生效
+  async function serial(work) {
+    const previous = queue;
+    let release;
+    queue = new Promise(resolve => { release = resolve; });
+    await previous;
+    try { return await work(); } finally { release(); }
   }
 
-  function pad(value) {
-    return String(Math.max(0, Number(value) || 0)).padStart(2, "0");
+  function version() { return chrome.runtime.getManifest().version; }
+  function channel() {
+    const value = CFG.distribution.channel();
+    if (value === "unknown") throw new Error("扩展更新来源未识别，请检查 Manifest update_url");
+    return value;
+  }
+  async function read() { return chrome.storage.local.get([CACHE_KEY, PLAN_KEY, MUTE_KEY, CFG.updates.settingKey]); }
+  function hours(data) { return CFG.updates.hours(data[CFG.updates.settingKey]); }
+
+  function planOf(data) {
+    const plan = data[PLAN_KEY];
+    if (plan === undefined) return null;
+    if (!plan || !Number.isFinite(plan.lastAttemptAt) || !Number.isFinite(plan.nextCheckAt)
+        || typeof plan.cycleId !== "string" || typeof plan.installedVersion !== "string"
+        || typeof plan.channel !== "string") throw new TypeError("更新检查计划格式错误");
+    CFG.updates.hours(plan.hours);
+    return plan;
   }
 
-  function todayKey(ts = Date.now()) {
-    const date = new Date(Number(ts) || Date.now());
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  }
-
-  function verText(value) {
-    const match = String(value || "").match(/v?\d+(?:\.\d+){1,3}/i);
-    return match ? match[0].replace(/^v/i, "") : "";
-  }
-
-  function cmpVer(left, right) {
-    const a = verText(left).split(".").map(num => Number.parseInt(num, 10) || 0);
-    const b = verText(right).split(".").map(num => Number.parseInt(num, 10) || 0);
-    const len = Math.max(a.length, b.length);
-    for (let idx = 0; idx < len; idx += 1) {
-      const diff = (a[idx] || 0) - (b[idx] || 0);
-      if (diff !== 0) {
-        return diff > 0 ? 1 : -1;
-      }
+  function muteOf(data) {
+    const mute = data[MUTE_KEY];
+    if (mute === undefined) return { ignored: {}, cycle: null };
+    if (!mute || typeof mute.ignored !== "object" || mute.ignored === null || Array.isArray(mute.ignored)) {
+      throw new TypeError("更新提醒静默状态格式错误");
     }
-    return 0;
+    return mute;
   }
 
-  function version() {
-    try {
-      return chrome.runtime.getManifest().version || "";
-    } catch (error) {
-      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-update", event: "version-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "version" });
-      return "";
-    }
+  function versionKey(info) { return `${info.channel}:${CFG.versions.parts(info.remote).join(".")}`; }
+  function muted(data, info) {
+    const mute = muteOf(data);
+    return mute.ignored[versionKey(info)] === true
+      || (mute.cycle?.channel === info.channel && mute.cycle?.cycleId === info.cycleId);
   }
 
-  function storageGet(keys) {
-    return new Promise((resolve, reject) => {
-      try {
-        chrome.storage.local.get(keys, (data) => {
-          const error = chrome.runtime.lastError;
-          if (error) {
-            reject(new Error(error.message || "读取更新缓存失败"));
-            return;
-          }
-          resolve(data || {});
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
-  function storageSet(data) {
-    return new Promise((resolve, reject) => {
-      try {
-        chrome.storage.local.set(data, () => {
-          const error = chrome.runtime.lastError;
-          if (error) {
-            reject(new Error(error.message || "写入更新缓存失败"));
-            return;
-          }
-          resolve(true);
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
-  function parseJson(text) {
-    if (!text) {
-      return null;
-    }
-    try {
-      return JSON.parse(text);
-    } catch {
-      return null;
-    }
-  }
-
-  function httpError(status, text) {
-    void text;
-    return `HTTP状态码错误: ${status}`;
-  }
-
-  function cleanText(value) {
-    return String(value || "")
-      .replace(/\r\n?/g, "\n")
-      .replace(/\u00a0/g, " ")
-      .replace(/[ \t]+\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-  }
-
-  function normalizeLatest(payload) {
-    const row = payload && typeof payload === "object" ? payload.data : null;
-    if (!row || typeof row !== "object") {
-      throw new Error("官网最新版本格式异常");
-    }
-    const latest = {
-      version: verText(row.version) || String(row.version || "").trim(),
-      title: cleanText(row.title || ""),
-      summary: cleanText(row.summary || ""),
-      content: String(row.content || ""),
-      desc: cleanText(row.summary || row.title || String(row.content || "").replace(/<[^>]+>/g, " ")),
-      releaseDate: cleanText(row.release_date || ""),
-      publishedAt: cleanText(row.published_at || ""),
-      updatedAt: cleanText(row.updated_at || ""),
+  function cached(data) {
+    const box = data[CACHE_KEY];
+    if (!box || box.installedVersion !== version() || box.channel !== channel()) return null;
+    return box.result ? { ...box.result, fromCache: true } : {
+      current: version(), remote: "", latest: null, link: "", channel: box.channel,
+      status: "unavailable", hasNew: false, checkedAt: box.checkedAt, error: box.error,
+      cycleId: box.cycleId, fromCache: true,
     };
-    if (!latest.version) {
-      throw new Error("官网最新版本缺少版本号");
-    }
-    return latest;
   }
 
-  function resultFromLatest(latest, checkedAt = Date.now(), fromCache = false) {
-    const current = version() || "未知版本";
-    const remote = verText(latest?.version);
+  function senderAllowed(sender) {
+    if (sender?.id !== chrome.runtime.id || typeof sender.url !== "string" || (sender.frameId !== undefined && sender.frameId !== 0)) return false;
+    const url = new URL(sender.url);
+    return url.href === chrome.runtime.getURL("settings/center.html")
+      || (url.protocol === "https:" && CFG.matchers.isSteamTranslateHost(url.hostname));
+  }
+
+  function normalize(payload, cycleId) {
+    const row = payload?.data;
+    const expected = channel();
+    if (!row || row.channel !== expected || !["ready", "pending", "unconfigured", "unavailable"].includes(row.status)
+        || typeof row.target_version !== "string" || typeof row.page_url !== "string") {
+      throw new TypeError("扩展更新接口格式异常");
+    }
+    const remote = row.target_version;
+    if (row.status !== "unconfigured" || remote) CFG.versions.parts(remote);
+    if (row.status === "ready" || row.status === "pending") {
+      if (!row.latest || row.latest.version !== remote || new URL(row.page_url).protocol !== "https:") {
+        throw new TypeError("扩展更新版本或页面地址无效");
+      }
+    }
+    if (expected !== "opensource" && ["ready", "pending"].includes(row.status)) {
+      const available = CFG.versions.compare(row.store_version, remote) >= 0;
+      if (available !== (row.status === "ready")) throw new TypeError("商店同步状态与版本不一致");
+    }
     return {
-      current,
-      remote,
-      latest,
-      link: CFG.urls.updatePage,
-      hasNew: !!remote && !!verText(current) && cmpVer(remote, current) > 0,
-      checkedAt,
-      fromCache,
+      current: version(), remote, latest: row.latest, link: row.page_url, channel: expected,
+      status: row.status, storeVersion: row.store_version, sourceCheckedAt: row.source_checked_at,
+      hasNew: row.status === "ready" && CFG.versions.compare(remote, version()) > 0,
+      checkedAt: Date.now(), cycleId, fromCache: false,
     };
   }
 
-  async function readCache() {
-    const data = await storageGet([CACHE_KEY]);
-    return data[CACHE_KEY] || null;
-  }
-
-  function cacheFresh(cache, now = Date.now()) {
-    const checkedAt = Number(cache?.checkedAt || cache?.result?.checkedAt) || 0;
-    const age = Math.max(0, (Number(now) || Date.now()) - checkedAt);
-    return checkedAt > 0 && age < AUTO_CHECK_INTERVAL_MS;
-  }
-
-  async function writeCache(result) {
-    const box = {
-      date: todayKey(result.checkedAt),
-      checkedAt: result.checkedAt,
-      result,
-    };
-    await storageSet({ [CACHE_KEY]: box });
-    return box;
-  }
-
-  async function fetchLatest(options = {}) {
-    const manual = options.manual === true;
-    const operationId = String(options.operationId || "");
-    const persistCache = options.persistCache !== false;
-    const logNewVersion = options.logNewVersion !== false;
-    const requestId = root.STLoggerFactory?.createRequestId?.();
-    let phase = "network";
-    let responseFacts;
-    try {
-      const result = await root.STNetworkRequest.run(UPDATE_FETCH_TIMEOUT_MS, async (signal, check) => {
-        const response = await fetch(CFG.urls.updateLatest, {
-          method: "GET",
-          headers: CFG.client.versionedHeaders(CFG.urls.updateLatest, { Accept: "application/json" }),
-          cache: "no-cache",
-          credentials: "omit",
-          signal,
-        });
-        responseFacts = root.STLoggerSchema?.httpFacts?.(response);
-        phase = "response-read";
-        const text = await response.text();
-        responseFacts = { ...responseFacts, bodyLength: text.length };
-        phase = "http";
-        if (!response.ok) {
-          throw new Error(httpError(response.status, text));
-        }
-        phase = "parse";
-        const data = parseJson(text);
-        check();
-        if (!data) {
-          throw new Error("官网最新版本返回解析失败");
-        }
-        phase = "validate";
-        responseFacts = { ...responseFacts, ...root.STLoggerSchema?.resultFacts?.(data, ["data"]) };
-        return resultFromLatest(normalizeLatest(data), Date.now(), false);
-      });
-      phase = "cache-save";
-      if (persistCache) {
-        await writeCache(result);
-      }
-      if (manual) {
-        log("info", "update-manual-check-success", "手动检查更新成功", {
-          operationId,
-          current: result.current,
-          remote: result.remote,
-          hasNew: result.hasNew,
-        });
-      } else if (logNewVersion && result.hasNew) {
-        log("info", "update-new-version-found", "自动检查发现新版本", {
-          current: result.current,
-          remote: result.remote,
-        });
-      }
-      return result;
-    } catch (error) {
-      if (error && typeof error === "object" && Object.isExtensible(error)) error.apiDiagnostics = { operationId, requestId, phase,
-        request: { method: "GET", endpointKey: "update-latest", url: CFG.urls.updateLatest, timeoutMs: UPDATE_FETCH_TIMEOUT_MS }, response: responseFacts };
-      throw error;
+  // 自动与手动请求共用一个进行中任务；手动查询不推进计划或解除周期静默
+  async function fetchUpdate(manual, cycleId) {
+    if (pending) {
+      if (manual) pending.manual = true;
+      return pending.task;
     }
-  }
-
-  let autoPending = null;
-
-  async function autoCheck() {
-    const cache = await readCache();
-    if (cacheFresh(cache) && cache.result && verText(cache.result.current) === verText(version())) {
-      const result = { ...cache.result, fromCache: true };
-      return result;
-    }
-    if (!autoPending) {
-      autoPending = fetchLatest()
-        .catch((error) => {
-          log("error", "update-auto-check-failed", "自动检查更新失败", {
-            ...error.apiDiagnostics,
-            error,
+    const current = version(); const source = channel(); const url = CFG.urls.extensionUpdate(source);
+    const operation = { manual, task: null };
+    pending = operation;
+    operation.task = (async () => {
+      try {
+        const result = await root.STNetworkRequest.run(10_000, async (signal, check) => {
+          const response = await fetch(url, {
+            method: "GET", headers: CFG.client.versionedHeaders(url, { Accept: "application/json" }),
+            cache: "no-cache", credentials: "omit", signal,
           });
-          throw error;
-        })
-        .finally(() => {
-          autoPending = null;
+          if (!response.ok) throw new Error(`更新检查 HTTP 状态异常: ${response.status}`);
+          const payload = await response.json();
+          check();
+          return normalize(payload, cycleId);
         });
-    }
-    return autoPending;
+        await serial(async () => {
+          const data = await read(); const plan = planOf(data);
+          await chrome.storage.local.set({ [CACHE_KEY]: {
+            installedVersion: current, channel: source, checkedAt: result.checkedAt, cycleId,
+            automatic: !operation.manual && hours(data) > 0 && plan?.cycleId === cycleId,
+            result,
+          } });
+        });
+        if (result.status === "unavailable") log.error("update-source-unavailable", "安装服务状态暂不可确认", { channel: source, remote: result.remote });
+        else if (operation.manual || result.hasNew) log.info("update-check-complete", operation.manual ? "手动检查更新完成" : "后台检查发现新版本", {
+          channel: source, current, remote: result.remote, status: result.status, hasNew: result.hasNew,
+        });
+        return result;
+      } catch (error) {
+        const message = error.message;
+        try {
+          await serial(async () => {
+            await chrome.storage.local.set({ [CACHE_KEY]: {
+              installedVersion: current, channel: source, checkedAt: Date.now(), cycleId,
+              automatic: false, result: null, error: message,
+            } });
+          });
+        } catch (cacheError) {
+          log.error("update-failure-cache-save-failed", "更新失败状态保存失败", { error: cacheError });
+        }
+        throw error;
+      } finally { pending = null; }
+    })();
+    return operation.task;
   }
 
+  async function ensureAlarm(plan) {
+    if (plan.hours === 0) { await chrome.alarms.clear(ALARM); return; }
+    const alarm = await chrome.alarms.get(ALARM);
+    if (!alarm || Math.abs(alarm.scheduledTime - plan.nextCheckAt) > 1) {
+      await chrome.alarms.create(ALARM, { when: plan.nextCheckAt });
+    }
+  }
+
+  async function runDue() {
+    const plan = await serial(async () => {
+      const data = await read(); const existing = planOf(data); const interval = hours(data); const now = Date.now();
+      if (interval === 0 || !existing) return null;
+      if (existing.nextCheckAt > now) { await ensureAlarm(existing); return null; }
+      const next = { hours: interval, installedVersion: version(), channel: channel(),
+        lastAttemptAt: now, nextCheckAt: now + interval * 3_600_000, cycleId: `${now}:${crypto.randomUUID()}` };
+      await chrome.storage.local.set({ [PLAN_KEY]: next });
+      await ensureAlarm(next);
+      return next;
+    });
+    if (plan) await fetchUpdate(false, plan.cycleId);
+  }
+
+  async function reconcile() {
+    const due = await serial(async () => {
+      const data = await read(); const interval = hours(data); const now = Date.now();
+      let plan = planOf(data);
+      const previousHours = plan?.hours;
+      if (!plan || plan.installedVersion !== version() || plan.channel !== channel()) {
+        plan = { hours: interval, installedVersion: version(), channel: channel(), lastAttemptAt: 0, nextCheckAt: interval ? now : 0, cycleId: "" };
+      } else if (plan.hours !== interval) {
+        plan = { ...plan, hours: interval, nextCheckAt: interval ? (plan.lastAttemptAt ? plan.lastAttemptAt + interval * 3_600_000 : now) : 0 };
+      }
+      if (JSON.stringify(plan) !== JSON.stringify(data[PLAN_KEY])) {
+        await chrome.storage.local.set({ [PLAN_KEY]: plan });
+        if (previousHours !== undefined && previousHours !== interval) log.info("update-schedule-changed", "后台更新检查频率已调整", { hours: interval });
+      }
+      if (!interval) disconnectActive();
+      if (interval && plan.nextCheckAt <= now) return true;
+      await ensureAlarm(plan);
+      return false;
+    });
+    if (due) await runDue();
+  }
+
+  function disconnectActive() {
+    // disconnect 只通知另一端，本端必须先释放展示权
+    const port = activePort;
+    activePort = null;
+    port?.disconnect();
+  }
+
+  function eligible(data) {
+    if (hours(data) === 0) return null;
+    const box = data[CACHE_KEY]; const info = cached(data); const plan = planOf(data);
+    if (!info?.hasNew || !box.automatic || !info.cycleId || info.cycleId !== plan?.cycleId || muted(data, info)) return null;
+    return info;
+  }
+
+  /** 一个原生 Port 持有一个可见弹窗；worker 退出时 Port 断开，前台同步关闭旧弹窗 */
+  function promptConnect(port) {
+    if (port.name !== PORT) return;
+    if (!senderAllowed(port.sender)) { port.disconnect(); return; }
+    let disconnected = false;
+    port.onDisconnect.addListener(() => { disconnected = true; if (activePort === port) activePort = null; });
+    serial(async () => {
+      const info = eligible(await read());
+      if (disconnected) return;
+      if (activePort || !info) { port.postMessage({ granted: false }); return; }
+      activePort = port;
+      port.postMessage({ granted: true, info });
+    }).catch(error => {
+      log.error("update-prompt-claim-failed", "获取更新弹窗展示权失败", { error });
+      if (activePort === port) disconnectActive(); else port.disconnect();
+    });
+  }
+
+  async function mute(request) {
+    return serial(async () => {
+      const data = await read(); const info = cached(data);
+      if (!info?.hasNew || info.remote !== request.version || info.cycleId !== request.cycleId) {
+        throw new Error("更新提醒已经变化，请重新检查");
+      }
+      const state = muteOf(data);
+      if (request.action === "mute-version") state.ignored[versionKey(info)] = true;
+      else state.cycle = { channel: info.channel, cycleId: info.cycleId };
+      await chrome.storage.local.set({ [MUTE_KEY]: state });
+      log.info(request.action === "mute-version" ? "update-prompt-ignore-version" : "update-prompt-snooze-cycle",
+        request.action === "mute-version" ? "用户选择此版本不再提醒" : "用户选择本次检查周期不再提醒", { channel: info.channel, version: info.remote, cycleId: info.cycleId });
+      disconnectActive();
+      return true;
+    });
+  }
+
+  /** UPDATE_CHECK 的默认请求只读缓存，只有 manual=true 才联网；静默动作写入共享本机状态 */
   async function updateCheck(request, sender, sendResponse) {
-    const manual = request?.manual === true;
-    const aboutStatus = request?.source === ABOUT_STATUS_SOURCE;
-    const storeVersion = CFG.distribution.isStoreVersion();
-    const operationId = manual ? root.STLoggerFactory?.createOperationId?.() || "" : "";
     try {
-      if (storeVersion && !aboutStatus) {
-        sendResponse({ success: false, error: "商店版仅允许关于页读取版本状态" });
-        return;
+      if (!senderAllowed(sender)) throw new Error("更新检查只允许扩展设置和 Steam 顶层页面访问");
+      if (["mute-version", "mute-cycle"].includes(request.action)) {
+        sendResponse({ success: true, data: await mute(request) }); return;
       }
-      if (aboutStatus) {
-        sendResponse({ success: true, data: await fetchLatest({
-          persistCache: !storeVersion,
-          logNewVersion: false,
-        }) });
-        return;
+      if (request.action) throw new Error("未知的更新检查操作");
+      if (request.manual === true) {
+        disconnectActive();
+        const plan = planOf(await read());
+        sendResponse({ success: true, data: await fetchUpdate(true, plan?.cycleId || "") }); return;
       }
-      if (manual) {
-        log("info", "update-manual-check-start", "开始手动检查更新", { operationId });
-        sendResponse({ success: true, data: await fetchLatest({ manual: true, operationId }) });
-        return;
-      }
-      sendResponse({ success: true, data: await autoCheck() });
+      sendResponse({ success: true, data: cached(await read()) });
     } catch (error) {
-      if (manual) {
-        log("error", "update-manual-check-failed", "手动检查更新失败", {
-          ...error.apiDiagnostics,
-          operationId,
-          error,
-        });
-      } else if (aboutStatus) {
-        log("error", "update-about-status-check-failed", "关于页版本状态查询失败", {
-          ...error.apiDiagnostics,
-          error,
-        });
-      }
-      sendResponse({ success: false, error: error?.message || String(error) });
+      log.error(request.manual ? "update-manual-check-failed" : "update-request-failed", "扩展更新操作失败", { error, action: request.action });
+      const message = error.message;
+      sendResponse({ success: false, error: message });
     }
   }
 
-  root.STBackgroundUpdate = Object.freeze({
-    ready: true,
-    CACHE_KEY,
-    ABOUT_STATUS_SOURCE,
-    AUTO_CHECK_INTERVAL_MS,
-    todayKey,
-    cacheFresh,
-    updateCheck,
-  });
-})(typeof globalThis !== "undefined" ? globalThis : self);
+  function start() {
+    if (started) return;
+    started = true;
+    const fail = error => log.error("update-schedule-failed", "后台更新检查执行失败", { error });
+    chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === ALARM) runDue().catch(fail); });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === "local" && Object.hasOwn(changes, CFG.updates.settingKey)) reconcile().catch(fail);
+    });
+    chrome.runtime.onConnect.addListener(promptConnect);
+    reconcile().catch(fail);
+  }
+
+  root.STBackgroundUpdate = Object.freeze({ ready: true, CACHE_KEY, PLAN_KEY, MUTE_KEY, PORT, ALARM, updateCheck, start, reconcile, runDue });
+})(globalThis);

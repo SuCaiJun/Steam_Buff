@@ -379,6 +379,7 @@
   const PANEL_SECTIONS = Object.freeze([
     "features",
     "uiLocale",
+    "updateCheck",
     "familyLibrary",
     "storePriceChart",
     "gameLinks",
@@ -1328,6 +1329,9 @@
     if (name === "uiLocale") {
       return "zh_CN";
     }
+    if (name === "updateCheck") {
+      return { hours: globalThis.STConfig.updates.defaultHours };
+    }
     if (name === "familyLibrary") {
       return familyLibraryDefaults();
     }
@@ -1357,7 +1361,7 @@
 
   function isPanelStorageKey(name) {
     const key = String(name || "");
-    if (key === UI_LOCALE_KEY || key === "st.settings.storePriceChart" || key === "st.settings.gameLinks") {
+    if (key === globalThis.STConfig.updates.settingKey || key === UI_LOCALE_KEY || key === "st.settings.storePriceChart" || key === "st.settings.gameLinks") {
       return true;
     }
     if (!key.startsWith("st.settings.") || key.startsWith("st.settings.cloud.") || key.startsWith("st.settings.rail.")) {

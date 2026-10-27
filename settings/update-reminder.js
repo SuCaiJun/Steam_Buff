@@ -12,13 +12,11 @@
   "use strict";
 
   const api = globalThis.STUpdateChecker;
-  if (!api || api.isStoreVersion() || globalThis.__SteamBuffUpdateReminderStarted) {
+  if (!api || !topHttpPage() || globalThis.__SteamBuffUpdateReminderStarted) {
     return;
   }
   globalThis.__SteamBuffUpdateReminderStarted = true;
-  const log = globalThis.STLoggerFactory?.createLogger?.("settings", "update-reminder") || {
-    warn() {},
-  };
+  const log = globalThis.STLoggerFactory.createLogger("settings", "update-reminder");
 
   const ROOT = "__SteamBuffUpdateReminder";
   const theme = globalThis.STTheme;
@@ -160,7 +158,8 @@
     } catch {
       return false;
     }
-    return location.protocol === "http:" || location.protocol === "https:";
+    if (location.protocol === "chrome-extension:") return location.pathname === "/settings/center.html";
+    return location.protocol === "https:" && globalThis.STConfig.matchers.isSteamTranslateHost(location.hostname);
   }
 
   function ready() {
@@ -185,6 +184,10 @@
   }
 
   function close(host) {
+    if (current?.host === host) {
+      const owner = current; current = null;
+      owner.port.onDisconnect.removeListener(owner.lost); owner.port.disconnect();
+    }
     const layer = host?.shadowRoot?.querySelector(".layer");
     if (!layer) {
       host?.remove?.();
@@ -231,6 +234,7 @@
     host.id = ROOT;
     host.__stRestoreFocus = document.activeElement;
     const logHtml = api.latestHtml(latest);
+    const action = api.updateAction(info);
     const template = `
       <style>${STYLE}</style>
       <div class="layer" role="presentation">
@@ -244,9 +248,11 @@
 ${api.esc(text("updateReminder.latestVersion", "最新版本：$version$", { version: remote }))}</div>
             <div class="label">${api.esc(text("updateReminder.releaseNotes", "新版日志"))}</div>
             <div class="body"></div>
+            <div class="update-error" role="status" hidden></div>
             <div class="actions">
-              <button class="action" type="button" data-action="mute">${api.esc(text("updateReminder.muteToday", "今天不再提醒"))}</button>
-              <button class="action primary" type="button" data-action="open">${api.esc(text("updateReminder.openDownload", "打开官网下载"))}</button>
+              <button class="action" type="button" data-action="mute-version">${api.esc(text("updateReminder.ignoreVersion", "此版本不再提醒"))}</button>
+              <button class="action" type="button" data-action="mute-cycle">${api.esc(text("updateReminder.snoozeCycle", "本次不再提醒"))}</button>
+              <button class="action primary" type="button" data-action="open">${api.esc(action.label)}</button>
             </div>
           </div>
         </section>
@@ -255,19 +261,21 @@ ${api.esc(text("updateReminder.latestVersion", "最新版本：$version$", { ver
     const dom = globalThis.STDomUtils;
     dom.setTrustedHTML(shadow, dom.trustedHTML(template, "update-reminder-static-template"));
     dom.setTrustedHTML(shadow.querySelector(".body"), dom.trustedHTML(logHtml, "update-reminder-log-sanitized-renderer"));
-    shadow.addEventListener("click", (event) => {
+    shadow.addEventListener("click", async (event) => {
       const action = event.target?.closest?.("[data-action]")?.dataset?.action || "";
-      if (action === "close") {
+      if (action === "close") { close(host); return; }
+      if (!["open", "mute-version", "mute-cycle"].includes(action)) return;
+      const controls = shadow.querySelectorAll(".action");
+      controls.forEach(button => { button.disabled = true; });
+      try {
+        if (action === "open") api.openUpdate(info);
+        else await api.mute(info, action === "mute-version" ? "version" : "cycle");
         close(host);
-        return;
-      }
-      if (action === "open") {
-        api.openDownload(info.link || api.UPDATE_PAGE, { version: api.verText(info.remote || latest.version) });
-        close(host);
-        return;
-      }
-      if (action === "mute") {
-        api.muteToday(info.remote || latest.version).finally(() => close(host));
+      } catch (error) {
+        log.error("update-reminder-action-failed", "更新提醒操作失败", { error, action });
+        const status = shadow.querySelector(".update-error");
+        status.hidden = false; status.textContent = text("updateReminder.actionFailed", "操作失败，请重试。");
+        controls.forEach(button => { button.disabled = false; });
       }
     });
     shadow.addEventListener("keydown", (event) => {
@@ -281,44 +289,78 @@ ${api.esc(text("updateReminder.latestVersion", "最新版本：$version$", { ver
     return host;
   }
 
-  async function start() {
-    if (!topHttpPage()) {
-      return;
-    }
-    if (globalThis.STLifecyclePrompts?.isBlocking?.()) {
-      return;
-    }
-    let info = null;
-    try {
-      info = await api.check({ manual: false });
-    } catch {
-      return;
-    }
-    if (!info?.hasNew || await api.isMuted(info)) {
-      return;
-    }
-    info = {
-      ...info,
-      latest: typeof api.withDetail === "function" ? await api.withDetail(info.latest || {}) : (info.latest || {}),
-    };
-    await ready();
-    if (document.getElementById(ROOT)) {
-      return;
-    }
-    const host = build(info);
-    document.body.appendChild(host);
-    const layer = host.shadowRoot.querySelector(".layer");
-    window.requestAnimationFrame(() => {
-      layer.classList.add("show");
-      host.shadowRoot.querySelector(".close")?.focus();
-    });
+  let current = null;
+  let busy = false;
+  let rerun = false;
+
+  function release() {
+    const owner = current;
+    current = null;
+    if (!owner) return;
+    owner.port.onDisconnect.removeListener(owner.lost);
+    owner.port.disconnect();
+    owner.host?.remove();
+    restoreFocus(owner.host);
   }
 
-  window.setTimeout(() => {
-    start().catch((error) => {
-      log.warn("update-reminder-start-failed", "更新提醒启动失败", {
-        error,
+  function kick() {
+    start().catch(error => log.error("update-reminder-start-failed", "更新提醒展示失败", { error }));
+  }
+
+  // 页面只消费后台缓存；展示权通过 Port 仲裁，不因页面加载或恢复可见而联网检查
+  async function start() {
+    if (busy) { rerun = true; return; }
+    if (current || document.hidden || globalThis.STLifecyclePrompts?.isBlocking?.()) return;
+    busy = true;
+    try {
+      const cached = await api.cached();
+      if (!cached?.hasNew || document.hidden) return;
+      const grant = await api.claim();
+      if (!grant) return;
+      if (document.hidden || globalThis.STLifecyclePrompts?.isBlocking?.()) { grant.port.disconnect(); return; }
+      const owner = { ...grant, host: null, lost: null };
+      owner.lost = () => { if (current === owner) { current = null; owner.host?.remove(); restoreFocus(owner.host); } };
+      current = owner;
+      owner.port.onDisconnect.addListener(owner.lost);
+      await ready();
+      if (current !== owner || document.hidden) { if (current === owner) release(); return; }
+      const host = build(owner.info);
+      owner.host = host;
+      document.body.appendChild(host);
+      window.requestAnimationFrame(() => {
+        if (!host.isConnected) return;
+        host.shadowRoot.querySelector(".layer").classList.add("show");
+        host.shadowRoot.querySelector(".close").focus();
       });
-    });
-  }, 900);
+      // 摘要先展示，完整日志只补充当前弹窗，不阻塞界面创建
+      const detail = await api.withDetail(owner.info.latest || {});
+      if (current === owner && host.isConnected) {
+        const dom = globalThis.STDomUtils;
+        dom.setTrustedHTML(host.shadowRoot.querySelector(".body"), dom.trustedHTML(api.latestHtml(detail), "update-reminder-log-sanitized-renderer"));
+      }
+    } finally {
+      busy = false;
+      if (rerun) { rerun = false; kick(); }
+    }
+  }
+
+  function changed(changes, area) {
+    if (area !== "local" || ![api.CACHE_KEY, api.MUTE_KEY, api.PLAN_KEY, globalThis.STConfig.updates.settingKey].some(key => Object.hasOwn(changes, key))) return;
+    release(); kick();
+  }
+  function visibility() { if (document.hidden) release(); else kick(); }
+  function pageshow() { kick(); }
+  function pagehide(event) {
+    release();
+    if (event.persisted) return;
+    chrome.storage.onChanged.removeListener(changed);
+    document.removeEventListener("visibilitychange", visibility);
+    window.removeEventListener("pageshow", pageshow);
+    window.removeEventListener("pagehide", pagehide);
+  }
+  chrome.storage.onChanged.addListener(changed);
+  document.addEventListener("visibilitychange", visibility);
+  window.addEventListener("pageshow", pageshow);
+  window.addEventListener("pagehide", pagehide);
+  window.setTimeout(kick, 900);
 })();

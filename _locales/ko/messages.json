@@ -1419,9 +1419,6 @@
   "updateReminder_releaseNotes": {
     "message": "릴리스 노트"
   },
-  "updateReminder_muteToday": {
-    "message": "오늘은 다시 알리지 않기"
-  },
   "updateReminder_openDownload": {
     "message": "공식 다운로드 페이지 열기"
   },
@@ -1877,9 +1874,6 @@
         "content": "$2"
       }
     }
-  },
-  "about_update_storeVersionDisabled": {
-    "message": "스토어 버전에서는 수동 업데이트 확인이 비활성화되어 있습니다"
   },
   "about_logs_utf8Unavailable": {
     "message": "이 환경에서는 UTF-8 인코딩을 지원하지 않습니다"
@@ -6834,5 +6828,58 @@
   },
   "store_detail_detailsLoading": {
     "message": "상세 로딩 중 · 접기 ↑"
+  },
+  "updateReminder_ignoreVersion": {
+    "message": "이 버전 다시 알리지 않기"
+  },
+  "updateReminder_snoozeCycle": {
+    "message": "다음 확인까지 알리지 않기"
+  },
+  "updateReminder_openChrome": {
+    "message": "Chrome 웹 스토어 열기"
+  },
+  "updateReminder_openEdge": {
+    "message": "Edge 추가 기능 열기"
+  },
+  "updateReminder_actionFailed": {
+    "message": "작업에 실패했습니다. 다시 시도하세요."
+  },
+  "settings_updateCheck_title": {
+    "message": "확장 프로그램 업데이트"
+  },
+  "settings_updateCheck_frequency": {
+    "message": "업데이트 확인 주기"
+  },
+  "settings_updateCheck_hours": {
+    "message": "$hours$시간",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_updateCheck_off": {
+    "message": "확인하지 않음"
+  },
+  "settings_updateCheck_loading": {
+    "message": "설정 읽는 중…"
+  },
+  "settings_updateCheck_desc": {
+    "message": "확장 프로그램 실행 중 백그라운드에서 확인합니다. 비활성화해도 수동으로 확인할 수 있습니다."
+  },
+  "settings_updateCheck_readFailed": {
+    "message": "설정을 읽을 수 없습니다. 설정을 다시 여세요."
+  },
+  "settings_updateCheck_saveFailed": {
+    "message": "저장하지 못했습니다. 다시 시도하세요."
+  },
+  "about_update_storePending": {
+    "message": "스토어에 대상 버전이 아직 반영되지 않았습니다"
+  },
+  "about_update_unconfigured": {
+    "message": "업데이트 대상 버전이 설정되지 않았습니다"
+  },
+  "about_update_unavailable": {
+    "message": "지금은 업데이트 제공 여부를 확인할 수 없습니다"
   }
 }

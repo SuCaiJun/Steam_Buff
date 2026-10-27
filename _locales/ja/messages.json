@@ -1419,9 +1419,6 @@
   "updateReminder_releaseNotes": {
     "message": "リリースノート"
   },
-  "updateReminder_muteToday": {
-    "message": "今日は今後通知しない"
-  },
   "updateReminder_openDownload": {
     "message": "公式ダウンロードページを開く"
   },
@@ -1877,9 +1874,6 @@
         "content": "$2"
       }
     }
-  },
-  "about_update_storeVersionDisabled": {
-    "message": "ストア版では手動更新チェックが無効です"
   },
   "about_logs_utf8Unavailable": {
     "message": "この環境ではUTF-8エンコードがサポートされていません"
@@ -6834,5 +6828,58 @@
   },
   "store_detail_detailsLoading": {
     "message": "詳細を読み込み中 · 折りたたむ ↑"
+  },
+  "updateReminder_ignoreVersion": {
+    "message": "このバージョンを通知しない"
+  },
+  "updateReminder_snoozeCycle": {
+    "message": "次回の確認まで通知しない"
+  },
+  "updateReminder_openChrome": {
+    "message": "Chrome ウェブストアを開く"
+  },
+  "updateReminder_openEdge": {
+    "message": "Edge アドオンを開く"
+  },
+  "updateReminder_actionFailed": {
+    "message": "操作に失敗しました。もう一度お試しください。"
+  },
+  "settings_updateCheck_title": {
+    "message": "拡張機能の更新"
+  },
+  "settings_updateCheck_frequency": {
+    "message": "更新の確認間隔"
+  },
+  "settings_updateCheck_hours": {
+    "message": "$hours$時間",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_updateCheck_off": {
+    "message": "確認しない"
+  },
+  "settings_updateCheck_loading": {
+    "message": "設定を読み込み中…"
+  },
+  "settings_updateCheck_desc": {
+    "message": "拡張機能の実行中にバックグラウンドで確認します。無効にしても手動で確認できます。"
+  },
+  "settings_updateCheck_readFailed": {
+    "message": "設定を読み込めません。設定を開き直してください。"
+  },
+  "settings_updateCheck_saveFailed": {
+    "message": "保存できませんでした。もう一度お試しください。"
+  },
+  "about_update_storePending": {
+    "message": "対象のバージョンはまだストアに反映されていません"
+  },
+  "about_update_unconfigured": {
+    "message": "更新対象のバージョンが設定されていません"
+  },
+  "about_update_unavailable": {
+    "message": "現在、更新の提供状況を確認できません"
   }
 }

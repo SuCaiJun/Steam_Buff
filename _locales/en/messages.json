@@ -1419,9 +1419,6 @@
   "updateReminder_releaseNotes": {
     "message": "Release notes"
   },
-  "updateReminder_muteToday": {
-    "message": "Do not remind me again today"
-  },
   "updateReminder_openDownload": {
     "message": "Open official download page"
   },
@@ -1877,9 +1874,6 @@
         "content": "$2"
       }
     }
-  },
-  "about_update_storeVersionDisabled": {
-    "message": "Manual update checks are disabled for store versions"
   },
   "about_logs_utf8Unavailable": {
     "message": "This environment does not support UTF-8 encoding"
@@ -6834,5 +6828,58 @@
   },
   "store_detail_detailsLoading": {
     "message": "Loading details · Collapse ↑"
+  },
+  "updateReminder_ignoreVersion": {
+    "message": "Ignore this version"
+  },
+  "updateReminder_snoozeCycle": {
+    "message": "Remind me next check"
+  },
+  "updateReminder_openChrome": {
+    "message": "Open Chrome Web Store"
+  },
+  "updateReminder_openEdge": {
+    "message": "Open Edge Add-ons"
+  },
+  "updateReminder_actionFailed": {
+    "message": "Action failed. Please try again."
+  },
+  "settings_updateCheck_title": {
+    "message": "Extension updates"
+  },
+  "settings_updateCheck_frequency": {
+    "message": "Check for updates every"
+  },
+  "settings_updateCheck_hours": {
+    "message": "$hours$ hours",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_updateCheck_off": {
+    "message": "Never"
+  },
+  "settings_updateCheck_loading": {
+    "message": "Loading settings…"
+  },
+  "settings_updateCheck_desc": {
+    "message": "Check in the background while the extension is running. Manual checks remain available when disabled."
+  },
+  "settings_updateCheck_readFailed": {
+    "message": "Could not read settings. Reopen settings to try again."
+  },
+  "settings_updateCheck_saveFailed": {
+    "message": "Could not save. Please try again."
+  },
+  "about_update_storePending": {
+    "message": "The store has not received the target version yet"
+  },
+  "about_update_unconfigured": {
+    "message": "No update release has been configured"
+  },
+  "about_update_unavailable": {
+    "message": "Update availability cannot be confirmed right now"
   }
 }
