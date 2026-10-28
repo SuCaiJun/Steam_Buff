@@ -1066,22 +1066,6 @@
     return date.toLocaleString(globalThis.STI18n.intlLocale());
   }
 
-  function logStatusText() {
-    if (!logStats) {
-      return text("about.logs.statusLoading", "正在读取日志状态");
-    }
-    const count = Number(logStats.count) || 0;
-    if (!count) {
-      return text("about.update.noLogShort", "暂无日志");
-    }
-    return text("about.logs.statusDetail", "$count$ 条，$size$，$first$ - $last$", {
-      count,
-      size: fmtSize(logStats.sizeBytes),
-      first: fmtTime(logStats.firstTime),
-      last: fmtTime(logStats.lastTime),
-    });
-  }
-
   function shortTime(value) {
     if (!value) {
       return text("common.none", "暂无");

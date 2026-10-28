@@ -294,26 +294,25 @@
     return /^[a-z]{2}$/i.test(raw) ? raw.toUpperCase() : fallbackValue;
   }
 
-  function normalizeThirdPartyServices(values) {
-    const defs = thirdPartyServicesDefaults();
+  /** 统一规范第三方服务配置；可传入目录默认值，返回独立配置对象，不写存储 */
+  function normalizeThirdPartyServices(values, defaults = thirdPartyServicesDefaults()) {
+    const defs = defaults && typeof defaults === "object" ? defaults : {};
     const src = values && typeof values === "object" ? values : {};
     const itad = src.isthereanydeal && typeof src.isthereanydeal === "object" ? src.isthereanydeal : {};
     const defItad = defs.isthereanydeal || {};
-    const routes = { ...(defs.routes || {}), ...(src.routes || {}) };
-    const routeValue = (value) => String(value || "") === "isthereanydeal" ? "isthereanydeal" : "";
 
     return {
       enabled: src.enabled === true,
-      defaultProvider: String(src.defaultProvider || defs.defaultProvider || "isthereanydeal") === "isthereanydeal" ? "isthereanydeal" : "isthereanydeal",
+      defaultProvider: "isthereanydeal",
       isthereanydeal: {
         key: String(itad.key ?? defItad.key ?? "").trim(),
         country: cleanItadCountry(itad.country, defItad.country || "auto"),
         shops: cleanItadShops(itad.shops ?? defItad.shops),
       },
       routes: {
-        prices: routeValue(routes.prices || "isthereanydeal") || "isthereanydeal",
-        history: routeValue(routes.history || "isthereanydeal") || "isthereanydeal",
-        discountForecast: routeValue(routes.discountForecast || "isthereanydeal") || "isthereanydeal",
+        prices: "isthereanydeal",
+        history: "isthereanydeal",
+        discountForecast: "isthereanydeal",
       },
     };
   }
@@ -380,8 +379,7 @@
     };
   }
 
-  function thirdPartyServicesData(values) {
-    const next = normalizeThirdPartyServices(values);
+  function thirdPartyServicesData(next) {
     const data = {};
     for (const path of thirdPartyServicesPaths()) {
       data[thirdPartyServicesKey(path)] = clone(getPath(next, path, getPath(thirdPartyServicesDefaults(), path, "")));
@@ -934,7 +932,7 @@
   }
 
   async function getThirdPartyServices() {
-    const defs = normalizeThirdPartyServices(thirdPartyServicesDefaults());
+    const defs = thirdPartyServicesDefaults();
     const paths = thirdPartyServicesPaths();
     const keys = paths.map(thirdPartyServicesKey);
     const rt = await get(keys);
@@ -1159,6 +1157,7 @@
     setAi,
     getThirdPartyServices,
     setThirdPartyServices,
+    normalizeThirdPartyServices,
     STORE_PRICE_CHART_KEY,
     normalizeStorePriceChart,
     getStorePriceChart,

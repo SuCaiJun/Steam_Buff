@@ -1097,16 +1097,6 @@
     }
   }
 
-  function clearFixed(bar) {
-    if (!bar) {
-      return;
-    }
-    bar.classList.remove(BAR_FIXED);
-    bar.style.left = "";
-    bar.style.top = "";
-    bar.style.visibility = "";
-  }
-
   function apiRows(data) {
     if (Array.isArray(data?.data)) {
       return data.data;
@@ -1859,37 +1849,6 @@
     refreshCounts();
     if (searchActive()) {
       batch.searchIndex = null;
-      batch.searchSeq += 1;
-      scheduleSearch(false);
-    }
-  }
-
-  function appendRows(rows) {
-    const list = Array.isArray(rows) ? rows : [];
-    for (const row of list) {
-      row.index = batch.rows.length;
-      row.viewIndex = row.index;
-      refreshRowSearch(row);
-      batch.rows.push(row);
-      batch.rowMap.set(Number(row.appid), row);
-      if (row.checked) {
-        batch.selectedCount += 1;
-      }
-      if (canWrite(row)) {
-        batch.writeCount += 1;
-      }
-      if (mnemonicEligible(row)) {
-        batch.mnemonicEligibleCount += 1;
-      }
-      if (mnemonicPending(row)) {
-        batch.mnemonicPendingCount += 1;
-      }
-    }
-    batch.searchIndex = null;
-    invalidateVirtualRange();
-    refreshSkip();
-    refreshStorageCapacitySoon();
-    if (searchActive()) {
       batch.searchSeq += 1;
       scheduleSearch(false);
     }

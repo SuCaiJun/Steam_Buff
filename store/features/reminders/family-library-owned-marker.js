@@ -1212,10 +1212,8 @@
     return task;
   }
 
-  async function loadDetailCard(appId) {
+  async function loadDetailCard(id) {
     const startedAt = Date.now();
-    const id = Number(appId) || 0;
-    if (!id || document.querySelector(".game_area_comingsoon")) return;
     const seq = detailSeq + 1;
     detailSeq = seq;
     detailActive = true;
@@ -1335,14 +1333,6 @@
     document.querySelectorAll(".st_family_library_dialog_layer").forEach(node => node.remove());
     removeFeatureStyleIfIdle();
     return true;
-  }
-
-  function stopBadgeRuntime() {
-    api.dom.cancelBadgeWrites(FEATURE_ID);
-    clearFamilyBadges();
-    api.appCardBadgeScanner?.stop?.(FEATURE_ID);
-    badgeCache = undefined;
-    badgeCacheLoad = null;
   }
 
   function stopBadges(scope = "") {

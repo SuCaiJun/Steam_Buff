@@ -181,8 +181,9 @@
     return run;
   }
 
+  // readUser 和变更函数已返回规范快照，比较时不再重建副本
   function unchanged(left, right) {
-    return JSON.stringify(store.normalize(left)) === JSON.stringify(store.normalize(right));
+    return JSON.stringify(left) === JSON.stringify(right);
   }
 
   function readStorage(keys) {
@@ -299,7 +300,7 @@
     if (!ok) {
       return { ok: false, reason: "write-failed" };
     }
-    return { ok: true, snapshot: store.readUser(drafted, id) };
+    return { ok: true, snapshot: drafted.byUser[id] };
   }
 
   function commitOwner(ownerId, mutate) {

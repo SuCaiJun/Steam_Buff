@@ -41,10 +41,6 @@
     return String(value || "").trim();
   }
 
-  function raw(value) {
-    return typeof value === "string" ? value : "";
-  }
-
   function sleep(ms) {
     return new Promise((resolve) => {
       window.setTimeout(resolve, ms);
@@ -240,12 +236,6 @@
       });
     }
     return synced;
-  }
-
-  function recordWriteMs(q, ms) {
-    const cost = Math.max(0, Number(ms) || 0);
-    q.writeMsTotal += cost;
-    q.writeMsMax = Math.max(q.writeMsMax, cost);
   }
 
   function recordBatchWriteMs(q, ms) {

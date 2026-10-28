@@ -192,14 +192,6 @@
     });
   }
 
-  function esc(value) {
-    return String(value || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
   function visible(el) {
     return !!(el?.offsetWidth || el?.offsetHeight || el?.getClientRects?.().length);
   }
@@ -267,11 +259,8 @@
     }
     const mode = options.nativeMode;
     nativeCandidates(native).forEach((el, idx) => {
-      setNativeHidden(el, options.nativeMode === "hide" || (options.nativeMode === "one" && idx > 0));
+      setNativeHidden(el, mode === "hide" || (mode === "one" && idx > 0));
     });
-    if (mode === "default") {
-      nativeCandidates(native).forEach(el => setNativeHidden(el, false));
-    }
   }
 
   function host(input) {

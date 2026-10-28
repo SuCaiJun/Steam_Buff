@@ -3677,41 +3677,6 @@
     }
   }
 
-  const ROUTE_POLICY = Object.freeze({
-    NETWORK_REQUEST_CANCEL: "发送方取消自己的普通代理或非流式 AI 请求",
-    UPDATE_CHECK: "设置中心更新检查",
-    STORE_FETCH: "允许列表内跨域请求代理",
-    [PLAYER_STATS_FETCH]: "Steam 商店详情页或库详情页固定在线人数请求",
-    TRANSLATE_INJECT: "翻译 runner 按需注入",
-    CONTENT_FILES_INJECT: "当前 frame 内容脚本按需注入",
-    [STEAM_LOOPBACK_INJECT_REQUEST]: "Steam CEF 白名单 frame 按需注入",
-    STEAM_NAME_BACKEND_RECOVER: "Steam 主窗口或属性窗口定向恢复名称后台",
-    [AI_GATEWAY_PERMISSION_CHECK]: "AI 设置页检查当前网关精确域名权限",
-    [AI_GATEWAY_PERMISSION_REQUEST]: "用户操作触发的 AI 网关按域名授权",
-    [AI_GATEWAY_PERMISSION_OPEN]: "Steam 设置页创建一次性 AI 网关授权会话",
-    [AI_GATEWAY_PERMISSION_CONTEXT]: "扩展授权页读取后台持有的一次性授权上下文",
-    [AI_GATEWAY_PERMISSION_CANCEL]: "AI 设置页取消未完成的一次性授权会话",
-    [CHROMIUM_WINDOW_OPEN]: "扩展内部 URL 的 Chromium 窗口打开",
-    [STEAM_ROOT_MENU_OPEN_CHROMIUM]: "Steam Root Menu 打开主页或扩展管理",
-    [AI_GATEWAY_PERMISSION_COMPLETE]: "扩展授权页回传 AI 网关授权结果",
-    AI_CHAT_COMPLETIONS: "AI 网关连接测试与翻译代理",
-    AI_TRANSLATE_CACHE_GET: "AI 翻译缓存读取",
-    AI_TRANSLATE_CACHE_SET: "AI 翻译缓存写入",
-    ACHIEVEMENT_TRANSLATIONS: "成就译文读取、手动保存与 AI 翻译",
-    MESSAGE_CENTER: "消息中心读取、已读与删除操作",
-    LOG_APPEND: "诊断日志追加",
-    LOG_EXPORT: "诊断日志导出",
-    LOG_CLEAR: "诊断日志清空",
-    LOG_STATS: "诊断日志状态",
-    LOG_DEBUG_GET: "读取日志开关状态",
-    LOG_DEBUG_SET: "设置中心确认后启停日志",
-    [ONBOARDING_OPEN_LOCAL_MESSAGE]: "云端安装引导页打开本地步骤",
-    [ONBOARDING_OPEN_SETTINGS_MESSAGE]: "安装引导页打开设置中心",
-    SETTINGS_CLOUD_SYNC: "设置云同步检查、上传、下载和冲突处理",
-    USER_NAMES_COMMIT: "独立名称本地变更的唯一写入入口",
-    AUTH_COMMIT: "登录状态写入的唯一入口",
-  });
-
   const ROUTES = Object.freeze({
     async LOG_DEBUG_GET(request, sender, sendResponse) {
       try {
