@@ -16,6 +16,18 @@
 
   const features = [
     {
+      id: "message-center",
+      name: "Steam Buff 消息中心",
+      loadStrategy: "on-demand-entry",
+      dependencies: ["shared/scheduler.js"],
+      modes: ["ui"],
+      pageScope: ["main-ui"],
+      entries: { ui: "ui.js" },
+      shouldRun(api, context) {
+        return context === "ui" && api.ctx.isMainUi() === true;
+      },
+    },
+    {
       id: "download-auto-shutdown",
       name: "下载完成后自动关机",
       settingsKey: "download-auto-shutdown",

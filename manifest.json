@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.1.11",
+  "version": "2.1.14",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -245,6 +245,7 @@
         "shared/batch-queue.js",
         "shared/virtual-list.js",
         "shared/achievement-translations.js",
+        "shared/message-center.js",
         "shared/dialog-lifecycle.js",
         "shared/user-names-snapshot.js",
         "shared/page-context.js",
@@ -286,6 +287,7 @@
         "images/ui/delete.svg",
         "images/ui/source-tip.svg",
         "images/ui/download-actions.svg",
+        "images/ui/message-center.svg",
         "images/features/translate.svg"
       ],
       "matches": [

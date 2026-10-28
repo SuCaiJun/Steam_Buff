@@ -42,6 +42,8 @@
   importScripts(chrome.runtime.getURL("settings/storage.js"));
   importScripts(chrome.runtime.getURL("shared/achievement-translations.js"));
   importScripts(chrome.runtime.getURL("extension/background-achievements.js"));
+  importScripts(chrome.runtime.getURL("shared/message-center.js"));
+  importScripts(chrome.runtime.getURL("extension/background-messages.js"));
   importScripts(chrome.runtime.getURL("settings/panel-snapshot.js"));
   importScripts(chrome.runtime.getURL("settings/settings-cloud.js"));
   importScripts(chrome.runtime.getURL("shared/auth-session.js"));
@@ -90,6 +92,8 @@
     "shared/auth-session.js",
     "shared/auth-client.js",
     "shared/user-names-snapshot.js",
+    "shared/message-center.js",
+    "extension/runtime/message-center-bridge.js",
     "extension/content.js",
   ]);
   const STEAM_LOOPBACK_GUARD_FILES = Object.freeze([
@@ -128,6 +132,8 @@
     "shared/runtime/message-bus.js",
     "shared/settings-bus.js",
     "shared/auth-session.js",
+    "shared/message-center.js",
+    "extension/runtime/message-center-bridge.js",
   ]);
   const SETTINGS_SHARED_SCRIPTS = Object.freeze([
     "ai/config.js",
@@ -420,7 +426,7 @@
     "store/main.js": ["store/features/features.js"],
   });
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v56";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v59";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_RUNTIME_READY_WAIT_MS = 6000;
@@ -2993,6 +2999,16 @@
     }
   }
 
+  // 发布仅供扩展自身入口；Steam 页面桥只允许读取和处理已有提醒。
+  async function messageCenter(request, sender, sendResponse) {
+    const url = senderUrlObject(sender);
+    const ownPage = url?.protocol === "chrome-extension:" && url.hostname === chrome.runtime.id;
+    if (sender.id !== chrome.runtime.id || (!ownPage && !isSteamRuntimeSender(sender))) throw new Error("消息中心来源无效");
+    if (request.action === "publish" && !ownPage) throw new Error("当前页面不能发布消息");
+    const value = await globalThis.STBackgroundMessages.execute(request);
+    sendResponse({ success: true, value });
+  }
+
   // Chrome executeScript 没有 Promise 形态，统一包一层便于异步路由保持 sendResponse 通道。
   function execScript(options) {
     return new Promise((resolve, reject) => {
@@ -3682,6 +3698,7 @@
     AI_TRANSLATE_CACHE_GET: "AI 翻译缓存读取",
     AI_TRANSLATE_CACHE_SET: "AI 翻译缓存写入",
     ACHIEVEMENT_TRANSLATIONS: "成就译文读取、手动保存与 AI 翻译",
+    MESSAGE_CENTER: "消息中心读取、已读与删除操作",
     LOG_APPEND: "诊断日志追加",
     LOG_EXPORT: "诊断日志导出",
     LOG_CLEAR: "诊断日志清空",
@@ -3738,6 +3755,7 @@
     AI_TRANSLATE_CACHE_GET: cacheGet,
     AI_TRANSLATE_CACHE_SET: cacheSet,
     ACHIEVEMENT_TRANSLATIONS: achievementTranslations,
+    MESSAGE_CENTER: messageCenter,
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: openOnboardingLocalPage,
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: openOnboardingSettings,
     SETTINGS_CLOUD_SYNC: globalThis.STBackgroundSettingsSync.handleMessage,

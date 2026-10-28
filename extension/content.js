@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v56";
+  const RUN_VERSION = "steam-buff-runtime-v59";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -2824,6 +2824,7 @@
     watchSettingsChanges();
     ensureSteamNewsTranslateBridge();
     ensureAchievementTranslateBridge();
+    if (isSteamNewsTranslateBridgeTarget()) globalThis.STMessageCenterBridge.start();
     logOnce("content-script-start", {
       level: "info",
       domain: "extension",
@@ -2930,6 +2931,7 @@
           "shared/batch-queue.js",
           "shared/virtual-list.js",
           "shared/achievement-translations.js",
+          "shared/message-center.js",
           "steam/features/steam-achievement-translate/display.js",
           "shared/dialog-lifecycle.js",
           "shared/utils/player-stats.js",
