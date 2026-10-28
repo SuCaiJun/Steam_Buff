@@ -5856,6 +5856,55 @@
   "steam_independentName_colMnemonic": {
     "message": "Mnemonic"
   },
+  "steam_nativeSortName_notReady": {
+    "message": "The Steam library is not ready. Try again shortly."
+  },
+  "steam_independentName_saveSnapshotMissing": {
+    "message": "The name save result was invalid. Reopen the editor to check."
+  },
+  "steam_nativeSortName_readUnavailable": {
+    "message": "Steam's sort name reader is unavailable."
+  },
+  "steam_nativeSortName_appMissing": {
+    "message": "The current game could not be found."
+  },
+  "steam_nativeSortName_invalid": {
+    "message": "Steam returned an invalid sort name."
+  },
+  "steam_nativeSortName_busy": {
+    "message": "This game's Steam sort name is being saved. Try again shortly."
+  },
+  "steam_nativeSortName_conflict": {
+    "message": "The Steam sort name changed elsewhere. Read it again before saving."
+  },
+  "steam_nativeSortName_unverified": {
+    "message": "The Steam sort name could not be verified after saving. Read it again before retrying."
+  },
+  "steam_nativeSortName_reload": {
+    "message": "Read again"
+  },
+  "steam_nativeSortName_loading": {
+    "message": "Reading the Steam sort name…"
+  },
+  "steam_nativeSortName_readFailed": {
+    "message": "Could not read the Steam sort name: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_nativeSortName_hint": {
+    "message": "Saved to Steam. Clear and confirm to remove the sort name. Reopen any Properties window already open."
+  },
+  "steam_nativeSortName_partial": {
+    "message": "The custom name was saved, but the Steam sort name could not be saved: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_independentName_colPinyin": {
     "message": "Full Pinyin"
   },

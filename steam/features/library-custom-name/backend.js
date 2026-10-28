@@ -24,6 +24,7 @@
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
   const WRITE_TIMEOUT_MS = 10000;
+  const SORT_NAME_LIB = "steam/shared/native-sort-name.js";
   const SCAN_YIELD = 2000;
   const PAGE_MAX = 1000;
   const PROGRESS_LOG_EVERY = 50;
@@ -498,21 +499,14 @@
   async function writeOne(item) {
     const appid = Number(item?.appid);
     const name = text(item?.name);
-    const store = window.appStore;
     if (item?.mode === "clear") {
       return { status: "failed", error: i18n("steam.libraryCustomName.clearNeedsFastWrite", "清空自定义排序名称需要 Steam CloudStorage 快速写入支持") };
     }
     if (!Number.isFinite(appid) || appid <= 0 || !name) {
       return { status: "skipped", error: i18n("steam.libraryCustomName.emptyWriteName", "写入名称为空") };
     }
-    if (typeof store?.SetCustomSortAs !== "function") {
-      throw new Error(i18n("steam.libraryCustomName.customSortUnavailable", "Steam 自定义排序接口不可用"));
-    }
-
-    const ret = await withTimeout(store.SetCustomSortAs(appid, name), WRITE_TIMEOUT_MS, i18n("steam.libraryCustomName.customSortTimeout", "Steam 自定义排序接口响应超时"));
-    if (ret === false) {
-      throw new Error(i18n("steam.libraryCustomName.writeRejected", "Steam 拒绝写入"));
-    }
+    await window.SteamBuff.reg.loadScript(SORT_NAME_LIB);
+    await window.SteamBuff.nativeSortName.write(appid, name);
     return { status: "success" };
   }
 
@@ -1038,9 +1032,11 @@
   async function saveOne(rt, rid, item) {
     try {
       const result = await writeOne(item);
-      post(rt.ch, { type: "save-one-result", rid, ok: result.status !== "skipped", error: result.error || "" });
+      post(rt.ch, { type: "save-one-result", rid, ok: result.status === "success", error: result.error || "" });
     } catch (error) {
-      post(rt.ch, { type: "save-one-result", rid, ok: false, error: error?.message || String(error) });
+      log.error("library-custom-name-save-one-failed", "Steam 单游戏排序名称保存失败", { error, appid: Number(item.appid), requestId: rid });
+      const detail = error?.message || String(error);
+      post(rt.ch, { type: "save-one-result", rid, ok: false, error: detail });
     }
   }
 

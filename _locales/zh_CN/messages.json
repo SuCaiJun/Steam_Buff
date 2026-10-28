@@ -5856,6 +5856,55 @@
   "steam_independentName_colMnemonic": {
     "message": "助记符"
   },
+  "steam_nativeSortName_notReady": {
+    "message": "Steam 游戏库尚未就绪，请稍后重试。"
+  },
+  "steam_independentName_saveSnapshotMissing": {
+    "message": "名称保存结果异常，请重新打开确认。"
+  },
+  "steam_nativeSortName_readUnavailable": {
+    "message": "Steam 排序名称读取接口不可用。"
+  },
+  "steam_nativeSortName_appMissing": {
+    "message": "未找到当前游戏。"
+  },
+  "steam_nativeSortName_invalid": {
+    "message": "Steam 排序名称数据格式错误。"
+  },
+  "steam_nativeSortName_busy": {
+    "message": "此游戏的 Steam 排序名称正在保存，请稍后重试。"
+  },
+  "steam_nativeSortName_conflict": {
+    "message": "Steam 排序名称已在其他位置修改，请重新读取后再保存。"
+  },
+  "steam_nativeSortName_unverified": {
+    "message": "Steam 排序名称保存结果未确认，请重新读取后再试。"
+  },
+  "steam_nativeSortName_reload": {
+    "message": "重新读取"
+  },
+  "steam_nativeSortName_loading": {
+    "message": "正在读取 Steam 排序名称…"
+  },
+  "steam_nativeSortName_readFailed": {
+    "message": "读取 Steam 排序名称失败：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_nativeSortName_hint": {
+    "message": "保存至 Steam；清空后点确定会移除排序名称。已打开的属性窗口需重开。"
+  },
+  "steam_nativeSortName_partial": {
+    "message": "自定义名称已保存，Steam 排序名称保存失败：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_independentName_colPinyin": {
     "message": "拼音全拼"
   },

@@ -1839,6 +1839,7 @@
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-form > input,
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-name-field > input,
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-sort-field > input,
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-aliases input {
         box-sizing: border-box;
         width: 100%;
@@ -1852,7 +1853,20 @@
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-name-field {
         min-width: 0;
       }
-      #${LIBRARY_INDEPENDENT_NAME_MODAL} label[for="st-lin-single-name"] {
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-sort-field {
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-sort-field small {
+        color: var(--st-color-text-muted);
+        line-height: 1.5;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-sort-field button {
+        justify-self: start;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} label[for="st-lin-single-name"],
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} label[for="st-lin-single-sort"] {
         align-self: start;
         padding-top: 6px;
       }

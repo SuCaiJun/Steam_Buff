@@ -5856,6 +5856,55 @@
   "steam_independentName_colMnemonic": {
     "message": "ニーモニック"
   },
+  "steam_nativeSortName_notReady": {
+    "message": "Steam ライブラリの準備ができていません。しばらくしてから再試行してください。"
+  },
+  "steam_independentName_saveSnapshotMissing": {
+    "message": "名前の保存結果が正しくありません。編集画面を開き直して確認してください。"
+  },
+  "steam_nativeSortName_readUnavailable": {
+    "message": "Steam の並べ替え名を読み取れません。"
+  },
+  "steam_nativeSortName_appMissing": {
+    "message": "現在のゲームが見つかりません。"
+  },
+  "steam_nativeSortName_invalid": {
+    "message": "Steam の並べ替え名のデータ形式が正しくありません。"
+  },
+  "steam_nativeSortName_busy": {
+    "message": "このゲームの Steam 並べ替え名を保存中です。しばらくしてから再試行してください。"
+  },
+  "steam_nativeSortName_conflict": {
+    "message": "Steam の並べ替え名が別の場所で変更されました。再読み込みしてから保存してください。"
+  },
+  "steam_nativeSortName_unverified": {
+    "message": "Steam 並べ替え名の保存結果を確認できませんでした。再読み込みしてから再試行してください。"
+  },
+  "steam_nativeSortName_reload": {
+    "message": "再読み込み"
+  },
+  "steam_nativeSortName_loading": {
+    "message": "Steam の並べ替え名を読み込み中…"
+  },
+  "steam_nativeSortName_readFailed": {
+    "message": "Steam の並べ替え名を読み込めませんでした：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_nativeSortName_hint": {
+    "message": "Steam に保存します。空欄にして確定すると並べ替え名を削除します。開いているプロパティウィンドウは開き直してください。"
+  },
+  "steam_nativeSortName_partial": {
+    "message": "カスタム名は保存されましたが、Steam の並べ替え名を保存できませんでした：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_independentName_colPinyin": {
     "message": "ピンイン全称"
   },

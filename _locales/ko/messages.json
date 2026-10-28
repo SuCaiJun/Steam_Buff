@@ -5856,6 +5856,55 @@
   "steam_independentName_colMnemonic": {
     "message": "니모닉"
   },
+  "steam_nativeSortName_notReady": {
+    "message": "Steam 라이브러리가 아직 준비되지 않았습니다. 잠시 후 다시 시도하세요."
+  },
+  "steam_independentName_saveSnapshotMissing": {
+    "message": "이름 저장 결과가 올바르지 않습니다. 편집 창을 다시 열어 확인하세요."
+  },
+  "steam_nativeSortName_readUnavailable": {
+    "message": "Steam 정렬 이름을 읽을 수 없습니다."
+  },
+  "steam_nativeSortName_appMissing": {
+    "message": "현재 게임을 찾을 수 없습니다."
+  },
+  "steam_nativeSortName_invalid": {
+    "message": "Steam 정렬 이름의 데이터 형식이 올바르지 않습니다."
+  },
+  "steam_nativeSortName_busy": {
+    "message": "이 게임의 Steam 정렬 이름을 저장 중입니다. 잠시 후 다시 시도하세요."
+  },
+  "steam_nativeSortName_conflict": {
+    "message": "Steam 정렬 이름이 다른 곳에서 변경되었습니다. 다시 읽은 후 저장하세요."
+  },
+  "steam_nativeSortName_unverified": {
+    "message": "Steam 정렬 이름의 저장 결과를 확인하지 못했습니다. 다시 읽은 후 재시도하세요."
+  },
+  "steam_nativeSortName_reload": {
+    "message": "다시 읽기"
+  },
+  "steam_nativeSortName_loading": {
+    "message": "Steam 정렬 이름을 읽는 중…"
+  },
+  "steam_nativeSortName_readFailed": {
+    "message": "Steam 정렬 이름을 읽지 못했습니다: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_nativeSortName_hint": {
+    "message": "Steam에 저장합니다. 필드를 비운 후 확인하면 정렬 이름이 삭제됩니다. 이미 열린 속성 창은 다시 열어 주세요."
+  },
+  "steam_nativeSortName_partial": {
+    "message": "사용자 지정 이름은 저장되었지만 Steam 정렬 이름을 저장하지 못했습니다: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_independentName_colPinyin": {
     "message": "병음 전체"
   },

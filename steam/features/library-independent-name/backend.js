@@ -20,6 +20,7 @@
   const SET_SEARCH_FLAG = "__RickyStIndependentNameSearchSetterPatched";
   const SEARCH_ATTRIBUTE = "data-steam-buff-user-name-search";
   const ORIGINAL_NAME = "__RickyStOriginalName";
+  const SORT_NAME_LIB = "steam/shared/native-sort-name.js";
   const PAGE_MAX = 1000;
   // 单页最多 1000 条，让出间隔必须更小，否则这一页循环走不到让出
   const SCAN_YIELD = 200;
@@ -796,9 +797,51 @@
       metadataContext: null,
     };
 
+    // 只响应编辑器明确发来的单游戏命令；脚本加载后重新核对生命周期，不能为此启动旧名称模式。
+    async function sortName(data) {
+      const rid = data.rid;
+      const appid = data.appid;
+      const operationId = data.operationId || rid;
+      try {
+        await window.SteamBuff.reg.loadScript(SORT_NAME_LIB);
+        if (!rt.scheduled || window[RT] !== rt) return;
+        const service = window.SteamBuff.nativeSortName;
+        let name = service.read(appid);
+        if (data.type === "sort-save") {
+          if (typeof data.name !== "string" || typeof data.expected !== "string") {
+            throw new TypeError(globalThis.STI18n.text("steam.nativeSortName.invalid", "Steam 排序名称数据格式错误。"));
+          }
+          if (name !== data.name) {
+            if (name !== data.expected) {
+              throw new Error(globalThis.STI18n.text("steam.nativeSortName.conflict", "Steam 排序名称已在其他位置修改，请重新读取后再保存。"));
+            }
+            await service.write(appid, data.name);
+            name = service.read(appid);
+            if (name !== data.name) {
+              throw new Error(globalThis.STI18n.text("steam.nativeSortName.unverified", "Steam 排序名称保存结果未确认，请重新读取后再试。"));
+            }
+          }
+          log.info("independent-name-sort-saved", "Steam 单游戏排序名称已保存并回读确认", { appid, operationId, requestId: rid, cleared: name === "" });
+        }
+        if (rt.scheduled && window[RT] === rt) {
+          post(rt.ch, { type: `${data.type}-result`, rid, ok: true, appid, name });
+        }
+      } catch (error) {
+        log.error("independent-name-sort-request-failed", "Steam 单游戏排序名称请求失败", { error, appid, operationId, requestId: rid, operation: data.type });
+        if (rt.scheduled && window[RT] === rt) {
+          const detail = error?.message || String(error);
+          post(rt.ch, { type: `${data.type}-result`, rid, ok: false, appid, error: detail });
+        }
+      }
+    }
+
     rt.onMessage = (event) => {
       const data = event?.data;
       if (data?.script !== ID || data.side !== "ui") {
+        return;
+      }
+      if (data.type === "sort-read" || data.type === "sort-save") {
+        void sortName(data);
         return;
       }
       if (data.type === "list") {

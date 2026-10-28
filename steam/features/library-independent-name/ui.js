@@ -453,6 +453,7 @@
     }
 
     function closeSingleModal() {
+      state.currentGame?.controller.abort();
       closeSingleReadingPreview();
       const run = state.singleAiRun;
       state.singleAiRun = null;
@@ -517,6 +518,7 @@
       const disabled = state.singleBusy || !appid ? "disabled" : "";
       const original = Array.from(game.official_name || "");
       const last = original.pop() || "";
+      const sort = game.sort;
       return `
         <div class="st-lin-single-dialog">
           <header class="st-lin-head">
@@ -543,6 +545,12 @@
             <label for="st-lin-single-pinyin">${esc(i18n("steam.independentName.colPinyin", "拼音全拼"))}</label>
             <input id="st-lin-single-pinyin" data-lin-single-pinyin type="text" maxlength="200" value="${esc(draft.pinyin)}" ${disabled}>
             <div class="st-lin-readings st-lin-single-readings" data-lin-single-readings>${state.singleBusy ? "" : readingsHtml(singleReading(appid), "inline")}</div>
+            <label for="st-lin-single-sort">${esc(i18n("steam.libraryCustomName.customSortName", "自定义排序名称"))}</label>
+            <div class="st-lin-single-sort-field">
+              <input id="st-lin-single-sort" data-lin-single-sort type="text" value="${esc(sort.value)}" aria-describedby="st-lin-single-sort-status" ${state.singleBusy || !sort.ready || sort.loading ? "disabled" : ""}>
+              <small id="st-lin-single-sort-status" data-lin-single-sort-status role="status">${esc(sortStatus(sort))}</small>
+              <button class="st-lin-btn" type="button" data-lin-single-sort-retry ${sort.error || sort.reload ? "" : "hidden"} ${state.singleBusy || sort.loading ? "disabled" : ""}>${esc(i18n("steam.nativeSortName.reload", "重新读取"))}</button>
+            </div>
           </div>
           <p class="st-lin-msg ${status.kind === "rejected" ? "st-lin-sync-error" : ""}" data-lin-single-msg role="status">${esc(message)}</p>
           <footer class="st-lin-single-footer">
@@ -600,6 +608,91 @@
       } catch (error) {
         if (state.currentGame !== game || !state.started) return;
         log.warn("independent-name-reference-failed", "社区参考名称读取失败", { error, appid: game.appid });
+      }
+    }
+
+    // 排序命令只走现有 SharedJSContext 通道，和素材君名称快照的请求、保存协议相互独立。
+    function sortRequest(type, data, signal) {
+      if (!state.ch) return Promise.reject(new Error(i18n("steam.independentName.channelMissing", "名称列表通道不可用")));
+      const rid = `sort-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const timer = window.setTimeout(() => finish(new Error(i18n("steam.independentName.timeout", "名称服务响应超时"))), 20000);
+        const abort = () => finish(new Error(i18n("common.cancel", "取消")));
+        const onMessage = (event) => {
+          const body = event.data;
+          if (body?.script !== ID || body.side !== "backend" || body.rid !== rid || body.type !== `${type}-result`) return;
+          if (body.ok === false && typeof body.error === "string" && body.error) finish(new Error(body.error));
+          else if (body.ok !== true || body.appid !== data.appid || typeof body.name !== "string") finish(new TypeError(i18n("steam.nativeSortName.invalid", "Steam 排序名称数据格式错误。")));
+          else finish(null, body);
+        };
+        function cleanup() {
+          window.clearTimeout(timer);
+          state.ch.removeEventListener("message", onMessage);
+          signal.removeEventListener("abort", abort);
+        }
+        function finish(error, body) {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          if (error) reject(error);
+          else resolve(body);
+        }
+        state.ch.addEventListener("message", onMessage);
+        if (signal.aborted) { abort(); return; }
+        signal.addEventListener("abort", abort, { once: true });
+        try {
+          state.ch.postMessage({ script: ID, side: "ui", type, rid, ...data });
+        } catch (error) {
+          settled = true;
+          cleanup();
+          reject(error);
+        }
+      });
+    }
+
+    function sortStatus(sort) {
+      if (sort.loading) return i18n("steam.nativeSortName.loading", "正在读取 Steam 排序名称…");
+      if (sort.error) return i18n("steam.nativeSortName.readFailed", "读取 Steam 排序名称失败：$error$", { error: sort.error });
+      return i18n("steam.nativeSortName.hint", "保存至 Steam；清空后点确定会移除排序名称。已打开的属性窗口需重开。");
+    }
+
+    function refreshSingleSort(game) {
+      if (state.currentGame !== game || !state.started) return;
+      const modal = document.getElementById(MODAL);
+      const input = modal?.querySelector("[data-lin-single-sort]");
+      if (!input) return;
+      const sort = game.sort;
+      input.value = sort.value;
+      input.disabled = state.singleBusy || !sort.ready || sort.loading;
+      modal.querySelector("[data-lin-single-sort-status]").textContent = sortStatus(sort);
+      const retry = modal.querySelector("[data-lin-single-sort-retry]");
+      retry.hidden = !sort.error && !sort.reload;
+      retry.disabled = state.singleBusy || sort.loading;
+    }
+
+    async function loadSingleSort(game) {
+      const sort = game.sort;
+      if (sort.loading) return;
+      sort.loading = true;
+      refreshSingleSort(game);
+      try {
+        const result = await sortRequest("sort-read", { appid: game.appid }, game.controller.signal);
+        if (state.currentGame !== game || !state.started) return;
+        sort.initial = result.name;
+        if (!sort.edited) sort.value = result.name;
+        sort.edited = sort.value !== sort.initial;
+        sort.ready = true;
+        sort.error = "";
+        sort.reload = false;
+      } catch (error) {
+        if (state.currentGame !== game || !state.started) return;
+        sort.ready = false;
+        sort.error = error.message || String(error);
+        log.error("independent-name-sort-read-failed", "单游戏弹窗读取 Steam 排序名称失败", { error, appid: game.appid });
+      } finally {
+        sort.loading = false;
+        refreshSingleSort(game);
       }
     }
 
@@ -667,7 +760,11 @@
         document.body.appendChild(modal);
       }
       state.opener = document.activeElement;
-      state.currentGame = { appid, official_name: officialName };
+      // 排序草稿只属于本次窗口，不进入独立名称快照；关闭会丢弃它并取消尚未完成的回填。
+      state.currentGame = {
+        appid, official_name: officialName, controller: new AbortController(),
+        sort: { initial: null, value: "", edited: false, ready: false, loading: false, error: "", reload: false },
+      };
       const currentGame = state.currentGame;
       state.singleBusy = true;
       state.singleMessage = i18n("steam.independentName.loading", "正在加载...");
@@ -675,6 +772,7 @@
       renderSingleModal();
       modal.hidden = false;
       bindSingleModal(modal);
+      void loadSingleSort(currentGame);
       try {
         const [snap] = await Promise.all([request("snapshot"), loadLibs()]);
         if (state.currentGame !== currentGame) {
@@ -2434,24 +2532,85 @@
     }
 
     async function saveRow(appid) {
+      const game = state.currentGame;
       await loadLibs();
       const saved = savedItem(appid);
-      await request("save", { item: saved });
-      const snap = await request("snapshot");
+      const result = await request("save", { item: saved });
+      if (!result.data?.items || typeof result.data.items !== "object" || Array.isArray(result.data.items)) {
+        throw new TypeError(i18n("steam.independentName.saveSnapshotMissing", "名称保存结果异常，请重新打开确认。"));
+      }
       // 只清掉这次已经发出的内容，保存期间又改过的同一行草稿要留下
       const current = state.drafts.get(appid);
       if (current?.edited && sameNameDraft(current, saved)) {
         state.drafts.delete(appid);
         state.importSelection.delete(appid);
       }
-      adoptSnapshot(snap.data || state.snapshot);
+      adoptSnapshot(result.data);
       state.message = syncStatus(appid).text;
-      if (state.currentGame?.appid === appid) {
+      if (state.currentGame === game && game?.appid === appid) {
         state.singleMessage = state.message;
         renderSingleModal();
       }
       log.info("independent-name-save-success", "独立版自定义名称已保存", { appid });
       renderTable();
+    }
+
+    // 两处存储分别提交；名称成功后仅重试仍未保存的排序草稿，不能把部分成功当成全部失败。
+    async function saveSingle() {
+      const game = state.currentGame;
+      if (!game || state.singleBusy) return;
+      const appid = game.appid;
+      const sort = game.sort;
+      const draft = state.drafts.get(appid);
+      const nameChanged = draft?.edited === true && !sameNameDraft(draft, cloudOf(appid));
+      const sortChanged = sort.edited && sort.value !== sort.initial;
+      if (!nameChanged && !sortChanged) {
+        closeSingleModal();
+        return;
+      }
+      if (sortChanged && (!sort.ready || sort.loading)) {
+        state.singleMessage = sortStatus(sort);
+        renderSingleModal();
+        return;
+      }
+      state.singleBusy = true;
+      state.singleMessage = i18n("steam.independentName.saving", "正在保存...");
+      renderSingleModal();
+      let nameSaved = false;
+      let sortStarted = false;
+      const operationId = `single-name-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      try {
+        if (nameChanged) {
+          await saveRow(appid);
+          nameSaved = true;
+        }
+        if (state.currentGame !== game || !state.started) return;
+        if (sortChanged) {
+          const value = sort.value;
+          sortStarted = true;
+          const result = await sortRequest("sort-save", { appid, name: value, expected: sort.initial, operationId }, game.controller.signal);
+          if (state.currentGame !== game || !state.started) return;
+          if (result.name !== value) throw new TypeError(i18n("steam.nativeSortName.unverified", "Steam 排序名称保存结果未确认，请重新读取后再试。"));
+          sort.initial = result.name;
+          sort.edited = false;
+          sort.reload = false;
+        }
+        closeSingleModal();
+      } catch (error) {
+        if (state.currentGame !== game || !state.started) return;
+        if (sortStarted) sort.reload = true;
+        const detail = error.message || String(error);
+        state.singleMessage = nameSaved
+          ? i18n("steam.nativeSortName.partial", "自定义名称已保存，Steam 排序名称保存失败：$error$", { error: detail })
+          : detail;
+        if (nameSaved) log.warn("independent-name-save-partial", "单游戏名称已保存但 Steam 排序名称未完成", { error, appid, operationId });
+        else log.error("independent-name-save-failed", "独立版单游戏名称保存失败", { error, appid, operationId });
+      } finally {
+        if (state.currentGame === game && state.started) {
+          state.singleBusy = false;
+          renderSingleModal();
+        }
+      }
     }
 
     async function saveAllDrafts() {
@@ -3061,6 +3220,10 @@
         return;
       }
       if (state.singleAiRun) return;
+      if (event.target.closest("[data-lin-single-sort-retry]") && state.currentGame && !state.singleBusy) {
+        void loadSingleSort(state.currentGame);
+        return;
+      }
       if (event.target.closest("[data-lin-single-ai]")) {
         void generateSingleName();
         return;
@@ -3082,20 +3245,7 @@
         return;
       }
       if (event.target.closest("[data-lin-single-confirm]") && state.currentGame && !state.singleBusy) {
-        state.singleBusy = true;
-        state.singleMessage = i18n("steam.independentName.saving", "正在保存...");
-        renderSingleModal();
-        const appid = state.currentGame.appid;
-        saveRow(appid).then(() => {
-          if (state.currentGame?.appid === appid) {
-            closeSingleModal();
-          }
-        }).catch((error) => {
-          state.singleBusy = false;
-          state.singleMessage = error?.message || String(error);
-          log.warn("independent-name-save-failed", "独立版自定义名称保存失败", { error, appid });
-          renderSingleModal();
-        });
+        void saveSingle();
       }
     }
 
@@ -3117,6 +3267,13 @@
     function onSingleInput(event) {
       const appid = Number(state.currentGame?.appid) || 0;
       if (!appid || state.singleBusy) {
+        return;
+      }
+      if (event.target.matches("[data-lin-single-sort]")) {
+        const sort = state.currentGame.sort;
+        if (!sort.ready || sort.loading) return;
+        sort.value = event.target.value;
+        sort.edited = sort.value !== sort.initial;
         return;
       }
       if (event.target.matches("[data-lin-single-alias]")) {
