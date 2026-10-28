@@ -353,18 +353,6 @@
     return libraryRowItem(row) ? row : null;
   }
 
-  // Steam 原生右键菜单 Fiber 父链的 overview 与右键行 AppID共同校验入口归属
-  function contextMenuOverview(node) {
-    let fiber = reactFiber(node);
-    for (let depth = 0; fiber && depth < 12; depth += 1, fiber = fiber.return) {
-      const overview = fiber.memoizedProps?.overview;
-      if (overview && Number(overview.appid) > 0) {
-        return overview;
-      }
-    }
-    return null;
-  }
-
   // 返回所属文档的只读名称快照；输入改变才解析，损坏输入清空旧结果并记录一次错误。
   function userNames() {
     const raw = document.documentElement?.dataset?.steamBuffUserNames || "{}";
@@ -467,7 +455,6 @@
     apps,
     libraryRow,
     libraryRowItem,
-    contextMenuOverview,
     achievementAppId,
     achievementDisplayItem,
     achievementNotificationItem,
