@@ -14,6 +14,7 @@
   const ROOT = "__RickyMessageCenter", PANEL = "__RickyMessageCenterPopover", DIALOG = "__RickyMessageCenterDialog";
   const CONTROLS = "._3cykd-VfN_xBxf3Qxriccm";
   const MOUNT_TASK = "steam-message-center-controls";
+  const ROW_HEIGHT = 96, OVERSCAN = 3;
   const log = window.STLoggerFactory.createLogger("steam", model.FEATURE);
 
   /**
@@ -169,7 +170,9 @@
     const pending = new Map(), actionHandlers = new Map(), detailActions = new Map(), popCards = new Map(), fullCards = new Map();
     let stopped = false, current = null, generation = 0, selection = null, busy = false;
     let popLoading = false, popDirty = false, fullLoading = false, fullDirty = false;
-    let filter = "all", before = null, next = null, history = [], fullOpen = false;
+    let filter = "all", next = null, fullOpen = false, fullInitialized = false, fullFailed = false;
+    let fullRows = [], fullRevision = null, fullFrame = 0, fullFrameWindow = null, fullWindow = "";
+    const fullIds = new Set();
     let observedControls = null, observedParent = null;
     let mountWaiting = false, mountWaitAt = 0;
 
@@ -207,6 +210,10 @@
       .st-mc-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
       .st-mc-list { min-height: 0; max-height: var(--st-mc-menu-list-height); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; scrollbar-width: thin; }
       #${DIALOG} .st-mc-list { flex: 1; min-height: 0; max-height: none; }
+      .st-mc-virtual-rows .st-mc-card { height: ${ROW_HEIGHT}px; margin: 0; padding-bottom: 2px; }
+      .st-mc-virtual-rows .st-mc-open { height: 100%; min-height: 0; }
+      .st-mc-virtual-rows .st-mc-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      .st-mc-load-state { display: flex; justify-content: center; align-items: center; min-height: 32px; color: var(--st-color-text-muted); }
       .st-mc-card { position: relative; display: flex; align-items: stretch; margin: 0 0 2px; background: var(--st-color-surface-subtle); }
       .st-mc-card:hover, .st-mc-card:focus-within { background: var(--st-color-surface-subtle-hover); }
       .st-mc-open { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 72px; padding: 8px; border: 0; color: inherit; background: none; text-align: left; cursor: pointer; font: inherit; }
@@ -218,8 +225,8 @@
       .st-mc-summary { display: block; margin-top: 2px; color: var(--st-color-text-muted); font-size: 11px; line-height: 16px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
       .st-mc-dot { position: absolute; right: 8px; top: 12px; width: 6px; height: 6px; border-radius: 50%; background: var(--st-color-success); pointer-events: none; }
       .st-mc-dot[hidden] { display: none; }
-      .st-mc-foot, .st-mc-tools { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 8px 16px; border-top: 1px solid var(--st-color-border-normal); }
-      .st-mc-tools { justify-content: flex-start; border-top: 0; }
+      .st-mc-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 16px; }
+      .st-mc-tools .st-mc-count { margin-left: auto; }
       .st-mc-tools [aria-pressed="true"] { color: var(--st-color-white); background: var(--st-color-steam-toolbar-button-bg); }
       .st-mc-count { color: var(--st-color-text-muted); font-size: 11px; }
       .st-mc-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 152px; padding: 24px; text-align: center; color: var(--st-color-text-muted); }
@@ -249,18 +256,20 @@
     const popHead = element("header", "st-mc-head"); popHead.append(element("h2", "", "消息中心"), button("查看全部", "all"));
     const popList = element("div", "st-mc-list");
     const popError = element("p", "st-mc-error"); popError.setAttribute("role", "status");
-    const popFoot = element("footer", "st-mc-foot"), popCount = element("span", "st-mc-count", "正在加载…"), popRead = button("全部已读", "read-all");
-    popRead.disabled = true; popFoot.append(popCount, popRead); panel.append(popHead, popList, popError, popFoot);
+    panel.append(popHead, popList, popError);
 
     const dialog = element("section"); dialog.id = DIALOG; dialog.tabIndex = -1; dialog.setAttribute("role", "dialog"); dialog.setAttribute("aria-modal", "true"); dialog.setAttribute("aria-labelledby", `${DIALOG}Title`);
     const fullHead = element("header", "st-mc-head"), fullTitle = element("h2", "", "消息中心"); fullTitle.id = `${DIALOG}Title`;
     const close = button("×", "close", "st-mc-close"); close.setAttribute("aria-label", "关闭消息中心"); fullHead.append(fullTitle, close);
     const tools = element("div", "st-mc-tools"), all = button("全部", "filter-all"), unread = button("未读", "filter-unread"), fullRead = button("全部已读", "read-all");
-    tools.append(all, unread, fullRead);
+    const fullCount = element("span", "st-mc-count");
+    tools.append(all, unread, fullRead, fullCount);
     const fullList = element("div", "st-mc-list"), detail = element("article", "st-mc-detail"); detail.hidden = true;
+    fullList.tabIndex = 0; fullList.setAttribute("aria-label", "消息列表");
+    const fullTop = element("div"), fullBottom = element("div"), fullRowsHost = element("div", "st-mc-virtual-rows"), fullHint = element("div", "st-mc-load-state");
+    fullTop.setAttribute("aria-hidden", "true"); fullBottom.setAttribute("aria-hidden", "true"); fullRowsHost.setAttribute("role", "list"); fullHint.setAttribute("role", "status");
     const fullError = element("p", "st-mc-error"); fullError.setAttribute("role", "status");
-    const fullFoot = element("footer", "st-mc-foot"), previous = button("上一页", "previous"), nextButton = button("下一页", "next"), fullCount = element("span", "st-mc-count");
-    fullFoot.append(previous, fullCount, nextButton); dialog.append(fullHead, tools, fullList, detail, fullError, fullFoot);
+    dialog.append(fullHead, tools, fullList, detail, fullError);
     if (controls) controls.insertBefore(root, controls.firstChild);
     // 点击入口会让原生菜单失焦；保留悬停时的打开状态，让同次点击维持关闭语义。
     let pointerHadMenu = false;
@@ -291,9 +300,8 @@
       badge.textContent = String(value.unread); badge.hidden = value.unread === 0;
       trigger.dataset.unread = String(value.unread > 0);
       trigger.setAttribute("aria-label", value.unread ? `Steam Buff 消息，${value.unread} 条未读` : "Steam Buff 消息，无未读消息");
-      popCount.textContent = value.unread ? `${value.unread} 条未读` : "没有未读消息";
-      popRead.disabled = busy || value.unread === 0; fullRead.disabled = busy || value.unread === 0;
-      fullCount.textContent = `共 ${filter === "unread" ? value.unread : value.total} 条 · 第 ${history.length + 1} 页`;
+      fullRead.disabled = busy || value.unread === 0;
+      fullCount.textContent = `共 ${filter === "unread" ? value.unread : value.total} 条`;
       layout();
       return true;
     }
@@ -342,7 +350,7 @@
       if (await openWindow("menu", panel)) void loadPopover();
     }
 
-    function renderRows(container, cache, rows, emptyText) {
+    function renderRows(container, cache, rows, emptyText, relayout = true) {
       const ids = new Set(rows.map(message => message.id));
       for (const [id, card] of cache) if (!ids.has(id)) { card.node.remove(); cache.delete(id); }
       if (!rows.length) { cache.clear(); status(container, emptyText, "后续提醒会显示在这里"); return; }
@@ -364,7 +372,7 @@
         if (expected !== card.node) container.insertBefore(card.node, expected);
         previousNode = card.node;
       }
-      layout();
+      if (relayout) layout();
     }
 
     async function loadPopover() {
@@ -385,34 +393,117 @@
       }
     }
 
-    async function loadFull() {
+    function updateFullHint() {
+      if (fullFailed) fullHint.replaceChildren(button("加载失败，点击重试", "more"));
+      else fullHint.textContent = fullLoading ? "正在加载…" : (next ? "向下滚动加载更多" : "已显示全部消息");
+      fullList.setAttribute("aria-busy", String(fullLoading));
+    }
+
+    function nearFullEnd() {
+      return fullList.scrollTop + fullList.clientHeight >= fullRows.length * ROW_HEIGHT - (OVERSCAN + 1) * ROW_HEIGHT;
+    }
+
+    // 数据分批读取，DOM 只保留视口和两侧缓冲；滚动不调用原生窗口定位或完整运行时
+    function renderVirtualRows() {
+      if (stopped || !fullOpen || selection || !fullRows.length) return;
+      if (fullRowsHost.parentNode !== fullList) fullList.replaceChildren(fullTop, fullRowsHost, fullBottom, fullHint);
+      const start = Math.max(0, Math.min(fullRows.length - 1, Math.floor(fullList.scrollTop / ROW_HEIGHT) - OVERSCAN));
+      const end = Math.min(fullRows.length, Math.ceil((fullList.scrollTop + fullList.clientHeight) / ROW_HEIGHT) + OVERSCAN);
+      const range = `${generation}:${start}:${end}:${fullRows.length}:${fullRevision}`;
+      if (range === fullWindow) return;
+      fullWindow = range;
+      const visible = fullRows.slice(start, end), active = fullList.ownerDocument.activeElement;
+      const focused = active?.closest(".st-mc-open");
+      if (focused && fullRowsHost.contains(focused) && !visible.some(row => row.id === focused.dataset.id)) fullList.focus({ preventScroll: true });
+      fullTop.style.height = `${start * ROW_HEIGHT}px`; fullBottom.style.height = `${(fullRows.length - end) * ROW_HEIGHT}px`;
+      renderRows(fullRowsHost, fullCards, visible, "", false);
+      for (let index = start; index < end; index++) {
+        const card = fullCards.get(fullRows[index].id);
+        card.open.dataset.index = String(index);
+        card.node.setAttribute("role", "listitem"); card.node.setAttribute("aria-posinset", String(index + 1));
+        card.node.setAttribute("aria-setsize", String(filter === "unread" ? current.unread : current.total));
+      }
+    }
+
+    function cancelFullFrame() {
+      if (fullFrame && !fullFrameWindow.closed) fullFrameWindow.cancelAnimationFrame(fullFrame);
+      fullFrame = 0; fullFrameWindow = null;
+    }
+
+    function queueFullRender() {
+      if (stopped || !fullOpen || selection || fullFrame || !fullList.isConnected) return;
+      fullFrameWindow = fullList.ownerDocument.defaultView;
+      fullFrame = fullFrameWindow.requestAnimationFrame(() => {
+        fullFrame = 0; fullFrameWindow = null;
+        renderVirtualRows();
+      });
+    }
+
+    function loadMore() {
+      if (fullInitialized && next && !fullLoading && !fullFailed && nearFullEnd()) void loadFull(true);
+    }
+
+    function focusFullRow(index) {
+      if (stopped || !fullOpen || selection || index < 0 || index >= fullRows.length) return;
+      const top = index * ROW_HEIGHT;
+      if (top < fullList.scrollTop) fullList.scrollTop = top;
+      else if (top + ROW_HEIGHT > fullList.scrollTop + fullList.clientHeight) fullList.scrollTop = top + ROW_HEIGHT - fullList.clientHeight;
+      renderVirtualRows(); fullCards.get(fullRows[index].id).open.focus({ preventScroll: true });
+    }
+
+    // Tab 与方向键按数据索引跨越虚拟窗口；到达缓存末尾时仅补下一批，保留自然的首尾焦点出口
+    async function onFullKey(event) {
+      const target = event.target.closest(".st-mc-open");
+      if (!target || !fullRowsHost.contains(target) || !["Tab", "ArrowDown", "ArrowUp", "Home"].includes(event.key)) return;
+      const index = Number(target.dataset.index), backwards = event.key === "ArrowUp" || (event.key === "Tab" && event.shiftKey);
+      const destination = event.key === "Home" ? 0 : index + (backwards ? -1 : 1);
+      if (destination < 0 || (destination >= fullRows.length && !next)) return;
+      event.preventDefault();
+      if (destination >= fullRows.length) {
+        const token = generation;
+        await loadFull(true);
+        if (token !== generation) return;
+      }
+      focusFullRow(destination);
+    }
+
+    async function loadFull(append = false) {
       if (stopped || !fullOpen || selection) return;
-      if (fullLoading) { fullDirty = true; return; }
+      if (fullLoading) { if (!append) fullDirty = true; return; }
+      if (append && (!fullInitialized || !next)) return;
       const token = generation;
-      fullLoading = true; fullDirty = false; fullError.textContent = "";
+      const cursor = append ? next : null;
+      fullLoading = true; fullDirty = false; fullFailed = false; fullError.textContent = ""; updateFullHint();
       all.setAttribute("aria-pressed", String(filter === "all")); unread.setAttribute("aria-pressed", String(filter === "unread"));
-      previous.disabled = true; nextButton.disabled = true;
       try {
-        const page = await request("list", { filter, before });
+        const page = await request("list", { filter, before: cursor });
         if (stopped || !fullOpen || selection || token !== generation) return;
         if (!applyState(page.state)) { fullDirty = true; return; }
-        next = page.next;
-        renderRows(fullList, fullCards, page.rows, filter === "unread" ? "暂无未读消息" : "暂无消息");
-        previous.disabled = history.length === 0; nextButton.disabled = !next;
+        if (append && fullRevision !== page.state.revision) { showList(); return; }
+        if (!append) { fullRows = []; fullIds.clear(); fullList.scrollTop = 0; }
+        for (const row of page.rows) if (!fullIds.has(row.id)) { fullIds.add(row.id); fullRows.push(row); }
+        next = page.next; fullRevision = page.state.revision; fullInitialized = true;
+        if (fullRows.length) renderVirtualRows();
+        else { fullCards.clear(); status(fullList, filter === "unread" ? "暂无未读消息" : "暂无消息", "后续提醒会显示在这里"); }
       } catch (error) {
+        if (stopped || token !== generation || !fullOpen || selection) return;
+        fullFailed = true;
         reportFailure(error, "list", fullError);
-        if (!stopped && !fullCards.size) status(fullList, "消息加载失败", "请重试", true);
+        if (!fullRows.length) status(fullList, "消息加载失败", "请重试", true);
       } finally {
-        fullLoading = false;
+        fullLoading = false; updateFullHint();
         if (fullDirty && !stopped && fullOpen && !selection) void loadFull();
+        else if (token === generation && !fullFailed) loadMore();
       }
     }
 
     function showList(reset = false) {
-      generation++; selection = null; detail.hidden = true; fullList.hidden = false; tools.hidden = false; fullFoot.hidden = false;
-      if (reset) { before = null; history = []; filter = "all"; }
+      generation++; cancelFullFrame(); selection = null; detail.hidden = true; fullList.hidden = false; tools.hidden = false;
+      if (reset) { filter = "all"; fullRows = []; fullIds.clear(); fullCards.clear(); }
+      fullInitialized = false;
       fullTitle.textContent = "消息中心";
-      if (!fullCards.size) status(fullList, "正在加载", "正在读取消息…");
+      if (!fullRows.length) status(fullList, "正在加载", "正在读取消息…");
+      fullResize.observe(fullList);
       void loadFull();
     }
     async function openAll() {
@@ -441,7 +532,8 @@
     async function openDetail(id) {
       fullOpen = true;
       const token = ++generation; selection = id;
-      detail.hidden = false; fullList.hidden = true; tools.hidden = true; fullFoot.hidden = true; fullTitle.textContent = "消息详情";
+      cancelFullFrame(); fullResize.disconnect();
+      detail.hidden = false; fullList.hidden = true; tools.hidden = true; fullTitle.textContent = "消息详情";
       fullError.textContent = ""; status(detail, "正在加载", "正在读取消息…");
       try {
         if (!await openWindow("full", dialog) || token !== generation) return;
@@ -465,7 +557,7 @@
       try {
         if (!applyState(data.state)) return;
         if (isPopOpen()) void loadPopover();
-        if (fullOpen && !selection) void loadFull();
+        if (fullOpen && !selection) showList();
         if (selection && data.state.change?.action === "delete" && data.state.change.id === selection) showList();
       } catch (error) { reportFailure(error, "state", fullOpen ? fullError : popError); }
     }
@@ -479,9 +571,8 @@
       if (action === "detail") { await openDetail(target.dataset.id); return; }
       if (action === "back") { showList(); return; }
       if (action === "retry") { if (fullOpen) showList(); else void loadPopover(); return; }
-      if (action.startsWith("filter-")) { filter = action === "filter-unread" ? "unread" : "all"; before = null; history = []; showList(); return; }
-      if (action === "previous") { before = history.pop(); showList(); return; }
-      if (action === "next") { if (next) { history.push(before); before = next; showList(); } return; }
+      if (action === "more") { await loadFull(true); return; }
+      if (action.startsWith("filter-")) { filter = action === "filter-unread" ? "unread" : "all"; fullRows = []; fullIds.clear(); fullCards.clear(); showList(); return; }
       busy = true; target.disabled = true;
       const errorTarget = fullOpen ? fullError : popError; errorTarget.textContent = "";
       try {
@@ -503,7 +594,7 @@
       finally { busy = false; if (!stopped) { target.disabled = false; if (current) applyState(current); } }
     }
 
-    function onClose() { fullOpen = false; generation++; selection = null; }
+    function onClose() { fullOpen = false; generation++; selection = null; cancelFullFrame(); fullResize.disconnect(); }
     // 首次挂载不依赖整轮 runtime 重试；等待任务只查顶栏，成功后立即注销。
     function waitForMount() {
       if (mountWaiting) return;
@@ -551,6 +642,9 @@
     function onTriggerEnter() { pointerHadMenu = isPopOpen(); }
     function onTriggerLeave() { pointerHadMenu = false; }
 
+    const fullResize = new ResizeObserver(queueFullRender);
+    fullList.addEventListener("scroll", queueFullRender, { passive: true });
+    fullList.addEventListener("scrollend", loadMore); fullList.addEventListener("keydown", onFullKey);
     window.addEventListener("message", onMessage);
     window.addEventListener("resize", onResize);
     document.addEventListener("visibilitychange", onVisibility);
@@ -561,7 +655,7 @@
     const route = api.contextRouter.subscribe(reattach);
     void (async () => {
       try { const value = await request("summary"); if (!stopped) applyState(value.state); }
-      catch (error) { reportFailure(error, "summary", popError); popCount.textContent = "状态读取失败"; }
+      catch (error) { reportFailure(error, "summary", popError); }
     })();
 
     /**
@@ -587,6 +681,8 @@
     function stop() {
       if (stopped) return;
       stopped = true; generation++; observer.disconnect(); route.dispose();
+      cancelFullFrame(); fullResize.disconnect();
+      fullList.removeEventListener("scroll", queueFullRender); fullList.removeEventListener("scrollend", loadMore); fullList.removeEventListener("keydown", onFullKey);
       stopMountWait();
       host.stop();
       window.removeEventListener("message", onMessage); window.removeEventListener("resize", onResize);

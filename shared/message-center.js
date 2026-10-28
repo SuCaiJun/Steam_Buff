@@ -60,6 +60,7 @@
   root.STMessageCenter = Object.freeze({
     FEATURE: "message-center", ROUTE: "MESSAGE_CENTER", BRIDGE: "steam-buff-message-center-v1",
     DATABASE: "SteamBuffMessageCenter", STATE_KEY: "steam_buff_message_center_state_v1", PAGE_SIZE: 20,
+    RETENTION_MS: 30 * 24 * 60 * 60 * 1000, READ_LIMIT: 100,
     READ_ACTIONS: Object.freeze(["summary", "list", "get", "read", "read-all", "delete"]),
     id, message, list,
   });

@@ -87,12 +87,60 @@
   }
 
   async function summary() {
-    return transact(["messages", "meta"], "readonly", state);
+    const value = await operate("summary", null, async () => ({}));
+    return value.state;
+  }
+
+  // 直接沿已有索引删除过期或超量记录；skip 由游标跳过保留项，不将历史正文装入内存
+  function removeRange(messages, index, range, direction = "next", skip = 0) {
+    return new Promise((resolve, reject) => {
+      let removed = 0;
+      const request = messages.index(index).openCursor(range, direction);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        try {
+          const cursor = request.result;
+          if (!cursor) { resolve(removed); return; }
+          if (skip) { const count = skip; skip = 0; cursor.advance(count); return; }
+          const deletion = cursor.delete();
+          deletion.onerror = () => reject(deletion.error);
+          removed++;
+          cursor.continue();
+        } catch (error) { reject(error); }
+      };
+    });
+  }
+
+  function trimRead(messages) {
+    return removeRange(messages, "unread-time", IDBKeyRange.bound([0], [1], false, true), "prev", model.READ_LIMIT);
+  }
+
+  /**
+   * 每次访问先清理过期记录及历史超量已读；标记已读后再次收敛到最新 100 条
+   * 清理、业务操作和 revision 在同一事务提交，失败一起回滚；无变化不写摘要
+   */
+  async function operate(action, id, work) {
+    const value = await transact(["messages", "meta"], "readwrite", async transaction => {
+      const messages = transaction.objectStore("messages"), meta = transaction.objectStore("meta"), now = Date.now();
+      const expired = await removeRange(messages, "time", IDBKeyRange.upperBound([now - model.RETENTION_MS, []]));
+      let overflow = await trimRead(messages);
+      const response = await work(transaction, now);
+      if (action === "read" || action === "read-all") overflow += await trimRead(messages);
+      const changed = response.changed === true || expired > 0 || overflow > 0;
+      if (changed) {
+        const revision = await result(meta.get("revision"));
+        meta.put((revision === undefined ? 0 : revision) + 1, "revision");
+      }
+      return { response, state: await state(transaction), changed, expired, overflow };
+    });
+    if (value.expired || value.overflow) log.info("message-retention-applied", "消息记录已按保留规则清理", { expired: value.expired, readOverflow: value.overflow });
+    if (value.changed) await signal(value.state, { action: value.response.changed ? action : "prune", id: value.response.changed ? id : null });
+    return { ...value.response, state: value.state };
   }
 
   async function list(input) {
     const query = model.list(input);
-    return transact(["messages", "meta"], "readonly", async transaction => {
+    return operate("list", null, async transaction => {
       const messages = transaction.objectStore("messages"), unreadOnly = query.filter === "unread";
       const lower = unreadOnly ? [1, 0, ""] : null;
       const upper = query.before ? (unreadOnly ? [1, ...query.before] : query.before) : (unreadOnly ? [1, Number.MAX_SAFE_INTEGER, []] : null);
@@ -113,14 +161,14 @@
           cursor.continue();
         };
       });
-      const [value, current] = await Promise.all([page, state(transaction)]);
-      return { ...value, state: current };
+      return page;
     });
   }
 
   async function get(id) {
     const key = model.id(id);
-    return transact("messages", "readonly", async transaction => publicMessage(await result(transaction.objectStore("messages").get(key))));
+    const value = await operate("get", key, async transaction => ({ message: publicMessage(await result(transaction.objectStore("messages").get(key))) }));
+    return value.message;
   }
 
   // 只同步很小的变更摘要。消息正文与计数以同一数据库事务为准，信号失败不回滚已提交操作。
@@ -139,12 +187,12 @@
   async function mutate(action, input) {
     const message = action === "publish" ? model.message(input) : null;
     const key = action === "read-all" ? null : model.id(message ? message.id : input);
-    const value = await transact(["messages", "meta"], "readwrite", async transaction => {
-      const messages = transaction.objectStore("messages"), meta = transaction.objectStore("meta");
+    return operate(action, key, async (transaction, now) => {
+      const messages = transaction.objectStore("messages");
       let changed = false;
       if (action === "read-all") {
         await new Promise((resolve, reject) => {
-          const now = Date.now(), request = messages.index("unread").openCursor(IDBKeyRange.only(1));
+          const request = messages.index("unread").openCursor(IDBKeyRange.only(1));
           request.onerror = () => reject(request.error);
           request.onsuccess = () => {
             const cursor = request.result;
@@ -156,21 +204,16 @@
         });
       } else {
         const previous = await result(messages.get(key));
-        if (action === "publish" && !previous) {
+        if (action === "publish" && !previous && message.createdAt > now - model.RETENTION_MS) {
           messages.add({ ...message, unread: 1, readAt: null }); changed = true;
         } else if (action === "read" && previous?.unread === 1) {
-          messages.put({ ...previous, unread: 0, readAt: Date.now() }); changed = true;
+          messages.put({ ...previous, unread: 0, readAt: now }); changed = true;
         } else if (action === "delete" && previous) {
           messages.delete(key); changed = true;
         }
       }
-      const revision = await result(meta.get("revision"));
-      if (changed) meta.put((revision === undefined ? 0 : revision) + 1, "revision");
-      const current = await state(transaction);
-      return { changed, state: current };
+      return { changed };
     });
-    if (value.changed) await signal(value.state, { action, id: key });
-    return value;
   }
 
   /**
