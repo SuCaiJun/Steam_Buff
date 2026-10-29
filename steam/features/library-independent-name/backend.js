@@ -21,6 +21,7 @@
   const SEARCH_ATTRIBUTE = "data-steam-buff-user-name-search";
   const ORIGINAL_NAME = "__RickyStOriginalName";
   const SORT_NAME_LIB = "steam/shared/native-sort-name.js";
+  const BATCH_LIB = "steam/shared/native-sort-batch.js";
   const PAGE_MAX = 1000;
   // 单页最多 1000 条，让出间隔必须更小，否则这一页循环走不到让出
   const SCAN_YIELD = 200;
@@ -755,20 +756,37 @@
     }
   }
 
-  async function listPage(offset, context) {
+  async function listPage(offset, context, alive) {
     const list = window.SteamBuff?.ctx?.apps?.() || [];
     const start = Math.max(0, Number(offset) || 0);
     const end = Math.min(list.length, start + PAGE_MAX);
     const rows = [];
+    let readError = null;
+    try { await window.SteamBuff.reg.loadScript(SORT_NAME_LIB); }
+    catch (error) { readError = error; log.error("native-sort-list-load-failed", "批量排序名称读取模块加载失败", { error }); }
+    if (!alive()) return null;
+    let failed = 0, firstReadError = null;
     for (let i = start; i < end; i += 1) {
       const item = row(list[i], context);
       if (item) {
+        try {
+          if (readError) throw readError;
+          item.native_sort_name = window.SteamBuff.nativeSortName.read(item.appid);
+        } catch (error) {
+          item.native_sort_error = error.message;
+          failed++;
+          if (!firstReadError) {
+            firstReadError = error;
+            log.warn("native-sort-list-read-failed", "部分游戏的 Steam 排序名称未能读取", { error, appid: item.appid, pageCount: end - start });
+          }
+        }
         rows.push(item);
       }
       if ((i - start + 1) % SCAN_YIELD === 0) {
         await Promise.resolve();
       }
     }
+    if (failed > 1 && !readError) log.warn("native-sort-list-read-summary", "本页 Steam 排序名称存在多项读取失败", { error: firstReadError, failed, count: rows.length });
     return {
       rows,
       offset: end,
@@ -790,6 +808,8 @@
     const rt = {
       started: true,
       scheduled: true,
+      q: null, queueSeq: 0, lastDone: null,
+      pendingSort: new Map(),
       ch: new BroadcastChannel(CH),
       searchIndex: readSearchIndex(),
       searchOwner: null,
@@ -835,9 +855,61 @@
       }
     }
 
+    async function sortBatch(data, token) {
+      try {
+        await window.SteamBuff.reg.loadScript(SORT_NAME_LIB);
+        await window.SteamBuff.reg.loadScript(BATCH_LIB);
+        if (!rt.scheduled || window[RT] !== rt) return;
+        if (token?.cancelled) {
+          post(rt.ch, { type: "sort-batch-save-done", rid: data.rid, cancelled: true, items: [], stats: { processed: 0 } });
+          return;
+        }
+        const service = rt.batchService ||= window.SteamBuff.nativeSortBatch.create({
+          id: ID, raw: true, checked: true, alive: () => rt.scheduled && window[RT] === rt,
+          post: message => post(rt.ch, { ...message, type: "sort-batch-" + message.type }),
+        });
+        if (data.type === "sort-batch-save") {
+          if (!Array.isArray(data.items) || !data.items.length) throw new TypeError("批量排序名称列表无效");
+          const seen = new Set();
+          for (const item of data.items) {
+            if (!Number.isSafeInteger(item.appid) || item.appid <= 0 || seen.has(item.appid) || typeof item.name !== "string" || typeof item.expected !== "string") throw new TypeError("批量排序名称数据格式错误");
+            seen.add(item.appid);
+          }
+          const items = data.items.map(item => ({ appid: item.appid, name: item.name, expected: item.expected, mode: item.name === "" ? "clear" : "save" }));
+          service.saveQueue(rt, data.rid, items, 0, data.operationId, token?.paused === true);
+        } else if (data.type === "sort-batch-status") service.saveStatus(rt, data.rid, data);
+        else if (rt.q?.rid === data.rid) service.command(rt, data.rid, data.type.slice("sort-batch-".length));
+      } catch (error) {
+        log.error("native-sort-batch-request-failed", "Steam 排序名称批量请求失败", { error, requestId: data.rid, operationId: data.operationId });
+        const detail = error.message;
+        const type = data.type === "sort-batch-save" ? "sort-batch-save-result" : data.type === "sort-batch-status" ? "sort-batch-save-status-result" : "sort-batch-cmd-result";
+        post(rt.ch, { type, rid: data.rid, ok: false, error: detail });
+      } finally { if (token && rt.pendingSort.get(data.rid) === token) rt.pendingSort.delete(data.rid); }
+    }
+
     rt.onMessage = (event) => {
       const data = event?.data;
       if (data?.script !== ID || data.side !== "ui") {
+        return;
+      }
+      if (["sort-batch-save", "sort-batch-status", "sort-batch-pause", "sort-batch-resume", "sort-batch-cancel"].includes(data.type)) {
+        let token;
+        if (data.type === "sort-batch-save") {
+          if (rt.pendingSort.has(data.rid) || rt.q?.rid === data.rid) return;
+          token = { cancelled: false, paused: false };
+          rt.pendingSort.set(data.rid, token);
+        } else {
+          const pending = rt.pendingSort.get(data.rid);
+          if (pending && data.type === "sort-batch-cancel") pending.cancelled = true;
+          if (pending && data.type === "sort-batch-pause") pending.paused = true;
+          if (pending && data.type === "sort-batch-resume") pending.paused = false;
+          if (rt.q?.rid === data.rid) {
+            if (data.type === "sort-batch-cancel") { rt.q.cancelled = true; rt.q.paused = false; }
+            if (data.type === "sort-batch-pause") rt.q.paused = true;
+            if (data.type === "sort-batch-resume") rt.q.paused = false;
+          }
+        }
+        void sortBatch(data, token);
         return;
       }
       if (data.type === "sort-read" || data.type === "sort-save") {
@@ -846,15 +918,18 @@
       }
       if (data.type === "list") {
         if (Number(data.offset) === 0 || !rt.metadataContext) rt.metadataContext = metadataContext();
-        listPage(data.offset, rt.metadataContext).then((page) => {
+        listPage(data.offset, rt.metadataContext, () => rt.scheduled && window[RT] === rt).then((page) => {
+          if (!page || !rt.scheduled || window[RT] !== rt) return;
           post(rt.ch, { type: "list-result", rid: data.rid || "", ok: true, ...page });
         }).catch((error) => {
+          if (!rt.scheduled || window[RT] !== rt) return;
+          const detail = error?.message || String(error);
           log.warn("independent-name-list-failed", "独立版名称库列表读取失败", { error });
           post(rt.ch, {
             type: "list-result",
             rid: data.rid || "",
             ok: false,
-            error: error?.message || String(error),
+            error: detail,
           });
         });
       }
@@ -874,6 +949,9 @@
     observeSearchIndex(rt);
 
     rt.stop = () => {
+      if (rt.q) { rt.q.cancelled = true; rt.q.paused = false; }
+      for (const pending of rt.pendingSort.values()) pending.cancelled = true;
+      rt.pendingSort.clear();
       rt.scheduled = false;
       rt.searchObserver?.disconnect?.();
       rt.searchObserver = null;

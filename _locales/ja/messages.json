@@ -6930,5 +6930,104 @@
   },
   "about_update_unavailable": {
     "message": "現在、更新の提供状況を確認できません"
+  },
+  "steam_independentName_colSort": {
+    "message": "カスタム並び替え名"
+  },
+  "steam_nativeSortName_namespaceBusy": {
+    "message": "Steam の並び替え名を保存中です。しばらくしてから再試行してください。"
+  },
+  "steam_nativeSortName_tableHint": {
+    "message": "Steam に保存"
+  },
+  "steam_independentName_table_saveFailed": {
+    "message": "表の設定を保存できませんでした：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortUnavailable": {
+    "message": "一部の Steam 並び替え名を取得できませんでした。再読み込みしてください。"
+  },
+  "steam_independentName_table_actionFailed": {
+    "message": "表の操作に失敗しました：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_headerHint": {
+    "message": "クリックで並び替え、ドラッグで列を移動、Alt + 左右キーでも移動できます"
+  },
+  "steam_independentName_table_resizeColumn": {
+    "message": "$name$ 列の幅を変更",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_missing": {
+    "message": "Steam の並び替え名を取得できません。再読み込みしてください。"
+  },
+  "steam_independentName_table_batchTimeout": {
+    "message": "Steam の一括保存結果を確認できません。再読み込みして確認してください。"
+  },
+  "steam_independentName_table_batchProgress": {
+    "message": "Steam 並び替え名：$done$ / $total$ 件処理済み",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_table_reset": {
+    "message": "表を初期設定に戻す"
+  },
+  "steam_independentName_table_pause": {
+    "message": "一時停止"
+  },
+  "steam_independentName_table_resume": {
+    "message": "再開"
+  },
+  "steam_independentName_table_cancel": {
+    "message": "保存を停止"
+  },
+  "steam_independentName_table_loadFailed": {
+    "message": "表の設定を読み込めませんでした：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidResponse": {
+    "message": "表の設定の応答に有効なデータがありません。"
+  },
+  "steam_independentName_table_batchIncomplete": {
+    "message": "$n$ 件の Steam 並び替え名を保存できませんでした。成功した変更は保持されています.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidPrefs": {
+    "message": "表の設定データが無効です。表を初期設定に戻してください。"
+  },
+  "steam_independentName_table_batchCancelled": {
+    "message": "保存を停止しました。成功した変更は保持されています。"
+  },
+  "steam_independentName_table_batchPaused": {
+    "message": "一時停止中"
+  },
+  "steam_independentName_table_batchWaiting": {
+    "message": "次の処理を待機中"
   }
 }

@@ -6930,5 +6930,104 @@
   },
   "about_update_unavailable": {
     "message": "Update availability cannot be confirmed right now"
+  },
+  "steam_independentName_colSort": {
+    "message": "Custom sort name"
+  },
+  "steam_nativeSortName_namespaceBusy": {
+    "message": "Steam sort names are being saved. Please try again shortly."
+  },
+  "steam_nativeSortName_tableHint": {
+    "message": "Saved to Steam"
+  },
+  "steam_independentName_table_saveFailed": {
+    "message": "Could not save table preferences: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortUnavailable": {
+    "message": "Some Steam sort names could not be read. Reload them before sorting."
+  },
+  "steam_independentName_table_actionFailed": {
+    "message": "Table action failed: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_headerHint": {
+    "message": "Click to sort; drag to reorder; Alt + Left/Right to move a column"
+  },
+  "steam_independentName_table_resizeColumn": {
+    "message": "Resize $name$ column",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_missing": {
+    "message": "Steam sort name data is unavailable. Reload to continue."
+  },
+  "steam_independentName_table_batchTimeout": {
+    "message": "Steam batch save could not be confirmed. Reload to check the result."
+  },
+  "steam_independentName_table_batchProgress": {
+    "message": "Steam sort names: $done$ / $total$ processed",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_table_reset": {
+    "message": "Reset table"
+  },
+  "steam_independentName_table_pause": {
+    "message": "Pause"
+  },
+  "steam_independentName_table_resume": {
+    "message": "Resume"
+  },
+  "steam_independentName_table_cancel": {
+    "message": "Stop saving"
+  },
+  "steam_independentName_table_loadFailed": {
+    "message": "Could not load table preferences: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidResponse": {
+    "message": "The table preferences response is invalid."
+  },
+  "steam_independentName_table_batchIncomplete": {
+    "message": "$n$ Steam sort names were not saved. Successful changes have been kept.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidPrefs": {
+    "message": "Table preferences are invalid. Reset the table to continue."
+  },
+  "steam_independentName_table_batchCancelled": {
+    "message": "Saving stopped. Successful changes have been kept."
+  },
+  "steam_independentName_table_batchPaused": {
+    "message": "Paused"
+  },
+  "steam_independentName_table_batchWaiting": {
+    "message": "Waiting for the next batch"
   }
 }

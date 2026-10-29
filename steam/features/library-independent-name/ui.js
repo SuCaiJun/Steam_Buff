@@ -21,6 +21,8 @@
   const RES_ATTR = "data-steam-buff-user-names-response";
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
+  const TABLE_LIB = "steam/features/library-independent-name/table.js";
+  const TABLE = window.STNameTable;
   const TRANSFER_LIB = "steam/features/library-independent-name/transfer.js";
   const IO_LABELS = Object.freeze({
     import: "导入自定义名称", export: "导出自定义名称", format: "格式", json: "JSON", xlsx: "Excel (.xlsx)",
@@ -181,7 +183,7 @@
   }
 
   function postReq(data) {
-    document.documentElement?.setAttribute(REQ_ATTR, JSON.stringify({
+    document.documentElement?.setAttribute(data.type === "table-settings-get" || data.type === "table-settings-save" ? TABLE.REQUEST : REQ_ATTR, JSON.stringify({
       script: ID,
       side: "page",
       rid: data.rid || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -219,7 +221,16 @@
     return next;
   }
 
+  let bridgeTail = Promise.resolve();
+  // 布局使用独立属性槽，只串行化布局读写，不阻塞原有名称查询或 AI 生成。
   function request(type, extra = {}, timeoutMs = 20000, signal) {
+    if (type !== "table-settings-get" && type !== "table-settings-save") return sendRequest(type, extra, timeoutMs, signal);
+    const task = bridgeTail.then(() => sendRequest(type, extra, timeoutMs, signal));
+    bridgeTail = Promise.allSettled([task]);
+    return task;
+  }
+  function sendRequest(type, extra = {}, timeoutMs = 20000, signal) {
+    const responseAttribute = type === "table-settings-get" || type === "table-settings-save" ? TABLE.RESPONSE : RES_ATTR;
     const rid = extra.rid || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     return new Promise((resolve, reject) => {
       let observer = null;
@@ -236,7 +247,7 @@
       }
       function read() {
         try {
-          return JSON.parse(document.documentElement?.getAttribute(RES_ATTR) || "{}");
+          return JSON.parse(document.documentElement?.getAttribute(responseAttribute) || "{}");
         } catch {
           return {};
         }
@@ -250,7 +261,7 @@
       });
       observer.observe(document.documentElement, {
         attributes: true,
-        attributeFilter: [RES_ATTR],
+        attributeFilter: [responseAttribute],
       });
       if (signal?.aborted) { onAbort(); return; }
       signal?.addEventListener("abort", onAbort, { once: true });
@@ -315,6 +326,17 @@
       batchReadings: new Map(),
       batchReadingTimer: 0,
       batchSaving: false,
+      nativeSort: new Map(),
+      nativeDirty: new Set(),
+      dirtyRows: new Set(),
+      nativeJob: null,
+      nativeReads: new Map(),
+      batchGeneration: 0,
+      tablePrefs: TABLE.defaults(),
+      tableReady: false,
+      tableControl: null,
+      tableMessage: "",
+      sortBlocked: false,
       readingTimer: 0,
       actionsMenu: null,
       bulk: null,
@@ -330,6 +352,225 @@
     let painted = null;
     let libsTask = null;
     let transferLibsTask = null;
+    let tableTask = null, prefsQueued = null, prefsSaving = null;
+
+    const tableText = (key, fallback, params) => i18n(`steam.independentName.table.${key}`, fallback, params);
+    function tableNotice(message) {
+      if (!state.started) return;
+      state.tableMessage = message;
+      const notice = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-table-status]");
+      if (notice) { notice.textContent = message; notice.hidden = !message; }
+    }
+    function saveTablePrefs() {
+      prefsQueued = { value: TABLE.parse(state.tablePrefs), operationId: `name-table-${Date.now()}-${Math.random().toString(36).slice(2)}` };
+      if (prefsSaving) return;
+      prefsSaving = (async () => {
+        while (prefsQueued) {
+          const { value, operationId } = prefsQueued;
+          prefsQueued = null;
+          try {
+            await request("table-settings-save", { value, operationId });
+            tableNotice("");
+            log.info("independent-name-table-saved", "名称表格展示配置已保存至本地", { operationId, columns: value.order.length });
+          } catch (error) {
+            const detail = error.message;
+            tableNotice(tableText("saveFailed", "表格设置未能保存：$error$", { error: detail }));
+            log.error("independent-name-table-save-failed", "名称表格本地展示配置保存失败", { error, operationId });
+          }
+        }
+      })().finally(() => { prefsSaving = null; });
+    }
+    function loadTableLib() {
+      if (window.SteamBuff.nameTable) return Promise.resolve();
+      if (tableTask) return tableTask;
+      tableTask = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = api.path.url(TABLE_LIB);
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(TABLE_LIB));
+        document.documentElement.appendChild(script);
+      }).finally(() => { tableTask = null; });
+      return tableTask;
+    }
+    function attachTable(modal) {
+      state.tableControl?.stop();
+      if (!window.SteamBuff.nameTable) return;
+      state.tableControl = window.SteamBuff.nameTable.create({
+        root: modal, prefs: state.tablePrefs,
+        enabled: () => state.tableReady && !state.busy && !state.batchSaving,
+        onChange(value) { state.tablePrefs = value; saveTablePrefs(); },
+        onSort(id) {
+          if (id === "sort" && state.filtered.some(row => !state.nativeSort.get(row.appid)?.ready)) {
+            tableNotice(tableText("sortUnavailable", "部分 Steam 排序名称尚未读取成功，请先重新读取。"));
+            return;
+          }
+          const current = state.tablePrefs.sort;
+          state.tablePrefs.sort = current?.id !== id ? { id, direction: "asc" } : current.direction === "asc" ? { id, direction: "desc" } : null;
+          state.tableControl?.update(state.tablePrefs);
+          sortRows();
+          modal.querySelector("[data-lin-scroll]").scrollTop = 0;
+          renderTable(); refreshTableHeaders(); saveTablePrefs();
+        },
+        reportError(error) {
+          tableNotice(tableText("actionFailed", "表格操作失败：$error$", { error: error.message }));
+          log.error("independent-name-table-action-failed", "名称表格拖拽收尾失败", { error });
+        },
+      });
+      refreshTableHeaders();
+    }
+    function colgroupHtml() {
+      return `<colgroup data-lin-colgroup><col style="width:40px">${state.tablePrefs.order.map(id => `<col data-lin-col="${id}" style="width:var(--st-lin-col-${id})">`).join("")}</colgroup>`;
+    }
+    function headersHtml() {
+      return `<th scope="col" class="st-lin-check"><input type="checkbox" data-lin-select-all aria-label="${esc(i18n("steam.independentName.selectAll", "全选"))}"></th>${state.tablePrefs.order.map(id => {
+        const column = TABLE.columns.find(column => column.id === id);
+        const title = i18n(`steam.independentName.${column.label}`, column.title);
+        return `<th scope="col" data-lin-col="${id}"><button type="button" data-lin-col-sort="${id}" title="${esc(tableText("headerHint", "点击排序；拖动更换列位置；Alt + 左右键移动列"))}"><span>${esc(title)}</span><span data-lin-sort-mark aria-hidden="true">↕</span></button><span data-lin-col-resize="${id}" tabindex="0" role="separator" aria-orientation="vertical" aria-label="${esc(tableText("resizeColumn", "调整 $name$ 列宽", { name: title }))}"></span></th>`;
+      }).join("")}`;
+    }
+    function refreshTableHeaders() {
+      const modal = document.getElementById(BATCH_MODAL);
+      if (!modal) return;
+      const sorted = state.tablePrefs.sort;
+      for (const th of modal.querySelectorAll("th[data-lin-col]")) {
+        const active = !state.sortBlocked && sorted?.id === th.dataset.linCol;
+        if (active) th.setAttribute("aria-sort", sorted.direction === "asc" ? "ascending" : "descending");
+        else th.removeAttribute("aria-sort");
+        th.querySelector("[data-lin-sort-mark]").textContent = active ? sorted.direction === "asc" ? "↑" : "↓" : "↕";
+      }
+    }
+    function sortRows() {
+      const order = state.tablePrefs.sort;
+      state.sortBlocked = false;
+      if (order?.id === "sort" && state.filtered.some(row => !state.nativeSort.get(row.appid)?.ready)) {
+        state.sortBlocked = true;
+        tableNotice(tableText("sortUnavailable", "部分 Steam 排序名称尚未读取成功，请先重新读取。"));
+        state.filtered.sort((a, b) => a.tableIndex - b.tableIndex);
+        return;
+      }
+      if (!order) { state.filtered.sort((a, b) => a.tableIndex - b.tableIndex); return; }
+      const compare = new Intl.Collator(document.documentElement.lang || undefined, { numeric: true, sensitivity: "base" });
+      const value = row => {
+        if (order.id === "appid") return row.appid;
+        if (order.id === "official") return row.official_name;
+        if (order.id === "sort") return state.nativeSort.get(row.appid)?.value;
+        const draft = draftOf(row.appid);
+        return order.id === "alias" ? draft.aliases : draft[{ custom: "custom_name", mnemonic: "mnemonic", pinyin: "pinyin" }[order.id]];
+      };
+      const values = new Map(state.filtered.map(row => [row.appid, value(row)]));
+      state.filtered.sort((a, b) => {
+        const left = values.get(a.appid), right = values.get(b.appid);
+        const emptyLeft = left === "" || left === undefined || (order.id === "alias" && !left.length), emptyRight = right === "" || right === undefined || (order.id === "alias" && !right.length);
+        if (emptyLeft !== emptyRight) return emptyLeft ? 1 : -1;
+        let result = 0;
+        if (!emptyLeft && order.id === "alias") {
+          for (let index = 0; index < Math.min(left.length, right.length); index++) {
+            result = compare.compare(left[index], right[index]);
+            if (result) break;
+          }
+          if (!result) result = left.length - right.length;
+        } else if (!emptyLeft) result = order.id === "appid" ? left - right : compare.compare(left, right);
+        return result ? result * (order.direction === "asc" ? 1 : -1) : a.appid - b.appid;
+      });
+    }
+    function syncNativeDirty(appid) {
+      const value = state.nativeSort.get(appid);
+      if (value?.edited) state.nativeDirty.add(appid); else state.nativeDirty.delete(appid);
+      syncSelectedDraft(appid);
+    }
+    function adoptNative(row) {
+      const previous = state.nativeSort.get(row.appid);
+      if (typeof row.native_sort_name !== "string") {
+        state.nativeSort.set(row.appid, { ...previous, ready: false, error: row.native_sort_error || tableText("missing", "Steam 排序名称数据不可用，请重新读取。") });
+        return;
+      }
+      if (previous?.edited && previous.value !== row.native_sort_name) {
+        previous.ready = true;
+        if (previous.initial !== row.native_sort_name) previous.error = i18n("steam.nativeSortName.conflict", "Steam 排序名称已在其他位置修改，请重新读取后再保存。");
+      } else state.nativeSort.set(row.appid, { initial: row.native_sort_name, value: row.native_sort_name, ready: true, edited: false, error: "" });
+      syncNativeDirty(row.appid);
+    }
+    function nativeCell(appid) {
+      const sort = state.nativeSort.get(appid);
+      const error = sort?.error || "";
+      const status = error || i18n("steam.nativeSortName.tableHint", "保存至 Steam");
+      return `<input class="st-lin-native-sort" data-lin-native-sort type="text" value="${esc(sort?.value ?? "")}" ${sort?.ready && !sort.loading ? "" : "disabled"}><div class="st-lin-native-note"><small title="${esc(status)}">${esc(status)}</small>${error ? `<button type="button" data-lin-native-retry="${appid}" ${sort?.loading ? "disabled" : ""}>${esc(i18n("steam.nativeSortName.reload", "重新读取"))}</button>` : ""}</div>`;
+    }
+    async function reloadNative(appid) {
+      const sort = state.nativeSort.get(appid), generation = state.batchGeneration;
+      if (!sort || sort.loading) return;
+      const controller = new AbortController();
+      state.nativeReads.set(appid, controller);
+      sort.loading = true;
+      renderTable();
+      try {
+        const result = await sortRequest("sort-read", { appid }, controller.signal);
+        if (generation !== state.batchGeneration || !state.started) return;
+        sort.initial = result.name;
+        if (!sort.edited) sort.value = result.name;
+        sort.edited = sort.value !== sort.initial;
+        sort.ready = true; sort.error = "";
+        syncNativeDirty(appid);
+        sortRows();
+      } catch (error) {
+        if (generation !== state.batchGeneration || !state.started || controller.signal.aborted) return;
+        sort.ready = false; sort.error = error.message;
+        log.error("native-sort-table-reread-failed", "批量表格重新读取排序名称失败", { error, appid });
+      } finally {
+        if (state.nativeReads.get(appid) === controller) { state.nativeReads.delete(appid); sort.loading = false; }
+        if (generation === state.batchGeneration && state.started) renderTable();
+      }
+    }
+    function saveNativeBatch(items, operationId) {
+      const rid = `sort-batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const controller = new AbortController();
+      const targets = new Map(items.map(item => [item.appid, item]));
+      state.nativeJob = { rid, controller };
+      return new Promise((resolve, reject) => {
+        const timer = window.setTimeout(() => finish(new Error(tableText("batchTimeout", "Steam 批量保存结果未确认，请重新读取后确认。"))), 20000 + Math.ceil(items.length / 500) * 42000);
+        const abort = () => finish(new DOMException(i18n("common.cancel", "取消"), "AbortError"));
+        function cleanup() {
+          window.clearTimeout(timer); state.ch.removeEventListener("message", receive); controller.signal.removeEventListener("abort", abort);
+          if (state.nativeJob?.rid === rid) state.nativeJob = null;
+        }
+        function markFailure(error) {
+          if (error.name === "AbortError") return;
+          for (const appid of targets.keys()) {
+            const sort = state.nativeSort.get(appid);
+            if (sort?.edited && !sort.error) sort.error = error.message;
+          }
+        }
+        function finish(error, value) {
+          if (error) markFailure(error);
+          cleanup();
+          if (error) reject(error); else resolve(value);
+        }
+        function receive(event) {
+          const data = event.data;
+          if (data?.script !== ID || data.side !== "backend" || data.rid !== rid) return;
+          if (data.type === "sort-batch-save-result" && data.ok !== true) { finish(new Error(data.error)); return; }
+          if (data.type !== "sort-batch-save-progress" && data.type !== "sort-batch-save-done") return;
+          for (const result of data.items || []) {
+            const target = targets.get(result.appid), sort = state.nativeSort.get(result.appid);
+            if (!target || !sort) continue;
+            if (result.status === "success") {
+              sort.initial = target.name;
+              sort.edited = sort.value !== sort.initial;
+              sort.error = "";
+            } else if (result.status === "failed") sort.error = result.error;
+            syncNativeDirty(result.appid);
+          }
+          if (state.nativeJob?.rid === rid) state.nativeJob.paused = data.paused === true;
+          const phase = data.paused ? tableText("batchPaused", "已暂停") : data.batch?.waiting ? tableText("batchWaiting", "等待下一批") : "";
+          tableNotice(tableText("batchProgress", "Steam 排序名称：已处理 $done$ / $total$", { done: data.stats?.processed, total: items.length }) + (phase ? ` · ${phase}` : ""));
+          renderTable();
+          if (data.type === "sort-batch-save-done") finish(null, data);
+        }
+        state.ch.addEventListener("message", receive); controller.signal.addEventListener("abort", abort, { once: true });
+        try { state.ch.postMessage({ script: ID, side: "ui", type: "sort-batch-save", rid, items, operationId }); }
+        catch (error) { markFailure(error); cleanup(); reject(error); }
+      });
+    }
 
     function cloudOf(appid, snapshot = state.snapshot) {
       const row = snapshot.items?.[String(appid)] || snapshot.items?.[appid] || {};
@@ -372,9 +613,11 @@
     // 维护勾选与草稿的交集，输入时只更新当前 AppID，避免逐字遍历勾选集合
     function syncSelectedDraft(appid) {
       const draft = state.drafts.get(appid);
-      if (state.selected.has(appid) && draft?.edited) {
+      const edited = draft?.edited || state.nativeSort.get(appid)?.edited;
+      if (edited) state.dirtyRows.add(appid); else state.dirtyRows.delete(appid);
+      if (state.selected.has(appid) && edited) {
         state.selectedDrafts.add(appid);
-        return draft;
+        return draft?.edited ? draft : null;
       }
       state.selectedDrafts.delete(appid);
       return null;
@@ -391,6 +634,7 @@
         if (snapshot.meta && typeof snapshot.meta === "object") state.meta = snapshot.meta;
       }
       state.drafts = adoptDrafts(state.drafts, cloudOf);
+      state.dirtyRows = new Set([...state.drafts.keys(), ...state.nativeDirty]);
       syncSelectedDrafts();
     }
 
@@ -399,6 +643,18 @@
     }
 
     function closeBatchModal() {
+      state.batchGeneration++;
+      state.tableControl?.stop(); state.tableControl = null;
+      for (const [appid, controller] of state.nativeReads) {
+        controller.abort();
+        const sort = state.nativeSort.get(appid);
+        if (sort) sort.loading = false;
+      }
+      state.nativeReads.clear();
+      if (state.nativeJob) {
+        state.ch.postMessage({ script: ID, side: "ui", type: "sort-batch-cancel", rid: state.nativeJob.rid });
+        state.nativeJob.controller.abort();
+      }
       closeTransfer();
       closeActionsMenu(false);
       closeBulkEditor();
@@ -1101,6 +1357,7 @@
     // 普通选择限定筛选结果；本次导入草稿保留隐藏目标，防止主窗口保存漏项。
     function applySearch() {
       state.filtered = state.rows.filter(matchesRow);
+      sortRows();
       const visible = state.filteredIds = new Set(state.filtered.map(row => row.appid));
       state.filteredSelected = 0;
       for (const appid of state.selected) {
@@ -1917,9 +2174,16 @@
       button.textContent = state.batchSaving
         ? i18n("steam.independentName.saving", "正在保存...")
         : i18n("steam.independentName.saveChanges", "保存修改");
+      const nativeControls = modal.querySelector("[data-lin-native-controls]");
+      if (nativeControls) nativeControls.hidden = !state.nativeJob;
+      for (const control of modal.querySelectorAll("[data-lin-native-command]")) {
+        control.disabled = !state.nativeJob || (control.dataset.linNativeCommand === "pause" && state.nativeJob.paused === true) || (control.dataset.linNativeCommand === "resume" && state.nativeJob.paused !== true);
+      }
+      const reset = modal.querySelector("[data-lin-table-reset]");
+      if (reset) reset.disabled = !state.tableReady || state.busy || state.batchSaving;
       const quota = Number(state.snapshot.quota);
       const quotaText = quota === -1 ? i18n("steam.independentName.quotaUnlimited", "额度不限") : i18n("steam.independentName.quotaUsed", "已用 $count$ / $quota$", { count: state.snapshot.count, quota });
-      modal.querySelector("[data-lin-stats]").textContent = `${i18n("steam.independentName.batchStats", "总 $total$ 款 · 筛选后 $filtered$ 款 · 已勾选 $selected$ 款 · 未保存修改 $dirty$ 款", { total: state.rows.length, filtered: state.filtered.length, selected: state.selected.size, dirty: state.drafts.size })} · ${i18n("steam.independentName.nameQuota", "名称额度：")} ${quotaText}`;
+      modal.querySelector("[data-lin-stats]").textContent = `${i18n("steam.independentName.batchStats", "总 $total$ 款 · 筛选后 $filtered$ 款 · 已勾选 $selected$ 款 · 未保存修改 $dirty$ 款", { total: state.rows.length, filtered: state.filtered.length, selected: state.selected.size, dirty: state.dirtyRows.size })} · ${i18n("steam.independentName.nameQuota", "名称额度：")} ${quotaText}`;
       modal.querySelector("[data-lin-selected-count]").textContent = i18n("steam.independentName.selectedCount", "已选 $n$ 款", { n: state.selected.size });
       modal.querySelector("[data-lin-export]").disabled = locked || state.batchSaving;
       const reference = modal.querySelector("[data-lin-reference-many]");
@@ -2176,20 +2440,21 @@
           : "";
         const status = syncStatus(row.appid);
         const official = esc(row.official_name);
-        return `
-          <tr data-appid="${row.appid}">
-            <td class="st-lin-appid">${slot(`<label class="st-lin-row-select"><input type="checkbox" data-lin-select="${row.appid}" aria-label="${esc(i18n("steam.independentName.selectGame", "勾选 $name$", { name: row.official_name }))}" ${state.selected.has(row.appid) ? "checked" : ""} ${state.referenceRun ? "disabled" : ""}><span>${row.appid}</span></label>`)}</td>
-            <td class="st-lin-official">${slot(`<span class="st-lin-clip" title="${official}">${official}</span>`)}</td>
-            <td class="st-lin-custom">${slot(`<input class="st-lin-name" type="text" maxlength="200" value="${esc(draft.custom_name)}" title="${esc(conflict)}">${conflict ? `<div class="st-lin-sync-error" title="${esc(conflict)}">${esc(conflict)}</div>` : statusLine(status)}`)}</td>
-            <td class="st-lin-alias">${slot(aliasHtml(row.appid, draft.aliases))}</td>
-            <td class="st-lin-mnemonic">${slot(`<input class="st-lin-mnemonic" type="text" maxlength="200" value="${esc(draft.mnemonic)}">`)}</td>
-            <td class="st-lin-pinyin">${slot(`<input class="st-lin-pinyin" type="text" maxlength="200" value="${esc(draft.pinyin)}"><div class="st-lin-batch-readings" data-lin-batch-readings>${readingsHtml(batchReading(row.appid))}</div>`)}</td>
-          </tr>
-        `;
+        const cells = {
+          appid: slot(String(row.appid)),
+          official: slot(`<span class="st-lin-clip" title="${official}">${official}</span>`),
+          custom: slot(`<input class="st-lin-name" type="text" maxlength="200" value="${esc(draft.custom_name)}" title="${esc(conflict)}">${conflict ? `<div class="st-lin-sync-error" title="${esc(conflict)}">${esc(conflict)}</div>` : statusLine(status)}`),
+          alias: slot(aliasHtml(row.appid, draft.aliases)),
+          mnemonic: slot(`<input class="st-lin-mnemonic" type="text" maxlength="200" value="${esc(draft.mnemonic)}">`),
+          pinyin: slot(`<input class="st-lin-pinyin" type="text" maxlength="200" value="${esc(draft.pinyin)}"><div class="st-lin-batch-readings" data-lin-batch-readings>${readingsHtml(batchReading(row.appid))}</div>`),
+          sort: slot(nativeCell(row.appid)),
+        };
+        return `<tr data-appid="${row.appid}"><td class="st-lin-check">${slot(`<input type="checkbox" data-lin-select="${row.appid}" aria-label="${esc(i18n("steam.independentName.selectGame", "勾选 $name$", { name: row.official_name }))}" ${state.selected.has(row.appid) ? "checked" : ""} ${state.referenceRun ? "disabled" : ""}>`)}</td>${state.tablePrefs.order.map(id => `<td class="st-lin-${id}" data-lin-col="${id}">${cells[id]}</td>`).join("")}</tr>`;
       }).join("");
     }
 
     function fieldKind(input) {
+      if (input.classList?.contains("st-lin-native-sort")) return "sort";
       if (input.classList?.contains("st-lin-name")) return "name";
       if (input.classList?.contains("st-lin-mnemonic")) return "mnemonic";
       if (input.classList?.contains("st-lin-pinyin")) return "pinyin";
@@ -2205,6 +2470,14 @@
         const appid = Number(input.closest("tr")?.dataset.appid) || 0;
         const kind = fieldKind(input);
         if (!appid || !kind) {
+          continue;
+        }
+        if (kind === "sort") {
+          const sort = state.nativeSort.get(appid);
+          if (input === active && sort?.ready) {
+            sort.value = input.value; sort.edited = sort.value !== sort.initial; syncNativeDirty(appid);
+            focus = { appid, kind, start: input.selectionStart, end: input.selectionEnd };
+          }
           continue;
         }
         if (input === active) {
@@ -2231,6 +2504,7 @@
         name: ".st-lin-name",
         mnemonic: ".st-lin-mnemonic",
         pinyin: ".st-lin-pinyin",
+        sort: ".st-lin-native-sort",
       }[focus.kind];
       const input = body.querySelector(`tr[data-appid="${focus.appid}"] ${selector}`);
       if (!input || input.disabled) {
@@ -2265,16 +2539,18 @@
       if (reason === "scroll" && sameWindow(range)) {
         return;
       }
+      state.tableControl?.beforeRender();
       window.clearTimeout(state.batchReadingTimer);
       const focus = rememberEditing(body);
       setHtml(body, `
         <div style="height:${range.before}px"></div>
-        <table class="st-lin-table">
+        <table class="st-lin-table">${colgroupHtml()}
           <tbody>${rowsHtml(range)}</tbody>
         </table>
         <div style="height:${range.after}px"></div>
       `, "library-independent-name-rows");
       painted = { start: range.start, end: range.end, before: range.before, after: range.after };
+      refreshTableHeaders();
       restoreFocus(body, focus);
       refreshBatchSave();
       const msg = modal.querySelector("[data-lin-msg]");
@@ -2295,8 +2571,10 @@
     function batchModalHtml() {
       return `
         <div class="st-lin-dialog">
+          <span data-lin-dialog-resize="left" aria-hidden="true"></span><span data-lin-dialog-resize="right" aria-hidden="true"></span>
           <header class="st-lin-head">
             <h2 id="st-lin-batch-title">${esc(i18n("steam.independentName.batchTitle", "Steam Buff · 批量设置自定义名称"))}</h2>
+            <button class="st-lin-btn" type="button" data-lin-table-reset>${esc(tableText("reset", "恢复默认表格"))}</button>
             <button class="st-lin-btn" type="button" data-lin-close>${esc(i18n("common.close", "关闭"))}</button>
           </header>
           <div class="st-lin-top">
@@ -2331,18 +2609,13 @@
               </div>
             </div>
             <p class="st-lin-msg" data-lin-msg role="status" hidden></p>
+            <p class="st-lin-msg" data-lin-table-status role="status" hidden></p>
+            <div data-lin-native-controls hidden><button class="st-lin-btn" type="button" data-lin-native-command="pause">${esc(tableText("pause", "暂停"))}</button><button class="st-lin-btn" type="button" data-lin-native-command="resume">${esc(tableText("resume", "继续"))}</button><button class="st-lin-btn" type="button" data-lin-native-command="cancel">${esc(tableText("cancel", "停止保存"))}</button></div>
           </div>
           <div class="st-lin-cols">
-            <table class="st-lin-table">
+            <table class="st-lin-table">${colgroupHtml()}
               <thead>
-                <tr>
-                  <th class="st-lin-appid"><label class="st-lin-row-select"><input type="checkbox" data-lin-select-all aria-label="${esc(i18n("steam.independentName.selectAll", "全选"))}"><span>${esc(i18n("steam.independentName.colAppid", "AppID"))}</span></label></th>
-                  <th class="st-lin-official">${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</th>
-                  <th class="st-lin-custom">${esc(i18n("steam.independentName.colCustom", "自定义名称"))}</th>
-                  <th class="st-lin-alias">${esc(i18n("steam.independentName.colAlias", "别名"))}</th>
-                  <th class="st-lin-mnemonic">${esc(i18n("steam.independentName.colMnemonic", "助记符"))}</th>
-                  <th class="st-lin-pinyin">${esc(i18n("steam.independentName.colPinyin", "拼音全拼"))}</th>
-                </tr>
+                <tr data-lin-header>${headersHtml()}</tr>
               </thead>
             </table>
           </div>
@@ -2445,7 +2718,7 @@
           state.ch.addEventListener("message", onMsg);
           state.ch.postMessage({ script: ID, side: "ui", type: "list", rid, offset });
         });
-        state.rows.push(...(page.rows || []));
+        for (const row of page.rows || []) { row.tableIndex = state.rows.length; adoptNative(row); state.rows.push(row); }
         for (const row of page.rows || []) state.rowsByAppid.set(row.appid, row);
         if (page.meta && typeof page.meta === "object") {
           state.meta = {
@@ -2461,6 +2734,8 @@
     }
 
     async function openBatchModal() {
+      const generation = ++state.batchGeneration;
+      state.tableControl?.stop(); state.tableControl = null; state.tableReady = false;
       css();
       let modal = document.getElementById(BATCH_MODAL);
       if (!modal) {
@@ -2490,9 +2765,22 @@
       state.message = i18n("steam.independentName.loading", "正在加载...");
       renderTable();
       try {
-        const [snap] = await Promise.all([request("snapshot"), loadLibs()]);
+        const layout = Promise.all([loadTableLib(), request("table-settings-get")]).then(([, result]) => {
+          if (generation !== state.batchGeneration || !state.started) return;
+          if (!result.value) throw new TypeError(tableText("invalidResponse", "表格配置响应缺少有效数据。"));
+          state.tablePrefs = TABLE.parse(result.value); state.tableReady = true; attachTable(modal);
+        }).catch(error => {
+          if (generation !== state.batchGeneration || !state.started) return;
+          state.tableReady = true; attachTable(modal);
+          const detail = error.message;
+          tableNotice(tableText("loadFailed", "表格设置读取失败：$error$", { error: detail }));
+          log.error("independent-name-table-load-failed", "名称表格本地展示配置读取失败", { error });
+        });
+        const [snap] = await Promise.all([request("snapshot"), loadLibs(), layout]);
+        if (generation !== state.batchGeneration || !state.started) return;
         adoptSnapshot(snap.data || state.snapshot);
         await loadRows();
+        if (generation !== state.batchGeneration || !state.started) return;
         applySearch();
         state.message = "";
         state.busy = false;
@@ -2615,35 +2903,56 @@
 
     async function saveAllDrafts() {
       if (state.batchSaving || state.referenceRun || state.busy || !state.selectedDrafts.size) return;
-      const items = [];
+      const generation = state.batchGeneration;
+      const items = [], native = [];
       for (const appid of state.selected) {
         const draft = syncSelectedDraft(appid);
         if (draft) items.push(savedItem(appid, draft));
+        const sort = state.nativeSort.get(appid);
+        if (sort?.edited) {
+          if (!sort.ready || sort.loading) { state.message = sort.error; renderTable(); return; }
+          native.push({ appid, name: sort.value, expected: sort.initial });
+        }
       }
-      if (!items.length) return;
+      if (!items.length && !native.length) return;
+      const total = new Set([...items, ...native].map(item => item.appid)).size;
+      const operationId = `batch-names-${Date.now()}`;
+      let namesSaved = false;
       state.batchSaving = true;
       refreshBatchSave();
       try {
-        const result = await request("save-all", { items });
-        if (!result.data?.items || typeof result.data.items !== "object" || Array.isArray(result.data.items)) {
-          throw new TypeError("批量保存响应缺少名称快照");
-        }
-        for (const item of items) {
-          const current = state.drafts.get(item.appid);
-          if (current?.edited && sameNameDraft(current, item)) {
-            state.drafts.delete(item.appid); state.importSelection.delete(item.appid);
+        if (items.length) {
+          const result = await request("save-all", { items, operationId });
+          if (!result.data?.items || typeof result.data.items !== "object" || Array.isArray(result.data.items)) throw new TypeError("批量保存响应缺少名称快照");
+          for (const item of items) {
+            const current = state.drafts.get(item.appid);
+            if (current?.edited && sameNameDraft(current, item)) {
+              state.drafts.delete(item.appid); state.importSelection.delete(item.appid);
+            }
           }
+          adoptSnapshot(result.data);
+          namesSaved = true;
         }
-        adoptSnapshot(result.data);
+        if (!state.started || generation !== state.batchGeneration) return;
+        if (native.length) {
+          const result = await saveNativeBatch(native, operationId);
+          if (result.cancelled) { state.message = tableText("batchCancelled", "已停止保存，已成功的内容已保留。"); return; }
+          const success = new Set((result.items || []).filter(item => item.status === "success").map(item => item.appid));
+          const remaining = native.filter(item => !success.has(item.appid)).length;
+          if (remaining) throw new Error(result.error || tableText("batchIncomplete", "$n$ 款 Steam 排序名称未保存，已成功的内容已保留。", { n: remaining }));
+        }
         applySearch();
-        state.message = i18n("steam.independentName.savedAll", "已保存 $n$ 款游戏", { n: items.length });
-        log.info("independent-name-save-all-success", "独立版自定义名称批量已保存", { count: items.length });
+        state.message = i18n("steam.independentName.savedAll", "已保存 $n$ 款游戏", { n: total });
+        log.info("independent-name-save-all-success", "独立版自定义名称批量已保存", { count: total, nativeCount: native.length, operationId });
       } catch (error) {
-        state.message = error?.message || String(error);
-        log.warn("independent-name-save-all-failed", "独立版自定义名称批量保存失败", { error, count: items.length });
+        if (error.name === "AbortError" && generation !== state.batchGeneration) return;
+        const detail = error.message;
+        if (generation === state.batchGeneration) state.message = namesSaved && native.length ? i18n("steam.nativeSortName.partial", "自定义名称已保存，Steam 排序名称保存失败：$error$", { error: detail }) : detail;
+        log.error("independent-name-save-all-failed", "独立版自定义名称批量保存未全部完成", { error, count: total, namesSaved, nativeCount: native.length, operationId });
       } finally {
         state.batchSaving = false;
-        if (state.started) renderTable();
+        if (state.started && generation === state.batchGeneration) renderTable();
+        else if (state.started) refreshBatchSave();
       }
     }
 
@@ -3305,6 +3614,16 @@
     }
 
     function onBatchClick(event) {
+      if (event.target.closest("[data-lin-table-reset]")) {
+        if (!state.tableReady || state.busy || state.batchSaving) return;
+        state.tablePrefs = TABLE.defaults(); state.tableControl?.update(state.tablePrefs);
+        document.getElementById(BATCH_MODAL).querySelector("[data-lin-scroll]").scrollLeft = 0;
+        sortRows(); renderTable(); refreshTableHeaders(); saveTablePrefs(); return;
+      }
+      const reload = event.target.closest("[data-lin-native-retry]");
+      if (reload) { void reloadNative(Number(reload.dataset.linNativeRetry)); return; }
+      const command = event.target.closest("[data-lin-native-command]");
+      if (command && state.nativeJob) { state.ch.postMessage({ script: ID, side: "ui", type: "sort-batch-" + command.dataset.linNativeCommand, rid: state.nativeJob.rid }); return; }
       if (state.transfer) {
         try { onTransferClick(event); } catch (error) { reportError(error, state.transfer); }
         return;
@@ -3555,6 +3874,12 @@
           renderTable();
         }, SEARCH_MS);
         return;
+      }
+      if (event.target.matches("[data-lin-native-sort]")) {
+        const appid = Number(event.target.closest("tr[data-appid]")?.dataset.appid), sort = state.nativeSort.get(appid);
+        if (!sort?.ready || sort.loading) return;
+        sort.value = event.target.value; sort.edited = sort.value !== sort.initial;
+        syncNativeDirty(appid); refreshBatchSave(); return;
       }
       const tr = event.target.closest("tr[data-appid]");
       const appid = Number(tr?.dataset.appid) || 0;

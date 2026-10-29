@@ -6930,5 +6930,104 @@
   },
   "about_update_unavailable": {
     "message": "暫時無法確認更新狀態"
+  },
+  "steam_independentName_colSort": {
+    "message": "自訂排序名稱"
+  },
+  "steam_nativeSortName_namespaceBusy": {
+    "message": "Steam 排序名稱正在儲存，請稍後重試。"
+  },
+  "steam_nativeSortName_tableHint": {
+    "message": "儲存至 Steam"
+  },
+  "steam_independentName_table_saveFailed": {
+    "message": "表格設定未能儲存：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortUnavailable": {
+    "message": "部分 Steam 排序名稱尚未讀取成功，請先重新讀取。"
+  },
+  "steam_independentName_table_actionFailed": {
+    "message": "表格操作失敗：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_headerHint": {
+    "message": "點擊排序；拖曳更換欄位位置；Alt + 左右鍵移動欄位"
+  },
+  "steam_independentName_table_resizeColumn": {
+    "message": "調整 $name$ 欄寬",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_missing": {
+    "message": "Steam 排序名稱資料無法取得，請重新讀取。"
+  },
+  "steam_independentName_table_batchTimeout": {
+    "message": "Steam 批次儲存結果未確認，請重新讀取後確認。"
+  },
+  "steam_independentName_table_batchProgress": {
+    "message": "Steam 排序名稱：已處理 $done$ / $total$",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_table_reset": {
+    "message": "還原預設表格"
+  },
+  "steam_independentName_table_pause": {
+    "message": "暫停"
+  },
+  "steam_independentName_table_resume": {
+    "message": "繼續"
+  },
+  "steam_independentName_table_cancel": {
+    "message": "停止儲存"
+  },
+  "steam_independentName_table_loadFailed": {
+    "message": "表格設定讀取失敗：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidResponse": {
+    "message": "表格設定回應缺少有效資料。"
+  },
+  "steam_independentName_table_batchIncomplete": {
+    "message": "$n$ 款 Steam 排序名稱未儲存，已成功的內容已保留。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidPrefs": {
+    "message": "表格設定資料無效，請還原預設表格。"
+  },
+  "steam_independentName_table_batchCancelled": {
+    "message": "已停止儲存，已成功的內容已保留。"
+  },
+  "steam_independentName_table_batchPaused": {
+    "message": "已暫停"
+  },
+  "steam_independentName_table_batchWaiting": {
+    "message": "等待下一批"
   }
 }

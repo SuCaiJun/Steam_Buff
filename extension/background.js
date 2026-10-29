@@ -92,6 +92,7 @@
     "shared/auth-session.js",
     "shared/auth-client.js",
     "shared/user-names-snapshot.js",
+    "shared/user-names-table.js",
     "shared/message-center.js",
     "extension/runtime/message-center-bridge.js",
     "extension/content.js",

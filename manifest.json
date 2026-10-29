@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.1.18",
+  "version": "2.1.19",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -289,7 +289,10 @@
         "images/ui/source-tip.svg",
         "images/ui/download-actions.svg",
         "images/ui/message-center.svg",
-        "images/features/translate.svg"
+        "images/features/translate.svg",
+        "steam/shared/native-sort-batch.js",
+        "shared/user-names-table.js",
+        "steam/features/library-independent-name/table.js"
       ],
       "matches": [
         "https://steamloopback.host/*"

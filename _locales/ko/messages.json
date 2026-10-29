@@ -6930,5 +6930,104 @@
   },
   "about_update_unavailable": {
     "message": "지금은 업데이트 제공 여부를 확인할 수 없습니다"
+  },
+  "steam_independentName_colSort": {
+    "message": "사용자 지정 정렬 이름"
+  },
+  "steam_nativeSortName_namespaceBusy": {
+    "message": "Steam 정렬 이름을 저장 중입니다. 잠시 후 다시 시도하세요."
+  },
+  "steam_nativeSortName_tableHint": {
+    "message": "Steam에 저장"
+  },
+  "steam_independentName_table_saveFailed": {
+    "message": "표 설정을 저장할 수 없습니다: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortUnavailable": {
+    "message": "일부 Steam 정렬 이름을 읽지 못했습니다. 먼저 다시 불러오세요."
+  },
+  "steam_independentName_table_actionFailed": {
+    "message": "표 작업 실패: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_headerHint": {
+    "message": "클릭하여 정렬, 드래그하여 열 이동, Alt + 좌우 키로 열 이동"
+  },
+  "steam_independentName_table_resizeColumn": {
+    "message": "$name$ 열 너비 조절",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_missing": {
+    "message": "Steam 정렬 이름 데이터를 사용할 수 없습니다. 다시 불러오세요."
+  },
+  "steam_independentName_table_batchTimeout": {
+    "message": "Steam 일괄 저장 결과를 확인하지 못했습니다. 다시 불러와 확인하세요."
+  },
+  "steam_independentName_table_batchProgress": {
+    "message": "Steam 정렬 이름: $done$ / $total$ 처리됨",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_table_reset": {
+    "message": "표 기본값 복원"
+  },
+  "steam_independentName_table_pause": {
+    "message": "일시 중지"
+  },
+  "steam_independentName_table_resume": {
+    "message": "계속"
+  },
+  "steam_independentName_table_cancel": {
+    "message": "저장 중지"
+  },
+  "steam_independentName_table_loadFailed": {
+    "message": "표 설정을 불러올 수 없습니다: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidResponse": {
+    "message": "표 설정 응답에 유효한 데이터가 없습니다."
+  },
+  "steam_independentName_table_batchIncomplete": {
+    "message": "$n$개의 Steam 정렬 이름을 저장하지 못했습니다. 성공한 변경 사항은 유지됩니다.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidPrefs": {
+    "message": "표 설정 데이터가 올바르지 않습니다. 표 기본값을 복원하세요."
+  },
+  "steam_independentName_table_batchCancelled": {
+    "message": "저장이 중지되었습니다. 성공한 변경 사항은 유지됩니다."
+  },
+  "steam_independentName_table_batchPaused": {
+    "message": "일시 중지됨"
+  },
+  "steam_independentName_table_batchWaiting": {
+    "message": "다음 배치 대기 중"
   }
 }

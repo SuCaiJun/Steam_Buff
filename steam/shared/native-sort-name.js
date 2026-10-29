@@ -12,8 +12,26 @@
   "use strict";
 
   const writes = new Map();
+  let transaction = null;
   const WRITE_MS = 10000;
   const i18n = (key, fallback) => globalThis.STI18n.text(key, fallback);
+
+  // 单条和快写共用 namespace 写锁；等待超时不能让另一次写入越过尚未结束的原生操作。
+  async function exclusive(work) {
+    if (transaction) throw new Error(i18n("steam.nativeSortName.namespaceBusy", "Steam 排序名称正在保存，请稍后重试。"));
+    const token = { pending: [] };
+    transaction = token;
+    try { return await work(); }
+    finally {
+      if (token.pending.length) void Promise.allSettled(token.pending).then(() => { if (transaction === token) transaction = null; });
+      else if (transaction === token) transaction = null;
+    }
+  }
+
+  function hold(promise) {
+    if (!transaction) throw new Error("Steam 排序写入未持有 namespace 锁");
+    transaction.pending.push(Promise.resolve(promise));
+  }
 
   function appId(value) {
     if (!Number.isSafeInteger(value) || value <= 0) {
@@ -64,7 +82,7 @@
     writes.set(id, token);
     const operation = (async () => {
       try {
-        const result = await store.SetCustomSortAs(id, name);
+        const result = await exclusive(() => store.SetCustomSortAs(id, name));
         if (result !== true) {
           throw new Error(i18n("steam.libraryCustomName.writeRejected", "Steam 拒绝写入"));
         }
@@ -82,5 +100,5 @@
     }
   }
 
-  window.SteamBuff.nativeSortName = Object.freeze({ read, write });
+  window.SteamBuff.nativeSortName = Object.freeze({ read, write, exclusive, hold });
 })();

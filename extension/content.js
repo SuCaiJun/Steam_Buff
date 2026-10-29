@@ -2124,7 +2124,7 @@
 
   function postUserNames(data) {
     try {
-      root()?.setAttribute(USER_NAMES_RES_ATTR, JSON.stringify({
+      root()?.setAttribute(data.type === "table-settings-get-result" || data.type === "table-settings-save-result" ? globalThis.STNameTable.RESPONSE : USER_NAMES_RES_ATTR, JSON.stringify({
         script: "library-independent-name",
         side: "content",
         ...data,
@@ -2417,9 +2417,9 @@
     return saved;
   }
 
-  function readUserNamesReq() {
+  function readUserNamesReq(attribute = USER_NAMES_REQ_ATTR) {
     try {
-      return JSON.parse(root()?.getAttribute(USER_NAMES_REQ_ATTR) || "{}");
+      return JSON.parse(root()?.getAttribute(attribute) || "{}");
     } catch {
       return {};
     }
@@ -2508,6 +2508,26 @@
     const rid = data.rid || "";
     const diagnostics = { requestId: rid, operationId: data.operationId || "" };
     try {
+      if (data.type === "table-settings-get" || data.type === "table-settings-save") {
+        const model = globalThis.STNameTable;
+        if (!model) throw new Error("表格配置模块未加载");
+        let value;
+        if (data.type === "table-settings-get") {
+          const stored = await new Promise((resolve, reject) => chrome.storage.local.get([model.KEY], result => {
+            const error = chrome.runtime.lastError;
+            if (error) reject(new Error(error.message)); else resolve(result);
+          }));
+          value = model.parse(stored[model.KEY]);
+        } else {
+          value = model.parse(data.value);
+          await new Promise((resolve, reject) => chrome.storage.local.set({ [model.KEY]: value }, () => {
+            const error = chrome.runtime.lastError;
+            if (error) reject(new Error(error.message)); else resolve();
+          }));
+        }
+        postUserNames({ type: data.type + "-result", rid, ok: true, value });
+        return;
+      }
       if (data.type === "ai-generate") {
         const name = await generateIndependentName(data.appid, data.name, diagnostics);
         postUserNames({ type: "ai-generate-result", rid, ok: true, name });
@@ -2617,6 +2637,10 @@
         return;
       }
     } catch (error) {
+      const detail = error?.message || String(error);
+      if (data.type === "table-settings-get" || data.type === "table-settings-save") {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "library-independent-name", event: "name-table-settings-failed", message: "名称表格本地配置操作失败", level: "error", requestId: rid, operation: data.type });
+      }
       if (error?.code === "owner-changed") {
         log({
           level: "warn",
@@ -2633,7 +2657,7 @@
         type: `${String(data.type || "snapshot")}-result`,
         rid,
         ok: false,
-        error: error?.message || String(error),
+        error: detail,
         code: Number(error?.code) || 0,
       });
     }
@@ -2653,12 +2677,14 @@
         for (const item of items) {
           if (item.attributeName === USER_NAMES_REQ_ATTR) {
             handleUserNames(readUserNamesReq());
+          } else if (globalThis.STNameTable && item.attributeName === globalThis.STNameTable.REQUEST) {
+            handleUserNames(readUserNamesReq(globalThis.STNameTable.REQUEST));
           }
         }
       });
       obs.observe(el, {
         attributes: true,
-        attributeFilter: [USER_NAMES_REQ_ATTR],
+        attributeFilter: [USER_NAMES_REQ_ATTR, ...(globalThis.STNameTable ? [globalThis.STNameTable.REQUEST] : [])],
       });
       handleUserNames(readUserNamesReq());
     } catch (error) {
@@ -2930,6 +2956,7 @@
           "shared/data-index.js",
           "shared/batch-queue.js",
           "shared/virtual-list.js",
+          "shared/user-names-table.js",
           "shared/achievement-translations.js",
           "shared/message-center.js",
           "steam/features/steam-achievement-translate/display.js",
