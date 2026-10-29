@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.1.19",
+  "version": "2.1.20",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -292,7 +292,12 @@
         "images/features/translate.svg",
         "steam/shared/native-sort-batch.js",
         "shared/user-names-table.js",
-        "steam/features/library-independent-name/table.js"
+        "steam/features/library-independent-name/table.js",
+        "images/ui/message-clear-unread.svg",
+        "images/ui/message-mute.svg",
+        "images/ui/message-upgrade.svg",
+        "images/ui/message-view.svg",
+        "images/ui/message-read.svg"
       ],
       "matches": [
         "https://steamloopback.host/*"

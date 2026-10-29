@@ -309,6 +309,7 @@ ${api.esc(text("updateReminder.latestVersion", "最新版本：$version$", { ver
 
   // 页面只消费后台缓存；展示权通过 Port 仲裁，不因页面加载或恢复可见而联网检查
   async function start() {
+    if (globalThis.STClientEnvironment.isSteamClientPage()) return;
     if (busy) { rerun = true; return; }
     if (current || document.hidden || globalThis.STLifecyclePrompts?.isBlocking?.()) return;
     busy = true;

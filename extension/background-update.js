@@ -18,13 +18,14 @@
   const MUTE_KEY = "steam_buff_update_prompt_state";
   const ALARM = "steam-buff-extension-update";
   const PORT = "steam-buff-update-prompt";
+  const SOURCE = "Steam Buff", AVAILABLE = "extension-update-available", INSTALLED = "extension-update-installed";
   const log = root.STLoggerFactory.createLogger("background", "update");
   let queue = Promise.resolve();
   let pending = null;
   let activePort = null;
   let started = false;
 
-  // 队列只串行化短存储事务，网络请求在队列外执行，关闭自动检查可以立即生效
+  // 更新状态与关联消息写入串行；网络请求在队列外执行，不把联网等待挂到设置变更上。
   async function serial(work) {
     const previous = queue;
     let release;
@@ -66,6 +67,68 @@
     const mute = muteOf(data);
     return mute.ignored[versionKey(info)] === true
       || (mute.cycle?.channel === info.channel && mute.cycle?.cycleId === info.cycleId);
+  }
+
+  const text = (key, fallback, value) => root.STMessageCenter.text(key, fallback, value);
+  const group = info => "extension-update:" + versionKey(info);
+
+  function messageInfo(message) {
+    const context = message.context;
+    if (!context || !["opensource", "chrome", "edge"].includes(context.channel)) throw new TypeError("更新消息缺少有效渠道");
+    CFG.versions.parts(context.targetVersion);
+    return { channel: context.channel, remote: context.targetVersion };
+  }
+
+  // 发布和忽略共用更新队列。忽略先成功落盘，再定向标已读；标已读失败不会撤销已保存的用户决定。
+  async function ignoreVersion(data, info) {
+    const state = muteOf(data);
+    state.ignored[versionKey(info)] = true;
+    await chrome.storage.local.set({ [MUTE_KEY]: state });
+    disconnectActive();
+    log.info("update-prompt-ignore-version", "用户选择此版本不再提醒", { channel: info.channel, version: info.remote });
+    try { return await root.STBackgroundMessages.readMatching({ group: group(info) }); }
+    catch (error) {
+      throw new Error(text("messageCenter.ignoreReadFailed", "不再提醒已保存，但消息未能标为已读，请重试。"), { cause: error });
+    }
+  }
+
+  async function publishAvailable(info, operation, data) {
+    if (!info.hasNew || muted(data, info) || (!operation.manual && hours(data) === 0)) return;
+    await root.STBackgroundMessages.notify({
+      eventId: operation.eventId, source: SOURCE, type: AVAILABLE, group: group(info),
+      title: text("messageCenter.updateAvailable", "Steam Buff 发现新版本 $value$", info.remote),
+      summary: info.latest.summary || info.latest.title || "",
+      body: text("messageCenter.currentVersion", "当前版本：$value$", info.current) + "\n" + text("messageCenter.targetVersion", "目标版本：$value$", info.remote),
+      context: { channel: info.channel, targetVersion: info.remote, installedVersion: info.current },
+      actions: [
+        { id: "go-update", kind: "link", label: text("messageCenter.goUpdate", "去更新"), icon: "upgrade", url: CFG.urls.updatePage },
+        { id: "ignore-version", kind: "command", label: text("messageCenter.ignoreVersion", "不再提醒"), icon: "mute" },
+      ],
+    });
+  }
+
+  /** 由生命周期的持久待投递事件调用；同次升级重试使用稳定 ID，与独立检查允许重复提醒分开。 */
+  async function installed(event) {
+    if (!event || !Number.isSafeInteger(event.updatedAt) || event.updatedAt <= 0 || typeof event.previousVersion !== "string") throw new TypeError("升级消息事件无效");
+    CFG.versions.parts(event.version);
+    return serial(async () => {
+      const source = CFG.distribution.channel();
+      await root.STBackgroundMessages.readMatching({ source: SOURCE, type: AVAILABLE }, message => {
+        const info = messageInfo(message);
+        return info.channel === source && CFG.versions.compare(info.remote, event.version) <= 0;
+      });
+      return root.STBackgroundMessages.notify({
+        eventId: `extension-installed:${event.version}:${event.updatedAt}`, source: SOURCE, type: INSTALLED, createdAt: event.updatedAt,
+        title: text("messageCenter.updateInstalled", "Steam Buff 已更新至 $value$", event.version),
+        summary: text("messageCenter.previousVersion", "原版本：$value$", event.previousVersion),
+        body: text("messageCenter.installedBody", "扩展已更新，点击查看了解本次更新内容。"),
+        context: { installedVersion: event.version, previousVersion: event.previousVersion },
+        actions: [
+          { id: "view-changelog", kind: "link", label: text("messageCenter.view", "查看"), icon: "view", url: CFG.urls.updateChangelog },
+          { id: "mark-read", kind: "read", label: text("messageCenter.markRead", "已读"), icon: "read" },
+        ],
+      });
+    });
   }
 
   function cached(data) {
@@ -118,7 +181,7 @@
       return pending.task;
     }
     const current = version(); const source = channel(); const url = CFG.urls.extensionUpdate(source);
-    const operation = { manual, task: null };
+    const operation = { manual, task: null, eventId: "extension-update-check:" + crypto.randomUUID() };
     pending = operation;
     operation.task = (async () => {
       try {
@@ -139,6 +202,8 @@
             automatic: !operation.manual && hours(data) > 0 && plan?.cycleId === cycleId,
             result,
           } });
+          try { await publishAvailable(result, operation, await read()); }
+          catch (error) { log.error("update-message-delivery-failed", "更新检查成功，但新版消息未能投递", { error, eventId: operation.eventId }); }
         });
         if (result.status === "unavailable") log.error("update-source-unavailable", "安装服务状态暂不可确认", { channel: source, remote: result.remote });
         else if (operation.manual || result.hasNew) log.info("update-check-complete", operation.manual ? "手动检查更新完成" : "后台检查发现新版本", {
@@ -246,11 +311,10 @@
         throw new Error("更新提醒已经变化，请重新检查");
       }
       const state = muteOf(data);
-      if (request.action === "mute-version") state.ignored[versionKey(info)] = true;
-      else state.cycle = { channel: info.channel, cycleId: info.cycleId };
+      if (request.action === "mute-version") { await ignoreVersion(data, info); return true; }
+      state.cycle = { channel: info.channel, cycleId: info.cycleId };
       await chrome.storage.local.set({ [MUTE_KEY]: state });
-      log.info(request.action === "mute-version" ? "update-prompt-ignore-version" : "update-prompt-snooze-cycle",
-        request.action === "mute-version" ? "用户选择此版本不再提醒" : "用户选择本次检查周期不再提醒", { channel: info.channel, version: info.remote, cycleId: info.cycleId });
+      log.info("update-prompt-snooze-cycle", "用户选择本次检查周期不再提醒", { channel: info.channel, version: info.remote, cycleId: info.cycleId });
       disconnectActive();
       return true;
     });
@@ -280,6 +344,13 @@
   function start() {
     if (started) return;
     started = true;
+    root.STBackgroundMessages.registerAction(SOURCE, AVAILABLE, "ignore-version", message => serial(async () => ignoreVersion(await read(), messageInfo(message))));
+    root.STBackgroundMessages.registerAction(SOURCE, AVAILABLE, "go-update", async message => {
+      const info = messageInfo(message);
+      const latest = cached(await read());
+      if (info.channel !== channel() || CFG.versions.compare(info.remote, version()) <= 0 || !latest?.hasNew || CFG.versions.compare(latest.remote, info.remote) !== 0) throw new Error(text("messageCenter.updateObsolete", "这条更新提醒已过期，请查看最新消息。"));
+      return { navigation: { url: CFG.urls.updatePage } };
+    });
     const fail = error => log.error("update-schedule-failed", "后台更新检查执行失败", { error });
     chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === ALARM) runDue().catch(fail); });
     chrome.storage.onChanged.addListener((changes, area) => {
@@ -289,5 +360,5 @@
     reconcile().catch(fail);
   }
 
-  root.STBackgroundUpdate = Object.freeze({ ready: true, CACHE_KEY, PLAN_KEY, MUTE_KEY, PORT, ALARM, updateCheck, start, reconcile, runDue });
+  root.STBackgroundUpdate = Object.freeze({ ready: true, CACHE_KEY, PLAN_KEY, MUTE_KEY, PORT, ALARM, updateCheck, start, reconcile, runDue, installed });
 })(globalThis);

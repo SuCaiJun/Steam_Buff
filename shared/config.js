@@ -360,6 +360,7 @@
     steamFestivals: (anchorDate, beforeMonths = 36, afterMonths = 12) => `${join(STEAM_FESTIVALS_BASE, "/festivals")}?anchor_date=${encoded(anchorDate)}&before_months=${encoded(beforeMonths)}&after_months=${encoded(afterMonths)}`,
     homepage: join(ORIGINS.site, "/25.html"),
     updatePage: join(ORIGINS.site, "/25.html"),
+    updateChangelog: join(ORIGINS.site, "/25.html#changelog"),
     device: join(ORIGINS.site, "/login-auth/device"),
     account: join(ORIGINS.site, "/user/data"),
     donate: join(ORIGINS.site, "/supporter/golink/"),

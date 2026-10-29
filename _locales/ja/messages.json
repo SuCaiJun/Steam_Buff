@@ -7029,5 +7029,96 @@
   },
   "steam_independentName_table_batchWaiting": {
     "message": "次の処理を待機中"
+  },
+  "messageCenter_clearUnread": {
+    "message": "すべて既読にする"
+  },
+  "messageCenter_noUnread": {
+    "message": "未読メッセージはありません"
+  },
+  "messageCenter_actionUnavailable": {
+    "message": "このバージョンでは利用できません"
+  },
+  "messageCenter_ignoreReadFailed": {
+    "message": "通知の停止は保存されましたが、既読への変更に失敗しました。再試行してください。"
+  },
+  "messageCenter_updateAvailable": {
+    "message": "Steam Buff $value$ が利用できます",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_currentVersion": {
+    "message": "現在のバージョン：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_targetVersion": {
+    "message": "対象バージョン：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_goUpdate": {
+    "message": "更新する"
+  },
+  "messageCenter_ignoreVersion": {
+    "message": "このバージョンを通知しない"
+  },
+  "messageCenter_updateInstalled": {
+    "message": "Steam Buff を $value$ に更新しました",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_previousVersion": {
+    "message": "以前のバージョン：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_installedBody": {
+    "message": "拡張機能が更新されました。表示ボタンから更新内容を確認できます。"
+  },
+  "messageCenter_view": {
+    "message": "表示"
+  },
+  "messageCenter_markRead": {
+    "message": "既読にする"
+  },
+  "messageCenter_updateObsolete": {
+    "message": "この更新通知は古くなっています。最新のメッセージを確認してください。"
+  },
+  "messageCenter_openFailed": {
+    "message": "外部ブラウザーを開けませんでした。再試行してください。"
+  },
+  "messageCenter_business_pending": {
+    "message": "未処理"
+  },
+  "messageCenter_business_approved": {
+    "message": "承認済み"
+  },
+  "messageCenter_business_rejected": {
+    "message": "却下済み"
+  },
+  "messageCenter_business_expired": {
+    "message": "期限切れ"
+  },
+  "messageCenter_business_cancelled": {
+    "message": "キャンセル済み"
+  },
+  "messageCenter_business_completed": {
+    "message": "完了"
   }
 }

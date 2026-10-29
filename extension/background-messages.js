@@ -13,18 +13,20 @@
   const model = root.STMessageCenter;
   const log = root.STLoggerFactory.createLogger("extension", "message-center");
   let opening = null;
+  const handlers = new Map(), running = new Set();
 
   function database() {
     if (opening) return opening;
     opening = new Promise((resolve, reject) => {
-      const request = root.indexedDB.open(model.DATABASE, 1);
+      const request = root.indexedDB.open(model.DATABASE, model.DATABASE_VERSION);
       let settled = false;
       request.onupgradeneeded = () => {
-        const messages = request.result.createObjectStore("messages", { keyPath: "id" });
-        messages.createIndex("time", ["createdAt", "id"]);
-        messages.createIndex("unread", "unread");
-        messages.createIndex("unread-time", ["unread", "createdAt", "id"]);
-        request.result.createObjectStore("meta");
+        const db = request.result;
+        const messages = db.objectStoreNames.contains("messages") ? request.transaction.objectStore("messages") : db.createObjectStore("messages", { keyPath: "id" });
+        for (const [name, key] of [["time", ["createdAt", "id"]], ["unread", "unread"], ["unread-time", ["unread", "createdAt", "id"]], ["group", "group"], ["source-type", ["source", "type"]]]) {
+          if (!messages.indexNames.contains(name)) messages.createIndex(name, key);
+        }
+        if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta");
       };
       request.onerror = () => { settled = true; opening = null; reject(request.error); };
       request.onblocked = () => {
@@ -75,7 +77,13 @@
   function publicMessage(record) {
     if (!record) return null;
     const { unread, ...message } = record;
-    return message;
+    return { ...message, actions: publicActions(message) };
+  }
+
+  function publicActions(message) {
+    return message.actions.map(model.action).map(action => ({ ...action,
+      available: action.kind === "legacy" ? false : action.kind !== "command" || handlers.has(JSON.stringify([message.source, message.type, action.id])),
+    }));
   }
 
   async function state(transaction) {
@@ -125,7 +133,7 @@
       const expired = await removeRange(messages, "time", IDBKeyRange.upperBound([now - model.RETENTION_MS, []]));
       let overflow = await trimRead(messages);
       const response = await work(transaction, now);
-      if (action === "read" || action === "read-all") overflow += await trimRead(messages);
+      if (["read", "read-all", "read-matching"].includes(action)) overflow += await trimRead(messages);
       const changed = response.changed === true || expired > 0 || overflow > 0;
       if (changed) {
         const revision = await result(meta.get("revision"));
@@ -156,8 +164,8 @@
             resolve({ rows, next: cursor && last ? [last.createdAt, last.id] : null });
             return;
           }
-          const { id, source, type, title, summary, createdAt, readAt } = cursor.value;
-          rows.push({ id, source, type, title, summary, createdAt, readAt });
+          const { id, source, type, title, summary, createdAt, readAt, actions = [], businessState = null } = cursor.value;
+          rows.push({ id, source, type, title, summary, createdAt, readAt, actions: publicActions({ source, type, actions }), businessState });
           cursor.continue();
         };
       });
@@ -229,10 +237,94 @@
       case "read": case "delete": return mutate(request.action, request.id);
       case "read-all": return mutate(request.action);
       case "publish": return mutate(request.action, request.message);
+      case "act": return act(request.id, request.actionId, request.requestId);
       default: throw new TypeError("消息操作无效");
     }
   }
 
-  // 后台生产者的 publish(message) 返回 changed/state；重复 ID 不覆盖已有记录，提交后才同步摘要。
-  root.STBackgroundMessages = Object.freeze({ execute, publish: message => mutate("publish", message) });
+  /** 可信后台的便捷入口：缺省 ID/时间由服务生成，eventId 用于同次事件重试，独立事件可重复通知同一版本。 */
+  async function notify(input) {
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("消息内容无效");
+    const message = model.message({ ...input,
+      id: input.id === undefined ? (input.eventId === undefined ? "notification:" + crypto.randomUUID() : model.id(input.eventId)) : input.id,
+      createdAt: input.createdAt === undefined ? Date.now() : input.createdAt,
+    });
+    const value = await mutate("publish", message);
+    if (value.changed) log.info("message-published", "功能消息已保存", { source: message.source, type: message.type, id: message.id });
+    return { ...value, id: message.id };
+  }
+
+  /** 仅后台生产者可更新内容和业务快照，不改变消息归属、创建时间或已读状态。业务事实仍由生产者负责。 */
+  async function update(id, patch) {
+    const key = model.id(id);
+    const allowed = ["title", "summary", "body", "actions", "context", "businessState"];
+    if (!patch || typeof patch !== "object" || Object.keys(patch).some(field => !allowed.includes(field))) throw new TypeError("消息更新字段无效");
+    return operate("update", key, async transaction => {
+      const messages = transaction.objectStore("messages"), previous = await result(messages.get(key));
+      if (!previous) throw new Error("消息已经不存在");
+      const next = model.message({ ...previous, ...patch });
+      if (JSON.stringify(model.message(previous)) === JSON.stringify(next)) return { changed: false };
+      messages.put({ ...next, unread: previous.unread, readAt: previous.readAt });
+      return { changed: true };
+    });
+  }
+
+  /** 按已建立的来源/类型或 group 索引标记相关记录；谓词仅供可信后台使用，不接受网页提供的代码。 */
+  async function readMatching(query, matches = () => true) {
+    if (!query || typeof matches !== "function") throw new TypeError("消息匹配条件无效");
+    const group = query.group === undefined ? null : model.id(query.group);
+    const key = group || [model.id(query.source), model.id(query.type)];
+    return operate("read-matching", null, async (transaction, now) => {
+      const messages = transaction.objectStore("messages"); let changed = false;
+      await new Promise((resolve, reject) => {
+        const request = messages.index(group ? "group" : "source-type").openCursor(IDBKeyRange.only(key));
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          try {
+            const cursor = request.result;
+            if (!cursor) { resolve(); return; }
+            if (cursor.value.unread === 1) {
+              const matched = matches(publicMessage(cursor.value));
+              if (typeof matched !== "boolean") throw new TypeError("消息匹配函数必须同步返回布尔值");
+              if (matched) { cursor.update({ ...cursor.value, unread: 0, readAt: now }); changed = true; }
+            }
+            cursor.continue();
+          } catch (error) { reject(error); }
+        };
+      });
+      return { changed };
+    });
+  }
+
+  /** 注册可信后台业务动作，接收存储消息及 requestId；返回结果可包含 navigation 或业务说明，不接受持久化函数。 */
+  function registerAction(source, type, actionId, handler) {
+    const key = JSON.stringify([model.id(source), model.id(type), model.id(actionId)]);
+    if (typeof handler !== "function" || handlers.has(key)) throw new TypeError("消息业务动作无效或已注册");
+    handlers.set(key, handler);
+    return { dispose() { if (handlers.get(key) === handler) handlers.delete(key); } };
+  }
+
+  async function act(id, actionId, requestId) {
+    const message = await get(id);
+    if (!message) throw new Error("这条消息已经不存在");
+    const action = message.actions.map(model.action).find(item => item.id === model.id(actionId));
+    if (!action || action.kind === "legacy") throw new Error("当前版本尚未接入此消息操作");
+    const key = JSON.stringify([message.source, message.type, message.group || message.id]);
+    if (running.has(key)) throw new Error("这条业务消息正在处理，请稍后再试");
+    running.add(key);
+    try {
+      const handler = handlers.get(JSON.stringify([message.source, message.type, action.id]));
+      let value;
+      if (handler) value = await handler(message, { requestId });
+      else if (action.kind === "link") value = { navigation: { url: model.link(action.url) } };
+      else if (action.kind === "read") value = await mutate("read", message.id);
+      else throw new Error("当前版本尚未接入此消息操作");
+      if (value?.navigation) model.link(value.navigation.url);
+      log.info("message-action-complete", "消息操作已完成", { source: message.source, type: message.type, action: action.id, requestId });
+      return { ...value, state: await summary() };
+    } finally { running.delete(key); }
+  }
+
+  // publish 保持旧契约；notify/update/readMatching/registerAction 仅由可信后台功能调用，页面只通过有限路由操作已有消息。
+  root.STBackgroundMessages = Object.freeze({ execute, publish: message => mutate("publish", message), notify, update, readMatching, registerAction });
 })(globalThis);

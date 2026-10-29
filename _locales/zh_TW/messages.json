@@ -7029,5 +7029,96 @@
   },
   "steam_independentName_table_batchWaiting": {
     "message": "等待下一批"
+  },
+  "messageCenter_clearUnread": {
+    "message": "清除未讀"
+  },
+  "messageCenter_noUnread": {
+    "message": "暫無未讀訊息"
+  },
+  "messageCenter_actionUnavailable": {
+    "message": "目前版本尚未接入此操作"
+  },
+  "messageCenter_ignoreReadFailed": {
+    "message": "不再提醒已儲存，但訊息未能標為已讀，請重試。"
+  },
+  "messageCenter_updateAvailable": {
+    "message": "Steam Buff 發現新版本 $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_currentVersion": {
+    "message": "目前版本：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_targetVersion": {
+    "message": "目標版本：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_goUpdate": {
+    "message": "前往更新"
+  },
+  "messageCenter_ignoreVersion": {
+    "message": "不再提醒"
+  },
+  "messageCenter_updateInstalled": {
+    "message": "Steam Buff 已更新至 $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_previousVersion": {
+    "message": "原版本：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_installedBody": {
+    "message": "擴充功能已更新，點擊查看了解本次更新內容。"
+  },
+  "messageCenter_view": {
+    "message": "查看"
+  },
+  "messageCenter_markRead": {
+    "message": "已讀"
+  },
+  "messageCenter_updateObsolete": {
+    "message": "這則更新提醒已過期，請查看最新訊息。"
+  },
+  "messageCenter_openFailed": {
+    "message": "未能開啟外部瀏覽器，請重試。"
+  },
+  "messageCenter_business_pending": {
+    "message": "待處理"
+  },
+  "messageCenter_business_approved": {
+    "message": "已同意"
+  },
+  "messageCenter_business_rejected": {
+    "message": "已拒絕"
+  },
+  "messageCenter_business_expired": {
+    "message": "已失效"
+  },
+  "messageCenter_business_cancelled": {
+    "message": "已取消"
+  },
+  "messageCenter_business_completed": {
+    "message": "已完成"
   }
 }

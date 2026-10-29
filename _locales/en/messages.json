@@ -7029,5 +7029,96 @@
   },
   "steam_independentName_table_batchWaiting": {
     "message": "Waiting for the next batch"
+  },
+  "messageCenter_clearUnread": {
+    "message": "Mark all as read"
+  },
+  "messageCenter_noUnread": {
+    "message": "No unread messages"
+  },
+  "messageCenter_actionUnavailable": {
+    "message": "This action is unavailable in this version"
+  },
+  "messageCenter_ignoreReadFailed": {
+    "message": "The version was muted, but its messages could not be marked as read. Please retry."
+  },
+  "messageCenter_updateAvailable": {
+    "message": "Steam Buff $value$ is available",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_currentVersion": {
+    "message": "Installed version: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_targetVersion": {
+    "message": "Target version: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_goUpdate": {
+    "message": "Update"
+  },
+  "messageCenter_ignoreVersion": {
+    "message": "Ignore this version"
+  },
+  "messageCenter_updateInstalled": {
+    "message": "Steam Buff was updated to $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_previousVersion": {
+    "message": "Previous version: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_installedBody": {
+    "message": "The extension has been updated. Select View to read the release notes."
+  },
+  "messageCenter_view": {
+    "message": "View"
+  },
+  "messageCenter_markRead": {
+    "message": "Mark as read"
+  },
+  "messageCenter_updateObsolete": {
+    "message": "This update reminder is out of date. Please check the latest message."
+  },
+  "messageCenter_openFailed": {
+    "message": "Could not open the external browser. Please retry."
+  },
+  "messageCenter_business_pending": {
+    "message": "Pending"
+  },
+  "messageCenter_business_approved": {
+    "message": "Approved"
+  },
+  "messageCenter_business_rejected": {
+    "message": "Rejected"
+  },
+  "messageCenter_business_expired": {
+    "message": "Expired"
+  },
+  "messageCenter_business_cancelled": {
+    "message": "Cancelled"
+  },
+  "messageCenter_business_completed": {
+    "message": "Completed"
   }
 }

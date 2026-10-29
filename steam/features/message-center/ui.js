@@ -168,6 +168,8 @@
     let controls = document.querySelector(CONTROLS);
 
     const pending = new Map(), actionHandlers = new Map(), detailActions = new Map(), popCards = new Map(), fullCards = new Map();
+    const actionBusy = new Set();
+    const text = (key, fallback, value) => model.text(key, fallback, value);
     let stopped = false, current = null, generation = 0, selection = null, busy = false;
     let popLoading = false, popDirty = false, fullLoading = false, fullDirty = false;
     let filter = "all", next = null, fullOpen = false, fullInitialized = false, fullFailed = false;
@@ -188,6 +190,29 @@
       return node;
     }
     function icon() { const node = element("span", "st-mc-icon"); node.setAttribute("aria-hidden", "true"); return node; }
+    function actionButton(action, messageId, compact = false) {
+      const node = button(compact && action.icon ? "" : action.label, "message-action", compact ? "st-mc-icon-button" : "st-mc-button");
+      node.dataset.messageId = messageId; node.dataset.actionId = action.id;
+      node.title = action.label; node.setAttribute("aria-label", action.label);
+      node.disabled = action.available === false || actionBusy.has(messageId);
+      node.dataset.available = String(action.available !== false);
+      if (action.available === false) node.title = text("messageCenter.actionUnavailable", "当前版本未接入此操作");
+      if (action.icon) {
+        const image = element("span", "st-mc-action-icon"); image.setAttribute("aria-hidden", "true");
+        image.style.setProperty("--st-mc-action-image", `url("${api.path.url(model.ICONS[action.icon])}")`);
+        node.prepend(image);
+      }
+      return node;
+    }
+    function actionsFor(message, compact) {
+      const group = element("div", compact ? "st-mc-inline-actions" : "st-mc-actions");
+      for (const raw of message.actions || []) {
+        const action = model.action(raw);
+        if (action.kind === "legacy") continue;
+        group.appendChild(actionButton({ ...action, available: raw.available }, message.id, compact));
+      }
+      return group;
+    }
     function date(time) { return new Date(time).toLocaleString(document.documentElement.lang || "zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
 
     const style = api.styles.ensureStyle("__RickyMessageCenterStyle", window.STComponents.css.compose(
@@ -208,6 +233,14 @@
       #${PANEL}:focus, #${DIALOG}:focus { outline: none; }
       .st-mc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 56px; padding: 0 16px; }
       .st-mc-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+      .st-mc-heading { display: flex; align-items: center; gap: 8px; }
+      .st-mc-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 4px; border: 0; border-radius: 2px; color: var(--st-color-text-muted); background: none; cursor: pointer; }
+      .st-mc-icon-button:hover { color: var(--st-color-white); background: var(--st-color-surface-subtle-hover); }
+      .st-mc-icon-button:disabled { opacity: .45; cursor: default; }
+      .st-mc-action-icon { display: inline-block; flex: 0 0 16px; width: 16px; height: 16px; background: currentColor; mask: var(--st-mc-action-image) center / contain no-repeat; }
+      .st-mc-inline-actions { display: flex; flex: 0 0 auto; gap: 0; align-items: center; padding-right: 4px; }
+      .st-mc-inline-actions:empty { display: none; }
+      .st-mc-business { display: block; color: var(--st-color-steam-blue); font-size: 11px; }
       .st-mc-list { min-height: 0; max-height: var(--st-mc-menu-list-height); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; scrollbar-width: thin; }
       #${DIALOG} .st-mc-list { flex: 1; min-height: 0; max-height: none; }
       .st-mc-virtual-rows .st-mc-card { height: ${ROW_HEIGHT}px; margin: 0; padding-bottom: 2px; }
@@ -216,7 +249,7 @@
       .st-mc-load-state { display: flex; justify-content: center; align-items: center; min-height: 32px; color: var(--st-color-text-muted); }
       .st-mc-card { position: relative; display: flex; align-items: stretch; margin: 0 0 2px; background: var(--st-color-surface-subtle); }
       .st-mc-card:hover, .st-mc-card:focus-within { background: var(--st-color-surface-subtle-hover); }
-      .st-mc-open { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 72px; padding: 8px; border: 0; color: inherit; background: none; text-align: left; cursor: pointer; font: inherit; }
+      .st-mc-open { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 8px; flex: 1; width: 100%; min-width: 0; min-height: 72px; padding: 8px; border: 0; color: inherit; background: none; text-align: left; cursor: pointer; font: inherit; }
       .st-mc-thumb { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; color: var(--st-color-steam-blue); background: var(--st-color-surface-inset); }
       .st-mc-thumb .st-mc-icon { width: 24px; height: 24px; }
       .st-mc-copy { display: block; min-width: 0; padding-right: 8px; }
@@ -253,7 +286,10 @@
     trigger.appendChild(badge); root.appendChild(trigger);
 
     const panel = element("section"); panel.id = PANEL; panel.tabIndex = -1; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "Steam Buff 消息中心");
-    const popHead = element("header", "st-mc-head"); popHead.append(element("h2", "", "消息中心"), button("查看全部", "all"));
+    const popHead = element("header", "st-mc-head"), heading = element("div", "st-mc-heading");
+    const clearUnread = actionButton({ id: "clear-unread", label: text("messageCenter.clearUnread", "清除未读"), icon: "clear" }, "", true);
+    clearUnread.dataset.action = "read-all"; clearUnread.disabled = true;
+    heading.append(element("h2", "", "消息中心"), clearUnread); popHead.append(heading, button("查看全部", "all"));
     const popList = element("div", "st-mc-list");
     const popError = element("p", "st-mc-error"); popError.setAttribute("role", "status");
     panel.append(popHead, popList, popError);
@@ -301,6 +337,7 @@
       trigger.dataset.unread = String(value.unread > 0);
       trigger.setAttribute("aria-label", value.unread ? `Steam Buff 消息，${value.unread} 条未读` : "Steam Buff 消息，无未读消息");
       fullRead.disabled = busy || value.unread === 0;
+      clearUnread.disabled = busy || value.unread === 0;
       fullCount.textContent = `共 ${filter === "unread" ? value.unread : value.total} 条`;
       layout();
       return true;
@@ -362,9 +399,17 @@
           const node = element("div", "st-mc-card"), open = button("", "detail", "st-mc-open"); open.dataset.id = message.id;
           const thumb = element("span", "st-mc-thumb"); thumb.appendChild(icon());
           const copy = element("span", "st-mc-copy"), meta = element("span", "st-mc-meta", `${message.source} · ${date(message.createdAt)}`);
-          copy.append(meta, element("span", "st-mc-title", message.title), element("span", "st-mc-summary", message.summary));
+          const title = element("span", "st-mc-title"), summary = element("span", "st-mc-summary"), business = element("span", "st-mc-business");
+          copy.append(meta, title, summary, business);
           const dot = element("span", "st-mc-dot"); dot.setAttribute("aria-hidden", "true"); open.append(thumb, copy); node.append(open, dot);
-          card = { node, dot, open }; cache.set(message.id, card);
+          card = { node, dot, open, title, summary, meta, business, actions: null, actionSignature: null }; cache.set(message.id, card);
+        }
+        card.title.textContent = message.title; card.summary.textContent = message.summary;
+        card.meta.textContent = `${message.source} · ${date(message.createdAt)}`;
+        card.business.textContent = businessLabel(message.businessState); card.business.hidden = !message.businessState;
+        const signature = JSON.stringify(message.actions || []);
+        if (signature !== card.actionSignature) {
+          card.actions?.remove(); card.actions = actionsFor(message, true); card.node.appendChild(card.actions); card.actionSignature = signature;
         }
         card.dot.hidden = message.readAt !== null;
         card.open.setAttribute("aria-label", `${message.readAt === null ? "未读：" : ""}${message.title}`);
@@ -380,10 +425,10 @@
       if (popLoading) { popDirty = true; return; }
       popLoading = true; popDirty = false; popError.textContent = "";
       try {
-        const page = await request("list", { filter: "all" });
+        const page = await request("list", { filter: "unread" });
         if (stopped || !isPopOpen()) return;
         if (!applyState(page.state)) { popDirty = true; return; }
-        renderRows(popList, popCards, page.rows, "暂无消息");
+        renderRows(popList, popCards, page.rows, text("messageCenter.noUnread", "暂无未读消息"));
       } catch (error) {
         reportFailure(error, "list", popError);
         if (!stopped && !popCards.size) status(popList, "消息加载失败", "请重试", true);
@@ -453,8 +498,11 @@
 
     // Tab 与方向键按数据索引跨越虚拟窗口；到达缓存末尾时仅补下一批，保留自然的首尾焦点出口
     async function onFullKey(event) {
-      const target = event.target.closest(".st-mc-open");
+      const row = event.target.closest(".st-mc-card"), target = row?.querySelector(".st-mc-open");
       if (!target || !fullRowsHost.contains(target) || !["Tab", "ArrowDown", "ArrowUp", "Home"].includes(event.key)) return;
+      const buttons = Array.from(row.querySelectorAll("button:not(:disabled)"));
+      if (event.key === "Tab" && (event.shiftKey ? event.target !== buttons[0] : event.target !== buttons[buttons.length - 1])) return;
+      if (event.key !== "Tab" && event.target !== target) return;
       const index = Number(target.dataset.index), backwards = event.key === "ArrowUp" || (event.key === "Tab" && event.shiftKey);
       const destination = event.key === "Home" ? 0 : index + (backwards ? -1 : 1);
       if (destination < 0 || (destination >= fullRows.length && !next)) return;
@@ -465,6 +513,11 @@
         if (token !== generation) return;
       }
       focusFullRow(destination);
+      if (event.key === "Tab" && backwards) {
+        const card = fullCards.get(fullRows[destination].id);
+        const controls = card?.node.querySelectorAll("button:not(:disabled)");
+        controls?.[controls.length - 1]?.focus({ preventScroll: true });
+      }
     }
 
     async function loadFull(append = false) {
@@ -516,8 +569,10 @@
       detail.append(button("返回消息列表", "back"), element("h3", "", message.title), element("span", "st-mc-count", `${message.source} · ${date(message.createdAt)}`));
       if (message.summary) detail.appendChild(element("p", "", message.summary));
       if (message.body) detail.appendChild(element("p", "", message.body));
-      const actions = element("div", "st-mc-actions");
+      if (message.businessState) detail.appendChild(element("p", "st-mc-business", businessLabel(message.businessState)));
+      const actions = actionsFor(message, false);
       for (const action of message.actions) {
+        if (model.action(action).kind !== "legacy") continue;
         const item = button(action.label, "custom"); item.dataset.id = action.id;
         const key = JSON.stringify([message.source, message.type, action.id]);
         detailActions.set(key, item);
@@ -564,8 +619,10 @@
 
     async function onClick(event) {
       const target = event.target.closest("button[data-action]");
-      if (!target || target.disabled || busy) return;
+      if (!target || target.disabled) return;
       const action = target.dataset.action;
+      if (action === "message-action") { await performAction(target); return; }
+      if (busy) return;
       if (action === "all") { await openAll(); return; }
       if (action === "close") { host.close("button", true); return; }
       if (action === "detail") { await openDetail(target.dataset.id); return; }
@@ -592,6 +649,37 @@
         }
       } catch (error) { reportFailure(error, action, errorTarget); }
       finally { busy = false; if (!stopped) { target.disabled = false; if (current) applyState(current); } }
+    }
+
+    function businessLabel(value) {
+      const labels = { pending: "待处理", approved: "已同意", rejected: "已拒绝", expired: "已失效", cancelled: "已取消", completed: "已完成" };
+      return value ? text(`messageCenter.business.${value}`, labels[value]) : "";
+    }
+
+    // 图标动作与正文按钮是同级元素；点击动作不触发详情/自动已读。业务执行只传存储 ID，导航由后台核验后交回主窗口。
+    async function performAction(target) {
+      const id = target.dataset.messageId;
+      if (actionBusy.has(id)) return;
+      actionBusy.add(id);
+      const controls = () => [...panel.querySelectorAll("button[data-message-id]"), ...dialog.querySelectorAll("button[data-message-id]")].filter(node => node.dataset.messageId === id);
+      controls().forEach(node => { node.disabled = true; });
+      const errorTarget = fullOpen ? fullError : popError; errorTarget.textContent = "";
+      try {
+        const value = await request("act", { id, actionId: target.dataset.actionId });
+        if (stopped) return;
+        if (value.navigation && !window.STConfig.externalNavigation.open(model.link(value.navigation.url))) throw new Error(text("messageCenter.openFailed", "未能打开外部浏览器，请重试。"));
+        applyState(value.state);
+        if (isPopOpen()) void loadPopover();
+        if (fullOpen && !selection) showList();
+        else if (fullOpen && selection === id) {
+          const latest = await request("get", { id });
+          if (!stopped && selection === id && latest.message) renderDetail(latest.message);
+        }
+      } catch (error) { reportFailure(error, "act", errorTarget); }
+      finally {
+        actionBusy.delete(id);
+        if (!stopped) controls().forEach(node => { node.disabled = node.dataset.available === "false"; });
+      }
     }
 
     function onClose() { fullOpen = false; generation++; selection = null; cancelFullFrame(); fullResize.disconnect(); }

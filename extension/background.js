@@ -164,6 +164,7 @@
     "settings/settings-cloud.js",
   ]);
   const SETTINGS_RAIL_SCRIPTS = Object.freeze([
+    "shared/client-environment.js",
     "shared/i18n.js",
     "shared/styles/theme.js",
     "shared/utils/dom.js",
@@ -3775,6 +3776,7 @@
   });
   chrome.runtime.onConnect.addListener(aiStreamConnect);
   globalThis.STBackgroundUpdate.start();
+  globalThis.STBackgroundLifecycle.start();
   globalThis.addEventListener("error", event => globalThis.STLoggerFactory.reportError(event.error || event.message, {
     domain: "extension", feature: "background-runtime", event: "background-unhandled-error", message: "后台未捕获异常",
   }));

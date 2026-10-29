@@ -22,9 +22,68 @@
 
   function id(value) { return text(value, " ID", 200); }
 
+  const ICONS = Object.freeze({
+    clear: "images/ui/message-clear-unread.svg", mute: "images/ui/message-mute.svg",
+    upgrade: "images/ui/message-upgrade.svg", view: "images/ui/message-view.svg", read: "images/ui/message-read.svg",
+  });
+  const BUSINESS_STATES = Object.freeze(["pending", "approved", "rejected", "expired", "cancelled", "completed"]);
+
+  function link(value) {
+    const url = new URL(text(value, "链接", 4096));
+    if (url.protocol !== "https:" || url.username || url.password) throw new TypeError("消息链接必须是无凭据的 HTTPS 地址");
+    return url.href;
+  }
+
+  // context 只承载业务引用的 JSON 数据；限制深度和大小，不接受函数或运行时对象。
+  function context(value) {
+    if (value === undefined) return {};
+    let count = 0;
+    function copy(item, depth) {
+      if (++count > 128 || depth > 4) throw new TypeError("消息业务引用过大");
+      if (item === null || typeof item === "boolean" || typeof item === "string") return item;
+      if (typeof item === "number" && Number.isFinite(item)) return item;
+      if (Array.isArray(item)) return item.map(next => copy(next, depth + 1));
+      if (!item || typeof item !== "object" || Object.prototype.toString.call(item) !== "[object Object]") throw new TypeError("消息业务引用必须是 JSON 对象");
+      const out = {};
+      for (const [key, next] of Object.entries(item)) {
+        if (["__proto__", "constructor", "prototype"].includes(key)) throw new TypeError("消息业务引用字段无效");
+        out[key] = copy(next, depth + 1);
+      }
+      return out;
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("消息业务引用无效");
+    const result = copy(value, 0);
+    if (JSON.stringify(result).length > 8192) throw new TypeError("消息业务引用过大");
+    return result;
+  }
+
+  function normalizeAction(input) {
+    if (!input || typeof input !== "object") throw new TypeError("消息操作无效");
+    // 已发布的第一版只有 id/label；新动作显式声明 kind，由后台统一执行。
+    const kind = input.kind === undefined ? "legacy" : input.kind;
+    if (!["legacy", "link", "command", "read"].includes(kind)) throw new TypeError("消息操作类型无效");
+    const icon = input.icon === undefined ? "" : input.icon;
+    if (icon !== "" && !Object.hasOwn(ICONS, icon)) throw new TypeError("消息操作图标未注册");
+    return { id: id(input.id), label: text(input.label, "操作名称", 100), kind, icon,
+      ...(kind === "link" ? { url: link(input.url) } : {}) };
+  }
+
+  function businessState(value) {
+    if (value === undefined || value === null) return null;
+    if (!BUSINESS_STATES.includes(value)) throw new TypeError("消息业务状态无效");
+    return value;
+  }
+
+  function t(key, fallback, value) {
+    if (root.STI18n) return root.STI18n.text(key, fallback, value === undefined ? undefined : { value });
+    const translated = root.chrome?.i18n?.getMessage(key.replace(/\./g, "_"), value === undefined ? undefined : [String(value)]);
+    return translated || fallback.replace(/\$value\$/g, String(value));
+  }
+
   /**
    * 校验由扩展自身生产的消息；ID 与发生时间必须由生产者明确提供。
-   * 相同 ID 只接收一次；actions 只保存动作标识和文案，不保存代码或跳转地址。
+   * 相同事件 ID 只接收一次，独立检查使用新事件 ID；链接仅支持 HTTPS，命令只保存注册标识。
+   * scope 本期只开放设备消息；账号消息须有真实鉴权和隔离契约后才可接入。
    */
   function message(input) {
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("消息内容无效");
@@ -32,19 +91,23 @@
     const actions = input.actions === undefined ? [] : input.actions;
     if (!Array.isArray(actions)) throw new TypeError("消息操作无效");
     const seen = new Set();
+    if (input.scope !== undefined && input.scope !== "device") throw new TypeError("账号消息尚未接入鉴权与隔离");
     return {
       id: id(input.id), source: text(input.source, "来源", 100), type: text(input.type, "类型", 100),
       title: text(input.title, "标题", 500), summary: text(input.summary, "摘要", 2000, true),
       body: text(input.body, "正文", 20000, true), createdAt: input.createdAt,
+      scope: "device", context: context(input.context), businessState: businessState(input.businessState),
+      ...(input.group === undefined ? {} : { group: id(input.group) }),
       actions: actions.map(action => {
         if (!action || typeof action !== "object") throw new TypeError("消息操作无效");
         const actionId = id(action.id);
         if (seen.has(actionId)) throw new TypeError("消息操作 ID 重复");
         seen.add(actionId);
-        return { id: actionId, label: text(action.label, "操作名称", 100) };
+        return normalizeAction(action);
       }),
     };
   }
+
 
   function list(input = {}) {
     const filter = input.filter === undefined ? "all" : input.filter;
@@ -59,9 +122,9 @@
 
   root.STMessageCenter = Object.freeze({
     FEATURE: "message-center", ROUTE: "MESSAGE_CENTER", BRIDGE: "steam-buff-message-center-v1",
-    DATABASE: "SteamBuffMessageCenter", STATE_KEY: "steam_buff_message_center_state_v1", PAGE_SIZE: 20,
+    DATABASE: "SteamBuffMessageCenter", DATABASE_VERSION: 2, STATE_KEY: "steam_buff_message_center_state_v1", PAGE_SIZE: 20,
     RETENTION_MS: 30 * 24 * 60 * 60 * 1000, READ_LIMIT: 100,
-    READ_ACTIONS: Object.freeze(["summary", "list", "get", "read", "read-all", "delete"]),
-    id, message, list,
+    READ_ACTIONS: Object.freeze(["summary", "list", "get", "read", "read-all", "delete", "act"]),
+    ICONS, BUSINESS_STATES, id, message, list, action: normalizeAction, context, businessState, link, text: t,
   });
 })(globalThis);

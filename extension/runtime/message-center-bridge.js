@@ -24,7 +24,7 @@
     if (typeof data.rid !== "string" || !data.rid || data.rid.length > 80 || !model.READ_ACTIONS.includes(data.action)) return;
     try {
       const response = await root.STMessageBus.send({
-        type: model.ROUTE, action: data.action, id: data.id, filter: data.filter, before: data.before, requestId: data.rid,
+        type: model.ROUTE, action: data.action, id: data.id, actionId: data.actionId, filter: data.filter, before: data.before, requestId: data.rid,
       }, { timeoutMs: 12000, logFailures: false });
       if (active) post({ ...response, rid: data.rid, reported: response.success === false });
     } catch (error) {

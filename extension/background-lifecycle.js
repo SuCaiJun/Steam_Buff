@@ -19,6 +19,10 @@
   const INSTALLED_VERSION_KEY = contract.installedVersionKey;
   const SUPPORT_DECISION_KEY = contract.supportDecisionKey;
   const PENDING_UPDATE_KEY = contract.pendingUpdateKey;
+  const MESSAGE_OUTBOX_KEY = contract.messageOutboxKey;
+  let deliveryTask = null;
+  let reportedTask = null;
+  let stateQueue = Promise.resolve();
   const TRANSLATE_ENABLED_KEY = "st.settings.translate.enabled";
   const log = root.STLoggerFactory?.createLogger?.("background", "lifecycle-prompts") || {
     info() {},
@@ -55,8 +59,48 @@
     return Number.isFinite(next) && next > 0 ? next : Date.now();
   }
 
+  function outbox(data) {
+    const rows = data[MESSAGE_OUTBOX_KEY];
+    if (rows === undefined) return [];
+    if (!Array.isArray(rows) || rows.some(row => !row || typeof row.version !== "string" || typeof row.previousVersion !== "string" || !Number.isSafeInteger(row.updatedAt) || row.updatedAt <= 0)) throw new TypeError("升级消息待投递状态无效");
+    return rows;
+  }
+
+  async function serialState(work) {
+    const previous = stateQueue; let release;
+    stateQueue = new Promise(resolve => { release = resolve; });
+    await previous;
+    try { return await work(); } finally { release(); }
+  }
+
+  // 原弹窗消费自己的 pending 状态；消息投递使用独立 outbox，写库完成后才移除，worker 重启继续恢复。
+  function deliver() {
+    if (deliveryTask) return deliveryTask;
+    deliveryTask = (async () => {
+      for (;;) {
+        const rows = await serialState(async () => outbox(await storageGet([MESSAGE_OUTBOX_KEY])));
+        if (!rows.length) return;
+        const event = rows[0];
+        await root.STBackgroundUpdate.installed(event);
+        await serialState(async () => {
+          const current = outbox(await storageGet([MESSAGE_OUTBOX_KEY]));
+          if (current[0]?.version !== event.version || current[0]?.updatedAt !== event.updatedAt) throw new Error("升级消息待投递事件发生冲突");
+          await storageSet({ [MESSAGE_OUTBOX_KEY]: current.slice(1) });
+        });
+      }
+    })().finally(() => { deliveryTask = null; });
+    return deliveryTask;
+  }
+
+  function start() {
+    const task = deliver();
+    if (reportedTask === task) return;
+    reportedTask = task;
+    void task.catch(error => log.warn("upgrade-message-delivery-failed", "升级完成消息待投递，后续启动将恢复", { error }));
+  }
+
   // 安装时仅初始化缺失的翻译总开关，升级和已有选择保持不变；初始化在首轮内容注入前执行
-  async function initialize(details = {}, now = Date.now()) {
+  async function initializeState(details = {}, now = Date.now()) {
     const reason = String(details?.reason || "");
     if (reason !== "install" && reason !== "update") {
       return null;
@@ -68,7 +112,7 @@
     }
 
     const installedAt = timestamp(now);
-    const stored = await storageGet([STARTED_AT_KEY, INSTALLED_VERSION_KEY, TRANSLATE_ENABLED_KEY]);
+    const stored = await storageGet([STARTED_AT_KEY, INSTALLED_VERSION_KEY, TRANSLATE_ENABLED_KEY, MESSAGE_OUTBOX_KEY]);
     const storedStartedAt = Number(stored[STARTED_AT_KEY]);
     const storedVersion = String(stored[INSTALLED_VERSION_KEY] || "").trim();
     const startedAt = storedStartedAt > 0 ? storedStartedAt : installedAt;
@@ -91,6 +135,7 @@
         previousVersion: String(details?.previousVersion || "").trim(),
         updatedAt: installedAt,
       };
+      patch[MESSAGE_OUTBOX_KEY] = [...outbox(stored), { ...patch[PENDING_UPDATE_KEY] }];
     }
 
     if (Object.keys(patch).length) {
@@ -114,12 +159,20 @@
     };
   }
 
+  async function initialize(details = {}, now = Date.now()) {
+    const value = await serialState(() => initializeState(details, now));
+    // 内容注入只等待原生命周期状态落盘；消息投递独立执行，避免数据库迁移或失败拖住页面启动。
+    if (value?.pendingUpdate) start();
+    return value;
+  }
+
   const api = Object.freeze({
     STARTED_AT_KEY,
     INSTALLED_VERSION_KEY,
     SUPPORT_DECISION_KEY,
     PENDING_UPDATE_KEY,
-    initialize,
+    MESSAGE_OUTBOX_KEY,
+    initialize, start, deliver,
   });
 
   root.STBackgroundLifecycle = api;
