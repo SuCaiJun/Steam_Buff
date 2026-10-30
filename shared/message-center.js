@@ -83,7 +83,7 @@
   /**
    * 校验由扩展自身生产的消息；ID 与发生时间必须由生产者明确提供。
    * 相同事件 ID 只接收一次，独立检查使用新事件 ID；链接仅支持 HTTPS，命令只保存注册标识。
-   * scope 本期只开放设备消息；账号消息须有真实鉴权和隔离契约后才可接入。
+   * 设备消息保持原语义；Steam 账号消息只由后台真实会话核验后查询与操作。
    */
   function message(input) {
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("消息内容无效");
@@ -91,12 +91,14 @@
     const actions = input.actions === undefined ? [] : input.actions;
     if (!Array.isArray(actions)) throw new TypeError("消息操作无效");
     const seen = new Set();
-    if (input.scope !== undefined && input.scope !== "device") throw new TypeError("账号消息尚未接入鉴权与隔离");
+    const scope = input.scope === undefined ? "device" : input.scope;
+    if (!["device", "steam-account"].includes(scope)) throw new TypeError("消息范围无效");
+    if (scope === "steam-account" && (typeof input.steamAccountId !== "string" || !/^\d{17}$/.test(input.steamAccountId))) throw new TypeError("消息 Steam 账号无效");
     return {
       id: id(input.id), source: text(input.source, "来源", 100), type: text(input.type, "类型", 100),
       title: text(input.title, "标题", 500), summary: text(input.summary, "摘要", 2000, true),
       body: text(input.body, "正文", 20000, true), createdAt: input.createdAt,
-      scope: "device", context: context(input.context), businessState: businessState(input.businessState),
+      scope, ...(scope === "steam-account" ? { steamAccountId: input.steamAccountId } : {}), context: context(input.context), businessState: businessState(input.businessState),
       ...(input.group === undefined ? {} : { group: id(input.group) }),
       actions: actions.map(action => {
         if (!action || typeof action !== "object") throw new TypeError("消息操作无效");
@@ -122,7 +124,8 @@
 
   root.STMessageCenter = Object.freeze({
     FEATURE: "message-center", ROUTE: "MESSAGE_CENTER", BRIDGE: "steam-buff-message-center-v1",
-    DATABASE: "SteamBuffMessageCenter", DATABASE_VERSION: 2, STATE_KEY: "steam_buff_message_center_state_v1", PAGE_SIZE: 20,
+    DATABASE: "SteamBuffMessageCenter", DATABASE_VERSION: 3, STATE_KEY: "steam_buff_message_center_state_v1", PAGE_SIZE: 20,
+    IDENTITY_KEY: "steam_buff_message_identity_revision_v1",
     RETENTION_MS: 30 * 24 * 60 * 60 * 1000, READ_LIMIT: 100,
     READ_ACTIONS: Object.freeze(["summary", "list", "get", "read", "read-all", "delete", "act"]),
     ICONS, BUSINESS_STATES, id, message, list, action: normalizeAction, context, businessState, link, text: t,

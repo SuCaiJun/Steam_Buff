@@ -23,10 +23,14 @@
       request.onupgradeneeded = () => {
         const db = request.result;
         const messages = db.objectStoreNames.contains("messages") ? request.transaction.objectStore("messages") : db.createObjectStore("messages", { keyPath: "id" });
-        for (const [name, key] of [["time", ["createdAt", "id"]], ["unread", "unread"], ["unread-time", ["unread", "createdAt", "id"]], ["group", "group"], ["source-type", ["source", "type"]]]) {
+        for (const [name, key] of [["time", ["createdAt", "id"]], ["unread", "unread"], ["unread-time", ["unread", "createdAt", "id"]], ["group", "group"], ["source-type", ["source", "type"]], ["visibility", "visibility"], ["visibility-unread", ["visibility", "unread"]], ["visibility-time", ["visibility", "createdAt", "id"]], ["visibility-unread-time", ["visibility", "unread", "createdAt", "id"]]]) {
           if (!messages.indexNames.contains(name)) messages.createIndex(name, key);
         }
         if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta");
+        const upgrade = messages.openCursor();
+        upgrade.onsuccess = () => { const cursor = upgrade.result; if (!cursor) return;
+          if (cursor.value.visibility === undefined) cursor.update({ ...cursor.value, visibility: "device" });
+          cursor.continue(); };
       };
       request.onerror = () => { settled = true; opening = null; reject(request.error); };
       request.onblocked = () => {
@@ -76,7 +80,7 @@
 
   function publicMessage(record) {
     if (!record) return null;
-    const { unread, ...message } = record;
+    const { unread, visibility, ...message } = record;
     return { ...message, actions: publicActions(message) };
   }
 
@@ -86,17 +90,20 @@
     }));
   }
 
-  async function state(transaction) {
-    const messages = transaction.objectStore("messages");
-    const [total, unread, revision] = await Promise.all([
-      result(messages.count()), result(messages.index("unread").count(1)), result(transaction.objectStore("meta").get("revision")),
-    ]);
-    return { total, unread, revision: revision === undefined ? 0 : revision };
+  const visibility = message => message.scope === "steam-account" ? "steam:" + message.steamAccountId : "device";
+  const scopes = owner => owner ? ["device", "steam:" + owner] : ["device"];
+  const permitted = (message, owner) => !!message && scopes(owner).includes(message.visibility);
+
+  async function state(transaction, owner = null) {
+    const messages = transaction.objectStore("messages"), keys = scopes(owner);
+    const totals = await Promise.all(keys.map(key => result(messages.index("visibility").count(key))));
+    const unread = await Promise.all(keys.map(key => result(messages.index("visibility-unread").count([key, 1]))));
+    const revision = await result(transaction.objectStore("meta").get("revision"));
+    return { total: totals.reduce((a,b)=>a+b,0), unread: unread.reduce((a,b)=>a+b,0), revision: revision === undefined ? 0 : revision };
   }
 
-  async function summary() {
-    const value = await operate("summary", null, async () => ({}));
-    return value.state;
+  async function summary(owner = null) {
+    return (await operate("summary", null, async () => ({}), owner)).state;
   }
 
   // 直接沿已有索引删除过期或超量记录；skip 由游标跳过保留项，不将历史正文装入内存
@@ -127,7 +134,7 @@
    * 每次访问先清理过期记录及历史超量已读；标记已读后再次收敛到最新 100 条
    * 清理、业务操作和 revision 在同一事务提交，失败一起回滚；无变化不写摘要
    */
-  async function operate(action, id, work) {
+  async function operate(action, id, work, owner = null) {
     const value = await transact(["messages", "meta"], "readwrite", async transaction => {
       const messages = transaction.objectStore("messages"), meta = transaction.objectStore("meta"), now = Date.now();
       const expired = await removeRange(messages, "time", IDBKeyRange.upperBound([now - model.RETENTION_MS, []]));
@@ -139,44 +146,43 @@
         const revision = await result(meta.get("revision"));
         meta.put((revision === undefined ? 0 : revision) + 1, "revision");
       }
-      return { response, state: await state(transaction), changed, expired, overflow };
+      return { response, state: await state(transaction, owner), changed, expired, overflow };
     });
     if (value.expired || value.overflow) log.info("message-retention-applied", "消息记录已按保留规则清理", { expired: value.expired, readOverflow: value.overflow });
     if (value.changed) await signal(value.state, { action: value.response.changed ? action : "prune", id: value.response.changed ? id : null });
     return { ...value.response, state: value.state };
   }
 
-  async function list(input) {
+  async function list(input, owner = null) {
     const query = model.list(input);
     return operate("list", null, async transaction => {
       const messages = transaction.objectStore("messages"), unreadOnly = query.filter === "unread";
-      const lower = unreadOnly ? [1, 0, ""] : null;
-      const upper = query.before ? (unreadOnly ? [1, ...query.before] : query.before) : (unreadOnly ? [1, Number.MAX_SAFE_INTEGER, []] : null);
-      const range = unreadOnly ? IDBKeyRange.bound(lower, upper, false, !!query.before) : (upper ? IDBKeyRange.upperBound(upper, true) : null);
-      const index = messages.index(unreadOnly ? "unread-time" : "time");
-      const page = new Promise((resolve, reject) => {
-        const rows = [], request = index.openCursor(range, "prev");
+      const pages = await Promise.all(scopes(owner).map(key => new Promise((resolve,reject) => {
+        const prefix = unreadOnly ? [key, 1] : [key];
+        const lower = [...prefix, 0, ""], upper = [...prefix, ...(query.before || [Number.MAX_SAFE_INTEGER, []])];
+        const request = messages.index(unreadOnly ? "visibility-unread-time" : "visibility-time").openCursor(IDBKeyRange.bound(lower, upper, false, !!query.before), "prev");
+        const rows = [];
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const cursor = request.result;
-          if (!cursor || rows.length === model.PAGE_SIZE) {
-            const last = rows[rows.length - 1];
-            resolve({ rows, next: cursor && last ? [last.createdAt, last.id] : null });
-            return;
-          }
+          if (!cursor || rows.length > model.PAGE_SIZE) { resolve(rows); return; }
           const { id, source, type, title, summary, createdAt, readAt, actions = [], businessState = null } = cursor.value;
           rows.push({ id, source, type, title, summary, createdAt, readAt, actions: publicActions({ source, type, actions }), businessState });
           cursor.continue();
         };
-      });
-      return page;
-    });
+      })));
+      const all = pages.flat().sort((a,b)=>b.createdAt-a.createdAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+      const rows = all.slice(0,model.PAGE_SIZE), last = rows.at(-1);
+      return { rows, next: all.length > model.PAGE_SIZE ? [last.createdAt,last.id] : null };
+    }, owner);
   }
 
-  async function get(id) {
+  async function get(id, owner = null) {
     const key = model.id(id);
-    const value = await operate("get", key, async transaction => ({ message: publicMessage(await result(transaction.objectStore("messages").get(key))) }));
-    return value.message;
+    return (await operate("get", key, async transaction => {
+      const record = await result(transaction.objectStore("messages").get(key));
+      return { message: permitted(record,owner) ? publicMessage(record) : null };
+    }, owner)).message;
   }
 
   // 只同步很小的变更摘要。消息正文与计数以同一数据库事务为准，信号失败不回滚已提交操作。
@@ -192,15 +198,15 @@
    * 每个写操作使用单一 readwrite 事务；并发发布与已读操作由 IndexedDB 串行提交。
    * 未发生变化时不写 revision、不广播。read-all 通过异步游标逐条处理，不把历史列表整体装入内存。
    */
-  async function mutate(action, input) {
+  async function mutate(action, input, owner = null) {
     const message = action === "publish" ? model.message(input) : null;
     const key = action === "read-all" ? null : model.id(message ? message.id : input);
     return operate(action, key, async (transaction, now) => {
       const messages = transaction.objectStore("messages");
       let changed = false;
       if (action === "read-all") {
-        await new Promise((resolve, reject) => {
-          const request = messages.index("unread").openCursor(IDBKeyRange.only(1));
+        for (const scope of scopes(owner)) await new Promise((resolve, reject) => {
+          const request = messages.index("visibility-unread").openCursor(IDBKeyRange.only([scope, 1]));
           request.onerror = () => reject(request.error);
           request.onsuccess = () => {
             const cursor = request.result;
@@ -213,15 +219,15 @@
       } else {
         const previous = await result(messages.get(key));
         if (action === "publish" && !previous && message.createdAt > now - model.RETENTION_MS) {
-          messages.add({ ...message, unread: 1, readAt: null }); changed = true;
-        } else if (action === "read" && previous?.unread === 1) {
+          messages.add({ ...message, visibility: visibility(message), unread: 1, readAt: null }); changed = true;
+        } else if (action === "read" && permitted(previous,owner) && previous.unread === 1) {
           messages.put({ ...previous, unread: 0, readAt: now }); changed = true;
-        } else if (action === "delete" && previous) {
+        } else if (action === "delete" && permitted(previous,owner)) {
           messages.delete(key); changed = true;
         }
       }
       return { changed };
-    });
+    }, owner);
   }
 
   /**
@@ -229,15 +235,16 @@
    * @returns {Promise<Object>} 摘要、当前页、详情或提交结果；get 未命中时 message 为 null。
    * 写入在事务提交后才成功，失败抛出原始异常，由后台路由记录；发布权限由路由校验。
    */
-  async function execute(request) {
+  async function execute(request, owner = null) {
+    if (owner !== null && (typeof owner !== "string" || !/^\d{17}$/.test(owner))) throw new TypeError("当前 Steam 账号无效");
     switch (request.action) {
-      case "summary": return { state: await summary() };
-      case "list": return list(request);
-      case "get": return { message: await get(request.id) };
-      case "read": case "delete": return mutate(request.action, request.id);
-      case "read-all": return mutate(request.action);
+      case "summary": return { state: await summary(owner) };
+      case "list": return list(request, owner);
+      case "get": return { message: await get(request.id, owner) };
+      case "read": case "delete": return mutate(request.action, request.id, owner);
+      case "read-all": return mutate(request.action, undefined, owner);
       case "publish": return mutate(request.action, request.message);
-      case "act": return act(request.id, request.actionId, request.requestId);
+      case "act": return act(request.id, request.actionId, request.requestId, owner);
       default: throw new TypeError("消息操作无效");
     }
   }
@@ -264,7 +271,7 @@
       if (!previous) throw new Error("消息已经不存在");
       const next = model.message({ ...previous, ...patch });
       if (JSON.stringify(model.message(previous)) === JSON.stringify(next)) return { changed: false };
-      messages.put({ ...next, unread: previous.unread, readAt: previous.readAt });
+      messages.put({ ...next, visibility: previous.visibility, unread: previous.unread, readAt: previous.readAt });
       return { changed: true };
     });
   }
@@ -304,8 +311,8 @@
     return { dispose() { if (handlers.get(key) === handler) handlers.delete(key); } };
   }
 
-  async function act(id, actionId, requestId) {
-    const message = await get(id);
+  async function act(id, actionId, requestId, owner = null) {
+    const message = await get(id, owner);
     if (!message) throw new Error("这条消息已经不存在");
     const action = message.actions.map(model.action).find(item => item.id === model.id(actionId));
     if (!action || action.kind === "legacy") throw new Error("当前版本尚未接入此消息操作");
@@ -317,11 +324,11 @@
       let value;
       if (handler) value = await handler(message, { requestId });
       else if (action.kind === "link") value = { navigation: { url: model.link(action.url) } };
-      else if (action.kind === "read") value = await mutate("read", message.id);
+      else if (action.kind === "read") value = await mutate("read", message.id, owner);
       else throw new Error("当前版本尚未接入此消息操作");
       if (value?.navigation) model.link(value.navigation.url);
       log.info("message-action-complete", "消息操作已完成", { source: message.source, type: message.type, action: action.id, requestId });
-      return { ...value, state: await summary() };
+      return { ...value, state: await summary(owner) };
     } finally { running.delete(key); }
   }
 

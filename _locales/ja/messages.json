@@ -7120,5 +7120,47 @@
   },
   "messageCenter_business_completed": {
     "message": "完了"
+  },
+  "familyTask_done": {
+    "message": "ファミリーライブラリを更新しました"
+  },
+  "familyTask_failed": {
+    "message": "ファミリーライブラリの更新に失敗"
+  },
+  "familyTask_failedReason": {
+    "message": "ファミリーライブラリの更新に失敗：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_count": {
+    "message": "メンバー数／ゲーム数：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_time": {
+    "message": "更新日時：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retained": {
+    "message": "前回のキャッシュは保持されています。Steamへのログインを確認して再試行してください。"
+  },
+  "familyTask_retry": {
+    "message": "再試行"
+  },
+  "familyTask_login": {
+    "message": "ストアを開く"
+  },
+  "familyTask_invalidResponse": {
+    "message": "Steamの応答形式が無効です。後でもう一度お試しください。"
   }
 }

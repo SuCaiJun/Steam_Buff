@@ -7120,5 +7120,47 @@
   },
   "messageCenter_business_completed": {
     "message": "완료"
+  },
+  "familyTask_done": {
+    "message": "가족 라이브러리가 업데이트되었습니다"
+  },
+  "familyTask_failed": {
+    "message": "가족 라이브러리 업데이트 실패"
+  },
+  "familyTask_failedReason": {
+    "message": "가족 라이브러리 업데이트 실패: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_count": {
+    "message": "구성원 수 / 게임 수: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_time": {
+    "message": "업데이트 시간: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retained": {
+    "message": "마지막으로 저장된 캐시는 유지됩니다. Steam 로그인 상태를 확인한 후 다시 시도하세요."
+  },
+  "familyTask_retry": {
+    "message": "다시 시도"
+  },
+  "familyTask_login": {
+    "message": "상점 열기"
+  },
+  "familyTask_invalidResponse": {
+    "message": "Steam 응답 형식이 올바르지 않습니다. 나중에 다시 시도하세요."
   }
 }

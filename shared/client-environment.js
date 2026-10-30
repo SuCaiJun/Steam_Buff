@@ -24,8 +24,13 @@
   }
 
   function isSteamClientPage() {
+    if (isSteamBuffChromiumSettingsPage()) return false;
+    return isSteamClientRuntime();
+  }
+
+  // 家庭库设置按宿主区分；设置中心仍保留其他功能既有的普通页面语义
+  function isSteamClientRuntime() {
     try {
-      if (isSteamBuffChromiumSettingsPage()) return false;
       if (root.STConfig?.matchers?.isSteamLoopbackHost?.(root.location?.hostname) === true) return true;
       if (root.SteamClient || root.SharedJSContext || root.document?.title === "SharedJSContext") return true;
       return STEAM_USER_AGENT.test(String(root.navigator?.userAgent || ""));
@@ -37,6 +42,7 @@
   const api = Object.freeze({
     ready: true,
     isSteamClientPage,
+    isSteamClientRuntime,
   });
   root.STClientEnvironment = api;
 

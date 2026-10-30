@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.1.20",
+  "version": "2.1.21",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -297,7 +297,8 @@
         "images/ui/message-mute.svg",
         "images/ui/message-upgrade.svg",
         "images/ui/message-view.svg",
-        "images/ui/message-read.svg"
+        "images/ui/message-read.svg",
+        "shared/family-library.js"
       ],
       "matches": [
         "https://steamloopback.host/*"

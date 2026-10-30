@@ -191,7 +191,7 @@
     }
     function icon() { const node = element("span", "st-mc-icon"); node.setAttribute("aria-hidden", "true"); return node; }
     function actionButton(action, messageId, compact = false) {
-      const node = button(compact && action.icon ? "" : action.label, "message-action", compact ? "st-mc-icon-button" : "st-mc-button");
+      const node = button(compact && action.icon ? "" : action.label, "message-action", compact && action.icon ? "st-mc-icon-button" : "st-mc-button");
       node.dataset.messageId = messageId; node.dataset.actionId = action.id;
       node.title = action.label; node.setAttribute("aria-label", action.label);
       node.disabled = action.available === false || actionBusy.has(messageId);
@@ -332,7 +332,13 @@
       if (!value || !Number.isSafeInteger(value.revision) || !Number.isSafeInteger(value.total) || !Number.isSafeInteger(value.unread)) throw new TypeError("消息状态格式无效");
       if (value.revision < 0 || value.unread < 0 || value.total < value.unread) throw new TypeError("消息数量无效");
       if (current && current.revision > value.revision) return false;
+      if (current && current.steamAccountId !== value.steamAccountId) {
+        generation++; selection = null; fullRows = []; fullRevision = null;
+        popList.replaceChildren(); fullRowsHost.replaceChildren();
+        popDirty = true; fullDirty = true;
+      }
       current = value;
+      if (value.accountError) { popError.textContent = value.accountError; fullError.textContent = value.accountError; }
       badge.textContent = String(value.unread); badge.hidden = value.unread === 0;
       trigger.dataset.unread = String(value.unread > 0);
       trigger.setAttribute("aria-label", value.unread ? `Steam Buff 消息，${value.unread} 条未读` : "Steam Buff 消息，无未读消息");
@@ -353,7 +359,7 @@
       if (stopped) return Promise.reject(new DOMException("消息中心已关闭", "AbortError"));
       return new Promise((resolve, reject) => {
         const rid = crypto.randomUUID();
-        const timer = window.setTimeout(() => finish(rid, { success: false, error: "读取消息超时，请重试" }), 12000);
+        const timer = window.setTimeout(() => finish(rid, { success: false, error: "读取消息超时，请重试" }), action === "act" ? 120000 : 12000);
         pending.set(rid, { resolve, reject, timer });
         window.postMessage({ source: model.BRIDGE, side: "page", action, rid, ...payload }, window.location.origin);
       });
@@ -607,8 +613,9 @@
       const data = event.data;
       if (data === "window_moved" || data === "window_resized") { layout(); return; }
       if (stopped || event.source !== window || event.origin !== window.location.origin || data?.source !== model.BRIDGE || data.side !== "content") return;
+      if (data.action === "identity-error") { popError.textContent = data.error; fullError.textContent = data.error; return; }
       if (data.action !== "changed") { finish(data.rid, data); return; }
-      if (current && data.state?.revision <= current.revision) return;
+      if (current && data.state?.revision <= current.revision && data.state?.steamAccountId === current.steamAccountId) return;
       try {
         if (!applyState(data.state)) return;
         if (isPopOpen()) void loadPopover();

@@ -12,7 +12,7 @@
   "use strict";
   if (root.STMessageCenterBridge) return;
   const model = root.STMessageCenter;
-  let active = false;
+  let active = false, refreshing = null, dirty = false, lastChange = null;
 
   function post(value) {
     root.postMessage({ source: model.BRIDGE, side: "content", ...value }, root.location.origin);
@@ -25,7 +25,7 @@
     try {
       const response = await root.STMessageBus.send({
         type: model.ROUTE, action: data.action, id: data.id, actionId: data.actionId, filter: data.filter, before: data.before, requestId: data.rid,
-      }, { timeoutMs: 12000, logFailures: false });
+      }, { timeoutMs: data.action === "act" ? 120000 : 12000, logFailures: false });
       if (active) post({ ...response, rid: data.rid, reported: response.success === false });
     } catch (error) {
       root.STLoggerFactory.reportError(error, { domain: "extension", feature: model.FEATURE, event: "message-bridge-failed", message: "消息中心后台通信失败", requestId: data.rid, phase: data.action });
@@ -34,9 +34,20 @@
   }
 
   function onChanged(changes, area) {
-    if (!active || area !== "local" || !Object.hasOwn(changes, model.STATE_KEY)) return;
-    const value = changes[model.STATE_KEY].newValue;
-    if (value) post({ action: "changed", state: value });
+    if (!active || area !== "local" || (!Object.hasOwn(changes, model.STATE_KEY) && !Object.hasOwn(changes, model.IDENTITY_KEY))) return;
+    if (Object.hasOwn(changes, model.STATE_KEY)) lastChange = changes[model.STATE_KEY].newValue?.change || null;
+    dirty = true;
+    if (refreshing) return;
+    refreshing = (async () => {
+      while (active && dirty) {
+        dirty = false;
+        const change = lastChange;
+        const response = await root.STMessageBus.send({ type: model.ROUTE, action: "summary" }, { timeoutMs: 12000, logFailures: false });
+        if (active && response.success) post({ action: "changed", state: { ...response.value.state, ...(change ? { change } : {}) } });
+        else if (active) post({ action: "identity-error", error: response.error });
+      }
+    })().catch(error => root.STLoggerFactory.reportError(error, { domain: "extension", feature: model.FEATURE, event: "message-state-refresh-failed", message: "消息状态同步失败" }))
+      .finally(() => { refreshing = null; });
   }
 
   /** 仅由已确认是 Steam 主窗口的 content 入口调用；不对菜单、好友或 SharedJSContext 建立监听。 */

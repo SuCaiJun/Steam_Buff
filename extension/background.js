@@ -12,6 +12,8 @@
   "use strict";
 
   importScripts(chrome.runtime.getURL("shared/config.js"));
+  importScripts(chrome.runtime.getURL("shared/client-environment.js"));
+  importScripts(chrome.runtime.getURL("shared/family-library.js"));
   importScripts(chrome.runtime.getURL("onboarding/contract.js"));
   importScripts(chrome.runtime.getURL("shared/logger-schema.js"));
   importScripts(chrome.runtime.getURL("extension/background-logger.js"));
@@ -44,6 +46,7 @@
   importScripts(chrome.runtime.getURL("extension/background-achievements.js"));
   importScripts(chrome.runtime.getURL("shared/message-center.js"));
   importScripts(chrome.runtime.getURL("extension/background-messages.js"));
+  importScripts(chrome.runtime.getURL("extension/background-family.js"));
   importScripts(chrome.runtime.getURL("settings/panel-snapshot.js"));
   importScripts(chrome.runtime.getURL("settings/settings-cloud.js"));
   importScripts(chrome.runtime.getURL("shared/auth-session.js"));
@@ -253,6 +256,7 @@
     "store/runtime/config.js",
     "store/runtime/context.js",
     "store/runtime/cache.js",
+    "shared/family-library.js",
     "store/runtime/family-library-cache.js",
     "store/runtime/assets.js",
     "store/runtime/format.js",
@@ -290,7 +294,6 @@
       "shared/utils/player-stats-ui.js",
       "store/features/player-stats/feature.js",
       "store/api/subscription-info.js",
-      "store/api/family-library.js",
       "store/api/exchange-rates.js",
       "store/api/providers/isthereanydeal.js",
       "store/api/third-party-data.js",
@@ -399,7 +402,7 @@
     "shared/auth-client.js": ["shared/auth-session.js", "shared/logger-factory.js"],
     "store/runtime/context.js": ["store/runtime/config.js"],
     "store/runtime/cache.js": ["shared/scheduler.js", "shared/runtime/kernel.js", "store/runtime/context.js"],
-    "store/runtime/family-library-cache.js": ["shared/logger-factory.js"],
+    "store/runtime/family-library-cache.js": ["shared/logger-factory.js", "shared/family-library.js"],
     "store/runtime/format.js": ["store/runtime/config.js"],
     "store/runtime/dom.js": ["shared/styles/components.js"],
     "store/runtime/styles.js": ["shared/styles/components.js", "store/features/review/review-filter-style.js"],
@@ -3007,7 +3010,10 @@
     const ownPage = url?.protocol === "chrome-extension:" && url.hostname === chrome.runtime.id;
     if (sender.id !== chrome.runtime.id || (!ownPage && !isSteamRuntimeSender(sender))) throw new Error("消息中心来源无效");
     if (request.action === "publish" && !ownPage) throw new Error("当前页面不能发布消息");
-    const value = await globalThis.STBackgroundMessages.execute(request);
+    const binding = await globalThis.STBackgroundFamily.identity();
+    const value = await globalThis.STBackgroundMessages.execute(request, binding.steamAccountId);
+    if (!globalThis.STBackgroundFamily.current(binding)) throw new Error("Steam 账号已变化，请重新打开消息中心");
+    value.state = { ...value.state, steamAccountId: binding.steamAccountId, ...(binding.accountError ? { accountError: binding.accountError } : {}) };
     sendResponse({ success: true, value });
   }
 
@@ -3702,6 +3708,16 @@
         sendResponse({ success: false, error: message });
       }
     },
+    FAMILY_LIBRARY: async (request, sender, sendResponse) => {
+      if (sender.id !== chrome.runtime.id || !isStoreSender(sender) || senderUrlObject(sender).protocol !== "https:" || sender.frameId !== 0) throw new Error("家庭库请求来源无效");
+      try {
+        const value = await globalThis.STBackgroundFamily.execute(request);
+        sendResponse({ success: true, value });
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "family-library", event: "family-request-failed", message: "家庭库操作失败" });
+        sendResponse({ success: false, error: globalThis.STBackgroundFamily.errorMessage(error), errorCode: error.code, errorName: error.name });
+      }
+    },
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
     NETWORK_REQUEST_CANCEL: cancelNetworkRequest,
     STORE_FETCH: networkRoute(storeFetch),
@@ -3777,6 +3793,7 @@
   chrome.runtime.onConnect.addListener(aiStreamConnect);
   globalThis.STBackgroundUpdate.start();
   globalThis.STBackgroundLifecycle.start();
+  globalThis.STBackgroundFamily.start();
   globalThis.addEventListener("error", event => globalThis.STLoggerFactory.reportError(event.error || event.message, {
     domain: "extension", feature: "background-runtime", event: "background-unhandled-error", message: "后台未捕获异常",
   }));

@@ -7120,5 +7120,47 @@
   },
   "messageCenter_business_completed": {
     "message": "已完成"
+  },
+  "familyTask_done": {
+    "message": "家庭收藏庫已更新"
+  },
+  "familyTask_failed": {
+    "message": "家庭收藏庫重新整理失敗"
+  },
+  "familyTask_failedReason": {
+    "message": "家庭收藏庫重新整理失敗：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_count": {
+    "message": "成員數／遊戲數：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_time": {
+    "message": "更新時間：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retained": {
+    "message": "保留上次成功快取，可確認登入後重試。"
+  },
+  "familyTask_retry": {
+    "message": "重試"
+  },
+  "familyTask_login": {
+    "message": "開啟商店"
+  },
+  "familyTask_invalidResponse": {
+    "message": "Steam 回應格式異常，請稍後重試。"
   }
 }

@@ -7120,5 +7120,47 @@
   },
   "messageCenter_business_completed": {
     "message": "已完成"
+  },
+  "familyTask_done": {
+    "message": "家庭库已更新"
+  },
+  "familyTask_failed": {
+    "message": "家庭库刷新失败"
+  },
+  "familyTask_failedReason": {
+    "message": "家庭库刷新失败：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_count": {
+    "message": "成员数／游戏数：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_time": {
+    "message": "更新时间：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retained": {
+    "message": "未覆盖上次成功缓存，可确认登录后重试。"
+  },
+  "familyTask_retry": {
+    "message": "重试"
+  },
+  "familyTask_login": {
+    "message": "打开商店"
+  },
+  "familyTask_invalidResponse": {
+    "message": "Steam 响应格式异常，请稍后重试。"
   }
 }

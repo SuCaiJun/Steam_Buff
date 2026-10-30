@@ -7120,5 +7120,47 @@
   },
   "messageCenter_business_completed": {
     "message": "Completed"
+  },
+  "familyTask_done": {
+    "message": "Family library updated"
+  },
+  "familyTask_failed": {
+    "message": "Family library refresh failed"
+  },
+  "familyTask_failedReason": {
+    "message": "Family library refresh failed: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_count": {
+    "message": "Members / games: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_time": {
+    "message": "Updated at: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retained": {
+    "message": "The last successful cache was preserved. Check your Steam login and retry."
+  },
+  "familyTask_retry": {
+    "message": "Retry"
+  },
+  "familyTask_login": {
+    "message": "Open Steam Store"
+  },
+  "familyTask_invalidResponse": {
+    "message": "Steam returned an invalid response. Please retry later."
   }
 }

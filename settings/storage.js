@@ -194,10 +194,8 @@
     const intervalField = fields.find(field => field.key === "refreshInterval") || {};
     const intervals = new Set((intervalField.options || []).map(opt => String(opt.value)));
     const refreshInterval = String(values?.refreshInterval ?? defs.refreshInterval);
-    return {
-      refreshInterval: intervals.has(refreshInterval) ? refreshInterval : defs.refreshInterval,
-      autoRefresh: typeof values?.autoRefresh === "boolean" ? values.autoRefresh : defs.autoRefresh === true,
-    };
+    if (!intervals.has(refreshInterval) || (values?.autoRefresh !== undefined && typeof values.autoRefresh !== "boolean")) throw new TypeError("家庭库刷新设置无效");
+    return { refreshInterval, autoRefresh: values?.autoRefresh ?? defs.autoRefresh };
   }
 
   function normalizeSearchSuggestions(values) {
@@ -846,7 +844,7 @@
     const defs = familyLibraryDefaults();
     const ids = Object.keys(defs);
     const keys = ids.map(familyLibraryKey);
-    const rt = await get(keys);
+    const rt = await get(keys, { strict: true });
     const out = {};
 
     for (const id of ids) {
