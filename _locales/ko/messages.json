@@ -7157,6 +7157,13 @@
   "familyTask_retry": {
     "message": "다시 시도"
   },
+  "messageCenter_retrying": { "message": "재시도 중" },
+  "familyTask_manualOnly": { "message": "수동 모드에서는 자동으로 재시도하지 않습니다." },
+  "familyTask_retryPending": { "message": "60분 후 자동으로 재시도합니다. 최대 5회 재시도합니다." },
+  "familyTask_retryFailed": { "message": "자동 재시도 $value$회가 실패했습니다.", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryNext": { "message": "다음 자동 재시도: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryStopped": { "message": "자동 재시도 5회가 모두 실패하여 이번 주기의 재시도를 중단했습니다. 다음 정기 새로고침: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_normalNext": { "message": "다음 정기 새로고침: $value$", "placeholders": { "value": { "content": "$1" } } },
   "familyTask_login": {
     "message": "상점 열기"
   },

@@ -7157,6 +7157,13 @@
   "familyTask_retry": {
     "message": "Retry"
   },
+  "messageCenter_retrying": { "message": "Retrying" },
+  "familyTask_manualOnly": { "message": "Manual mode is enabled. No automatic retry is scheduled." },
+  "familyTask_retryPending": { "message": "An automatic retry is scheduled in 60 minutes, up to 5 retries." },
+  "familyTask_retryFailed": { "message": "Automatic retry $value$ failed.", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryNext": { "message": "Next automatic retry: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryStopped": { "message": "All 5 automatic retries failed. Retrying has stopped for this cycle. Next regular refresh: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_normalNext": { "message": "Next regular refresh: $value$", "placeholders": { "value": { "content": "$1" } } },
   "familyTask_login": {
     "message": "Open Steam Store"
   },

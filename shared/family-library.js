@@ -15,6 +15,7 @@
   const LEGACY_CACHE = "st.store.familyLibraryOwnedMarker.cache.v1";
   const LEGACY_STATE = "st.store.familyLibraryOwnedMarker.refreshState.v1";
   const INTERVALS = Object.freeze({ "1d": 86400, "3d": 259200, "7d": 604800, "30d": 2592000, manual: 0 });
+  const RETRY_DELAY = 3600, RETRY_LIMIT = 5;
 
   function accountId(value) {
     if (typeof value !== "string" || !/^\d{17}$/.test(value)) throw new TypeError("Steam 账号无效");
@@ -34,6 +35,36 @@
     return { skippedAt: seconds(raw.skippedAt) };
   }
   function nextRefreshAt(cache, state, interval) { return interval > 0 ? Math.max(seconds(cache?.updatedAt), seconds(state?.skippedAt)) + interval : 0; }
+
+  /** v2 计划保持正常周期锚点；小时重试只修改 retryAt，旧版 lastAttemptAt/interval 计划按原期限迁读。 */
+  function plan(raw, interval, baseline = 0) {
+    if (!Object.hasOwn(INTERVALS, interval) || !Number.isSafeInteger(baseline) || baseline < 0) throw new TypeError("家庭库计划参数无效");
+    if (raw !== undefined && (!raw || typeof raw !== "object" || Array.isArray(raw) || !Number.isSafeInteger(raw.lastAttemptAt) || raw.lastAttemptAt < 0 || !Object.hasOwn(INTERVALS, raw.interval))) throw new TypeError("家庭库刷新计划无效");
+    if (raw?.version !== undefined && raw.version !== 2) throw new TypeError("家庭库刷新计划版本无效");
+    if (raw?.version === 2 && (![raw.normalAt, raw.retryAt, raw.retryCount].every(n => Number.isSafeInteger(n) && n >= 0) || raw.retryCount > RETRY_LIMIT || (raw.retryCount === RETRY_LIMIT && raw.retryAt !== 0))) throw new TypeError("家庭库重试计划无效");
+    if (raw?.version === 2 && (INTERVALS[raw.interval] ? raw.normalAt === 0 : raw.normalAt !== 0 || raw.retryAt !== 0 || raw.retryCount !== 0)) throw new TypeError("家庭库刷新期限无效");
+    if (raw?.policy !== undefined && (typeof raw.policy !== "string" || !raw.policy)) throw new TypeError("家庭库计划策略无效");
+    if (raw?.version === 2 && raw.interval === interval) return { ...raw };
+    return { version: 2, interval, lastAttemptAt: raw?.lastAttemptAt || 0,
+      normalAt: INTERVALS[interval] ? Math.max(baseline, (raw?.lastAttemptAt || 0) + INTERVALS[interval]) : 0, retryAt: 0, retryCount: 0 };
+  }
+  function nextAttemptAt(value) { return value.retryAt ? Math.min(value.normalAt, value.retryAt) : value.normalAt; }
+
+  /** 先持久化名额再发请求；休眠跨过正常周期时只开新一轮，不补跑已错过的小时重试。 */
+  function beginAttempt(value, manual, time) {
+    if (manual) return { ...value, lastAttemptAt: time,
+      normalAt: INTERVALS[value.interval] && !value.retryAt && !value.retryCount && value.normalAt <= time ? time + INTERVALS[value.interval] : value.normalAt };
+    const retry = value.retryAt > 0 && time < value.normalAt;
+    const retryCount = retry ? value.retryCount + 1 : 0;
+    return { ...value, lastAttemptAt: time, normalAt: retry ? value.normalAt : time + INTERVALS[value.interval],
+      retryCount, retryAt: retryCount < RETRY_LIMIT ? time + RETRY_DELAY : 0 };
+  }
+  function finishAttempt(value, manual, success, time) {
+    const interval = INTERVALS[value.interval];
+    if (success) return { ...value, normalAt: interval ? time + interval : 0, retryCount: 0, retryAt: 0 };
+    const retrying = !manual || value.retryAt > 0 || value.retryCount > 0;
+    return { ...value, retryAt: interval && retrying && value.retryCount < RETRY_LIMIT ? time + RETRY_DELAY : 0 };
+  }
 
   // 保留已发布 v1 缓存字段；账号是读取和迁移的必要归属，不以旧缓存推断当前登录者
   function normalizeCache(raw) {
@@ -123,5 +154,6 @@
   }
   /** 共享只读契约与解析；网络、凭据、写缓存只由后台服务持有，旧 v1 缓存仅在归属一致时迁读 */
   root.STFamilyLibrary = Object.freeze({ PREFIX, LEGACY_CACHE, LEGACY_STATE, INTERVALS, ROUTE: "FAMILY_LIBRARY", ALARM: "steam-buff-family-library",
-    accountId, settings, seconds, refreshState, nextRefreshAt, normalizeCache, record, documentAccount, session, family, apps, names, build });
+    RETRY_DELAY, RETRY_LIMIT, accountId, settings, seconds, refreshState, nextRefreshAt, plan, nextAttemptAt, beginAttempt, finishAttempt,
+    normalizeCache, record, documentAccount, session, family, apps, names, build });
 })(globalThis);

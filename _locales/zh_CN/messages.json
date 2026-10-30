@@ -7157,6 +7157,13 @@
   "familyTask_retry": {
     "message": "重试"
   },
+  "messageCenter_retrying": { "message": "重试中" },
+  "familyTask_manualOnly": { "message": "当前为手动模式，不会自动重试。" },
+  "familyTask_retryPending": { "message": "将在 60 分钟后自动重试，最多 5 次。" },
+  "familyTask_retryFailed": { "message": "第 $value$ 次自动重试失败。", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryNext": { "message": "下次自动重试：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryStopped": { "message": "本轮已达到 5 次自动重试上限，已停止重试。下次正常刷新：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_normalNext": { "message": "下次正常刷新：$value$", "placeholders": { "value": { "content": "$1" } } },
   "familyTask_login": {
     "message": "打开商店"
   },

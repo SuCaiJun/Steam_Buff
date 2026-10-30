@@ -14,26 +14,24 @@
   const log = root.STLoggerFactory.createLogger("background", "family-library");
   const FEATURE_KEY = "st.settings.family-library-owned-marker.enabled";
   const RETRY_KEY = "st.store.familyLibraryOwnedMarker.retry.v1";
+  const ACTIVE_KEY = "st.store.familyLibraryOwnedMarker.active.v1";
+  const DEVICE_OUTBOX = "st.store.familyLibraryOwnedMarker.outbox.v1";
+  const POLICY_KEY = "st.store.familyLibraryOwnedMarker.policy.v1";
   const SOURCE = "Steam Buff", TYPE = "family-library-result";
-  const jobs = new Map(), deliveries = new Map();
-  let sessionTask = null, contextOwner = null, epoch = 0, reconcileTask = null, queue = Promise.resolve();
+  const deliveries = new Map();
+  let sessionTask = null, contextOwner = null, epoch = 0, reconcileTask = null, refreshTask = null, reconcileAgain = false, queue = Promise.resolve();
   const steam = () => root.STClientEnvironment.isSteamClientPage();
   const now = () => Math.floor(Date.now() / 1000);
   const text = (key, fallback, value) => root.STMessageCenter.text(key, fallback, value);
   const errorMessage = error => error.name === "SyntaxError" ? text("familyTask.invalidResponse", "Steam 响应格式异常，请稍后重试。") : error.message;
   const errorText = error => text("familyTask.failedReason", "家庭库刷新失败：$value$", errorMessage(error));
   const planKey = owner => model.PREFIX + owner + ".plan";
-  const outboxKey = owner => model.PREFIX + owner + ".outbox";
-  function planOf(data, owner) {
-    const value = data[planKey(owner)];
-    if (value === undefined) return { lastAttemptAt: 0 };
-    if (!value || !Number.isSafeInteger(value.lastAttemptAt) || value.lastAttemptAt < 0 || !Object.hasOwn(model.INTERVALS, value.interval)) throw new TypeError("家庭库刷新计划无效");
-    return value;
-  }
+  const outboxKey = owner => owner === null ? DEVICE_OUTBOX : model.PREFIX + owner + ".outbox";
   function outboxOf(data, owner) {
     const rows = data[outboxKey(owner)];
     if (rows === undefined) return [];
-    if (!Array.isArray(rows) || rows.some(row => !row || typeof row.eventId !== "string" || row.scope !== "steam-account" || row.steamAccountId !== owner || !Number.isSafeInteger(row.createdAt))) throw new TypeError("家庭库消息待投递状态无效");
+    if (!Array.isArray(rows) || rows.some(row => !row || typeof row.eventId !== "string" || !Number.isSafeInteger(row.createdAt) ||
+      (owner === null ? row.scope !== "device" : row.scope !== "steam-account" || row.steamAccountId !== owner))) throw new TypeError("家庭库消息待投递状态无效");
     return rows;
   }
 
@@ -47,10 +45,20 @@
     const [data, values] = await Promise.all([chrome.storage.local.get(FEATURE_KEY), root.STSettings.storage.getFamilyLibrary()]);
     const enabled = data[FEATURE_KEY] === undefined ? root.STSettings.catalog.featureById("family-library-owned-marker").enabled : data[FEATURE_KEY];
     if (typeof enabled !== "boolean") throw new TypeError("家庭库功能开关无效");
-    return { ...model.settings(values), enabled };
+    const cfg = { ...model.settings(values), enabled };
+    // 小型策略代次使未激活账号的旧重试失效，不扫描全部账号或家庭库。
+    cfg.policy = await serial(async () => {
+      const value = (await chrome.storage.local.get(POLICY_KEY))[POLICY_KEY];
+      if (value !== undefined && (!value || typeof value.enabled !== "boolean" || !Object.hasOwn(model.INTERVALS, value.interval) || typeof value.revision !== "string" || !value.revision)) throw new TypeError("家庭库调度策略无效");
+      if (value?.enabled === cfg.enabled && value.interval === cfg.refreshInterval) return value.revision;
+      const revision = crypto.randomUUID();
+      await chrome.storage.local.set({ [POLICY_KEY]: { enabled: cfg.enabled, interval: cfg.refreshInterval, revision } });
+      return revision;
+    });
+    return cfg;
   }
   // 只允许固定 Steam 页面携带会话，家庭 WebAPI 只携带本次内存令牌；不改变通用代理权限
-  async function request(url, authenticated = false) {
+  async function request(url, authenticated = false, immediateRetry = false) {
     const run = () => root.STNetworkRequest.run(authenticated ? 6000 : 12000, async signal => {
       const response = await fetch(url, { credentials: authenticated ? "include" : "omit", cache: "no-cache", signal });
       if (!response.ok) { const error = new Error(`Steam HTTP ${response.status}`); error.status = response.status; throw error; }
@@ -59,7 +67,7 @@
     });
     try { return await run(); }
     catch (error) {
-      if (authenticated || !(error.status === 429 || error.status >= 500 || ["TypeError", "TimeoutError", "AbortError"].includes(error.name))) throw error;
+      if (!immediateRetry || authenticated || !(error.status === 429 || error.status >= 500 || ["TypeError", "TimeoutError", "AbortError"].includes(error.name))) throw error;
       log.warn("family-request-retry", "家庭库只读请求失败，稍后重试一次", { error });
       await new Promise(resolve => root.setTimeout(resolve, 500));
       return run();
@@ -67,24 +75,27 @@
   }
   function session() {
     if (sessionTask) return sessionTask;
-    sessionTask = request(CFG.vendors.steamStore.familyManagement(), true).then(async html => {
-      const value = model.session(html);
-      if (contextOwner !== value.accountSteamId) {
-        contextOwner = value.accountSteamId; epoch++;
-        await chrome.storage.local.set({ [root.STMessageCenter.IDENTITY_KEY]: crypto.randomUUID() });
-        queueMicrotask(() => { if (steam() && !reconcileTask) void reconcile().catch(report); });
-      }
+    sessionTask = (async () => {
+      let value;
+      try { value = model.session(await request(CFG.vendors.steamStore.familyManagement(), true)); }
+      catch (error) { await changeIdentity(null); throw error; }
+      await changeIdentity(value.accountSteamId);
       return value;
-    }).catch(async error => {
-      if (contextOwner !== null) {
-        contextOwner = null; epoch++;
-        try { await chrome.storage.local.set({ [root.STMessageCenter.IDENTITY_KEY]: crypto.randomUUID() }); }
-        catch (signalError) { log.warn("family-identity-signal-failed", "账号失效状态同步失败", { error: signalError }); }
-      }
-      throw error;
-    })
-      .finally(() => { sessionTask = null; });
+    })().finally(() => { sessionTask = null; });
     return sessionTask;
+  }
+  // 预检保留原 Error，交完整任务统一保存结果及记录最终日志，不在这里重复报告业务失败。
+  async function checkedSession() {
+    const [result] = await Promise.allSettled([session()]);
+    return result.status === "fulfilled" ? { login: result.value, error: null } : { login: null, error: result.reason };
+  }
+  // 广播失败只影响界面同步，不撤销已从 Steam 确认的身份；会话失败才清空账号。
+  async function changeIdentity(owner) {
+    if (contextOwner === owner) return;
+    contextOwner = owner; epoch++;
+    try { await chrome.storage.local.set({ [root.STMessageCenter.IDENTITY_KEY]: crypto.randomUUID() }); }
+    catch (error) { log.warn("family-identity-signal-failed", "账号状态同步失败，保留已核验的会话结果", { error }); }
+    queueMicrotask(() => { if (steam() && !reconcileTask && !refreshTask) void reconcile().catch(report); });
   }
   /** 当前身份只从受信 Steam 响应取得；不给页面返回 token，晚到的旧账号操作由 epoch 校验拒绝 */
   async function identity() {
@@ -96,23 +107,76 @@
   }
   function current(binding) { return binding.epoch === epoch && binding.steamAccountId === contextOwner; }
   async function data(owner) { return chrome.storage.local.get([model.PREFIX + owner, model.LEGACY_CACHE, model.LEGACY_STATE, planKey(owner), outboxKey(owner)]); }
-  async function api(endpoint, params, token) {
+  async function activeOwner() {
+    const value = (await chrome.storage.local.get(ACTIVE_KEY))[ACTIVE_KEY];
+    if (value === undefined) return null;
+    if (!value || !Object.hasOwn(value, "owner")) throw new TypeError("家庭库调度归属无效");
+    return value.owner === null ? null : model.accountId(value.owner);
+  }
+  async function schedule(owner, cfg) {
+    const stored = owner === null ? await chrome.storage.local.get(RETRY_KEY) : await data(owner);
+    let raw = stored[owner === null ? RETRY_KEY : planKey(owner)];
+    // 初次未登录的轮次在首次确认账号后继续计次；已存在的账号计划始终独立，不相互覆盖。
+    if (owner !== null && raw === undefined && await activeOwner() === null) {
+      const anonymous = (await chrome.storage.local.get(RETRY_KEY))[RETRY_KEY];
+      if (anonymous?.version === 2 && anonymous.lastAttemptAt > 0) raw = model.plan(anonymous, cfg.refreshInterval);
+    }
+    if (raw?.version === 2 && (typeof raw.policy !== "string" || !raw.policy)) throw new TypeError("家庭库计划策略缺失或无效");
+    // 已发布的未登录计划只有 nextAt；沿用原期限，不凭空推断已执行次数。
+    if (owner === null && raw !== undefined && raw?.version === undefined && Object.hasOwn(raw, "nextAt")) {
+      if (!Number.isSafeInteger(raw.nextAt) || raw.nextAt <= 0) throw new TypeError("家庭库重试期限无效");
+      raw = { version: 2, lastAttemptAt: 0, interval: cfg.refreshInterval, normalAt: model.INTERVALS[cfg.refreshInterval] ? raw.nextAt : 0, retryAt: 0, retryCount: 0 };
+    }
+    const record = owner === null ? null : model.record(stored, owner);
+    const baseline = record ? model.nextRefreshAt(record.cache, record.refreshState, model.INTERVALS[cfg.refreshInterval]) : 0;
+    let plan = model.plan(raw, cfg.refreshInterval, baseline);
+    if (plan.policy !== cfg.policy) plan = { ...plan, policy: cfg.policy, retryAt: 0, retryCount: 0 };
+    return { stored, record, plan };
+  }
+  function planPatch(owner, plan) { return { [owner === null ? RETRY_KEY : planKey(owner)]: plan, [ACTIVE_KEY]: { owner } }; }
+  async function cancelAutomatic(cfg) {
+    await chrome.alarms.clear(model.ALARM);
+    await serial(async () => {
+      const owner = await activeOwner(), value = await schedule(owner, cfg);
+      await chrome.storage.local.set(planPatch(owner, { ...value.plan, retryAt: 0, retryCount: 0 }));
+    });
+  }
+  async function arm() {
+    if (!steam()) return;
+    const cfg = await config();
+    if (!cfg.enabled || cfg.refreshInterval === "manual") { await cancelAutomatic(cfg); return; }
+    const owner = await activeOwner(), value = await schedule(owner, cfg);
+    await chrome.alarms.create(model.ALARM, { when: model.nextAttemptAt(value.plan) * 1000 });
+  }
+  async function api(endpoint, params, token, immediateRetry) {
     const url = new URL(CFG.vendors.steamApi[endpoint]());
     for (const [key, value] of Object.entries({ ...params, access_token: token })) url.searchParams.set(key, String(value));
-    const value = await request(url.href);
+    const value = await request(url.href, false, immediateRetry);
     try { return JSON.parse(value); }
     catch (error) { root.STLoggerSchema?.markJsonError?.(error); throw error; }
   }
   async function assertOwner(owner) {
     if ((await session()).accountSteamId !== owner) { const error = new Error("Steam 账号已变化，请重新刷新"); error.code = "ACCOUNT_CHANGED"; throw error; }
   }
-  function message(owner, value, error, eventId) {
-    return { eventId, createdAt: Date.now(), source: SOURCE, type: TYPE, scope: "steam-account", steamAccountId: owner,
+  function message(owner, value, error, eventId, plan, manual) {
+    let body = error ? text("familyTask.retained", "未覆盖上次成功缓存，可确认登录后重试。") : text("familyTask.time", "更新时间：$value$", new Date(value.updatedAt * 1000).toISOString());
+    const date = time => new Date(time * 1000).toLocaleString();
+    if (error && plan) {
+      let hint;
+      if (!model.INTERVALS[plan.interval]) hint = text("familyTask.manualOnly", "当前为手动模式，不会自动重试。");
+      else if (plan.retryCount === model.RETRY_LIMIT) hint = text("familyTask.retryStopped", "本轮已达到 5 次自动重试上限，已停止重试。下次正常刷新：$value$", date(plan.normalAt));
+      else if (plan.retryAt && plan.retryAt < plan.normalAt) {
+        hint = plan.retryCount && !manual ? text("familyTask.retryFailed", "第 $value$ 次自动重试失败。", `${plan.retryCount} / ${model.RETRY_LIMIT}`) : text("familyTask.retryPending", "将在 60 分钟后自动重试，最多 5 次。");
+        hint += "\n" + text("familyTask.retryNext", "下次自动重试：$value$", date(plan.retryAt));
+      } else hint = text("familyTask.normalNext", "下次正常刷新：$value$", date(plan.normalAt));
+      body += "\n" + hint;
+    }
+    return { eventId, createdAt: Date.now(), source: SOURCE, type: owner === null ? "family-library-login" : TYPE,
+      scope: owner === null ? "device" : "steam-account", ...(owner === null ? {} : { steamAccountId: owner }),
       title: error ? text("familyTask.failed", "家庭库刷新失败") : text("familyTask.done", "家庭库已更新"),
       summary: error ? errorText(error) : text("familyTask.count", "成员数／游戏数：$value$", `${value.stats.memberCount} / ${value.stats.appCount}`),
-      body: error ? text("familyTask.retained", "未覆盖上次成功缓存，可确认登录后重试。") : text("familyTask.time", "更新时间：$value$", new Date(value.updatedAt * 1000).toISOString()),
-      context: { ...(value ? { updatedAt: value.updatedAt } : {}) },
-      actions: [...(error ? [{ id: "retry", kind: "command", label: text("familyTask.retry", "重试") },
+      body, context: { ...(value ? { updatedAt: value.updatedAt } : {}), ...(plan ? { retryCount: plan.retryCount, retryAt: plan.retryAt, normalAt: plan.normalAt } : {}) },
+      actions: [...(error ? [{ id: "retry", kind: "command", icon: "retry", label: text("familyTask.retry", "重试") },
         { id: "login", kind: "link", label: text("familyTask.login", "打开商店"), icon: "view", url: CFG.vendors.steamStore.familyManagement() }] : []),
         { id: "read", kind: "read", label: text("messageCenter.markRead", "已读"), icon: "read" }] };
   }
@@ -139,102 +203,153 @@
     catch (error) { log.error("family-message-delivery-failed", "家庭库结果已保存，消息待后续恢复投递", { error }); }
   }
 
-  /** 一个账号同时只有一个刷新；网络阶段不锁存储，提交前重核身份和开关，结果消息与缓存同时持久化 */
-  async function refresh({ manual = false, expectedOwner = null } = {}) {
-    const cfg = await config();
-    if (!cfg.enabled || (!manual && (!steam() || cfg.refreshInterval === "manual"))) throw new Error("家庭库自动更新未开启");
-    const login = await session(), owner = login.accountSteamId;
-    if (expectedOwner && owner !== expectedOwner) throw new Error("Steam 账号已变化，请重新操作");
-    if (jobs.has(owner)) return jobs.get(owner);
-    let outcomeStored = false;
-    const task = (async () => {
-      const interval = model.INTERVALS[cfg.refreshInterval], eventId = "family-refresh:" + crypto.randomUUID();
-      let cache = null, failure = null;
-      await chrome.storage.local.set({ [planKey(owner)]: { lastAttemptAt: now(), interval: cfg.refreshInterval } });
-      log.info("family-refresh-start", "家庭库后台刷新开始", { manual, eventId });
-      try {
-        const group = model.family(await api("familyGroupForUser", { include_family_group_response: true }, login.accessToken));
-        const apps = model.apps(await api("sharedLibraryApps", { family_groupid: group.id, include_own: true, include_excluded: false, include_non_games: false }, login.accessToken));
-        const ids = [...new Set([...group.members.map(member => member.steamid), ...apps.flatMap(app => app.owner_steamids)])];
-        let names = {};
-        try { if (ids.length) names = model.names(await api("playerLinkDetails", Object.fromEntries(ids.map((id, index) => [`steamids[${index}]`, id])), login.accessToken)); }
-        catch (error) { log.warn("family-member-names-failed", "成员昵称获取失败，保留已有的成员序号展示方式", { error, memberCount: ids.length }); }
-        await assertOwner(owner);
-        const latest = await config();
-        if (!latest.enabled || (!manual && latest.refreshInterval === "manual")) { const error = new Error("家庭库任务已停止"); error.code = "CANCELLED"; throw error; }
-        cache = model.build(owner, group, apps, names, model.INTERVALS[latest.refreshInterval], now());
-      } catch (error) {
-        if (error.code === "ACCOUNT_CHANGED" || error.code === "CANCELLED") throw error;
-        failure = error;
-        log.error("family-refresh-failed", "家庭库后台刷新失败，保留上次成功数据", { error, eventId });
+  function cancelled(code, description) { const error = new Error(description); error.code = code; return error; }
+  // 自动任务仍被外层 reconcile 等待时，恢复请求须等外层释放；提前排微任务会被进行中标志吃掉。
+  function requestReconcile() {
+    if (reconcileTask) { reconcileAgain = true; return; }
+    queueMicrotask(() => { if (!refreshTask) void reconcile().catch(report); });
+  }
+
+  /** 手动、定时、消息按钮共用完整任务锁，包含登录阶段；不能因重复点击重置自动名额。 */
+  function refresh({ manual = false, expectedOwner = null } = {}) { return launch({ manual, expectedOwner }); }
+  function launch(options) {
+    if (refreshTask) return (async () => {
+      const cache = await refreshTask;
+      if (options.expectedOwner && cache.accountSteamId !== options.expectedOwner) throw cancelled("ACCOUNT_CHANGED", "Steam 账号已变化，请重新操作");
+      return cache;
+    })();
+    const job = { planReady: false, ownerChanged: false };
+    refreshTask = runAttempt(options, job).finally(async () => {
+      refreshTask = null;
+      if (steam()) {
+        try {
+          if (job.ownerChanged) requestReconcile();
+          else if (!job.planReady) await chrome.alarms.clear(model.ALARM);
+          else await arm();
+        } catch (error) { log.error("family-schedule-failed", "家庭库后台计划执行失败", { error }); }
       }
+    });
+    return refreshTask;
+  }
+
+  /** 先保存本次名额；缓存、结果消息及下一期限一次落盘。投递异常独立处理，不反转刷新结果或中断 Alarm。 */
+  async function runAttempt({ manual = false, expectedOwner = null, checked = null }, job) {
+    const cfg = await config();
+    if (!cfg.enabled || (!manual && (!steam() || cfg.refreshInterval === "manual"))) throw cancelled("CANCELLED", "家庭库任务已停止");
+    let login = checked?.login || null, failure = checked?.error || null, owner = null, cache = null, plan = null, outcomeStored = false;
+    const eventId = "family-refresh:" + crypto.randomUUID();
+    try {
+      if (!checked) {
+        const value = await checkedSession(); login = value.login; failure = value.error;
+      }
+      if (login && contextOwner !== login.accountSteamId) throw cancelled("ACCOUNT_CHANGED", "Steam 账号已变化，请重新操作");
+      if (login && expectedOwner && login.accountSteamId !== expectedOwner) throw cancelled("ACCOUNT_CHANGED", "Steam 账号已变化，请重新操作");
+      // 未确认会话时只沿可信已存计划计次；不使用页面提交的 SteamID 选取账号。
+      owner = login ? login.accountSteamId : await activeOwner();
       await serial(async () => {
-        const stored = await data(owner), previous = model.record(stored, owner);
-        const next = { ...previous, cache: cache || previous.cache, unavailable: failure?.code === "FAMILY_GROUP_MISSING" };
-        const pending = outboxOf(stored, owner);
-        const patch = steam() ? { [outboxKey(owner)]: [...pending, message(owner, cache, failure, eventId)] } : {};
-        if (cache || failure?.code === "FAMILY_GROUP_MISSING") patch[model.PREFIX + owner] = next;
+        const value = await schedule(owner, cfg);
+        plan = model.beginAttempt(value.plan, manual, now());
+        await chrome.storage.local.set(planPatch(owner, plan));
+        job.planReady = true;
+      });
+      log.info("family-refresh-start", "家庭库后台刷新开始", { manual, eventId, retryCount: plan.retryCount, maxRetries: model.RETRY_LIMIT });
+      if (!failure) {
+        try {
+          const immediateRetry = manual || !steam();
+          const group = model.family(await api("familyGroupForUser", { include_family_group_response: true }, login.accessToken, immediateRetry));
+          const apps = model.apps(await api("sharedLibraryApps", { family_groupid: group.id, include_own: true, include_excluded: false, include_non_games: false }, login.accessToken, immediateRetry));
+          const ids = [...new Set([...group.members.map(member => member.steamid), ...apps.flatMap(app => app.owner_steamids)])];
+          let names = {};
+          try { if (ids.length) names = model.names(await api("playerLinkDetails", Object.fromEntries(ids.map((id, index) => [`steamids[${index}]`, id])), login.accessToken, immediateRetry)); }
+          catch (error) { log.warn("family-member-names-failed", "成员昵称获取失败，保留已有的成员序号展示方式", { error, memberCount: ids.length }); }
+          await assertOwner(owner);
+          cache = model.build(owner, group, apps, names, model.INTERVALS[cfg.refreshInterval], now());
+        } catch (error) {
+          if (error.code === "ACCOUNT_CHANGED") throw error;
+          failure = error;
+        }
+      }
+      const latest = await config();
+      if (!latest.enabled || (!manual && latest.policy !== cfg.policy)) throw cancelled("CANCELLED", "家庭库任务已停止");
+      if (login && contextOwner !== null && contextOwner !== owner) throw cancelled("ACCOUNT_CHANGED", "Steam 账号已变化，请重新操作");
+      const messageOwner = login && contextOwner === owner ? owner : null;
+      await serial(async () => {
+        if (cache && contextOwner !== owner) throw cancelled("ACCOUNT_CHANGED", "Steam 账号已变化，请重新操作");
+        const value = await schedule(owner, latest);
+        plan = model.finishAttempt(value.plan, manual, !failure, now());
+        const patch = planPatch(owner, plan);
+        if (cache || failure?.code === "FAMILY_GROUP_MISSING") patch[model.PREFIX + owner] = { ...value.record, cache: cache || value.record.cache, unavailable: failure?.code === "FAMILY_GROUP_MISSING" };
+        if (steam()) {
+          const stored = await chrome.storage.local.get(outboxKey(messageOwner));
+          patch[outboxKey(messageOwner)] = [...outboxOf(stored, messageOwner), message(messageOwner, cache, failure, eventId, plan, manual)];
+        }
+        if (cache && contextOwner !== owner) throw cancelled("ACCOUNT_CHANGED", "Steam 账号已变化，请重新操作");
         await chrome.storage.local.set(patch);
       });
       outcomeStored = true;
-      if (!failure) log.info("family-refresh-complete", "家庭库后台刷新完成", { eventId, appCount: cache.stats.appCount, memberCount: cache.stats.memberCount });
-      if (steam()) await deliverQuietly(owner);
+      if (failure) {
+        const details = { error: failure, eventId, retryCount: plan.retryCount, maxRetries: model.RETRY_LIMIT, retryAt: plan.retryAt };
+        if (plan.retryAt) log.warn("family-refresh-retry-scheduled", "家庭库刷新失败，已安排下一次小时重试", details);
+        else log.error("family-refresh-failed", "家庭库刷新失败，本轮不再自动重试", details);
+        failure.familyHandled = true;
+      } else log.info("family-refresh-complete", "家庭库后台刷新完成", { eventId, appCount: cache.stats.appCount, memberCount: cache.stats.memberCount });
+      if (steam()) await deliverQuietly(messageOwner);
       if (failure) throw failure;
       return cache;
-    })().catch(async error => {
-      if (!outcomeStored && !["ACCOUNT_CHANGED", "CANCELLED"].includes(error.code)) {
-        log.error("family-result-save-failed", "家庭库结果未能保存，旧缓存保持不变", { error });
+    } catch (error) {
+      if (["ACCOUNT_CHANGED", "CANCELLED"].includes(error.code)) {
+        job.ownerChanged = error.code === "ACCOUNT_CHANGED";
+        log.info("family-refresh-cancelled", "家庭库任务因账号或设置变化停止，未写入结果", { code: error.code, eventId });
+        error.familyHandled = true;
+      } else if (!outcomeStored) {
+        log.error("family-result-save-failed", "家庭库结果或计划未能保存，旧缓存保持不变", { error, eventId });
         if (steam()) {
-          try { await root.STBackgroundMessages.notify(message(owner, null, error, "family-save-failed:" + crypto.randomUUID())); }
+          const messageOwner = login && contextOwner === owner ? owner : null;
+          try { await root.STBackgroundMessages.notify(message(messageOwner, null, error, eventId, job.planReady ? plan : null, manual)); }
           catch (noticeError) { log.error("family-failure-notice-failed", "家庭库保存失败消息投递失败", { error: noticeError }); }
         }
+        error.familyHandled = true;
       }
       throw error;
-    }).finally(() => { jobs.delete(owner); });
-    jobs.set(owner, task);
-    return task;
+    }
   }
-  // 按已存时间恢复单次 Alarm；不为 worker 重启重置周期，不补跑休眠期间的多个周期
+
+  // 精确模块入口只核对一次会话；复用该结果，避免预检成功后再次登录失败跳过失败计划。
   function reconcile() {
     if (reconcileTask) return reconcileTask;
     reconcileTask = (async () => {
       if (!steam()) return;
       const cfg = await config();
-      if (!steam() || !cfg.enabled || cfg.refreshInterval === "manual") { await chrome.alarms.clear(model.ALARM); return; }
-      const interval = model.INTERVALS[cfg.refreshInterval];
-      let owner;
-      try { owner = (await session()).accountSteamId; }
-      catch (error) {
-        const retry = (await chrome.storage.local.get(RETRY_KEY))[RETRY_KEY];
-        if (retry !== undefined && (!retry || !Number.isSafeInteger(retry.nextAt) || retry.nextAt <= 0)) throw new TypeError("家庭库重试计划无效");
-        if (!retry || retry.nextAt <= now()) {
-          await chrome.storage.local.set({ [RETRY_KEY]: { nextAt: now() + interval } });
-          await root.STBackgroundMessages.notify({ source: SOURCE, type: "family-library-login", title: text("familyTask.failed", "家庭库刷新失败"), summary: errorText(error),
-            actions: [{ id: "login", kind: "link", label: text("familyTask.login", "打开商店"), icon: "view", url: CFG.vendors.steamStore.familyManagement() }, { id: "read", kind: "read", label: text("messageCenter.markRead", "已读"), icon: "read" }] });
-        }
-        await chrome.alarms.create(model.ALARM, { when: ((retry?.nextAt > now() ? retry.nextAt : now() + interval) * 1000) });
-        throw error;
+      if (!cfg.enabled || cfg.refreshInterval === "manual") { await cancelAutomatic(cfg); return; }
+      if (refreshTask) return;
+      const { login, error: failure } = await checkedSession();
+      const owner = login ? login.accountSteamId : await activeOwner();
+      const value = await serial(async () => {
+        if (refreshTask) return null;
+        const current = await schedule(owner, cfg);
+        await chrome.storage.local.set(planPatch(owner, current.plan));
+        return current;
+      });
+      if (!value) return;
+      await deliverQuietly(null);
+      if (owner !== null) await deliverQuietly(owner);
+      if (model.nextAttemptAt(value.plan) <= now()) {
+        try { await launch({ manual: false, checked: { login, error: failure } }); }
+        catch (error) { if (!error.familyHandled) throw error; }
+      } else {
+        if (failure) log.warn("family-session-check-failed", "登录预检暂不可用，保留尚未到期的家庭库计划", { error: failure, nextAt: model.nextAttemptAt(value.plan) });
+        await arm();
       }
-      await deliverQuietly(owner);
-      const stored = await data(owner), record = model.record(stored, owner), plan = planOf(stored, owner);
-      const due = Math.max(model.nextRefreshAt(record.cache, record.refreshState, interval), (plan?.lastAttemptAt || 0) + interval);
-      if (due <= now()) {
-        try { await refresh({ expectedOwner: owner }); }
-        catch (error) { log.warn("family-auto-attempt-failed", "本次家庭库自动刷新未完成，下个周期可恢复", { error }); }
-      }
-      const latest = await config();
-      if (!latest.enabled || latest.refreshInterval === "manual") { await chrome.alarms.clear(model.ALARM); return; }
-      const next = await data(owner), value = model.record(next, owner);
-      const deadline = Math.max(model.nextRefreshAt(value.cache, value.refreshState, model.INTERVALS[latest.refreshInterval]), planOf(next, owner).lastAttemptAt + model.INTERVALS[latest.refreshInterval]);
-      await chrome.alarms.create(model.ALARM, { when: Math.max(Date.now() + 1000, deadline * 1000) });
-    })().finally(() => { reconcileTask = null; });
+    })().finally(() => {
+      reconcileTask = null;
+      if (reconcileAgain) { reconcileAgain = false; requestReconcile(); }
+    });
     return reconcileTask;
   }
   async function execute(request) {
     const expectedOwner = model.accountId(request.expectedSteamAccountId);
     if (request.action === "refresh") {
       const cache = await refresh({ manual: true, expectedOwner });
-      if (steam()) void reconcile().catch(report);
       return { cache };
     }
     if (request.action === "skip") {
@@ -251,6 +366,7 @@
   function report(error) { log.error("family-schedule-failed", "家庭库后台计划执行失败", { error }); }
   function start() {
     root.STBackgroundMessages.registerAction(SOURCE, TYPE, "retry", async message => { await refresh({ manual: true, expectedOwner: message.steamAccountId }); return { message: text("familyTask.done", "家庭库已更新") }; });
+    root.STBackgroundMessages.registerAction(SOURCE, "family-library-login", "retry", async () => { await refresh({ manual: true }); return { message: text("familyTask.done", "家庭库已更新") }; });
     chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === model.ALARM) void reconcile().catch(report); });
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === "local" && [FEATURE_KEY, "st.settings.familyLibrary.refreshInterval"].some(key => Object.hasOwn(changes, key))) void reconcile().catch(report);

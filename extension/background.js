@@ -3010,8 +3010,17 @@
     const ownPage = url?.protocol === "chrome-extension:" && url.hostname === chrome.runtime.id;
     if (sender.id !== chrome.runtime.id || (!ownPage && !isSteamRuntimeSender(sender))) throw new Error("消息中心来源无效");
     if (request.action === "publish" && !ownPage) throw new Error("当前页面不能发布消息");
+    if (request.withUnread !== undefined && typeof request.withUnread !== "boolean") throw new TypeError("消息快照参数无效");
+    if (request.expectedSteamAccountId !== undefined && request.expectedSteamAccountId !== null && (typeof request.expectedSteamAccountId !== "string" || !/^\d{17}$/.test(request.expectedSteamAccountId))) throw new TypeError("消息账号前置条件无效");
     const binding = await globalThis.STBackgroundFamily.identity();
-    const value = await globalThis.STBackgroundMessages.execute(request, binding.steamAccountId);
+    if (request.expectedSteamAccountId !== undefined && request.expectedSteamAccountId !== binding.steamAccountId) throw new Error("Steam 账号已变化，请重新打开消息中心");
+    const previewOnly = request.action === "summary" && request.withUnread === true;
+    let value = await globalThis.STBackgroundMessages.execute(previewOnly ? { action: "list", filter: "unread" } : request, binding.steamAccountId);
+    // 状态与未读页来自同一事务；处理后的列表复用本次会话绑定，不再发起第二次登录核验。
+    if (request.withUnread === true) {
+      const snapshot = previewOnly ? value : await globalThis.STBackgroundMessages.execute({ action: "list", filter: "unread" }, binding.steamAccountId);
+      value = { ...(previewOnly ? {} : value), state: snapshot.state, unreadRows: snapshot.rows };
+    }
     if (!globalThis.STBackgroundFamily.current(binding)) throw new Error("Steam 账号已变化，请重新打开消息中心");
     value.state = { ...value.state, steamAccountId: binding.steamAccountId, ...(binding.accountError ? { accountError: binding.accountError } : {}) };
     sendResponse({ success: true, value });

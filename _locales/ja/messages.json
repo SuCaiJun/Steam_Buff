@@ -7157,6 +7157,13 @@
   "familyTask_retry": {
     "message": "再試行"
   },
+  "messageCenter_retrying": { "message": "再試行中" },
+  "familyTask_manualOnly": { "message": "手動モードのため、自動再試行は行いません。" },
+  "familyTask_retryPending": { "message": "60 分後に自動再試行します。最大 5 回です。" },
+  "familyTask_retryFailed": { "message": "自動再試行 $value$ が失敗しました。", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryNext": { "message": "次の自動再試行：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryStopped": { "message": "5 回の自動再試行が失敗したため、このサイクルの再試行を停止しました。次の通常更新：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_normalNext": { "message": "次の通常更新：$value$", "placeholders": { "value": { "content": "$1" } } },
   "familyTask_login": {
     "message": "ストアを開く"
   },

@@ -24,7 +24,7 @@
 
   const ICONS = Object.freeze({
     clear: "images/ui/message-clear-unread.svg", mute: "images/ui/message-mute.svg",
-    upgrade: "images/ui/message-upgrade.svg", view: "images/ui/message-view.svg", read: "images/ui/message-read.svg",
+    upgrade: "images/ui/message-upgrade.svg", view: "images/ui/message-view.svg", read: "images/ui/message-read.svg", retry: "images/ui/message-retry.svg",
   });
   const BUSINESS_STATES = Object.freeze(["pending", "approved", "rejected", "expired", "cancelled", "completed"]);
 
