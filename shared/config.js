@@ -288,22 +288,55 @@
     open: openExternalUrl,
   });
 
-  function hasNonEmptyString(value) {
-    return typeof value === "string" && value.trim() !== "";
-  }
-
-  // 商店包同时提供 key 与 update_url；非商店包可能只保留 key。
-  function isStoreVersion() {
-    try {
-      const manifest = root.chrome?.runtime?.getManifest?.();
-      return hasNonEmptyString(manifest?.key) && hasNonEmptyString(manifest?.update_url);
-    } catch {
-      return false;
-    }
+  // 渠道依据 Manifest 的正式更新来源；未知的非空地址不归入开源版
+  function distributionChannel(manifest = root.chrome?.runtime?.getManifest?.()) {
+    if (!manifest || typeof manifest !== "object") return "unknown";
+    const url = manifest.update_url;
+    if (url === undefined || url === "") return "opensource";
+    if (url === "https://clients2.google.com/service/update2/crx") return "chrome";
+    if (url === "https://edge.microsoft.com/extensionwebstorebase/v1/crx") return "edge";
+    return "unknown";
   }
 
   const distribution = Object.freeze({
-    isStoreVersion,
+    channel: distributionChannel,
+    isStoreVersion() {
+      return ["chrome", "edge"].includes(distributionChannel());
+    },
+  });
+
+  function versionText(value) {
+    const match = String(value || "").match(/v?\d+(?:\.\d+){1,3}/i);
+    return match ? match[0].replace(/^v/i, "") : "";
+  }
+
+  function versionParts(value) {
+    if (typeof value !== "string" || !/^\d+(?:\.\d+){0,3}$/.test(value)) throw new TypeError("扩展版本格式无效");
+    const parts = value.split(".").map(Number);
+    if (parts.some(n => n > 65535) || !parts.some(n => n > 0)) throw new TypeError("扩展版本数值无效");
+    return Array.from({ length: 4 }, (_, index) => parts[index] ?? 0);
+  }
+
+  const versions = Object.freeze({
+    text: versionText,
+    parts: versionParts,
+    compare(left, right) {
+      const a = versionParts(left); const b = versionParts(right);
+      for (let i = 0; i < 4; i += 1) if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1;
+      return 0;
+    },
+  });
+
+  const UPDATE_INTERVALS = Object.freeze([1, 3, 6, 24, 36, 72, 168, 0]);
+  const updates = Object.freeze({
+    settingKey: "SETTING_UPDATE_CHECK_HOURS",
+    intervals: UPDATE_INTERVALS,
+    defaultHours: 6,
+    hours(value) {
+      if (value === undefined) return 6;
+      if (!UPDATE_INTERVALS.includes(value)) throw new TypeError("检查更新频率无效");
+      return value;
+    },
   });
 
   const urls = Object.freeze({
@@ -316,7 +349,10 @@
     steamFestivalsBase: STEAM_FESTIVALS_BASE,
     supporterBase: SUPPORTER_BASE,
     loginAuthBase: LOGIN_AUTH_BASE,
+    // 待移除: 仅供旧客户端契约说明，新版检查只使用 extensionUpdate
     updateLatest: join(STEAM_BUFF_BASE, "/update-logs/latest"),
+    extensionUpdate: (channel) => `${join(STEAM_BUFF_BASE, "/extension-updates/latest")}?channel=${encoded(channel)}`,
+    // 待移除: 旧最新日志地址别名，新代码不得引用
     updateLogs: join(STEAM_BUFF_BASE, "/update-logs/latest"),
     updateLog: (version) => join(STEAM_BUFF_BASE, `/update-logs/${encoded(version)}`),
     userSettings: join(STEAM_BUFF_BASE, "/user/settings"),
@@ -324,6 +360,7 @@
     steamFestivals: (anchorDate, beforeMonths = 36, afterMonths = 12) => `${join(STEAM_FESTIVALS_BASE, "/festivals")}?anchor_date=${encoded(anchorDate)}&before_months=${encoded(beforeMonths)}&after_months=${encoded(afterMonths)}`,
     homepage: join(ORIGINS.site, "/25.html"),
     updatePage: join(ORIGINS.site, "/25.html"),
+    updateChangelog: join(ORIGINS.site, "/25.html#changelog"),
     device: join(ORIGINS.site, "/login-auth/device"),
     account: join(ORIGINS.site, "/user/data"),
     donate: join(ORIGINS.site, "/supporter/golink/"),
@@ -516,6 +553,8 @@
     pages,
     matchers,
     distribution,
+    versions,
+    updates,
     client,
     diagnosticUrlPolicy,
     origin,

@@ -214,6 +214,121 @@
     return keys.length === 1 ? node[keys[0]] : null;
   }
 
+  // 仅在两个已知分支参数不同时检查当前 HostRoot，不遍历组件子树
+  function activeFiber(fiber) {
+    for (let depth = 0; fiber && depth < 512; depth += 1, fiber = fiber.return) {
+      if (!fiber.return) return fiber.tag === 3 && fiber.stateNode?.current === fiber;
+    }
+    return false;
+  }
+
+  /**
+   * 从已确认的成就面板读取所属页面组件的 AppID；失败、已分离的旧节点或分支归属不明返回 0
+   * 只读当前面板的有限 Fiber 父链，不读取封面、全局选中游戏或其他组件树
+   */
+  function achievementAppId(panel) {
+    if (!panel?.isConnected) return 0;
+    const id = (props) => props && Object.hasOwn(props, "appid") &&
+      Object.hasOwn(props, "bShowGameInfoInHeader") && typeof props.bShowGameInfoInHeader === "boolean" &&
+      Number.isSafeInteger(props.appid) && props.appid > 0 ? props.appid : 0;
+    for (let fiber = reactFiber(panel), depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
+      const props = fiber.memoizedProps;
+      if (!props || !Object.hasOwn(props, "bShowGameInfoInHeader") || !Object.hasOwn(props, "appid")) continue;
+      const first = id(props), other = fiber.alternate;
+      if (!other) return first;
+      const second = id(other.memoizedProps);
+      if (first === second) return first;
+      const current = [fiber, other].filter(activeFiber);
+      return current.length === 1 ? id(current[0].memoizedProps) : 0;
+    }
+    return 0;
+  }
+
+  /**
+   * 读取库页实际成就卡片的有限父链；活动使用 strID，右栏 schema 使用 api_name
+   * 两种已取证结构由调用方明确指定；归属或原文不可读返回 null，不使用文字、图片或路由猜测 ID
+   */
+  function achievementDisplayItem(node, kind) {
+    if (!node?.isConnected) return null;
+    if (kind !== "activity" && kind !== "summary") throw new TypeError("原生成就卡片类型无效");
+    function item(props) {
+      if (!Number.isSafeInteger(props?.appid) || props.appid <= 0 || !props.achievement) return null;
+      const raw = props.achievement;
+      const id = kind === "activity" ? raw.strID : raw.api_name;
+      const title = kind === "activity" ? raw.strName : raw.name;
+      const description = kind === "activity" ? raw.strDescription : raw.description;
+      if (typeof id !== "string" || !id || typeof title !== "string" || typeof description !== "string") return null;
+      return { appId: props.appid, id, title, description };
+    }
+    for (let fiber = reactFiber(node), depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
+      const props = fiber.memoizedProps;
+      if (!props || !Object.hasOwn(props, "appid") || !Object.hasOwn(props, "achievement")) continue;
+      const first = item(props), other = fiber.alternate;
+      if (!other) return first;
+      const second = item(other.memoizedProps);
+      if (first && second && first.appId === second.appId && first.id === second.id && first.title === second.title && first.description === second.description) return first;
+      const current = [fiber, other].filter(activeFiber);
+      return current.length === 1 ? item(current[0].memoizedProps) : null;
+    }
+    return null;
+  }
+
+  /** 从单条原生通知容器的有限父链读取通知对象；其他类型只返回 type，不解析未知 payload */
+  function achievementNotificationItem(node) {
+    if (!node?.isConnected) return null;
+    for (let fiber = reactFiber(node), depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
+      if (!fiber.memoizedProps || !Object.hasOwn(fiber.memoizedProps, "notification")) continue;
+      let current = fiber;
+      if (fiber.alternate && fiber.memoizedProps.notification !== fiber.alternate.memoizedProps?.notification) {
+        const branches = [fiber, fiber.alternate].filter(activeFiber);
+        if (branches.length !== 1) return null;
+        current = branches[0];
+      }
+      const event = current.memoizedProps?.notification;
+      if (!event || typeof event.eType !== "number") return null;
+      if (event.eType !== 5) return { type: event.eType };
+      const data = event.data;
+      if (!Object.hasOwn(event, "notificationID") || typeof data?.appid !== "function" || typeof data.achievement_id !== "function" ||
+        typeof data.name !== "function" || typeof data.description !== "function") return null;
+      return { type: event.eType, notificationID: event.notificationID, appId: data.appid(), id: data.achievement_id(), title: data.name(), description: data.description() };
+    }
+    return null;
+  }
+
+  /**
+   * 只读新版成就列表所属组件的 React Query schema；按 AppID 校验缓存，不发请求或遍历组件子树。
+   * 列表父链与组件依赖来自原生 AchievementsList / useQuery，未就绪时返回 null，由调用方提示刷新。
+   */
+  function achievementSchema(list, appId) {
+    if (!list?.isConnected || !Number.isSafeInteger(appId) || appId <= 0) return null;
+    for (let fiber = reactFiber(list), depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
+      const props = fiber.memoizedProps;
+      if (!props || !Object.hasOwn(props, "typeFilter") || !Object.hasOwn(props, "compareTo")) continue;
+      const first = fiber.dependencies?.firstContext;
+      // Steam 的上下文值可来自另一 JavaScript realm，不能用当前窗口的 instanceof Set 判定。
+      if (first?.memoizedValue?.appid !== appId || typeof first.memoizedValue.revealedAchievements?.has !== "function" || typeof first.memoizedValue.setRevealedAchievements !== "function") return null;
+      for (let dependency = first, count = 0; dependency && count < 8; count += 1, dependency = dependency.next) {
+        const client = dependency.memoizedValue;
+        if (typeof client?.getQueryData === "function") {
+          const schema = client.getQueryData(["achievements", appId, "schema"]);
+          return schema?.appid === appId ? schema : null;
+        }
+      }
+      return null;
+    }
+    return null;
+  }
+
+  /** 从当前原生分组标题所属组件读取稳定组 ID 与原名；不解析标题译文或遍历组件子树。 */
+  function achievementGroup(node) {
+    if (!node?.isConnected) return null;
+    for (let fiber = reactFiber(node), depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
+      const props = fiber.memoizedProps, group = props?.group;
+      if (props && Object.hasOwn(props, "groupSummary") && Number.isSafeInteger(group?.id) && group.id >= 0 && typeof group.name === "string") return { id: group.id, name: group.name };
+    }
+    return null;
+  }
+
   // 仅沿已取证的 ReactVirtualized 库行 Fiber 链读取 item，不扫描其他 React 节点
   function libraryRowItem(row) {
     let fiber = reactFiber(row);
@@ -236,18 +351,6 @@
       return null;
     }
     return libraryRowItem(row) ? row : null;
-  }
-
-  // Steam 原生右键菜单 Fiber 父链的 overview 与右键行 AppID共同校验入口归属
-  function contextMenuOverview(node) {
-    let fiber = reactFiber(node);
-    for (let depth = 0; fiber && depth < 12; depth += 1, fiber = fiber.return) {
-      const overview = fiber.memoizedProps?.overview;
-      if (overview && Number(overview.appid) > 0) {
-        return overview;
-      }
-    }
-    return null;
   }
 
   // 返回所属文档的只读名称快照；输入改变才解析，损坏输入清空旧结果并记录一次错误。
@@ -352,7 +455,11 @@
     apps,
     libraryRow,
     libraryRowItem,
-    contextMenuOverview,
+    achievementAppId,
+    achievementDisplayItem,
+    achievementNotificationItem,
+    achievementSchema,
+    achievementGroup,
     settings,
     settingOn,
     settingValue,

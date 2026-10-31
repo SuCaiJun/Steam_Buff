@@ -1173,12 +1173,6 @@
     "library-independent-name": {
       id: "__RickyLibraryIndependentNameStyle",
       css: `
-      .st-lin-context-entry {
-        color: var(--st-color-text-primary);
-      }
-      .st-lin-context-closing {
-        pointer-events: none;
-      }
       #${LIBRARY_INDEPENDENT_NAME_MODAL},
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} {
         position: fixed;
@@ -1213,7 +1207,8 @@
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-dialog {
         grid-template-rows: auto auto auto minmax(0, 1fr);
-        width: min(1100px, calc(100vw - 48px));
+        box-sizing: border-box;
+        width: min(var(--st-lin-dialog-width, 1120px), calc(100vw - 48px));
         height: min(640px, calc(100vh - 48px));
         gap: 12px;
       }
@@ -1845,6 +1840,7 @@
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-form > input,
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-name-field > input,
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-sort-field > input,
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-aliases input {
         box-sizing: border-box;
         width: 100%;
@@ -1858,7 +1854,20 @@
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-name-field {
         min-width: 0;
       }
-      #${LIBRARY_INDEPENDENT_NAME_MODAL} label[for="st-lin-single-name"] {
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-sort-field {
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-sort-field small {
+        color: var(--st-color-text-muted);
+        line-height: 1.5;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-sort-field button {
+        justify-self: start;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} label[for="st-lin-single-name"],
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} label[for="st-lin-single-sort"] {
         align-self: start;
         padding-top: 6px;
       }
@@ -2087,19 +2096,74 @@
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-scroll {
         min-height: 0;
+        min-width: 0;
+        overflow-x: auto;
+        overscroll-behavior: contain;
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table {
-        width: 100%;
+        width: var(--st-lin-total, 1296px);
         table-layout: fixed;
         border-collapse: collapse;
         font-size: 12px;
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-official { width: 18%; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-appid { width: 10%; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-custom { width: 18%; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias { width: 22%; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-mnemonic { width: 12%; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-pinyin { width: 20%; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-cols { min-width: 0; overflow: hidden; scrollbar-gutter: auto; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-scroll::-webkit-scrollbar,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-cols::-webkit-scrollbar { width: 12px; height: 12px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-scroll::-webkit-scrollbar-track { background: var(--st-color-steam-property-window); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-scroll::-webkit-scrollbar-thumb {
+        min-width: 24px; min-height: 24px; border: 2px solid var(--st-color-steam-property-window);
+        border-radius: 8px; background: var(--st-color-text-secondary-alt);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-scroll::-webkit-scrollbar-corner { background: var(--st-color-steam-property-window); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-dialog-resize] {
+        position: absolute; top: 0; bottom: 0; width: 8px; z-index: 5;
+        cursor: col-resize; touch-action: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-dialog-resize="left"] { left: -4px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-dialog-resize="right"] { right: -4px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table th[data-lin-col] { position: relative; padding: 0; overflow: visible; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-col-sort] {
+        display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
+        min-height: 36px; padding: 8px; border: 0; background: none; color: inherit;
+        text-align: left; font: inherit; font-weight: 600; cursor: pointer; touch-action: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-col-sort] > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-sort-mark] { flex: 0 0 12px; color: var(--st-color-text-secondary-alt); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} th[aria-sort] [data-lin-sort-mark] { color: var(--st-color-text-primary); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-col-resize] {
+        position: absolute; right: -4px; top: 0; bottom: 0; width: 8px; z-index: 3;
+        cursor: col-resize; touch-action: none;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} th[data-lin-col]:last-child [data-lin-col-resize] { right: 0; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-col-resize]::after {
+        content: ""; position: absolute; top: 8px; bottom: 8px; left: 3px;
+        width: 1px; background: var(--st-color-border-normal);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-col-resize]:hover::after,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-col-resize]:focus-visible::after { background: var(--st-color-border-primary); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-check {
+        position: sticky; left: 0; z-index: 2; background: var(--st-color-steam-property-window);
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-check .st-lin-slot { align-items: center; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} td.st-lin-check input { margin-top: 7px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL}.st-lin-dragging,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL}.st-lin-resizing { user-select: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-column-moving { transition: transform 160ms cubic-bezier(.2,.8,.2,1); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-column-placeholder { opacity: .3; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-column-preview {
+        position: fixed; z-index: 4; pointer-events: none; overflow: hidden;
+        color: var(--st-color-text-primary); background: var(--st-color-steam-property-window);
+        border: 1px solid var(--st-color-border-primary); box-sizing: border-box; font-size: 12px;
+        box-shadow: var(--st-shadow-panel-menu); will-change: transform;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-column-copy { position: absolute; left: 0; width: 100%; box-sizing: border-box; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-column-copy:first-child { display: flex; align-items: center; padding: 8px; font-weight: 600; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-native-note { display: flex; align-items: center; gap: 8px; min-height: 18px; color: var(--st-color-text-secondary-alt); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-native-note small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-native-note button { flex: 0 0 auto; border: 0; padding: 0; background: none; color: var(--st-color-text-primary); font: inherit; cursor: pointer; }
+      @media (prefers-reduced-motion: reduce) {
+        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-column-moving { transition: none; }
+      }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table th,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table td {
         box-sizing: border-box;

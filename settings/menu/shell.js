@@ -258,6 +258,7 @@
       const page = pageById(cat.id);
       const items = cat.items || [];
       const localeHtml = cat.id === "extension-settings" ? uiLocaleHtml() : "";
+      const updateHtml = cat.id === "extension-settings" ? updateCheckHtml() : "";
       const cloudHtml = cat.id === "extension-settings" ? (root.STSettingsCloudUi?.htmlSync?.() || "") : "";
       const body = categoryBodyHtml(cat, page, items);
       const header = page?.hideHeader ? "" : `
@@ -268,6 +269,7 @@
         <div class="content-swap" data-active="${escAttr(cat.id)}">
           ${header}
           ${localeHtml}
+          ${updateHtml}
           ${cloudHtml}
           ${body}
         </div>
@@ -301,12 +303,40 @@
       `;
     }
 
+    function updateCheckHtml() {
+      const options = root.STConfig.updates.intervals.map(hours => `<option value="${hours}">${esc(hours ? tr("settings.updateCheck.hours", "$hours$小时", { hours }) : tr("settings.updateCheck.off", "不检查"))}</option>`).join("");
+      return `<section class="settings-card section-card update-check-card">
+        <div class="section-header"><div class="dot"></div><div class="title">${esc(tr("settings.updateCheck.title", "扩展更新"))}</div></div>
+        <div class="settings-grid"><div class="settings-row form-row">
+          <label class="settings-label label" for="st-update-check-hours">${esc(tr("settings.updateCheck.frequency", "检查更新频率"))}</label>
+          <span class="settings-value control"><select id="st-update-check-hours" class="settings-control" data-update-hours aria-describedby="st-update-check-note" disabled>
+            <option value="" selected disabled>${esc(tr("settings.updateCheck.loading", "正在读取设置…"))}</option>${options}
+          </select></span>
+        </div></div>
+        <div id="st-update-check-note" class="settings-card-note" role="status">${esc(tr("settings.updateCheck.desc", "扩展运行期间在后台检查；选择不检查后仍可手动检查更新。"))}</div>
+      </section>`;
+    }
+
+    async function refreshUpdateCheck(shadow) {
+      const control = shadow.querySelector("[data-update-hours]");
+      if (!control) return;
+      try {
+        const value = await storage.getUpdateCheck();
+        if (!control.isConnected) return;
+        control.value = String(value.hours); control.disabled = false;
+      } catch (error) {
+        log.warn("update-check-setting-read-failed", "读取检查更新频率失败", { error });
+        if (control.isConnected) shadow.querySelector("#st-update-check-note").textContent = tr("settings.updateCheck.readFailed", "设置读取失败，请重新打开设置重试。");
+      }
+    }
+
     function setTrustedTemplate(element, html, reason) {
       const dom = root.STDomUtils;
       dom.setTrustedHTML(element, dom.trustedHTML(html, reason));
     }
 
     function afterRender(shadow) {
+      void refreshUpdateCheck(shadow);
       panels.review?.().renderDynamicLists?.(shadow);
       const cloudUi = root.STSettingsCloudUi;
       if (cloudUi?.bind) {
@@ -441,6 +471,7 @@
 
     return Object.freeze({
       allCategories,
+      refreshUpdateCheck,
       pageCtx,
       pageList,
       pageById,

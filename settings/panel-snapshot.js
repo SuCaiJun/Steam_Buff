@@ -163,6 +163,12 @@
         }
         continue;
       }
+      if (name === "updateCheck") {
+        if (Object.hasOwn(src, name) && !isPlainObject(src[name])) throw new TypeError("更新频率配置格式错误");
+        const value = copyKnown(src[name], sectionDefaults(name), box);
+        out[name] = { hours: root.STConfig.updates.hours(value.hours) };
+        continue;
+      }
       if (name === "gameLinks") {
         out[name] = root.STGameLinks.normalize(src[name]);
         if (Object.hasOwn(src, name)) box.imported += out[name].items.length;

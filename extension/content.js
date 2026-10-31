@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v46";
+  const RUN_VERSION = "steam-buff-runtime-v59";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -149,6 +149,7 @@
     "download-batch-actions": true,
     "download-auto-shutdown": true,
     [NEWS_TRANSLATE_ID]: true,
+    "steam-achievement-translate": true,
     [STEAM_PLAYER_STATS_ID]: true,
     [STEAM_GAME_LINKS_ID]: true,
     [THIRD_PARTY_SERVICES_ID]: false,
@@ -164,6 +165,7 @@
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
     STEAM_PLAYER_STATS_ID,
+    "steam-achievement-translate",
     STEAM_GAME_LINKS_ID,
     THIRD_PARTY_SERVICES_ID,
     NAME_MODE_ID,
@@ -177,6 +179,7 @@
     "download-auto-shutdown",
     NEWS_TRANSLATE_ID,
     PLAYER_STATS_ID,
+    "steam-achievement-translate",
     "game-links",
   ]);
   const STEAM_FEATURE_SETTING_IDS = Object.freeze({
@@ -186,6 +189,7 @@
     "download-batch-actions": "download-batch-actions",
     "download-auto-shutdown": "download-auto-shutdown",
     [NEWS_TRANSLATE_ID]: NEWS_TRANSLATE_ID,
+    "steam-achievement-translate": "steam-achievement-translate",
     [PLAYER_STATS_ID]: STEAM_PLAYER_STATS_ID,
     "game-links": STEAM_GAME_LINKS_ID,
   });
@@ -1431,6 +1435,31 @@
     }
   }
 
+  // 主窗口保留编辑操作；SharedJSContext 只允许按实际成就 ID 查询，不向页面传递 AI 配置
+  function ensureAchievementTranslateBridge() {
+    const ctx = globalThis.STPageContext?.snapshot?.() || {};
+    const main = isSteamNewsTranslateBridgeTarget();
+    if ((!main && !(ctx.domain === "steam" && ctx.title === "SharedJSContext")) || globalThis.__stAchievementBridge) return;
+    globalThis.__stAchievementBridge = true;
+    window.addEventListener("message", async event => {
+      const data = event.data;
+      if (event.source !== window || event.origin !== window.location.origin || data?.source !== "steam-buff-achievement-translations-v1" || data.side !== "page" || typeof data.rid !== "string" || data.rid.length > 80 || !(main ? ["load", "save", "translate", "lookup"] : ["lookup"]).includes(data.action)) return;
+      const reply = value => window.postMessage({ source: data.source, side: "content", rid: data.rid, ...value }, window.location.origin);
+      try {
+        const response = await globalThis.STMessageBus.send({ type: "ACHIEVEMENT_TRANSLATIONS", action: data.action, kind: data.kind, appId: data.appId, language: data.language, entries: data.entries, items: data.items, gameName: data.gameName, operationId: data.operationId, requestId: data.rid }, { timeoutMs: 90000, logFailures: false });
+        reply(response);
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "steam-achievement-translate", event: "achievement-bridge-failed", message: "成就翻译后台通信失败", level: "error", phase: data.action, operationId: data.operationId, requestId: data.rid });
+        reply({ success: false, error: "成就翻译后台通信失败，请重试", reported: true });
+      }
+    });
+  }
+
+  function achievementTranslateSettingsChanged(keys) {
+    if (!globalThis.__stAchievementBridge || !keys.includes(transKey("to"))) return;
+    window.postMessage({ source: "steam-buff-achievement-translations-v1", side: "content", action: "invalidated" }, window.location.origin);
+  }
+
   function trustedNamePage() {
     const ctx = globalThis.STPageContext?.snapshot?.() || {};
     return ctx.domain === "steam" || ctx.domain === "store";
@@ -1849,10 +1878,10 @@
     return settings;
   }
 
-  // 新增的玩家统计设置只更新对应功能，不触发无关的云名称同步
+  // 玩家统计、相关链接与成就翻译只更新对应功能，不触发无关的云名称同步。
   function steamSettingsNeedNameSync(keys) {
     return keys.includes(MEMBERSHIP_KEY) || STEAM_SETTING_IDS.some(id =>
-      id !== STEAM_PLAYER_STATS_ID && id !== STEAM_GAME_LINKS_ID && id !== THIRD_PARTY_SERVICES_ID && keys.includes(settingKey(id)));
+      id !== STEAM_PLAYER_STATS_ID && id !== STEAM_GAME_LINKS_ID && id !== "steam-achievement-translate" && id !== THIRD_PARTY_SERVICES_ID && keys.includes(settingKey(id)));
   }
 
   function disabledSteamFeatureIds(prev = {}, next = {}) {
@@ -1903,6 +1932,7 @@
       out.push(PLAYER_STATS_ID);
     }
     if (prev[STEAM_GAME_LINKS_ID] !== true && next[STEAM_GAME_LINKS_ID] === true) out.push("game-links");
+    if (prev["steam-achievement-translate"] !== true && next["steam-achievement-translate"] === true) out.push("steam-achievement-translate");
     return out;
   }
 
@@ -2094,7 +2124,7 @@
 
   function postUserNames(data) {
     try {
-      root()?.setAttribute(USER_NAMES_RES_ATTR, JSON.stringify({
+      root()?.setAttribute(data.type === "table-settings-get-result" || data.type === "table-settings-save-result" ? globalThis.STNameTable.RESPONSE : USER_NAMES_RES_ATTR, JSON.stringify({
         script: "library-independent-name",
         side: "content",
         ...data,
@@ -2387,9 +2417,9 @@
     return saved;
   }
 
-  function readUserNamesReq() {
+  function readUserNamesReq(attribute = USER_NAMES_REQ_ATTR) {
     try {
-      return JSON.parse(root()?.getAttribute(USER_NAMES_REQ_ATTR) || "{}");
+      return JSON.parse(root()?.getAttribute(attribute) || "{}");
     } catch {
       return {};
     }
@@ -2478,6 +2508,26 @@
     const rid = data.rid || "";
     const diagnostics = { requestId: rid, operationId: data.operationId || "" };
     try {
+      if (data.type === "table-settings-get" || data.type === "table-settings-save") {
+        const model = globalThis.STNameTable;
+        if (!model) throw new Error("表格配置模块未加载");
+        let value;
+        if (data.type === "table-settings-get") {
+          const stored = await new Promise((resolve, reject) => chrome.storage.local.get([model.KEY], result => {
+            const error = chrome.runtime.lastError;
+            if (error) reject(new Error(error.message)); else resolve(result);
+          }));
+          value = model.parse(stored[model.KEY]);
+        } else {
+          value = model.parse(data.value);
+          await new Promise((resolve, reject) => chrome.storage.local.set({ [model.KEY]: value }, () => {
+            const error = chrome.runtime.lastError;
+            if (error) reject(new Error(error.message)); else resolve();
+          }));
+        }
+        postUserNames({ type: data.type + "-result", rid, ok: true, value });
+        return;
+      }
       if (data.type === "ai-generate") {
         const name = await generateIndependentName(data.appid, data.name, diagnostics);
         postUserNames({ type: "ai-generate-result", rid, ok: true, name });
@@ -2587,6 +2637,10 @@
         return;
       }
     } catch (error) {
+      const detail = error?.message || String(error);
+      if (data.type === "table-settings-get" || data.type === "table-settings-save") {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "library-independent-name", event: "name-table-settings-failed", message: "名称表格本地配置操作失败", level: "error", requestId: rid, operation: data.type });
+      }
       if (error?.code === "owner-changed") {
         log({
           level: "warn",
@@ -2603,7 +2657,7 @@
         type: `${String(data.type || "snapshot")}-result`,
         rid,
         ok: false,
-        error: error?.message || String(error),
+        error: detail,
         code: Number(error?.code) || 0,
       });
     }
@@ -2623,12 +2677,14 @@
         for (const item of items) {
           if (item.attributeName === USER_NAMES_REQ_ATTR) {
             handleUserNames(readUserNamesReq());
+          } else if (globalThis.STNameTable && item.attributeName === globalThis.STNameTable.REQUEST) {
+            handleUserNames(readUserNamesReq(globalThis.STNameTable.REQUEST));
           }
         }
       });
       obs.observe(el, {
         attributes: true,
-        attributeFilter: [USER_NAMES_REQ_ATTR],
+        attributeFilter: [USER_NAMES_REQ_ATTR, ...(globalThis.STNameTable ? [globalThis.STNameTable.REQUEST] : [])],
       });
       handleUserNames(readUserNamesReq());
     } catch (error) {
@@ -2736,6 +2792,7 @@
       if (globalThis.STSettingsBus?.subscribe) {
         globalThis.STSettingsBus.subscribe((event) => {
           const keys = event.changedKeys || [];
+          achievementTranslateSettingsChanged(keys);
           const localeHit = keys.includes(UI_LOCALE_KEY);
           const membershipHit = keys.includes(MEMBERSHIP_KEY);
           const hit = STEAM_SETTING_IDS.some(id => keys.includes(settingKey(id)));
@@ -2762,6 +2819,7 @@
         if (area !== "local") {
           return;
         }
+        achievementTranslateSettingsChanged(Object.keys(changes));
         const localeHit = Object.hasOwn(changes || {}, UI_LOCALE_KEY);
         const membershipHit = Object.hasOwn(changes || {}, MEMBERSHIP_KEY);
         const hit = STEAM_SETTING_IDS.some(id => Object.hasOwn(changes, settingKey(id)));
@@ -2791,6 +2849,8 @@
     bindSettingsOpenRequest();
     watchSettingsChanges();
     ensureSteamNewsTranslateBridge();
+    ensureAchievementTranslateBridge();
+    if (isSteamNewsTranslateBridgeTarget()) globalThis.STMessageCenterBridge.start();
     logOnce("content-script-start", {
       level: "info",
       domain: "extension",
@@ -2896,6 +2956,10 @@
           "shared/data-index.js",
           "shared/batch-queue.js",
           "shared/virtual-list.js",
+          "shared/user-names-table.js",
+          "shared/achievement-translations.js",
+          "shared/message-center.js",
+          "steam/features/steam-achievement-translate/display.js",
           "shared/dialog-lifecycle.js",
           "shared/utils/player-stats.js",
           "shared/utils/player-stats-ui.js",

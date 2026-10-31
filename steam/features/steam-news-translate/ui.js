@@ -822,11 +822,6 @@
     return result;
   }
 
-  function applyBodyTask(task, value) {
-    const result = applyBodyTaskResult(task, value);
-    return result.applied > 0 && result.failedUnits.length === 0 && !result.mismatch;
-  }
-
   async function runLimited(items, limit, worker) {
     let next = 0;
     const size = Math.min(Math.max(1, limit), items.length);

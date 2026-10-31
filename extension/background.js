@@ -12,6 +12,8 @@
   "use strict";
 
   importScripts(chrome.runtime.getURL("shared/config.js"));
+  importScripts(chrome.runtime.getURL("shared/client-environment.js"));
+  importScripts(chrome.runtime.getURL("shared/family-library.js"));
   importScripts(chrome.runtime.getURL("onboarding/contract.js"));
   importScripts(chrome.runtime.getURL("shared/logger-schema.js"));
   importScripts(chrome.runtime.getURL("extension/background-logger.js"));
@@ -40,6 +42,11 @@
   importScripts(chrome.runtime.getURL("settings/catalog.js"));
   importScripts(chrome.runtime.getURL("settings/membership.js"));
   importScripts(chrome.runtime.getURL("settings/storage.js"));
+  importScripts(chrome.runtime.getURL("shared/achievement-translations.js"));
+  importScripts(chrome.runtime.getURL("extension/background-achievements.js"));
+  importScripts(chrome.runtime.getURL("shared/message-center.js"));
+  importScripts(chrome.runtime.getURL("extension/background-messages.js"));
+  importScripts(chrome.runtime.getURL("extension/background-family.js"));
   importScripts(chrome.runtime.getURL("settings/panel-snapshot.js"));
   importScripts(chrome.runtime.getURL("settings/settings-cloud.js"));
   importScripts(chrome.runtime.getURL("shared/auth-session.js"));
@@ -88,6 +95,9 @@
     "shared/auth-session.js",
     "shared/auth-client.js",
     "shared/user-names-snapshot.js",
+    "shared/user-names-table.js",
+    "shared/message-center.js",
+    "extension/runtime/message-center-bridge.js",
     "extension/content.js",
   ]);
   const STEAM_LOOPBACK_GUARD_FILES = Object.freeze([
@@ -126,6 +136,8 @@
     "shared/runtime/message-bus.js",
     "shared/settings-bus.js",
     "shared/auth-session.js",
+    "shared/message-center.js",
+    "extension/runtime/message-center-bridge.js",
   ]);
   const SETTINGS_SHARED_SCRIPTS = Object.freeze([
     "ai/config.js",
@@ -155,6 +167,7 @@
     "settings/settings-cloud.js",
   ]);
   const SETTINGS_RAIL_SCRIPTS = Object.freeze([
+    "shared/client-environment.js",
     "shared/i18n.js",
     "shared/styles/theme.js",
     "shared/utils/dom.js",
@@ -243,6 +256,7 @@
     "store/runtime/config.js",
     "store/runtime/context.js",
     "store/runtime/cache.js",
+    "shared/family-library.js",
     "store/runtime/family-library-cache.js",
     "store/runtime/assets.js",
     "store/runtime/format.js",
@@ -280,7 +294,6 @@
       "shared/utils/player-stats-ui.js",
       "store/features/player-stats/feature.js",
       "store/api/subscription-info.js",
-      "store/api/family-library.js",
       "store/api/exchange-rates.js",
       "store/api/providers/isthereanydeal.js",
       "store/api/third-party-data.js",
@@ -389,7 +402,7 @@
     "shared/auth-client.js": ["shared/auth-session.js", "shared/logger-factory.js"],
     "store/runtime/context.js": ["store/runtime/config.js"],
     "store/runtime/cache.js": ["shared/scheduler.js", "shared/runtime/kernel.js", "store/runtime/context.js"],
-    "store/runtime/family-library-cache.js": ["shared/logger-factory.js"],
+    "store/runtime/family-library-cache.js": ["shared/logger-factory.js", "shared/family-library.js"],
     "store/runtime/format.js": ["store/runtime/config.js"],
     "store/runtime/dom.js": ["shared/styles/components.js"],
     "store/runtime/styles.js": ["shared/styles/components.js", "store/features/review/review-filter-style.js"],
@@ -418,7 +431,7 @@
     "store/main.js": ["store/features/features.js"],
   });
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v46";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v59";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_RUNTIME_READY_WAIT_MS = 6000;
@@ -2995,6 +3008,28 @@
     }
   }
 
+  // 发布仅供扩展自身入口；Steam 页面桥只允许读取和处理已有提醒。
+  async function messageCenter(request, sender, sendResponse) {
+    const url = senderUrlObject(sender);
+    const ownPage = url?.protocol === "chrome-extension:" && url.hostname === chrome.runtime.id;
+    if (sender.id !== chrome.runtime.id || (!ownPage && !isSteamRuntimeSender(sender))) throw new Error("消息中心来源无效");
+    if (request.action === "publish" && !ownPage) throw new Error("当前页面不能发布消息");
+    if (request.withUnread !== undefined && typeof request.withUnread !== "boolean") throw new TypeError("消息快照参数无效");
+    if (request.expectedSteamAccountId !== undefined && request.expectedSteamAccountId !== null && (typeof request.expectedSteamAccountId !== "string" || !/^\d{17}$/.test(request.expectedSteamAccountId))) throw new TypeError("消息账号前置条件无效");
+    const binding = await globalThis.STBackgroundFamily.identity();
+    if (request.expectedSteamAccountId !== undefined && request.expectedSteamAccountId !== binding.steamAccountId) throw new Error("Steam 账号已变化，请重新打开消息中心");
+    const previewOnly = request.action === "summary" && request.withUnread === true;
+    let value = await globalThis.STBackgroundMessages.execute(previewOnly ? { action: "list", filter: "unread" } : request, binding.steamAccountId);
+    // 状态与未读页来自同一事务；处理后的列表复用本次会话绑定，不再发起第二次登录核验。
+    if (request.withUnread === true) {
+      const snapshot = previewOnly ? value : await globalThis.STBackgroundMessages.execute({ action: "list", filter: "unread" }, binding.steamAccountId);
+      value = { ...(previewOnly ? {} : value), state: snapshot.state, unreadRows: snapshot.rows };
+    }
+    if (!globalThis.STBackgroundFamily.current(binding)) throw new Error("Steam 账号已变化，请重新打开消息中心");
+    value.state = { ...value.state, steamAccountId: binding.steamAccountId, ...(binding.accountError ? { accountError: binding.accountError } : {}) };
+    sendResponse({ success: true, value });
+  }
+
   // Chrome executeScript 没有 Promise 形态，统一包一层便于异步路由保持 sendResponse 通道。
   function execScript(options) {
     return new Promise((resolve, reject) => {
@@ -3449,6 +3484,23 @@
     return cacheRequest(request, sender, sendResponse, true);
   }
 
+  async function achievementTranslations(request, sender, sendResponse) {
+    if (sender?.id !== chrome.runtime.id || !isSteamRuntimeSender(sender)) {
+      sendResponse({ success: false, error: "成就翻译只允许 Steam 客户端访问" });
+      return;
+    }
+    try {
+      const settings = await globalThis.STSettings.storage.getPanelSettings();
+      const data = await globalThis.STAchievementTranslationStore.execute(request, settings,
+        input => new Promise(resolve => aiChat(input, sender, resolve)));
+      sendResponse({ success: true, data });
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "steam-achievement-translate", event: "achievement-request-failed", message: "处理成就翻译操作失败", level: "error", phase: request.action, appid: request.appId, operationId: request.operationId, requestId: request.requestId });
+      const message = error.message || "成就翻译操作失败";
+      sendResponse({ success: false, error: message, reported: true });
+    }
+  }
+
   function cacheSet(request, sender, sendResponse) {
     return cacheRequest(request, sender, sendResponse, false);
   }
@@ -3646,39 +3698,6 @@
     }
   }
 
-  const ROUTE_POLICY = Object.freeze({
-    NETWORK_REQUEST_CANCEL: "发送方取消自己的普通代理或非流式 AI 请求",
-    UPDATE_CHECK: "设置中心更新检查",
-    STORE_FETCH: "允许列表内跨域请求代理",
-    [PLAYER_STATS_FETCH]: "Steam 商店详情页或库详情页固定在线人数请求",
-    TRANSLATE_INJECT: "翻译 runner 按需注入",
-    CONTENT_FILES_INJECT: "当前 frame 内容脚本按需注入",
-    [STEAM_LOOPBACK_INJECT_REQUEST]: "Steam CEF 白名单 frame 按需注入",
-    STEAM_NAME_BACKEND_RECOVER: "Steam 主窗口或属性窗口定向恢复名称后台",
-    [AI_GATEWAY_PERMISSION_CHECK]: "AI 设置页检查当前网关精确域名权限",
-    [AI_GATEWAY_PERMISSION_REQUEST]: "用户操作触发的 AI 网关按域名授权",
-    [AI_GATEWAY_PERMISSION_OPEN]: "Steam 设置页创建一次性 AI 网关授权会话",
-    [AI_GATEWAY_PERMISSION_CONTEXT]: "扩展授权页读取后台持有的一次性授权上下文",
-    [AI_GATEWAY_PERMISSION_CANCEL]: "AI 设置页取消未完成的一次性授权会话",
-    [CHROMIUM_WINDOW_OPEN]: "扩展内部 URL 的 Chromium 窗口打开",
-    [STEAM_ROOT_MENU_OPEN_CHROMIUM]: "Steam Root Menu 打开主页或扩展管理",
-    [AI_GATEWAY_PERMISSION_COMPLETE]: "扩展授权页回传 AI 网关授权结果",
-    AI_CHAT_COMPLETIONS: "AI 网关连接测试与翻译代理",
-    AI_TRANSLATE_CACHE_GET: "AI 翻译缓存读取",
-    AI_TRANSLATE_CACHE_SET: "AI 翻译缓存写入",
-    LOG_APPEND: "诊断日志追加",
-    LOG_EXPORT: "诊断日志导出",
-    LOG_CLEAR: "诊断日志清空",
-    LOG_STATS: "诊断日志状态",
-    LOG_DEBUG_GET: "读取日志开关状态",
-    LOG_DEBUG_SET: "设置中心确认后启停日志",
-    [ONBOARDING_OPEN_LOCAL_MESSAGE]: "云端安装引导页打开本地步骤",
-    [ONBOARDING_OPEN_SETTINGS_MESSAGE]: "安装引导页打开设置中心",
-    SETTINGS_CLOUD_SYNC: "设置云同步检查、上传、下载和冲突处理",
-    USER_NAMES_COMMIT: "独立名称本地变更的唯一写入入口",
-    AUTH_COMMIT: "登录状态写入的唯一入口",
-  });
-
   const ROUTES = Object.freeze({
     async LOG_DEBUG_GET(request, sender, sendResponse) {
       try {
@@ -3702,6 +3721,16 @@
         sendResponse({ success: false, error: message });
       }
     },
+    FAMILY_LIBRARY: async (request, sender, sendResponse) => {
+      if (sender.id !== chrome.runtime.id || !isStoreSender(sender) || senderUrlObject(sender).protocol !== "https:" || sender.frameId !== 0) throw new Error("家庭库请求来源无效");
+      try {
+        const value = await globalThis.STBackgroundFamily.execute(request);
+        sendResponse({ success: true, value });
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "family-library", event: "family-request-failed", message: "家庭库操作失败" });
+        sendResponse({ success: false, error: globalThis.STBackgroundFamily.errorMessage(error), errorCode: error.code, errorName: error.name });
+      }
+    },
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
     NETWORK_REQUEST_CANCEL: cancelNetworkRequest,
     STORE_FETCH: networkRoute(storeFetch),
@@ -3721,6 +3750,8 @@
     AI_CHAT_COMPLETIONS: networkRoute(aiChat),
     AI_TRANSLATE_CACHE_GET: cacheGet,
     AI_TRANSLATE_CACHE_SET: cacheSet,
+    ACHIEVEMENT_TRANSLATIONS: achievementTranslations,
+    MESSAGE_CENTER: messageCenter,
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: openOnboardingLocalPage,
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: openOnboardingSettings,
     SETTINGS_CLOUD_SYNC: globalThis.STBackgroundSettingsSync.handleMessage,
@@ -3773,6 +3804,9 @@
     return false;
   });
   chrome.runtime.onConnect.addListener(aiStreamConnect);
+  globalThis.STBackgroundUpdate.start();
+  globalThis.STBackgroundLifecycle.start();
+  globalThis.STBackgroundFamily.start();
   globalThis.addEventListener("error", event => globalThis.STLoggerFactory.reportError(event.error || event.message, {
     domain: "extension", feature: "background-runtime", event: "background-unhandled-error", message: "后台未捕获异常",
   }));

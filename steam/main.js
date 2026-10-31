@@ -19,7 +19,7 @@
     operationId: runtimeCorrelation.steamBuffRuntimeOperationId || "",
   });
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
-  const RUNTIME_VERSION = "steam-buff-runtime-v46";
+  const RUNTIME_VERSION = "steam-buff-runtime-v59";
   const RUNTIME_OPERATION_ATTR = "steamBuffRuntimeOperationId";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
@@ -223,6 +223,7 @@
     } catch {
     }
     clearTimer(api.runtime?.timer, "runtime.timer");
+    stopState("steam-achievement-translate");
     if (api.ctx?.isShared?.() !== true) {
       stopState("library-custom-name");
       stopState("library-independent-name");

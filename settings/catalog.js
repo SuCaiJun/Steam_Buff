@@ -379,6 +379,7 @@
   const PANEL_SECTIONS = Object.freeze([
     "features",
     "uiLocale",
+    "updateCheck",
     "familyLibrary",
     "storePriceChart",
     "gameLinks",
@@ -999,6 +1000,13 @@
           deps: depAll(["translate"]),
         },
         {
+          id: "steam-achievement-translate",
+          name: "成就翻译",
+          desc: "在新版成就页面管理手动或 AI 译文，本机长期保存；已保存的译文也用于库页动态、成就卡片和原生成就通知。",
+          area: "steam",
+          enabled: true,
+        },
+        {
           id: "steam-game-links",
           name: "相关链接",
           desc: "在 Steam 库游戏详情页玩家统计下方显示相关链接，按每项显示范围筛选。",
@@ -1321,6 +1329,9 @@
     if (name === "uiLocale") {
       return "zh_CN";
     }
+    if (name === "updateCheck") {
+      return { hours: globalThis.STConfig.updates.defaultHours };
+    }
     if (name === "familyLibrary") {
       return familyLibraryDefaults();
     }
@@ -1350,7 +1361,7 @@
 
   function isPanelStorageKey(name) {
     const key = String(name || "");
-    if (key === UI_LOCALE_KEY || key === "st.settings.storePriceChart" || key === "st.settings.gameLinks") {
+    if (key === globalThis.STConfig.updates.settingKey || key === UI_LOCALE_KEY || key === "st.settings.storePriceChart" || key === "st.settings.gameLinks") {
       return true;
     }
     if (!key.startsWith("st.settings.") || key.startsWith("st.settings.cloud.") || key.startsWith("st.settings.rail.")) {

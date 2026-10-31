@@ -46,6 +46,8 @@
     AI_CHAT_COMPLETIONS_STREAM: { timeoutMs: 120 * 1000, owner: "ai" },
     AI_TRANSLATE_CACHE_GET: { timeoutMs: 8 * 1000, owner: "translate" },
     AI_TRANSLATE_CACHE_SET: { timeoutMs: 8 * 1000, owner: "translate" },
+    ACHIEVEMENT_TRANSLATIONS: { timeoutMs: 90 * 1000, owner: "steam-achievement-translate" },
+    MESSAGE_CENTER: { timeoutMs: 12 * 1000, owner: "message-center" },
     LOG_APPEND: { timeoutMs: 8 * 1000, owner: "logger" },
     LOG_EXPORT: { timeoutMs: 12 * 1000, owner: "logger" },
     LOG_CLEAR: { timeoutMs: 8 * 1000, owner: "logger" },

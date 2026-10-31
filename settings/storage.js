@@ -194,10 +194,8 @@
     const intervalField = fields.find(field => field.key === "refreshInterval") || {};
     const intervals = new Set((intervalField.options || []).map(opt => String(opt.value)));
     const refreshInterval = String(values?.refreshInterval ?? defs.refreshInterval);
-    return {
-      refreshInterval: intervals.has(refreshInterval) ? refreshInterval : defs.refreshInterval,
-      autoRefresh: typeof values?.autoRefresh === "boolean" ? values.autoRefresh : defs.autoRefresh === true,
-    };
+    if (!intervals.has(refreshInterval) || (values?.autoRefresh !== undefined && typeof values.autoRefresh !== "boolean")) throw new TypeError("家庭库刷新设置无效");
+    return { refreshInterval, autoRefresh: values?.autoRefresh ?? defs.autoRefresh };
   }
 
   function normalizeSearchSuggestions(values) {
@@ -294,26 +292,25 @@
     return /^[a-z]{2}$/i.test(raw) ? raw.toUpperCase() : fallbackValue;
   }
 
-  function normalizeThirdPartyServices(values) {
-    const defs = thirdPartyServicesDefaults();
+  /** 统一规范第三方服务配置；可传入目录默认值，返回独立配置对象，不写存储 */
+  function normalizeThirdPartyServices(values, defaults = thirdPartyServicesDefaults()) {
+    const defs = defaults && typeof defaults === "object" ? defaults : {};
     const src = values && typeof values === "object" ? values : {};
     const itad = src.isthereanydeal && typeof src.isthereanydeal === "object" ? src.isthereanydeal : {};
     const defItad = defs.isthereanydeal || {};
-    const routes = { ...(defs.routes || {}), ...(src.routes || {}) };
-    const routeValue = (value) => String(value || "") === "isthereanydeal" ? "isthereanydeal" : "";
 
     return {
       enabled: src.enabled === true,
-      defaultProvider: String(src.defaultProvider || defs.defaultProvider || "isthereanydeal") === "isthereanydeal" ? "isthereanydeal" : "isthereanydeal",
+      defaultProvider: "isthereanydeal",
       isthereanydeal: {
         key: String(itad.key ?? defItad.key ?? "").trim(),
         country: cleanItadCountry(itad.country, defItad.country || "auto"),
         shops: cleanItadShops(itad.shops ?? defItad.shops),
       },
       routes: {
-        prices: routeValue(routes.prices || "isthereanydeal") || "isthereanydeal",
-        history: routeValue(routes.history || "isthereanydeal") || "isthereanydeal",
-        discountForecast: routeValue(routes.discountForecast || "isthereanydeal") || "isthereanydeal",
+        prices: "isthereanydeal",
+        history: "isthereanydeal",
+        discountForecast: "isthereanydeal",
       },
     };
   }
@@ -380,8 +377,7 @@
     };
   }
 
-  function thirdPartyServicesData(values) {
-    const next = normalizeThirdPartyServices(values);
+  function thirdPartyServicesData(next) {
     const data = {};
     for (const path of thirdPartyServicesPaths()) {
       data[thirdPartyServicesKey(path)] = clone(getPath(next, path, getPath(thirdPartyServicesDefaults(), path, "")));
@@ -559,6 +555,22 @@
       });
       return false;
     }
+  }
+
+  /** 更新频率只接受已公布选项，缺失配置采用六小时，读取异常不覆盖用户已有值 */
+  async function getUpdateCheck() {
+    const contract = globalThis.STConfig.updates;
+    const data = await get([contract.settingKey], { strict: true });
+    return { hours: contract.hours(data[contract.settingKey]) };
+  }
+
+  async function setUpdateCheck(value, diagnostics = {}) {
+    const contract = globalThis.STConfig.updates;
+    const hours = contract.hours(value.hours);
+    const ok = await put({ [contract.settingKey]: hours }, diagnostics);
+    logSave("update-check", ok, { hours, ...failureOperationMeta(ok, diagnostics) });
+    if (!ok) throw new Error("检查更新频率保存失败");
+    return true;
   }
 
   async function getUiLocale() {
@@ -832,7 +844,7 @@
     const defs = familyLibraryDefaults();
     const ids = Object.keys(defs);
     const keys = ids.map(familyLibraryKey);
-    const rt = await get(keys);
+    const rt = await get(keys, { strict: true });
     const out = {};
 
     for (const id of ids) {
@@ -918,7 +930,7 @@
   }
 
   async function getThirdPartyServices() {
-    const defs = normalizeThirdPartyServices(thirdPartyServicesDefaults());
+    const defs = thirdPartyServicesDefaults();
     const paths = thirdPartyServicesPaths();
     const keys = paths.map(thirdPartyServicesKey);
     const rt = await get(keys);
@@ -1039,6 +1051,7 @@
     const [
       features,
       uiLocale,
+      updateCheck,
       familyLibrary,
       storePriceChart,
       gameLinks,
@@ -1050,6 +1063,7 @@
     ] = await Promise.all([
       getAll(),
       getUiLocale(),
+      getUpdateCheck(),
       getFamilyLibrary(),
       getStorePriceChart(),
       getGameLinks(),
@@ -1062,6 +1076,7 @@
     return {
       features,
       uiLocale,
+      updateCheck,
       familyLibrary,
       storePriceChart,
       gameLinks,
@@ -1074,9 +1089,13 @@
   }
 
   async function setPanelSettings(sections = {}, diagnostics = {}) {
+    const updateCheck = sections.updateCheck === undefined ? { hours: globalThis.STConfig.updates.defaultHours } : sections.updateCheck;
+    if (!updateCheck || typeof updateCheck !== "object") throw new TypeError("更新频率配置格式错误");
+    globalThis.STConfig.updates.hours(updateCheck.hours);
     const jobs = [
       setAll(sections.features || {}, diagnostics),
       setUiLocale(sections.uiLocale, diagnostics),
+      setUpdateCheck(updateCheck, diagnostics),
       setFamilyLibrary(sections.familyLibrary || {}, diagnostics),
       setGameLinks(sections.gameLinks, diagnostics),
       setSearchSuggestions(sections.searchSuggestions || {}, diagnostics),
@@ -1112,6 +1131,8 @@
     set,
     getUiLocale,
     setUiLocale,
+    getUpdateCheck,
+    setUpdateCheck,
     getAuth,
     getAuthIdentity,
     setAuth,
@@ -1134,6 +1155,7 @@
     setAi,
     getThirdPartyServices,
     setThirdPartyServices,
+    normalizeThirdPartyServices,
     STORE_PRICE_CHART_KEY,
     normalizeStorePriceChart,
     getStorePriceChart,

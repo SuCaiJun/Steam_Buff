@@ -1419,9 +1419,6 @@
   "updateReminder_releaseNotes": {
     "message": "릴리스 노트"
   },
-  "updateReminder_muteToday": {
-    "message": "오늘은 다시 알리지 않기"
-  },
   "updateReminder_openDownload": {
     "message": "공식 다운로드 페이지 열기"
   },
@@ -1877,9 +1874,6 @@
         "content": "$2"
       }
     }
-  },
-  "about_update_storeVersionDisabled": {
-    "message": "스토어 버전에서는 수동 업데이트 확인이 비활성화되어 있습니다"
   },
   "about_logs_utf8Unavailable": {
     "message": "이 환경에서는 UTF-8 인코딩을 지원하지 않습니다"
@@ -5862,6 +5856,55 @@
   "steam_independentName_colMnemonic": {
     "message": "니모닉"
   },
+  "steam_nativeSortName_notReady": {
+    "message": "Steam 라이브러리가 아직 준비되지 않았습니다. 잠시 후 다시 시도하세요."
+  },
+  "steam_independentName_saveSnapshotMissing": {
+    "message": "이름 저장 결과가 올바르지 않습니다. 편집 창을 다시 열어 확인하세요."
+  },
+  "steam_nativeSortName_readUnavailable": {
+    "message": "Steam 정렬 이름을 읽을 수 없습니다."
+  },
+  "steam_nativeSortName_appMissing": {
+    "message": "현재 게임을 찾을 수 없습니다."
+  },
+  "steam_nativeSortName_invalid": {
+    "message": "Steam 정렬 이름의 데이터 형식이 올바르지 않습니다."
+  },
+  "steam_nativeSortName_busy": {
+    "message": "이 게임의 Steam 정렬 이름을 저장 중입니다. 잠시 후 다시 시도하세요."
+  },
+  "steam_nativeSortName_conflict": {
+    "message": "Steam 정렬 이름이 다른 곳에서 변경되었습니다. 다시 읽은 후 저장하세요."
+  },
+  "steam_nativeSortName_unverified": {
+    "message": "Steam 정렬 이름의 저장 결과를 확인하지 못했습니다. 다시 읽은 후 재시도하세요."
+  },
+  "steam_nativeSortName_reload": {
+    "message": "다시 읽기"
+  },
+  "steam_nativeSortName_loading": {
+    "message": "Steam 정렬 이름을 읽는 중…"
+  },
+  "steam_nativeSortName_readFailed": {
+    "message": "Steam 정렬 이름을 읽지 못했습니다: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_nativeSortName_hint": {
+    "message": "Steam에 저장합니다. 필드를 비운 후 확인하면 정렬 이름이 삭제됩니다. 이미 열린 속성 창은 다시 열어 주세요."
+  },
+  "steam_nativeSortName_partial": {
+    "message": "사용자 지정 이름은 저장되었지만 Steam 정렬 이름을 저장하지 못했습니다: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_independentName_colPinyin": {
     "message": "병음 전체"
   },
@@ -6834,5 +6877,297 @@
   },
   "store_detail_detailsLoading": {
     "message": "상세 로딩 중 · 접기 ↑"
+  },
+  "updateReminder_ignoreVersion": {
+    "message": "이 버전 다시 알리지 않기"
+  },
+  "updateReminder_snoozeCycle": {
+    "message": "다음 확인까지 알리지 않기"
+  },
+  "updateReminder_openChrome": {
+    "message": "Chrome 웹 스토어 열기"
+  },
+  "updateReminder_openEdge": {
+    "message": "Edge 추가 기능 열기"
+  },
+  "updateReminder_actionFailed": {
+    "message": "작업에 실패했습니다. 다시 시도하세요."
+  },
+  "settings_updateCheck_title": {
+    "message": "확장 프로그램 업데이트"
+  },
+  "settings_updateCheck_frequency": {
+    "message": "업데이트 확인 주기"
+  },
+  "settings_updateCheck_hours": {
+    "message": "$hours$시간",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_updateCheck_off": {
+    "message": "확인하지 않음"
+  },
+  "settings_updateCheck_loading": {
+    "message": "설정 읽는 중…"
+  },
+  "settings_updateCheck_desc": {
+    "message": "확장 프로그램 실행 중 백그라운드에서 확인합니다. 비활성화해도 수동으로 확인할 수 있습니다."
+  },
+  "settings_updateCheck_readFailed": {
+    "message": "설정을 읽을 수 없습니다. 설정을 다시 여세요."
+  },
+  "settings_updateCheck_saveFailed": {
+    "message": "저장하지 못했습니다. 다시 시도하세요."
+  },
+  "about_update_storePending": {
+    "message": "스토어에 대상 버전이 아직 반영되지 않았습니다"
+  },
+  "about_update_unconfigured": {
+    "message": "업데이트 대상 버전이 설정되지 않았습니다"
+  },
+  "about_update_unavailable": {
+    "message": "지금은 업데이트 제공 여부를 확인할 수 없습니다"
+  },
+  "steam_independentName_colSort": {
+    "message": "사용자 지정 정렬 이름"
+  },
+  "steam_nativeSortName_namespaceBusy": {
+    "message": "Steam 정렬 이름을 저장 중입니다. 잠시 후 다시 시도하세요."
+  },
+  "steam_nativeSortName_tableHint": {
+    "message": "Steam에 저장"
+  },
+  "steam_independentName_table_saveFailed": {
+    "message": "표 설정을 저장할 수 없습니다: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortUnavailable": {
+    "message": "일부 Steam 정렬 이름을 읽지 못했습니다. 먼저 다시 불러오세요."
+  },
+  "steam_independentName_table_actionFailed": {
+    "message": "표 작업 실패: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_headerHint": {
+    "message": "클릭하여 정렬, 드래그하여 열 이동, Alt + 좌우 키로 열 이동"
+  },
+  "steam_independentName_table_resizeColumn": {
+    "message": "$name$ 열 너비 조절",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_missing": {
+    "message": "Steam 정렬 이름 데이터를 사용할 수 없습니다. 다시 불러오세요."
+  },
+  "steam_independentName_table_batchTimeout": {
+    "message": "Steam 일괄 저장 결과를 확인하지 못했습니다. 다시 불러와 확인하세요."
+  },
+  "steam_independentName_table_batchProgress": {
+    "message": "Steam 정렬 이름: $done$ / $total$ 처리됨",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_table_reset": {
+    "message": "표 기본값 복원"
+  },
+  "steam_independentName_table_pause": {
+    "message": "일시 중지"
+  },
+  "steam_independentName_table_resume": {
+    "message": "계속"
+  },
+  "steam_independentName_table_cancel": {
+    "message": "저장 중지"
+  },
+  "steam_independentName_table_loadFailed": {
+    "message": "표 설정을 불러올 수 없습니다: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidResponse": {
+    "message": "표 설정 응답에 유효한 데이터가 없습니다."
+  },
+  "steam_independentName_table_batchIncomplete": {
+    "message": "$n$개의 Steam 정렬 이름을 저장하지 못했습니다. 성공한 변경 사항은 유지됩니다.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidPrefs": {
+    "message": "표 설정 데이터가 올바르지 않습니다. 표 기본값을 복원하세요."
+  },
+  "steam_independentName_table_batchCancelled": {
+    "message": "저장이 중지되었습니다. 성공한 변경 사항은 유지됩니다."
+  },
+  "steam_independentName_table_batchPaused": {
+    "message": "일시 중지됨"
+  },
+  "steam_independentName_table_batchWaiting": {
+    "message": "다음 배치 대기 중"
+  },
+  "messageCenter_clearUnread": {
+    "message": "모두 읽음으로 표시"
+  },
+  "messageCenter_noUnread": {
+    "message": "읽지 않은 메시지 없음"
+  },
+  "messageCenter_actionUnavailable": {
+    "message": "현재 버전에서 사용할 수 없는 작업입니다"
+  },
+  "messageCenter_ignoreReadFailed": {
+    "message": "알림 중지는 저장했지만 읽음으로 표시하지 못했습니다. 다시 시도하세요."
+  },
+  "messageCenter_updateAvailable": {
+    "message": "Steam Buff $value$ 업데이트 사용 가능",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_currentVersion": {
+    "message": "설치된 버전: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_targetVersion": {
+    "message": "대상 버전: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_goUpdate": {
+    "message": "업데이트"
+  },
+  "messageCenter_ignoreVersion": {
+    "message": "이 버전 알림 중지"
+  },
+  "messageCenter_updateInstalled": {
+    "message": "Steam Buff가 $value$ 버전으로 업데이트되었습니다",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_previousVersion": {
+    "message": "이전 버전: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_installedBody": {
+    "message": "확장 프로그램이 업데이트되었습니다. 보기를 눌러 변경 사항을 확인하세요."
+  },
+  "messageCenter_view": {
+    "message": "보기"
+  },
+  "messageCenter_markRead": {
+    "message": "읽음으로 표시"
+  },
+  "messageCenter_updateObsolete": {
+    "message": "지난 업데이트 알림입니다. 최신 메시지를 확인하세요."
+  },
+  "messageCenter_openFailed": {
+    "message": "외부 브라우저를 열지 못했습니다. 다시 시도하세요."
+  },
+  "messageCenter_business_pending": {
+    "message": "처리 대기"
+  },
+  "messageCenter_business_approved": {
+    "message": "승인됨"
+  },
+  "messageCenter_business_rejected": {
+    "message": "거절됨"
+  },
+  "messageCenter_business_expired": {
+    "message": "만료됨"
+  },
+  "messageCenter_business_cancelled": {
+    "message": "취소됨"
+  },
+  "messageCenter_business_completed": {
+    "message": "완료"
+  },
+  "familyTask_done": {
+    "message": "가족 라이브러리가 업데이트되었습니다"
+  },
+  "familyTask_failed": {
+    "message": "가족 라이브러리 업데이트 실패"
+  },
+  "familyTask_failedReason": {
+    "message": "가족 라이브러리 업데이트 실패: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_count": {
+    "message": "구성원 수 / 게임 수: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_time": {
+    "message": "업데이트 시간: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retained": {
+    "message": "마지막으로 저장된 캐시는 유지됩니다. Steam 로그인 상태를 확인한 후 다시 시도하세요."
+  },
+  "familyTask_retry": {
+    "message": "다시 시도"
+  },
+  "messageCenter_retrying": { "message": "재시도 중" },
+  "familyTask_manualOnly": { "message": "수동 모드에서는 자동으로 재시도하지 않습니다." },
+  "familyTask_retryPending": { "message": "60분 후 자동으로 재시도합니다. 최대 5회 재시도합니다." },
+  "familyTask_retryFailed": { "message": "자동 재시도 $value$회가 실패했습니다.", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryNext": { "message": "다음 자동 재시도: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryStopped": { "message": "자동 재시도 5회가 모두 실패하여 이번 주기의 재시도를 중단했습니다. 다음 정기 새로고침: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_normalNext": { "message": "다음 정기 새로고침: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_login": {
+    "message": "상점 열기"
+  },
+  "familyTask_invalidResponse": {
+    "message": "Steam 응답 형식이 올바르지 않습니다. 나중에 다시 시도하세요."
   }
 }

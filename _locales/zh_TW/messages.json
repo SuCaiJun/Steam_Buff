@@ -1419,9 +1419,6 @@
   "updateReminder_releaseNotes": {
     "message": "新版日誌"
   },
-  "updateReminder_muteToday": {
-    "message": "今天不再提醒"
-  },
   "updateReminder_openDownload": {
     "message": "開啟官方下載頁面"
   },
@@ -1877,9 +1874,6 @@
         "content": "$2"
       }
     }
-  },
-  "about_update_storeVersionDisabled": {
-    "message": "商店版本已停用主動更新檢查"
   },
   "about_logs_utf8Unavailable": {
     "message": "目前環境不支援 UTF-8 編碼"
@@ -5862,6 +5856,55 @@
   "steam_independentName_colMnemonic": {
     "message": "助記符"
   },
+  "steam_nativeSortName_notReady": {
+    "message": "Steam 遊戲庫尚未就緒，請稍後重試。"
+  },
+  "steam_independentName_saveSnapshotMissing": {
+    "message": "名稱儲存結果異常，請重新開啟確認。"
+  },
+  "steam_nativeSortName_readUnavailable": {
+    "message": "Steam 排序名稱讀取介面無法使用。"
+  },
+  "steam_nativeSortName_appMissing": {
+    "message": "找不到目前的遊戲。"
+  },
+  "steam_nativeSortName_invalid": {
+    "message": "Steam 排序名稱資料格式錯誤。"
+  },
+  "steam_nativeSortName_busy": {
+    "message": "此遊戲的 Steam 排序名稱正在儲存，請稍後重試。"
+  },
+  "steam_nativeSortName_conflict": {
+    "message": "Steam 排序名稱已在其他位置修改，請重新讀取後再儲存。"
+  },
+  "steam_nativeSortName_unverified": {
+    "message": "尚未確認 Steam 排序名稱的儲存結果，請重新讀取後再試。"
+  },
+  "steam_nativeSortName_reload": {
+    "message": "重新讀取"
+  },
+  "steam_nativeSortName_loading": {
+    "message": "正在讀取 Steam 排序名稱…"
+  },
+  "steam_nativeSortName_readFailed": {
+    "message": "讀取 Steam 排序名稱失敗：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_nativeSortName_hint": {
+    "message": "儲存至 Steam；清空後按確定會移除排序名稱。已開啟的內容視窗需重新開啟。"
+  },
+  "steam_nativeSortName_partial": {
+    "message": "自訂名稱已儲存，Steam 排序名稱儲存失敗：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_independentName_colPinyin": {
     "message": "拼音全稱"
   },
@@ -6834,5 +6877,297 @@
   },
   "store_detail_detailsLoading": {
     "message": "正在載入詳情 · 收起 ↑"
+  },
+  "updateReminder_ignoreVersion": {
+    "message": "此版本不再提醒"
+  },
+  "updateReminder_snoozeCycle": {
+    "message": "本次不再提醒"
+  },
+  "updateReminder_openChrome": {
+    "message": "開啟 Chrome 商店"
+  },
+  "updateReminder_openEdge": {
+    "message": "開啟 Edge 商店"
+  },
+  "updateReminder_actionFailed": {
+    "message": "操作失敗，請重試。"
+  },
+  "settings_updateCheck_title": {
+    "message": "擴充功能更新"
+  },
+  "settings_updateCheck_frequency": {
+    "message": "檢查更新頻率"
+  },
+  "settings_updateCheck_hours": {
+    "message": "$hours$小時",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_updateCheck_off": {
+    "message": "不檢查"
+  },
+  "settings_updateCheck_loading": {
+    "message": "正在讀取設定…"
+  },
+  "settings_updateCheck_desc": {
+    "message": "擴充功能執行期間在背景檢查；選擇不檢查後仍可手動檢查更新。"
+  },
+  "settings_updateCheck_readFailed": {
+    "message": "設定讀取失敗，請重新開啟設定重試。"
+  },
+  "settings_updateCheck_saveFailed": {
+    "message": "儲存失敗，請重試。"
+  },
+  "about_update_storePending": {
+    "message": "商店尚未同步目標版本"
+  },
+  "about_update_unconfigured": {
+    "message": "更新發佈目標尚未設定"
+  },
+  "about_update_unavailable": {
+    "message": "暫時無法確認更新狀態"
+  },
+  "steam_independentName_colSort": {
+    "message": "自訂排序名稱"
+  },
+  "steam_nativeSortName_namespaceBusy": {
+    "message": "Steam 排序名稱正在儲存，請稍後重試。"
+  },
+  "steam_nativeSortName_tableHint": {
+    "message": "儲存至 Steam"
+  },
+  "steam_independentName_table_saveFailed": {
+    "message": "表格設定未能儲存：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortUnavailable": {
+    "message": "部分 Steam 排序名稱尚未讀取成功，請先重新讀取。"
+  },
+  "steam_independentName_table_actionFailed": {
+    "message": "表格操作失敗：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_headerHint": {
+    "message": "點擊排序；拖曳更換欄位位置；Alt + 左右鍵移動欄位"
+  },
+  "steam_independentName_table_resizeColumn": {
+    "message": "調整 $name$ 欄寬",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_missing": {
+    "message": "Steam 排序名稱資料無法取得，請重新讀取。"
+  },
+  "steam_independentName_table_batchTimeout": {
+    "message": "Steam 批次儲存結果未確認，請重新讀取後確認。"
+  },
+  "steam_independentName_table_batchProgress": {
+    "message": "Steam 排序名稱：已處理 $done$ / $total$",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_table_reset": {
+    "message": "還原預設表格"
+  },
+  "steam_independentName_table_pause": {
+    "message": "暫停"
+  },
+  "steam_independentName_table_resume": {
+    "message": "繼續"
+  },
+  "steam_independentName_table_cancel": {
+    "message": "停止儲存"
+  },
+  "steam_independentName_table_loadFailed": {
+    "message": "表格設定讀取失敗：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidResponse": {
+    "message": "表格設定回應缺少有效資料。"
+  },
+  "steam_independentName_table_batchIncomplete": {
+    "message": "$n$ 款 Steam 排序名稱未儲存，已成功的內容已保留。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidPrefs": {
+    "message": "表格設定資料無效，請還原預設表格。"
+  },
+  "steam_independentName_table_batchCancelled": {
+    "message": "已停止儲存，已成功的內容已保留。"
+  },
+  "steam_independentName_table_batchPaused": {
+    "message": "已暫停"
+  },
+  "steam_independentName_table_batchWaiting": {
+    "message": "等待下一批"
+  },
+  "messageCenter_clearUnread": {
+    "message": "清除未讀"
+  },
+  "messageCenter_noUnread": {
+    "message": "暫無未讀訊息"
+  },
+  "messageCenter_actionUnavailable": {
+    "message": "目前版本尚未接入此操作"
+  },
+  "messageCenter_ignoreReadFailed": {
+    "message": "不再提醒已儲存，但訊息未能標為已讀，請重試。"
+  },
+  "messageCenter_updateAvailable": {
+    "message": "Steam Buff 發現新版本 $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_currentVersion": {
+    "message": "目前版本：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_targetVersion": {
+    "message": "目標版本：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_goUpdate": {
+    "message": "前往更新"
+  },
+  "messageCenter_ignoreVersion": {
+    "message": "不再提醒"
+  },
+  "messageCenter_updateInstalled": {
+    "message": "Steam Buff 已更新至 $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_previousVersion": {
+    "message": "原版本：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_installedBody": {
+    "message": "擴充功能已更新，點擊查看了解本次更新內容。"
+  },
+  "messageCenter_view": {
+    "message": "查看"
+  },
+  "messageCenter_markRead": {
+    "message": "已讀"
+  },
+  "messageCenter_updateObsolete": {
+    "message": "這則更新提醒已過期，請查看最新訊息。"
+  },
+  "messageCenter_openFailed": {
+    "message": "未能開啟外部瀏覽器，請重試。"
+  },
+  "messageCenter_business_pending": {
+    "message": "待處理"
+  },
+  "messageCenter_business_approved": {
+    "message": "已同意"
+  },
+  "messageCenter_business_rejected": {
+    "message": "已拒絕"
+  },
+  "messageCenter_business_expired": {
+    "message": "已失效"
+  },
+  "messageCenter_business_cancelled": {
+    "message": "已取消"
+  },
+  "messageCenter_business_completed": {
+    "message": "已完成"
+  },
+  "familyTask_done": {
+    "message": "家庭收藏庫已更新"
+  },
+  "familyTask_failed": {
+    "message": "家庭收藏庫重新整理失敗"
+  },
+  "familyTask_failedReason": {
+    "message": "家庭收藏庫重新整理失敗：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_count": {
+    "message": "成員數／遊戲數：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_time": {
+    "message": "更新時間：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retained": {
+    "message": "保留上次成功快取，可確認登入後重試。"
+  },
+  "familyTask_retry": {
+    "message": "重試"
+  },
+  "messageCenter_retrying": { "message": "重試中" },
+  "familyTask_manualOnly": { "message": "目前為手動模式，不會自動重試。" },
+  "familyTask_retryPending": { "message": "將於 60 分鐘後自動重試，最多 5 次。" },
+  "familyTask_retryFailed": { "message": "第 $value$ 次自動重試失敗。", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryNext": { "message": "下次自動重試：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryStopped": { "message": "本輪已達到 5 次自動重試上限，已停止重試。下次正常重新整理：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_normalNext": { "message": "下次正常重新整理：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_login": {
+    "message": "開啟商店"
+  },
+  "familyTask_invalidResponse": {
+    "message": "Steam 回應格式異常，請稍後重試。"
   }
 }
