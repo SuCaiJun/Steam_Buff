@@ -525,10 +525,26 @@
       const rid = `sort-batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const controller = new AbortController();
       const targets = new Map(items.map(item => [item.appid, item]));
-      state.nativeJob = { rid, controller };
+      state.nativeJob = { rid, controller, paused: false };
       return new Promise((resolve, reject) => {
-        const timer = window.setTimeout(() => finish(new Error(tableText("batchTimeout", "Steam 批量保存结果未确认，请重新读取后确认。"))), 20000 + Math.ceil(items.length / 500) * 42000);
+        let remainingMs = 20000 + Math.ceil(items.length / 500) * 42000;
+        let startedAt = performance.now();
+        const timeout = () => finish(new Error(tableText("batchTimeout", "Steam 批量保存结果未确认，请重新读取后确认。")));
+        let timer = window.setTimeout(timeout, remainingMs);
         const abort = () => finish(new DOMException(i18n("common.cancel", "取消"), "AbortError"));
+        // 暂停回执冻结剩余等待额度；重复进度不重置计时，恢复仍受原超时约束。
+        function updatePaused(paused) {
+          const job = state.nativeJob;
+          if (job?.rid !== rid || job.paused === paused) return;
+          job.paused = paused;
+          if (paused) {
+            window.clearTimeout(timer);
+            remainingMs = Math.max(0, remainingMs - (performance.now() - startedAt));
+          } else {
+            startedAt = performance.now();
+            timer = window.setTimeout(timeout, remainingMs);
+          }
+        }
         function cleanup() {
           window.clearTimeout(timer); state.ch.removeEventListener("message", receive); controller.signal.removeEventListener("abort", abort);
           if (state.nativeJob?.rid === rid) state.nativeJob = null;
@@ -560,7 +576,7 @@
             } else if (result.status === "failed") sort.error = result.error;
             syncNativeDirty(result.appid);
           }
-          if (state.nativeJob?.rid === rid) state.nativeJob.paused = data.paused === true;
+          updatePaused(data.paused === true);
           const phase = data.paused ? tableText("batchPaused", "已暂停") : data.batch?.waiting ? tableText("batchWaiting", "等待下一批") : "";
           tableNotice(tableText("batchProgress", "Steam 排序名称：已处理 $done$ / $total$", { done: data.stats?.processed, total: items.length }) + (phase ? ` · ${phase}` : ""));
           renderTable();
