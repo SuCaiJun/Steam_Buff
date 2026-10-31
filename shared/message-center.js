@@ -22,6 +22,9 @@
 
   function id(value) { return text(value, " ID", 200); }
 
+  /** a/b为非空的已校验摘要；按时间、ID倒序返回负/零/正值表示a在前/同键/在后，无I/O、不修改输入。 */
+  function compare(a, b) { return b.createdAt - a.createdAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0); }
+
   const ICONS = Object.freeze({
     clear: "images/ui/message-clear-unread.svg", mute: "images/ui/message-mute.svg",
     upgrade: "images/ui/message-upgrade.svg", view: "images/ui/message-view.svg", read: "images/ui/message-read.svg", retry: "images/ui/message-retry.svg",
@@ -128,6 +131,6 @@
     IDENTITY_KEY: "steam_buff_message_identity_revision_v1",
     RETENTION_MS: 30 * 24 * 60 * 60 * 1000, READ_LIMIT: 100,
     READ_ACTIONS: Object.freeze(["summary", "list", "get", "read", "read-all", "delete", "act"]),
-    ICONS, BUSINESS_STATES, id, message, list, action: normalizeAction, context, businessState, link, text: t,
+    ICONS, BUSINESS_STATES, id, compare, message, list, action: normalizeAction, context, businessState, link, text: t,
   });
 })(globalThis);

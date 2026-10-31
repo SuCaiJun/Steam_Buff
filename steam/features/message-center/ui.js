@@ -15,6 +15,7 @@
   const CONTROLS = "._3cykd-VfN_xBxf3Qxriccm";
   const MOUNT_TASK = "steam-message-center-controls";
   const ROW_HEIGHT = 96, OVERSCAN = 3;
+  const MENU_VISIBLE_ROWS = 5;
   const READ_EXIT_MS = 160;
   const log = window.STLoggerFactory.createLogger("steam", model.FEATURE);
 
@@ -27,15 +28,54 @@
     let template = null, active = null, disposed = false;
 
     function contract() {
-      if (template) return template;
+      if (template) return { value: template };
       const manager = window.opener?.g_PopupManager;
       if (typeof manager?.GetPopups !== "function" || typeof manager.GetPopupForWindow !== "function" || typeof manager.RemoveTrackedPopup !== "function") throw new Error("Steam 原生弹窗入口不可用");
       const main = manager.GetPopupForWindow(window);
       const menu = Array.from(manager.GetPopups()).find(item => item.title === "Notifications Menu");
-      if (!main || !menu || !Number.isInteger(menu.params.eCreationFlags) || !main.params.target_browser) throw new Error("Steam 原生弹窗契约不可用");
+      const missing = [];
+      if (!main) missing.push("Steam 主窗口");
+      if (!menu) missing.push("Notifications Menu");
+      if (menu && !Number.isInteger(menu.params.eCreationFlags)) missing.push("通知菜单创建参数");
+      if (main && !main.params.target_browser) missing.push("Steam 主窗口浏览器");
+      if (missing.length) return { manager, missing };
       if (typeof SteamClient.Window.GetWindowRestoreDetails !== "function") throw new Error("Steam 主窗口定位接口不可用");
       template = { manager, main, Popup: menu.constructor, flags: menu.params.eCreationFlags, bodyClass: menu.params.body_class, browser: main.params.target_browser, openerId: SteamClient.Browser.GetBrowserID() };
-      return template;
+      return { value: template };
+    }
+
+    // 冷启动只等待已有 Popup 注册事件；完成、取消或超时后立即注销，不轮询运行时。
+    function waitForContract(state) {
+      const initial = contract();
+      if (initial.value) return Promise.resolve(initial.value);
+      if (typeof initial.manager.AddPopupCreatedCallback !== "function") throw new Error("Steam 弹窗创建通知接口不可用");
+      state.waitingFor = initial.missing;
+      const startedAt = performance.now();
+      log.info("message-window-waiting", "等待 Steam 消息窗口就绪", { kind: state.kind, missing: initial.missing });
+      return new Promise((resolve, reject) => {
+        let done = false;
+        const cleanup = () => { subscription.Unregister(); state.cancelContract = null; };
+        const cancel = () => {
+          if (done) return;
+          done = true; cleanup(); reject(new DOMException("消息窗口已关闭", "AbortError"));
+        };
+        const check = () => {
+          if (done || state.closed || disposed) return;
+          try {
+            const result = contract();
+            state.waitingFor = result.missing;
+            if (!result.value) return;
+            done = true; cleanup();
+            log.info("message-window-ready", "Steam 消息窗口已就绪", { kind: state.kind, durationMs: Math.round(performance.now() - startedAt) });
+            resolve(result.value);
+          } catch (error) { done = true; cleanup(); reject(error); }
+        };
+        const subscription = initial.manager.AddPopupCreatedCallback(popup => {
+          if (popup.title === "Steam" || popup.title === "Notifications Menu") check();
+        });
+        state.cancelContract = cancel;
+        check();
+      });
     }
 
     function finish(state, reason) {
@@ -43,6 +83,7 @@
       state.closed = true;
       if (active === state) active = null;
       clearTimeout(state.timer);
+      state.cancelContract?.();
       if (state.frame && !state.win?.closed) state.win.cancelAnimationFrame(state.frame);
       state.frame = 0;
       state.doc?.removeEventListener("keydown", state.keydown, true);
@@ -65,6 +106,33 @@
       }
     }
 
+    async function position(state) {
+      const restore = await SteamClient.Window.GetWindowRestoreDetails();
+      if (state.closed || active !== state || state.win.closed) return;
+      if (typeof restore !== "string") throw new TypeError("Steam 窗口位置格式无效");
+      const doc = state.win.document, rect = trigger.getBoundingClientRect();
+      let listHeight = Math.max(80, Math.min(420, innerHeight - 176));
+      if (state.kind === "menu") {
+        const list = state.content.querySelector(".st-mc-list");
+        if (list.children.length > MENU_VISIBLE_ROWS) {
+          // 用布局位置计算五条真实行高；offsetTop 不受已读过渡的 transform 影响。
+          const rowLimit = list.children[MENU_VISIBLE_ROWS].offsetTop - list.firstElementChild.offsetTop;
+          if (rowLimit <= 0) throw new Error("消息列表行高无效");
+          listHeight = Math.min(listHeight, rowLimit);
+        }
+      }
+      doc.documentElement.style.setProperty("--st-mc-menu-list-height", `${listHeight}px`);
+      const width = state.kind === "menu" ? Math.min(320, innerWidth - 16) : Math.min(760, innerWidth - 48);
+      const height = state.kind === "menu" ? Math.ceil(state.content.getBoundingClientRect().height) : Math.min(640, innerHeight - 64);
+      const x = state.kind === "menu" ? Math.max(8, Math.min(innerWidth - width - 8, rect.right - width)) : Math.round((innerWidth - width) / 2);
+      const y = state.kind === "menu" ? Math.max(0, Math.min(rect.bottom + 2, innerHeight - height - 8)) : Math.round((innerHeight - height) / 2);
+      const signature = JSON.stringify([restore, x, y, width, height]);
+      if (signature !== state.geometry) {
+        await state.win.SteamClient.Window.PositionWindowRelative(restore, x, y, width, height);
+        state.geometry = signature;
+      }
+    }
+
     function layout() {
       const state = active;
       if (!state?.ready || state.closed || state.win.closed || state.frame) return;
@@ -72,20 +140,7 @@
       state.frame = state.win.requestAnimationFrame(async () => {
         state.frame = 0; state.positioning = true; state.positionAgain = false;
         try {
-          const doc = state.win.document, rect = trigger.getBoundingClientRect();
-          doc.documentElement.style.setProperty("--st-mc-menu-list-height", `${Math.max(80, Math.min(420, innerHeight - 176))}px`);
-          const width = state.kind === "menu" ? Math.min(320, innerWidth - 16) : Math.min(760, innerWidth - 48);
-          const height = state.kind === "menu" ? Math.ceil(state.content.getBoundingClientRect().height) : Math.min(640, innerHeight - 64);
-          const x = state.kind === "menu" ? Math.max(8, Math.min(innerWidth - width - 8, rect.right - width)) : Math.round((innerWidth - width) / 2);
-          const y = state.kind === "menu" ? Math.max(0, Math.min(rect.bottom + 2, innerHeight - height - 8)) : Math.round((innerHeight - height) / 2);
-          const restore = await SteamClient.Window.GetWindowRestoreDetails();
-          if (typeof restore !== "string") throw new TypeError("Steam 窗口位置格式无效");
-          if (state.closed || active !== state || state.win.closed) return;
-          const signature = JSON.stringify([restore, x, y, width, height]);
-          if (signature !== state.geometry) {
-            await state.win.SteamClient.Window.PositionWindowRelative(restore, x, y, width, height);
-            state.geometry = signature;
-          }
+          await position(state);
         } catch (error) {
           if (!state.closed && !disposed) { reportFailure(error, "window-position"); close("error"); }
         } finally {
@@ -95,71 +150,78 @@
       });
     }
 
-    function open(kind, content) {
+    function open(kind, content, prepareContent) {
       if (disposed) return Promise.reject(new DOMException("消息中心已停止", "AbortError"));
-      if (active?.kind === kind) { active.item.Focus(); return active.promise; }
+      if (active?.kind === kind) { if (active.ready) active.item.Focus(); return active.promise; }
       close("replace");
-      const config = contract(), rect = trigger.getBoundingClientRect();
-      const width = kind === "menu" ? Math.min(320, innerWidth - 16) : Math.min(760, innerWidth - 48);
-      const height = kind === "menu" ? 260 : Math.min(640, innerHeight - 64);
       const state = { kind, content, closed: false, ready: false, frame: 0, win: null, item: null };
       state.promise = new Promise((resolve, reject) => { state.resolve = resolve; state.reject = reject; });
       active = state;
-      const params = {
-        title: kind === "menu" ? "Steam Buff 消息" : "Steam Buff 消息中心",
-        // 原生 Show 会设置创建隐藏位；构造时清除此位，挂载完成后由原生流程显示窗口。
-        eCreationFlags: config.flags & ~2,
-        target_browser: config.browser, window_opener_id: config.openerId,
-        body_class: config.bodyClass, bModal: kind === "full",
-        dimensions: { width, height, left: screenX + (kind === "menu" ? rect.right - width : (innerWidth - width) / 2), top: screenY + (kind === "menu" ? rect.bottom + 2 : (innerHeight - height) / 2) },
-      };
+      const fail = error => { if (!state.closed) { state.reject(error); close("error"); } };
+      state.timer = window.setTimeout(() => {
+        if (state.ready || state.closed) return;
+        const missing = state.waitingFor?.length ? `，尚未就绪：${state.waitingFor.join("、")}` : "";
+        state.reject(new Error(`Steam 消息窗口打开超时${missing}，请重试`)); close("timeout");
+      }, 12000);
       state.keydown = event => {
         if (event.key !== "Escape") return;
         event.preventDefault(); event.stopPropagation(); close("escape", true);
       };
       state.resize = layout;
-      try {
-        state.item = new config.Popup(`SteamBuffMessageCenter_${kind}_${config.openerId}`, params, target => {
-          if (state.closed || disposed || active !== state) return;
-          try {
-            const doc = target.ownerDocument;
-            state.doc = doc;
-            state.win = doc.defaultView;
-            if (typeof state.win.SteamClient.Window.PositionWindowRelative !== "function") throw new Error("Steam 消息窗口定位接口不可用");
-            window.STTheme.applyCssVariables(doc.documentElement);
-            doc.documentElement.dataset.messageCenterWindow = kind;
-            doc.documentElement.style.setProperty("--st-mc-menu-list-height", `${Math.max(80, Math.min(420, innerHeight - 176))}px`);
-            const sheet = doc.createElement("style");
-            sheet.textContent = css.textContent + "\nhtml,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--st-color-steam-message-surface)}#popup_target{width:100%}html[data-message-center-window=full] #popup_target{height:100%}";
-            doc.head.appendChild(sheet); target.appendChild(content);
-            doc.addEventListener("keydown", state.keydown, true);
-            state.win.addEventListener("resize", state.resize);
-            state.ready = true; clearTimeout(state.timer); layout();
-            // 初始焦点留在消息区域，避免默认选中操作按钮；Tab 再进入按钮。
-            content.focus({ preventScroll: true });
-            state.resolve();
-          } catch (error) {
-            state.reject(error); close("error");
-          }
-        });
+      async function mount(target) {
+        if (state.closed || disposed || active !== state) return;
+        const doc = target.ownerDocument;
+        state.doc = doc;
+        state.win = doc.defaultView;
+        if (typeof state.win.SteamClient.Window.PositionWindowRelative !== "function") throw new Error("Steam 消息窗口定位接口不可用");
+        window.STTheme.applyCssVariables(doc.documentElement);
+        doc.documentElement.dataset.messageCenterWindow = kind;
+        doc.documentElement.style.setProperty("--st-mc-menu-list-height", `${Math.max(80, Math.min(420, innerHeight - 176))}px`);
+        const sheet = doc.createElement("style");
+        sheet.textContent = css.textContent + "\nhtml,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--st-color-steam-message-surface)}#popup_target{width:100%}html[data-message-center-window=full] #popup_target{height:100%}";
+        doc.head.appendChild(sheet); target.appendChild(content);
+        prepareContent();
+        doc.addEventListener("keydown", state.keydown, true);
+        state.win.addEventListener("resize", state.resize);
+        // 隐藏窗口没有稳定的 rAF；直接测量完整内容并完成首次定位，再显示原生窗口。
+        await position(state);
+        if (state.closed || disposed || active !== state || state.win.closed) return;
+        state.ready = true; clearTimeout(state.timer); state.item.Focus();
+        // 初始焦点留在消息区域，避免默认选中操作按钮；Tab 再进入按钮。
+        content.focus({ preventScroll: true });
+        state.resolve();
+      }
+      async function prepare() {
+        const config = await waitForContract(state);
+        if (state.closed || disposed || active !== state) return;
+        const rect = trigger.getBoundingClientRect();
+        const width = kind === "menu" ? Math.min(320, innerWidth - 16) : Math.min(760, innerWidth - 48);
+        const height = kind === "menu" ? 260 : Math.min(640, innerHeight - 64);
+        const params = {
+          title: kind === "menu" ? "Steam Buff 消息" : "Steam Buff 消息中心",
+          // 保持创建隐藏位，防止原生 Render 在首次定位之前自动显示窗口。
+          eCreationFlags: config.flags | 2,
+          target_browser: config.browser, window_opener_id: config.openerId,
+          body_class: config.bodyClass, bModal: kind === "full",
+          dimensions: { width, height, left: screenX + (kind === "menu" ? rect.right - width : (innerWidth - width) / 2), top: screenY + (kind === "menu" ? rect.bottom + 2 : (innerHeight - height) / 2) },
+        };
+        state.item = new config.Popup(`SteamBuffMessageCenter_${kind}_${config.openerId}`, params, target => { void mount(target).catch(fail); });
         state.item.m_callbacks = {
           onClose() { finish(state, "native-close"); },
-          onBlur() { if (active === state && state.kind === "menu") close("blur"); },
+          onBlur() { if (active === state && state.ready && state.kind === "menu") close("blur"); },
         };
-        state.timer = window.setTimeout(() => {
-          if (state.ready || state.closed) return;
-          state.reject(new Error("Steam 消息窗口打开超时，请重试")); close("timeout");
-        }, 12000);
         state.item.Show();
         if (!state.item.BIsValid()) throw new Error("Steam 未能创建消息窗口，请重试");
         state.win = state.item.window;
-      } catch (error) { state.reject(error); close("error"); }
+      }
+      void prepare().catch(fail);
       return state.promise;
     }
 
     return Object.freeze({
       open, close, layout,
       kind() { return active?.kind || null; },
+      ready() { return active?.ready === true; },
       stop() { if (disposed) return; disposed = true; close("stop"); },
     });
   }
@@ -170,7 +232,7 @@
 
     const pending = new Map(), actionHandlers = new Map(), detailActions = new Map(), popCards = new Map(), fullCards = new Map();
     const actionBusy = new Map();
-    const pendingReads = new Set(), exits = new Map(), motions = new Set();
+    const pendingReads = new Set(), exits = new Map(), motions = new Map();
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let unreadSnapshot = null, pendingReadAll = false, previewGeneration = 0;
     const text = (key, fallback, value) => model.text(key, fallback, value);
@@ -196,7 +258,7 @@
     function icon() { const node = element("span", "st-mc-icon"); node.setAttribute("aria-hidden", "true"); return node; }
     function updateActionButton(node) {
       const running = actionBusy.get(node.dataset.messageId);
-      node.disabled = node.dataset.available === "false" || running !== undefined || pendingReadAll || pendingReads.has(node.dataset.messageId);
+      node.disabled = node.dataset.available === "false" || running !== undefined || pendingReadAll || pendingReads.has(node.dataset.messageId) || exits.has(node.dataset.messageId);
       const retrying = node.dataset.icon === "retry" && running === node.dataset.actionId;
       node.classList.toggle("st-mc-is-retrying", retrying);
       node.setAttribute("aria-busy", String(retrying));
@@ -247,7 +309,7 @@
       #${ROOT} .st-mc-badge { position: absolute; right: 2px; top: -4px; min-width: 13px; padding: 0 2px; border-radius: 2px; color: var(--st-color-white); background: var(--st-color-success); font-size: 10px; line-height: 14px; }
       #${ROOT} .st-mc-badge[hidden] { display: none; }
       #${PANEL}, #${DIALOG} { padding: 0; border: 1px solid var(--st-color-black); border-radius: 2px; color: var(--st-color-white); background: var(--st-color-steam-message-surface); box-shadow: var(--st-shadow-panel-menu); font-size: 12px; text-align: left; overflow: hidden; }
-      #${PANEL} { position: relative; margin: 0; width: 100%; }
+      #${PANEL} { position: relative; margin: 0; width: 100%; padding-bottom: 8px; }
       #${DIALOG} { width: 100%; height: 100%; margin: 0; display: flex; flex-direction: column; }
       #${PANEL}:focus, #${DIALOG}:focus { outline: none; }
       .st-mc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 56px; padding: 0 16px; }
@@ -265,12 +327,14 @@
       .st-mc-inline-actions:empty { display: none; }
       .st-mc-business { display: block; color: var(--st-color-steam-blue); font-size: 11px; }
       .st-mc-list { min-height: 0; max-height: var(--st-mc-menu-list-height); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; scrollbar-width: thin; }
+      #${PANEL} .st-mc-list { padding-bottom: 0; }
       #${DIALOG} .st-mc-list { flex: 1; min-height: 0; max-height: none; }
       .st-mc-virtual-rows .st-mc-card { height: ${ROW_HEIGHT}px; margin: 0; padding-bottom: 2px; }
       .st-mc-virtual-rows .st-mc-open { height: 100%; min-height: 0; }
       .st-mc-virtual-rows .st-mc-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       .st-mc-load-state { display: flex; justify-content: center; align-items: center; min-height: 32px; color: var(--st-color-text-muted); }
       .st-mc-card { position: relative; display: flex; align-items: stretch; margin: 0 0 2px; background: var(--st-color-surface-subtle); }
+      #${PANEL} .st-mc-card { translate: 0px; transform: translateY(0); }
       .st-mc-card:hover, .st-mc-card:focus-within { background: var(--st-color-surface-subtle-hover); }
       .st-mc-open { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 8px; flex: 1; width: 100%; min-width: 0; min-height: 72px; padding: 8px; border: 0; color: inherit; background: none; text-align: left; cursor: pointer; font: inherit; }
       .st-mc-thumb { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; color: var(--st-color-steam-blue); background: var(--st-color-surface-inset); }
@@ -333,7 +397,7 @@
     dialog.append(fullHead, tools, fullList, detail, fullError);
     if (controls) controls.insertBefore(root, controls.firstChild);
     // 点击入口会让原生菜单失焦；保留悬停时的打开状态，让同次点击维持关闭语义。
-    let pointerHadMenu = false;
+    let pointerHadMenu = false, windowRequest = 0;
     const host = nativeHost(trigger, style, (kind, reason) => {
       trigger.setAttribute("aria-expanded", "false");
       if (reason !== "blur") pointerHadMenu = false;
@@ -374,6 +438,7 @@
         previewGeneration++; cancelMotions(); pendingReads.clear(); pendingReadAll = false; unreadSnapshot = null;
         popCards.clear(); fullCards.clear();
         popList.replaceChildren(); fullRowsHost.replaceChildren();
+        status(popList, "正在加载", "正在读取消息…");
         popDirty = true; fullDirty = true;
       }
       current = value;
@@ -407,19 +472,26 @@
       layout();
     }
     async function openWindow(kind, content) {
+      const token = ++windowRequest;
       trigger.dataset.error = "false"; trigger.title = "Steam Buff 消息";
       try {
-        await host.open(kind, content);
+        const opened = host.open(kind, content, () => {
+          if (kind !== "menu") return;
+          if (unreadSnapshot) renderPreview();
+          else status(popList, "正在加载", "正在读取消息…");
+        });
+        trigger.setAttribute("aria-busy", "true"); trigger.title = "消息窗口正在准备…";
+        await opened;
         if (stopped || host.kind() !== kind) return false;
         trigger.setAttribute("aria-expanded", String(kind === "menu"));
-        if (current) applyState(current);
+        if (current) displayCounts(current);
         return true;
       } catch (error) {
         reportFailure(error, "window-open", kind === "menu" ? popError : fullError);
         if (kind === "full" && host.kind() !== "full") onClose();
-        if (!stopped && error.name !== "AbortError") { trigger.dataset.error = "true"; trigger.title = "消息窗口打开失败，请重试"; }
+        if (token === windowRequest && !stopped && error.name !== "AbortError") { trigger.dataset.error = "true"; trigger.title = "消息窗口打开失败，请重试"; }
         return false;
-      }
+      } finally { if (token === windowRequest) { trigger.removeAttribute("aria-busy"); if (trigger.dataset.error !== "true") trigger.title = "Steam Buff 消息"; } }
     }
     async function toggleMenu(event) {
       if (isPopOpen() || (event.detail > 0 && pointerHadMenu)) {
@@ -431,7 +503,7 @@
 
     function renderRows(container, cache, rows, emptyText, relayout = true) {
       const ids = new Set(rows.map(message => message.id));
-      for (const [id, card] of cache) if (!ids.has(id)) { card.node.remove(); cache.delete(id); }
+      for (const [id, card] of cache) if (!ids.has(id)) { if (cache === popCards) exits.delete(id); stopMotion(card.node); card.node.remove(); cache.delete(id); }
       if (!rows.length) { cache.clear(); status(container, emptyText, "后续提醒会显示在这里"); return; }
       if (!cache.size) container.replaceChildren();
       let previousNode = null;
@@ -446,6 +518,7 @@
           const dot = element("span", "st-mc-dot"); dot.setAttribute("aria-hidden", "true"); open.append(thumb, copy); node.append(open, dot);
           card = { node, dot, open, title, summary, meta, business, actions: null, actionSignature: null }; cache.set(message.id, card);
         }
+        card.row = message;
         card.title.textContent = message.title; card.summary.textContent = message.summary;
         card.meta.textContent = `${message.source} · ${date(message.createdAt)}`;
         card.business.textContent = businessLabel(message.businessState); card.business.hidden = !message.businessState;
@@ -462,20 +535,33 @@
       if (relayout) layout();
     }
 
-    function animate(node, frames, duration = READ_EXIT_MS) {
+    function stopMotion(node, channel) {
+      const active = motions.get(node);
+      if (!active) return;
+      if (channel) { const motion = active.get(channel); active.delete(channel); motion?.cancel(); }
+      else { for (const motion of active.values()) motion.cancel(); active.clear(); }
+      if (!active.size) motions.delete(node);
+    }
+    function animate(node, frames, duration = READ_EXIT_MS, channel = "move") {
       if (reducedMotion.matches) return null;
+      stopMotion(node, channel);
       const motion = node.animate(frames, { duration, easing: "ease-out", fill: "both" });
-      motions.add(motion);
-      motion.finished.then(() => { motions.delete(motion); motion.cancel(); }, error => {
-        motions.delete(motion);
+      if (!motions.has(node)) motions.set(node, new Map());
+      motions.get(node).set(channel, motion);
+      const release = () => {
+        const active = motions.get(node);
+        if (active?.get(channel) !== motion) return;
+        active.delete(channel); if (!active.size) motions.delete(node);
+      };
+      motion.finished.then(() => { release(); motion.cancel(); }, error => {
+        release();
         if (error.name !== "AbortError" && !stopped) log.error("message-animation-failed", "消息过渡动画失败", { error });
       });
       return motion;
     }
     function cancelMotions() {
       exits.clear();
-      for (const motion of motions) motion.cancel();
-      motions.clear();
+      for (const node of motions.keys()) stopMotion(node);
     }
     /** 只投影当前已授权快照的临时已读意图；失败恢复原记录，账号变化后丢弃旧投影。 */
     function beginReadFeedback(id, all = false) {
@@ -483,14 +569,16 @@
       if (all) pendingReadAll = true; else pendingReads.add(id);
       for (const [key, card] of popCards) {
         if (!all && key !== id || exits.has(key) || !isPopOpen()) continue;
-        const motion = animate(card.node, [{ opacity: 1, transform: "translateX(0)" }, { opacity: 0, transform: "translateX(8px)" }]);
+        const opacity = card.node.ownerDocument.defaultView.getComputedStyle(card.node).opacity;
+        const motion = animate(card.node, [{ opacity, translate: "0px 0px" }, { opacity: 0, translate: "8px 0px" }], READ_EXIT_MS, "visibility");
         if (!motion) continue;
-        exits.set(key, motion);
+        const entry = { motion, row: card.row };
+        exits.set(key, entry);
         motion.finished.then(() => {
-          if (exits.get(key) !== motion) return;
+          if (exits.get(key) !== entry) return;
           exits.delete(key); renderPreview();
         }, () => {
-          if (exits.get(key) !== motion) return;
+          if (exits.get(key) !== entry) return;
           exits.delete(key);
           // 动画异常由 animate 统一记录，此处只结束本条消息的视觉等待。
           if (!stopped) renderPreview();
@@ -503,9 +591,9 @@
     function endReadFeedback(token, failed = false) {
       if (stopped || !token || token.generation !== previewGeneration) return;
       if (token.all) pendingReadAll = false; else pendingReads.delete(token.id);
-      if (failed) for (const [id, motion] of exits) {
+      if (failed) for (const [id, entry] of exits) {
         if (!token.all && id !== token.id) continue;
-        exits.delete(id); motion.cancel();
+        exits.delete(id); stopMotion(popCards.get(id).node, "visibility");
       }
       if (current) displayCounts(current);
     }
@@ -516,13 +604,18 @@
       return true;
     }
     function renderPreview() {
-      if (stopped || !isPopOpen() || !unreadSnapshot || exits.size) return;
-      const before = new Map([...popCards].map(([id, card]) => [id, card.node.getBoundingClientRect().top]));
-      const rows = pendingReadAll ? [] : unreadSnapshot.rows.filter(row => !pendingReads.has(row.id));
+      if (stopped || !isPopOpen() || !unreadSnapshot) return;
+      const before = host.ready() ? new Map([...popCards].map(([id, card]) => [id, card.node.getBoundingClientRect().top])) : null;
+      // 先记住屏幕上的当前位置，再释放旧位移；退场的透明度与横移继续独立完成。
+      for (const card of popCards.values()) stopMotion(card.node, "move");
+      const visible = new Map(unreadSnapshot.rows.filter(row => !pendingReadAll && !pendingReads.has(row.id)).map(row => [row.id, row]));
+      for (const [id, entry] of exits) if (!visible.has(id)) visible.set(id, entry.row);
+      const rows = [...visible.values()].sort(model.compare);
       renderRows(popList, popCards, rows, text("messageCenter.noUnread", "暂无未读消息"));
+      if (!before) return;
       const changes = [...popCards].map(([id, card]) => ({ node: card.node, delta: before.has(id) ? before.get(id) - card.node.getBoundingClientRect().top : null }));
       for (const { node, delta } of changes) {
-        if (delta === null) animate(node, [{ opacity: 0 }, { opacity: 1 }], 120);
+        if (delta === null) animate(node, [{ opacity: 0 }, { opacity: 1 }], 120, "visibility");
         else if (delta) animate(node, [{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }]);
       }
     }
@@ -777,7 +870,7 @@
     // 图标动作与正文按钮是同级元素；点击动作不触发详情/自动已读。业务执行只传存储 ID，导航由后台核验后交回主窗口。
     async function performAction(target) {
       const id = target.dataset.messageId;
-      if (actionBusy.has(id) || pendingReadAll) return;
+      if (actionBusy.has(id) || pendingReadAll || exits.has(id)) return;
       actionBusy.set(id, target.dataset.actionId);
       const reading = target.dataset.kind === "read";
       const feedback = reading ? beginReadFeedback(id) : null;

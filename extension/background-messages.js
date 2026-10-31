@@ -171,7 +171,7 @@
           cursor.continue();
         };
       })));
-      const all = pages.flat().sort((a,b)=>b.createdAt-a.createdAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+      const all = pages.flat().sort(model.compare);
       const rows = all.slice(0,model.PAGE_SIZE), last = rows.at(-1);
       return { rows, next: all.length > model.PAGE_SIZE ? [last.createdAt,last.id] : null };
     }, owner);
