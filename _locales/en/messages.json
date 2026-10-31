@@ -5959,9 +5959,6 @@
       }
     }
   },
-  "steam_independentName_batchSort": {
-    "message": "Batch sorting"
-  },
   "steam_independentName_batchTitle": {
     "message": "Steam Buff · Batch custom name settings"
   },

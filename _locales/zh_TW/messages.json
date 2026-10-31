@@ -5959,9 +5959,6 @@
       }
     }
   },
-  "steam_independentName_batchSort": {
-    "message": "批次排序"
-  },
   "steam_independentName_batchTitle": {
     "message": "Steam Buff · 批次設定自訂名稱"
   },

@@ -386,7 +386,7 @@
     panel.append(popHead, popList, popError);
 
     const dialog = element("section"); dialog.id = DIALOG; dialog.tabIndex = -1; dialog.setAttribute("role", "dialog"); dialog.setAttribute("aria-modal", "true"); dialog.setAttribute("aria-labelledby", `${DIALOG}Title`);
-    const fullHead = element("header", "st-mc-head"), fullHeading = element("div", "st-mc-heading"), fullTitle = element("h2", "", "消息中心"), fullRead = clearUnreadButton(); fullTitle.id = `${DIALOG}Title`;
+    const fullHead = element("header", "st-mc-head"), fullHeading = element("div", "st-mc-heading"), fullTitle = element("h2", "", "Steam Buff · 消息中心"), fullRead = clearUnreadButton(); fullTitle.id = `${DIALOG}Title`;
     fullHeading.append(fullTitle, fullRead);
     const close = button("×", "close", "st-mc-close"); close.setAttribute("aria-label", "关闭消息中心"); fullHead.append(fullHeading, close);
     const tools = element("div", "st-mc-tools"), all = button("全部", "filter-all"), unread = button("未读", "filter-unread");
@@ -507,7 +507,7 @@
     function renderRows(container, cache, rows, emptyText, relayout = true) {
       const ids = new Set(rows.map(message => message.id));
       for (const [id, card] of cache) if (!ids.has(id)) { if (cache === popCards) exits.delete(id); stopMotion(card.node); card.node.remove(); cache.delete(id); }
-      if (!rows.length) { cache.clear(); status(container, emptyText, "后续提醒会显示在这里"); return; }
+      if (!rows.length) { cache.clear(); status(container, emptyText, "没有来自 Steam Buff 的新消息"); return; }
       if (!cache.size) container.replaceChildren();
       let previousNode = null;
       for (const message of rows) {
@@ -741,7 +741,7 @@
         for (const row of page.rows) if (!fullIds.has(row.id)) { fullIds.add(row.id); fullRows.push(row); }
         next = page.next; fullRevision = page.state.revision; fullInitialized = true;
         if (fullRows.length) renderVirtualRows();
-        else { fullCards.clear(); status(fullList, filter === "unread" ? "暂无未读消息" : "暂无消息", "后续提醒会显示在这里"); }
+        else { fullCards.clear(); status(fullList, filter === "unread" ? "暂无未读消息" : "暂无消息", "没有来自 Steam Buff 的新消息"); }
       } catch (error) {
         if (stopped || token !== generation || !fullOpen || selection) return;
         fullFailed = true;
@@ -758,7 +758,7 @@
       generation++; cancelFullFrame(); selection = null; detail.hidden = true; fullList.hidden = false; tools.hidden = false;
       if (reset) { filter = "all"; fullRows = []; fullIds.clear(); fullCards.clear(); }
       fullInitialized = false;
-      fullTitle.textContent = "消息中心";
+      fullTitle.textContent = "Steam Buff · 消息中心";
       fullRead.hidden = false;
       if (!fullRows.length) status(fullList, "正在加载", "正在读取消息…");
       fullResize.observe(fullList);

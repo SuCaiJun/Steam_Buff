@@ -5959,9 +5959,6 @@
       }
     }
   },
-  "steam_independentName_batchSort": {
-    "message": "一括並べ替え"
-  },
   "steam_independentName_batchTitle": {
     "message": "Steam Buff · カスタム名の一括設定"
   },

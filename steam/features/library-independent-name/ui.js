@@ -828,7 +828,6 @@
           <footer class="st-lin-single-footer">
             <div class="st-lin-single-actions">
               <button class="st-lin-btn" type="button" data-lin-open-batch>${esc(i18n("steam.independentName.batch", "批量设置"))}</button>
-              <button class="st-lin-btn" type="button" disabled>${esc(i18n("steam.independentName.batchSort", "批量排序"))}</button>
             </div>
             <div class="st-lin-single-actions">
               <button class="st-lin-btn" type="button" data-lin-single-cancel>${esc(i18n("common.cancel", "取消"))}</button>
