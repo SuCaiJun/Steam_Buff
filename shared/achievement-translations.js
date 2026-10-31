@@ -121,7 +121,9 @@
     if (!Array.isArray(rows) || rows.length > 20000) throw new Error("成就译文库结构无效");
     const ids = new Set();
     for (const row of rows) {
-      if (row?.version !== 1 || row.appId !== appId || row.language !== language || !Number.isSafeInteger(row.revision) || row.revision < 1 || ids.has(row.id)) throw new Error("成就译文库记录版本或范围无效");
+      if (row?.version !== 1 || row.appId !== appId || !Number.isSafeInteger(row.revision) || row.revision < 1 || ids.has(row.id)) throw new Error("成就译文库记录版本或范围无效");
+      // 记录语言只描述最近保存使用的目标语言；不同请求语言共用同一份内容和修订号
+      scope(row.appId, row.language);
       if (row.cleared !== undefined && typeof row.cleared !== "boolean") throw new Error("译文清除状态无效");
       if (row.cleared === true && (row.translatedTitle !== "" || row.translatedDescription !== "")) throw new Error("已清除的译文记录仍包含内容");
       saveEntries([{ id: row.id, title: row.sourceTitle, description: row.sourceDescription, translatedTitle: row.translatedTitle, translatedDescription: row.translatedDescription, origin: row.origin, expectedRevision: row.revision, clear: row.cleared === true }]);

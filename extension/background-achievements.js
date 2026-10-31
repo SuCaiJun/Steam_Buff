@@ -22,12 +22,15 @@
   function database() {
     if (opening) return opening;
     opening = new Promise((resolve, reject) => {
-      const request = root.indexedDB.open(DATABASE, 2);
+      const request = root.indexedDB.open(DATABASE, 3);
       let settled = false;
       request.onupgradeneeded = () => {
-        for (const name of [STORE, GROUP_STORE]) if (!request.result.objectStoreNames.contains(name)) {
-          const store = request.result.createObjectStore(name, { keyPath: ["appId", "language", "id"] });
-          store.createIndex("game", ["appId", "language"]);
+        const db = request.result;
+        // V1/V2 仅含未上线的开发测试数据，V3 直接重建仓库
+        for (const name of [STORE, GROUP_STORE]) {
+          if (db.objectStoreNames.contains(name)) db.deleteObjectStore(name);
+          const store = db.createObjectStore(name, { keyPath: ["appId", "id"] });
+          store.createIndex("game", "appId");
         }
       };
       request.onerror = () => { opening = null; reject(request.error || new Error("成就译文库打开失败")); };
@@ -41,14 +44,14 @@
     });
     return opening;
   }
-  /** 按游戏和目标语言精确读取；没有 TTL，不清理其他功能或日志的数据库。 */
+  /** 按游戏读取唯一译文；language 只校验请求上下文，不参与存储分区；没有 TTL */
   async function load(appId, language, entityKind = "achievement") {
     model.scope(appId, language);
     const name = model.kind(entityKind) === "group" ? GROUP_STORE : STORE;
     const db = await database();
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(name, "readonly");
-      const request = transaction.objectStore(name).index("game").getAll(root.IDBKeyRange.only([appId, language]));
+      const request = transaction.objectStore(name).index("game").getAll(root.IDBKeyRange.only(appId));
       transaction.oncomplete = () => {
         try {
           const records = model.records(request.result, appId, language);
@@ -67,7 +70,7 @@
     const rows = model.batch(items), db = await database();
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE, "readonly"), store = transaction.objectStore(STORE);
-      const requests = rows.map(item => store.get([appId, language, item.id]));
+      const requests = rows.map(item => store.get([appId, item.id]));
       transaction.oncomplete = () => {
         try { resolve(model.records(requests.map(request => request.result).filter(Boolean), appId, language)); }
         catch (error) { reject(error); }
@@ -86,7 +89,7 @@
       const transaction = db.transaction(name, "readwrite"), store = transaction.objectStore(name);
       const saved = [], conflicts = [];
       for (const row of rows) {
-        const request = store.get([appId, language, row.id]);
+        const request = store.get([appId, row.id]);
         request.onsuccess = () => {
           const previous = request.result, revision = previous?.revision || 0;
           if (revision !== row.expectedRevision) { conflicts.push(row.id); return; }
