@@ -1419,9 +1419,6 @@
   "updateReminder_releaseNotes": {
     "message": "新版日志"
   },
-  "updateReminder_muteToday": {
-    "message": "今天不再提醒"
-  },
   "updateReminder_openDownload": {
     "message": "打开官网下载"
   },
@@ -1877,9 +1874,6 @@
         "content": "$2"
       }
     }
-  },
-  "about_update_storeVersionDisabled": {
-    "message": "商店版已禁用主动更新检查"
   },
   "about_logs_utf8Unavailable": {
     "message": "当前环境不支持 UTF-8 编码"
@@ -5862,6 +5856,55 @@
   "steam_independentName_colMnemonic": {
     "message": "助记符"
   },
+  "steam_nativeSortName_notReady": {
+    "message": "Steam 游戏库尚未就绪，请稍后重试。"
+  },
+  "steam_independentName_saveSnapshotMissing": {
+    "message": "名称保存结果异常，请重新打开确认。"
+  },
+  "steam_nativeSortName_readUnavailable": {
+    "message": "Steam 排序名称读取接口不可用。"
+  },
+  "steam_nativeSortName_appMissing": {
+    "message": "未找到当前游戏。"
+  },
+  "steam_nativeSortName_invalid": {
+    "message": "Steam 排序名称数据格式错误。"
+  },
+  "steam_nativeSortName_busy": {
+    "message": "此游戏的 Steam 排序名称正在保存，请稍后重试。"
+  },
+  "steam_nativeSortName_conflict": {
+    "message": "Steam 排序名称已在其他位置修改，请重新读取后再保存。"
+  },
+  "steam_nativeSortName_unverified": {
+    "message": "Steam 排序名称保存结果未确认，请重新读取后再试。"
+  },
+  "steam_nativeSortName_reload": {
+    "message": "重新读取"
+  },
+  "steam_nativeSortName_loading": {
+    "message": "正在读取 Steam 排序名称…"
+  },
+  "steam_nativeSortName_readFailed": {
+    "message": "读取 Steam 排序名称失败：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_nativeSortName_hint": {
+    "message": "保存至 Steam；清空后点确定会移除排序名称。已打开的属性窗口需重开。"
+  },
+  "steam_nativeSortName_partial": {
+    "message": "自定义名称已保存，Steam 排序名称保存失败：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_independentName_colPinyin": {
     "message": "拼音全拼"
   },
@@ -5915,9 +5958,6 @@
         "content": "$1"
       }
     }
-  },
-  "steam_independentName_batchSort": {
-    "message": "批量排序"
   },
   "steam_independentName_batchTitle": {
     "message": "Steam Buff · 批量设置自定义名称"
@@ -6834,5 +6874,297 @@
   },
   "store_detail_detailsLoading": {
     "message": "正在加载详情 · 收起 ↑"
+  },
+  "updateReminder_ignoreVersion": {
+    "message": "此版本不再提醒"
+  },
+  "updateReminder_snoozeCycle": {
+    "message": "本次不再提醒"
+  },
+  "updateReminder_openChrome": {
+    "message": "打开 Chrome 商店"
+  },
+  "updateReminder_openEdge": {
+    "message": "打开 Edge 商店"
+  },
+  "updateReminder_actionFailed": {
+    "message": "操作失败，请重试。"
+  },
+  "settings_updateCheck_title": {
+    "message": "扩展更新"
+  },
+  "settings_updateCheck_frequency": {
+    "message": "检查更新频率"
+  },
+  "settings_updateCheck_hours": {
+    "message": "$hours$小时",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_updateCheck_off": {
+    "message": "不检查"
+  },
+  "settings_updateCheck_loading": {
+    "message": "正在读取设置…"
+  },
+  "settings_updateCheck_desc": {
+    "message": "扩展运行期间在后台检查；选择不检查后仍可手动检查更新。"
+  },
+  "settings_updateCheck_readFailed": {
+    "message": "设置读取失败，请重新打开设置重试。"
+  },
+  "settings_updateCheck_saveFailed": {
+    "message": "保存失败，请重试。"
+  },
+  "about_update_storePending": {
+    "message": "商店尚未同步目标版本"
+  },
+  "about_update_unconfigured": {
+    "message": "更新发布目标尚未配置"
+  },
+  "about_update_unavailable": {
+    "message": "更新状态暂不可确认"
+  },
+  "steam_independentName_colSort": {
+    "message": "自定义排序名称"
+  },
+  "steam_nativeSortName_namespaceBusy": {
+    "message": "Steam 排序名称正在保存，请稍后重试。"
+  },
+  "steam_nativeSortName_tableHint": {
+    "message": "保存至 Steam"
+  },
+  "steam_independentName_table_saveFailed": {
+    "message": "表格设置未能保存：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortUnavailable": {
+    "message": "部分 Steam 排序名称尚未读取成功，请先重新读取。"
+  },
+  "steam_independentName_table_actionFailed": {
+    "message": "表格操作失败：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_headerHint": {
+    "message": "点击排序；拖动更换列位置；Alt + 左右键移动列"
+  },
+  "steam_independentName_table_resizeColumn": {
+    "message": "调整 $name$ 列宽",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_missing": {
+    "message": "Steam 排序名称数据不可用，请重新读取。"
+  },
+  "steam_independentName_table_batchTimeout": {
+    "message": "Steam 批量保存结果未确认，请重新读取后确认。"
+  },
+  "steam_independentName_table_batchProgress": {
+    "message": "Steam 排序名称：已处理 $done$ / $total$",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_table_reset": {
+    "message": "恢复默认表格"
+  },
+  "steam_independentName_table_pause": {
+    "message": "暂停"
+  },
+  "steam_independentName_table_resume": {
+    "message": "继续"
+  },
+  "steam_independentName_table_cancel": {
+    "message": "停止保存"
+  },
+  "steam_independentName_table_loadFailed": {
+    "message": "表格设置读取失败：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidResponse": {
+    "message": "表格配置响应缺少有效数据。"
+  },
+  "steam_independentName_table_batchIncomplete": {
+    "message": "$n$ 款 Steam 排序名称未保存，已成功的内容已保留。",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidPrefs": {
+    "message": "表格设置数据无效，请恢复默认表格。"
+  },
+  "steam_independentName_table_batchCancelled": {
+    "message": "已停止保存，已成功的内容已保留。"
+  },
+  "steam_independentName_table_batchPaused": {
+    "message": "已暂停"
+  },
+  "steam_independentName_table_batchWaiting": {
+    "message": "等待下一批"
+  },
+  "messageCenter_clearUnread": {
+    "message": "清除未读"
+  },
+  "messageCenter_noUnread": {
+    "message": "暂无未读消息"
+  },
+  "messageCenter_actionUnavailable": {
+    "message": "当前版本未接入此操作"
+  },
+  "messageCenter_ignoreReadFailed": {
+    "message": "不再提醒已保存，但消息未能标为已读，请重试。"
+  },
+  "messageCenter_updateAvailable": {
+    "message": "Steam Buff 发现新版本 $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_currentVersion": {
+    "message": "当前版本：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_targetVersion": {
+    "message": "目标版本：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_goUpdate": {
+    "message": "去更新"
+  },
+  "messageCenter_ignoreVersion": {
+    "message": "不再提醒"
+  },
+  "messageCenter_updateInstalled": {
+    "message": "Steam Buff 已更新至 $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_previousVersion": {
+    "message": "原版本：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_installedBody": {
+    "message": "扩展已更新，点击查看了解本次更新内容。"
+  },
+  "messageCenter_view": {
+    "message": "查看"
+  },
+  "messageCenter_markRead": {
+    "message": "已读"
+  },
+  "messageCenter_updateObsolete": {
+    "message": "这条更新提醒已过期，请查看最新消息。"
+  },
+  "messageCenter_openFailed": {
+    "message": "未能打开外部浏览器，请重试。"
+  },
+  "messageCenter_business_pending": {
+    "message": "待处理"
+  },
+  "messageCenter_business_approved": {
+    "message": "已同意"
+  },
+  "messageCenter_business_rejected": {
+    "message": "已拒绝"
+  },
+  "messageCenter_business_expired": {
+    "message": "已失效"
+  },
+  "messageCenter_business_cancelled": {
+    "message": "已取消"
+  },
+  "messageCenter_business_completed": {
+    "message": "已完成"
+  },
+  "familyTask_done": {
+    "message": "家庭库已更新"
+  },
+  "familyTask_failed": {
+    "message": "家庭库刷新失败"
+  },
+  "familyTask_failedReason": {
+    "message": "家庭库刷新失败：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_count": {
+    "message": "成员数／游戏数：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_time": {
+    "message": "更新时间：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retained": {
+    "message": "未覆盖上次成功缓存，可确认登录后重试。"
+  },
+  "familyTask_retry": {
+    "message": "重试"
+  },
+  "messageCenter_retrying": { "message": "重试中" },
+  "familyTask_manualOnly": { "message": "当前为手动模式，不会自动重试。" },
+  "familyTask_retryPending": { "message": "将在 60 分钟后自动重试，最多 5 次。" },
+  "familyTask_retryFailed": { "message": "第 $value$ 次自动重试失败。", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryNext": { "message": "下次自动重试：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryStopped": { "message": "本轮已达到 5 次自动重试上限，已停止重试。下次正常刷新：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_normalNext": { "message": "下次正常刷新：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_login": {
+    "message": "打开商店"
+  },
+  "familyTask_invalidResponse": {
+    "message": "Steam 响应格式异常，请稍后重试。"
   }
 }

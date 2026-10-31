@@ -392,6 +392,45 @@
         }
         fn(value);
       };
+      const failRequest = (error) => {
+        if (done) return;
+        reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({ error }));
+        finish(reject, error);
+      };
+      const acceptResponse = (response, transportError) => {
+        replyFacts = root.STLoggerSchema?.responseFacts?.(response);
+        if (done) return;
+        if (transportError) {
+          const error = new Error(transportError.message || text("common.backgroundRequestFailed", "后台请求失败"));
+          reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({ error }));
+          finish(reject, error);
+          return;
+        }
+        if (!validateResponse(response)) {
+          const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
+          reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+            reason: "invalid-response",
+            response: replyFacts,
+            error,
+          }));
+          finish(reject, error);
+          return;
+        }
+        if (!response.success) {
+          const error = new Error(backgroundRequestMessage(response));
+          error.status = Number(response.status) || 0;
+          if (response.errorName) error.name = response.errorName;
+          if (response.errorCode) error.code = response.errorCode;
+          if (response.errorKind === "transport") error.phase = "network";
+          reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
+            response: replyFacts,
+            error,
+          }));
+          finish(reject, error);
+          return;
+        }
+        finish(resolve, response);
+      };
       if (timeoutMs > 0 && !direct) {
         timer = setTimeout(() => {
           const error = timeoutError(timeoutMs);
@@ -404,44 +443,7 @@
       try {
         // 后台 Service Worker 不能给自己发 STORE_FETCH，刷新令牌必须在进程内发网
         if (direct) {
-          fetchDirect(request, timeoutMs).then((response) => {
-            replyFacts = root.STLoggerSchema?.responseFacts?.(response);
-            if (done) {
-              return;
-            }
-            if (!validateResponse(response)) {
-              const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
-              reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-                reason: "invalid-response",
-                response: root.STLoggerSchema?.responseFacts?.(response),
-                error,
-              }));
-              finish(reject, error);
-              return;
-            }
-            if (!response?.success) {
-              const error = new Error(backgroundRequestMessage(response));
-              error.status = Number(response?.status) || 0;
-              if (response?.errorName) error.name = response.errorName;
-              if (response?.errorCode) error.code = response.errorCode;
-              if (response?.errorKind === "transport") error.phase = "network";
-              reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-                response: root.STLoggerSchema?.responseFacts?.(response),
-                error,
-              }));
-              finish(reject, error);
-              return;
-            }
-            finish(resolve, response);
-          }).catch((error) => {
-            if (done) {
-              return;
-            }
-            reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-              error,
-            }));
-            finish(reject, error);
-          });
+          fetchDirect(request, timeoutMs).then(acceptResponse).catch(failRequest);
           return;
         }
         if (root.STMessageBus?.ready && root.STMessageBus?.send) {
@@ -456,44 +458,7 @@
           }, {
             timeoutMs,
             logFailures: false,
-          }).then((response) => {
-            replyFacts = root.STLoggerSchema?.responseFacts?.(response);
-            if (done) {
-              return;
-            }
-            if (!validateResponse(response)) {
-              const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
-              reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-                reason: "invalid-response",
-                response: root.STLoggerSchema?.responseFacts?.(response),
-                error,
-              }));
-              finish(reject, error);
-              return;
-            }
-            if (!response?.success) {
-              const error = new Error(backgroundRequestMessage(response));
-              error.status = Number(response?.status) || 0;
-              if (response?.errorName) error.name = response.errorName;
-              if (response?.errorCode) error.code = response.errorCode;
-              if (response?.errorKind === "transport") error.phase = "network";
-              reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-                response: root.STLoggerSchema?.responseFacts?.(response),
-                error,
-              }));
-              finish(reject, error);
-              return;
-            }
-            finish(resolve, response);
-          }).catch((error) => {
-            if (done) {
-              return;
-            }
-            reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-              error,
-            }));
-            finish(reject, error);
-          });
+          }).then(acceptResponse).catch(failRequest);
           return;
         }
         chrome.runtime.sendMessage({
@@ -505,49 +470,10 @@
           endpointKey: "auth-request",
           service: "steam-buff-api",
         }, (response) => {
-          replyFacts = root.STLoggerSchema?.responseFacts?.(response);
-          if (done) {
-            return;
-          }
-          const err = chrome.runtime.lastError;
-          if (err) {
-            const error = new Error(err.message || text("common.backgroundRequestFailed", "后台请求失败"));
-            reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-              error,
-            }));
-            finish(reject, error);
-            return;
-          }
-          if (!validateResponse(response)) {
-            const error = new Error(text("common.backgroundResponseInvalid", "后台响应格式异常"));
-            reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-              reason: "invalid-response",
-              response: root.STLoggerSchema?.responseFacts?.(response),
-              error,
-            }));
-            finish(reject, error);
-            return;
-          }
-          if (!response?.success) {
-            const error = new Error(backgroundRequestMessage(response));
-            error.status = Number(response?.status) || 0;
-            if (response?.errorName) error.name = response.errorName;
-            if (response?.errorCode) error.code = response.errorCode;
-            if (response?.errorKind === "transport") error.phase = "network";
-            reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-              response: root.STLoggerSchema?.responseFacts?.(response),
-              error,
-            }));
-            finish(reject, error);
-            return;
-          }
-          finish(resolve, response);
+          acceptResponse(response, chrome.runtime.lastError);
         });
       } catch (error) {
-        reportFailure("auth-client-bg-request-failed", "鉴权后台请求失败", requestMeta({
-          error,
-        }));
-        finish(reject, error);
+        failRequest(error);
       }
     });
   }

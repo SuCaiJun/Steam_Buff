@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const THEME_VERSION = 'steam-buff-theme-v11';
+  const THEME_VERSION = 'steam-buff-theme-v12';
 
   if (root.STTheme?.version === THEME_VERSION) {
     return;
@@ -36,6 +36,8 @@
     steamBlue: '#66c0f4',
     steamPropertyWindow: '#171d25',
     steamPropertyButton: '#23262e',
+    steamMessageSurface: '#25282e',
+    steamMessageIcon: '#acb2b8',
 
     gold: '#f5c24a',
     success: '#5ba32b',
@@ -349,6 +351,8 @@
     '--st-color-steam-blue': colors.steamBlue,
     '--st-color-steam-property-window': colors.steamPropertyWindow,
     '--st-color-steam-property-button': colors.steamPropertyButton,
+    '--st-color-steam-message-surface': colors.steamMessageSurface,
+    '--st-color-steam-message-icon': colors.steamMessageIcon,
     '--st-color-gold': colors.gold,
     '--st-color-success': colors.success,
     '--st-color-warning': colors.warning,

@@ -18,6 +18,7 @@
     installedVersionKey: "steam_buff_lifecycle_installed_version",
     supportDecisionKey: "steam_buff_support_prompt_decision",
     pendingUpdateKey: "steam_buff_post_update_prompt",
+    messageOutboxKey: "steam_buff_upgrade_message_outbox_v1",
     dayMs: DAY_MS,
     isDecision(value) {
       return value?.action === "declined" || value?.action === "donate";

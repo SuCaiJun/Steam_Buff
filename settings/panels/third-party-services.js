@@ -11,7 +11,6 @@
 ((root) => {
   "use strict";
 
-  const PROVIDER = "isthereanydeal";
   const TEST_TIMEOUT_MS = 12 * 1000;
   const log = root.STLoggerFactory.createLogger("settings", "third-party-services");
 
@@ -68,28 +67,6 @@
 
   function hasItadKey(conf) {
     return String(conf?.isthereanydeal?.key || "").trim() !== "";
-  }
-
-  function normalize(values, defaults) {
-    const src = values && typeof values === "object" ? values : {};
-    const defs = defaults && typeof defaults === "object" ? defaults : {};
-    const itad = src.isthereanydeal && typeof src.isthereanydeal === "object" ? src.isthereanydeal : {};
-    const defItad = defs.isthereanydeal || {};
-    const routes = { ...(defs.routes || {}), ...(src.routes || {}) };
-    return {
-      enabled: src.enabled === true,
-      defaultProvider: PROVIDER,
-      isthereanydeal: {
-        key: String(itad.key ?? defItad.key ?? "").trim(),
-        country: String(itad.country || defItad.country || "auto"),
-        shops: Array.isArray(itad.shops) ? itad.shops : clone(defItad.shops || [61]),
-      },
-      routes: {
-        prices: routes.prices === PROVIDER ? PROVIDER : PROVIDER,
-        history: routes.history === PROVIDER ? PROVIDER : PROVIDER,
-        discountForecast: routes.discountForecast === PROVIDER ? PROVIDER : PROVIDER,
-      },
-    };
   }
 
   function testUrl() {
@@ -165,15 +142,16 @@
     const getDefaults = typeof options.getDefaults === "function"
       ? options.getDefaults
       : () => options.catalog?.thirdPartyServicesDefaults?.() || root.STSettings?.catalog?.thirdPartyServicesDefaults?.() || {};
+    const normalize = values => storage.normalizeThirdPartyServices(values, getDefaults());
     const getFields = typeof options.getFields === "function"
       ? options.getFields
       : () => options.catalog?.thirdPartyServicesFields?.() || root.STSettings?.catalog?.thirdPartyServicesFields?.() || [];
-    let conf = normalize(options.config || {}, getDefaults());
+    let conf = normalize(options.config || {});
     let persistedConf = clone(conf);
     let publishingConfig = false;
 
     function setConfig(next) {
-      conf = normalize(next || {}, getDefaults());
+      conf = normalize(next || {});
       if (!publishingConfig) {
         persistedConf = clone(conf);
       }
@@ -211,13 +189,13 @@
     }
 
     function read(shadow) {
-      const next = normalize(conf, getDefaults());
+      const next = clone(conf);
       shadow.querySelectorAll("[data-third-party-services]").forEach((node) => {
         const id = node.dataset.thirdPartyServices;
         if (!id) return;
         setPath(next, id, node.type === "checkbox" ? node.checked : node.value);
       });
-      return normalize(next, getDefaults());
+      return normalize(next);
     }
 
     function restoreInputs(shadow, source) {
@@ -252,7 +230,7 @@
 
     async function save(shadow, button, nextConfig, reason = "save") {
       const previous = clone(persistedConf);
-      const next = normalize(nextConfig || read(shadow), getDefaults());
+      const next = nextConfig ? normalize(nextConfig) : read(shadow);
       conf = next;
       publishConfig();
       const startedAt = Date.now();
@@ -290,7 +268,7 @@
           });
           return false;
         }
-        conf = normalize(saved, getDefaults());
+        conf = clone(saved);
         persistedConf = clone(conf);
         publishConfig();
         log.info("third-party-services-save-success", "第三方服务配置保存成功", {

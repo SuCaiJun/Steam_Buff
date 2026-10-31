@@ -413,7 +413,7 @@
 
   function isSettingsKey(key) {
     const value = text(key);
-    return value.startsWith(PREFIX) || value === "steam_buff_membership" || value === "steam_buff_auth" || value === "SETTING_UI_LOCALE";
+    return value.startsWith(PREFIX) || value === "steam_buff_membership" || value === "steam_buff_auth" || value === "SETTING_UI_LOCALE" || value === "SETTING_UPDATE_CHECK_HOURS";
   }
 
   function isSettingsChange(changes, area = "local", options = {}) {

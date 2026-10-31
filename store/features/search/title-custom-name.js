@@ -124,32 +124,6 @@
     return data || {};
   }
 
-  async function authedDelete(url, body, diagnostics = {}) {
-    const client = getAuthClient();
-    if (!client) throw new Error(i18n("store.titleCustomName.loginRequired", "请先在设置中登录"));
-    const operationId = diagnostics.operationId || "";
-    const requestId = root.STLoggerFactory?.createRequestId?.() || "";
-    const auth = await client.readyAuth({ operationId });
-    if (!auth?.access_token) throw new Error(i18n("store.titleCustomName.loginRequired", "请先在设置中登录"));
-    const response = await client.fetchBg({
-      url,
-      method: "DELETE",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${auth.access_token}`,
-      },
-      data: body || {},
-      allowHttpError: true,
-      operationId,
-      requestId,
-    });
-    const data = client.parseJson(response.data);
-    const code = Number(data?.code) || response.status || 0;
-    if (code < 200 || code >= 300) throw new Error(data?.message || i18n("common.requestFailedCode", "请求失败：$code$", { code }));
-    return data || {};
-  }
-
   function pageInfo() {
     const info = api.ctx?.pageInfo?.();
     if (!info || info.type !== "app") return null;

@@ -1419,9 +1419,6 @@
   "updateReminder_releaseNotes": {
     "message": "リリースノート"
   },
-  "updateReminder_muteToday": {
-    "message": "今日は今後通知しない"
-  },
   "updateReminder_openDownload": {
     "message": "公式ダウンロードページを開く"
   },
@@ -1877,9 +1874,6 @@
         "content": "$2"
       }
     }
-  },
-  "about_update_storeVersionDisabled": {
-    "message": "ストア版では手動更新チェックが無効です"
   },
   "about_logs_utf8Unavailable": {
     "message": "この環境ではUTF-8エンコードがサポートされていません"
@@ -5862,6 +5856,55 @@
   "steam_independentName_colMnemonic": {
     "message": "ニーモニック"
   },
+  "steam_nativeSortName_notReady": {
+    "message": "Steam ライブラリの準備ができていません。しばらくしてから再試行してください。"
+  },
+  "steam_independentName_saveSnapshotMissing": {
+    "message": "名前の保存結果が正しくありません。編集画面を開き直して確認してください。"
+  },
+  "steam_nativeSortName_readUnavailable": {
+    "message": "Steam の並べ替え名を読み取れません。"
+  },
+  "steam_nativeSortName_appMissing": {
+    "message": "現在のゲームが見つかりません。"
+  },
+  "steam_nativeSortName_invalid": {
+    "message": "Steam の並べ替え名のデータ形式が正しくありません。"
+  },
+  "steam_nativeSortName_busy": {
+    "message": "このゲームの Steam 並べ替え名を保存中です。しばらくしてから再試行してください。"
+  },
+  "steam_nativeSortName_conflict": {
+    "message": "Steam の並べ替え名が別の場所で変更されました。再読み込みしてから保存してください。"
+  },
+  "steam_nativeSortName_unverified": {
+    "message": "Steam 並べ替え名の保存結果を確認できませんでした。再読み込みしてから再試行してください。"
+  },
+  "steam_nativeSortName_reload": {
+    "message": "再読み込み"
+  },
+  "steam_nativeSortName_loading": {
+    "message": "Steam の並べ替え名を読み込み中…"
+  },
+  "steam_nativeSortName_readFailed": {
+    "message": "Steam の並べ替え名を読み込めませんでした：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_nativeSortName_hint": {
+    "message": "Steam に保存します。空欄にして確定すると並べ替え名を削除します。開いているプロパティウィンドウは開き直してください。"
+  },
+  "steam_nativeSortName_partial": {
+    "message": "カスタム名は保存されましたが、Steam の並べ替え名を保存できませんでした：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_independentName_colPinyin": {
     "message": "ピンイン全称"
   },
@@ -5915,9 +5958,6 @@
         "content": "$1"
       }
     }
-  },
-  "steam_independentName_batchSort": {
-    "message": "一括並べ替え"
   },
   "steam_independentName_batchTitle": {
     "message": "Steam Buff · カスタム名の一括設定"
@@ -6834,5 +6874,297 @@
   },
   "store_detail_detailsLoading": {
     "message": "詳細を読み込み中 · 折りたたむ ↑"
+  },
+  "updateReminder_ignoreVersion": {
+    "message": "このバージョンを通知しない"
+  },
+  "updateReminder_snoozeCycle": {
+    "message": "次回の確認まで通知しない"
+  },
+  "updateReminder_openChrome": {
+    "message": "Chrome ウェブストアを開く"
+  },
+  "updateReminder_openEdge": {
+    "message": "Edge アドオンを開く"
+  },
+  "updateReminder_actionFailed": {
+    "message": "操作に失敗しました。もう一度お試しください。"
+  },
+  "settings_updateCheck_title": {
+    "message": "拡張機能の更新"
+  },
+  "settings_updateCheck_frequency": {
+    "message": "更新の確認間隔"
+  },
+  "settings_updateCheck_hours": {
+    "message": "$hours$時間",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_updateCheck_off": {
+    "message": "確認しない"
+  },
+  "settings_updateCheck_loading": {
+    "message": "設定を読み込み中…"
+  },
+  "settings_updateCheck_desc": {
+    "message": "拡張機能の実行中にバックグラウンドで確認します。無効にしても手動で確認できます。"
+  },
+  "settings_updateCheck_readFailed": {
+    "message": "設定を読み込めません。設定を開き直してください。"
+  },
+  "settings_updateCheck_saveFailed": {
+    "message": "保存できませんでした。もう一度お試しください。"
+  },
+  "about_update_storePending": {
+    "message": "対象のバージョンはまだストアに反映されていません"
+  },
+  "about_update_unconfigured": {
+    "message": "更新対象のバージョンが設定されていません"
+  },
+  "about_update_unavailable": {
+    "message": "現在、更新の提供状況を確認できません"
+  },
+  "steam_independentName_colSort": {
+    "message": "カスタム並び替え名"
+  },
+  "steam_nativeSortName_namespaceBusy": {
+    "message": "Steam の並び替え名を保存中です。しばらくしてから再試行してください。"
+  },
+  "steam_nativeSortName_tableHint": {
+    "message": "Steam に保存"
+  },
+  "steam_independentName_table_saveFailed": {
+    "message": "表の設定を保存できませんでした：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortUnavailable": {
+    "message": "一部の Steam 並び替え名を取得できませんでした。再読み込みしてください。"
+  },
+  "steam_independentName_table_actionFailed": {
+    "message": "表の操作に失敗しました：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_headerHint": {
+    "message": "クリックで並び替え、ドラッグで列を移動、Alt + 左右キーでも移動できます"
+  },
+  "steam_independentName_table_resizeColumn": {
+    "message": "$name$ 列の幅を変更",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_missing": {
+    "message": "Steam の並び替え名を取得できません。再読み込みしてください。"
+  },
+  "steam_independentName_table_batchTimeout": {
+    "message": "Steam の一括保存結果を確認できません。再読み込みして確認してください。"
+  },
+  "steam_independentName_table_batchProgress": {
+    "message": "Steam 並び替え名：$done$ / $total$ 件処理済み",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_table_reset": {
+    "message": "表を初期設定に戻す"
+  },
+  "steam_independentName_table_pause": {
+    "message": "一時停止"
+  },
+  "steam_independentName_table_resume": {
+    "message": "再開"
+  },
+  "steam_independentName_table_cancel": {
+    "message": "保存を停止"
+  },
+  "steam_independentName_table_loadFailed": {
+    "message": "表の設定を読み込めませんでした：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidResponse": {
+    "message": "表の設定の応答に有効なデータがありません。"
+  },
+  "steam_independentName_table_batchIncomplete": {
+    "message": "$n$ 件の Steam 並び替え名を保存できませんでした。成功した変更は保持されています.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidPrefs": {
+    "message": "表の設定データが無効です。表を初期設定に戻してください。"
+  },
+  "steam_independentName_table_batchCancelled": {
+    "message": "保存を停止しました。成功した変更は保持されています。"
+  },
+  "steam_independentName_table_batchPaused": {
+    "message": "一時停止中"
+  },
+  "steam_independentName_table_batchWaiting": {
+    "message": "次の処理を待機中"
+  },
+  "messageCenter_clearUnread": {
+    "message": "すべて既読にする"
+  },
+  "messageCenter_noUnread": {
+    "message": "未読メッセージはありません"
+  },
+  "messageCenter_actionUnavailable": {
+    "message": "このバージョンでは利用できません"
+  },
+  "messageCenter_ignoreReadFailed": {
+    "message": "通知の停止は保存されましたが、既読への変更に失敗しました。再試行してください。"
+  },
+  "messageCenter_updateAvailable": {
+    "message": "Steam Buff $value$ が利用できます",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_currentVersion": {
+    "message": "現在のバージョン：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_targetVersion": {
+    "message": "対象バージョン：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_goUpdate": {
+    "message": "更新する"
+  },
+  "messageCenter_ignoreVersion": {
+    "message": "このバージョンを通知しない"
+  },
+  "messageCenter_updateInstalled": {
+    "message": "Steam Buff を $value$ に更新しました",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_previousVersion": {
+    "message": "以前のバージョン：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_installedBody": {
+    "message": "拡張機能が更新されました。表示ボタンから更新内容を確認できます。"
+  },
+  "messageCenter_view": {
+    "message": "表示"
+  },
+  "messageCenter_markRead": {
+    "message": "既読にする"
+  },
+  "messageCenter_updateObsolete": {
+    "message": "この更新通知は古くなっています。最新のメッセージを確認してください。"
+  },
+  "messageCenter_openFailed": {
+    "message": "外部ブラウザーを開けませんでした。再試行してください。"
+  },
+  "messageCenter_business_pending": {
+    "message": "未処理"
+  },
+  "messageCenter_business_approved": {
+    "message": "承認済み"
+  },
+  "messageCenter_business_rejected": {
+    "message": "却下済み"
+  },
+  "messageCenter_business_expired": {
+    "message": "期限切れ"
+  },
+  "messageCenter_business_cancelled": {
+    "message": "キャンセル済み"
+  },
+  "messageCenter_business_completed": {
+    "message": "完了"
+  },
+  "familyTask_done": {
+    "message": "ファミリーライブラリを更新しました"
+  },
+  "familyTask_failed": {
+    "message": "ファミリーライブラリの更新に失敗"
+  },
+  "familyTask_failedReason": {
+    "message": "ファミリーライブラリの更新に失敗：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_count": {
+    "message": "メンバー数／ゲーム数：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_time": {
+    "message": "更新日時：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retained": {
+    "message": "前回のキャッシュは保持されています。Steamへのログインを確認して再試行してください。"
+  },
+  "familyTask_retry": {
+    "message": "再試行"
+  },
+  "messageCenter_retrying": { "message": "再試行中" },
+  "familyTask_manualOnly": { "message": "手動モードのため、自動再試行は行いません。" },
+  "familyTask_retryPending": { "message": "60 分後に自動再試行します。最大 5 回です。" },
+  "familyTask_retryFailed": { "message": "自動再試行 $value$ が失敗しました。", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryNext": { "message": "次の自動再試行：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryStopped": { "message": "5 回の自動再試行が失敗したため、このサイクルの再試行を停止しました。次の通常更新：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_normalNext": { "message": "次の通常更新：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_login": {
+    "message": "ストアを開く"
+  },
+  "familyTask_invalidResponse": {
+    "message": "Steamの応答形式が無効です。後でもう一度お試しください。"
   }
 }

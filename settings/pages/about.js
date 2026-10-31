@@ -857,11 +857,9 @@
 
   let info = null;
   let busy = false;
-  let prompted = "";
   let logStats = null;
   let donors = null;
   let donorsLoadedAt = 0;
-  let logDetails = new Map();
   const log = globalThis.STLoggerFactory.createLogger("settings", "about");
   let debugReady = false;
   let debugReadFailed = false;
@@ -951,15 +949,6 @@
     return globalThis.STI18n.text(key, fallback, params);
   }
 
-  function escLogHtml(text) {
-    return String(text || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-  }
-
   function cleanLogText(text) {
     const renderer = globalThis.STUpdateLogRenderer;
     if (typeof renderer?.cleanText === "function") {
@@ -974,102 +963,13 @@
       .join("\n");
   }
 
-  function verText(text) {
-    const match = String(text || "").match(/v?\d+(?:\.\d+){1,3}/i);
-    return match ? match[0].replace(/^v/i, "") : "";
-  }
-
-  function verLabel(value, fallback = null) {
-    const version = verText(value);
-    const missing = fallback == null ? text("about.common.unknownVersion", "未知版本") : fallback;
-    return version ? `v${version}` : String(value || missing);
-  }
-
-  function apiData(payload) {
-    return payload && typeof payload === "object" ? payload.data : null;
-  }
-
-  function updateDetailUrl(version) {
-    const value = verText(version) || String(version || "").trim();
-    if (!value) {
-      return "";
-    }
-    if (typeof CFG.urls.updateLog === "function") {
-      return CFG.urls.updateLog(value);
-    }
-    return CFG.steamBuff(`/update-logs/${encodeURIComponent(value)}`);
-  }
-
-  function contentHtml(text) {
-    const raw = String(text || "").trim();
-    if (!raw) {
-      return "";
-    }
-    return globalThis.STUpdateLogRenderer?.contentHtml?.(raw) || escLogHtml(cleanLogText(raw));
-  }
-
-  function contentText(text) {
-    const raw = String(text || "").trim();
-    if (!raw) {
-      return "";
-    }
-    return globalThis.STUpdateLogRenderer?.contentText?.(raw) || cleanLogText(raw.replace(/<[^>]+>/g, " "));
-  }
-
-  function normalizeApiLog(row) {
-    if (!row || typeof row !== "object") {
-      return null;
-    }
-    const version = verText(row.version) || String(row.version || "").trim();
-    const title = cleanLogText(row.title || "");
-    const summary = cleanLogText(row.summary || "");
-    const html = contentHtml(row.content);
-    const desc = summary || contentText(row.content) || title || text("about.update.noLog", "无更新日志");
-    return {
-      version,
-      title,
-      desc,
-      html,
-      releaseDate: cleanLogText(row.release_date || ""),
-      publishedAt: cleanLogText(row.published_at || ""),
-      updatedAt: cleanLogText(row.updated_at || ""),
-    };
-  }
-
-  function parseDetail(payload) {
-    const row = apiData(payload);
-    const item = normalizeApiLog(row);
-    if (!item) {
-      throw new Error("官网更新日志详情格式异常");
-    }
-    return item;
-  }
-
-  function fetchApi(url, label) {
-    return globalThis.STSettingsApiRequest.getJson(url, { label });
-  }
-
-  function mergeDetail(item, detail) {
-    return {
-      ...(item || {}),
-      ...(detail || {}),
-      version: detail?.version || item?.version || "",
-      desc: detail?.desc || item?.desc || text("about.update.noLog", "无更新日志"),
-      html: detail?.html || item?.html || "",
-    };
-  }
+  function verText(value) { return globalThis.STUpdateChecker.verText(value); }
+  function verLabel(value, fallback = null) { return globalThis.STUpdateChecker.verLabel(value, fallback); }
 
   function currentLog() {
-    const current = verText(info?.current);
-    if (!current) {
-      return mergeDetail(info?.latest, logDetails.get(verText(info?.latest?.version))) || { version: "", desc: text("about.update.noLog", "无更新日志") };
-    }
-
-    if (verText(info.latest?.version) === current) {
-      return mergeDetail(info.latest, logDetails.get(current));
-    }
-
-    return mergeDetail({ version: current, desc: text("about.update.loadingCurrentLog", "正在读取当前版本日志...") }, logDetails.get(current));
+    const current = globalThis.STUpdateChecker.version();
+    return globalThis.STUpdateChecker.cachedDetail(current)
+      || { version: current, desc: text("about.update.loadingCurrentLog", "正在读取当前版本日志...") };
   }
 
   function logDesc(item) {
@@ -1089,35 +989,10 @@
 
   async function loadLogDetail(item, ctx) {
     const version = verText(item?.version);
-    if (!version) {
-      return item || { version: "", desc: text("about.update.noLog", "无更新日志") };
-    }
-    if (logDetails.has(version)) {
-      return mergeDetail(item, logDetails.get(version));
-    }
-
-    const url = updateDetailUrl(version);
-    if (!url) {
-      return item || { version, desc: text("about.update.noLog", "无更新日志") };
-    }
-    const startedAt = Date.now();
-    try {
-      const detail = parseDetail(await fetchApi(url, "官网更新日志详情"));
-      logDetails.set(version, detail);
-      ctx.refresh("about");
-      return mergeDetail(item, detail);
-    } catch (error) {
-      log.warn("update-log-detail-failed", "更新日志详情读取失败", {
-        version,
-        error,
-        durationMs: Date.now() - startedAt,
-      });
-      return item || { version, desc: text("about.update.logLoadFailed", "日志详情加载失败") };
-    }
-  }
-
-  function isStoreVersion() {
-    return globalThis.STUpdateChecker.isStoreVersion();
+    if (!version) return item;
+    const detail = await globalThis.STUpdateChecker.detail(version);
+    if (detail) { ctx.refresh("about"); return detail; }
+    return { version, html: item?.summary ? globalThis.STUpdateChecker.latestHtml(item) : "", desc: text("about.update.logLoadFailed", "日志详情加载失败") };
   }
 
   function request() {
@@ -1189,22 +1064,6 @@
       return text("common.none", "暂无");
     }
     return date.toLocaleString(globalThis.STI18n.intlLocale());
-  }
-
-  function logStatusText() {
-    if (!logStats) {
-      return text("about.logs.statusLoading", "正在读取日志状态");
-    }
-    const count = Number(logStats.count) || 0;
-    if (!count) {
-      return text("about.update.noLogShort", "暂无日志");
-    }
-    return text("about.logs.statusDetail", "$count$ 条，$size$，$first$ - $last$", {
-      count,
-      size: fmtSize(logStats.sizeBytes),
-      first: fmtTime(logStats.firstTime),
-      last: fmtTime(logStats.lastTime),
-    });
   }
 
   function shortTime(value) {
@@ -1308,6 +1167,7 @@
     const names = {
       features: text("about.backup.section.features", "功能开关"),
       uiLocale: text("about.backup.section.uiLocale", "界面语言"),
+      updateCheck: text("settings.updateCheck.title", "扩展更新"),
       familyLibrary: text("about.backup.section.familyLibrary", "家庭库刷新"),
       storePriceChart: text("about.backup.section.storePriceChart", "价格图表"),
       searchSuggestions: text("about.backup.section.searchSuggestions", "搜索联想"),
@@ -1817,78 +1677,40 @@
     });
   }
 
-  async function show(shadow, ctx, next, manual) {
-    const latest = next.hasNew
-      ? await loadLogDetail(next.latest || { version: "", desc: text("about.update.noLog", "无更新日志") }, ctx)
-      : next.latest || { version: "", desc: text("about.update.noLog", "无更新日志") };
+  async function show(shadow, ctx, next) {
     if (next.hasNew) {
-      showLogDialog(shadow, ctx, {
+      const latest = await loadLogDetail(next.latest, ctx);
+      const target = globalThis.STUpdateChecker.updateAction(next);
+      const action = await showLogDialog(shadow, ctx, {
         title: text("updateReminder.title", "Steam Buff 发现新版本"),
-        meta: `${text("updateReminder.currentVersion", "当前版本：$version$", { version: verLabel(next.current) })}\n${text("updateReminder.latestVersion", "最新版本：$version$", { version: verLabel(latest.version || next.remote) })}`,
-        label: text("updateReminder.releaseNotes", "新版日志"),
-        item: latest,
-        actions: manual
-          ? [
-              { id: "open", label: text("updateReminder.openDownload", "打开官网下载"), primary: true },
-            ]
-          : [
-              { id: "mute", label: text("updateReminder.muteToday", "今天不再提醒") },
-              { id: "open", label: text("updateReminder.openDownload", "打开官网下载"), primary: true },
-            ],
-      }).then((action) => {
-        if (action === "open") {
-          if (!globalThis.STUpdateChecker?.openDownload?.(next.link || ctx.homepage() || UPDATE_PAGE, { version: verText(next.remote || latest.version) })) {
-            externalNavigation.open(next.link || ctx.homepage() || UPDATE_PAGE);
-          }
-        } else if (action === "mute") {
-          globalThis.STUpdateChecker?.muteToday?.(next.remote || latest.version);
-        }
+        meta: `${text("updateReminder.currentVersion", "当前版本：$version$", { version: verLabel(next.current) })}\n${text("updateReminder.latestVersion", "最新版本：$version$", { version: verLabel(next.remote) })}`,
+        label: text("updateReminder.releaseNotes", "新版日志"), item: latest,
+        actions: [{ id: "open", label: target.label, primary: true }],
       });
+      if (action === "open") globalThis.STUpdateChecker.openUpdate(next);
       return;
     }
-
-    if (manual) {
-      ctx.dialog(shadow, {
-        title: text("about.update.noNewTitle", "未发现新版本"),
-        message: text("about.update.latestMessage", "当前已是最新版本。"),
-        actions: [
-          { id: "ok", label: text("common.confirm", "确认"), primary: true },
-        ],
-      });
-    }
+    const state = updateStatus(next);
+    await ctx.dialog(shadow, {
+      title: text("about.update.checkTitle", "检查更新"), message: state.text,
+      actions: [{ id: "ok", label: text("common.confirm", "确认"), primary: true }],
+    });
   }
 
-  async function check(shadow, ctx, manual = false) {
+  async function check(shadow, ctx) {
     if (busy) {
-      if (manual) {
-        ctx.dialog(shadow, {
-          title: text("about.update.checkTitle", "检查更新"),
-          message: text("about.update.checkingMessage", "正在检查更新，请稍候。"),
-        });
-      }
+      await ctx.dialog(shadow, { title: text("about.update.checkTitle", "检查更新"), message: text("about.update.checkingMessage", "正在检查更新，请稍候。") });
       return;
     }
-
-    busy = true;
-    ctx.refresh("about");
+    busy = true; ctx.refresh("about");
     try {
-      const next = await request();
-      info = next;
-      busy = false;
-      ctx.refresh("about");
-      if (next.hasNew && (!prompted || prompted !== next.remote || manual)) {
-        prompted = next.remote || next.latest?.version || "";
-        show(shadow, ctx, next, manual);
-        return;
-      }
-      show(shadow, ctx, next, manual);
+      info = await request();
+      busy = false; ctx.refresh("about");
+      await show(shadow, ctx, info);
     } catch (error) {
-      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "about", event: "update-check-failed", message: "检查更新失败", level: manual ? "error" : "warn", phase: "check" });
-      busy = false;
-      ctx.refresh("about");
-      if (manual) {
-        ctx.dialog(shadow, { title: text("about.update.checkFailedTitle", "检查更新失败"), message: error?.message || String(error) });
-      }
+      log.error("update-check-failed", "手动检查更新失败", { error });
+      busy = false; ctx.refresh("about");
+      await ctx.dialog(shadow, { title: text("about.update.checkFailedTitle", "检查更新失败"), message: error.message });
     }
   }
 
@@ -1923,20 +1745,18 @@
     return globalThis.STSettingsAssets?.appIcon?.() || "";
   }
 
-  function status(ctx) {
-    if (busy) {
-      return { text: text("about.update.checking", "检查中"), cls: "" };
-    }
-    if (!info) {
-      return { text: text("about.update.autoCheck", "打开设置页后自动检查"), cls: "" };
-    }
-    if (info.hasNew) {
-      return { text: text("about.update.newVersion", "发现新版本 $version$", { version: verLabel(info.latest?.version || info.remote, "") }).trim(), cls: "warn" };
-    }
-    if (info.checkedAt) {
-      return { text: text("about.update.latest", "已是最新"), cls: "ok" };
-    }
+  function updateStatus(value) {
+    if (!value) return { text: text("about.update.notChecked", "暂未检查"), cls: "" };
+    if (value.status === "pending") return { text: text("about.update.storePending", "商店尚未同步目标版本"), cls: "warn" };
+    if (value.status === "unconfigured") return { text: text("about.update.unconfigured", "更新发布目标尚未配置"), cls: "warn" };
+    if (value.status === "unavailable") return { text: text("about.update.unavailable", "更新状态暂不可确认"), cls: "warn" };
+    if (value.hasNew) return { text: text("about.update.newVersion", "发现新版本 $version$", { version: verLabel(value.remote) }), cls: "warn" };
+    if (value.status === "ready" && value.checkedAt) return { text: text("about.update.latest", "已是最新"), cls: "ok" };
     return { text: text("about.update.notChecked", "暂未检查"), cls: "" };
+  }
+
+  function status() {
+    return busy ? { text: text("about.update.checking", "检查中"), cls: "" } : updateStatus(info);
   }
 
   function logText() {
@@ -1963,8 +1783,9 @@
   }
 
   function updateLink(ctx) {
-    const target = info?.link || home(ctx);
-    return `<a class="about-update-link" ${externalAttributes(ctx, target)}>${ctx.esc(text("about.update.viewNow", "立即查看"))}</a>`;
+    if (info?.status !== "ready") return "";
+    const action = globalThis.STUpdateChecker.updateAction(info);
+    return action ? `<a class="about-update-link" ${externalAttributes(ctx, action.url)}>${ctx.esc(action.label)}</a>` : "";
   }
 
   function actionCard(ctx, item) {
@@ -2055,7 +1876,6 @@
     const appIcon = appIconUrl();
     const current = ctx.version() || text("about.common.unknownVersion", "未知版本");
     const state = status(ctx);
-    const storeVersion = isStoreVersion();
     const health = logHealth();
     const quick = [
       actionCard(ctx, {
@@ -2125,13 +1945,11 @@
           </div>
           <div class="about-hero-actions">
             <span class="about-update-badge ${state.cls}">${ctx.esc(state.text)}</span>
-            ${storeVersion ? "" : updateLink(ctx)}
-            ${storeVersion ? "" : `
-              <button class="about-check update-check" type="button" ${busy ? "disabled" : ""}>
-                ${busy ? '<span class="about-spinner"></span>' : icon("refresh")}
-                <span>${ctx.esc(text("about.update.checkTitle", "检查更新"))}</span>
-              </button>
-            `}
+            ${updateLink(ctx)}
+            <button class="about-check update-check" type="button" ${busy ? "disabled" : ""}>
+              ${busy ? '<span class="about-spinner"></span>' : icon("refresh")}
+              <span>${ctx.esc(text("about.update.checkTitle", "检查更新"))}</span>
+            </button>
           </div>
         </section>
 
@@ -2169,7 +1987,7 @@
 
     const btn = event.target.closest(".update-check");
     if (btn) {
-      check(shadow, ctx, true);
+      check(shadow, ctx);
       return true;
     }
 

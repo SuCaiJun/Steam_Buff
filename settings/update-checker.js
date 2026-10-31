@@ -8,187 +8,93 @@
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
+
 ((root) => {
   "use strict";
-
-  if (root.STUpdateChecker) {
-    return;
-  }
-
-  const CFG = root.STConfig || {};
+  if (root.STUpdateChecker) return;
+  const CFG = root.STConfig;
   const CACHE_KEY = "steam_buff_update_check_cache";
-  const MUTE_KEY = "steam_buff_update_prompt_mute";
-  const ABOUT_STATUS_SOURCE = "about-status";
-  const UPDATE_PAGE = CFG.urls?.updatePage || CFG.urls?.homepage || root.chrome?.runtime?.getManifest?.()?.homepage_url || "";
+  const MUTE_KEY = "steam_buff_update_prompt_state";
+  const PLAN_KEY = "steam_buff_update_schedule";
+  const PORT = "steam-buff-update-prompt";
+  const UPDATE_PAGE = CFG.urls.updatePage;
   const detailCache = new Map();
   const log = root.STLoggerFactory.createLogger("settings", "update-reminder");
-
-  function text(key, fallback, params) {
-    return root.STI18n.text(key, fallback, params);
-  }
-
-  function pad(value) {
-    return String(Math.max(0, Number(value) || 0)).padStart(2, "0");
-  }
-
-  function todayKey(ts = Date.now()) {
-    const date = new Date(Number(ts) || Date.now());
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  }
-
-  function verText(value) {
-    const match = String(value || "").match(/v?\d+(?:\.\d+){1,3}/i);
-    return match ? match[0].replace(/^v/i, "") : "";
-  }
-
+  function text(key, fallback, params) { return root.STI18n.text(key, fallback, params); }
+  function verText(value) { return CFG.versions.text(value); }
+  function cmpVer(left, right) { return CFG.versions.compare(left, right); }
   function verLabel(value, fallback = null) {
-    const version = verText(value);
-    const missing = fallback == null ? text("about.common.unknownVersion", "未知版本") : fallback;
-    return version ? `v${version}` : String(value || missing);
+    const valueText = verText(value);
+    return valueText ? `v${valueText}` : String(value || (fallback ?? text("about.common.unknownVersion", "未知版本")));
   }
+  function version() { return root.chrome.runtime.getManifest().version; }
+  function isStoreVersion() { return CFG.distribution.isStoreVersion(); }
+  async function storageGet(keys) { return root.chrome.storage.local.get(keys); }
 
-  function cmpVer(left, right) {
-    const a = verText(left).split(".").map(num => Number.parseInt(num, 10) || 0);
-    const b = verText(right).split(".").map(num => Number.parseInt(num, 10) || 0);
-    const len = Math.max(a.length, b.length);
-    for (let idx = 0; idx < len; idx += 1) {
-      const diff = (a[idx] || 0) - (b[idx] || 0);
-      if (diff !== 0) {
-        return diff > 0 ? 1 : -1;
-      }
-    }
-    return 0;
+  async function send(message) {
+    const response = root.STMessageBus?.ready
+      ? await root.STMessageBus.send(message, { timeoutMs: 12_000 })
+      : await root.chrome.runtime.sendMessage(message);
+    if (!response?.success) throw new Error(response?.error || text("about.update.checkFailedTitle", "更新检查失败"));
+    return response.data;
   }
-
-  function version() {
-    try {
-      return root.chrome?.runtime?.getManifest?.()?.version || "";
-    } catch (error) {
-      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "update-checker", event: "version-failed", message: "设置中心处理失败", level: "warn", phase: "version" });
-      return "";
-    }
-  }
-
-  function storageGet(keys) {
-    return new Promise((resolve) => {
-      try {
-        root.chrome?.storage?.local?.get(keys, (data) => {
-          resolve(root.chrome?.runtime?.lastError ? {} : (data || {}));
-        });
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "update-checker", event: "storage-get-failed", message: "设置中心处理失败", level: "warn", phase: "storageGet" });
-        resolve({});
-      }
-    });
-  }
-
-  function storageSet(data) {
-    return new Promise((resolve) => {
-      try {
-        root.chrome?.storage?.local?.set(data, () => {
-          resolve(!root.chrome?.runtime?.lastError);
-        });
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "update-checker", event: "storage-set-failed", message: "设置中心处理失败", level: "error", phase: "storageSet" });
-        resolve(false);
-      }
-    });
-  }
-
-  function normalizeCheckResponse(response) {
-    return response?.data || response;
-  }
-
-  function send(message) {
-    return new Promise((resolve, reject) => {
-      try {
-        if (root.STMessageBus?.ready && root.STMessageBus?.send) {
-          root.STMessageBus.send(message, {
-            timeoutMs: message?.type === "UPDATE_CHECK" ? 10_000 : 12_000,
-          }).then((response) => {
-            if (!response?.success) {
-              reject(new Error(response?.error || text("about.update.checkFailedTitle", "更新检查失败")));
-              return;
-            }
-            resolve(normalizeCheckResponse(response));
-          }).catch(reject);
-          return;
-        }
-        root.chrome.runtime.sendMessage(message, (response) => {
-          const error = root.chrome?.runtime?.lastError;
-          if (error) {
-            reject(new Error(error.message || text("about.logs.backgroundFailed", "后台请求失败")));
-            return;
-          }
-          if (!response?.success) {
-            reject(new Error(response?.error || text("about.update.checkFailedTitle", "更新检查失败")));
-            return;
-          }
-          resolve(normalizeCheckResponse(response));
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
-  async function check(options = {}) {
-    if (isStoreVersion()) {
-      throw new Error(text("about.update.storeVersionDisabled", "商店版已禁用主动更新检查"));
-    }
-    return send({ type: "UPDATE_CHECK", manual: options.manual === true });
-  }
-
-  async function checkStatus() {
-    return send({ type: "UPDATE_CHECK", manual: false, source: ABOUT_STATUS_SOURCE });
-  }
-
-  function isStoreVersion() {
-    return CFG.distribution.isStoreVersion();
-  }
-
+  async function check(options = {}) { return send({ type: "UPDATE_CHECK", manual: options.manual === true }); }
+  async function checkStatus() { return check(); }
   async function cached() {
-    const data = await storageGet([CACHE_KEY]);
-    const box = data[CACHE_KEY];
-    const result = box?.result || null;
-    if (!result || verText(result.current) !== verText(version())) {
-      return null;
-    }
-    return result;
+    const data = await storageGet([CACHE_KEY]); const box = data[CACHE_KEY];
+    if (!box || box.installedVersion !== version() || box.channel !== CFG.distribution.channel()) return null;
+    return box.result ? { ...box.result, fromCache: true } : null;
   }
 
-  async function muteToday(versionValue) {
-    const versionText = verText(versionValue);
-    const ok = await storageSet({
-      [MUTE_KEY]: {
-        date: todayKey(),
-        version: versionText,
-        ts: Date.now(),
-      },
+  async function mute(info, kind) {
+    return send({ type: "UPDATE_CHECK", action: kind === "version" ? "mute-version" : "mute-cycle", version: info.remote, cycleId: info.cycleId });
+  }
+
+  function updateAction(info) {
+    const labels = {
+      opensource: ["updateReminder.openDownload", "打开官网下载"],
+      chrome: ["updateReminder.openChrome", "打开 Chrome 商店"],
+      edge: ["updateReminder.openEdge", "打开 Edge 商店"],
+    };
+    const label = labels[info?.channel];
+    if (!label || typeof info.link !== "string" || !info.link) return null;
+    const url = new URL(info.link);
+    if (url.protocol !== "https:" || (info.channel === "chrome" && url.hostname !== "chromewebstore.google.com")
+        || (info.channel === "edge" && url.hostname !== "microsoftedge.microsoft.com")) throw new TypeError("更新页面与渠道不匹配");
+    return { label: text(...label), url: url.href };
+  }
+  function openUpdate(info) {
+    const action = updateAction(info);
+    if (!action) throw new Error("更新页面尚未配置");
+    log.info("update-prompt-open-page", "用户打开对应渠道更新页面", { channel: info.channel, version: info.remote });
+    return CFG.externalNavigation.open(action.url);
+  }
+  // 保留已有公共调用名，目标校验与导航只由 openUpdate 维护
+  function openDownload(url, meta = {}) { return openUpdate({ link: url, channel: CFG.distribution.channel(), remote: meta.version }); }
+
+  /** Port 只持有当前弹窗展示权；拒绝或断开时调用方必须释放本地弹窗 */
+  function claim() {
+    return new Promise((resolve, reject) => {
+      const port = root.chrome.runtime.connect({ name: PORT });
+      let settled = false;
+      const finish = (value, error) => {
+        if (settled) return;
+        settled = true; root.clearTimeout(timer);
+        port.onMessage.removeListener(onMessage); port.onDisconnect.removeListener(onDisconnect);
+        if (error) { port.disconnect(); reject(error); } else resolve(value);
+      };
+      const onMessage = message => {
+        if (message?.granted === true) finish({ port, info: message.info });
+        else if (message?.granted === false) { finish(null); port.disconnect(); }
+        else finish(null, new TypeError("更新弹窗展示权响应无效"));
+      };
+      const onDisconnect = () => {
+        const failure = root.chrome.runtime.lastError;
+        finish(null, failure ? new Error(failure.message) : undefined);
+      };
+      const timer = root.setTimeout(() => finish(null, new Error("更新弹窗展示权请求超时")), 5000);
+      port.onMessage.addListener(onMessage); port.onDisconnect.addListener(onDisconnect);
     });
-    log[ok ? "info" : "warn"]("update-prompt-mute-today", ok ? "用户选择今天不再提醒更新" : "今天不再提醒状态保存失败", {
-      version: versionText,
-    });
-    return ok;
-  }
-
-  async function isMuted(info) {
-    const remote = verText(info?.remote || info?.latest?.version);
-    if (!remote) {
-      return false;
-    }
-    const data = await storageGet([MUTE_KEY]);
-    const mute = data[MUTE_KEY] || {};
-    return mute.date === todayKey() && verText(mute.version) === remote;
-  }
-
-  function openDownload(url, meta = {}) {
-    const target = String(url || UPDATE_PAGE || "").trim();
-    if (!target) {
-      return false;
-    }
-    log.info("update-prompt-open-download", "用户打开官网下载新版", meta);
-    return CFG.externalNavigation.open(target);
   }
 
   function esc(value) {
@@ -218,10 +124,7 @@
     if (!value) {
       return "";
     }
-    if (typeof CFG.urls?.updateLog === "function") {
-      return CFG.urls.updateLog(value);
-    }
-    return typeof CFG.steamBuff === "function" ? CFG.steamBuff(`/update-logs/${encodeURIComponent(value)}`) : "";
+    return CFG.urls.updateLog(value);
   }
 
   function htmlFromContent(value) {
@@ -256,6 +159,7 @@
       title: cleanText(row.title || ""),
       summary: cleanText(row.summary || ""),
       content,
+      html: htmlFromContent(content),
       desc: cleanText(row.summary || row.title || contentText),
       releaseDate: cleanText(row.release_date || ""),
       publishedAt: cleanText(row.published_at || ""),
@@ -308,25 +212,10 @@
   }
 
   root.STUpdateChecker = Object.freeze({
-    CACHE_KEY,
-    MUTE_KEY,
-    UPDATE_PAGE,
-    todayKey,
-    verText,
-    verLabel,
-    cmpVer,
-    version,
-    check,
-    checkStatus,
-    isStoreVersion,
-    cached,
-    muteToday,
-    isMuted,
-    openDownload,
-    latestHtml,
-    detail,
-    withDetail,
-    esc,
-    cleanText,
+    CACHE_KEY, MUTE_KEY, PLAN_KEY, UPDATE_PAGE,
+    verText, verLabel, cmpVer, version, check, checkStatus, isStoreVersion,
+    cached, mute, claim, updateAction, openUpdate, openDownload,
+    cachedDetail: value => detailCache.get(verText(value)) || null,
+    latestHtml, detail, withDetail, esc, cleanText,
   });
-})(typeof globalThis !== "undefined" ? globalThis : window);
+})(globalThis);

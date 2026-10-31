@@ -177,7 +177,7 @@
     }
 
     function html() {
-      const fields = getFields();
+      const fields = getFields().filter(field => field.key !== "autoRefresh" || !root.STClientEnvironment.isSteamClientRuntime());
       return `
         <div class="settings-form family-library-form">
           <section class="settings-card section-card family-library-settings-card">

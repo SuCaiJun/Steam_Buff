@@ -35,17 +35,7 @@
   const MODULE_CLASS = api.dom.MODULE_CLASSES.FAMILY_LIBRARY_OWNED;
   const FAMILY_MANAGEMENT_URL = window.STConfig?.vendors?.steamStore?.familyManagement?.() || "";
 
-  const DEFAULT_REFRESH_SETTINGS = Object.freeze({
-    refreshInterval: "1d",
-    autoRefresh: true,
-  });
-  const REFRESH_INTERVAL_SECONDS = Object.freeze({
-    "1d": 24 * 60 * 60,
-    "3d": 3 * 24 * 60 * 60,
-    "7d": 7 * 24 * 60 * 60,
-    "30d": 30 * 24 * 60 * 60,
-    manual: 0,
-  });
+  const REFRESH_INTERVAL_SECONDS = window.STFamilyLibrary.INTERVALS;
   const REFRESH_INTERVAL_LABEL_KEYS = Object.freeze({
     "1d": ["store.familyLibrary.interval1d", "1 天"],
     "3d": ["store.familyLibrary.interval3d", "3 天"],
@@ -66,6 +56,8 @@
   let detailSeq = 0;
   let detailTask = null;
   const activeBadgeScopes = new Set();
+  const badgeTokens = new Map();
+  let cacheWatching = false;
   const familySharingWaitDisposers = new Set();
   const dialogDisposers = new Set();
   const blockingWaitClosers = new Set();
@@ -107,35 +99,6 @@
     if (code === "CACHE_WRITE_FAILED") return i18n("store.familyLibrary.cacheWriteFailed", "家庭组游戏库缓存写入失败，请检查浏览器存储空间。");
     if (String(error?.name || "") === "TimeoutError") return i18n("common.requestTimedOut", "请求超时，请稍后重试。");
     return error?.message || i18n("store.familyLibrary.refreshFailedRetry", "刷新失败，请稍后重试。");
-  }
-
-  function readJsonAttribute(node, attr) {
-    try {
-      return JSON.parse(node?.getAttribute?.(attr) || "{}");
-    } catch {
-      return {};
-    }
-  }
-
-  function readStoreUserConfig() {
-    const configNode = document.getElementById("application_config");
-    if (!configNode) {
-      const error = new Error("Steam 页面配置节点缺失");
-      error.code = "STORE_CONFIG_MISSING";
-      throw error;
-    }
-    const storeConfig = readJsonAttribute(configNode, "data-store_user_config");
-    const userInfo = readJsonAttribute(configNode, "data-userinfo");
-    const accessToken = String(storeConfig.webapi_token || "");
-    if (!accessToken) {
-      const error = new Error("未检测到 Steam 登录令牌");
-      error.code = "STEAM_WEBAPI_TOKEN_MISSING";
-      throw error;
-    }
-    return {
-      accessToken,
-      accountSteamId: String(userInfo.steamid || ""),
-    };
   }
 
   function rectMeta(element) {
@@ -305,35 +268,10 @@
     return api.settings?.on?.(EXCLUDE_SELF_SETTING_ID) === true;
   }
 
-  function normalizeRefreshSettings(input) {
-    const refreshInterval = Object.hasOwn(REFRESH_INTERVAL_SECONDS, input?.refreshInterval)
-      ? String(input.refreshInterval)
-      : DEFAULT_REFRESH_SETTINGS.refreshInterval;
-    return {
-      refreshInterval,
-      autoRefresh: typeof input?.autoRefresh === "boolean" ? input.autoRefresh : DEFAULT_REFRESH_SETTINGS.autoRefresh,
-    };
-  }
+  function normalizeRefreshSettings(input) { return window.STFamilyLibrary.settings(input); }
 
-  async function familyRefreshSettings(options = {}) {
-    const allowFallback = options.allowFallback !== false;
-    try {
-      const getFamilyLibrary = window.STSettings?.storage?.getFamilyLibrary;
-      if (typeof getFamilyLibrary !== "function") {
-        throw new TypeError("家庭库刷新设置读取接口不可用");
-      }
-      return normalizeRefreshSettings(await getFamilyLibrary.call(window.STSettings.storage));
-    } catch (error) {
-      log?.warn?.(
-        "family-library-refresh-settings-read-failed",
-        allowFallback ? "家庭库刷新设置读取失败，使用默认值" : "家庭库刷新设置读取失败",
-        pageMeta({
-          error,
-        })
-      );
-      if (!allowFallback) return null;
-      return normalizeRefreshSettings(DEFAULT_REFRESH_SETTINGS);
-    }
+  async function familyRefreshSettings() {
+    return normalizeRefreshSettings(await window.STSettings.storage.getFamilyLibrary());
   }
 
   function refreshIntervalSeconds(settings) {
@@ -726,6 +664,7 @@
   }
 
   async function maybePromptEmpty(appId, container, settings, refreshState) {
+    if (window.STClientEnvironment.isSteamClientPage()) return;
     const cfg = normalizeRefreshSettings(settings);
     if (cfg.refreshInterval === "manual") return;
     if (!cacheRefreshDue(null, cfg, refreshState)) return;
@@ -771,6 +710,7 @@
   }
 
   async function maybePromptStale(appId, cache, container, settings, refreshState) {
+    if (window.STClientEnvironment.isSteamClientPage()) return;
     const cfg = normalizeRefreshSettings(settings);
     if (!cacheRefreshDue(cache, cfg, refreshState) || session.stalePromptShown) return;
     session.stalePromptShown = true;
@@ -820,149 +760,23 @@
     stop();
   }
 
-  function collectOwnerSteamIds(members, apps) {
-    const out = new Set((members || []).map(item => String(item?.steamid || "")).filter(Boolean));
-    (apps || []).forEach((app) => {
-      (app?.owner_steamids || []).forEach(steamid => out.add(String(steamid || "")));
-    });
-    return Array.from(out);
-  }
-
-  function accountNames(data) {
-    const accounts = data?.response?.accounts || [];
-    const out = {};
-    accounts.forEach((account) => {
-      const publicData = account?.public_data || {};
-      const steamid = String(publicData.steamid || "");
-      if (steamid) out[steamid] = String(publicData.persona_name || "");
-    });
-    return out;
-  }
-
-  function buildCache(input = {}) {
-    const now = api.familyLibraryCache.nowSeconds();
-    const members = input.members || [];
-    const apps = input.apps || [];
-    const namesBySteamId = input.namesBySteamId || {};
-    const membersBySteamId = {};
-    members.forEach((member, index) => {
-      const steamid = String(member?.steamid || "");
-      if (!steamid) return;
-      membersBySteamId[steamid] = {
-        name: namesBySteamId[steamid] || i18n("store.familyLibrary.memberFallback", "家庭成员 $index$", { index: index + 1 }),
-        role: Number(member?.role) || 0,
-      };
-    });
-    const appsById = {};
-    apps.forEach((app) => {
-      const appid = Number(app?.appid) || 0;
-      if (appid <= 0) return;
-      appsById[String(appid)] = {
-        appid,
-        ownerSteamids: Array.isArray(app?.owner_steamids) ? app.owner_steamids.map(String).filter(Boolean) : [],
-        excludeReason: Number(app?.exclude_reason) || 0,
-        appType: Number(app?.app_type) || 0,
-        acquiredAt: Number(app?.rt_time_acquired) || 0,
-      };
-    });
-    const ttlSeconds = Number(input.ttlSeconds) || api.familyLibraryCache.TTL_SECONDS;
-    return {
-      version: 1,
-      accountSteamId: input.accountSteamId || "",
-      familyGroupId: input.familyGroupId || "",
-      familyName: input.familyName || "",
-      updatedAt: now,
-      expiresAt: now + ttlSeconds,
-      membersBySteamId,
-      appsById,
-      stats: { appCount: Object.keys(appsById).length, memberCount: members.length },
-    };
-  }
-
-  async function refreshFamilyLibrary(source) {
+  function refreshFamilyLibrary() {
     if (refreshInFlight) return refreshInFlight;
-    const requestId = rid();
-    const operationId = String(source || "").endsWith("-auto-refresh")
-      ? ""
-      : window.STLoggerFactory?.createOperationId?.() || "";
-    const startedAt = Date.now();
-    log?.info?.("family-library-refresh-start", "家庭组游戏库刷新开始", pageMeta({ operationId, rid: requestId, source }));
-    refreshInFlight = (async () => {
-      const refreshSettings = await familyRefreshSettings();
-      const storeUser = readStoreUserConfig();
-      const family = await api.familyLibrary.fetchFamilyGroup({ accessToken: storeUser.accessToken, operationId, rid: requestId });
-      const groupId = String(family?.response?.family_groupid || "");
-      const group = family?.response?.family_group || {};
-      if (!groupId || groupId === "0") {
-        const error = new Error(i18n("store.familyLibrary.groupMissing", "您未加入家庭组，请先加入家庭组后再试。"));
-        error.code = "FAMILY_GROUP_MISSING";
+    const expectedSteamAccountId = window.STFamilyLibrary.documentAccount(document);
+    refreshInFlight = window.STMessageBus.send({ type: window.STFamilyLibrary.ROUTE, action: "refresh", expectedSteamAccountId }, { timeoutMs: 120000, logFailures: false }).then(response => {
+      if (!response?.success) {
+        const error = new Error(response?.error || "家庭库刷新失败");
+        error.code = response?.errorCode;
+        error.name = response?.errorName || "Error";
         throw error;
       }
-      const appsData = await api.familyLibrary.fetchSharedLibraryApps({
-        accessToken: storeUser.accessToken,
-        operationId,
-        familyGroupId: groupId,
-        rid: requestId,
-      });
-      const apps = appsData?.response?.apps || [];
-      const members = Array.isArray(group.members) ? group.members : [];
-      const namesBySteamId = await fetchMemberNames(storeUser.accessToken, collectOwnerSteamIds(members, apps), requestId, operationId);
-      const cache = buildCache({
-        accountSteamId: storeUser.accountSteamId,
-        familyGroupId: groupId,
-        familyName: group.name,
-        members,
-        apps,
-        namesBySteamId,
-        ttlSeconds: refreshIntervalSeconds(refreshSettings) || api.familyLibraryCache.TTL_SECONDS,
-      });
-      try {
-        const saved = await api.familyLibraryCache.write(cache);
-        log?.info?.("family-library-refresh-success", "家庭组游戏库刷新成功", pageMeta({
-          operationId,
-          rid: requestId,
-          appCount: saved.stats.appCount,
-          memberCount: saved.stats.memberCount,
-          refreshInterval: refreshSettings.refreshInterval,
-          durationMs: Date.now() - startedAt,
-        }));
-        return saved;
-      } catch (error) {
-        error.code = "CACHE_WRITE_FAILED";
-        throw error;
-      }
-    })().catch((error) => {
-      log?.warn?.("family-library-refresh-failed", "家庭组游戏库刷新失败", pageMeta({
-        operationId,
-        rid: requestId,
-        durationMs: Date.now() - startedAt,
-        reason: String(error?.code || error?.name || "refresh-failed"),
-        error,
-      }));
-      throw error;
-    }).finally(() => {
-      refreshInFlight = null;
-    });
+      return response.value.cache;
+    }).finally(() => { refreshInFlight = null; });
     return refreshInFlight;
   }
 
-  async function fetchMemberNames(accessToken, steamids, requestId, operationId = "") {
-    try {
-      return accountNames(await api.familyLibrary.fetchPlayerLinkDetails({ accessToken, steamids, operationId, rid: requestId }));
-    } catch (error) {
-      log?.warn?.("family-library-member-name-failed", "家庭成员名称获取失败，已降级", pageMeta({
-        operationId,
-        rid: requestId,
-        memberCount: steamids.length,
-        reason: String(error?.code || error?.name || "request-failed"),
-        error,
-      }));
-      return {};
-    }
-  }
-
   async function showRefreshFailure(error, options) {
-    const refreshSettings = await familyRefreshSettings({ allowFallback: false });
+    const refreshSettings = await familyRefreshSettings();
     const retainedText = options.hasPreviousData
       ? i18n("store.familyLibrary.previousDataRetained", "\n更新失败，已继续使用上次成功更新的数据。")
       : "";
@@ -1029,7 +843,8 @@
     setRefreshButton(button, "loading", options.defaultLabel || i18n("common.update", "更新"));
     setStatus(options.container, i18n("store.familyLibrary.updating", "正在更新..."));
     if (link) link.hidden = true;
-    const wait = showBlockingWait();
+    const client = window.STClientEnvironment.isSteamClientPage();
+    const wait = client ? { close() {} } : showBlockingWait();
     try {
       const cache = await refreshFamilyLibrary(options.source || "manual");
       session.lastRefreshAt = Date.now();
@@ -1040,7 +855,7 @@
       if (detailActive && !removeDetailForUnsupportedSharing(options.appId, "refresh-success")) {
         mountCard(options.appId, cache);
       }
-      if (options.successAlert !== false) {
+      if (!client && options.successAlert !== false) {
         await showAlert(
           i18n("store.familyLibrary.sharingCheck", "Steam Buff共享检查"),
           i18n("store.familyLibrary.cachedCount", "已将 $count$ 个家庭库游戏记录到本地缓存。", { count: cache.stats.appCount }),
@@ -1057,6 +872,7 @@
         reason: friendlyError(error),
       }), "error");
       if (link && FAMILY_MANAGEMENT_URL) link.hidden = false;
+      if (client) throw error;
       const skipped = await showRefreshFailure(error, options);
       if (skipped) return;
       throw error;
@@ -1161,6 +977,7 @@
       if (!claim.fresh) {
         if (target.changed) api.dom.repositionBadge(target);
       } else {
+        badgeTokens.set(target.node, claim.token);
         fresh.push(claim.token);
       }
     }
@@ -1203,6 +1020,7 @@
     }
     if (familySharingStatus(id) === "unsupported") {
       detailActive = true;
+      watchCache();
       detailAppId = String(id);
       removeDetailForUnsupportedSharing(id, "pre-mount");
       return Promise.resolve();
@@ -1212,14 +1030,13 @@
     return task;
   }
 
-  async function loadDetailCard(appId) {
+  async function loadDetailCard(id) {
     const startedAt = Date.now();
-    const id = Number(appId) || 0;
-    if (!id || document.querySelector(".game_area_comingsoon")) return;
     const seq = detailSeq + 1;
     detailSeq = seq;
     detailActive = true;
     detailAppId = String(id);
+    watchCache();
     setupFamilySharingResultListener(id);
     ensureFeatureStyles("detail-style");
     log?.info?.("family-library-feature-start", "家庭库检查功能启动", pageMeta({ appid: id, settingsKey: DETAIL_CARD_SETTING_ID }));
@@ -1291,6 +1108,7 @@
   }
 
   function startBadges(scope = "store") {
+    watchCache();
     const normalized = BADGE_SETTING_IDS[scope] ? scope : "store";
     activeBadgeScopes.add(normalized);
     ensureFeatureStyles("badge-style");
@@ -1316,8 +1134,34 @@
     return true;
   }
 
+  function onCacheChanged(changes, area) {
+    if (area !== "local" || (!detailActive && !activeBadgeScopes.size)) return;
+    try {
+      const owner = window.STFamilyLibrary.documentAccount(document), key = window.STFamilyLibrary.PREFIX + owner;
+      if (!Object.hasOwn(changes, key)) return;
+      const record = changes[key].newValue;
+      const cache = record?.unavailable ? null : window.STFamilyLibrary.normalizeCache(record?.cache);
+      if (cache && cache.accountSteamId !== owner) throw new Error("家庭库缓存账号发生冲突");
+      badgeCache = cache;
+      if (detailActive && detailAppId) mountCard(detailAppId, cache);
+      const writes = [];
+      for (const [node, token] of badgeTokens) {
+        if (!token.valid()) { badgeTokens.delete(node); continue; }
+        writes.push(familyBadgeJob(token, cache));
+      }
+      if (writes.length) void api.dom.writeBadgeBatch(FEATURE_ID, writes).catch(error => log.error("family-cache-render-failed", "家庭库角标更新失败", { error }));
+    } catch (error) { log.error("family-cache-change-failed", "家庭库更新结果展示失败", { error }); }
+  }
+  function watchCache() {
+    if (cacheWatching) return;
+    cacheWatching = true;
+    chrome.storage.onChanged.addListener(onCacheChanged);
+  }
+
   function removeFeatureStyleIfIdle() {
     if (detailActive || activeBadgeScopes.size > 0) return;
+    if (cacheWatching) { chrome.storage.onChanged.removeListener(onCacheChanged); cacheWatching = false; }
+    badgeTokens.clear();
     api.styles?.removeFeatureStyle?.("family-library-owned-marker");
   }
 
@@ -1335,14 +1179,6 @@
     document.querySelectorAll(".st_family_library_dialog_layer").forEach(node => node.remove());
     removeFeatureStyleIfIdle();
     return true;
-  }
-
-  function stopBadgeRuntime() {
-    api.dom.cancelBadgeWrites(FEATURE_ID);
-    clearFamilyBadges();
-    api.appCardBadgeScanner?.stop?.(FEATURE_ID);
-    badgeCache = undefined;
-    badgeCacheLoad = null;
   }
 
   function stopBadges(scope = "") {

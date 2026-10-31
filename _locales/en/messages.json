@@ -1419,9 +1419,6 @@
   "updateReminder_releaseNotes": {
     "message": "Release notes"
   },
-  "updateReminder_muteToday": {
-    "message": "Do not remind me again today"
-  },
   "updateReminder_openDownload": {
     "message": "Open official download page"
   },
@@ -1877,9 +1874,6 @@
         "content": "$2"
       }
     }
-  },
-  "about_update_storeVersionDisabled": {
-    "message": "Manual update checks are disabled for store versions"
   },
   "about_logs_utf8Unavailable": {
     "message": "This environment does not support UTF-8 encoding"
@@ -5862,6 +5856,55 @@
   "steam_independentName_colMnemonic": {
     "message": "Mnemonic"
   },
+  "steam_nativeSortName_notReady": {
+    "message": "The Steam library is not ready. Try again shortly."
+  },
+  "steam_independentName_saveSnapshotMissing": {
+    "message": "The name save result was invalid. Reopen the editor to check."
+  },
+  "steam_nativeSortName_readUnavailable": {
+    "message": "Steam's sort name reader is unavailable."
+  },
+  "steam_nativeSortName_appMissing": {
+    "message": "The current game could not be found."
+  },
+  "steam_nativeSortName_invalid": {
+    "message": "Steam returned an invalid sort name."
+  },
+  "steam_nativeSortName_busy": {
+    "message": "This game's Steam sort name is being saved. Try again shortly."
+  },
+  "steam_nativeSortName_conflict": {
+    "message": "The Steam sort name changed elsewhere. Read it again before saving."
+  },
+  "steam_nativeSortName_unverified": {
+    "message": "The Steam sort name could not be verified after saving. Read it again before retrying."
+  },
+  "steam_nativeSortName_reload": {
+    "message": "Read again"
+  },
+  "steam_nativeSortName_loading": {
+    "message": "Reading the Steam sort name…"
+  },
+  "steam_nativeSortName_readFailed": {
+    "message": "Could not read the Steam sort name: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_nativeSortName_hint": {
+    "message": "Saved to Steam. Clear and confirm to remove the sort name. Reopen any Properties window already open."
+  },
+  "steam_nativeSortName_partial": {
+    "message": "The custom name was saved, but the Steam sort name could not be saved: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_independentName_colPinyin": {
     "message": "Full Pinyin"
   },
@@ -5915,9 +5958,6 @@
         "content": "$1"
       }
     }
-  },
-  "steam_independentName_batchSort": {
-    "message": "Batch sorting"
   },
   "steam_independentName_batchTitle": {
     "message": "Steam Buff · Batch custom name settings"
@@ -6834,5 +6874,297 @@
   },
   "store_detail_detailsLoading": {
     "message": "Loading details · Collapse ↑"
+  },
+  "updateReminder_ignoreVersion": {
+    "message": "Ignore this version"
+  },
+  "updateReminder_snoozeCycle": {
+    "message": "Remind me next check"
+  },
+  "updateReminder_openChrome": {
+    "message": "Open Chrome Web Store"
+  },
+  "updateReminder_openEdge": {
+    "message": "Open Edge Add-ons"
+  },
+  "updateReminder_actionFailed": {
+    "message": "Action failed. Please try again."
+  },
+  "settings_updateCheck_title": {
+    "message": "Extension updates"
+  },
+  "settings_updateCheck_frequency": {
+    "message": "Check for updates every"
+  },
+  "settings_updateCheck_hours": {
+    "message": "$hours$ hours",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_updateCheck_off": {
+    "message": "Never"
+  },
+  "settings_updateCheck_loading": {
+    "message": "Loading settings…"
+  },
+  "settings_updateCheck_desc": {
+    "message": "Check in the background while the extension is running. Manual checks remain available when disabled."
+  },
+  "settings_updateCheck_readFailed": {
+    "message": "Could not read settings. Reopen settings to try again."
+  },
+  "settings_updateCheck_saveFailed": {
+    "message": "Could not save. Please try again."
+  },
+  "about_update_storePending": {
+    "message": "The store has not received the target version yet"
+  },
+  "about_update_unconfigured": {
+    "message": "No update release has been configured"
+  },
+  "about_update_unavailable": {
+    "message": "Update availability cannot be confirmed right now"
+  },
+  "steam_independentName_colSort": {
+    "message": "Custom sort name"
+  },
+  "steam_nativeSortName_namespaceBusy": {
+    "message": "Steam sort names are being saved. Please try again shortly."
+  },
+  "steam_nativeSortName_tableHint": {
+    "message": "Saved to Steam"
+  },
+  "steam_independentName_table_saveFailed": {
+    "message": "Could not save table preferences: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortUnavailable": {
+    "message": "Some Steam sort names could not be read. Reload them before sorting."
+  },
+  "steam_independentName_table_actionFailed": {
+    "message": "Table action failed: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_headerHint": {
+    "message": "Click to sort; drag to reorder; Alt + Left/Right to move a column"
+  },
+  "steam_independentName_table_resizeColumn": {
+    "message": "Resize $name$ column",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_missing": {
+    "message": "Steam sort name data is unavailable. Reload to continue."
+  },
+  "steam_independentName_table_batchTimeout": {
+    "message": "Steam batch save could not be confirmed. Reload to check the result."
+  },
+  "steam_independentName_table_batchProgress": {
+    "message": "Steam sort names: $done$ / $total$ processed",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_independentName_table_reset": {
+    "message": "Reset table"
+  },
+  "steam_independentName_table_pause": {
+    "message": "Pause"
+  },
+  "steam_independentName_table_resume": {
+    "message": "Resume"
+  },
+  "steam_independentName_table_cancel": {
+    "message": "Stop saving"
+  },
+  "steam_independentName_table_loadFailed": {
+    "message": "Could not load table preferences: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidResponse": {
+    "message": "The table preferences response is invalid."
+  },
+  "steam_independentName_table_batchIncomplete": {
+    "message": "$n$ Steam sort names were not saved. Successful changes have been kept.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_invalidPrefs": {
+    "message": "Table preferences are invalid. Reset the table to continue."
+  },
+  "steam_independentName_table_batchCancelled": {
+    "message": "Saving stopped. Successful changes have been kept."
+  },
+  "steam_independentName_table_batchPaused": {
+    "message": "Paused"
+  },
+  "steam_independentName_table_batchWaiting": {
+    "message": "Waiting for the next batch"
+  },
+  "messageCenter_clearUnread": {
+    "message": "Mark all as read"
+  },
+  "messageCenter_noUnread": {
+    "message": "No unread messages"
+  },
+  "messageCenter_actionUnavailable": {
+    "message": "This action is unavailable in this version"
+  },
+  "messageCenter_ignoreReadFailed": {
+    "message": "The version was muted, but its messages could not be marked as read. Please retry."
+  },
+  "messageCenter_updateAvailable": {
+    "message": "Steam Buff $value$ is available",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_currentVersion": {
+    "message": "Installed version: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_targetVersion": {
+    "message": "Target version: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_goUpdate": {
+    "message": "Update"
+  },
+  "messageCenter_ignoreVersion": {
+    "message": "Ignore this version"
+  },
+  "messageCenter_updateInstalled": {
+    "message": "Steam Buff was updated to $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_previousVersion": {
+    "message": "Previous version: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "messageCenter_installedBody": {
+    "message": "The extension has been updated. Select View to read the release notes."
+  },
+  "messageCenter_view": {
+    "message": "View"
+  },
+  "messageCenter_markRead": {
+    "message": "Mark as read"
+  },
+  "messageCenter_updateObsolete": {
+    "message": "This update reminder is out of date. Please check the latest message."
+  },
+  "messageCenter_openFailed": {
+    "message": "Could not open the external browser. Please retry."
+  },
+  "messageCenter_business_pending": {
+    "message": "Pending"
+  },
+  "messageCenter_business_approved": {
+    "message": "Approved"
+  },
+  "messageCenter_business_rejected": {
+    "message": "Rejected"
+  },
+  "messageCenter_business_expired": {
+    "message": "Expired"
+  },
+  "messageCenter_business_cancelled": {
+    "message": "Cancelled"
+  },
+  "messageCenter_business_completed": {
+    "message": "Completed"
+  },
+  "familyTask_done": {
+    "message": "Family library updated"
+  },
+  "familyTask_failed": {
+    "message": "Family library refresh failed"
+  },
+  "familyTask_failedReason": {
+    "message": "Family library refresh failed: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_count": {
+    "message": "Members / games: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_time": {
+    "message": "Updated at: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retained": {
+    "message": "The last successful cache was preserved. Check your Steam login and retry."
+  },
+  "familyTask_retry": {
+    "message": "Retry"
+  },
+  "messageCenter_retrying": { "message": "Retrying" },
+  "familyTask_manualOnly": { "message": "Manual mode is enabled. No automatic retry is scheduled." },
+  "familyTask_retryPending": { "message": "An automatic retry is scheduled in 60 minutes, up to 5 retries." },
+  "familyTask_retryFailed": { "message": "Automatic retry $value$ failed.", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryNext": { "message": "Next automatic retry: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_retryStopped": { "message": "All 5 automatic retries failed. Retrying has stopped for this cycle. Next regular refresh: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_normalNext": { "message": "Next regular refresh: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "familyTask_login": {
+    "message": "Open Steam Store"
+  },
+  "familyTask_invalidResponse": {
+    "message": "Steam returned an invalid response. Please retry later."
   }
 }

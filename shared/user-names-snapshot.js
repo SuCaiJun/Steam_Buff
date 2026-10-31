@@ -131,7 +131,7 @@
     const row = rowFrom(payload);
     return JSON.stringify({
       custom_name: row.custom_name,
-      aliases: aliasesOf(row.aliases).map(aliasKey).sort(),
+      aliases: row.aliases.map(aliasKey).sort(),
       mnemonic: row.mnemonic,
       pinyin: row.pinyin,
       mnemonic_locked: row.mnemonic_locked === true,
@@ -140,8 +140,7 @@
     });
   }
 
-  function hasNameData(value) {
-    const row = rowFrom(value);
+  function hasNameData(row) {
     return !!row.custom_name || row.aliases.length > 0 || !!row.mnemonic || !!row.pinyin;
   }
 
@@ -355,19 +354,14 @@
     return out;
   }
 
+  // 与 normalize 的 pending 字段顺序一致，避免同值快照因键顺序触发写回
   function payloadOf(item) {
     const appid = Number(item?.appid) || 0;
     const row = rowFrom(item);
     return {
-      type: "Game",
+      ...row,
       appid,
-      steam_name: row.steam_name,
-      custom_name: row.custom_name,
-      aliases: row.aliases,
-      mnemonic: row.mnemonic,
-      pinyin: row.pinyin,
-      mnemonic_locked: row.mnemonic_locked,
-      pinyin_locked: row.pinyin_locked,
+      type: "Game",
     };
   }
 

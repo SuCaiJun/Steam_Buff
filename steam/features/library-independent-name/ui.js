@@ -16,20 +16,13 @@
   const MODAL = "__RickyLibraryIndependentNameModal";
   const BATCH_MODAL = "__RickyLibraryIndependentNameBatchModal";
   const MENU_ENTRY_ATTR = "data-steam-buff-independent-name-entry";
-  const MENU_CLOSING_CLASS = "st-lin-context-closing";
-  const MENU_MOUSE_OVERLAY_SELECTOR = ":scope > ._3Knd7Am6tTwTTu605YN4IX";
-  // SteamUI GameAction_AddToFavorites 的已验证本地化文案（扩展支持的五种语言）。
-  const STEAM_FAVORITE_LABELS = Object.freeze([
-    "添加至收藏夹",
-    "加入我的最愛",
-    "Add to Favorites",
-    "お気に入りに追加",
-    "즐겨찾기에 추가",
-  ]);
+  const MENU_MODULES = Object.freeze({ react: 63696, items: 12711, game: 77834, registry: 377 });
   const REQ_ATTR = "data-steam-buff-user-names-request";
   const RES_ATTR = "data-steam-buff-user-names-response";
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
+  const TABLE_LIB = "steam/features/library-independent-name/table.js";
+  const TABLE = window.STNameTable;
   const TRANSFER_LIB = "steam/features/library-independent-name/transfer.js";
   const IO_LABELS = Object.freeze({
     import: "导入自定义名称", export: "导出自定义名称", format: "格式", json: "JSON", xlsx: "Excel (.xlsx)",
@@ -173,18 +166,6 @@
     return `<img class="${className}" src="${esc(assetUrl(path))}" alt="${esc(label)}" aria-hidden="${label ? "false" : "true"}" draggable="false">`;
   }
 
-  function steamFavoriteMenuItem(menu) {
-    return Array.from(menu?.children || []).find((node) => (
-      node.getAttribute?.("role") === "menuitem"
-      && STEAM_FAVORITE_LABELS.includes(text(node.textContent))
-    )) || null;
-  }
-
-  function reactFiber(node) {
-    const key = Object.keys(node || {}).find((name) => name.startsWith("__reactFiber"));
-    return key ? node[key] : null;
-  }
-
   function esc(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -202,7 +183,7 @@
   }
 
   function postReq(data) {
-    document.documentElement?.setAttribute(REQ_ATTR, JSON.stringify({
+    document.documentElement?.setAttribute(data.type === "table-settings-get" || data.type === "table-settings-save" ? TABLE.REQUEST : REQ_ATTR, JSON.stringify({
       script: ID,
       side: "page",
       rid: data.rid || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -240,7 +221,16 @@
     return next;
   }
 
+  let bridgeTail = Promise.resolve();
+  // 布局使用独立属性槽，只串行化布局读写，不阻塞原有名称查询或 AI 生成。
   function request(type, extra = {}, timeoutMs = 20000, signal) {
+    if (type !== "table-settings-get" && type !== "table-settings-save") return sendRequest(type, extra, timeoutMs, signal);
+    const task = bridgeTail.then(() => sendRequest(type, extra, timeoutMs, signal));
+    bridgeTail = Promise.allSettled([task]);
+    return task;
+  }
+  function sendRequest(type, extra = {}, timeoutMs = 20000, signal) {
+    const responseAttribute = type === "table-settings-get" || type === "table-settings-save" ? TABLE.RESPONSE : RES_ATTR;
     const rid = extra.rid || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     return new Promise((resolve, reject) => {
       let observer = null;
@@ -257,7 +247,7 @@
       }
       function read() {
         try {
-          return JSON.parse(document.documentElement?.getAttribute(RES_ATTR) || "{}");
+          return JSON.parse(document.documentElement?.getAttribute(responseAttribute) || "{}");
         } catch {
           return {};
         }
@@ -271,7 +261,7 @@
       });
       observer.observe(document.documentElement, {
         attributes: true,
-        attributeFilter: [RES_ATTR],
+        attributeFilter: [responseAttribute],
       });
       if (signal?.aborted) { onAbort(); return; }
       signal?.addEventListener("abort", onAbort, { once: true });
@@ -322,7 +312,6 @@
       importSelection: new Set(),
       batchSession: null,
       singleSession: null,
-      singleContextMenu: null,
       currentGame: null,
       singleAiRun: null,
       singleBusy: false,
@@ -337,16 +326,267 @@
       batchReadings: new Map(),
       batchReadingTimer: 0,
       batchSaving: false,
+      nativeSort: new Map(),
+      nativeDirty: new Set(),
+      dirtyRows: new Set(),
+      nativeJob: null,
+      nativeReads: new Map(),
+      batchGeneration: 0,
+      tablePrefs: TABLE.defaults(),
+      tableReady: false,
+      tableControl: null,
+      tableMessage: "",
+      sortBlocked: false,
       readingTimer: 0,
       actionsMenu: null,
       bulk: null,
       bulkSession: null,
       contextMenu: null,
       contextMenuGeneration: 0,
+      menuNative: null,
+      menuHook: null,
+      menuPending: null,
+      menuFrame: 0,
+      menuFailed: false,
     };
     let painted = null;
     let libsTask = null;
     let transferLibsTask = null;
+    let tableTask = null, prefsQueued = null, prefsSaving = null;
+
+    const tableText = (key, fallback, params) => i18n(`steam.independentName.table.${key}`, fallback, params);
+    function tableNotice(message) {
+      if (!state.started) return;
+      state.tableMessage = message;
+      const notice = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-table-status]");
+      if (notice) { notice.textContent = message; notice.hidden = !message; }
+    }
+    function saveTablePrefs() {
+      prefsQueued = { value: TABLE.parse(state.tablePrefs), operationId: `name-table-${Date.now()}-${Math.random().toString(36).slice(2)}` };
+      if (prefsSaving) return;
+      prefsSaving = (async () => {
+        while (prefsQueued) {
+          const { value, operationId } = prefsQueued;
+          prefsQueued = null;
+          try {
+            await request("table-settings-save", { value, operationId });
+            tableNotice("");
+            log.info("independent-name-table-saved", "名称表格展示配置已保存至本地", { operationId, columns: value.order.length });
+          } catch (error) {
+            const detail = error.message;
+            tableNotice(tableText("saveFailed", "表格设置未能保存：$error$", { error: detail }));
+            log.error("independent-name-table-save-failed", "名称表格本地展示配置保存失败", { error, operationId });
+          }
+        }
+      })().finally(() => { prefsSaving = null; });
+    }
+    function loadTableLib() {
+      if (window.SteamBuff.nameTable) return Promise.resolve();
+      if (tableTask) return tableTask;
+      tableTask = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = api.path.url(TABLE_LIB);
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(TABLE_LIB));
+        document.documentElement.appendChild(script);
+      }).finally(() => { tableTask = null; });
+      return tableTask;
+    }
+    function attachTable(modal) {
+      state.tableControl?.stop();
+      if (!window.SteamBuff.nameTable) return;
+      state.tableControl = window.SteamBuff.nameTable.create({
+        root: modal, prefs: state.tablePrefs,
+        enabled: () => state.tableReady && !state.busy && !state.batchSaving,
+        onChange(value) { state.tablePrefs = value; saveTablePrefs(); },
+        onSort(id) {
+          if (id === "sort" && state.filtered.some(row => !state.nativeSort.get(row.appid)?.ready)) {
+            tableNotice(tableText("sortUnavailable", "部分 Steam 排序名称尚未读取成功，请先重新读取。"));
+            return;
+          }
+          const current = state.tablePrefs.sort;
+          state.tablePrefs.sort = current?.id !== id ? { id, direction: "asc" } : current.direction === "asc" ? { id, direction: "desc" } : null;
+          state.tableControl?.update(state.tablePrefs);
+          sortRows();
+          modal.querySelector("[data-lin-scroll]").scrollTop = 0;
+          renderTable(); refreshTableHeaders(); saveTablePrefs();
+        },
+        reportError(error) {
+          tableNotice(tableText("actionFailed", "表格操作失败：$error$", { error: error.message }));
+          log.error("independent-name-table-action-failed", "名称表格拖拽收尾失败", { error });
+        },
+      });
+      refreshTableHeaders();
+    }
+    function colgroupHtml() {
+      return `<colgroup data-lin-colgroup><col style="width:40px">${state.tablePrefs.order.map(id => `<col data-lin-col="${id}" style="width:var(--st-lin-col-${id})">`).join("")}</colgroup>`;
+    }
+    function headersHtml() {
+      return `<th scope="col" class="st-lin-check"><input type="checkbox" data-lin-select-all aria-label="${esc(i18n("steam.independentName.selectAll", "全选"))}"></th>${state.tablePrefs.order.map(id => {
+        const column = TABLE.columns.find(column => column.id === id);
+        const title = i18n(`steam.independentName.${column.label}`, column.title);
+        return `<th scope="col" data-lin-col="${id}"><button type="button" data-lin-col-sort="${id}" title="${esc(tableText("headerHint", "点击排序；拖动更换列位置；Alt + 左右键移动列"))}"><span>${esc(title)}</span><span data-lin-sort-mark aria-hidden="true">↕</span></button><span data-lin-col-resize="${id}" tabindex="0" role="separator" aria-orientation="vertical" aria-label="${esc(tableText("resizeColumn", "调整 $name$ 列宽", { name: title }))}"></span></th>`;
+      }).join("")}`;
+    }
+    function refreshTableHeaders() {
+      const modal = document.getElementById(BATCH_MODAL);
+      if (!modal) return;
+      const sorted = state.tablePrefs.sort;
+      for (const th of modal.querySelectorAll("th[data-lin-col]")) {
+        const active = !state.sortBlocked && sorted?.id === th.dataset.linCol;
+        if (active) th.setAttribute("aria-sort", sorted.direction === "asc" ? "ascending" : "descending");
+        else th.removeAttribute("aria-sort");
+        th.querySelector("[data-lin-sort-mark]").textContent = active ? sorted.direction === "asc" ? "↑" : "↓" : "↕";
+      }
+    }
+    function sortRows() {
+      const order = state.tablePrefs.sort;
+      state.sortBlocked = false;
+      if (order?.id === "sort" && state.filtered.some(row => !state.nativeSort.get(row.appid)?.ready)) {
+        state.sortBlocked = true;
+        tableNotice(tableText("sortUnavailable", "部分 Steam 排序名称尚未读取成功，请先重新读取。"));
+        state.filtered.sort((a, b) => a.tableIndex - b.tableIndex);
+        return;
+      }
+      if (!order) { state.filtered.sort((a, b) => a.tableIndex - b.tableIndex); return; }
+      const compare = new Intl.Collator(document.documentElement.lang || undefined, { numeric: true, sensitivity: "base" });
+      const value = row => {
+        if (order.id === "appid") return row.appid;
+        if (order.id === "official") return row.official_name;
+        if (order.id === "sort") return state.nativeSort.get(row.appid)?.value;
+        const draft = draftOf(row.appid);
+        return order.id === "alias" ? draft.aliases : draft[{ custom: "custom_name", mnemonic: "mnemonic", pinyin: "pinyin" }[order.id]];
+      };
+      const values = new Map(state.filtered.map(row => [row.appid, value(row)]));
+      state.filtered.sort((a, b) => {
+        const left = values.get(a.appid), right = values.get(b.appid);
+        const emptyLeft = left === "" || left === undefined || (order.id === "alias" && !left.length), emptyRight = right === "" || right === undefined || (order.id === "alias" && !right.length);
+        if (emptyLeft !== emptyRight) return emptyLeft ? 1 : -1;
+        let result = 0;
+        if (!emptyLeft && order.id === "alias") {
+          for (let index = 0; index < Math.min(left.length, right.length); index++) {
+            result = compare.compare(left[index], right[index]);
+            if (result) break;
+          }
+          if (!result) result = left.length - right.length;
+        } else if (!emptyLeft) result = order.id === "appid" ? left - right : compare.compare(left, right);
+        return result ? result * (order.direction === "asc" ? 1 : -1) : a.appid - b.appid;
+      });
+    }
+    function syncNativeDirty(appid) {
+      const value = state.nativeSort.get(appid);
+      if (value?.edited) state.nativeDirty.add(appid); else state.nativeDirty.delete(appid);
+      syncSelectedDraft(appid);
+    }
+    function adoptNative(row) {
+      const previous = state.nativeSort.get(row.appid);
+      if (typeof row.native_sort_name !== "string") {
+        state.nativeSort.set(row.appid, { ...previous, ready: false, error: row.native_sort_error || tableText("missing", "Steam 排序名称数据不可用，请重新读取。") });
+        return;
+      }
+      if (previous?.edited && previous.value !== row.native_sort_name) {
+        previous.ready = true;
+        if (previous.initial !== row.native_sort_name) previous.error = i18n("steam.nativeSortName.conflict", "Steam 排序名称已在其他位置修改，请重新读取后再保存。");
+      } else state.nativeSort.set(row.appid, { initial: row.native_sort_name, value: row.native_sort_name, ready: true, edited: false, error: "" });
+      syncNativeDirty(row.appid);
+    }
+    function nativeCell(appid) {
+      const sort = state.nativeSort.get(appid);
+      const error = sort?.error || "";
+      const status = error || i18n("steam.nativeSortName.tableHint", "保存至 Steam");
+      return `<input class="st-lin-native-sort" data-lin-native-sort type="text" value="${esc(sort?.value ?? "")}" ${sort?.ready && !sort.loading ? "" : "disabled"}><div class="st-lin-native-note"><small title="${esc(status)}">${esc(status)}</small>${error ? `<button type="button" data-lin-native-retry="${appid}" ${sort?.loading ? "disabled" : ""}>${esc(i18n("steam.nativeSortName.reload", "重新读取"))}</button>` : ""}</div>`;
+    }
+    async function reloadNative(appid) {
+      const sort = state.nativeSort.get(appid), generation = state.batchGeneration;
+      if (!sort || sort.loading) return;
+      const controller = new AbortController();
+      state.nativeReads.set(appid, controller);
+      sort.loading = true;
+      renderTable();
+      try {
+        const result = await sortRequest("sort-read", { appid }, controller.signal);
+        if (generation !== state.batchGeneration || !state.started) return;
+        sort.initial = result.name;
+        if (!sort.edited) sort.value = result.name;
+        sort.edited = sort.value !== sort.initial;
+        sort.ready = true; sort.error = "";
+        syncNativeDirty(appid);
+        sortRows();
+      } catch (error) {
+        if (generation !== state.batchGeneration || !state.started || controller.signal.aborted) return;
+        sort.ready = false; sort.error = error.message;
+        log.error("native-sort-table-reread-failed", "批量表格重新读取排序名称失败", { error, appid });
+      } finally {
+        if (state.nativeReads.get(appid) === controller) { state.nativeReads.delete(appid); sort.loading = false; }
+        if (generation === state.batchGeneration && state.started) renderTable();
+      }
+    }
+    function saveNativeBatch(items, operationId) {
+      const rid = `sort-batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const controller = new AbortController();
+      const targets = new Map(items.map(item => [item.appid, item]));
+      state.nativeJob = { rid, controller, paused: false };
+      return new Promise((resolve, reject) => {
+        let remainingMs = 20000 + Math.ceil(items.length / 500) * 42000;
+        let startedAt = performance.now();
+        const timeout = () => finish(new Error(tableText("batchTimeout", "Steam 批量保存结果未确认，请重新读取后确认。")));
+        let timer = window.setTimeout(timeout, remainingMs);
+        const abort = () => finish(new DOMException(i18n("common.cancel", "取消"), "AbortError"));
+        // 暂停回执冻结剩余等待额度；重复进度不重置计时，恢复仍受原超时约束。
+        function updatePaused(paused) {
+          const job = state.nativeJob;
+          if (job?.rid !== rid || job.paused === paused) return;
+          job.paused = paused;
+          if (paused) {
+            window.clearTimeout(timer);
+            remainingMs = Math.max(0, remainingMs - (performance.now() - startedAt));
+          } else {
+            startedAt = performance.now();
+            timer = window.setTimeout(timeout, remainingMs);
+          }
+        }
+        function cleanup() {
+          window.clearTimeout(timer); state.ch.removeEventListener("message", receive); controller.signal.removeEventListener("abort", abort);
+          if (state.nativeJob?.rid === rid) state.nativeJob = null;
+        }
+        function markFailure(error) {
+          if (error.name === "AbortError") return;
+          for (const appid of targets.keys()) {
+            const sort = state.nativeSort.get(appid);
+            if (sort?.edited && !sort.error) sort.error = error.message;
+          }
+        }
+        function finish(error, value) {
+          if (error) markFailure(error);
+          cleanup();
+          if (error) reject(error); else resolve(value);
+        }
+        function receive(event) {
+          const data = event.data;
+          if (data?.script !== ID || data.side !== "backend" || data.rid !== rid) return;
+          if (data.type === "sort-batch-save-result" && data.ok !== true) { finish(new Error(data.error)); return; }
+          if (data.type !== "sort-batch-save-progress" && data.type !== "sort-batch-save-done") return;
+          for (const result of data.items || []) {
+            const target = targets.get(result.appid), sort = state.nativeSort.get(result.appid);
+            if (!target || !sort) continue;
+            if (result.status === "success") {
+              sort.initial = target.name;
+              sort.edited = sort.value !== sort.initial;
+              sort.error = "";
+            } else if (result.status === "failed") sort.error = result.error;
+            syncNativeDirty(result.appid);
+          }
+          updatePaused(data.paused === true);
+          const phase = data.paused ? tableText("batchPaused", "已暂停") : data.batch?.waiting ? tableText("batchWaiting", "等待下一批") : "";
+          tableNotice(tableText("batchProgress", "Steam 排序名称：已处理 $done$ / $total$", { done: data.stats?.processed, total: items.length }) + (phase ? ` · ${phase}` : ""));
+          renderTable();
+          if (data.type === "sort-batch-save-done") finish(null, data);
+        }
+        state.ch.addEventListener("message", receive); controller.signal.addEventListener("abort", abort, { once: true });
+        try { state.ch.postMessage({ script: ID, side: "ui", type: "sort-batch-save", rid, items, operationId }); }
+        catch (error) { markFailure(error); cleanup(); reject(error); }
+      });
+    }
 
     function cloudOf(appid, snapshot = state.snapshot) {
       const row = snapshot.items?.[String(appid)] || snapshot.items?.[appid] || {};
@@ -389,9 +629,11 @@
     // 维护勾选与草稿的交集，输入时只更新当前 AppID，避免逐字遍历勾选集合
     function syncSelectedDraft(appid) {
       const draft = state.drafts.get(appid);
-      if (state.selected.has(appid) && draft?.edited) {
+      const edited = draft?.edited || state.nativeSort.get(appid)?.edited;
+      if (edited) state.dirtyRows.add(appid); else state.dirtyRows.delete(appid);
+      if (state.selected.has(appid) && edited) {
         state.selectedDrafts.add(appid);
-        return draft;
+        return draft?.edited ? draft : null;
       }
       state.selectedDrafts.delete(appid);
       return null;
@@ -408,6 +650,7 @@
         if (snapshot.meta && typeof snapshot.meta === "object") state.meta = snapshot.meta;
       }
       state.drafts = adoptDrafts(state.drafts, cloudOf);
+      state.dirtyRows = new Set([...state.drafts.keys(), ...state.nativeDirty]);
       syncSelectedDrafts();
     }
 
@@ -416,6 +659,18 @@
     }
 
     function closeBatchModal() {
+      state.batchGeneration++;
+      state.tableControl?.stop(); state.tableControl = null;
+      for (const [appid, controller] of state.nativeReads) {
+        controller.abort();
+        const sort = state.nativeSort.get(appid);
+        if (sort) sort.loading = false;
+      }
+      state.nativeReads.clear();
+      if (state.nativeJob) {
+        state.ch.postMessage({ script: ID, side: "ui", type: "sort-batch-cancel", rid: state.nativeJob.rid });
+        state.nativeJob.controller.abort();
+      }
       closeTransfer();
       closeActionsMenu(false);
       closeBulkEditor();
@@ -470,9 +725,8 @@
     }
 
     function closeSingleModal() {
+      state.currentGame?.controller.abort();
       closeSingleReadingPreview();
-      const contextMenu = state.singleContextMenu;
-      state.singleContextMenu = null;
       const run = state.singleAiRun;
       state.singleAiRun = null;
       run?.controller.abort();
@@ -489,7 +743,6 @@
       if (modal) {
         modal.hidden = true;
       }
-      synchronizeClosedContextMenu(contextMenu);
     }
 
     function bindSingleModal(modal) {
@@ -537,6 +790,7 @@
       const disabled = state.singleBusy || !appid ? "disabled" : "";
       const original = Array.from(game.official_name || "");
       const last = original.pop() || "";
+      const sort = game.sort;
       return `
         <div class="st-lin-single-dialog">
           <header class="st-lin-head">
@@ -563,12 +817,17 @@
             <label for="st-lin-single-pinyin">${esc(i18n("steam.independentName.colPinyin", "拼音全拼"))}</label>
             <input id="st-lin-single-pinyin" data-lin-single-pinyin type="text" maxlength="200" value="${esc(draft.pinyin)}" ${disabled}>
             <div class="st-lin-readings st-lin-single-readings" data-lin-single-readings>${state.singleBusy ? "" : readingsHtml(singleReading(appid), "inline")}</div>
+            <label for="st-lin-single-sort">${esc(i18n("steam.libraryCustomName.customSortName", "自定义排序名称"))}</label>
+            <div class="st-lin-single-sort-field">
+              <input id="st-lin-single-sort" data-lin-single-sort type="text" value="${esc(sort.value)}" aria-describedby="st-lin-single-sort-status" ${state.singleBusy || !sort.ready || sort.loading ? "disabled" : ""}>
+              <small id="st-lin-single-sort-status" data-lin-single-sort-status role="status">${esc(sortStatus(sort))}</small>
+              <button class="st-lin-btn" type="button" data-lin-single-sort-retry ${sort.error || sort.reload ? "" : "hidden"} ${state.singleBusy || sort.loading ? "disabled" : ""}>${esc(i18n("steam.nativeSortName.reload", "重新读取"))}</button>
+            </div>
           </div>
           <p class="st-lin-msg ${status.kind === "rejected" ? "st-lin-sync-error" : ""}" data-lin-single-msg role="status">${esc(message)}</p>
           <footer class="st-lin-single-footer">
             <div class="st-lin-single-actions">
               <button class="st-lin-btn" type="button" data-lin-open-batch>${esc(i18n("steam.independentName.batch", "批量设置"))}</button>
-              <button class="st-lin-btn" type="button" disabled>${esc(i18n("steam.independentName.batchSort", "批量排序"))}</button>
             </div>
             <div class="st-lin-single-actions">
               <button class="st-lin-btn" type="button" data-lin-single-cancel>${esc(i18n("common.cancel", "取消"))}</button>
@@ -623,6 +882,91 @@
       }
     }
 
+    // 排序命令只走现有 SharedJSContext 通道，和素材君名称快照的请求、保存协议相互独立。
+    function sortRequest(type, data, signal) {
+      if (!state.ch) return Promise.reject(new Error(i18n("steam.independentName.channelMissing", "名称列表通道不可用")));
+      const rid = `sort-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const timer = window.setTimeout(() => finish(new Error(i18n("steam.independentName.timeout", "名称服务响应超时"))), 20000);
+        const abort = () => finish(new Error(i18n("common.cancel", "取消")));
+        const onMessage = (event) => {
+          const body = event.data;
+          if (body?.script !== ID || body.side !== "backend" || body.rid !== rid || body.type !== `${type}-result`) return;
+          if (body.ok === false && typeof body.error === "string" && body.error) finish(new Error(body.error));
+          else if (body.ok !== true || body.appid !== data.appid || typeof body.name !== "string") finish(new TypeError(i18n("steam.nativeSortName.invalid", "Steam 排序名称数据格式错误。")));
+          else finish(null, body);
+        };
+        function cleanup() {
+          window.clearTimeout(timer);
+          state.ch.removeEventListener("message", onMessage);
+          signal.removeEventListener("abort", abort);
+        }
+        function finish(error, body) {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          if (error) reject(error);
+          else resolve(body);
+        }
+        state.ch.addEventListener("message", onMessage);
+        if (signal.aborted) { abort(); return; }
+        signal.addEventListener("abort", abort, { once: true });
+        try {
+          state.ch.postMessage({ script: ID, side: "ui", type, rid, ...data });
+        } catch (error) {
+          settled = true;
+          cleanup();
+          reject(error);
+        }
+      });
+    }
+
+    function sortStatus(sort) {
+      if (sort.loading) return i18n("steam.nativeSortName.loading", "正在读取 Steam 排序名称…");
+      if (sort.error) return i18n("steam.nativeSortName.readFailed", "读取 Steam 排序名称失败：$error$", { error: sort.error });
+      return i18n("steam.nativeSortName.hint", "保存至 Steam；清空后点确定会移除排序名称。已打开的属性窗口需重开。");
+    }
+
+    function refreshSingleSort(game) {
+      if (state.currentGame !== game || !state.started) return;
+      const modal = document.getElementById(MODAL);
+      const input = modal?.querySelector("[data-lin-single-sort]");
+      if (!input) return;
+      const sort = game.sort;
+      input.value = sort.value;
+      input.disabled = state.singleBusy || !sort.ready || sort.loading;
+      modal.querySelector("[data-lin-single-sort-status]").textContent = sortStatus(sort);
+      const retry = modal.querySelector("[data-lin-single-sort-retry]");
+      retry.hidden = !sort.error && !sort.reload;
+      retry.disabled = state.singleBusy || sort.loading;
+    }
+
+    async function loadSingleSort(game) {
+      const sort = game.sort;
+      if (sort.loading) return;
+      sort.loading = true;
+      refreshSingleSort(game);
+      try {
+        const result = await sortRequest("sort-read", { appid: game.appid }, game.controller.signal);
+        if (state.currentGame !== game || !state.started) return;
+        sort.initial = result.name;
+        if (!sort.edited) sort.value = result.name;
+        sort.edited = sort.value !== sort.initial;
+        sort.ready = true;
+        sort.error = "";
+        sort.reload = false;
+      } catch (error) {
+        if (state.currentGame !== game || !state.started) return;
+        sort.ready = false;
+        sort.error = error.message || String(error);
+        log.error("independent-name-sort-read-failed", "单游戏弹窗读取 Steam 排序名称失败", { error, appid: game.appid });
+      } finally {
+        sort.loading = false;
+        refreshSingleSort(game);
+      }
+    }
+
     // 一次生成绑定当前弹窗对象；结果和两项读音全部校验后才改草稿，关闭后不回填
     async function generateSingleName() {
       const game = state.currentGame;
@@ -667,7 +1011,7 @@
       }
     }
 
-    async function openSingleModal(game, contextMenu = null) {
+    async function openSingleModal(game) {
       const appid = Number(game?.appid) || 0;
       const officialName = text(game?.official_name);
       if (!appid || !officialName) {
@@ -687,8 +1031,11 @@
         document.body.appendChild(modal);
       }
       state.opener = document.activeElement;
-      state.singleContextMenu = contextMenu;
-      state.currentGame = { appid, official_name: officialName };
+      // 排序草稿只属于本次窗口，不进入独立名称快照；关闭会丢弃它并取消尚未完成的回填。
+      state.currentGame = {
+        appid, official_name: officialName, controller: new AbortController(),
+        sort: { initial: null, value: "", edited: false, ready: false, loading: false, error: "", reload: false },
+      };
       const currentGame = state.currentGame;
       state.singleBusy = true;
       state.singleMessage = i18n("steam.independentName.loading", "正在加载...");
@@ -696,6 +1043,7 @@
       renderSingleModal();
       modal.hidden = false;
       bindSingleModal(modal);
+      void loadSingleSort(currentGame);
       try {
         const [snap] = await Promise.all([request("snapshot"), loadLibs()]);
         if (state.currentGame !== currentGame) {
@@ -1024,6 +1372,7 @@
     // 普通选择限定筛选结果；本次导入草稿保留隐藏目标，防止主窗口保存漏项。
     function applySearch() {
       state.filtered = state.rows.filter(matchesRow);
+      sortRows();
       const visible = state.filteredIds = new Set(state.filtered.map(row => row.appid));
       state.filteredSelected = 0;
       for (const appid of state.selected) {
@@ -1840,9 +2189,16 @@
       button.textContent = state.batchSaving
         ? i18n("steam.independentName.saving", "正在保存...")
         : i18n("steam.independentName.saveChanges", "保存修改");
+      const nativeControls = modal.querySelector("[data-lin-native-controls]");
+      if (nativeControls) nativeControls.hidden = !state.nativeJob;
+      for (const control of modal.querySelectorAll("[data-lin-native-command]")) {
+        control.disabled = !state.nativeJob || (control.dataset.linNativeCommand === "pause" && state.nativeJob.paused === true) || (control.dataset.linNativeCommand === "resume" && state.nativeJob.paused !== true);
+      }
+      const reset = modal.querySelector("[data-lin-table-reset]");
+      if (reset) reset.disabled = !state.tableReady || state.busy || state.batchSaving;
       const quota = Number(state.snapshot.quota);
       const quotaText = quota === -1 ? i18n("steam.independentName.quotaUnlimited", "额度不限") : i18n("steam.independentName.quotaUsed", "已用 $count$ / $quota$", { count: state.snapshot.count, quota });
-      modal.querySelector("[data-lin-stats]").textContent = `${i18n("steam.independentName.batchStats", "总 $total$ 款 · 筛选后 $filtered$ 款 · 已勾选 $selected$ 款 · 未保存修改 $dirty$ 款", { total: state.rows.length, filtered: state.filtered.length, selected: state.selected.size, dirty: state.drafts.size })} · ${i18n("steam.independentName.nameQuota", "名称额度：")} ${quotaText}`;
+      modal.querySelector("[data-lin-stats]").textContent = `${i18n("steam.independentName.batchStats", "总 $total$ 款 · 筛选后 $filtered$ 款 · 已勾选 $selected$ 款 · 未保存修改 $dirty$ 款", { total: state.rows.length, filtered: state.filtered.length, selected: state.selected.size, dirty: state.dirtyRows.size })} · ${i18n("steam.independentName.nameQuota", "名称额度：")} ${quotaText}`;
       modal.querySelector("[data-lin-selected-count]").textContent = i18n("steam.independentName.selectedCount", "已选 $n$ 款", { n: state.selected.size });
       modal.querySelector("[data-lin-export]").disabled = locked || state.batchSaving;
       const reference = modal.querySelector("[data-lin-reference-many]");
@@ -2099,20 +2455,21 @@
           : "";
         const status = syncStatus(row.appid);
         const official = esc(row.official_name);
-        return `
-          <tr data-appid="${row.appid}">
-            <td class="st-lin-appid">${slot(`<label class="st-lin-row-select"><input type="checkbox" data-lin-select="${row.appid}" aria-label="${esc(i18n("steam.independentName.selectGame", "勾选 $name$", { name: row.official_name }))}" ${state.selected.has(row.appid) ? "checked" : ""} ${state.referenceRun ? "disabled" : ""}><span>${row.appid}</span></label>`)}</td>
-            <td class="st-lin-official">${slot(`<span class="st-lin-clip" title="${official}">${official}</span>`)}</td>
-            <td class="st-lin-custom">${slot(`<input class="st-lin-name" type="text" maxlength="200" value="${esc(draft.custom_name)}" title="${esc(conflict)}">${conflict ? `<div class="st-lin-sync-error" title="${esc(conflict)}">${esc(conflict)}</div>` : statusLine(status)}`)}</td>
-            <td class="st-lin-alias">${slot(aliasHtml(row.appid, draft.aliases))}</td>
-            <td class="st-lin-mnemonic">${slot(`<input class="st-lin-mnemonic" type="text" maxlength="200" value="${esc(draft.mnemonic)}">`)}</td>
-            <td class="st-lin-pinyin">${slot(`<input class="st-lin-pinyin" type="text" maxlength="200" value="${esc(draft.pinyin)}"><div class="st-lin-batch-readings" data-lin-batch-readings>${readingsHtml(batchReading(row.appid))}</div>`)}</td>
-          </tr>
-        `;
+        const cells = {
+          appid: slot(String(row.appid)),
+          official: slot(`<span class="st-lin-clip" title="${official}">${official}</span>`),
+          custom: slot(`<input class="st-lin-name" type="text" maxlength="200" value="${esc(draft.custom_name)}" title="${esc(conflict)}">${conflict ? `<div class="st-lin-sync-error" title="${esc(conflict)}">${esc(conflict)}</div>` : statusLine(status)}`),
+          alias: slot(aliasHtml(row.appid, draft.aliases)),
+          mnemonic: slot(`<input class="st-lin-mnemonic" type="text" maxlength="200" value="${esc(draft.mnemonic)}">`),
+          pinyin: slot(`<input class="st-lin-pinyin" type="text" maxlength="200" value="${esc(draft.pinyin)}"><div class="st-lin-batch-readings" data-lin-batch-readings>${readingsHtml(batchReading(row.appid))}</div>`),
+          sort: slot(nativeCell(row.appid)),
+        };
+        return `<tr data-appid="${row.appid}"><td class="st-lin-check">${slot(`<input type="checkbox" data-lin-select="${row.appid}" aria-label="${esc(i18n("steam.independentName.selectGame", "勾选 $name$", { name: row.official_name }))}" ${state.selected.has(row.appid) ? "checked" : ""} ${state.referenceRun ? "disabled" : ""}>`)}</td>${state.tablePrefs.order.map(id => `<td class="st-lin-${id}" data-lin-col="${id}">${cells[id]}</td>`).join("")}</tr>`;
       }).join("");
     }
 
     function fieldKind(input) {
+      if (input.classList?.contains("st-lin-native-sort")) return "sort";
       if (input.classList?.contains("st-lin-name")) return "name";
       if (input.classList?.contains("st-lin-mnemonic")) return "mnemonic";
       if (input.classList?.contains("st-lin-pinyin")) return "pinyin";
@@ -2128,6 +2485,14 @@
         const appid = Number(input.closest("tr")?.dataset.appid) || 0;
         const kind = fieldKind(input);
         if (!appid || !kind) {
+          continue;
+        }
+        if (kind === "sort") {
+          const sort = state.nativeSort.get(appid);
+          if (input === active && sort?.ready) {
+            sort.value = input.value; sort.edited = sort.value !== sort.initial; syncNativeDirty(appid);
+            focus = { appid, kind, start: input.selectionStart, end: input.selectionEnd };
+          }
           continue;
         }
         if (input === active) {
@@ -2154,6 +2519,7 @@
         name: ".st-lin-name",
         mnemonic: ".st-lin-mnemonic",
         pinyin: ".st-lin-pinyin",
+        sort: ".st-lin-native-sort",
       }[focus.kind];
       const input = body.querySelector(`tr[data-appid="${focus.appid}"] ${selector}`);
       if (!input || input.disabled) {
@@ -2188,16 +2554,18 @@
       if (reason === "scroll" && sameWindow(range)) {
         return;
       }
+      state.tableControl?.beforeRender();
       window.clearTimeout(state.batchReadingTimer);
       const focus = rememberEditing(body);
       setHtml(body, `
         <div style="height:${range.before}px"></div>
-        <table class="st-lin-table">
+        <table class="st-lin-table">${colgroupHtml()}
           <tbody>${rowsHtml(range)}</tbody>
         </table>
         <div style="height:${range.after}px"></div>
       `, "library-independent-name-rows");
       painted = { start: range.start, end: range.end, before: range.before, after: range.after };
+      refreshTableHeaders();
       restoreFocus(body, focus);
       refreshBatchSave();
       const msg = modal.querySelector("[data-lin-msg]");
@@ -2218,8 +2586,10 @@
     function batchModalHtml() {
       return `
         <div class="st-lin-dialog">
+          <span data-lin-dialog-resize="left" aria-hidden="true"></span><span data-lin-dialog-resize="right" aria-hidden="true"></span>
           <header class="st-lin-head">
             <h2 id="st-lin-batch-title">${esc(i18n("steam.independentName.batchTitle", "Steam Buff · 批量设置自定义名称"))}</h2>
+            <button class="st-lin-btn" type="button" data-lin-table-reset>${esc(tableText("reset", "恢复默认表格"))}</button>
             <button class="st-lin-btn" type="button" data-lin-close>${esc(i18n("common.close", "关闭"))}</button>
           </header>
           <div class="st-lin-top">
@@ -2254,18 +2624,13 @@
               </div>
             </div>
             <p class="st-lin-msg" data-lin-msg role="status" hidden></p>
+            <p class="st-lin-msg" data-lin-table-status role="status" hidden></p>
+            <div data-lin-native-controls hidden><button class="st-lin-btn" type="button" data-lin-native-command="pause">${esc(tableText("pause", "暂停"))}</button><button class="st-lin-btn" type="button" data-lin-native-command="resume">${esc(tableText("resume", "继续"))}</button><button class="st-lin-btn" type="button" data-lin-native-command="cancel">${esc(tableText("cancel", "停止保存"))}</button></div>
           </div>
           <div class="st-lin-cols">
-            <table class="st-lin-table">
+            <table class="st-lin-table">${colgroupHtml()}
               <thead>
-                <tr>
-                  <th class="st-lin-appid"><label class="st-lin-row-select"><input type="checkbox" data-lin-select-all aria-label="${esc(i18n("steam.independentName.selectAll", "全选"))}"><span>${esc(i18n("steam.independentName.colAppid", "AppID"))}</span></label></th>
-                  <th class="st-lin-official">${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</th>
-                  <th class="st-lin-custom">${esc(i18n("steam.independentName.colCustom", "自定义名称"))}</th>
-                  <th class="st-lin-alias">${esc(i18n("steam.independentName.colAlias", "别名"))}</th>
-                  <th class="st-lin-mnemonic">${esc(i18n("steam.independentName.colMnemonic", "助记符"))}</th>
-                  <th class="st-lin-pinyin">${esc(i18n("steam.independentName.colPinyin", "拼音全拼"))}</th>
-                </tr>
+                <tr data-lin-header>${headersHtml()}</tr>
               </thead>
             </table>
           </div>
@@ -2368,7 +2733,7 @@
           state.ch.addEventListener("message", onMsg);
           state.ch.postMessage({ script: ID, side: "ui", type: "list", rid, offset });
         });
-        state.rows.push(...(page.rows || []));
+        for (const row of page.rows || []) { row.tableIndex = state.rows.length; adoptNative(row); state.rows.push(row); }
         for (const row of page.rows || []) state.rowsByAppid.set(row.appid, row);
         if (page.meta && typeof page.meta === "object") {
           state.meta = {
@@ -2384,6 +2749,8 @@
     }
 
     async function openBatchModal() {
+      const generation = ++state.batchGeneration;
+      state.tableControl?.stop(); state.tableControl = null; state.tableReady = false;
       css();
       let modal = document.getElementById(BATCH_MODAL);
       if (!modal) {
@@ -2413,9 +2780,22 @@
       state.message = i18n("steam.independentName.loading", "正在加载...");
       renderTable();
       try {
-        const [snap] = await Promise.all([request("snapshot"), loadLibs()]);
+        const layout = Promise.all([loadTableLib(), request("table-settings-get")]).then(([, result]) => {
+          if (generation !== state.batchGeneration || !state.started) return;
+          if (!result.value) throw new TypeError(tableText("invalidResponse", "表格配置响应缺少有效数据。"));
+          state.tablePrefs = TABLE.parse(result.value); state.tableReady = true; attachTable(modal);
+        }).catch(error => {
+          if (generation !== state.batchGeneration || !state.started) return;
+          state.tableReady = true; attachTable(modal);
+          const detail = error.message;
+          tableNotice(tableText("loadFailed", "表格设置读取失败：$error$", { error: detail }));
+          log.error("independent-name-table-load-failed", "名称表格本地展示配置读取失败", { error });
+        });
+        const [snap] = await Promise.all([request("snapshot"), loadLibs(), layout]);
+        if (generation !== state.batchGeneration || !state.started) return;
         adoptSnapshot(snap.data || state.snapshot);
         await loadRows();
+        if (generation !== state.batchGeneration || !state.started) return;
         applySearch();
         state.message = "";
         state.busy = false;
@@ -2455,19 +2835,22 @@
     }
 
     async function saveRow(appid) {
+      const game = state.currentGame;
       await loadLibs();
       const saved = savedItem(appid);
-      await request("save", { item: saved });
-      const snap = await request("snapshot");
+      const result = await request("save", { item: saved });
+      if (!result.data?.items || typeof result.data.items !== "object" || Array.isArray(result.data.items)) {
+        throw new TypeError(i18n("steam.independentName.saveSnapshotMissing", "名称保存结果异常，请重新打开确认。"));
+      }
       // 只清掉这次已经发出的内容，保存期间又改过的同一行草稿要留下
       const current = state.drafts.get(appid);
       if (current?.edited && sameNameDraft(current, saved)) {
         state.drafts.delete(appid);
         state.importSelection.delete(appid);
       }
-      adoptSnapshot(snap.data || state.snapshot);
+      adoptSnapshot(result.data);
       state.message = syncStatus(appid).text;
-      if (state.currentGame?.appid === appid) {
+      if (state.currentGame === game && game?.appid === appid) {
         state.singleMessage = state.message;
         renderSingleModal();
       }
@@ -2475,37 +2858,116 @@
       renderTable();
     }
 
+    // 两处存储分别提交；名称成功后仅重试仍未保存的排序草稿，不能把部分成功当成全部失败。
+    async function saveSingle() {
+      const game = state.currentGame;
+      if (!game || state.singleBusy) return;
+      const appid = game.appid;
+      const sort = game.sort;
+      const draft = state.drafts.get(appid);
+      const nameChanged = draft?.edited === true && !sameNameDraft(draft, cloudOf(appid));
+      const sortChanged = sort.edited && sort.value !== sort.initial;
+      if (!nameChanged && !sortChanged) {
+        closeSingleModal();
+        return;
+      }
+      if (sortChanged && (!sort.ready || sort.loading)) {
+        state.singleMessage = sortStatus(sort);
+        renderSingleModal();
+        return;
+      }
+      state.singleBusy = true;
+      state.singleMessage = i18n("steam.independentName.saving", "正在保存...");
+      renderSingleModal();
+      let nameSaved = false;
+      let sortStarted = false;
+      const operationId = `single-name-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      try {
+        if (nameChanged) {
+          await saveRow(appid);
+          nameSaved = true;
+        }
+        if (state.currentGame !== game || !state.started) return;
+        if (sortChanged) {
+          const value = sort.value;
+          sortStarted = true;
+          const result = await sortRequest("sort-save", { appid, name: value, expected: sort.initial, operationId }, game.controller.signal);
+          if (state.currentGame !== game || !state.started) return;
+          if (result.name !== value) throw new TypeError(i18n("steam.nativeSortName.unverified", "Steam 排序名称保存结果未确认，请重新读取后再试。"));
+          sort.initial = result.name;
+          sort.edited = false;
+          sort.reload = false;
+        }
+        closeSingleModal();
+      } catch (error) {
+        if (state.currentGame !== game || !state.started) return;
+        if (sortStarted) sort.reload = true;
+        const detail = error.message || String(error);
+        state.singleMessage = nameSaved
+          ? i18n("steam.nativeSortName.partial", "自定义名称已保存，Steam 排序名称保存失败：$error$", { error: detail })
+          : detail;
+        if (nameSaved) log.warn("independent-name-save-partial", "单游戏名称已保存但 Steam 排序名称未完成", { error, appid, operationId });
+        else log.error("independent-name-save-failed", "独立版单游戏名称保存失败", { error, appid, operationId });
+      } finally {
+        if (state.currentGame === game && state.started) {
+          state.singleBusy = false;
+          renderSingleModal();
+        }
+      }
+    }
+
     async function saveAllDrafts() {
       if (state.batchSaving || state.referenceRun || state.busy || !state.selectedDrafts.size) return;
-      const items = [];
+      const generation = state.batchGeneration;
+      const items = [], native = [];
       for (const appid of state.selected) {
         const draft = syncSelectedDraft(appid);
         if (draft) items.push(savedItem(appid, draft));
+        const sort = state.nativeSort.get(appid);
+        if (sort?.edited) {
+          if (!sort.ready || sort.loading) { state.message = sort.error; renderTable(); return; }
+          native.push({ appid, name: sort.value, expected: sort.initial });
+        }
       }
-      if (!items.length) return;
+      if (!items.length && !native.length) return;
+      const total = new Set([...items, ...native].map(item => item.appid)).size;
+      const operationId = `batch-names-${Date.now()}`;
+      let namesSaved = false;
       state.batchSaving = true;
       refreshBatchSave();
       try {
-        const result = await request("save-all", { items });
-        if (!result.data?.items || typeof result.data.items !== "object" || Array.isArray(result.data.items)) {
-          throw new TypeError("批量保存响应缺少名称快照");
-        }
-        for (const item of items) {
-          const current = state.drafts.get(item.appid);
-          if (current?.edited && sameNameDraft(current, item)) {
-            state.drafts.delete(item.appid); state.importSelection.delete(item.appid);
+        if (items.length) {
+          const result = await request("save-all", { items, operationId });
+          if (!result.data?.items || typeof result.data.items !== "object" || Array.isArray(result.data.items)) throw new TypeError("批量保存响应缺少名称快照");
+          for (const item of items) {
+            const current = state.drafts.get(item.appid);
+            if (current?.edited && sameNameDraft(current, item)) {
+              state.drafts.delete(item.appid); state.importSelection.delete(item.appid);
+            }
           }
+          adoptSnapshot(result.data);
+          namesSaved = true;
         }
-        adoptSnapshot(result.data);
+        if (!state.started || generation !== state.batchGeneration) return;
+        if (native.length) {
+          const result = await saveNativeBatch(native, operationId);
+          if (result.cancelled) { state.message = tableText("batchCancelled", "已停止保存，已成功的内容已保留。"); return; }
+          const success = new Set((result.items || []).filter(item => item.status === "success").map(item => item.appid));
+          const remaining = native.filter(item => !success.has(item.appid)).length;
+          if (remaining) throw new Error(result.error || tableText("batchIncomplete", "$n$ 款 Steam 排序名称未保存，已成功的内容已保留。", { n: remaining }));
+        }
         applySearch();
-        state.message = i18n("steam.independentName.savedAll", "已保存 $n$ 款游戏", { n: items.length });
-        log.info("independent-name-save-all-success", "独立版自定义名称批量已保存", { count: items.length });
+        state.message = i18n("steam.independentName.savedAll", "已保存 $n$ 款游戏", { n: total });
+        log.info("independent-name-save-all-success", "独立版自定义名称批量已保存", { count: total, nativeCount: native.length, operationId });
       } catch (error) {
-        state.message = error?.message || String(error);
-        log.warn("independent-name-save-all-failed", "独立版自定义名称批量保存失败", { error, count: items.length });
+        if (error.name === "AbortError" && generation !== state.batchGeneration) return;
+        const detail = error.message;
+        if (generation === state.batchGeneration) state.message = namesSaved && native.length ? i18n("steam.nativeSortName.partial", "自定义名称已保存，Steam 排序名称保存失败：$error$", { error: detail }) : detail;
+        log.error("independent-name-save-all-failed", "独立版自定义名称批量保存未全部完成", { error, count: total, namesSaved, nativeCount: native.length, operationId });
       } finally {
         state.batchSaving = false;
-        if (state.started) renderTable();
+        if (state.started && generation === state.batchGeneration) renderTable();
+        else if (state.started) refreshBatchSave();
       }
     }
 
@@ -2933,304 +3395,138 @@
       renderSingleModal();
     }
 
-    function nativeMenuInstance(entry) {
-      const root = entry?.parentElement;
-      for (let fiber = reactFiber(root), depth = 0; fiber && depth < 16; fiber = fiber.return, depth += 1) {
-        const instance = fiber.memoizedProps?.instance;
-        if (
-          instance
-          && typeof instance.SetOnHideCallback === "function"
-          && typeof instance.Hide === "function"
-          && typeof instance.HideSubMenu === "function"
-          && typeof instance.m_fnOnHideCallback === "function"
-        ) {
-          return instance;
-        }
-      }
-      return null;
-    }
-
-    function nativeMenuItemCloseCallback(entry) {
-      const root = entry?.parentElement;
-      for (let fiber = reactFiber(root), depth = 0; fiber && depth < 16; fiber = fiber.return, depth += 1) {
-        const close = fiber.memoizedProps?.fnOnMenuItemSelected;
-        if (typeof close !== "function") {
-          continue;
-        }
-        return close;
-      }
-      return null;
-    }
-
-    function nativeMenuItemClose(entry) {
-      const close = nativeMenuItemCloseCallback(entry);
-      if (!close) {
-        return false;
-      }
+    // 主窗口的 Steam 模块运行在 SharedJSContext；只读取已取证模块，不搜索模块表
+    function nativeMenu() {
+      if (state.menuNative) return state.menuNative;
+      const chunks = window.opener?.webpackChunksteamui;
+      if (!Array.isArray(chunks)) throw new TypeError("Steam 原生菜单模块运行时不可用");
+      let require;
+      const token = [[`steam-buff-library-menu-${Date.now()}-${Math.random().toString(36).slice(2)}`], {}, (loader) => { require = loader; }];
+      const index = chunks.length;
       try {
-        close();
-        return true;
-      } catch (error) {
-        log.warn("independent-name-native-menu-close-failed", "Steam 原生菜单关闭回调执行失败", { error });
-        return false;
-      }
-    }
-
-    function cleanupContextMenu(record = state.contextMenu) {
-      if (!record || record.cleaned) {
-        return;
-      }
-      record.cleaned = true;
-      try {
-        record.entry?.remove?.();
+        chunks.push(token);
       } finally {
-        if (record.instance.m_fnOnHideCallback === record.wrappedHide) {
-          try {
-            record.instance.SetOnHideCallback(record.originalHide);
-          } catch (error) {
-            log.warn("independent-name-native-menu-hook-restore-failed", "Steam 原生菜单关闭回调恢复失败", { error });
-          }
-        }
-        if (state.contextMenu === record) {
-          state.contextMenu = null;
-        }
+        if (chunks[index] === token) chunks.splice(index, 1);
       }
+      if (typeof require !== "function") throw new TypeError("Steam 原生菜单模块加载器不可用");
+      const react = require(MENU_MODULES.react);
+      const MenuItem = require(MENU_MODULES.items).kt;
+      const GameMenu = require(MENU_MODULES.game).uU;
+      const registry = require(MENU_MODULES.registry).XX;
+      if (typeof react?.createElement !== "function" || typeof react?.cloneElement !== "function"
+        || typeof MenuItem !== "function" || typeof GameMenu !== "function"
+        || typeof registry?.GetContextMenuManager !== "function") {
+        throw new TypeError("Steam 原生菜单组件契约已变化");
+      }
+      state.menuNative = { react, MenuItem, GameMenu, registry };
+      return state.menuNative;
     }
 
-    function synchronizeClosedContextMenu(record) {
-      if (!record || record.instance.visible !== false
-        || !record.menu.isConnected || !record.mouseOverlay?.isConnected) {
-        return;
-      }
+    function cancelMenuFrame() {
+      if (state.menuFrame) window.cancelAnimationFrame(state.menuFrame);
+      state.menuFrame = 0;
+    }
+
+    // 只关闭本入口创建且仍活动的菜单，节点和遮罩由 Steam 自己卸载
+    function closeContextMenu() {
+      const record = state.contextMenu;
+      state.contextMenu = null;
+      if (!record?.instance || record.manager.ActiveMenu !== record.instance || record.instance.visible !== true) return;
       try {
-        const manager = record.instance.m_ContextMenuManager;
-        if (typeof manager?.BShouldRenderMouseOverlay !== "function"
-          || typeof manager.OnMenusChanged?.Dispatch !== "function") {
-          throw new TypeError("Steam 原生菜单界面同步接口不可用");
-        }
-        if (manager.BShouldRenderMouseOverlay()) {
-          return;
-        }
-        // 当前菜单已逻辑关闭但 DOM 仍挂载时，通知原管理器完成界面同步。
-        manager.OnMenusChanged.Dispatch();
-        log.warn("independent-name-native-menu-sync-requested", "原生菜单关闭后节点仍挂载，已请求 Steam 同步菜单界面", { appid: record.appid });
+        record.instance.Hide();
       } catch (error) {
-        log.error("independent-name-native-menu-sync-failed", "Steam 原生菜单关闭后的界面同步失败", { error, appid: record.appid });
+        log.error("independent-name-native-menu-hide-failed", "Steam 原生游戏菜单关闭失败", { error, appid: record.game.appid });
       }
     }
 
-    function installContextMenuLifecycle(menu, entry, instance, game, generation) {
-      const originalHide = instance.m_fnOnHideCallback;
-      if (typeof originalHide !== "function") {
-        return null;
-      }
-      const operationGeneration = Number.isSafeInteger(generation)
-        ? generation
-        : state.contextMenuGeneration + 1;
-      const record = {
-        menu,
-        mouseOverlay: menu.parentElement?.parentElement?.querySelector(MENU_MOUSE_OVERLAY_SELECTOR) || null,
-        entry,
-        instance,
-        appid: Number(game?.appid) || 0,
-        generation: operationGeneration,
-        originalHide,
-        wrappedHide: null,
-        cleaned: false,
-      };
-      record.wrappedHide = (...args) => {
-        // 注: 移除入口会让下方子菜单项移到鼠标处，必须先停止菜单命中。
-        menu.classList.add(MENU_CLOSING_CLASS);
-        let result;
-        try {
-          result = originalHide.apply(instance, args);
-        } catch (error) {
-          log.warn("independent-name-native-menu-original-hide-failed", "Steam 原生菜单隐藏回调执行失败", { error });
-        } finally {
-          cleanupContextMenu(record);
-        }
-        return result;
-      };
+    function restoreMenuHook() {
+      const hook = state.menuHook;
+      state.menuHook = null;
+      if (!hook || hook.manager.CreateContextMenuInstance !== hook.wrapped) return;
       try {
-        instance.SetOnHideCallback(record.wrappedHide);
+        if (hook.descriptor) Object.defineProperty(hook.manager, "CreateContextMenuInstance", hook.descriptor);
+        else delete hook.manager.CreateContextMenuInstance;
       } catch (error) {
-        log.warn("independent-name-native-menu-hook-failed", "Steam 原生菜单关闭回调挂接失败", { error });
-        return null;
+        log.error("independent-name-native-menu-restore-failed", "Steam 原生菜单创建方法恢复失败", { error });
       }
-      state.contextMenuGeneration = Math.max(state.contextMenuGeneration, record.generation);
-      state.contextMenu = record;
-      return record;
     }
 
-    function updateContextMenuGame(record, game, generation) {
-      const appid = Number(game?.appid) || 0;
-      const operationGeneration = Number.isSafeInteger(generation)
-        ? generation
-        : state.contextMenuGeneration + 1;
-      state.contextMenuGeneration = Math.max(state.contextMenuGeneration, operationGeneration);
-      record.generation = operationGeneration;
-      record.appid = appid;
-      record.entry.__steamBuffIndependentNameGame = {
-        appid,
-        official_name: text(game?.official_name),
-      };
-      record.entry.__steamBuffIndependentNameGeneration = record.generation;
-    }
-
-    function addContextMenuEntry(game, generation) {
-      const appid = Number(game?.appid) || 0;
-      if (!appid) {
-        return false;
-      }
-      const operationGeneration = Number.isSafeInteger(generation)
-        ? generation
-        : state.contextMenuGeneration + 1;
-      state.contextMenuGeneration = Math.max(state.contextMenuGeneration, operationGeneration);
-      const popup = document.getElementById("popup_target");
-      const items = popup?.querySelectorAll?.("div[role='menuitem'].contextMenuItem") || [];
-      let matched = null;
-      for (const item of items) {
-        if (Number(api.ctx?.contextMenuOverview?.(item)?.appid) === appid) {
-          matched = item;
-          break;
-        }
-      }
-      if (!matched) {
-        return false;
-      }
-      const menu = matched.parentElement;
-      if (!menu) {
-        return false;
-      }
-      const favorite = steamFavoriteMenuItem(menu);
-      if (!favorite) {
-        return false;
-      }
-      const instance = nativeMenuInstance(matched);
-      const close = nativeMenuItemCloseCallback(matched);
-      if (!instance || !close) {
-        log.warn("independent-name-native-menu-close-unavailable", "Steam 原生菜单关闭回调不可用，跳过扩展入口", { appid });
-        return false;
-      }
-      if (instance.visible !== true) {
-        return false;
-      }
-      menu.classList.remove(MENU_CLOSING_CLASS);
-      const active = state.contextMenu;
-      if (active && (active.menu !== menu || active.instance !== instance)) {
-        cleanupContextMenu(active);
-      }
-      const children = Array.from(menu.children || []);
-      const favoriteIndex = children.indexOf(favorite);
-      const next = favoriteIndex >= 0 ? children[favoriteIndex + 1] || null : null;
-      const existing = menu.querySelector?.(`[${MENU_ENTRY_ATTR}]`);
-      if (active && active.menu === menu && active.instance === instance && active.entry === existing) {
-        updateContextMenuGame(active, game, operationGeneration);
-        return true;
-      }
-      if (active && active.menu === menu && active.instance === instance) {
-        cleanupContextMenu(active);
-      }
-      if (existing) {
-        existing.remove?.();
-      }
-      if (typeof document.createElement !== "function" || typeof menu.insertBefore !== "function") {
-        return false;
-      }
-      const entry = document.createElement("div");
-      entry.className = `${text(favorite.className) || "contextMenuItem"} st-lin-context-entry`;
-      entry.setAttribute("role", "menuitem");
-      entry.setAttribute("tabindex", "-1");
-      entry.setAttribute(MENU_ENTRY_ATTR, "");
-      entry.textContent = i18n("steam.independentName.open", "自定义名称");
-      entry.__steamBuffIndependentNameGame = {
-        appid,
-        official_name: text(game?.official_name),
-      };
-      const record = installContextMenuLifecycle(menu, entry, instance, game, operationGeneration);
-      if (!record) {
-        return false;
-      }
-      entry.__steamBuffIndependentNameGeneration = record.generation;
-      entry.addEventListener("mouseenter", () => {
-        if (
-          state.started !== true
-          || window.__SteamBuffLibraryIndependentNameUi !== state
-          || state.contextMenu !== record
-          || record.cleaned
-        ) {
-          return;
-        }
-        try {
-          instance.HideSubMenu();
-        } catch (error) {
-          log.error("independent-name-native-submenu-hide-failed", "Steam 原生子菜单收起失败", {
-            error,
-            appid: record.appid,
-          });
-        }
-      });
-      entry.addEventListener("click", () => {
-        const current = entry.__steamBuffIndependentNameGame;
-        const generation = entry.__steamBuffIndependentNameGeneration;
-        if (
-          state.started !== true
-          || window.__SteamBuffLibraryIndependentNameUi !== state
-          || state.contextMenu !== record
-          || record.cleaned
-          || record.generation !== generation
-          || record.appid !== Number(current?.appid) || !current
-        ) {
-          return;
-        }
-        if (!nativeMenuItemClose(entry)) {
-          return;
-        }
-        window.requestAnimationFrame(() => {
-          if (
-            state.started !== true
-            || window.__SteamBuffLibraryIndependentNameUi !== state
-            || state.contextMenuGeneration !== generation
-            || document.hidden
-            || entry.__steamBuffIndependentNameGame !== current
-          ) {
-            return;
-          }
-          openSingleModal(current, record).catch((error) => {
-            log.warn("independent-name-open-failed", "独立版单游戏名称弹窗打开失败", {
-              error,
-              appid: Number(current?.appid) || 0,
-            });
-          });
+    function selectContextMenu(record) {
+      if (state.started !== true || window.__SteamBuffLibraryIndependentNameUi !== state || document.hidden
+        || state.contextMenu !== record || record.selected || record.instance?.visible !== true
+        || state.contextMenuGeneration !== record.generation) return;
+      record.selected = true;
+      cancelMenuFrame();
+      // 原生 MenuItem 在 onSelected 返回后关闭菜单，下一帧再打开编辑器
+      state.menuFrame = window.requestAnimationFrame(() => {
+        state.menuFrame = 0;
+        if (state.started !== true || window.__SteamBuffLibraryIndependentNameUi !== state || document.hidden
+          || state.contextMenuGeneration !== record.generation) return;
+        state.contextMenu = null;
+        openSingleModal(record.game).catch((error) => {
+          log.warn("independent-name-open-failed", "独立版单游戏名称弹窗打开失败", { error, appid: record.game.appid });
         });
       });
-      try {
-        menu.insertBefore(entry, next);
-      } catch (error) {
-        cleanupContextMenu(record);
-        log.warn("independent-name-native-menu-entry-insert-failed", "独立版右键菜单入口插入失败", { error, appid });
-        return false;
+    }
+
+    // 只在同一次库行 contextmenu 分发期间改写原生组件 props，其余菜单原样转发
+    function ensureMenuHook(native) {
+      const manager = native.registry.GetContextMenuManager(window);
+      if (state.menuHook?.manager === manager) {
+        if (manager.CreateContextMenuInstance !== state.menuHook.wrapped) throw new TypeError("Steam 原生菜单创建方法已被替换");
+        return;
       }
-      return true;
+      restoreMenuHook();
+      const original = manager?.CreateContextMenuInstance;
+      if (typeof original !== "function") throw new TypeError("Steam 原生菜单创建方法不可用");
+      const descriptor = Object.getOwnPropertyDescriptor(manager, "CreateContextMenuInstance");
+      const wrapped = function (element, trigger, ...args) {
+        const pending = state.menuPending;
+        if (!pending || state.started !== true || pending.event.eventPhase === 0 || document.hidden
+          || element?.type !== native.GameMenu || Number(element.props?.overview?.appid) !== pending.game.appid
+          || !trigger?.contains?.(pending.row)) return original.call(this, element, trigger, ...args);
+        state.menuPending = null;
+        const record = { manager, instance: null, game: pending.game, generation: pending.generation, selected: false };
+        let next = element;
+        try {
+          const entry = native.react.createElement(native.MenuItem, {
+            key: MENU_ENTRY_ATTR,
+            [MENU_ENTRY_ATTR]: "",
+            onSelected: () => selectContextMenu(record),
+          }, i18n("steam.independentName.open", "自定义名称"));
+          const existing = element.props.additionalActions;
+          next = native.react.cloneElement(element, { additionalActions: existing == null ? entry : [existing, entry] });
+        } catch (error) {
+          log.error("independent-name-native-menu-entry-failed", "自定义名称原生菜单项创建失败", { error, appid: pending.game.appid });
+          return original.call(this, element, trigger, ...args);
+        }
+        const instance = original.call(this, next, trigger, ...args);
+        record.instance = instance;
+        state.contextMenu = record;
+        return instance;
+      };
+      manager.CreateContextMenuInstance = wrapped;
+      state.menuHook = { manager, original, descriptor, wrapped };
     }
 
     function onLibraryContextMenu(event) {
+      state.menuPending = null;
+      state.contextMenuGeneration += 1;
+      cancelMenuFrame();
+      if (state.started !== true || document.hidden || state.menuFailed) return;
       const row = api.ctx?.libraryRow?.(event.target);
       const item = api.ctx?.libraryRowItem?.(row);
       const appid = Number(item?.appid) || 0;
       const officialName = officialNameOf(item);
-      if (!appid || !officialName) {
-        return;
+      if (!appid || !officialName) return;
+      try {
+        ensureMenuHook(nativeMenu());
+        state.menuPending = { event, row, game: { appid, official_name: officialName }, generation: state.contextMenuGeneration };
+      } catch (error) {
+        state.menuFailed = true;
+        restoreMenuHook();
+        log.error("independent-name-native-menu-unavailable", "自定义名称原生菜单入口不可用", { error, appid });
       }
-      const generation = state.contextMenuGeneration + 1;
-      state.contextMenuGeneration = generation;
-      // 当前 Steam 菜单在原生 contextmenu 结束时已创建，下一帧只覆盖同一次用户操作的 React 提交
-      window.requestAnimationFrame(() => {
-        if (state.started !== true || window.__SteamBuffLibraryIndependentNameUi !== state) {
-          return;
-        }
-        addContextMenuEntry({ appid, official_name: officialName }, generation);
-      });
     }
 
     function onSingleClick(event) {
@@ -3248,6 +3544,10 @@
         return;
       }
       if (state.singleAiRun) return;
+      if (event.target.closest("[data-lin-single-sort-retry]") && state.currentGame && !state.singleBusy) {
+        void loadSingleSort(state.currentGame);
+        return;
+      }
       if (event.target.closest("[data-lin-single-ai]")) {
         void generateSingleName();
         return;
@@ -3269,20 +3569,7 @@
         return;
       }
       if (event.target.closest("[data-lin-single-confirm]") && state.currentGame && !state.singleBusy) {
-        state.singleBusy = true;
-        state.singleMessage = i18n("steam.independentName.saving", "正在保存...");
-        renderSingleModal();
-        const appid = state.currentGame.appid;
-        saveRow(appid).then(() => {
-          if (state.currentGame?.appid === appid) {
-            closeSingleModal();
-          }
-        }).catch((error) => {
-          state.singleBusy = false;
-          state.singleMessage = error?.message || String(error);
-          log.warn("independent-name-save-failed", "独立版自定义名称保存失败", { error, appid });
-          renderSingleModal();
-        });
+        void saveSingle();
       }
     }
 
@@ -3304,6 +3591,13 @@
     function onSingleInput(event) {
       const appid = Number(state.currentGame?.appid) || 0;
       if (!appid || state.singleBusy) {
+        return;
+      }
+      if (event.target.matches("[data-lin-single-sort]")) {
+        const sort = state.currentGame.sort;
+        if (!sort.ready || sort.loading) return;
+        sort.value = event.target.value;
+        sort.edited = sort.value !== sort.initial;
         return;
       }
       if (event.target.matches("[data-lin-single-alias]")) {
@@ -3335,6 +3629,16 @@
     }
 
     function onBatchClick(event) {
+      if (event.target.closest("[data-lin-table-reset]")) {
+        if (!state.tableReady || state.busy || state.batchSaving) return;
+        state.tablePrefs = TABLE.defaults(); state.tableControl?.update(state.tablePrefs);
+        document.getElementById(BATCH_MODAL).querySelector("[data-lin-scroll]").scrollLeft = 0;
+        sortRows(); renderTable(); refreshTableHeaders(); saveTablePrefs(); return;
+      }
+      const reload = event.target.closest("[data-lin-native-retry]");
+      if (reload) { void reloadNative(Number(reload.dataset.linNativeRetry)); return; }
+      const command = event.target.closest("[data-lin-native-command]");
+      if (command && state.nativeJob) { state.ch.postMessage({ script: ID, side: "ui", type: "sort-batch-" + command.dataset.linNativeCommand, rid: state.nativeJob.rid }); return; }
       if (state.transfer) {
         try { onTransferClick(event); } catch (error) { reportError(error, state.transfer); }
         return;
@@ -3586,6 +3890,12 @@
         }, SEARCH_MS);
         return;
       }
+      if (event.target.matches("[data-lin-native-sort]")) {
+        const appid = Number(event.target.closest("tr[data-appid]")?.dataset.appid), sort = state.nativeSort.get(appid);
+        if (!sort?.ready || sort.loading) return;
+        sort.value = event.target.value; sort.edited = sort.value !== sort.initial;
+        syncNativeDirty(appid); refreshBatchSave(); return;
+      }
       const tr = event.target.closest("tr[data-appid]");
       const appid = Number(tr?.dataset.appid) || 0;
       if (!appid) {
@@ -3669,7 +3979,10 @@
 
     function onVisibility() {
       if (document.hidden) {
-        cleanupContextMenu();
+        state.menuPending = null;
+        state.contextMenuGeneration += 1;
+        cancelMenuFrame();
+        closeContextMenu();
         return;
       }
       // modal 不存在时 hidden 是 undefined，不能把它当成窗口仍打开
@@ -3700,7 +4013,11 @@
 
     const stop = () => {
       state.started = false;
-      cleanupContextMenu();
+      state.menuPending = null;
+      state.contextMenuGeneration += 1;
+      cancelMenuFrame();
+      closeContextMenu();
+      restoreMenuHook();
       closeSingleModal();
       closeBatchModal();
       if (!scope?.listener) {

@@ -480,7 +480,24 @@
       panels.storePriceChart().handleInput(event, shadow);
     });
 
+    async function saveUpdateCheck(control) {
+      control.disabled = true;
+      try {
+        await api.storage.setUpdateCheck({ hours: Number(control.value) }, { operationId: root.STLoggerFactory.createOperationId() });
+        const note = shadow.querySelector("#st-update-check-note");
+        if (note) note.textContent = root.STI18n.text("settings.updateCheck.desc", "扩展运行期间在后台检查；选择不检查后仍可手动检查更新。");
+      } catch (error) {
+        log.error("setting-save-failed", "检查更新频率保存失败", { error, kind: "update-check" });
+        const note = shadow.querySelector("#st-update-check-note");
+        if (note) note.textContent = root.STI18n.text("settings.updateCheck.saveFailed", "保存失败，请重试。");
+      } finally {
+        await shell.refreshUpdateCheck(shadow);
+      }
+    }
+
     listen(shadow, "change", (event) => {
+      const frequency = event.target.closest("[data-update-hours]");
+      if (frequency) { void saveUpdateCheck(frequency); return; }
       const locale = event.target.closest("[data-ui-locale]");
       if (locale) {
         const operationId = root.STLoggerFactory?.createOperationId?.() || "";

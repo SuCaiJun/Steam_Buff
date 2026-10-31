@@ -28,9 +28,7 @@
   const ROOT_ID = "__SteamBuffLifecyclePrompt";
   const DONATE_URL = root.STConfig.urls.donate;
   const BRAND_ICON_URL = root.chrome.runtime.getURL("images/icon.png");
-  const updateLogUrl = new URL(root.STConfig.urls.updatePage);
-  updateLogUrl.hash = "update-log";
-  const UPDATE_LOG_URL = updateLogUrl.href;
+  const UPDATE_LOG_URL = root.STConfig.urls.updateChangelog;
   const checker = root.STUpdateChecker;
   const membershipApi = root.STSettingsMembership;
   const dom = root.STDomUtils;
