@@ -285,6 +285,11 @@
       updateActionButton(node);
       return node;
     }
+    function clearUnreadButton() {
+      const node = actionButton({ id: "clear-unread", label: text("messageCenter.clearUnread", "清除未读"), icon: "clear" }, "", true);
+      node.dataset.action = "read-all"; node.disabled = true;
+      return node;
+    }
     function actionsFor(message, compact) {
       const group = element("div", compact ? "st-mc-inline-actions" : "st-mc-actions");
       for (const raw of message.actions || []) {
@@ -374,21 +379,19 @@
 
     const panel = element("section"); panel.id = PANEL; panel.tabIndex = -1; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "Steam Buff 消息中心");
     const popHead = element("header", "st-mc-head"), heading = element("div", "st-mc-heading");
-    const clearUnread = actionButton({ id: "clear-unread", label: text("messageCenter.clearUnread", "清除未读"), icon: "clear" }, "", true);
-    clearUnread.disabled = true;
-    clearUnread.dataset.action = "read-all"; clearUnread.disabled = true;
+    const clearUnread = clearUnreadButton();
     heading.append(element("h2", "", "消息中心"), clearUnread); popHead.append(heading, button("查看全部", "all"));
     const popList = element("div", "st-mc-list");
     const popError = element("p", "st-mc-error"); popError.setAttribute("role", "status");
     panel.append(popHead, popList, popError);
 
     const dialog = element("section"); dialog.id = DIALOG; dialog.tabIndex = -1; dialog.setAttribute("role", "dialog"); dialog.setAttribute("aria-modal", "true"); dialog.setAttribute("aria-labelledby", `${DIALOG}Title`);
-    const fullHead = element("header", "st-mc-head"), fullTitle = element("h2", "", "消息中心"); fullTitle.id = `${DIALOG}Title`;
-    const close = button("×", "close", "st-mc-close"); close.setAttribute("aria-label", "关闭消息中心"); fullHead.append(fullTitle, close);
-    const tools = element("div", "st-mc-tools"), all = button("全部", "filter-all"), unread = button("未读", "filter-unread"), fullRead = button("全部已读", "read-all");
+    const fullHead = element("header", "st-mc-head"), fullHeading = element("div", "st-mc-heading"), fullTitle = element("h2", "", "消息中心"), fullRead = clearUnreadButton(); fullTitle.id = `${DIALOG}Title`;
+    fullHeading.append(fullTitle, fullRead);
+    const close = button("×", "close", "st-mc-close"); close.setAttribute("aria-label", "关闭消息中心"); fullHead.append(fullHeading, close);
+    const tools = element("div", "st-mc-tools"), all = button("全部", "filter-all"), unread = button("未读", "filter-unread");
     const fullCount = element("span", "st-mc-count");
-    fullRead.disabled = true;
-    tools.append(all, unread, fullRead, fullCount);
+    tools.append(all, unread, fullCount);
     const fullList = element("div", "st-mc-list"), detail = element("article", "st-mc-detail"); detail.hidden = true;
     fullList.tabIndex = 0; fullList.setAttribute("aria-label", "消息列表");
     const fullTop = element("div"), fullBottom = element("div"), fullRowsHost = element("div", "st-mc-virtual-rows"), fullHint = element("div", "st-mc-load-state");
@@ -756,6 +759,7 @@
       if (reset) { filter = "all"; fullRows = []; fullIds.clear(); fullCards.clear(); }
       fullInitialized = false;
       fullTitle.textContent = "消息中心";
+      fullRead.hidden = false;
       if (!fullRows.length) status(fullList, "正在加载", "正在读取消息…");
       fullResize.observe(fullList);
       void loadFull();
@@ -789,7 +793,7 @@
       fullOpen = true;
       const token = ++generation; selection = id;
       cancelFullFrame(); fullResize.disconnect();
-      detail.hidden = false; fullList.hidden = true; tools.hidden = true; fullTitle.textContent = "消息详情";
+      detail.hidden = false; fullList.hidden = true; tools.hidden = true; fullRead.hidden = true; fullTitle.textContent = "消息详情";
       fullError.textContent = ""; status(detail, "正在加载", "正在读取消息…");
       try {
         if (!await openWindow("full", dialog) || token !== generation) return;

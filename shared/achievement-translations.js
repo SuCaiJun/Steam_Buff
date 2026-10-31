@@ -46,7 +46,7 @@
   function current(record, item) {
     return !!record && record.cleared !== true && record.sourceTitle === item.title && record.sourceDescription === item.description;
   }
-  /** 读取原生完整列表；隐藏标记控制显示，是否提交 AI 由用户选定的翻译范围决定。 */
+  /** 读取原生完整列表；strImage 须为无凭据的 HTTPS 地址，仅用于展示，不进入翻译或保存原文。隐藏标记控制显示，非法数据拒绝本次加载。 */
   function nativeItems(response) {
     if (response?.result !== 1 || !Array.isArray(response.data?.rgAchievements)) throw new Error("Steam 成就数据读取失败");
     if (response.data.rgAchievements.length > 20000) throw new Error("Steam 成就数量超过本次处理上限");
@@ -57,7 +57,9 @@
       ids.add(id);
       if (typeof raw.bHidden !== "boolean" || typeof raw.bAchieved !== "boolean") throw new Error("Steam 成就可见状态无效");
       const hidden = raw.bHidden && !raw.bAchieved;
-      return { id, title: text(raw.strName, 1000, "Steam 成就名称"), description: text(raw.strDescription, 12000, "Steam 成就说明", true), hidden, unlocked: raw.bAchieved };
+      const iconUrl = text(raw.strImage, 4096, "Steam 成就图标"), image = new URL(iconUrl);
+      if (image.protocol !== "https:" || image.username || image.password) throw new TypeError("Steam 成就图标地址无效");
+      return { id, title: text(raw.strName, 1000, "Steam 成就名称"), description: text(raw.strDescription, 12000, "Steam 成就说明", true), hidden, unlocked: raw.bAchieved, iconUrl };
     });
   }
   /** 按原生 schema 的 api_name 关联分组；不使用标题或屏幕行号，缺少归属时明确失败。 */

@@ -80,12 +80,15 @@
       .st-ach-check { align-self: start; justify-content: center; height: 30px; }
       .st-ach-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(30px, auto) minmax(var(--st-ach-description-height), auto); gap: 4px 16px; min-width: 0; min-height: var(--st-ach-fields-height); }
       .st-ach-group-fields { grid-template-rows: minmax(30px, auto); min-height: 30px; }
+      .st-ach-source { display: grid; grid-column: 1; grid-row: 1 / span 2; grid-template-columns: 54px minmax(0, 1fr); grid-template-rows: subgrid; column-gap: 12px; min-width: 0; }
+      .st-ach-source > .st-ach-original-title { grid-column: 2; }
+      .st-ach-icon { grid-column: 1; grid-row: 1 / span 2; align-self: center; width: 54px; height: 54px; object-fit: contain; background: var(--st-color-primary-surface); }
       .st-ach-original-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
       .st-ach-original-title > p { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--st-font-weight-medium); }
       .st-ach-original-title .st-ach-meta { flex: 0 0 auto; }
-      .st-ach-source-description { grid-column: 1; margin: 0; align-self: start; max-height: 2lh; overflow: clip; overflow-wrap: anywhere; white-space: pre-wrap; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
-      .st-ach-fields input[type='text'] { width: 100%; min-height: 0; height: 30px; padding: 4px 8px; }
-      .st-ach-fields textarea { width: 100%; min-height: var(--st-ach-description-height); height: var(--st-ach-description-height); max-height: 240px; resize: vertical; padding: 4px 8px; line-height: var(--st-line-height-body); }
+      .st-ach-source-description { grid-column: 2; margin: 0; align-self: start; max-height: 2lh; overflow: clip; overflow-wrap: anywhere; white-space: pre-wrap; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+      .st-ach-fields input[type='text'] { grid-column: 2; grid-row: 1; width: 100%; min-height: 0; height: 30px; padding: 4px 8px; }
+      .st-ach-fields textarea { grid-column: 2; grid-row: 2; width: 100%; min-height: var(--st-ach-description-height); height: var(--st-ach-description-height); max-height: 240px; resize: vertical; padding: 4px 8px; line-height: var(--st-line-height-body); }
       .st-ach-hidden { display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: var(--st-ach-fields-height); padding: 0; text-align: left; border: 0; background: transparent; color: var(--st-color-text-primary); font: inherit; cursor: pointer; }
       .st-ach-hidden-icon { display: grid; place-items: center; width: 54px; height: 54px; background: var(--st-color-primary-surface); font-size: 28px; color: var(--st-color-text-secondary-alt); }
       .st-ach-hidden-copy { position: relative; display: grid; align-content: center; min-width: 0; min-height: 54px; padding: 4px 8px; }
@@ -110,7 +113,10 @@
       }
       @media (max-width: 560px) {
         .st-ach-item { --st-ach-fields-height: calc(72px + var(--st-ach-description-height) + var(--st-ach-description-height)); }
-        .st-ach-fields { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(30px, auto) minmax(30px, auto) minmax(var(--st-ach-description-height), auto) minmax(var(--st-ach-description-height), auto); }
+        .st-ach-fields { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(calc(34px + var(--st-ach-description-height)), auto) minmax(30px, auto) minmax(var(--st-ach-description-height), auto); }
+        .st-ach-source { grid-row: 1; grid-template-rows: minmax(30px, auto) minmax(var(--st-ach-description-height), auto); row-gap: 4px; }
+        .st-ach-fields input[type='text'] { grid-column: 1; grid-row: 2; }
+        .st-ach-fields textarea { grid-column: 1; grid-row: 3; }
         .st-ach-group-fields { grid-template-rows: minmax(30px, auto) minmax(30px, auto); min-height: 64px; }
         .st-ach-columns { display: none; }
         .st-ach-hidden-title { flex-wrap: wrap; }
@@ -621,13 +627,15 @@
       original.append(meta);
       const name = element("input"); name.type = "text"; name.dataset.edit = "title"; name.value = draft.title; name.maxLength = 2000;
       name.setAttribute("aria-label", item.kind === "group" ? "翻译分组名称" : "译文名称"); name.placeholder = item.kind === "group" ? "输入分组译文" : "输入译文名称";
-      fields.append(original, name); view.name = name;
+      view.name = name;
       if (item.kind !== "group") {
+        const sourceBlock = element("div", "st-ach-source"), icon = element("img", "st-ach-icon");
+        icon.width = 54; icon.height = 54; icon.alt = ""; icon.loading = "lazy"; icon.decoding = "async"; icon.src = item.iconUrl;
         const description = element("textarea"); description.dataset.edit = "description"; description.value = draft.description; description.maxLength = 24000;
         description.rows = 1; description.setAttribute("aria-label", "译文说明"); description.placeholder = "输入译文说明";
         const source = element("p", "st-ach-source-description", item.description || "（无介绍）"); source.title = item.description;
-        fields.append(source, description); view.description = description;
-      }
+        sourceBlock.append(icon, original, source); fields.append(sourceBlock, name, description); view.description = description;
+      } else fields.append(original, name);
       row.append(fields); return row;
     }
     function updateView(key) {
