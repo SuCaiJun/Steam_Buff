@@ -1020,7 +1020,7 @@
     }
     if (familySharingStatus(id) === "unsupported") {
       detailActive = true;
-    watchCache();
+      watchCache();
       detailAppId = String(id);
       removeDetailForUnsupportedSharing(id, "pre-mount");
       return Promise.resolve();
@@ -1036,6 +1036,7 @@
     detailSeq = seq;
     detailActive = true;
     detailAppId = String(id);
+    watchCache();
     setupFamilySharingResultListener(id);
     ensureFeatureStyles("detail-style");
     log?.info?.("family-library-feature-start", "家庭库检查功能启动", pageMeta({ appid: id, settingsKey: DETAIL_CARD_SETTING_ID }));
