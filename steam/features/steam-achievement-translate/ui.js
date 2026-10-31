@@ -295,10 +295,20 @@
         const [native, response] = await Promise.all([request("load", { appId: current.appId }, true), request("load", { appId: current.appId })]);
         if (mounted !== current || stopped) return;
         await ensureContext(current);
+        const nextLanguage = response.data.language, languageChanged = nextLanguage !== current.language, d = dialog?.current === current ? dialog : null;
+        if (rebaseDrafts && d && languageChanged) {
+          if (d.dirty.size && !window.confirm(`成就翻译目标语言已从 ${current.language} 切换到 ${nextLanguage}。继续刷新将丢弃 ${d.dirty.size} 项未保存修改，是否继续？`)) {
+            current.ready = true;
+            renderManager(true);
+            status("已取消语言切换，当前语言和未保存修改均已保留。");
+            return;
+          }
+          discardDrafts(d);
+        }
         const grouped = model.grouped(native.items, api.ctx.achievementSchema(current.list, current.appId), current.appId);
         current.items = grouped.items.map(item => ({ ...item, kind: "achievement", key: `a:${item.id}` })); current.groups = grouped.groups; current.gameName = native.gameName;
         current.itemById = new Map(current.items.map(item => [item.id, item]));
-        current.language = response.data.language; current.aiReady = response.data.aiReady;
+        current.language = nextLanguage; current.aiReady = response.data.aiReady;
         current.records = new Map(response.data.records.map(record => [`a:${record.id}`, record]));
         for (const record of response.data.groupRecords) current.records.set(`g:${record.id}`, record);
         current.entities = new Map(current.items.map(item => [item.key, item])); current.keysByGroup = new Map();
@@ -324,6 +334,7 @@
         current.error = null; current.ready = true;
         applyVisible(current);
         if (dialog?.current === current) {
+          if (languageChanged) for (const [key, node] of dialog.nodes) removeNode(dialog, key, node);
           if (rebaseDrafts) for (const [key, draft] of dialog.drafts) {
             const item = current.entities.get(key), record = current.records.get(key);
             if (!item) continue;
@@ -414,6 +425,10 @@
         d.drafts.set(item.key, { title, description, baseTitle: title, baseDescription: description, baseCleared: record?.cleared === true, clear: false, origin: valid ? record.origin : "manual", revision: record?.revision || 0, pendingAI: false });
       }
       return d.drafts.get(item.key);
+    }
+    function discardDrafts(d) {
+      for (const key of d.autoSelected) d.selected.delete(key);
+      d.drafts.clear(); d.dirty.clear(); d.autoSelected.clear(); d.selectedDirty = 0;
     }
     // 编辑和选择只维护增量计数，不随每次按键扫描全部草稿或整个分组。
     function syncDirty(key, d = dialog) {
