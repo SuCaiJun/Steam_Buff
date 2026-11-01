@@ -16,7 +16,6 @@
   const MODAL = "__RickyLibraryIndependentNameModal";
   const BATCH_MODAL = "__RickyLibraryIndependentNameBatchModal";
   const MENU_ENTRY_ATTR = "data-steam-buff-independent-name-entry";
-  const MENU_MODULES = Object.freeze({ react: 63696, items: 12711, game: 77834, registry: 377 });
   const REQ_ATTR = "data-steam-buff-user-names-request";
   const RES_ATTR = "data-steam-buff-user-names-response";
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
@@ -343,11 +342,11 @@
       bulkSession: null,
       contextMenu: null,
       contextMenuGeneration: 0,
-      menuNative: null,
-      menuHook: null,
-      menuPending: null,
+      menuObserver: null,
+      menuLabels: null,
       menuFrame: 0,
-      menuFailed: false,
+      menuErrorReported: false,
+      closedMenuBox: null,
     };
     let painted = null;
     let libsTask = null;
@@ -3395,69 +3394,48 @@
       renderSingleModal();
     }
 
-    // 主窗口的 Steam 模块运行在 SharedJSContext；只读取已取证模块，不搜索模块表
-    function nativeMenu() {
-      if (state.menuNative) return state.menuNative;
-      const chunks = window.opener?.webpackChunksteamui;
-      if (!Array.isArray(chunks)) throw new TypeError("Steam 原生菜单模块运行时不可用");
-      let require;
-      const token = [[`steam-buff-library-menu-${Date.now()}-${Math.random().toString(36).slice(2)}`], {}, (loader) => { require = loader; }];
-      const index = chunks.length;
-      try {
-        chunks.push(token);
-      } finally {
-        if (chunks[index] === token) chunks.splice(index, 1);
-      }
-      if (typeof require !== "function") throw new TypeError("Steam 原生菜单模块加载器不可用");
-      const react = require(MENU_MODULES.react);
-      const MenuItem = require(MENU_MODULES.items).kt;
-      const GameMenu = require(MENU_MODULES.game).uU;
-      const registry = require(MENU_MODULES.registry).XX;
-      if (typeof react?.createElement !== "function" || typeof react?.cloneElement !== "function"
-        || typeof MenuItem !== "function" || typeof GameMenu !== "function"
-        || typeof registry?.GetContextMenuManager !== "function") {
-        throw new TypeError("Steam 原生菜单组件契约已变化");
-      }
-      state.menuNative = { react, MenuItem, GameMenu, registry };
-      return state.menuNative;
-    }
-
     function cancelMenuFrame() {
       if (state.menuFrame) window.cancelAnimationFrame(state.menuFrame);
       state.menuFrame = 0;
     }
 
-    // 只关闭本入口创建且仍活动的菜单，节点和遮罩由 Steam 自己卸载
+    // 关闭当前已取证的游戏菜单实例，菜单和遮罩仍由 Steam 卸载。
     function closeContextMenu() {
       const record = state.contextMenu;
       state.contextMenu = null;
-      if (!record?.instance || record.manager.ActiveMenu !== record.instance || record.instance.visible !== true) return;
+      if (!record) return;
+      if (record.instance?.visible !== true) {
+        record.entry.remove();
+        return;
+      }
       try {
         record.instance.Hide();
       } catch (error) {
         log.error("independent-name-native-menu-hide-failed", "Steam 原生游戏菜单关闭失败", { error, appid: record.game.appid });
       }
+      record.entry.remove();
     }
 
-    function restoreMenuHook() {
-      const hook = state.menuHook;
-      state.menuHook = null;
-      if (!hook || hook.manager.CreateContextMenuInstance !== hook.wrapped) return;
-      try {
-        if (hook.descriptor) Object.defineProperty(hook.manager, "CreateContextMenuInstance", hook.descriptor);
-        else delete hook.manager.CreateContextMenuInstance;
-      } catch (error) {
-        log.error("independent-name-native-menu-restore-failed", "Steam 原生菜单创建方法恢复失败", { error });
-      }
-    }
-
-    function selectContextMenu(record) {
+    function selectContextMenu(record, event) {
       if (state.started !== true || window.__SteamBuffLibraryIndependentNameUi !== state || document.hidden
-        || state.contextMenu !== record || record.selected || record.instance?.visible !== true
+        || state.contextMenu !== record || record.selected || record.instance?.visible !== true || !record.entry.isConnected
         || state.contextMenuGeneration !== record.generation) return;
+      event.preventDefault();
+      event.stopPropagation();
       record.selected = true;
       cancelMenuFrame();
-      // 原生 MenuItem 在 onSelected 返回后关闭菜单，下一帧再打开编辑器
+      // 禁止已关闭菜单在 React 卸载前因相邻行上移而误开收藏分组子菜单。
+      record.box.style.pointerEvents = "none";
+      try {
+        record.close();
+      } catch (error) {
+        record.box.style.pointerEvents = record.pointerEvents;
+        record.selected = false;
+        log.error("independent-name-native-menu-hide-failed", "Steam 原生游戏菜单关闭失败", { error, appid: record.game.appid });
+        return;
+      }
+      state.closedMenuBox = { box: record.box, pointerEvents: record.pointerEvents };
+      record.entry.remove();
       state.menuFrame = window.requestAnimationFrame(() => {
         state.menuFrame = 0;
         if (state.started !== true || window.__SteamBuffLibraryIndependentNameUi !== state || document.hidden
@@ -3469,63 +3447,121 @@
       });
     }
 
-    // 只在同一次库行 contextmenu 分发期间改写原生组件 props，其余菜单原样转发
-    function ensureMenuHook(native) {
-      const manager = native.registry.GetContextMenuManager(window);
-      if (state.menuHook?.manager === manager) {
-        if (manager.CreateContextMenuInstance !== state.menuHook.wrapped) throw new TypeError("Steam 原生菜单创建方法已被替换");
-        return;
+    function favoriteLabels() {
+      if (state.menuLabels) return state.menuLabels;
+      const localization = window.opener?.LocalizationManager;
+      const localize = localization?.LocalizeString;
+      if (typeof localize !== "function") throw new TypeError("Steam 收藏菜单本地化契约不可用");
+      const add = localize.call(localization, "#GameAction_AddToFavorites");
+      const remove = localize.call(localization, "#GameAction_RemoveFromFavorites");
+      if (typeof add !== "string" || !add.trim() || typeof remove !== "string" || !remove.trim()) {
+        throw new TypeError("Steam 收藏菜单文案不可用");
       }
-      restoreMenuHook();
-      const original = manager?.CreateContextMenuInstance;
-      if (typeof original !== "function") throw new TypeError("Steam 原生菜单创建方法不可用");
-      const descriptor = Object.getOwnPropertyDescriptor(manager, "CreateContextMenuInstance");
-      const wrapped = function (element, trigger, ...args) {
-        const pending = state.menuPending;
-        if (!pending || state.started !== true || pending.event.eventPhase === 0 || document.hidden
-          || element?.type !== native.GameMenu || Number(element.props?.overview?.appid) !== pending.game.appid
-          || !trigger?.contains?.(pending.row)) return original.call(this, element, trigger, ...args);
-        state.menuPending = null;
-        const record = { manager, instance: null, game: pending.game, generation: pending.generation, selected: false };
-        let next = element;
-        try {
-          const entry = native.react.createElement(native.MenuItem, {
-            key: MENU_ENTRY_ATTR,
-            [MENU_ENTRY_ATTR]: "",
-            onSelected: () => selectContextMenu(record),
-          }, i18n("steam.independentName.open", "自定义名称"));
-          const existing = element.props.additionalActions;
-          next = native.react.cloneElement(element, { additionalActions: existing == null ? entry : [existing, entry] });
-        } catch (error) {
-          log.error("independent-name-native-menu-entry-failed", "自定义名称原生菜单项创建失败", { error, appid: pending.game.appid });
-          return original.call(this, element, trigger, ...args);
-        }
-        const instance = original.call(this, next, trigger, ...args);
-        record.instance = instance;
-        state.contextMenu = record;
-        return instance;
-      };
-      manager.CreateContextMenuInstance = wrapped;
-      state.menuHook = { manager, original, descriptor, wrapped };
+      state.menuLabels = new Set([add.trim(), remove.trim()]);
+      return state.menuLabels;
     }
 
-    function onLibraryContextMenu(event) {
-      state.menuPending = null;
+    // 只沿真实收藏行的 React Fiber 父链读取游戏和菜单关闭契约，不枚举模块表。
+    function gameMenuOwner(favorite) {
+      const key = Object.keys(favorite).find(name => name.startsWith("__reactFiber$"));
+      if (!key) return null;
+      let overview = null;
+      let selected = null;
+      let instance = null;
+      for (let fiber = favorite[key], depth = 0; fiber && depth < 14; fiber = fiber.return, depth += 1) {
+        const props = fiber.memoizedProps;
+        if (!overview && props?.overview) overview = props.overview;
+        if (!selected && typeof props?.fnOnMenuItemSelected === "function" && props.instance?.visible === true
+          && typeof props.instance.Hide === "function") {
+          selected = props.fnOnMenuItemSelected;
+          instance = props.instance;
+        }
+      }
+      const appid = Number(overview?.appid);
+      if (!Number.isSafeInteger(appid) || appid <= 0 || !officialNameOf(overview) || !selected
+        || Number(instance.ReactElement?.props?.overview?.appid) !== appid) return null;
+      return { game: { appid, official_name: officialNameOf(overview) }, close: selected, instance };
+    }
+
+    function addMenuEntry(favorite) {
+      const box = favorite.parentElement;
+      if (!box) return;
+      const existing = box.querySelector("[" + MENU_ENTRY_ATTR + "]");
+      if (existing) {
+        if (state.contextMenu?.entry !== existing || state.contextMenu.favorite === favorite) return;
+        existing.remove();
+        state.contextMenu = null;
+      }
+      const owner = gameMenuOwner(favorite);
+      if (!owner) throw new TypeError("Steam 游戏菜单归属契约不可用");
+      const propsKey = Object.keys(favorite).find(name => name.startsWith("__reactProps$"));
+      const hover = propsKey && favorite[propsKey]?.onMouseEnter;
+      if (typeof hover !== "function") throw new TypeError("Steam 游戏菜单悬停契约不可用");
+      if (state.contextMenu?.entry) state.contextMenu.entry.remove();
+      if (state.closedMenuBox?.box === box) {
+        box.style.pointerEvents = state.closedMenuBox.pointerEvents;
+        state.closedMenuBox = null;
+      }
+      const entry = favorite.cloneNode(true);
+      entry.textContent = i18n("steam.independentName.open", "自定义名称");
+      entry.setAttribute(MENU_ENTRY_ATTR, "");
+      const record = { ...owner, box, favorite, entry, pointerEvents: box.style.pointerEvents,
+        generation: state.contextMenuGeneration, selected: false, hoverFailed: false };
+      entry.addEventListener("mouseenter", event => {
+        if (state.contextMenu !== record || record.selected || record.instance.visible !== true) return;
+        try {
+          favorite[propsKey].onMouseEnter(event);
+        } catch (error) {
+          if (record.hoverFailed) return;
+          record.hoverFailed = true;
+          log.error("independent-name-native-menu-hover-failed", "自定义名称菜单悬停收起失败", { error, appid: record.game.appid });
+        }
+      });
+      entry.addEventListener("click", event => selectContextMenu(record, event));
+      favorite.after(entry);
+      state.contextMenu = record;
+      state.menuErrorReported = false;
+    }
+
+    function onMenuMutations(mutations) {
+      if (state.started !== true || document.hidden) return;
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes || []) {
+          if (node.nodeType !== 1) continue;
+          const items = node.matches?.('[role="menuitem"].contextMenuItem') ? [node]
+            : node.querySelectorAll?.('[role="menuitem"].contextMenuItem');
+          if (!items?.length) continue;
+          let labels;
+          try {
+            labels = favoriteLabels();
+          } catch (error) {
+            if (!state.menuErrorReported) {
+              state.menuErrorReported = true;
+              log.error("independent-name-menu-contract-unavailable", "Steam 游戏右键菜单契约不可用", { error });
+            }
+            return;
+          }
+          for (const item of items) {
+            if (item.hasAttribute(MENU_ENTRY_ATTR) || !labels.has(item.textContent.trim())) continue;
+            try {
+              addMenuEntry(item);
+            } catch (error) {
+              if (state.menuErrorReported) continue;
+              state.menuErrorReported = true;
+              log.error("independent-name-menu-contract-unavailable", "Steam 游戏右键菜单契约不可用", { error });
+            }
+          }
+        }
+      }
+    }
+
+    function onLibraryContextMenu() {
       state.contextMenuGeneration += 1;
       cancelMenuFrame();
-      if (state.started !== true || document.hidden || state.menuFailed) return;
-      const row = api.ctx?.libraryRow?.(event.target);
-      const item = api.ctx?.libraryRowItem?.(row);
-      const appid = Number(item?.appid) || 0;
-      const officialName = officialNameOf(item);
-      if (!appid || !officialName) return;
-      try {
-        ensureMenuHook(nativeMenu());
-        state.menuPending = { event, row, game: { appid, official_name: officialName }, generation: state.contextMenuGeneration };
-      } catch (error) {
-        state.menuFailed = true;
-        restoreMenuHook();
-        log.error("independent-name-native-menu-unavailable", "自定义名称原生菜单入口不可用", { error, appid });
+      closeContextMenu();
+      if (state.closedMenuBox) {
+        if (state.closedMenuBox.box.isConnected) state.closedMenuBox.box.style.pointerEvents = state.closedMenuBox.pointerEvents;
+        state.closedMenuBox = null;
       }
     }
 
@@ -3979,12 +4015,17 @@
 
     function onVisibility() {
       if (document.hidden) {
-        state.menuPending = null;
+        state.menuObserver?.disconnect();
         state.contextMenuGeneration += 1;
         cancelMenuFrame();
         closeContextMenu();
+        if (state.closedMenuBox) {
+          state.closedMenuBox.box.style.pointerEvents = state.closedMenuBox.pointerEvents;
+          state.closedMenuBox = null;
+        }
         return;
       }
+      state.menuObserver?.observe(document.documentElement, { childList: true, subtree: true });
       // modal 不存在时 hidden 是 undefined，不能把它当成窗口仍打开
       if (state.started !== true || window.__SteamBuffLibraryIndependentNameUi !== state || document.hidden) {
         return;
@@ -4005,6 +4046,8 @@
     }
 
     css();
+    state.menuObserver = new MutationObserver(onMenuMutations);
+    if (!document.hidden) state.menuObserver.observe(document.documentElement, { childList: true, subtree: true });
     scope?.listener?.("library-context-menu", document, "contextmenu", onLibraryContextMenu, true);
     if (!scope?.listener) {
       document.addEventListener("contextmenu", onLibraryContextMenu, true);
@@ -4013,11 +4056,15 @@
 
     const stop = () => {
       state.started = false;
-      state.menuPending = null;
+      state.menuObserver?.disconnect();
+      state.menuObserver = null;
       state.contextMenuGeneration += 1;
       cancelMenuFrame();
       closeContextMenu();
-      restoreMenuHook();
+      if (state.closedMenuBox) {
+        state.closedMenuBox.box.style.pointerEvents = state.closedMenuBox.pointerEvents;
+        state.closedMenuBox = null;
+      }
       closeSingleModal();
       closeBatchModal();
       if (!scope?.listener) {

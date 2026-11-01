@@ -23,7 +23,7 @@
    * 用 Steam 现有 Popup 构造器承载自有 DOM；只使用已验证的通知菜单参数与窗口接口。
    * open 返回原生内容挂载完成的 Promise。关闭前收回 DOM，避免关闭文档销毁消息界面。
    */
-  function nativeHost(trigger, css, onClosed, reportFailure) {
+  function nativeHost(trigger, css, onClosed, reportFailure, onEscape) {
     const parking = document.createDocumentFragment();
     let template = null, active = null, disposed = false;
 
@@ -88,6 +88,7 @@
       state.frame = 0;
       state.doc?.removeEventListener("keydown", state.keydown, true);
       state.win?.removeEventListener("resize", state.resize);
+      if (state.kind === "full") state.content.querySelectorAll("dialog[open]").forEach(item => item.close());
       parking.appendChild(state.content);
       if (!state.ready) state.reject(new DOMException("消息窗口已关闭", "AbortError"));
       onClosed(state.kind, reason);
@@ -165,7 +166,8 @@
       }, 12000);
       state.keydown = event => {
         if (event.key !== "Escape") return;
-        event.preventDefault(); event.stopPropagation(); close("escape", true);
+        event.preventDefault(); event.stopPropagation();
+        if (!onEscape()) close("escape", true);
       };
       state.resize = layout;
       async function mount(target) {
@@ -236,7 +238,7 @@
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let unreadSnapshot = null, pendingReadAll = false, previewGeneration = 0;
     const text = (key, fallback, value) => model.text(key, fallback, value);
-    let stopped = false, current = null, generation = 0, selection = null, busy = false;
+    let stopped = false, current = null, generation = 0, detailRequest = 0, selection = null, busy = false;
     let popLoading = false, popDirty = false, fullLoading = false, fullDirty = false;
     let filter = "all", next = null, fullOpen = false, fullInitialized = false, fullFailed = false;
     let fullRows = [], fullRevision = null, fullFrame = 0, fullFrameWindow = null, fullWindow = "";
@@ -285,9 +287,19 @@
       updateActionButton(node);
       return node;
     }
+    function iconButton(label, action, iconName) {
+      const node = actionButton({ id: action, label, icon: iconName }, "");
+      node.dataset.action = action;
+      return node;
+    }
     function clearUnreadButton() {
       const node = actionButton({ id: "clear-unread", label: text("messageCenter.clearUnread", "清除未读"), icon: "clear" }, "", true);
       node.dataset.action = "read-all"; node.disabled = true;
+      return node;
+    }
+    function deleteAllButton() {
+      const node = actionButton({ id: "delete-all", label: "删除全部消息", icon: "delete" }, "", true);
+      node.dataset.action = "delete-all"; node.disabled = true;
       return node;
     }
     function actionsFor(message, compact) {
@@ -331,7 +343,14 @@
       .st-mc-inline-actions { display: flex; flex: 0 0 auto; gap: 0; align-items: center; padding-right: 4px; }
       .st-mc-inline-actions:empty { display: none; }
       .st-mc-business { display: block; color: var(--st-color-steam-blue); font-size: 11px; }
-      .st-mc-list { min-height: 0; max-height: var(--st-mc-menu-list-height); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; scrollbar-width: thin; }
+      .st-mc-list { min-height: 0; max-height: var(--st-mc-menu-list-height); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; }
+      .st-mc-list, .st-mc-detail { --st-mc-scrollbar-thumb: var(--st-color-text-disabled-alt); --st-mc-scrollbar-track: var(--st-color-surface-subtle); scrollbar-color: var(--st-mc-scrollbar-thumb) var(--st-mc-scrollbar-track); scrollbar-width: thin; }
+      .st-mc-list:hover, .st-mc-detail:hover { --st-mc-scrollbar-thumb: var(--st-color-text-disabled-strong); }
+      @supports not (scrollbar-color: auto) {
+        .st-mc-list::-webkit-scrollbar, .st-mc-detail::-webkit-scrollbar { width: 8px; }
+        .st-mc-list::-webkit-scrollbar-thumb, .st-mc-detail::-webkit-scrollbar-thumb { background: var(--st-mc-scrollbar-thumb); border-radius: 8px; }
+        .st-mc-list::-webkit-scrollbar-track, .st-mc-detail::-webkit-scrollbar-track { background: var(--st-mc-scrollbar-track); }
+      }
       #${PANEL} .st-mc-list { padding-bottom: 0; }
       #${DIALOG} .st-mc-list { flex: 1; min-height: 0; max-height: none; }
       .st-mc-virtual-rows .st-mc-card { height: ${ROW_HEIGHT}px; margin: 0; padding-bottom: 2px; }
@@ -357,10 +376,23 @@
       .st-mc-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 152px; padding: 24px; text-align: center; color: var(--st-color-text-muted); }
       .st-mc-empty .st-mc-icon { width: 32px; height: 32px; margin-bottom: 8px; }
       .st-mc-empty strong { color: var(--st-color-text-primary); font-size: 14px; font-weight: 400; }
-      .st-mc-detail { flex: 1; min-height: 0; padding: 16px; overflow-y: auto; }
+      .st-mc-detail-overlay, .st-mc-delete-confirm { color: var(--st-color-white); background: var(--st-color-steam-message-surface); border: 1px solid var(--st-color-black); box-shadow: var(--st-shadow-panel-menu); overscroll-behavior: contain; }
+      .st-mc-detail-overlay { box-sizing: border-box; width: fit-content; min-width: min(320px, calc(100% - 32px)); max-width: min(560px, calc(100% - 32px)); max-height: min(520px, calc(100% - 32px)); padding: 0; }
+      .st-mc-detail-overlay[open] { display: flex; flex-direction: column; }
+      .st-mc-detail-overlay::backdrop, .st-mc-delete-confirm::backdrop { background: var(--st-color-overlay); overflow: hidden; overscroll-behavior: contain; }
+      .st-mc-detail-head { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; padding: 0 16px; border-bottom: 1px solid var(--st-color-surface-subtle); }
+      .st-mc-detail-head h2 { margin: 0; font-size: 16px; }
+      .st-mc-detail { flex: 0 1 auto; min-height: 0; padding: 12px 16px; overflow: auto; overflow-wrap: anywhere; overscroll-behavior: contain; }
       .st-mc-detail h3 { font-size: 18px; line-height: 26px; margin: 8px 0; overflow-wrap: anywhere; }
       .st-mc-detail p { color: var(--st-color-text-secondary); line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
       .st-mc-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+      .st-mc-detail-footer { flex: 0 0 auto; padding: 12px 16px 16px; border-top: 1px solid var(--st-color-surface-subtle); }
+      .st-mc-detail-footer .st-mc-actions { margin: 0; }
+      .st-mc-delete-confirm { box-sizing: border-box; width: min(420px, calc(100% - 32px)); max-height: calc(100% - 32px); padding: 20px; }
+      .st-mc-delete-confirm h2 { margin: 0 0 12px; font-size: 16px; }
+      .st-mc-delete-confirm p { margin: 0 0 20px; line-height: 1.6; color: var(--st-color-text-secondary); }
+      .st-mc-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+      [data-action="delete-all"], [data-action="delete"], [data-action="confirm-delete-all"] { color: var(--st-color-danger-text); }
       .st-mc-error { margin: 0; padding: 0 16px; color: var(--st-color-danger-text); white-space: pre-wrap; }
       .st-mc-error:empty { display: none; }
       .st-mc-close { padding: 4px 8px; border: 0; color: var(--st-color-text-muted); background: none; font: inherit; font-size: 20px; cursor: pointer; }
@@ -386,18 +418,31 @@
     panel.append(popHead, popList, popError);
 
     const dialog = element("section"); dialog.id = DIALOG; dialog.tabIndex = -1; dialog.setAttribute("role", "dialog"); dialog.setAttribute("aria-modal", "true"); dialog.setAttribute("aria-labelledby", `${DIALOG}Title`);
-    const fullHead = element("header", "st-mc-head"), fullHeading = element("div", "st-mc-heading"), fullTitle = element("h2", "", "Steam Buff · 消息中心"), fullRead = clearUnreadButton(); fullTitle.id = `${DIALOG}Title`;
-    fullHeading.append(fullTitle, fullRead);
+    const fullHead = element("header", "st-mc-head"), fullHeading = element("div", "st-mc-heading"), fullTitle = element("h2", "", "Steam Buff · 消息中心"), fullRead = clearUnreadButton(), fullDeleteAll = deleteAllButton(); fullTitle.id = `${DIALOG}Title`;
+    fullHeading.append(fullTitle, fullRead, fullDeleteAll);
     const close = button("×", "close", "st-mc-close"); close.setAttribute("aria-label", "关闭消息中心"); fullHead.append(fullHeading, close);
     const tools = element("div", "st-mc-tools"), all = button("全部", "filter-all"), unread = button("未读", "filter-unread");
     const fullCount = element("span", "st-mc-count");
     tools.append(all, unread, fullCount);
-    const fullList = element("div", "st-mc-list"), detail = element("article", "st-mc-detail"); detail.hidden = true;
+    const fullList = element("div", "st-mc-list"), detailOverlay = element("dialog", "st-mc-detail-overlay"), detail = element("article", "st-mc-detail");
+    detailOverlay.setAttribute("aria-labelledby", DIALOG + "DetailTitle");
+    const detailHead = element("header", "st-mc-detail-head"), detailHeading = element("h2", "", "消息详情"), detailClose = button("×", "back", "st-mc-close");
+    detailHeading.id = DIALOG + "DetailTitle"; detailClose.setAttribute("aria-label", "返回消息列表");
+    detailHead.append(detailHeading, detailClose);
+    const detailError = element("p", "st-mc-error"); detailError.setAttribute("role", "status");
+    const detailFooter = element("footer", "st-mc-detail-footer"); detailOverlay.append(detailHead, detail, detailError, detailFooter);
+    const deleteConfirm = element("dialog", "st-mc-delete-confirm");
+    const confirmHeading = element("h2", "", "删除全部消息？"), confirmDescription = element("p", "", "将删除当前消息中心可见范围内的全部消息，此操作无法撤销。");
+    confirmHeading.id = DIALOG + "DeleteTitle"; deleteConfirm.setAttribute("aria-labelledby", confirmHeading.id);
+    const confirmActions = element("div", "st-mc-confirm-actions");
+    confirmActions.append(button("取消", "cancel-delete-all"), button("确认删除", "confirm-delete-all"));
+    const confirmError = element("p", "st-mc-error"); confirmError.setAttribute("role", "status");
+    deleteConfirm.append(confirmHeading, confirmDescription, confirmError, confirmActions);
     fullList.tabIndex = 0; fullList.setAttribute("aria-label", "消息列表");
     const fullTop = element("div"), fullBottom = element("div"), fullRowsHost = element("div", "st-mc-virtual-rows"), fullHint = element("div", "st-mc-load-state");
     fullTop.setAttribute("aria-hidden", "true"); fullBottom.setAttribute("aria-hidden", "true"); fullRowsHost.setAttribute("role", "list"); fullHint.setAttribute("role", "status");
     const fullError = element("p", "st-mc-error"); fullError.setAttribute("role", "status");
-    dialog.append(fullHead, tools, fullList, detail, fullError);
+    dialog.append(fullHead, tools, fullList, detailOverlay, deleteConfirm, fullError);
     if (controls) controls.insertBefore(root, controls.firstChild);
     // 点击入口会让原生菜单失焦；保留悬停时的打开状态，让同次点击维持关闭语义。
     let pointerHadMenu = false, windowRequest = 0;
@@ -409,6 +454,11 @@
     }, (error, phase) => {
       reportFailure(error, phase, fullOpen ? fullError : popError);
       trigger.dataset.error = "true"; trigger.title = "消息窗口打开失败，请重试";
+    }, () => {
+      if (busy && (deleteConfirm.open || detailOverlay.open)) return true;
+      if (deleteConfirm.open) { deleteConfirm.close(); fullDeleteAll.focus({ preventScroll: true }); return true; }
+      if (detailOverlay.open) { closeDetail(); return true; }
+      return false;
     });
     function isPopOpen() { return host.kind() === "menu"; }
     function layout() { host.layout(); }
@@ -429,6 +479,7 @@
       trigger.dataset.unread = String(unreadCount > 0);
       trigger.setAttribute("aria-label", unreadCount ? `Steam Buff 消息，${unreadCount} 条未读` : "Steam Buff 消息，无未读消息");
       fullRead.disabled = busy || unreadCount === 0; clearUnread.disabled = busy || unreadCount === 0;
+      fullDeleteAll.disabled = busy || value.total === 0;
       all.disabled = busy; unread.disabled = busy;
       fullCount.textContent = `共 ${filter === "unread" ? unreadCount : value.total} 条`;
     }
@@ -437,7 +488,9 @@
       if (value.revision < 0 || value.unread < 0 || value.total < value.unread) throw new TypeError("消息数量无效");
       if (current && current.revision > value.revision) return false;
       if (current && current.steamAccountId !== value.steamAccountId) {
-        generation++; selection = null; fullRows = []; fullRevision = null;
+        if (detailOverlay.open) detailOverlay.close();
+        if (deleteConfirm.open) deleteConfirm.close();
+        generation++; detailRequest++; selection = null; fullRows = []; fullRevision = null;
         previewGeneration++; cancelMotions(); pendingReads.clear(); pendingReadAll = false; unreadSnapshot = null;
         popCards.clear(); fullCards.clear();
         popList.replaceChildren(); fullRowsHost.replaceChildren();
@@ -464,7 +517,7 @@
         const rid = crypto.randomUUID();
         const timer = window.setTimeout(() => finish(rid, { success: false, error: "读取消息超时，请重试" }), action === "act" ? 120000 : 12000);
         pending.set(rid, { resolve, reject, timer });
-        const expected = current && Object.hasOwn(current, "steamAccountId") && ["read", "read-all", "delete", "act"].includes(action) ? { expectedSteamAccountId: current.steamAccountId } : {};
+        const expected = current && Object.hasOwn(current, "steamAccountId") && ["read", "read-all", "delete", "delete-all", "act"].includes(action) ? { expectedSteamAccountId: current.steamAccountId } : {};
         window.postMessage({ source: model.BRIDGE, side: "page", action, rid, ...payload, ...expected }, window.location.origin);
       });
     }
@@ -654,7 +707,7 @@
 
     // 数据分批读取，DOM 只保留视口和两侧缓冲；滚动不调用原生窗口定位或完整运行时
     function renderVirtualRows() {
-      if (stopped || !fullOpen || selection || !fullRows.length) return;
+      if (stopped || !fullOpen || !fullRows.length) return;
       if (fullRowsHost.parentNode !== fullList) fullList.replaceChildren(fullTop, fullRowsHost, fullBottom, fullHint);
       const start = Math.max(0, Math.min(fullRows.length - 1, Math.floor(fullList.scrollTop / ROW_HEIGHT) - OVERSCAN));
       const end = Math.min(fullRows.length, Math.ceil((fullList.scrollTop + fullList.clientHeight) / ROW_HEIGHT) + OVERSCAN);
@@ -680,7 +733,7 @@
     }
 
     function queueFullRender() {
-      if (stopped || !fullOpen || selection || fullFrame || !fullList.isConnected) return;
+      if (stopped || !fullOpen || fullFrame || !fullList.isConnected) return;
       fullFrameWindow = fullList.ownerDocument.defaultView;
       fullFrame = fullFrameWindow.requestAnimationFrame(() => {
         fullFrame = 0; fullFrameWindow = null;
@@ -725,7 +778,7 @@
     }
 
     async function loadFull(append = false) {
-      if (stopped || !fullOpen || selection) return;
+      if (stopped || !fullOpen) return;
       if (fullLoading) { if (!append) fullDirty = true; return; }
       if (append && (!fullInitialized || !next)) return;
       const token = generation;
@@ -734,35 +787,45 @@
       all.setAttribute("aria-pressed", String(filter === "all")); unread.setAttribute("aria-pressed", String(filter === "unread"));
       try {
         const page = await request("list", { filter, before: cursor });
-        if (stopped || !fullOpen || selection || token !== generation) return;
+        if (stopped || !fullOpen || token !== generation) return;
         if (!applyState(page.state)) { fullDirty = true; return; }
-        if (append && fullRevision !== page.state.revision) { showList(); return; }
+        if (append && fullRevision !== page.state.revision) { refreshFull(); return; }
         if (!append) { fullRows = []; fullIds.clear(); fullList.scrollTop = 0; }
         for (const row of page.rows) if (!fullIds.has(row.id)) { fullIds.add(row.id); fullRows.push(row); }
         next = page.next; fullRevision = page.state.revision; fullInitialized = true;
         if (fullRows.length) renderVirtualRows();
         else { fullCards.clear(); status(fullList, filter === "unread" ? "暂无未读消息" : "暂无消息", "没有来自 Steam Buff 的新消息"); }
       } catch (error) {
-        if (stopped || token !== generation || !fullOpen || selection) return;
+        if (stopped || token !== generation || !fullOpen) return;
         fullFailed = true;
         reportFailure(error, "list", fullError);
         if (!fullRows.length) status(fullList, "消息加载失败", "请重试", true);
       } finally {
         fullLoading = false; updateFullHint();
-        if (fullDirty && !stopped && fullOpen && !selection) void loadFull();
+        if (fullDirty && !stopped && fullOpen) void loadFull();
         else if (token === generation && !fullFailed) loadMore();
       }
     }
 
-    function showList(reset = false) {
-      generation++; cancelFullFrame(); selection = null; detail.hidden = true; fullList.hidden = false; tools.hidden = false;
+    // 列表代次与详情请求分开，底层摘要更新不能丢弃正在打开的详情。
+    function refreshFull(reset = false) {
+      generation++; cancelFullFrame();
       if (reset) { filter = "all"; fullRows = []; fullIds.clear(); fullCards.clear(); }
       fullInitialized = false;
-      fullTitle.textContent = "Steam Buff · 消息中心";
-      fullRead.hidden = false;
       if (!fullRows.length) status(fullList, "正在加载", "正在读取消息…");
       fullResize.observe(fullList);
       void loadFull();
+    }
+    function showList(reset = false) {
+      if (detailOverlay.open) detailOverlay.close();
+      if (deleteConfirm.open) deleteConfirm.close();
+      detailRequest++; selection = null; detailActions.clear(); detailError.textContent = "";
+      refreshFull(reset);
+    }
+    function closeDetail() {
+      if (!detailOverlay.open) return;
+      showList();
+      fullList.focus({ preventScroll: true });
     }
     async function openAll() {
       fullOpen = true;
@@ -771,7 +834,7 @@
     function renderDetail(message) {
       detailActions.clear();
       detail.replaceChildren();
-      detail.append(button("返回消息列表", "back"), element("h3", "", message.title), element("span", "st-mc-count", `${message.source} · ${date(message.createdAt)}`));
+      detail.append(element("h3", "", message.title), element("span", "st-mc-count", `${message.source} · ${date(message.createdAt)}`));
       if (message.summary) detail.appendChild(element("p", "", message.summary));
       if (message.body) detail.appendChild(element("p", "", message.body));
       if (message.businessState) detail.appendChild(element("p", "st-mc-business", businessLabel(message.businessState)));
@@ -785,27 +848,38 @@
         if (item.disabled) item.title = "当前版本未接入此操作";
         actions.appendChild(item);
       }
-      const remove = button("删除消息", "delete"); remove.dataset.id = message.id; actions.appendChild(remove);
-      detail.appendChild(actions);
+      const remove = iconButton("删除", "delete", "delete"); remove.dataset.id = message.id; actions.appendChild(remove);
+      detailFooter.replaceChildren(actions);
+      detail.scrollTop = 0;
       layout();
     }
     async function openDetail(id) {
       fullOpen = true;
-      const token = ++generation; selection = id;
-      cancelFullFrame(); fullResize.disconnect();
-      detail.hidden = false; fullList.hidden = true; tools.hidden = true; fullRead.hidden = true; fullTitle.textContent = "消息详情";
-      fullError.textContent = ""; status(detail, "正在加载", "正在读取消息…");
+      if (host.kind() !== "full") {
+        if (!await openWindow("full", dialog)) return;
+        showList(true);
+      }
+      const token = ++detailRequest; selection = id;
+      detailError.textContent = ""; detailFooter.replaceChildren();
+      status(detail, "正在加载", "正在读取消息…");
+      let loaded = false, phase = "get";
       try {
-        if (!await openWindow("full", dialog) || token !== generation) return;
+        detailOverlay.showModal(); detailClose.focus({ preventScroll: true });
         const value = await request("get", { id });
-        if (stopped || token !== generation || !fullOpen) return;
-        if (!value.message) { status(detail, "消息已删除", "这条消息已经不存在"); detail.appendChild(button("返回消息列表", "back")); return; }
+        if (stopped || token !== detailRequest || !detailOverlay.open || !fullOpen) return;
+        if (!value.message) { status(detail, "消息已删除", "这条消息已经不存在"); return; }
         renderDetail(value.message);
+        loaded = true;
         if (value.message.readAt === null) {
+          phase = "read";
           const changed = await request("read", { id });
-          if (!stopped) applyState(changed.state);
+          if (!stopped && token === detailRequest) applyState(changed.state);
         }
-      } catch (error) { reportFailure(error, "get", fullError); }
+      } catch (error) {
+        if (token !== detailRequest) return;
+        if (!loaded) { status(detail, "消息加载失败", "请重试"); detailFooter.replaceChildren(button("重试", "detail-retry")); }
+        reportFailure(error, phase, detailError);
+      }
     }
 
     function onMessage(event) {
@@ -824,8 +898,10 @@
           if (!applyState(data.state)) return;
           void loadPopover(true);
         }
-        if (changed && fullOpen && !selection) showList();
-        if (selection && data.state.change?.action === "delete" && data.state.change.id === selection) showList();
+        if (changed && fullOpen) {
+          if (selection && (data.state.change?.action === "delete-all" || (data.state.change?.action === "delete" && data.state.change.id === selection))) showList();
+          else refreshFull();
+        }
       } catch (error) { reportFailure(error, "state", fullOpen ? fullError : popError); }
     }
 
@@ -838,17 +914,27 @@
       if (action === "all") { await openAll(); return; }
       if (action === "close") { host.close("button", true); return; }
       if (action === "detail") { await openDetail(target.dataset.id); return; }
-      if (action === "back") { showList(); return; }
+      if (action === "back") { closeDetail(); return; }
+      if (action === "detail-retry" && selection) { await openDetail(selection); return; }
+      if (action === "delete-all") {
+        confirmError.textContent = ""; deleteConfirm.showModal();
+        confirmActions.firstElementChild.focus({ preventScroll: true });
+        return;
+      }
+      if (action === "cancel-delete-all") { deleteConfirm.close(); fullDeleteAll.focus({ preventScroll: true }); return; }
+      if (action === "confirm-delete-all" && !deleteConfirm.open) return;
       if (action === "retry") { if (fullOpen) showList(); else void loadPopover(); return; }
       if (action === "more") { await loadFull(true); return; }
       if (action.startsWith("filter-")) { filter = action === "filter-unread" ? "unread" : "all"; fullRows = []; fullIds.clear(); fullCards.clear(); showList(); return; }
       busy = true; target.disabled = true;
-      const errorTarget = fullOpen ? fullError : popError; errorTarget.textContent = "";
+      if (current) displayCounts(current);
+      const errorTarget = deleteConfirm.open ? confirmError : detailOverlay.open ? detailError : fullOpen ? fullError : popError; errorTarget.textContent = "";
       const viewAtStart = previewGeneration;
       const feedback = action === "read-all" ? beginReadFeedback(null, true) : null;
       try {
-        if (action === "read-all" || action === "delete") {
-          const changed = await request(action, { id: target.dataset.id, withUnread: true });
+        if (action === "read-all" || action === "delete" || action === "confirm-delete-all") {
+          const operation = action === "confirm-delete-all" ? "delete-all" : action;
+          const changed = await request(operation, { id: target.dataset.id, withUnread: true });
           if (stopped) return;
           if (viewAtStart !== previewGeneration && changed.state.steamAccountId !== current.steamAccountId) return;
           endReadFeedback(feedback);
@@ -881,7 +967,7 @@
       const viewAtStart = previewGeneration;
       const controls = () => [...panel.querySelectorAll("button[data-message-id]"), ...dialog.querySelectorAll("button[data-message-id]")].filter(node => node.dataset.messageId === id);
       controls().forEach(updateActionButton);
-      const errorTarget = fullOpen ? fullError : popError; errorTarget.textContent = "";
+      const errorTarget = detailOverlay.open ? detailError : fullOpen ? fullError : popError; errorTarget.textContent = "";
       try {
         const value = await request("act", { id, actionId: target.dataset.actionId, withUnread: reading });
         if (stopped) return;
@@ -902,7 +988,7 @@
       }
     }
 
-    function onClose() { fullOpen = false; generation++; selection = null; cancelFullFrame(); fullResize.disconnect(); }
+    function onClose() { fullOpen = false; generation++; detailRequest++; selection = null; detailActions.clear(); cancelFullFrame(); fullResize.disconnect(); }
     // 首次挂载不依赖整轮 runtime 重试；等待任务只查顶栏，成功后立即注销。
     function waitForMount() {
       if (mountWaiting) return;
