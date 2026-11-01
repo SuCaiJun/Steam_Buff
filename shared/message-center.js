@@ -28,6 +28,7 @@
   const ICONS = Object.freeze({
     clear: "images/ui/message-clear-unread.svg", mute: "images/ui/message-mute.svg",
     upgrade: "images/ui/message-upgrade.svg", view: "images/ui/message-view.svg", read: "images/ui/message-read.svg", retry: "images/ui/message-retry.svg",
+    delete: "images/ui/delete.svg",
   });
   const BUSINESS_STATES = Object.freeze(["pending", "approved", "rejected", "expired", "cancelled", "completed"]);
 
@@ -130,7 +131,7 @@
     DATABASE: "SteamBuffMessageCenter", DATABASE_VERSION: 3, STATE_KEY: "steam_buff_message_center_state_v1", PAGE_SIZE: 20,
     IDENTITY_KEY: "steam_buff_message_identity_revision_v1",
     RETENTION_MS: 30 * 24 * 60 * 60 * 1000, READ_LIMIT: 100,
-    READ_ACTIONS: Object.freeze(["summary", "list", "get", "read", "read-all", "delete", "act"]),
+    READ_ACTIONS: Object.freeze(["summary", "list", "get", "read", "read-all", "delete", "delete-all", "act"]),
     ICONS, BUSINESS_STATES, id, compare, message, list, action: normalizeAction, context, businessState, link, text: t,
   });
 })(globalThis);

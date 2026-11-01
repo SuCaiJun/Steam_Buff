@@ -196,15 +196,17 @@
 
   /**
    * 每个写操作使用单一 readwrite 事务；并发发布与已读操作由 IndexedDB 串行提交。
-   * 未发生变化时不写 revision、不广播。read-all 通过异步游标逐条处理，不把历史列表整体装入内存。
+   * 未发生变化时不写 revision、不广播。批量已读与删除沿当前可见范围的索引游标处理，不载入整份历史列表。
    */
   async function mutate(action, input, owner = null) {
     const message = action === "publish" ? model.message(input) : null;
-    const key = action === "read-all" ? null : model.id(message ? message.id : input);
+    const key = action === "read-all" || action === "delete-all" ? null : model.id(message ? message.id : input);
     return operate(action, key, async (transaction, now) => {
       const messages = transaction.objectStore("messages");
       let changed = false;
-      if (action === "read-all") {
+      if (action === "delete-all") {
+        for (const scope of scopes(owner)) changed = (await removeRange(messages, "visibility", IDBKeyRange.only(scope))) > 0 || changed;
+      } else if (action === "read-all") {
         for (const scope of scopes(owner)) await new Promise((resolve, reject) => {
           const request = messages.index("visibility-unread").openCursor(IDBKeyRange.only([scope, 1]));
           request.onerror = () => reject(request.error);
@@ -243,6 +245,11 @@
       case "get": return { message: await get(request.id, owner) };
       case "read": case "delete": return mutate(request.action, request.id, owner);
       case "read-all": return mutate(request.action, undefined, owner);
+      case "delete-all": {
+        const value = await mutate(request.action, undefined, owner);
+        if (value.changed) log.info("message-all-deleted", "当前可见范围的全部消息已删除", { requestId: request.requestId, revision: value.state.revision });
+        return value;
+      }
       case "publish": return mutate(request.action, request.message);
       case "act": return act(request.id, request.actionId, request.requestId, owner);
       default: throw new TypeError("消息操作无效");
