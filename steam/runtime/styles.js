@@ -1783,7 +1783,8 @@
         flex: 1;
         font-size: 16px;
       }
-      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-close {
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-close,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head .st-lin-close {
         width: 32px;
         height: 32px;
         border: 0;
@@ -1794,9 +1795,17 @@
         font-size: 20px;
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-close:hover,
-      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-close:focus-visible {
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-close:focus-visible,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head .st-lin-close:not(:disabled):hover,
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head .st-lin-close:focus-visible {
         background: var(--st-color-surface-subtle, var(--st-color-white-alpha-08));
       }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head .st-lin-close {
+        display: inline-flex; align-items: center; justify-content: center; flex: none; padding: 0;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head .st-lin-close svg { display: block; width: 20px; height: 20px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head [data-lin-close] svg { width: 16px; height: 16px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head .st-lin-close:disabled { opacity: .5; cursor: not-allowed; }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-single-form {
         display: grid;
         grid-template-columns: 128px minmax(0, 1fr);
@@ -2122,14 +2131,24 @@
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-dialog-resize="left"] { left: -4px; }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-dialog-resize="right"] { right: -4px; }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table th[data-lin-col] { position: relative; padding: 0; overflow: visible; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-column-header { display: flex; align-items: center; min-height: 36px; }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-col-sort] {
-        display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
+        display: flex; align-items: center; flex: 1 1 auto; min-width: 0;
         min-height: 36px; padding: 8px; border: 0; background: none; color: inherit;
         text-align: left; font: inherit; font-weight: 600; cursor: pointer; touch-action: none;
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-col-sort] > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-sort-mark] { flex: 0 0 12px; color: var(--st-color-text-secondary-alt); }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} th[aria-sort] [data-lin-sort-mark] { color: var(--st-color-text-primary); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-sort-mark] { display: flex; flex: 0 0 20px; margin-inline-end: 4px; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-sort-toggle] {
+        display: flex; align-items: center; justify-content: center; width: 20px; height: 28px;
+        padding: 4px 5px; border: 0; border-radius: 2px; background: none;
+        color: var(--st-color-text-secondary-alt); cursor: pointer;
+      }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-sort-toggle] svg { display: block; width: 10px; height: 18px; flex: none; }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} th[aria-sort="ascending"] [data-lin-sort-indicator="asc"],
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} th[aria-sort="descending"] [data-lin-sort-indicator="desc"] { color: var(--st-color-primary); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-sort-toggle]:hover { background: var(--st-color-primary-surface-hover); }
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-sort-toggle]:focus-visible { outline: 1px solid var(--st-color-border-primary); outline-offset: 1px; }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-col-resize] {
         position: absolute; right: -4px; top: 0; bottom: 0; width: 8px; z-index: 3;
         cursor: col-resize; touch-action: none;

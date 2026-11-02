@@ -207,6 +207,11 @@
     function click(event) {
       if (swallow && event.detail) { swallow = false; event.preventDefault(); event.stopImmediatePropagation(); return; }
       swallow = false;
+      const toggle = event.target.closest("[data-lin-sort-toggle]");
+      if (toggle && options.enabled()) {
+        onSort(toggle.dataset.linSortToggle);
+        return;
+      }
       const title = event.target.closest("[data-lin-col-sort]");
       if (title && options.enabled()) onSort(title.dataset.linColSort);
     }

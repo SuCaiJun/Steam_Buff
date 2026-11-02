@@ -5895,7 +5895,7 @@
     }
   },
   "steam_nativeSortName_hint": {
-    "message": "Saved to Steam. Clear and confirm to remove the sort name. Reopen any Properties window already open."
+    "message": "After entering a custom sort name, click Confirm to save it to Steam under Properties → Customization → Custom sort name."
   },
   "steam_nativeSortName_partial": {
     "message": "The custom name was saved, but the Steam sort name could not be saved: $error$",
@@ -6952,6 +6952,14 @@
     "message": "Table action failed: $error$",
     "placeholders": {
       "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortCycle": {
+    "message": "$name$: click to cycle ascending, descending, unsorted",
+    "placeholders": {
+      "name": {
         "content": "$1"
       }
     }

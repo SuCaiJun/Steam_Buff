@@ -5895,7 +5895,7 @@
     }
   },
   "steam_nativeSortName_hint": {
-    "message": "Steam に保存します。空欄にして確定すると並べ替え名を削除します。開いているプロパティウィンドウは開き直してください。"
+    "message": "カスタム並び替え名を入力して「確認」をクリックすると、Steam の「プロパティ → カスタマイズ → カスタム並び替え名」に保存されます。"
   },
   "steam_nativeSortName_partial": {
     "message": "カスタム名は保存されましたが、Steam の並べ替え名を保存できませんでした：$error$",
@@ -6952,6 +6952,14 @@
     "message": "表の操作に失敗しました：$error$",
     "placeholders": {
       "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortCycle": {
+    "message": "$name$：クリックで昇順、降順、並べ替えなしを切り替え",
+    "placeholders": {
+      "name": {
         "content": "$1"
       }
     }

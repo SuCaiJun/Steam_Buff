@@ -5895,7 +5895,7 @@
     }
   },
   "steam_nativeSortName_hint": {
-    "message": "Steam에 저장합니다. 필드를 비운 후 확인하면 정렬 이름이 삭제됩니다. 이미 열린 속성 창은 다시 열어 주세요."
+    "message": "사용자 지정 정렬 이름을 입력한 뒤 “확인”을 클릭하면 Steam의 “속성 → 사용자 지정 → 사용자 지정 정렬 이름”에 저장됩니다."
   },
   "steam_nativeSortName_partial": {
     "message": "사용자 지정 이름은 저장되었지만 Steam 정렬 이름을 저장하지 못했습니다: $error$",
@@ -6952,6 +6952,14 @@
     "message": "표 작업 실패: $error$",
     "placeholders": {
       "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortCycle": {
+    "message": "$name$: 클릭하여 오름차순, 내림차순, 정렬 안 함 순환",
+    "placeholders": {
+      "name": {
         "content": "$1"
       }
     }

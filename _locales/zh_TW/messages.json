@@ -5895,7 +5895,7 @@
     }
   },
   "steam_nativeSortName_hint": {
-    "message": "儲存至 Steam；清空後按確定會移除排序名稱。已開啟的內容視窗需重新開啟。"
+    "message": "填寫自訂排序名稱後，點擊「確定」會自動儲存至 Steam 的「內容 → 自訂 → 自訂排序名稱」。"
   },
   "steam_nativeSortName_partial": {
     "message": "自訂名稱已儲存，Steam 排序名稱儲存失敗：$error$",
@@ -6952,6 +6952,14 @@
     "message": "表格操作失敗：$error$",
     "placeholders": {
       "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortCycle": {
+    "message": "$name$：點擊循環升冪、降冪、不排序",
+    "placeholders": {
+      "name": {
         "content": "$1"
       }
     }

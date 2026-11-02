@@ -5895,7 +5895,7 @@
     }
   },
   "steam_nativeSortName_hint": {
-    "message": "保存至 Steam；清空后点确定会移除排序名称。已打开的属性窗口需重开。"
+    "message": "自定义排序名称填写后，点击“确定”会自动保存至 Steam 的“属性 → 自定义 → 自定义排序名称”中。"
   },
   "steam_nativeSortName_partial": {
     "message": "自定义名称已保存，Steam 排序名称保存失败：$error$",
@@ -6952,6 +6952,14 @@
     "message": "表格操作失败：$error$",
     "placeholders": {
       "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_table_sortCycle": {
+    "message": "$name$：点击循环升序、降序、不排序",
+    "placeholders": {
+      "name": {
         "content": "$1"
       }
     }
