@@ -13,7 +13,7 @@
 
   const MARK = "__steamBuffLoopbackGuard";
   const LIFECYCLE = "__steamBuffLoopbackGuardLifecycle";
-  const VERSION = "steam-loopback-guard-v24";
+  const VERSION = "steam-loopback-guard-v25";
   const REQUEST_TYPE = "STEAM_LOOPBACK_INJECT_REQUEST";
   const ROOT_MENU_TITLE = "Steam Root Menu";
   const ROOT_MENU_TARGET_SELECTOR = "#popup_target";
@@ -166,19 +166,13 @@
     }
     rootMenuNodes(root).forEach((node) => node.remove());
 
-    const firstItem = root.querySelector("[role='menuitem']");
+    const firstItem = root.querySelector("[role='menuitem'].contextMenuItem");
     const container = firstItem?.parentElement;
     if (!container || !root.contains(container)) {
       return false;
     }
-    const children = Array.from(container.children);
-    const tail = children.slice(-5);
-    if (tail.length !== 5
-      || tail[0].getAttribute("role") !== "menuitem"
-      || tail[1].tagName !== "HR"
-      || tail[2].getAttribute("role") !== "menuitem"
-      || tail[3].tagName !== "HR"
-      || tail[4].getAttribute("role") !== "menuitem") {
+    const separatorTemplate = container.querySelector(":scope > hr");
+    if (!separatorTemplate) {
       return false;
     }
 
@@ -186,14 +180,13 @@
     if (!entries.length || entries.some((entry) => !rootMenuLabel(entry.value.labelKey))) {
       return false;
     }
-    const settingsItem = tail[2];
-    const settingsSeparator = tail[3];
-    const separator = settingsSeparator.cloneNode(false);
+    const separator = separatorTemplate.cloneNode(false);
     separator.removeAttribute("id");
     separator.dataset.steamBuffRootMenuSeparator = "settings";
     const fragment = document.createDocumentFragment();
-    fragment.append(...entries.map((entry) => rootMenuItem(settingsItem, entry)), separator);
-    container.insertBefore(fragment, settingsItem);
+    fragment.append(...entries.map((entry) => rootMenuItem(firstItem, entry)), separator);
+    // 兼容原生与 Millennium 菜单：第三方项目的数量、文案和排列不参与挂载判定。
+    container.insertBefore(fragment, container.lastElementChild);
     return true;
   }
 
