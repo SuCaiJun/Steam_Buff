@@ -90,12 +90,13 @@
 
   function open(options = {}) {
     const root = options.root;
+    const document = root?.ownerDocument || globalThis.document;
     const trap = options.trap || root;
-    const restore = options.restore || globalThis.document?.activeElement || null;
+    const restore = options.restore || document?.activeElement || null;
     let closed = false;
     const releaseBackground = holdBackground(root);
     const onKey = (event) => {
-      if (closed) {
+      if (closed || options.isActive?.() === false) {
         return;
       }
       trapTab(trap, event);
@@ -106,13 +107,13 @@
       }
     };
     const onFocusIn = (event) => {
-      if (closed || inside(root, event)) {
+      if (closed || options.isActive?.() === false || inside(root, event)) {
         return;
       }
       focus(typeof options.initial === "function" ? options.initial() : options.initial);
     };
     root?.addEventListener?.("keydown", onKey);
-    globalThis.document?.addEventListener?.("focusin", onFocusIn, true);
+    document?.addEventListener?.("focusin", onFocusIn, true);
     const focusInitial = () => {
       if (closed) {
         return;
@@ -130,7 +131,7 @@
         }
         closed = true;
         root?.removeEventListener?.("keydown", onKey);
-        globalThis.document?.removeEventListener?.("focusin", onFocusIn, true);
+        document?.removeEventListener?.("focusin", onFocusIn, true);
         releaseBackground();
         focus(restore);
       },

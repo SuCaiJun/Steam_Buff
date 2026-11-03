@@ -3448,11 +3448,29 @@
   "steam_libraryCustomName_backendTimeout": {
     "message": "Steamクライアントのバックエンドから応答がありませんでした"
   },
+  "steam_libraryCustomName_aiGenerate": {
+    "message": "AI生成"
+  },
+  "steam_libraryCustomName_aiGenerating": {
+    "message": "生成中..."
+  },
+  "steam_libraryCustomName_aiFailed": {
+    "message": "AI生成に失敗しました"
+  },
+  "steam_libraryCustomName_aiTimeout": {
+    "message": "AI生成がタイムアウトしました。もう一度お試しください。"
+  },
+  "steam_libraryCustomName_aiOriginalMissing": {
+    "message": "Steamの元の名前を読み取れませんでした。もう一度お試しください。"
+  },
+  "steam_libraryCustomName_aiInputChanged": {
+    "message": "名前が変更されました。編集内容を保持しました。もう一度生成してください。"
+  },
   "steam_libraryCustomName_batchEdit": {
-    "message": "名前を一括編集"
+    "message": "一括設定"
   },
   "steam_libraryCustomName_batchTitle": {
-    "message": "名前を一括編集"
+    "message": "Steam Buff · カスタム並び替え名の一括設定"
   },
   "steam_libraryCustomName_cancellingMnemonic": {
     "message": "ニーモニックを削除中"
@@ -3578,10 +3596,10 @@
     "message": "Steam CloudStorage の一括ディスク書き込みがタイムアウトしました"
   },
   "steam_libraryCustomName_cloudName": {
-    "message": "クラウド名"
+    "message": "コミュニティ名"
   },
   "steam_libraryCustomName_cloudNameMissing": {
-    "message": "現在のゲームのクラウド名が見つかりませんでした"
+    "message": "現在のゲームのコミュニティ名が見つかりませんでした"
   },
   "steam_libraryCustomName_confirmOverwrite": {
     "message": "上書きを確認"
@@ -3686,10 +3704,10 @@
     }
   },
   "steam_libraryCustomName_fetchCloud": {
-    "message": "クラウド名を取得"
+    "message": "コミュニティ名を取得"
   },
   "steam_libraryCustomName_fetchCloudProgress": {
-    "message": "クラウド名を取得中 $current$/$total$",
+    "message": "コミュニティ名を取得中 $current$/$total$",
     "placeholders": {
       "current": {
         "content": "$1"
@@ -3710,15 +3728,6 @@
   },
   "steam_libraryCustomName_accountCenterOpenFailed": {
     "message": "ユーザーセンターを開けませんでした"
-  },
-  "steam_libraryCustomName_fetching": {
-    "message": "取得中..."
-  },
-  "steam_libraryCustomName_fetchingShort": {
-    "message": "取得中..."
-  },
-  "steam_libraryCustomName_fetchTitle": {
-    "message": "名前を取得"
   },
   "steam_libraryCustomName_filePickerUnavailable": {
     "message": "インポート用ファイル選択ダイアログを利用できません"
@@ -3911,9 +3920,6 @@
   "steam_libraryCustomName_mnemonicPrompt": {
     "message": "保留中の書き込みデータを更新します。続行しますか？"
   },
-  "steam_libraryCustomName_mode": {
-    "message": "モード"
-  },
   "steam_libraryCustomName_namespaceLimitReached": {
     "message": "Steam namespace 3 のカスタム名が上限の10,000件に達しました"
   },
@@ -3993,20 +3999,8 @@
   "steam_libraryCustomName_pendingName": {
     "message": "保留中の名前"
   },
-  "steam_libraryCustomName_policyCover": {
-    "message": "すべて上書き"
-  },
-  "steam_libraryCustomName_policyCurrentCustom": {
-    "message": "現在のカスタム名を保留値として使用"
-  },
-  "steam_libraryCustomName_policyHide": {
-    "message": "既存の項目を非表示"
-  },
-  "steam_libraryCustomName_policySkip": {
-    "message": "既存の項目をスキップ"
-  },
   "steam_libraryCustomName_preparingCloudRequest": {
-    "message": "クラウド名のリクエストを準備中"
+    "message": "コミュニティ名のリクエストを準備中"
   },
   "steam_libraryCustomName_preparingQueryQueue": {
     "message": "クエリキューを準備中 $current$/$total$",
@@ -4049,7 +4043,7 @@
     }
   },
   "steam_libraryCustomName_querySelectedCloudTitle": {
-    "message": "選択したゲームのみクラウド名を取得"
+    "message": "選択したゲームのみコミュニティ名を取得"
   },
   "steam_libraryCustomName_readingJson": {
     "message": "JSONファイルを読み込み中"
@@ -4066,10 +4060,10 @@
     }
   },
   "steam_libraryCustomName_refreshCloudPrompt": {
-    "message": "保留中の書き込みデータが変更されました。クラウド名を再取得すると、手動でロックされていない、選択した保留中の値のみが更新されます。続行しますか？"
+    "message": "保留中の書き込みデータが変更されました。コミュニティ名を再取得すると、手動でロックされていない、選択した保留中の値のみが更新されます。続行しますか？"
   },
   "steam_libraryCustomName_refreshCloudTitle": {
-    "message": "クラウド名の取得を確認"
+    "message": "コミュニティ名の取得を確認"
   },
   "steam_libraryCustomName_resuming": {
     "message": "再開中"
@@ -4121,8 +4115,11 @@
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "Steamの保存キューが応答しませんでした。結果を確認するには一括ウィンドウを再度開いてください。"
   },
+  "steam_libraryCustomName_windowResizeFailed": {
+    "message": "ウィンドウのサイズを変更できませんでした。もう一度お試しください。"
+  },
   "steam_libraryCustomName_searchPlaceholder": {
-    "message": "ゲーム / AppID / 保留中の名前を検索"
+    "message": "名前 / AppID / 並べ替え名を検索"
   },
   "steam_libraryCustomName_searchSummary": {
     "message": ", 検索 $visible$/$total$",
@@ -4139,7 +4136,7 @@
     "message": "名前を消去するゲームを選択"
   },
   "steam_libraryCustomName_selectCloudTargets": {
-    "message": "クラウド名を取得するゲームを選択"
+    "message": "コミュニティ名を取得するゲームを選択"
   },
   "steam_libraryCustomName_startClearQueue": {
     "message": "消去キューを開始中: $count$件を消去、$skipped$件をスキップ",
@@ -5710,13 +5707,13 @@
     "message": "ライブラリカスタム名方式"
   },
   "settings_feature_library_name_mode_desc": {
-    "message": "素材君クラウド版は、変更した名称を素材君クラウドサーバーへリアルタイム同期するため、パソコンを替えても名称データは失われません。\nSteamクラウド版は Steam のカスタムソート名機能を使い、データを Steam クラウドへリアルタイム同期するため、パソコンを替えても名称データは失われません。"
+    "message": "寄付版はカスタム名を素材君アカウントに紐付け、素材君クラウドで同期します。\n無料版は Steam のカスタム並べ替え名と Steam クラウド同期を使用します。"
   },
   "settings_feature_library_name_mode_option_independent": {
-    "message": "素材君クラウド版"
+    "message": "寄付版"
   },
   "settings_feature_library_name_mode_option_steam_sort": {
-    "message": "Steamクラウド版"
+    "message": "無料版"
   },
   "settings_libraryNameMode_restartConfirmTitle": {
     "message": "モード切替"
@@ -6052,10 +6049,10 @@
     "message": "名称リストの読み込みに失敗しました"
   },
   "steam_libraryCustomName_fetchPermissionMissing": {
-    "message": "クラウド名の権限が同期されていません。サーバーを更新し、ユーザーセンターを再読み込みしてください。"
+    "message": "コミュニティ名の権限が同期されていません。サーバーを更新し、ユーザーセンターを再読み込みしてください。"
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
-    "message": "現在の権限ではクラウド名を取得できません。"
+    "message": "現在の権限ではコミュニティ名を取得できません。"
   },
   "steam_independentName_filter": {
     "message": "絞り込み"
@@ -7174,5 +7171,54 @@
   },
   "familyTask_invalidResponse": {
     "message": "Steamの応答形式が無効です。後でもう一度お試しください。"
+  },
+  "steam_libraryCustomName_editSortNames": {
+    "message": "カスタム並び替え名を編集"
+  },
+  "steam_libraryCustomName_clearSortNames": {
+    "message": "選択したカスタム並び替え名を消去"
+  },
+  "steam_libraryCustomName_sortUseOriginal": {
+    "message": "入力予定の並び替え名が空の場合は Steam の元の名前を使用"
+  },
+  "steam_libraryCustomName_sortClearUseAction": {
+    "message": "名前を消去するには「選択したカスタム並び替え名を消去」を使用してください。"
+  },
+  "steam_libraryCustomName_batchSummary": {
+    "message": "合計 $total$ 件 · 絞り込み後 $filtered$ 件 · 選択 $selected$ 件 · 書込待ち $write$ 件 · スキップ $skipped$ 件 · 件数上限 $limit$ · 容量 $capacity$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "filtered": {
+        "content": "$2"
+      },
+      "selected": {
+        "content": "$3"
+      },
+      "write": {
+        "content": "$4"
+      },
+      "skipped": {
+        "content": "$5"
+      },
+      "limit": {
+        "content": "$6"
+      },
+      "capacity": {
+        "content": "$7"
+      }
+    }
+  },
+  "steam_libraryCustomName_invalidMnemonic": {
+    "message": "ニーモニックには英字と数字のみ使用できます。"
+  },
+  "steam_independentName_metadataUnavailable": {
+    "message": "$field$ のデータを利用できません。拡張機能を更新して再試行してください。",
+    "placeholders": {
+      "field": {
+        "content": "$1"
+      }
+    }
   }
 }

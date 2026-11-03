@@ -3448,11 +3448,29 @@
   "steam_libraryCustomName_backendTimeout": {
     "message": "The Steam client backend did not respond"
   },
+  "steam_libraryCustomName_aiGenerate": {
+    "message": "AI generate"
+  },
+  "steam_libraryCustomName_aiGenerating": {
+    "message": "Generating..."
+  },
+  "steam_libraryCustomName_aiFailed": {
+    "message": "AI generation failed"
+  },
+  "steam_libraryCustomName_aiTimeout": {
+    "message": "AI generation timed out. Please try again."
+  },
+  "steam_libraryCustomName_aiOriginalMissing": {
+    "message": "Could not read the Steam original name. Please try again."
+  },
+  "steam_libraryCustomName_aiInputChanged": {
+    "message": "The name has changed. Your edits were kept; please generate again."
+  },
   "steam_libraryCustomName_batchEdit": {
-    "message": "Edit names in bulk"
+    "message": "Batch settings"
   },
   "steam_libraryCustomName_batchTitle": {
-    "message": "Edit names in bulk"
+    "message": "Steam Buff · Batch custom sort names"
   },
   "steam_libraryCustomName_cancellingMnemonic": {
     "message": "Removing mnemonics"
@@ -3564,7 +3582,7 @@
     "message": "Confirm clearing selected names"
   },
   "steam_libraryCustomName_cloudApiTimeout": {
-    "message": "The cloud name service did not respond"
+    "message": "The community name service did not respond"
   },
   "steam_libraryCustomName_cloudDiskFailed": {
     "message": "Steam CloudStorage disk write failed: $result$",
@@ -3578,10 +3596,10 @@
     "message": "Steam CloudStorage bulk disk write timed out"
   },
   "steam_libraryCustomName_cloudName": {
-    "message": "Cloud name"
+    "message": "Community name"
   },
   "steam_libraryCustomName_cloudNameMissing": {
-    "message": "No cloud name was found for the current game"
+    "message": "No community name was found for the current game"
   },
   "steam_libraryCustomName_confirmOverwrite": {
     "message": "Confirm overwrite"
@@ -3686,10 +3704,10 @@
     }
   },
   "steam_libraryCustomName_fetchCloud": {
-    "message": "Get cloud names"
+    "message": "Get community names"
   },
   "steam_libraryCustomName_fetchCloudProgress": {
-    "message": "Getting cloud names $current$/$total$",
+    "message": "Getting community names $current$/$total$",
     "placeholders": {
       "current": {
         "content": "$1"
@@ -3710,15 +3728,6 @@
   },
   "steam_libraryCustomName_accountCenterOpenFailed": {
     "message": "Failed to open the account center"
-  },
-  "steam_libraryCustomName_fetching": {
-    "message": "Fetching..."
-  },
-  "steam_libraryCustomName_fetchingShort": {
-    "message": "Fetching..."
-  },
-  "steam_libraryCustomName_fetchTitle": {
-    "message": "Get name"
   },
   "steam_libraryCustomName_filePickerUnavailable": {
     "message": "The import file picker is unavailable"
@@ -3911,9 +3920,6 @@
   "steam_libraryCustomName_mnemonicPrompt": {
     "message": "This will refresh pending write data. Continue?"
   },
-  "steam_libraryCustomName_mode": {
-    "message": "Mode"
-  },
   "steam_libraryCustomName_namespaceLimitReached": {
     "message": "Steam namespace 3 has reached the 10,000 custom-name limit"
   },
@@ -3993,18 +3999,6 @@
   "steam_libraryCustomName_pendingName": {
     "message": "Pending name"
   },
-  "steam_libraryCustomName_policyCover": {
-    "message": "Overwrite all"
-  },
-  "steam_libraryCustomName_policyCurrentCustom": {
-    "message": "Use current custom names as pending values"
-  },
-  "steam_libraryCustomName_policyHide": {
-    "message": "Hide existing"
-  },
-  "steam_libraryCustomName_policySkip": {
-    "message": "Skip existing"
-  },
   "steam_libraryCustomName_preparingCloudRequest": {
     "message": "Preparing the cloud-name request"
   },
@@ -4049,7 +4043,7 @@
     }
   },
   "steam_libraryCustomName_querySelectedCloudTitle": {
-    "message": "Get cloud names only for selected games"
+    "message": "Get community names only for selected games"
   },
   "steam_libraryCustomName_readingJson": {
     "message": "Reading the JSON file"
@@ -4066,7 +4060,7 @@
     }
   },
   "steam_libraryCustomName_refreshCloudPrompt": {
-    "message": "Pending write data has changed. Fetching cloud names again will refresh only selected pending values that were not manually locked. Continue?"
+    "message": "Pending write data has changed. Fetching community names again will refresh only selected pending values that were not manually locked. Continue?"
   },
   "steam_libraryCustomName_refreshCloudTitle": {
     "message": "Confirm cloud-name fetch"
@@ -4121,8 +4115,11 @@
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "The Steam save queue did not respond. Reopen the bulk window to confirm the result."
   },
+  "steam_libraryCustomName_windowResizeFailed": {
+    "message": "Unable to resize the window. Please try again."
+  },
   "steam_libraryCustomName_searchPlaceholder": {
-    "message": "Search game / AppID / pending name"
+    "message": "Search name / AppID / sort name"
   },
   "steam_libraryCustomName_searchSummary": {
     "message": ", search $visible$/$total$",
@@ -4139,7 +4136,7 @@
     "message": "Select the games whose names should be cleared"
   },
   "steam_libraryCustomName_selectCloudTargets": {
-    "message": "Select the games whose cloud names should be fetched"
+    "message": "Select the games whose community names should be fetched"
   },
   "steam_libraryCustomName_startClearQueue": {
     "message": "Starting the clear queue: $count$ to clear, $skipped$ to skip",
@@ -5710,13 +5707,13 @@
     "message": "Library Custom Name Mode"
   },
   "settings_feature_library_name_mode_desc": {
-    "message": "Sucaijun Cloud Storage syncs renamed titles to the Sucaijun cloud server in real time, so switching computers will not lose your name data.\nSteam Cloud Storage is built on Steam's custom sort name feature and syncs data to Steam Cloud in real time, so switching computers will not lose your name data."
+    "message": "Donation Edition links custom names to your Sucaijun account and syncs them through Sucaijun Cloud.\nFree Edition uses Steam custom sort names and Steam Cloud sync."
   },
   "settings_feature_library_name_mode_option_independent": {
-    "message": "Sucaijun Cloud Storage"
+    "message": "Donation Edition"
   },
   "settings_feature_library_name_mode_option_steam_sort": {
-    "message": "Steam Cloud Storage"
+    "message": "Free Edition"
   },
   "settings_libraryNameMode_restartConfirmTitle": {
     "message": "Switch mode"
@@ -6052,10 +6049,10 @@
     "message": "Failed to load the name list"
   },
   "steam_libraryCustomName_fetchPermissionMissing": {
-    "message": "Cloud name access has not synced. Update the server and refresh Account Center."
+    "message": "Community name access has not synced. Update the server and refresh Account Center."
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
-    "message": "Your current entitlements do not include fetching cloud names."
+    "message": "Your current entitlements do not include fetching community names."
   },
   "steam_independentName_filter": {
     "message": "Filter"
@@ -7174,5 +7171,54 @@
   },
   "familyTask_invalidResponse": {
     "message": "Steam returned an invalid response. Please retry later."
+  },
+  "steam_libraryCustomName_editSortNames": {
+    "message": "Edit custom sort names"
+  },
+  "steam_libraryCustomName_clearSortNames": {
+    "message": "Clear selected custom sort names"
+  },
+  "steam_libraryCustomName_sortUseOriginal": {
+    "message": "Use the original Steam name when the pending sort name is empty"
+  },
+  "steam_libraryCustomName_sortClearUseAction": {
+    "message": "Use “Clear selected custom sort names” to clear names."
+  },
+  "steam_libraryCustomName_batchSummary": {
+    "message": "Total $total$ · Filtered $filtered$ · Selected $selected$ · Pending $write$ · Skipped $skipped$ · Entries $limit$ · Capacity $capacity$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "filtered": {
+        "content": "$2"
+      },
+      "selected": {
+        "content": "$3"
+      },
+      "write": {
+        "content": "$4"
+      },
+      "skipped": {
+        "content": "$5"
+      },
+      "limit": {
+        "content": "$6"
+      },
+      "capacity": {
+        "content": "$7"
+      }
+    }
+  },
+  "steam_libraryCustomName_invalidMnemonic": {
+    "message": "Mnemonics can contain only English letters and digits."
+  },
+  "steam_independentName_metadataUnavailable": {
+    "message": "$field$ data is unavailable. Update the extension and try again.",
+    "placeholders": {
+      "field": {
+        "content": "$1"
+      }
+    }
   }
 }

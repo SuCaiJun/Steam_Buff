@@ -3448,11 +3448,29 @@
   "steam_libraryCustomName_backendTimeout": {
     "message": "Steam 클라이언트 백엔드가 응답하지 않았습니다"
   },
+  "steam_libraryCustomName_aiGenerate": {
+    "message": "AI 생성"
+  },
+  "steam_libraryCustomName_aiGenerating": {
+    "message": "생성 중..."
+  },
+  "steam_libraryCustomName_aiFailed": {
+    "message": "AI 생성 실패"
+  },
+  "steam_libraryCustomName_aiTimeout": {
+    "message": "AI 생성 시간이 초과되었습니다. 다시 시도해 주세요."
+  },
+  "steam_libraryCustomName_aiOriginalMissing": {
+    "message": "Steam 원래 이름을 읽지 못했습니다. 다시 시도해 주세요."
+  },
+  "steam_libraryCustomName_aiInputChanged": {
+    "message": "이름이 변경되어 편집 내용을 유지했습니다. 다시 생성해 주세요."
+  },
   "steam_libraryCustomName_batchEdit": {
-    "message": "이름 일괄 편집"
+    "message": "일괄 설정"
   },
   "steam_libraryCustomName_batchTitle": {
-    "message": "이름 일괄 편집"
+    "message": "Steam Buff · 사용자 지정 정렬 이름 일괄 설정"
   },
   "steam_libraryCustomName_cancellingMnemonic": {
     "message": "니모닉 제거 중"
@@ -3564,7 +3582,7 @@
     "message": "선택한 이름을 삭제하시겠습니까"
   },
   "steam_libraryCustomName_cloudApiTimeout": {
-    "message": "클라우드 이름 서비스가 응답하지 않았습니다"
+    "message": "커뮤니티 이름 서비스가 응답하지 않았습니다"
   },
   "steam_libraryCustomName_cloudDiskFailed": {
     "message": "Steam CloudStorage 디스크 쓰기에 실패했습니다: $result$",
@@ -3578,10 +3596,10 @@
     "message": "Steam CloudStorage 일괄 디스크 쓰기 시간이 초과되었습니다"
   },
   "steam_libraryCustomName_cloudName": {
-    "message": "클라우드 이름"
+    "message": "커뮤니티 이름"
   },
   "steam_libraryCustomName_cloudNameMissing": {
-    "message": "현재 게임의 클라우드 이름을 찾을 수 없습니다"
+    "message": "현재 게임의 커뮤니티 이름을 찾을 수 없습니다"
   },
   "steam_libraryCustomName_confirmOverwrite": {
     "message": "덮어쓰기 확인"
@@ -3686,10 +3704,10 @@
     }
   },
   "steam_libraryCustomName_fetchCloud": {
-    "message": "클라우드 이름 가져오기"
+    "message": "커뮤니티 이름 가져오기"
   },
   "steam_libraryCustomName_fetchCloudProgress": {
-    "message": "클라우드 이름 가져오는 중 $current$/$total$",
+    "message": "커뮤니티 이름 가져오는 중 $current$/$total$",
     "placeholders": {
       "current": {
         "content": "$1"
@@ -3710,15 +3728,6 @@
   },
   "steam_libraryCustomName_accountCenterOpenFailed": {
     "message": "사용자 센터를 열지 못했습니다"
-  },
-  "steam_libraryCustomName_fetching": {
-    "message": "가져오는 중..."
-  },
-  "steam_libraryCustomName_fetchingShort": {
-    "message": "가져오는 중..."
-  },
-  "steam_libraryCustomName_fetchTitle": {
-    "message": "이름 가져오기"
   },
   "steam_libraryCustomName_filePickerUnavailable": {
     "message": "가져오기 파일 선택기를 사용할 수 없습니다"
@@ -3911,9 +3920,6 @@
   "steam_libraryCustomName_mnemonicPrompt": {
     "message": "대기 중인 쓰기 데이터를 새로 고칩니다. 계속할까요?"
   },
-  "steam_libraryCustomName_mode": {
-    "message": "모드"
-  },
   "steam_libraryCustomName_namespaceLimitReached": {
     "message": "Steam namespace 3의 사용자 지정 이름이 10,000개 한도에 도달했습니다"
   },
@@ -3993,20 +3999,8 @@
   "steam_libraryCustomName_pendingName": {
     "message": "보류 중인 이름"
   },
-  "steam_libraryCustomName_policyCover": {
-    "message": "모두 덮어쓰기"
-  },
-  "steam_libraryCustomName_policyCurrentCustom": {
-    "message": "현재 사용자 지정 이름을 보류 값으로 사용"
-  },
-  "steam_libraryCustomName_policyHide": {
-    "message": "기존 항목 숨기기"
-  },
-  "steam_libraryCustomName_policySkip": {
-    "message": "기존 항목 건너뛰기"
-  },
   "steam_libraryCustomName_preparingCloudRequest": {
-    "message": "클라우드 이름 요청 준비 중"
+    "message": "커뮤니티 이름 요청 준비 중"
   },
   "steam_libraryCustomName_preparingQueryQueue": {
     "message": "쿼리 대기열 준비 중 $current$/$total$",
@@ -4049,7 +4043,7 @@
     }
   },
   "steam_libraryCustomName_querySelectedCloudTitle": {
-    "message": "선택한 게임만 클라우드 이름 가져오기"
+    "message": "선택한 게임만 커뮤니티 이름 가져오기"
   },
   "steam_libraryCustomName_readingJson": {
     "message": "JSON 파일을 읽는 중"
@@ -4066,10 +4060,10 @@
     }
   },
   "steam_libraryCustomName_refreshCloudPrompt": {
-    "message": "보류 중인 쓰기 데이터가 변경되었습니다. 클라우드 이름을 다시 가져오면 수동으로 잠기지 않은 선택된 보류 값만 새로 고칩니다. 계속하시겠습니까?"
+    "message": "보류 중인 쓰기 데이터가 변경되었습니다. 커뮤니티 이름을 다시 가져오면 수동으로 잠기지 않은 선택된 보류 값만 새로 고칩니다. 계속하시겠습니까?"
   },
   "steam_libraryCustomName_refreshCloudTitle": {
-    "message": "클라우드 이름 가져오기 확인"
+    "message": "커뮤니티 이름 가져오기 확인"
   },
   "steam_libraryCustomName_resuming": {
     "message": "재개 중"
@@ -4121,8 +4115,11 @@
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "Steam 저장 대기열이 응답하지 않았습니다. 결과를 확인하려면 일괄 작업 창을 다시 여세요."
   },
+  "steam_libraryCustomName_windowResizeFailed": {
+    "message": "창 크기를 변경하지 못했습니다. 다시 시도해 주세요."
+  },
   "steam_libraryCustomName_searchPlaceholder": {
-    "message": "게임 / AppID / 보류 중인 이름 검색"
+    "message": "이름 / AppID / 정렬 이름 검색"
   },
   "steam_libraryCustomName_searchSummary": {
     "message": ", 검색 $visible$/$total$",
@@ -4139,7 +4136,7 @@
     "message": "이름을 지울 게임 선택"
   },
   "steam_libraryCustomName_selectCloudTargets": {
-    "message": "클라우드 이름을 가져올 게임 선택"
+    "message": "커뮤니티 이름을 가져올 게임 선택"
   },
   "steam_libraryCustomName_startClearQueue": {
     "message": "지우기 대기열 시작 중: $count$개 지우기, $skipped$개 건너뛰기",
@@ -5710,13 +5707,13 @@
     "message": "라이브러리 사용자 지정 이름 방식"
   },
   "settings_feature_library_name_mode_desc": {
-    "message": "소재군 클라우드 저장판은 수정한 이름을 소재군 클라우드 서버에 실시간 동기화하므로, 컴퓨터를 바꿔도 이름 데이터가 사라지지 않습니다.\nSteam 클라우드 저장판은 Steam의 사용자 지정 정렬 이름 기능을 기반으로 데이터를 Steam 클라우드에 실시간 동기화하므로, 컴퓨터를 바꿔도 이름 데이터가 사라지지 않습니다."
+    "message": "후원 버전은 사용자 지정 이름을 소재군 계정에 연결하고 소재군 클라우드로 동기화합니다.\n무료 버전은 Steam 사용자 지정 정렬 이름과 Steam 클라우드 동기화를 사용합니다."
   },
   "settings_feature_library_name_mode_option_independent": {
-    "message": "소재군 클라우드 저장판"
+    "message": "후원 버전"
   },
   "settings_feature_library_name_mode_option_steam_sort": {
-    "message": "Steam 클라우드 저장판"
+    "message": "무료 버전"
   },
   "settings_libraryNameMode_restartConfirmTitle": {
     "message": "모드 전환"
@@ -6052,10 +6049,10 @@
     "message": "이름 목록을 불러오지 못했습니다"
   },
   "steam_libraryCustomName_fetchPermissionMissing": {
-    "message": "클라우드 이름 권한이 동기화되지 않았습니다. 서버를 업데이트하고 사용자 센터를 새로 고침하세요."
+    "message": "커뮤니티 이름 권한이 동기화되지 않았습니다. 서버를 업데이트하고 사용자 센터를 새로 고침하세요."
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
-    "message": "현재 권한으로 클라우드 이름을 가져올 수 없습니다."
+    "message": "현재 권한으로 커뮤니티 이름을 가져올 수 없습니다."
   },
   "steam_independentName_filter": {
     "message": "필터"
@@ -7174,5 +7171,54 @@
   },
   "familyTask_invalidResponse": {
     "message": "Steam 응답 형식이 올바르지 않습니다. 나중에 다시 시도하세요."
+  },
+  "steam_libraryCustomName_editSortNames": {
+    "message": "사용자 지정 정렬 이름 편집"
+  },
+  "steam_libraryCustomName_clearSortNames": {
+    "message": "선택한 사용자 지정 정렬 이름 지우기"
+  },
+  "steam_libraryCustomName_sortUseOriginal": {
+    "message": "입력할 정렬 이름이 비어 있으면 Steam 원래 이름 사용"
+  },
+  "steam_libraryCustomName_sortClearUseAction": {
+    "message": "이름을 지우려면 “선택한 사용자 지정 정렬 이름 지우기”를 사용하세요."
+  },
+  "steam_libraryCustomName_batchSummary": {
+    "message": "전체 $total$개 · 필터 결과 $filtered$개 · 선택 $selected$개 · 저장 대기 $write$개 · 건너뜀 $skipped$개 · 항목 $limit$ · 용량 $capacity$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "filtered": {
+        "content": "$2"
+      },
+      "selected": {
+        "content": "$3"
+      },
+      "write": {
+        "content": "$4"
+      },
+      "skipped": {
+        "content": "$5"
+      },
+      "limit": {
+        "content": "$6"
+      },
+      "capacity": {
+        "content": "$7"
+      }
+    }
+  },
+  "steam_libraryCustomName_invalidMnemonic": {
+    "message": "기억 문자는 영문자와 숫자만 사용할 수 있습니다."
+  },
+  "steam_independentName_metadataUnavailable": {
+    "message": "$field$ 데이터를 사용할 수 없습니다. 확장 프로그램을 업데이트한 후 다시 시도하세요.",
+    "placeholders": {
+      "field": {
+        "content": "$1"
+      }
+    }
   }
 }

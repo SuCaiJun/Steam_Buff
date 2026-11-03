@@ -18,6 +18,7 @@
   const ORIG = "__RickyStOriginalName";
 
   const SORT_NAME_LIB = "steam/shared/native-sort-name.js";
+  const METADATA_LIB = "steam/shared/name-filter-metadata.js";
   const BATCH_LIB = "steam/shared/native-sort-batch.js";
   const SCAN_YIELD = 2000;
   const PAGE_MAX = 1000;
@@ -75,7 +76,7 @@
     return Number.isFinite(canon) ? canon : 0;
   }
 
-  function row(app) {
+  function row(app, context) {
     const appid = Number(app?.appid);
     if (!Number.isFinite(appid) || appid <= 0) {
       return null;
@@ -87,6 +88,7 @@
       current_custom_name: custom,
       has_custom_sort_as: !!custom || app?.has_custom_sort_as === true,
       app_type: appType(app),
+      ...(context ? { metadata: window.SteamBuff.nameFilterMetadata.row(app, context) } : {}),
     };
   }
 
@@ -104,27 +106,7 @@
     return Array.isArray(list) ? list.values() : [][Symbol.iterator]();
   }
 
-  function typeKey(app) {
-    const type = Number(app?.app_type);
-    if (type === 1) return "game";
-    if (type === 2) return "software";
-    if (type === 4) return "tool";
-    return "other";
-  }
-
-  function matchBatch(app, data) {
-    const types = data?.types || {};
-    const custom = app?.has_custom_sort_as === true || !!text(app?.current_custom_name);
-    if (!types[typeKey(app)]) {
-      return false;
-    }
-    if (data?.requireCustom && !custom) {
-      return false;
-    }
-    return !(data?.policy === "hide" && custom);
-  }
-
-  async function prepareList(rt, rid, data) {
+  async function prepareList(rt, rid) {
     if (rt.previewFlights.has(rid)) return;
     if (rt.preview?.sid === rid) {
       post(rt.ch, { type: "prepare-list-result", rid, ok: true, sid: rid, total: rt.preview.rows.length, scanned: rt.preview.scanned });
@@ -137,14 +119,17 @@
     let scanned = 0;
     rt.previewToken = sid;
     try {
+      await window.SteamBuff.reg.loadScript(METADATA_LIB);
+      if (rt.previewToken !== sid) return;
+      const context = window.SteamBuff.nameFilterMetadata.context();
       for (const app of appValues()) {
         if (rt.previewToken !== sid) {
           post(rt.ch, { type: "prepare-list-result", rid, ok: false, error: i18n("steam.libraryCustomName.previewCancelled", "批量预览已取消") });
           return;
         }
-        const item = row(app);
+        const item = row(app, context);
         scanned += 1;
-        if (item && matchBatch(item, data)) {
+        if (item) {
           list.push(item);
         }
         if (scanned > 0 && scanned % SCAN_YIELD === 0) {
@@ -155,15 +140,19 @@
         post(rt.ch, { type: "prepare-list-result", rid, ok: false, error: i18n("steam.libraryCustomName.previewCancelled", "批量预览已取消") });
         return;
       }
+      window.SteamBuff.nameFilterMetadata.reportFailure(context,log,rid);
       rt.preview = {
         sid,
         rows: list,
+        meta: { version: 1, options: window.SteamBuff.nameFilterMetadata.options(context), capabilities: context.ready },
         scanned,
         time: now(),
       };
       post(rt.ch, { type: "prepare-list-result", rid, ok: true, sid, total: list.length, scanned });
     } catch (error) {
-      post(rt.ch, { type: "prepare-list-result", rid, ok: false, error: error?.message || String(error) });
+      log.error("steam-name-metadata-list-failed", "读取 Steam 批量筛选元数据失败", { error, requestId: rid });
+      const detail = error.message;
+      post(rt.ch, { type: "prepare-list-result", rid, ok: false, error: detail });
     } finally {
       rt.previewFlights.delete(rid);
     }
@@ -196,6 +185,7 @@
       nextOffset,
       done: nextOffset >= total,
       apps: preview.rows.slice(offset, nextOffset),
+      ...(offset === 0 ? { meta: preview.meta } : {}),
     });
   }
 
@@ -281,7 +271,7 @@
           return;
         }
         if (data.type === "prepare-list") {
-          prepareList(rt, rid, data);
+          prepareList(rt, rid);
           return;
         }
         if (data.type === "list-page") {

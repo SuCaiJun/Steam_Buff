@@ -24,207 +24,39 @@
    * open 返回原生内容挂载完成的 Promise。关闭前收回 DOM，避免关闭文档销毁消息界面。
    */
   function nativeHost(trigger, css, onClosed, reportFailure, onEscape) {
-    const parking = document.createDocumentFragment();
-    let template = null, active = null, disposed = false;
-
-    function contract() {
-      if (template) return { value: template };
-      const manager = window.opener?.g_PopupManager;
-      if (typeof manager?.GetPopups !== "function" || typeof manager.GetPopupForWindow !== "function" || typeof manager.RemoveTrackedPopup !== "function") throw new Error("Steam 原生弹窗入口不可用");
-      const main = manager.GetPopupForWindow(window);
-      const menu = Array.from(manager.GetPopups()).find(item => item.title === "Notifications Menu");
-      const missing = [];
-      if (!main) missing.push("Steam 主窗口");
-      if (!menu) missing.push("Notifications Menu");
-      if (menu && !Number.isInteger(menu.params.eCreationFlags)) missing.push("通知菜单创建参数");
-      if (main && !main.params.target_browser) missing.push("Steam 主窗口浏览器");
-      if (missing.length) return { manager, missing };
-      if (typeof SteamClient.Window.GetWindowRestoreDetails !== "function") throw new Error("Steam 主窗口定位接口不可用");
-      template = { manager, main, Popup: menu.constructor, flags: menu.params.eCreationFlags, bodyClass: menu.params.body_class, browser: main.params.target_browser, openerId: SteamClient.Browser.GetBrowserID() };
-      return { value: template };
-    }
-
-    // 冷启动只等待已有 Popup 注册事件；完成、取消或超时后立即注销，不轮询运行时。
-    function waitForContract(state) {
-      const initial = contract();
-      if (initial.value) return Promise.resolve(initial.value);
-      if (typeof initial.manager.AddPopupCreatedCallback !== "function") throw new Error("Steam 弹窗创建通知接口不可用");
-      state.waitingFor = initial.missing;
-      const startedAt = performance.now();
-      log.info("message-window-waiting", "等待 Steam 消息窗口就绪", { kind: state.kind, missing: initial.missing });
-      return new Promise((resolve, reject) => {
-        let done = false;
-        const cleanup = () => { subscription.Unregister(); state.cancelContract = null; };
-        const cancel = () => {
-          if (done) return;
-          done = true; cleanup(); reject(new DOMException("消息窗口已关闭", "AbortError"));
-        };
-        const check = () => {
-          if (done || state.closed || disposed) return;
-          try {
-            const result = contract();
-            state.waitingFor = result.missing;
-            if (!result.value) return;
-            done = true; cleanup();
-            log.info("message-window-ready", "Steam 消息窗口已就绪", { kind: state.kind, durationMs: Math.round(performance.now() - startedAt) });
-            resolve(result.value);
-          } catch (error) { done = true; cleanup(); reject(error); }
-        };
-        const subscription = initial.manager.AddPopupCreatedCallback(popup => {
-          if (popup.title === "Steam" || popup.title === "Notifications Menu") check();
-        });
-        state.cancelContract = cancel;
-        check();
-      });
-    }
-
-    function finish(state, reason) {
-      if (state.closed) return;
-      state.closed = true;
-      if (active === state) active = null;
-      clearTimeout(state.timer);
-      state.cancelContract?.();
-      if (state.frame && !state.win?.closed) state.win.cancelAnimationFrame(state.frame);
-      state.frame = 0;
-      state.doc?.removeEventListener("keydown", state.keydown, true);
-      state.win?.removeEventListener("resize", state.resize);
-      if (state.kind === "full") state.content.querySelectorAll("dialog[open]").forEach(item => item.close());
-      parking.appendChild(state.content);
-      if (!state.ready) state.reject(new DOMException("消息窗口已关闭", "AbortError"));
-      onClosed(state.kind, reason);
-    }
-
-    function close(reason = "close", restoreFocus = false) {
-      const state = active;
-      if (!state) return;
-      finish(state, reason);
-      if (state.item) {
-        if (state.item.BIsValid() && !state.item.BIsClosed()) state.item.Close();
-        else template.manager.RemoveTrackedPopup(state.item);
-      }
-      if (restoreFocus && !disposed && !window.closed) {
-        template.main.Focus(); trigger.focus({ preventScroll: true });
-      }
-    }
-
-    async function position(state) {
-      const restore = await SteamClient.Window.GetWindowRestoreDetails();
-      if (state.closed || active !== state || state.win.closed) return;
-      if (typeof restore !== "string") throw new TypeError("Steam 窗口位置格式无效");
-      const doc = state.win.document, rect = trigger.getBoundingClientRect();
-      let listHeight = Math.max(80, Math.min(420, innerHeight - 176));
-      if (state.kind === "menu") {
-        const list = state.content.querySelector(".st-mc-list");
-        if (list.children.length > MENU_VISIBLE_ROWS) {
-          // 用布局位置计算五条真实行高；offsetTop 不受已读过渡的 transform 影响。
-          const rowLimit = list.children[MENU_VISIBLE_ROWS].offsetTop - list.firstElementChild.offsetTop;
-          if (rowLimit <= 0) throw new Error("消息列表行高无效");
-          listHeight = Math.min(listHeight, rowLimit);
+    return api.nativeWindow.create({
+      id: "SteamBuffMessageCenter", trigger, onClosed, reportFailure, onEscape, log, follow: true,
+      closeOnBlur: kind => kind === "menu",
+      prepareDocument(state) {
+        state.doc.documentElement.dataset.messageCenterWindow = state.kind;
+        state.doc.documentElement.style.setProperty("--st-mc-menu-list-height", `${Math.max(80, Math.min(420, innerHeight - 176))}px`);
+      },
+      css: () => css.textContent + "\nhtml,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--st-color-steam-message-surface)}#popup_target{width:100%}html[data-message-center-window=full] #popup_target{height:100%}",
+      geometry(state) {
+        const doc = state.win.document, rect = trigger.getBoundingClientRect();
+        let listHeight = Math.max(80, Math.min(420, innerHeight - 176));
+        if (state.kind === "menu") {
+          const list = state.content.querySelector(".st-mc-list");
+          if (list.children.length > MENU_VISIBLE_ROWS) {
+            // 用布局位置计算五条真实行高；offsetTop 不受已读过渡的 transform 影响。
+            const rowLimit = list.children[MENU_VISIBLE_ROWS].offsetTop - list.firstElementChild.offsetTop;
+            if (rowLimit <= 0) throw new Error("消息列表行高无效");
+            listHeight = Math.min(listHeight, rowLimit);
+          }
         }
-      }
-      doc.documentElement.style.setProperty("--st-mc-menu-list-height", `${listHeight}px`);
-      const width = state.kind === "menu" ? Math.min(320, innerWidth - 16) : Math.min(760, innerWidth - 48);
-      const height = state.kind === "menu" ? Math.ceil(state.content.getBoundingClientRect().height) : Math.min(640, innerHeight - 64);
-      const x = state.kind === "menu" ? Math.max(8, Math.min(innerWidth - width - 8, rect.right - width)) : Math.round((innerWidth - width) / 2);
-      const y = state.kind === "menu" ? Math.max(0, Math.min(rect.bottom + 2, innerHeight - height - 8)) : Math.round((innerHeight - height) / 2);
-      const signature = JSON.stringify([restore, x, y, width, height]);
-      if (signature !== state.geometry) {
-        await state.win.SteamClient.Window.PositionWindowRelative(restore, x, y, width, height);
-        state.geometry = signature;
-      }
-    }
-
-    function layout() {
-      const state = active;
-      if (!state?.ready || state.closed || state.win.closed || state.frame) return;
-      if (state.positioning) { state.positionAgain = true; return; }
-      state.frame = state.win.requestAnimationFrame(async () => {
-        state.frame = 0; state.positioning = true; state.positionAgain = false;
-        try {
-          await position(state);
-        } catch (error) {
-          if (!state.closed && !disposed) { reportFailure(error, "window-position"); close("error"); }
-        } finally {
-          state.positioning = false;
-          if (state.positionAgain && active === state && !state.closed) layout();
-        }
-      });
-    }
-
-    function open(kind, content, prepareContent) {
-      if (disposed) return Promise.reject(new DOMException("消息中心已停止", "AbortError"));
-      if (active?.kind === kind) { if (active.ready) active.item.Focus(); return active.promise; }
-      close("replace");
-      const state = { kind, content, closed: false, ready: false, frame: 0, win: null, item: null };
-      state.promise = new Promise((resolve, reject) => { state.resolve = resolve; state.reject = reject; });
-      active = state;
-      const fail = error => { if (!state.closed) { state.reject(error); close("error"); } };
-      state.timer = window.setTimeout(() => {
-        if (state.ready || state.closed) return;
-        const missing = state.waitingFor?.length ? `，尚未就绪：${state.waitingFor.join("、")}` : "";
-        state.reject(new Error(`Steam 消息窗口打开超时${missing}，请重试`)); close("timeout");
-      }, 12000);
-      state.keydown = event => {
-        if (event.key !== "Escape") return;
-        event.preventDefault(); event.stopPropagation();
-        if (!onEscape()) close("escape", true);
-      };
-      state.resize = layout;
-      async function mount(target) {
-        if (state.closed || disposed || active !== state) return;
-        const doc = target.ownerDocument;
-        state.doc = doc;
-        state.win = doc.defaultView;
-        if (typeof state.win.SteamClient.Window.PositionWindowRelative !== "function") throw new Error("Steam 消息窗口定位接口不可用");
-        window.STTheme.applyCssVariables(doc.documentElement);
-        doc.documentElement.dataset.messageCenterWindow = kind;
-        doc.documentElement.style.setProperty("--st-mc-menu-list-height", `${Math.max(80, Math.min(420, innerHeight - 176))}px`);
-        const sheet = doc.createElement("style");
-        sheet.textContent = css.textContent + "\nhtml,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--st-color-steam-message-surface)}#popup_target{width:100%}html[data-message-center-window=full] #popup_target{height:100%}";
-        doc.head.appendChild(sheet); target.appendChild(content);
-        prepareContent();
-        doc.addEventListener("keydown", state.keydown, true);
-        state.win.addEventListener("resize", state.resize);
-        // 隐藏窗口没有稳定的 rAF；直接测量完整内容并完成首次定位，再显示原生窗口。
-        await position(state);
-        if (state.closed || disposed || active !== state || state.win.closed) return;
-        state.ready = true; clearTimeout(state.timer); state.item.Focus();
-        // 初始焦点留在消息区域，避免默认选中操作按钮；Tab 再进入按钮。
-        content.focus({ preventScroll: true });
-        state.resolve();
-      }
-      async function prepare() {
-        const config = await waitForContract(state);
-        if (state.closed || disposed || active !== state) return;
+        doc.documentElement.style.setProperty("--st-mc-menu-list-height", `${listHeight}px`);
+        const width = state.kind === "menu" ? Math.min(320, innerWidth - 16) : Math.min(760, innerWidth - 48);
+        const height = state.kind === "menu" ? Math.ceil(state.content.getBoundingClientRect().height) : Math.min(640, innerHeight - 64);
+        const x = state.kind === "menu" ? Math.max(8, Math.min(innerWidth - width - 8, rect.right - width)) : Math.round((innerWidth - width) / 2);
+        const y = state.kind === "menu" ? Math.max(0, Math.min(rect.bottom + 2, innerHeight - height - 8)) : Math.round((innerHeight - height) / 2);
+        return { x, y, width, height };
+      },
+      params(kind) {
         const rect = trigger.getBoundingClientRect();
         const width = kind === "menu" ? Math.min(320, innerWidth - 16) : Math.min(760, innerWidth - 48);
         const height = kind === "menu" ? 260 : Math.min(640, innerHeight - 64);
-        const params = {
-          title: kind === "menu" ? "Steam Buff 消息" : "Steam Buff 消息中心",
-          // 保持创建隐藏位，防止原生 Render 在首次定位之前自动显示窗口。
-          eCreationFlags: config.flags | 2,
-          target_browser: config.browser, window_opener_id: config.openerId,
-          body_class: config.bodyClass, bModal: kind === "full",
-          dimensions: { width, height, left: screenX + (kind === "menu" ? rect.right - width : (innerWidth - width) / 2), top: screenY + (kind === "menu" ? rect.bottom + 2 : (innerHeight - height) / 2) },
-        };
-        state.item = new config.Popup(`SteamBuffMessageCenter_${kind}_${config.openerId}`, params, target => { void mount(target).catch(fail); });
-        state.item.m_callbacks = {
-          onClose() { finish(state, "native-close"); },
-          onBlur() { if (active === state && state.ready && state.kind === "menu") close("blur"); },
-        };
-        state.item.Show();
-        if (!state.item.BIsValid()) throw new Error("Steam 未能创建消息窗口，请重试");
-        state.win = state.item.window;
-      }
-      void prepare().catch(fail);
-      return state.promise;
-    }
-
-    return Object.freeze({
-      open, close, layout,
-      kind() { return active?.kind || null; },
-      ready() { return active?.ready === true; },
-      stop() { if (disposed) return; disposed = true; close("stop"); },
+        return { title: kind === "menu" ? "Steam Buff 消息" : "Steam Buff 消息中心", modal: kind === "full", dimensions: { width, height, left: screenX + (kind === "menu" ? rect.right - width : (innerWidth - width) / 2), top: screenY + (kind === "menu" ? rect.bottom + 2 : (innerHeight - height) / 2) } };
+      },
     });
   }
 

@@ -3448,11 +3448,29 @@
   "steam_libraryCustomName_backendTimeout": {
     "message": "Steam 客户端后端没有响应"
   },
+  "steam_libraryCustomName_aiGenerate": {
+    "message": "AI生成"
+  },
+  "steam_libraryCustomName_aiGenerating": {
+    "message": "生成中..."
+  },
+  "steam_libraryCustomName_aiFailed": {
+    "message": "AI生成失败"
+  },
+  "steam_libraryCustomName_aiTimeout": {
+    "message": "AI生成超时，请稍后重试。"
+  },
+  "steam_libraryCustomName_aiOriginalMissing": {
+    "message": "未能读取当前游戏的 Steam 原名称，请重试。"
+  },
+  "steam_libraryCustomName_aiInputChanged": {
+    "message": "当前名称已变化，已保留你的修改，请重新生成。"
+  },
   "steam_libraryCustomName_batchEdit": {
-    "message": "批量修改名称"
+    "message": "批量设置"
   },
   "steam_libraryCustomName_batchTitle": {
-    "message": "批量修改名称"
+    "message": "Steam Buff · 批量设置自定义排序名称"
   },
   "steam_libraryCustomName_cancellingMnemonic": {
     "message": "正在取消助记符"
@@ -3564,7 +3582,7 @@
     "message": "确认清空已选名称"
   },
   "steam_libraryCustomName_cloudApiTimeout": {
-    "message": "云端名称接口没有响应"
+    "message": "社区名称接口没有响应"
   },
   "steam_libraryCustomName_cloudDiskFailed": {
     "message": "Steam CloudStorage 写盘失败: $result$",
@@ -3578,7 +3596,7 @@
     "message": "Steam CloudStorage 批量写盘超时"
   },
   "steam_libraryCustomName_cloudName": {
-    "message": "云端名称"
+    "message": "社区名称"
   },
   "steam_libraryCustomName_cloudNameMissing": {
     "message": "云端没有找到当前游戏名称"
@@ -3686,10 +3704,10 @@
     }
   },
   "steam_libraryCustomName_fetchCloud": {
-    "message": "获取云端名称"
+    "message": "获取社区名称"
   },
   "steam_libraryCustomName_fetchCloudProgress": {
-    "message": "正在获取云端名称 $current$/$total$",
+    "message": "正在获取社区名称 $current$/$total$",
     "placeholders": {
       "current": {
         "content": "$1"
@@ -3710,15 +3728,6 @@
   },
   "steam_libraryCustomName_accountCenterOpenFailed": {
     "message": "用户中心打开失败"
-  },
-  "steam_libraryCustomName_fetching": {
-    "message": "获取中..."
-  },
-  "steam_libraryCustomName_fetchingShort": {
-    "message": "正在获取..."
-  },
-  "steam_libraryCustomName_fetchTitle": {
-    "message": "获取名称"
   },
   "steam_libraryCustomName_filePickerUnavailable": {
     "message": "导入文件选择器不可用"
@@ -3911,9 +3920,6 @@
   "steam_libraryCustomName_mnemonicPrompt": {
     "message": "该操作将刷新待写入数据，是否继续？"
   },
-  "steam_libraryCustomName_mode": {
-    "message": "模式"
-  },
   "steam_libraryCustomName_namespaceLimitReached": {
     "message": "Steam namespace 3 自定义名称数量已达到 10000"
   },
@@ -3993,20 +3999,8 @@
   "steam_libraryCustomName_pendingName": {
     "message": "待写入名"
   },
-  "steam_libraryCustomName_policyCover": {
-    "message": "全部覆盖"
-  },
-  "steam_libraryCustomName_policyCurrentCustom": {
-    "message": "当前自定义写入待写"
-  },
-  "steam_libraryCustomName_policyHide": {
-    "message": "隐藏已有"
-  },
-  "steam_libraryCustomName_policySkip": {
-    "message": "跳过已有"
-  },
   "steam_libraryCustomName_preparingCloudRequest": {
-    "message": "正在整理云端名称请求"
+    "message": "正在整理社区名称请求"
   },
   "steam_libraryCustomName_preparingQueryQueue": {
     "message": "正在整理查询队列 $current$/$total$",
@@ -4049,7 +4043,7 @@
     }
   },
   "steam_libraryCustomName_querySelectedCloudTitle": {
-    "message": "只获取已勾选游戏的云端名称"
+    "message": "只获取已勾选游戏的社区名称"
   },
   "steam_libraryCustomName_readingJson": {
     "message": "正在读取 JSON 文件"
@@ -4066,10 +4060,10 @@
     }
   },
   "steam_libraryCustomName_refreshCloudPrompt": {
-    "message": "当前待写入数据已调整，重新获取云端名称将只刷新已勾选且未手动锁定的待写入数据，是否继续？"
+    "message": "当前待写入数据已调整，重新获取社区名称将只刷新已勾选且未手动锁定的待写入数据，是否继续？"
   },
   "steam_libraryCustomName_refreshCloudTitle": {
-    "message": "确认获取云端名称"
+    "message": "确认获取社区名称"
   },
   "steam_libraryCustomName_resuming": {
     "message": "继续中"
@@ -4121,8 +4115,11 @@
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "Steam 保存队列状态没有响应，请重新打开批量窗口确认结果"
   },
+  "steam_libraryCustomName_windowResizeFailed": {
+    "message": "调整窗口大小失败，请重试。"
+  },
   "steam_libraryCustomName_searchPlaceholder": {
-    "message": "搜索游戏 / AppID / 待写入名"
+    "message": "搜索名称 / AppID / 排序名称"
   },
   "steam_libraryCustomName_searchSummary": {
     "message": "，搜索 $visible$/$total$",
@@ -4139,7 +4136,7 @@
     "message": "请先勾选需要清空名称的游戏"
   },
   "steam_libraryCustomName_selectCloudTargets": {
-    "message": "请先勾选需要获取云端名称的游戏"
+    "message": "请先勾选需要获取社区名称的游戏"
   },
   "steam_libraryCustomName_startClearQueue": {
     "message": "正在启动清空队列，预计清空 $count$ 项，跳过 $skipped$ 项",
@@ -5710,13 +5707,13 @@
     "message": "库自定义名称方案"
   },
   "settings_feature_library_name_mode_desc": {
-    "message": "素材君云存储版将修改后的名称实时同步至素材君云服务器，换电脑不会导致名称数据丢失。\nSteam云存储版基于Steam的自定义排序名称功能实现，将数据实时同步至Steam云中，换电脑不会导致名称数据丢失。"
+    "message": "捐赠版的自定义名称与素材君账号绑定，通过素材君云端同步。\n免费版使用 Steam 自定义排序名称，数据由 Steam 云同步。"
   },
   "settings_feature_library_name_mode_option_independent": {
-    "message": "素材君云存储版"
+    "message": "捐赠版"
   },
   "settings_feature_library_name_mode_option_steam_sort": {
-    "message": "Steam云存储版"
+    "message": "免费版"
   },
   "settings_libraryNameMode_restartConfirmTitle": {
     "message": "切换模式"
@@ -6052,10 +6049,10 @@
     "message": "名称列表读取失败"
   },
   "steam_libraryCustomName_fetchPermissionMissing": {
-    "message": "获取云端名称权限尚未同步，请更新后端并刷新用户中心"
+    "message": "获取社区名称权限尚未同步，请更新后端并刷新用户中心"
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
-    "message": "当前权益未开通获取云端名称"
+    "message": "当前权益未开通获取社区名称"
   },
   "steam_independentName_filter": {
     "message": "筛选"
@@ -7174,5 +7171,54 @@
   },
   "familyTask_invalidResponse": {
     "message": "Steam 响应格式异常，请稍后重试。"
+  },
+  "steam_libraryCustomName_editSortNames": {
+    "message": "修改自定义排序名称"
+  },
+  "steam_libraryCustomName_clearSortNames": {
+    "message": "清空已选自定义排序名称"
+  },
+  "steam_libraryCustomName_sortUseOriginal": {
+    "message": "待写入排序名称为空时使用 Steam 原名称"
+  },
+  "steam_libraryCustomName_sortClearUseAction": {
+    "message": "清空名称请使用“清空已选自定义排序名称”操作。"
+  },
+  "steam_libraryCustomName_batchSummary": {
+    "message": "总 $total$ 款 · 筛选后 $filtered$ 款 · 已选 $selected$ 项 · 待写入 $write$ 项 · 跳过 $skipped$ 项 · 上限 $limit$ 项 · 容量 $capacity$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "filtered": {
+        "content": "$2"
+      },
+      "selected": {
+        "content": "$3"
+      },
+      "write": {
+        "content": "$4"
+      },
+      "skipped": {
+        "content": "$5"
+      },
+      "limit": {
+        "content": "$6"
+      },
+      "capacity": {
+        "content": "$7"
+      }
+    }
+  },
+  "steam_libraryCustomName_invalidMnemonic": {
+    "message": "助记符只能包含英文字母和数字。"
+  },
+  "steam_independentName_metadataUnavailable": {
+    "message": "$field$数据不可用，请更新扩展后重试",
+    "placeholders": {
+      "field": {
+        "content": "$1"
+      }
+    }
   }
 }

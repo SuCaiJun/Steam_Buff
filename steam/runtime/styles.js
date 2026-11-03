@@ -14,13 +14,698 @@
   const api = root.SteamBuff = root.SteamBuff || {};
   const components = root.STComponents;
 
+  const LIBRARY_CUSTOM_NAME_MODAL = "__RickyLibraryCustomNameModal";
+  const LIBRARY_INDEPENDENT_NAME_BATCH_MODAL = "__RickyLibraryIndependentNameBatchModal";
+  const NAME_BATCH_SELECTOR = `:is(#${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL}, #${LIBRARY_CUSTOM_NAME_MODAL})`;
+  const nameBatchCss = `
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-shell, ${NAME_BATCH_SELECTOR} .st-lin-toolbar { font-family: var(--st-name-batch-font); }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-shell { font-size: 14px; }
+      ${NAME_BATCH_SELECTOR} .st-lin-top {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-shell {
+        position: relative;
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+        padding: 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-surface-subtle);
+        box-shadow: inset 0 1px 0 var(--st-color-white-alpha-06);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-bar,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-chips,
+      ${NAME_BATCH_SELECTOR} .st-lin-file-tools {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        min-width: 0;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-bar {
+        min-height: 24px;
+        font-size: 14px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-icon-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 24px;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 6px;
+        color: var(--st-color-text-secondary-alt);
+        background: var(--st-color-bg-input);
+        cursor: pointer;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-icon-button:hover,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-icon-button:focus-visible {
+        border-color: var(--st-color-steam-blue-alpha-72);
+        color: var(--st-color-steam-blue);
+        background: var(--st-color-steam-blue-alpha-12);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-icon {
+        display: block;
+        width: 14px;
+        height: 14px;
+        object-fit: contain;
+        filter: var(--st-filter-icon-steam-blue);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-icon-button:hover .st-lin-filter-icon,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-icon-button:focus-visible .st-lin-filter-icon {
+        filter: var(--st-filter-icon-steam-blue-hover);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-bar .st-lin-filter-add,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-bar .st-lin-filter-clear {
+        height: 24px;
+        padding-inline: 8px;
+        font: inherit;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-stats {
+        margin: 0;
+        min-height: 18px;
+        padding-inline: 12px;
+        color: var(--st-color-text-secondary-alt);
+        line-height: 1.5;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-selection-bar {
+        flex-wrap: wrap;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-file-tools {
+        margin-left: auto;
+        flex: 0 1 400px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-file-tools input[type="search"] {
+        width: 160px;
+        min-width: 120px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-btn:disabled {
+        cursor: default;
+        opacity: .45;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-btn.st-lin-link {
+        border-color: transparent;
+        background: transparent;
+        color: var(--st-color-steam-blue);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 6px;
+        background: var(--st-color-bg-input);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-chip button {
+        min-height: 30px;
+        padding: 4px 8px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        text-align: left;
+        overflow-wrap: anywhere;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-chip > button:first-child:hover,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-chip > button:first-child:focus-visible {
+        background: var(--st-color-white-alpha-08);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-chip-remove {
+        display: inline-flex;
+        flex: 0 0 30px;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        padding: 0 !important;
+        color: var(--st-color-danger-soft);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-chip-remove:hover,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-chip-remove:focus-visible {
+        background: var(--st-color-danger-alpha-12) !important;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-editor {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        z-index: 3;
+        box-sizing: border-box;
+        width: min(700px, 100%);
+        max-height: min(520px, calc(100vh - 160px));
+        display: block;
+        padding: 0;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 12px;
+        background: var(--st-color-steam-property-window);
+        color-scheme: dark;
+        font-size: 14px;
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-editor::before,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-editor::after,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker::before,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker::after,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-option-menu::before,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-option-menu::after {
+        content: "";
+        position: absolute;
+        top: -7px;
+        left: 14px;
+        z-index: 1;
+        width: 0;
+        height: 0;
+        border-style: solid;
+        pointer-events: none;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-editor::before,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker::before,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-option-menu::before {
+        border-width: 0 7px 7px;
+        border-color: transparent transparent var(--st-color-border-normal);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-editor::after,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker::after,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-option-menu::after {
+        top: -6px;
+        left: 15px;
+        border-width: 0 6px 6px;
+        border-color: transparent transparent var(--st-color-steam-property-window);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-editor[data-lin-filter-placement="above"]::before,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker[data-lin-filter-placement="above"]::before,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-option-menu[data-lin-filter-placement="above"]::before {
+        top: auto;
+        bottom: -7px;
+        border-width: 7px 7px 0;
+        border-color: var(--st-color-border-normal) transparent transparent;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-editor[data-lin-filter-placement="above"]::after,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker[data-lin-filter-placement="above"]::after,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-option-menu[data-lin-filter-placement="above"]::after {
+        top: auto;
+        bottom: -6px;
+        border-width: 6px 6px 0;
+        border-color: var(--st-color-steam-property-window) transparent transparent;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-editor-scroll {
+        box-sizing: border-box;
+        display: grid;
+        gap: 8px;
+        max-height: min(520px, calc(100vh - 160px));
+        overflow-y: auto;
+        padding: 12px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-shell [hidden],
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-editor[hidden],
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker[hidden],
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-option-menu[hidden] {
+        display: none;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(88px, 1fr) minmax(0, 2.75fr) 32px;
+        align-items: start;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-field {
+        position: relative;
+      }
+      ${NAME_BATCH_SELECTOR} [data-lin-filter-field] {
+        width: 100%;
+        text-align: left;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-field-button {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        overflow: hidden;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-field-button span {
+        margin-inline-start: 8px;
+        color: var(--st-color-text-secondary-alt);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        z-index: 4;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+        width: min(344px, calc(100vw - 16px));
+        max-width: calc(100vw - 16px);
+        max-height: min(440px, calc(100vh - 32px));
+        padding: 0;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 12px;
+        background: var(--st-color-steam-property-window);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker-scroll {
+        box-sizing: border-box;
+        display: grid;
+        gap: 12px;
+        max-height: min(440px, calc(100vh - 32px));
+        overflow-y: auto;
+        padding: 12px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker .st-lin-btn {
+        box-sizing: border-box;
+        width: 100%;
+        height: 28px;
+        min-height: 28px;
+        padding: 4px 6px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        border-radius: 5px;
+        font-size: 12px;
+        line-height: 18px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker-option[aria-current="true"] {
+        border-color: var(--st-color-steam-blue-alpha-72);
+        background: var(--st-color-steam-blue-alpha-12);
+        color: var(--st-color-steam-blue);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker .st-lin-btn:disabled {
+        opacity: .5;
+        cursor: default;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-unavailable {
+        margin: 0;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker-group {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        min-width: 0;
+        padding: 0;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-picker-group strong {
+        grid-column: 1 / -1;
+        padding: 0 0 2px;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 16px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row .st-lin-filter-field-button,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row .st-lin-filter-operator-button,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row .st-lin-filter-delete,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row .st-lin-filter-value-button,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row select,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row input[type="text"],
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row input[type="number"],
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row input[type="date"] {
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        height: 32px;
+        min-height: 32px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 6px;
+        background: var(--st-color-bg-input);
+        color: inherit;
+        padding: 0 8px;
+        font: inherit;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row input:focus-visible,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row select:focus-visible,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row .st-lin-btn:focus-visible {
+        outline: 2px solid var(--st-color-steam-blue);
+        outline-offset: 2px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-operator { min-width: 0; }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-operator-button {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-operator-menu {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        box-sizing: border-box;
+        min-width: 144px;
+        padding: 4px 0;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-operator-menu[hidden] { display: none; }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-operator-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        box-sizing: border-box;
+        width: 100%;
+        height: 32px;
+        padding: 0 12px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: start;
+        cursor: pointer;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-operator-option[aria-selected="true"] {
+        background: var(--st-color-bg-input);
+        color: var(--st-color-steam-blue);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-operator-option:hover,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-operator-option:focus-visible {
+        background: var(--st-color-surface-control-hover);
+        outline: 1px solid var(--st-color-border-normal);
+        outline-offset: -1px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-value,
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-value-select {
+        min-width: 0;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-value-button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-sizing: border-box;
+        width: 100%;
+        overflow: hidden;
+        text-align: left;
+        cursor: text;
+        appearance: none;
+        -webkit-appearance: none;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-types {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        min-width: 0;
+        padding: 2px 0;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-option-menu {
+        position: fixed;
+        inset: auto;
+        z-index: 4;
+        box-sizing: border-box;
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+        max-height: min(300px, calc(100vh - 32px));
+        overflow: visible;
+        margin: 0;
+        padding: 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-option-menu .st-lin-filter-types {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+        max-height: 220px;
+        overflow-y: auto;
+        align-content: start;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-date {
+        display: grid;
+        gap: 8px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-types label {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        min-height: 34px;
+        box-sizing: border-box;
+        gap: 6px;
+        padding: 0 8px;
+        overflow: hidden;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 6px;
+        background: var(--st-color-bg-input);
+        cursor: pointer;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-types label:has(input:checked) {
+        border-color: var(--st-color-steam-blue-alpha-72);
+        background: var(--st-color-steam-blue-alpha-12);
+        color: var(--st-color-steam-blue);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-types label span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-range {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-date-bound {
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-date-bound > span {
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-date-bound input::-webkit-calendar-picker-indicator {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        padding: 0;
+        cursor: pointer;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-types input,
+      ${NAME_BATCH_SELECTOR} input[data-lin-select],
+      ${NAME_BATCH_SELECTOR} input[data-lin-select-all] {
+        accent-color: var(--st-color-steam-blue);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-row .st-lin-filter-delete {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        padding: 0;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-delete-icon {
+        display: block;
+        width: 16px;
+        height: 16px;
+        object-fit: contain;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-chip-remove .st-lin-filter-delete-icon {
+        width: 14px;
+        height: 14px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 4px;
+        padding: 0;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-filter-actions .st-lin-btn {
+        width: auto;
+        min-width: 76px;
+        min-height: 32px;
+        padding: 5px 14px;
+      }
+      ${NAME_BATCH_SELECTOR} [data-lin-filter-row-add] {
+        justify-self: start;
+        width: auto;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-reference-dialog {
+        box-sizing: border-box;
+        width: min(560px, 100%);
+        padding: 24px;
+        display: grid;
+        gap: 16px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-reference-dialog :where(h3, p) {
+        margin: 0;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-row-select {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0 8px;
+        min-width: 0;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-table input[data-lin-select],
+      ${NAME_BATCH_SELECTOR} .st-lin-table input[data-lin-select-all] {
+        color-scheme: dark;
+        width: 14px;
+        height: 14px;
+        flex: 0 0 14px;
+        margin: 0;
+      }
+      @media (max-width: 720px) {
+        ${NAME_BATCH_SELECTOR} .st-lin-file-tools {
+          flex-basis: 100%;
+        }
+        ${NAME_BATCH_SELECTOR} .st-lin-filter-row {
+          grid-template-columns: minmax(0, 1fr) 96px 32px;
+        }
+        ${NAME_BATCH_SELECTOR} .st-lin-filter-value {
+          grid-column: 1 / 3;
+          grid-row: 2;
+        }
+        ${NAME_BATCH_SELECTOR} .st-lin-filter-picker {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        ${NAME_BATCH_SELECTOR} .st-lin-filter-types {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      ${NAME_BATCH_SELECTOR} .st-lin-toolbar input[type="search"] {
+        flex: 1;
+        min-height: 32px;
+        padding: 0 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 4px;
+        background: var(--st-color-bg-input, #0e1621);
+        color: inherit;
+      }
+
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-menu {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        box-sizing: border-box;
+        width: min(344px, calc(100vw - 24px));
+        max-height: calc(100vh - 24px);
+        overflow: visible;
+        padding: 0;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-menu[hidden] { display: none; }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-menu::before,
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-menu::after {
+        content: "";
+        position: absolute;
+        top: -7px;
+        left: var(--st-lin-actions-arrow-x);
+        width: 0;
+        height: 0;
+        transform: translateX(-50%);
+        border-style: solid;
+        pointer-events: none;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-menu::before {
+        border-width: 0 7px 7px;
+        border-color: transparent transparent var(--st-color-border-normal);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-menu::after {
+        top: -6px;
+        border-width: 0 6px 6px;
+        border-color: transparent transparent var(--st-color-steam-property-window);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-menu[data-lin-filter-placement="above"]::before {
+        top: auto;
+        bottom: -7px;
+        border-width: 7px 7px 0;
+        border-color: var(--st-color-border-normal) transparent transparent;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-menu[data-lin-filter-placement="above"]::after {
+        top: auto;
+        bottom: -6px;
+        border-width: 6px 6px 0;
+        border-color: var(--st-color-steam-property-window) transparent transparent;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-scroll {
+        box-sizing: border-box;
+        max-height: calc(100vh - 26px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 12px;
+        border-radius: inherit;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-group + .st-lin-actions-group { margin-top: 12px; }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-group strong {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-group > div {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-group:is([data-lin-actions-group="add"], [data-lin-actions-group="clear"], [data-lin-actions-group="other"]) > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-group > div:has(> :nth-child(2):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      ${NAME_BATCH_SELECTOR} .st-lin-actions-group .st-lin-btn {
+        min-width: 0;
+        padding-inline: 4px;
+        white-space: normal;
+      }
+
+      ${NAME_BATCH_SELECTOR} .st-lin-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+      }
+
+      ${NAME_BATCH_SELECTOR} .st-lin-btn {
+        box-sizing: border-box;
+        font: inherit;
+        height: 28px;
+        min-height: 0;
+        max-width: 100%;
+        padding: 0 8px;
+        border: 1px solid var(--st-color-border-primary, var(--st-color-steam-blue-alpha-38));
+        border-radius: 4px;
+        color: inherit;
+        background: var(--st-color-surface-subtle, var(--st-color-white-alpha-08));
+        cursor: pointer;
+      }
+
+      ${NAME_BATCH_SELECTOR} .st-lin-primary {
+        border-color: var(--st-color-border-primary, var(--st-color-steam-blue-alpha-38));
+        background: var(--st-color-steam-blue-alpha-38, rgba(102,192,244,0.28));
+      }
+
+      ${NAME_BATCH_SELECTOR} .st-lin-msg {
+        margin: 0;
+        color: var(--st-color-text-secondary-alt);
+        font-size: 12px;
+      }
+
+
+  `;
+
   const LIBRARY_CUSTOM_NAME_BAR = "__RickyLibraryCustomNameBar";
   const LIBRARY_CUSTOM_NAME_BAR_FIXED = "st-lcn-bar-fixed";
   const LIBRARY_CUSTOM_NAME_ONE = "__RickyLibraryCustomNameOne";
-  const LIBRARY_CUSTOM_NAME_MODAL = "__RickyLibraryCustomNameModal";
   const LIBRARY_CUSTOM_NAME_PROGRESS = "__RickyLibraryCustomNameProgress";
   const LIBRARY_INDEPENDENT_NAME_MODAL = "__RickyLibraryIndependentNameModal";
-  const LIBRARY_INDEPENDENT_NAME_BATCH_MODAL = "__RickyLibraryIndependentNameBatchModal";
   const DOWNLOAD_SURFACE_ROOT = "__RickyDownloadSurfaceHost";
   const DOWNLOAD_SURFACE_TOAST = "__RickyDownloadSurfaceToast";
   const DOWNLOAD_TOOLBAR_ROOT = "__RickyDownloadToolbar";
@@ -43,7 +728,7 @@
       "--st-lcn-font": typography.fontFamily,
       "--st-lcn-property-window": cssVar("--st-color-steam-property-window"),
       "--st-lcn-property-bg": cssVar("--st-color-steam-property-button"),
-      "--st-lcn-property-bg-hover": cssVar("--st-color-white-alpha-10"),
+      "--st-lcn-property-bg-hover": "color-mix(in srgb, var(--st-color-steam-property-button) 90%, var(--st-color-white) 10%)",
       "--st-lcn-property-border": cssVar("--st-color-border-normal"),
       "--st-lcn-property-divider": cssVar("--st-color-white-alpha-06"),
       "--st-lcn-property-input": cssVar("--st-color-black-alpha-22"),
@@ -79,20 +764,6 @@
       layerZIndex: "var(--st-z-index-max)",
       width: "min(380px, calc(100vw - 48px))",
       maxHeight: "calc(100vh - 48px)",
-    }),
-    components.css.dialog({
-      variant: "data",
-      layerSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL}`,
-      openLayerSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL}:not([hidden])`,
-      surfaceSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-panel`,
-      openSurfaceSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL}:not([hidden]) .st-lcn-panel`,
-      headerSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-head`,
-      titleSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL} h2`,
-      closeSelectors: `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-close`,
-      bodySelectors: `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-body`,
-      layerZIndex: "var(--st-z-index-max)",
-      width: "min(780px, calc(100vw - 48px))",
-      maxHeight: "min(620px, calc(100vh - 48px))",
     }),
     components.css.dialog({
       variant: "progress",
@@ -131,7 +802,6 @@
       density: "compact",
     }),
     components.css.field([
-      `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-search`,
       `#${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-input`,
     ], {
       density: "compact",
@@ -276,25 +946,18 @@
         }
       }
       #${LIBRARY_CUSTOM_NAME_ONE},
-      #${LIBRARY_CUSTOM_NAME_MODAL},
       #${LIBRARY_CUSTOM_NAME_PROGRESS} {
         font-family: var(--st-lcn-font);
       }
       #${LIBRARY_CUSTOM_NAME_ONE},
-      #${LIBRARY_CUSTOM_NAME_MODAL},
       #${LIBRARY_CUSTOM_NAME_PROGRESS},
       #${LIBRARY_CUSTOM_NAME_ONE} *,
-      #${LIBRARY_CUSTOM_NAME_MODAL} *,
       #${LIBRARY_CUSTOM_NAME_PROGRESS} * {
         -webkit-app-region: no-drag !important;
       }
       #${LIBRARY_CUSTOM_NAME_ONE}[hidden],
-      #${LIBRARY_CUSTOM_NAME_MODAL}[hidden],
       #${LIBRARY_CUSTOM_NAME_PROGRESS}[hidden] {
         display: none;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} h3 {
-        font-size: 13px;
       }
       #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-body {
         font-size: 13px;
@@ -314,7 +977,6 @@
         color: var(--st-color-danger-text);
       }
       #${LIBRARY_CUSTOM_NAME_ONE} .st-lcn-one-actions,
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-actions,
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-actions {
         display: flex;
         gap: 8px;
@@ -347,76 +1009,10 @@
       #${LIBRARY_CUSTOM_NAME_PROGRESS} .st-lcn-progress-actions {
         margin-top: 14px;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} {
-        align-items: center;
-        padding: 0;
-        background: var(--st-dialog-overlay-bg);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-panel {
-        display: grid;
-        grid-template-rows: auto minmax(0, 1fr);
-        width: 100%;
-        height: 100%;
-        max-width: 842px;
-        max-height: 601px;
-        box-sizing: border-box;
-        border: 0;
-        border-radius: 0;
-        background: var(--st-lcn-property-window);
-        box-shadow: 0 16px 36px var(--st-color-black-alpha-55);
-        transform: none;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-head {
-        position: relative;
-        z-index: 5;
-        border-bottom: 1px solid var(--st-lcn-property-divider);
-        background: var(--st-lcn-property-window);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-body {
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        box-sizing: border-box;
-        overflow: hidden;
-        background: var(--st-lcn-property-window);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-note {
-        margin: 4px 0 14px;
-        color: var(--st-dialog-muted-color);
-        font-size: 12px;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-controls {
-        display: grid;
-        grid-template-columns: minmax(500px, 1fr) minmax(280px, 290px);
-        gap: 12px;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} fieldset {
-        margin: 0;
-        border: 1px solid var(--st-lcn-property-divider);
-        border-radius: 2px;
-        padding: 8px 12px 12px;
-        background: var(--st-lcn-property-bg);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} legend {
-        color: var(--st-dialog-muted-color);
-        font-size: 12px;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} label {
-        display: inline-flex;
-        gap: 6px;
-        align-items: center;
-        margin-right: 12px;
-        color: var(--st-dialog-text-color);
-        font-size: 12px;
-        white-space: nowrap;
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} input,
-      #${LIBRARY_CUSTOM_NAME_MODAL} input {
+      #${LIBRARY_CUSTOM_NAME_BAR} input{
         accent-color: var(--st-color-steam-blue);
       }
-      #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"],
-      #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"],
-      #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"] {
+      #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"]{
         appearance: none;
         -webkit-appearance: none;
         flex: 0 0 auto;
@@ -426,62 +1022,15 @@
         border: 1px solid var(--st-dialog-border-hover);
         background: var(--st-dialog-surface-inset);
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"] {
-        border-radius: 50%;
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"],
-      #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"] {
+      #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"]{
         border-radius: 3px;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:checked {
-        border-color: var(--st-color-steam-blue);
-        background: var(--st-color-steam-blue);
-        box-shadow: inset 0 0 0 3px var(--st-lcn-property-bg);
-      }
-      #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"]:checked,
-      #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:checked {
+      #${LIBRARY_CUSTOM_NAME_BAR} input[type="checkbox"]:checked{
         border-color: var(--st-color-steam-blue);
         background:
           linear-gradient(135deg, transparent 0 42%, var(--st-color-bg-input) 43% 55%, transparent 56%),
           linear-gradient(45deg, transparent 0 48%, var(--st-color-bg-input) 49% 61%, transparent 62%),
           var(--st-color-steam-blue);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:disabled,
-      #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:disabled {
-        cursor: not-allowed;
-        border-color: var(--st-color-text-disabled);
-        background-color: var(--st-color-white-alpha-08);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} input[type="radio"]:disabled:checked {
-        border-color: var(--st-color-text-secondary);
-        background: var(--st-color-text-secondary);
-        box-shadow: inset 0 0 0 3px var(--st-lcn-property-bg);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} input[type="checkbox"]:disabled:checked {
-        border-color: var(--st-color-text-secondary);
-        background:
-          linear-gradient(135deg, transparent 0 42%, var(--st-color-bg-body) 43% 55%, transparent 56%),
-          linear-gradient(45deg, transparent 0 48%, var(--st-color-bg-body) 49% 61%, transparent 62%),
-          var(--st-color-text-secondary);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn {
-        margin-left: 2px;
-        padding: 0 8px;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn:not(.primary):not(.danger),
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn {
-        border-color: var(--st-lcn-property-border);
-        border-radius: 2px;
-        background: var(--st-lcn-property-bg);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-btn:not(.primary):not(.danger):hover:not(:disabled),
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-inline-btn:hover:not(:disabled) {
-        background: var(--st-lcn-property-bg-hover);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-actions {
-        flex-wrap: wrap;
-        align-items: center;
-        margin-top: 16px;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-tip {
         position: relative;
@@ -547,159 +1096,141 @@
         opacity: 1;
         transform: translateX(-50%) translateY(0);
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-msg {
-        min-height: 18px;
-        margin-top: 10px;
-        color: var(--st-dialog-muted-color);
-        font-size: 12px;
+      #${LIBRARY_CUSTOM_NAME_MODAL} {
+        --st-dialog-text-color: var(--st-color-text-primary);
+        --st-dialog-muted-color: var(--st-color-text-secondary-alt);
+        --st-dialog-border: var(--st-color-border-normal);
+        --st-dialog-border-hover: var(--st-color-border-hover);
+        --st-dialog-surface-inset: var(--st-color-steam-property-button);
+        position: relative; display: flex; width: 100%; height: 100%; min-width: 0;
+        color: var(--st-color-text-primary); background: var(--st-lcn-property-window);
+        font-family: var(--st-lcn-font); font-size: 12px; box-sizing: border-box;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-empty {
-        margin-top: 12px;
-        border: 1px dashed var(--st-lcn-empty-border);
-        padding: 20px;
-        color: var(--st-dialog-muted-color);
-        text-align: center;
-        font-size: 12px;
+      #${LIBRARY_CUSTOM_NAME_MODAL}[hidden] { display: none !important; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize] {
+        position: absolute; z-index: 20; touch-action: none; -webkit-app-region: no-drag;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-selectbar {
-        display: flex;
-        justify-content: flex-start;
-        align-items: center;
-        gap: 10px;
-        margin-top: 8px;
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="n"], #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="s"] { left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="n"] { top: 0; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="s"] { bottom: 0; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="w"], #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="e"] { top: 12px; bottom: 12px; width: 6px; cursor: ew-resize; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="w"] { left: 0; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="e"] { right: 0; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="nw"], #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="ne"],
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="sw"], #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="se"] { width: 12px; height: 12px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="nw"] { left: 0; top: 0; cursor: nwse-resize; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="ne"] { right: 0; top: 0; cursor: nesw-resize; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="sw"] { left: 0; bottom: 0; cursor: nesw-resize; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="se"] { right: 0; bottom: 0; cursor: nwse-resize; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-lcn-content] { display: flex; width: 100%; height: 100%; min-width: 0; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-panel {
+        display: flex; flex-direction: column; gap: 16px; width: 100%; height: 100%;
+        box-sizing: border-box; padding: 16px; min-height: 0; min-width: 0;
+        border: 1px solid var(--st-color-border-normal); border-radius: 8px;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-select-actions {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 6px;
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-head {
+        display: flex; flex: 0 0 32px; align-items: center; justify-content: space-between;
+        gap: 16px; -webkit-app-region: drag;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-selected-count {
-        display: inline-flex;
-        align-items: center;
-        min-width: 86px;
-        min-height: var(--st-control-height-compact);
-        margin-left: 4px;
-        color: var(--st-dialog-muted-color);
-        font-size: 12px;
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-window-actions { display: flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-close {
+        display: inline-flex; align-items: center; justify-content: center; flex: 0 0 32px;
+        width: 32px; height: 32px; padding: 0; border: 0; border-radius: 4px;
+        color: var(--st-color-text-secondary); background: transparent; cursor: pointer;
+        -webkit-app-region: no-drag;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-filter-actions {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-left: auto;
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-close:hover { color: var(--st-color-text-primary); background: var(--st-color-white-alpha-10); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-close svg { display: block; width: 20px; height: 20px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-lcn-close] svg { width: 16px; height: 16px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} button:focus-visible {
+        outline: 2px solid var(--st-color-steam-blue); outline-offset: 2px;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-search {
-        width: min(310px, 34vw);
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-body { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; gap: 16px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} label { display: inline-flex; align-items: center; gap: 8px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} select, #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk input:not([type=checkbox]) {
+        box-sizing: border-box; min-width: 0; height: 28px; padding: 0 8px;
+        border: 1px solid var(--st-color-border-normal); border-radius: 4px;
+        background: var(--st-color-bg-input); color: inherit; font: inherit;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-search,
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-input {
-        border-color: var(--st-lcn-property-border);
-        border-radius: 2px;
-        background: var(--st-lcn-property-input);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-file {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        opacity: 0;
-        pointer-events: none;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-table-wrap {
-        position: relative;
-        z-index: 1;
-        flex: 1 1 auto;
-        min-height: 0;
-        max-height: none;
-        margin-top: 12px;
-        overflow: auto;
-        border: 1px solid var(--st-lcn-property-divider);
-        border-radius: 2px;
-        background: var(--st-lcn-property-bg);
-      }
+      #${LIBRARY_CUSTOM_NAME_MODAL} input[type=checkbox] { width: 14px; height: 14px; margin: 0; accent-color: var(--st-color-steam-blue); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-type-summary, #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-msg { color: var(--st-color-text-secondary-alt); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-msg { min-height: 16px; font-variant-numeric: tabular-nums; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-status-note { margin-top: 8px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-table-notice { margin: 0; color: var(--st-color-danger-soft-text); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-table-notice[hidden] { display: none; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lin-cols { flex: 0 0 32px; overflow: hidden; }
       #${LIBRARY_CUSTOM_NAME_MODAL} table {
-        width: 100%;
-        min-width: 760px;
-        border-collapse: collapse;
-        table-layout: fixed;
-        font-size: 12px;
+        width: max(100%, var(--st-lin-total, 1024px)); min-width: var(--st-lin-total, 1024px);
+        table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 12px;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-select {
-        width: 52px;
+      #${LIBRARY_CUSTOM_NAME_MODAL} th, #${LIBRARY_CUSTOM_NAME_MODAL} td {
+        position: relative; box-sizing: border-box; padding: 8px; text-align: left; vertical-align: middle;
+        border-bottom: 1px solid var(--st-color-white-alpha-06); overflow: hidden;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-official,
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-current {
-        width: 22%;
+      #${LIBRARY_CUSTOM_NAME_MODAL} th { height: 32px; padding-block: 0; font-weight: 700; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} th:first-child, #${LIBRARY_CUSTOM_NAME_MODAL} td:first-child { text-align: center; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lin-column-header { display: flex; align-items: center; gap: 8px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-lin-col-sort] {
+        display: flex; align-items: center; flex: 1; min-width: 0; height: 32px; padding: 0;
+        border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: grab;
+        touch-action: none;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-col-custom {
-        width: auto;
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-lin-col-sort] span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-lin-sort-toggle] {
+        display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0;
+        border: 0; border-radius: 4px; color: var(--st-color-text-secondary); background: transparent; cursor: pointer;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} th:first-child,
-      #${LIBRARY_CUSTOM_NAME_MODAL} td:first-child {
-        text-align: center;
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-lin-sort-toggle] svg { display: block; width: 12px; height: 20px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [aria-sort=ascending] [data-lin-sort-indicator=asc],
+      #${LIBRARY_CUSTOM_NAME_MODAL} [aria-sort=descending] [data-lin-sort-indicator=desc] { color: var(--st-color-steam-blue); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-lin-col-resize] { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; touch-action: none; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-lin-col-resize]:hover { background: var(--st-color-white-alpha-10); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-table-wrap { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-data-row { height: 54px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-data-row:hover td { background: var(--st-color-white-alpha-06); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-cell-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-input { width: 100%; box-sizing: border-box; background: var(--st-color-bg-input); border-radius: 4px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-row-error { display: block; color: var(--st-color-danger-soft-text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-empty { padding: 24px; text-align: center; color: var(--st-color-text-secondary-alt); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-virtual-spacer, #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-virtual-spacer td {
+        height: var(--st-lcn-virtual-size, 0); min-height: 0; padding: 0; border: 0; line-height: 0;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} th,
-      #${LIBRARY_CUSTOM_NAME_MODAL} td {
-        border-bottom: 1px solid var(--st-lcn-property-divider);
-        padding: 7px 8px;
-        text-align: left;
-        vertical-align: middle;
-        box-sizing: border-box;
+      #${LIBRARY_CUSTOM_NAME_MODAL} tr.ok td { background: var(--st-lcn-row-ok); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} tr.fail td { background: var(--st-lcn-row-fail); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk [hidden] { display: none; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk {
+        width: min(880px, calc(100vw - 48px)); max-height: calc(100vh - 48px); box-sizing: border-box; padding: 16px;
+        border: 1px solid var(--st-color-border-normal); border-radius: 8px;
+        background: var(--st-color-steam-property-window); color: var(--st-color-text-primary); font: inherit;
       }
-      #${LIBRARY_CUSTOM_NAME_MODAL} th {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        background: var(--st-lcn-property-window);
-        color: var(--st-dialog-muted-color);
-        font-weight: 500;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-data-row {
-        height: 54px;
-        background: var(--st-lcn-property-bg);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-data-row:hover td {
-        background: var(--st-lcn-property-bg-hover);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-name-cell {
-        overflow: hidden;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-cell-text {
-        display: block;
-        overflow: hidden;
-        color: var(--st-dialog-text-color);
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-input {
-        width: 100%;
-        box-sizing: border-box;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-appid {
-        display: block;
-        margin-top: 2px;
-        color: var(--st-color-text-disabled);
-        font-size: 11px;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-virtual-spacer,
-      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-virtual-spacer td {
-        height: var(--st-lcn-virtual-size, 0);
-        min-height: 0;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        line-height: 0;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} tr.ok td {
-        background: var(--st-lcn-row-ok);
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} tr.fail td {
-        background: var(--st-lcn-row-fail);
-      }`,
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk[open] { display: flex; flex-direction: column; gap: 16px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk::backdrop { background: var(--st-color-black-alpha-55); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk header, #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk h3 { font-size: 16px; margin: 0; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk-tabs { display: flex; gap: 8px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [aria-selected=true] { border-color: var(--st-color-steam-blue); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-lcn-bulk-panel] { display: flex; flex-direction: column; min-height: 0; gap: 16px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk-params { display: flex; flex-wrap: wrap; gap: 16px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk-params label { flex-direction: column; align-items: flex-start; min-width: 128px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk-params input { width: 176px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk-columns, #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk-row { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(160px, 1fr); gap: 16px; padding: 8px; box-sizing: border-box; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk-scroll { height: 320px; min-height: 80px; overflow: auto; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk-row { height: 80px; border-bottom: 1px solid var(--st-color-white-alpha-06); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk-row > span { min-width: 0; overflow: hidden; overflow-wrap: anywhere; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk-row small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk-row input { width: 100%; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} [data-lcn-bulk-status] { margin: 0; min-height: 16px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-bulk footer { justify-content: flex-end; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lin-column-preview { position: fixed; z-index: 10; pointer-events: none; background: var(--st-color-steam-property-button); box-shadow: var(--st-shadow-panel-menu); }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lin-column-copy { position: absolute; left: 0; width: 100%; box-sizing: border-box; padding: 8px; overflow: hidden; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} .st-lin-column-placeholder { opacity: .2; }
+      #${LIBRARY_CUSTOM_NAME_MODAL}.st-lin-dragging, #${LIBRARY_CUSTOM_NAME_MODAL}.st-lin-resizing { user-select: none; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} ::-webkit-scrollbar { width: 8px; height: 8px; }
+      #${LIBRARY_CUSTOM_NAME_MODAL} ::-webkit-scrollbar-thumb { background: var(--st-color-text-disabled); border-radius: 8px; }
+`,
       vars: libraryCustomNameVars,
-      staleText: "grid-template-columns: minmax(500px, 1fr) minmax(280px, 290px)",
+      staleText: "data-lcn-bulk-panel",
     },
     "download-surface": {
       id: "__RickyDownloadSurfaceStyle",
@@ -1212,567 +1743,8 @@
         height: min(640px, calc(100vh - 48px));
         gap: 12px;
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-top {
-        display: grid;
-        gap: 12px;
-        min-width: 0;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-shell {
-        position: relative;
-        display: grid;
-        gap: 8px;
-        min-width: 0;
-        padding: 8px;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 8px;
-        background: var(--st-color-surface-subtle);
-        box-shadow: inset 0 1px 0 var(--st-color-white-alpha-06);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-bar,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chips,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-file-tools {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        min-width: 0;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-bar {
-        min-height: 24px;
-        font-size: 14px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon-button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex: 0 0 24px;
-        width: 24px;
-        height: 24px;
-        padding: 0;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 6px;
-        color: var(--st-color-text-secondary-alt);
-        background: var(--st-color-bg-input);
-        cursor: pointer;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon-button:hover,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon-button:focus-visible {
-        border-color: var(--st-color-steam-blue-alpha-72);
-        color: var(--st-color-steam-blue);
-        background: var(--st-color-steam-blue-alpha-12);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon {
-        display: block;
-        width: 14px;
-        height: 14px;
-        object-fit: contain;
-        filter: var(--st-filter-icon-steam-blue);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon-button:hover .st-lin-filter-icon,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-icon-button:focus-visible .st-lin-filter-icon {
-        filter: var(--st-filter-icon-steam-blue-hover);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-bar .st-lin-filter-add,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-bar .st-lin-filter-clear {
-        height: 24px;
-        padding-inline: 8px;
-        font: inherit;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-stats {
-        margin: 0;
-        min-height: 18px;
-        padding-inline: 12px;
-        color: var(--st-color-text-secondary-alt);
-        line-height: 1.5;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-selection-bar {
-        flex-wrap: wrap;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-file-tools {
-        margin-left: auto;
-        flex: 0 1 400px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-file-tools input[type="search"] {
-        width: 160px;
-        min-width: 120px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-btn:disabled {
-        cursor: default;
-        opacity: .45;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-btn.st-lin-link {
-        border-color: transparent;
-        background: transparent;
-        color: var(--st-color-steam-blue);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip {
-        display: inline-flex;
-        align-items: center;
-        max-width: 100%;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 6px;
-        background: var(--st-color-bg-input);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip button {
-        min-height: 30px;
-        padding: 4px 8px;
-        border: 0;
-        border-radius: 6px;
-        background: transparent;
-        color: inherit;
-        font: inherit;
-        cursor: pointer;
-        text-align: left;
-        overflow-wrap: anywhere;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip > button:first-child:hover,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip > button:first-child:focus-visible {
-        background: var(--st-color-white-alpha-08);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip-remove {
-        display: inline-flex;
-        flex: 0 0 30px;
-        align-items: center;
-        justify-content: center;
-        width: 30px;
-        padding: 0 !important;
-        color: var(--st-color-danger-soft);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip-remove:hover,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip-remove:focus-visible {
-        background: var(--st-color-danger-alpha-12) !important;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor {
-        position: absolute;
-        top: calc(100% + 8px);
-        left: 0;
-        z-index: 3;
-        box-sizing: border-box;
-        width: min(700px, 100%);
-        max-height: min(520px, calc(100vh - 160px));
-        display: block;
-        padding: 0;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 12px;
-        background: var(--st-color-steam-property-window);
-        color-scheme: dark;
-        font-size: 14px;
-        box-shadow: var(--st-shadow-panel-large);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor::before,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor::after,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker::before,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker::after,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu::before,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu::after {
-        content: "";
-        position: absolute;
-        top: -7px;
-        left: 14px;
-        z-index: 1;
-        width: 0;
-        height: 0;
-        border-style: solid;
-        pointer-events: none;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor::before,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker::before,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu::before {
-        border-width: 0 7px 7px;
-        border-color: transparent transparent var(--st-color-border-normal);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor::after,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker::after,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu::after {
-        top: -6px;
-        left: 15px;
-        border-width: 0 6px 6px;
-        border-color: transparent transparent var(--st-color-steam-property-window);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor[data-lin-filter-placement="above"]::before,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker[data-lin-filter-placement="above"]::before,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu[data-lin-filter-placement="above"]::before {
-        top: auto;
-        bottom: -7px;
-        border-width: 7px 7px 0;
-        border-color: var(--st-color-border-normal) transparent transparent;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor[data-lin-filter-placement="above"]::after,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker[data-lin-filter-placement="above"]::after,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu[data-lin-filter-placement="above"]::after {
-        top: auto;
-        bottom: -6px;
-        border-width: 6px 6px 0;
-        border-color: var(--st-color-steam-property-window) transparent transparent;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor-scroll {
-        box-sizing: border-box;
-        display: grid;
-        gap: 8px;
-        max-height: min(520px, calc(100vh - 160px));
-        overflow-y: auto;
-        padding: 12px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-shell [hidden],
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-editor[hidden],
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker[hidden],
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu[hidden] {
-        display: none;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row {
-        display: grid;
-        grid-template-columns: minmax(0, 2fr) minmax(88px, 1fr) minmax(0, 2.75fr) 32px;
-        align-items: start;
-        gap: 8px;
-        margin-bottom: 8px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-field {
-        position: relative;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-filter-field] {
-        width: 100%;
-        text-align: left;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-field-button {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        overflow: hidden;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-field-button span {
-        margin-inline-start: 8px;
-        color: var(--st-color-text-secondary-alt);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker {
-        position: fixed;
-        inset: auto;
-        margin: 0;
-        z-index: 4;
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        gap: 12px;
-        width: min(344px, calc(100vw - 16px));
-        max-width: calc(100vw - 16px);
-        max-height: min(440px, calc(100vh - 32px));
-        padding: 0;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 12px;
-        background: var(--st-color-steam-property-window);
-        box-shadow: var(--st-shadow-panel-large);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker-scroll {
-        box-sizing: border-box;
-        display: grid;
-        gap: 12px;
-        max-height: min(440px, calc(100vh - 32px));
-        overflow-y: auto;
-        padding: 12px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker .st-lin-btn {
-        box-sizing: border-box;
-        width: 100%;
-        height: 28px;
-        min-height: 28px;
-        padding: 4px 6px;
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-        border-radius: 5px;
-        font-size: 12px;
-        line-height: 18px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker-option[aria-current="true"] {
-        border-color: var(--st-color-steam-blue-alpha-72);
-        background: var(--st-color-steam-blue-alpha-12);
-        color: var(--st-color-steam-blue);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker .st-lin-btn:disabled {
-        opacity: .5;
-        cursor: default;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-unavailable {
-        margin: 0;
-        color: var(--st-color-text-secondary-alt);
-        font-size: 12px;
-        line-height: 1.4;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker-group {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 6px;
-        min-width: 0;
-        padding: 0;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker-group strong {
-        grid-column: 1 / -1;
-        padding: 0 0 2px;
-        color: var(--st-color-text-secondary-alt);
-        font-size: 11px;
-        font-weight: 600;
-        line-height: 16px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-field-button,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-operator-button,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-delete,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-value-button,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row select,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row input[type="text"],
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row input[type="number"],
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row input[type="date"] {
-        box-sizing: border-box;
-        width: 100%;
-        min-width: 0;
-        height: 32px;
-        min-height: 32px;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 6px;
-        background: var(--st-color-bg-input);
-        color: inherit;
-        padding: 0 8px;
-        font: inherit;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row input:focus-visible,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row select:focus-visible,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-btn:focus-visible {
-        outline: 2px solid var(--st-color-steam-blue);
-        outline-offset: 2px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator { min-width: 0; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-button {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-menu {
-        position: fixed;
-        inset: auto;
-        margin: 0;
-        box-sizing: border-box;
-        min-width: 144px;
-        padding: 4px 0;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 8px;
-        background: var(--st-color-steam-property-window);
-        color: var(--st-color-text-primary);
-        box-shadow: var(--st-shadow-panel-large);
-        overflow-y: auto;
-        overscroll-behavior: contain;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-menu[hidden] { display: none; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        box-sizing: border-box;
-        width: 100%;
-        height: 32px;
-        padding: 0 12px;
-        border: 0;
-        background: transparent;
-        color: inherit;
-        font: inherit;
-        text-align: start;
-        cursor: pointer;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option[aria-selected="true"] {
-        background: var(--st-color-bg-input);
-        color: var(--st-color-steam-blue);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option:hover,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-operator-option:focus-visible {
-        background: var(--st-color-surface-control-hover);
-        outline: 1px solid var(--st-color-border-normal);
-        outline-offset: -1px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-value,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-value-select {
-        min-width: 0;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-value-button {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        box-sizing: border-box;
-        width: 100%;
-        overflow: hidden;
-        text-align: left;
-        cursor: text;
-        appearance: none;
-        -webkit-appearance: none;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 6px;
-        min-width: 0;
-        padding: 2px 0;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu {
-        position: fixed;
-        inset: auto;
-        z-index: 4;
-        box-sizing: border-box;
-        display: grid;
-        gap: 8px;
-        min-width: 0;
-        max-height: min(300px, calc(100vh - 32px));
-        overflow: visible;
-        margin: 0;
-        padding: 8px;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 8px;
-        background: var(--st-color-steam-property-window);
-        box-shadow: var(--st-shadow-panel-large);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-option-menu .st-lin-filter-types {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        gap: 4px;
-        max-height: 220px;
-        overflow-y: auto;
-        align-content: start;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-date {
-        display: grid;
-        gap: 8px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types label {
-        display: flex;
-        align-items: center;
-        min-width: 0;
-        min-height: 34px;
-        box-sizing: border-box;
-        gap: 6px;
-        padding: 0 8px;
-        overflow: hidden;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 6px;
-        background: var(--st-color-bg-input);
-        cursor: pointer;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types label:has(input:checked) {
-        border-color: var(--st-color-steam-blue-alpha-72);
-        background: var(--st-color-steam-blue-alpha-12);
-        color: var(--st-color-steam-blue);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types label span {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-range {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-date-bound {
-        display: grid;
-        gap: 8px;
-        min-width: 0;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-date-bound > span {
-        color: var(--st-color-text-secondary-alt);
-        font-size: 12px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-date-bound input::-webkit-calendar-picker-indicator {
-        width: 16px;
-        height: 16px;
-        margin: 0;
-        padding: 0;
-        cursor: pointer;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types input,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} input[data-lin-select],
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} input[data-lin-select-all] {
-        accent-color: var(--st-color-steam-blue);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row .st-lin-filter-delete {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 32px;
-        padding: 0;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-delete-icon {
-        display: block;
-        width: 16px;
-        height: 16px;
-        object-fit: contain;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-chip-remove .st-lin-filter-delete-icon {
-        width: 14px;
-        height: 14px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
-        margin-top: 4px;
-        padding: 0;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-actions .st-lin-btn {
-        width: auto;
-        min-width: 76px;
-        min-height: 32px;
-        padding: 5px 14px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-filter-row-add] {
-        justify-self: start;
-        width: auto;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reference-dialog {
-        box-sizing: border-box;
-        width: min(560px, 100%);
-        padding: 24px;
-        display: grid;
-        gap: 16px;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 8px;
-        background: var(--st-color-steam-property-window);
-        box-shadow: var(--st-shadow-panel-large);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-reference-dialog :where(h3, p) {
-        margin: 0;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-row-select {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0 8px;
-        min-width: 0;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table input[data-lin-select],
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table input[data-lin-select-all] {
-        color-scheme: dark;
-        width: 14px;
-        height: 14px;
-        flex: 0 0 14px;
-        margin: 0;
-      }
-      @media (max-width: 720px) {
-        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-file-tools {
-          flex-basis: 100%;
-        }
-        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-row {
-          grid-template-columns: minmax(0, 1fr) 96px 32px;
-        }
-        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-value {
-          grid-column: 1 / 3;
-          grid-row: 2;
-        }
-        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-picker {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-filter-types {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-      }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-head,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-toolbar {
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -2078,8 +2050,7 @@
         padding-top: 8px;
         border-top: 1px solid var(--st-color-white-alpha-06);
       }
-      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-primary,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-primary {
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-primary {
         border-color: var(--st-color-border-primary, var(--st-color-steam-blue-alpha-38));
         background: var(--st-color-steam-blue-alpha-38, rgba(102,192,244,0.28));
       }
@@ -2087,15 +2058,6 @@
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} :where(button, input):focus-visible {
         outline: 2px solid var(--st-color-border-primary, var(--st-color-steam-blue-alpha-38));
         outline-offset: 2px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-toolbar input[type="search"] {
-        flex: 1;
-        min-height: 32px;
-        padding: 0 8px;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 4px;
-        background: var(--st-color-bg-input, #0e1621);
-        color: inherit;
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-cols,
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-scroll {
@@ -2274,81 +2236,6 @@
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-alias-layer[hidden] {
         display: none;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu {
-        position: fixed;
-        inset: auto;
-        margin: 0;
-        box-sizing: border-box;
-        width: min(344px, calc(100vw - 24px));
-        max-height: calc(100vh - 24px);
-        overflow: visible;
-        padding: 0;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 8px;
-        background: var(--st-color-steam-property-window);
-        color: var(--st-color-text-primary);
-        box-shadow: var(--st-shadow-panel-large);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu[hidden] { display: none; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu::before,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu::after {
-        content: "";
-        position: absolute;
-        top: -7px;
-        left: var(--st-lin-actions-arrow-x);
-        width: 0;
-        height: 0;
-        transform: translateX(-50%);
-        border-style: solid;
-        pointer-events: none;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu::before {
-        border-width: 0 7px 7px;
-        border-color: transparent transparent var(--st-color-border-normal);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu::after {
-        top: -6px;
-        border-width: 0 6px 6px;
-        border-color: transparent transparent var(--st-color-steam-property-window);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu[data-lin-filter-placement="above"]::before {
-        top: auto;
-        bottom: -7px;
-        border-width: 7px 7px 0;
-        border-color: var(--st-color-border-normal) transparent transparent;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-menu[data-lin-filter-placement="above"]::after {
-        top: auto;
-        bottom: -6px;
-        border-width: 6px 6px 0;
-        border-color: var(--st-color-steam-property-window) transparent transparent;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-scroll {
-        box-sizing: border-box;
-        max-height: calc(100vh - 26px);
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        padding: 12px;
-        border-radius: inherit;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-group + .st-lin-actions-group { margin-top: 12px; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-group strong {
-        display: block;
-        margin-bottom: 6px;
-        color: var(--st-color-text-secondary-alt);
-        font-size: 12px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-group > div {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 6px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-group:is([data-lin-actions-group="add"], [data-lin-actions-group="clear"], [data-lin-actions-group="other"]) > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-actions-group .st-lin-btn {
-        min-width: 0;
-        padding-inline: 4px;
-        white-space: normal;
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-bulk-dialog {
         box-sizing: border-box;
@@ -2543,8 +2430,7 @@
         background: var(--st-color-steam-blue-alpha-38);
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-chip,
-      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-btn,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-btn {
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-btn {
         box-sizing: border-box;
         height: 28px;
         min-height: 0;
@@ -2584,8 +2470,7 @@
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-sync-note {
         color: var(--st-color-text-secondary-alt);
       }
-      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-msg,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-msg {
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-msg {
         margin: 0;
         color: var(--st-color-text-secondary-alt);
         font-size: 12px;
@@ -2678,10 +2563,15 @@
     if (!entry) {
       return null;
     }
+    const doc = options.target?.ownerDocument || root.document;
     if (typeof entry.vars === 'function') {
-      components.applyStyles(root.document?.documentElement, entry.vars());
+      components.applyStyles(doc?.documentElement, entry.vars());
     }
-    const current = root.document?.getElementById?.(entry.id);
+    if (key === "library-custom-name" || key === "library-independent-name") {
+      components.applyStyles(doc.documentElement, { "--st-name-batch-font": root.STTheme.typography.fontFamily });
+      ensureStyle("__RickyNameBatchStyle", nameBatchCss, options.target || null);
+    }
+    const current = doc?.getElementById?.(entry.id);
     if (entry.staleText && current && !current.textContent?.includes(entry.staleText)) {
       current.remove();
     }

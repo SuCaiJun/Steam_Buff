@@ -116,7 +116,7 @@
    * @returns {HTMLStyleElement|null} 样式节点。
    */
   function ensureStyle(id, cssText = '', target = null) {
-    const doc = root.document || document;
+    const doc = target?.ownerDocument || root.document || document;
     if (!id || !doc?.createElement) {
       return null;
     }

@@ -12,7 +12,8 @@
   "use strict";
   function create(options) {
     const { root, onChange, onSort } = options;
-    const model = window.STNameTable;
+    const document = root.ownerDocument, window = document.defaultView;
+    const model = options.model || window.STNameTable;
     let prefs = model.parse(options.prefs), gesture = null, swallow = false, stopped = false;
     const scroll = root.querySelector("[data-lin-scroll]");
     const header = root.querySelector(".st-lin-cols");
@@ -98,7 +99,7 @@
       root.classList.add("st-lin-dragging");
     }
 
-    // 与相关链接采用同样的浮层、逐帧位移及松手归位；拖动中只操作七列和已挂载行。
+    // 与相关链接采用同样的浮层、逐帧位移及松手归位；拖动中只操作表头和已挂载行。
     function paint(time) {
       const state = gesture;
       if (!state?.started || state.settling) return;

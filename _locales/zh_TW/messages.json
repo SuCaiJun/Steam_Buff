@@ -3448,11 +3448,29 @@
   "steam_libraryCustomName_backendTimeout": {
     "message": "Steam 用戶端後端沒有回應"
   },
+  "steam_libraryCustomName_aiGenerate": {
+    "message": "AI生成"
+  },
+  "steam_libraryCustomName_aiGenerating": {
+    "message": "生成中..."
+  },
+  "steam_libraryCustomName_aiFailed": {
+    "message": "AI生成失敗"
+  },
+  "steam_libraryCustomName_aiTimeout": {
+    "message": "AI生成逾時，請稍後重試。"
+  },
+  "steam_libraryCustomName_aiOriginalMissing": {
+    "message": "未能讀取目前遊戲的 Steam 原名稱，請重試。"
+  },
+  "steam_libraryCustomName_aiInputChanged": {
+    "message": "目前名稱已變更，已保留你的修改，請重新生成。"
+  },
   "steam_libraryCustomName_batchEdit": {
-    "message": "批次修改名稱"
+    "message": "批次設定"
   },
   "steam_libraryCustomName_batchTitle": {
-    "message": "批次修改名稱"
+    "message": "Steam Buff · 批次設定自訂排序名稱"
   },
   "steam_libraryCustomName_cancellingMnemonic": {
     "message": "正在取消助記符"
@@ -3564,7 +3582,7 @@
     "message": "確認清空所選名稱"
   },
   "steam_libraryCustomName_cloudApiTimeout": {
-    "message": "雲端名稱服務沒有回應"
+    "message": "社群名稱服務沒有回應"
   },
   "steam_libraryCustomName_cloudDiskFailed": {
     "message": "Steam CloudStorage 寫入磁碟失敗：$result$",
@@ -3578,7 +3596,7 @@
     "message": "Steam CloudStorage 批次寫入磁碟逾時"
   },
   "steam_libraryCustomName_cloudName": {
-    "message": "雲端名稱"
+    "message": "社群名稱"
   },
   "steam_libraryCustomName_cloudNameMissing": {
     "message": "雲端找不到目前遊戲的名稱"
@@ -3686,10 +3704,10 @@
     }
   },
   "steam_libraryCustomName_fetchCloud": {
-    "message": "取得雲端名稱"
+    "message": "取得社群名稱"
   },
   "steam_libraryCustomName_fetchCloudProgress": {
-    "message": "正在取得雲端名稱 $current$/$total$",
+    "message": "正在取得社群名稱 $current$/$total$",
     "placeholders": {
       "current": {
         "content": "$1"
@@ -3710,15 +3728,6 @@
   },
   "steam_libraryCustomName_accountCenterOpenFailed": {
     "message": "使用者中心開啟失敗"
-  },
-  "steam_libraryCustomName_fetching": {
-    "message": "正在取得..."
-  },
-  "steam_libraryCustomName_fetchingShort": {
-    "message": "正在取得..."
-  },
-  "steam_libraryCustomName_fetchTitle": {
-    "message": "取得名稱"
   },
   "steam_libraryCustomName_filePickerUnavailable": {
     "message": "匯入檔案選擇器無法使用"
@@ -3911,9 +3920,6 @@
   "steam_libraryCustomName_mnemonicPrompt": {
     "message": "此操作將重新整理待寫入資料，是否繼續？"
   },
-  "steam_libraryCustomName_mode": {
-    "message": "模式"
-  },
   "steam_libraryCustomName_namespaceLimitReached": {
     "message": "Steam namespace 3 的自訂名稱數量已達 10000 個上限"
   },
@@ -3993,20 +3999,8 @@
   "steam_libraryCustomName_pendingName": {
     "message": "待寫入名稱"
   },
-  "steam_libraryCustomName_policyCover": {
-    "message": "全部覆寫"
-  },
-  "steam_libraryCustomName_policyCurrentCustom": {
-    "message": "將目前自訂名稱填入待寫入值"
-  },
-  "steam_libraryCustomName_policyHide": {
-    "message": "隱藏已有名稱"
-  },
-  "steam_libraryCustomName_policySkip": {
-    "message": "略過已有名稱"
-  },
   "steam_libraryCustomName_preparingCloudRequest": {
-    "message": "正在整理雲端名稱請求"
+    "message": "正在整理社群名稱請求"
   },
   "steam_libraryCustomName_preparingQueryQueue": {
     "message": "正在整理查詢佇列 $current$/$total$",
@@ -4049,7 +4043,7 @@
     }
   },
   "steam_libraryCustomName_querySelectedCloudTitle": {
-    "message": "只取得已勾選遊戲的雲端名稱"
+    "message": "只取得已勾選遊戲的社群名稱"
   },
   "steam_libraryCustomName_readingJson": {
     "message": "正在讀取 JSON 檔案"
@@ -4066,10 +4060,10 @@
     }
   },
   "steam_libraryCustomName_refreshCloudPrompt": {
-    "message": "目前待寫入資料已調整。重新取得雲端名稱只會重新整理已勾選且未手動鎖定的待寫入資料，是否繼續？"
+    "message": "目前待寫入資料已調整。重新取得社群名稱只會重新整理已勾選且未手動鎖定的待寫入資料，是否繼續？"
   },
   "steam_libraryCustomName_refreshCloudTitle": {
-    "message": "確認取得雲端名稱"
+    "message": "確認取得社群名稱"
   },
   "steam_libraryCustomName_resuming": {
     "message": "正在繼續"
@@ -4121,8 +4115,11 @@
   "steam_libraryCustomName_saveStatusTimeout": {
     "message": "Steam 儲存佇列狀態沒有回應，請重新開啟批次視窗確認結果"
   },
+  "steam_libraryCustomName_windowResizeFailed": {
+    "message": "調整視窗大小失敗，請重試。"
+  },
   "steam_libraryCustomName_searchPlaceholder": {
-    "message": "搜尋遊戲 / AppID / 待寫入名稱"
+    "message": "搜尋名稱 / AppID / 排序名稱"
   },
   "steam_libraryCustomName_searchSummary": {
     "message": "，搜尋 $visible$/$total$",
@@ -4139,7 +4136,7 @@
     "message": "請先勾選需要清空名稱的遊戲"
   },
   "steam_libraryCustomName_selectCloudTargets": {
-    "message": "請先勾選需要取得雲端名稱的遊戲"
+    "message": "請先勾選需要取得社群名稱的遊戲"
   },
   "steam_libraryCustomName_startClearQueue": {
     "message": "正在啟動清空佇列，預計清空 $count$ 項，略過 $skipped$ 項",
@@ -5710,13 +5707,13 @@
     "message": "庫自訂名稱方案"
   },
   "settings_feature_library_name_mode_desc": {
-    "message": "素材君雲儲存版會將修改後的名稱即時同步至素材君雲端伺服器，換電腦不會導致名稱資料遺失。\nSteam雲儲存版基於 Steam 的自訂排序名稱功能實作，會將資料即時同步至 Steam 雲端，換電腦不會導致名稱資料遺失。"
+    "message": "捐贈版的自訂名稱與素材君帳號綁定，透過素材君雲端同步。\n免費版使用 Steam 自訂排序名稱，資料由 Steam 雲端同步。"
   },
   "settings_feature_library_name_mode_option_independent": {
-    "message": "素材君雲儲存版"
+    "message": "捐贈版"
   },
   "settings_feature_library_name_mode_option_steam_sort": {
-    "message": "Steam雲儲存版"
+    "message": "免費版"
   },
   "settings_libraryNameMode_restartConfirmTitle": {
     "message": "切換模式"
@@ -6052,10 +6049,10 @@
     "message": "名稱列表讀取失敗"
   },
   "steam_libraryCustomName_fetchPermissionMissing": {
-    "message": "取得雲端名稱權限尚未同步，請更新後端並重新整理使用者中心"
+    "message": "取得社群名稱權限尚未同步，請更新後端並重新整理使用者中心"
   },
   "steam_libraryCustomName_fetchPermissionDenied": {
-    "message": "目前權益未開通取得雲端名稱"
+    "message": "目前權益未開通取得社群名稱"
   },
   "steam_independentName_filter": {
     "message": "篩選"
@@ -7174,5 +7171,54 @@
   },
   "familyTask_invalidResponse": {
     "message": "Steam 回應格式異常，請稍後重試。"
+  },
+  "steam_libraryCustomName_editSortNames": {
+    "message": "修改自訂排序名稱"
+  },
+  "steam_libraryCustomName_clearSortNames": {
+    "message": "清空已選自訂排序名稱"
+  },
+  "steam_libraryCustomName_sortUseOriginal": {
+    "message": "待寫入排序名稱為空時使用 Steam 原名稱"
+  },
+  "steam_libraryCustomName_sortClearUseAction": {
+    "message": "清空名稱請使用「清空已選自訂排序名稱」操作。"
+  },
+  "steam_libraryCustomName_batchSummary": {
+    "message": "總 $total$ 款 · 篩選後 $filtered$ 款 · 已選 $selected$ 項 · 待寫入 $write$ 項 · 跳過 $skipped$ 項 · 上限 $limit$ 項 · 容量 $capacity$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "filtered": {
+        "content": "$2"
+      },
+      "selected": {
+        "content": "$3"
+      },
+      "write": {
+        "content": "$4"
+      },
+      "skipped": {
+        "content": "$5"
+      },
+      "limit": {
+        "content": "$6"
+      },
+      "capacity": {
+        "content": "$7"
+      }
+    }
+  },
+  "steam_libraryCustomName_invalidMnemonic": {
+    "message": "助記符只能包含英文字母和數字。"
+  },
+  "steam_independentName_metadataUnavailable": {
+    "message": "$field$資料無法使用，請更新擴充功能後重試",
+    "placeholders": {
+      "field": {
+        "content": "$1"
+      }
+    }
   }
 }

@@ -301,6 +301,13 @@
       : "使用自定义排序名称修改库列表显示。";
   }
 
+  // 设置目录提供方案名称；引导选择与完成摘要使用同一标签，避免各入口再次分叉。
+  function nameModeLabel(value) {
+    const option = state.clientNameModeOptions.find(item => item.value === value);
+    if (!option || typeof option.label !== "string" || !option.label.trim()) throw new TypeError("名称方案缺少展示名称");
+    return option.label;
+  }
+
   function nameFeatureEnabled() {
     return state.clientEnabled && state.clientFeatures["library-sort-title"] === true;
   }
@@ -1474,7 +1481,7 @@
     log.info("onboarding-name-mode-save-start", "安装引导开始保存名称方案", { operationId, mode: state.clientNameMode });
     const ok = await storageSetMany({ [settingValueKey(NAME_MODE_ID)]: state.clientNameMode }, { operationId });
     if (ok) {
-      state.savedSummary["name-mode"] = state.clientNameMode === NAME_MODE_INDEPENDENT ? "素材君云存储版" : "Steam 云存储版";
+      state.savedSummary["name-mode"] = nameModeLabel(state.clientNameMode);
       log.info("onboarding-name-mode-save-success", "安装引导名称方案已保存", { operationId, mode: state.clientNameMode });
     }
     return ok;
@@ -1546,11 +1553,14 @@
     state.clientNameModeOptions = Array.isArray(nameMode?.options)
       ? nameMode.options
         .filter((option) => typeof option?.value === "string" && option.value)
-        .map((option) => ({
+        .map((option) => {
+          if (typeof option.label !== "string" || !option.label.trim()) throw new TypeError("名称方案缺少展示名称");
+          return {
           value: String(option.value),
-          label: String(option.label || option.value),
+          label: option.label,
           lock: String(option.lock || ""),
-        }))
+          };
+        })
       : [];
     const storedMode = stored[settingValueKey(NAME_MODE_ID)];
     if (storedMode !== undefined && !state.clientNameModeOptions.some(option => option.value === storedMode)) throw new Error("已保存的名称方案无效");
@@ -1558,7 +1568,7 @@
     state.clientFeatures = Object.fromEntries(items.map(item => [item.id, Object.hasOwn(stored, settingKey(item.id)) ? stored[settingKey(item.id)] === true : on]));
     state.clientEnabled = Object.values(state.clientFeatures).some(Boolean);
     state.savedSummary.client = items.some(item => stored[settingKey(item.id)] === true) ? "已开启" : "未启用";
-    state.savedSummary["name-mode"] = state.clientNameMode === NAME_MODE_INDEPENDENT ? "素材君云存储版" : "Steam 云存储版";
+    state.savedSummary["name-mode"] = nameModeLabel(state.clientNameMode);
     state.clientDefaultReady = true;
   }
 
@@ -2151,7 +2161,7 @@
     modes.forEach(value => {
       const independent = value === NAME_MODE_INDEPENDENT;
       const allowed = nameModeAllowed(value);
-      const title = independent ? "素材君云存储版" : "Steam 云存储版";
+      const title = nameModeLabel(value);
       const columnClass = independent ? "mode-independent" : "mode-steam";
       const cell = el("th", columnClass);
       cell.scope = "col";
@@ -2177,7 +2187,7 @@
       input.disabled = controlsBusy() || !allowed || !nameFeatureEnabled();
       input.dataset.actionChange = "client-name-mode";
       input.setAttribute("aria-label", title);
-      label.append(input, el("span", "mode-choice", !allowed ? "需要捐赠用户身份" : selected === value ? "已选择" : independent ? "选择素材君版" : "选择 Steam 版"));
+      label.append(input, el("span", "mode-choice", !allowed ? "需要捐赠用户身份" : selected === value ? "已选择" : `选择${title}`));
       choiceCell.append(label);
       choices.append(choiceCell);
       inputs.push(input);

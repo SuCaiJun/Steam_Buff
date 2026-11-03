@@ -237,6 +237,18 @@
     return rebuildMnemonic(name, fn);
   }
 
+  // 手工值与生成值使用相同的既有标签格式；只替换助记符，保留其他方括号标签。
+  function mnemonicCodes(name) {
+    return Array.from(text(name).matchAll(TAG_TOKEN_RE), match => MNEMONIC_TAG_RE.exec(tagText(match[0]))?.[1]).filter(Boolean);
+  }
+
+  function setMnemonic(name, code) {
+    const value = text(code), base = stripMnemonic(name);
+    if (!/^[A-Za-z0-9]+$/.test(value)) throw new RangeError("助记符只能包含英文字母和数字");
+    if (!stripTags(base)) throw new RangeError("请先填写自定义排序名称");
+    return `${base}[#${value}]`;
+  }
+
   return {
     mnemonic,
     pinyinFull,
@@ -246,5 +258,7 @@
     stripMnemonic,
     stripTags,
     withMnemonic,
+    mnemonicCodes,
+    setMnemonic,
   };
 });

@@ -919,14 +919,14 @@
             {
               id: "library-name-mode",
               name: "库自定义名称方案",
-              desc: "素材君云存储版将修改后的名称实时同步至素材君云服务器，换电脑不会导致名称数据丢失。\nSteam云存储版基于Steam的自定义排序名称功能实现，将数据实时同步至Steam云中，换电脑不会导致名称数据丢失。",
+              desc: "捐赠版的自定义名称与素材君账号绑定，通过素材君云端同步。\n免费版使用 Steam 自定义排序名称，数据由 Steam 云同步。",
               help: "库自定义名称方案",
               area: "steam",
               control: "mode",
               default: "steam-sort",
               options: Object.freeze([
-                { value: "independent", label: "素材君云存储版", memberFeature: "customNames", lock: "赞助者可用，开通后会按当前保存状态恢复" },
-                { value: "steam-sort", label: "Steam云存储版" },
+                { value: "independent", label: "捐赠版", memberFeature: "customNames", lock: "捐赠用户可用，开通后会按当前保存状态恢复" },
+                { value: "steam-sort", label: "免费版" },
               ]),
               deps: depAll(["library-sort-title"]),
             },

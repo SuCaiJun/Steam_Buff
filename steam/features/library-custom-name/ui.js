@@ -48,9 +48,9 @@
   const IMPORT_MODES = Object.freeze([IMPORT_MODE_ALL, IMPORT_MODE_UNSET]);
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
-  const CUSTOM_NAME_SOURCES = new Set(["mine", "community", "ai"]);
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
+  const TABLE = window.STNameTable.steam;
 
   function storageLimitTipText() {
     return i18n("steam.libraryCustomName.storageLimitTip", "存储上限和容量上限为 Steam 官方对自定义排序名称的限制，超过后的自定义排序名称可能无法保存成功或无法保存至 steam 云端！");
@@ -65,14 +65,22 @@
   const DATA_INDEX = window.SteamBuff?.dataIndex || window.STDataIndex;
   const VIRTUAL_LIST = window.SteamBuff?.virtualList || window.STVirtualList;
   const batch = {
-    policy: "hide",
-    types: {
-      game: true,
-      software: false,
-      tool: false,
-      other: false,
-    },
+    element: null,
+    progressElement: null,
+    host: null,
+    opening: null,
+    windowSeq: 0,
+    tableControl: null,
+    tablePrefs: TABLE.defaults(),
+    tableReady: false,
+    tableMessage: "",
+    prefsQueued: null,
+    prefsSaving: null,
+    viewRows: null,
+    bulk: null,
+    filters: [], filterDraft: null, filterSession: null, filterPicker: null, filterPickerAnchor: null, filterView: null,
     localRows: [],
+    meta: { options: {}, capabilities: {} },
     localMap: new Map(),
     cloudMap: new Map(),
     cloudSourceMap: new Map(),
@@ -104,7 +112,7 @@
     querySelection: false,
     writeCount: 0,
     mnemonicEligibleCount: 0,
-    mnemonicPendingCount: 0,
+    mnemonicPresentCount: 0,
     storageCapacity: emptyCapacity(),
     capacitySeq: 0,
     capacityTimer: 0,
@@ -141,11 +149,22 @@
   }
 
   function bringDialogToFront(el) {
-    if (el && document.body) {
-      /* Steam CEF 同 z-index 弹窗按 DOM 顺序覆盖，复用旧节点时必须重新挂到末尾。 */
-      document.body.appendChild(el);
+    if (el && el !== batch.element) {
+      const doc = dialogDocument();
+      (doc === document ? doc.body : batch.element).appendChild(el);
     }
     return el;
+  }
+
+  function dialogDocument() {
+    return batch.host?.ready() ? batch.element.ownerDocument : document;
+  }
+
+  function dialogElement(id) {
+    if (id === MODAL) return batch.element;
+    if (id === PROGRESS) return batch.progressElement;
+    if (id === ONE) return s.oneElement || null;
+    return document.getElementById(id);
   }
 
   function focusElement(element) {
@@ -179,7 +198,6 @@
       "data-lcn-search",
       "data-lcn-check",
       "data-lcn-name",
-      "data-lcn-type",
       "data-lcn-progress",
       "data-lcn-one",
     ];
@@ -187,9 +205,6 @@
       if (element.hasAttribute?.(name)) {
         return { name, value: element.getAttribute(name) || "" };
       }
-    }
-    if (element.getAttribute?.("name") === "st-lcn-policy") {
-      return { name: "name", value: "st-lcn-policy", option: element.value };
     }
     return null;
   }
@@ -230,7 +245,7 @@
   }
 
   function visibleDialog(id) {
-    const dialog = document.getElementById(id);
+    const dialog = dialogElement(id);
     return dialog && !dialog.hidden ? dialog : null;
   }
 
@@ -278,8 +293,9 @@
 
   function closeTips(scope = document, keep = null) {
     let blurActive = false;
+    let active = null;
     try {
-      const active = document.activeElement;
+      active = (scope.ownerDocument || scope).activeElement;
       (scope || document).querySelectorAll?.(".st-lcn-tip.is-open").forEach((tip) => {
         if (tip !== keep) {
           if (active === tip || active?.closest?.(".st-lcn-tip") === tip) {
@@ -293,7 +309,7 @@
     }
     if (blurActive) {
       try {
-        document.activeElement?.blur?.();
+        active?.blur?.();
       } catch (error) {
         globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "close-tips-failed", message: "客户端功能处理失败", level: "error", phase: "closeTips" });
       }
@@ -302,7 +318,7 @@
 
   function toggleTip(tip) {
     const open = !tip.classList.contains("is-open");
-    closeTips(document, tip);
+    closeTips(tip.ownerDocument, tip);
     setTipOpen(tip, open);
     if (open) {
       try {
@@ -333,7 +349,7 @@
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      closeTips(document);
+      closeTips(event.target?.ownerDocument || document);
       tip.blur?.();
       return;
     }
@@ -348,35 +364,45 @@
     if (event.target?.closest?.(`#${BAR} .st-lcn-tip, #${MODAL} .st-lcn-tip`)) {
       return;
     }
-    closeTips(document);
+    closeTips(event.target?.ownerDocument || document);
   }
 
   function onDocumentKeydown(event) {
     const one = visibleDialog(ONE);
     const progress = visibleDialog(PROGRESS);
     const modal = visibleDialog(MODAL);
-    const activeDialog = one || progress || modal;
+    const owner = event.target?.ownerDocument;
+    const activeDialog = [batch.bulk?.dialog, one, progress, modal].find(node => node?.ownerDocument === owner);
+    if (activeDialog === modal && batch.filterView && !event.isComposing && filterUI().onFilterOperatorKey(event)) return;
+    if (activeDialog === modal && batch.filterDraft && event.key === "Escape") {
+      event.preventDefault(); event.stopPropagation();
+      if (batch.filterPicker) filterUI().closeFilterPicker(); else filterUI().closeFilterEditor();
+      return;
+    }
     if (activeDialog) {
       trapDialogTab(activeDialog, event);
     }
     if (event.key !== "Escape") {
       return;
     }
-    closeTips(document);
-    if (one) {
+    closeTips(event.target?.ownerDocument || document);
+    if (batch.bulk && batch.bulk.dialog.ownerDocument === owner) {
+      event.preventDefault(); event.stopPropagation(); if (!batch.bulk.applying) closeBulkEditor(); return;
+    }
+    if (one?.ownerDocument === owner) {
       event.preventDefault();
       event.stopPropagation();
       dismissOne();
       return;
     }
-    if (progress) {
+    if (progress?.ownerDocument === owner) {
       event.preventDefault();
       event.stopPropagation();
       closeProgressAsk().catch((error) => {
         globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-document-keydown-failed", message: "客户端功能处理失败", level: "error", phase: "onDocumentKeydown" });});
       return;
     }
-    if (modal) {
+    if (modal?.ownerDocument === owner) {
       event.preventDefault();
       event.stopPropagation();
       closeBatchAsk().catch((error) => {
@@ -584,6 +610,7 @@
     batch.operationId = "";
     batch.saveStatusMisses = 0;
     batch.localRows = [];
+    batch.meta = { options: {}, capabilities: {} };
     batch.localMap = new Map();
     batch.cloudMap = new Map();
     batch.cloudSourceMap = new Map();
@@ -593,6 +620,7 @@
     batch.rows = [];
     batch.rowMap = new Map();
     batch.searchRows = [];
+    batch.viewRows = null;
     batch.searchIndex = null;
     batch.searchScanned = 0;
     batch.searching = false;
@@ -730,7 +758,7 @@
         batch.paused = false;
         batch.waitCmd = "";
         batch.summary = true;
-        batch.message = i18n("steam.libraryCustomName.saveStatusTimeout", "Steam 保存队列状态没有响应，请重新打开批量窗口确认结果");
+        setMessage(i18n("steam.libraryCustomName.saveStatusTimeout", "Steam 保存队列状态没有响应，请重新打开批量窗口确认结果"));
         log.warn("library-custom-name-save-status-timeout", "库自定义名称保存队列状态查询超时", {
           operationId: batch.operationId || "",
           rid: batch.saveRid || "",
@@ -789,34 +817,31 @@
     }
   }
 
-  // 云端名称查询不能在 Steam 主上下文里直接调用 chrome API，必须通过 content.js 的 DOM 属性桥接转发。
-  function contentReq(type, data) {
-    const id = rid();
-    const msg = {
-      script: ID,
-      side: "page",
-      type,
-      rid: id,
-      ...data,
-    };
+  // 名称查询和 AI 生成通过既有属性桥转发；可取消请求在完成、超时和关闭时统一释放。
+  function contentReq(type, data, options = {}) {
+    const id = options.requestId || rid();
+    const msg = { script: ID, side: "page", type, rid: id, ...data };
     return new Promise((resolve, reject) => {
-      const timer = window.setTimeout(() => {
-        qpend.delete(id);
-        reject(new Error(i18n("steam.libraryCustomName.cloudApiTimeout", "云端名称接口没有响应")));
-      }, RESP_MS);
-      qpend.set(id, { resolve, reject, timer });
-      try {
-        document.documentElement?.setAttribute(REQ_ATTR, JSON.stringify(msg));
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "content-req-failed", message: "客户端功能处理失败", level: "warn", phase: "contentReq" });
-      }
+      let timer = 0;
+      const cleanup = () => { qpend.delete(id); window.clearTimeout(timer); options.signal?.removeEventListener("abort", abort); };
+      const pending = { resolve(value) { cleanup(); resolve(value); }, reject(error) { cleanup(); reject(error); }, timer: 0 };
+      function abort() { pending.reject(new DOMException("名称请求已取消", "AbortError")); }
+      timer = window.setTimeout(() => pending.reject(new Error(type === "ai-generate"
+        ? i18n("steam.libraryCustomName.aiTimeout", "AI生成超时，请稍后重试。")
+        : i18n("steam.libraryCustomName.cloudApiTimeout", "社区名称接口没有响应"))), options.timeoutMs ?? RESP_MS);
+      pending.timer = timer;
+      qpend.set(id, pending);
+      options.signal?.addEventListener("abort", abort, { once: true });
+      if (options.signal?.aborted) { abort(); return; }
+      try { document.documentElement.setAttribute(REQ_ATTR, JSON.stringify(msg)); }
+      catch (error) { pending.reject(error); }
     });
   }
 
   function queryNames(appids) {
     ensureCloudFetch();
     const ids = Array.isArray(appids) ? appids : [appids];
-    return contentReq("query", { appids: ids });
+    return contentReq("community", { appids: ids });
   }
 
   async function openAccountCenter() {
@@ -852,11 +877,11 @@
   function cloudFetchHint() {
     const allowed = settings().cloudNameFetchAllowed;
     if (typeof allowed !== "boolean") {
-      return i18n("steam.libraryCustomName.fetchPermissionMissing", "获取云端名称权限尚未同步，请更新后端并刷新用户中心");
+      return i18n("steam.libraryCustomName.fetchPermissionMissing", "获取社区名称权限尚未同步，请更新后端并刷新用户中心");
     }
     return allowed
-      ? i18n("steam.libraryCustomName.querySelectedCloudTitle", "只获取已勾选游戏的云端名称")
-      : i18n("steam.libraryCustomName.fetchPermissionDenied", "当前权益未开通获取云端名称");
+      ? i18n("steam.libraryCustomName.querySelectedCloudTitle", "只获取已勾选游戏的社区名称")
+      : i18n("steam.libraryCustomName.fetchPermissionDenied", "当前权益未开通获取社区名称");
   }
 
   function ensureCloudFetch() {
@@ -865,11 +890,8 @@
     }
   }
 
-  // 权益变化只刷新当前两个获取按钮，不重建列表或运行时。
-  function refreshCloudAccess() {
-    setOneBusy(s.oneBusy);
-    refreshQueryState();
-  }
+  // 云端权益只更新批量获取按钮；AI 生成使用独立的配置与账号校验。
+  function refreshCloudAccess() { refreshQueryState(); }
 
   function settingOn(id) {
     return settings()[id] !== false;
@@ -889,7 +911,7 @@
     return st;
   }
 
-  // content.js 会把查询和用户中心打开结果写回属性，MutationObserver 可能重复触发，rid 用于只结算对应请求。
+  // content.js 将名称请求结果写回属性；rid 只结算对应请求，迟到或重复响应不再回填。
   function onQuery(event) {
     if (event && event.attributeName && event.attributeName !== RES_ATTR) {
       return;
@@ -903,7 +925,7 @@
       data = {};
     }
     if (data.script !== ID || data.side !== "content"
-        || !["query-result", "open-account-result"].includes(data.type)) {
+        || !["query-result", "community-result", "ai-generate-result", "open-account-result", "table-settings-get-result", "table-settings-save-result"].includes(data.type)) {
       return;
     }
     const wait = qpend.get(data.rid);
@@ -920,13 +942,6 @@
       wait.resolve(data.data || {});
     }
   }
-
-  function oneContext(input = sortInput()) {
-    return {
-      appid: propertyAppid(input),
-    };
-  }
-
   function css() {
     styles?.ensureFeatureStyle?.(ID);
   }
@@ -1085,7 +1100,7 @@
     if (!bar) {
       return false;
     }
-    const active = document.activeElement;
+    const active = bar.ownerDocument.activeElement;
     if (active?.closest?.(`#${BAR} .st-lcn-tip`)) {
       return true;
     }
@@ -1097,30 +1112,15 @@
     }
   }
 
-  function apiRows(data) {
-    if (Array.isArray(data?.data)) {
-      return data.data;
-    }
-    return data?.data ? [data.data] : [];
-  }
+  function apiRows(data) { if (!Array.isArray(data?.data)) throw new TypeError(i18n('common.backgroundResponseInvalid','后台响应格式异常')); return data.data; }
 
   function apiResult(parts) {
-    const names = new Map();
-    const statuses = new Map();
-    for (const data of parts) {
-      for (const row of apiRows(data)) {
-        const appid = Number(row?.appid);
-        if (Number.isFinite(appid) && appid > 0) {
-          const source = String(row?.source || row?.name_source || "");
-          if (CUSTOM_NAME_SOURCES.has(source) && text(row?.name)) {
-            names.set(appid, row);
-          } else if (source === "none") {
-            statuses.set(appid, "none");
-          }
-        }
-      }
+    const names=new Map(),statuses=new Map();
+    for(const data of parts) for(const row of apiRows(data)) {
+      if (!Number.isSafeInteger(row.appid)||row.appid<=0||typeof row.name!=='string'||!['community','none'].includes(row.source)||(row.source==='none'&&row.name!=='')||(row.source==='community'&&!row.name.trim())) throw new TypeError(i18n('common.backgroundResponseInvalid','后台响应格式异常'));
+      if(row.source==='community')names.set(row.appid,row);else statuses.set(row.appid,'none');
     }
-    return { names, statuses };
+    return {names,statuses};
   }
 
   function loadLib(path) {
@@ -1155,7 +1155,8 @@
       await loadLib(PINYIN_LIB);
     }
     if (!window.SteamBuff?.libraryCustomNameMnemonic?.withMnemonic) {
-      await loadLib(MNEMONIC_CORE);
+      if (!window.SteamBuff.libraryCustomNameMnemonic?.mnemonicCodes) await loadLib(MNEMONIC_CORE);
+      if (!window.SteamBuff.libraryCustomNameMnemonic?.mnemonicCodes) throw new TypeError(i18n("steam.libraryCustomName.mnemonicLoadFailed", "助记符工具加载失败"));
     }
     const core = window.SteamBuff?.libraryCustomNameMnemonic;
     if (!core?.mnemonic || !core?.withMnemonic || !core?.rebuildMnemonic || !core?.stripMnemonic) {
@@ -1164,7 +1165,7 @@
     return core;
   }
 
-  // 云端名称按 100 个 AppID 分片，和后端 /names/resolve 的批量限制保持一致。
+  // 社区名称按 100 个 AppID 分片，和后端 /names/resolve 的批量限制保持一致。
   async function queryMap(appids) {
     const parts = [];
     for (let i = 0; i < appids.length; i += QUERY_MAX) {
@@ -1217,13 +1218,66 @@
     return "App";
   }
 
-  function prepareList(requireCustom, policy = batch.policy, types = batch.types) {
-    return backend("prepare-list", {
-      policy,
-      types: { ...types },
-      requireCustom: !!requireCustom,
-    });
+  function prepareList() { return backend("prepare-list", {}); }
+
+  const filterExpressions = new WeakMap();
+  function batchOverlayOpen() {
+    const doc = batch.element?.ownerDocument;
+    return [s.oneElement, batch.progressElement, batch.bulk?.dialog].some(node => node && !node.hidden && node.ownerDocument === doc);
   }
+  function filterUI() {
+    if (!batch.filterView) batch.filterView = window.SteamBuff.nameBatch.create({
+      state: batch, getRoot: () => batch.element, i18n, esc: attr, setHtml: setTrustedTemplate,
+      iconHtml: (path, className) => `<img class="${className}" src="${attr(window.SteamBuff.path.url(path))}" alt="" aria-hidden="true" draggable="false">`,
+      expressions: filterExpressions, lifecycle: window.STDialogLifecycle, locked: () => batch.busy || batch.saving || batch.selecting || !!batch.bulk,
+      isActive: () => !batchOverlayOpen(),
+      fields: filters(),
+      apply: applyFilters, change: applyFiltersToRows,
+    });
+    return batch.filterView;
+  }
+
+  let filterModel = null;
+  function filters() {
+    if (!filterModel) filterModel = window.SteamBuff.nameBatch.createFilters({state:batch,i18n,expressions:filterExpressions,defaultField:'sort',
+      nameFields:[...TABLE.columns.map(column=>[column.id,columnTitle(column.id)]),['mnemonic',i18n('steam.independentName.colMnemonic','助记符')],['original_language',i18n('steam.independentName.filterFieldoriginal_language','原名称语言')]],
+      readValues(row,field) {
+        if (field==='mnemonic') return window.SteamBuff.libraryCustomNameMnemonic.mnemonicCodes(row.want);
+        return [field==='appid'?String(row.appid):field==='official'?row.official:field==='current'?currentName(row):row.want];
+      }});
+    return filterModel;
+  }
+
+  function applyFilters() {
+    const draft = batch.filterDraft;
+    if (!draft) return;
+    try {
+      const { invalid, regexError } = filterUI().validateFilterDraft(draft);
+      const unavailable = draft.map(filter=>filters().filterAvailability(filter.field)).find(result=>!result.ready);
+      if (unavailable) { batch.element.querySelector("[data-lin-filter-msg]").textContent=unavailable.message; return; }
+      if (invalid) {
+        batch.element.querySelector("[data-lin-filter-msg]").textContent = regexError
+          ? i18n("steam.independentName.filterRegexInvalid", "正则表达式格式错误，请修改后重试")
+          : i18n("steam.independentName.filterIncomplete", "请填写筛选值或选择游戏类型");
+        return;
+      }
+      batch.filters = draft;
+      filterUI().closeFilterEditor();
+      applyFiltersToRows();
+    } catch (error) {
+      log.error("steam-name-filter-apply-failed", "应用 Steam 排序名称筛选失败", { error });
+      tableNotice(i18n("common.operationFailed", "操作失败"));
+    }
+  }
+
+  function applyFiltersToRows() {
+    batch.searchSeq += 1;
+    resetVirtualScroll();
+    scheduleSearch(false);
+    filterUI().renderFilterChips();
+  }
+
+  function matchesFilter(filter,row) { return filters().matches(filter,row); }
 
   function listPage(sid, offset) {
     return backend("list-page", {
@@ -1249,10 +1303,10 @@
         ids.push(id);
       }
       if (i > 0 && i % APP_SCAN_YIELD === 0) {
-        batch.message = i18n("steam.libraryCustomName.preparingQueryQueue", "正在整理查询队列 $current$/$total$", {
+        setMessage(i18n("steam.libraryCustomName.preparingQueryQueue", "正在整理查询队列 $current$/$total$", {
           current: i,
           total: apps.length,
-        });
+        }));
         refreshMessage();
         await yieldUI();
         if (seq !== batch.previewSeq) {
@@ -1267,84 +1321,25 @@
     return app?.has_custom_sort_as === true || !!text(app?.current_custom_name);
   }
 
-  function typeOn(row) {
-    const type = Number(row?.app_type);
-    const key = type === 1 ? "game" : type === 2 ? "software" : type === 4 ? "tool" : "other";
-    return !!batch.types[key];
-  }
-
-  function localRowVisible(row) {
-    if (!typeOn(row)) {
-      return false;
-    }
-    if (batch.policy === "hide") {
-      return !hasCustom(row);
-    }
-    if (batch.policy === "current-custom") {
-      return hasCustom(row);
-    }
-    return true;
-  }
-
-  function isCurrentCustomPolicy() {
-    return batch.policy === "current-custom";
-  }
-
   function hasStoredState(old) {
     return !!old && Object.prototype.hasOwnProperty.call(old, "checked");
   }
 
   function makeRow(app, old) {
-    const appid = Number(app.appid);
-    const custom = text(app.current_custom_name);
+    const appid = Number(app.appid), custom = text(app.current_custom_name);
     const cloud = batch.cloudMap.get(appid) || "";
     const syncStatus = batch.syncMap.get(appid) || "";
-    const manual = !!old?.manual;
+    const stored = hasStoredState(old), manual = !!old?.manual;
     const mnemonicTouched = !!old?.mnemonicTouched;
-    const mnemonicOn = !!old?.mnemonicOn;
-    const stored = hasStoredState(old);
-    let want = manual ? text(old.want) : "";
-    let checked = !!old?.checked;
-    let source = old?.cloudSource || "";
-
-    if (!manual && isCurrentCustomPolicy()) {
-      want = custom;
-      checked = stored ? !!old.checked : false;
-      source = "local";
-    } else if (!manual && syncStatus) {
-      want = text(old.want);
-      checked = !!old.checked;
-      source = old.cloudSource || "";
-    } else if (!manual && batch.policy === "skip" && !hasCustom(app)) {
-      want = cloud;
-      checked = true;
-      source = batch.cloudSourceMap.get(appid) || (cloud ? "api" : "");
-    } else if (!manual && cloud) {
-      want = cloud;
-      checked = (stored ? !!old.checked : true) && !(batch.policy === "skip" && hasCustom(app));
-      source = batch.cloudSourceMap.get(appid) || "api";
-    } else if (!manual) {
-      want = "";
-      checked = false;
-      source = "";
-    }
-
+    const want = stored ? text(old.want) : custom;
+    const source = stored ? old.cloudSource : "local";
     return {
-      appid,
-      app_type: Number(app.app_type) || 0,
-      itemType: itemType(app),
-      official: text(app.official_name),
-      custom,
+      appid, app_type: app.app_type, metadata: app.metadata, itemType: itemType(app), official: text(app.official_name), custom,
       apiName: cloud,
       syncStatus,
-      want,
-      checked,
-      manual,
-      mnemonicTouched,
-      mnemonicOn,
-      cloudSource: source,
-      state: old?.state || "",
-      error: old?.error || "",
+      want, checked: stored ? !!old.checked : false, manual,
+      mnemonicTouched, cloudSource: source,
+      state: old?.state || "", error: old?.error || "",
     };
   }
 
@@ -1358,7 +1353,6 @@
       manual: !!row.manual,
       cloudSource: row.cloudSource || "",
       mnemonicTouched: !!row.mnemonicTouched,
-      mnemonicOn: !!row.mnemonicOn,
       state: row.state || "",
       error: row.error || "",
     });
@@ -1378,16 +1372,13 @@
     }
   }
 
-  function resetRowsForPolicy(options = {}) {
+  function rebuildRows(options = {}) {
     const currentScrollTop = batch.virtualScrollTop;
     for (const row of batch.rows) {
       keepRowState(row);
     }
     const rows = [];
     for (const app of batch.localRows) {
-      if (!localRowVisible(app)) {
-        continue;
-      }
       const appid = Number(app.appid);
       const old = batch.stateMap.get(appid);
       rows.push(makeRow(app, old));
@@ -1396,12 +1387,7 @@
     if (options.preserveScroll === true) {
       setVirtualScrollTop(currentScrollTop);
     }
-    batch.message = previewMessage();
-  }
-
-  function applyLocalFilters() {
-    resetRowsForPolicy();
-    renderModal();
+    setMessage(previewMessage(), "preview");
   }
 
   function hasDirtyRows() {
@@ -1416,19 +1402,14 @@
     batch.loadingLocal = true;
     clearLocalRows();
     batch.stats = emptyStats();
-    batch.message = i18n("steam.libraryCustomName.readingLibrary", "正在读取 Steam 客户端库列表");
+    setMessage(i18n("steam.libraryCustomName.readingLibrary", "正在读取 Steam 客户端库列表"));
     renderModal();
-    log.info("library-custom-name-preview-start", "开始加载库自定义名称本地列表", {
-      policy: batch.policy,
-    });
+    log.info("library-custom-name-preview-start", "开始加载库自定义名称本地列表");
     try {
       ensureOn();
-      const prepared = await prepareList(false, "cover", {
-        game: true,
-        software: true,
-        tool: true,
-        other: true,
-      });
+      await loadLib(MNEMONIC_CORE);
+      if (seq !== batch.previewSeq) return;
+      const prepared = await prepareList();
       if (seq !== batch.previewSeq) {
         return;
       }
@@ -1436,6 +1417,7 @@
       const total = Number(prepared.total) || 0;
       for (let offset = 0; offset < total;) {
         const page = await listPage(sid, offset);
+        if (page.meta) batch.meta = page.meta;
         const apps = Array.isArray(page.apps) ? page.apps : [];
         for (const app of apps) {
           const appid = Number(app?.appid);
@@ -1446,24 +1428,25 @@
               current_custom_name: text(app.current_custom_name),
               has_custom_sort_as: app?.has_custom_sort_as === true || !!text(app.current_custom_name),
               app_type: Number(app.app_type) || 0,
+              metadata: app.metadata,
             };
             batch.localRows.push(local);
             batch.localMap.set(appid, local);
           }
         }
         offset = Number(page.nextOffset) || (offset + apps.length);
-        resetRowsForPolicy();
-        batch.message = i18n("steam.libraryCustomName.loadingLocalList", "正在加载本地列表 $current$/$total$", {
+        rebuildRows();
+        setMessage(i18n("steam.libraryCustomName.loadingLocalList", "正在加载本地列表 $current$/$total$", {
           current: Math.min(offset, total),
           total,
-        });
+        }));
         renderVisibleRows();
         await yieldUI();
         if (seq !== batch.previewSeq) {
           return;
         }
       }
-      batch.message = previewMessage();
+      setMessage(previewMessage(), "preview");
       log.info("library-custom-name-preview-success", "库自定义名称本地列表加载完成", {
         ...statsMeta(),
         durationMs: now() - startedAt,
@@ -1472,7 +1455,7 @@
       if (seq !== batch.previewSeq) {
         return;
       }
-      batch.message = error?.message || String(error);
+      setMessage(error?.message || String(error));
       log.error("library-custom-name-preview-failed", "库自定义名称本地列表加载失败", {
         durationMs: now() - startedAt,
         error,
@@ -1486,15 +1469,7 @@
     }
   }
 
-  function canWrite(row) {
-    if (!row.checked || !text(row.want)) {
-      return false;
-    }
-    if (isCurrentCustomPolicy() && row.cloudSource === "local" && row.manual !== true) {
-      return false;
-    }
-    return true;
-  }
+  function canWrite(row) { return !!row.checked && !!text(row.want) && text(row.want) !== text(row.custom); }
 
   function canClear(row) {
     return !!row?.checked && Number(row?.appid) > 0 && !!text(row?.custom);
@@ -1504,8 +1479,8 @@
     return !!row?.checked && !!text(row?.want);
   }
 
-  function mnemonicPending(row) {
-    return mnemonicEligible(row) && row.mnemonicOn !== true;
+  function mnemonicPresent(row) {
+    return mnemonicEligible(row) && window.SteamBuff.libraryCustomNameMnemonic.mnemonicCodes(row.want).length > 0;
   }
 
   function mnemonicRows() {
@@ -1513,13 +1488,7 @@
   }
 
   // 助记符是逐行结果，不是弹窗模式；混合勾选时优先补齐尚未生成的行。
-  function mnemonicAction() {
-    const count = batch.mnemonicEligibleCount;
-    return {
-      count,
-      on: !count || batch.mnemonicPendingCount > 0,
-    };
-  }
+
 
   function refreshRowSearch(row) {
     if (!row) {
@@ -1529,12 +1498,28 @@
     return row.searchText;
   }
 
-  function searchActive() {
-    return !!batch.searchNeedle;
-  }
+  function searchActive() { return !!batch.searchNeedle || batch.filters.length > 0; }
 
   function activeRows() {
-    return searchActive() ? batch.searchRows : batch.rows;
+    if (batch.viewRows) return batch.viewRows;
+    const rows = (searchActive() ? batch.searchRows : batch.rows).slice();
+    const sort = batch.tablePrefs.sort;
+    if (sort) {
+      const compare = new Intl.Collator(document.documentElement.lang || undefined, { numeric: true, sensitivity: "base" });
+      const value = row => sort.id === "appid" ? row.appid : sort.id === "official" ? row.official : sort.id === "current" ? currentName(row) : row.want;
+      rows.sort((a, b) => {
+        const av = value(a), bv = value(b);
+        const emptyA = av === "", emptyB = bv === "";
+        if (emptyA !== emptyB) return emptyA ? 1 : -1;
+        const result = sort.id === "appid" ? av - bv : compare.compare(av, bv);
+        return result ? result * (sort.direction === "asc" ? 1 : -1) : a.appid - b.appid;
+      });
+    }
+    batch.viewSelected = 0;
+    batch.viewIds = new Set();
+    rows.forEach((row, index) => { row.viewIndex = index; batch.viewIds.add(row.appid); if (row.checked) batch.viewSelected++; });
+    batch.viewRows = rows;
+    return rows;
   }
 
   function emptyVirtualRange() {
@@ -1583,10 +1568,7 @@
   }
 
   function rowMatchesSearch(row, needle = batch.searchNeedle) {
-    if (!needle) {
-      return true;
-    }
-    return (row?.searchText || refreshRowSearch(row)).includes(needle);
+    return (!needle || (row.searchText || refreshRowSearch(row)).includes(needle)) && batch.filters.every(filter => matchesFilter(filter, row));
   }
 
   function selectedRows() {
@@ -1601,7 +1583,7 @@
   }
 
   function refreshQueryState(selectable = batch.querySelection) {
-    const btn = document.querySelector(`#${MODAL} [data-lcn-action='query']`);
+    const btn = batch.element?.querySelector("[data-lcn-action='query']");
     if (btn) {
       btn.disabled = batch.busy || batch.saving || batch.selecting || !cloudFetchAllowed() || !selectable;
       btn.title = cloudFetchHint();
@@ -1698,35 +1680,26 @@
     return tipHtml("", storageLimitTipText(), "st-lcn-limit-tip");
   }
 
+  function previewSummaryText() {
+    return i18n("steam.libraryCustomName.batchSummary", "总 $total$ 款 · 筛选后 $filtered$ 款 · 已选 $selected$ 项 · 待写入 $write$ 项 · 跳过 $skipped$ 项 · 上限 $limit$ 项 · 容量 $capacity$", {
+      total: batch.localRows.length, filtered: activeRows().length, selected: batch.selectedCount,
+      write: batch.writeCount, skipped: Math.max(0, batch.rows.length - batch.writeCount),
+      limit: customLimitLine(), capacity: capacityLine(),
+    });
+  }
+
   function previewMessageHtml() {
-    const skipped = Math.max(0, batch.rows.length - batch.writeCount);
-    const search = searchActive()
-      ? i18n("steam.libraryCustomName.searchSummary", "，搜索 $visible$/$total$", {
-        visible: activeRows().length,
-        total: batch.rows.length,
-      })
-      : "";
-    const summary = i18n(
-      "steam.libraryCustomName.previewSummary",
-      "加载完成$search$，已选 $selected$ 项，待写入 $write$ 项，跳过 $skipped$ 项，上限 $limit$ 项，容量 $capacity$",
-      {
-        search,
-        selected: batch.selectedCount,
-        write: batch.writeCount,
-        skipped,
-        limit: customLimitLine(),
-        capacity: capacityLine(),
-      },
-    );
+    const summary = previewSummaryText();
     return `${esc(summary + syncingSummary())}${storageLimitTipHtml()}`;
   }
 
+  function setMessage(value, kind = "status") {
+    batch.message = value; batch.messageKind = kind;
+  }
+
   function messageHtml() {
-    const message = batch.message || i18n("steam.libraryCustomName.waitingQuery", "等待查询");
-    if (message === previewMessage()) {
-      return previewMessageHtml();
-    }
-    return esc(message);
+    const summary = previewMessageHtml();
+    return batch.messageKind === "preview" || !batch.message ? summary : summary + `<div class="st-lcn-status-note">${esc(batch.message)}</div>`;
   }
 
   function refreshStorageCapacitySoon(delay = 180) {
@@ -1762,7 +1735,7 @@
     }
     batch.storageCapacity = normalizeCapacity(data);
     if (!batch.busy && !batch.saving && batch.rows.length) {
-      batch.message = previewMessage();
+      setMessage(previewMessage(), "preview");
       refreshMessage();
     }
   }
@@ -1779,7 +1752,7 @@
     let write = 0;
     let selected = 0;
     let mnemonicEligibleRows = 0;
-    let mnemonicPendingRows = 0;
+    let mnemonicPresentRows = 0;
     const map = new Map();
     for (let i = 0; i < batch.rows.length; i += 1) {
       const row = batch.rows[i];
@@ -1796,16 +1769,17 @@
       if (mnemonicEligible(row)) {
         mnemonicEligibleRows += 1;
       }
-      if (mnemonicPending(row)) {
-        mnemonicPendingRows += 1;
+      if (mnemonicPresent(row)) {
+        mnemonicPresentRows += 1;
       }
     }
     batch.rowMap = map;
+    batch.viewRows = null;
     batch.searchIndex = { rows: batch.rows, byKey: map, total: batch.rows.length };
     batch.selectedCount = selected;
     batch.writeCount = write;
     batch.mnemonicEligibleCount = mnemonicEligibleRows;
-    batch.mnemonicPendingCount = mnemonicPendingRows;
+    batch.mnemonicPresentCount = mnemonicPresentRows;
     invalidateVirtualRange();
     refreshSkip();
     refreshStorageCapacitySoon();
@@ -1815,6 +1789,7 @@
     batch.rows = [];
     batch.rowMap = new Map();
     batch.searchRows = [];
+    batch.viewRows = null;
     batch.searchIndex = null;
     batch.searchScanned = 0;
     batch.searching = false;
@@ -1823,7 +1798,7 @@
     batch.querySelection = false;
     batch.writeCount = 0;
     batch.mnemonicEligibleCount = 0;
-    batch.mnemonicPendingCount = 0;
+    batch.mnemonicPresentCount = 0;
     refreshSkip();
   }
 
@@ -1845,6 +1820,7 @@
 
   function setRows(rows) {
     batch.rows = Array.isArray(rows) ? rows : [];
+    batch.viewRows = null;
     resetVirtualScroll();
     refreshCounts();
     if (searchActive()) {
@@ -1861,6 +1837,7 @@
   function resetSearchState() {
     clearSearchTimer();
     batch.searchRows = [];
+    batch.viewRows = null;
     batch.searchScanned = 0;
     batch.searching = false;
   }
@@ -1868,6 +1845,7 @@
   function setSearchRows(rows, scanned, searching) {
     const list = Array.isArray(rows) ? rows : [];
     batch.searchRows = list;
+    batch.viewRows = null;
     batch.searchScanned = Math.max(0, Number(scanned) || 0);
     batch.searching = !!searching;
     invalidateVirtualRange();
@@ -1876,7 +1854,7 @@
   async function runSearch(seq) {
     const needle = batch.searchNeedle;
     const rows = batch.rows;
-    if (!needle) {
+    if (!searchActive()) {
       resetSearchState();
       renderVisibleRows();
       return;
@@ -1942,13 +1920,14 @@
       return;
     }
     batch.searchRows = [];
+    batch.viewRows = null;
     batch.searchScanned = 0;
     batch.searching = true;
     const start = () => runSearch(seq).catch((error) => {
       globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "schedule-search-failed", message: "客户端功能处理失败", level: "error", phase: "scheduleSearch" });
       if (seq === batch.searchSeq) {
         batch.searching = false;
-        batch.message = error?.message || String(error);
+        setMessage(error?.message || String(error));
         renderVisibleRows();
       }
     });
@@ -1982,7 +1961,7 @@
     batch.searchNeedle = searchText(batch.searchQuery);
     batch.searchSeq += 1;
     resetVirtualScroll();
-    if (!batch.searchNeedle) {
+    if (!searchActive()) {
       resetSearchState();
       renderVisibleRows();
       return;
@@ -1993,11 +1972,12 @@
   function downloadJson(filename, data) {
     const blob = new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+    const doc = dialogDocument();
+    const link = doc.createElement("a");
     link.href = url;
     link.download = filename;
     link.style.display = "none";
-    document.body.appendChild(link);
+    doc.body.appendChild(link);
     link.click();
     window.setTimeout(() => {
       URL.revokeObjectURL(url);
@@ -2032,7 +2012,7 @@
   async function exportSelectedNames() {
     const items = exportItems();
     if (!items.length) {
-      batch.message = i18n("steam.libraryCustomName.exportEmpty", "当前没有勾选要导出的游戏");
+      setMessage(i18n("steam.libraryCustomName.exportEmpty", "当前没有勾选要导出的游戏"));
       renderModal();
       return;
     }
@@ -2052,13 +2032,13 @@
         return;
       }
       downloadJson(exportFileName(), { items });
-      batch.message = i18n("steam.libraryCustomName.exported", "已导出 $count$ 项", { count: items.length });
+      setMessage(i18n("steam.libraryCustomName.exported", "已导出 $count$ 项", { count: items.length }));
       log.info("library-custom-name-export-success", "库自定义名称 JSON 导出完成", {
         operationId,
         exported: items.length,
       });
     } catch (error) {
-      batch.message = error?.message || String(error);
+      setMessage(error?.message || String(error));
       log.error("library-custom-name-export-failed", "库自定义名称 JSON 导出失败", {
         operationId,
         error,
@@ -2122,16 +2102,12 @@
   }
 
   function prepareRowsForImport() {
-    batch.policy = "cover";
-    batch.types.game = true;
-    batch.types.software = true;
-    batch.types.tool = true;
-    batch.types.other = true;
+    batch.filters = [];
     batch.searchQuery = "";
     batch.searchNeedle = "";
     batch.searchSeq += 1;
     resetSearchState();
-    resetRowsForPolicy();
+    rebuildRows();
     for (const row of batch.rows) {
       row.checked = false;
       keepRowState(row);
@@ -2166,7 +2142,7 @@
             row.checked = true;
             row.manual = true;
             row.mnemonicTouched = false;
-            row.mnemonicOn = false;
+
             row.state = "";
             row.error = "";
             refreshRowSearch(row);
@@ -2176,10 +2152,10 @@
         }
       }
       if (i > 0 && i % IMPORT_SCAN_YIELD === 0) {
-        batch.message = i18n("steam.libraryCustomName.importingJson", "正在导入 JSON $current$/$total$", {
+        setMessage(i18n("steam.libraryCustomName.importingJson", "正在导入 JSON $current$/$total$", {
           current: i,
           total,
-        });
+        }));
         refreshMessage();
         await yieldUI();
       }
@@ -2207,14 +2183,14 @@
       return;
     }
     if (!batch.localRows.length) {
-      batch.message = i18n("steam.libraryCustomName.loadLocalFirst", "请先加载本地列表");
+      setMessage(i18n("steam.libraryCustomName.loadLocalFirst", "请先加载本地列表"));
       renderModal();
       return;
     }
     const seq = batch.previewSeq;
     const operationId = window.STLoggerFactory?.createOperationId?.() || "";
     batch.busy = true;
-    batch.message = i18n("steam.libraryCustomName.readingJson", "正在读取 JSON 文件");
+    setMessage(i18n("steam.libraryCustomName.readingJson", "正在读取 JSON 文件"));
     renderModal();
     try {
       const raw = await readJsonFile(file);
@@ -2226,12 +2202,12 @@
       if (!stats.matched) {
         throw new Error(i18n("steam.libraryCustomName.jsonMatchMissing", "库内没有匹配到可导入的游戏"));
       }
-      batch.message = i18n("steam.libraryCustomName.matchingJson", "正在匹配 JSON $count$ 项", { count: names.size });
+      setMessage(i18n("steam.libraryCustomName.matchingJson", "正在匹配 JSON $count$ 项", { count: names.size }));
       refreshMessage();
       const mode = await chooseImportPolicy(stats);
       if (!IMPORT_MODES.includes(mode) || seq !== batch.previewSeq) {
         if (seq === batch.previewSeq) {
-          batch.message = previewMessage();
+          setMessage(previewMessage(), "preview");
         }
         return;
       }
@@ -2239,7 +2215,7 @@
       if (result.cancelled) {
         return;
       }
-      batch.message = importDoneMessage(mode, result);
+      setMessage(importDoneMessage(mode, result));
       log.info("library-custom-name-import-success", "库自定义名称 JSON 导入完成", {
         operationId,
         mode,
@@ -2249,7 +2225,7 @@
         skipped: result.skipped,
       });
     } catch (error) {
-      batch.message = error?.message || String(error);
+      setMessage(error?.message || String(error));
       log.error("library-custom-name-import-failed", "库自定义名称 JSON 导入失败", {
         operationId,
         error,
@@ -2267,14 +2243,15 @@
     const beforeSelected = !!row.checked;
     const before = canWrite(row);
     const beforeMnemonicEligible = mnemonicEligible(row);
-    const beforeMnemonicPending = mnemonicPending(row);
+    const beforeMnemonicPresent = mnemonicPresent(row);
     apply();
     const afterSelected = !!row.checked;
     const after = canWrite(row);
     const afterMnemonicEligible = mnemonicEligible(row);
-    const afterMnemonicPending = mnemonicPending(row);
+    const afterMnemonicPresent = mnemonicPresent(row);
     if (beforeSelected !== afterSelected) {
       batch.selectedCount += afterSelected ? 1 : -1;
+      if (batch.viewRows && batch.viewIds.has(row.appid)) batch.viewSelected += afterSelected ? 1 : -1;
     }
     if (before !== after) {
       batch.writeCount += after ? 1 : -1;
@@ -2283,32 +2260,14 @@
     if (beforeMnemonicEligible !== afterMnemonicEligible) {
       batch.mnemonicEligibleCount += afterMnemonicEligible ? 1 : -1;
     }
-    if (beforeMnemonicPending !== afterMnemonicPending) {
-      batch.mnemonicPendingCount += afterMnemonicPending ? 1 : -1;
+    if (beforeMnemonicPresent !== afterMnemonicPresent) {
+      batch.mnemonicPresentCount += afterMnemonicPresent ? 1 : -1;
     }
     refreshStorageCapacitySoon();
   }
 
   function previewMessage() {
-    const skipped = Math.max(0, batch.rows.length - batch.writeCount);
-    const search = searchActive()
-      ? i18n("steam.libraryCustomName.searchSummary", "，搜索 $visible$/$total$", {
-        visible: activeRows().length,
-        total: batch.rows.length,
-      })
-      : "";
-    return i18n(
-      "steam.libraryCustomName.previewSummary",
-      "加载完成$search$，已选 $selected$ 项，待写入 $write$ 项，跳过 $skipped$ 项，上限 $limit$ 项，容量 $capacity$",
-      {
-        search,
-        selected: batch.selectedCount,
-        write: batch.writeCount,
-        skipped,
-        limit: customLimitLine(),
-        capacity: capacityLine(),
-      },
-    ) + syncingSummary();
+    return previewSummaryText() + syncingSummary();
   }
 
   function customLimitMeta(pending) {
@@ -2350,13 +2309,10 @@
     s.oneBusy = !!on;
     const btn = document.querySelector(`#${BAR} [data-lcn-one]`);
     if (btn) {
-      btn.disabled = !!on || !cloudFetchAllowed();
-      btn.title = cloudFetchAllowed()
-        ? i18n("steam.libraryCustomName.fetchCloud", "获取云端名称")
-        : cloudFetchHint();
-      btn.textContent = on
-        ? i18n("steam.libraryCustomName.fetching", "获取中...")
-        : i18n("steam.libraryCustomName.fetchCloud", "获取云端名称");
+      btn.disabled = !!on;
+      btn.title = i18n("steam.libraryCustomName.aiGenerate", "AI生成");
+      btn.setAttribute("aria-busy", String(!!on));
+      btn.textContent = on ? i18n("steam.libraryCustomName.aiGenerating", "生成中...") : i18n("steam.libraryCustomName.aiGenerate", "AI生成");
     }
   }
 
@@ -2381,16 +2337,17 @@
 
   function openOneDialog() {
     css();
-    let box = document.getElementById(ONE);
+    let box = (s.oneElement || null);
     const opening = !box || box.hidden;
     if (opening) {
-      s.oneRestoreFocus = document.activeElement;
+      s.oneRestoreFocus = dialogDocument().activeElement;
     }
     if (!box) {
       box = document.createElement("section");
       box.id = ONE;
+      s.oneElement = box;
       box.addEventListener("click", onOneClick);
-      document.body.appendChild(box);
+      bringDialogToFront(box);
     }
     bringDialogToFront(box);
     box.hidden = false;
@@ -2409,11 +2366,11 @@
     focusElement(box.querySelector("[data-lcn-one='ok']") || box.querySelector(".st-lcn-one-panel"));
   }
 
-  function oneLoginRequired(message) {
+  function oneLoginRequired(message, title = i18n("steam.libraryCustomName.fetchFailed", "获取失败")) {
     const box = openOneDialog();
     setTrustedTemplate(box, `
       <div class="st-lcn-one-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-one-title" tabindex="-1">
-        <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">${esc(i18n("steam.libraryCustomName.fetchFailed", "获取失败"))}</h3></div>
+        <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">${esc(title)}</h3></div>
         <div class="st-lcn-one-body"><div class="st-lcn-one-message">${esc(message)}</div></div>
         <div class="st-lcn-one-actions">
           <button class="st-lcn-btn" type="button" data-lcn-one="later">${esc(i18n("steam.libraryCustomName.loginLater", "稍后"))}</button>
@@ -2483,9 +2440,9 @@
   }
 
   function pickImportFile() {
-    const file = document.querySelector(`#${MODAL} [data-lcn-import-file]`);
+    const file = batch.element?.querySelector("[data-lcn-import-file]");
     if (!file) {
-      batch.message = i18n("steam.libraryCustomName.filePickerUnavailable", "导入文件选择器不可用");
+      setMessage(i18n("steam.libraryCustomName.filePickerUnavailable", "导入文件选择器不可用"));
       renderModal();
       return;
     }
@@ -2493,7 +2450,7 @@
   }
 
   function closeOne() {
-    const box = document.getElementById(ONE);
+    const box = (s.oneElement || null);
     const wasOpen = !!box && !box.hidden;
     if (box) {
       box.hidden = true;
@@ -2506,21 +2463,22 @@
   }
 
   function dismissOne() {
+    s.aiRun?.controller.abort();
     const resolve = s.oneResolve;
     s.oneResolve = null;
     closeOne();
     resolve?.(false);
   }
 
-  function oneFail(error) {
-    globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "single-name-operation-failed", message: "单个游戏名称操作失败" });
+  function oneFail(error, title = i18n("steam.libraryCustomName.fetchFailed", "获取失败"), diagnostics = {}) {
+    globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "single-name-operation-failed", message: "单个游戏名称操作失败", ...diagnostics });
     const message = error?.message || String(error || "") || i18n("common.operationFailed", "操作失败");
     if (Number(error?.code) === 401) {
-      oneLoginRequired(message);
+      oneLoginRequired(message, title);
       return;
     }
     oneBox(
-      i18n("steam.libraryCustomName.fetchFailed", "获取失败"),
+      title,
       message,
       true,
     );
@@ -2571,75 +2529,60 @@
     }
   }
 
-  async function fillOne() {
-    ensureCloudFetch();
-    const input = sortInput();
-    if (!input) {
-      oneFail(i18n("steam.libraryCustomName.inputMissing", "未找到自定义排序名称输入框"));
-      return;
-    }
-    if (s.oneBusy) {
-      const box = document.getElementById(ONE);
-      if (box && !box.hidden) {
-        oneBox(
-          i18n("steam.libraryCustomName.fetchTitle", "获取名称"),
-          i18n("steam.libraryCustomName.fetchingShort", "正在获取..."),
-          false,
-        );
-        return;
-      }
-      s.oneBusy = false;
-    }
-    const inputName = text(input.value);
-    if (inputName && !(await oneConfirm(i18n("steam.libraryCustomName.overwritePrompt", "当前操作会覆盖当前自定义排序名称，是否继续？")))) {
-      return;
-    }
-
-    setOneBusy(true);
-    oneBox(
-      i18n("steam.libraryCustomName.fetchTitle", "获取名称"),
-      i18n("steam.libraryCustomName.fetchingShort", "正在获取..."),
-      false,
-    );
-
+  // 一次生成绑定当前属性输入框和 scope；取消或切换页面后丢弃结果，只有仍未被改动的输入才提交保存。
+  async function generateOneName() {
+    if (s.aiRun || !s.started) return;
+    const input = sortInput(), appid = propertyAppid(input);
+    if (!input || !appid) { oneFail(new Error(i18n("steam.libraryCustomName.appidMissing", "未识别当前游戏 AppID")), i18n("steam.libraryCustomName.aiFailed", "AI生成失败")); return; }
+    const run = { input, appid, scope: s.scope, baseline: String(input.value), id: "ai-sort-" + rid(), controller: new AbortController(), started: performance.now() };
+    s.aiRun = run; setOneBusy(true);
+    const current = () => s.started && !s.stopping && s.aiRun === run && s.scope === run.scope && !run.controller.signal.aborted
+      && input.isConnected && sortInput() === input && propertyAppid(input) === appid;
+    const unchanged = () => {
+      if (!current()) return false;
+      if (String(input.value) === run.baseline) return true;
+      oneBox(i18n("steam.libraryCustomName.aiGenerate", "AI生成"), i18n("steam.libraryCustomName.aiInputChanged", "当前名称已变化，已保留你的修改，请重新生成。"), true);
+      return false;
+    };
     try {
       ensureOn();
-      const ctx = oneContext(input);
-      let cur = null;
-      try {
-        cur = await backend("current-app", ctx);
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "fill-one-failed", message: "客户端功能处理失败", level: "warn", phase: "fillOne" });
+      if (text(run.baseline) && !(await oneConfirm(i18n("steam.libraryCustomName.overwritePrompt", "当前操作会覆盖当前自定义排序名称，是否继续？")))) return;
+      if (!unchanged()) return;
+      oneBox(i18n("steam.libraryCustomName.aiGenerate", "AI生成"), i18n("steam.libraryCustomName.aiGenerating", "生成中..."), false);
+      const result = await backend("current-app", { appid });
+      if (!unchanged()) return;
+      if (result.app?.appid !== appid || typeof result.app.official_name !== "string" || !result.app.official_name.trim()) {
+        throw new TypeError(i18n("steam.libraryCustomName.aiOriginalMissing", "未能读取当前游戏的 Steam 原名称，请重试。"));
       }
-      const appid = Number(cur?.app?.appid) || Number(ctx.appid);
-      if (!appid) {
-        throw new Error(i18n("steam.libraryCustomName.appidMissing", "未识别当前游戏 AppID"));
+      if (typeof result.app.current_custom_name !== "string") {
+        throw new TypeError(i18n("common.backgroundResponseInvalid", "后台响应格式异常"));
       }
-      const current = text(cur?.app?.current_custom_name);
-      if (!inputName && current && !(await oneConfirm(i18n("steam.libraryCustomName.overwritePrompt", "当前操作会覆盖当前自定义排序名称，是否继续？")))) {
-        return;
+      if (!text(run.baseline) && result.app.current_custom_name.trim()) {
+        if (!(await oneConfirm(i18n("steam.libraryCustomName.overwritePrompt", "当前操作会覆盖当前自定义排序名称，是否继续？")))) return;
+        if (!unchanged()) return;
+        oneBox(i18n("steam.libraryCustomName.aiGenerate", "AI生成"), i18n("steam.libraryCustomName.aiGenerating", "生成中..."), false);
       }
-      oneBox(
-        i18n("steam.libraryCustomName.fetchTitle", "获取名称"),
-        i18n("steam.libraryCustomName.fetchingShort", "正在获取..."),
-        false,
-      );
-
-      const result = await queryMap([appid]);
-      const name = text(result.names.get(appid)?.name);
-      if (!name) {
-        const status = result.statuses.get(appid) || "";
-        const message = syncStatusText(status) || i18n("steam.libraryCustomName.cloudNameMissing", "云端没有找到当前游戏名称");
-        oneBox(i18n("steam.libraryCustomName.fetchTitle", "获取名称"), message, true);
-        return;
+      log.info("library-custom-name-ai-started", "Steam 排序名称 AI 生成已开始", { appid, operationId: run.id, requestId: run.id });
+      const generated = await contentReq("ai-generate", { appid, name: result.app.official_name, operationId: run.id }, { requestId: run.id, timeoutMs: 30000, signal: run.controller.signal });
+      if (!unchanged()) return;
+      if (typeof generated.name !== "string" || !generated.name.trim() || generated.name.trim().length > 200 || /[\r\n]/.test(generated.name.trim())) {
+        throw new TypeError(i18n("steam.independentName.aiInvalidName", "AI 未返回有效的单个游戏名称，请重试。"));
       }
+      ensureOn();
+      const name = generated.name.trim();
       await backend("save-one", { appid, name });
-      setNative(input, name);
+      if (!current()) return;
+      if (String(input.value) === run.baseline || String(input.value) === name) setNative(input, name);
       closeOne();
+      log.info("library-custom-name-ai-saved", "AI 名称已保存至 Steam 自定义排序名称", { appid, operationId: run.id, requestId: run.id, durationMs: Math.round(performance.now() - run.started) });
     } catch (error) {
-      oneFail(error);
+      if (!current()) return;
+      oneFail(error, i18n("steam.libraryCustomName.aiFailed", "AI生成失败"), { operationId: run.id, requestId: run.id, phase: "ai-generate" });
     } finally {
-      setOneBusy(false);
+      if (s.aiRun === run) {
+        if (!current()) closeOne();
+        s.aiRun = null; setOneBusy(false);
+      }
     }
   }
 
@@ -2686,11 +2629,11 @@
     bar.id = BAR;
     bar.addEventListener("click", onBarClick);
     setTrustedTemplate(bar, `
-      <button class="st-lcn-btn" type="button" data-lcn-one title="${attr(cloudFetchAllowed() ? i18n("steam.libraryCustomName.fetchCloud", "获取云端名称") : cloudFetchHint())}" ${s.oneBusy || !cloudFetchAllowed() ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.fetchCloud", "获取云端名称"))}</button>
+      <button class="st-lcn-btn" type="button" data-lcn-one aria-busy="${!!s.oneBusy}" title="${attr(i18n("steam.libraryCustomName.aiGenerate", "AI生成"))}" ${s.oneBusy ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.aiGenerate", "AI生成"))}</button>
       <button class="st-lcn-btn" type="button" data-lcn-generate-mnemonic ${s.singleMnemonicBusy ? "disabled" : ""}>${esc(s.singleMnemonicBusy
         ? i18n("steam.libraryCustomName.generatingSingleMnemonic", "生成中...")
         : i18n("steam.libraryCustomName.generateSingleMnemonic", "生成助记符"))}</button>
-      <button class="st-lcn-btn" type="button" data-lcn-batch>${esc(i18n("steam.libraryCustomName.batchEdit", "批量修改名称"))}</button>
+      <button class="st-lcn-btn" type="button" data-lcn-batch>${esc(i18n("steam.libraryCustomName.batchEdit", "批量设置"))}</button>
 
     `, "library-custom-name-toolbar-template");
 
@@ -2708,7 +2651,7 @@
     event.preventDefault();
     event.stopPropagation();
     if (one) {
-      fillOne().catch((error) => oneFail(error));
+      void generateOneName();
       return;
     }
     if (mnemonicBtn) {
@@ -2833,6 +2776,7 @@
   }
 
   function onPropertySurface(surface) {
+    if (s.aiRun && (surface.input !== s.aiRun.input || !surface.active || propertyAppid(surface.input) !== s.aiRun.appid)) dismissOne();
     s.propertySurface = surface;
     tick(surface);
   }
@@ -2919,141 +2863,336 @@
     }
     return `
       <tr class="st-lcn-virtual-spacer" data-lcn-virtual-spacer="${attr(position)}" data-lcn-virtual-size="${attr(height)}" aria-hidden="true">
-        <td colspan="4"></td>
+        <td colspan="5"></td>
       </tr>
     `;
+  }
+
+  function columnTitle(id) {
+    const keys = { official: "steamOriginalName", current: "currentName", sort: "customSortName" };
+    return id === "appid" ? "AppID" : i18n(`steam.libraryCustomName.${keys[id]}`, TABLE.columns.find(column => column.id === id).title);
+  }
+
+  function tableColgroup() {
+    return `<colgroup data-lin-colgroup><col style="width:40px">${batch.tablePrefs.order.map(id => `<col data-lin-col="${id}" style="width:var(--st-lin-col-${id})">`).join("")}</colgroup>`;
+  }
+
+  function tableHeaders() {
+    const view = activeRows();
+    const selected = view.length && batch.viewSelected === view.length;
+    const disabled = !batch.tableReady || batch.busy || batch.saving || batch.selecting;
+    batch.headerLocked = disabled;
+    return `<th scope="col"><input type="checkbox" data-lcn-select-all aria-label="${attr(i18n("common.selectAll", "全选"))}" ${selected ? "checked" : ""} ${batch.busy || batch.saving || batch.selecting ? "disabled" : ""}></th>` + batch.tablePrefs.order.map(id => {
+      const title = columnTitle(id);
+      const sort = batch.tablePrefs.sort;
+      const direction = sort?.id === id ? ` aria-sort="${sort.direction === "asc" ? "ascending" : "descending"}"` : "";
+      const label = i18n("steam.independentName.table.sortCycle", "$name$：点击循环升序、降序、不排序", { name: title });
+      return `<th scope="col" data-lin-col="${id}"${direction}><div class="st-lin-column-header"><button type="button" ${disabled ? "disabled" : ""} data-lin-col-sort="${id}" title="${attr(i18n("steam.independentName.table.headerHint", "点击排序；拖动更换列位置；Alt + 左右键移动列"))}"><span>${esc(title)}</span></button><span data-lin-sort-mark><button type="button" ${disabled ? "disabled" : ""} data-lin-sort-toggle="${id}" aria-label="${attr(label)}" title="${attr(label)}"><svg viewBox="224 0 576 1024" aria-hidden="true" focusable="false"><path data-lin-sort-indicator="asc" fill="currentColor" d="${window.STNameTable.icons.sort.asc}"></path><path data-lin-sort-indicator="desc" fill="currentColor" d="${window.STNameTable.icons.sort.desc}"></path></svg></button></span></div><span data-lin-col-resize="${id}" tabindex="${disabled ? -1 : 0}" aria-disabled="${disabled}" role="separator" aria-orientation="vertical" aria-label="${attr(i18n("steam.independentName.table.resizeColumn", "调整 $name$ 列宽", { name: title }))}"></span></th>`;
+    }).join("");
   }
 
   function virtualRowHtml(row) {
-    const official = text(row.official);
-    const current = currentName(row);
-    return `
-      <tr data-appid="${attr(row.appid)}" class="st-lcn-data-row ${row.state === "success" ? "ok" : row.state === "failed" ? "fail" : ""}">
-        <td><input type="checkbox" data-lcn-check="${attr(row.appid)}" ${row.checked ? "checked" : ""} ${batch.saving || batch.busy || batch.selecting ? "disabled" : ""}></td>
-        <td class="st-lcn-name-cell" title="${attr(official)}"><span class="st-lcn-cell-text">${esc(official)}</span><span class="st-lcn-appid">${esc(row.appid)}</span></td>
-        <td class="st-lcn-name-cell" data-lcn-current-name title="${attr(current)}"><span class="st-lcn-cell-text">${esc(current)}</span></td>
-        <td><input class="st-lcn-input" data-lcn-name="${attr(row.appid)}" value="${attr(row.want)}" ${batch.saving || batch.busy || batch.selecting ? "disabled" : ""}></td>
-      </tr>
-    `;
+    const cells = {
+      appid: `<td data-lin-col="appid"><span>${row.appid}</span></td>`,
+      official: `<td data-lin-col="official" class="st-lcn-name-cell" title="${attr(row.official)}"><span class="st-lcn-cell-text">${esc(row.official)}</span></td>`,
+      current: `<td data-lin-col="current" class="st-lcn-name-cell" data-lcn-current-name title="${attr(currentName(row))}"><span class="st-lcn-cell-text">${esc(currentName(row))}</span></td>`,
+      sort: `<td data-lin-col="sort"><input class="st-lcn-input" data-lcn-name="${row.appid}" aria-label="${row.appid} ${attr(columnTitle("sort"))}" value="${attr(row.want)}" ${batch.saving || batch.busy || batch.selecting ? "disabled" : ""}>${row.error ? `<small class="st-lcn-row-error">${esc(row.error)}</small>` : ""}</td>`,
+    };
+    return `<tr data-appid="${row.appid}" class="st-lcn-data-row ${row.state === "success" ? "ok" : row.state === "failed" ? "fail" : ""}"><td><input type="checkbox" data-lcn-check="${row.appid}" aria-label="${attr(i18n("common.select", "选择"))} ${row.appid}" ${row.checked ? "checked" : ""} ${batch.saving || batch.busy || batch.selecting ? "disabled" : ""}></td>${batch.tablePrefs.order.map(id => cells[id]).join("")}</tr>`;
   }
 
   function virtualRowsHtml(rows, range) {
-    return `
-      ${virtualSpacerHtml("before", range.before)}
-      ${visibleRows(rows, range).map(virtualRowHtml).join("")}
-      ${virtualSpacerHtml("after", range.after)}
-    `;
+    return `${virtualSpacerHtml("before", range.before)}${visibleRows(rows, range).map(virtualRowHtml).join("")}${virtualSpacerHtml("after", range.after)}`;
   }
 
   function rowsHtml() {
-    if (!batch.rows.length) {
-      return `<div class="st-lcn-empty">${esc(batch.loadingLocal
-        ? i18n("steam.libraryCustomName.localListLoading", "正在加载本地库列表...")
-        : i18n("steam.libraryCustomName.localListEmpty", "暂无本地列表数据"))}</div>`;
-    }
     const rows = activeRows();
     const range = virtualRange(rows);
-    const locked = batch.busy || batch.saving || batch.selecting;
-    const filterbar = `
-      <div class="st-lcn-selectbar">
-        <div class="st-lcn-select-actions">
-          <button class="st-lcn-inline-btn" type="button" data-lcn-select="all" ${locked || !rows.length ? "disabled" : ""}>${esc(i18n("common.selectAll", "全选"))}</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-select="invert" ${locked || !rows.length ? "disabled" : ""}>${esc(i18n("common.invertSelection", "反选"))}</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-select="none" ${locked || !rows.length ? "disabled" : ""}>${esc(i18n("common.clearSelection", "取消全选"))}</button>
-          <span class="st-lcn-selected-count" data-lcn-selected-count>${esc(selectedCountText())}</span>
-        </div>
-        <div class="st-lcn-filter-actions">
-          <button class="st-lcn-inline-btn" type="button" data-lcn-action="import" ${locked || !batch.localRows.length ? "disabled" : ""}>${esc(i18n("common.import", "导入"))}</button>
-          <button class="st-lcn-inline-btn" type="button" data-lcn-action="export" ${locked || !batch.localRows.length ? "disabled" : ""}>${esc(i18n("common.export", "导出"))}</button>
-          <input class="st-lcn-file" type="file" data-lcn-import-file accept=".json,application/json">
-          <input class="st-lcn-search" type="search" data-lcn-search value="${attr(batch.searchQuery)}" placeholder="${attr(i18n("steam.libraryCustomName.searchPlaceholder", "搜索游戏 / AppID / 待写入名"))}" ${batch.saving ? "disabled" : ""}>
-        </div>
-      </div>
-    `;
-    if (!rows.length) {
-      return `
-        ${filterbar}
-        <div class="st-lcn-empty">${esc(batch.searching
-          ? i18n("common.searching", "正在搜索...")
-          : i18n("steam.libraryCustomName.noMatches", "没有匹配的游戏"))}</div>
-      `;
-    }
-    return `
-      ${filterbar}
-      <div class="st-lcn-table-wrap">
-        <table aria-rowcount="${attr(rows.length)}">
-          <colgroup>
-            <col class="st-lcn-col-select">
-            <col class="st-lcn-col-official">
-            <col class="st-lcn-col-current">
-            <col class="st-lcn-col-custom">
-          </colgroup>
-          <thead>
-            <tr>
-              <th>${esc(i18n("common.select", "选择"))}</th>
-              <th>${esc(i18n("steam.libraryCustomName.steamOriginalName", "Steam 原名"))}</th>
-              <th>${esc(i18n("steam.libraryCustomName.currentName", "当前名称"))}</th>
-              <th>${esc(i18n("steam.libraryCustomName.customSortName", "自定义排序名称"))}</th>
-            </tr>
-          </thead>
-          <tbody data-lcn-virtual-body>${virtualRowsHtml(rows, range)}</tbody>
-        </table>
-      </div>
-    `;
+    const empty = batch.loadingLocal ? i18n("steam.libraryCustomName.localListLoading", "正在加载本地库列表...") : batch.localRows.length ? i18n("steam.libraryCustomName.noMatches", "没有匹配的游戏") : i18n("steam.libraryCustomName.localListEmpty", "暂无本地列表数据");
+    return `<div class="st-lin-cols"><table>${tableColgroup()}<thead><tr data-lin-header>${tableHeaders()}</tr></thead></table></div><div class="st-lcn-table-wrap" data-lin-scroll tabindex="0" role="region" aria-label="${attr(i18n("steam.libraryCustomName.batchTitle", "Steam Buff · 批量设置自定义排序名称"))}"><table aria-rowcount="${rows.length}">${tableColgroup()}<tbody data-lcn-virtual-body>${virtualRowsHtml(rows, range)}</tbody></table>${!rows.length ? `<div class="st-lcn-empty">${esc(empty)}</div>` : ""}</div>`;
+  }
+
+  function batchActionsHtml() {
+    const locked=batch.busy||batch.saving||batch.selecting;activeRows();
+    const selected=batch.viewSelected>0, mnemonicCount=batch.mnemonicEligibleCount;
+    const action=(key,label,disabled=locked)=>'<button class="st-lcn-btn st-lin-btn" type="button" data-lcn-action="'+key+'" '+(disabled?'disabled':'')+'>'+esc(label)+'</button>';
+    const bulk=(key,fallback)=>bulkText(key,fallback);
+    return window.SteamBuff.nameBatch.actionGroupsHtml([
+      ['add',action('edit-sort',i18n('steam.libraryCustomName.editSortNames','修改自定义排序名称'),locked||!selected)+action('add-mnemonic',bulk('mnemonic','添加助记符'),locked||!mnemonicCount)],
+      ['generate',action('query',i18n('steam.independentName.fetchCommunity','获取社区名称'),locked||!canQueryCloud())+action('mnemonic',bulk('generate-mnemonic','生成助记符'),locked||!mnemonicCount)],
+      ['clear',action('clear-selected',bulk('clear-name','清空名称'),locked||!batch.selectedCount)+action('clear-mnemonic',bulk('clear-mnemonic','清空助记符'),locked||!batch.mnemonicPresentCount)],
+      ['selection',[['all','common.selectAll','全选'],['invert','common.invertSelection','反选'],['none','common.clearSelection','取消全选']].map(([value,key,label])=>'<button class="st-lcn-btn st-lin-btn" type="button" data-lcn-select="'+value+'" '+(locked?'disabled':'')+'>'+esc(i18n(key,label))+'</button>').join('')],
+      ['other',action('import',i18n('common.import','导入'),locked||!batch.localRows.length)+action('export',i18n('common.export','导出'),locked||!batch.localRows.length)]
+    ],esc,i18n);
   }
 
   function modalHtml() {
-    const write = batch.writeCount;
     const locked = batch.busy || batch.saving || batch.selecting;
-    const queryDisabled = locked || !canQueryCloud();
-    const mnemonic = mnemonicAction();
-    const mnemonicDisabled = locked || !mnemonic.count;
-    return `
-      <div class="st-lcn-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-modal-title">
-        <div class="st-lcn-head">
-          <h2 id="st-lcn-modal-title">${esc(i18n("steam.libraryCustomName.batchTitle", "批量修改名称"))}</h2>
-          <button class="st-lcn-close" type="button" data-lcn-close aria-label="${attr(i18n("common.close", "关闭"))}" title="${attr(i18n("common.close", "关闭"))}">&times;</button>
-        </div>
-        <div class="st-lcn-body">
-          <div class="st-lcn-controls">
-            <fieldset>
-              <legend>${esc(i18n("steam.libraryCustomName.mode", "模式"))}</legend>
-              <label><input type="radio" name="st-lcn-policy" value="cover" ${batch.policy === "cover" ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.policyCover", "全部覆盖"))}</label>
-              <label><input type="radio" name="st-lcn-policy" value="hide" ${batch.policy === "hide" ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.policyHide", "隐藏已有"))}</label>
-              <label><input type="radio" name="st-lcn-policy" value="skip" ${batch.policy === "skip" ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.policySkip", "跳过已有"))}</label>
-              <label><input type="radio" name="st-lcn-policy" value="current-custom" ${isCurrentCustomPolicy() ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.policyCurrentCustom", "当前自定义写入待写"))}</label>
-            </fieldset>
-            <fieldset>
-              <legend>${esc(i18n("steam.libraryCustomName.typeScope", "类型范围"))}</legend>
-              <label><input type="checkbox" data-lcn-type="game" ${batch.types.game ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.typeGame", "游戏"))}</label>
-              <label><input type="checkbox" data-lcn-type="software" ${batch.types.software ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.typeSoftware", "软件"))}</label>
-              <label><input type="checkbox" data-lcn-type="tool" ${batch.types.tool ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.typeTool", "工具"))}</label>
-              <label><input type="checkbox" data-lcn-type="other" ${batch.types.other ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.typeOther", "其他"))}</label>
-            </fieldset>
-          </div>
-          <div class="st-lcn-msg">${messageHtml()}</div>
-          <div class="st-lcn-actions">
-            <button class="st-lcn-btn" type="button" data-lcn-action="query" title="${attr(cloudFetchHint())}" ${queryDisabled ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.fetchCloud", "获取云端名称"))}</button>
-            <button class="st-lcn-btn" type="button" data-lcn-action="mnemonic" ${mnemonicDisabled ? "disabled" : ""}>${esc(mnemonic.on ? i18n("steam.libraryCustomName.generateMnemonic", "生成助记符") : i18n("steam.libraryCustomName.cancelMnemonic", "取消助记符"))}</button>
-            <button class="st-lcn-btn primary" type="button" data-lcn-action="save" ${locked || !write ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.saveChanges", "保存修改"))}</button>
-            <button class="st-lcn-btn danger" type="button" data-lcn-action="clear-selected" ${locked || !batch.selectedCount ? "disabled" : ""}>${esc(i18n("steam.libraryCustomName.clearSelectedNames", "清空已选名称"))}</button>
+    const resetLabel = i18n("steam.independentName.table.reset", "恢复默认表格"), closeLabel = i18n("common.close", "关闭");
+    const reset = '<svg viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true" focusable="false">' + window.STNameTable.icons.reset.map(path => '<path d="' + path + '"></path>').join('') + '</svg>';
+    const toolbar = window.SteamBuff.nameBatch.toolbarHtml({ esc:attr,i18n,saveAttr:'data-lcn-action="save"',saveDisabled:locked || !batch.writeCount,
+      selectedAttr:'data-lcn-selected-count',selectedText:selectedCountText(),actionsAttr:'data-lcn-action="menu" data-lin-actions-toggle',
+      menuId:MODAL+'Actions',menuAttr:'data-lcn-menu data-lin-actions-menu',menuHtml:batchActionsHtml(),locked,
+      searchAttr:'data-lcn-search',searchValue:batch.searchQuery,searchLabel:i18n("steam.libraryCustomName.searchPlaceholder","搜索名称 / AppID / 排序名称"),
+      searchDisabled:batch.saving || batch.loadingLocal || !batch.localRows.length,fileAttr:'data-lcn-import-file' });
+    return `<div class="st-lcn-panel st-lin-dialog" role="dialog" aria-labelledby="st-lcn-modal-title">
+      <header class="st-lcn-head"><h2 id="st-lcn-modal-title">${esc(i18n("steam.libraryCustomName.batchTitle", "Steam Buff · 批量设置自定义排序名称"))}</h2><div class="st-lcn-window-actions"><button class="st-lcn-close" type="button" data-lcn-table-reset aria-label="${attr(resetLabel)}" title="${attr(resetLabel)}" ${!window.SteamBuff.nameTable ? "disabled" : ""}>${reset}</button><button class="st-lcn-close" type="button" data-lcn-close aria-label="${attr(closeLabel)}" title="${attr(closeLabel)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M2.5 2.5l19 19M21.5 2.5l-19 19"></path></svg></button></div></header>
+      <div class="st-lcn-body"><div class="st-lin-top">${filterUI().shellHtml()}<div class="st-lcn-msg st-lin-msg st-lin-filter-stats" role="status">${messageHtml()}</div>${toolbar}<p class="st-lcn-table-notice" data-lcn-table-notice role="status" ${batch.tableMessage ? "" : "hidden"}>${esc(batch.tableMessage)}</p></div>${rowsHtml()}</div></div>`;
+  }
 
-          </div>
-          ${rowsHtml()}
-        </div>
-      </div>
-    `;
+  function tableNotice(message) {
+    batch.tableMessage = message;
+    const node = batch.element?.querySelector("[data-lcn-table-notice]");
+    if (node) { node.textContent = message; node.hidden = !message; }
+  }
+
+  function saveTablePrefs() {
+    batch.prefsQueued = TABLE.parse(batch.tablePrefs);
+    if (batch.prefsSaving) return;
+    batch.prefsSaving = (async () => {
+      while (batch.prefsQueued) {
+        const value = batch.prefsQueued;
+        batch.prefsQueued = null;
+        const operationId = `steam-name-table-${rid()}`;
+        try {
+          await contentReq("table-settings-save", { value, operationId });
+          tableNotice("");
+          log.info("steam-name-table-saved", "Steam 名称表格展示配置已保存至本地", { operationId, columns: value.order.length });
+        } catch (error) {
+          if (!s.started || s.stopping) { batch.prefsQueued = null; return; }
+          const detail = error.message;
+          tableNotice(i18n("steam.independentName.table.saveFailed", "表格设置未能保存：$error$", { error: detail }));
+          log.error("steam-name-table-save-failed", "Steam 名称表格展示配置保存失败", { error, operationId });
+        }
+      }
+    })().finally(() => { batch.prefsSaving = null; });
+  }
+
+  async function resizeBatchWindow() {
+    const windowSeq = batch.windowSeq, host = batch.host;
+    try {
+      await host.resize(batch.tablePrefs.dialogWidth, batch.tablePrefs.dialogHeight);
+    } catch (error) {
+      if (windowSeq !== batch.windowSeq || host !== batch.host) return;
+      log.error("steam-name-window-resize-failed", "调整 Steam 批量窗口大小失败", { error });
+      tableNotice(i18n("steam.libraryCustomName.windowResizeFailed", "调整窗口大小失败，请重试。"));
+    }
+  }
+
+  function attachTable(modal) {
+    batch.tableControl?.stop();
+    batch.tableControl = null;
+    if (!batch.tableReady || !batch.host?.ready()) return;
+    batch.tableControl = window.SteamBuff.nameTable.create({
+      root: modal, model: TABLE, prefs: batch.tablePrefs,
+      enabled: () => !batch.busy && !batch.saving && !batch.selecting && !batch.bulk,
+      onChange(value) { batch.tablePrefs = value; saveTablePrefs(); },
+      onSort(id) {
+        batch.tablePrefs.sort = window.STNameTable.nextSort(batch.tablePrefs.sort, id);
+        batch.viewRows = null;
+        resetVirtualScroll(); renderModal(); saveTablePrefs();
+      },
+      reportError(error) {
+        tableNotice(error.message);
+        log.error("steam-name-table-gesture-failed", "Steam 名称表格交互失败", { error });
+      },
+    });
+  }
+
+  function closeBatchMenu() { batch.filterView?.closeFilterPicker(false); }
+
+  function toggleBatchMenu(button) {
+    filterUI().toggleFilterPicker(button, batch.element.querySelector("[data-lcn-menu]"), "button:not(:disabled)");
+  }
+
+  function bulkText(key, fallback, params) {
+    return i18n(`steam.independentName.bulk.${key}`, fallback, params);
+  }
+
+  function closeBulkEditor(force = false) {
+    const bulk = batch.bulk;
+    if (!bulk || (bulk.applying && !force)) return;
+    batch.bulk = null; bulk.revision++; clearTimeout(bulk.timer);
+    if (bulk.dialog.open) bulk.dialog.close();
+    bulk.dialog.remove();
+    if (batch.host?.ready()) focusElement(batch.element.querySelector('[data-lcn-action="menu"]'));
+  }
+
+  function bulkParameters() {
+    const bulk = batch.bulk;
+    const params = bulk.params[bulk.tab];
+    const labels = { find: ["find", "查找关键词"], value: [bulk.tab === "replace" ? "replacement" : "value", bulk.tab === "replace" ? "替换为" : "新增内容"], start: ["start", "起始序号"], prefix: ["prefix", "前缀"], suffix: ["suffix", "后缀"] };
+    const field = key => `<label><span>${esc(bulk.kind === "mnemonic" ? i18n("steam.independentName.colMnemonic", "助记符") : bulkText(...labels[key]))}</span><input data-lcn-bulk-param="${key}" ${key === "start" ? 'type="number" min="1" step="1"' : 'type="text"'} value="${attr(params[key])}"></label>`;
+    const select = (key, options) => `<label><span>${esc(bulkText(key === "position" ? "position" : key === "insertType" ? "insertType" : "type", key === "position" ? "新增位置" : key === "insertType" ? "新增类型" : "序号类型"))}</span><select data-lcn-bulk-param="${key}">${options.map(([value, label]) => `<option value="${value}" ${params[key] === value ? "selected" : ""}>${esc(bulkText(value, label))}</option>`).join("")}</select></label>`;
+    const numbering = () => select("type", [["number", "数字"], ["chinese", "中文数字"], ["lower", "英文小写"], ["upper", "英文大写"]]) + field("start") + field("prefix") + field("suffix");
+    const html = bulk.kind === "mnemonic" ? field("value") : bulk.tab === "replace" ? field("find") + field("value") : bulk.tab === "sequence" ? numbering() : bulk.tab === "insert" ? select("insertType", [["text", "文本"], ["sequence", "序号格式"]]) + select("position", [["before", "名称前"], ["after", "名称后"]]) + (params.insertType === "text" ? field("value") : numbering()) : "";
+    setTrustedTemplate(bulk.dialog.querySelector("[data-lcn-bulk-params]"), html, "steam-sort-bulk-params");
+    for (const tab of bulk.dialog.querySelectorAll("[data-lcn-bulk-tab]")) {
+      const selected = tab.dataset.lcnBulkTab === bulk.tab;
+      tab.setAttribute("aria-selected", String(selected)); tab.tabIndex = selected ? 0 : -1;
+    }
+    if (bulk.kind !== "mnemonic") bulk.dialog.querySelector("[data-lcn-bulk-panel]").setAttribute("aria-labelledby", `${MODAL}BulkTab-${bulk.tab}`);
+  }
+
+  function openBulkEditor(kind = "sort") {
+    if (batch.busy || batch.saving || batch.selecting || batch.bulk || !window.STNameEdit) return;
+    const rows = activeRows().filter(row => row.checked && (kind !== "mnemonic" || text(row.want)));
+    if (!rows.length) return;
+    closeBatchMenu();
+    const doc = batch.element.ownerDocument, dialog = doc.createElement("dialog");
+    dialog.className = "st-lcn-bulk";
+    dialog.setAttribute("aria-labelledby", `${MODAL}BulkTitle`);
+    const bulk = {
+      dialog, kind, tab: kind === "mnemonic" ? "value" : "replace", useOriginal: false, manual: new Map(), preview: [], revision: 0, running: false, timer: 0,
+      rows: rows.map(row => ({ row, before: row.want, appid: row.appid, official: row.official })),
+      params: { replace: { find: "", value: "" }, sequence: { type: "number", start: "1", prefix: "", suffix: "" }, insert: { insertType: "text", position: "before", value: "", type: "number", start: "1", prefix: "", suffix: "" }, manual: {}, value: { value: "" } },
+      virtual: VIRTUAL_LIST.createVirtualWindow({ rowHeight: 80, viewportHeight: 320, overscan: 4 }),
+    };
+    batch.bulk = bulk;
+    const tabs = kind === "mnemonic" ? [] : [["replace", "查找替换"], ["sequence", "序号格式"], ["insert", "新增内容"], ["manual", "手动编辑"]];
+    setTrustedTemplate(dialog, `<header><h3 id="${MODAL}BulkTitle">${esc(kind === "mnemonic" ? bulkText("mnemonic", "添加助记符") : i18n("steam.libraryCustomName.editSortNames", "修改自定义排序名称"))}</h3><button type="button" class="st-lcn-btn" data-lcn-bulk-cancel>${esc(i18n("common.close", "关闭"))}</button></header><div role="tablist" class="st-lcn-bulk-tabs" ${kind === "mnemonic" ? "hidden" : ""}>${tabs.map(([id, title]) => `<button type="button" class="st-lcn-btn" role="tab" id="${MODAL}BulkTab-${id}" aria-controls="${MODAL}BulkPanel" data-lcn-bulk-tab="${id}">${esc(bulkText(id, title))}</button>`).join("")}</div><section id="${MODAL}BulkPanel" data-lcn-bulk-panel ${kind === "mnemonic" ? "" : 'role="tabpanel"'}><div class="st-lcn-bulk-params" data-lcn-bulk-params></div><label class="st-lcn-bulk-original" ${kind === "mnemonic" ? "hidden" : ""}><input type="checkbox" data-lcn-bulk-original>${esc(i18n("steam.libraryCustomName.sortUseOriginal", "待写入排序名称为空时使用 Steam 原名称"))}</label><div class="st-lcn-bulk-columns"><span>AppID · ${esc(columnTitle("official"))}</span><span>${esc(bulkText("old", "修改前"))}</span><span>${esc(bulkText("next", "修改后"))}</span></div><div class="st-lcn-bulk-scroll" data-lcn-bulk-scroll><div data-lcn-bulk-rows></div></div></section><p role="status" data-lcn-bulk-status></p><footer><button type="button" class="st-lcn-btn" data-lcn-bulk-cancel>${esc(i18n("common.cancel", "取消"))}</button><button type="button" class="st-lcn-btn primary" data-lcn-bulk-apply disabled>${esc(bulkText("apply", "应用修改"))}</button></footer>`, "steam-sort-bulk-editor");
+    batch.element.appendChild(dialog);
+    dialog.addEventListener("cancel", event => { event.preventDefault(); closeBulkEditor(); });
+    dialog.addEventListener("click", onBulkClick);
+    dialog.addEventListener("input", onBulkInput); dialog.addEventListener("change", onBulkInput);
+    dialog.addEventListener("compositionstart", () => { bulk.composing = true; bulk.revision++; clearTimeout(bulk.timer); bulk.dialog.querySelector("[data-lcn-bulk-apply]").disabled = true; });
+    dialog.addEventListener("compositionend", event => { bulk.composing = false; onBulkInput(event); });
+    dialog.addEventListener("keydown", event => {
+      const tab = event.target.closest("[data-lcn-bulk-tab]");
+      if (!tab || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const index = tabs.findIndex(([id]) => id === bulk.tab);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+      bulk.tab = tabs[next][0]; bulkParameters(); scheduleBulkPreview();
+      dialog.querySelector(`[data-lcn-bulk-tab="${bulk.tab}"]`).focus();
+    });
+    dialog.querySelector("[data-lcn-bulk-scroll]").addEventListener("scroll", () => { if (!bulk.composing) renderBulkRows(bulk); }, { passive: true });
+    bulkParameters(); dialog.showModal(); scheduleBulkPreview();
+  }
+
+  function renderBulkRows(bulk) {
+    if (batch.bulk !== bulk) return;
+    const scroll = bulk.dialog.querySelector("[data-lcn-bulk-scroll]");
+    bulk.virtual.update({ scrollTop: scroll.scrollTop, viewportHeight: scroll.clientHeight || 320 });
+    const range = bulk.virtual.range(bulk.preview.length);
+    const active = bulk.dialog.ownerDocument.activeElement;
+    const key = active?.dataset.lcnBulkManual;
+    const selection = key ? [active.selectionStart, active.selectionEnd] : null;
+    setTrustedTemplate(bulk.dialog.querySelector("[data-lcn-bulk-rows]"), `<div style="height:${range.before}px"></div>${bulk.preview.slice(range.start, range.end).map(item => `<div class="st-lcn-bulk-row" ${item.changed ? 'data-changed="true"' : ""}><span><b>${item.appid}</b><small title="${attr(item.official)}">${esc(item.official)}</small></span><span title="${attr(item.before)}">${esc(item.before || bulkText("unset", "未设置"))}</span><span>${bulk.tab === "manual" ? `<input data-lcn-bulk-manual="${item.appid}" value="${attr(bulk.manual.has(item.appid) ? bulk.manual.get(item.appid) : item.source)}" aria-label="${item.appid} ${attr(bulkText("next", "修改后"))}">` : `<span title="${attr(item.next)}">${esc(item.next || bulkText("unset", "未设置"))}</span>`}<small class="st-lcn-row-error">${esc(item.error)}</small></span></div>`).join("")}<div style="height:${range.after}px"></div>`, "steam-sort-bulk-preview");
+    if (key) {
+      const next = bulk.dialog.querySelector(`[data-lcn-bulk-manual="${key}"]`);
+      if (next) { next.focus({ preventScroll: true }); next.setSelectionRange(...selection); }
+    }
+  }
+
+  function scheduleBulkPreview() {
+    const bulk = batch.bulk;
+    if (!bulk) return;
+    clearTimeout(bulk.timer); const revision = ++bulk.revision;
+    bulk.running = true; bulk.dialog.querySelector("[data-lcn-bulk-apply]").disabled = true;
+    bulk.dialog.querySelector("[data-lcn-bulk-status]").textContent = bulkText("calculating", "正在计算预览…");
+    bulk.timer = window.setTimeout(() => { void previewBulk(bulk, revision); }, 180);
+  }
+
+  async function previewBulk(bulk, revision) {
+    try {
+      const params = bulk.params[bulk.tab];
+      if (bulk.kind === "mnemonic" && params.value.trim() && !/^[A-Za-z0-9]+$/.test(params.value.trim())) throw new RangeError(i18n("steam.libraryCustomName.invalidMnemonic", "助记符只能包含英文字母和数字。"));
+      const numbered = bulk.tab === "sequence" || (bulk.tab === "insert" && params.insertType === "sequence");
+      if (numbered && (!Number.isSafeInteger(Number(params.start)) || Number(params.start) < 1 || !Number.isSafeInteger(Number(params.start) + bulk.rows.length - 1))) throw new RangeError(bulkText("invalidSequence", "起始序号必须是正整数，且整个序号范围不能超出精确整数范围。"));
+      const preview = []; let changed = 0, invalid = 0;
+      for (let index = 0; index < bulk.rows.length; index++) {
+        if (batch.bulk !== bulk || revision !== bulk.revision || bulk.composing) return;
+        const row = bulk.rows[index], source = row.before || (bulk.useOriginal ? row.official : "");
+        const transformed = bulk.kind === "mnemonic" ? (params.value.trim() ? window.SteamBuff.libraryCustomNameMnemonic.setMnemonic(source,params.value) : undefined) : window.STNameEdit.transform({ source, tab: bulk.tab, params, index, manual: bulk.manual.get(row.appid) });
+        const next = transformed === undefined ? row.before : text(transformed);
+        const error = next !== row.before && !next ? i18n("steam.libraryCustomName.sortClearUseAction", "清空名称请使用“清空已选自定义排序名称”操作。") : "";
+        preview.push({ ...row, source, next, changed: next !== row.before, error });
+        if (next !== row.before) changed++; if (error) invalid++;
+        if (index && index % SELECTION_SCAN_YIELD === 0) await yieldUI();
+      }
+      if (batch.bulk !== bulk || revision !== bulk.revision) return;
+      bulk.preview = preview; bulk.running = false;
+      bulk.dialog.querySelector("[data-lcn-bulk-status]").textContent = bulkText("summary", "已选 $total$ 款 · 修改 $changed$ 款 · 无变化 $unchanged$ 款 · 无效 $invalid$ 款", { total: preview.length, changed, unchanged: preview.length - changed, invalid });
+      bulk.dialog.querySelector("[data-lcn-bulk-apply]").disabled = !changed || invalid > 0;
+      renderBulkRows(bulk);
+    } catch (error) {
+      if (batch.bulk !== bulk || revision !== bulk.revision) return;
+      bulk.running = false; bulk.dialog.querySelector("[data-lcn-bulk-status]").textContent = error.message;
+      if (!(error instanceof RangeError)) log.error("steam-sort-bulk-preview-failed", "预览排序名称批量修改失败", { error });
+    }
+  }
+
+  function onBulkInput(event) {
+    const bulk = batch.bulk;
+    if (!bulk || bulk.composing || event.isComposing) return;
+    const field = event.target;
+    if (field.matches("[data-lcn-bulk-param]")) {
+      if (bulk.params[bulk.tab][field.dataset.lcnBulkParam] === field.value) return;
+      bulk.params[bulk.tab][field.dataset.lcnBulkParam] = field.value;
+      if (field.dataset.lcnBulkParam === "insertType") { bulkParameters(); bulk.dialog.querySelector('[data-lcn-bulk-param="insertType"]').focus(); }
+    } else if (field.matches("[data-lcn-bulk-original]")) {
+      if (bulk.useOriginal === field.checked) return;
+      bulk.useOriginal = field.checked;
+    } else if (field.matches("[data-lcn-bulk-manual]")) {
+      const appid = Number(field.dataset.lcnBulkManual);
+      if (bulk.manual.has(appid) && bulk.manual.get(appid) === field.value) return;
+      bulk.manual.set(appid, field.value);
+    }
+    else return;
+    scheduleBulkPreview();
+  }
+
+  async function applyBulkEditor() {
+    const bulk = batch.bulk;
+    if (!bulk || bulk.running || bulk.composing || bulk.applying) return;
+    const changed = bulk.preview.filter(item => item.changed);
+    if (!changed.length || bulk.preview.some(item => item.error)) return;
+    if (bulk.rows.some(item => batch.rowMap.get(item.appid) !== item.row || item.row.want !== item.before)) {
+      bulk.dialog.querySelector("[data-lcn-bulk-status]").textContent = bulkText("updated", "目标内容已更新，请关闭后重新打开操作窗。"); return;
+    }
+    bulk.applying = true;
+    for (const control of bulk.dialog.querySelectorAll("button,input,select")) control.disabled = true;
+    const operationId = `steam-sort-edit-${rid()}`;
+    let applied = 0;
+    for (const item of changed) {
+      if (batch.bulk !== bulk || !s.started) break;
+      const row = item.row;
+      row.want = item.next; row.manual = true; row.checked = true; row.mnemonicTouched = false; row.state = ""; row.error = "";
+      keepRowState(row);
+      applied++;
+      if (applied % SELECTION_SCAN_YIELD === 0) await yieldUI();
+    }
+    bulk.applying = false;
+    if (!s.started || s.stopping) return;
+    refreshCounts(); setMessage(previewMessage(), "preview");
+    if (batch.bulk === bulk) { closeBulkEditor(); renderModal(); }
+    log[applied === changed.length ? "info" : "warn"]("steam-sort-bulk-draft-applied", "排序名称批量修改已应用至待保存草稿", { operationId, operation: bulk.kind, selected: bulk.rows.length, changed: applied, cancelled: applied !== changed.length });
+  }
+
+  function onBulkClick(event) {
+    if (event.target.closest("[data-lcn-bulk-cancel]")) { closeBulkEditor(); return; }
+    const tab = event.target.closest("[data-lcn-bulk-tab]");
+    if (tab) { batch.bulk.tab = tab.dataset.lcnBulkTab; bulkParameters(); scheduleBulkPreview(); return; }
+    if (event.target.closest("[data-lcn-bulk-apply]")) void applyBulkEditor().catch(error => {
+      if (batch.bulk) {
+        batch.bulk.applying = false;
+        for (const control of batch.bulk.dialog.querySelectorAll("button,input,select")) control.disabled = false;
+        batch.bulk.dialog.querySelector("[data-lcn-bulk-status]").textContent = error.message;
+      }
+      log.error("steam-sort-bulk-apply-failed", "应用排序名称批量修改失败", { error });
+    });
   }
 
   function renderModal(options = {}) {
-    const modal = document.getElementById(MODAL);
+    const modal = batch.element;
     if (modal) {
       const table = modal.querySelector(".st-lcn-table-wrap");
       const tableScroll = {
         left: table ? table.scrollLeft : 0,
         top: batch.virtualScrollTop,
       };
-      const active = document.activeElement;
+      const active = dialogDocument().activeElement;
       if (batch.searchComposing && active?.matches?.("[data-lcn-search]")) {
         batch.searchQuery = String(active.value || "");
         return;
@@ -3063,7 +3202,10 @@
       const searchEnd = keepSearch ? active.selectionEnd : 0;
       const key = focusKey(modal, active);
       cancelVirtualFrame();
-      setTrustedTemplate(modal, modalHtml(), "library-custom-name-batch-modal-template");
+      batch.filterView?.closeFilterEditor();
+      closeBatchMenu();
+      batch.tableControl?.stop(); batch.tableControl = null;
+      setTrustedTemplate(modal.querySelector("[data-lcn-content]"), modalHtml(), "library-custom-name-batch-modal-template");
       if (keepSearch) {
         const next = modal.querySelector("[data-lcn-search]");
         if (next) {
@@ -3092,25 +3234,42 @@
   }
 
   function refreshMessage() {
-    const msg = document.querySelector(`#${MODAL} .st-lcn-msg`);
+    const msg = batch.element?.querySelector(".st-lcn-msg");
     if (msg) {
       setTrustedTemplate(msg, messageHtml(), "library-custom-name-status-message-template");
     }
   }
 
   function refreshSaveState() {
-    const modal = document.getElementById(MODAL);
+    const modal = batch.element;
     if (!modal) {
       return;
     }
+    const rows = activeRows();
+    const locked = batch.busy || batch.saving || batch.selecting;
+    const headerLocked = !batch.tableReady || locked;
+    if (batch.headerLocked !== headerLocked) {
+      batch.headerLocked = headerLocked;
+      for (const button of modal.querySelectorAll("[data-lin-col-sort],[data-lin-sort-toggle]")) button.disabled = headerLocked;
+      for (const handle of modal.querySelectorAll("[data-lin-col-resize]")) {
+        handle.tabIndex = headerLocked ? -1 : 0;
+        handle.setAttribute("aria-disabled", String(headerLocked));
+      }
+    }
+    const selectAll = modal.querySelector("[data-lcn-select-all]");
+    if (selectAll) {
+      selectAll.disabled = locked;
+      selectAll.checked = rows.length > 0 && batch.viewSelected === rows.length;
+      selectAll.indeterminate = batch.viewSelected > 0 && batch.viewSelected < rows.length;
+    }
+    const edit = modal.querySelector('[data-lcn-action="edit-sort"]');
+    if (edit) edit.disabled = batch.busy || batch.saving || batch.selecting || !batch.viewSelected;
+    const menu = modal.querySelector('[data-lcn-action="menu"]');
+    if (menu) menu.disabled = locked;
     refreshQueryState(canQueryCloud());
-    const mnemonicBtn = modal.querySelector("[data-lcn-action='mnemonic']");
-    if (mnemonicBtn) {
-      const mnemonic = mnemonicAction();
-      mnemonicBtn.disabled = batch.busy || batch.saving || batch.selecting || !mnemonic.count;
-      mnemonicBtn.textContent = mnemonic.on
-        ? i18n("steam.libraryCustomName.generateMnemonic", "生成助记符")
-        : i18n("steam.libraryCustomName.cancelMnemonic", "取消助记符");
+    for (const key of ['mnemonic','add-mnemonic','clear-mnemonic']) {
+      const button=modal.querySelector('[data-lcn-action="'+key+'"]');
+      if (button) button.disabled=locked||!(key==='clear-mnemonic'?batch.mnemonicPresentCount:batch.mnemonicEligibleCount);
     }
     const saveBtn = modal.querySelector("[data-lcn-action='save']");
     if (saveBtn) {
@@ -3193,15 +3352,16 @@
     if (!body) {
       return;
     }
-    const active = document.activeElement;
+    const active = dialogDocument().activeElement;
     const key = focusKey(body, active);
     const selectionStart = key && "selectionStart" in active ? active.selectionStart : null;
     const selectionEnd = key && "selectionEnd" in active ? active.selectionEnd : null;
     batch.virtualRange = nextRange;
     setTrustedTemplate(body, virtualRowsHtml(rows, nextRange), "library-custom-name-virtual-rows-template");
     applyVirtualSpacerSizes(body);
+    batch.tableControl?.update(batch.tablePrefs);
     if (key && focusByKey(body, key)) {
-      const next = document.activeElement;
+      const next = dialogDocument().activeElement;
       if (selectionStart !== null && typeof next?.setSelectionRange === "function") {
         try {
           next.setSelectionRange(selectionStart, selectionEnd);
@@ -3218,7 +3378,7 @@
     }
     batch.virtualFrame = window.requestAnimationFrame(() => {
       batch.virtualFrame = 0;
-      const current = document.querySelector(`#${MODAL} .st-lcn-table-wrap`);
+      const current = batch.element?.querySelector(".st-lcn-table-wrap");
       if (current === table) {
         renderVirtualRows(table);
       }
@@ -3243,13 +3403,13 @@
       let selectedDelta = 0;
       let writeDelta = 0;
       let mnemonicEligibleDelta = 0;
-      let mnemonicPendingDelta = 0;
+      let mnemonicPresentDelta = 0;
       for (let index = 0; index < rows.length; index += 1) {
         const row = rows[index];
         const beforeSelected = !!row.checked;
         const beforeWrite = canWrite(row);
         const beforeMnemonicEligible = mnemonicEligible(row);
-        const beforeMnemonicPending = mnemonicPending(row);
+        const beforeMnemonicPresent = mnemonicPresent(row);
         if (mode === "all") {
           row.checked = true;
         } else if (mode === "none") {
@@ -3260,26 +3420,27 @@
         const afterSelected = !!row.checked;
         const afterWrite = canWrite(row);
         const afterMnemonicEligible = mnemonicEligible(row);
-        const afterMnemonicPending = mnemonicPending(row);
+        const afterMnemonicPresent = mnemonicPresent(row);
         selectedDelta += Number(afterSelected) - Number(beforeSelected);
         writeDelta += Number(afterWrite) - Number(beforeWrite);
         mnemonicEligibleDelta += Number(afterMnemonicEligible) - Number(beforeMnemonicEligible);
-        mnemonicPendingDelta += Number(afterMnemonicPending) - Number(beforeMnemonicPending);
+        mnemonicPresentDelta += Number(afterMnemonicPresent) - Number(beforeMnemonicPresent);
         keepRowState(row);
         if (index > 0 && index % SELECTION_SCAN_YIELD === 0) {
           await yieldUI();
         }
       }
       batch.selectedCount += selectedDelta;
+      batch.viewSelected += selectedDelta;
       batch.writeCount += writeDelta;
       batch.mnemonicEligibleCount += mnemonicEligibleDelta;
-      batch.mnemonicPendingCount += mnemonicPendingDelta;
+      batch.mnemonicPresentCount += mnemonicPresentDelta;
       refreshSkip();
       refreshStorageCapacitySoon();
-      batch.message = previewMessage();
+      setMessage(previewMessage(), "preview");
     } catch (error) {
       refreshCounts();
-      batch.message = error?.message || String(error);
+      setMessage(error?.message || String(error));
       log.error("library-custom-name-selection-failed", "库自定义名称批量选择失败", { error, mode });
     } finally {
       batch.selecting = false;
@@ -3288,7 +3449,7 @@
   }
 
   function rowVisible(row) {
-    const index = searchActive() ? Number(row?.viewIndex) : Number(row?.index);
+    const index = Number(row?.viewIndex);
     if (!Number.isFinite(index)) {
       return false;
     }
@@ -3299,7 +3460,7 @@
     if (!row || !rowVisible(row)) {
       return;
     }
-    const tr = document.querySelector(`#${MODAL} tr[data-appid="${row.appid}"]`);
+    const tr = batch.element?.querySelector(`tr[data-appid="${row.appid}"]`);
     if (!tr) {
       return;
     }
@@ -3328,13 +3489,16 @@
   }
 
   function bindModalControls(modal) {
-    modal.querySelector("[data-lcn-close]")?.addEventListener("click", onModalCloseClick);
+    const menu = modal.querySelector("[data-lcn-menu]");
+    menu?.addEventListener("toggle", () => modal.querySelector('[data-lcn-action="menu"]')?.setAttribute("aria-expanded", String(menu.matches(":popover-open"))));
     const table = modal.querySelector(".st-lcn-table-wrap");
     if (table) {
       table.addEventListener("scroll", onVirtualTableScroll, { passive: true });
       renderVirtualRows(table, true);
       applyVirtualSpacerSizes(table);
     }
+    attachTable(modal);
+    filterUI().renderFilterChips();
   }
 
   function onModalCompositionStart(event) {
@@ -3360,9 +3524,9 @@
   }
 
   function renderProgress() {
-    const modal = document.getElementById(PROGRESS);
+    const modal = batch.progressElement;
     if (modal) {
-      const key = focusKey(modal, document.activeElement);
+      const key = focusKey(modal, modal.ownerDocument.activeElement);
       setTrustedTemplate(modal, progressHtml(), "library-custom-name-progress-template");
       const fill = modal.querySelector(".st-lcn-progress-fill[data-lcn-progress-value]");
       if (fill) {
@@ -3409,17 +3573,18 @@
   }
 
   function openProgress(summary, render = true) {
-    let modal = document.getElementById(PROGRESS);
+    let modal = batch.progressElement;
     const opening = !modal || modal.hidden;
     if (opening) {
-      batch.progressRestoreFocus = document.activeElement;
+      batch.progressRestoreFocus = dialogDocument().activeElement;
       batch.progressNeedsFocus = true;
     }
     if (!modal) {
       modal = document.createElement("section");
       modal.id = PROGRESS;
+      batch.progressElement = modal;
       modal.addEventListener("click", onProgressClick);
-      document.body.appendChild(modal);
+      bringDialogToFront(modal);
     }
     bringDialogToFront(modal);
     batch.summary = !!summary;
@@ -3430,7 +3595,7 @@
   }
 
   function closeProgress() {
-    const modal = document.getElementById(PROGRESS);
+    const modal = batch.progressElement;
     const wasOpen = !!modal && !modal.hidden;
     batch.progressClosed = true;
     if (modal) {
@@ -3452,8 +3617,9 @@
     batch.saving = false;
     batch.paused = false;
     batch.waitCmd = "";
-    batch.message = i18n("steam.libraryCustomName.saveCancelled", "保存队列已取消");
+    setMessage(i18n("steam.libraryCustomName.saveCancelled", "保存队列已取消"));
     closeProgress();
+    renderModal();
     if (hadSaving) {
       backend("cancel").catch((error) => {
         log.error("library-custom-name-command-failed", "库自定义名称保存队列取消命令失败", {
@@ -3497,13 +3663,13 @@
 
   function refreshLive(row) {
     refreshSkip();
-    const modal = document.getElementById(MODAL);
+    const modal = batch.element;
     if (!modal) {
       return;
     }
     refreshSaveState();
     if (!batch.busy && !batch.saving && batch.rows.length) {
-      batch.message = previewMessage();
+      setMessage(previewMessage(), "preview");
       refreshMessage();
     }
     const selected = modal.querySelector("[data-lcn-selected-count]");
@@ -3517,69 +3683,150 @@
     }
   }
 
+  function createBatchHost(trigger) {
+    const geometry = () => {
+      const width = Math.min(batch.tablePrefs.dialogWidth, screen.availWidth - 48);
+      const height = Math.min(batch.tablePrefs.dialogHeight, screen.availHeight - 64);
+      return { width, height, x: Math.round((innerWidth - width) / 2), y: Math.round((innerHeight - height) / 2) };
+    };
+    return window.SteamBuff.nativeWindow.create({
+      id: "SteamBuffNativeSortBatch", trigger, log, follow: false, resizable: true,
+      canResize: () => batch.tableReady,
+      onBoundsChanged({width, height}) {
+        batch.tablePrefs.dialogWidth = width; batch.tablePrefs.dialogHeight = height;
+        batch.tableControl?.update(batch.tablePrefs);
+        saveTablePrefs();
+      },
+      // 属性 Popup 没有 target_browser；已验证的 Steam 主 Popup 提供创建参数，入口窗口负责恢复焦点。
+      mainPopup: manager => Array.from(manager.GetPopups()).find(popup => popup.title === "Steam"),
+      css: () => "html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--st-color-steam-property-window)}#popup_target{width:100%;height:100%}",
+      prepareDocument(state) {
+        state.doc.documentElement.dataset.steamNameBatchWindow = "true";
+        styles.ensureFeatureStyle(ID, { target: state.doc.head });
+      },
+      geometry,
+      params() {
+        const size = geometry();
+        return { title: i18n("steam.libraryCustomName.batchTitle", "Steam Buff · 批量设置自定义排序名称"), modal: false, dimensions: { width: size.width, height: size.height, left: screenX + size.x, top: screenY + size.y } };
+      },
+      onResize() {
+        batch.tableControl?.beforeRender();
+        const table = batch.element.querySelector(".st-lcn-table-wrap");
+        if (table) scheduleVirtualRows(table);
+        closeBatchMenu();
+      },
+      onEscape(event) { onDocumentKeydown(event); return true; },
+      beforeClose(state) {
+        batch.filterView?.closeFilterEditor();
+        closeBulkEditor(true); closeBatchMenu(); batch.tableControl?.stop(); batch.tableControl = null;
+        state.doc?.removeEventListener("keydown", onDocumentKeydown);
+        state.doc?.removeEventListener("click", onDocumentClick, true);
+      },
+      onClosed(_kind, reason) {
+        // 系统直接关闭已销毁窗口；未开始的队列请求取消，已提交的写入不能回滚。
+        if (reason === "native-close" && batch.saving && !batch.cancelled) cancelSave();
+        finishBatchClose();
+        if (reason === "native-close") log.info("steam-name-window-closed", "Steam 排序名称批量窗口已关闭", { saving: batch.saving });
+      },
+      reportFailure(error, phase) {
+        log.error("steam-name-window-failed", "Steam 排序名称批量窗口不可用", { error, phase });
+        oneBox(i18n("common.error", "错误"), phase === "window-resize"
+          ? i18n("steam.libraryCustomName.windowResizeFailed", "调整窗口大小失败，请重试。") : error.message, true);
+      },
+    });
+  }
+
   function openBatch() {
     css();
-    let modal = document.getElementById(MODAL);
-    const opening = !modal || modal.hidden;
-    if (opening) {
-      batch.restoreFocus = document.activeElement;
-    }
-    if (!modal) {
-      modal = document.createElement("section");
-      modal.id = MODAL;
+    if (batch.host?.ready()) { void batch.host.open("batch", batch.element, () => {}); return; }
+    if (batch.opening) return batch.opening;
+    batch.restoreFocus = document.activeElement;
+    if (!batch.element) {
+      const modal = document.createElement("section");
+      modal.id = MODAL; modal.tabIndex = -1;
+      const content = document.createElement("div"); content.dataset.lcnContent = ""; modal.appendChild(content);
       modal.addEventListener("click", onModalClick);
       modal.addEventListener("keydown", onTipKeydown);
       modal.addEventListener("change", onModalChange);
       modal.addEventListener("input", onModalInput);
       modal.addEventListener("compositionstart", onModalCompositionStart);
       modal.addEventListener("compositionend", onModalCompositionEnd);
-      document.body.appendChild(modal);
+      batch.element = modal;
     }
-    bringDialogToFront(modal);
-    modal.hidden = false;
+    batch.element.hidden = false;
     renderModal();
-    if (opening) {
-      focusElement(modal.querySelector("[data-lcn-close]"));
-    }
-    if (!batch.localRows.length && !batch.busy) {
-      loadLocalRows().catch((error) => {
-        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "open-batch-failed", message: "打开批量编辑失败", level: "error", phase: "openBatch" });
-        batch.busy = false;
-        batch.loadingLocal = false;
-        batch.message = error?.message || String(error);
+    const windowSeq = ++batch.windowSeq, ownerScope = s.scope;
+    batch.opening = (async () => {
+      try {
+        if (!window.SteamBuff.nativeWindow) throw new Error("Steam 原生窗口模块未加载");
+        const libs = [
+          !window.SteamBuff.nameTable && loadLib("steam/shared/name-table.js"),
+          !window.STNameEdit && loadLib("shared/name-edit.js"),
+        ];
+        await Promise.all(libs);
+        if (!s.started || s.scope !== ownerScope || windowSeq !== batch.windowSeq) return;
+        if (!batch.host) batch.host = createBatchHost(batch.restoreFocus);
+        await batch.host.open("batch", batch.element, state => {
+          state.doc.addEventListener("keydown", onDocumentKeydown);
+          state.doc.addEventListener("click", onDocumentClick, true);
+        });
+        if (!s.started || s.scope !== ownerScope || windowSeq !== batch.windowSeq || !batch.host.ready()) return;
         renderModal();
-      });
-    }
+        focusElement(batch.element.querySelector("[data-lcn-close]"));
+        if (!batch.tableReady) {
+          try {
+            const result = await contentReq("table-settings-get", {});
+            if (windowSeq !== batch.windowSeq || !s.started || s.scope !== ownerScope) return;
+            batch.tablePrefs = TABLE.fromResponse(result); batch.tableReady = true; batch.viewRows = null; tableNotice("");
+          } catch (error) {
+            if (windowSeq !== batch.windowSeq || !s.started || s.scope !== ownerScope) return;
+            const detail = error.message;
+            tableNotice(i18n("steam.independentName.table.loadFailed", "表格设置读取失败：$error$", { error: detail }));
+            log.error("steam-name-table-load-failed", "Steam 名称表格展示配置读取失败", { error });
+          }
+        }
+        if (batch.host.ready()) {
+          if (batch.tableReady) await resizeBatchWindow();
+          if (!s.started || s.scope !== ownerScope || windowSeq !== batch.windowSeq || !batch.host.ready()) return;
+          renderModal();
+          if (!batch.localRows.length && !batch.busy) await loadLocalRows();
+        }
+      } catch (error) {
+        if (!s.started || s.stopping || s.scope !== ownerScope) return;
+        if (error.name !== "AbortError") {
+          log.error("steam-name-window-open-failed", "打开 Steam 排序名称批量窗口失败", { error });
+          batch.host?.close("error");
+          oneBox(i18n("common.error", "错误"), error.message, true);
+        }
+      }
+    })().finally(() => { if (windowSeq === batch.windowSeq) batch.opening = null; });
+    return batch.opening;
+  }
+
+  function finishBatchClose() {
+    const wasLoadingLocal = batch.loadingLocal;
+    const wasBusy = batch.busy;
+    batch.filterView?.closeFilterEditor();
+    batch.windowSeq++; batch.opening = null;
+    batch.previewSeq += 1; batch.busy = false; batch.loadingLocal = false;
+    if (wasLoadingLocal) clearLocalRows();
+    batch.searchSeq += 1; clearSearchTimer(); batch.searchComposing = false;
+    cancelVirtualFrame(); closeProgress(); closeOne();
+    if (batch.element) batch.element.hidden = true;
+    if (s.stopping) return;
+    if (wasBusy && !batch.cancelled) setMessage(previewMessage(), "preview");
+    backend("cancel-preview").catch(error => {
+      log.error("steam-name-preview-close-failed", "关闭 Steam 排序名称预览失败", { error });
+    });
   }
 
   function closeBatch() {
-    const wasLoadingLocal = batch.loadingLocal;
-    batch.previewSeq += 1;
-    batch.busy = false;
-    batch.loadingLocal = false;
-    if (wasLoadingLocal) {
-      clearLocalRows();
-    }
-    batch.searchComposing = false;
-    cancelVirtualFrame();
-    backend("cancel-preview").catch((error) => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "close-batch-failed", message: "关闭批量编辑失败", level: "error", phase: "closeBatch" });});
-    const modal = document.getElementById(MODAL);
-    const wasOpen = !!modal && !modal.hidden;
-    if (modal) {
-      modal.style.pointerEvents = "none";
-      modal.hidden = true;
-      window.setTimeout(() => {
-        modal.style.pointerEvents = "";
-      }, 0);
-    }
-    if (wasOpen) {
-      restoreDialogFocus(batch.restoreFocus, document.getElementById(BAR));
-      batch.restoreFocus = null;
-    }
+    closeBulkEditor(); closeBatchMenu();
+    batch.host?.close("button", true);
+    batch.restoreFocus = null;
   }
 
-  async function fetchCloudNames() {
+  async function fetchCommunityNames() {
     ensureCloudFetch();
     const seq = batch.previewSeq + 1;
     const startedAt = now();
@@ -3591,13 +3838,13 @@
     }
     const targets = selectedRows().filter(row => Number(row.appid) > 0);
     if (!targets.length) {
-      batch.message = i18n("steam.libraryCustomName.selectCloudTargets", "请先勾选需要获取云端名称的游戏");
+      setMessage(i18n("steam.libraryCustomName.selectCloudTargets", "请先勾选需要获取社区名称的游戏"));
       renderModal();
       return;
     }
     if (hasDirtyRows()) {
-      const ok = await oneConfirm(i18n("steam.libraryCustomName.refreshCloudPrompt", "当前待写入数据已调整，重新获取云端名称将只刷新已勾选且未手动锁定的待写入数据，是否继续？"), {
-        title: i18n("steam.libraryCustomName.refreshCloudTitle", "确认获取云端名称"),
+      const ok = await oneConfirm(i18n("steam.libraryCustomName.refreshCloudPrompt", "当前待写入数据已调整，重新获取社区名称将只刷新已勾选且未手动锁定的待写入数据，是否继续？"), {
+        title: i18n("steam.libraryCustomName.refreshCloudTitle", "确认获取社区名称"),
         cancel: i18n("common.no", "否"),
         confirm: i18n("common.yes", "是"),
       });
@@ -3608,10 +3855,9 @@
     }
     batch.previewSeq = seq;
     batch.busy = true;
-    batch.message = i18n("steam.libraryCustomName.preparingCloudRequest", "正在整理云端名称请求");
+    setMessage(i18n("steam.libraryCustomName.preparingCloudRequest", "正在整理社区名称请求"));
     renderModal();
-    log.info("library-custom-name-preview-start", "开始获取库自定义名称云端名称", {
-      policy: batch.policy,
+    log.info("library-custom-name-preview-start", "开始获取库自定义名称社区名称", {
       selected: batch.selectedCount,
       count: targets.length,
     });
@@ -3624,10 +3870,10 @@
         if (!ids || seq !== batch.previewSeq) {
           return;
         }
-        batch.message = i18n("steam.libraryCustomName.fetchCloudProgress", "正在获取云端名称 $current$/$total$", {
+        setMessage(i18n("steam.libraryCustomName.fetchCloudProgress", "正在获取社区名称 $current$/$total$", {
           current: Math.min(offset + part.length, total),
           total,
-        });
+        }));
         refreshMessage();
         const result = await queryMap(ids);
         if (seq !== batch.previewSeq) {
@@ -3641,7 +3887,14 @@
           const name = text(got?.name);
           if (name) {
             batch.cloudMap.set(id, name);
-            batch.cloudSourceMap.set(id, String(got.source || got.name_source || ""));
+            batch.cloudSourceMap.set(id, got.source);
+            const row = batch.rowMap.get(id);
+            if (row && !row.manual) {
+              row.want = name; row.cloudSource = batch.cloudSourceMap.get(id) || "api";
+              row.mnemonicTouched = false;
+              row.state = ""; row.error = "";
+              keepRowState(row);
+            }
           }
           if (got) {
             setSyncStatus(id, "");
@@ -3650,12 +3903,12 @@
             setSyncStatus(id, status);
           }
         }
-        resetRowsForPolicy({ preserveScroll: true });
+        rebuildRows({ preserveScroll: true });
         renderVisibleRows();
         await yieldUI();
       }
-      batch.message = previewMessage();
-      log.info("library-custom-name-preview-success", "库自定义名称云端名称获取完成", {
+      setMessage(previewMessage(), "preview");
+      log.info("library-custom-name-preview-success", "库自定义名称社区名称获取完成", {
         ...statsMeta(),
         durationMs: now() - startedAt,
       });
@@ -3664,12 +3917,12 @@
         return;
       }
       if (Number(error?.code) === 401) {
-        batch.message = previewMessage();
+        setMessage(previewMessage(), "preview");
         oneFail(error);
       } else {
-        batch.message = error?.message || String(error);
+        setMessage(error?.message || String(error));
       }
-      log.error("library-custom-name-preview-failed", "库自定义名称云端名称获取失败", {
+      log.error("library-custom-name-preview-failed", "库自定义名称社区名称获取失败", {
         durationMs: now() - startedAt,
         error,
       });
@@ -3681,10 +3934,13 @@
     }
   }
 
-  async function applyMnemonicToRows(on) {
-    const rows = mnemonicRows().filter(row => on ? row.mnemonicOn !== true : row.mnemonicOn === true);
+  async function applyMnemonicToRows(on, operationId) {
+    const seq = batch.previewSeq;
+    const core = on ? await ensureMnemonic() : window.SteamBuff.libraryCustomNameMnemonic;
+    if (!s.started || seq !== batch.previewSeq) return;
+    const rows = mnemonicRows().filter(row => on ? core.rebuildMnemonic(row.want) !== row.want : core.mnemonicCodes(row.want).length > 0);
     if (!rows.length) {
-      batch.message = i18n("steam.libraryCustomName.noMnemonicItems", "没有可处理的助记符条目");
+      setMessage(i18n("steam.libraryCustomName.noMnemonicItems", "没有可处理的助记符条目"));
       renderModal();
       return;
     }
@@ -3695,13 +3951,13 @@
       cancel: i18n("common.no", "否"),
       confirm: i18n("common.yes", "是"),
     });
-    if (!ok) {
+    if (!ok || !s.started || seq !== batch.previewSeq) {
       renderModal();
       return;
     }
 
     const total = rows.length;
-    const core = await ensureMnemonic();
+    log.info("steam-sort-mnemonic-draft-start", "开始批量修改排序名称助记符", { operationId, action: on ? "generate" : "clear", count: total });
     batch.busy = true;
     batch.saveAction = "mnemonic";
     batch.summary = false;
@@ -3710,51 +3966,55 @@
       ...emptyStats(),
       total,
     };
-    batch.message = on
+    setMessage(on
       ? i18n("steam.libraryCustomName.generatingMnemonic", "正在生成助记符")
-      : i18n("steam.libraryCustomName.cancellingMnemonic", "正在取消助记符");
+      : i18n("steam.libraryCustomName.cancellingMnemonic", "正在取消助记符"));
     openProgress(false);
     renderModal();
     try {
       for (let i = 0; i < total; i += 1) {
+        if (!s.started || seq !== batch.previewSeq) return;
         const row = rows[i];
         updateRowWrite(row, () => {
           const base = on ? text(row.want) : core.stripMnemonic(row.want);
           row.want = on ? core.rebuildMnemonic(base) : base;
           row.manual = text(row.want) !== text(row.apiName);
           row.mnemonicTouched = true;
-          row.mnemonicOn = !!on;
+
           row.state = "";
           row.error = "";
         });
         keepRowState(row);
         batch.stats.processed = i + 1;
         if (i % 100 === 0) {
-          batch.message = i18n(
+          setMessage(i18n(
             on ? "steam.libraryCustomName.generateMnemonicProgress" : "steam.libraryCustomName.cancelMnemonicProgress",
             on ? "正在生成助记符 $current$/$total$" : "正在取消助记符 $current$/$total$",
             { current: i + 1, total },
-          );
+          ));
           renderProgressSoon();
           await yieldUI();
         }
       }
-      batch.message = previewMessage();
+      setMessage(previewMessage(), "preview");
+      log.info("steam-sort-mnemonic-draft-applied", "排序名称助记符已更新至待保存草稿", { operationId, action: on ? "generate" : "clear", count: total });
     } finally {
-      batch.busy = false;
-      batch.summary = true;
-      renderVisibleRows();
-      renderProgressSoon(true);
+      if (seq === batch.previewSeq) {
+        batch.busy = false;
+        batch.summary = true;
+        renderVisibleRows();
+        renderProgressSoon(true);
+      }
     }
   }
 
-  function toggleMnemonic() {
-    const action = mnemonicAction();
-    applyMnemonicToRows(action.on).catch((error) => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "toggle-mnemonic-failed", message: "切换助记词失败", level: "error", phase: "toggleMnemonic" });
-      batch.busy = false;
-      batch.message = error?.message || String(error);
-      renderModal();
+  function runMnemonic(on) {
+    const seq = batch.previewSeq;
+    const operationId = "steam-mnemonic-" + rid();
+    applyMnemonicToRows(on, operationId).catch(error=>{
+      if (!s.started || seq !== batch.previewSeq) return;
+      log.error('steam-sort-mnemonic-draft-failed','批量修改 Steam 排序名称助记符失败',{error,operationId,action:on?'generate':'clear'});
+      batch.busy=false;setMessage(error.message);renderModal();
     });
   }
 
@@ -3769,7 +4029,7 @@
     });
     const progressMessage = opt.progressMessage || i18n("steam.libraryCustomName.writingSteamItems", "正在逐条写入 Steam");
     if (!items.length) {
-      batch.message = emptyMessage;
+      setMessage(emptyMessage);
       renderModal();
       log.warn("library-custom-name-save-failed", "库自定义名称保存缺少可写入条目", {
         operationId,
@@ -3783,7 +4043,7 @@
     try {
       ensureOn();
     } catch (error) {
-      batch.message = error?.message || String(error);
+      setMessage(error?.message || String(error));
       renderModal();
       log.error("library-custom-name-save-failed", "库自定义名称保存未启用", {
         operationId,
@@ -3795,7 +4055,7 @@
       return;
     }
     if (action !== "clear" && !(await confirmSteamLimit(items.length))) {
-      batch.message = previewMessage();
+      setMessage(previewMessage(), "preview");
       renderModal();
       return;
     }
@@ -3817,7 +4077,7 @@
       processed: 0,
       skipped,
     };
-    batch.message = startMessage;
+    setMessage(startMessage);
     renderModal();
     openProgress(false);
     log.info("library-custom-name-save-start", "开始保存库自定义名称", {
@@ -3834,12 +4094,12 @@
       if (batch.cancelled) {
         return;
       }
-      batch.message = progressMessage;
+      setMessage(progressMessage);
     } catch (error) {
       clearSaveWatch();
       batch.saving = false;
       batch.summary = true;
-      batch.message = error?.message || String(error);
+      setMessage(error?.message || String(error));
       log.error("library-custom-name-save-failed", "库自定义名称保存队列启动失败", {
         operationId,
         count: items.length,
@@ -3873,12 +4133,12 @@
     refreshCounts();
     const data = clearItems();
     if (!data.chosen) {
-      batch.message = i18n("steam.libraryCustomName.selectClearTargets", "请先勾选需要清空名称的游戏");
+      setMessage(i18n("steam.libraryCustomName.selectClearTargets", "请先勾选需要清空名称的游戏"));
       renderModal();
       return;
     }
     if (!data.items.length) {
-      batch.message = i18n("steam.libraryCustomName.noClearableNames", "已选游戏没有可清空的自定义排序名称");
+      setMessage(i18n("steam.libraryCustomName.noClearableNames", "已选游戏没有可清空的自定义排序名称"));
       renderModal();
       return;
     }
@@ -3892,7 +4152,7 @@
       dangerNote: true,
     });
     if (!ok) {
-      batch.message = previewMessage();
+      setMessage(previewMessage(), "preview");
       renderModal();
       return;
     }
@@ -3915,9 +4175,9 @@
       }
       logCommandStart(action);
       batch.waitCmd = action;
-      batch.message = action === "pause"
+      setMessage(action === "pause"
         ? i18n("steam.libraryCustomName.pausingSaveQueue", "正在暂停保存队列")
-        : i18n("steam.libraryCustomName.resumingSaveQueue", "正在继续保存队列");
+        : i18n("steam.libraryCustomName.resumingSaveQueue", "正在继续保存队列"));
       renderProgress();
     } else if (action === "cancel") {
       logCommandStart(action);
@@ -3927,7 +4187,7 @@
       batch.saving = false;
       batch.paused = false;
       batch.waitCmd = "";
-      batch.message = i18n("steam.libraryCustomName.saveCancelled", "保存队列已取消");
+      setMessage(i18n("steam.libraryCustomName.saveCancelled", "保存队列已取消"));
       if (!hadSaving) {
         renderProgress();
         return;
@@ -3938,16 +4198,16 @@
       if (action === "pause" || action === "resume") {
         batch.waitCmd = "";
         batch.paused = action === "pause";
-        batch.message = batch.paused
+        setMessage(batch.paused
           ? i18n("steam.libraryCustomName.savePaused", "保存队列已暂停")
-          : i18n("steam.libraryCustomName.saveResumed", "保存队列继续执行");
+          : i18n("steam.libraryCustomName.saveResumed", "保存队列继续执行"));
         renderProgress();
       }
     } catch (error) {
       if (action === "pause" || action === "resume") {
         batch.waitCmd = "";
       }
-      batch.message = error?.message || String(error);
+      setMessage(error?.message || String(error));
       log.error("library-custom-name-command-failed", "库自定义名称保存队列命令失败", {
         operationId: batch.operationId || "",
         action,
@@ -3991,21 +4251,21 @@
     const b = data.batch || batch.steamBatch || {};
     const clear = batch.saveAction === "clear";
     if (done) {
-      batch.message = data.error || (clear
+      setMessage(data.error || (clear
           ? i18n("steam.libraryCustomName.clearQueueCompleted", "清空队列已完成")
-          : i18n("steam.libraryCustomName.saveCompleted", "保存队列已完成"));
+          : i18n("steam.libraryCustomName.saveCompleted", "保存队列已完成")));
     } else if (data.action === "pause") {
-      batch.message = clear
+      setMessage(clear
         ? i18n("steam.libraryCustomName.clearQueuePaused", "清空队列已暂停")
-        : i18n("steam.libraryCustomName.savePaused", "保存队列已暂停");
+        : i18n("steam.libraryCustomName.savePaused", "保存队列已暂停"));
     } else if (data.action === "resume") {
-      batch.message = clear
+      setMessage(clear
         ? i18n("steam.libraryCustomName.clearQueueResumed", "清空队列继续执行")
-        : i18n("steam.libraryCustomName.saveResumed", "保存队列继续执行");
+        : i18n("steam.libraryCustomName.saveResumed", "保存队列继续执行"));
     } else if (data.batchAction === "fast-unavailable") {
-      batch.message = data.error || i18n("steam.libraryCustomName.fastWriteUnavailable", "Steam CloudStorage 快速写入不可用，保存队列已安全中止");
+      setMessage(data.error || i18n("steam.libraryCustomName.fastWriteUnavailable", "Steam CloudStorage 快速写入不可用，保存队列已安全中止"));
     } else if (data.batchAction === "wait" || b.waiting) {
-      batch.message = i18n(
+      setMessage(i18n(
         clear ? "steam.libraryCustomName.clearBatchWaiting" : "steam.libraryCustomName.writeBatchWaiting",
         clear
           ? "第 $batch$ 批清空完成，等待 Steam 云同步 $seconds$ 秒"
@@ -4014,9 +4274,9 @@
           batch: b.index || 1,
           seconds: Math.ceil((Number(b.waitMs) || 0) / 1000),
         },
-      );
+      ));
     } else if (b.index) {
-      batch.message = i18n(
+      setMessage(i18n(
         clear ? "steam.libraryCustomName.clearingBatch" : "steam.libraryCustomName.writingBatch",
         clear
           ? "正在清空 Steam 第 $batch$ 批 $written$/$max$"
@@ -4026,12 +4286,12 @@
           written: b.written || 0,
           max: b.max || 500,
         },
-      );
+      ));
 
     } else {
-      batch.message = clear
+      setMessage(clear
         ? i18n("steam.libraryCustomName.clearingSteam", "正在清空 Steam 自定义排序名称")
-        : i18n("steam.libraryCustomName.writingSteam", "正在写入 Steam");
+        : i18n("steam.libraryCustomName.writingSteam", "正在写入 Steam"));
     }
 
     const items = Array.isArray(data.items) ? data.items : (data.item ? [data.item] : []);
@@ -4048,7 +4308,7 @@
             row.want = "";
             row.manual = false;
             row.mnemonicTouched = false;
-            row.mnemonicOn = false;
+
             keepRowState(row);
             /* 清空成功后要刷新列表计数，但不能让预览 skipped 覆盖保存队列统计。 */
             const queueStats = { ...batch.stats };
@@ -4074,10 +4334,13 @@
   }
 
   function onModalClick(event) {
+    if (event.target.closest(`#${ONE}, #${PROGRESS}, .st-lcn-bulk`)) return;
+    if (batchOverlayOpen()) return;
     if (onTipClick(event)) {
       return;
     }
     closeTips(event.currentTarget);
+    if (filterUI().click(event)) return;
     if (event.target.id === MODAL) {
       return;
     }
@@ -4085,6 +4348,14 @@
       onModalCloseClick(event);
       return;
     }
+    if (event.target.closest("[data-lcn-table-reset]")) {
+      batch.tablePrefs = TABLE.defaults(); batch.tableReady = true; batch.viewRows = null;
+      resetVirtualScroll(); tableNotice(""); renderModal(); saveTablePrefs();
+      void resizeBatchWindow(); return;
+    }
+    const menuButton = event.target.closest('[data-lcn-action="menu"]');
+    if (menuButton) { toggleBatchMenu(menuButton); return; }
+    if (event.target.closest("[data-lcn-action], [data-lcn-select]")) closeBatchMenu();
     const select = event.target.closest("[data-lcn-select]")?.dataset?.lcnSelect;
     if (select) {
       event.preventDefault();
@@ -4093,10 +4364,16 @@
       return;
     }
     const action = event.target.closest("[data-lcn-action]")?.dataset?.lcnAction;
-    if (action === "query") {
-      fetchCloudNames();
+    if (action === "edit-sort") {
+      openBulkEditor();
+    } else if (action === "query") {
+      fetchCommunityNames();
     } else if (action === "mnemonic") {
-      toggleMnemonic();
+      runMnemonic(true);
+    } else if (action === "add-mnemonic") {
+      openBulkEditor("mnemonic");
+    } else if (action === "clear-mnemonic") {
+      runMnemonic(false);
     } else if (action === "save") {
       save();
     } else if (action === "clear-selected") {
@@ -4109,7 +4386,7 @@
       exportSelectedNames().catch((error) => {
         globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" });
         batch.busy = false;
-        batch.message = error?.message || String(error);
+        setMessage(error?.message || String(error));
         renderModal();
       });
     }
@@ -4138,6 +4415,9 @@
   }
 
   async function onModalChange(event) {
+    if (event.target.closest(".st-lcn-bulk")) return;
+    if (filterUI().change(event)) return;
+    if (event.target.matches("[data-lcn-select-all]")) { await setSelection(event.target.checked ? "all" : "none"); return; }
     const file = event.target.closest("[data-lcn-import-file]");
     if (file) {
       const picked = file.files?.[0] || null;
@@ -4148,15 +4428,9 @@
       importJsonFile(picked).catch((error) => {
         globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-modal-change-failed", message: "保存批量名称配置失败", level: "error", phase: "onModalChange" });
         batch.busy = false;
-        batch.message = error?.message || String(error);
+        setMessage(error?.message || String(error));
         renderModal();
       });
-      return;
-    }
-    const policy = event.target.closest("input[name='st-lcn-policy']");
-    if (policy) {
-      batch.policy = ["cover", "hide", "skip", "current-custom"].includes(policy.value) ? policy.value : "hide";
-      applyLocalFilters();
       return;
     }
     const check = event.target.closest("[data-lcn-check]");
@@ -4171,14 +4445,12 @@
       }
       return;
     }
-    const type = event.target.closest("[data-lcn-type]");
-    if (type) {
-      batch.types[type.dataset.lcnType] = !!type.checked;
-      applyLocalFilters();
-    }
+
   }
 
   function onModalInput(event) {
+    if (event.target.closest(".st-lcn-bulk")) return;
+    if (filterUI().input(event)) return;
     const search = event.target.closest("[data-lcn-search]");
     if (search) {
       batch.searchQuery = String(search.value || "");
@@ -4200,10 +4472,10 @@
     updateRowWrite(row, () => {
       row.want = input.value;
       row.checked = !!text(row.want);
-      const base = isCurrentCustomPolicy() || row.cloudSource === "local" ? text(row.custom) : text(row.apiName);
+      const base = text(row.custom);
       row.manual = text(row.want) !== base;
       row.mnemonicTouched = false;
-      row.mnemonicOn = false;
+
       row.state = "";
       row.error = "";
       refreshRowSearch(row);
@@ -4211,6 +4483,8 @@
     keepRowState(row);
     refreshLive(row);
   }
+
+  function onOwnerPagehide() { s.stop?.(); }
 
   function start(_api, _feature, _context, scope) {
     if (s.started) {
@@ -4247,7 +4521,15 @@
       order: 10,
       onSurfaceChange: onPropertySurface,
     });
+    window.addEventListener("pagehide", onOwnerPagehide);
     s.stop = () => {
+      if (!s.started || s.stopping) return;
+      s.stopping = true;
+      s.aiRun?.controller.abort(); s.aiRun = null;
+      batch.windowSeq++; batch.opening = null; batch.prefsQueued = null;
+      window.removeEventListener("pagehide", onOwnerPagehide);
+      closeBulkEditor(true);
+      batch.host?.stop(); batch.host = null;
       if (s.resObs) {
         s.resObs.disconnect();
         s.resObs = null;
@@ -4278,10 +4560,12 @@
       }
       s.oneBusy = false;
       document.getElementById(BAR)?.remove();
-      document.getElementById(ONE)?.remove();
-      document.getElementById(MODAL)?.remove();
-      document.getElementById(PROGRESS)?.remove();
+      (s.oneElement || null)?.remove();
+      s.oneElement = null;
+      batch.element?.remove(); batch.element = null;
+      batch.progressElement?.remove(); batch.progressElement = null;
       s.started = false;
+      s.stopping = false;
       s.scope = null;
       s.propertySurface = null;
     };

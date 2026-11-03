@@ -20,7 +20,7 @@
   const RES_ATTR = "data-steam-buff-user-names-response";
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
-  const TABLE_LIB = "steam/features/library-independent-name/table.js";
+  const TABLE_LIB = "steam/shared/name-table.js";
   const TABLE = window.STNameTable;
   const TRANSFER_LIB = "steam/features/library-independent-name/transfer.js";
   const IO_LABELS = Object.freeze({
@@ -44,17 +44,6 @@
   const ALIAS_MAX = 10;
   const SEARCH_MS = 180;
   const READINGS_MS = 300;
-  const FILTER_ICON_PATH = "images/ui/filter.svg";
-  const FILTER_DELETE_ICON_PATH = "images/ui/delete.svg";
-  const SORT_ICONS = Object.freeze({
-    asc: "M719.8 480H304.2c-49.5 0-80.3-53.9-55.1-96.5l207.8-352C469.3 10.5 490.7 0 512 0s42.7 10.5 55.1 31.5l207.8 351.9c25.2 42.7-5.5 96.6-55.1 96.6z",
-    desc: "M774.9 640.5l-207.8 352c-12.4 21-33.8 31.5-55.1 31.5s-42.7-10.5-55.1-31.5l-207.8-352c-25.2-42.7 5.6-96.5 55.1-96.5h415.6c49.6 0 80.3 53.9 55.1 96.5z",
-  });
-  const TABLE_RESET_ICON_PATHS = Object.freeze([
-    "M501.76 77.312c-114.688 2.048-221.696 46.592-302.08 126.976C30.208 374.272 30.208 650.24 199.168 819.2c169.472 169.472 444.928 168.96 614.912-0.512 89.088-89.088 135.68-211.456 126.464-336.384 0-8.704-3.584-17.408-9.728-24.064l-0.512-0.512a33.9968 33.9968 0 0 0-48.128 0c-7.168 7.168-10.24 16.896-9.728 26.624 7.68 106.496-31.232 210.432-107.008 285.696-142.848 142.848-375.808 143.36-519.168 0.512-142.336-142.336-142.848-375.808 0.512-519.168 67.584-66.56 158.208-104.96 253.952-106.496 95.744-1.536 187.904 33.28 257.024 98.304l2.048 2.048-30.72 30.72c-5.632 5.632-7.68 14.336-5.12 21.504 3.072 7.68 8.704 13.312 16.896 14.336l134.144 21.504c7.168 1.024 14.336-1.536 18.944-6.144 5.12-5.12 7.68-11.776 6.144-18.944L878.08 174.08c-1.024-7.68-6.656-14.336-14.336-16.384-7.68-2.56-15.872-0.512-21.504 5.12l-33.792 33.792-2.048-2.048c-81.92-76.8-190.976-118.272-304.64-117.248z m0 0",
-    "M686.08 563.2c-39.936 6.144-67.584 43.52-60.928 83.456 1.024 5.632 2.56 10.752 4.096 15.36-18.944 16.896-40.96 29.696-65.024 37.888-25.088-31.744-71.68-36.864-102.912-11.264-4.096 3.072-8.192 7.168-11.264 11.264-24.064-8.192-46.08-20.48-65.024-37.888 14.848-37.888-3.584-79.872-41.984-95.232-5.12-2.56-10.24-3.072-15.36-4.096-5.12-24.576-5.12-50.176 0-74.752 39.936-6.144 67.584-43.52 60.928-83.456-0.512-5.632-2.048-10.752-4.096-15.36 18.944-16.896 40.96-29.696 65.024-37.888C463.872 368.64 484.352 378.88 506.88 378.88c22.016 0 43.52-10.24 57.344-27.648 24.064 8.192 46.08 20.48 65.024 37.888-14.848 37.888 3.584 79.872 41.984 95.232 5.12 2.56 10.24 3.072 15.36 4.096 4.608 24.064 4.608 49.664-0.512 74.752m32.768-98.304c-2.56-8.704-10.24-14.336-18.944-13.312-20.48 1.536-37.888-14.336-38.912-33.792-0.512-8.192 2.048-15.872 6.144-22.528 4.608-7.168 3.584-16.384-2.56-23.04-28.672-29.184-64.512-50.176-103.936-60.416-8.704-2.56-16.896 2.048-20.48 9.728-6.144 12.8-18.944 20.48-32.768 20.48-14.336 0-26.624-8.192-32.768-20.48-3.584-7.68-12.288-11.776-20.48-9.728-39.424 9.728-75.776 30.72-103.936 60.416-6.144 6.656-6.656 15.36-2.56 23.04 11.264 16.896 6.656 39.424-10.24 50.688-6.656 4.096-14.336 6.656-22.528 6.144-8.704-1.024-16.384 5.12-18.944 13.312-11.264 38.912-11.264 80.896 0 119.808 2.56 8.704 10.24 14.336 18.944 13.312 20.48-1.536 37.376 14.336 38.4 34.304 0.512 8.192-2.048 15.36-6.144 22.528-4.608 7.168-3.584 16.384 2.56 23.04 28.672 29.184 64.512 50.176 103.936 60.416 8.704 2.56 16.896-2.048 20.48-9.728 8.704-18.432 31.232-25.6 49.152-16.384 7.168 3.072 12.8 9.216 16.384 16.384 3.584 7.68 12.288 11.776 20.48 9.728 39.424-9.728 75.776-30.72 103.936-60.416 6.144-6.656 6.656-15.36 2.56-23.04-11.264-16.896-6.656-39.424 10.24-50.688 6.656-4.096 14.336-6.656 22.528-6.144 8.704 0.512 16.384-5.12 18.944-13.312 11.264-39.424 11.264-80.384 0.512-120.32",
-    "M506.88 580.608c-30.208 0-54.784-24.576-54.784-54.784 0-30.72 25.088-54.784 54.784-54.784s54.784 24.576 54.784 54.784c0.512 29.696-24.576 54.784-54.784 54.784m0-146.944c-50.688 0-91.648 40.96-91.648 91.648 0 50.688 40.96 91.648 91.648 91.648 50.688 0 91.648-40.96 91.648-91.648 0-50.688-40.96-91.648-91.648-91.648"
-  ]);
   const BULK_LABELS = Object.freeze({
     menu: "批量操作", add: "添加", generate: "生成", clear: "清空", selection: "选择", other: "其他",
     name: "修改名称", aliases: "添加别名", mnemonic: "添加助记符", pinyin: "添加拼音全拼",
@@ -76,83 +65,6 @@
   function bulkText(key, params) {
     return i18n(`steam.independentName.bulk.${key}`, BULK_LABELS[key], params);
   }
-
-  // 两个序号标签共用同一转换；中文以四位分组，英文使用从 1 开始的字母编号。
-  function formatSequence(number, type) {
-    if (!Number.isSafeInteger(number) || number < 1) throw new RangeError("序号超出正整数范围");
-    if (type === "number") return String(number);
-    if (type === "lower" || type === "upper") {
-      let output = "";
-      while (number > 0) {
-        number -= 1;
-        output = String.fromCharCode((type === "lower" ? 97 : 65) + number % 26) + output;
-        number = Math.floor(number / 26);
-      }
-      return output;
-    }
-    if (type !== "chinese") throw new TypeError("未知序号类型");
-    const digits = "零一二三四五六七八九";
-    const groups = [];
-    while (number) { groups.push(number % 10000); number = Math.floor(number / 10000); }
-    let output = "";
-    let gap = false;
-    for (let index = groups.length - 1; index >= 0; index -= 1) {
-      const value = groups[index];
-      if (!value) { gap = !!output; continue; }
-      if (output && (gap || value < 1000)) output += "零";
-      let part = "";
-      let innerGap = false;
-      for (let place = 3; place >= 0; place -= 1) {
-        const digit = Math.floor(value / 10 ** place) % 10;
-        if (!digit) { innerGap = !!part; continue; }
-        if (innerGap) part += "零";
-        part += digits[digit] + ["", "十", "百", "千"][place];
-        innerGap = false;
-      }
-      output += part + ["", "万", "亿", "万亿"][index];
-      gap = false;
-    }
-    return output.replace(/^一十/, "十");
-  }
-  const FILTER_GROUPS = Object.freeze([
-    ["名称", ["custom_name", "aliases", "mnemonic", "pinyin", "original_language"]],
-    ["应用", ["app_type", "sources", "collections", "modes", "status", "privacy"]],
-    ["内容", ["languages", "genres", "features", "tags"]],
-    ["硬件", ["hardware"]],
-    ["辅助功能", ["accessibility"]],
-    ["评价", ["review_score", "metacritic_score"]],
-    ["时间", ["date_added", "date_release", "date_last_played", "playtime_minutes"]],
-  ]);
-  const LANGUAGE_LABELS = Object.freeze({
-    sc_schinese: "简体中文", schinese: "简体中文", tchinese: "繁体中文", english: "英文", koreana: "韩语", japanese: "日语",
-    german: "德语", french: "法语", italian: "意大利语", spanish: "西班牙语", latam: "拉丁美洲西班牙语", russian: "俄语",
-    portuguese: "葡萄牙语", brazilian: "巴西葡萄牙语", polish: "波兰语", dutch: "荷兰语", danish: "丹麦语", finnish: "芬兰语",
-    norwegian: "挪威语", swedish: "瑞典语", hungarian: "匈牙利语", czech: "捷克语", romanian: "罗马尼亚语", turkish: "土耳其语",
-    greek: "希腊语", bulgarian: "保加利亚语", ukrainian: "乌克兰语", thai: "泰语", arabic: "阿拉伯语", vietnamese: "越南语",
-    indonesian: "印尼语", malay: "马来语",
-  });
-  const ACCESSIBILITY_LABELS = Object.freeze({
-    adjustable_difficulty: "可调整难度", save_anytime: "随时保存", adjustable_text: "可调整文字大小", subtitles: "字幕选项",
-    color_alternatives: "可选颜色", contrast: "对比度控制", camera_comfort: "镜头舒适度", playable_without_vision: "无需视觉也可游玩",
-    custom_volume: "自定义音量控制", stereo: "立体声", surround: "环绕声", narrated_menus: "朗读游戏菜单", keyboard_only: "可以仅用键盘",
-    mouse_only: "可以仅用鼠标", touch_only: "可以仅用触控", without_quick_time: "无需快速反应事件即可游玩", own_pace: "可按自己的节奏游玩",
-    speech_to_text: "聊天语音转文字", text_to_speech: "聊天文字转语音",
-  });
-  const REVIEW_LABELS = Object.freeze({ 9: "好评如潮", 8: "特别好评", 7: "好评", 6: "多半好评", 5: "褒贬不一", 4: "多半差评", 3: "差评", 2: "特别差评", 1: "差评如潮", 0: "无评测分数" });
-  const DATE_PRESET_DEFS = Object.freeze([
-    ["30m", "近30分钟"], ["1h", "近1小时"], ["6h", "近6小时"], ["24h", "近24小时"],
-    ["today", "今日"], ["yesterday", "昨日"], ["3d", "近3日"], ["7d", "近7日"],
-    ["14d", "近14日"], ["30d", "近30日"], ["custom", "自定义"],
-  ]);
-  const FIELD_LABELS = Object.freeze({
-    sources: "游戏来源", original_language: "原名称语言", collections: "收藏分组", modes: "游戏模式", status: "游戏状态", privacy: "私密筛选",
-    languages: "游戏语言", genres: "游戏题材", features: "游戏特色", tags: "商店标签", hardware: "硬件支持", accessibility: "辅助功能",
-    review_score: "Steam 评测", metacritic_score: "Metacritic 分数", date_added: "添加到库日期", date_release: "发行日期", date_last_played: "最后运行日期", playtime_minutes: "游戏时间",
-  });
-  const ORIGINAL_LANGUAGE_OPTIONS = Object.freeze([
-    ["zh_hans", "简体中文"], ["zh_hant", "繁体中文"], ["english", "英文"], ["japanese", "日语"],
-    ["korean", "韩语"], ["russian", "俄语"], ["other", "其他"],
-  ]);
 
   function i18n(key, fallback, params) {
     return globalThis.STI18n.text(key, fallback, params);
@@ -389,12 +301,18 @@
       })().finally(() => { prefsSaving = null; });
     }
     function loadTableLib() {
-      if (window.SteamBuff.nameTable) return Promise.resolve();
+      if (window.SteamBuff.nameTable && window.STNameEdit) return Promise.resolve();
       if (tableTask) return tableTask;
       tableTask = new Promise((resolve, reject) => {
         const script = document.createElement("script");
         script.src = api.path.url(TABLE_LIB);
-        script.onload = () => resolve();
+        script.onload = () => {
+          const edit = document.createElement("script");
+          edit.src = api.path.url("shared/name-edit.js");
+          edit.onload = () => { edit.remove(); resolve(); };
+          edit.onerror = () => { edit.remove(); reject(new Error("shared/name-edit.js")); };
+          document.documentElement.appendChild(edit);
+        };
         script.onerror = () => reject(new Error(TABLE_LIB));
         document.documentElement.appendChild(script);
       }).finally(() => { tableTask = null; });
@@ -408,10 +326,7 @@
         enabled: () => state.tableReady && !state.busy && !state.batchSaving,
         onChange(value) { state.tablePrefs = value; saveTablePrefs(); },
         onSort(id) {
-          const current = state.tablePrefs.sort;
-          let next = null;
-          if (current?.id !== id) next = { id, direction: "asc" };
-          else if (current.direction === "asc") next = { id, direction: "desc" };
+          const next = TABLE.nextSort(state.tablePrefs.sort, id);
           if (next?.id === "sort" && state.filtered.some(row => !state.nativeSort.get(row.appid)?.ready)) {
             tableNotice(tableText("sortUnavailable", "部分 Steam 排序名称尚未读取成功，请先重新读取。"));
             return;
@@ -437,7 +352,7 @@
         const column = TABLE.columns.find(column => column.id === id);
         const title = i18n(`steam.independentName.${column.label}`, column.title);
         const label = tableText("sortCycle", "$name$：点击循环升序、降序、不排序", { name: title });
-        const icon = `<svg viewBox="224 0 576 1024" aria-hidden="true" focusable="false"><path data-lin-sort-indicator="asc" fill="currentColor" d="${SORT_ICONS.asc}"></path><path data-lin-sort-indicator="desc" fill="currentColor" d="${SORT_ICONS.desc}"></path></svg>`;
+        const icon = `<svg viewBox="224 0 576 1024" aria-hidden="true" focusable="false"><path data-lin-sort-indicator="asc" fill="currentColor" d="${TABLE.icons.sort.asc}"></path><path data-lin-sort-indicator="desc" fill="currentColor" d="${TABLE.icons.sort.desc}"></path></svg>`;
         return `<th scope="col" data-lin-col="${id}"><div class="st-lin-column-header"><button type="button" data-lin-col-sort="${id}" title="${esc(tableText("headerHint", "点击排序；拖动更换列位置；Alt + 左右键移动列"))}"><span>${esc(title)}</span></button><span data-lin-sort-mark><button type="button" data-lin-sort-toggle="${id}" aria-label="${esc(label)}" title="${esc(label)}">${icon}</button></span></div><span data-lin-col-resize="${id}" tabindex="0" role="separator" aria-orientation="vertical" aria-label="${esc(tableText("resizeColumn", "调整 $name$ 列宽", { name: title }))}"></span></th>`;
       }).join("")}`;
     }
@@ -1076,309 +991,28 @@
       }
     }
 
-    function filterFields() {
-      const labels = {
-        custom_name: i18n("steam.independentName.colCustom", "自定义名称"),
-        aliases: i18n("steam.independentName.colAlias", "别名"),
-        mnemonic: i18n("steam.independentName.colMnemonic", "助记符"),
-        pinyin: i18n("steam.independentName.colPinyin", "拼音全拼"),
-        app_type: i18n("steam.independentName.gameType", "游戏类型"),
-        ...Object.fromEntries(Object.entries(FIELD_LABELS).map(([key, value]) => [key, i18n(`steam.independentName.filterField${key}`, value)])),
-      };
-      return FILTER_GROUPS.flatMap(([, fields]) => fields.map(field => [field, labels[field] || field]));
-    }
-
-    function filterGroups() {
-      const labels = Object.fromEntries(filterFields());
-      return FILTER_GROUPS.map(([group, fields]) => [group, fields.map(field => [field, labels[field]])]);
-    }
-
-    function gameTypes() {
-      return [
-        ["game", i18n("steam.independentName.typeGame", "游戏")],
-        ["software", i18n("steam.independentName.typeSoftware", "软件")],
-        ["tool", i18n("steam.independentName.typeTool", "工具")],
-        ["audio", i18n("steam.independentName.typeAudio", "音频")],
-        ["video", i18n("steam.independentName.typeVideo", "视频")],
-        ["other", i18n("steam.independentName.typeOther", "其他")],
-      ];
-    }
-
-    function isDiscreteField(field) {
-      return ["app_type", "sources", "original_language", "collections", "modes", "status", "privacy", "languages", "genres", "features", "tags", "hardware", "accessibility", "review_score"].includes(field);
-    }
-
-    const FILTER_SET_OPERATORS = Object.freeze(["equals", "notEquals", "contains", "notContains"]);
-    const FILTER_TEXT_OPERATORS = Object.freeze(["startsWith", "endsWith", "lengthGt", "lengthLt", "regex"]);
-    const FILTER_EMPTY_OPERATORS = Object.freeze(["empty", "notEmpty"]);
-
-    function isAliasField(field) {
-      return field === "aliases";
-    }
-
-    function usesFilterOptionValues(field, op) {
-      return isDiscreteField(field) && FILTER_SET_OPERATORS.includes(op);
-    }
-
-    function defaultFilterOperator(field) {
-      if (isRangeField(field)) return "between";
-      if (isDiscreteField(field)) return "equals";
-      return "notEmpty";
-    }
-
-    function isRangeField(field) {
-      return ["metacritic_score", "date_added", "date_release", "date_last_played", "playtime_minutes"].includes(field);
-    }
-
-    function isDateField(field) {
-      return ["date_added", "date_release", "date_last_played"].includes(field);
-    }
-
-    function operators(field) {
-      const keys = isRangeField(field)
-        ? ["between", "unknown"]
-        : isAliasField(field)
-          ? ["equals", "notEquals", "startsWith", "endsWith", "contains", "notContains", "empty", "notEmpty", "regex", "countGt", "countLt"]
-          : ["equals", "notEquals", "startsWith", "endsWith", "contains", "notContains", "empty", "notEmpty", "lengthGt", "lengthLt", "regex"];
-      const labels = {
-        notEmpty: "不为空", empty: "为空",
-        contains: "包含", notContains: "不包含", equals: "等于", notEquals: "不等于", between: "范围内", unknown: "未提供",
-        startsWith: "以…开头", endsWith: "以…结尾", lengthGt: "长度大于", lengthLt: "长度小于", regex: "正则匹配", countGt: "数量大于", countLt: "数量小于",
-      };
-      return keys.map(key => [key, i18n(`steam.independentName.filterOp${key[0].toUpperCase()}${key.slice(1)}`, labels[key])]);
-    }
-
-    function newFilter() {
-      return { field: "custom_name", op: "notEmpty", value: "", values: [], min: "", max: "", preset: "", dateStart: "", dateEnd: "" };
-    }
-
-    function gameType(type) {
-      if (!Number.isSafeInteger(type)) throw new TypeError(i18n("steam.independentName.typeMissing", "游戏类型数据不可用，请更新扩展后重试"));
-      // Steam AppOverview 的 EProtoAppType 枚举；其余实际类型归入“其他”
-      return ({ 1: "game", 2: "software", 4: "tool", 8192: "audio", 2048: "video" })[type] || "other";
-    }
-
-    function filterAvailability(field) {
-      if (field === "custom_name" || field === "aliases" || field === "mnemonic" || field === "pinyin") {
-        return { ready: true, message: "" };
-      }
-      if (field === "app_type") {
-        const ready = state.rows.length > 0 && state.rows.some(row => Number.isSafeInteger(row.app_type));
-        return { ready, message: ready ? "" : i18n("steam.independentName.typeMissing", "游戏类型数据不可用，请更新扩展后重试") };
-      }
-      if (state.meta?.capabilities?.[field] === false) {
-        const label = filterFields().find(([key]) => key === field)?.[1] || field;
-        return { ready: false, message: i18n("steam.independentName.metadataUnavailable", "$field$数据不可用，请更新扩展后重试", { field: label }) };
-      }
-      const ready = state.rows.some(row => rowMetadata(row, field).ready);
-      const label = filterFields().find(([key]) => key === field)?.[1] || field;
-      return { ready, message: ready ? "" : i18n("steam.independentName.metadataUnavailable", "$field$数据不可用，请更新扩展后重试", { field: label }) };
-    }
-
-    function optionList(field) {
-      const fallback = {
-        sources: [["mine", "自己的游戏"], ["family", "家庭组游戏"]],
-        original_language: ORIGINAL_LANGUAGE_OPTIONS,
-        modes: [["single", "单人"], ["multiplayer", "多人"], ["coop", "合作"], ["local_multiplayer", "本地多人"]],
-        status: [["ready", "准备就绪"], ["installed", "已本地安装"], ["played", "已玩过"], ["unplayed", "未玩过"]],
-        privacy: [["normal", "正常"], ["private", "私密"], ["hidden", "隐藏"]],
-        languages: Object.entries(LANGUAGE_LABELS),
-        genres: [["action", "动作"], ["adventure", "冒险"], ["casual", "休闲"], ["indie", "独立"], ["massively_multiplayer", "大型多人在线"], ["racing", "竞速"], ["rpg", "角色扮演"], ["simulation", "模拟"], ["sports", "体育"], ["strategy", "策略"]],
-        features: [["trading_cards", "集换式卡牌"], ["workshop", "创意工坊"], ["achievements", "成就"], ["steam_cloud", "Steam 云"], ["remote_play", "远程同乐"], ["family_sharing", "家庭共享"]],
-        tags: [["19", "动作"], ["21", "冒险"], ["122", "角色扮演"], ["492", "独立"], ["597", "休闲"], ["599", "模拟"], ["699", "竞速"], ["701", "体育"]],
-        hardware: [["controller_full", "完全支持控制器"], ["controller_partial", "部分支持控制器"], ["controller_recommended", "建议使用控制器"], ["vr", "VR"], ["non_vr", "非 VR"], ["deck_0", "Steam Deck：未知"], ["deck_1", "Steam Deck：Unsupported"], ["deck_2", "Steam Deck：Playable"], ["deck_3", "Steam Deck：Verified"]],
-        accessibility: Object.entries(ACCESSIBILITY_LABELS),
-        review_score: Object.entries(REVIEW_LABELS),
-      };
-      const dynamic = state.meta?.options?.[field === "collections" ? "collections" : field === "tags" ? "tags" : field === "languages" ? "languages" : field === "original_language" ? "originalLanguages" : ""];
-      const source = Array.isArray(dynamic) && dynamic.length ? dynamic.map(item => [String(item.value), text(item.label)]) : fallback[field] || [];
-      const unique = new Map();
-      for (const [rawValue, rawLabel] of source) {
-        const value = field === "languages" ? (String(rawValue) === "sc_schinese" ? "schinese" : String(rawValue)) : String(rawValue);
-        const label = text(rawLabel);
-        if (value && label && !unique.has(value)) unique.set(value, label);
-      }
-      return Array.from(unique, ([value, label]) => [value, label]);
-    }
-
-    function sortedFilterOptions(field, selected = []) {
-      const selectedSet = new Set(selected.map(String));
-      const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-      return optionList(field).slice().sort((left, right) => {
-        const leftSelected = selectedSet.has(String(left[0])) ? 0 : 1;
-        const rightSelected = selectedSet.has(String(right[0])) ? 0 : 1;
-        return leftSelected - rightSelected || collator.compare(left[1], right[1]) || collator.compare(left[0], right[0]);
+    let filterView = null;
+    function filterUI() {
+      if (!filterView) filterView = window.SteamBuff.nameBatch.create({
+        state, getRoot: () => document.getElementById(BATCH_MODAL), i18n, esc, iconHtml, setHtml,
+        expressions: filterExpressions, lifecycle: window.STDialogLifecycle, locked: () => !!state.referenceRun || state.busy,
+        fields: filters(),
+        apply: applyFilters, change() { applySearch(); renderTable(); },
       });
+      return filterView;
     }
 
-    function filterValueDisplay(field, values) {
-      const labels = new Map((field === "app_type" ? gameTypes() : optionList(field)).map(([value, label]) => [String(value), label]));
-      const selected = values.map(String).map(value => labels.get(value) || value);
-      const placeholder = i18n("steam.independentName.filterChooseValue", "选择或输入");
-      const text = selected.length > 2 ? `${selected.slice(0, 2).join("、")} +${selected.length - 2}` : selected.join("、");
-      return { text: text || placeholder, title: selected.join("、") || placeholder };
+    let filterModel = null;
+    function filters() {
+      if (!filterModel) filterModel=window.SteamBuff.nameBatch.createFilters({state,i18n,expressions:filterExpressions,defaultField:'custom_name',
+        nameFields:[['custom_name',i18n('steam.independentName.colCustom','自定义名称')],['aliases',i18n('steam.independentName.colAlias','别名')],['mnemonic',i18n('steam.independentName.colMnemonic','助记符')],['pinyin',i18n('steam.independentName.colPinyin','拼音全拼')],['original_language',i18n('steam.independentName.filterFieldoriginal_language','原名称语言')]],
+        readValues(row,field){const draft=draftOf(row.appid);return field==='aliases'?draft.aliases:[draft[field]];}});
+      return filterModel;
     }
-
-    function filterOptionMenuHtml(field, filter) {
-      const options = field === "app_type" ? gameTypes() : sortedFilterOptions(field, filter.values);
-      const searchLabel = i18n("steam.independentName.filterOptionSearch", "搜索选项");
-      const inputPlaceholder = i18n("steam.independentName.filterChooseValue", "选择或输入");
-      const optionsHtml = options.map(([key, label]) => `<label class="st-lin-filter-option"><input type="checkbox" data-lin-filter-option="${esc(key)}" ${field === "app_type" ? `data-lin-filter-type="${esc(key)}"` : ""} data-lin-filter-search-text="${esc(`${key} ${label}`.toLocaleLowerCase())}" ${filter.values.includes(key) ? "checked" : ""}> <span>${esc(label)}</span></label>`).join("");
-      const display = filterValueDisplay(field, filter.values);
-      const valueLabel = i18n("steam.independentName.filterValue", "筛选值");
-      return `<div class="st-lin-filter-value-select"><input class="st-lin-btn st-lin-filter-value-button" type="text" role="combobox" data-lin-filter-values data-lin-filter-option-search value="${filter.values.length ? esc(display.text) : ""}" placeholder="${esc(inputPlaceholder)}" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-label="${esc(valueLabel)}" title="${esc(display.title)}"><div class="st-lin-filter-option-menu" data-lin-filter-option-menu popover="manual" hidden><div class="st-lin-filter-types">${optionsHtml}</div></div></div>`;
-    }
-
-    function datePresets() {
-      return DATE_PRESET_DEFS.map(([value, label]) => [value, i18n(`steam.independentName.datePreset${value}`, label)]);
-    }
-
-    function dateRange(filter, now = Date.now()) {
-      if (!isDateField(filter.field)) return null;
-      if (filter.preset && filter.preset !== "custom") {
-        const seconds = Math.floor(now / 1000);
-        const durations = { "30m": 30 * 60, "1h": 60 * 60, "6h": 6 * 60 * 60, "24h": 24 * 60 * 60, "3d": 3 * 86400, "7d": 7 * 86400, "14d": 14 * 86400, "30d": 30 * 86400 };
-        if (durations[filter.preset]) return { min: seconds - durations[filter.preset], max: seconds };
-        const today = new Date(now);
-        today.setHours(0, 0, 0, 0);
-        const start = Math.floor(today.getTime() / 1000);
-        if (filter.preset === "today") return { min: start, max: seconds };
-        if (filter.preset === "yesterday") return { min: start - 86400, max: start - 1 };
-      }
-      if (filter.preset === "custom") {
-        const start = filter.dateStart ? new Date(`${filter.dateStart}T00:00:00`).getTime() : NaN;
-        const end = filter.dateEnd ? new Date(`${filter.dateEnd}T23:59:59`).getTime() : NaN;
-        return { min: Number.isFinite(start) ? Math.floor(start / 1000) : -Infinity, max: Number.isFinite(end) ? Math.floor(end / 1000) : Infinity };
-      }
-      return null;
-    }
-
-    function rowMetadata(row, field) {
-      const metadata = row?.metadata;
-      if (!metadata || metadata.ready?.[field] === false) return { ready: false, values: [] };
-      if (field === "date_added" || field === "date_release" || field === "date_last_played") {
-        const value = metadata.dates?.[{ date_added: "added", date_release: "release", date_last_played: "last_played" }[field]];
-        return { ready: Number.isFinite(value), value };
-      }
-      if (field === "metacritic_score" || field === "playtime_minutes") {
-        const value = metadata[field];
-        return { ready: Number.isFinite(value), value };
-      }
-      const value = metadata[field];
-      if (field === "privacy" && Array.isArray(value) && value.length === 0 && metadata.ready?.privacy !== false) {
-        return { ready: true, values: ["normal"], empty: true };
-      }
-      if (field === "original_language") {
-        const values = Array.isArray(value) ? value.map(String) : value == null ? [] : [String(value)];
-        return { ready: value !== undefined && value !== null, values, empty: values.length === 0 };
-      }
-      if (field === "languages") {
-        const values = Array.isArray(value) ? value.map(item => String(item) === "sc_schinese" ? "schinese" : String(item)) : [];
-        return { ready: Array.isArray(value), values, empty: Array.isArray(value) && values.length === 0 };
-      }
-      const values = Array.isArray(value) ? value.map(String) : value === undefined || value === null ? [] : [String(value)];
-      return { ready: value !== undefined && value !== null, values, empty: values.length === 0 };
-    }
-
-    function optionLabels(field) {
-      return new Map((field === "app_type" ? gameTypes() : optionList(field)).map(([value, label]) => [String(value), label]));
-    }
-
-    function displayValues(field, values) {
-      const labels = optionLabels(field);
-      return values.filter(value => labels.has(String(value))).map(value => labels.get(String(value)));
-    }
-
-    function unicodeLength(value) {
-      return Array.from(text(value)).length;
-    }
-
-    // 仅语法错误作为输入校验结果返回；其他异常由应用筛选的责任层记录
-    function compileFilterRegex(value) {
-      try {
-        return { expression: new RegExp(text(value), "i"), error: null };
-      } catch (error) {
-        if (!(error instanceof SyntaxError)) throw error;
-        return { expression: null, error };
-      }
-    }
-
-    function matchesText(filter, candidates) {
-      const values = candidates.map(value => text(value)).filter(Boolean);
-      if (filter.op === "regex") {
-        const expression = filterExpressions.get(filter);
-        if (!expression) throw new Error("正则筛选缺少已验证表达式");
-        return values.some(value => expression.test(value));
-      }
-      const query = text(filter.value);
-      const normalizedQuery = query.toLocaleLowerCase();
-      if (filter.op === "startsWith") return values.some(value => value.toLocaleLowerCase().startsWith(normalizedQuery));
-      if (filter.op === "endsWith") return values.some(value => value.toLocaleLowerCase().endsWith(normalizedQuery));
-      if (filter.op === "lengthGt") return values.some(value => unicodeLength(value) > Number(filter.value));
-      if (filter.op === "lengthLt") return values.some(value => unicodeLength(value) < Number(filter.value));
-      const found = values.some(value => {
-        const normalized = value.toLocaleLowerCase();
-        if (filter.op === "contains" || filter.op === "notContains") return normalized.includes(normalizedQuery);
-        return normalized === normalizedQuery;
-      });
-      return filter.op === "notContains" || filter.op === "notEquals" ? !found : found;
-    }
-
-    function matchesDiscrete(filter, metadata) {
-      if (!metadata.ready) return false;
-      if (filter.op === "empty") return metadata.empty ?? metadata.values.length === 0;
-      if (filter.op === "notEmpty") return !(metadata.empty ?? metadata.values.length === 0);
-      if (FILTER_TEXT_OPERATORS.includes(filter.op)) {
-        const labels = optionLabels(filter.field);
-        if (metadata.values.some(value => !labels.has(String(value)))) return false;
-        return matchesText(filter, displayValues(filter.field, metadata.values));
-      }
-      const wanted = new Set(filter.values.map(String));
-      const foundValues = new Set(metadata.values.map(String));
-      if (filter.field === "original_language") {
-        const intersects = Array.from(foundValues).some(value => wanted.has(value));
-        const exact = foundValues.size === wanted.size && Array.from(foundValues).every(value => wanted.has(value));
-        if (filter.op === "contains") return intersects;
-        if (filter.op === "notContains") return !intersects;
-        if (filter.op === "equals") return exact;
-        return !exact;
-      }
-      const found = Array.from(foundValues).some(value => wanted.has(value));
-      return filter.op === "equals" || filter.op === "contains" ? found : !found;
-    }
-
-    function matchesAppType(filter, row) {
-      if (!Number.isSafeInteger(row?.app_type)) return false;
-      return matchesDiscrete(filter, { ready: true, values: [gameType(row.app_type)], empty: false });
-    }
-
-    function matchesRange(filter, metadata) {
-      if (filter.op === "unknown") return !metadata.ready;
-      if (!metadata.ready) return false;
-      const value = Number(metadata.value);
-      const preset = dateRange(filter);
-      const min = preset ? preset.min : (filter.min == null || filter.min === "" ? -Infinity : Number(filter.min));
-      const max = preset ? preset.max : (filter.max == null || filter.max === "" ? Infinity : Number(filter.max));
-      return Number.isFinite(value) && Number.isFinite(min) && Number.isFinite(max) && min <= max && value >= min && value <= max;
-    }
-
     function matchesRow(row) {
-      const draft = draftOf(row.appid);
-      const q = text(state.search).toLowerCase();
-      if (q && ![row.official_name, String(row.appid), draft.custom_name, draft.mnemonic, draft.pinyin, ...draft.aliases].join(" ").toLowerCase().includes(q)) return false;
-      return state.filters.every(filter => {
-        if (filter.field === "app_type") return matchesAppType(filter, row);
-        if (isDiscreteField(filter.field)) return matchesDiscrete(filter, rowMetadata(row, filter.field));
-        if (isRangeField(filter.field)) return matchesRange(filter, rowMetadata(row, filter.field));
-        const values = (filter.field === "aliases" ? draft.aliases : [draft[filter.field]]).map(value => text(value).toLowerCase()).filter(Boolean);
-        if (filter.op === "empty") return values.length === 0;
-        if (filter.op === "notEmpty") return values.length > 0;
-        if (filter.op === "countGt" || filter.op === "countLt") {
-          const count = values.length;
-          return filter.op === "countGt" ? count > Number(filter.value) : count < Number(filter.value);
-        }
-        return matchesText(filter, values);
-      });
+      const draft = draftOf(row.appid), q = text(state.search).toLowerCase();
+      if (q && ![row.official_name,String(row.appid),draft.custom_name,draft.mnemonic,draft.pinyin,...draft.aliases].join(' ').toLowerCase().includes(q)) return false;
+      return state.filters.every(filter=>filters().matches(filter,row));
     }
 
     // 普通选择限定筛选结果；本次导入草稿保留隐藏目标，防止主窗口保存漏项。
@@ -1410,199 +1044,21 @@
       renderTable();
     }
 
-    function renderFilterChips() {
-      const modal = document.getElementById(BATCH_MODAL);
-      const chips = modal?.querySelector("[data-lin-filter-chips]");
-      if (!chips) return;
-      setHtml(chips, state.filters.map((filter, index) => {
-        const field = filterFields().find(([key]) => key === filter.field)?.[1] || filter.field;
-        const op = operators(filter.field).find(([key]) => key === filter.op)[1];
-        const value = usesFilterOptionValues(filter.field, filter.op)
-          ? displayValues(filter.field, filter.values).join(" / ")
-          : isRangeField(filter.field) ? (isDateField(filter.field) && filter.preset
-            ? (datePresets().find(([key]) => key === filter.preset)?.[1] || filter.preset)
-            : `${filter.min || filter.dateStart || "-∞"} ~ ${filter.max || filter.dateEnd || "∞"}`)
-            : FILTER_EMPTY_OPERATORS.includes(filter.op) ? "" : filter.value;
-        const removeLabel = i18n("steam.independentName.removeFilter", "移除筛选");
-        return `<span class="st-lin-filter-chip"><button type="button" data-lin-filter-edit>${esc(`${field} ${op} ${value}`)}</button><button class="st-lin-filter-chip-remove" type="button" data-lin-filter-remove="${index}" aria-label="${esc(removeLabel)}" title="${esc(removeLabel)}">${iconHtml(FILTER_DELETE_ICON_PATH, "st-lin-filter-delete-icon")}</button></span>`;
-      }).join(""), "library-independent-name-filter-chips");
-      const clear = modal.querySelector("[data-lin-filter-clear]");
-      clear.hidden = state.filters.length === 0;
-      clear.disabled = state.filters.length === 0 || !!state.referenceRun;
-    }
+    function renderFilterChips(...args) { return filterUI().renderFilterChips(...args); }
 
     // 原 select 保留值、options 和 change 契约；弹层从同一运算符目录生成，不维护第二套筛选规则
-    function filterOperatorHtml(filter, index, ready) {
-      const label = i18n("steam.independentName.filterOperator", "筛选关系");
-      const list = operators(filter.field);
-      const current = list.find(([key]) => key === filter.op)[1];
-      const id = `st-lin-filter-operator-${index}`;
-      const options = list.map(([key, text]) => `<option value="${key}" ${key === filter.op ? "selected" : ""}>${esc(text)}</option>`).join("");
-      const choices = list.map(([key, text]) => `<button class="st-lin-filter-operator-option" type="button" role="option" data-lin-filter-op-value="${key}" aria-selected="${key === filter.op}" tabindex="${key === filter.op ? 0 : -1}"><span>${esc(text)}</span><span aria-hidden="true">${key === filter.op ? "✓" : ""}</span></button>`).join("");
-      return `<div class="st-lin-filter-operator"><select data-lin-filter-op hidden aria-label="${esc(label)}" ${ready ? "" : "disabled"}>${options}</select><button class="st-lin-btn st-lin-filter-operator-button" type="button" data-lin-filter-op-trigger aria-label="${esc(`${label}: ${current}`)}" aria-haspopup="listbox" aria-controls="${id}" aria-expanded="false" ${ready ? "" : "disabled"}><span>${esc(current)}</span><span aria-hidden="true">▾</span></button><div id="${id}" class="st-lin-filter-operator-menu" data-lin-filter-op-menu role="listbox" aria-label="${esc(label)}" popover="manual" hidden>${choices}</div></div>`;
-    }
 
-    function renderFilterEditor() {
-      const editor = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-filter-editor]");
-      if (!editor || !state.filterDraft) return;
-      closeFilterPicker();
-      setHtml(editor.querySelector("[data-lin-filter-rows]"), state.filterDraft.map((filter, index) => {
-        const field = filterFields().find(([key]) => key === filter.field)?.[1] || filter.field;
-        const value = usesFilterOptionValues(filter.field, filter.op)
-          ? filterOptionMenuHtml(filter.field, filter)
-          : isRangeField(filter.field)
-              ? isDateField(filter.field)
-                ? `<div class="st-lin-filter-date"><select data-lin-filter-date-preset aria-label="${esc(i18n("steam.independentName.filterDatePreset", "日期范围"))}" ${filter.op === "unknown" ? "hidden" : ""}>${datePresets().map(([key, label]) => `<option value="${esc(key)}" ${filter.preset === key ? "selected" : ""}>${esc(label)}</option>`).join("")}</select><div class="st-lin-filter-range" ${filter.preset !== "custom" || filter.op === "unknown" ? "hidden" : ""}><label class="st-lin-filter-date-bound"><span>${esc(i18n("steam.independentName.filterDateStart", "开始日期"))}</span><input data-lin-filter-date-start type="date" value="${esc(filter.dateStart)}"></label><label class="st-lin-filter-date-bound"><span>${esc(i18n("steam.independentName.filterDateEnd", "结束日期"))}</span><input data-lin-filter-date-end type="date" value="${esc(filter.dateEnd)}"></label></div></div>`
-                : `<div class="st-lin-filter-range"><input data-lin-filter-min type="number" value="${esc(filter.min)}" placeholder="${esc(i18n("steam.independentName.filterMin", "最小"))}" ${filter.op === "unknown" ? "hidden" : ""}><input data-lin-filter-max type="number" value="${esc(filter.max)}" placeholder="${esc(i18n("steam.independentName.filterMax", "最大"))}" ${filter.op === "unknown" ? "hidden" : ""}></div>`
-              : `<input data-lin-filter-value type="${["lengthGt", "lengthLt", "countGt", "countLt"].includes(filter.op) ? "number" : "text"}" ${["lengthGt", "lengthLt", "countGt", "countLt"].includes(filter.op) ? "min=\"0\" step=\"1\" inputmode=\"numeric\"" : "maxlength=\"200\""} aria-label="${esc(i18n("steam.independentName.filterValue", "筛选值"))}" value="${esc(filter.value)}" ${FILTER_EMPTY_OPERATORS.includes(filter.op) ? "hidden" : ""}>`;
-        const fieldPicker = filterGroups().map(([group, fields]) => `<div class="st-lin-filter-picker-group"><strong>${esc(group)}</strong>${fields.map(([key, label]) => {
-          const availability = filterAvailability(key);
-          const selected = key === filter.field;
-          return `<button class="st-lin-btn st-lin-filter-picker-option" type="button" data-lin-filter-field-value="${key}" aria-current="${selected ? "true" : "false"}" ${availability.ready ? "" : `disabled title="${esc(availability.message)}" aria-disabled="true"`}>${esc(label)}</button>`;
-        }).join("")}</div>`).join("");
-        const availability = filterAvailability(filter.field);
-        const unavailable = availability.ready ? "" : `<p class="st-lin-filter-unavailable" data-lin-filter-unavailable role="status">${esc(availability.message)}</p>`;
-        const renderedValue = availability.ready ? value : unavailable;
-        const removeLabel = i18n("steam.independentName.removeFilter", "移除筛选");
-        return `<div class="st-lin-filter-row" data-lin-filter-row="${index}"><div class="st-lin-filter-field"><button class="st-lin-btn st-lin-filter-field-button" type="button" data-lin-filter-field aria-expanded="false">${esc(field)} <span aria-hidden="true">▾</span></button><div class="st-lin-filter-picker" data-lin-filter-picker popover="manual" hidden><div class="st-lin-filter-picker-scroll">${fieldPicker}</div></div></div>${filterOperatorHtml(filter, index, availability.ready)}<div class="st-lin-filter-value">${renderedValue}</div><button class="st-lin-btn st-lin-filter-delete" type="button" data-lin-filter-delete="${index}" aria-label="${esc(removeLabel)}" title="${esc(removeLabel)}">${iconHtml(FILTER_DELETE_ICON_PATH, "st-lin-filter-delete-icon")}</button></div>`;
-      }).join(""), "library-independent-name-filter-editor");
-      const unavailable = state.filterDraft.map(filter => filterAvailability(filter.field)).find(result => !result.ready);
-      const message = editor.querySelector("[data-lin-filter-msg]");
-      if (message) message.textContent = unavailable?.message || "";
-    }
-
-    function openFilterEditor(opener, add) {
-      if (state.referenceRun || state.busy) return;
-      const editor = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-filter-editor]");
-      if (!editor) return;
-      state.filterDraft = state.filters.map(filter => ({ ...filter, values: filter.values.slice() }));
-      if (add || !state.filterDraft.length) state.filterDraft.push(newFilter());
-      renderFilterEditor();
-      editor.hidden = false;
-      editor.addEventListener("scroll", closeFilterPicker, { passive: true });
-      editor.querySelector("[data-lin-filter-editor-scroll]")?.addEventListener("scroll", closeFilterPicker, { passive: true });
-      state.filterSession = window.STDialogLifecycle.open({ root: editor, restore: opener, initial: () => editor.querySelector("[data-lin-filter-field]"), onEscape: () => {
-        if (state.filterPicker) closeFilterPicker();
-        else closeFilterEditor();
-      } });
-      state.filterSession.focusInitial();
-    }
-
-    function closeFilterEditor() {
-      const editor = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-filter-editor]");
-      if (editor) {
-        closeFilterPicker();
-        editor.removeEventListener("scroll", closeFilterPicker);
-        editor.querySelector("[data-lin-filter-editor-scroll]")?.removeEventListener("scroll", closeFilterPicker);
-        editor.hidden = true;
-      }
-      state.filterDraft = null;
-      state.filterSession?.close();
-      state.filterSession = null;
-    }
+    function closeFilterEditor(...args) { return filterView?.closeFilterEditor(...args); }
 
     // 菜单进入 top layer，避免条件列表滚动容器裁剪；展开和视口调整只计算当前菜单
-    function positionFilterPicker(picker = state.filterPicker, anchorButton = state.filterPickerAnchor) {
-      if (!picker || !anchorButton) return;
-      const anchor = anchorButton.getBoundingClientRect();
-      if (picker.matches("[data-lin-filter-option-menu]")) {
-        picker.style.width = `${Math.min(Math.max(anchor.width, 220), window.innerWidth - 16)}px`;
-      }
-      if (picker.matches("[data-lin-filter-op-menu]")) {
-        picker.style.width = `${Math.min(Math.max(anchor.width, 144), window.innerWidth - 16)}px`;
-        const available = Math.max(anchor.top - 16, window.innerHeight - anchor.bottom - 16);
-        picker.style.maxHeight = `${Math.max(0, available)}px`;
-      }
-      if (picker.matches("[data-lin-actions-menu]")) {
-        // 两侧都放不下整份菜单时只缩小内部滚动区，保留触发按钮和三角之间的间隙。
-        const available = Math.max(anchor.top - 16, window.innerHeight - anchor.bottom - 16);
-        picker.querySelector(".st-lin-actions-scroll").style.maxHeight = `${Math.max(0, available - 2)}px`;
-      }
-      const rect = picker.getBoundingClientRect();
-      const left = Math.max(8, Math.min(anchor.left, window.innerWidth - rect.width - 8));
-      picker.style.left = `${left}px`;
-      if (picker.matches("[data-lin-actions-menu]")) picker.style.setProperty("--st-lin-actions-arrow-x", `${Math.max(12, Math.min(anchor.left + anchor.width / 2 - left, rect.width - 12))}px`);
-      const below = anchor.bottom + 8 + rect.height <= window.innerHeight - 8;
-      picker.dataset.linFilterPlacement = below ? "below" : "above";
-      picker.style.top = `${below ? anchor.bottom + 8 : Math.max(8, anchor.top - rect.height - 8)}px`;
-    }
 
-    function onFilterResize() {
-      if (state.filterPicker) positionFilterPicker(state.filterPicker);
-    }
+    function positionFilterPicker(...args) { return filterUI().positionFilterPicker(...args); }
+    function closeFilterPicker(...args) { return filterView?.closeFilterPicker(...args); }
 
-    function closeFilterPicker(restoreFocus = true) {
-      const picker = state.filterPicker;
-      if (!picker) return;
-      const button = state.filterPickerAnchor;
-      state.filterPicker = null;
-      state.filterPickerAnchor = null;
-      window.removeEventListener("resize", onFilterResize);
-      picker.hidePopover();
-      picker.hidden = true;
-      button?.setAttribute("aria-expanded", "false");
-      if (picker.matches("[data-lin-filter-op-menu]")) {
-        for (const option of picker.querySelectorAll("[data-lin-filter-op-value]")) option.tabIndex = option.getAttribute("aria-selected") === "true" ? 0 : -1;
-      }
-      if (picker.matches("[data-lin-filter-option-menu]")) {
-        for (const option of picker.querySelectorAll("[data-lin-filter-option]")) option.closest("label").hidden = false;
-        const row = button?.closest("[data-lin-filter-row]");
-        const filter = row && state.filterDraft?.[Number(row.dataset.linFilterRow)];
-        if (button && filter) {
-          const display = filterValueDisplay(filter.field, filter.values);
-          button.value = filter.values.length ? display.text : "";
-          button.title = display.title;
-        }
-      }
-      if (restoreFocus) button?.focus({ preventScroll: true });
-    }
-
-    function toggleFilterPicker(button, picker, initialSelector) {
-      if (button.disabled) return;
-      if (state.filterPicker === picker) {
-        closeFilterPicker(false);
-        return;
-      }
-      closeFilterPicker(false);
-      picker.hidden = false;
-      picker.showPopover();
-      state.filterPicker = picker;
-      state.filterPickerAnchor = button;
-      button.setAttribute("aria-expanded", "true");
-      positionFilterPicker();
-      window.addEventListener("resize", onFilterResize);
-      picker.querySelector(initialSelector)?.focus({ preventScroll: true });
-    }
+    function toggleFilterPicker(...args) { return filterUI().toggleFilterPicker(...args); }
 
     // 校验与编译共用一条路径；失败只返回原因，不替换已生效筛选
-    function validateFilterDraft(filters) {
-      let regexError = null;
-      const invalid = filters.some(filter => {
-        if (!filterAvailability(filter.field).ready) return true;
-        if (usesFilterOptionValues(filter.field, filter.op)) return !filter.values.length;
-        if (isRangeField(filter.field)) {
-          const hasRange = isDateField(filter.field)
-            ? !!filter.preset || !!filter.dateStart || !!filter.dateEnd || filter.min !== "" || filter.max !== ""
-            : filter.min !== "" || filter.max !== "";
-          return filter.op !== "unknown" && !hasRange;
-        }
-        if (FILTER_EMPTY_OPERATORS.includes(filter.op)) return false;
-        if (!text(filter.value)) return true;
-        if (["lengthGt", "lengthLt", "countGt", "countLt"].includes(filter.op)) {
-          return !/^\d+$/.test(text(filter.value)) || !Number.isSafeInteger(Number(filter.value));
-        }
-        if (filter.op === "regex") {
-          const compiled = compileFilterRegex(filter.value);
-          if (compiled.error) {
-            regexError = compiled.error;
-            return true;
-          }
-          filterExpressions.set(filter, compiled.expression);
-        }
-        return false;
-      });
-      return { invalid, regexError };
-    }
+    function validateFilterDraft(filters) { return filterUI().validateFilterDraft(filters); }
 
     function applyFilters() {
       if (!state.filterDraft) return;
@@ -1616,7 +1072,7 @@
         return;
       }
       if (validation.invalid) {
-        const unavailable = state.filterDraft.map(filter => filterAvailability(filter.field)).find(result => !result.ready);
+        const unavailable = state.filterDraft.map(filter => filters().filterAvailability(filter.field)).find(result => !result.ready);
         const regexMessage = validation.regexError ? i18n("steam.independentName.filterRegexInvalid", "正则表达式格式错误，请修改后重试") : "";
         editor.querySelector("[data-lin-filter-msg]").textContent = unavailable?.message || regexMessage || i18n("steam.independentName.filterIncomplete", "请填写筛选值或选择游戏类型");
         return;
@@ -1852,7 +1308,7 @@
 
     function actionsMenuHtml() {
       const action = key => `<button class="st-lin-btn" type="button" data-lin-bulk-action="${key}" disabled>${esc(bulkText(key))}</button>`;
-      const group = (key, contents) => `<div class="st-lin-actions-group" data-lin-actions-group="${key}"><strong>${esc(bulkText(key))}</strong><div>${contents}</div></div>`;
+      const group = (key,contents) => window.SteamBuff.nameBatch.actionGroupsHtml([[key,contents]],esc,i18n);
       return group("add", ["name", "aliases", "mnemonic", "pinyin"].map(action).join(""))
         + group("generate", `<button class="st-lin-btn" type="button" data-lin-reference-many disabled>${esc(i18n("steam.independentName.fetchCommunity", "获取社区名称"))}</button>` + ["generate-mnemonic", "generate-pinyin"].map(action).join(""))
         + group("clear", ["clear-name", "clear-aliases", "clear-mnemonic", "clear-pinyin"].map(action).join(""))
@@ -1982,13 +1438,7 @@
       let note = "";
       if (bulk.kind === "name") {
         if (!base.custom_name && bulk.useOriginal && !source) error = bulkText("originalMissing");
-        if (bulk.tab === "replace" && params.find && source.includes(params.find)) value = source.split(params.find).join(params.value);
-        if (bulk.tab === "manual" && bulk.manual.has(row.appid)) value = bulk.manual.get(row.appid);
-        if (bulk.tab === "sequence" || bulk.tab === "insert") {
-          const added = bulk.tab === "insert" && params.insertType === "text" ? params.value : params.prefix + formatSequence(Number(params.start) + index, params.type) + params.suffix;
-          if (bulk.tab === "sequence") value = added;
-          else if (added) value = params.position === "before" ? added + source : source + added;
-        }
+        value = window.STNameEdit.transform({ source, tab: bulk.tab, params, index, manual: bulk.manual.get(row.appid) });
         if (value !== undefined && !error) {
           value = text(value);
           if (!base.custom_name && bulk.useOriginal && bulk.tab !== "sequence" && value === source) value = undefined;
@@ -2598,7 +2048,7 @@
     function batchModalHtml() {
       const resetLabel = esc(tableText("reset", "恢复默认表格"));
       const closeLabel = esc(i18n("common.close", "关闭"));
-      const resetIcon = `<svg viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true" focusable="false">${TABLE_RESET_ICON_PATHS.map(path => `<path d="${path}"></path>`).join("")}</svg>`;
+      const resetIcon = `<svg viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true" focusable="false">${TABLE.icons.reset.map(path => `<path d="${path}"></path>`).join("")}</svg>`;
       return `
         <div class="st-lin-dialog">
           <span data-lin-dialog-resize="left" aria-hidden="true"></span><span data-lin-dialog-resize="right" aria-hidden="true"></span>
@@ -2608,36 +2058,9 @@
             <button class="st-lin-close" type="button" data-lin-close aria-label="${closeLabel}" title="${closeLabel}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M2.5 2.5l19 19M21.5 2.5l-19 19"></path></svg></button>
           </header>
           <div class="st-lin-top">
-            <div class="st-lin-filter-shell" data-lin-filter-shell>
-              <div class="st-lin-filter-bar">
-                <button class="st-lin-filter-icon-button" type="button" data-lin-filter-open aria-label="${esc(i18n("steam.independentName.filter", "筛选"))}" title="${esc(i18n("steam.independentName.filter", "筛选"))}">${iconHtml(FILTER_ICON_PATH, "st-lin-filter-icon")}</button>
-                <div class="st-lin-filter-chips" data-lin-filter-chips></div>
-                <button class="st-lin-btn st-lin-link st-lin-filter-add" type="button" data-lin-filter-add>${esc(i18n("steam.independentName.addFilter", "+ 添加筛选"))}</button>
-                <button class="st-lin-btn st-lin-link st-lin-filter-clear" type="button" data-lin-filter-clear hidden disabled>${esc(i18n("steam.independentName.clearFilters", "清空筛选"))}</button>
-              </div>
-              <section class="st-lin-filter-editor" data-lin-filter-editor role="dialog" aria-modal="true" aria-label="${esc(i18n("steam.independentName.filter", "筛选"))}" hidden>
-                <div class="st-lin-filter-editor-scroll" data-lin-filter-editor-scroll>
-                  <div data-lin-filter-rows></div>
-                  <button class="st-lin-btn st-lin-link" type="button" data-lin-filter-row-add>${esc(i18n("steam.independentName.addAndFilter", "+ 添加 AND 条件"))}</button>
-                  <p class="st-lin-msg" data-lin-filter-msg role="status"></p>
-                  <div class="st-lin-filter-actions">
-                    <button class="st-lin-btn" type="button" data-lin-filter-cancel>${esc(i18n("common.cancel", "取消"))}</button>
-                    <button class="st-lin-btn st-lin-primary" type="button" data-lin-filter-apply>${esc(i18n("steam.independentName.applyFilter", "应用"))}</button>
-                  </div>
-                </div>
-              </section>
-            </div>
+            ${filterUI().shellHtml()}
             <p class="st-lin-msg st-lin-filter-stats" data-lin-stats></p>
-            <div class="st-lin-toolbar st-lin-selection-bar">
-              <button class="st-lin-btn st-lin-primary" type="button" data-lin-save-all disabled>${esc(i18n("steam.independentName.saveChanges", "保存修改"))}</button>
-              <span class="st-lin-msg" data-lin-selected-count></span>
-              <div class="st-lin-file-tools">
-                <button class="st-lin-btn" type="button" data-lin-actions-toggle aria-controls="st-lin-actions-menu" aria-expanded="false">${esc(bulkText("menu"))} ▾</button>
-                <div id="st-lin-actions-menu" class="st-lin-actions-menu" data-lin-actions-menu popover="manual" hidden><div class="st-lin-actions-scroll">${actionsMenuHtml()}</div></div>
-                <input data-lin-search type="search" value="${esc(state.search)}" aria-label="${esc(i18n("steam.independentName.search", "搜索名称 / AppID / 别名"))}" placeholder="${esc(i18n("steam.independentName.search", "搜索名称 / AppID / 别名"))}">
-                <input data-lin-file type="file" accept="application/json" hidden>
-              </div>
-            </div>
+            ${window.SteamBuff.nameBatch.toolbarHtml({esc,i18n,saveAttr:"data-lin-save-all",saveDisabled:true,selectedAttr:"data-lin-selected-count",actionsAttr:"data-lin-actions-toggle",menuId:"st-lin-actions-menu",menuAttr:"data-lin-actions-menu",menuHtml:actionsMenuHtml(),searchAttr:"data-lin-search",searchValue:state.search,searchLabel:i18n("steam.independentName.search","搜索名称 / AppID / 别名"),fileAttr:"data-lin-file"})}
             <p class="st-lin-msg" data-lin-msg role="status" hidden></p>
             <p class="st-lin-msg" data-lin-table-status role="status" hidden></p>
             <div data-lin-native-controls hidden><button class="st-lin-btn" type="button" data-lin-native-command="pause">${esc(tableText("pause", "暂停"))}</button><button class="st-lin-btn" type="button" data-lin-native-command="resume">${esc(tableText("resume", "继续"))}</button><button class="st-lin-btn" type="button" data-lin-native-command="cancel">${esc(tableText("cancel", "停止保存"))}</button></div>
@@ -2798,7 +2221,7 @@
         const layout = Promise.all([loadTableLib(), request("table-settings-get")]).then(([, result]) => {
           if (generation !== state.batchGeneration || !state.started) return;
           if (!result.value) throw new TypeError(tableText("invalidResponse", "表格配置响应缺少有效数据。"));
-          state.tablePrefs = TABLE.parse(result.value); state.tableReady = true; attachTable(modal);
+          state.tablePrefs = TABLE.fromResponse(result); state.tableReady = true; attachTable(modal);
         }).catch(error => {
           if (generation !== state.batchGeneration || !state.started) return;
           state.tableReady = true; attachTable(modal);
@@ -3717,76 +3140,13 @@
         void task.catch(error => reportFailure(error, bulk));
         return;
       }
-      if (state.filterDraft) {
-        const editor = target.closest("[data-lin-filter-editor]");
-        if (!editor || target.closest("[data-lin-filter-cancel]")) { closeFilterEditor(); return; }
-        if (state.filterPicker && !state.filterPicker.contains(target) && !target.closest("[data-lin-filter-field], [data-lin-filter-values], [data-lin-filter-op-trigger]")) closeFilterPicker(false);
-        if (target.closest("[data-lin-filter-apply]")) { applyFilters(); return; }
-        if (target.closest("[data-lin-filter-row-add]")) { state.filterDraft.push(newFilter()); renderFilterEditor(); return; }
-        const del = target.closest("[data-lin-filter-delete]");
-        if (del) { state.filterDraft.splice(Number(del.dataset.linFilterDelete), 1); renderFilterEditor(); return; }
-        const row = target.closest("[data-lin-filter-row]");
-        if (!row) return;
-        const operator = target.closest("[data-lin-filter-op-value]");
-        if (operator) {
-          const select = row.querySelector("[data-lin-filter-op]");
-          select.value = operator.dataset.linFilterOpValue;
-          select.dispatchEvent(new Event("change", { bubbles: true }));
-          return;
-        }
-        const operatorTrigger = target.closest("[data-lin-filter-op-trigger]");
-        if (operatorTrigger) {
-          toggleFilterPicker(operatorTrigger, row.querySelector("[data-lin-filter-op-menu]"), '[aria-selected="true"]');
-          return;
-        }
-        const value = target.closest("[data-lin-filter-field-value]");
-        if (value) {
-          if (value.disabled) return;
-          const filter = state.filterDraft[Number(row.dataset.linFilterRow)];
-          filter.field = value.dataset.linFilterFieldValue;
-          filter.op = defaultFilterOperator(filter.field);
-          filter.value = "";
-          filter.values = [];
-          filter.min = "";
-          filter.max = "";
-          filter.preset = isDateField(filter.field) ? "30m" : "";
-          filter.dateStart = "";
-          filter.dateEnd = "";
-          renderFilterEditor();
-          editor.querySelector(`[data-lin-filter-row="${row.dataset.linFilterRow}"] [data-lin-filter-field]`).focus({ preventScroll: true });
-          return;
-        }
-        const field = target.closest("[data-lin-filter-field]");
-        if (field) {
-          const picker = row.querySelector("[data-lin-filter-picker]");
-          toggleFilterPicker(field, picker, "button");
-          return;
-        }
-        const values = target.closest("[data-lin-filter-values]");
-        if (values) {
-          const picker = row.querySelector("[data-lin-filter-option-menu]");
-          toggleFilterPicker(values, picker, null);
-        }
-        return;
-      }
+      if (filterUI().click(event)) return;
       if (target.closest("[data-lin-reference-cancel]")) { closeReferenceConfirm(); return; }
       if (target.closest("[data-lin-reference-accept]")) {
         const appids = state.referencePending;
         closeReferenceConfirm();
         if (appids) void fetchCommunity(appids);
         return;
-      }
-      if (target.closest("[data-lin-filter-open], [data-lin-filter-add], [data-lin-filter-edit]")) {
-        openFilterEditor(target.closest("button"), !!target.closest("[data-lin-filter-add]"));
-        return;
-      }
-      const remove = target.closest("[data-lin-filter-remove]");
-      if (remove && !state.referenceRun) {
-        state.filters.splice(Number(remove.dataset.linFilterRemove), 1);
-        applySearch(); renderFilterChips(); renderTable(); return;
-      }
-      if (target.closest("[data-lin-filter-clear]") && !state.referenceRun) {
-        state.filters = []; applySearch(); renderFilterChips(); renderTable(); return;
       }
       const selection = target.closest("[data-lin-selection]");
       if (selection) { changeSelection(selection.dataset.linSelection); return; }
@@ -3859,31 +3219,7 @@
     }
 
     // 单选弹层只在明确选择时修改运算符，方向键仅移动焦点；Tab 返回触发器后继续正常导航
-    function onFilterOperatorKey(event) {
-      const trigger = event.target.closest("[data-lin-filter-op-trigger]");
-      const option = event.target.closest("[data-lin-filter-op-value]");
-      if (trigger && ["ArrowDown", "ArrowUp"].includes(event.key)) {
-        event.preventDefault();
-        if (!trigger.disabled) {
-          const picker = trigger.closest("[data-lin-filter-row]").querySelector("[data-lin-filter-op-menu]");
-          if (state.filterPicker !== picker) toggleFilterPicker(trigger, picker, '[aria-selected="true"]');
-        }
-        return true;
-      }
-      if (!option || state.filterPicker !== option.closest("[data-lin-filter-op-menu]")) return false;
-      if (event.key === "Tab") { closeFilterPicker(); return true; }
-      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return false;
-      event.preventDefault();
-      const options = Array.from(state.filterPicker.querySelectorAll("[data-lin-filter-op-value]"));
-      const index = options.indexOf(option);
-      const next = options[event.key === "Home" ? 0 : event.key === "End" ? options.length - 1
-        : Math.max(0, Math.min(options.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))];
-      option.tabIndex = -1;
-      next.tabIndex = 0;
-      next.focus({ preventScroll: true });
-      next.scrollIntoView({ block: "nearest" });
-      return true;
-    }
+    function onFilterOperatorKey(...args) { return filterUI().onFilterOperatorKey(...args); }
 
     function onBatchInput(event) {
       if (state.transfer) {
@@ -3895,34 +3231,7 @@
         return;
       }
       if (event.target.matches?.("[data-lin-select], [data-lin-select-all]")) return;
-      if (event.target.matches?.("[data-lin-filter-option-search]")) {
-        const query = text(event.target.value).toLocaleLowerCase();
-        const menu = event.target.closest("[data-lin-filter-option-menu]")
-          || event.target.closest("[data-lin-filter-row]")?.querySelector("[data-lin-filter-option-menu]");
-        for (const option of menu?.querySelectorAll("[data-lin-filter-option]") || []) {
-          option.closest("label").hidden = !!query && !text(option.dataset.linFilterSearchText).includes(query);
-        }
-        return;
-      }
-      if (event.target.matches?.("[data-lin-filter-value]") && state.filterDraft) {
-        const index = Number(event.target.closest("[data-lin-filter-row]").dataset.linFilterRow);
-        state.filterDraft[index].value = event.target.value;
-        return;
-      }
-      if (event.target.matches?.("[data-lin-filter-min], [data-lin-filter-max]") && state.filterDraft) {
-        const index = Number(event.target.closest("[data-lin-filter-row]").dataset.linFilterRow);
-        const filter = state.filterDraft[index];
-        if (event.target.matches("[data-lin-filter-min]")) filter.min = event.target.value;
-        else filter.max = event.target.value;
-        return;
-      }
-      if (event.target.matches?.("[data-lin-filter-date-start], [data-lin-filter-date-end]") && state.filterDraft) {
-        const index = Number(event.target.closest("[data-lin-filter-row]").dataset.linFilterRow);
-        const filter = state.filterDraft[index];
-        if (event.target.matches("[data-lin-filter-date-start]")) filter.dateStart = event.target.value;
-        else filter.dateEnd = event.target.value;
-        return;
-      }
+      if (filterUI().input(event)) return;
       if (event.target.matches?.("[data-lin-alias-editor-input]") && state.aliasEditor) {
         state.aliasEditor.input = event.target.value;
         const editor = event.target.closest("[data-lin-alias-editor]");
@@ -4001,32 +3310,7 @@
         refreshBatchSave();
         return;
       }
-      const filterRow = event.target.closest("[data-lin-filter-row]");
-      if (filterRow && state.filterDraft) {
-        const filter = state.filterDraft[Number(filterRow.dataset.linFilterRow)];
-        if (event.target.matches("[data-lin-filter-op]")) {
-          filter.op = event.target.value;
-          const index = filterRow.dataset.linFilterRow;
-          renderFilterEditor();
-          document.getElementById(BATCH_MODAL).querySelector(`[data-lin-filter-row="${index}"] [data-lin-filter-op-trigger]`).focus({ preventScroll: true });
-        } else if (event.target.matches("[data-lin-filter-date-preset]")) {
-          filter.preset = event.target.value;
-          renderFilterEditor();
-          document.getElementById(BATCH_MODAL).querySelector(`[data-lin-filter-row="${filterRow.dataset.linFilterRow}"] [data-lin-filter-date-preset]`)?.focus({ preventScroll: true });
-        } else if (event.target.matches("[data-lin-filter-option], [data-lin-filter-type]")) {
-          const type = event.target.dataset.linFilterOption || event.target.dataset.linFilterType;
-          filter.values = filter.values.filter(value => value !== type);
-          if (event.target.checked) filter.values.push(type);
-          const input = filterRow.querySelector("[data-lin-filter-values]");
-          const display = filterValueDisplay(filter.field, filter.values);
-          if (input) {
-            input.value = display.text;
-            input.title = display.title;
-            input.setAttribute("aria-label", `${i18n("steam.independentName.filterValue", "筛选值")}: ${display.title}`);
-          }
-        }
-        return;
-      }
+      filterUI().change(event);
     }
 
     function onVisibility() {
