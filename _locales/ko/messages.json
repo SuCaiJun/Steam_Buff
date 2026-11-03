@@ -6507,7 +6507,7 @@
     "message": "첫 행에 APPID와 自定义名称 또는 别名이 필요합니다. 열 순서는 자유입니다."
   },
   "steam_independentName_transfer_jsonHint": {
-    "message": "JSON 최상위는 items 배열, 별명은 aliases 배열입니다. 기존 내보내기 파일을 지원합니다."
+    "message": "JSON은 items 배열을 사용합니다. 이전 파일의 custom_name 의미를 아래에서 선택하세요."
   },
   "steam_independentName_transfer_aliases": {
     "message": "별명 형식: \"별명1\",\"별명2\". 영문 큰따옴표로 감싸고 영문 또는 중국어 쉼표로 구분하세요."
@@ -7159,13 +7159,47 @@
   "familyTask_retry": {
     "message": "다시 시도"
   },
-  "messageCenter_retrying": { "message": "재시도 중" },
-  "familyTask_manualOnly": { "message": "수동 모드에서는 자동으로 재시도하지 않습니다." },
-  "familyTask_retryPending": { "message": "60분 후 자동으로 재시도합니다. 최대 5회 재시도합니다." },
-  "familyTask_retryFailed": { "message": "자동 재시도 $value$회가 실패했습니다.", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_retryNext": { "message": "다음 자동 재시도: $value$", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_retryStopped": { "message": "자동 재시도 5회가 모두 실패하여 이번 주기의 재시도를 중단했습니다. 다음 정기 새로고침: $value$", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_normalNext": { "message": "다음 정기 새로고침: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "messageCenter_retrying": {
+    "message": "재시도 중"
+  },
+  "familyTask_manualOnly": {
+    "message": "수동 모드에서는 자동으로 재시도하지 않습니다."
+  },
+  "familyTask_retryPending": {
+    "message": "60분 후 자동으로 재시도합니다. 최대 5회 재시도합니다."
+  },
+  "familyTask_retryFailed": {
+    "message": "자동 재시도 $value$회가 실패했습니다.",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retryNext": {
+    "message": "다음 자동 재시도: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retryStopped": {
+    "message": "자동 재시도 5회가 모두 실패하여 이번 주기의 재시도를 중단했습니다. 다음 정기 새로고침: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_normalNext": {
+    "message": "다음 정기 새로고침: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
   "familyTask_login": {
     "message": "상점 열기"
   },
@@ -7182,7 +7216,7 @@
     "message": "입력할 정렬 이름이 비어 있으면 Steam 원래 이름 사용"
   },
   "steam_libraryCustomName_sortClearUseAction": {
-    "message": "이름을 지우려면 “선택한 사용자 지정 정렬 이름 지우기”를 사용하세요."
+    "message": "이름을 지우려면 모두 비우기 또는 이름만 비우기를 사용하세요."
   },
   "steam_libraryCustomName_batchSummary": {
     "message": "전체 $total$개 · 필터 결과 $filtered$개 · 선택 $selected$개 · 저장 대기 $write$개 · 건너뜀 $skipped$개 · 항목 $limit$ · 용량 $capacity$",
@@ -7220,5 +7254,49 @@
         "content": "$1"
       }
     }
+  },
+  "steam_libraryCustomName_clearAllParts": {
+    "message": "모두 비우기"
+  },
+  "steam_libraryCustomName_clearOnlyName": {
+    "message": "이름만 비우기"
+  },
+  "steam_libraryCustomName_clearOnlyMnemonic": {
+    "message": "약어만 비우기"
+  },
+  "steam_libraryCustomName_clearDraftApplied": {
+    "message": "$count$개 초안을 변경했습니다. 변경 사항 저장을 눌러 Steam에 반영하세요.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_filterFieldcollection_names": {
+    "message": "컬렉션 이름"
+  },
+  "steam_independentName_transfer_includeSort": {
+    "message": "Steam 사용자 지정 정렬 이름도 내보내기"
+  },
+  "steam_independentName_transfer_legacyMode": {
+    "message": "이전 JSON의 이름 필드"
+  },
+  "steam_independentName_transfer_independent": {
+    "message": "사용자 지정 이름 (기부 버전)"
+  },
+  "steam_independentName_transfer_steam_sort": {
+    "message": "Steam 정렬 이름 (무료 버전)"
+  },
+  "steam_independentName_transfer_freeHint": {
+    "message": "첫 행에 APPID와 정렬 이름 또는 약어 제목을 입력하세요. 열 순서는 자유입니다."
+  },
+  "steam_independentName_transfer_donorHint": {
+    "message": "첫 행에 APPID와 지원되는 이름 필드를 입력하세요. 사용자 지정 이름과 Steam 정렬 이름은 별도 열입니다."
+  },
+  "steam_independentName_transfer_freeNameHint": {
+    "message": "정렬 이름과 약어는 Steam 정렬 필드를 공유합니다. 약어 열이 우선하며 여러 약어는 쉼표로 구분합니다."
+  },
+  "steam_independentName_transfer_donorNameHint": {
+    "message": "사용자 지정 이름을 변경하면 지정하지 않은 약어와 병음이 초기화됩니다. Steam 정렬 이름은 별도로 처리하며 누락된 열은 변경하지 않습니다."
   }
 }

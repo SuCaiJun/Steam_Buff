@@ -28,10 +28,10 @@
     { id: "pinyin", label: "colPinyin", title: "拼音全拼", width: 208, min: 144 },
     { id: "sort", label: "colSort", title: "自定义排序名称", width: 208, min: 144 },
   ].map(Object.freeze));
-  function make(columns, key, nativeWindow = false) {
+  function make(columns, key) {
     const ids = columns.map(column => column.id);
     function defaults() {
-      return { version: 1, order: ids.slice(), widths: Object.fromEntries(columns.map(column => [column.id, column.width])), sort: null, dialogWidth: 1120, ...(nativeWindow ? { dialogHeight: 680 } : {}) };
+      return { version: 1, order: ids.slice(), widths: Object.fromEntries(columns.map(column => [column.id, column.width])), sort: null, dialogWidth: 1120, dialogHeight: 680 };
     }
     function invalid(field) {
       const message = root.STI18n?.text("steam.independentName.table.invalidPrefs", "表格设置数据无效，请恢复默认表格。") || "Invalid table preferences";
@@ -50,9 +50,9 @@
       if (value.sort !== null && (!value.sort || !ids.includes(value.sort.id) || !["asc", "desc"].includes(value.sort.direction))) throw invalid("sort");
       if (!Number.isFinite(value.dialogWidth) || value.dialogWidth < 320 || value.dialogWidth > 16384) throw invalid("dialogWidth");
       // v1 已有配置只保存宽度；新增高度是可选字段，缺省仍使用原生窗口既有的 680px。
-      const height = nativeWindow && Object.hasOwn(value, "dialogHeight") ? value.dialogHeight : 680;
-      if (nativeWindow && (!Number.isFinite(height) || height < 320 || height > 16384)) throw invalid("dialogHeight");
-      return { version: 1, order: value.order.slice(), widths, sort: value.sort ? { id: value.sort.id, direction: value.sort.direction } : null, dialogWidth: Math.round(value.dialogWidth), ...(nativeWindow ? { dialogHeight: Math.round(height) } : {}) };
+      const height = Object.hasOwn(value, "dialogHeight") ? value.dialogHeight : 680;
+      if (!Number.isFinite(height) || height < 320 || height > 16384) throw invalid("dialogHeight");
+      return { version: 1, order: value.order.slice(), widths, sort: value.sort ? { id: value.sort.id, direction: value.sort.direction } : null, dialogWidth: Math.round(value.dialogWidth), dialogHeight: Math.round(height) };
     }
     function fromResponse(data) {
       if (!data || !Object.prototype.hasOwnProperty.call(data, "value") || data.value === undefined) throw invalid("response");
@@ -73,7 +73,7 @@
       { id: "official", title: "Steam 原名称", width: 280, min: 160 },
       { id: "current", title: "当前名称", width: 280, min: 160 },
       { id: "sort", title: "自定义排序名称", width: 320, min: 192 },
-    ].map(Object.freeze)), "st.steamNames.batchTable.v1", true),
+    ].map(Object.freeze)), "st.steamNames.batchTable.v1"),
   });
   root.STNameTable = api;
   if (typeof module === "object" && module.exports) module.exports = api;

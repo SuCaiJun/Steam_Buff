@@ -699,7 +699,93 @@
       }
 
 
-  `;
+        ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: min(1160px, 100%);
+        min-width: 0;
+        max-height: calc(100vh - 48px);
+        padding: 16px;
+        overflow-y: auto;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 8px;
+        background: var(--st-color-steam-property-window);
+        color: var(--st-color-text-primary);
+        box-shadow: var(--st-shadow-panel-large);
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog h3 { flex: 1; margin: 0; font-size: 16px; }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog .st-lin-head { display:flex; align-items:center; gap:8px; }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog p { margin: 0; font-size: 12px; color: var(--st-color-text-secondary-alt); }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog p:empty { display: none; }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-options { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+      ${NAME_BATCH_SELECTOR} [data-lin-io-options][hidden] { display: none; }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-options label,
+      ${NAME_BATCH_SELECTOR} [data-lin-io-sheet-box] label { display: grid; min-width: 0; gap: 6px; font-size: 12px; }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-options label:has(input[type="checkbox"]) { display: flex; align-items: center; height: 32px; }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog :where(input[type="text"], select) {
+        box-sizing: border-box;
+        height: 32px;
+        min-width: 0;
+        width: 100%;
+        padding: 0 8px;
+        border: 1px solid var(--st-color-border-normal);
+        border-radius: 4px;
+        background: var(--st-color-bg-input);
+        color: inherit;
+        font: inherit;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog select { min-width: 140px; }
+      ${NAME_BATCH_SELECTOR} [data-lin-io-preview] { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+      ${NAME_BATCH_SELECTOR} [data-lin-io-preview][hidden] { display: none; }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-scroll { height: 368px; min-height: 112px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-columns,
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-row {
+        display: grid;
+        grid-template-columns: var(--st-name-transfer-columns);
+        min-width: calc(100px + var(--st-name-transfer-field-count, 4) * 188px);
+        gap: 8px;
+        box-sizing: border-box;
+        padding: 8px;
+        font-size: 12px;
+      }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-columns { position: sticky; top: 0; z-index: 1; height: 32px; background: var(--st-color-steam-property-window); }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-row { height: 112px; grid-template-rows: 62px 26px; box-shadow: inset 0 -1px 0 var(--st-color-white-alpha-06); }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-row label { display:block; min-width: 0; }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-row small { display: block; margin-top: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--st-color-text-secondary-alt); }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-mobile-label { display: none; }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-row[data-changed="true"] input { border-color: var(--st-color-steam-blue); }
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-row .st-lin-transfer-row-status { grid-column: 1 / -1; color: var(--st-color-danger-soft-text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      @media (max-width: 600px) {
+        ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog { padding: 12px; gap: 8px; }
+        ${NAME_BATCH_SELECTOR} .st-lin-transfer-options { gap: 8px; }
+        ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog .st-lin-filter-actions { flex-wrap: wrap; }
+      }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize] {
+        position: absolute; z-index: 20; touch-action: none; -webkit-app-region: no-drag;
+      }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="n"], ${NAME_BATCH_SELECTOR} [data-st-native-resize="s"] { left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="n"] { top: 0; }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="s"] { bottom: 0; }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="w"], ${NAME_BATCH_SELECTOR} [data-st-native-resize="e"] { top: 12px; bottom: 12px; width: 6px; cursor: ew-resize; }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="w"] { left: 0; }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="e"] { right: 0; }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="nw"], ${NAME_BATCH_SELECTOR} [data-st-native-resize="ne"],
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="sw"], ${NAME_BATCH_SELECTOR} [data-st-native-resize="se"] { width: 12px; height: 12px; }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="nw"] { left: 0; top: 0; cursor: nwse-resize; }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="ne"] { right: 0; top: 0; cursor: nesw-resize; }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="sw"] { left: 0; bottom: 0; cursor: nesw-resize; }
+      ${NAME_BATCH_SELECTOR} [data-st-native-resize="se"] { right: 0; bottom: 0; cursor: nwse-resize; }      ${NAME_BATCH_SELECTOR} dialog.st-lin-transfer-layer[open] {position:fixed;inset:0;display:grid;place-items:center;width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;padding:24px;box-sizing:border-box;background:transparent;color:var(--st-color-text-primary);overscroll-behavior:contain;}
+      ${NAME_BATCH_SELECTOR} dialog.st-lin-transfer-layer:not([open]) {display:none;}
+      ${NAME_BATCH_SELECTOR} dialog.st-lin-transfer-layer::backdrop {background:var(--st-color-black-alpha-55);overflow:hidden;overscroll-behavior:contain;}
+      ${NAME_BATCH_SELECTOR} [data-lin-transfer] [hidden] {display:none !important;}
+      ${NAME_BATCH_SELECTOR} [data-lin-transfer] .st-lin-head {-webkit-app-region:no-drag;}
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog .st-lin-btn {font:inherit;color:var(--st-color-text-primary);border:1px solid var(--st-color-steam-toolbar-button-border);border-radius:4px;background:var(--st-color-steam-property-button);padding:6px 12px;cursor:pointer;}
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog .st-lin-btn:hover {background:var(--st-color-steam-toolbar-button-bg-hover);}
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog .st-lin-btn:disabled {opacity:.5;cursor:default;}
+      ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog .st-lin-filter-actions {display:flex;justify-content:flex-end;gap:8px;}
+`;
 
   const LIBRARY_CUSTOM_NAME_BAR = "__RickyLibraryCustomNameBar";
   const LIBRARY_CUSTOM_NAME_BAR_FIXED = "st-lcn-bar-fixed";
@@ -1107,21 +1193,7 @@
         font-family: var(--st-lcn-font); font-size: 12px; box-sizing: border-box;
       }
       #${LIBRARY_CUSTOM_NAME_MODAL}[hidden] { display: none !important; }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize] {
-        position: absolute; z-index: 20; touch-action: none; -webkit-app-region: no-drag;
-      }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="n"], #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="s"] { left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="n"] { top: 0; }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="s"] { bottom: 0; }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="w"], #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="e"] { top: 12px; bottom: 12px; width: 6px; cursor: ew-resize; }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="w"] { left: 0; }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="e"] { right: 0; }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="nw"], #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="ne"],
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="sw"], #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="se"] { width: 12px; height: 12px; }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="nw"] { left: 0; top: 0; cursor: nwse-resize; }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="ne"] { right: 0; top: 0; cursor: nesw-resize; }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="sw"] { left: 0; bottom: 0; cursor: nesw-resize; }
-      #${LIBRARY_CUSTOM_NAME_MODAL} [data-st-native-resize="se"] { right: 0; bottom: 0; cursor: nwse-resize; }
+
       #${LIBRARY_CUSTOM_NAME_MODAL} [data-lcn-content] { display: flex; width: 100%; height: 100%; min-width: 0; }
       #${LIBRARY_CUSTOM_NAME_MODAL} .st-lcn-panel {
         display: flex; flex-direction: column; gap: 16px; width: 100%; height: 100%;
@@ -1704,8 +1776,7 @@
     "library-independent-name": {
       id: "__RickyLibraryIndependentNameStyle",
       css: `
-      #${LIBRARY_INDEPENDENT_NAME_MODAL},
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} {
+      #${LIBRARY_INDEPENDENT_NAME_MODAL} {
         position: fixed;
         inset: 0;
         z-index: 2147483646;
@@ -1739,8 +1810,9 @@
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-dialog {
         grid-template-rows: auto auto auto minmax(0, 1fr);
         box-sizing: border-box;
-        width: min(var(--st-lin-dialog-width, 1120px), calc(100vw - 48px));
-        height: min(640px, calc(100vh - 48px));
+        width: 100%;
+        height: 100%;
+        border: 0; border-radius: 0; box-shadow: none;
         gap: 12px;
       }
       #${LIBRARY_INDEPENDENT_NAME_MODAL} .st-lin-head,
@@ -2086,12 +2158,6 @@
         border-radius: 8px; background: var(--st-color-text-secondary-alt);
       }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-scroll::-webkit-scrollbar-corner { background: var(--st-color-steam-property-window); }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-dialog-resize] {
-        position: absolute; top: 0; bottom: 0; width: 8px; z-index: 5;
-        cursor: col-resize; touch-action: none;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-dialog-resize="left"] { left: -4px; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-dialog-resize="right"] { right: -4px; }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-table th[data-lin-col] { position: relative; padding: 0; overflow: visible; }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-column-header { display: flex; align-items: center; min-height: 36px; }
       #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-col-sort] {
@@ -2475,68 +2541,10 @@
         color: var(--st-color-text-secondary-alt);
         font-size: 12px;
       }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog {
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        width: min(1160px, 100%);
-        min-width: 0;
-        max-height: calc(100vh - 48px);
-        padding: 16px;
-        overflow-y: auto;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 8px;
-        background: var(--st-color-steam-property-window);
-        color: var(--st-color-text-primary);
-        box-shadow: var(--st-shadow-panel-large);
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog h3 { flex: 1; margin: 0; font-size: 16px; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog p { margin: 0; font-size: 12px; color: var(--st-color-text-secondary-alt); }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog p:empty { display: none; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-options][hidden] { display: none; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options label,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-sheet-box] label { display: grid; min-width: 0; gap: 6px; font-size: 12px; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options label:has(input[type="checkbox"]) { display: flex; align-items: center; height: 32px; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog :where(input[type="text"], select) {
-        box-sizing: border-box;
-        height: 32px;
-        min-width: 0;
-        width: 100%;
-        padding: 0 8px;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: 4px;
-        background: var(--st-color-bg-input);
-        color: inherit;
-        font: inherit;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog select { min-width: 140px; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-preview] { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-io-preview][hidden] { display: none; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-scroll { height: 368px; min-height: 112px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-columns,
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row {
-        display: grid;
-        grid-template-columns: 110px minmax(180px, 1.2fr) minmax(240px, 1.5fr) minmax(140px, 1fr) minmax(180px, 1.2fr);
-        min-width: 930px;
-        gap: 8px;
-        box-sizing: border-box;
-        padding: 8px;
-        font-size: 12px;
-      }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-columns { position: sticky; top: 0; z-index: 1; height: 32px; background: var(--st-color-steam-property-window); }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row { height: 112px; grid-template-rows: 62px 26px; box-shadow: inset 0 -1px 0 var(--st-color-white-alpha-06); }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row label { min-width: 0; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row small { display: block; margin-top: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--st-color-text-secondary-alt); }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-mobile-label { display: none; }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row[data-changed="true"] input { border-color: var(--st-color-steam-blue); }
-      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-row .st-lin-transfer-row-status { grid-column: 1 / -1; color: var(--st-color-danger-soft-text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-      @media (max-width: 600px) {
-        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog { padding: 12px; gap: 8px; }
-        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-options { gap: 8px; }
-        #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-transfer-dialog .st-lin-filter-actions { flex-wrap: wrap; }
-      }
+
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} {position:relative;inset:auto;display:block;width:100%;height:100%;background:var(--st-color-steam-property-window);}
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} > .st-lin-dialog > .st-lin-head {-webkit-app-region:drag;}
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} .st-lin-head button {-webkit-app-region:no-drag;}
       `,
     },
   });

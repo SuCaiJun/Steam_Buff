@@ -42,10 +42,6 @@
   const APP_SCAN_YIELD = 2000;
   const SEARCH_DEBOUNCE_MS = 180;
   const SEARCH_SCAN_YIELD = 5000;
-  const IMPORT_SCAN_YIELD = 1000;
-  const IMPORT_MODE_ALL = "all";
-  const IMPORT_MODE_UNSET = "unset";
-  const IMPORT_MODES = Object.freeze([IMPORT_MODE_ALL, IMPORT_MODE_UNSET]);
   const STEAM_CUSTOM_LIMIT = 10000;
   const STEAM_CUSTOM_BYTES = 3145728;
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
@@ -368,6 +364,8 @@
   }
 
   function onDocumentKeydown(event) {
+    if(event.key==="Escape"&&batch.tableControl?.cancelGesture()){event.preventDefault();event.stopPropagation();return;}
+    if(batch.transfer){if(event.key==="Escape"){event.preventDefault();event.stopPropagation();transferUI?.close();}return;}
     const one = visibleDialog(ONE);
     const progress = visibleDialog(PROGRESS);
     const modal = visibleDialog(MODAL);
@@ -500,6 +498,7 @@
   }
 
   function yieldUI() {
+    const owner=batch.host?.ready()?batch.element.ownerDocument.defaultView:window;
     return new Promise((resolve) => {
       let done = false;
       const finish = () => {
@@ -509,8 +508,8 @@
         done = true;
         resolve();
       };
-      if (typeof window.requestAnimationFrame === "function") {
-        window.requestAnimationFrame(finish);
+      if (typeof owner.requestAnimationFrame === "function") {
+        owner.requestAnimationFrame(finish);
         window.setTimeout(finish, 50);
       } else {
         window.setTimeout(finish, 0);
@@ -1222,6 +1221,7 @@
 
   const filterExpressions = new WeakMap();
   function batchOverlayOpen() {
+    if(batch.transfer) return true;
     const doc = batch.element?.ownerDocument;
     return [s.oneElement, batch.progressElement, batch.bulk?.dialog].some(node => node && !node.hidden && node.ownerDocument === doc);
   }
@@ -1337,7 +1337,7 @@
       appid, app_type: app.app_type, metadata: app.metadata, itemType: itemType(app), official: text(app.official_name), custom,
       apiName: cloud,
       syncStatus,
-      want, checked: stored ? !!old.checked : false, manual,
+      want, checked: stored ? !!old.checked : false, manual, clearDraft: stored && old.clearDraft === true,
       mnemonicTouched, cloudSource: source,
       state: old?.state || "", error: old?.error || "",
     };
@@ -1351,6 +1351,7 @@
       checked: !!row.checked,
       want: text(row.want),
       manual: !!row.manual,
+      clearDraft: row.clearDraft === true,
       cloudSource: row.cloudSource || "",
       mnemonicTouched: !!row.mnemonicTouched,
       state: row.state || "",
@@ -1469,11 +1470,7 @@
     }
   }
 
-  function canWrite(row) { return !!row.checked && !!text(row.want) && text(row.want) !== text(row.custom); }
-
-  function canClear(row) {
-    return !!row?.checked && Number(row?.appid) > 0 && !!text(row?.custom);
-  }
+  function canWrite(row) { return !!row.checked && (!!text(row.want) || row.clearDraft === true) && text(row.want) !== text(row.custom); }
 
   function mnemonicEligible(row) {
     return !!row?.checked && !!text(row?.want);
@@ -1612,32 +1609,10 @@
     const items = [];
     for (const row of batch.rows) {
       if (canWrite(row)) {
-        items.push({ appid: row.appid, name: row.want });
+        items.push({ appid: row.appid, name: row.want, ...(!text(row.want) ? { mode: "clear" } : {}) });
       }
     }
     return items;
-  }
-
-  function clearItems() {
-    const items = [];
-    const rows = [];
-    let chosen = 0;
-    for (const row of batch.rows) {
-      if (!row.checked) {
-        continue;
-      }
-      chosen += 1;
-      if (canClear(row)) {
-        items.push({ appid: row.appid, name: "", mode: "clear" });
-        rows.push(row);
-      }
-    }
-    return {
-      items,
-      rows,
-      chosen,
-      skipped: Math.max(0, chosen - items.length),
-    };
   }
 
   function normalizeCapacity(data) {
@@ -1969,274 +1944,41 @@
     scheduleSearch(true);
   }
 
-  function downloadJson(filename, data) {
-    const blob = new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const doc = dialogDocument();
-    const link = doc.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.style.display = "none";
-    doc.body.appendChild(link);
-    link.click();
-    window.setTimeout(() => {
-      URL.revokeObjectURL(url);
-      link.remove();
-    }, 0);
-  }
-
-  function exportFileName() {
-    const date = new Date();
-    const pad = (value) => String(value).padStart(2, "0");
-    return `steam-buff-custom-names-${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}.json`;
-  }
-
-  // 导出只认勾选行；custom_name 用已保存值，不读待写入列
-  function exportItems() {
-    const items = [];
-    for (const row of batch.rows) {
-      const appid = Number(row?.appid);
-      if (!row?.checked || !Number.isFinite(appid) || appid <= 0) {
-        continue;
-      }
-      items.push({
-        appid,
-        name: text(row.official),
-        custom_name: text(row.custom),
-      });
-    }
-    items.sort((left, right) => left.appid - right.appid);
-    return items;
-  }
-
-  async function exportSelectedNames() {
-    const items = exportItems();
-    if (!items.length) {
-      setMessage(i18n("steam.libraryCustomName.exportEmpty", "当前没有勾选要导出的游戏"));
-      renderModal();
-      return;
-    }
-    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
-    batch.busy = true;
-    renderModal();
+  let transferUI=null;
+  const transferBase=appid=>{const row=batch.rowMap.get(appid);return {native_sort_name:row.want,mnemonic:window.SteamBuff.libraryCustomNameMnemonic.mnemonicCodes(row.want).join(","),native_sort_initial:row.custom,native_sort_ready:true};};
+  const sameTransfer=(left,right)=>left.native_sort_name===right.native_sort_name&&left.native_sort_initial===right.native_sort_initial;
+  async function openTransfer(kind) {
     try {
-      const ok = await oneConfirm(
-        i18n("steam.libraryCustomName.exportConfirm", "是否导出 $count$ 个游戏？", { count: items.length }),
-        {
-          title: i18n("steam.libraryCustomName.exportTitle", "导出名称"),
-          cancel: i18n("common.cancel", "取消"),
-          confirm: i18n("steam.libraryCustomName.exportAccept", "确认"),
-        },
-      );
-      if (!ok) {
-        return;
+      if(!window.SteamBuff.nameTransferUI)await loadLib("steam/shared/name-transfer-ui.js");
+      const modal=batch.element;
+      if(!transferUI||transferUI.root!==modal){
+        transferUI?.stop();
+        let layer=modal.querySelector("[data-lin-transfer]");if(!layer){layer=modal.ownerDocument.createElement("dialog");layer.className="st-lin-transfer-layer";layer.dataset.linTransfer="";layer.setAttribute("aria-labelledby","st-lin-transfer-title");modal.appendChild(layer);}
+        const editor=window.SteamBuff.nameTransferUI.create({
+          mode:"steam-sort",root:layer,esc:attr,i18n,setHtml:setTrustedTemplate,log,url:window.SteamBuff.path.url,virtual:VIRTUAL_LIST,
+          locked:()=>batch.busy||batch.saving||batch.selecting||batch.bulk,
+          beforeOpen:closeBatchMenu,getRows:()=>batch.rows,getSelected:()=>new Set(batch.rows.filter(row=>row.checked).map(row=>row.appid)),official:row=>row?.official||"",
+          capture(){const scope=s.scope,seq=batch.previewSeq;return()=>s.started&&s.scope===scope&&batch.previewSeq===seq;},
+          getBase:transferBase,same:sameTransfer,emptyBase:()=>({native_sort_name:"",mnemonic:"",native_sort_initial:"",native_sort_ready:false}),
+          getSaved(row){return {native_sort_name:row.custom,mnemonic:window.SteamBuff.libraryCustomNameMnemonic.mnemonicCodes(row.custom).join(",")};},
+          hasDrafts:hasDirtyRows,onState(io){batch.transfer=io;refreshSaveState();},onError(error){setMessage(error.message);renderModal();},
+          onApplied(message){batch.viewRows=null;refreshCounts();setMessage(message);renderModal();},
+          async commit(rows,valid,yieldUI){
+            const prepared=[];
+            for(let index=0;index<rows.length;index++){
+              const row=rows[index];if(!valid()||!sameTransfer(transferBase(row.appid),row.before))throw new Error(i18n("steam.independentName.transfer.updated","目标内容或账号已更新，请重新选择文件预览。"));
+              prepared.push({row:batch.rowMap.get(row.appid),next:row.next.native_sort_name});if((index+1)%16===0)await yieldUI();
+            }
+            if(!valid()||rows.some(row=>!sameTransfer(transferBase(row.appid),row.before)))throw new Error(i18n("steam.independentName.transfer.updated","目标内容或账号已更新，请重新选择文件预览。"));
+            const ids=new Set(rows.map(row=>row.appid));
+            for(const row of batch.rows){row.checked=ids.has(row.appid);}
+            for(const item of prepared){const row=item.row;row.want=item.next;row.clearDraft=!item.next&&!!row.custom;row.manual=true;row.mnemonicTouched=true;row.state="";row.error="";refreshRowSearch(row);keepRowState(row);}
+          },
+        });
+        transferUI={...editor,root:modal};
       }
-      downloadJson(exportFileName(), { items });
-      setMessage(i18n("steam.libraryCustomName.exported", "已导出 $count$ 项", { count: items.length }));
-      log.info("library-custom-name-export-success", "库自定义名称 JSON 导出完成", {
-        operationId,
-        exported: items.length,
-      });
-    } catch (error) {
-      setMessage(error?.message || String(error));
-      log.error("library-custom-name-export-failed", "库自定义名称 JSON 导出失败", {
-        operationId,
-        error,
-      });
-    } finally {
-      batch.busy = false;
-      renderModal();
-    }
-  }
-
-  function readJsonFile(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error(i18n("steam.libraryCustomName.jsonReadFailed", "JSON 文件读取失败")));
-      reader.readAsText(file, "utf-8");
-    });
-  }
-
-  function addImportName(map, appid, name) {
-    const id = Number(appid);
-    const value = text(name);
-    if (Number.isFinite(id) && id > 0 && value) {
-      map.set(id, value);
-    }
-  }
-
-  // 写入源只有 custom_name；name 是 Steam 原名参考字段，导入时忽略
-  function parseImportNames(raw) {
-    const data = JSON.parse(raw);
-    const items = Array.isArray(data?.items) ? data.items : [];
-    if (!items.length) {
-      throw new Error(i18n("steam.libraryCustomName.jsonItemsRequired", "JSON 格式应包含 items 数组"));
-    }
-    const map = new Map();
-    for (const item of items) {
-      addImportName(map, item?.appid, item?.custom_name);
-    }
-    return map;
-  }
-
-  function importMatchStats(names) {
-    let matched = 0;
-    let existing = 0;
-    for (const appid of names.keys()) {
-      const app = batch.localMap.get(appid);
-      if (!app) {
-        continue;
-      }
-      matched += 1;
-      if (hasCustom(app)) {
-        existing += 1;
-      }
-    }
-    return {
-      file: names.size,
-      matched,
-      existing,
-      unset: Math.max(0, matched - existing),
-    };
-  }
-
-  function prepareRowsForImport() {
-    batch.filters = [];
-    batch.searchQuery = "";
-    batch.searchNeedle = "";
-    batch.searchSeq += 1;
-    resetSearchState();
-    rebuildRows();
-    for (const row of batch.rows) {
-      row.checked = false;
-      keepRowState(row);
-    }
-    refreshCounts();
-  }
-
-  // 仅未设置只看已保存自定义名，不看待写入列
-  function shouldImportRow(mode, row) {
-    return mode === IMPORT_MODE_ALL || !hasCustom(batch.localMap.get(Number(row?.appid)));
-  }
-
-  async function applyImportedNames(names, seq, mode) {
-    prepareRowsForImport();
-    let matched = 0;
-    let imported = 0;
-    let skipped = 0;
-    const total = batch.rows.length;
-    for (let i = 0; i < total; i += 1) {
-      if (seq !== batch.previewSeq) {
-        return { matched, imported, skipped, cancelled: true };
-      }
-      const row = batch.rows[i];
-      const name = names.get(Number(row?.appid));
-      if (name) {
-        matched += 1;
-        if (!shouldImportRow(mode, row)) {
-          skipped += 1;
-        } else {
-          updateRowWrite(row, () => {
-            row.want = name;
-            row.checked = true;
-            row.manual = true;
-            row.mnemonicTouched = false;
-
-            row.state = "";
-            row.error = "";
-            refreshRowSearch(row);
-          });
-          keepRowState(row);
-          imported += 1;
-        }
-      }
-      if (i > 0 && i % IMPORT_SCAN_YIELD === 0) {
-        setMessage(i18n("steam.libraryCustomName.importingJson", "正在导入 JSON $current$/$total$", {
-          current: i,
-          total,
-        }));
-        refreshMessage();
-        await yieldUI();
-      }
-    }
-    return { matched, imported, skipped, cancelled: false };
-  }
-
-  function importDoneMessage(mode, result) {
-    if (mode === IMPORT_MODE_UNSET) {
-      return i18n(
-        "steam.libraryCustomName.importUnsetDone",
-        "导入完成，匹配 $matched$ 项，已导 $imported$ 项，跳过 $skipped$ 项",
-        result,
-      );
-    }
-    return i18n(
-      "steam.libraryCustomName.importAllDone",
-      "导入完成，匹配 $matched$ 项，已导 $imported$ 项",
-      result,
-    );
-  }
-
-  async function importJsonFile(file) {
-    if (!file) {
-      return;
-    }
-    if (!batch.localRows.length) {
-      setMessage(i18n("steam.libraryCustomName.loadLocalFirst", "请先加载本地列表"));
-      renderModal();
-      return;
-    }
-    const seq = batch.previewSeq;
-    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
-    batch.busy = true;
-    setMessage(i18n("steam.libraryCustomName.readingJson", "正在读取 JSON 文件"));
-    renderModal();
-    try {
-      const raw = await readJsonFile(file);
-      const names = parseImportNames(raw);
-      if (!names.size) {
-        throw new Error(i18n("steam.libraryCustomName.jsonNameMissing", "JSON 中没有识别到 appid/custom_name"));
-      }
-      const stats = importMatchStats(names);
-      if (!stats.matched) {
-        throw new Error(i18n("steam.libraryCustomName.jsonMatchMissing", "库内没有匹配到可导入的游戏"));
-      }
-      setMessage(i18n("steam.libraryCustomName.matchingJson", "正在匹配 JSON $count$ 项", { count: names.size }));
-      refreshMessage();
-      const mode = await chooseImportPolicy(stats);
-      if (!IMPORT_MODES.includes(mode) || seq !== batch.previewSeq) {
-        if (seq === batch.previewSeq) {
-          setMessage(previewMessage(), "preview");
-        }
-        return;
-      }
-      const result = await applyImportedNames(names, seq, mode);
-      if (result.cancelled) {
-        return;
-      }
-      setMessage(importDoneMessage(mode, result));
-      log.info("library-custom-name-import-success", "库自定义名称 JSON 导入完成", {
-        operationId,
-        mode,
-        fileCount: names.size,
-        matched: result.matched,
-        imported: result.imported,
-        skipped: result.skipped,
-      });
-    } catch (error) {
-      setMessage(error?.message || String(error));
-      log.error("library-custom-name-import-failed", "库自定义名称 JSON 导入失败", {
-        operationId,
-        error,
-      });
-    } finally {
-      if (seq === batch.previewSeq) {
-        batch.busy = false;
-        refreshCounts();
-        renderModal();
-      }
-    }
+      await transferUI.open(kind);
+    } catch(error){log.error("name-transfer-open-failed","排序名称文件窗口打开失败",{error});setMessage(error.message);renderModal();}
   }
 
   function updateRowWrite(row, apply) {
@@ -2407,48 +2149,6 @@
     });
   }
 
-  function chooseImportPolicy(stats) {
-    const box = openOneDialog();
-    const summary = i18n(
-      "steam.libraryCustomName.importPromptStats",
-      "文件中名称 $file$ 项，库内匹配 $matched$ 项",
-      stats,
-    );
-    const detail = i18n(
-      "steam.libraryCustomName.importPromptDetail",
-      "其中已有自定义名称 $existing$ 项，未设置 $unset$ 项",
-      stats,
-    );
-    return new Promise((resolve) => {
-      if (s.oneResolve) {
-        s.oneResolve(false);
-      }
-      s.oneResolve = resolve;
-      setTrustedTemplate(box, `
-        <div class="st-lcn-one-panel" role="dialog" aria-modal="true" aria-labelledby="st-lcn-one-title" tabindex="-1">
-          <div class="st-lcn-one-head"><h3 id="st-lcn-one-title">${esc(i18n("steam.libraryCustomName.importPromptTitle", "是否导入已存在自定义名称的游戏？"))}</h3></div>
-          <div class="st-lcn-one-body"><div class="st-lcn-one-message">${esc(`${summary}\n${detail}`)}</div></div>
-          <div class="st-lcn-one-actions">
-            <button class="st-lcn-btn" type="button" data-lcn-one="cancel">${esc(i18n("steam.libraryCustomName.importCancel", "取消导入"))}</button>
-            <button class="st-lcn-btn" type="button" data-lcn-one="import-unset">${esc(i18n("steam.libraryCustomName.importUnset", "仅未设置"))}</button>
-            <button class="st-lcn-btn primary" type="button" data-lcn-one="import-all">${esc(i18n("steam.libraryCustomName.importAll", "全部导入"))}</button>
-          </div>
-        </div>
-      `, "library-custom-name-import-policy-dialog-template");
-      focusElement(box.querySelector("[data-lcn-one='cancel']"));
-    });
-  }
-
-  function pickImportFile() {
-    const file = batch.element?.querySelector("[data-lcn-import-file]");
-    if (!file) {
-      setMessage(i18n("steam.libraryCustomName.filePickerUnavailable", "导入文件选择器不可用"));
-      renderModal();
-      return;
-    }
-    file.click();
-  }
-
   function closeOne() {
     const box = (s.oneElement || null);
     const wasOpen = !!box && !box.hidden;
@@ -2503,15 +2203,6 @@
         );
         oneFail(error);
       });
-      return;
-    }
-    if (action === "import-all" || action === "import-unset") {
-      const resolve = s.oneResolve;
-      s.oneResolve = null;
-      closeOne();
-      if (resolve) {
-        resolve(action === "import-all" ? IMPORT_MODE_ALL : IMPORT_MODE_UNSET);
-      }
       return;
     }
     if (action === "confirm" || action === "cancel") {
@@ -2920,7 +2611,7 @@
     return window.SteamBuff.nameBatch.actionGroupsHtml([
       ['add',action('edit-sort',i18n('steam.libraryCustomName.editSortNames','修改自定义排序名称'),locked||!selected)+action('add-mnemonic',bulk('mnemonic','添加助记符'),locked||!mnemonicCount)],
       ['generate',action('query',i18n('steam.independentName.fetchCommunity','获取社区名称'),locked||!canQueryCloud())+action('mnemonic',bulk('generate-mnemonic','生成助记符'),locked||!mnemonicCount)],
-      ['clear',action('clear-selected',bulk('clear-name','清空名称'),locked||!batch.selectedCount)+action('clear-mnemonic',bulk('clear-mnemonic','清空助记符'),locked||!batch.mnemonicPresentCount)],
+      ['clear',action('clear-selected',i18n('steam.libraryCustomName.clearAllParts','清空'),locked||!batch.selectedCount)+action('clear-name',i18n('steam.libraryCustomName.clearOnlyName','只清名称'),locked||!batch.selectedCount)+action('clear-mnemonic',i18n('steam.libraryCustomName.clearOnlyMnemonic','只清助记符'),locked||!batch.mnemonicPresentCount)],
       ['selection',[['all','common.selectAll','全选'],['invert','common.invertSelection','反选'],['none','common.clearSelection','取消全选']].map(([value,key,label])=>'<button class="st-lcn-btn st-lin-btn" type="button" data-lcn-select="'+value+'" '+(locked?'disabled':'')+'>'+esc(i18n(key,label))+'</button>').join('')],
       ['other',action('import',i18n('common.import','导入'),locked||!batch.localRows.length)+action('export',i18n('common.export','导出'),locked||!batch.localRows.length)]
     ],esc,i18n);
@@ -3012,7 +2703,7 @@
   function closeBulkEditor(force = false) {
     const bulk = batch.bulk;
     if (!bulk || (bulk.applying && !force)) return;
-    batch.bulk = null; bulk.revision++; clearTimeout(bulk.timer);
+    batch.bulk = null; bulk.revision++; bulk.dialog.ownerDocument.defaultView.clearTimeout(bulk.timer);
     if (bulk.dialog.open) bulk.dialog.close();
     bulk.dialog.remove();
     if (batch.host?.ready()) focusElement(batch.element.querySelector('[data-lcn-action="menu"]'));
@@ -3055,7 +2746,7 @@
     dialog.addEventListener("cancel", event => { event.preventDefault(); closeBulkEditor(); });
     dialog.addEventListener("click", onBulkClick);
     dialog.addEventListener("input", onBulkInput); dialog.addEventListener("change", onBulkInput);
-    dialog.addEventListener("compositionstart", () => { bulk.composing = true; bulk.revision++; clearTimeout(bulk.timer); bulk.dialog.querySelector("[data-lcn-bulk-apply]").disabled = true; });
+    dialog.addEventListener("compositionstart", () => { bulk.composing = true; bulk.revision++; bulk.dialog.ownerDocument.defaultView.clearTimeout(bulk.timer); bulk.dialog.querySelector("[data-lcn-bulk-apply]").disabled = true; });
     dialog.addEventListener("compositionend", event => { bulk.composing = false; onBulkInput(event); });
     dialog.addEventListener("keydown", event => {
       const tab = event.target.closest("[data-lcn-bulk-tab]");
@@ -3088,10 +2779,10 @@
   function scheduleBulkPreview() {
     const bulk = batch.bulk;
     if (!bulk) return;
-    clearTimeout(bulk.timer); const revision = ++bulk.revision;
+    bulk.dialog.ownerDocument.defaultView.clearTimeout(bulk.timer); const revision = ++bulk.revision;
     bulk.running = true; bulk.dialog.querySelector("[data-lcn-bulk-apply]").disabled = true;
     bulk.dialog.querySelector("[data-lcn-bulk-status]").textContent = bulkText("calculating", "正在计算预览…");
-    bulk.timer = window.setTimeout(() => { void previewBulk(bulk, revision); }, 180);
+    bulk.timer = bulk.dialog.ownerDocument.defaultView.setTimeout(() => { void previewBulk(bulk, revision); }, 180);
   }
 
   async function previewBulk(bulk, revision) {
@@ -3106,7 +2797,7 @@
         const row = bulk.rows[index], source = row.before || (bulk.useOriginal ? row.official : "");
         const transformed = bulk.kind === "mnemonic" ? (params.value.trim() ? window.SteamBuff.libraryCustomNameMnemonic.setMnemonic(source,params.value) : undefined) : window.STNameEdit.transform({ source, tab: bulk.tab, params, index, manual: bulk.manual.get(row.appid) });
         const next = transformed === undefined ? row.before : text(transformed);
-        const error = next !== row.before && !next ? i18n("steam.libraryCustomName.sortClearUseAction", "清空名称请使用“清空已选自定义排序名称”操作。") : "";
+        const error = next !== row.before && !next ? i18n("steam.libraryCustomName.sortClearUseAction", "清空名称请使用“清空”或“只清名称”操作。") : "";
         preview.push({ ...row, source, next, changed: next !== row.before, error });
         if (next !== row.before) changed++; if (error) invalid++;
         if (index && index % SELECTION_SCAN_YIELD === 0) await yieldUI();
@@ -3158,7 +2849,7 @@
     for (const item of changed) {
       if (batch.bulk !== bulk || !s.started) break;
       const row = item.row;
-      row.want = item.next; row.manual = true; row.checked = true; row.mnemonicTouched = false; row.state = ""; row.error = "";
+      row.want = item.next; row.clearDraft = !text(row.want) && !!row.custom; row.manual = true; row.checked = true; row.mnemonicTouched = false; row.state = ""; row.error = "";
       keepRowState(row);
       applied++;
       if (applied % SELECTION_SCAN_YIELD === 0) await yieldUI();
@@ -3279,13 +2970,15 @@
     if (clearBtn) {
       clearBtn.disabled = batch.busy || batch.saving || batch.selecting || !batch.selectedCount;
     }
+    const clearName=modal.querySelector('[data-lcn-action="clear-name"]');
+    if(clearName)clearName.disabled=locked||!batch.selectedCount;
   }
 
   function cancelVirtualFrame() {
     if (!batch.virtualFrame) {
       return;
     }
-    window.cancelAnimationFrame(batch.virtualFrame);
+    batch.virtualFrameWindow.cancelAnimationFrame(batch.virtualFrame);
     batch.virtualFrame = 0;
   }
 
@@ -3376,7 +3069,8 @@
     if (batch.virtualFrame) {
       return;
     }
-    batch.virtualFrame = window.requestAnimationFrame(() => {
+    batch.virtualFrameWindow=batch.element.ownerDocument.defaultView;
+    batch.virtualFrame = batch.virtualFrameWindow.requestAnimationFrame(() => {
       batch.virtualFrame = 0;
       const current = batch.element?.querySelector(".st-lcn-table-wrap");
       if (current === table) {
@@ -3718,6 +3412,7 @@
       onEscape(event) { onDocumentKeydown(event); return true; },
       beforeClose(state) {
         batch.filterView?.closeFilterEditor();
+        transferUI?.stop();transferUI=null;
         closeBulkEditor(true); closeBatchMenu(); batch.tableControl?.stop(); batch.tableControl = null;
         state.doc?.removeEventListener("keydown", onDocumentKeydown);
         state.doc?.removeEventListener("click", onDocumentClick, true);
@@ -4123,49 +3818,45 @@
       }
       chosen += 1;
       if (canWrite(row)) {
-        items.push({ appid: row.appid, name: row.want });
+        items.push({ appid: row.appid, name: row.want, ...(!text(row.want) ? { mode: "clear" } : {}) });
       }
     }
-    await runSaveQueue(items, Math.max(0, chosen - items.length), { chosen });
+    const allClear=items.length>0&&items.every(item=>item.mode==="clear");
+    await runSaveQueue(items, Math.max(0, chosen - items.length), { chosen, action:allClear?"clear":"save" });
   }
 
-  async function clearSelectedNames() {
-    refreshCounts();
-    const data = clearItems();
-    if (!data.chosen) {
-      setMessage(i18n("steam.libraryCustomName.selectClearTargets", "请先勾选需要清空名称的游戏"));
-      renderModal();
-      return;
+  // 三种清空统一更新草稿，写入仍由主窗口保存队列负责。
+  async function clearSelectedNames(part = "all") {
+    if (batch.busy || batch.saving || batch.selecting) return;
+    const seq = batch.previewSeq, core = window.SteamBuff.libraryCustomNameMnemonic;
+    const rows = batch.rows.filter(row => row.checked);
+    const operationId = window.STLoggerFactory.createOperationId();
+    let changed = 0;
+    batch.busy = true; renderModal();
+    log.info("steam-sort-clear-draft-start", "开始清空选中排序名称草稿", { operationId, action: part, count: rows.length });
+    try {
+      for (let index = 0; index < rows.length; index++) {
+        if (!s.started || seq !== batch.previewSeq) return;
+        const row = rows[index];
+        const next = part === "name" ? core.clearName(row.want) : part === "mnemonic" ? core.stripMnemonic(row.want) : "";
+        if (next !== row.want) {
+          updateRowWrite(row, () => {
+            row.want = next; row.manual = true; row.clearDraft = !next && !!row.custom;
+            row.mnemonicTouched = true; row.state = ""; row.error = "";
+          });
+          refreshRowSearch(row); keepRowState(row); changed++;
+        }
+        if ((index + 1) % 100 === 0) await yieldUI();
+      }
+      batch.viewRows = null;
+      setMessage(i18n("steam.libraryCustomName.clearDraftApplied", "已更新 $count$ 项草稿，点击“保存修改”后写入 Steam。", { count: changed }));
+      log.info("steam-sort-clear-draft-applied", "选中排序名称已清空至草稿", { operationId, action: part, count: changed });
+    } catch (error) {
+      log.error("steam-sort-clear-draft-failed", "清空排序名称草稿失败", { error, operationId, action: part });
+      setMessage(error.message);
+    } finally {
+      if (seq === batch.previewSeq) { batch.busy = false; refreshCounts(); renderModal(); }
     }
-    if (!data.items.length) {
-      setMessage(i18n("steam.libraryCustomName.noClearableNames", "已选游戏没有可清空的自定义排序名称"));
-      renderModal();
-      return;
-    }
-    const ok = await oneConfirm(i18n("steam.libraryCustomName.clearSelectedPrompt", "将清空已选游戏中的 $count$ 个自定义排序名称，是否继续？", {
-      count: data.items.length,
-    }), {
-      title: i18n("steam.libraryCustomName.clearSelectedTitle", "确认清空已选名称"),
-      cancel: i18n("common.no", "否"),
-      confirm: i18n("common.yes", "是"),
-      note: i18n("steam.libraryCustomName.clearSelectedNote", "该操作会把对应 Steam 属性中的自定义排序名称改为空。"),
-      dangerNote: true,
-    });
-    if (!ok) {
-      setMessage(previewMessage(), "preview");
-      renderModal();
-      return;
-    }
-    await runSaveQueue(data.items, data.skipped, {
-      action: "clear",
-      chosen: data.chosen,
-      emptyMessage: i18n("steam.libraryCustomName.noClearableItems", "没有可清空的条目"),
-      startMessage: i18n("steam.libraryCustomName.startClearQueue", "正在启动清空队列，预计清空 $count$ 项，跳过 $skipped$ 项", {
-        count: data.items.length,
-        skipped: data.skipped,
-      }),
-      progressMessage: i18n("steam.libraryCustomName.clearingSteamNames", "正在批量清空 Steam 自定义排序名称"),
-    });
   }
 
   async function cmd(action) {
@@ -4306,6 +3997,7 @@
           row.custom = next;
           if (item.mode === "clear") {
             row.want = "";
+            row.clearDraft = false;
             row.manual = false;
             row.mnemonicTouched = false;
 
@@ -4372,23 +4064,20 @@
       runMnemonic(true);
     } else if (action === "add-mnemonic") {
       openBulkEditor("mnemonic");
+    } else if (action === "clear-name") {
+      void clearSelectedNames("name");
     } else if (action === "clear-mnemonic") {
-      runMnemonic(false);
+      void clearSelectedNames("mnemonic");
     } else if (action === "save") {
       save();
     } else if (action === "clear-selected") {
       clearSelectedNames();
     } else if (action === "import") {
       event.preventDefault();
-      pickImportFile();
+      void openTransfer("import");
     } else if (action === "export") {
       event.preventDefault();
-      exportSelectedNames().catch((error) => {
-        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" });
-        batch.busy = false;
-        setMessage(error?.message || String(error));
-        renderModal();
-      });
+      void openTransfer("export");
     }
   }
 
@@ -4415,24 +4104,9 @@
   }
 
   async function onModalChange(event) {
-    if (event.target.closest(".st-lcn-bulk")) return;
+    if (event.target.closest(".st-lcn-bulk, [data-lin-transfer]")) return;
     if (filterUI().change(event)) return;
     if (event.target.matches("[data-lcn-select-all]")) { await setSelection(event.target.checked ? "all" : "none"); return; }
-    const file = event.target.closest("[data-lcn-import-file]");
-    if (file) {
-      const picked = file.files?.[0] || null;
-      file.value = "";
-      if (!picked) {
-        return;
-      }
-      importJsonFile(picked).catch((error) => {
-        globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "on-modal-change-failed", message: "保存批量名称配置失败", level: "error", phase: "onModalChange" });
-        batch.busy = false;
-        setMessage(error?.message || String(error));
-        renderModal();
-      });
-      return;
-    }
     const check = event.target.closest("[data-lcn-check]");
     if (check) {
       const appid = Number(check.dataset.lcnCheck);
@@ -4449,7 +4123,7 @@
   }
 
   function onModalInput(event) {
-    if (event.target.closest(".st-lcn-bulk")) return;
+    if (event.target.closest(".st-lcn-bulk, [data-lin-transfer]")) return;
     if (filterUI().input(event)) return;
     const search = event.target.closest("[data-lcn-search]");
     if (search) {
@@ -4471,6 +4145,7 @@
     }
     updateRowWrite(row, () => {
       row.want = input.value;
+      row.clearDraft = !text(row.want) && !!row.custom;
       row.checked = !!text(row.want);
       const base = text(row.custom);
       row.manual = text(row.want) !== base;

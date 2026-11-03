@@ -6507,7 +6507,7 @@
     "message": "先頭行に APPID と 自定义名称 または 别名 が必要です。列の順序は自由です。"
   },
   "steam_independentName_transfer_jsonHint": {
-    "message": "JSON の最上位は items 配列、別名は aliases 配列です。従来の出力ファイルも対応しています。"
+    "message": "JSON は items 配列を使用します。旧ファイルの custom_name の意味は下の選択肢で指定します."
   },
   "steam_independentName_transfer_aliases": {
     "message": "別名の形式：\"別名1\",\"別名2\"。半角の二重引用符で囲み、半角または全角のカンマで区切ります。"
@@ -7159,13 +7159,47 @@
   "familyTask_retry": {
     "message": "再試行"
   },
-  "messageCenter_retrying": { "message": "再試行中" },
-  "familyTask_manualOnly": { "message": "手動モードのため、自動再試行は行いません。" },
-  "familyTask_retryPending": { "message": "60 分後に自動再試行します。最大 5 回です。" },
-  "familyTask_retryFailed": { "message": "自動再試行 $value$ が失敗しました。", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_retryNext": { "message": "次の自動再試行：$value$", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_retryStopped": { "message": "5 回の自動再試行が失敗したため、このサイクルの再試行を停止しました。次の通常更新：$value$", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_normalNext": { "message": "次の通常更新：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "messageCenter_retrying": {
+    "message": "再試行中"
+  },
+  "familyTask_manualOnly": {
+    "message": "手動モードのため、自動再試行は行いません。"
+  },
+  "familyTask_retryPending": {
+    "message": "60 分後に自動再試行します。最大 5 回です。"
+  },
+  "familyTask_retryFailed": {
+    "message": "自動再試行 $value$ が失敗しました。",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retryNext": {
+    "message": "次の自動再試行：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retryStopped": {
+    "message": "5 回の自動再試行が失敗したため、このサイクルの再試行を停止しました。次の通常更新：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_normalNext": {
+    "message": "次の通常更新：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
   "familyTask_login": {
     "message": "ストアを開く"
   },
@@ -7182,7 +7216,7 @@
     "message": "入力予定の並び替え名が空の場合は Steam の元の名前を使用"
   },
   "steam_libraryCustomName_sortClearUseAction": {
-    "message": "名前を消去するには「選択したカスタム並び替え名を消去」を使用してください。"
+    "message": "名前を消すには「すべてクリア」または「名前のみ」を使ってください."
   },
   "steam_libraryCustomName_batchSummary": {
     "message": "合計 $total$ 件 · 絞り込み後 $filtered$ 件 · 選択 $selected$ 件 · 書込待ち $write$ 件 · スキップ $skipped$ 件 · 件数上限 $limit$ · 容量 $capacity$",
@@ -7220,5 +7254,49 @@
         "content": "$1"
       }
     }
+  },
+  "steam_libraryCustomName_clearAllParts": {
+    "message": "すべてクリア"
+  },
+  "steam_libraryCustomName_clearOnlyName": {
+    "message": "名前のみ"
+  },
+  "steam_libraryCustomName_clearOnlyMnemonic": {
+    "message": "略称のみ"
+  },
+  "steam_libraryCustomName_clearDraftApplied": {
+    "message": "$count$ 件の下書きを更新しました。「変更を保存」で Steam に反映されます.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_filterFieldcollection_names": {
+    "message": "コレクション名"
+  },
+  "steam_independentName_transfer_includeSort": {
+    "message": "Steam のカスタム並べ替え名も出力"
+  },
+  "steam_independentName_transfer_legacyMode": {
+    "message": "旧 JSON の名前フィールド"
+  },
+  "steam_independentName_transfer_independent": {
+    "message": "カスタム名（寄付版）"
+  },
+  "steam_independentName_transfer_steam_sort": {
+    "message": "Steam 並べ替え名（無料版）"
+  },
+  "steam_independentName_transfer_freeHint": {
+    "message": "先頭行に APPID と並べ替え名または略称の見出しを指定します。列順は任意です."
+  },
+  "steam_independentName_transfer_donorHint": {
+    "message": "先頭行に APPID と名前項目を指定します。カスタム名と Steam 並べ替え名は別の列です."
+  },
+  "steam_independentName_transfer_freeNameHint": {
+    "message": "並べ替え名と略称は同じ Steam フィールドに保存されます。略称列が優先され、複数はコンマで区切ります."
+  },
+  "steam_independentName_transfer_donorNameHint": {
+    "message": "カスタム名の変更で未指定の略称とピンインをリセットします。Steam 並べ替え名は独立して処理し、省略された列は変更しません."
   }
 }

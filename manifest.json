@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.2.11",
+  "version": "2.2.13",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -303,6 +303,7 @@
         "steam/shared/native-window.js",
         "steam/shared/name-batch.js",
         "steam/shared/name-filter-metadata.js",
+        "steam/shared/name-transfer-ui.js",
         "shared/name-edit.js"
       ],
       "matches": [

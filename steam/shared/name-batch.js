@@ -721,7 +721,7 @@
         <button class="st-lin-btn" type="button" ${o.actionsAttr} aria-controls="${esc(o.menuId)}" aria-expanded="false" ${disabled(o.locked)}>${esc(i18n("steam.independentName.bulk.menu", "批量操作"))} ▾</button>
         <div id="${esc(o.menuId)}" class="st-lin-actions-menu" ${o.menuAttr} popover="manual" hidden><div class="st-lin-actions-scroll">${o.menuHtml}</div></div>
         <input ${o.searchAttr} type="search" value="${esc(o.searchValue)}" aria-label="${esc(o.searchLabel)}" placeholder="${esc(o.searchLabel)}" ${disabled(o.searchDisabled)}>
-        <input ${o.fileAttr} type="file" accept="application/json" hidden>
+
       </div></div>`;
   }
   function operators(i18n, kind) {
@@ -813,7 +813,7 @@
   }
   const FILTER_GROUPS = Object.freeze([
     ["名称", ["custom_name", "aliases", "mnemonic", "pinyin", "original_language"]],
-    ["应用", ["app_type", "sources", "collections", "modes", "status", "privacy"]],
+    ["应用", ["app_type", "sources", "collections", "collection_names", "modes", "status", "privacy"]],
     ["内容", ["languages", "genres", "features", "tags"]],
     ["硬件", ["hardware"]],
     ["辅助功能", ["accessibility"]],
@@ -842,6 +842,7 @@
     ["14d", "近14日"], ["30d", "近30日"], ["custom", "自定义"],
   ]);
   const FIELD_LABELS = Object.freeze({
+    collection_names: "收藏分组名称",
     sources: "游戏来源", original_language: "原名称语言", collections: "收藏分组", modes: "游戏模式", status: "游戏状态", privacy: "私密筛选",
     languages: "游戏语言", genres: "游戏题材", features: "游戏特色", tags: "商店标签", hardware: "硬件支持", accessibility: "辅助功能",
     review_score: "Steam 评测", metacritic_score: "Metacritic 分数", date_added: "添加到库日期", date_release: "发行日期", date_last_played: "最后运行日期", playtime_minutes: "游戏时间",
@@ -853,8 +854,9 @@
 
 
   // 名称字段只由各版适配器读取；分类、范围和未知值规则在此共用，不读取存储或 Steam 全局对象。
-  function createFilters({state,i18n,expressions:filterExpressions,nameFields,readValues,defaultField}) {
+  function createFilters({state,i18n,expressions:filterExpressions,nameFields,readValues,defaultField,isNameReady=()=>true}) {
     const text=value=>String(value??'').trim();
+    let collectionMeta=null, collectionLabels=null;
     const groups=FILTER_GROUPS.map(([title,fields])=>[title,title==='名称'?nameFields.filter(([key])=>key!=='appid').map(([key])=>key):title==='应用'&&nameFields.some(([key])=>key==='appid')?['appid',...fields]:fields]);
     function filterFields() {
       const names = new Map(nameFields);
@@ -885,7 +887,7 @@
     const FILTER_TEXT_OPERATORS = Object.freeze(["startsWith", "endsWith", "lengthGt", "lengthLt", "regex"]);
 
     function isAliasField(field) {
-      return field === "aliases";
+      return field === "aliases" || field === "collection_names";
     }
 
     function usesFilterOptionValues(field, op) {
@@ -919,8 +921,10 @@
     }
 
     function filterAvailability(field) {
+      if (field === "collection_names") return filterAvailability("collections");
       if (nameFields.some(([key]) => key === field) && !isDiscreteField(field)) {
-        return { ready: true, message: "" };
+        const ready = state.rows.some(row => isNameReady(row, field));
+        return { ready, message: ready ? "" : i18n("steam.independentName.metadataUnavailable", "$field$数据不可用，请更新扩展后重试", { field: filterFields().find(([key]) => key === field)?.[1] || field }) };
       }
       if (field === "app_type") {
         const ready = state.rows.length > 0 && state.rows.some(row => Number.isSafeInteger(row.app_type));
@@ -1066,9 +1070,22 @@
 
 
     function matches(filter, row) {
+      if (filter.field === "collection_names") {
+        // 元数据由完整消息快照替换；同一轮筛选只建立一次分组 ID 到名称的映射。
+        if(collectionMeta!==state.meta||!collectionLabels){collectionMeta=state.meta;collectionLabels=optionLabels("collections");}
+        const metadata = rowMetadata(row, "collections"), labels = collectionLabels;
+        if (!metadata.ready || metadata.values.some(id => !labels.has(id))) return false;
+        const ids = new Set(metadata.values);
+        if (filter.op === "countGt") return ids.size > Number(filter.value);
+        if (filter.op === "countLt") return ids.size < Number(filter.value);
+        if (filter.op === "empty") return ids.size === 0;
+        if (filter.op === "notEmpty") return ids.size > 0;
+        return matchesText(filter, Array.from(ids, id => labels.get(id)));
+      }
       if (filter.field === 'app_type') return matchesAppType(filter,row);
       if (isDiscreteField(filter.field)) return matchesDiscrete(filter,rowMetadata(row,filter.field));
       if (isRangeField(filter.field)) return matchesRange(filter,rowMetadata(row,filter.field));
+      if (!isNameReady(row, filter.field)) return false;
       const values=readValues(row,filter.field).map(value=>text(value).toLowerCase()).filter(Boolean);
       if (filter.op==='empty') return values.length===0;
       if (filter.op==='notEmpty') return values.length>0;

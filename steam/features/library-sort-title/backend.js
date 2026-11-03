@@ -282,7 +282,7 @@
       return mineNameOf(app?.appid, rt) || official;
     }
     const custom = rt.customSortEnabled ? clean(app?.custom_sort_as_display) : "";
-    return custom ? viewCustomName(custom) : official;
+    return viewCustomName(custom) || official;
   }
 
   function originalSearchName(app, customSortAsDisplay, originalSortAs) {

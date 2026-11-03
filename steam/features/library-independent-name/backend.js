@@ -284,9 +284,11 @@
     if (!Number.isFinite(appid) || appid <= 0) {
       return null;
     }
+    const currentName=text(app.display_name);
     return {
       appid,
-      official_name: text(app?.__RickyStOriginalName) || text(app?.display_name),
+      official_name: text(app.__RickyStOriginalName) || currentName,
+      current_name: currentName,
       app_type: app.app_type,
       metadata: window.SteamBuff.nameFilterMetadata.row(app, context),
     };

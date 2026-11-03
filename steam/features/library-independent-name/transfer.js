@@ -10,8 +10,11 @@
  */
 ((root) => {
   "use strict";
-  const fields = Object.freeze(["custom_name", "aliases", "mnemonic", "pinyin"]);
-  const headers = Object.freeze(["APPID", "自定义名称", "别名", "助记符", "拼音全拼"]);
+  // 两版文件共享解码、首行映射与校验；策略只声明本版本可编辑的字段。
+  function createPolicy(mode) {
+  const free=mode==="steam-sort";
+  const fields=Object.freeze(free?["native_sort_name","mnemonic"]:["custom_name","aliases","mnemonic","pinyin","native_sort_name"]);
+  const headers=Object.freeze(free?["APPID","自定义排序名称","助记符"]:["APPID","自定义名称","别名","助记符","拼音全拼","自定义排序名称"]);
   const own = (value, key) => Object.hasOwn(value, key);
   const quoteAliases = list => list.map(value => `"${value.replace(/"/g, '""')}"`).join(",");
 
@@ -46,7 +49,7 @@
     if (typeof value !== "string") throw new TypeError(`${field}必须是文本`);
     if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) throw new Error(`${field}包含非法控制字符`);
     const text = value.trim().replace(/\s+/gu, " ");
-    if (Array.from(text).length > max) throw new Error(`${field}长度超过 ${max} 个字符`);
+    if (Number.isFinite(max) && Array.from(text).length > max) throw new Error(`${field}长度超过 ${max} 个字符`);
     if (/[<>]|&(?:lt|gt);|&#(?:0*(?:60|62)|x0*3[ce]);/i.test(text)) throw new Error(`${field}不能包含尖括号`);
     return text;
   }
@@ -64,11 +67,16 @@
     return result;
   }
 
-  function jsonRecords(value) {
+  function jsonRecords(value, legacyMode=mode) {
     if (!value || typeof value !== "object" || !Array.isArray(value.items)) throw new TypeError("JSON 顶层必须包含 items 数组");
+    if(value.type!==undefined && (value.type!=="steam-buff-names" || value.version!==2 || !["independent","steam-sort"].includes(value.mode))) throw new TypeError("名称 JSON 格式标记无效");
+    if(!["independent","steam-sort"].includes(legacyMode)) throw new TypeError("请选择旧 JSON 名称字段含义");
     return value.items.map((item, index) => {
       if (!item || typeof item !== "object" || Array.isArray(item)) return { line: index + 1, values: {}, issues: [{ field: "appid", message: "记录必须是对象" }], format: "json" };
-      const values = Object.fromEntries(["appid", ...fields, "mnemonic_locked", "pinyin_locked"].filter(key => own(item, key)).map(key => [key, item[key]]));
+      const input={...item};
+      // 旧版免费文件明确使用 custom_name 存放 Steam 排序名称，由预览中的显式选项指定含义。
+      if(value.type===undefined && legacyMode==="steam-sort" && own(input,"custom_name")) { input.native_sort_name=input.custom_name; delete input.custom_name; }
+      const values = Object.fromEntries(["appid", ...fields, ...(free?[]:["mnemonic_locked", "pinyin_locked"])].filter(key => own(input, key)).map(key => [key, input[key]]));
       return { line: index + 1, values, issues: [], format: "json" };
     });
   }
@@ -87,7 +95,7 @@
       if (cell.f) throw new Error("首行标题必须为普通文本");
       columns.set(position, col);
     }
-    if (!columns.has(0) || (!columns.has(1) && !columns.has(2))) throw new Error("首行必须包含 APPID，以及自定义名称或别名");
+    if (!columns.has(0) || !Array.from(columns.keys()).some(position=>position>0)) throw new Error("首行必须包含 APPID，以及本版本支持的至少一个名称字段");
     const result = [];
     for (let row = 1; row <= range.e.r; row += 1) {
       const values = {}, issues = [];
@@ -114,7 +122,7 @@
     // 用户输入校验属于可修正的行错误；保留原 Error，交给预览显示，不能逐字记录失败日志。
     const validationErrors = [];
     const capture = error => { validationErrors.push(error); errors.push(error.message); };
-    const next = { ...base, aliases: base.aliases.slice() };
+    const next = free?{...base}:{ ...base, aliases: base.aliases.slice() };
     let appid = 0;
     try {
       if (!/^\d{1,10}$/.test(String(values.appid)) || !Number.isSafeInteger(Number(values.appid)) || Number(values.appid) <= 0) throw new Error("APPID 必须是正整数");
@@ -125,11 +133,29 @@
       try {
         normalized[field] = field === "aliases"
           ? normalizeAliases(typeof values[field] === "string" && (record.format === "xlsx" || own(manual, field)) ? parseAliases(values[field]) : values[field])
-          : clean(values[field], headers[fields.indexOf(field) + 1]);
+          : clean(values[field], headers[fields.indexOf(field) + 1],field==="native_sort_name"?Infinity:200);
       } catch (error) { capture(error); }
     }
     for (const field of ["mnemonic_locked", "pinyin_locked"]) if (own(values, field) && !own(manual, field.replace("_locked", "")) && typeof values[field] !== "boolean") errors.push("JSON 锁定状态必须是布尔值");
     const apply = field => own(normalized, field) && (clearEmpty || own(manual, field) || (field === "aliases" ? normalized[field].length > 0 : normalized[field] !== ""));
+    if(apply("native_sort_name")) {
+      if(base.native_sort_ready===false) capture(new Error("Steam 排序名称尚未读取成功，请先重新读取"));
+      else next.native_sort_name=normalized.native_sort_name;
+    }
+    if(free) {
+      const core=root.SteamBuff.libraryCustomNameMnemonic;
+      if(apply("mnemonic")) {
+        try {
+          const value=normalized.mnemonic;
+          if(value && !/^[A-Za-z0-9]+(?:\s*[,，]\s*[A-Za-z0-9]+)*$/.test(value)) throw new Error("助记符只能包含英文字母、数字，多个助记符用逗号分隔");
+          const codes=value?value.split(/[,，]/).map(code=>code.trim()):[];
+          next.native_sort_name=core.replaceMnemonics(next.native_sort_name,codes);
+          clean(next.native_sort_name,"自定义排序名称",Infinity);
+        } catch(error) { capture(error); }
+      }
+      next.mnemonic=core.mnemonicCodes(next.native_sort_name).join(",");
+      return {appid,next,errors,validationErrors};
+    }
     if (apply("custom_name")) {
       next.custom_name = normalized.custom_name;
       next.mnemonic = ""; next.pinyin = ""; next.mnemonic_locked = false; next.pinyin_locked = false;
@@ -173,7 +199,7 @@
         if (failure) return Promise.reject(failure);
         return new Promise((resolve, reject) => {
           const id = ++sequence; pending.set(id, { resolve, reject });
-          try { worker.postMessage({ id, job, base: urlFor("") }); }
+          try { worker.postMessage({ id, job: {mode,...job}, base: urlFor("") }); }
           catch (error) { pending.delete(id); reject(error); }
         });
       },
@@ -181,5 +207,8 @@
     };
   }
   // 所有格式使用同一字段校验和草稿合并，只有文件解码/编码由各自适配器处理；不写存储。
-  root.STNameTransfer = Object.freeze({ fields, headers, quoteAliases, parseAliases, normalizeAliases, jsonRecords, sheetRecords, compile, createSession });
+  return Object.freeze({mode, fields, headers, quoteAliases, parseAliases, normalizeAliases, jsonRecords, sheetRecords, compile, createSession});
+  }
+  const policies=Object.freeze({independent:createPolicy("independent"),"steam-sort":createPolicy("steam-sort")});
+  root.STNameTransfer=Object.freeze({...policies.independent,forMode(mode){if(!Object.hasOwn(policies,mode)) throw new TypeError("未知名称文件模式");return policies[mode];}});
 })(typeof window === "undefined" ? self : window);

@@ -242,11 +242,22 @@
     return Array.from(text(name).matchAll(TAG_TOKEN_RE), match => MNEMONIC_TAG_RE.exec(tagText(match[0]))?.[1]).filter(Boolean);
   }
 
+  // 只保留已有助记符；没有正文时，库显示层使用 Steam 原名。
+  function clearName(name) {
+    return replaceMnemonics("", mnemonicCodes(name));
+  }
+
+  // 文件导入与手工编辑共用既有标签编码，空数组仅移除助记符，不改其他名称文本。
+  function replaceMnemonics(name, codes) {
+    if(!Array.isArray(codes)||codes.some(code=>typeof code!=="string"||!/^[A-Za-z0-9]+$/.test(code)))throw new TypeError("助记符列表格式无效");
+    return stripMnemonic(name)+codes.map(code=>`[#${code}]`).join("");
+  }
+
   function setMnemonic(name, code) {
     const value = text(code), base = stripMnemonic(name);
     if (!/^[A-Za-z0-9]+$/.test(value)) throw new RangeError("助记符只能包含英文字母和数字");
     if (!stripTags(base)) throw new RangeError("请先填写自定义排序名称");
-    return `${base}[#${value}]`;
+    return replaceMnemonics(base,[value]);
   }
 
   return {
@@ -259,6 +270,8 @@
     stripTags,
     withMnemonic,
     mnemonicCodes,
+    clearName,
+    replaceMnemonics,
     setMnemonic,
   };
 });

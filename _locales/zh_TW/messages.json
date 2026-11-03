@@ -6507,7 +6507,7 @@
     "message": "首列需包含 APPID，以及自定义名称或别名；欄位順序不限。"
   },
   "steam_independentName_transfer_jsonHint": {
-    "message": "JSON 頂層使用 items 陣列，別名使用 aliases 陣列；支援原有匯出檔案。"
+    "message": "JSON 頂層使用 items 陣列。新版按明確欄位識別；舊檔 custom_name 的含義由下方選項指定。"
   },
   "steam_independentName_transfer_aliases": {
     "message": "別名格式：\"別名一\",\"別名二\"，每項使用英文雙引號，中英文逗號皆可。"
@@ -7159,13 +7159,47 @@
   "familyTask_retry": {
     "message": "重試"
   },
-  "messageCenter_retrying": { "message": "重試中" },
-  "familyTask_manualOnly": { "message": "目前為手動模式，不會自動重試。" },
-  "familyTask_retryPending": { "message": "將於 60 分鐘後自動重試，最多 5 次。" },
-  "familyTask_retryFailed": { "message": "第 $value$ 次自動重試失敗。", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_retryNext": { "message": "下次自動重試：$value$", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_retryStopped": { "message": "本輪已達到 5 次自動重試上限，已停止重試。下次正常重新整理：$value$", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_normalNext": { "message": "下次正常重新整理：$value$", "placeholders": { "value": { "content": "$1" } } },
+  "messageCenter_retrying": {
+    "message": "重試中"
+  },
+  "familyTask_manualOnly": {
+    "message": "目前為手動模式，不會自動重試。"
+  },
+  "familyTask_retryPending": {
+    "message": "將於 60 分鐘後自動重試，最多 5 次。"
+  },
+  "familyTask_retryFailed": {
+    "message": "第 $value$ 次自動重試失敗。",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retryNext": {
+    "message": "下次自動重試：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retryStopped": {
+    "message": "本輪已達到 5 次自動重試上限，已停止重試。下次正常重新整理：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_normalNext": {
+    "message": "下次正常重新整理：$value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
   "familyTask_login": {
     "message": "開啟商店"
   },
@@ -7182,7 +7216,7 @@
     "message": "待寫入排序名稱為空時使用 Steam 原名稱"
   },
   "steam_libraryCustomName_sortClearUseAction": {
-    "message": "清空名稱請使用「清空已選自訂排序名稱」操作。"
+    "message": "清空名稱請使用「清空」或「只清名稱」。"
   },
   "steam_libraryCustomName_batchSummary": {
     "message": "總 $total$ 款 · 篩選後 $filtered$ 款 · 已選 $selected$ 項 · 待寫入 $write$ 項 · 跳過 $skipped$ 項 · 上限 $limit$ 項 · 容量 $capacity$",
@@ -7220,5 +7254,49 @@
         "content": "$1"
       }
     }
+  },
+  "steam_libraryCustomName_clearAllParts": {
+    "message": "清空"
+  },
+  "steam_libraryCustomName_clearOnlyName": {
+    "message": "只清名稱"
+  },
+  "steam_libraryCustomName_clearOnlyMnemonic": {
+    "message": "只清助記符"
+  },
+  "steam_libraryCustomName_clearDraftApplied": {
+    "message": "已更新 $count$ 項草稿，按「儲存修改」後寫入 Steam。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_filterFieldcollection_names": {
+    "message": "收藏分組名稱"
+  },
+  "steam_independentName_transfer_includeSort": {
+    "message": "同時匯出 Steam 自訂排序名稱"
+  },
+  "steam_independentName_transfer_legacyMode": {
+    "message": "舊 JSON 名稱欄位含義"
+  },
+  "steam_independentName_transfer_independent": {
+    "message": "自訂名稱（捐贈版）"
+  },
+  "steam_independentName_transfer_steam_sort": {
+    "message": "Steam 排序名稱（免費版）"
+  },
+  "steam_independentName_transfer_freeHint": {
+    "message": "首列標題包含 APPID、自訂排序名稱或助記符；欄位順序不限。"
+  },
+  "steam_independentName_transfer_donorHint": {
+    "message": "首列標題包含 APPID 及至少一個名稱欄位；自訂名稱與 Steam 自訂排序名稱為不同欄，順序不限。"
+  },
+  "steam_independentName_transfer_freeNameHint": {
+    "message": "自訂排序名稱與助記符共用 Steam 排序名稱欄位；助記符欄優先，多個助記符以逗號分隔。"
+  },
+  "steam_independentName_transfer_donorNameHint": {
+    "message": "自訂名稱變更時重設未指定的助記符和拼音；Steam 排序名稱獨立處理。缺少的欄位不修改，空值依所選策略處理。"
   }
 }

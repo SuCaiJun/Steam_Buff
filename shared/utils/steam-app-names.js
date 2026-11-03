@@ -17,12 +17,13 @@
     const id = Number(app.appid);
     return id ? String(root.__RickyStOriginalNames?.get(id) || "").trim() : "";
   }
-  /** Steam 自定义排序名称沿用现有显示规则，不改写保存值。 */
+  /** 纯助记符不提供显示名称，由调用方使用 Steam 原名，不改写保存值。 */
   function nativeName(value) {
     const source = typeof value === "string" ? value : "";
     if (!source) return "";
-    const visible = source.replace(/\s*\[#(?:[A-Za-z0-9]+)\]\s*/g, " ")
-      .replace(/\s{2,}/g, " ").replace(/^(?:\[[^\]\r\n]*\]\s*)+/, "").trim();
+    const name = source.replace(/\s*\[#(?:[A-Za-z0-9]+)\]\s*/g, " ");
+    if (name !== source && !name.trim()) return "";
+    const visible = name.replace(/\s{2,}/g, " ").replace(/^(?:\[[^\]\r\n]*\]\s*)+/, "").trim();
     return visible || source;
   }
   /** 输入当前有效名称模式及已获授权的个人名称，返回原保存值和可见名称。 */

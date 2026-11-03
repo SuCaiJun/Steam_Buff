@@ -22,22 +22,6 @@
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
   const TABLE_LIB = "steam/shared/name-table.js";
   const TABLE = window.STNameTable;
-  const TRANSFER_LIB = "steam/features/library-independent-name/transfer.js";
-  const IO_LABELS = Object.freeze({
-    import: "导入自定义名称", export: "导出自定义名称", format: "格式", json: "JSON", xlsx: "Excel (.xlsx)",
-    choose: "选择文件", template: "下载 Excel 模板", scope: "范围", all: "全部数据", selected: "已勾选数据",
-    saved: "导出已保存内容；存在未保存草稿，请先保存需要导出的修改。", hint: "首行需包含 APPID，以及自定义名称或别名；列顺序不限。", jsonHint: "JSON 顶层使用 items 数组，别名使用 aliases 数组；支持原有导出文件。",
-    aliases: '别名格式："别名一","别名二"，每项使用英文双引号，中英文逗号均可。',
-    empty: "空值处理", skip: "跳过空值", clear: "清空对应字段", preview: "导入预览", sheet: "工作表", back: "重新选择文件",
-    nameHint: "实际导入名称时重置助记符和拼音；文件中的辅助字段优先。预览可直接编辑，重新生成拼音会先生成拼音全拼，再生成助记符，并更新这两个字段。",
-    generatePinyin: "重新生成拼音", apply: "应用到主窗口草稿",
-    validOnly: "仅导入有效行", working: "正在处理…", summary: "总 $total$ 行 · 修改 $changed$ 款 · 无变化 $same$ 款 · 无效 $invalid$ 行",
-    applied: "已导入 $n$ 款到草稿并勾选，请点击保存修改。", line: "第 $n$ 行", before: "修改前", next: "修改后",
-    unavailable: "APPID 不在当前游戏库中", duplicate: "APPID 重复，请修改后再导入", updated: "目标内容或账号已更新，请重新选择文件预览。",
-    failed: "文件操作失败，请重试。", generated: "已重新生成 $n$ 款", exported: "已导出 $n$ 款", wrongFile: "请选择对应格式的文件。",
-  });
-  const ioText = (key, params) => i18n(`steam.independentName.transfer.${key}`, IO_LABELS[key], params);
-  // 行槽必须保持这个高度，表头在滚动区外，占位才是行数乘这个高度
   const ROW_HEIGHT = 64;
   const VIEWPORT_HEIGHT = 420;
   const OVERSCAN = 8;
@@ -63,6 +47,7 @@
   });
 
   function bulkText(key, params) {
+    if(key === "sort") return i18n("steam.libraryCustomName.editSortNames","修改自定义排序名称");
     return i18n(`steam.independentName.bulk.${key}`, BULK_LABELS[key], params);
   }
 
@@ -230,7 +215,6 @@
       message: "",
       transfer: null,
       importSelection: new Set(),
-      batchSession: null,
       singleSession: null,
       currentGame: null,
       singleAiRun: null,
@@ -271,14 +255,13 @@
     };
     let painted = null;
     let libsTask = null;
-    let transferLibsTask = null;
     let tableTask = null, prefsQueued = null, prefsSaving = null;
 
     const tableText = (key, fallback, params) => i18n(`steam.independentName.table.${key}`, fallback, params);
     function tableNotice(message) {
       if (!state.started) return;
       state.tableMessage = message;
-      const notice = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-table-status]");
+      const notice = state.batchElement?.querySelector("[data-lin-table-status]");
       if (notice) { notice.textContent = message; notice.hidden = !message; }
     }
     function saveTablePrefs() {
@@ -300,29 +283,25 @@
         }
       })().finally(() => { prefsSaving = null; });
     }
-    function loadTableLib() {
-      if (window.SteamBuff.nameTable && window.STNameEdit) return Promise.resolve();
-      if (tableTask) return tableTask;
-      tableTask = new Promise((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = api.path.url(TABLE_LIB);
-        script.onload = () => {
-          const edit = document.createElement("script");
-          edit.src = api.path.url("shared/name-edit.js");
-          edit.onload = () => { edit.remove(); resolve(); };
-          edit.onerror = () => { edit.remove(); reject(new Error("shared/name-edit.js")); };
-          document.documentElement.appendChild(edit);
-        };
-        script.onerror = () => reject(new Error(TABLE_LIB));
-        document.documentElement.appendChild(script);
-      }).finally(() => { tableTask = null; });
-      return tableTask;
+    async function loadTableLib() {
+      if (window.SteamBuff.nameTable && window.SteamBuff.nativeWindow && window.STNameEdit) return;
+      if (!tableTask) tableTask=(async()=>{
+        for (const path of [TABLE_LIB,"steam/shared/native-window.js","shared/name-edit.js"]) {
+          await new Promise((resolve,reject)=>{
+            const script=document.createElement("script"); script.src=api.path.url(path);
+            script.onload=()=>{script.remove();resolve();};
+            script.onerror=()=>{script.remove();reject(new Error(path));};
+            document.documentElement.appendChild(script);
+          });
+        }
+      })();
+      try { await tableTask; } finally { tableTask=null; }
     }
     function attachTable(modal) {
       state.tableControl?.stop();
       if (!window.SteamBuff.nameTable) return;
       state.tableControl = window.SteamBuff.nameTable.create({
-        root: modal, prefs: state.tablePrefs,
+        root: modal, model: TABLE, prefs: state.tablePrefs,
         enabled: () => state.tableReady && !state.busy && !state.batchSaving,
         onChange(value) { state.tablePrefs = value; saveTablePrefs(); },
         onSort(id) {
@@ -357,7 +336,7 @@
       }).join("")}`;
     }
     function refreshTableHeaders() {
-      const modal = document.getElementById(BATCH_MODAL);
+      const modal = state.batchElement;
       if (!modal) return;
       const sorted = state.tablePrefs.sort;
       for (const th of modal.querySelectorAll("th[data-lin-col]")) {
@@ -585,8 +564,15 @@
       api.styles?.ensureFeatureStyle?.(ID);
     }
 
+    function batchDocument() { return state.batchElement?.ownerDocument || document; }
+    function batchWindow() { return batchDocument().defaultView; }
     function closeBatchModal() {
+      if (state.batchHost?.kind()) state.batchHost.close("close", true);
+      else finishBatchClose();
+    }
+    function finishBatchClose() {
       state.batchGeneration++;
+      state.batchOpening=false;
       state.tableControl?.stop(); state.tableControl = null;
       for (const [appid, controller] of state.nativeReads) {
         controller.abort();
@@ -599,6 +585,7 @@
         state.nativeJob.controller.abort();
       }
       closeTransfer();
+      transferUI?.stop(); transferUI=null;
       closeActionsMenu(false);
       closeBulkEditor();
       closeFilterEditor();
@@ -617,38 +604,55 @@
       state.search = "";
       state.meta = { options: {}, capabilities: {} };
       painted = null;
-      const session = state.batchSession;
-      state.batchSession = null;
-      session?.close?.();
-      const modal = document.getElementById(BATCH_MODAL);
+      const modal = state.batchElement;
       if (modal) {
         modal.hidden = true;
       }
     }
 
-    function bindBatchModal(modal) {
-      state.batchSession?.close?.();
-      state.batchSession = null;
-      const life = window.STDialogLifecycle;
-      if (!modal || typeof life?.open !== "function") {
-        return;
-      }
-      modal.setAttribute("role", "dialog");
-      modal.setAttribute("aria-modal", "true");
-      modal.setAttribute("aria-labelledby", "st-lin-batch-title");
-      state.batchSession = life.open({
-        root: modal,
-        restore: state.opener,
-        initial: () => modal.querySelector("[data-lin-search]") || modal.querySelector("[data-lin-close]"),
-        onEscape: () => {
-          if (state.transfer) closeTransfer();
-          else if (state.actionsMenu) closeActionsMenu();
-          else if (state.filterDraft) closeFilterEditor();
-          else if (state.referencePending) closeReferenceConfirm();
-          else closeBatchModal();
+    function escapeBatch() {
+      if(state.tableControl?.cancelGesture())return true;
+      if (state.transfer) closeTransfer();
+      else if (state.bulk) closeBulkEditor();
+      else if (state.filterPicker) closeFilterPicker();
+      else if (state.filterDraft) closeFilterEditor();
+      else if (state.actionsMenu) closeActionsMenu();
+      else if (state.aliasEditor) closeAliasEditor();
+      else if (state.referencePending) closeReferenceConfirm();
+      else closeBatchModal();
+      return true;
+    }
+
+    function createBatchHost(trigger) {
+      const geometry = () => {
+        const width = Math.min(state.tablePrefs.dialogWidth, screen.availWidth - 48);
+        const height = Math.min(state.tablePrefs.dialogHeight, screen.availHeight - 64);
+        return { width, height, x: Math.round((innerWidth-width)/2), y: Math.round((innerHeight-height)/2) };
+      };
+      return window.SteamBuff.nativeWindow.create({
+        id: "SteamBuffIndependentNameBatch", trigger, log, follow: false, resizable: true,
+        canResize: () => state.tableReady && !state.batchSaving,
+        onBoundsChanged({width,height}) {
+          state.tablePrefs.dialogWidth=width; state.tablePrefs.dialogHeight=height;
+          state.tableControl?.update(state.tablePrefs); saveTablePrefs();
+        },
+        mainPopup: manager => Array.from(manager.GetPopups()).find(popup => popup.title === "Steam"),
+        css: () => "html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--st-color-steam-property-window)}#popup_target{width:100%;height:100%}",
+        prepareDocument(host) {
+          host.doc.documentElement.dataset.steamNameBatchWindow="true";
+          api.styles.ensureFeatureStyle(ID,{target:host.doc.head});
+        },
+        geometry,
+        params() { const size=geometry(); return {title:i18n("steam.independentName.batchTitle","Steam Buff · 批量设置自定义名称"),modal:false,dimensions:{width:size.width,height:size.height,left:screenX+size.x,top:screenY+size.y}}; },
+        onResize() { state.tableControl?.beforeRender(); closeActionsMenu(false); renderTable("scroll"); },
+        onEscape: escapeBatch,
+        beforeClose: finishBatchClose,
+        onClosed(_kind,reason) { if(reason==='native-close'&&state.batchSaving) log.info("independent-name-window-closed","名称批量原生窗口已关闭",{saving:state.batchSaving}); },
+        reportFailure(error,phase) {
+          log.error("independent-name-window-failed","名称批量原生窗口操作失败",{error,phase});
+          state.message=error.message; renderTable();
         },
       });
-      state.batchSession.focusInitial?.();
     }
 
     function closeSingleModal() {
@@ -976,7 +980,7 @@
         if (state.currentGame !== currentGame) {
           return;
         }
-        adoptSnapshot(snap.data || state.snapshot);
+        adoptSnapshot(snap.data);
         state.singleBusy = false;
         state.singleMessage = "";
         renderSingleModal();
@@ -994,7 +998,7 @@
     let filterView = null;
     function filterUI() {
       if (!filterView) filterView = window.SteamBuff.nameBatch.create({
-        state, getRoot: () => document.getElementById(BATCH_MODAL), i18n, esc, iconHtml, setHtml,
+        state, getRoot: () => state.batchElement, i18n, esc, iconHtml, setHtml,
         expressions: filterExpressions, lifecycle: window.STDialogLifecycle, locked: () => !!state.referenceRun || state.busy,
         fields: filters(),
         apply: applyFilters, change() { applySearch(); renderTable(); },
@@ -1005,13 +1009,21 @@
     let filterModel = null;
     function filters() {
       if (!filterModel) filterModel=window.SteamBuff.nameBatch.createFilters({state,i18n,expressions:filterExpressions,defaultField:'custom_name',
-        nameFields:[['custom_name',i18n('steam.independentName.colCustom','自定义名称')],['aliases',i18n('steam.independentName.colAlias','别名')],['mnemonic',i18n('steam.independentName.colMnemonic','助记符')],['pinyin',i18n('steam.independentName.colPinyin','拼音全拼')],['original_language',i18n('steam.independentName.filterFieldoriginal_language','原名称语言')]],
-        readValues(row,field){const draft=draftOf(row.appid);return field==='aliases'?draft.aliases:[draft[field]];}});
+        nameFields:[['appid','AppID'],['official',i18n('steam.independentName.colOfficial','Steam 原名称')],['current',i18n('steam.libraryCustomName.colCurrent','当前名称')],['custom_name',i18n('steam.independentName.colCustom','自定义名称')],['sort',i18n('steam.independentName.colSort','自定义排序名称')],['aliases',i18n('steam.independentName.colAlias','别名')],['mnemonic',i18n('steam.independentName.colMnemonic','助记符')],['pinyin',i18n('steam.independentName.colPinyin','拼音全拼')],['original_language',i18n('steam.independentName.filterFieldoriginal_language','原名称语言')]],
+        isNameReady(row,field){return field==='sort'?state.nativeSort.get(row.appid)?.ready===true:field==='current'?typeof row.current_name==='string':true;},
+        readValues(row,field){
+          if(field==='appid') return [String(row.appid)];
+          if(field==='official') return [row.official_name];
+          if(field==='current') return [row.current_name];
+          if(field==='sort') return [state.nativeSort.get(row.appid).value];
+          const draft=draftOf(row.appid);return field==='aliases'?draft.aliases:[draft[field]];
+        }});
       return filterModel;
     }
     function matchesRow(row) {
       const draft = draftOf(row.appid), q = text(state.search).toLowerCase();
-      if (q && ![row.official_name,String(row.appid),draft.custom_name,draft.mnemonic,draft.pinyin,...draft.aliases].join(' ').toLowerCase().includes(q)) return false;
+      const sort=state.nativeSort.get(row.appid);
+      if (q && ![row.official_name,row.current_name,String(row.appid),draft.custom_name,draft.mnemonic,draft.pinyin,...draft.aliases,...(sort?.ready?[sort.value]:[])].join(' ').toLowerCase().includes(q)) return false;
       return state.filters.every(filter=>filters().matches(filter,row));
     }
 
@@ -1062,7 +1074,7 @@
 
     function applyFilters() {
       if (!state.filterDraft) return;
-      const editor = document.getElementById(BATCH_MODAL).querySelector("[data-lin-filter-editor]");
+      const editor = state.batchElement.querySelector("[data-lin-filter-editor]");
       let validation;
       try {
         validation = validateFilterDraft(state.filterDraft);
@@ -1098,7 +1110,7 @@
       state.filteredSelected = mode === "clear" || mode === "clear-filtered" ? 0
         : mode === "invert" ? state.filtered.length - state.filteredSelected : state.filtered.length;
       syncSelectedDrafts();
-      const modal = document.getElementById(BATCH_MODAL);
+      const modal = state.batchElement;
       for (const input of modal.querySelectorAll("[data-lin-select]")) input.checked = state.selected.has(Number(input.dataset.linSelect));
       refreshBatchSave();
     }
@@ -1284,7 +1296,7 @@
     }
 
     function refreshBatchReading(appid) {
-      const row = document.getElementById(BATCH_MODAL)?.querySelector(`tr[data-appid="${appid}"]`);
+      const row = state.batchElement?.querySelector(`tr[data-appid="${appid}"]`);
       const panel = row?.querySelector("[data-lin-batch-readings]");
       if (!panel) return;
       setHtml(panel, readingsHtml(batchReading(appid)), "library-independent-name-readings");
@@ -1309,7 +1321,7 @@
     function actionsMenuHtml() {
       const action = key => `<button class="st-lin-btn" type="button" data-lin-bulk-action="${key}" disabled>${esc(bulkText(key))}</button>`;
       const group = (key,contents) => window.SteamBuff.nameBatch.actionGroupsHtml([[key,contents]],esc,i18n);
-      return group("add", ["name", "aliases", "mnemonic", "pinyin"].map(action).join(""))
+      return group("add", ["name", "sort", "aliases", "mnemonic", "pinyin"].map(action).join(""))
         + group("generate", `<button class="st-lin-btn" type="button" data-lin-reference-many disabled>${esc(i18n("steam.independentName.fetchCommunity", "获取社区名称"))}</button>` + ["generate-mnemonic", "generate-pinyin"].map(action).join(""))
         + group("clear", ["clear-name", "clear-aliases", "clear-mnemonic", "clear-pinyin"].map(action).join(""))
         + group("selection", `<button class="st-lin-btn" type="button" data-lin-selection="all">${esc(i18n("steam.independentName.selectAll", "全选"))}</button><button class="st-lin-btn" type="button" data-lin-selection="invert">${esc(i18n("steam.independentName.invertSelection", "反选"))}</button><button class="st-lin-btn" type="button" data-lin-selection="clear">${esc(bulkText("cancelSelection"))}</button>`)
@@ -1322,9 +1334,9 @@
       state.actionsMenu = null;
       menu.hidePopover();
       menu.hidden = true;
-      document.removeEventListener("pointerdown", onActionsOutside, true);
-      window.removeEventListener("resize", onActionsResize);
-      const button = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-actions-toggle]");
+      batchDocument().removeEventListener("pointerdown", onActionsOutside, true);
+      batchWindow().removeEventListener("resize", onActionsResize);
+      const button = state.batchElement?.querySelector("[data-lin-actions-toggle]");
       button?.setAttribute("aria-expanded", "false");
       if (restore) button?.focus({ preventScroll: true });
     }
@@ -1334,33 +1346,32 @@
     }
 
     function onActionsResize() {
-      positionFilterPicker(state.actionsMenu, document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-actions-toggle]"));
+      positionFilterPicker(state.actionsMenu, state.batchElement?.querySelector("[data-lin-actions-toggle]"));
     }
 
     function toggleActionsMenu(button) {
       if (state.actionsMenu) { closeActionsMenu(false); return; }
       if (state.busy || state.batchSaving || state.referenceRun || state.bulk) return;
-      const menu = document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-menu]");
+      const menu = state.batchElement.querySelector("[data-lin-actions-menu]");
       menu.hidden = false;
       menu.showPopover();
       state.actionsMenu = menu;
       button.setAttribute("aria-expanded", "true");
       onActionsResize();
-      document.addEventListener("pointerdown", onActionsOutside, true);
-      window.addEventListener("resize", onActionsResize);
+      batchDocument().addEventListener("pointerdown", onActionsOutside, true);
+      batchWindow().addEventListener("resize", onActionsResize);
       menu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
     }
 
     function bulkRoot() {
-      return document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-bulk-editor]");
+      return state.batchElement?.querySelector("[data-lin-bulk-editor]");
     }
 
     function closeBulkEditor(reason = "cancel") {
       const bulk = state.bulk;
-      if (bulk && reason !== "applied") log.info("independent-name-bulk-cancelled", "选中游戏批量操作已取消，未应用草稿", { operation: bulk.kind, operationId: bulk.operationId, count: bulk.rows.length, durationMs: Math.round(performance.now() - bulk.startedAt) });
-      if (bulk?.frame) window.cancelAnimationFrame(bulk.frame);
+      if (bulk?.frame) batchWindow().cancelAnimationFrame(bulk.frame);
       if (bulk?.commitFrame) {
-        window.cancelAnimationFrame(bulk.commitFrame.id);
+        batchWindow().cancelAnimationFrame(bulk.commitFrame.id);
         bulk.commitFrame.resolve();
       }
       state.bulk = null;
@@ -1378,7 +1389,7 @@
       const select = (key, values) => `<label><span>${esc(bulkText(key))}</span><select data-lin-bulk-param="${key}">${values.map(value => `<option value="${value}" ${params[key] === value ? "selected" : ""}>${esc(bulkText(value))}</option>`).join("")}</select></label>`;
       const numbering = () => select("type", ["number", "chinese", "lower", "upper"]) + input("start", "number") + input("prefix") + input("suffix");
       let html = "";
-      if (bulk.kind === "name") {
+      if (["name","sort"].includes(bulk.kind)) {
         if (bulk.tab === "replace") html = input("find") + input("value");
         if (bulk.tab === "sequence") html = numbering();
         if (bulk.tab === "insert") html = select("insertType", ["text", "sequence"]) + select("position", ["before", "after"]) + (params.insertType === "text" ? input("value") : numbering());
@@ -1390,27 +1401,29 @@
       if (!state.selected.size || state.busy || state.referenceRun || state.batchSaving || state.bulk) return;
       window.clearTimeout(state.searchTimer);
       applySearch();
-      const rows = state.rows.filter(row => state.selected.has(row.appid));
+      const rows = state.filtered.filter(row => state.selected.has(row.appid));
+      if(rows.length<state.selected.size){const included=new Set(rows.map(row=>row.appid));for(const row of state.rows)if(state.selected.has(row.appid)&&!included.has(row.appid))rows.push(row);}
+      if(kind === "sort" && rows.some(row => !state.nativeSort.get(row.appid)?.ready || state.nativeSort.get(row.appid).error)) throw new Error(tableText("sortUnavailable","部分 Steam 排序名称尚未读取成功，请先重新读取。"));
       if (!rows.length) { refreshBatchSave(); return; }
       if (typeof state.snapshot.userId !== "string" || !state.snapshot.userId) throw new TypeError("名称快照缺少当前账号");
       closeActionsMenu(false);
       const root = bulkRoot();
       const bulk = {
-        kind, tab: kind === "name" ? "replace" : "value", userId: state.snapshot.userId,
+        kind, tab: ["name","sort"].includes(kind) ? "replace" : "value", userId: state.snapshot.userId,
         operationId: `bulk-${Date.now()}-${Math.random().toString(36).slice(2)}`, startedAt: performance.now(),
-        rows: rows.map(row => ({ appid: row.appid, official_name: row.official_name, base: { ...draftOf(row.appid), aliases: draftOf(row.appid).aliases.slice() } })),
+        rows: rows.map(row => ({ appid: row.appid, official_name: row.official_name, base: { ...draftOf(row.appid), aliases: draftOf(row.appid).aliases.slice(), native_sort_name: state.nativeSort.get(row.appid)?.value, native_sort_initial: state.nativeSort.get(row.appid)?.initial } })),
         params: { replace: { find: "", value: "" }, sequence: { type: "number", start: "1", prefix: "", suffix: "" }, insert: { insertType: "text", position: "before", value: "", type: "number", start: "1", prefix: "", suffix: "" }, manual: {}, value: { value: "" } },
         manual: new Map(), useOriginal: false, preview: [], revision: 0, frame: 0, ready: false, running: true, error: "", changed: 0, invalid: 0, clearedNames: 0,
         virtual: VIRTUAL.createVirtualWindow({ rowHeight: 80, viewportHeight: 320, overscan: 4 }),
       };
       bulk.index = new Map(bulk.rows.map((row, index) => [row.appid, index]));
       state.bulk = bulk;
-      const tabs = kind === "name" ? `<div class="st-lin-bulk-tabs" role="tablist">${["replace", "sequence", "insert", "manual"].map(tab => `<button class="st-lin-btn" type="button" role="tab" id="st-lin-bulk-tab-${tab}" aria-controls="st-lin-bulk-panel" aria-selected="${tab === bulk.tab}" tabindex="${tab === bulk.tab ? 0 : -1}" data-lin-bulk-tab="${tab}">${esc(bulkText(tab))}</button>`).join("")}</div>` : "";
-      setHtml(root, `<div class="st-lin-bulk-dialog"><header class="st-lin-head"><h3 id="st-lin-bulk-title">Steam Buff · ${esc(bulkText(kind))}</h3><button class="st-lin-btn" type="button" data-lin-bulk-cancel>${esc(i18n("common.close", "关闭"))}</button></header>${tabs}<div id="st-lin-bulk-panel" ${kind === "name" ? 'role="tabpanel" aria-labelledby="st-lin-bulk-tab-replace"' : ""}><div class="st-lin-bulk-params" data-lin-bulk-params></div>${kind === "name" ? `<label class="st-lin-bulk-original"><input type="checkbox" data-lin-bulk-original>${esc(bulkText("original"))}</label>` : ""}<div class="st-lin-bulk-columns"><span>AppID · ${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</span><span>${esc(bulkText("old"))}</span><span>${esc(bulkText("next"))}</span></div><div class="st-lin-bulk-scroll" data-lin-bulk-scroll><div data-lin-bulk-rows></div></div></div><p class="st-lin-msg" data-lin-bulk-warning></p><p class="st-lin-msg" role="status" data-lin-bulk-status></p><footer class="st-lin-filter-actions"><button class="st-lin-btn" type="button" data-lin-bulk-cancel>${esc(i18n("common.cancel", "取消"))}</button><button class="st-lin-btn st-lin-primary" type="button" data-lin-bulk-apply disabled>${esc(bulkText("apply"))}</button></footer></div>`, "library-independent-name-bulk-editor");
+      const tabs = ["name","sort"].includes(kind) ? `<div class="st-lin-bulk-tabs" role="tablist">${["replace", "sequence", "insert", "manual"].map(tab => `<button class="st-lin-btn" type="button" role="tab" id="st-lin-bulk-tab-${tab}" aria-controls="st-lin-bulk-panel" aria-selected="${tab === bulk.tab}" tabindex="${tab === bulk.tab ? 0 : -1}" data-lin-bulk-tab="${tab}">${esc(bulkText(tab))}</button>`).join("")}</div>` : "";
+      setHtml(root, `<div class="st-lin-bulk-dialog"><header class="st-lin-head"><h3 id="st-lin-bulk-title">Steam Buff · ${esc(bulkText(kind))}</h3><button class="st-lin-btn" type="button" data-lin-bulk-cancel>${esc(i18n("common.close", "关闭"))}</button></header>${tabs}<div id="st-lin-bulk-panel" ${["name","sort"].includes(kind) ? 'role="tabpanel" aria-labelledby="st-lin-bulk-tab-replace"' : ""}><div class="st-lin-bulk-params" data-lin-bulk-params></div>${["name","sort"].includes(kind) ? `<label class="st-lin-bulk-original"><input type="checkbox" data-lin-bulk-original>${esc(bulkText("original"))}</label>` : ""}<div class="st-lin-bulk-columns"><span>AppID · ${esc(i18n("steam.independentName.colOfficial", "Steam 原名称"))}</span><span>${esc(bulkText("old"))}</span><span>${esc(bulkText("next"))}</span></div><div class="st-lin-bulk-scroll" data-lin-bulk-scroll><div data-lin-bulk-rows></div></div></div><p class="st-lin-msg" data-lin-bulk-warning></p><p class="st-lin-msg" role="status" data-lin-bulk-status></p><footer class="st-lin-filter-actions"><button class="st-lin-btn" type="button" data-lin-bulk-cancel>${esc(i18n("common.cancel", "取消"))}</button><button class="st-lin-btn st-lin-primary" type="button" data-lin-bulk-apply disabled>${esc(bulkText("apply"))}</button></footer></div>`, "library-independent-name-bulk-editor");
       root.hidden = false;
       bulkParameters();
       root.querySelector("[data-lin-bulk-scroll]").addEventListener("scroll", () => { if (state.bulk === bulk && !bulk.composing) renderBulkRows(); }, { passive: true });
-      state.bulkSession = window.STDialogLifecycle.open({ root, restore: document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-toggle]"), initial: () => root.querySelector("input") || root.querySelector("[data-lin-bulk-cancel]"), onEscape: closeBulkEditor });
+      state.bulkSession = window.STDialogLifecycle.open({ root, restore: state.batchElement.querySelector("[data-lin-actions-toggle]"), initial: () => root.querySelector("input") || root.querySelector("[data-lin-bulk-cancel]"), onEscape: closeBulkEditor });
       state.bulkSession.focusInitial();
       refreshBulkStatus();
       refreshBatchSave();
@@ -1422,7 +1435,7 @@
     }
 
     function bulkField(kind) {
-      return kind === "name" || kind === "clear-name" ? "custom_name" : kind.replace(/^(generate|clear)-/, "");
+      return kind === "sort" ? "native_sort_name" : kind === "name" || kind === "clear-name" ? "custom_name" : kind.replace(/^(generate|clear)-/, "");
     }
 
     // 只产生目标字段补丁。名称派生字段复用 fillGenerated，并先用既有读音契约校验生成结果。
@@ -1431,21 +1444,21 @@
       const base = row.base;
       const field = bulkField(bulk.kind);
       const params = bulk.params[bulk.tab];
-      const source = base.custom_name || (bulk.useOriginal && typeof row.official_name === "string" ? row.official_name : "");
+      const source = base[field] || (bulk.useOriginal && typeof row.official_name === "string" ? row.official_name : "");
       let patch = {};
       let value;
       let error = "";
       let note = "";
-      if (bulk.kind === "name") {
-        if (!base.custom_name && bulk.useOriginal && !source) error = bulkText("originalMissing");
+      if (["name","sort"].includes(bulk.kind)) {
+        if (!base[field] && bulk.useOriginal && !source) error = bulkText("originalMissing");
         value = window.STNameEdit.transform({ source, tab: bulk.tab, params, index, manual: bulk.manual.get(row.appid) });
         if (value !== undefined && !error) {
           value = text(value);
-          if (!base.custom_name && bulk.useOriginal && bulk.tab !== "sequence" && value === source) value = undefined;
+          if (!base[field] && bulk.useOriginal && bulk.tab !== "sequence" && value === source) value = undefined;
         }
         if (value !== undefined && !error) {
-          patch.custom_name = value;
-          if (value !== base.custom_name) {
+          patch[field] = value;
+          if (field === "custom_name" && value !== base.custom_name) {
             const next = { ...base, custom_name: value };
             const pair = value && (!base.mnemonic_locked || !base.pinyin_locked) ? window.SteamBuff.libraryCustomNameMnemonic.readings(value, {}, window.pinyinPro) : null;
             fillGenerated(next, base.custom_name, value, pair);
@@ -1475,7 +1488,7 @@
       }
       if (Object.values(patch).some(value => typeof value === "string" && value.length > 200)) error = bulkText("tooLong");
       const changed = !error && Object.keys(patch).some(key => JSON.stringify(base[key]) !== JSON.stringify(patch[key]));
-      return { appid: row.appid, original: row.official_name, before: bulk.kind === "name" ? source : base[field], next: patch[field] ?? (bulk.kind === "name" ? source : base[field]), source, patch, changed, error, note };
+      return { appid: row.appid, original: row.official_name, before: ["name","sort"].includes(bulk.kind) ? source : base[field], next: patch[field] ?? (["name","sort"].includes(bulk.kind) ? source : base[field]), source, patch, changed, error, note };
     }
 
     function refreshBulkStatus() {
@@ -1497,9 +1510,9 @@
       const scroller = root.querySelector("[data-lin-bulk-scroll]");
       const range = bulk.virtual.update({ scrollTop: scroller.scrollTop, viewportHeight: scroller.clientHeight || 320 }).range(bulk.preview.length);
       const display = value => Array.isArray(value) ? value.join(" · ") : value || bulkText("unset");
-      const active = document.activeElement;
+      const active = batchDocument().activeElement;
       const focus = active?.matches("[data-lin-bulk-manual]") ? { appid: active.dataset.linBulkManual, start: active.selectionStart, end: active.selectionEnd } : null;
-      setHtml(root.querySelector("[data-lin-bulk-rows]"), `<div style="height:${range.before}px"></div>${bulk.preview.slice(range.start, range.end).map(row => `<div class="st-lin-bulk-row" ${row.changed ? 'data-changed="true"' : ""}><span title="${esc(row.original)}"><b>${row.appid}</b><small>${esc(row.original)}</small></span><span title="${esc(display(row.before))}">${esc(display(row.before))}</span><span>${bulk.kind === "name" && bulk.tab === "manual" ? `<input type="text" maxlength="200" data-lin-bulk-manual="${row.appid}" value="${esc(bulk.manual.has(row.appid) ? bulk.manual.get(row.appid) : row.source)}" aria-label="${row.appid} ${esc(bulkText("next"))}">` : `<span title="${esc(display(row.next))}">${esc(display(row.next))}</span>`}<small class="st-lin-bulk-error">${esc(row.error || row.note)}</small></span></div>`).join("")}<div style="height:${range.after}px"></div>`, "library-independent-name-bulk-preview");
+      setHtml(root.querySelector("[data-lin-bulk-rows]"), `<div style="height:${range.before}px"></div>${bulk.preview.slice(range.start, range.end).map(row => `<div class="st-lin-bulk-row" ${row.changed ? 'data-changed="true"' : ""}><span title="${esc(row.original)}"><b>${row.appid}</b><small>${esc(row.original)}</small></span><span title="${esc(display(row.before))}">${esc(display(row.before))}</span><span>${["name","sort"].includes(bulk.kind) && bulk.tab === "manual" ? `<input type="text" maxlength="200" data-lin-bulk-manual="${row.appid}" value="${esc(bulk.manual.has(row.appid) ? bulk.manual.get(row.appid) : row.source)}" aria-label="${row.appid} ${esc(bulkText("next"))}">` : `<span title="${esc(display(row.next))}">${esc(display(row.next))}</span>`}<small class="st-lin-bulk-error">${esc(row.error || row.note)}</small></span></div>`).join("")}<div style="height:${range.after}px"></div>`, "library-independent-name-bulk-preview");
       if (focus) {
         const input = root.querySelector(`[data-lin-bulk-manual="${focus.appid}"]`);
         input?.focus({ preventScroll: true });
@@ -1511,14 +1524,14 @@
     function scheduleBulkPreview() {
       const bulk = state.bulk;
       if (!bulk) return;
-      if (bulk.frame) window.cancelAnimationFrame(bulk.frame);
+      if (bulk.frame) batchWindow().cancelAnimationFrame(bulk.frame);
       const revision = ++bulk.revision;
       bulk.running = true;
       bulk.error = "";
       refreshBulkStatus();
       if (!bulk.ready || bulk.composing) return;
       const params = bulk.params[bulk.tab];
-      if (bulk.kind === "name" && (bulk.tab === "sequence" || bulk.tab === "insert" && params.insertType === "sequence") && (!/^[1-9]\d*$/.test(params.start) || !Number.isSafeInteger(Number(params.start) + bulk.rows.length - 1))) {
+      if (["name","sort"].includes(bulk.kind) && (bulk.tab === "sequence" || bulk.tab === "insert" && params.insertType === "sequence") && (!/^[1-9]\d*$/.test(params.start) || !Number.isSafeInteger(Number(params.start) + bulk.rows.length - 1))) {
         bulk.running = false; bulk.error = bulkText("invalidSequence"); refreshBulkStatus(); return;
       }
       const results = [];
@@ -1529,7 +1542,7 @@
         try {
           const end = Math.min(results.length + 16, bulk.rows.length);
           while (results.length < end) results.push(bulkRow(bulk.rows[results.length], results.length));
-          if (results.length < bulk.rows.length) { bulk.frame = window.requestAnimationFrame(step); return; }
+          if (results.length < bulk.rows.length) { bulk.frame = batchWindow().requestAnimationFrame(step); return; }
           bulk.preview = results;
           bulk.changed = results.filter(row => row.changed).length;
           bulk.invalid = results.filter(row => row.error).length;
@@ -1539,7 +1552,7 @@
           refreshBulkStatus();
         } catch (error) { bulk.running = false; bulk.error = bulkText("failed"); refreshBulkStatus(); log.error("independent-name-bulk-preview-failed", "批量名称预览失败", { error, operation: bulk.kind, operationId: bulk.operationId, count: bulk.rows.length, durationMs: Math.round(performance.now() - bulk.startedAt) }); }
       };
-      bulk.frame = window.requestAnimationFrame(step);
+      bulk.frame = batchWindow().requestAnimationFrame(step);
     }
 
     function switchBulkTab(tab) {
@@ -1562,7 +1575,7 @@
       bulk.composing = event.isComposing === true;
       const field = event.target;
       if (bulk.composing) {
-        if (bulk.frame) window.cancelAnimationFrame(bulk.frame);
+        if (bulk.frame) batchWindow().cancelAnimationFrame(bulk.frame);
         bulk.frame = 0;
         bulk.revision += 1;
         if (!field.matches("[data-lin-bulk-manual]")) bulk.running = true;
@@ -1607,6 +1620,7 @@
       bulk.running = true;
       bulk.committing = true;
       refreshBulkStatus();
+      if(bulk.kind === "sort") { await applySortBulk(bulk); return; }
       const previousDrafts = state.drafts;
       const nextDrafts = new Map(previousDrafts);
       const unchanged = (row, base) => {
@@ -1622,7 +1636,7 @@
           if (!unchanged(row, base)) throw new Error(bulkText("updated"));
           nextDrafts.set(row.appid, { ...current, aliases: current.aliases.slice(), edited: true, conflict: false, base: previousDrafts.get(row.appid)?.base || cloudOf(row.appid), ...row.patch });
         }
-        if ((index + 1) % 16 === 0) await new Promise(resolve => { bulk.commitFrame = { resolve, id: window.requestAnimationFrame(() => { bulk.commitFrame = null; resolve(); }) }; });
+        if ((index + 1) % 16 === 0) await new Promise(resolve => { bulk.commitFrame = { resolve, id: batchWindow().requestAnimationFrame(() => { bulk.commitFrame = null; resolve(); }) }; });
       }
       if (state.bulk !== bulk || !state.started) return;
       if (bulk.userId !== state.snapshot.userId || previousDrafts !== state.drafts) throw new Error(bulkText("updated"));
@@ -1636,8 +1650,34 @@
       renderTable();
     }
 
+    // 排序名称与云端名称是不同目标；预览只提交此 Map，绝不触发名称派生字段。
+    async function applySortBulk(bulk) {
+      const prepared = new Map();
+      const unchanged = row => {
+        const current=state.nativeSort.get(row.appid), base=bulk.rows[bulk.index.get(row.appid)].base;
+        return current?.ready && !current.error && current.value===base.native_sort_name && current.initial===base.native_sort_initial;
+      };
+      for(let index=0;index<bulk.preview.length;index++) {
+        if(state.bulk!==bulk || !state.started) return;
+        if(bulk.userId!==state.snapshot.userId) throw new Error(bulkText("updated"));
+        const row=bulk.preview[index];
+        if(row.changed) {
+          if(!unchanged(row)) throw new Error(bulkText("updated"));
+          const current=state.nativeSort.get(row.appid);
+          prepared.set(row.appid,{...current,value:row.patch.native_sort_name,edited:row.patch.native_sort_name!==current.initial});
+        }
+        if((index+1)%16===0) await new Promise(resolve=>{bulk.commitFrame={resolve,id:batchWindow().requestAnimationFrame(()=>{bulk.commitFrame=null;resolve();})};});
+      }
+      if(state.bulk!==bulk || !state.started) return;
+      if(bulk.userId!==state.snapshot.userId || bulk.preview.some(row=>row.changed&&!unchanged(row))) throw new Error(bulkText("updated"));
+      for(const [appid,value] of prepared) { state.nativeSort.set(appid,value); syncNativeDirty(appid); }
+      state.message=bulkText("applied",{n:prepared.size});
+      log.info("independent-name-sort-bulk-applied","Steam 排序名称批量修改已应用到草稿",{operationId:bulk.operationId,count:prepared.size});
+      closeBulkEditor("applied"); applySearch(); renderTable();
+    }
+
     function refreshBatchSave() {
-      const modal = document.getElementById(BATCH_MODAL);
+      const modal = state.batchElement;
       const button = modal?.querySelector("[data-lin-save-all]");
       if (!button) return;
       const locked = state.busy || !!state.referenceRun || !!state.bulk || !!state.transfer;
@@ -1696,10 +1736,10 @@
       control.base = readingBase(control.appid);
       const root = control.root || document.getElementById(MODAL);
       const pinyin = control.root
-        ? document.getElementById(BATCH_MODAL)?.querySelector(`tr[data-appid="${control.appid}"] input.st-lin-pinyin`)
+        ? state.batchElement?.querySelector(`tr[data-appid="${control.appid}"] input.st-lin-pinyin`)
         : root.querySelector("[data-lin-single-pinyin]");
       const mnemonic = control.root
-        ? document.getElementById(BATCH_MODAL)?.querySelector(`tr[data-appid="${control.appid}"] input.st-lin-mnemonic`)
+        ? state.batchElement?.querySelector(`tr[data-appid="${control.appid}"] input.st-lin-mnemonic`)
         : root.querySelector("[data-lin-single-mnemonic]");
       if (pinyin) pinyin.value = draft.pinyin;
       if (mnemonic) mnemonic.value = draft.mnemonic;
@@ -1729,7 +1769,7 @@
       const session = state.aliasSession;
       state.aliasSession = null;
       state.aliasEditor = null;
-      const modal = document.getElementById(BATCH_MODAL);
+      const modal = state.batchElement;
       const editor = modal?.querySelector("[data-lin-alias-editor]");
       if (editor) editor.hidden = true;
       session?.close?.();
@@ -1738,7 +1778,7 @@
 
     // 编辑区只维护当前游戏的别名副本，确认后写回待统一保存的草稿。
     function openAliasEditor(appid, opener) {
-      const modal = document.getElementById(BATCH_MODAL);
+      const modal = state.batchElement;
       const editor = modal?.querySelector("[data-lin-alias-editor]");
       if (!editor || !appid) return;
       const aliases = draftOf(appid).aliases.slice();
@@ -1779,7 +1819,7 @@
 
     function renderAliasEditor() {
       const draft = state.aliasEditor;
-      const editor = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-alias-editor]");
+      const editor = state.batchElement?.querySelector("[data-lin-alias-editor]");
       if (!draft || !editor) return;
       setHtml(editor.querySelector("[data-lin-alias-tags]"), draft.aliases.map((alias, index) => `
         <span class="st-lin-alias-tag">
@@ -1815,7 +1855,7 @@
       draft.editing = -1;
       draft.message = "";
       renderAliasEditor();
-      const editor = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-alias-editor]");
+      const editor = state.batchElement?.querySelector("[data-lin-alias-editor]");
       (editor?.querySelector("[data-lin-alias-editor-input]:not(:disabled)") || editor?.querySelector("[data-lin-alias-confirm]"))?.focus({ preventScroll: true });
       return true;
     }
@@ -1835,7 +1875,7 @@
         }
         if (JSON.stringify(draft.aliases) !== JSON.stringify(current)) ensureEdited(draft.appid).aliases = draft.aliases.slice();
         refreshDraftFilter(draft.appid);
-        const summary = document.getElementById(BATCH_MODAL)?.querySelector(`tr[data-appid="${draft.appid}"] [data-lin-alias-edit]`);
+        const summary = state.batchElement?.querySelector(`tr[data-appid="${draft.appid}"] [data-lin-alias-edit]`);
         if (summary) setHtml(summary, aliasSummaryHtml(draft.aliases), "library-independent-name-alias-summary");
         refreshBatchSave();
         closeAliasEditor();
@@ -1858,7 +1898,7 @@
         } else return true;
         draft.message = "";
         renderAliasEditor();
-        document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-alias-editor-input]:not(:disabled)")?.focus({ preventScroll: true });
+        state.batchElement?.querySelector("[data-lin-alias-editor-input]:not(:disabled)")?.focus({ preventScroll: true });
       }
       return true;
     }
@@ -1940,7 +1980,7 @@
 
     // 名称类字段只抄当前焦点，避免把上一帧画面写回已更新的草稿
     function rememberEditing(body) {
-      const active = document.activeElement;
+      const active = batchDocument().activeElement;
       let focus = null;
       const inputs = typeof body.querySelectorAll === "function" ? body.querySelectorAll("input") : [];
       for (const input of inputs) {
@@ -2002,7 +2042,7 @@
     }
 
     function renderTable(reason) {
-      const modal = document.getElementById(BATCH_MODAL);
+      const modal = state.batchElement;
       const body = modal?.querySelector("[data-lin-body]");
       const scroller = modal?.querySelector("[data-lin-scroll]");
       if (!body || !scroller) {
@@ -2051,7 +2091,7 @@
       const resetIcon = `<svg viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true" focusable="false">${TABLE.icons.reset.map(path => `<path d="${path}"></path>`).join("")}</svg>`;
       return `
         <div class="st-lin-dialog">
-          <span data-lin-dialog-resize="left" aria-hidden="true"></span><span data-lin-dialog-resize="right" aria-hidden="true"></span>
+
           <header class="st-lin-head">
             <h2 id="st-lin-batch-title">${esc(i18n("steam.independentName.batchTitle", "Steam Buff · 批量设置自定义名称"))}</h2>
             <button class="st-lin-close" type="button" data-lin-table-reset aria-label="${resetLabel}" title="${resetLabel}">${resetIcon}</button>
@@ -2088,7 +2128,7 @@
         </section>
         <section class="st-lin-alias-layer" data-lin-alias-editor role="dialog" aria-modal="true" aria-labelledby="st-lin-alias-title" hidden></section>
         <section class="st-lin-alias-layer" data-lin-bulk-editor role="dialog" aria-modal="true" aria-labelledby="st-lin-bulk-title" hidden></section>
-        <section class="st-lin-alias-layer" data-lin-transfer role="dialog" aria-modal="true" aria-labelledby="st-lin-transfer-title" hidden></section>
+        <dialog class="st-lin-transfer-layer" data-lin-transfer aria-labelledby="st-lin-transfer-title"></dialog>
       `;
     }
 
@@ -2187,29 +2227,33 @@
     }
 
     async function openBatchModal() {
+      if (state.batchHost?.ready()) { await state.batchHost.open("batch",state.batchElement,()=>{}); return; }
+      if (state.batchOpening) return;
+      state.batchOpening=true;
       const generation = ++state.batchGeneration;
       state.tableControl?.stop(); state.tableControl = null; state.tableReady = false;
       css();
-      let modal = document.getElementById(BATCH_MODAL);
+      let modal = state.batchElement;
       if (!modal) {
         modal = document.createElement("section");
         modal.id = BATCH_MODAL;
+        modal.tabIndex=-1;modal.setAttribute("role","main");modal.setAttribute("aria-labelledby","st-lin-batch-title");
         modal.addEventListener("click", onBatchClick);
         modal.addEventListener("keydown", onBatchKey);
         modal.addEventListener("input", onBatchInput);
         modal.addEventListener("change", onBatchChange);
         modal.addEventListener("compositionend", onBatchInput);
         modal.addEventListener("compositionend", scheduleBatchReadings);
-        document.body.appendChild(modal);
+        state.batchElement=modal;
       }
-      state.opener = document.activeElement;
+      const trigger=document.activeElement;
       state.aliasPending.clear();
       state.busy = true;
       painted = null;
       setHtml(modal, batchModalHtml(), "library-independent-name-batch-modal");
       renderFilterChips();
       modal.hidden = false;
-      bindBatchModal(modal);
+
       const scroller = modal.querySelector("[data-lin-scroll]");
       scroller?.addEventListener("scroll", () => {
         state.scrollTop = scroller.scrollTop;
@@ -2221,17 +2265,25 @@
         const layout = Promise.all([loadTableLib(), request("table-settings-get")]).then(([, result]) => {
           if (generation !== state.batchGeneration || !state.started) return;
           if (!result.value) throw new TypeError(tableText("invalidResponse", "表格配置响应缺少有效数据。"));
-          state.tablePrefs = TABLE.fromResponse(result); state.tableReady = true; attachTable(modal);
+          state.tablePrefs = TABLE.fromResponse(result); state.tableReady = true;
         }).catch(error => {
           if (generation !== state.batchGeneration || !state.started) return;
-          state.tableReady = true; attachTable(modal);
+          state.tableReady = true;
           const detail = error.message;
           tableNotice(tableText("loadFailed", "表格设置读取失败：$error$", { error: detail }));
           log.error("independent-name-table-load-failed", "名称表格本地展示配置读取失败", { error });
         });
-        const [snap] = await Promise.all([request("snapshot"), loadLibs(), layout]);
+        const snapshotTask=Promise.allSettled([request("snapshot")]);
+        // Create the native window with loading controls before the library/snapshot requests finish.
+        await loadTableLib();
         if (generation !== state.batchGeneration || !state.started) return;
-        adoptSnapshot(snap.data || state.snapshot);
+        if (!state.batchHost) state.batchHost=createBatchHost(trigger);
+        await state.batchHost.open("batch",modal,()=>{attachTable(modal);});
+        const [snap] = await Promise.all([snapshotTask, loadLibs(), layout]);
+        if (state.tableReady && state.batchHost.ready()) { state.tableControl?.update(state.tablePrefs); await state.batchHost.resize(state.tablePrefs.dialogWidth,state.tablePrefs.dialogHeight); }
+        if (generation !== state.batchGeneration || !state.started) return;
+        if(snap[0].status!=="fulfilled") throw snap[0].reason;
+        adoptSnapshot(snap[0].value.data);
         await loadRows();
         if (generation !== state.batchGeneration || !state.started) return;
         applySearch();
@@ -2243,7 +2295,7 @@
         state.message = error?.message || String(error);
         log.warn("independent-name-open-failed", "独立版名称页打开失败", { error });
         renderTable();
-      }
+      } finally { state.batchOpening=false; }
     }
 
     function savedItem(appid, value = draftOf(appid)) {
@@ -2410,7 +2462,7 @@
     }
 
     function closeReferenceConfirm() {
-      const box = document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-reference-confirm]");
+      const box = state.batchElement?.querySelector("[data-lin-reference-confirm]");
       if (box) box.hidden = true;
       state.referencePending = null;
       state.referenceSession?.close();
@@ -2428,7 +2480,7 @@
         void fetchCommunity(appids);
         return;
       }
-      const box = document.getElementById(BATCH_MODAL).querySelector("[data-lin-reference-confirm]");
+      const box = state.batchElement.querySelector("[data-lin-reference-confirm]");
       state.referencePending = appids;
       box.querySelector("[data-lin-reference-confirm-msg]").textContent = i18n("steam.independentName.replaceCommunityPrompt", "已勾选 $n$ 款，其中 $existing$ 款已有自定义名称。确认后获取社区名称并替换；没有社区名称的游戏保留原内容。", { n: appids.length, existing });
       box.hidden = false;
@@ -2484,341 +2536,61 @@
       }
     }
 
-    const transferRoot = () => document.getElementById(BATCH_MODAL)?.querySelector("[data-lin-transfer]");
-
-    async function loadTransferLibs() {
-      if (window.STNameTransfer) return;
-      if (!transferLibsTask) transferLibsTask = (async () => {
-        for (const path of ["shared/user-names-snapshot.js", TRANSFER_LIB]) {
-          if (path.startsWith("shared/") && window.STUserNamesSnapshot) continue;
-          await new Promise((resolve, reject) => {
-            const script = document.createElement("script"); script.src = api.path.url(path);
-            script.onload = () => { script.remove(); resolve(); };
-            script.onerror = () => { script.remove(); reject(new Error(`无法加载 ${path}`)); };
-            document.documentElement.appendChild(script);
-          });
-        }
-      })();
-      try { await transferLibsTask; } finally { transferLibsTask = null; }
-    }
-
-    function closeTransfer(reason = "cancel") {
-      const io = state.transfer;
-      if (!io) return;
-      state.transfer = null;
-      io.worker?.close();
-      if (io.frame) { window.cancelAnimationFrame(io.frame.id); io.frame.resolve(); }
-      transferRoot().hidden = true;
-      refreshBatchSave();
-      io.session?.close();
-      if (reason === "cancel") log.info("independent-name-transfer-cancelled", "名称文件操作已取消", { operation: io.kind, operationId: io.id, durationMs: Math.round(performance.now() - io.started) });
-    }
-
-    function reportError(error, io) {
-      if (!state.started) return;
-      if (!io) {
-        state.message = error.message || ioText("failed");
-        log.error("independent-name-transfer-failed", "名称文件弹窗打开失败", { error, phase: "open" });
-        renderTable(); return;
-      }
-      if (state.transfer !== io) return;
-      io.working = false; io.error = error.message || ioText("failed");
-      refreshTransferStatus();
-      log.error("independent-name-transfer-failed", "名称文件操作失败", { error, operation: io.kind, operationId: io.id, phase: io.phase, durationMs: Math.round(performance.now() - io.started) });
-    }
-
-    function transferOptions(io) {
-      const choice = (key, values, current) => `<label>${esc(ioText(key))}<select data-lin-io-${key}>${values.map(value => `<option value="${value}" ${current === value ? "selected" : ""} ${key === "scope" && value === "selected" && !state.selected.size ? "disabled" : ""}>${esc(ioText(value))}</option>`).join("")}</select></label>`;
-      return choice("format", ["json", "xlsx"], io.format) + (io.kind === "export" ? choice("scope", ["all", "selected"], io.scope) : "");
-    }
-
+    let transferUI=null, transferUITask=null;
+    const transferBase=appid=>{
+      const sort=state.nativeSort.get(appid);
+      return {...draftOf(appid),native_sort_name:sort?.value,native_sort_initial:sort?.initial,native_sort_ready:sort?.ready===true};
+    };
+    const sameTransfer=(left,right)=>sameNameDraft(left,right)&&left.native_sort_name===right.native_sort_name&&left.native_sort_initial===right.native_sort_initial&&left.native_sort_ready===right.native_sort_ready;
+    function closeTransfer(reason) { transferUI?.close(reason); }
     async function openTransfer(kind) {
-      if (state.transfer || state.busy || state.batchSaving || state.referenceRun || state.bulk) return;
-      window.clearTimeout(state.searchTimer);
-      applySearch();
-      closeActionsMenu(false);
-      const io = { kind, format: "json", scope: state.selected.size ? "selected" : "all", phase: "format", records: [], rows: [], manual: new Map(), bases: new Map(), clearEmpty: false, validOnly: false, changed: 0, invalid: 0, working: true, revision: 0, userId: state.snapshot.userId, id: `transfer-${Date.now()}-${Math.random().toString(36).slice(2)}`, started: performance.now(), virtual: VIRTUAL.createVirtualWindow({ rowHeight: 112, viewportHeight: 336, overscan: 4 }) };
-      state.transfer = io;
-      const root = transferRoot(); root.tabIndex = -1;
-      setHtml(root, `<div class="st-lin-transfer-dialog"><header class="st-lin-head"><h3 id="st-lin-transfer-title">Steam Buff · ${esc(ioText(kind))}</h3><button class="st-lin-btn" type="button" data-lin-io-close>${esc(i18n("common.close", "关闭"))}</button></header><div class="st-lin-transfer-options" data-lin-io-options>${transferOptions(io)}</div><p data-lin-io-hint>${esc(io.kind === "import" ? ioText("hint") : state.drafts.size ? ioText("saved") : "")}</p><div data-lin-io-sheet-box hidden><label>${esc(ioText("sheet"))}<select data-lin-io-sheet></select></label></div><div data-lin-io-preview hidden><p>${esc(ioText("nameHint"))}</p><p>${esc(ioText("aliases"))}</p><div class="st-lin-transfer-options"><label>${esc(ioText("empty"))}<select data-lin-io-empty><option value="skip">${esc(ioText("skip"))}</option><option value="clear">${esc(ioText("clear"))}</option></select></label><button class="st-lin-btn" type="button" data-lin-io-generate>${esc(ioText("generatePinyin"))}</button><label><input type="checkbox" data-lin-io-valid-only>${esc(ioText("validOnly"))}</label></div><div class="st-lin-transfer-scroll" data-lin-io-scroll tabindex="0"><div class="st-lin-transfer-columns">${["APPID", ...["colCustom", "colAlias", "colMnemonic", "colPinyin"].map(key => i18n("steam.independentName." + key, key))].map(value => `<b>${esc(value)}</b>`).join("")}</div><div data-lin-io-rows></div></div></div><p class="st-lin-msg" role="status" data-lin-io-status></p><footer class="st-lin-filter-actions"><button class="st-lin-btn" type="button" data-lin-io-template>${esc(ioText("template"))}</button><button class="st-lin-btn" type="button" data-lin-io-back hidden>${esc(ioText("back"))}</button><button class="st-lin-btn" type="button" data-lin-io-close>${esc(i18n("common.cancel", "取消"))}</button><button class="st-lin-btn st-lin-primary" type="button" data-lin-io-primary>${esc(ioText(kind === "import" ? "choose" : "export"))}</button></footer></div>`, "independent-name-transfer-dialog");
-      root.hidden = false;
-      io.session = window.STDialogLifecycle.open({ root, restore: document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-toggle]"), initial: () => io.working || !io.ready ? root.querySelector("[data-lin-io-close]") : io.phase === "preview" ? root.querySelector('[data-lin-io-field="custom_name"]') || root.querySelector("[data-lin-io-close]") : root.querySelector("select"), onEscape: () => closeTransfer() });
-      io.session.focusInitial();
-      root.querySelector("[data-lin-io-scroll]").addEventListener("scroll", () => { if (state.transfer === io && !io.composing) renderTransferRows(); }, { passive: true });
-      refreshBatchSave(); refreshTransferStatus();
-      log.info("independent-name-transfer-start", "已打开名称文件操作", { operation: kind, operationId: io.id });
-      try {
-        await loadTransferLibs();
-        if (state.transfer === io) { io.ready = true; io.working = false; refreshTransferStatus(); }
-      } catch (error) { reportError(error, io); }
-    }
-
-    function refreshTransferStatus() {
-      const io = state.transfer, root = transferRoot();
-      if (!io || !root) return;
-      root.querySelector("[data-lin-io-status]").textContent = io.error || (io.working ? ioText("working") : io.phase === "preview" ? (io.message ? io.message + " · " : "") + ioText("summary", { total: io.rows.length, changed: io.changed, same: io.rows.length - io.changed - io.invalid, invalid: io.invalid }) : io.message || "");
-      const primary = root.querySelector("[data-lin-io-primary]");
-      primary.textContent = ioText(io.phase === "preview" ? "apply" : io.kind === "import" ? "choose" : "export");
-      primary.disabled = !io.ready || io.working || io.composing || (io.phase === "preview" && (io.error || !io.changed || io.invalid > 0 && !io.validOnly));
-      for (const control of root.querySelectorAll("input, select, [data-lin-io-generate], [data-lin-io-template], [data-lin-io-back]")) control.disabled = !io.ready || io.working;
-      root.querySelector("#st-lin-transfer-title").textContent = "Steam Buff · " + ioText(io.phase === "preview" ? "preview" : io.kind);
-      root.querySelector("[data-lin-io-hint]").textContent = io.phase === "preview" ? "" : io.kind === "import" ? ioText(io.format === "json" ? "jsonHint" : "hint") : state.drafts.size ? ioText("saved") : "";
-      root.querySelector("[data-lin-io-options]").hidden = io.phase === "preview";
-      root.querySelector("[data-lin-io-preview]").hidden = io.phase !== "preview";
-      root.querySelector("[data-lin-io-back]").hidden = io.phase !== "preview";
-      root.querySelector("[data-lin-io-template]").hidden = io.kind !== "import" || io.phase === "preview";
-      const active = document.activeElement;
-      if (!root.contains(active) || active.disabled || active.closest("[hidden]")) {
-        if (io.working || !io.ready) root.querySelector("[data-lin-io-close]").focus({ preventScroll: true });
-        else io.session?.focusInitial();
+      if(!window.SteamBuff.nameTransferUI) {
+        if(!transferUITask)transferUITask=new Promise((resolve,reject)=>{
+          const script=document.createElement("script");script.src=api.path.url("steam/shared/name-transfer-ui.js");
+          script.onload=()=>{script.remove();resolve();};script.onerror=()=>{script.remove();reject(new Error("名称文件组件加载失败"));};document.documentElement.appendChild(script);
+        });
+        try{await transferUITask;}finally{transferUITask=null;}
       }
-    }
-
-    function yieldTransfer(io) {
-      return new Promise(resolve => { io.frame = { resolve, id: window.requestAnimationFrame(() => { io.frame = null; resolve(); }) }; });
-    }
-
-    function transferWorker(io) {
-      if (!io.worker) io.worker = window.STNameTransfer.createSession(api.path.url);
-      return io.worker;
-    }
-
-    function downloadTransfer(blob, filename) {
-      const url = URL.createObjectURL(blob);
-      try { const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); }
-      finally { URL.revokeObjectURL(url); }
-    }
-
-    async function exportTransfer(template = false) {
-      const io = state.transfer;
-      if (!io || io.working) return;
-      io.working = true; io.error = ""; refreshTransferStatus();
-      const rows = state.rows, selected = new Set(state.selected), snapshot = state.snapshot;
-      const items = [];
-      if (!template) for (let index = 0; index < rows.length; index += 1) {
-        if (state.transfer !== io) return;
-        const row = rows[index];
-        if (io.scope === "all" || selected.has(row.appid)) items.push({ appid: row.appid, name: row.official_name, ...cloudOf(row.appid, snapshot) });
-        if ((index + 1) % 100 === 0) await yieldTransfer(io);
+      if(!transferUI || transferUI.root!==state.batchElement) {
+        transferUI?.stop();
+        const editor=window.SteamBuff.nameTransferUI.create({
+          mode:"independent",root:state.batchElement.querySelector("[data-lin-transfer]"),esc,i18n,setHtml,log,url:api.path.url,virtual:VIRTUAL,
+          locked:()=>state.busy||state.batchSaving||state.referenceRun||state.bulk,
+          beforeOpen(){window.clearTimeout(state.searchTimer);applySearch();closeActionsMenu(false);},
+          getRows:()=>state.rows,getSelected:()=>state.selected,official:row=>row?.official_name||"",
+          capture(){const snapshot=state.snapshot,userId=snapshot.userId,generation=state.batchGeneration;return()=>state.started&&state.snapshot===snapshot&&snapshot.userId===userId&&state.batchGeneration===generation;},
+          getBase:transferBase,same:sameTransfer,
+          emptyBase:()=>({custom_name:"",aliases:[],mnemonic:"",pinyin:"",mnemonic_locked:false,pinyin_locked:false,native_sort_name:"",native_sort_initial:"",native_sort_ready:false}),
+          getSaved(row,includeSort){
+            const saved=cloudOf(row.appid);
+            if(includeSort){const sort=state.nativeSort.get(row.appid);if(!sort?.ready||sort.error)throw new Error(tableText("sortUnavailable","部分 Steam 排序名称尚未读取成功，请先重新读取。"));saved.native_sort_name=sort.initial;}
+            return saved;
+          },
+          hasDrafts:()=>state.drafts.size>0||state.nativeDirty.size>0,
+          onState(io){state.transfer=io;refreshBatchSave();},
+          onError(error){state.message=error.message;renderTable();},
+          onApplied(message){state.message=message;applySearch();renderTable();},
+          loadReadings:loadLibs,
+          async commit(rows,valid,yieldUI){
+            const names=new Map(),sorts=new Map(),selected=new Set();
+            for(let index=0;index<rows.length;index++){
+              if(!valid()||!sameTransfer(transferBase(rows[index].appid),rows[index].before))throw new Error(i18n("steam.independentName.transfer.updated","目标内容或账号已更新，请重新选择文件预览。"));
+              const row=rows[index],{native_sort_name,native_sort_ready,native_sort_initial,...name}=row.next;
+              if(!sameNameDraft(name,draftOf(row.appid)))names.set(row.appid,{...name,aliases:name.aliases.slice(),edited:true,importPrepared:true,conflict:false,base:state.drafts.get(row.appid)?.base||cloudOf(row.appid)});
+              if(native_sort_name!==row.before.native_sort_name){const current=state.nativeSort.get(row.appid);sorts.set(row.appid,{...current,value:native_sort_name,edited:native_sort_name!==current.initial});}
+              selected.add(row.appid);if((index+1)%16===0)await yieldUI();
+            }
+            if(!valid()||rows.some(row=>!sameTransfer(transferBase(row.appid),row.before)))throw new Error(i18n("steam.independentName.transfer.updated","目标内容或账号已更新，请重新选择文件预览。"));
+            const next=new Map(state.drafts);for(const [appid,draft]of names)next.set(appid,draft);state.drafts=next;
+            for(const [appid,sort]of sorts){state.nativeSort.set(appid,sort);syncNativeDirty(appid);}
+            state.selected=selected;state.importSelection=new Set(selected);syncSelectedDrafts();
+          },
+        });
+        transferUI={...editor,root:state.batchElement};
       }
-      const format = template ? "xlsx" : io.format;
-      const result = await transferWorker(io).request({ type: "export", format, items });
-      if (state.transfer !== io) return;
-      if (state.snapshot.userId !== io.userId) throw new Error(ioText("updated"));
-      downloadTransfer(result.blob, template ? "steam-buff-name-template.xlsx" : `steam-buff-independent-names.${format}`);
-      io.working = false; io.message = template ? "" : ioText("exported", { n: items.length }); refreshTransferStatus();
-      log.info("independent-name-export-success", "独立版名称文件已导出", { operationId: io.id, format, scope: template ? "template" : io.scope, count: items.length });
+      await transferUI.open(kind);
     }
-
-    async function readTransferFile(file) {
-      const io = state.transfer;
-      if (!io || io.kind !== "import" || io.working) return;
-      if (!file.name.toLowerCase().endsWith("." + io.format)) throw new Error(ioText("wrongFile"));
-      io.worker?.close(); io.worker = null;
-      io.working = true; io.error = ""; io.message = ""; io.manual.clear(); io.bases.clear(); refreshTransferStatus();
-      const result = await transferWorker(io).request({ type: "read", format: io.format, file });
-      if (state.transfer !== io) return;
-      if (io.format === "xlsx") {
-        const select = transferRoot().querySelector("[data-lin-io-sheet]");
-        setHtml(select, result.sheets.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join(""), "independent-name-import-sheets");
-        transferRoot().querySelector("[data-lin-io-sheet-box]").hidden = result.sheets.length < 2;
-        await readTransferSheet(result.sheets[0]);
-      } else { io.records = result.records; await rebuildTransfer(io); }
-    }
-
-    async function readTransferSheet(name) {
-      const io = state.transfer;
-      io.working = true; io.error = ""; io.message = ""; refreshTransferStatus();
-      const result = await transferWorker(io).request({ type: "sheet", name });
-      if (state.transfer !== io) return;
-      io.records = result.records; io.manual.clear(); io.bases.clear();
-      await rebuildTransfer(io);
-    }
-
-    function compileTransferRow(io, index) {
-      const core = window.STNameTransfer, record = io.records[index], manual = io.manual.get(index) || {};
-      const id = Number(Object.hasOwn(manual, "appid") ? manual.appid : record.values.appid);
-      if (!io.bases.has(id)) { const base = draftOf(id); io.bases.set(id, { ...base, aliases: base.aliases.slice() }); }
-      const base = io.bases.get(id);
-      const row = { index, line: record.line, before: base, ...core.compile(record, base, io.clearEmpty, manual) };
-      if (!state.rowsByAppid.has(row.appid)) row.errors.push(ioText("unavailable"));
-      row.changed = !row.errors.length && !sameNameDraft(row.next, base);
-      return row;
-    }
-
-    // 改空值策略或 APPID 时只重算文件目标，16 项一批；普通字段输入只更新当前行。
-    async function rebuildTransfer(io) {
-      const active = document.activeElement;
-      io.focus = active?.matches("[data-lin-io-field]") ? { row: active.dataset.linIoRow, field: active.dataset.linIoField, start: active.selectionStart, end: active.selectionEnd } : null;
-      const revision = ++io.revision;
-      io.working = true; io.error = ""; io.phase = "preview"; refreshTransferStatus();
-      const rows = [], counts = new Map();
-      for (let index = 0; index < io.records.length; index += 1) {
-        if (state.transfer !== io || revision !== io.revision) return;
-        const row = compileTransferRow(io, index); rows.push(row);
-        counts.set(row.appid, (counts.get(row.appid) || 0) + 1);
-        if ((index + 1) % 16 === 0) await yieldTransfer(io);
-      }
-      let changed = 0, invalid = 0;
-      for (let index = 0; index < rows.length; index += 1) {
-        const row = rows[index];
-        if (counts.get(row.appid) > 1) row.errors.push(ioText("duplicate"));
-        row.changed = !row.errors.length && row.changed;
-        changed += Number(row.changed); invalid += Number(row.errors.length > 0);
-        if ((index + 1) % 16 === 0) await yieldTransfer(io);
-        if (state.transfer !== io || revision !== io.revision) return;
-      }
-      if (state.snapshot.userId !== io.userId) throw new Error(ioText("updated"));
-      io.rows = rows; io.counts = counts; io.changed = changed; io.invalid = invalid; io.working = false;
-      renderTransferRows(); refreshTransferStatus();
-    }
-
-    function renderTransferRows() {
-      const io = state.transfer, root = transferRoot();
-      if (!io || io.phase !== "preview" || io.composing) return;
-      const core = window.STNameTransfer, scroll = root.querySelector("[data-lin-io-scroll]");
-      const range = io.virtual.update({ scrollTop: Math.max(0, scroll.scrollTop - 32), viewportHeight: scroll.clientHeight || 336 }).range(io.rows.length);
-      const active = document.activeElement;
-      const focus = active?.matches("[data-lin-io-field]") ? { row: active.dataset.linIoRow, field: active.dataset.linIoField, start: active.selectionStart, end: active.selectionEnd } : io.focus;
-      io.focus = null;
-      const fieldValue = (row, field) => {
-        const manual = io.manual.get(row.index);
-        if (manual && Object.hasOwn(manual, field)) return manual[field];
-        if (field === "appid") return io.records[row.index].values.appid ?? "";
-        if (row.errors.length && Object.hasOwn(io.records[row.index].values, field)) {
-          const raw = io.records[row.index].values[field];
-          return field === "aliases" && Array.isArray(raw) ? (raw.every(value => typeof value === "string") ? core.quoteAliases(raw) : JSON.stringify(raw)) : String(raw ?? "");
-        }
-        return field === "aliases" ? core.quoteAliases(row.next.aliases) : row.next[field];
-      };
-      setHtml(root.querySelector("[data-lin-io-rows]"), `<div style="height:${range.before}px"></div>${io.rows.slice(range.start, range.end).map(row => `<div class="st-lin-transfer-row" data-lin-io-preview-row="${row.index}" data-changed="${row.changed}">${["appid", ...core.fields].map((field, col) => `<label><span class="st-lin-transfer-mobile-label">${esc(core.headers[col])}</span><input type="text" data-lin-io-field="${field}" data-lin-io-row="${row.index}" value="${esc(fieldValue(row, field))}" aria-label="${esc(ioText("line", { n: row.line }))} ${esc(core.headers[col])}"><small title="${esc(field === "appid" ? state.rowsByAppid.get(row.appid)?.official_name || "" : field === "aliases" ? core.quoteAliases(row.before.aliases) : row.before[field])}">${esc(field === "appid" ? ioText("line", { n: row.line }) : ioText("before") + "：" + (field === "aliases" ? core.quoteAliases(row.before.aliases) : row.before[field]))}</small></label>`).join("")}<p class="st-lin-transfer-row-status" title="${esc(row.errors.join("；"))}">${esc(row.errors.join("；"))}</p></div>`).join("")}<div style="height:${range.after}px"></div>`, "independent-name-import-preview");
-      if (focus) { const input = root.querySelector(`[data-lin-io-row="${focus.row}"][data-lin-io-field="${focus.field}"]`); input?.focus({ preventScroll: true }); input?.setSelectionRange(focus.start, focus.end); }
-      if (!root.contains(document.activeElement) || document.activeElement.disabled || document.activeElement.closest("[hidden]")) scroll.focus({ preventScroll: true });
-    }
-
-    function onTransferInput(event) {
-      const io = state.transfer, field = event.target;
-      if (!io || io.working || !field.matches("[data-lin-io-field]")) return;
-      io.error = ""; io.message = "";
-      const index = Number(field.dataset.linIoRow);
-      io.manual.set(index, { ...io.manual.get(index), [field.dataset.linIoField]: field.value });
-      io.composing = event.isComposing === true;
-      if (io.composing) { refreshTransferStatus(); return; }
-      if (field.dataset.linIoField === "appid") { void rebuildTransfer(io).catch(error => reportError(error, io)); return; }
-      const previous = io.rows[index], row = compileTransferRow(io, index);
-      if (io.counts.get(row.appid) > 1) row.errors.push(ioText("duplicate"));
-      row.changed = !row.errors.length && row.changed;
-      io.rows[index] = row;
-      io.changed += Number(row.changed) - Number(previous.changed);
-      io.invalid += Number(!!row.errors.length) - Number(!!previous.errors.length);
-      const element = field.closest("[data-lin-io-preview-row]");
-      element.dataset.changed = String(row.changed);
-      const status = element.querySelector(".st-lin-transfer-row-status");
-      status.textContent = row.errors.join("；"); status.title = status.textContent;
-      if (field.dataset.linIoField === "custom_name") for (const input of element.querySelectorAll("[data-lin-io-field]")) {
-        const key = input.dataset.linIoField;
-        if (["mnemonic", "pinyin"].includes(key) && !Object.hasOwn(io.manual.get(index), key)) input.value = row.next[key];
-      }
-      refreshTransferStatus();
-    }
-
-    async function generateTransfer() {
-      const io = state.transfer;
-      if (!io || io.working || io.composing) return;
-      io.working = true; io.error = ""; refreshTransferStatus();
-      await loadLibs();
-      const edits = new Map(io.manual), core = window.SteamBuff.libraryCustomNameMnemonic;
-      let count = 0;
-      for (let index = 0; index < io.rows.length; index += 1) {
-        if (state.transfer !== io) return;
-        const row = io.rows[index];
-        if (!row.errors.length && row.next.custom_name) {
-          const { pinyin, mnemonic } = core.readings(row.next.custom_name, {}, window.pinyinPro);
-          if (typeof pinyin !== "string" || typeof mnemonic !== "string") throw new TypeError("读音生成返回值必须是文本");
-          // 严格核心对无汉字名称返回空结果；这类项目保留预览原值，不能阻止其他有效项目生成。
-          if (pinyin.trim()) { edits.set(index, { ...edits.get(index), pinyin, mnemonic }); count += 1; }
-        }
-        if ((index + 1) % 16 === 0) await yieldTransfer(io);
-      }
-      if (state.transfer !== io) return;
-      io.manual = edits;
-      await rebuildTransfer(io);
-      if (state.transfer === io) {
-        io.message = ioText("generated", { n: count }); refreshTransferStatus();
-        log.info("independent-name-import-generated", "导入预览拼音全拼和助记符已重新生成", { operationId: io.id, fields: ["pinyin", "mnemonic"], count });
-      }
-    }
-
-    async function applyTransfer() {
-      const io = state.transfer;
-      if (!io || io.working || io.composing || !io.changed || io.invalid && !io.validOnly) return;
-      io.working = true; io.error = ""; refreshTransferStatus();
-      const current = state.drafts, prepared = new Map(), selected = new Set();
-      for (let index = 0; index < io.rows.length; index += 1) {
-        if (state.transfer !== io) return;
-        const row = io.rows[index];
-        if (!row.errors.length && row.changed) {
-          if (!sameNameDraft(draftOf(row.appid), row.before)) throw new Error(ioText("updated"));
-          prepared.set(row.appid, { ...row.next, aliases: row.next.aliases.slice(), edited: true, importPrepared: true, conflict: false, base: current.get(row.appid)?.base || cloudOf(row.appid) });
-          selected.add(row.appid);
-        }
-        if ((index + 1) % 16 === 0) await yieldTransfer(io);
-      }
-      if (state.transfer !== io) return;
-      if (state.snapshot.userId !== io.userId || state.drafts !== current) throw new Error(ioText("updated"));
-      for (const row of io.rows) if (selected.has(row.appid) && !sameNameDraft(draftOf(row.appid), row.before)) throw new Error(ioText("updated"));
-      // 分批准备期间，未导入的草稿可能被就地更新；提交时才复制当前集合，只合并本次字段补丁。
-      const next = new Map(current);
-      for (const [appid, draft] of prepared) next.set(appid, draft);
-      state.drafts = next; state.selected = selected; state.importSelection = new Set(selected);
-      syncSelectedDrafts(); applySearch();
-      state.message = ioText("applied", { n: selected.size });
-      log.info("independent-name-import-success", "名称文件已应用到主窗口草稿", { operationId: io.id, format: io.format, count: selected.size, invalid: io.invalid, durationMs: Math.round(performance.now() - io.started) });
-      closeTransfer("applied"); renderTable();
-    }
-
-    function onTransferClick(event) {
-      const io = state.transfer, target = event.target;
-      if (!io || !target.closest("[data-lin-transfer]")) return;
-      if (target.closest("[data-lin-io-close]")) { closeTransfer(); return; }
-      if (io.working || io.composing) return;
-      let task;
-      if (target.closest("[data-lin-io-template]")) task = exportTransfer(true);
-      else if (target.closest("[data-lin-io-back]")) {
-        io.worker?.close(); io.worker = null; io.records = []; io.rows = []; io.manual.clear(); io.bases.clear(); io.phase = "format"; io.error = "";
-        transferRoot().querySelector("[data-lin-io-sheet-box]").hidden = true; refreshTransferStatus();
-      } else if (target.closest("[data-lin-io-primary]")) {
-        if (io.phase === "preview") task = applyTransfer();
-        else if (io.kind === "export") task = exportTransfer();
-        else {
-          const input = document.getElementById(BATCH_MODAL).querySelector("[data-lin-file]");
-          input.accept = io.format === "json" ? ".json,application/json" : ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-          input.click();
-        }
-      } else {
-        const button = target.closest("[data-lin-io-generate]");
-        if (button) task = generateTransfer();
-      }
-      if (task) void task.catch(error => reportError(error, io));
-    }
-
-    function onTransferChange(event) {
-      const io = state.transfer, target = event.target;
-      if (io.working || io.composing) return;
-      let task;
-      if (target.matches("[data-lin-io-format]")) {
-        io.format = target.value; io.error = ""; io.message = "";
-        io.worker?.close(); io.worker = null;
-        transferRoot().querySelector("[data-lin-io-sheet-box]").hidden = true;
-      }
-      else if (target.matches("[data-lin-io-scope]")) io.scope = target.value;
-      else if (target.matches("[data-lin-io-empty]")) { io.clearEmpty = target.value === "clear"; task = rebuildTransfer(io); }
-      else if (target.matches("[data-lin-io-valid-only]")) io.validOnly = target.checked;
-      else if (target.matches("[data-lin-io-sheet]")) task = readTransferSheet(target.value);
-      else if (target.matches("[data-lin-file]") && target.files?.[0]) { const file = target.files[0]; target.value = ""; task = readTransferFile(file); }
-      refreshTransferStatus();
-      if (task) void task.catch(error => reportError(error, io));
-    }
+    function reportError(error,io=state.transfer){if(transferUI)transferUI.report(error,io);else{state.message=error.message;log.error("name-transfer-open-failed","名称文件弹窗打开失败",{error});renderTable();}}
 
     function addSingleAlias(appid, value) {
       const alias = text(value);
@@ -3107,17 +2879,15 @@
       if (event.target.closest("[data-lin-table-reset]")) {
         if (!state.tableReady || state.busy || state.batchSaving) return;
         state.tablePrefs = TABLE.defaults(); state.tableControl?.update(state.tablePrefs);
-        document.getElementById(BATCH_MODAL).querySelector("[data-lin-scroll]").scrollLeft = 0;
+        void state.batchHost.resize(state.tablePrefs.dialogWidth,state.tablePrefs.dialogHeight).catch(error=>{log.error("independent-name-window-reset-failed","恢复批量窗口尺寸失败",{error});tableNotice(error.message);});
+        state.batchElement.querySelector("[data-lin-scroll]").scrollLeft = 0;
         sortRows(); renderTable(); refreshTableHeaders(); saveTablePrefs(); return;
       }
       const reload = event.target.closest("[data-lin-native-retry]");
       if (reload) { void reloadNative(Number(reload.dataset.linNativeRetry)); return; }
       const command = event.target.closest("[data-lin-native-command]");
       if (command && state.nativeJob) { state.ch.postMessage({ script: ID, side: "ui", type: "sort-batch-" + command.dataset.linNativeCommand, rid: state.nativeJob.rid }); return; }
-      if (state.transfer) {
-        try { onTransferClick(event); } catch (error) { reportError(error, state.transfer); }
-        return;
-      }
+      if (state.transfer) return;
       const target = event.target;
       if (state.bulk) {
         if (!target.closest("[data-lin-bulk-editor]")) return;
@@ -3154,7 +2924,7 @@
       if (community) {
         if (community.disabled) return;
         closeActionsMenu();
-        fetchSelectedCommunity(document.getElementById(BATCH_MODAL).querySelector("[data-lin-actions-toggle]"));
+        fetchSelectedCommunity(state.batchElement.querySelector("[data-lin-actions-toggle]"));
         return;
       }
       const panel = event.target.closest("[data-lin-batch-readings]");
@@ -3222,10 +2992,7 @@
     function onFilterOperatorKey(...args) { return filterUI().onFilterOperatorKey(...args); }
 
     function onBatchInput(event) {
-      if (state.transfer) {
-        try { onTransferInput(event); } catch (error) { reportError(error, state.transfer); }
-        return;
-      }
+      if (state.transfer) return;
       if (state.bulk) {
         try { onBulkInput(event); } catch (error) { reportFailure(error); }
         return;
@@ -3283,10 +3050,7 @@
     }
 
     function onBatchChange(event) {
-      if (state.transfer) {
-        try { onTransferChange(event); } catch (error) { reportError(error, state.transfer); }
-        return;
-      }
+      if (state.transfer) return;
       if (state.bulk) {
         if (event.target.matches("select, [data-lin-bulk-original]")) {
           try { onBulkInput(event); } catch (error) { reportFailure(error); }
@@ -3330,7 +3094,7 @@
       if (state.started !== true || window.__SteamBuffLibraryIndependentNameUi !== state || document.hidden) {
         return;
       }
-      const modal = document.getElementById(BATCH_MODAL);
+      const modal = state.batchElement;
       if (!modal || modal.hidden !== false) {
         return;
       }
@@ -3338,7 +3102,7 @@
         if (state.started !== true || window.__SteamBuffLibraryIndependentNameUi !== state) {
           return;
         }
-        adoptSnapshot(snap.data || state.snapshot);
+        adoptSnapshot(snap.data);
         // 新快照到达后丢掉上一次操作提示，横幅改看当前拒绝或额度
         state.message = "";
         renderTable();
@@ -3376,7 +3140,8 @@
       window.clearTimeout(state.batchReadingTimer);
       state.ch?.close?.();
       document.getElementById(MODAL)?.remove();
-      document.getElementById(BATCH_MODAL)?.remove();
+      state.batchHost?.stop();
+      state.batchElement?.remove();
       if (window.__SteamBuffLibraryIndependentNameUi === state) {
         delete window.__SteamBuffLibraryIndependentNameUi;
       }

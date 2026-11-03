@@ -6507,7 +6507,7 @@
     "message": "The first row must include APPID and 自定义名称 or 别名. Column order is flexible."
   },
   "steam_independentName_transfer_jsonHint": {
-    "message": "JSON uses an items array and aliases arrays. Existing export files are supported."
+    "message": "JSON uses an items array. New files identify fields explicitly; select the meaning of custom_name for older files below."
   },
   "steam_independentName_transfer_aliases": {
     "message": "Alias format: \"alias one\",\"alias two\". Use English double quotes; English or Chinese commas may separate items."
@@ -7159,13 +7159,47 @@
   "familyTask_retry": {
     "message": "Retry"
   },
-  "messageCenter_retrying": { "message": "Retrying" },
-  "familyTask_manualOnly": { "message": "Manual mode is enabled. No automatic retry is scheduled." },
-  "familyTask_retryPending": { "message": "An automatic retry is scheduled in 60 minutes, up to 5 retries." },
-  "familyTask_retryFailed": { "message": "Automatic retry $value$ failed.", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_retryNext": { "message": "Next automatic retry: $value$", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_retryStopped": { "message": "All 5 automatic retries failed. Retrying has stopped for this cycle. Next regular refresh: $value$", "placeholders": { "value": { "content": "$1" } } },
-  "familyTask_normalNext": { "message": "Next regular refresh: $value$", "placeholders": { "value": { "content": "$1" } } },
+  "messageCenter_retrying": {
+    "message": "Retrying"
+  },
+  "familyTask_manualOnly": {
+    "message": "Manual mode is enabled. No automatic retry is scheduled."
+  },
+  "familyTask_retryPending": {
+    "message": "An automatic retry is scheduled in 60 minutes, up to 5 retries."
+  },
+  "familyTask_retryFailed": {
+    "message": "Automatic retry $value$ failed.",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retryNext": {
+    "message": "Next automatic retry: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_retryStopped": {
+    "message": "All 5 automatic retries failed. Retrying has stopped for this cycle. Next regular refresh: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
+  "familyTask_normalNext": {
+    "message": "Next regular refresh: $value$",
+    "placeholders": {
+      "value": {
+        "content": "$1"
+      }
+    }
+  },
   "familyTask_login": {
     "message": "Open Steam Store"
   },
@@ -7182,7 +7216,7 @@
     "message": "Use the original Steam name when the pending sort name is empty"
   },
   "steam_libraryCustomName_sortClearUseAction": {
-    "message": "Use “Clear selected custom sort names” to clear names."
+    "message": "Use Clear or Name only to clear names."
   },
   "steam_libraryCustomName_batchSummary": {
     "message": "Total $total$ · Filtered $filtered$ · Selected $selected$ · Pending $write$ · Skipped $skipped$ · Entries $limit$ · Capacity $capacity$",
@@ -7220,5 +7254,49 @@
         "content": "$1"
       }
     }
+  },
+  "steam_libraryCustomName_clearAllParts": {
+    "message": "Clear"
+  },
+  "steam_libraryCustomName_clearOnlyName": {
+    "message": "Name only"
+  },
+  "steam_libraryCustomName_clearOnlyMnemonic": {
+    "message": "Mnemonic only"
+  },
+  "steam_libraryCustomName_clearDraftApplied": {
+    "message": "Updated $count$ drafts. Click Save changes to write them to Steam.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_independentName_filterFieldcollection_names": {
+    "message": "Collection names"
+  },
+  "steam_independentName_transfer_includeSort": {
+    "message": "Include Steam custom sort names"
+  },
+  "steam_independentName_transfer_legacyMode": {
+    "message": "Name field in older JSON files"
+  },
+  "steam_independentName_transfer_independent": {
+    "message": "Custom name (Donation edition)"
+  },
+  "steam_independentName_transfer_steam_sort": {
+    "message": "Steam sort name (Free edition)"
+  },
+  "steam_independentName_transfer_freeHint": {
+    "message": "Use APPID and a custom sort name or mnemonic column in the first row. Column order is flexible."
+  },
+  "steam_independentName_transfer_donorHint": {
+    "message": "Use APPID and at least one supported name field in the first row. Custom names and Steam sort names are separate columns."
+  },
+  "steam_independentName_transfer_freeNameHint": {
+    "message": "Sort names and mnemonics share the Steam sort name field. The mnemonic column takes priority; separate multiple mnemonics with commas."
+  },
+  "steam_independentName_transfer_donorNameHint": {
+    "message": "Changing custom names resets unspecified mnemonics and pinyin. Steam sort names are handled separately. Missing columns remain unchanged."
   }
 }

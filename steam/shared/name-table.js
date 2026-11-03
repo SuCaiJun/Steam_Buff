@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : 名称表格列拖拽、列宽及弹窗宽度交互
+ * @File          : 名称表格列拖拽、列宽与排序交互
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
@@ -17,13 +17,11 @@
     let prefs = model.parse(options.prefs), gesture = null, swallow = false, stopped = false;
     const scroll = root.querySelector("[data-lin-scroll]");
     const header = root.querySelector(".st-lin-cols");
-    const dialog = root.querySelector(".st-lin-dialog");
     const duration = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 160;
     const cells = id => Array.from(root.querySelectorAll(`th[data-lin-col="${id}"],td[data-lin-col="${id}"]`));
 
     function apply() {
       const active = document.activeElement;
-      root.style.setProperty("--st-lin-dialog-width", prefs.dialogWidth + "px");
       applyWidths();
       for (const row of root.querySelectorAll("[data-lin-colgroup],[data-lin-header],tr[data-appid]")) {
         const nodes = new Map(Array.from(row.children).filter(node => node.dataset.linCol).map(node => [node.dataset.linCol, node]));
@@ -111,12 +109,6 @@
         applyWidths();
         return;
       }
-      if (state.kind === "dialog") {
-        const max = Math.max(1, window.innerWidth - 48), min = Math.min(640, max);
-        prefs.dialogWidth = Math.round(Math.max(min, Math.min(max, state.width + delta * (state.edge === "left" ? -2 : 2))));
-        root.style.setProperty("--st-lin-dialog-width", prefs.dialogWidth + "px");
-        return;
-      }
       const elapsed = Math.min(32, state.time ? time - state.time : 16);
       state.time = time;
       const direction = state.x < state.viewport.left + 32 ? -1 : state.x > state.viewport.right - 32 ? 1 : 0;
@@ -180,12 +172,12 @@
       if (event.type === "pointerdown") {
         swallow = false;
         if (gesture || event.button !== 0 || !event.isPrimary || !options.enabled()) return;
-        const resize = event.target.closest("[data-lin-col-resize]"), edge = event.target.closest("[data-lin-dialog-resize]"), title = event.target.closest("[data-lin-col-sort]");
-        if (!resize && !edge && !title) return;
-        const target = resize || edge || title;
-        gesture = { target, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: event.clientX, frame: 0, before: model.parse(prefs), width: dialog.getBoundingClientRect().width, kind: resize ? "width" : edge ? "dialog" : "order", id: resize?.dataset.linColResize || title?.dataset.linColSort, edge: edge?.dataset.linDialogResize };
+        const resize = event.target.closest("[data-lin-col-resize]"), title = event.target.closest("[data-lin-col-sort]");
+        if (!resize && !title) return;
+        const target = resize || title;
+        gesture = { target, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: event.clientX, frame: 0, before: model.parse(prefs), kind: resize ? "width" : "order", id: resize?.dataset.linColResize || title?.dataset.linColSort };
         target.setPointerCapture(event.pointerId);
-        if (resize || edge) { event.preventDefault(); begin(gesture); }
+        if (resize) { event.preventDefault(); begin(gesture); }
         return;
       }
       const state = gesture;
@@ -240,6 +232,7 @@
     window.addEventListener("blur", cancel); window.addEventListener("resize", cancel); document.addEventListener("visibilitychange", hidden);
     apply();
     return {
+      cancelGesture() { if(!gesture)return false;cancel();return true; },
       update(value) { if (stopped) return; cancel(); prefs = model.parse(value); apply(); },
       beforeRender() { if (gesture) cancel(); },
       stop() {
