@@ -151,6 +151,7 @@
     "download-auto-shutdown": true,
     [NEWS_TRANSLATE_ID]: true,
     "steam-achievement-translate": true,
+    "message-center-navigation": false,
     [STEAM_PLAYER_STATS_ID]: true,
     [STEAM_GAME_LINKS_ID]: true,
     [THIRD_PARTY_SERVICES_ID]: false,
@@ -167,6 +168,7 @@
     NEWS_TRANSLATE_ID,
     STEAM_PLAYER_STATS_ID,
     "steam-achievement-translate",
+    "message-center-navigation",
     STEAM_GAME_LINKS_ID,
     THIRD_PARTY_SERVICES_ID,
     NAME_MODE_ID,
@@ -1919,10 +1921,10 @@
     return settings;
   }
 
-  // 玩家统计、相关链接与成就翻译只更新对应功能，不触发无关的云名称同步。
+  // 展示类设置只更新对应功能，不触发无关的云名称同步
   function steamSettingsNeedNameSync(keys) {
     return keys.includes(MEMBERSHIP_KEY) || STEAM_SETTING_IDS.some(id =>
-      id !== STEAM_PLAYER_STATS_ID && id !== STEAM_GAME_LINKS_ID && id !== "steam-achievement-translate" && id !== THIRD_PARTY_SERVICES_ID && keys.includes(settingKey(id)));
+      id !== STEAM_PLAYER_STATS_ID && id !== STEAM_GAME_LINKS_ID && id !== "steam-achievement-translate" && id !== "message-center-navigation" && id !== THIRD_PARTY_SERVICES_ID && keys.includes(settingKey(id)));
   }
 
   function disabledSteamFeatureIds(prev = {}, next = {}) {

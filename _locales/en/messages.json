@@ -7298,5 +7298,20 @@
   },
   "steam_independentName_transfer_donorNameHint": {
     "message": "Changing custom names resets unspecified mnemonics and pinyin. Steam sort names are handled separately. Missing columns remain unchanged."
+  },
+  "settings_feature_message_center_navigation_name": {
+    "message": "Message center display mode"
+  },
+  "settings_feature_message_center_navigation_desc": {
+    "message": "Choose Navigation bar if a third-party theme has changed the Steam client layout."
+  },
+  "settings_feature_message_center_navigation_option_false": {
+    "message": "Toolbar"
+  },
+  "settings_feature_message_center_navigation_option_true": {
+    "message": "Navigation bar"
+  },
+  "messageCenter_navigationLabel": {
+    "message": "Message center"
   }
 }

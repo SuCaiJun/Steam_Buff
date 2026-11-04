@@ -909,6 +909,18 @@
       desc: "Steam 客户端库和下载页增强，此页面功能开启或关闭需要重启steam客户端。",
       items: Object.freeze([
         {
+          id: "message-center-navigation",
+          name: "消息中心显示模式",
+          desc: "如果使用第三方美化主题修改过 Steam 客户端可使用 导航栏。",
+          area: "steam",
+          control: "mode",
+          enabled: false,
+          options: Object.freeze([
+            { value: false, label: "工具栏" },
+            { value: true, label: "导航栏" },
+          ]),
+        },
+        {
           id: "library-sort-title",
           name: "自定义游戏名称",
           desc: "库列表优先显示自定义排序名称，并在 Steam 自定义页提供名称管理工具",

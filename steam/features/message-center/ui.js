@@ -13,6 +13,8 @@
   const api = window.SteamBuff, model = window.STMessageCenter;
   const ROOT = "__RickyMessageCenter", PANEL = "__RickyMessageCenterPopover", DIALOG = "__RickyMessageCenterDialog", DETAIL = "__RickyMessageCenterDetail";
   const CONTROLS = "._3cykd-VfN_xBxf3Qxriccm";
+  const NAVIGATION = "._3Z3ohQ8-1NKnCZkbS6fvy > ._2D64jIEK7wpUR_NlObDW76";
+  const MODE_SETTING = "message-center-navigation", SETTINGS_ATTR = "data-steam-buff-settings";
   const MOUNT_TASK = "steam-message-center-controls";
   const ROW_HEIGHT = 96, OVERSCAN = 3;
   const MENU_VISIBLE_ROWS = 5;
@@ -70,7 +72,8 @@
 
   function create() {
     if (api.messageCenter) return { started: true, stop: api.messageCenter.stop };
-    let controls = document.querySelector(CONTROLS);
+    let navigation = api.ctx.settingValue(MODE_SETTING, false);
+    let controls = null;
 
     const pending = new Map(), actionHandlers = new Map(), detailActions = new Map(), popCards = new Map(), fullCards = new Map();
     const actionBusy = new Map();
@@ -86,7 +89,7 @@
     const fullIds = new Map(), errorStates = new WeakMap();
     let restorePoint = null, detailAnchor = null, detailMode = null, helpActive = null, helpTimer = 0;
     const helpControls = [], detailParking = document.createDocumentFragment();
-    let observedControls = null, observedParent = null;
+    let observedControls = null, observedParent = null, observedHeader = null, observingSettings = false;
     let mountWaiting = false, mountWaitAt = 0;
 
     function element(tag, className, text) {
@@ -233,6 +236,13 @@
       .st-mc-icon { display: inline-block; flex: 0 0 auto; width: 16px; height: 16px; background: currentColor; mask: url("${api.path.url("images/ui/message-center.svg")}") center / contain no-repeat; }
       #${ROOT} .st-mc-badge { position: absolute; right: 2px; top: -4px; min-width: 13px; padding: 0 2px; border-radius: 2px; color: var(--st-color-white); background: var(--st-color-success); font-size: 10px; line-height: 14px; }
       #${ROOT} .st-mc-badge[hidden] { display: none; }
+      #${ROOT} [hidden] { display: none; }
+      #${ROOT}[data-mode="navigation"] { flex: 0 0 auto; align-self: center; width: auto; height: 28px; margin: 0 0 0 8px; font: inherit; }
+      #${ROOT}[data-mode="navigation"] .st-mc-trigger { gap: 4px; width: auto; height: 100%; padding: 0 4px; color: var(--st-color-text-secondary); background: none; font: inherit; white-space: nowrap; }
+      #${ROOT}[data-mode="navigation"] .st-mc-trigger:hover, #${ROOT}[data-mode="navigation"] .st-mc-trigger[aria-expanded="true"] { color: var(--st-color-steam-blue); }
+      #${ROOT}[data-mode="navigation"] .st-mc-trigger[data-error="true"] { color: var(--st-color-danger-text); }
+      #${ROOT}[data-mode="navigation"] .st-mc-badge { position: static; display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; font-size: 11px; line-height: 18px; }
+      #${ROOT}[data-mode="navigation"] .st-mc-badge[hidden] { display: none; }
       #${PANEL}, #${DIALOG}, #${DETAIL} { padding: 0; border: 1px solid var(--st-color-black); border-radius: 2px; color: var(--st-color-white); background: var(--st-color-steam-message-surface); box-shadow: var(--st-shadow-panel-menu); font-size: 12px; text-align: left; overflow: hidden; }
       #${PANEL} { position: relative; margin: 0; width: 100%; padding-bottom: 8px; }
       #${DIALOG} { width: 100%; height: 100%; margin: 0; display: flex; flex-direction: column; }
@@ -347,11 +357,12 @@
       `,
     ));
 
-    const root = element("div"); root.id = ROOT;
+    const root = element("div"); root.id = ROOT; root.dataset.mode = navigation ? "navigation" : "toolbar";
     const trigger = button("", "toggle", "st-mc-trigger");
     trigger.title = "Steam Buff 消息"; trigger.setAttribute("aria-label", "Steam Buff 消息");
     trigger.setAttribute("aria-expanded", "false"); trigger.setAttribute("aria-haspopup", "dialog");
-    trigger.appendChild(icon());
+    const triggerIcon = icon(), triggerLabel = element("span", "st-mc-trigger-title", text("messageCenter.navigationLabel", "消息中心"));
+    triggerIcon.hidden = navigation; triggerLabel.hidden = !navigation; trigger.append(triggerIcon, triggerLabel);
     const badge = element("span", "st-mc-badge"); badge.hidden = true; badge.setAttribute("aria-hidden", "true");
     trigger.appendChild(badge); root.appendChild(trigger);
 
@@ -460,7 +471,6 @@
     fullTop.setAttribute("aria-hidden", "true"); fullBottom.setAttribute("aria-hidden", "true"); fullRowsHost.setAttribute("role", "list"); fullHint.setAttribute("role", "status");
     const fullError = element("div", "st-mc-error"); fullError.setAttribute("role", "status");
     dialog.append(fullHead, tools, fullList, detailModal, deleteConfirm, fullError);
-    if (controls) controls.insertBefore(root, controls.firstChild);
     // 点击入口会让原生菜单失焦；保留悬停时的打开状态，让同次点击维持关闭语义。
     let pointerHadMenu = false, windowRequest = 0;
     const host = nativeHost(trigger, style, (kind, reason) => {
@@ -1093,47 +1103,71 @@
     }
 
     function onClose() { fullOpen = false; if (detailMode === "embedded") closeDetail(false); generation++; listRequest++; fullLoading = false; clearSearchTimer(); closeSources(); cancelFullFrame(); fullResize.disconnect(); }
-    // 首次挂载不依赖整轮 runtime 重试；等待任务只查顶栏，成功后立即注销。
+    // 首次挂载不依赖整轮 runtime 重试；等待任务只核对所选入口容器，成功后立即注销
     function waitForMount() {
       if (mountWaiting) return;
       mountWaiting = true; mountWaitAt = performance.now();
-      log.debug("message-entry-waiting", "消息入口等待顶栏就绪");
+      log.debug("message-entry-waiting", "消息入口等待挂载容器就绪", { mode: root.dataset.mode });
       window.STScheduler.register(MOUNT_TASK, reattach,
-        () => !stopped && !document.hidden && !root.isConnected && api.ctx.isMainUi() === true,
+        () => !stopped && !document.hidden && mountWaiting && api.ctx.isMainUi() === true,
         { intervalMs: 1000 });
     }
     function stopMountWait() {
       if (!mountWaiting) return;
       mountWaiting = false; window.STScheduler.unregister(MOUNT_TASK);
     }
+    // 两种模式只移动同一入口；设置快照只比较当前模式，不重启消息列表或其他功能
     function reattach() {
       if (stopped || document.hidden || api.ctx.isMainUi() !== true) return;
+      const nextNavigation = api.ctx.settingValue(MODE_SETTING, false);
+      if (typeof nextNavigation !== "boolean") throw new TypeError("消息中心显示模式无效");
+      if (nextNavigation !== navigation) {
+        navigation = nextNavigation; controls = null; root.remove();
+        root.dataset.mode = navigation ? "navigation" : "toolbar";
+        triggerIcon.hidden = navigation; triggerLabel.hidden = !navigation;
+        if (isPopOpen()) host.close("display-mode");
+        log.info("message-entry-mode-changed", "消息中心显示模式已切换", { mode: root.dataset.mode });
+        observeEntry();
+      }
       if (!root.isConnected) {
-        const nextControls = document.querySelector(CONTROLS);
-        if (!nextControls) { waitForMount(); return; }
+        const nextControls = document.querySelector(navigation ? NAVIGATION : CONTROLS);
+        // 保留已经确认的局部父边界，同一容器带着入口恢复时仍需结束等待
+        if (!nextControls) { if (!observingSettings) observeEntry(); waitForMount(); return; }
         controls = nextControls;
-        controls.insertBefore(root, controls.firstChild);
+        if (navigation) controls.appendChild(root);
+        else controls.insertBefore(root, controls.firstChild);
       }
       if (mountWaiting) {
-        log.debug("message-entry-ready", "消息入口已挂载到顶栏", { durationMs: Math.round(performance.now() - mountWaitAt) });
+        log.debug("message-entry-ready", "消息入口已挂载", { mode: root.dataset.mode, durationMs: Math.round(performance.now() - mountWaitAt) });
         stopMountWait();
       }
-      const parent = controls.parentElement;
-      if (observedControls === controls && observedParent === parent) return;
+      observeEntry(); layout();
+    }
+    // 只观察入口容器的直接子节点；导航栏多保留一层头部边界，以处理整条导航栏重建
+    function observeEntry() {
+      const parent = controls?.parentElement || null, header = navigation ? parent?.parentElement || null : null;
+      if (observingSettings && observedControls === controls && observedParent === parent && observedHeader === header) return;
       observer.disconnect();
-      observer.observe(controls, { childList: true });
-      observer.observe(parent, { childList: true });
-      observedControls = controls; observedParent = parent;
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: [SETTINGS_ATTR] });
+      if (controls) observer.observe(controls, { childList: true });
+      if (parent) observer.observe(parent, { childList: true });
+      if (header) observer.observe(header, { childList: true });
+      observedControls = controls; observedParent = parent; observedHeader = header; observingSettings = true;
     }
     const observer = new MutationObserver(records => {
+      if (records.some(record => record.type === "attributes")) {
+        try { if (api.ctx.settingValue(MODE_SETTING, false) !== navigation) reattach(); }
+        catch (error) { reportFailure(error, "display-mode", popError); }
+      }
       if (!records.some(record =>
-        [...record.removedNodes].some(node => node === root || node === controls) ||
-        (record.target === observedParent && [...record.addedNodes].some(node => node.nodeType === 1 && node.matches(CONTROLS)))
+        [...record.removedNodes].some(node => node === root || node === controls || node === observedParent) ||
+        [...record.addedNodes].some(node => node === controls || node === observedParent ||
+          (record.target === observedParent && node.nodeType === 1 && node.matches(navigation ? NAVIGATION : CONTROLS)))
       )) return;
       reattach();
     });
     function onVisibility() {
-      if (document.hidden) { observer.disconnect(); observedControls = null; observedParent = null; }
+      if (document.hidden) { observer.disconnect(); observedControls = null; observedParent = null; observedHeader = null; observingSettings = false; }
       else reattach();
     }
     function onResize() { layout(); }

@@ -7298,5 +7298,20 @@
   },
   "steam_independentName_transfer_donorNameHint": {
     "message": "カスタム名の変更で未指定の略称とピンインをリセットします。Steam 並べ替え名は独立して処理し、省略された列は変更しません."
+  },
+  "settings_feature_message_center_navigation_name": {
+    "message": "メッセージセンターの表示モード"
+  },
+  "settings_feature_message_center_navigation_desc": {
+    "message": "サードパーティのテーマで Steam クライアントの外観を変更している場合は、ナビゲーションバーを選択できます。"
+  },
+  "settings_feature_message_center_navigation_option_false": {
+    "message": "ツールバー"
+  },
+  "settings_feature_message_center_navigation_option_true": {
+    "message": "ナビゲーションバー"
+  },
+  "messageCenter_navigationLabel": {
+    "message": "メッセージセンター"
   }
 }

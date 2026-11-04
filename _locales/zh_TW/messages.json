@@ -7298,5 +7298,20 @@
   },
   "steam_independentName_transfer_donorNameHint": {
     "message": "自訂名稱變更時重設未指定的助記符和拼音；Steam 排序名稱獨立處理。缺少的欄位不修改，空值依所選策略處理。"
+  },
+  "settings_feature_message_center_navigation_name": {
+    "message": "訊息中心顯示模式"
+  },
+  "settings_feature_message_center_navigation_desc": {
+    "message": "如果使用第三方美化主題修改過 Steam 用戶端，可使用「導覽列」。"
+  },
+  "settings_feature_message_center_navigation_option_false": {
+    "message": "工具列"
+  },
+  "settings_feature_message_center_navigation_option_true": {
+    "message": "導覽列"
+  },
+  "messageCenter_navigationLabel": {
+    "message": "訊息中心"
   }
 }

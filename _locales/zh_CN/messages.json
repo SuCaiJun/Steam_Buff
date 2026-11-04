@@ -7298,5 +7298,20 @@
   },
   "steam_independentName_transfer_donorNameHint": {
     "message": "自定义名称变化时重置未指定的助记符和拼音；Steam 排序名称独立处理。缺失列不修改，空值按所选策略处理。"
+  },
+  "settings_feature_message_center_navigation_name": {
+    "message": "消息中心显示模式"
+  },
+  "settings_feature_message_center_navigation_desc": {
+    "message": "如果使用第三方美化主题修改过 Steam 客户端可使用 导航栏。"
+  },
+  "settings_feature_message_center_navigation_option_false": {
+    "message": "工具栏"
+  },
+  "settings_feature_message_center_navigation_option_true": {
+    "message": "导航栏"
+  },
+  "messageCenter_navigationLabel": {
+    "message": "消息中心"
   }
 }

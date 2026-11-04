@@ -7298,5 +7298,20 @@
   },
   "steam_independentName_transfer_donorNameHint": {
     "message": "사용자 지정 이름을 변경하면 지정하지 않은 약어와 병음이 초기화됩니다. Steam 정렬 이름은 별도로 처리하며 누락된 열은 변경하지 않습니다."
+  },
+  "settings_feature_message_center_navigation_name": {
+    "message": "메시지 센터 표시 모드"
+  },
+  "settings_feature_message_center_navigation_desc": {
+    "message": "타사 테마로 Steam 클라이언트의 모양을 변경했다면 탐색 모음을 사용할 수 있습니다."
+  },
+  "settings_feature_message_center_navigation_option_false": {
+    "message": "도구 모음"
+  },
+  "settings_feature_message_center_navigation_option_true": {
+    "message": "탐색 모음"
+  },
+  "messageCenter_navigationLabel": {
+    "message": "메시지 센터"
   }
 }
