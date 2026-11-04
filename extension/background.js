@@ -3014,6 +3014,8 @@
     if (request.expectedSteamAccountId !== undefined && request.expectedSteamAccountId !== null && (typeof request.expectedSteamAccountId !== "string" || !/^\d{17}$/.test(request.expectedSteamAccountId))) throw new TypeError("消息账号前置条件无效");
     const binding = await globalThis.STBackgroundFamily.identity();
     if (request.expectedSteamAccountId !== undefined && request.expectedSteamAccountId !== binding.steamAccountId) throw new Error("Steam 账号已变化，请重新打开消息中心");
+    if (!globalThis.STBackgroundFamily.current(binding)) throw new Error("Steam 账号已变化，请重新打开消息中心");
+    await globalThis.STBackgroundMessages.observeFamilyIdentity(binding.accountError === undefined ? "" : binding.accountError);
     const previewOnly = request.action === "summary" && request.withUnread === true;
     let value = await globalThis.STBackgroundMessages.execute(previewOnly ? { action: "list", filter: "unread" } : request, binding.steamAccountId);
     // 状态与未读页来自同一事务；处理后的列表复用本次会话绑定，不再发起第二次登录核验。

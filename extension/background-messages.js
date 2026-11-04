@@ -14,6 +14,13 @@
   const log = root.STLoggerFactory.createLogger("extension", "message-center");
   let opening = null;
   const handlers = new Map(), running = new Set();
+  const IDENTITY_INCIDENT = "family-session-incident-v1";
+  let observedIdentity, identityQueue = Promise.resolve();
+  function identityIncident(value) {
+    if (value === undefined) return null;
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("家庭库异常事件状态无效");
+    model.id(value.id); return value;
+  }
 
   function database() {
     if (opening) return opening;
@@ -27,9 +34,15 @@
           if (!messages.indexNames.contains(name)) messages.createIndex(name, key);
         }
         if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta");
+        for (const [name, key] of [["visibility-origin-time", ["visibility", "origin", "createdAt", "id"]], ["visibility-result-time", ["visibility", "tone", "createdAt", "id"]]]) {
+          if (!messages.indexNames.contains(name)) messages.createIndex(name, key);
+        }
+        const search = db.objectStoreNames.contains("search") ? request.transaction.objectStore("search") : db.createObjectStore("search", { keyPath: "id" });
+        if (!search.indexNames.contains("tokens")) search.createIndex("tokens", "keys", { multiEntry: true });
         const upgrade = messages.openCursor();
         upgrade.onsuccess = () => { const cursor = upgrade.result; if (!cursor) return;
-          if (cursor.value.visibility === undefined) cursor.update({ ...cursor.value, visibility: "device" });
+          const value = stored({ ...cursor.value, visibility: cursor.value.visibility === undefined ? "device" : cursor.value.visibility });
+          cursor.update(value); search.put(searchRecord(value));
           cursor.continue(); };
       };
       request.onerror = () => { settled = true; opening = null; reject(request.error); };
@@ -80,12 +93,21 @@
 
   function publicMessage(record) {
     if (!record) return null;
-    const { unread, visibility, ...message } = record;
-    return { ...message, actions: publicActions(message) };
+    const { unread, visibility, searchText, origin, tone, ...message } = record;
+    return { ...message, result: tone, content: model.content(message), preview: model.preview(message), actions: publicActions(message) };
+  }
+
+  function stored(message) {
+    return { ...message, visibility: message.visibility === undefined ? visibility(message) : message.visibility,
+      origin: model.presentation(message).origin, tone: model.tone(message), searchText: model.searchText(model.content(message)) };
+  }
+  function searchRecord(message) {
+    return { id: message.id, keys: model.searchTokens(message.searchText).map(token => [message.visibility, token, message.createdAt, message.id]) };
   }
 
   function publicActions(message) {
-    return message.actions.map(model.action).map(action => ({ ...action,
+    const values = message.format === 2 ? model.registeredActions(message.type, message.actions.map(action => action.id)) : (message.actions || []).map(model.action);
+    return values.map(action => ({ ...action,
       available: action.kind === "legacy" ? false : action.kind !== "command" || handlers.has(JSON.stringify([message.source, message.type, action.id])),
     }));
   }
@@ -119,6 +141,8 @@
           if (skip) { const count = skip; skip = 0; cursor.advance(count); return; }
           const deletion = cursor.delete();
           deletion.onerror = () => reject(deletion.error);
+          const searchDeletion = messages.transaction.objectStore("search").delete(cursor.primaryKey);
+          searchDeletion.onerror = () => reject(searchDeletion.error);
           removed++;
           cursor.continue();
         } catch (error) { reject(error); }
@@ -131,11 +155,11 @@
   }
 
   /**
-   * 每次访问先清理过期记录及历史超量已读；标记已读后再次收敛到最新 100 条
+   * 每次访问先清理过期记录及历史超量已读；标记已读后再次按共享上限收敛
    * 清理、业务操作和 revision 在同一事务提交，失败一起回滚；无变化不写摘要
    */
   async function operate(action, id, work, owner = null) {
-    const value = await transact(["messages", "meta"], "readwrite", async transaction => {
+    const value = await transact(["messages", "meta", "search"], "readwrite", async transaction => {
       const messages = transaction.objectStore("messages"), meta = transaction.objectStore("meta"), now = Date.now();
       const expired = await removeRange(messages, "time", IDBKeyRange.upperBound([now - model.RETENTION_MS, []]));
       let overflow = await trimRead(messages);
@@ -156,24 +180,43 @@
   async function list(input, owner = null) {
     const query = model.list(input);
     return operate("list", null, async transaction => {
-      const messages = transaction.objectStore("messages"), unreadOnly = query.filter === "unread";
+      const messages = transaction.objectStore("messages"), search = transaction.objectStore("search").index("tokens");
+      let token = null;
+      if (query.query) {
+        const chars = Array.from(query.query), candidates = [...new Set(chars.length === 1 ? [chars[0]] : [chars.slice(0, 2).join(""), chars.slice(-2).join("")])];
+        const counts = await Promise.all(candidates.map(async candidate => ({ candidate, count: (await Promise.all(scopes(owner).map(key => result(search.count(IDBKeyRange.bound([key, candidate], [key, candidate, []])))))).reduce((a, b) => a + b, 0) })));
+        token = counts.sort((a, b) => a.count - b.count)[0].candidate;
+      }
+      // 每次只处理索引中的有限候选；空匹配页仍返回推进游标，前端可取消后续页
       const pages = await Promise.all(scopes(owner).map(key => new Promise((resolve,reject) => {
-        const prefix = unreadOnly ? [key, 1] : [key];
+        const unread = query.filter === "all" ? null : query.filter === "unread" ? 1 : 0;
+        const index = token ? search : messages.index(query.origin ? "visibility-origin-time" : query.result ? "visibility-result-time" : unread === null ? "visibility-time" : "visibility-unread-time");
+        const prefix = token ? [key, token] : query.origin ? [key, query.origin] : query.result ? [key, query.result] : unread === null ? [key] : [key, unread];
         const lower = [...prefix, 0, ""], upper = [...prefix, ...(query.before || [Number.MAX_SAFE_INTEGER, []])];
-        const request = messages.index(unreadOnly ? "visibility-unread-time" : "visibility-time").openCursor(IDBKeyRange.bound(lower, upper, false, !!query.before), "prev");
-        const rows = [];
+        const range = IDBKeyRange.bound(lower, upper, false, !!query.before);
+        const request = token ? index.openKeyCursor(range, "prev") : index.openCursor(range, "prev");
+        const rows = []; let scanned = 0, last = null;
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const cursor = request.result;
-          if (!cursor || rows.length > model.PAGE_SIZE) { resolve(rows); return; }
-          const { id, source, type, title, summary, createdAt, readAt, actions = [], businessState = null } = cursor.value;
-          rows.push({ id, source, type, title, summary, createdAt, readAt, actions: publicActions({ source, type, actions }), businessState });
-          cursor.continue();
+          if (!cursor) { resolve({ rows, more: false, last }); return; }
+          const visit = async () => {
+            const value = token ? await result(messages.get(cursor.primaryKey)) : cursor.value;
+            const keys = cursor.key; last = token ? [keys[keys.length - 2], keys[keys.length - 1]] : [value.createdAt, value.id]; scanned++;
+            if (value && (unread === null || value.unread === unread) && (!query.origin || value.origin === query.origin) && (!query.result || value.tone === query.result) && (!query.query || value.searchText.includes(query.query))) {
+              const { id, source, type, title, summary, createdAt, readAt, actions = [], businessState = null, format } = value;
+              rows.push({ id, source, type, title, summary, createdAt, readAt, actions: publicActions(value), businessState, result: value.tone, preview: model.preview(value), ...(format === undefined ? {} : { format }) });
+            }
+            if (rows.length > model.PAGE_SIZE || scanned >= 128) resolve({ rows, more: true, last });
+            else cursor.continue();
+          };
+          void visit().catch(reject);
         };
       })));
-      const all = pages.flat().sort(model.compare);
-      const rows = all.slice(0,model.PAGE_SIZE), last = rows.at(-1);
-      return { rows, next: all.length > model.PAGE_SIZE ? [last.createdAt,last.id] : null };
+      const fronts = pages.filter(page => page.more).map(page => ({ createdAt: page.last[0], id: page.last[1] })).sort(model.compare);
+      const frontier = fronts[0], all = pages.flatMap(page => page.rows).filter(row => !frontier || model.compare(row, frontier) <= 0).sort(model.compare);
+      const rows = all.slice(0, model.PAGE_SIZE), last = rows.at(-1);
+      return { rows, next: all.length > model.PAGE_SIZE ? [last.createdAt, last.id] : frontier ? [frontier.createdAt, frontier.id] : null };
     }, owner);
   }
 
@@ -203,7 +246,7 @@
     const key = action === "read-all" || action === "delete-all" ? null : model.id(message ? message.id : input);
     return operate(action, key, async (transaction, now) => {
       const messages = transaction.objectStore("messages");
-      let changed = false;
+      let changed = false, readAt = null;
       if (action === "delete-all") {
         for (const scope of scopes(owner)) changed = (await removeRange(messages, "visibility", IDBKeyRange.only(scope))) > 0 || changed;
       } else if (action === "read-all") {
@@ -221,14 +264,17 @@
       } else {
         const previous = await result(messages.get(key));
         if (action === "publish" && !previous && message.createdAt > now - model.RETENTION_MS) {
-          messages.add({ ...message, visibility: visibility(message), unread: 1, readAt: null }); changed = true;
+          const value = stored({ ...message, unread: 1, readAt: null });
+          messages.add(value); transaction.objectStore("search").add(searchRecord(value)); changed = true;
         } else if (action === "read" && permitted(previous,owner) && previous.unread === 1) {
-          messages.put({ ...previous, unread: 0, readAt: now }); changed = true;
+          messages.put({ ...previous, unread: 0, readAt: now }); changed = true; readAt = now;
+        } else if (action === "read" && permitted(previous,owner)) {
+          readAt = previous.readAt;
         } else if (action === "delete" && permitted(previous,owner)) {
-          messages.delete(key); changed = true;
+          messages.delete(key); transaction.objectStore("search").delete(key); changed = true;
         }
       }
-      return { changed };
+      return { changed, ...(action === "read" ? { readAt } : {}) };
     }, owner);
   }
 
@@ -268,17 +314,48 @@
     return { ...value, id: message.id };
   }
 
+  /** 身份读取的同轮异常只发布一次；事件标记与消息原子提交，已读或删除后不因摘要刷新重发。 */
+  async function observeFamilyIdentity(error) {
+    if (typeof error !== "string") throw new TypeError("家庭库身份异常无效");
+    const previous = identityQueue; let release;
+    identityQueue = new Promise(resolve => { release = resolve; });
+    await previous;
+    try {
+      const failed = error.length > 0;
+      if (observedIdentity === failed) return;
+      const id = "family-identity:" + crypto.randomUUID();
+      const response = await operate("publish", id, async transaction => {
+        const meta = transaction.objectStore("meta"), active = identityIncident(await result(meta.get(IDENTITY_INCIDENT)));
+        if (!error) { if (active) meta.delete(IDENTITY_INCIDENT); return { changed: false }; }
+        if (active) return { changed: false };
+        const message = model.create({ id, type: "family-library-login", body: error, result: "error", actions: ["retry", "login", "read"] });
+        const value = stored({ ...message, unread: 1, readAt: null });
+        transaction.objectStore("messages").add(value); transaction.objectStore("search").add(searchRecord(value));
+        meta.put({ id }, IDENTITY_INCIDENT);
+        return { changed: true };
+      });
+      observedIdentity = failed;
+      if (response.changed) log.info("message-published", "家庭库身份异常消息已保存", { source: "Steam Buff", type: "family-library-login", id });
+    } finally { release(); }
+  }
+
   /** 仅后台生产者可更新内容和业务快照，不改变消息归属、创建时间或已读状态。业务事实仍由生产者负责。 */
   async function update(id, patch) {
     const key = model.id(id);
-    const allowed = ["title", "summary", "body", "actions", "context", "businessState"];
+    const allowed = ["title", "summary", "body", "actions", "context", "businessState", "result"];
     if (!patch || typeof patch !== "object" || Object.keys(patch).some(field => !allowed.includes(field))) throw new TypeError("消息更新字段无效");
     return operate("update", key, async transaction => {
       const messages = transaction.objectStore("messages"), previous = await result(messages.get(key));
       if (!previous) throw new Error("消息已经不存在");
-      const next = model.message({ ...previous, ...patch });
+      if (previous.format === 2 && (Object.hasOwn(patch, "title") || Object.hasOwn(patch, "summary"))) throw new TypeError("注册消息不能修改展示标题或预览");
+      const next = previous.format === 2 ? model.create({ id: previous.id, createdAt: previous.createdAt, type: previous.type, body: patch.body === undefined ? previous.body : patch.body,
+        result: patch.result === undefined ? previous.result : patch.result, actions: patch.actions === undefined ? previous.actions.map(action => action.id) : patch.actions,
+        context: patch.context === undefined ? previous.context : patch.context, businessState: patch.businessState === undefined ? previous.businessState : patch.businessState,
+        scope: previous.scope, ...(previous.scope === "steam-account" ? { steamAccountId: previous.steamAccountId } : {}), ...(previous.group === undefined ? {} : { group: previous.group }) }) : model.message({ ...previous, ...patch });
       if (JSON.stringify(model.message(previous)) === JSON.stringify(next)) return { changed: false };
-      messages.put({ ...next, visibility: previous.visibility, unread: previous.unread, readAt: previous.readAt });
+      const value = stored({ ...next, visibility: previous.visibility, unread: previous.unread, readAt: previous.readAt });
+      messages.put(value);
+      if (value.searchText !== previous.searchText) transaction.objectStore("search").put(searchRecord(value));
       return { changed: true };
     });
   }
@@ -340,5 +417,5 @@
   }
 
   // publish 保持旧契约；notify/update/readMatching/registerAction 仅由可信后台功能调用，页面只通过有限路由操作已有消息。
-  root.STBackgroundMessages = Object.freeze({ execute, publish: message => mutate("publish", message), notify, update, readMatching, registerAction });
+  root.STBackgroundMessages = Object.freeze({ execute, publish: message => mutate("publish", message), notify, observeFamilyIdentity, update, readMatching, registerAction });
 })(globalThis);

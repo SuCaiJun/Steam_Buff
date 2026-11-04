@@ -80,6 +80,10 @@
       try { value = model.session(await request(CFG.vendors.steamStore.familyManagement(), true)); }
       catch (error) { await changeIdentity(null); throw error; }
       await changeIdentity(value.accountSteamId);
+      if (steam()) {
+        try { await root.STBackgroundMessages.observeFamilyIdentity(""); }
+        catch (error) { log.warn("family-identity-notice-reset-failed", "已确认 Steam 会话，异常通知恢复状态保存失败", { error }); }
+      }
       return value;
     })().finally(() => { sessionTask = null; });
     return sessionTask;
@@ -171,14 +175,12 @@
       } else hint = text("familyTask.normalNext", "下次正常刷新：$value$", date(plan.normalAt));
       body += "\n" + hint;
     }
-    return { eventId, createdAt: Date.now(), source: SOURCE, type: owner === null ? "family-library-login" : TYPE,
+    return root.STMessageCenter.create({ eventId, createdAt: Date.now(), type: owner === null ? "family-library-login" : TYPE,
       scope: owner === null ? "device" : "steam-account", ...(owner === null ? {} : { steamAccountId: owner }),
-      title: error ? text("familyTask.failed", "家庭库刷新失败") : text("familyTask.done", "家庭库已更新"),
-      summary: error ? errorText(error) : text("familyTask.count", "成员数／游戏数：$value$", `${value.stats.memberCount} / ${value.stats.appCount}`),
-      body, context: { ...(value ? { updatedAt: value.updatedAt } : {}), ...(plan ? { retryCount: plan.retryCount, retryAt: plan.retryAt, normalAt: plan.normalAt } : {}) },
-      actions: [...(error ? [{ id: "retry", kind: "command", icon: "retry", label: text("familyTask.retry", "重试") },
-        { id: "login", kind: "link", label: text("familyTask.login", "打开商店"), icon: "view", url: CFG.vendors.steamStore.familyManagement() }] : []),
-        { id: "read", kind: "read", label: text("messageCenter.markRead", "已读"), icon: "read" }] };
+      result: error ? "error" : "success",
+      body: (error ? errorText(error) : text("familyTask.count", "成员数／游戏数：$value$", `${value.stats.memberCount} / ${value.stats.appCount}`)) + "\n" + body,
+      context: { ...(value ? { updatedAt: value.updatedAt } : {}), ...(plan ? { retryCount: plan.retryCount, retryAt: plan.retryAt, normalAt: plan.normalAt } : {}) },
+      actions: [...(error ? ["retry", "login"] : []), "read"] });
   }
   function deliver(owner) {
     if (deliveries.has(owner)) return deliveries.get(owner);

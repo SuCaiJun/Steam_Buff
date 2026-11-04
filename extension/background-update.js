@@ -94,17 +94,12 @@
 
   async function publishAvailable(info, operation, data) {
     if (!info.hasNew || muted(data, info) || (!operation.manual && hours(data) === 0)) return;
-    await root.STBackgroundMessages.notify({
-      eventId: operation.eventId, source: SOURCE, type: AVAILABLE, group: group(info),
-      title: text("messageCenter.updateAvailable", "Steam Buff 发现新版本 $value$", info.remote),
-      summary: info.latest.summary || info.latest.title || "",
-      body: text("messageCenter.currentVersion", "当前版本：$value$", info.current) + "\n" + text("messageCenter.targetVersion", "目标版本：$value$", info.remote),
+    await root.STBackgroundMessages.notify(root.STMessageCenter.create({
+      eventId: operation.eventId, type: AVAILABLE, group: group(info), result: "info",
+      body: [text("messageCenter.updateAvailable", "Steam Buff 发现新版本 $value$", info.remote), info.latest.summary || info.latest.title || "", text("messageCenter.currentVersion", "当前版本：$value$", info.current)].filter(Boolean).join("\n"),
       context: { channel: info.channel, targetVersion: info.remote, installedVersion: info.current },
-      actions: [
-        { id: "go-update", kind: "link", label: text("messageCenter.goUpdate", "去更新"), icon: "upgrade", url: CFG.urls.updatePage },
-        { id: "ignore-version", kind: "command", label: text("messageCenter.ignoreVersion", "不再提醒"), icon: "mute" },
-      ],
-    });
+      actions: ["go-update", "ignore-version"],
+    }));
   }
 
   /** 由生命周期的持久待投递事件调用；同次升级重试使用稳定 ID，与独立检查允许重复提醒分开。 */
@@ -117,17 +112,12 @@
         const info = messageInfo(message);
         return info.channel === source && CFG.versions.compare(info.remote, event.version) <= 0;
       });
-      return root.STBackgroundMessages.notify({
-        eventId: `extension-installed:${event.version}:${event.updatedAt}`, source: SOURCE, type: INSTALLED, createdAt: event.updatedAt,
-        title: text("messageCenter.updateInstalled", "Steam Buff 已更新至 $value$", event.version),
-        summary: text("messageCenter.previousVersion", "原版本：$value$", event.previousVersion),
-        body: text("messageCenter.installedBody", "扩展已更新，点击查看了解本次更新内容。"),
+      return root.STBackgroundMessages.notify(root.STMessageCenter.create({
+        eventId: `extension-installed:${event.version}:${event.updatedAt}`, type: INSTALLED, createdAt: event.updatedAt, result: "success",
+        body: text("messageCenter.updateInstalled", "Steam Buff 已更新至 $value$", event.version) + "\n" + text("messageCenter.previousVersion", "原版本：$value$", event.previousVersion) + "\n" + text("messageCenter.installedBody", "扩展已更新，点击查看了解本次更新内容。"),
         context: { installedVersion: event.version, previousVersion: event.previousVersion },
-        actions: [
-          { id: "view-changelog", kind: "link", label: text("messageCenter.view", "查看"), icon: "view", url: CFG.urls.updateChangelog },
-          { id: "mark-read", kind: "read", label: text("messageCenter.markRead", "已读"), icon: "read" },
-        ],
-      });
+        actions: ["view-changelog", "mark-read"],
+      }));
     });
   }
 

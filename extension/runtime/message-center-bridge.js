@@ -34,7 +34,7 @@
     if (snapshot) snapshots++;
     try {
       const response = await root.STMessageBus.send({
-        type: model.ROUTE, action: data.action, id: data.id, actionId: data.actionId, filter: data.filter, before: data.before, requestId: data.rid, withUnread: data.withUnread, expectedSteamAccountId: data.expectedSteamAccountId,
+        type: model.ROUTE, action: data.action, id: data.id, actionId: data.actionId, filter: data.filter, before: data.before, result: data.result, origin: data.origin, query: data.query, requestId: data.rid, withUnread: data.withUnread, expectedSteamAccountId: data.expectedSteamAccountId,
       }, { timeoutMs: data.action === "act" ? 120000 : 12000, logFailures: false });
       if (!active || lifecycle !== generation) return;
       if (snapshot) covered(response, identityAtStart);
