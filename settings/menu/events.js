@@ -113,16 +113,13 @@
     }
 
     function syncModule(id) {
-      if (["translate", "ai", "review-filter"].includes(id)) {
+      if (["translate", "review-filter"].includes(id)) {
         shell.syncModuleNav(shadow);
       }
     }
 
     function applySwitchState(id, enabled) {
       setState(id, enabled);
-      if (id === "ai") {
-        panels.ai().setEnabled(enabled);
-      }
       const sw = switchById(id);
       sw?.setAttribute("aria-checked", enabled ? "true" : "false");
       deps.updateFeature(shadow, id);
@@ -178,6 +175,10 @@
       deps.updateFeature(shadow, id);
     }
 
+    function notifySaveFailed(message = tr("common.saveFailed", "保存失败，请重试。")) {
+      void root.STSettingsDialogs.notice(shadow, { title: tr("common.saveFailed", "保存失败"), message });
+    }
+
     function notifyOrderSaveFailed() {
       const dialog = root.STSettingsDialogs?.dialog;
       if (typeof dialog !== "function") {
@@ -220,6 +221,7 @@
           }
           applySwitchState(id, previous);
           syncDependents(dependents, true);
+          notifySaveFailed();
         }
       } catch (error) {
         log.error("setting-save-failed", "设置开关保存异常", {
@@ -230,6 +232,7 @@
         });
         applySwitchState(id, previous);
         syncDependents(dependents, true);
+        notifySaveFailed(error.message);
       } finally {
         const sw = switchById(id);
         if (pendingSwitches.get(id) === enabled) {
@@ -259,6 +262,7 @@
           }
           applyModeState(id, previous);
           syncDependents(dependents, true);
+          notifySaveFailed();
         }
       } catch (error) {
         log.error("setting-save-failed", "设置模式保存异常", {
@@ -269,6 +273,7 @@
         });
         applyModeState(id, previous);
         syncDependents(dependents, true);
+        notifySaveFailed(error.message);
       } finally {
         if (pendingSwitches.get(id) === value) {
           pendingSwitches.delete(id);
@@ -488,8 +493,7 @@
         if (note) note.textContent = root.STI18n.text("settings.updateCheck.desc", "扩展运行期间在后台检查；选择不检查后仍可手动检查更新。");
       } catch (error) {
         log.error("setting-save-failed", "检查更新频率保存失败", { error, kind: "update-check" });
-        const note = shadow.querySelector("#st-update-check-note");
-        if (note) note.textContent = root.STI18n.text("settings.updateCheck.saveFailed", "保存失败，请重试。");
+        notifySaveFailed(error.message);
       } finally {
         await shell.refreshUpdateCheck(shadow);
       }
@@ -510,6 +514,7 @@
               error,
             });
             shell.render(shadow);
+            notifySaveFailed(error.message);
           });
         } else {
           log.error("setting-save-failed", "界面语言保存失败", {
@@ -518,6 +523,7 @@
             error: new Error("界面语言存储未初始化"),
           });
           shell.render(shadow);
+          notifySaveFailed();
         }
         return;
       }
@@ -557,10 +563,6 @@
       }
 
       if (panels.translate().handleChange(event, shadow)) {
-        return;
-      }
-
-      if (panels.familyLibrary().handleChange(event, shadow)) {
         return;
       }
 

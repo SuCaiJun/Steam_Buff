@@ -375,17 +375,23 @@
   "settings_feature_library_group_labels_hide_collection_tags_desc": {
     "message": "Hide consecutive trailing [] tags from collection names visible in the Steam library list without modifying Steam's original collection data."
   },
+  "settings_feature_download_auto_shutdown_name": {
+    "message": "Shut down after downloads"
+  },
+  "settings_feature_download_auto_shutdown_desc": {
+    "message": "Select this in the Downloads menu. Steam waits 60 seconds after local downloads finish, so you can cancel."
+  },
   "settings_feature_download_batch_actions_name": {
     "message": "Download Queue Batch Actions"
   },
   "settings_feature_download_batch_actions_desc": {
     "message": "Add Start All, Pause All, and Remove All actions to the Downloads page."
   },
-  "settings_feature_download_auto_shutdown_name": {
-    "message": "Shut Down After Downloads"
+  "settings_feature_download_manager_enhancement_name": {
+    "message": "Download management enhancements"
   },
-  "settings_feature_download_auto_shutdown_desc": {
-    "message": "Shut down the computer one minute after the download queue finishes."
+  "settings_feature_download_manager_enhancement_desc": {
+    "message": "Show the download toolbar on the Steam Downloads page"
   },
   "settings_feature_steam_news_translate_name": {
     "message": "Steam News Pop-up Translation"
@@ -2630,93 +2636,6 @@
   "store_dataDisplay_thirdPartyUnavailable": {
     "message": "Third-party price data is temporarily unavailable."
   },
-  "store_aiForecast_responseInstruction": {
-    "message": "Clearly recommend buying now, waiting for the primary forecast window, or waiting for a stated discount. Respond in English and distinguish facts, estimates, and uncertainty. Do not give exact dates or probabilities without supporting data."
-  },
-  "store_aiForecast_summaryLanguageInstruction": {
-    "message": "4. Write the summary as plain English text without Markdown, headings, lists, or code blocks."
-  },
-  "store_aiForecast_storageUnavailable": {
-    "message": "chrome.storage.local is unavailable"
-  },
-  "store_aiForecast_sessionReadFailed": {
-    "message": "Failed to read the AI forecast session"
-  },
-  "store_aiForecast_sessionSaveFailed": {
-    "message": "Failed to save the AI forecast session"
-  },
-  "store_aiForecast_sessionClearFailed": {
-    "message": "Failed to clear the AI forecast session"
-  },
-  "store_aiForecast_readingSession": {
-    "message": "Loading the AI forecast history..."
-  },
-  "store_aiForecast_preparing": {
-    "message": "Preparing forecast data..."
-  },
-  "store_aiForecast_analyzing": {
-    "message": "AI is analyzing price history and event data..."
-  },
-  "store_aiForecast_failed": {
-    "message": "AI forecast failed. Try again later."
-  },
-  "store_aiForecast_festivalUnavailable": {
-    "message": "Event data is unavailable, so an AI forecast cannot be generated."
-  },
-  "store_aiForecast_preparingHistory": {
-    "message": "Preparing price history and event data..."
-  },
-  "store_aiForecast_openDetailsHint": {
-    "message": "Open Conversation details to generate an AI forecast."
-  },
-  "store_aiForecast_you": {
-    "message": "You"
-  },
-  "store_aiForecast_initialQuestion": {
-    "message": "Forecast future discounts using the price and event data on this page."
-  },
-  "store_aiForecast_thinking": {
-    "message": "Thinking..."
-  },
-  "store_aiForecast_replying": {
-    "message": "AI is responding. Please wait..."
-  },
-  "store_aiForecast_questionPlaceholder": {
-    "message": "Ask about future discounts"
-  },
-  "store_aiForecast_title": {
-    "message": "AI Forecast"
-  },
-  "store_aiForecast_closeDialog": {
-    "message": "Close conversation"
-  },
-  "store_aiForecast_streamUnavailable": {
-    "message": "The AI streaming channel is unavailable."
-  },
-  "store_aiForecast_replySaveFailed": {
-    "message": "The response is complete, but this conversation could not be saved."
-  },
-  "store_aiForecast_dataStillLoading": {
-    "message": "Forecast data is still loading. Try again shortly."
-  },
-  "store_aiForecast_configurationRequired": {
-    "message": "Configure an AI service before generating a forecast."
-  },
-  "store_aiForecast_dataUnavailable": {
-    "message": "AI forecast data is temporarily unavailable."
-  },
-  "store_aiForecast_prepareFailed": {
-    "message": "Failed to prepare AI forecast data."
-  },
-  "store_aiForecast_followupFailed": {
-    "message": "AI follow-up failed. Try again later."
-  },
-  "store_aiForecast_sessionUnavailable": {
-    "message": "AI forecast history is temporarily unavailable."
-  },
-  "store_aiForecast_dialogDetails": {
-    "message": "Conversation details"
-  },
   "common_clearSelection": {
     "message": "Clear selection"
   },
@@ -3049,6 +2968,75 @@
   "store_wishlistPrice_steampyProxy": {
     "message": "SteamPY Assisted Purchase"
   },
+  "steam_downloadShutdown_notEnabled": {
+    "message": "Automatic shutdown is not enabled"
+  },
+  "steam_downloadShutdown_waitingStart": {
+    "message": "Waiting for a download task to start"
+  },
+  "steam_downloadShutdown_waitingCompletion": {
+    "message": "Waiting for downloads to finish"
+  },
+  "steam_downloadShutdown_paused": {
+    "message": "Downloads are paused. Shutdown will occur after they resume and finish."
+  },
+  "steam_downloadShutdown_details": {
+    "message": "Remaining download: $remaining$, current speed: $speed$",
+    "placeholders": {
+      "remaining": {
+        "content": "$1"
+      },
+      "speed": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_downloadShutdown_shortLabel": {
+    "message": "Shut down after downloads"
+  },
+  "steam_downloadShutdown_backendStarting": {
+    "message": "Connecting to Steam shutdown controls"
+  },
+  "steam_downloadShutdown_backendTimeout": {
+    "message": "Shutdown status is unconfirmed. Reopen the Downloads menu to check."
+  },
+  "steam_downloadShutdown_failed": {
+    "message": "Automatic shutdown failed. Check the log."
+  },
+  "steam_downloadShutdown_countdown": {
+    "message": "Downloads finished. Shutting down soon."
+  },
+  "steam_downloadShutdown_preparing": {
+    "message": "Preparing Steam shutdown"
+  },
+  "steam_downloadShutdown_requested": {
+    "message": "Shutdown requested from Steam"
+  },
+  "steam_downloadShutdown_localOnly": {
+    "message": "Only local downloads are supported. Switch back to this computer."
+  },
+  "steam_downloadShutdown_unconfirmed": {
+    "message": "Steam shutdown request was unconfirmed"
+  },
+  "steam_downloadShutdown_cancel": {
+    "message": "Cancel shutdown"
+  },
+  "steam_downloadShutdown_seconds": {
+    "message": "$seconds$ s",
+    "placeholders": {
+      "seconds": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadShutdown_etaAt": {
+    "message": "Estimated shutdown at $time$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_downloadBatch_busy": {
     "message": "Another batch action is already running"
   },
@@ -3118,125 +3106,6 @@
   },
   "steam_downloadSurface_label": {
     "message": "Download management tools"
-  },
-  "steam_downloadShutdown_backendStarting": {
-    "message": "Initializing background service"
-  },
-  "steam_downloadShutdown_backendTimeout": {
-    "message": "The background service did not respond within 8 seconds. Check whether the download-shutdown backend was injected."
-  },
-  "steam_downloadShutdown_checking": {
-    "message": "Checking download tasks..."
-  },
-  "steam_downloadShutdown_currentStatus": {
-    "message": "Current status: $status$",
-    "placeholders": {
-      "status": {
-        "content": "$1"
-      }
-    }
-  },
-  "steam_downloadShutdown_disabled": {
-    "message": "Automatic shutdown is off"
-  },
-  "steam_downloadShutdown_notEnabled": {
-    "message": "Automatic shutdown is not enabled"
-  },
-  "steam_downloadShutdown_enabled": {
-    "message": "Automatic shutdown: enabled"
-  },
-  "steam_downloadShutdown_eta": {
-    "message": "Automatic shutdown: in $duration$ ($time$)",
-    "placeholders": {
-      "duration": {
-        "content": "$1"
-      },
-      "time": {
-        "content": "$2"
-      }
-    }
-  },
-  "steam_downloadShutdown_details": {
-    "message": "Remaining download: $remaining$, current speed: $speed$",
-    "placeholders": {
-      "remaining": {
-        "content": "$1"
-      },
-      "speed": {
-        "content": "$2"
-      }
-    }
-  },
-  "steam_downloadShutdown_unavailable": {
-    "message": "Automatic shutdown: estimate unavailable"
-  },
-  "steam_downloadShutdown_hours": {
-    "message": "h"
-  },
-  "steam_downloadShutdown_minutes": {
-    "message": "m"
-  },
-  "steam_downloadShutdown_timeToday": {
-    "message": "$time$",
-    "placeholders": {
-      "time": {
-        "content": "$1"
-      }
-    }
-  },
-  "steam_downloadShutdown_timeDay": {
-    "message": "$day$ $time$",
-    "placeholders": {
-      "day": {
-        "content": "$1"
-      },
-      "time": {
-        "content": "$2"
-      }
-    }
-  },
-  "steam_downloadShutdown_timeMonth": {
-    "message": "$month$/$day$ $time$",
-    "placeholders": {
-      "month": {
-        "content": "$1"
-      },
-      "day": {
-        "content": "$2"
-      },
-      "time": {
-        "content": "$3"
-      }
-    }
-  },
-  "steam_downloadShutdown_errorLog": {
-    "message": "Error log: $message$",
-    "placeholders": {
-      "message": {
-        "content": "$1"
-      }
-    }
-  },
-  "steam_downloadShutdown_failed": {
-    "message": "Shutdown failed. Check the logs."
-  },
-  "steam_downloadShutdown_label": {
-    "message": "Shut down automatically after downloads finish"
-  },
-  "steam_downloadShutdown_paused": {
-    "message": "Downloads are paused. Shutdown will occur after they resume and finish."
-  },
-  "steam_downloadShutdown_shortLabel": {
-    "message": "Shut down after downloads finish"
-  },
-  "steam_downloadShutdown_shuttingDown": {
-    "message": "Downloads finished. Shutting down."
-  },
-  "steam_downloadShutdown_waitingCompletion": {
-    "message": "Waiting for downloads to finish"
-  },
-  "steam_downloadShutdown_waitingStart": {
-    "message": "Waiting for a download task to start"
   },
   "steam_newsTranslate_aiBodyEmpty": {
     "message": "AI did not produce a valid body translation"
@@ -6808,9 +6677,6 @@
   "store_detail_loading": {
     "message": "Preparing game information…"
   },
-  "store_detail_ai": {
-    "message": "AI chat"
-  },
   "store_detail_low": {
     "message": "Historical low reference"
   },
@@ -7313,5 +7179,44 @@
   },
   "messageCenter_navigationLabel": {
     "message": "Message center"
+  },
+  "common_success": {
+    "message": "Success"
+  },
+  "common_saved": {
+    "message": "Settings saved."
+  },
+  "common_failed": {
+    "message": "Operation failed"
+  },
+  "settings_account_localLogoutOnly": {
+    "message": "Signed out on this device, but remote sign-out failed."
+  },
+  "settings_account_refreshed": {
+    "message": "Account information refreshed."
+  },
+  "gameLinks_saveFailedTitle": {
+    "message": "Save failed"
+  },
+  "gameLinks_saved": {
+    "message": "Saved"
+  },
+  "gameLinks_savedMessage": {
+    "message": "Related links saved."
+  },
+  "gameLinks_deleted": {
+    "message": "Link deleted."
+  },
+  "gameLinks_resetDone": {
+    "message": "Related links reset to defaults."
+  },
+  "store_customWalletAmount_submitFailed": {
+    "message": "Could not submit the top-up: the Steam form fields are unavailable."
+  },
+  "store_priceHistory_monitorSaved": {
+    "message": "Price alert saved."
+  },
+  "store_priceHistory_monitorDeleted": {
+    "message": "Price alert deleted."
   }
 }

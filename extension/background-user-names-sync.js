@@ -99,6 +99,7 @@
     return {
       ownerId: store.signedInUserId(stored[MEMBERSHIP_KEY], stored[AUTH_KEY]),
       auth: stored[AUTH_KEY],
+      membership: stored[MEMBERSHIP_KEY],
     };
   }
 
@@ -264,7 +265,7 @@
     throw new TypeError("名称变更无效");
   }
 
-  async function applyOwner(ownerId, mutate) {
+  async function applyOwner(ownerId, mutate, { requireCustomNames = false } = {}) {
     const id = store.userIdOf(ownerId);
     if (!id) {
       const error = new Error("缺少账号身份");
@@ -288,6 +289,9 @@
     if (!store.sameUser(currentOwner.ownerId, id)) {
       return { ok: false, reason: "owner-changed" };
     }
+    if (requireCustomNames && root.STSettingsMembership.normalize(currentOwner.membership, currentOwner.auth).permissions.customNames !== true) {
+      return { ok: false, reason: "entitlement-denied" };
+    }
     // 当前账号没变化就不写回，其他账号的槽留到真正写入时再整理
     const index = indexOf(loaded);
     const current = store.readUser(index, id);
@@ -303,8 +307,8 @@
     return { ok: true, snapshot: drafted.byUser[id] };
   }
 
-  function commitOwner(ownerId, mutate) {
-    return enqueue(() => applyOwner(ownerId, mutate));
+  function commitOwner(ownerId, mutate, options) {
+    return enqueue(() => applyOwner(ownerId, mutate, options));
   }
 
   function writeBook(book) {

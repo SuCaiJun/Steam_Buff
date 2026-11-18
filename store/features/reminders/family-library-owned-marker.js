@@ -35,19 +35,8 @@
   const MODULE_CLASS = api.dom.MODULE_CLASSES.FAMILY_LIBRARY_OWNED;
   const FAMILY_MANAGEMENT_URL = window.STConfig?.vendors?.steamStore?.familyManagement?.() || "";
 
-  const REFRESH_INTERVAL_SECONDS = window.STFamilyLibrary.INTERVALS;
-  const REFRESH_INTERVAL_LABEL_KEYS = Object.freeze({
-    "1d": ["store.familyLibrary.interval1d", "1 天"],
-    "3d": ["store.familyLibrary.interval3d", "3 天"],
-    "7d": ["store.familyLibrary.interval7d", "7 天"],
-    "30d": ["store.familyLibrary.interval30d", "30 天"],
-    manual: ["store.familyLibrary.intervalManual", "手动"],
-  });
-
   const log = window.STLoggerFactory?.createLogger?.("store", FEATURE_ID);
   const session = window.__stFamilyLibraryOwnedMarkerSession || {
-    emptyPromptShown: false,
-    stalePromptShown: false,
     lastRefreshAt: 0,
   };
   window.__stFamilyLibraryOwnedMarkerSession = session;
@@ -55,6 +44,7 @@
   let detailActive = false;
   let detailSeq = 0;
   let detailTask = null;
+  let browserRefreshAttempted = false;
   const activeBadgeScopes = new Set();
   const badgeTokens = new Map();
   let cacheWatching = false;
@@ -268,30 +258,6 @@
     return api.settings?.on?.(EXCLUDE_SELF_SETTING_ID) === true;
   }
 
-  function normalizeRefreshSettings(input) { return window.STFamilyLibrary.settings(input); }
-
-  async function familyRefreshSettings() {
-    return normalizeRefreshSettings(await window.STSettings.storage.getFamilyLibrary());
-  }
-
-  function refreshIntervalSeconds(settings) {
-    return REFRESH_INTERVAL_SECONDS[normalizeRefreshSettings(settings).refreshInterval] || 0;
-  }
-
-  function refreshIntervalLabel(settings) {
-    const entry = REFRESH_INTERVAL_LABEL_KEYS[normalizeRefreshSettings(settings).refreshInterval]
-      || REFRESH_INTERVAL_LABEL_KEYS["1d"];
-    return i18n(entry[0], entry[1]);
-  }
-
-  function cacheRefreshDue(cache, settings, refreshState) {
-    const seconds = refreshIntervalSeconds(settings);
-    if (seconds <= 0) return false;
-    if (!refreshState) return false;
-    const nextRefreshAt = api.familyLibraryCache.nextRefreshAt(cache, refreshState, seconds);
-    return api.familyLibraryCache.nowSeconds() >= nextRefreshAt;
-  }
-
   function ownerItems(cache, entry) {
     const ids = Array.from(new Set((entry?.ownerSteamids || []).map(String).filter(Boolean)));
     const accountSteamId = String(cache?.accountSteamId || "");
@@ -497,7 +463,10 @@
         source: "card-button",
         defaultLabel,
         hasPreviousData: !!cache,
-      }).catch(() => {});
+      }).catch(error => {
+        log.error("family-library-manual-refresh-failed", "手动刷新家庭库失败", { error });
+        if (window.STClientEnvironment.isSteamClientPage()) void window.STFeedback.show(document.body, { title: i18n("store.familyLibrary.refreshFailureTitle", "家庭库刷新失败"), message: friendlyError(error) });
+      });
     });
     if (Date.now() - session.lastRefreshAt < 3000) {
       setRefreshButton(button, "success", defaultLabel);
@@ -571,34 +540,6 @@
     return { layer, dialog, close };
   }
 
-  function showActionDialog(options = {}) {
-    const modal = createModal(options);
-    const actions = document.createElement("div");
-    actions.className = "st_family_library_dialog__actions";
-    const primary = createDialogButton(options.primaryLabel || i18n("common.confirm", "确定"), true);
-    const secondary = createDialogButton(options.secondaryLabel || i18n("common.cancel", "取消"), false);
-    actions.append(secondary, primary);
-    modal.dialog.appendChild(actions);
-    return new Promise((resolve) => {
-      let disposeDialog = null;
-      const done = (value) => {
-        if (disposeDialog) {
-          dialogDisposers.delete(disposeDialog);
-          disposeDialog = null;
-        }
-        modal.layer.remove();
-        resolve(value);
-      };
-      disposeDialog = trackDisposer(dialogDisposers, () => done("close"));
-      primary.addEventListener("click", () => done("primary"));
-      secondary.addEventListener("click", () => done("secondary"));
-      modal.close.addEventListener("click", () => done("close"));
-      modal.layer.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") done("close");
-      });
-      primary.focus();
-    });
-  }
 
   function createDialogButton(label, primary) {
     const button = document.createElement("button");
@@ -630,8 +571,8 @@
     return { close };
   }
 
-  function showAlert(title, message) {
-    if (typeof window.ShowAlertDialog === "function") {
+  function showAlert(title, message, confirmLabel) {
+    if (!confirmLabel && typeof window.ShowAlertDialog === "function") {
       try {
         return Promise.resolve(window.ShowAlertDialog(title, message));
       } catch {
@@ -640,124 +581,30 @@
     const modal = createModal({ title, message });
     const actions = document.createElement("div");
     actions.className = "st_family_library_dialog__actions";
-    const primary = createDialogButton(i18n("common.confirm", "确定"), true);
+    const primary = createDialogButton(confirmLabel || i18n("common.confirm", "确定"), true);
+    const cancel = confirmLabel ? createDialogButton(i18n("common.cancel", "取消"), false) : null;
+    if (cancel) actions.appendChild(cancel);
     actions.appendChild(primary);
     modal.dialog.appendChild(actions);
     return new Promise((resolve) => {
       let disposeDialog = null;
-      const done = () => {
+      const done = (accepted = false) => {
         if (disposeDialog) {
           dialogDisposers.delete(disposeDialog);
           disposeDialog = null;
         }
         modal.layer.remove();
-        resolve("primary");
+        resolve(accepted);
       };
       disposeDialog = trackDisposer(dialogDisposers, done);
-      primary.addEventListener("click", done);
-      modal.close.addEventListener("click", done);
+      primary.addEventListener("click", () => done(true));
+      cancel?.addEventListener("click", () => done());
+      modal.close.addEventListener("click", () => done());
       modal.layer.addEventListener("keydown", (event) => {
         if (event.key === "Escape") done();
       });
       primary.focus();
     });
-  }
-
-  async function maybePromptEmpty(appId, container, settings, refreshState) {
-    if (window.STClientEnvironment.isSteamClientPage()) return;
-    const cfg = normalizeRefreshSettings(settings);
-    if (cfg.refreshInterval === "manual") return;
-    if (!cacheRefreshDue(null, cfg, refreshState)) return;
-    if (session.emptyPromptShown) return;
-    session.emptyPromptShown = true;
-    if (cfg.autoRefresh) {
-      log?.info?.("family-library-empty-cache-auto-refresh", "家庭组游戏库首次扫描自动开始", pageMeta({
-        appid: Number(appId) || 0,
-        refreshInterval: cfg.refreshInterval,
-      }));
-      await refreshWithUi({
-        appId,
-        container,
-        source: "empty-cache-auto-refresh",
-        defaultLabel: i18n("store.familyLibrary.scan", "扫描家庭库"),
-        successAlert: false,
-        hasPreviousData: false,
-      });
-      return;
-    }
-    log?.info?.("family-library-empty-cache-prompt", "家庭组游戏库首次扫描提示已显示", pageMeta({
-      appid: Number(appId) || 0,
-      refreshInterval: cfg.refreshInterval,
-      autoRefresh: cfg.autoRefresh === true,
-    }));
-    const action = await showActionDialog({
-      title: i18n("store.familyLibrary.sharingCheck", "Steam Buff共享检查"),
-      message: i18n("store.familyLibrary.emptyPrompt", "似乎没有家庭库的游戏记录，是否现在扫描家庭库游戏并记录？"),
-      primaryLabel: i18n("store.familyLibrary.scan", "扫描家庭库"),
-      secondaryLabel: i18n("store.familyLibrary.disableFeature", "关闭功能"),
-    });
-    if (action === "primary") {
-      await refreshWithUi({
-        appId,
-        container,
-        source: "empty-cache-prompt",
-        defaultLabel: i18n("store.familyLibrary.scan", "扫描家庭库"),
-        hasPreviousData: false,
-      });
-    } else if (action === "secondary") {
-      await disableFeatureByUser();
-    }
-  }
-
-  async function maybePromptStale(appId, cache, container, settings, refreshState) {
-    if (window.STClientEnvironment.isSteamClientPage()) return;
-    const cfg = normalizeRefreshSettings(settings);
-    if (!cacheRefreshDue(cache, cfg, refreshState) || session.stalePromptShown) return;
-    session.stalePromptShown = true;
-    const meta = {
-      appid: Number(appId) || 0,
-      cacheAgeMs: api.familyLibraryCache.cacheAgeMs(cache),
-      refreshInterval: cfg.refreshInterval,
-      autoRefresh: cfg.autoRefresh === true,
-    };
-    if (cfg.autoRefresh) {
-      log?.info?.("family-library-stale-cache-auto-refresh", "家庭组游戏库过期自动刷新开始", pageMeta(meta));
-      await refreshWithUi({
-        appId,
-        container,
-        source: "stale-cache-auto-refresh",
-        defaultLabel: i18n("common.update", "更新"),
-        successAlert: false,
-        hasPreviousData: true,
-      });
-      return;
-    }
-    log?.info?.("family-library-stale-cache-prompt", "家庭组游戏库过期刷新提示已显示", pageMeta(meta));
-    const action = await showActionDialog({
-      title: i18n("store.familyLibrary.sharingCheck", "Steam Buff共享检查"),
-      message: i18n(
-        "store.familyLibrary.stalePrompt",
-        "家庭组游戏库数据已超过 $interval$ 未更新，是否现在刷新？",
-        { interval: refreshIntervalLabel(cfg) },
-      ),
-      primaryLabel: i18n("common.refresh", "刷新"),
-      secondaryLabel: i18n("common.cancel", "取消"),
-    });
-    if (action === "primary") {
-      await refreshWithUi({
-        appId,
-        container,
-        source: "stale-cache-prompt",
-        defaultLabel: i18n("common.update", "更新"),
-        hasPreviousData: true,
-      });
-    }
-  }
-
-  async function disableFeatureByUser() {
-    const ok = await (window.STSettings?.storage?.set?.(FEATURE_ID, false) || Promise.resolve(false));
-    log?.info?.("family-library-feature-disabled-by-user", "用户关闭家庭组已有游戏标记", pageMeta({ saved: ok === true }));
-    stop();
   }
 
   function refreshFamilyLibrary() {
@@ -776,65 +623,9 @@
   }
 
   async function showRefreshFailure(error, options) {
-    const refreshSettings = await familyRefreshSettings();
-    const retainedText = options.hasPreviousData
-      ? i18n("store.familyLibrary.previousDataRetained", "\n更新失败，已继续使用上次成功更新的数据。")
-      : "";
-    const helpText = FAMILY_MANAGEMENT_URL ? `\n${FAMILY_MANAGEMENT_URL}` : "";
-    const message = `${friendlyError(error)}${retainedText}${helpText}`;
-    if (!refreshSettings || refreshSettings.refreshInterval === "manual") {
-      await showAlert(i18n("store.familyLibrary.refreshFailureTitle", "家庭库刷新失败"), message);
-      return false;
-    }
-
-    const action = await showActionDialog({
-      title: i18n("store.familyLibrary.refreshFailureTitle", "家庭库刷新失败"),
-      message,
-      primaryLabel: i18n("common.confirm", "确认"),
-      secondaryLabel: i18n("store.familyLibrary.skipThisTime", "跳过本次"),
-    });
-    if (action !== "secondary") return false;
-
-    const operationId = window.STLoggerFactory?.createOperationId?.() || "";
-    try {
-      const refreshState = await api.familyLibraryCache.skipRefreshCycle();
-      const nextRefreshAt = api.familyLibraryCache.nextRefreshAt(
-        null,
-        refreshState,
-        refreshIntervalSeconds(refreshSettings)
-      );
-      const button = options.container?.querySelector?.("button");
-      setRefreshButton(button, "idle", options.defaultLabel || i18n("common.update", "更新"));
-      if (button) button.title = "";
-      setStatus(
-        options.container,
-        options.hasPreviousData
-          ? i18n("store.familyLibrary.skipRetained", "已跳过本次更新，继续使用上次数据")
-          : i18n("store.familyLibrary.skipped", "已跳过本次更新")
-      );
-      log?.info?.("family-library-refresh-skipped", "用户已跳过本周期家庭组游戏库更新", pageMeta({
-        operationId,
-        source: options.source || "manual",
-        refreshInterval: refreshSettings.refreshInterval,
-        autoRefresh: refreshSettings.autoRefresh === true,
-        skippedAt: refreshState.skippedAt,
-        nextRefreshAt,
-      }));
-      return true;
-    } catch (skipError) {
-      log?.error?.("family-library-refresh-skip-save-failed", "家庭组游戏库跳过本次更新状态保存失败", pageMeta({
-        operationId,
-        source: options.source || "manual",
-        refreshInterval: refreshSettings.refreshInterval,
-        reason: String(skipError?.code || skipError?.name || "storage-failed"),
-        error: skipError,
-      }));
-      await showAlert(
-        i18n("store.familyLibrary.skipFailedTitle", "跳过本次失败"),
-        i18n("store.familyLibrary.skipFailedMessage", "无法保存跳过状态，请稍后重试。"),
-      );
-      return false;
-    }
+    const retained = options.hasPreviousData
+      ? i18n("store.familyLibrary.previousDataRetained", "\n更新失败，已继续使用上次成功更新的数据。") : "";
+    await showAlert(i18n("store.familyLibrary.refreshFailureTitle", "家庭库刷新失败"), friendlyError(error) + retained);
   }
 
   async function refreshWithUi(options = {}) {
@@ -855,7 +646,7 @@
       if (detailActive && !removeDetailForUnsupportedSharing(options.appId, "refresh-success")) {
         mountCard(options.appId, cache);
       }
-      if (!client && options.successAlert !== false) {
+      if (client || options.successAlert !== false) {
         await showAlert(
           i18n("store.familyLibrary.sharingCheck", "Steam Buff共享检查"),
           i18n("store.familyLibrary.cachedCount", "已将 $count$ 个家庭库游戏记录到本地缓存。", { count: cache.stats.appCount }),
@@ -868,13 +659,10 @@
       }
       setRefreshButton(button, "failed", options.defaultLabel || i18n("common.update", "更新"));
       if (button) button.title = friendlyError(error);
-      setStatus(options.container, i18n("store.familyLibrary.refreshFailedWithReason", "刷新失败：$reason$", {
-        reason: friendlyError(error),
-      }), "error");
+      setStatus(options.container, "");
       if (link && FAMILY_MANAGEMENT_URL) link.hidden = false;
       if (client) throw error;
-      const skipped = await showRefreshFailure(error, options);
-      if (skipped) return;
+      await showRefreshFailure(error, options);
       throw error;
     }
   }
@@ -1030,6 +818,24 @@
     return task;
   }
 
+  async function refreshBrowserCache(id, container, cache, record) {
+    if (browserRefreshAttempted || window.STClientEnvironment.isSteamClientPage()) return;
+    const model = window.STFamilyLibrary;
+    const prefs = model.releasedSettings(await chrome.storage.local.get(Object.values(model.SETTINGS_KEYS)));
+    if (!detailActive || detailAppId !== String(id) || !container.isConnected || !prefs) return;
+    const seconds = model.INTERVALS[prefs.refreshInterval];
+    const last = Math.max(cache?.updatedAt ?? 0, record.refreshState.skippedAt);
+    if (!seconds || record.unavailable || Date.now() < (last + seconds) * 1000) return;
+    browserRefreshAttempted = true;
+    if (!prefs.autoRefresh) {
+      const confirmed = await showAlert(i18n("store.familyLibrary.title", "家庭库检查"),
+        cache ? "家庭库缓存已过期，是否立即更新？" : "还没有家庭库数据，是否立即扫描？",
+        i18n("common.update", "更新"));
+      if (!confirmed || !detailActive || detailAppId !== String(id) || !container.isConnected) return;
+    }
+    await refreshWithUi({ appId: id, container, successAlert: false, hasPreviousData: !!cache });
+  }
+
   async function loadDetailCard(id) {
     const startedAt = Date.now();
     const seq = detailSeq + 1;
@@ -1059,17 +865,15 @@
       if (sharingStatus === "unsupported" || removeDetailForUnsupportedSharing(id, "pre-mount")) {
         return;
       }
-      const [cache, refreshSettings, refreshState] = await Promise.all([
-        api.familyLibraryCache?.read?.(),
-        familyRefreshSettings(),
-        api.familyLibraryCache.readRefreshState(),
-      ]);
+      const record = await api.familyLibraryCache.record();
+      const cache = record.unavailable ? null : record.cache;
       if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
       if (!valid()) return;
       api.dom.detailLoading.clear(placeholder);
       placeholder.remove();
       const container = mountCard(id, cache);
       if (!container) return;
+      await refreshBrowserCache(id, container, cache, record);
       const entry = api.familyLibraryCache?.appEntry?.(cache, id);
       if (entry) {
         log?.info?.("family-library-cache-hit", "当前游戏命中家庭组游戏库缓存", pageMeta({
@@ -1084,19 +888,6 @@
           appCount: cache?.stats?.appCount || 0,
         }));
       }
-      // 优化: 详情页只在功能启动时做一次缓存年龄判断，不挂到 DOM 观察器或路由重扫。
-      if (cache && cacheRefreshDue(cache, refreshSettings, refreshState)) {
-        log?.info?.("family-library-cache-stale", "家庭组游戏库缓存已过期", pageMeta({
-          appid: id,
-          cacheAgeMs: api.familyLibraryCache.cacheAgeMs(cache),
-          refreshInterval: refreshSettings.refreshInterval,
-          autoRefresh: refreshSettings.autoRefresh === true,
-        }));
-        await maybePromptStale(id, cache, container, refreshSettings, refreshState);
-      } else if (!cache) {
-        await maybePromptEmpty(id, container, refreshSettings, refreshState);
-      }
-      if (!detailActive || detailAppId !== String(id) || seq !== detailSeq) return;
       log?.info?.("family-library-feature-ready", "家庭库检查功能启动完成", pageMeta({
         appid: id,
         durationMs: Date.now() - startedAt,
@@ -1171,6 +962,7 @@
     detailTask = null;
     detailAppId = "";
     lastFamilySharingHideLogKey = "";
+    browserRefreshAttempted = false;
     clearDisposers(familySharingWaitDisposers);
     clearDisposers(dialogDisposers);
     clearDisposers(blockingWaitClosers);

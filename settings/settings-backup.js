@@ -96,6 +96,7 @@
 
   function hasSensitive(sectionsValue) {
     const src = obj(sectionsValue);
+    if (Array.isArray(src.ai?.services) && src.ai.services.some((item) => String(item?.key ?? "").trim())) return true;
     return Object.entries(SENSITIVE).some(([section, keys]) => {
       const data = obj(src[section]);
       return keys.some(key => String(getPath(data, key) ?? "").trim() !== "");

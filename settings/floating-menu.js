@@ -30,7 +30,6 @@
     translate: {},
     reviewFilter: {},
     searchSuggestion: {},
-    familyLibrary: {},
     ai: {},
     thirdPartyServices: {},
     storePriceChart: {},
@@ -288,6 +287,16 @@
     }
   }
 
+  async function loadAiConfig() {
+    try {
+      await api.storage.waitForAiSettings();
+      return await api.storage.getAi();
+    } catch (error) {
+      log.error("ai-config-load-failed", "AI 服务配置读取失败", { error });
+      return { unavailable: true };
+    }
+  }
+
   async function loadState() {
     states = await api.storage?.getAll?.() || api.catalog?.defaults?.() || {};
     membership = await api.storage?.getMembership?.() || { active: false, features: {} };
@@ -297,8 +306,7 @@
         await api.storage?.getReviewFilter?.() || api.catalog?.reviewFilterDefaults?.() || {}
       ) || {},
       searchSuggestion: await api.storage?.getSearchSuggestions?.() || api.catalog?.searchSuggestionDefaults?.() || {},
-      familyLibrary: await api.storage?.getFamilyLibrary?.() || api.catalog?.familyLibraryDefaults?.() || {},
-      ai: await api.storage?.getAi?.() || api.catalog?.aiDefaults?.() || {},
+      ai: await loadAiConfig(),
       thirdPartyServices: await api.storage?.getThirdPartyServices?.() || api.catalog?.thirdPartyServicesDefaults?.() || {},
       storePriceChart: await api.storage?.getStorePriceChart?.() || api.catalog?.storePriceChartDefaults?.() || {},
       gameLinks: await loadGameLinksConfig(),
@@ -393,8 +401,6 @@
 
     document.documentElement.dataset[MARK] = "1";
     log?.info?.("floating-menu-mount-start", "开始挂载设置中心", meta);
-    const railDetail = globalThis.STSettingsFloatingRail?.latestReviewDetail?.() || null;
-    globalThis.STSettingsFloatingRail?.dispose?.({ keepHost: true });
     runtime?.activateAdapter?.("settings", {
       path: location.pathname,
       topFrame: topFrame(),
@@ -419,7 +425,11 @@
     host.id = ROOT_ID;
     const shadow = host.shadowRoot || host.attachShadow({ mode: "open" });
     const dom = globalThis.STDomUtils;
+    const rail = globalThis.STSettingsFloatingRail;
+    const railDetail = rail?.latestReviewDetail?.();
+    // 配置与壳层准备好后接管同一个 ShadowRoot，轻量栏只释放监听器
     dom.setTrustedHTML(shadow, dom.trustedHTML(shell.template(), "settings-floating-shell-template"));
+    rail?.dispose?.();
 
     api.startupAnimation?.install?.(shadow, { iconUrl: appIconUrl() });
 

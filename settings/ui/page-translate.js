@@ -83,7 +83,7 @@
       }, { expectSuccess: true });
     }
     const storage = root.STSettings?.storage;
-    if (typeof storage?.getTranslate !== "function" || typeof storage?.getAi !== "function") {
+    if (typeof storage?.getTranslate !== "function" || typeof storage?.getAiFlags !== "function") {
       throw new Error(tr("settings.shell.pageTranslateSettingsMissing", "翻译配置未加载，请刷新网页后重试"));
     }
     return storage;
@@ -103,7 +103,7 @@
       if (!available()) throw new Error(tr("settings.shell.pageTranslateUnavailable", "当前页面不支持手动翻译"));
       const storage = await ensureStorage(operationId);
       checkPage();
-      const [conf, ai] = await Promise.all([storage.getTranslate(), storage.getAi()]);
+      const [conf, ai] = await Promise.all([storage.getTranslate(), storage.getAiFlags()]);
       checkPage();
       log.info("manual-page-start", "用户开始手动翻译网页", { operationId, to: conf.to, service: conf.service });
       await requestRuntime({

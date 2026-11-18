@@ -447,6 +447,7 @@
       event.stopPropagation();
       const state = syncState(ctx);
       if (!state.ok || !state.steamAmount) {
+        void root.STFeedback.show(document.body, { message: ctx.submit.title, focus: input });
         return;
       }
       const ok = submitFunds({
@@ -456,6 +457,7 @@
         steamAmount: state.steamAmount,
       });
       if (!ok) {
+        void root.STFeedback.show(document.body, { message: i18n("store_customWalletAmount_submitFailed", "充值提交失败，Steam 充值表单字段不可用。") });
         log?.error?.("custom-wallet-amount-submit-failed", "自定义金额提交失败，Steam 充值表单字段不可用", {
           gift: page.gift,
           path: root.location?.pathname || "",

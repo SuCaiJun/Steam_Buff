@@ -24,7 +24,6 @@
   const TRANS_PREFIX = `${PREFIX}translate.`;
   const REVIEW_FILTER_PREFIX = `${PREFIX}reviewFilter.`;
   const SEARCH_SUGGESTION_PREFIX = `${PREFIX}searchSuggestions.`;
-  const FAMILY_LIBRARY_PREFIX = `${PREFIX}familyLibrary.`;
   const AI_PREFIX = `${PREFIX}ai.`;
   const THIRD_PARTY_SERVICES_PREFIX = `${PREFIX}thirdPartyServices.`;
   const STORE_PRICE_CHART_KEY = `${PREFIX}storePriceChart`;
@@ -115,10 +114,6 @@
     return api.catalog?.translateDefaults?.() || {};
   }
 
-  function aiDefaults() {
-    return api.catalog?.aiDefaults?.() || {};
-  }
-
   function failureOperationMeta(ok, diagnostics = {}) {
     const operationId = String(diagnostics?.operationId || "");
     return !ok && operationId ? { operationId } : {};
@@ -171,31 +166,6 @@
 
   function searchSuggestionKey(id) {
     return `${SEARCH_SUGGESTION_PREFIX}${id}`;
-  }
-
-  function familyLibraryDefaults() {
-    return api.catalog?.familyLibraryDefaults?.() || {
-      refreshInterval: "1d",
-      autoRefresh: true,
-    };
-  }
-
-  function familyLibraryFields() {
-    return api.catalog?.familyLibraryFields?.() || [];
-  }
-
-  function familyLibraryKey(id) {
-    return `${FAMILY_LIBRARY_PREFIX}${id}`;
-  }
-
-  function normalizeFamilyLibrary(values) {
-    const defs = familyLibraryDefaults();
-    const fields = familyLibraryFields();
-    const intervalField = fields.find(field => field.key === "refreshInterval") || {};
-    const intervals = new Set((intervalField.options || []).map(opt => String(opt.value)));
-    const refreshInterval = String(values?.refreshInterval ?? defs.refreshInterval);
-    if (!intervals.has(refreshInterval) || (values?.autoRefresh !== undefined && typeof values.autoRefresh !== "boolean")) throw new TypeError("家庭库刷新设置无效");
-    return { refreshInterval, autoRefresh: values?.autoRefresh ?? defs.autoRefresh };
   }
 
   function normalizeSearchSuggestions(values) {
@@ -664,9 +634,21 @@
     });
   }
 
+  async function workflowPermissionSession(snapshot, auth) {
+    const session = snapshot?.workflowSession;
+    if (!session || typeof snapshot.permissions?.workflowAdvanced !== "boolean") return "";
+    return session === await globalThis.STAuthSession.fingerprint(auth) ? session : "";
+  }
+
   async function getMembership() {
     const rt = await get([MEMBERSHIP_KEY, AUTH_KEY]);
-    return normalizeMembership(rt[MEMBERSHIP_KEY], rt[AUTH_KEY]);
+    const raw = rt[MEMBERSHIP_KEY], auth = rt[AUTH_KEY];
+    const membership = normalizeMembership(raw, auth);
+    if (typeof membership.permissions.workflowAdvanced === "boolean" && (auth?.access_token || auth?.refresh_token) &&
+      !await workflowPermissionSession(raw, auth)) {
+      delete membership.permissions.workflowAdvanced;
+    }
+    return membership;
   }
 
   async function setMembership(value, diagnostics = {}) {
@@ -680,8 +662,19 @@
         return null;
       }
     }
-    const rt = await get([AUTH_KEY]);
+    const rt = await get([AUTH_KEY, MEMBERSHIP_KEY]);
     const next = normalizeMembership(value, { access_token: "__snapshot__" });
+    if (expectedSession) {
+      if (globalThis.STAuthSession.authKey(rt[AUTH_KEY]) !== expectedSession) return null;
+      if (typeof next.permissions.workflowAdvanced === "boolean") next.workflowSession = await globalThis.STAuthSession.fingerprint(rt[AUTH_KEY]);
+    } else {
+      // 其他功能更新权益快照时，仅保留当前会话已确认的自动化权限
+      const previous = rt[MEMBERSHIP_KEY], session = await workflowPermissionSession(previous, rt[AUTH_KEY]);
+      if (session) {
+        next.workflowSession = session;
+        next.permissions.workflowAdvanced = previous.permissions.workflowAdvanced;
+      } else delete next.permissions.workflowAdvanced;
+    }
     const operationId = String(diagnostics?.operationId || "");
     const ok = await put({ [MEMBERSHIP_KEY]: next }, { operationId });
     const visible = normalizeMembership(next, rt[AUTH_KEY]);
@@ -693,11 +686,12 @@
     return ok ? visible : null;
   }
 
-  async function getTranslate() {
+  async function getTranslate({ storedBindings = false } = {}) {
     const defs = translateDefaults();
     const ids = Object.keys(defs);
     const keys = ids.map(transKey);
-    const rt = await get(keys);
+    const rt = await get(keys, { strict: true });
+    const bindings = storedBindings ? globalThis.STAI.translationDefaults() : {};
     const out = {};
 
     for (const id of ids) {
@@ -711,7 +705,7 @@
       } else {
         out[id] = typeof value === "string" && (id !== "local" || value.trim())
           ? value
-          : def;
+          : Object.hasOwn(bindings, id) ? "" : def;
       }
     }
     if (out.service === AI_SERVICE) {
@@ -721,7 +715,7 @@
     return out;
   }
 
-  async function setTranslate(values, diagnostics = {}) {
+  function translatePatch(values) {
     const defs = translateDefaults();
     const data = {};
     const src = values?.service === AI_SERVICE
@@ -747,14 +741,20 @@
       }
     }
 
-    if (!Object.keys(data).length) {
-      logSave("translate", false, { ...failureOperationMeta(false, diagnostics), reason: "empty" });
-      return false;
-    }
+    return data;
+  }
 
-    const ok = await put(data, diagnostics);
-    logSave("translate", ok, { ...failureOperationMeta(ok, diagnostics), count: Object.keys(data).length });
-    return ok;
+  async function configureAi(action, value, diagnostics = {}) {
+    const message = { type: "AUTOMATION", action, value, operationId: diagnostics.operationId };
+    if (globalThis.STBackgroundAutomation) return globalThis.STBackgroundAutomation.configureAi(message, diagnostics);
+    const response = await globalThis.STMessageBus.request(message, { timeoutMs: 120000, logFailures: false });
+    if (response?.success !== true) throw new Error(response?.error || "AI 与翻译设置保存失败");
+    return response.value;
+  }
+
+  async function setTranslate(values, diagnostics = {}) {
+    await configureAi("save-translate", values, diagnostics);
+    return true;
   }
 
   async function getReviewFilter() {
@@ -840,93 +840,46 @@
     return ok ? next : false;
   }
 
-  async function getFamilyLibrary() {
-    const defs = familyLibraryDefaults();
-    const ids = Object.keys(defs);
-    const keys = ids.map(familyLibraryKey);
-    const rt = await get(keys, { strict: true });
-    const out = {};
-
-    for (const id of ids) {
-      out[id] = Object.hasOwn(rt, familyLibraryKey(id)) ? rt[familyLibraryKey(id)] : defs[id];
-    }
-
-    return normalizeFamilyLibrary(out);
+  async function getAiFlags() {
+    const ai = globalThis.STAI;
+    return ai.flagsFromStorage(await get(ai.FLAG_KEYS, { strict: true }));
   }
 
-  async function setFamilyLibrary(values, diagnostics = {}) {
-    const next = normalizeFamilyLibrary(values);
-    const data = {};
-
-    for (const id of Object.keys(familyLibraryDefaults())) {
-      data[familyLibraryKey(id)] = next[id];
+  /** 等待后台完成 AI 及其绑定的初始化。失败时交由设置面板或备份入口处理 */
+  async function waitForAiSettings() {
+    if (globalThis.STBackgroundAutomation) {
+      await globalThis.STBackgroundAutomation.ready();
+      return;
     }
-
-    const ok = await put(data, diagnostics);
-    logSave("family-library", ok, {
-      ...failureOperationMeta(ok, diagnostics),
-      refreshInterval: next.refreshInterval,
-      autoRefresh: next.autoRefresh === true,
-      count: Object.keys(data).length,
-    });
-    return ok ? next : false;
+    const response = await globalThis.STMessageBus.request({ type: "AUTOMATION", action: "settings-ready" }, { logFailures: false });
+    if (response?.success !== true) throw new Error(response?.error || "AI 设置初始化失败");
   }
 
   async function getAi() {
-    const defs = aiDefaults();
-    const ids = Object.keys(defs);
-    const legacyAiKeys = ids.includes("aiConcurrency") ? [transKey("aiConcurrency")] : [];
-    const keys = [...ids.map(aiKey), ...legacyAiKeys];
-    const rt = await get(keys);
-    const out = {};
-
-    for (const id of ids) {
-      const def = defs[id];
-      const storeKey = aiKey(id);
-      const value = id === "aiConcurrency" && !Object.hasOwn(rt, storeKey)
-        ? rt[transKey("aiConcurrency")]
-        : rt[storeKey];
-      if (typeof def === "boolean") {
-        out[id] = typeof value === "boolean" ? value : def;
-      } else if (typeof def === "number") {
-        const num = Number(value);
-        out[id] = Number.isFinite(num) ? num : def;
-      } else {
-        out[id] = typeof value === "string" ? value : def;
-      }
-    }
-
-    return globalThis.STAI?.normalize?.(out) || out;
+    const ai = globalThis.STAI;
+    return ai.servicesFromStorage(await get(ai.SETTINGS_KEYS, { strict: true }));
   }
 
-  async function setAi(values, diagnostics = {}) {
-    const defs = aiDefaults();
-    const data = {};
-    const normalized = globalThis.STAI?.normalize?.({ ...defs, ...(values || {}) }) || {};
+  function setAi(values, diagnostics = {}) {
+    return configureAi("save-ai-services", values, diagnostics);
+  }
 
-    for (const id of Object.keys(defs)) {
-      if (!Object.hasOwn(values || {}, id)) {
-        continue;
-      }
-      const def = defs[id];
-      if (typeof def === "boolean") {
-        data[aiKey(id)] = normalized[id] === true;
-      } else if (typeof def === "number") {
-        const num = Number(normalized[id] ?? values[id] ?? def);
-        data[aiKey(id)] = Number.isFinite(num) ? num : def;
-      } else {
-        data[aiKey(id)] = String(normalized[id] ?? values[id] ?? def);
-      }
+  /** 三处关联配置在后台串行校验后一次写入，避免迁移或导入留下悬空引用 */
+  async function writeAiSettings({ ai, translate, workflow, familyFeature, familySettings }, diagnostics = {}) {
+    const data = translate ? translatePatch(translate) : {};
+    if (ai) {
+      const { enabled, aiConcurrency, ...registry } = ai;
+      if (typeof enabled === "boolean") data[aiKey("enabled")] = enabled;
+      if (typeof aiConcurrency === "number") data[aiKey("aiConcurrency")] = aiConcurrency;
+      data[globalThis.STAI.SERVICES_KEY] = registry;
     }
-
-    if (!Object.keys(data).length) {
-      logSave("ai", false, { ...failureOperationMeta(false, diagnostics), reason: "empty" });
-      return false;
+    if (workflow) data[globalThis.STAutomation.KEY] = workflow;
+    if (typeof familyFeature === "boolean") data[key("family-library-owned-marker")] = familyFeature;
+    if (familySettings) {
+      const keys = globalThis.STFamilyLibrary.SETTINGS_KEYS;
+      for (const [field, value] of Object.entries(familySettings)) data[keys[field]] = value;
     }
-
-    const ok = await put(data, diagnostics);
-    logSave("ai", ok, { ...failureOperationMeta(ok, diagnostics), count: Object.keys(data).length });
-    return ok;
+    if (!Object.keys(data).length || !(await put(data, diagnostics))) throw new Error("AI、翻译与自动化配置写入失败");
   }
 
   async function getThirdPartyServices() {
@@ -1047,12 +1000,12 @@
     return { top, side };
   }
 
-  async function getPanelSettings() {
+  async function getPanelSettings(options = {}) {
+    await waitForAiSettings();
     const [
       features,
       uiLocale,
       updateCheck,
-      familyLibrary,
       storePriceChart,
       gameLinks,
       searchSuggestions,
@@ -1064,7 +1017,6 @@
       getAll(),
       getUiLocale(),
       getUpdateCheck(),
-      getFamilyLibrary(),
       getStorePriceChart(),
       getGameLinks(),
       getSearchSuggestions(),
@@ -1073,11 +1025,10 @@
       getAi(),
       getThirdPartyServices(),
     ]);
-    return {
+    const out = {
       features,
       uiLocale,
       updateCheck,
-      familyLibrary,
       storePriceChart,
       gameLinks,
       searchSuggestions,
@@ -1086,22 +1037,28 @@
       ai,
       thirdPartyServices,
     };
+    if (options.workflow === true) out.workflow = await getWorkflow();
+    return out;
   }
 
   async function setPanelSettings(sections = {}, diagnostics = {}) {
     const updateCheck = sections.updateCheck === undefined ? { hours: globalThis.STConfig.updates.defaultHours } : sections.updateCheck;
     if (!updateCheck || typeof updateCheck !== "object") throw new TypeError("更新频率配置格式错误");
     globalThis.STConfig.updates.hours(updateCheck.hours);
+    const { ai: aiEnabled, "family-library-owned-marker": familyFeature, ...features } = sections.features || {};
+    const ai = sections.ai ?? (typeof aiEnabled === "boolean"
+      ? { ...globalThis.STAI.normalizeServices(), enabled: aiEnabled } : undefined);
+    await configureAi("apply-ai-settings", {
+      ai, translate: sections.translate, workflow: sections.workflow,
+      familyFeature, familySettings: sections.familyLibrary,
+    }, diagnostics);
     const jobs = [
-      setAll(sections.features || {}, diagnostics),
+      setAll(features, diagnostics),
       setUiLocale(sections.uiLocale, diagnostics),
       setUpdateCheck(updateCheck, diagnostics),
-      setFamilyLibrary(sections.familyLibrary || {}, diagnostics),
       setGameLinks(sections.gameLinks, diagnostics),
       setSearchSuggestions(sections.searchSuggestions || {}, diagnostics),
       setReviewFilter(sections.reviewFilter || {}, diagnostics),
-      setTranslate(sections.translate || {}, diagnostics),
-      setAi(sections.ai || {}, diagnostics),
       setStorePriceChartSettings({
         thirdPartyServices: sections.thirdPartyServices || {},
         storePriceChart: sections.storePriceChart || {},
@@ -1121,6 +1078,73 @@
     const next = globalThis.STGameLinks.normalize(values);
     const ok = await put({ [GAME_LINKS_KEY]: next }, diagnostics);
     return ok ? next : false;
+  }
+
+  async function getWorkflow() {
+    const model = globalThis.STAutomation;
+    const data = await get([model.KEY], { strict: true });
+    return model.normalize(Object.hasOwn(data, model.KEY) ? data[model.KEY] : model.defaults());
+  }
+
+  /** 2.2.2 的下载开关独立于工作流配置 */
+  async function initializeDownloadToolbar() {
+    const toolbar = key("download-manager-enhancement");
+    const toggles = [key("download-auto-shutdown"), key("download-batch-actions")];
+    const stored = await get([toolbar, ...toggles], { strict: true });
+    if (Object.hasOwn(stored, toolbar) || !toggles.some(id => Object.hasOwn(stored, id))) return;
+    if (!await put({ [toolbar]: toggles.some(id => stored[id] !== false) }, { reason: "initialize-download-toolbar" }))
+      throw new Error("下载工具栏设置迁移失败");
+  }
+
+  async function initializeWorkflow() {
+    const model = globalThis.STAutomation, aiConfig = globalThis.STAI, family = globalThis.STFamilyLibrary;
+    const defaults = aiConfig.translationDefaults(), familyFeatureKey = key("family-library-owned-marker");
+    const installedVersionKey = globalThis.STLifecyclePromptContract.installedVersionKey;
+    const legacyKeys = aiConfig.V222_CONNECTION_FIELDS.map(aiKey);
+    const stored = await get([model.KEY, familyFeatureKey, installedVersionKey, ...Object.values(family.SETTINGS_KEYS),
+      ...aiConfig.SETTINGS_KEYS, ...legacyKeys, ...Object.keys(defaults).map(transKey)], { strict: true });
+    const hasRegistry = Object.hasOwn(stored, aiConfig.SERVICES_KEY);
+    const flags = aiConfig.flagsFromStorage(stored);
+    const legacy = hasRegistry ? undefined : aiConfig.migrateV222Service({
+      ...flags,
+      ...Object.fromEntries(aiConfig.V222_CONNECTION_FIELDS.filter(field => Object.hasOwn(stored, aiKey(field)))
+        .map(field => [field, stored[aiKey(field)]])),
+    });
+    const released = !!legacy || family.hasReleasedSchedule(stored[installedVersionKey]);
+    const familySettings = !Object.hasOwn(stored, model.KEY) && family.releasedSettings(stored, released);
+    let workflow;
+    if (!Object.hasOwn(stored, model.KEY)) {
+      workflow = model.defaults();
+      if (familySettings) workflow = model.restoreFamilySchedule(workflow, familySettings,
+        stored[familyFeatureKey] !== false && globalThis.STClientEnvironment.isSteamClientRuntime(), true);
+    }
+    const ai = hasRegistry ? undefined : legacy ?? { ...aiConfig.normalizeServices(), ...flags };
+    const translate = workflow || ai
+      ? Object.fromEntries(Object.entries(defaults).filter(([id]) => !Object.hasOwn(stored, transKey(id))))
+      : undefined;
+    if (workflow || ai) await writeAiSettings({ workflow, ai, translate, familySettings }, { reason: "initialize-workflow" });
+    if (legacy) log.info("ai-v222-config-migrated", "2.2.2 AI 连接已迁移到默认服务");
+  }
+
+  async function setWorkflow(values, diagnostics = {}) {
+    const next = globalThis.STAutomation.normalize(values);
+    if (globalThis.STBackgroundAutomation)
+      return globalThis.STBackgroundAutomation.saveConfig(next, {
+        operationId: diagnostics.operationId,
+        replace: diagnostics.replaceWorkflow === true,
+      });
+    const response = await globalThis.STMessageBus.request(
+      {
+        type: globalThis.STAutomation.ROUTE,
+        action: diagnostics.replaceWorkflow === true ? "replace-config" : "save-config",
+        value: next,
+        operationId: diagnostics.operationId,
+      },
+      { timeoutMs: 120000, logFailures: false },
+    );
+    if (response?.success !== true) throw new Error(response?.error || "自动化配置保存失败");
+    if (response.value.steamPending) diagnostics.onSteamPending?.();
+    return response.value.workflow;
   }
 
   api.storage = Object.freeze({
@@ -1148,11 +1172,11 @@
     SEARCH_SUGGESTION_PREFIX,
     getSearchSuggestions,
     setSearchSuggestions,
-    FAMILY_LIBRARY_PREFIX,
-    getFamilyLibrary,
-    setFamilyLibrary,
     getAi,
+    getAiFlags,
+    waitForAiSettings,
     setAi,
+    writeAiSettings,
     getThirdPartyServices,
     setThirdPartyServices,
     normalizeThirdPartyServices,
@@ -1163,6 +1187,10 @@
     setStorePriceChartSettings,
     getGameLinks,
     setGameLinks,
+    getWorkflow,
+    initializeWorkflow,
+    initializeDownloadToolbar,
+    setWorkflow,
     getRailPos,
     setRailPos,
     getPanelSettings,

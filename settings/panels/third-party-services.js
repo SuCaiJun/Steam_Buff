@@ -410,14 +410,14 @@
       const fields = getFields();
       const body = `
         <div class="settings-form">
-          <section class="settings-card section-card">
-            <div class="section-header">
+          <details class="settings-card section-card">
+            <summary class="section-header settings-fold-title">
               <div class="dot"></div>
-              <div class="title">${text("settings.thirdParty.title", "第三方服务")}</div>
+              <div class="title">${esc(text("settings.feature.third-party-services.name", "第三方服务配置"))}</div>
               <div class="hint">${hasItadKey(conf)
                 ? text("settings.thirdParty.keyConfigured", "已填写 ITAD Key")
                 : text("settings.thirdParty.keyMissing", "未填写 ITAD Key")}</div>
-            </div>
+            </summary>
             <div class="settings-grid">
               ${fields.map((field) => `
                 <div class="settings-row form-row">
@@ -430,7 +430,7 @@
               <button class="settings-save third-party-services-test btn btn-secondary" type="button">${text("settings.thirdParty.testConnection", "测试连接")}</button>
               <button class="settings-save third-party-services-save btn btn-blue" type="button">${text("common.saveSettings", "保存设置")}</button>
             </div>
-          </section>
+          </details>
         </div>
       `;
       log.info("third-party-services-panel-open", "第三方服务面板打开", {

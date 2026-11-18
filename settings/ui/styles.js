@@ -20,7 +20,37 @@
     const body = Object.entries(variables)
       .map(([name, value]) => `          ${name}: ${String(value)};`)
       .join("\n");
-    return `        :host {\n${body}\n        }\n`;
+    // 设置中心与批量名称窗口共用主题颜色，平面外观只作用于当前 ShadowRoot
+    return `        :host {\n${body}
+          color-scheme: dark;
+          --st-color-bg-body: var(--st-color-steam-property-window);
+          --st-color-bg-card: var(--st-color-surface-subtle);
+          --st-color-bg-card-hover: var(--st-color-surface-subtle-hover);
+          --st-color-bg-child: var(--st-color-steam-property-button);
+          --st-color-bg-card-hover-alt: var(--st-color-surface-subtle-hover);
+          --st-color-bg-card-hover-strong: var(--st-color-surface-subtle-hover);
+          --st-color-surface-panel: var(--st-color-steam-property-button);
+          --st-color-surface-panel-dark: var(--st-color-steam-property-window);
+          --st-color-surface-hero: var(--st-color-steam-property-button);
+          --st-color-surface-hero-dark: var(--st-color-steam-property-window);
+          --st-color-surface-hero-hover: var(--st-color-surface-subtle-hover);
+          --st-color-surface-hero-hover-dark: var(--st-color-surface-subtle-hover);
+          --st-color-about-panel-alpha-35: var(--st-color-surface-subtle);
+          --st-color-about-panel-alpha-45: var(--st-color-surface-subtle);
+          --st-color-about-panel-alpha-66: var(--st-color-steam-property-button);
+          --st-color-about-panel-alpha-70: var(--st-color-surface-subtle-hover);
+          --st-color-about-panel-dark-alpha-92: var(--st-color-steam-property-window);
+          --st-color-border-light: var(--st-color-border-normal);
+          --st-dialog-surface: var(--st-color-steam-property-window);
+          --st-dialog-surface-raised: var(--st-color-steam-property-button);
+          --st-dialog-header-bg: var(--st-color-steam-property-window);
+          --st-dialog-border: var(--st-color-border-normal);
+          --st-dialog-primary-bg: var(--st-color-steam-blue-alpha-38);
+          --st-dialog-primary-shadow: none;
+          --st-gradient-primary-vertical: var(--st-color-steam-blue-alpha-38);
+          --st-gradient-settings-header: var(--st-color-steam-property-window);
+          --st-shadow-button-primary: none;
+        }\n`;
   }
 
   const sharedCss = globalThis.STComponents?.css;
@@ -48,6 +78,8 @@
       surfaceSelectors: ".settings-dialog",
       openSurfaceSelectors: ".settings-dialog-layer.show .settings-dialog",
       titleSelectors: ".settings-dialog-title",
+      headerSelectors: ".settings-native-layer .settings-dialog-header",
+      closeSelectors: ".settings-dialog-close",
       width: "min(420px, calc(100% - 24px))",
       surfacePadding: "var(--st-dialog-body-padding)",
     }),
@@ -60,6 +92,15 @@
       variant: "primary",
       minWidth: "76px",
       padding: "0 14px",
+    }),
+    sharedCss.button(".dialog-btn.danger", {
+      variant: "danger",
+      minWidth: "76px",
+      padding: "0 14px",
+    }),
+    sharedCss.button(".ai-service-icon-button", {
+      variant: "ghost",
+      density: "compact",
     })
   );
 
@@ -340,6 +381,88 @@
           white-space: pre-wrap;
           overflow-wrap: anywhere;
         }
+
+        dialog.settings-native-layer {
+          position: fixed;
+          width: 100%;
+          height: 100%;
+          max-width: none;
+          max-height: none;
+          margin: 0;
+          padding: 16px;
+          border: 0;
+          background: transparent;
+          align-items: center;
+          overflow: hidden;
+          overscroll-behavior: contain;
+        }
+
+        dialog.settings-native-layer:not([open]) { display: none; }
+        dialog.settings-native-layer::backdrop {
+          background: var(--st-color-overlay-soft);
+          overflow: hidden;
+          overscroll-behavior: contain;
+        }
+
+        .settings-native-layer .settings-dialog {
+          display: flex;
+          flex-direction: column;
+          max-height: 100%;
+          padding: 0;
+          background: var(--st-dialog-surface);
+        }
+
+        .settings-native-layer .settings-dialog-header {
+          flex: none;
+        }
+        .settings-native-layer .settings-dialog-title { margin: 0; }
+        .settings-dialog-heading { flex: 1; min-width: 0; }
+        .settings-dialog-subtitle {
+          margin: 6px 0 0;
+          color: var(--st-dialog-muted-color);
+          font-size: var(--st-font-size-body-small);
+          font-weight: var(--st-font-weight-regular);
+          line-height: 1.5;
+        }
+        .settings-dialog-title-icon {
+          flex: none;
+          width: 24px;
+          height: 24px;
+          background: var(--st-color-text-secondary);
+          mask: var(--settings-dialog-icon) center / contain no-repeat;
+        }
+        .settings-dialog-header:has(.settings-dialog-subtitle) {
+          height: auto;
+          min-height: 80px;
+          gap: 16px;
+          padding: 16px 20px;
+        }
+        .settings-dialog-header:has(.settings-dialog-subtitle) .settings-dialog-close { align-self: flex-start; }
+        .settings-native-layer .settings-dialog-message {
+          flex: 1 1 auto;
+          min-height: 0;
+          max-height: none;
+          padding: 16px;
+          overflow: auto;
+          overscroll-behavior: contain;
+          scrollbar-width: thin;
+          scrollbar-color: var(--st-color-border-hover) transparent;
+          white-space: normal;
+        }
+        .settings-native-layer .settings-dialog-actions {
+          flex: none;
+          margin: 0;
+          padding: 12px 16px;
+          border-top: 1px solid var(--st-dialog-divider);
+          flex-wrap: wrap;
+        }
+        .settings-native-layer .settings-form-dialog { width: min(640px, 100%); }
+        .settings-native-layer .wf-editor-dialog { width: min(840px, 100%); }
+        .ai-service-editor { position: relative; }
+        .ai-service-editor .settings-row { padding-inline: 0; }
+        .ai-service-editor .settings-value { max-width: 100%; }
+        .ai-service-editor .ai-permission-wait { inset: 0; }
+        .ai-service-editor .ai-service-feedback { padding: 12px 0 0; }
 
         .settings-dialog-emphasis {
           font-weight: 700;
@@ -694,7 +817,7 @@
           overflow-x: hidden;
           overflow-y: auto;
           padding: 16px 0;
-          background: var(--st-color-bg-input);
+          background: var(--st-dialog-surface);
           border-right: 1px solid var(--st-color-black-alpha-30);
         }
 
@@ -727,7 +850,7 @@
         .nav-item.active {
           color: var(--st-color-white);
           border-left-color: var(--st-color-primary);
-          background: linear-gradient(90deg, var(--st-color-primary-alpha-12), transparent);
+          background: var(--st-color-primary-surface);
           font-weight: 500;
         }
 
@@ -744,9 +867,7 @@
           min-height: 0;
           overflow: auto;
           padding: 28px 32px 32px;
-          background:
-            linear-gradient(180deg, var(--st-color-white-alpha-02) 0%, transparent 80px),
-            var(--st-color-bg-body);
+          background: var(--st-color-bg-body);
         }
 
         .side,
@@ -1126,7 +1247,7 @@
         .switch[aria-checked="true"],
         .switch.form-switch.checked {
           border-color: transparent;
-          background: var(--st-gradient-switch-on, linear-gradient(135deg, var(--st-color-primary) 0%, var(--st-color-primary-dark) 100%));
+          background: var(--st-color-primary);
           box-shadow: var(--st-shadow-switch-checked, 0 0 12px var(--st-color-primary-alpha-30));
         }
 
@@ -1340,6 +1461,101 @@
         .ai-settings-card {
           position: relative;
         }
+        .classifier-settings-card > .feature {
+          margin: 12px 16px;
+        }
+
+        summary.settings-fold-title { cursor: pointer; list-style: none; }
+        summary.settings-fold-title::-webkit-details-marker { display: none; }
+        summary.settings-fold-title::after {
+          content: "";
+          flex: none;
+          width: 6px;
+          height: 6px;
+          border: solid var(--st-color-text-secondary);
+          border-width: 0 1px 1px 0;
+          transform: rotate(45deg);
+          transition: transform var(--st-motion-fast);
+        }
+        details[open] > summary.settings-fold-title::after { transform: rotate(225deg); }
+        summary.settings-fold-title:focus-visible {
+          outline: 2px solid var(--st-color-steam-blue);
+          outline-offset: -2px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          summary.settings-fold-title::after { transition: none; }
+        }
+
+        .ai-service-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 8px 12px;
+          padding: 10px 16px;
+          border-top: 1px solid var(--st-dialog-divider);
+        }
+
+        .ai-service-copy {
+          display: grid;
+          gap: 3px;
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+
+        .ai-service-copy small,
+        .ai-service-empty {
+          color: var(--st-color-text-secondary);
+        }
+
+        .ai-service-actions {
+          display: flex;
+          gap: 4px;
+          flex-wrap: wrap;
+        }
+
+        .ai-service-icon-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex: none;
+          width: 32px;
+          height: 32px;
+          min-width: 32px;
+          padding: 8px;
+          color: var(--st-color-text-secondary);
+        }
+        .ai-service-icon-button[aria-pressed="true"] { color: var(--st-color-success); }
+        .ai-service-icon-button[data-ai-action="delete"]:hover {
+          color: var(--st-color-danger-text);
+          background: var(--st-color-danger-surface);
+        }
+        .ai-service-icon {
+          display: block;
+          flex: none;
+          width: 16px;
+          height: 16px;
+          background: currentColor;
+          mask-position: center;
+          mask-repeat: no-repeat;
+          mask-size: contain;
+          pointer-events: none;
+          forced-color-adjust: none;
+        }
+
+        .ai-service-feedback,
+        .ai-service-empty {
+          margin: 0;
+          padding: 10px 16px;
+        }
+
+        .ai-service-feedback:empty,
+        [data-ai-binding][hidden],
+        [data-translate-ai-choice][hidden],
+        [data-translate-inherited][hidden],
+        [data-ai-field][hidden] {
+          display: none;
+        }
 
         .ai-permission-wait {
           position: absolute;
@@ -1393,7 +1609,7 @@
           width: 3px;
           height: 14px;
           border-radius: 2px;
-          background: linear-gradient(180deg, var(--st-color-primary), var(--st-color-primary-dark));
+          background: var(--st-color-primary);
         }
 
         .section-header .title {
@@ -1493,6 +1709,24 @@
           font-size: 13px;
           font-family: inherit;
           transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+        }
+
+        .ai-binding-control {
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
+        }
+
+        .ai-binding-note {
+          display: block;
+          width: min(280px, 100%);
+          color: var(--st-color-text-secondary);
+          font-size: var(--st-font-size-body-small);
+          overflow-wrap: anywhere;
+        }
+
+        .ai-binding-note[hidden] {
+          display: none;
         }
 
         textarea.settings-control,
@@ -1893,12 +2127,12 @@
           color: var(--st-color-text-disabled, var(--st-color-text-muted));
         }
 
-        .store-price-chart-combo__control {
+        .st-search-combo__control {
           position: relative;
           min-width: 0;
         }
 
-        .store-price-chart-combo__control input {
+        .st-search-combo__control input {
           width: 100%;
           min-width: 0;
           height: 34px;
@@ -1910,30 +2144,29 @@
           box-sizing: border-box;
         }
 
-        .store-price-chart-combo__control input:focus {
+        .st-search-combo__control input:focus {
           border-color: var(--st-color-primary);
           outline: none;
           box-shadow: 0 0 0 1px var(--st-color-primary-alpha-35);
         }
 
-        .store-price-chart-combo {
+        .st-search-combo {
           position: relative;
           min-width: 0;
         }
 
-        .store-price-chart-combo__toggle {
+        .st-search-combo__toggle {
           position: absolute;
-          top: 1px;
-          right: 1px;
+          inset-block: 1px;
+          inset-inline-end: 1px;
           width: 32px;
-          height: 32px;
           border: 0;
           border-radius: 0 var(--st-radius-sm) var(--st-radius-sm) 0;
           background: transparent;
           cursor: pointer;
         }
 
-        .store-price-chart-combo__toggle::before {
+        .st-search-combo__toggle::before {
           content: "";
           position: absolute;
           top: 11px;
@@ -1946,22 +2179,22 @@
           transition: transform var(--st-motion-fast, .15s ease);
         }
 
-        .store-price-chart-combo.is-open .store-price-chart-combo__toggle::before {
+        .st-search-combo.is-open .st-search-combo__toggle::before {
           top: 14px;
           transform: rotate(225deg);
         }
 
-        .store-price-chart-combo__toggle:hover::before,
-        .store-price-chart-combo__toggle:focus-visible::before {
+        .st-search-combo__toggle:hover::before,
+        .st-search-combo__toggle:focus-visible::before {
           border-color: var(--st-color-text-primary);
         }
 
-        .store-price-chart-combo__toggle:focus-visible {
+        .st-search-combo__toggle:focus-visible {
           outline: 1px solid var(--st-color-primary);
           outline-offset: -2px;
         }
 
-        .store-price-chart-combo__options {
+        .st-search-combo__options {
           position: absolute;
           z-index: var(--st-z-index-dropdown);
           top: calc(100% + 4px);
@@ -1979,30 +2212,37 @@
           scrollbar-color: var(--st-color-white-alpha-10) transparent;
         }
 
-        .store-price-chart-combo__options::-webkit-scrollbar {
+        .st-search-combo__options[popover] {
+          position: fixed;
+          inset: auto;
+          margin: 0;
+          color: var(--st-color-text-secondary);
+        }
+
+        .st-search-combo__options::-webkit-scrollbar {
           width: 6px;
         }
 
-        .store-price-chart-combo__options::-webkit-scrollbar-track {
+        .st-search-combo__options::-webkit-scrollbar-track {
           background: transparent;
         }
 
-        .store-price-chart-combo__options::-webkit-scrollbar-thumb {
+        .st-search-combo__options::-webkit-scrollbar-thumb {
           border-radius: 3px;
           background: var(--st-color-white-alpha-10);
         }
 
-        .store-price-chart-combo__options::-webkit-scrollbar-thumb:hover {
+        .st-search-combo__options::-webkit-scrollbar-thumb:hover {
           background: var(--st-color-steam-blue-alpha-50);
         }
 
-        .store-price-chart-combo__options[hidden],
-        .store-price-chart-combo__option[hidden],
-        .store-price-chart-combo__empty[hidden] {
+        .st-search-combo__options[hidden],
+        .st-search-combo__option[hidden],
+        .st-search-combo__empty[hidden] {
           display: none;
         }
 
-        .store-price-chart-combo__option {
+        .st-search-combo__option {
           display: block;
           width: 100%;
           min-height: 32px;
@@ -2018,15 +2258,15 @@
           cursor: pointer;
         }
 
-        .store-price-chart-combo__option:hover,
-        .store-price-chart-combo__option:focus-visible,
-        .store-price-chart-combo__option[aria-selected="true"] {
+        .st-search-combo__option:hover,
+        .st-search-combo__option:focus-visible,
+        .st-search-combo__option[aria-selected="true"] {
           background: var(--st-color-primary-surface-hover);
           color: var(--st-color-text-primary);
           outline: none;
         }
 
-        .store-price-chart-combo__empty {
+        .st-search-combo__empty {
           min-height: 32px;
           color: var(--st-color-text-muted);
           padding: 7px 10px;
@@ -2208,6 +2448,10 @@
 
           .translate-control,
           .settings-control {
+            width: 100%;
+          }
+
+          .ai-binding-note {
             width: 100%;
           }
 

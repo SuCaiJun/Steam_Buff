@@ -98,7 +98,7 @@
       align-items: center;
       gap: 18px;
       padding: 24px;
-      background: linear-gradient(135deg, var(--st-color-bg-card) 0%, var(--st-color-surface-panel) 100%);
+      background: var(--st-color-bg-card);
     }
 
     .uc-user-card.guest,
@@ -191,7 +191,7 @@
       border-radius: 999px;
       padding: 0 8px;
       color: var(--st-color-gold-contrast);
-      background: linear-gradient(90deg, var(--st-color-gold) 0%, var(--st-color-warning-strong) 100%);
+      background: var(--st-color-gold);
       font-size: 11px;
       font-weight: 700;
       line-height: 20px;
@@ -294,7 +294,7 @@
     .uc-btn.primary {
       border-color: var(--st-color-primary-alpha-70);
       color: var(--st-color-white);
-      background: linear-gradient(90deg, var(--st-color-primary) 0%, var(--st-color-primary-dark) 100%);
+      background: var(--st-dialog-primary-bg);
     }
 
     .uc-btn.danger {
@@ -386,7 +386,7 @@
 
     .uc-tile:hover {
       border-color: var(--st-color-primary-alpha-55);
-      background: linear-gradient(var(--st-color-warning-alpha-03), var(--st-color-warning-alpha-03)), var(--st-color-bg-card-hover-strong);
+      background: var(--st-color-surface-subtle-hover);
     }
 
     .uc-tile-top {
@@ -467,7 +467,7 @@
 
     .uc-mini-progress.infinite span {
       width: 100% !important;
-      background: linear-gradient(90deg, var(--st-color-gold) 0%, var(--st-color-warning-strong) 100%);
+      background: var(--st-color-gold);
     }
 
     .uc-status {
@@ -717,9 +717,7 @@
       grid-template-columns: auto minmax(0, 1fr) auto;
       gap: 20px;
       overflow: hidden;
-      background:
-        radial-gradient(ellipse 600px 200px at 0% 100%, var(--st-color-hero-blue-alpha-50) 0%, transparent 60%),
-        linear-gradient(135deg, var(--st-color-surface-hero) 0%, var(--st-color-surface-panel-dark) 100%);
+      background: var(--st-color-bg-card);
       border: 1px solid var(--st-color-white-alpha-04);
     }
 
@@ -731,7 +729,7 @@
       width: 200px;
       height: 200px;
       border-radius: 50%;
-      background: radial-gradient(circle, var(--st-color-primary-alpha-06) 0%, transparent 70%);
+      background: none;
       pointer-events: none;
     }
 
@@ -739,15 +737,14 @@
       width: 80px;
       height: 80px;
       border: 1px solid var(--st-color-white-alpha-08);
-      background: linear-gradient(135deg, var(--st-color-surface-panel), var(--st-color-surface-panel-dark));
+      background: var(--st-color-bg-card);
     }
 
     .uc-avatar.sponsor {
       border: 2px solid transparent;
-      background:
-        linear-gradient(var(--st-color-surface-hero), var(--st-color-surface-hero)) padding-box,
-        linear-gradient(135deg, var(--st-color-gold), var(--st-color-warning-strong)) border-box;
-      box-shadow: 0 0 16px var(--st-color-gold-alpha-25);
+      background: var(--st-dialog-surface);
+      border-color: var(--st-color-gold);
+      box-shadow: none;
     }
 
     .uc-avatar svg {
@@ -846,8 +843,8 @@
       height: 36px;
       border-radius: 4px;
       border-color: transparent;
-      background: linear-gradient(180deg, var(--st-color-primary) 0%, var(--st-color-primary-dark) 100%);
-      box-shadow: 0 2px 6px var(--st-color-primary-alpha-25);
+      background: var(--st-dialog-primary-bg);
+      box-shadow: none;
     }
 
     .uc-btn.danger {
@@ -868,10 +865,7 @@
       gap: 32px;
       overflow: hidden;
       text-align: left;
-      background:
-        radial-gradient(ellipse 700px 280px at 0% 100%, var(--st-color-hero-blue-alpha-55) 0%, transparent 65%),
-        radial-gradient(ellipse 500px 240px at 100% 0%, var(--st-color-primary-alpha-18) 0%, transparent 60%),
-        linear-gradient(135deg, var(--st-color-surface-hero) 0%, var(--st-color-surface-hero-dark) 100%);
+      background: var(--st-color-bg-card);
       border: 1px solid var(--st-color-white-alpha-05);
     }
 
@@ -879,9 +873,7 @@
       content: "";
       position: absolute;
       inset: 0;
-      background-image:
-        linear-gradient(var(--st-color-white-alpha-015) 1px, transparent 1px),
-        linear-gradient(90deg, var(--st-color-white-alpha-015) 1px, transparent 1px);
+      background-image: none;
       background-size: 32px 32px;
       pointer-events: none;
     }
@@ -1019,7 +1011,7 @@
       align-items: center;
       justify-content: center;
       color: var(--st-color-primary-light);
-      background: linear-gradient(135deg, var(--st-color-primary-alpha-22), var(--st-color-primary-alpha-05));
+      background: var(--st-color-primary-surface);
       box-shadow:
         0 0 36px var(--st-color-primary-alpha-35),
         inset 0 1px 0 var(--st-color-white-alpha-12);
@@ -1127,11 +1119,11 @@
     }
 
     .uc-mini-progress span {
-      background: linear-gradient(90deg, var(--st-color-primary), var(--st-color-primary-light));
+      background: var(--st-color-primary);
     }
 
     .uc-mini-progress.warn span {
-      background: linear-gradient(90deg, var(--st-color-warning-strong), var(--st-color-gold));
+      background: var(--st-color-gold);
     }
 
     .uc-status {
@@ -1213,10 +1205,7 @@
       align-items: center;
       gap: 32px;
       overflow: hidden;
-      background:
-        radial-gradient(ellipse 700px 280px at 0% 100%, var(--st-color-hero-blue-alpha-55) 0%, transparent 65%),
-        radial-gradient(ellipse 500px 240px at 100% 0%, var(--st-color-primary-alpha-18) 0%, transparent 60%),
-        linear-gradient(135deg, var(--st-color-surface-hero) 0%, var(--st-color-surface-hero-dark) 100%);
+      background: var(--st-color-bg-card);
       border: 1px solid var(--st-color-white-alpha-05);
     }
 
@@ -1224,9 +1213,7 @@
       content: "";
       position: absolute;
       inset: 0;
-      background-image:
-        linear-gradient(var(--st-color-white-alpha-015) 1px, transparent 1px),
-        linear-gradient(90deg, var(--st-color-white-alpha-015) 1px, transparent 1px);
+      background-image: none;
       background-size: 32px 32px;
       pointer-events: none;
     }
@@ -1269,10 +1256,9 @@
     }
 
     .welcome-title .accent {
-      background: linear-gradient(135deg, var(--st-color-primary-light) 0%, var(--st-color-primary) 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+      background: none;
+      color: var(--st-color-steam-blue);
+      -webkit-text-fill-color: currentColor;
     }
 
     .welcome-desc {
@@ -1297,8 +1283,8 @@
       align-items: center;
       gap: 8px;
       color: var(--st-color-white);
-      background: linear-gradient(180deg, var(--st-color-primary) 0%, var(--st-color-primary-dark) 100%);
-      box-shadow: 0 4px 14px var(--st-color-primary-alpha-30);
+      background: var(--st-dialog-primary-bg);
+      box-shadow: none;
       cursor: pointer;
       font-size: 14px;
       font-weight: 500;
@@ -1384,7 +1370,7 @@
       align-items: center;
       justify-content: center;
       color: var(--st-color-primary-light);
-      background: linear-gradient(135deg, var(--st-color-primary-alpha-22), var(--st-color-primary-alpha-05));
+      background: var(--st-color-primary-surface);
       box-shadow:
         0 0 36px var(--st-color-primary-alpha-35),
         inset 0 1px 0 var(--st-color-white-alpha-12);
@@ -1414,7 +1400,7 @@
     .feature-section-title .line {
       flex: 1;
       height: 1px;
-      background: linear-gradient(90deg, var(--st-color-white-alpha-08), transparent);
+      background: var(--st-dialog-divider);
     }
 
     .feature-grid {
@@ -1508,9 +1494,7 @@
       display: flex;
       align-items: center;
       overflow: visible;
-      background:
-        radial-gradient(ellipse 600px 200px at 0% 100%, var(--st-color-hero-blue-alpha-50) 0%, transparent 60%),
-        linear-gradient(135deg, var(--st-color-surface-hero) 0%, var(--st-color-surface-panel-dark) 100%);
+      background: var(--st-color-bg-card);
     }
 
     .hero::after {
@@ -1521,7 +1505,7 @@
       width: 140px;
       height: 140px;
       border-radius: 50%;
-      background: radial-gradient(circle, var(--st-color-primary-alpha-06) 0%, transparent 70%);
+      background: none;
       pointer-events: none;
     }
 
@@ -1551,16 +1535,15 @@
       align-items: center;
       justify-content: center;
       color: var(--st-color-text-muted);
-      background: linear-gradient(135deg, var(--st-color-surface-panel), var(--st-color-surface-panel-dark));
+      background: var(--st-color-bg-card);
       overflow: hidden;
     }
 
     .avatar.sponsor {
       border: 2px solid transparent;
-      background:
-        linear-gradient(var(--st-color-surface-hero), var(--st-color-surface-hero)) padding-box,
-        linear-gradient(135deg, var(--st-color-gold), var(--st-color-warning-strong)) border-box;
-      box-shadow: 0 0 16px var(--st-color-gold-alpha-25);
+      background: var(--st-dialog-surface);
+      border-color: var(--st-color-gold);
+      box-shadow: none;
     }
 
     .avatar svg {
@@ -2428,16 +2411,16 @@
     .stat-bar-fill {
       height: 100%;
       border-radius: 2px;
-      background: linear-gradient(90deg, var(--st-color-primary), var(--st-color-primary-light));
+      background: var(--st-color-primary);
     }
 
     .stat-bar-fill.warn {
-      background: linear-gradient(90deg, var(--st-color-warning-strong), var(--st-color-gold));
+      background: var(--st-color-gold);
     }
 
     .stat-bar-fill.gold {
       width: 100% !important;
-      background: linear-gradient(90deg, var(--st-color-gold), var(--st-color-warning-strong));
+      background: var(--st-color-gold);
     }
 
     .stat-bar.dashed {

@@ -150,13 +150,15 @@
    */
   async function cfg() {
     const ids = Object.keys(DEF);
-    const aiDefs = globalThis.STAI?.defaults?.() || {};
-    const aiIds = Object.keys(aiDefs);
-    const legacyAiKeys = aiIds.includes("aiConcurrency") ? [transKey("aiConcurrency")] : [];
-    const rt = await get([key("translate"), ...ids.map(transKey), ...aiIds.map(aiKey), ...legacyAiKeys]);
+    const rt = await get([
+      key("translate"), ...ids.map(transKey), aiKey("enabled"), aiKey("aiConcurrency"), transKey("aiConcurrency"),
+    ]);
     const out = {
       enabled: rt[key("translate")] === true,
-      ai: {},
+      ai: {
+        enabled: rt[aiKey("enabled")] === true,
+        aiConcurrency: globalThis.STAI.concurrency({ aiConcurrency: rt[aiKey("aiConcurrency")] ?? rt[transKey("aiConcurrency")] }),
+      },
     };
 
     for (const id of ids) {
@@ -168,22 +170,6 @@
           ? (Number.isFinite(Number(value)) ? Number(value) : def)
           : (typeof value === "string" && (id !== "local" || value.trim()) ? value : def);
     }
-    for (const id of aiIds) {
-      const def = aiDefs[id];
-      const storeKey = aiKey(id);
-      const value = id === "aiConcurrency" && !Object.hasOwn(rt, storeKey)
-        ? rt[transKey("aiConcurrency")]
-        : rt[storeKey];
-      if (typeof def === "boolean") {
-        out.ai[id] = typeof value === "boolean" ? value : def;
-      } else if (typeof def === "number") {
-        const num = Number(value);
-        out.ai[id] = Number.isFinite(num) ? num : def;
-      } else {
-        out.ai[id] = typeof value === "string" ? value : def;
-      }
-    }
-    out.ai = globalThis.STAI?.normalize?.(out.ai) || out.ai;
     if (out.service === AI_SERVICE) {
       out.select = false;
     }

@@ -10,8 +10,9 @@
  */
 ((root) => {
   "use strict";
-  if (root.STMessageCenterBridge) return;
   const model = root.STMessageCenter;
+  if (root.STMessageCenterBridge?.protocol === model.PROTOCOL) return;
+  if (root.STMessageCenterBridge) root.STMessageCenterBridge.stop();
   let active = false, refreshing = null, dirty = false, lastChange = null, snapshots = 0, pendingRevision = null, identityRevision = 0, identityDirty = false, signals = 0, generation = 0;
 
   function post(value) {
@@ -31,10 +32,11 @@
     if (!active || event.source !== root || event.origin !== root.location.origin || data?.source !== model.BRIDGE || data.side !== "page") return;
     if (typeof data.rid !== "string" || !data.rid || data.rid.length > 80 || !model.READ_ACTIONS.includes(data.action)) return;
     const snapshot = data.withUnread === true, identityAtStart = identityRevision, signalAtStart = signals, lifecycle = generation;
+    if (data.protocol !== model.PROTOCOL) { post({ rid: data.rid, success: false, error: "消息中心已更新，请重新打开 Steam Buff 界面" }); return; }
     if (snapshot) snapshots++;
     try {
       const response = await root.STMessageBus.send({
-        type: model.ROUTE, action: data.action, id: data.id, actionId: data.actionId, filter: data.filter, before: data.before, result: data.result, origin: data.origin, query: data.query, requestId: data.rid, withUnread: data.withUnread, expectedSteamAccountId: data.expectedSteamAccountId,
+        type: model.ROUTE, protocol: model.PROTOCOL, action: data.action, id: data.id, actionId: data.actionId, filter: data.filter, before: data.before, kind: data.kind, level: data.level, origin: data.origin, query: data.query, requestId: data.rid, withUnread: data.withUnread, expectedSteamAccountId: data.expectedSteamAccountId,
       }, { timeoutMs: data.action === "act" ? 120000 : 12000, logFailures: false });
       if (!active || lifecycle !== generation) return;
       if (snapshot) covered(response, identityAtStart);
@@ -77,7 +79,7 @@
         dirty = false;
         signalAtStart = signals;
         const change = lastChange, identityAtStart = identityRevision;
-        const response = await root.STMessageBus.send({ type: model.ROUTE, action: "summary", withUnread: true }, { timeoutMs: 12000, logFailures: false });
+        const response = await root.STMessageBus.send({ type: model.ROUTE, protocol: model.PROTOCOL, action: "summary", withUnread: true }, { timeoutMs: 12000, logFailures: false });
         if (!active || lifecycle !== generation) return;
         covered(response, identityAtStart);
         if (active && response.success && identityAtStart === identityRevision) post({ action: "changed", state: { ...response.value.state, ...(change ? { change } : {}) }, unreadRows: response.value.unreadRows });
@@ -106,5 +108,5 @@
     root.chrome.storage.onChanged.removeListener(onChanged);
   }
 
-  root.STMessageCenterBridge = Object.freeze({ start, stop });
+  root.STMessageCenterBridge = Object.freeze({ protocol: model.PROTOCOL, start, stop });
 })(globalThis);

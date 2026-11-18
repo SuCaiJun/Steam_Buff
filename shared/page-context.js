@@ -11,7 +11,7 @@
 ((root) => {
   "use strict";
 
-  const VERSION = "steam-buff-page-context-v3";
+  const VERSION = "steam-buff-page-context-v4";
   const CFG = root.STConfig || {};
   const MATCH = CFG.matchers || {};
   const PAGES = CFG.pages || {};
@@ -19,8 +19,9 @@
     "library-sort-title": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/home", "/library/collections", "/library/app/:appid"]),
     "library-custom-name": Object.freeze(["SharedJSContext", "backend", "property-dialog"]),
     "library-independent-name": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/home", "/library/collections"]),
-    "download-batch-actions": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/downloads", "downloads"]),
-    "download-auto-shutdown": Object.freeze(["SharedJSContext", "backend", "main-ui", "/library/downloads", "downloads"]),
+    "download-auto-shutdown": Object.freeze(["SharedJSContext", "backend"]),
+    "download-batch-actions": Object.freeze(["SharedJSContext", "backend"]),
+    "download-manager-enhancement": Object.freeze(["SharedJSContext", "backend"]),
     "player-stats": Object.freeze(["main-ui", "/library/app/:appid", "store-details", "store-app"]),
     "store-enhancements": Object.freeze([
       "store-details",

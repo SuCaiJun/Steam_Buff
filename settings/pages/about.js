@@ -187,10 +187,7 @@
       align-items: center;
       gap: 18px;
       overflow: hidden;
-      background:
-        radial-gradient(520px 160px at 0% 100%, var(--st-color-steam-blue-alpha-12), transparent 68%),
-        linear-gradient(135deg, var(--st-color-about-panel-alpha-66), var(--st-color-about-panel-dark-alpha-92));
-      box-shadow: 0 12px 30px var(--st-color-black-alpha-18);
+      background: var(--st-color-bg-card);
     }
 
     .about-hero-icon {
@@ -1168,12 +1165,11 @@
       features: text("about.backup.section.features", "功能开关"),
       uiLocale: text("about.backup.section.uiLocale", "界面语言"),
       updateCheck: text("settings.updateCheck.title", "扩展更新"),
-      familyLibrary: text("about.backup.section.familyLibrary", "家庭库刷新"),
       storePriceChart: text("about.backup.section.storePriceChart", "价格图表"),
       searchSuggestions: text("about.backup.section.searchSuggestions", "搜索联想"),
       reviewFilter: text("about.backup.section.reviewFilter", "评论过滤"),
       translate: text("about.backup.section.translate", "翻译参数"),
-      ai: text("about.backup.section.ai", "AI 参数"),
+      ai: text("about.backup.section.ai", "AI 服务"),
       thirdPartyServices: text("about.backup.section.thirdPartyServices", "第三方服务"),
     };
     const list = (sections || []).map(section => names[section] || section);

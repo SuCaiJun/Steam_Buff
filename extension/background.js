@@ -34,22 +34,35 @@
   importScripts(chrome.runtime.getURL("shared/utils/network-request.js"));
   importScripts(chrome.runtime.getURL("shared/lifecycle-prompt-contract.js"));
   importScripts(chrome.runtime.getURL("extension/background-lifecycle.js"));
-  importScripts(chrome.runtime.getURL("extension/background-update.js"));
   importScripts(chrome.runtime.getURL("vendor/fflate/fflate.js"));
   importScripts(chrome.runtime.getURL("ai/config.js"));
   importScripts(chrome.runtime.getURL("shared/price-comparison-catalog.js"));
   importScripts(chrome.runtime.getURL("shared/game-links.js"));
+  importScripts(chrome.runtime.getURL("shared/auth-session.js"));
   importScripts(chrome.runtime.getURL("settings/catalog.js"));
   importScripts(chrome.runtime.getURL("settings/membership.js"));
   importScripts(chrome.runtime.getURL("settings/storage.js"));
   importScripts(chrome.runtime.getURL("shared/achievement-translations.js"));
+  importScripts(chrome.runtime.getURL("shared/workflow-fields.js"));
+  importScripts(chrome.runtime.getURL("translate/ai-prompts.js"));
+  importScripts(chrome.runtime.getURL("ai/prompts.js"));
+  importScripts(chrome.runtime.getURL("shared/workflow-data.js"));
+  importScripts(chrome.runtime.getURL("shared/workflow.js"));
+  importScripts(chrome.runtime.getURL("shared/automation-calendar.js"));
+  importScripts(chrome.runtime.getURL("shared/automation.js"));
   importScripts(chrome.runtime.getURL("extension/background-achievements.js"));
   importScripts(chrome.runtime.getURL("shared/message-center.js"));
+  importScripts(chrome.runtime.getURL("extension/message-migration.js"));
   importScripts(chrome.runtime.getURL("extension/background-messages.js"));
+  importScripts(chrome.runtime.getURL("extension/background-update.js"));
+  importScripts(chrome.runtime.getURL("extension/background-steam-account.js"));
   importScripts(chrome.runtime.getURL("extension/background-family.js"));
+  importScripts(chrome.runtime.getURL("extension/automation-store.js"));
+  importScripts(chrome.runtime.getURL("extension/automation-schedule.js"));
+  importScripts(chrome.runtime.getURL("extension/workflow-script/client.js"));
+  importScripts(chrome.runtime.getURL("extension/background-automation.js"));
   importScripts(chrome.runtime.getURL("settings/panel-snapshot.js"));
   importScripts(chrome.runtime.getURL("settings/settings-cloud.js"));
-  importScripts(chrome.runtime.getURL("shared/auth-session.js"));
   importScripts(chrome.runtime.getURL("shared/auth-client.js"));
   importScripts(chrome.runtime.getURL("shared/user-names-snapshot.js"));
   importScripts(chrome.runtime.getURL("extension/background-settings-sync.js"));
@@ -98,6 +111,8 @@
     "shared/user-names-table.js",
     "shared/message-center.js",
     "extension/runtime/message-center-bridge.js",
+    "shared/review-regex.js",
+    "extension/runtime/automation-bridge.js",
     "extension/content.js",
   ]);
   const STEAM_LOOPBACK_GUARD_FILES = Object.freeze([
@@ -138,9 +153,20 @@
     "shared/auth-session.js",
     "shared/message-center.js",
     "extension/runtime/message-center-bridge.js",
+    "shared/review-regex.js",
+    "extension/runtime/automation-bridge.js",
   ]);
   const SETTINGS_SHARED_SCRIPTS = Object.freeze([
     "ai/config.js",
+    "shared/workflow-fields.js",
+    "shared/family-library.js",
+    "shared/achievement-translations.js",
+    "translate/ai-prompts.js",
+    "ai/prompts.js",
+    "shared/workflow-data.js",
+    "shared/workflow.js",
+    "shared/automation-calendar.js",
+    "shared/automation.js",
     "shared/client-environment.js",
     "shared/config.js",
     "shared/logger-schema.js",
@@ -151,6 +177,7 @@
     "shared/styles/theme.js",
     "shared/utils/dom.js",
     "shared/styles/components.js",
+    "shared/ui-feedback.js",
     "shared/page-context.js",
     "shared/runtime/kernel.js",
     "shared/runtime/message-bus.js",
@@ -172,6 +199,7 @@
     "shared/styles/theme.js",
     "shared/utils/dom.js",
     "shared/styles/components.js",
+    "shared/ui-feedback.js",
     "settings/ui/assets.js",
     "settings/ui/styles.js",
     "settings/ui/scroll-targets.js",
@@ -188,6 +216,7 @@
   const SETTINGS_UI_SCRIPTS = Object.freeze([
     "shared/styles/theme.js",
     "shared/styles/components.js",
+    "shared/ui-feedback.js",
     "settings/api/request.js",
     "settings/update-log-renderer.js",
     "settings/update-checker.js",
@@ -216,6 +245,9 @@
     "settings/ui/styles.js",
     "shared/dialog-lifecycle.js",
     "settings/ui/dialogs.js",
+    "settings/pages/automation-instructions.js",
+    "settings/pages/workflow-tools.js", "settings/pages/workflow-values.js", "settings/pages/automation-editor.js",
+    "settings/pages/workflow.js",
     "settings/settings-cloud-ui.js",
     "settings/ui/toast.js",
     "settings/ui/fields.js",
@@ -243,6 +275,7 @@
     "shared/errors.js",
     "shared/utils/dom.js",
     "shared/styles/components.js",
+    "shared/ui-feedback.js",
     "shared/utils/format.js",
     "shared/price-comparison-catalog.js",
     "shared/performance-monitor.js",
@@ -302,10 +335,6 @@
       "extension/runtime/qrcode.js",
       "store/features/game-links/feature.js",
       "store/features/data-display/forecast-pack.js",
-      "vendor/markdown-it/markdown-it.min.js",
-      "vendor/dompurify/purify.min.js",
-      "store/features/data-display/markdown.js",
-      "store/features/data-display/ai-forecast.js",
       "store/features/data-display/charts.js",
       "store/features/data-display/view.js",
       "store/features/data-display/feature.js",
@@ -388,6 +417,7 @@
   const STORE_INJECT_BATCH_SIZE = 16;
   // 登记加载期读取和初始化契约要求的依赖；业务启动仍等待基础脚本和当前页面模块全部就绪
   const STORE_SCRIPT_DEPENDENCIES = Object.freeze({
+    "shared/ui-feedback.js": ["shared/styles/components.js"],
     "shared/styles/components.js": ["shared/styles/theme.js", "shared/utils/dom.js"],
     "shared/utils/dom.js": ["shared/logger-factory.js"],
     "shared/page-context.js": ["shared/config.js"],
@@ -412,7 +442,7 @@
     "store/runtime/purchase-recover.js": ["store/runtime/dom.js", "shared/logger-factory.js"],
     "settings/catalog.js": ["shared/price-comparison-catalog.js", "shared/game-links.js"],
     "settings/membership.js": ["shared/logger-factory.js"],
-    "settings/storage.js": ["settings/catalog.js", "settings/membership.js", "shared/logger-factory.js", "shared/i18n.js", "shared/settings-bus.js"],
+    "settings/storage.js": ["settings/catalog.js", "settings/membership.js", "shared/auth-session.js", "shared/logger-factory.js", "shared/i18n.js", "shared/settings-bus.js"],
     "settings/ui/styles.js": ["shared/styles/components.js"],
     "settings/ui/dialogs.js": ["shared/logger-factory.js"],
     "settings/ui/toast.js": ["shared/logger-factory.js"],
@@ -420,7 +450,7 @@
     "store/features/player-stats/feature.js": ["shared/utils/player-stats.js", "shared/utils/player-stats-ui.js"],
     "store/features/game-links/feature.js": ["shared/game-links.js", "shared/utils/game-links-ui.js", "extension/runtime/qrcode.js", "store/runtime/styles.js"],
     "extension/runtime/qrcode.js": ["vendor/qrcode-generator/qrcode-generator.js"],
-    "store/features/data-display/view.js": ["store/features/data-display/charts.js", "store/features/data-display/forecast-pack.js", "store/features/data-display/ai-forecast.js"],
+    "store/features/data-display/view.js": ["store/features/data-display/charts.js", "store/features/data-display/forecast-pack.js"],
     "store/features/data-display/feature.js": ["store/features/data-display/view.js"],
     "store/features/data-display/panel.js": ["store/features/data-display/feature.js", "store/runtime/dom.js"],
     "store/features/reminders/subscription-info.js": ["store/api/subscription-info.js"],
@@ -431,7 +461,7 @@
     "store/main.js": ["store/features/features.js"],
   });
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v59";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v77";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_RUNTIME_READY_WAIT_MS = 6000;
@@ -505,7 +535,6 @@
   const AI_PERMISSION_TAB_PREFIX = "st.aiGatewayPermission.tab.v1.";
   const AI_PERMISSION_WINDOW_PREFIX = "st.aiGatewayPermission.window.v1.";
   const AI_PERMISSION_SESSION_TTL_MS = 5 * 60 * 1000;
-  const AI_STREAM_PORT = "AI_CHAT_COMPLETIONS_STREAM";
   const AI_FORECAST_SESSION_STORAGE_PREFIX = "st.aiDiscountForecast.session.v1.";
   const AI_FORECAST_SESSION_CLEANUP_ALARM = "steam-buff-ai-forecast-session-cleanup";
   const AI_FORECAST_SESSION_CLEANUP_PERIOD_MINUTES = 24 * 60;
@@ -1482,11 +1511,21 @@
     const startedAt = Date.now();
     try {
       return await globalThis.STNetworkRequest.run(timeoutMs, async (signal, check) => {
-        const response = await fetch(url, { ...init, signal });
+        let response;
+        try { response = await fetch(url, { ...init, signal }); }
+        catch (error) {
+          if (error.name === "TypeError") error.code = "NETWORK_REQUEST_FAILED";
+          throw error;
+        }
         diagnostics = { ...globalThis.STLoggerSchema.httpFacts(response), networkDurationMs: Date.now() - startedAt };
         phase = "response-read";
         const readStartedAt = Date.now();
-        const data = await response.text();
+        let data;
+        try { data = await response.text(); }
+        catch (error) {
+          if (error.name === "TypeError") error.code = "NETWORK_REQUEST_FAILED";
+          throw error;
+        }
         diagnostics.bodyLength = data.length;
         diagnostics.readDurationMs = Date.now() - readStartedAt;
         backgroundLogger("api-request").debug("api-response-details", "API 请求诊断正文", {
@@ -1678,7 +1717,7 @@
       sendResponse({ success: false, code: "AI_HOST_PERMISSION_SENDER_REJECTED", error: "AI 网关权限检查来源无效" });
       return;
     }
-    const origin = aiGatewayPermissionPattern(request?.host);
+    const origin = request.purpose === "workflow-http" && !globalThis.STWorkflow.httpUrl(request.host) ? "" : aiGatewayPermissionPattern(request?.host);
     const sourceTabId = sender?.tab?.id;
     const sourceFrameId = sender?.frameId;
     if (!origin) {
@@ -1913,7 +1952,7 @@
     }
     const requestId = aiPermissionRequestId(request?.requestId);
     const operationId = String(request?.operationId || "").slice(0, 120);
-    const origin = aiGatewayPermissionPattern(request?.host);
+    const origin = request.purpose === "workflow-http" && !globalThis.STWorkflow.httpUrl(request.host) ? "" : aiGatewayPermissionPattern(request?.host);
     const sourceTabId = sender?.tab?.id;
     const sourceFrameId = sender?.frameId;
     if (!requestId) {
@@ -1946,6 +1985,7 @@
       requestId,
       operationId,
       origin,
+      ...(request.purpose === "workflow-http" ? { purpose: "workflow-http" } : {}),
       sourceTabId,
       sourceFrameId,
       authTabId: null,
@@ -2037,7 +2077,7 @@
         sendResponse({ success: false, code: "AI_HOST_PERMISSION_SESSION_EXPIRED", error: "授权请求已失效，请返回设置中心重新发起" });
         return;
       }
-      sendResponse({ success: true, requestId, origin: session.origin, expiresAt: session.expiresAt });
+      sendResponse({ success: true, requestId, origin: session.origin, expiresAt: session.expiresAt, ...(session.purpose ? { purpose: session.purpose } : {}) });
     } catch (error) {
       logError("ai", "ai-permission-session-bind-failed", "AI 授权页面绑定失败", error, {
         operationId: session.operationId,
@@ -2463,15 +2503,21 @@
       try {
         if (!response.ok) {
           const error = new Error(httpError(response.status, text));
+          error.code = "AI_HTTP_FAILED";
           error.status = response.status;
           throw error;
         }
         phase = "parse";
-        const data = parseJson(text);
+        let data;
+        try { data = parseJson(text); }
+        catch (error) {
+          if (error.name === "SyntaxError") error.code = "AI_RESPONSE_INVALID";
+          throw error;
+        }
         check();
         phase = "validate";
-        const content = globalThis.STAI?.chatText?.(data);
-        if (!content) throw new Error("AI 响应格式异常");
+        const content = next.protocol === "responses" ? globalThis.STAI.responseText(data) : globalThis.STAI?.chatText?.(data);
+        if (!content) throw Object.assign(new Error("AI 响应格式异常"), { code: "AI_RESPONSE_INVALID" });
         return { content, status: response.status };
       } catch (error) {
         if (error && typeof error === "object" && Object.isExtensible(error)) {
@@ -2483,8 +2529,127 @@
     });
   }
 
-  function aiChat(request, sender, sendResponse) {
-    void sender;
+  const AI_PREPARED = Symbol("automation-ai-request");
+  function translationScene(sender, surface, config) {
+    if (sender?.id !== chrome.runtime.id || !Object.hasOwn(globalThis.STAI.TRANSLATION, surface))
+      throw new Error("AI 翻译请求来源无效");
+    if (surface === "news") {
+      if (!isSteamRuntimeSender(sender)) throw new Error("新闻翻译只允许 Steam 客户端访问");
+      return "steam-news";
+    }
+    const url = senderUrlObject({ url: sender.url });
+    const inherited = url?.protocol === "about:" && url.pathname === "blank";
+    const page = inherited ? senderUrlObject({ url: sender.origin }) : url;
+    if (!Number.isInteger(sender.tab?.id) || !Number.isInteger(sender.frameId) ||
+      !["http:", "https:"].includes(page?.protocol) ||
+      (!inherited && sender.origin !== undefined && sender.origin !== page.origin))
+      throw new Error("AI 翻译请求来源无效");
+    const steam = MATCH.isSteamTranslateHost(page.hostname);
+    if (!steam && config.scope !== "global") throw new Error("当前网站不在 AI 翻译范围内");
+    return steam ? "steam-content" : "web-translate";
+  }
+
+  function requireAiTask(sender, scene) {
+    const allowed = Object.hasOwn(globalThis.STAI.MANUAL_TASKS, scene) && isSteamRuntimeSender(sender);
+    if (sender?.id !== chrome.runtime.id || !allowed) throw new Error("当前入口无权执行此 AI 操作");
+  }
+
+  function serviceIdentity(service) {
+    return { serviceId: service.id, serviceRevision: service.revision, model: service.model, protocol: service.protocol };
+  }
+
+  function resolveBinding(registry, bundle, binding) {
+    const plan = globalThis.STPromptPlans.resolve(bundle, binding.promptId);
+    const service = globalThis.STAI.resolveService(registry, binding.serviceId, { bound: true });
+    const info = {
+      ...serviceIdentity(service),
+      promptId: plan.id,
+      promptRevision: globalThis.STPromptPlans.revisionKey(bundle, plan),
+      aiConcurrency: service.aiConcurrency,
+    };
+    return { service, plan, info };
+  }
+
+  async function resolveTranslation(sender, surface) {
+    await globalThis.STBackgroundAutomation.ready();
+    const storage = globalThis.STSettings.storage;
+    const config = await storage.getTranslate({ storedBindings: true });
+    const scene = translationScene(sender, surface, config);
+    const binding = globalThis.STAI.translationBinding(config, surface, scene);
+    if (binding.method !== globalThis.STAI.TRANSLATION_SERVICE)
+      throw new Error("当前翻译入口未选择 AI 翻译");
+    const [registry, bundle] = await Promise.all([storage.getAi(), storage.getWorkflow()]);
+    return resolveBinding(registry, bundle, binding);
+  }
+
+  async function resolveTask(sender, scene) {
+    requireAiTask(sender, scene);
+    await globalThis.STBackgroundAutomation.ready();
+    const storage = globalThis.STSettings.storage;
+    const [registry, bundle] = await Promise.all([storage.getAi(), storage.getWorkflow()]);
+    return resolveBinding(registry, bundle, bundle.bindings[scene]);
+  }
+
+  async function prepareAiRequest(request, sender) {
+    const storage = globalThis.STSettings.storage;
+    let { messages } = request;
+    let body, ai, plan;
+    if (request[AI_PREPARED] === true) {
+      ai = globalThis.STAI.resolveService(await storage.getAi(), request.serviceId);
+      if (ai.revision !== request.serviceRevision) throw new Error("AI 服务已变化，请重试");
+      body = request.preparedBody;
+    } else if (request.translationSurface !== undefined || request.promptTask) {
+      const translation = request.translationSurface !== undefined;
+      const resolved = translation ? await resolveTranslation(sender, request.translationSurface)
+        : await resolveTask(sender, request.promptTask);
+      ({ service: ai, plan } = resolved);
+      if (translation) {
+        for (const key of ["serviceId", "serviceRevision", "promptId", "promptRevision"])
+          if (request[key] !== resolved.info[key]) throw new Error("AI 绑定已更新，请重新发起本次操作");
+      }
+    } else {
+      if (request.action !== "test-connection" || sender?.id !== chrome.runtime.id ||
+        !(isSettingsSender(sender) || isOnboardingSender(sender)))
+        throw new Error("AI 连接测试只接受设置中心与安装引导");
+      ai = { ...request.ai, aiConcurrency: (await storage.getAiFlags()).aiConcurrency };
+    }
+    if (plan) {
+      let context = request.promptContext;
+      if (!context || typeof context !== "object" || Array.isArray(context))
+        throw new TypeError("AI 任务数据无效");
+      const task = request.translationSurface === undefined ? request.promptTask : null;
+      const prompts = globalThis.STPromptPlans;
+      const names = prompts.parameters(plan, ai.protocol);
+      const appid = Number(context.game?.appid);
+      if (task && Number.isSafeInteger(appid) && appid > 0) {
+        const required = prompts.requiredGameFields(names).filter(field => context.game?.[field.slice(5)] === undefined);
+        if (required.length) context = {
+          ...context,
+          game: { ...(await globalThis.STBackgroundAutomation.context(appid, required)).game, ...context.game },
+        };
+      }
+      const values = prompts.contextValues(names, context);
+      ({ messages, body } = prompts.prepare(plan, ai, values));
+    }
+    const prepared = globalThis.STAI.chatRequest(ai, messages, body);
+    return prepared && { ...prepared, limit: aiLimit(ai) };
+  }
+
+
+  async function fetchPreparedAi(next, url, timeoutMs, signal) {
+    if (next.body.stream !== true) return fetchAiChat(url, next, timeoutMs, signal);
+    const controller = new AbortController();
+    const cancel = () => controller.abort(signal.reason);
+    if (signal?.aborted) cancel();
+    else signal?.addEventListener("abort", cancel, { once: true });
+    try {
+      return await fetchAiChatStream(url, next, timeoutMs, controller);
+    } finally {
+      signal?.removeEventListener("abort", cancel);
+    }
+  }
+
+  async function aiChat(request, sender, sendResponse) {
     if (!aiReady) {
       sendResponse({
         success: false,
@@ -2494,74 +2659,63 @@
       return;
     }
 
-    const next = globalThis.STAI?.chatRequest?.(request.ai, request.messages);
-    if (!next) {
-      sendResponse({ success: false, code: "AI_CONFIG_INCOMPLETE", error: "AI 配置不完整" });
-      return;
-    }
-
-    let url;
-    try {
-      url = new URL(next.url);
-    } catch (error) {
-      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "ai-chat-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "aiChat" });
-      sendResponse({ success: false, error: "无效的 AI 网关地址" });
-      return;
-    }
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      sendResponse({ success: false, error: "无效的 AI 网关协议" });
-      return;
-    }
-
+    let next, url;
     const timeoutMs = capTimeout(request.timeoutMs, AI_FETCH_TIMEOUT_MS, AI_FETCH_TIMEOUT_MAX_MS);
-    const limit = aiLimit(request.ai);
-    hasAiGatewayPermission(url.toString())
-      .then((granted) => {
-        if (!granted) {
-          const error = new Error("未获得当前 AI 网关的访问权限，请在设置中心重新保存 AI 配置并允许访问");
-          error.code = "AI_HOST_PERMISSION_REQUIRED";
-          throw error;
-        }
-        return runAiLimited(limit, () => fetchAiChat(url.toString(), next, timeoutMs, request.signal), request.signal);
-      })
-      .then((res) => {
-        sendResponse({ success: true, text: res.content, status: res.status });
-      })
-      .catch((error) => {
-        const msg = error.message || String(error);
-        if (error?.name !== "AbortError") logError("ai", "request-failed", "AI 请求失败", error, {
-          operationId: request.operationId, requestId: request.requestId, phase: error.phase || "permission",
-          request: globalThis.STLoggerSchema.requestFacts({ ...next, url: url.toString(), method: "POST", timeoutMs, endpointKey: "ai-chat" }),
+    try {
+      if (request.action === "resolve-translation") {
+        const { info } = await resolveTranslation(sender, request.translationSurface);
+        sendResponse({ success: true, value: info });
+        return;
+      }
+      if (request.action === "resolve-task") {
+        const { info } = await resolveTask(sender, request.promptTask);
+        sendResponse({ success: true, value: info });
+        return;
+      }
+      next = await prepareAiRequest(request, sender);
+      if (!next) throw Object.assign(new Error("AI 配置不完整"), { code: "AI_CONFIG_INCOMPLETE" });
+      url = new URL(next.url);
+      if (!(await hasAiGatewayPermission(url.toString())))
+        throw Object.assign(
+          new Error("未获得当前 AI 网关的访问权限，请在设置中心重新保存 AI 配置并允许访问"),
+          { code: "AI_HOST_PERMISSION_REQUIRED" },
+        );
+      const result = await runAiLimited(
+        next.limit,
+        () => fetchPreparedAi(next, url.toString(), timeoutMs, request.signal),
+        request.signal,
+      );
+      sendResponse({ success: true, text: result.content, status: result.status });
+    } catch (error) {
+      if (error?.name === "SyntaxError") globalThis.STLoggerSchema.markJsonError(error);
+      if (error?.name !== "AbortError")
+        logError("ai", "request-failed", "AI 请求失败", error, {
+          operationId: request.operationId,
+          requestId: request.requestId,
+          phase: error.phase || "prepare",
+          ...(url
+            ? {
+                request: globalThis.STLoggerSchema.requestFacts({
+                  ...next,
+                  url: url.toString(),
+                  method: "POST",
+                  timeoutMs,
+                  endpointKey: "ai-chat",
+                }),
+              }
+            : {}),
           response: error.diagnostics,
         });
-        sendResponse({ success: false, code: error?.code || "AI_REQUEST_FAILED", error: msg });
+      if (request[AI_PREPARED] === true) throw error;
+      sendResponse({
+        success: false,
+        code: error?.code || "AI_REQUEST_FAILED",
+        error: String(error.message || error),
       });
-  }
-
-  function validAiStreamMessages(messages) {
-    const roles = new Set(["system", "user", "assistant"]);
-    return Array.isArray(messages)
-      && messages.length > 0
-      && messages.every(message => (
-        message
-        && typeof message === "object"
-        && roles.has(String(message.role || ""))
-        && typeof message.content === "string"
-        && message.content.trim().length > 0
-      ));
-  }
-
-  function streamPortPost(port, payload) {
-    try {
-      port.postMessage(payload);
-      return true;
-    } catch (error) {
-      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "stream-port-post-failed", message: "发送 AI 流式结果失败", level: "warn", phase: "streamPortPost" });
-      return false;
     }
   }
 
-  function parseAiStreamEvent(block) {
+  function parseAiStreamEvent(block, protocol = "chat-completions") {
     const dataText = String(block || "")
       .split(/\r?\n/)
       .filter(line => line.startsWith("data:"))
@@ -2569,20 +2723,26 @@
       .join("\n")
       .trim();
     if (!dataText) return { done: false, text: "" };
-    if (dataText === "[DONE]") return { done: true, text: "" };
-    const data = parseJson(dataText);
+    if (dataText === "[DONE]" && protocol === "chat-completions") return { done: true, text: "" };
+    let data;
+    try { data = parseJson(dataText); }
+    catch (error) {
+      if (error.name === "SyntaxError") error.code = "AI_STREAM_EVENT_INVALID";
+      throw error;
+    }
     if (!data) {
       const error = new Error("AI 流式响应格式异常");
       error.code = "AI_STREAM_EVENT_INVALID";
       throw error;
     }
+    if (protocol === "responses") return globalThis.STAI.responseEvent(data);
     return {
       done: false,
       text: globalThis.STAI?.chatDelta?.(data) || "",
     };
   }
 
-  async function fetchAiChatStream(url, next, timeoutMs, controller, onDelta) {
+  async function fetchAiChatStream(url, next, timeoutMs, controller) {
     const timeout = normalizeTimeout(timeoutMs, 0);
     const timer = timeout > 0
       ? setTimeout(() => controller.abort(timeoutError(timeout)), timeout)
@@ -2591,14 +2751,18 @@
     let phase = "network";
     let diagnostics;
     try {
-      const response = await fetch(url, {
+      let response;
+      try { response = await fetch(url, {
         method: "POST",
         headers: next.headers,
         body: JSON.stringify(next.body),
         cache: "no-cache",
         credentials: "omit",
         signal: controller.signal,
-      });
+      }); } catch (error) {
+        if (error.name === "TypeError") error.code = "NETWORK_REQUEST_FAILED";
+        throw error;
+      }
       diagnostics = globalThis.STLoggerSchema.httpFacts(response);
       phase = "http";
       if (!response.ok) {
@@ -2619,25 +2783,28 @@
       const decoder = new TextDecoder();
       let buffer = "";
       let content = "";
-      let chunks = 0;
       let finished = false;
 
       const consume = (block) => {
         phase = "parse";
-        const event = parseAiStreamEvent(block);
+        const event = parseAiStreamEvent(block, next.protocol);
         if (event.done) {
+          if (event.finalText !== undefined) content = event.finalText;
           finished = true;
           return;
         }
         if (!event.text) return;
         content += event.text;
-        chunks += 1;
-        onDelta(event.text);
       };
 
       while (!finished) {
         phase = "response-read";
-        const part = await reader.read();
+        let part;
+        try { part = await reader.read(); }
+        catch (error) {
+          if (error.name === "TypeError") error.code = "NETWORK_REQUEST_FAILED";
+          throw error;
+        }
         if (part.done) break;
         buffer += decoder.decode(part.value, { stream: true });
         let boundary = /\r?\n\r?\n/.exec(buffer);
@@ -2650,6 +2817,8 @@
       }
       buffer += decoder.decode();
       if (!finished && buffer.trim()) consume(buffer);
+      if (next.protocol === "responses" && !finished)
+        throw Object.assign(new Error("Responses 流在完成事件前关闭"), { code: "AI_RESPONSE_INVALID" });
       if (!content.trim()) {
         const error = new Error("AI 流式响应没有返回文本");
         error.code = "AI_STREAM_TEXT_EMPTY";
@@ -2662,139 +2831,17 @@
           globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "fetch-ai-chat-stream-failed", message: "清理 AI 流式请求失败", level: "warn", phase: "fetchAiChatStream" });
         }
       }
-      return { content, chunks, status: response.status };
+      return { content, status: response.status };
     } catch (error) {
-      if (error && typeof error === "object" && Object.isExtensible(error)) {
-        error.phase = phase;
-        error.diagnostics = diagnostics;
+      const failure = controller.signal.aborted ? controller.signal.reason : error;
+      if (failure && typeof failure === "object" && Object.isExtensible(failure)) {
+        failure.phase = phase;
+        failure.diagnostics = diagnostics;
       }
-      throw error;
+      throw failure;
     } finally {
       if (timer) clearTimeout(timer);
     }
-  }
-
-  function aiStreamConnect(port) {
-    if (port?.name !== AI_STREAM_PORT) return;
-    const controller = new AbortController();
-    let started = false;
-    let disconnected = false;
-
-    port.onDisconnect.addListener(() => {
-      disconnected = true;
-      if (!controller.signal.aborted) controller.abort(new Error("AI 流式通道已断开"));
-    });
-
-    port.onMessage.addListener((request = {}) => {
-      if (started) {
-        streamPortPost(port, { event: "error", code: "AI_STREAM_ALREADY_STARTED", error: "流式通道已经开始请求" });
-        return;
-      }
-      started = true;
-      const startedAt = Date.now();
-      const requestId = String(request.requestId || "").trim();
-      const operationId = String(request.operationId || "").trim();
-      const model = String(globalThis.STAI?.normalize?.(request.ai)?.model || "");
-      const fail = (code, error, status = 0) => {
-        if (disconnected) return;
-        streamPortPost(port, {
-          event: "error",
-          code,
-          error,
-          status,
-          requestId,
-          operationId,
-        });
-      };
-
-      if (!aiReady) {
-        fail("AI_CONFIG_LOAD_FAILED", aiLoadError ? `AI 配置脚本加载失败：${aiLoadError}` : "AI 配置脚本未就绪");
-        return;
-      }
-      if (!validAiStreamMessages(request.messages)) {
-        fail("AI_MESSAGES_INVALID", "AI 对话上下文格式无效");
-        return;
-      }
-
-      const next = globalThis.STAI?.chatStreamRequest?.(request.ai, request.messages);
-      if (!next) {
-        fail("AI_CONFIG_INCOMPLETE", "AI 配置不完整");
-        return;
-      }
-      let url;
-      try {
-        url = new URL(next.url);
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "ai-stream-connect-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "aiStreamConnect", operationId, requestId });
-        fail("AI_URL_INVALID", "无效的 AI 网关地址");
-        return;
-      }
-      if (url.protocol !== "http:" && url.protocol !== "https:") {
-        fail("AI_URL_PROTOCOL_INVALID", "无效的 AI 网关协议");
-        return;
-      }
-
-      const timeoutMs = capTimeout(request.timeoutMs, AI_FETCH_TIMEOUT_MAX_MS, AI_FETCH_TIMEOUT_MAX_MS);
-      const limit = aiLimit(request.ai);
-      hasAiGatewayPermission(url.toString()).then((granted) => {
-        if (!granted) {
-          const error = new Error("未获得当前 AI 网关的访问权限，请在设置中心重新保存 AI 配置并允许访问");
-          error.code = "AI_HOST_PERMISSION_REQUIRED";
-          throw error;
-        }
-        backgroundLogger("ai").info("ai-stream-request-start", "AI 流式请求开始", {
-          operationId,
-          requestId,
-          model,
-          messageCount: request.messages.length,
-        });
-        streamPortPost(port, { event: "start", requestId, operationId });
-        return runAiLimited(limit, () => fetchAiChatStream(
-          url.toString(),
-          next,
-          timeoutMs,
-          controller,
-          chunk => {
-            if (!streamPortPost(port, { event: "delta", text: chunk, requestId, operationId })) {
-              throw new Error("AI 流式通道已断开");
-            }
-          }
-        ));
-      }).then((result) => {
-        if (disconnected) return;
-        backgroundLogger("ai").info("ai-stream-request-success", "AI 流式请求完成", {
-          operationId,
-          requestId,
-          model,
-          status: result.status,
-          chunkCount: result.chunks,
-          durationMs: Date.now() - startedAt,
-          debugData: () => ({ request: { url: url.toString(), headers: next.headers, body: next.body }, response: result }),
-        });
-        streamPortPost(port, {
-          event: "done",
-          text: result.content,
-          status: result.status,
-          requestId,
-          operationId,
-        });
-      }).catch((error) => {
-        if (disconnected) return;
-        const message = error?.message || String(error);
-        logError("ai", "ai-stream-request-failed", "AI 流式请求失败", error, {
-          operationId,
-          requestId,
-          model,
-          status: Number(error?.status) || 0,
-          phase: error.phase || "permission",
-          request: globalThis.STLoggerSchema.requestFacts({ ...next, url: url.toString(), method: "POST", timeoutMs, endpointKey: "ai-chat-stream" }),
-          response: error.diagnostics,
-          durationMs: Date.now() - startedAt,
-          debugData: () => ({ request: { url: url.toString(), headers: next.headers, body: next.body }, response: error.diagnostics, error }),
-        });
-        fail(error?.code || error?.name || "AI_STREAM_FAILED", message, Number(error?.status) || 0);
-      });
-    });
   }
 
   function storageLocalEntries() {
@@ -2982,6 +3029,106 @@
     return hasSteamSharedContextMarker(url) || isAllowedSteamLoopbackPath(url);
   }
 
+  async function verifyAutomationNative(sender) {
+    if (
+      sender?.id !== chrome.runtime.id ||
+      !isSteamRuntimeSender(sender) ||
+      !Number.isInteger(sender.tab?.id) ||
+      !Number.isInteger(sender.frameId)
+    )
+      throw new Error("自动化原生入口来源无效");
+    const results = await execScript({
+      target: { tabId: sender.tab.id, frameIds: [sender.frameId] },
+      world: "MAIN",
+      func: () =>
+        document.title === "SharedJSContext" &&
+        typeof window.SteamClient?.Apps?.GetMyAchievementsForApp === "function" &&
+        typeof window.appStore?.GetAppOverviewByAppID === "function",
+    });
+    if (results[0]?.result !== true) throw new Error("自动化只接受真实 SharedJSContext 数据入口");
+  }
+
+  function automationNative(frame, action, value = {}) {
+    return new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(
+        frame.tabId,
+        {
+          type: "STEAM_AUTOMATION_NATIVE",
+          action,
+          value,
+          rid: `automation-command-${crypto.randomUUID()}`,
+        },
+        { frameId: frame.frameId },
+        (response) => {
+          const error = chrome.runtime.lastError;
+          if (error) {
+            reject(new Error(error.message));
+            return;
+          }
+          if (response?.success !== true) {
+            reject(Object.assign(new Error(response?.error || "Steam 自动化入口未响应"), response?.code ? { code: response.code } : {}));
+            return;
+          }
+          resolve(response.value);
+        },
+      );
+    });
+  }
+
+  async function automationRoute(request, sender, sendResponse) {
+    const nativeActions = ["native-ready", "events"];
+    const onboardingAiSave = request.action === "save-ai-services" && isOnboardingSender(sender);
+    if (
+      sender?.id !== chrome.runtime.id ||
+      !(isSettingsSender(sender) || isSteamRuntimeSender(sender) || onboardingAiSave) ||
+      (nativeActions.includes(request.action) && !isSteamRuntimeSender(sender)) ||
+      (["test-instruction", "cancel-instruction-test"].includes(request.action) && !isSettingsSender(sender))
+    )
+      throw new Error("自动化请求来源无效");
+    try {
+      const automation = globalThis.STBackgroundAutomation;
+      sendResponse({
+        success: true,
+        value: onboardingAiSave ? await automation.configureAi(request, { onboardingOnly: true })
+          : await automation.execute(request, sender),
+      });
+    } catch (error) {
+      if (error.name === "SyntaxError") globalThis.STLoggerSchema.markJsonError(error);
+      globalThis.STLoggerFactory.reportError(error, {
+        domain: "extension",
+        feature: "automation",
+        event: "automation-request-failed",
+        message: "自动化操作失败",
+        operationId: request.operationId,
+        phase: request.action,
+      });
+      sendResponse({
+        success: false,
+        error: error.name === "SyntaxError" ? "JSON 格式无效，请检查高级配置" : error.message,
+      });
+    }
+  }
+
+  /** 一次预览使用一条 Port，不挂起长时间 sendResponse；关闭页面沿原取消路径结束 */
+  function automationPreviewConnect(port) {
+    if (port.name !== STAutomation.PREVIEW_CHANNEL) return;
+    const sender = port.sender;
+    if (sender?.id !== chrome.runtime.id || !isSettingsSender(sender) || typeof sender.documentId !== "string") { port.disconnect(); return; }
+    let id = null, disconnected = false, done = false;
+    port.onDisconnect.addListener(() => {
+      disconnected = true;
+      if (id && !done) void automationRoute({ action: "cancel-instruction-test", id }, sender, () => {});
+    });
+    port.onMessage.addListener(request => {
+      if (id !== null || typeof request?.id !== "string" || !request.id) { port.disconnect(); return; }
+      id = request.id;
+      void automationRoute({ ...request, action: "test-instruction" }, sender, response => {
+        done = true;
+        if (!disconnected) port.postMessage(response);
+      });
+    });
+  }
+
   function contentBundle(request, sender) {
     const bundle = String(request?.bundle || "").trim();
     switch (bundle) {
@@ -3004,26 +3151,32 @@
     }
   }
 
-  // 发布仅供扩展自身入口；Steam 页面桥只允许读取和处理已有提醒。
+  // 页面桥只允许读取和处理已有消息；发送仅由后台注册模块的句柄完成。
   async function messageCenter(request, sender, sendResponse) {
     const url = senderUrlObject(sender);
     const ownPage = url?.protocol === "chrome-extension:" && url.hostname === chrome.runtime.id;
     if (sender.id !== chrome.runtime.id || (!ownPage && !isSteamRuntimeSender(sender))) throw new Error("消息中心来源无效");
-    if (request.action === "publish" && !ownPage) throw new Error("当前页面不能发布消息");
+    if (request.protocol !== globalThis.STMessageCenter.PROTOCOL) throw new Error("消息中心已更新，请重新打开 Steam Buff 界面");
+    if (!globalThis.STMessageCenter.READ_ACTIONS.includes(request.action)) throw new Error("消息中心操作无效");
     if (request.withUnread !== undefined && typeof request.withUnread !== "boolean") throw new TypeError("消息快照参数无效");
     if (request.expectedSteamAccountId !== undefined && request.expectedSteamAccountId !== null && (typeof request.expectedSteamAccountId !== "string" || !/^\d{17}$/.test(request.expectedSteamAccountId))) throw new TypeError("消息账号前置条件无效");
-    const binding = await globalThis.STBackgroundFamily.identity();
+    const binding = await globalThis.STBackgroundSteamAccount.identity();
     if (request.expectedSteamAccountId !== undefined && request.expectedSteamAccountId !== binding.steamAccountId) throw new Error("Steam 账号已变化，请重新打开消息中心");
-    if (!globalThis.STBackgroundFamily.current(binding)) throw new Error("Steam 账号已变化，请重新打开消息中心");
-    await globalThis.STBackgroundMessages.observeFamilyIdentity(binding.accountError === undefined ? "" : binding.accountError);
+    if (!globalThis.STBackgroundSteamAccount.current(binding)) throw new Error("Steam 账号已变化，请重新打开消息中心");
     const previewOnly = request.action === "summary" && request.withUnread === true;
     let value = await globalThis.STBackgroundMessages.execute(previewOnly ? { action: "list", filter: "unread" } : request, binding.steamAccountId);
+    // 业务动作或终止等待可能跨越异步执行；向原窗口返回前复核账号
+    if (["act", "delete", "delete-all"].includes(request.action)) {
+      const latest = await globalThis.STBackgroundSteamAccount.identity();
+      if (latest.steamAccountId !== binding.steamAccountId || !globalThis.STBackgroundSteamAccount.current(binding))
+        throw new Error("Steam 账号已变化，请重新打开消息中心");
+    }
     // 状态与未读页来自同一事务；处理后的列表复用本次会话绑定，不再发起第二次登录核验。
     if (request.withUnread === true) {
       const snapshot = previewOnly ? value : await globalThis.STBackgroundMessages.execute({ action: "list", filter: "unread" }, binding.steamAccountId);
       value = { ...(previewOnly ? {} : value), state: snapshot.state, unreadRows: snapshot.rows };
     }
-    if (!globalThis.STBackgroundFamily.current(binding)) throw new Error("Steam 账号已变化，请重新打开消息中心");
+    if (!globalThis.STBackgroundSteamAccount.current(binding)) throw new Error("Steam 账号已变化，请重新打开消息中心");
     value.state = { ...value.state, steamAccountId: binding.steamAccountId, ...(binding.accountError ? { accountError: binding.accountError } : {}) };
     sendResponse({ success: true, value });
   }
@@ -3488,7 +3641,13 @@
       return;
     }
     try {
-      const settings = await globalThis.STSettings.storage.getPanelSettings();
+      const storage = globalThis.STSettings.storage;
+      const [features, translate] = await Promise.all([storage.getAll(), storage.getTranslate()]);
+      const settings = { features, translate };
+      if (request.action === "load") {
+        await globalThis.STBackgroundAutomation.ready();
+        [settings.ai, settings.workflow] = await Promise.all([storage.getAi(), storage.getWorkflow()]);
+      }
       const data = await globalThis.STAchievementTranslationStore.execute(request, settings,
         input => new Promise(resolve => aiChat(input, sender, resolve)));
       sendResponse({ success: true, data });
@@ -3750,6 +3909,7 @@
     AI_TRANSLATE_CACHE_SET: cacheSet,
     ACHIEVEMENT_TRANSLATIONS: achievementTranslations,
     MESSAGE_CENTER: messageCenter,
+    AUTOMATION: automationRoute,
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: openOnboardingLocalPage,
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: openOnboardingSettings,
     SETTINGS_CLOUD_SYNC: globalThis.STBackgroundSettingsSync.handleMessage,
@@ -3801,10 +3961,52 @@
     }
     return false;
   });
-  chrome.runtime.onConnect.addListener(aiStreamConnect);
+  chrome.runtime.onConnect.addListener(automationPreviewConnect);
   globalThis.STBackgroundUpdate.start();
   globalThis.STBackgroundLifecycle.start();
-  globalThis.STBackgroundFamily.start();
+  void globalThis.STSettings.storage.initializeDownloadToolbar().catch(error =>
+    backgroundLogger("background-runtime").error("download-toolbar-settings-migration-failed", "下载工具栏设置迁移失败", { error }));
+  globalThis.STBackgroundAutomation.start({
+    native: automationNative,
+    verifyNative: verifyAutomationNative,
+    nativeFrameCommand: async (action, value) => {
+      const frame = (await chrome.storage.session.get("st.automation.native-frame.v1"))[
+        "st.automation.native-frame.v1"
+      ];
+      if (!frame) throw new Error("Steam 自动化数据入口尚未就绪");
+      return automationNative(frame, action, value);
+    },
+    ai: (input) => new Promise((resolve, reject) => {
+      void aiChat({ ...input, [AI_PREPARED]: true }, {}, resolve).catch(reject);
+    }),
+    taskContext: async (required) => {
+      const binding = await globalThis.STBackgroundSteamAccount.identity();
+      const fields = { logged_in: !!binding.steamAccountId };
+      if (binding.steamAccountId && required.includes("has_family")) {
+        const model = globalThis.STFamilyLibrary,
+          data = await chrome.storage.local.get([
+            model.PREFIX + binding.steamAccountId,
+            model.LEGACY_CACHE,
+            model.LEGACY_STATE,
+          ]),
+          record = model.record(data, binding.steamAccountId);
+        if (record.unavailable) fields.has_family = false;
+        else if (record.cache) fields.has_family = true;
+      }
+      return { fields, labels: {} };
+    },
+    showNotification: async (id) => {
+      const frame = (await chrome.storage.session.get("st.automation.native-frame.v1"))[
+        "st.automation.native-frame.v1"
+      ];
+      if (!frame) throw new Error("Steam 消息中心入口已关闭");
+      return automationNative(frame, "show-notification", { id });
+    },
+    family: (job, node, commit, signal) =>
+      globalThis.STBackgroundFamily.refresh({
+        expectedOwner: job.owner || null, requestTimeoutSeconds: node.requestTimeoutSeconds, commit, signal,
+      }),
+  });
   globalThis.addEventListener("error", event => globalThis.STLoggerFactory.reportError(event.error || event.message, {
     domain: "extension", feature: "background-runtime", event: "background-unhandled-error", message: "后台未捕获异常",
   }));
@@ -3830,6 +4032,8 @@
             { error: lifecycleError },
           );
         }
+        if (details?.reason === "update")
+          await globalThis.STBackgroundAutomation.restoreReleasedDefaults(details.previousVersion);
         await retireSteamLoopbackRecovery();
         injectSoon();
         if (details?.reason === "install") openOnboardingPage();

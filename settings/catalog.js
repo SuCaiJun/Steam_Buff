@@ -305,31 +305,6 @@
     },
   ]);
 
-  const FAMILY_LIBRARY_DEFAULTS = Object.freeze({
-    refreshInterval: "1d",
-    autoRefresh: true,
-  });
-
-  const FAMILY_LIBRARY_FIELDS = Object.freeze([
-    {
-      type: "select",
-      key: "refreshInterval",
-      label: "更新时间",
-      options: Object.freeze([
-        { value: "1d", label: "1天" },
-        { value: "3d", label: "3天" },
-        { value: "7d", label: "7天" },
-        { value: "30d", label: "30天" },
-        { value: "manual", label: "手动" },
-      ]),
-    },
-    {
-      type: "switch",
-      key: "autoRefresh",
-      label: "自动更新",
-    },
-  ]);
-
   const THIRD_PARTY_SERVICES_DEFAULTS = Object.freeze({
     enabled: false,
     defaultProvider: "isthereanydeal",
@@ -380,21 +355,21 @@
     "features",
     "uiLocale",
     "updateCheck",
-    "familyLibrary",
     "storePriceChart",
     "gameLinks",
     "searchSuggestions",
     "reviewFilter",
     "translate",
     "ai",
+    "workflow",
     "thirdPartyServices",
   ]);
   const PANEL_STORAGE_PREFIXES = Object.freeze([
     "st.settings.translate.",
     "st.settings.ai.",
+    "st.settings.workflow.",
     "st.settings.reviewFilter.",
     "st.settings.searchSuggestions.",
-    "st.settings.familyLibrary.",
     "st.settings.thirdPartyServices.",
   ]);
 
@@ -534,7 +509,6 @@
           help: "家庭组已有游戏标记",
           area: "store",
           enabled: true,
-          panel: "family-library",
           panelPosition: "before",
           children: Object.freeze([
             {
@@ -925,6 +899,7 @@
           name: "自定义游戏名称",
           desc: "库列表优先显示自定义排序名称，并在 Steam 自定义页提供名称管理工具",
           help: "自定义游戏名称",
+          aiTasks: ["game-name"],
           area: "steam",
           enabled: true,
           children: Object.freeze([
@@ -996,9 +971,18 @@
         },
         {
           id: "download-auto-shutdown",
-          name: "下载完成自动关机",
-          desc: "下载队列完成后延迟1分钟执行关机动作",
-          help: "下载完成自动关机",
+          name: "下载完成后关机",
+          desc: "在下载菜单中手动勾选。本机下载完成后等待 60 秒，可在倒计时内取消。",
+          help: "下载完成后关机",
+          area: "steam",
+          enabled: true,
+          deps: depAll(["download-manager-enhancement"]),
+        },
+        {
+          id: "download-manager-enhancement",
+          name: "下载管理增强",
+          desc: "在 Steam 下载页显示下载管理工具栏",
+          help: "下载管理增强",
           area: "steam",
           enabled: true,
         },
@@ -1016,6 +1000,7 @@
           name: "成就翻译",
           desc: "在新版成就页面管理手动或 AI 译文，本机长期保存；已保存的译文也用于库页动态、成就卡片和原生成就通知。",
           area: "steam",
+          aiTasks: ["achievement", "achievement-group"],
           enabled: true,
         },
         {
@@ -1054,28 +1039,13 @@
       ]),
     },
     {
-      id: "ai",
-      name: "AI服务",
-      desc: "大模型网关、模型和密钥配置。",
-      help: "AI服务",
-      kind: "ai",
-      items: Object.freeze([
-        {
-          id: "ai",
-          name: "AI模块",
-          desc: "控制 AI 设置分类和 AI 服务配置是否启用。",
-          area: "settings",
-          enabled: false,
-        },
-      ]),
-    },
-    {
       id: "third-party-services",
       name: "第三方服务",
-      desc: "管理外部数据服务密钥和连接测试。",
+      desc: "管理 AI 连接和第三方数据服务。",
       help: "第三方服务",
       kind: "third-party-services",
       items: Object.freeze([
+        { id: "ai", name: "AI 模块", desc: "控制 AI 请求是否可用。", area: "settings", enabled: false },
         {
           id: "third-party-services",
           name: "第三方服务配置",
@@ -1084,14 +1054,6 @@
           area: "settings",
           enabled: false,
         },
-      ]),
-    },
-    {
-      id: "third-party",
-      name: "第三方相关",
-      desc: "第三方集成、开源脚本和外部服务增强。",
-      help: "第三方相关",
-      items: Object.freeze([
         {
           id: "purchase-history-classifier",
           name: "消费历史分类器",
@@ -1273,7 +1235,7 @@
   }
 
   function translateDefaults() {
-    return { ...TRANSLATE_DEFAULTS };
+    return { ...TRANSLATE_DEFAULTS, ...globalThis.STAI.translationDefaults() };
   }
 
   function translateFields() {
@@ -1296,16 +1258,8 @@
     return localizedFields(SEARCH_SUGGESTION_FIELDS, "searchSuggestions");
   }
 
-  function familyLibraryDefaults() {
-    return { ...FAMILY_LIBRARY_DEFAULTS };
-  }
-
-  function familyLibraryFields() {
-    return localizedFields(FAMILY_LIBRARY_FIELDS, "familyLibrary");
-  }
-
   function aiDefaults() {
-    return globalThis.STAI?.defaults?.() || {};
+    return globalThis.STAI.normalizeServices();
   }
 
   function aiFields() {
@@ -1344,9 +1298,6 @@
     if (name === "updateCheck") {
       return { hours: globalThis.STConfig.updates.defaultHours };
     }
-    if (name === "familyLibrary") {
-      return familyLibraryDefaults();
-    }
     if (name === "storePriceChart") {
       return storePriceChartDefaults();
     }
@@ -1363,7 +1314,10 @@
       return translateDefaults();
     }
     if (name === "ai") {
-      return aiDefaults();
+      return globalThis.STAI.normalizeServices();
+    }
+    if (name === "workflow") {
+      return globalThis.STAutomation.defaults();
     }
     if (name === "thirdPartyServices") {
       return thirdPartyServicesDefaults();
@@ -1408,8 +1362,6 @@
     reviewFilterFields,
     searchSuggestionDefaults,
     searchSuggestionFields,
-    familyLibraryDefaults,
-    familyLibraryFields,
     aiDefaults,
     aiFields,
     thirdPartyServicesDefaults,

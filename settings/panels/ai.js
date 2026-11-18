@@ -11,7 +11,6 @@
 ((root) => {
   "use strict";
 
-  const AI_SERVICE = "steam-buff.ai";
   const AI_GATEWAY_PERMISSION_CHECK = "AI_GATEWAY_PERMISSION_CHECK";
   const AI_GATEWAY_PERMISSION_REQUEST = "AI_GATEWAY_PERMISSION_REQUEST";
   const AI_GATEWAY_PERMISSION_OPEN = "AI_GATEWAY_PERMISSION_OPEN";
@@ -32,161 +31,21 @@
     return root.STSettingsHtml?.[name] || ((text) => String(text ?? ""));
   }
 
-  function normalize(values) {
-    return root.STAI?.normalize?.(values) || { ...(values || {}) };
-  }
-
   function create(options = {}) {
     const esc = fallback(options.esc, "esc");
-    const fieldInput = typeof options.fieldInput === "function"
-      ? options.fieldInput
-      : (...args) => root.STSettingsFields?.fieldInput?.(...args) || "";
-    const dialog = typeof options.dialog === "function" ? options.dialog : () => Promise.resolve("");
-    const savePrompt = typeof options.savePrompt === "function" ? options.savePrompt : () => Promise.resolve();
-    const storage = options.storage || root.STSettings?.storage || {};
-    const onConfigChange = typeof options.onConfigChange === "function" ? options.onConfigChange : () => {};
-    const onRenderRequest = typeof options.onRenderRequest === "function" ? options.onRenderRequest : () => {};
-    const getTranslateConfig = typeof options.getTranslateConfig === "function" ? options.getTranslateConfig : () => ({});
-    const getFields = typeof options.getFields === "function"
-      ? options.getFields
-      : () => options.catalog?.aiFields?.() || root.STSettings?.catalog?.aiFields?.() || [];
-    let conf = normalize(options.config || {});
-    let persistedConf = normalize(conf);
-    let publishingConfig = false;
+    const fieldInput = options.fieldInput || root.STSettingsFields.fieldInput;
+    const dialog = options.dialog || root.STSettingsDialogs.dialog;
+    const storage = options.storage || root.STSettings.storage;
+    const ai = root.STAI;
+    let conf, busy = false;
+    setConfig(options.config);
 
     function uiText(key, fallback, params) {
       return root.STI18n.text(key, fallback, params);
     }
 
-    function showSavePrompt(shadow, operationId) {
-      void Promise.resolve()
-        .then(() => savePrompt(shadow))
-        .catch((error) => {
-          log.warn("ai-config-save-prompt-failed", "AI 配置已保存，但成功提示显示失败", {
-            operationId,
-            error,
-          });
-        });
-    }
-
     function setConfig(next) {
-      conf = normalize(next || {});
-      if (!publishingConfig) {
-        persistedConf = normalize(conf);
-      }
-    }
-
-    function publishConfig() {
-      publishingConfig = true;
-      try {
-        onConfigChange(conf);
-      } finally {
-        publishingConfig = false;
-      }
-    }
-
-    function getConfig() {
-      return { ...conf };
-    }
-
-    function setEnabled(enabled) {
-      conf = normalize({ ...conf, enabled });
-      persistedConf = normalize(conf);
-      publishConfig();
-      return getConfig();
-    }
-
-    function restoreInputs(shadow) {
-      shadow.querySelectorAll("[data-ai]").forEach((node) => {
-        const id = node.dataset.ai;
-        if (!id) return;
-        if (node.type === "checkbox") {
-          node.checked = conf[id] === true;
-          return;
-        }
-        node.value = String(conf[id] ?? "");
-      });
-    }
-
-    function setInputsDisabled(shadow, disabled) {
-      shadow.querySelectorAll("[data-ai]").forEach((node) => {
-        node.disabled = disabled;
-      });
-    }
-
-    function restoreSavedState(shadow, previous, operationId) {
-      conf = normalize(previous);
-      publishConfig();
-      restoreInputs(shadow);
-      void Promise.resolve()
-        .then(() => onRenderRequest(shadow))
-        .catch((error) => {
-          log.warn("ai-config-restore-render-failed", "AI 配置已回滚，但设置面板刷新失败", {
-            operationId,
-            error,
-          });
-        });
-    }
-
-    function input(field) {
-      if (field.type === "select") {
-        const value = String(conf[field.key] ?? "");
-        return fieldInput({
-          field,
-          value,
-          dataset: "data-ai",
-          className: "settings-control",
-        });
-      }
-      if (field.type === "checkbox") {
-        const checked = conf[field.key] === true;
-        return fieldInput({
-          field,
-          value: checked,
-          dataset: "data-ai",
-          checkClass: "settings-check",
-        });
-      }
-      const value = String(conf[field.key] ?? "");
-      return fieldInput({
-        field,
-        value,
-        dataset: "data-ai",
-        className: "settings-control",
-      });
-    }
-
-    function fieldVisible(field) {
-      const mode = String(conf.keyMode || "none");
-      if (field.key === "key") {
-        return mode !== "none";
-      }
-      if (field.key === "keyName") {
-        return mode === "header" || mode === "param";
-      }
-      return true;
-    }
-
-    function read(shadow) {
-      const next = {};
-      shadow.querySelectorAll("[data-ai]").forEach((node) => {
-        const id = node.dataset.ai;
-        if (!id) return;
-        next[id] = node.type === "checkbox" ? node.checked : node.value;
-      });
-      return next;
-    }
-
-    function aiUsers() {
-      const trans = getTranslateConfig() || {};
-      const out = [];
-      if (trans.service === AI_SERVICE) {
-        out.push(uiText("settings.ai.user.translation", "翻译"));
-      }
-      if (trans.selectionService === AI_SERVICE) {
-        out.push(uiText("settings.ai.user.selection", "划词翻译"));
-      }
-      return out;
+      conf = next?.unavailable === true ? null : ai.normalizeServices(next);
     }
 
     function aiTestMessages() {
@@ -206,6 +65,7 @@
       if (globalThis.STMessageBus?.ready && globalThis.STMessageBus?.send) {
         return globalThis.STMessageBus.send({
           type: "AI_CHAT_COMPLETIONS",
+          action: "test-connection",
           operationId,
           ai: testConf,
           messages: aiTestMessages(),
@@ -216,6 +76,7 @@
       return new Promise((resolve, reject) => {
         chrome.runtime.sendMessage({
           type: "AI_CHAT_COMPLETIONS",
+          action: "test-connection",
           operationId,
           ai: testConf,
           messages: aiTestMessages(),
@@ -256,7 +117,7 @@
     }
 
     function beginPermissionWait(shadow) {
-      const card = shadow.querySelector("[data-ai-card]");
+      const card = shadow.querySelector("[data-ai-modal]") || shadow.querySelector("[data-ai-card]");
       const overlay = card?.querySelector("[data-ai-permission-wait]");
       if (!card || !overlay) return () => {};
       const controls = Array.from(card.querySelectorAll("button, input, select, textarea"));
@@ -441,261 +302,271 @@
       }
     }
 
-    function testAi(shadow, button) {
-      const next = read(shadow);
-      const testConf = normalize({ ...conf, ...next });
-      if (testConf.enabled !== true) {
-        dialog(shadow, {
-          title: uiText("settings.ai.test.title", "AI 测试"),
-          message: uiText("settings.ai.test.enableFirst", "请先启用 AI模块。"),
-        });
-        return;
-      }
-      if (!testConf.host || !testConf.model) {
-        dialog(shadow, {
-          title: uiText("settings.ai.test.title", "AI 测试"),
-          message: uiText("settings.ai.test.missingConfig", "请填写 AI 网关地址和模型。"),
-        });
-        return;
-      }
+    function row(label, value, attrs = "") {
+      return `<label class="settings-row form-row" ${attrs}>
+        <span class="settings-label label">${esc(label)}</span>
+        <span class="settings-value control">${value}</span>
+      </label>`;
+    }
 
-      const oldText = button?.textContent || "";
-      if (button) {
-        button.disabled = true;
-        button.textContent = uiText("common.testing", "测试中");
-      }
-      const started = performance.now();
-      const operationId = root.STLoggerFactory?.createOperationId?.() || "";
-      log.info("ai-test-start", "开始测试 AI 连接", { operationId, enabled: testConf.enabled === true });
-      try {
-        requestAiGatewayPermission(testConf, shadow, operationId).then(() => sendAiTest(testConf, operationId)).then((response) => {
-          const used = ((performance.now() - started) / 1000).toFixed(1);
-          if (button) {
-            button.disabled = false;
-            button.textContent = oldText;
-          }
-          if (!response?.success) {
-            log.error("ai-test-failed", "AI 连接测试失败", {
-              operationId,
-              durationMs: Math.round(performance.now() - started),
-              status: Number(response?.status) || 0,
-              error: response?.error || "未知错误",
-            });
-            dialog(shadow, {
-              title: uiText("settings.ai.test.failed", "AI 测试失败"),
-              message: `${response?.error || uiText("common.unknownError", "未知错误")}\n${uiText("common.elapsedSeconds", "用时 $seconds$ 秒", { seconds: used })}`,
-            });
-            return;
-          }
-          log.info("ai-test-success", "AI 连接测试成功", {
-            operationId,
-            durationMs: Math.round(performance.now() - started),
-          });
-          dialog(shadow, {
-            title: uiText("settings.ai.test.success", "AI 测试成功"),
-            message: `${response.text || uiText("settings.ai.test.responseReceived", "已收到响应")}\n${uiText("common.elapsedSeconds", "用时 $seconds$ 秒", { seconds: used })}`,
-          });
-        }).catch((error) => {
-          const used = ((performance.now() - started) / 1000).toFixed(1);
-          if (button) {
-            button.disabled = false;
-            button.textContent = oldText;
-          }
-          if (error?.code === "AI_HOST_PERMISSION_CANCELLED") {
-            log.info("ai-test-permission-cancelled", "AI 连接测试授权已取消", {
-              operationId,
-              durationMs: Math.round(performance.now() - started),
-            });
-            return;
-          }
-          log.error("ai-test-failed", "AI 连接测试异常", {
-            operationId,
-            durationMs: Math.round(performance.now() - started),
-            error,
-          });
-          dialog(shadow, {
-            title: uiText("settings.ai.test.failed", "AI 测试失败"),
-            message: `${error?.message || String(error)}\n${uiText("common.elapsedSeconds", "用时 $seconds$ 秒", { seconds: used })}`,
-          });
-        });
-      } catch (error) {
-        if (button) {
-          button.disabled = false;
-          button.textContent = oldText;
-        }
-        const used = ((performance.now() - started) / 1000).toFixed(1);
-        log.error("ai-test-failed", "AI 连接测试异常", {
-          operationId,
-          durationMs: Math.round(performance.now() - started),
-          error,
-        });
-        dialog(shadow, {
-          title: uiText("settings.ai.test.failed", "AI 测试失败"),
-          message: `${error?.message || String(error)}\n${uiText("common.elapsedSeconds", "用时 $seconds$ 秒", { seconds: used })}`,
-        });
-      }
+    function button(action, text, primary = false) {
+      return `<button type="button" class="btn ${primary ? "btn-blue" : "btn-secondary"}" data-ai-action="${action}">${esc(text)}</button>`;
+    }
+
+    function serviceIcon(action, text, service, icon, pressed) {
+      const assets = root.STSettingsAssets;
+      const url = icon === "test" ? assets.retryIcon() : assets.gameLinkIcon(icon);
+      const label = esc(`${text} ${service.name}`);
+      return `<button type="button" class="ai-service-icon-button" data-ai-action="${action}" title="${label}" aria-label="${label}" ${pressed === undefined ? "" : `aria-pressed="${pressed}"`}>
+        <span class="ai-service-icon" style="mask-image:url('${esc(url)}')" aria-hidden="true"></span>
+      </button>`;
+    }
+
+    function editorHtml(draft) {
+      const { keyMode } = draft;
+      const name = `<input class="settings-control" type="text" data-ai="name" value="${esc(draft.name)}" maxlength="200" autocomplete="off">`;
+      const fields = (options.catalog?.aiFields?.() || ai.SERVICE_FIELDS).filter((field) =>
+        field.key !== "enabled" && field.key !== "aiConcurrency").map((field) => {
+        const hide = field.key === "key" && keyMode === "none" ||
+          field.key === "keyName" && !["header", "param"].includes(keyMode);
+        return row(root.STSettingsFields.label(field), fieldInput({
+          field, value: draft[field.key], dataset: "data-ai", className: "settings-control",
+        }), `data-ai-field="${field.key}" ${hide ? "hidden" : ""}`);
+      }).join("");
+      return `<div class="settings-grid" data-ai-editor>${row("服务名称", name)}${fields}</div>
+
+        <div class="ai-permission-wait" data-ai-permission-wait role="status" aria-label="等待浏览器授权" hidden>
+          <span class="ai-permission-spinner" aria-hidden="true"></span>
+        </div>`;
+    }
+
+    function servicesHtml() {
+      const rows = conf.services.map((service) => {
+        const fixed = service.id === ai.DEFAULT_SERVICE_ID;
+        const details = [service.host && service.model ? service.model : "待配置",
+          service.protocol === "responses" ? "Responses" : "Chat Completions",
+          service.enabled ? "" : "已停用"].filter(Boolean).join(" · ");
+        return `<div class="ai-service-row" data-ai-id="${esc(service.id)}">
+          <div class="ai-service-copy"><strong>${esc(service.name)}</strong><small>${esc(details)}</small></div>
+          <div class="ai-service-actions">
+            ${serviceIcon("test", "测试连接", service, "test")}
+            ${fixed ? "" : serviceIcon("toggle", service.enabled ? "停用" : "启用", service, service.enabled ? "enabled" : "disabled", service.enabled)}
+            ${serviceIcon("edit", "编辑", service, "edit")}${fixed ? "" : serviceIcon("delete", "删除", service, "delete")}
+          </div>
+        </div>`;
+      }).join("");
+      const enabled = `<input type="checkbox" class="settings-check" data-ai-global="enabled" ${conf.enabled ? "checked" : ""}>`;
+      const concurrency = `<input class="settings-control" type="number" min="1" max="10" data-ai-global="aiConcurrency" value="${conf.aiConcurrency}">`;
+      return `<div class="settings-grid">${row("AI 模块", enabled)}${row("AI 并发上限", concurrency)}</div>
+      <div class="settings-actions form-footer">${button("save-global", "保存设置")}${button("new", "＋ 添加 AI 服务", true)}</div>
+      <div class="ai-service-list">${rows}</div>`;
+    }
+
+    function content() {
+      if (!conf) return `<summary class="section-header settings-fold-title"><span class="dot"></span><span class="title">AI 服务</span>
+        <span class="hint">读取失败</span></summary>
+        <p class="settings-card-note" role="alert">AI 服务配置读取失败，原配置已保留。</p>`;
+      return `<summary class="section-header settings-fold-title"><span class="dot"></span><span class="title">AI 服务</span>
+        <span class="hint">${conf.enabled ? "已启用" : "已关闭"} · ${conf.services.length} 个服务</span></summary>
+      ${servicesHtml()}
+
+      <div class="ai-permission-wait" data-ai-permission-wait role="status" aria-label="等待浏览器授权" hidden>
+        <span class="ai-permission-spinner" aria-hidden="true"></span>
+      </div>`;
     }
 
     function html() {
-      const fields = getFields().filter((field) => field.key !== "enabled").filter(fieldVisible);
-      return `
-        <div class="settings-form">
-          <section class="settings-card section-card ai-settings-card" data-ai-card>
-            <div class="section-header">
-              <div class="dot"></div>
-              <div class="title">${esc(uiText("settings.ai.title", "AI 通用配置"))}</div>
-              <div class="hint">${esc(uiText("settings.ai.hint", "用于全局 AI 调用"))}</div>
-            </div>
-            <div class="settings-grid">
-              ${fields.map((field) => `
-                <div class="settings-row form-row">
-                  <span class="settings-label label">${esc(root.STSettingsFields?.label?.(field) || field.label)}</span>
-                  <span class="settings-value control">${input(field)}</span>
-                </div>
-              `).join("")}
-            </div>
-            <div class="settings-actions form-footer">
-              <button class="settings-save ai-test btn btn-secondary" type="button">${esc(uiText("common.testConnection", "测试连接"))}</button>
-              <button class="settings-save ai-save btn btn-blue" type="button">${esc(uiText("common.saveSettings", "保存设置"))}</button>
-            </div>
-            <div class="ai-permission-wait" data-ai-permission-wait role="status" aria-label="${esc(uiText("settings.ai.permissionWaiting", "等待浏览器授权"))}" hidden>
-              <span class="ai-permission-spinner" aria-hidden="true"></span>
-            </div>
-          </section>
-        </div>
-      `;
+      return `<div class="settings-form"><details class="settings-card section-card ai-settings-card" data-ai-card>${content()}</details></div>`;
+    }
+
+    function render(shadow, focus) {
+      const card = shadow.querySelector("[data-ai-card]");
+      if (!card) return;
+      const enabled = card.querySelector('[data-ai-global="enabled"]').checked;
+      const concurrency = card.querySelector('[data-ai-global="aiConcurrency"]').value;
+      root.STDomUtils.setTrustedHTML(card, root.STDomUtils.trustedHTML(content(), "settings-ai-services"));
+      card.querySelector('[data-ai-global="enabled"]').checked = enabled;
+      card.querySelector('[data-ai-global="aiConcurrency"]').value = concurrency;
+      if (focus) card.querySelector(focus)?.focus();
+    }
+
+    function draftValues(card) {
+      return Object.fromEntries(Array.from(card.querySelectorAll("[data-ai]"))
+        .map((control) => [control.dataset.ai, control.value]));
+    }
+
+    function readDraft(card, draft) {
+      const values = draftValues(card);
+      const next = { ...draft, ...values, name: values.name.trim() };
+      if (!next.name) throw new Error("请填写服务名称");
+      return next;
+    }
+
+    function readGlobal(card) {
+      const concurrency = card.querySelector('[data-ai-global="aiConcurrency"]').valueAsNumber;
+      if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 10)
+        throw new Error("AI 并发上限须为 1–10 的整数");
+      return { enabled: card.querySelector('[data-ai-global="enabled"]').checked, aiConcurrency: concurrency };
+    }
+
+    function checkConnection(service) {
+      if (!service.host?.trim() || !service.model?.trim()) throw new Error("请填写 AI 网关地址和模型");
+      ai.endpoint(service);
+    }
+
+    async function persist(next, operationId) {
+      const saved = await storage.setAi(next, { operationId });
+      setConfig(saved);
+      options.onConfigChange?.(saved);
+    }
+
+    async function testConnection(item, shadow, operationId) {
+      checkConnection(item);
+      const test = { ...item, enabled: true, aiConcurrency: conf.aiConcurrency };
+      await requestAiGatewayPermission(test, shadow, operationId);
+      const response = await sendAiTest(test, operationId);
+      if (response?.success !== true) throw new Error(response?.error || "AI 连接测试失败");
+      log.info("ai-test-success", "AI 连接测试成功", { operationId });
+    }
+
+    async function openEditor(service, shadow) {
+      const draft = service ? { ...service } : {
+        ...ai.defaults(), id: ai.newServiceId(), revision: "draft", name: "",
+        host: "", model: "", enabled: true,
+      };
+      let form, initial;
+      const action = await dialog(shadow, {
+        title: service ? "编辑 AI 服务" : "新建 AI 服务",
+        form: true,
+        className: "ai-service-dialog",
+        isDirty: () => JSON.stringify(draftValues(form)) !== initial,
+        initial: (node) => node.querySelector('[data-ai="name"]'),
+        render: (node) => {
+          form = node;
+          node.classList.add("ai-service-editor");
+          node.setAttribute("data-ai-modal", "");
+          root.STDomUtils.setTrustedHTML(node, root.STDomUtils.trustedHTML(editorHtml(draft), "settings-ai-services"));
+          initial = JSON.stringify(draftValues(node));
+        },
+        actions: [
+          { id: "cancel", label: "取消" },
+          { id: "test", label: "测试连接" },
+          { id: "save", label: "保存服务", primary: true },
+        ],
+        onAction: async (id) => {
+          if (id === "cancel") return true;
+          const operationId = root.STLoggerFactory.createOperationId();
+          try {
+            const item = readDraft(form, draft);
+            if (id === "test") {
+              await testConnection(item, shadow, operationId);
+              void root.STSettingsDialogs.notice(shadow, { title: "连接测试成功", message: "AI 服务连接正常。" });
+              return false;
+            }
+            checkConnection(item);
+            if (item.enabled) await requestAiGatewayPermission(item, shadow, operationId);
+            const services = service
+              ? conf.services.map((row) => row.id === item.id ? item : row)
+              : [...conf.services, item];
+            await persist({ ...conf, services }, operationId);
+            return true;
+          } catch (error) {
+            if (error.code !== "AI_HOST_PERMISSION_CANCELLED") {
+              void root.STSettingsDialogs.notice(shadow, { title: "操作失败", message: error.message,
+                focus: ["name", "host", "model"].map(field => form.querySelector(`[data-ai="${field}"]`)).find(input => !input.value.trim()),
+              });
+              log.error("ai-service-action-failed", "AI 服务操作失败", { operationId, error });
+            }
+            return false;
+          }
+        },
+      });
+      if (action === "save") {
+        render(shadow, `[data-ai-id="${CSS.escape(draft.id)}"] [data-ai-action="edit"]`);
+        void root.STSettingsDialogs.notice(shadow, { title: "保存成功", message: "AI 服务已保存。" });
+      }
+    }
+
+    async function editService(action, service, card, shadow, operationId) {
+      if (action === "save-global") {
+        await persist({ ...conf, ...readGlobal(card) }, operationId);
+        return '[data-ai-action="save-global"]';
+      }
+      if (action === "test") {
+        await testConnection(service, shadow, operationId);
+        void root.STSettingsDialogs.notice(shadow, { title: "连接测试成功", message: "AI 服务连接正常。" });
+        return "";
+      }
+      if (action === "delete") {
+        if (service.id === ai.DEFAULT_SERVICE_ID) throw new Error("默认 AI 服务不可删除");
+        const choice = await dialog(shadow, {
+          title: "删除 AI 服务",
+          className: "wf-danger-dialog",
+          message: "将删除「" + service.name + "」的连接和密钥。引用此服务的功能下次会使用默认 AI 服务。",
+          actions: [{ id: "cancel", label: "取消" }, { id: "delete", label: "删除", primary: true }],
+        });
+        if (choice !== "delete") return "";
+        await persist({ ...conf, services: conf.services.filter((row) => row.id !== service.id) }, operationId);
+        return '[data-ai-action="new"]';
+      }
+      if (action !== "toggle") throw new Error("未知的 AI 服务操作");
+      if (service.id === ai.DEFAULT_SERVICE_ID) throw new Error("默认 AI 服务不可停用");
+      const item = { ...service, enabled: !service.enabled };
+      if (item.enabled) {
+        checkConnection(item);
+        await requestAiGatewayPermission(item, shadow, operationId);
+      }
+      await persist({ ...conf, services: conf.services.map((row) => row.id === item.id ? item : row) }, operationId);
+      return `[data-ai-id="${CSS.escape(item.id)}"] [data-ai-action="toggle"]`;
     }
 
     function handleClick(event, shadow) {
-      const test = event.target.closest(".ai-test");
-      if (test) {
-        testAi(shadow, test);
-        return true;
-      }
-
-      const save = event.target.closest(".ai-save");
-      if (!save) {
-        return false;
-      }
-      if (save.disabled) {
-        return true;
-      }
-      const next = read(shadow);
-      const nextConf = normalize({ ...conf, ...next });
-      if (nextConf.enabled !== true) {
-        const users = aiUsers();
-        if (users.length) {
-          const msg = uiText("settings.ai.disableBlocked", "$users$正在使用AI服务，无法关闭AI服务。", {
-            users: users.join(uiText("common.listSeparator", "、")),
-          });
-          dialog(shadow, { title: uiText("settings.ai.disableBlockedTitle", "无法关闭 AI 服务"), message: msg });
-          onRenderRequest(shadow);
-          return true;
-        }
-      }
-      const previous = normalize(persistedConf);
-      const startedAt = Date.now();
-      const operationId = root.STLoggerFactory?.createOperationId?.() || "";
-      const permissionJob = requestAiGatewayPermission(nextConf, shadow, operationId);
-      let permissionGranted = false;
-      log.info("ai-config-save-start", "开始保存 AI 配置", { operationId, enabled: nextConf.enabled === true });
-      const oldText = save.textContent || "";
-      save.disabled = true;
-      save.textContent = uiText("common.saving", "保存中...");
-      setInputsDisabled(shadow, true);
-      permissionJob
-        .then(() => {
-          permissionGranted = true;
-          conf = nextConf;
-          publishConfig();
-          return typeof storage.setAi === "function"
-            ? storage.setAi(next, { operationId })
-            : false;
-        })
-        .then((ok) => {
-          if (ok !== true) {
-            restoreSavedState(shadow, previous, operationId);
-            log.warn("ai-config-save-failed", "AI 配置保存失败", {
-              operationId,
-              enabled: nextConf.enabled === true,
-              durationMs: Date.now() - startedAt,
-              errorCode: ok === false ? "STORAGE_REJECTED" : "STORAGE_RESULT_UNCONFIRMED",
-            });
-            dialog(shadow, {
-              title: uiText("common.saveFailed", "保存失败"),
-              message: uiText("settings.ai.saveFailed", "AI 配置未能保存，请稍后重试。"),
-            });
-            return;
-          }
-          persistedConf = normalize(conf);
-          log.info("ai-config-save-success", "AI 配置保存成功", {
-            operationId,
-            enabled: nextConf.enabled === true,
-            durationMs: Date.now() - startedAt,
-          });
-          showSavePrompt(shadow, operationId);
-        })
-        .catch((error) => {
-          if (error?.code === "AI_HOST_PERMISSION_CANCELLED") {
-            log.info("ai-config-save-permission-cancelled", "AI 配置保存授权已取消", {
-              operationId,
-              durationMs: Date.now() - startedAt,
-            });
-            return;
-          }
-          if (!permissionGranted) {
-            log.warn("ai-config-save-permission-failed", "AI 配置保存前授权未完成", {
-              operationId,
-              error,
-              durationMs: Date.now() - startedAt,
-            });
-            dialog(shadow, {
-              title: uiText("common.saveFailed", "保存失败"),
-              message: error?.message || uiText("settings.ai.permissionFailed", "AI 网关访问权限申请失败，请稍后重试。"),
-            });
-            return;
-          }
-          restoreSavedState(shadow, previous, operationId);
-          log.error("ai-config-save-failed", "AI 配置保存异常", {
-            operationId,
-            error,
-            durationMs: Date.now() - startedAt,
-          });
-          dialog(shadow, {
-            title: uiText("common.saveFailed", "保存失败"),
-            message: uiText("settings.ai.saveError", "AI 配置保存异常，请稍后重试。"),
-          });
-        })
-        .finally(() => {
-          setInputsDisabled(shadow, false);
-          save.disabled = false;
-          save.textContent = oldText;
+      const control = event.target.closest("[data-ai-action]");
+      if (!control || !conf) return false;
+      const card = control.closest("[data-ai-card]");
+      if (busy || control.disabled) return true;
+      const action = control.dataset.aiAction;
+      const service = ai.findService(conf, control.closest("[data-ai-id]")?.dataset.aiId || "");
+      if (action === "new" || action === "edit") {
+        void openEditor(service, shadow).catch((error) => {
+          log.error("ai-service-editor-failed", "打开 AI 服务编辑器失败", { error });
+          void root.STSettingsDialogs.notice(shadow, { message: error.message });
         });
+        return true;
+      }
+      busy = true;
+      const operationId = root.STLoggerFactory.createOperationId();
+      const inputs = [...card.querySelectorAll("input, select, button")].filter((input) => !input.disabled);
+      inputs.forEach((input) => { input.disabled = true; });
+      card.setAttribute("aria-busy", "true");
+      void editService(action, service, card, shadow, operationId).then((focus) => {
+        if (focus) render(shadow, focus);
+        if (focus && (action === "save-global" || action === "delete")) void root.STSettingsDialogs.notice(shadow, {
+          title: action === "delete" ? "删除成功" : "保存成功",
+          message: action === "delete" ? "AI 服务已删除。" : "AI 设置已保存。",
+        });
+      }).catch((error) => {
+        if (error.code === "AI_HOST_PERMISSION_CANCELLED") return;
+        void root.STSettingsDialogs.notice(shadow, { title: "操作失败", message: error.message });
+        log.error("ai-service-action-failed", "AI 服务操作失败", { operationId, error });
+      }).finally(() => {
+        busy = false;
+        card.removeAttribute("aria-busy");
+        inputs.forEach((input) => { if (input.isConnected) input.disabled = false; });
+      });
       return true;
     }
 
-    function handleChange(event, shadow) {
-      const node = event.target.closest("[data-ai]");
-      if (!node) {
-        return false;
-      }
-      if (node.dataset.ai === "keyMode") {
-        conf = normalize({ ...conf, ...read(shadow) });
-        publishConfig();
-        onRenderRequest(shadow);
-      }
+    function handleChange(event) {
+      const mode = event.target.closest('[data-ai="keyMode"]');
+      if (!mode) return false;
+      const editor = mode.closest("[data-ai-editor]");
+      editor.querySelector('[data-ai-field="key"]').hidden = mode.value === "none";
+      editor.querySelector('[data-ai-field="keyName"]').hidden = !["header", "param"].includes(mode.value);
       return true;
     }
 
-    return Object.freeze({
-      getConfig,
-      handleChange,
-      handleClick,
-      html,
-      read,
-      setConfig,
-      setEnabled,
-    });
+    return Object.freeze({ handleChange, handleClick, html, setConfig });
   }
 
   const api = Object.freeze({

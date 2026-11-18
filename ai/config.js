@@ -23,6 +23,7 @@
   const CONCURRENCY_MAX = 10;
   const DEFAULTS = Object.freeze({
     enabled: false,
+    protocol: "chat-completions",
     host: "https://open.bigmodel.cn/api/paas/v4/chat/completions/",
     model: "GLM-4-Flash",
     key: "",
@@ -37,6 +38,15 @@
       type: "checkbox",
       key: "enabled",
       label: "AI模块",
+    },
+    {
+      type: "select",
+      key: "protocol",
+      label: "API 格式",
+      options: Object.freeze([
+        { value: "chat-completions", label: "Chat Completions" },
+        { value: "responses", label: "Responses" },
+      ]),
     },
     {
       type: "text",
@@ -134,17 +144,16 @@
     if (!raw) {
       return "";
     }
-    try {
-      const url = new URL(raw);
-      url.pathname = url.pathname.replace(/\/+$/, "");
-      if (!/\/chat\/completions$/i.test(url.pathname)) {
-        url.pathname = `${url.pathname}/${CHAT_PATH}`.replace(/\/{2,}/g, "/");
-      }
-      return url.toString();
-    } catch {
-      const host = raw.replace(/\/+$/, "");
-      return /\/chat\/completions$/i.test(host) ? host : `${host}/${CHAT_PATH}`;
-    }
+    const url = new URL(raw);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password)
+      throw new TypeError("AI 网关需要不含登录信息的 HTTP/HTTPS 地址");
+    const path = conf?.protocol === "responses" ? "responses" : CHAT_PATH;
+    url.pathname = url.pathname.replace(/\/+$/, "");
+    // 已发布配置允许基址和完整端点；切换协议只替换已知的两种后缀
+    if (/\/(?:chat\/completions|responses)$/i.test(url.pathname))
+      url.pathname = url.pathname.replace(/\/(?:chat\/completions|responses)$/i, `/${path}`);
+    else url.pathname = `${url.pathname}/${path}`.replace(/\/{2,}/g, "/");
+    return url.toString();
   }
 
   function hostPermissionPattern(value) {
@@ -167,8 +176,11 @@
 
   function normalize(values) {
     const src = values && typeof values === "object" ? values : {};
+    const protocol = str(src.protocol) || DEFAULTS.protocol;
+    if (!["chat-completions", "responses"].includes(protocol)) throw new TypeError("AI API 格式无效");
     return {
       enabled: bool(src.enabled),
+      protocol,
       host: normalizeHost(src.host),
       model: str(src.model),
       key: str(src.key),
@@ -176,6 +188,183 @@
       keyName: str(src.keyName),
       temperature: str(src.temperature),
       aiConcurrency: concurrency(src),
+    };
+  }
+
+  const SERVICES_KEY = storageKey("services.v1");
+  const DEFAULT_SERVICE_ID = "AI-0";
+  const SERVICE_FIELDS = FIELDS.filter((field) => !["enabled", "aiConcurrency"].includes(field.key));
+  const TRANSLATION_SERVICE = "steam-buff.ai";
+  const TRANSLATION = Object.freeze({
+    page: { method: "service", service: "pageAiService", prompt: "pageAiPrompt", webPrompt: "pageWebAiPrompt" },
+    selection: { method: "selectionService", service: "selectionAiService", prompt: "selectionAiPrompt", webPrompt: "selectionWebAiPrompt" },
+    news: { method: "newsPopupService", service: "newsPopupAiService", prompt: "newsPopupAiPrompt" },
+  });
+  const MANUAL_TASKS = Object.freeze({
+    "game-name": "手动游戏改名",
+    achievement: "手动成就翻译",
+    "achievement-group": "成就分组翻译",
+  });
+  const PRESET_PROMPTS = Object.freeze({
+    "game-name": "P-1",
+    "auto-name": "P-2",
+    achievement: "P-3",
+    "auto-achievement": "P-4",
+    "achievement-group": "P-5",
+    collection: "P-6",
+    forecast: "P-7",
+    "steam-news": "P-8",
+    "steam-content": "P-9",
+    "web-translate": "P-10",
+  });
+
+  const isServiceId = (id) => typeof id === "string" && /^AI-(?:0|[1-9][0-9]{0,19})$/.test(id);
+  const isPromptId = (id) => typeof id === "string" && /^P-[1-9][0-9]{0,19}$/.test(id);
+
+  /** 随机编号避免按现有最大值编号时复用已删除的引用。低位编号保留给预置方案 */
+  function newNumber() {
+    return 100n + crypto.getRandomValues(new BigUint64Array(1))[0];
+  }
+
+  function connectionFields(conf) {
+    return Object.fromEntries(SERVICE_FIELDS.map(({ key }) => [key, conf[key]]));
+  }
+
+  function defaultService() {
+    return {
+      ...connectionFields(normalize({})),
+      id: DEFAULT_SERVICE_ID,
+      name: "默认 AI 服务",
+      enabled: true,
+      revision: "unconfigured",
+    };
+  }
+
+  /** 固定服务是实际记录。保存和导入都要求它存在且启用 */
+  function normalizeServices(source = { revision: 0, services: [defaultService()] }) {
+    if (
+      !source || !Array.isArray(source.services) || !Number.isSafeInteger(source.revision) ||
+      source.revision < 0 || Object.hasOwn(source, "defaultId")
+    ) throw new TypeError("AI 服务列表无效");
+    const ids = new Set();
+    const services = source.services.map((item) => {
+      if (
+        !item || !isServiceId(item.id) ||
+        ids.has(item.id) || typeof item.name !== "string" || !item.name.trim() || item.name.length > 200 ||
+        typeof item.enabled !== "boolean" || typeof item.revision !== "string" || !item.revision
+      ) throw new TypeError("AI 服务记录无效或 ID 重复");
+      ids.add(item.id);
+      return {
+        id: item.id, name: item.name.trim(), enabled: item.enabled, revision: item.revision,
+        ...connectionFields(normalize(item)),
+      };
+    });
+    const fixed = services.find((item) => item.id === DEFAULT_SERVICE_ID);
+    if (!fixed?.enabled) throw new TypeError("默认 AI 服务必须存在且启用");
+    return {
+      enabled: bool(source.enabled),
+      aiConcurrency: concurrency(source),
+      revision: source.revision,
+      services: [fixed, ...services.filter((item) => item !== fixed)],
+    };
+  }
+
+  const CONCURRENCY_KEY = storageKey("aiConcurrency");
+  const LEGACY_CONCURRENCY_KEY = "st.settings.translate.aiConcurrency";
+  const FLAG_KEYS = Object.freeze([storageKey("enabled"), CONCURRENCY_KEY, LEGACY_CONCURRENCY_KEY]);
+  const SETTINGS_KEYS = Object.freeze([SERVICES_KEY, ...FLAG_KEYS]);
+
+  // 冻结 2.2.2 的单连接字段和缺省值，供本机升级与旧快照转换共用
+  const V222_CONNECTION = Object.freeze({
+    host: "https://open.bigmodel.cn/api/paas/v4/chat/completions/",
+    model: "GLM-4-Flash",
+    key: "",
+    keyMode: "bearer",
+    keyName: "",
+    temperature: "",
+  });
+  const V222_CONNECTION_FIELDS = Object.freeze(Object.keys(V222_CONNECTION));
+  const V222_FIELDS = new Set(["enabled", "aiConcurrency", ...V222_CONNECTION_FIELDS]);
+
+  /** 将 2.2.2 单连接转为固定服务。快照必须包含完整的旧字段，本机允许部分字段未保存 */
+  function migrateV222Service(source, { snapshot = false } = {}) {
+    if (!source || typeof source !== "object" || Array.isArray(source)) return undefined;
+    const keys = Object.keys(source);
+    if (keys.some((key) => !V222_FIELDS.has(key)) || (snapshot && keys.length !== V222_FIELDS.size) ||
+      !V222_CONNECTION_FIELDS.some((field) => Object.hasOwn(source, field))) return undefined;
+
+    const { enabled, aiConcurrency } = source;
+    const connection = { ...V222_CONNECTION, ...source, protocol: "chat-completions" };
+    if (typeof enabled !== "boolean" || !Number.isInteger(aiConcurrency) ||
+      V222_CONNECTION_FIELDS.some((field) => typeof connection[field] !== "string"))
+      throw new TypeError("2.2.2 AI 连接配置无效");
+    const service = {
+      ...defaultService(),
+      ...connectionFields(normalize(connection)),
+      revision: "migrated-v2.2.2",
+    };
+    return normalizeServices({ enabled, aiConcurrency, revision: 1, services: [service] });
+  }
+
+  function flagsFromStorage(data) {
+    return {
+      enabled: data[storageKey("enabled")] === true,
+      aiConcurrency: concurrency({ aiConcurrency: data[CONCURRENCY_KEY] ?? data[LEGACY_CONCURRENCY_KEY] }),
+    };
+  }
+
+  function servicesFromStorage(data) {
+    const shared = flagsFromStorage(data);
+    if (!Object.hasOwn(data, SERVICES_KEY)) return { ...normalizeServices(), ...shared };
+    return normalizeServices({ ...data[SERVICES_KEY], ...shared });
+  }
+  function findService(settings, id) {
+    return settings.services.find((service) => service.id === id);
+  }
+
+  /** 已保存的服务 ID 缺失时解析为固定服务。空值和格式错误仍要求选择 */
+  function boundService(settings, id) {
+    if (!isServiceId(id)) return undefined;
+    return findService(settings, id) ?? findService(settings, DEFAULT_SERVICE_ID);
+  }
+
+  /** bound 只用于已保存的功能绑定。预览和已生成请求按指定服务精确查找 */
+  function resolveService(settings, id, { preview = false, bound = false } = {}) {
+    if (!preview && !settings.enabled) throw Object.assign(new Error("AI 模块已停用"), { code: "AI_CONFIG_UNAVAILABLE" });
+    const service = bound ? boundService(settings, id) : findService(settings, id);
+    if (!service) throw Object.assign(new Error("请选择可用的 AI 服务"), { code: "AI_CONFIG_UNAVAILABLE" });
+    if (!preview && !service.enabled) throw Object.assign(new Error("AI 服务「" + service.name + "」已停用"), { code: "AI_CONFIG_UNAVAILABLE" });
+    if (!service.model || !service.host) {
+      if (service.id === DEFAULT_SERVICE_ID) throw Object.assign(new Error("请在「第三方服务」配置默认 AI 服务"), { code: "AI_CONFIG_UNAVAILABLE" });
+      throw Object.assign(new Error("AI 服务「" + service.name + "」的连接配置不完整"), { code: "AI_CONFIG_UNAVAILABLE" });
+    }
+    return { ...service, enabled: true, aiConcurrency: settings.aiConcurrency };
+  }
+
+  function initialBinding(scene) {
+    if (!Object.hasOwn(PRESET_PROMPTS, scene)) throw new TypeError("AI 默认绑定无效");
+    return { serviceId: DEFAULT_SERVICE_ID, promptId: PRESET_PROMPTS[scene] };
+  }
+
+  function translationDefaults() {
+    const result = {};
+    for (const [surface, fields] of Object.entries(TRANSLATION)) {
+      const binding = initialBinding(surface === "news" ? "steam-news" : "steam-content");
+      result[fields.service] = binding.serviceId;
+      result[fields.prompt] = binding.promptId;
+      if (fields.webPrompt) result[fields.webPrompt] = initialBinding("web-translate").promptId;
+    }
+    return result;
+  }
+
+  function translationBinding(config, surface, scene) {
+    if (!Object.hasOwn(TRANSLATION, surface)) throw new TypeError("AI 翻译入口无效");
+    const fields = TRANSLATION[surface];
+    const method = surface === "page" ? config.service : config[fields.method] || "follow";
+    return {
+      method: method === "follow" ? config.service : method,
+      serviceId: config[fields.service],
+      promptId: config[scene === "web-translate" ? fields.webPrompt : fields.prompt],
     };
   }
 
@@ -217,10 +406,7 @@
     if (!conf.model || !Array.isArray(messages) || !messages.length) {
       return null;
     }
-    const body = {
-      model: conf.model,
-      messages,
-    };
+    const body = conf.protocol === "responses" ? { model: conf.model, input: messages, store: false } : { model: conf.model, messages };
     const temperature = temp(conf.temperature);
     if (temperature !== null) {
       body.temperature = temperature;
@@ -243,10 +429,12 @@
     };
   }
 
-  function chatRequest(values, messages) {
+  function chatRequest(values, messages, templateBody) {
     const conf = normalize(values);
     const url = endpoint(conf);
-    const body = chatBody(conf, messages);
+    const body =
+      templateBody === undefined ? chatBody(conf, messages) : validateBody(templateBody, conf.protocol);
+    if (body && conf.key && conf.keyMode === "param") body[conf.keyName || "key"] = conf.key;
     if (!conf.enabled || !url || !body) {
       return null;
     }
@@ -254,20 +442,7 @@
       url,
       headers: chatHeaders(conf),
       body,
-    };
-  }
-
-  function chatStreamRequest(values, messages) {
-    const request = chatRequest(values, messages);
-    if (!request) {
-      return null;
-    }
-    return {
-      ...request,
-      body: {
-        ...request.body,
-        stream: true,
-      },
+      protocol: conf.protocol,
     };
   }
 
@@ -282,8 +457,96 @@
     return typeof content === "string" ? content : "";
   }
 
+  /** 校验完整高级请求体；不合并基础模式参数，返回独立对象以隔离鉴权注入 */
+  function validateBody(value, protocol, isTemplateValue = () => false) {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value) ||
+      typeof value.model !== "string" ||
+      !value.model.trim()
+    )
+      throw new TypeError("AI 请求体需要有效的 model");
+    if (value.background === true) throw new TypeError("当前任务不支持 background 异步响应");
+    const input = protocol === "responses" ? value.input : value.messages;
+    if (
+      !(protocol === "responses" && typeof input === "string" && input.trim()) &&
+      !(Array.isArray(input) && input.length) && !isTemplateValue(input)
+    )
+      throw new TypeError(
+        protocol === "responses"
+          ? "Responses 请求体需要 input"
+          : "Chat Completions 请求体需要 messages 数组",
+      );
+    if (value.stream !== undefined && typeof value.stream !== "boolean" && !isTemplateValue(value.stream))
+      throw new TypeError("stream 必须是布尔值");
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function responseText(data) {
+    if (!data || data.status !== "completed" || !Array.isArray(data.output))
+      throw Object.assign(new TypeError("Responses 未返回已完成的结果"), { code: "AI_RESPONSE_INVALID" });
+    const texts = [];
+    for (const item of data.output) {
+      if (!item || typeof item !== "object")
+        throw Object.assign(new TypeError("Responses 消息结构异常"), { code: "AI_RESPONSE_INVALID" });
+      if (item.type !== "message") continue;
+      if (item.role !== "assistant" || !Array.isArray(item.content))
+        throw Object.assign(new TypeError("Responses 消息结构异常"), { code: "AI_RESPONSE_INVALID" });
+      for (const part of item.content) {
+        if (!part || typeof part !== "object")
+          throw Object.assign(new TypeError("Responses 内容结构异常"), { code: "AI_RESPONSE_INVALID" });
+        if (part.type === "refusal")
+          throw Object.assign(new Error(typeof part.refusal === "string" ? part.refusal : "AI 拒绝处理本任务"), { code: "AI_RESPONSE_REFUSED" });
+        if (part.type === "output_text") {
+          if (typeof part.text !== "string") throw Object.assign(new TypeError("Responses 文本结构异常"), { code: "AI_RESPONSE_INVALID" });
+          texts.push(part.text);
+        }
+      }
+    }
+    return texts.join("").trim();
+  }
+
+  function responseEvent(data) {
+    if (!data || typeof data.type !== "string") throw Object.assign(new TypeError("Responses 流式事件结构异常"), { code: "AI_RESPONSE_INVALID" });
+    if (["error", "response.failed", "response.incomplete", "response.cancelled"].includes(data.type))
+      throw Object.assign(new Error(data.error?.message || data.message || `Responses 请求结束：${data.type}`), { code: "AI_RESPONSE_INVALID" });
+    if (data.type === "response.refusal.delta") throw Object.assign(new Error("AI 拒绝处理本任务"), { code: "AI_RESPONSE_REFUSED" });
+    if (data.type === "response.completed")
+      return { done: true, text: "", finalText: responseText(data.response) };
+    if (data.type === "response.output_text.delta") {
+      if (typeof data.delta !== "string") throw Object.assign(new TypeError("Responses 文本增量结构异常"), { code: "AI_RESPONSE_INVALID" });
+      return { done: false, text: data.delta };
+    }
+    return { done: false, text: "" };
+  }
+
   Object.assign(api, {
     ready: true,
+    SERVICES_KEY,
+    DEFAULT_SERVICE_ID,
+    MANUAL_TASKS,
+    PRESET_PROMPTS,
+    SERVICE_FIELDS,
+    TRANSLATION,
+    TRANSLATION_SERVICE,
+    normalizeServices,
+    FLAG_KEYS,
+    SETTINGS_KEYS,
+    V222_CONNECTION_FIELDS,
+    migrateV222Service,
+    flagsFromStorage,
+    servicesFromStorage,
+    findService,
+    boundService,
+    resolveService,
+    isServiceId,
+    isPromptId,
+    newServiceId: () => `AI-${newNumber()}`,
+    newPromptId: () => `P-${newNumber()}`,
+    initialBinding,
+    translationDefaults,
+    translationBinding,
     DEFAULTS,
     FIELDS,
     storageKey,
@@ -294,9 +557,12 @@
     endpoint,
     hostPermissionPattern,
     chatRequest,
-    chatStreamRequest,
+    chatBody,
     chatText,
     chatDelta,
+    validateBody,
+    responseText,
+    responseEvent,
     requestConfig,
   });
 })();

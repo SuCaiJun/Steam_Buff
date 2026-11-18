@@ -46,6 +46,14 @@
     return value?.refresh_token || value?.access_token || "";
   }
 
+  /** 用登录会话的摘要绑定权益快照，存储中不重复保存令牌 */
+  async function fingerprint(value) {
+    const key = authKey(value);
+    if (!key) return "";
+    const bytes = await root.crypto.subtle.digest("SHA-256", new TextEncoder().encode(key));
+    return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, "0")).join("");
+  }
+
   // 刷新接口只在令牌不存在、已撤销或已过期时返回 401
   function refreshRejected(code) {
     return Number(code) === 401;
@@ -131,6 +139,7 @@
     cleanAuth,
     expired,
     authKey,
+    fingerprint,
     refreshRejected,
     nextAuth,
     commitAuth,

@@ -12,716 +12,330 @@
   "use strict";
 
   const ID = "download-auto-shutdown";
-  const SCHEDULER_TASK = "download-auto-shutdown-backend";
-  const CH = "__steam_download_auto_shutdown_Ricky";
-  const POLL_MS = 30000;
-  const IDLE_MS = 60000;
+  const CHANNEL = "__steam_download_auto_shutdown_v2_Ricky";
+  const CHECK_MS = 30000;
+  const CANCEL_MS = 60000;
+  const BIG_PICTURE_MS = 10000;
+  const BIG_PICTURE_CHECK_MS = 250;
+  const UNCONFIRMED_MS = 120000;
   const DOWNLOAD_PROGRESS_INDEX = 2;
-  const BIG_WAIT_MS = 10000;
-  const BIG_STEP_MS = 250;
-  const FAIL_MS = 120000;
-  const HELLO_LOG_MS = 60000;
-  const ST = Object.freeze({
-    READY: "backend-ready",
-    OFF: "disabled-by-user",
-    NO_WORK: "waiting-for-downloads",
-    ARMED: "monitoring-ready",
-    WAIT: "waiting-downloads",
-    PAUSED: "waiting-paused-download",
-    SHUT: "shutdown-started",
-    FAIL: "shutdown-failed",
-  });
-
-  const root = window.SteamBuff.state = window.SteamBuff.state || {};
-  const s = root[ID] = root[ID] || {};
-
-  function now() {
-    return Date.now();
-  }
-
-  function post(ch, msg) {
-    try {
-      ch?.postMessage({
-        script: ID,
-        time: now(),
-        ...msg,
-      });
-      return null;
-    } catch (error) {
-      return error;
-    }
-  }
-
   const log = window.STLoggerFactory.createLogger("steam", ID);
 
-  function chan() {
-    if (s.ch) {
-      return s.ch;
-    }
-    if (typeof BroadcastChannel !== "function") {
-      return null;
-    }
-    s.ch = new BroadcastChannel(CH);
-    return s.ch;
-  }
-
-  // 关机能力只存在于 Steam 客户端后台上下文；缺任何对象都不能启动监控，避免误报已就绪。
-  function ready() {
-    return typeof window.SteamClient?.System?.ShutdownPC === "function" &&
-      typeof window.SteamClient?.URL?.ExecuteSteamURL === "function" &&
-      !!window.SteamUIStore &&
-      !!window.downloadsStore;
-  }
-
-  function readyMeta() {
-    return {
-      hasShutdownPC: typeof window.SteamClient?.System?.ShutdownPC === "function",
-      hasExecuteSteamURL: typeof window.SteamClient?.URL?.ExecuteSteamURL === "function",
-      hasSteamUIStore: !!window.SteamUIStore,
-      hasDownloadsStore: !!window.downloadsStore,
-      title: document.title || "",
-      route: window.SteamBuff?.ctx?.route?.() || "",
-    };
-  }
-
-  function arr(value) {
-    return Array.isArray(value) ? value : [];
-  }
-
-  function requireArray(value, name) {
-    if (!Array.isArray(value)) {
-      throw new TypeError(`Steam 下载状态字段 ${name} 不是数组`);
-    }
-    return value;
-  }
-
-  function requireNumber(value, name, options = {}) {
-    if (!Number.isFinite(value) || (options.integer === true && !Number.isInteger(value))) {
-      throw new TypeError(`Steam 下载状态字段 ${name} 不是有效数字`);
-    }
-    return value;
-  }
-
-  function requireBoolean(value, name) {
-    if (typeof value !== "boolean") {
-      throw new TypeError(`Steam 下载状态字段 ${name} 不是布尔值`);
-    }
-    return value;
-  }
-
-  function requireProgress(value, name) {
-    if (!value || typeof value !== "object") {
-      throw new TypeError(`Steam 下载进度字段 ${name} 不是对象`);
-    }
-    const inProgress = requireNumber(value.bytes_in_progress, `${name}.bytes_in_progress`);
-    const total = requireNumber(value.bytes_total, `${name}.bytes_total`);
-    if (inProgress < 0 || total < 0) {
-      throw new TypeError(`Steam 下载进度字段 ${name} 不能为负数`);
-    }
-    return value;
-  }
-
-  function requireOverview(value) {
-    if (!value || typeof value !== "object") {
-      throw new TypeError("Steam 下载概览契约不可用");
-    }
-    if (typeof value.update_state !== "string" || !value.update_state) {
-      throw new TypeError("Steam 下载状态字段 update_state 不是有效字符串");
-    }
-    requireNumber(value.update_appid, "update_appid", { integer: true });
-    requireNumber(value.update_network_bytes_per_second, "update_network_bytes_per_second");
-    requireNumber(value.update_disc_bytes_per_second, "update_disc_bytes_per_second");
-    requireNumber(value.update_start_time, "update_start_time");
-    requireNumber(value.overall_percent_complete, "overall_percent_complete");
-    requireBoolean(value.paused, "paused");
-    return value;
-  }
-
-  function requireTransfer(value, index) {
-    if (!value || typeof value !== "object") {
-      throw new TypeError(`Steam 下载项目 ${index} 不是对象`);
-    }
-    requireNumber(value.appid, `AllTransfers[${index}].appid`, { integer: true });
-    requireNumber(value.queue_index, `AllTransfers[${index}].queue_index`, { integer: true });
-    requireNumber(value.completed_time, `AllTransfers[${index}].completed_time`);
-    requireNumber(value.deferred_time, `AllTransfers[${index}].deferred_time`);
-    requireBoolean(value.active, `AllTransfers[${index}].active`);
-    requireBoolean(value.completed, `AllTransfers[${index}].completed`);
-    const infos = requireArray(value.update_type_info, `AllTransfers[${index}].update_type_info`);
-    infos.forEach((info, infoIndex) => {
-      if (!info || typeof info !== "object") {
-        throw new TypeError(`Steam 下载项目 ${index}.update_type_info[${infoIndex}] 不是对象`);
-      }
-      const progress = requireArray(
-        info.progress,
-        `AllTransfers[${index}].update_type_info[${infoIndex}].progress`,
-      );
-      requireProgress(
-        progress[DOWNLOAD_PROGRESS_INDEX],
-        `AllTransfers[${index}].update_type_info[${infoIndex}].progress[${DOWNLOAD_PROGRESS_INDEX}]`,
-      );
-    });
-    return value;
-  }
-
-  function requireTransferReference(value, name, index) {
-    if (!value || typeof value !== "object") {
-      throw new TypeError(`Steam 下载状态字段 ${name}[${index}] 不是对象`);
-    }
-    requireNumber(value.appid, `${name}[${index}].appid`, { integer: true });
-    return value;
-  }
-
-  function queued(item) {
-    return item.queue_index >= 0;
-  }
-
-  function active(item) {
-    return item.active || queued(item);
-  }
-
-  function done(item) {
-    return item.completed || item.completed_time > 0;
-  }
-
-  function doneKey(item) {
-    return `${item.appid}:${item.completed_time}`;
-  }
-
-  function progressFor(item, index) {
-    let inProgress = 0;
-    let total = 0;
-    for (const [infoIndex, info] of item.update_type_info.entries()) {
-      const progress = info.progress[DOWNLOAD_PROGRESS_INDEX];
-      const remaining = Math.max(0, progress.bytes_total - progress.bytes_in_progress);
-      total += progress.bytes_total;
-      inProgress += Math.min(progress.bytes_in_progress, progress.bytes_total);
-      if (!Number.isFinite(remaining)) {
-        throw new TypeError(`Steam 下载项目 ${index}.update_type_info[${infoIndex}] 剩余容量不是有效数字`);
+  function snapshot(api) {
+    const { transfers, overview } = api.downloadState.readLocal();
+    const pending = new Set();
+    const completed = new Map();
+    for (const item of transfers) {
+      if (!Number.isFinite(item.deferred_time)) throw new TypeError("Steam 下载安排时间不可用");
+      if (item.completed && item.completed_time > 0) completed.set(item.appid, item.completed_time);
+      // Steam 的队列和已安排列表都从 AllTransfers 派生，监控只需读取一次原表。
+      const queued = item.queue_index !== -1 && item.deferred_time === 0;
+      if (queued || item.active || (!item.completed && (item.paused || item.deferred_time > 0))) {
+        pending.add(item.appid);
       }
     }
-    return { remainingBytes: Math.max(0, total - inProgress) };
+    const { update_state: state, update_appid: appid, paused,
+      update_network_bytes_per_second: network, update_disc_bytes_per_second: disk } = overview;
+    if (!state || !Number.isSafeInteger(appid) || !Number.isFinite(network) || !Number.isFinite(disk)) {
+      throw new TypeError("Steam 本机下载概览不可用");
+    }
+    const busy = state !== "None" || network > 0 || disk > 0;
+    if (busy && appid > 0) pending.add(appid);
+    return { transfers, overview, pending, completed, busy: busy || pending.size > 0, paused };
   }
 
-  function estimate(pending, speed, sampledAt) {
-    const remainingBytes = pending.reduce((sum, item) => sum + item.remainingBytes, 0);
-    const speedBytesPerSecond = Math.max(0, speed);
-    const ordered = pending.slice().sort((left, right) => {
-      const leftDeferred = left.item.deferred_time > 0;
-      const rightDeferred = right.item.deferred_time > 0;
-      if (leftDeferred !== rightDeferred) {
-        return leftDeferred ? 1 : -1;
+  function estimate(shot) {
+    const speed = shot.overview.update_network_bytes_per_second;
+    const items = shot.transfers.filter(item => !item.completed && shot.pending.has(item.appid));
+    if (!items.length || items.length !== shot.pending.size) return null;
+    items.sort((a, b) => a.deferred_time - b.deferred_time || a.queue_index - b.queue_index);
+    const sampledAt = Date.now();
+    let finishAt = sampledAt, remainingBytes = 0;
+    for (const item of items) {
+      const infos = item.update_type_info;
+      if (!Array.isArray(infos) || !infos.length) return null;
+      let remaining = 0;
+      for (const info of infos) {
+        const progress = info?.progress?.[DOWNLOAD_PROGRESS_INDEX];
+        const total = progress?.bytes_total, received = progress?.bytes_in_progress;
+        if (!Number.isFinite(total) || !Number.isFinite(received) || received < 0 || total < received) return null;
+        remaining += total - received;
       }
-      if (leftDeferred && left.item.deferred_time !== right.item.deferred_time) {
-        return left.item.deferred_time - right.item.deferred_time;
-      }
-      if (left.item.queue_index !== right.item.queue_index) {
-        return left.item.queue_index - right.item.queue_index;
-      }
-      return left.item.appid - right.item.appid;
-    });
-
-    let finishAt = sampledAt;
-    if (remainingBytes > 0 && speedBytesPerSecond > 0) {
-      for (const entry of ordered) {
-        const deferredAt = entry.item.deferred_time > 0
-          ? entry.item.deferred_time * 1000
-          : sampledAt;
-        finishAt = Math.max(finishAt, deferredAt);
-        finishAt += (entry.remainingBytes / speedBytesPerSecond) * 1000;
-      }
+      remainingBytes += remaining;
+      if (speed > 0) finishAt = Math.max(finishAt, item.deferred_time * 1000) + remaining / speed * 1000;
     }
-
-    const canEstimate = remainingBytes > 0 && speedBytesPerSecond > 0;
     return {
       remainingBytes,
-      speedBytesPerSecond,
-      estimatedDownloadMs: canEstimate ? Math.max(0, finishAt - sampledAt) : null,
-      estimatedShutdownAt: canEstimate ? Math.round(finishAt + IDLE_MS) : null,
-      sampledAt,
+      speed: Number.isFinite(speed) && speed >= 0 ? speed : null,
+      estimatedShutdownAt: !shot.paused && remainingBytes > 0 && Number.isFinite(speed) && speed > 0
+        ? Math.round(finishAt + CANCEL_MS) : null,
     };
-  }
-
-  // 这些字段由当前 CEF 对象与 Steam bundle 共同确认；契约失效时停止判断，不能按空队列处理。
-  async function snap() {
-    const ds = window.downloadsStore;
-    if (!ds || typeof ds !== "object") {
-      throw new TypeError("Steam 下载状态仓库不可用");
-    }
-    const ov = requireOverview(ds.CurrentViewingDownloadOverview || ds.LocalDownloadOverview);
-    const list = requireArray(ds.AllTransfers, "AllTransfers").map(requireTransfer);
-    const queue = requireArray(ds.QueuedTransfers, "QueuedTransfers")
-      .map((item, index) => requireTransferReference(item, "QueuedTransfers", index));
-    const later = requireArray(ds.ScheduledTransfers, "ScheduledTransfers")
-      .map((item, index) => requireTransferReference(item, "ScheduledTransfers", index));
-    const act = list.filter(active);
-    const finished = list.filter(done);
-    const keys = finished.map(doneKey);
-    const actN = act.filter((item) => item.active).length;
-    const queueN = Math.max(queue.length, act.filter(queued).length);
-    const queueIds = new Set(queue.map((item) => item.appid));
-    const scheduledIds = new Set(later.map((item) => item.appid));
-    const pending = list
-      .filter((item) => !done(item) && (active(item) || queueIds.has(item.appid) || scheduledIds.has(item.appid)))
-      .map((item, index) => ({ item, ...progressFor(item, index) }));
-
-    const upd = ov.update_state;
-    const ovWork = !!(
-      upd &&
-      upd !== "None" &&
-      (
-        ov.update_appid > 0 ||
-        ov.update_network_bytes_per_second > 0 ||
-        ov.update_disc_bytes_per_second > 0 ||
-        ov.update_start_time > 0 ||
-        ov.paused
-      )
-    );
-
-    const work = ovWork || actN > 0 || queueN > 0 || later.length > 0;
-    const sampledAt = now();
-    const estimateData = estimate(pending, ov.update_network_bytes_per_second, sampledAt);
-    return {
-      work,
-      actN,
-      queueN,
-      laterN: later.length,
-      doneN: finished.length,
-      keys,
-      upd,
-      appid: ov.update_appid,
-      paused: ov.paused,
-      net: ov.update_network_bytes_per_second,
-      disk: ov.update_disc_bytes_per_second,
-      pct: ov.overall_percent_complete,
-      remainingBytes: estimateData.remainingBytes,
-      speedBytesPerSecond: estimateData.speedBytesPerSecond,
-      estimatedDownloadMs: estimateData.estimatedDownloadMs,
-      estimatedShutdownAt: estimateData.estimatedShutdownAt,
-      sampledAt: estimateData.sampledAt,
-      source: "downloadsStore",
-    };
-  }
-
-  function pub(api, extra = {}) {
-    const ch = chan();
-    const reason = extra.reason;
-    if (reason) {
-      s.reason = reason;
-    }
-    return post(ch, {
-      type: "backend-status",
-      on: !!s.on,
-      mon: !!s.mon,
-      seen: !!s.seen,
-      shut: !!s.shut,
-      error: s.err || "",
-      snap: s.snap || null,
-      ...extra,
-      reason,
-    });
-  }
-
-  function hasNewDone(shot) {
-    const old = new Set(arr(s.keysOn));
-    return arr(shot?.keys).some((key) => key && !old.has(key));
-  }
-
-  function clearFail() {
-    if (s.failHandle) {
-      const handle = s.failHandle;
-      s.failHandle = null;
-      handle.dispose();
-      return;
-    }
-    if (s.failT) {
-      window.clearTimeout(s.failT);
-      s.failT = 0;
-    }
-  }
-
-  function clearTimers() {
-    clearFail();
-  }
-
-  function logHello(api) {
-    const at = now();
-    const key = `${s.reason || ST.READY}:${api.ctx?.route?.() || ""}`;
-    if (s.helloLogKey === key && at - (s.helloLogAt || 0) < HELLO_LOG_MS) {
-      return;
-    }
-    s.helloLogKey = key;
-    s.helloLogAt = at;
-    log.info("download-auto-shutdown-frontend-hello", "下载完成自动关机后端收到前端状态请求", {
-      reason: s.reason || ST.READY,
-      route: api.ctx?.route?.() || "",
-      isDown: api.ctx?.isDown?.() === true,
-      routeSources: api.ctx?.routeSources?.() || {},
-    });
-  }
-
-  async function setOn(api, on, rid, incomingOperationId = "") {
-    const operationId = String(incomingOperationId || "")
-      || window.STLoggerFactory?.createOperationId?.()
-      || "";
-    clearTimers();
-    s.operationId = operationId;
-    s.pollErrorKey = "";
-    s.on = !!on;
-    s.mon = false;
-    s.seen = false;
-    s.shut = false;
-    s.err = "";
-    s.keysOn = [];
-    s.idleAt = 0;
-
-    if (!on) {
-      const postError = pub(api, { rid, reason: ST.OFF });
-      if (postError) throw postError;
-      log.info("download-auto-shutdown-toggle-success", "下载完成自动关机已关闭", {
-        operationId,
-        enabled: false,
-        reason: ST.OFF,
-      });
-      return;
-    }
-
-    const shot = await snap();
-    s.snap = shot;
-    s.keysOn = shot.keys || [];
-    if (!shot.work) {
-      s.mon = false;
-      s.seen = false;
-      const postError = pub(api, { rid, reason: ST.NO_WORK });
-      if (postError) throw postError;
-      log.info("download-auto-shutdown-toggle-success", "下载完成自动关机已开启但当前无下载任务", {
-        operationId,
-        enabled: true,
-        reason: ST.NO_WORK,
-        workCount: 0,
-      });
-      return;
-    }
-
-    s.mon = true;
-    s.seen = true;
-    const postError = pub(api, { rid, reason: ST.ARMED });
-    if (postError) throw postError;
-    log.info("download-auto-shutdown-toggle-success", "下载完成自动关机已开启并开始监控", {
-      operationId,
-      enabled: true,
-      reason: ST.ARMED,
-      workCount: (Number(shot.actN) || 0) + (Number(shot.queueN) || 0),
-    });
-  }
-
-  function fail(api, error) {
-    clearTimers();
-    s.shut = false;
-    s.err = String(error?.message || error || "未知错误").replace(/^Error:\s*/, "");
-    pub(api, { reason: ST.FAIL, error: s.err });
-    log.error("download-auto-shutdown-failed", "下载完成自动关机失败", {
-      operationId: s.operationId || "",
-      reason: ST.FAIL,
-      error,
-    });
-  }
-
-  function reportPollFailure(api, error) {
-    const key = `${error?.name || "Error"}:${error?.message || String(error || "")}`;
-    if (key === s.pollErrorKey) {
-      return;
-    }
-    s.pollErrorKey = key;
-    log.error("download-auto-shutdown-monitor-failed", "下载完成自动关机监控失败", {
-      operationId: s.operationId || "",
-      reason: ST.FAIL,
-      error,
-    });
-  }
-
-  function reportPollRecovery() {
-    if (!s.pollErrorKey) {
-      return;
-    }
-    s.pollErrorKey = "";
-    log.warn("download-auto-shutdown-monitor-recovered", "下载完成自动关机监控已恢复", {
-      operationId: s.operationId || "",
-      recovery: {
-        attempted: true,
-        success: true,
-        strategy: "next-poll-success",
-      },
-    });
-  }
-
-  function delay(ms) {
-    return new Promise((resolve) => window.setTimeout(resolve, ms));
-  }
-
-  function steamWin() {
-    const store = window.SteamUIStore?.WindowStore;
-    const inst = store?.GamepadUIMainWindowInstance || store?.MainWindowInstance;
-    return inst?.BrowserWindow?.SteamClient?.Window || window.SteamClient?.Window;
   }
 
   function showSteam() {
-    const win = steamWin();
-    try {
-      win?.ShowWindow?.();
-    } catch {
-    }
-    try {
-      win?.BringToFront?.();
-    } catch {
-    }
-    try {
-      win?.SetKeyFocus?.(true);
-    } catch {
-    }
+    const store = window.SteamUIStore.WindowStore;
+    const instance = store?.GamepadUIMainWindowInstance || store?.MainWindowInstance;
+    const target = instance?.BrowserWindow?.SteamClient?.Window || window.SteamClient.Window;
+    target?.ShowWindow?.();
+    target?.BringToFront?.();
+    target?.SetKeyFocus?.(true);
   }
 
-  // Steam 的 ShutdownPC 需要在大屏模式下更稳定，先拉起大屏并持续聚焦主窗口。
-  async function bigPicture() {
+  async function openBigPicture(signal) {
     showSteam();
-    if (window.SteamUIStore?.IsGamepadUIWindowActive?.()) {
+    if (signal.aborted) throw signal.reason;
+    if (window.SteamUIStore.IsGamepadUIWindowActive()) return;
+
+    let timer = 0, poll = 0, onAbort, waiting = true;
+    function stopWaiting() {
+      waiting = false;
+      window.clearTimeout(timer);
+      window.clearTimeout(poll);
+      signal.removeEventListener("abort", onAbort);
+    }
+    try {
+      await new Promise((resolve, reject) => {
+        onAbort = () => {
+          stopWaiting();
+          reject(signal.reason);
+        };
+        signal.addEventListener("abort", onAbort, { once: true });
+        timer = window.setTimeout(() => reject(new Error("Steam 大屏幕模式启动超时")), BIG_PICTURE_MS);
+        function check() {
+          if (!waiting || signal.aborted) return;
+          try {
+            if (window.SteamUIStore.IsGamepadUIWindowActive()) resolve();
+            else poll = window.setTimeout(check, BIG_PICTURE_CHECK_MS);
+          } catch (error) {
+            reject(error);
+          }
+        }
+        Promise.resolve(window.SteamClient.URL.ExecuteSteamURL("steam://open/bigpicture")).then(check, reject);
+      });
+    } finally {
+      if (waiting) stopWaiting();
+    }
+    if (signal.aborted) throw signal.reason;
+    showSteam();
+  }
+
+  /** Steam SharedJSContext 的单次关机监听，受 registry 所有者管理。 */
+  function start(api, _feature, context, scope) {
+    if (context !== "backend" || !api.ctx.isShared()) return { started: false, reason: "not-shared-context" };
+
+    const channel = new BroadcastChannel(CHANNEL);
+    let arm = null, request = null, stopped = false;
+    let status = { phase: "off", sessionId: "", deadline: 0, estimate: null };
+    function enabled() {
+      const settings = api.ctx.settings();
+      return settings[ID] === true && settings["download-manager-enhancement"] === true;
+    }
+    function publish(rid = "") {
+      channel.postMessage({ script: ID, type: "backend-status", rid, ...status });
+    }
+    function update(phase, data = null) {
+      const sessionId = arm?.id || "", deadline = arm?.countdown?.at || 0;
+      if (status.phase === phase && status.sessionId === sessionId &&
+          status.deadline === deadline && status.estimate === data) return;
+      status = { phase, sessionId, deadline, estimate: data };
+      publish();
+    }
+    function clearCountdown(session) {
+      if (!session.countdown) return;
+      window.clearTimeout(session.countdown.timer);
+      session.countdown = null;
+      session.preparing?.abort();
+      session.preparing = null;
+    }
+    function disarm() {
+      const session = arm;
+      arm = null;
+      if (!session) return;
+      clearCountdown(session);
+      window.STScheduler.unregister(ID);
+      session.subscription?.Unregister();
+    }
+    function markFailed() {
+      disarm();
+      update("failed");
+    }
+    function clearRequest(current) {
+      if (stopped || request !== current) return false;
+      request = null;
+      window.clearTimeout(current.timer);
       return true;
     }
-    await window.SteamClient.URL.ExecuteSteamURL("steam://open/bigpicture");
-    const end = now() + BIG_WAIT_MS;
-    while (now() < end) {
-      await delay(BIG_STEP_MS);
-      showSteam();
-      if (window.SteamUIStore?.IsGamepadUIWindowActive?.()) {
-        return true;
-      }
-    }
-    return false;
-  }
 
-  async function poweroff(api) {
-    try {
-      if (!await bigPicture()) {
-        throw new Error("Steam 大屏幕模式未能在 10 秒内启动。");
-      }
-      if (!s.shut) {
+    function check(session, refreshEstimate = false) {
+      if (arm !== session || stopped) return false;
+      try {
+        const on = enabled();
+        if (!on || window.downloadsStore?.BIsViewingLocalClient === false) {
+          disarm();
+          update(on ? "remote" : "off");
+          return false;
+        }
+        const shot = snapshot(api);
+        for (const appid of shot.pending) {
+          session.required.add(appid);
+          session.finished.delete(appid);
+        }
+        const sampledAt = Math.floor(Date.now() / 1000);
+        let fresh = false;
+        for (const [appid, time] of shot.completed) {
+          if (shot.pending.has(appid) || time <= (session.seen.get(appid) || 0)) continue;
+          if (time > sampledAt) {
+            session.futureCompletions.set(appid, time);
+            continue;
+          }
+          if (session.futureCompletions.get(appid) === time) continue;
+          session.seen.set(appid, time);
+          // 完成时间只有秒精度。同一秒需要实际观察到该任务正在排队或运行。
+          if (time < session.armedAt || (time === session.armedAt && !session.required.has(appid))) continue;
+          session.finished.add(appid);
+          fresh = true;
+        }
+
+        if (shot.busy || shot.paused) {
+          clearCountdown(session);
+          const phase = shot.paused ? "paused" : "monitoring";
+          update(phase, refreshEstimate || status.phase !== phase ? estimate(shot) : status.estimate);
+          return false;
+        }
+
+        // 已移除或没有可靠完成记录的项目不能满足本次完成条件。
+        if (!session.finished.size || [...session.required].some(appid => !session.finished.has(appid))) {
+          clearCountdown(session);
+          session.required.clear();
+          session.finished.clear();
+          update("waiting");
+          return false;
+        }
+
+        if (!session.countdown || fresh) {
+          clearCountdown(session);
+          const countdown = { at: Date.now() + CANCEL_MS };
+          session.countdown = countdown;
+          countdown.timer = window.setTimeout(() => { void shutdown(session, countdown); }, CANCEL_MS);
+          update("countdown");
+        }
+        return true;
+      } catch (error) {
+        log.error("download-auto-shutdown-monitor-failed", "读取 Steam 下载状态失败，已停止本次关机", { operationId: session.id, error });
+        markFailed();
         return false;
       }
-      window.SteamClient.System.ShutdownPC();
-      log.info("download-auto-shutdown-success", "下载完成自动关机请求已发送", {
-        operationId: s.operationId || "",
-        reason: ST.SHUT,
-      });
-      return true;
-    } catch (error) {
-      fail(api, error);
-      return false;
-    }
-  }
-
-  async function shutdown(api) {
-    if (s.shut) {
-      return;
-    }
-    s.shut = true;
-    s.on = false;
-    s.mon = false;
-    s.err = "";
-    pub(api, { reason: ST.SHUT });
-    log.info("download-auto-shutdown-start", "下载完成自动关机已触发", {
-      operationId: s.operationId || "",
-      reason: ST.SHUT,
-    });
-
-    clearTimers();
-    s.failT = window.setTimeout(() => {
-      const handle = s.failHandle;
-      s.failHandle = null;
-      s.failT = 0;
-      handle?.dispose?.();
-      if (!s.shut) {
-        return;
-      }
-      fail(api, new Error("已请求 Steam 大屏关机，但 Windows 在 120 秒内没有关机。"));
-    }, FAIL_MS);
-    s.failHandle = s.scope?.resource?.({
-      key: "shutdown-fail-timeout",
-      type: "timer",
-      dispose() {
-        if (s.failT) {
-          window.clearTimeout(s.failT);
-          s.failT = 0;
-        }
-        s.failHandle = null;
-      },
-    }) || null;
-
-    await poweroff(api);
-  }
-
-  // 只有“本次开启后见过下载任务并稳定空闲”才触发关机，避免打开开关时无任务也直接关机。
-  async function poll(api) {
-    if (!s.on) {
-      return;
     }
 
-    const shot = await snap();
-    reportPollRecovery();
-    const newDone = hasNewDone(shot);
-    s.keysOn = shot.keys || [];
-    s.snap = shot;
-
-    if (shot.work) {
-      s.idleAt = 0;
-      s.seen = true;
-      s.mon = true;
-      pub(api, { reason: shot.paused ? ST.PAUSED : ST.WAIT });
-      return;
-    }
-
-    if (newDone) {
-      s.seen = true;
-      s.idleAt = now();
-      s.mon = true;
-      pub(api, { reason: ST.WAIT });
-      return;
-    }
-
-    if (!s.seen) {
-      s.mon = false;
-      s.idleAt = 0;
-      pub(api, { reason: ST.NO_WORK });
-      return;
-    }
-
-    if (!s.idleAt) {
-      s.idleAt = now();
-      s.mon = true;
-      pub(api, { reason: ST.WAIT });
-      return;
-    }
-
-    if (now() - s.idleAt < IDLE_MS) {
-      s.mon = true;
-      pub(api, { reason: ST.WAIT });
-      return;
-    }
-
-    await shutdown(api);
-  }
-
-  function start(api, _feature, _context, scope) {
-    if (s.bOn) {
-      return { started: false, reason: "already-started" };
-    }
-    if (!ready()) {
-      log.warn("download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端能力不可用", readyMeta());
-      return { started: false, reason: "backend-capability-unavailable" };
-    }
-
-    const ch = chan();
-    if (!ch) {
-      log.warn("download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端缺少 BroadcastChannel", readyMeta());
-      return { started: false, reason: "broadcast-channel-unavailable" };
-    }
-
-    s.on = false;
-    s.mon = false;
-    s.seen = false;
-    s.shut = false;
-    s.idleAt = 0;
-    s.err = "";
-    clearTimers();
-    if (!window.STScheduler?.register) {
-      log.warn("download-auto-shutdown-backend-start-skipped", "下载完成自动关机后端缺少统一调度器", readyMeta());
-      if (s.ch === ch && typeof ch.close === "function") {
-        ch.close();
-        s.ch = null;
-      }
-      return { started: false, reason: "scheduler-unavailable" };
-    }
-    s.bOn = true;
-    s.scope = scope || null;
-    s.channelCloseHandle = scope?.resource?.({
-      key: "backend-channel",
-      type: "resource",
-      dispose() {
-        if (s.ch === ch && typeof ch.close === "function") {
-          ch.close();
-          s.ch = null;
-        }
-        s.channelCloseHandle = null;
-      },
-    }) || null;
-    // 下载监控迁移到统一调度器，避免 Steam 多页面各自持有独立巡检。
-    window.STScheduler.register(
-      SCHEDULER_TASK,
-      () => {
-        poll(api).catch((error) => reportPollFailure(api, error));
-      },
-      () => s.bOn === true && api.ctx?.settingOn?.(ID) !== false,
-      { intervalMs: POLL_MS }
-    );
-    scope?.schedulerTask?.("backend-poll", SCHEDULER_TASK);
-
-    s.stop = () => {
-      window.STScheduler?.unregister?.(SCHEDULER_TASK);
-      s.pollT = 0;
-      clearTimers();
-      if (s.onMsg) {
-        ch.removeEventListener("message", s.onMsg);
-        s.onMsg = null;
-      }
-      if (s.channelCloseHandle) {
-        const handle = s.channelCloseHandle;
-        s.channelCloseHandle = null;
-        handle.dispose();
-      } else if (s.ch && typeof s.ch.close === "function") {
-        s.ch.close();
-        s.ch = null;
-      }
-      s.bOn = false;
-      s.scope = null;
-    };
-
-    s.onMsg = (event) => {
-      const data = event.data || {};
-      if (data.script !== ID) {
-        return;
-      }
-
-      if (data.type === "frontend-hello") {
-        logHello(api);
-        pub(api, { reason: s.reason || ST.READY });
-        return;
-      }
-      if (data.type === "set-enabled") {
-        const on = data.on;
-        const rid = data.rid;
-        const operationId = String(data.operationId || "")
-          || window.STLoggerFactory?.createOperationId?.()
-          || "";
-        setOn(api, !!on, rid, operationId).catch((error) => {
-          clearTimers();
-          s.on = false;
-          s.mon = false;
-          s.shut = false;
-          s.err = error?.message || String(error);
-          pub(api, { rid, reason: ST.FAIL, error: s.err });
-          log.error("download-auto-shutdown-toggle-failed", "下载完成自动关机开关处理失败", {
-            operationId,
-            enabled: !!on,
-            reason: ST.FAIL,
-            error,
-          });
+    async function shutdown(session, countdown) {
+      if (!check(session) || session.countdown !== countdown) return;
+      const attempt = new AbortController();
+      session.preparing = attempt;
+      try {
+        update("preparing");
+        await openBigPicture(attempt.signal);
+        if (!check(session) || session.countdown !== countdown || session.preparing !== attempt) return;
+        if (!window.SteamUIStore.IsGamepadUIWindowActive()) throw new Error("Steam 大屏幕模式已关闭");
+        const result = window.SteamClient.System.ShutdownPC();
+        const current = { id: session.id };
+        request = current;
+        current.timer = window.setTimeout(() => {
+          if (!clearRequest(current)) return;
+          log.warn("download-auto-shutdown-unconfirmed", "Steam 关机请求未确认", { operationId: current.id });
+          update("unconfirmed");
+        }, UNCONFIRMED_MS);
+        void Promise.resolve(result).catch(error => {
+          if (!clearRequest(current)) return;
+          log.error("download-auto-shutdown-request-failed", "Steam 关机请求失败", { operationId: current.id, error });
+          update("failed");
         });
+        disarm();
+        update("requested");
+        log.info("download-auto-shutdown-requested", "已向 Steam 发送关机请求", { operationId: session.id });
+      } catch (error) {
+        if (!(arm === session && session.preparing === attempt) && request?.id !== session.id) return;
+        log.error("download-auto-shutdown-failed", "下载完成关机已停止", { operationId: session.id, error });
+        if (request?.id === session.id) clearRequest(request);
+        markFailed();
       }
-    };
-    scope?.listener?.("backend-channel-message", ch, "message", s.onMsg);
+    }
 
-    pub(api, { reason: ST.READY });
-    log.info("download-auto-shutdown-backend-ready", "下载完成自动关机后端已就绪", readyMeta());
-    return { started: true, stop: s.stop };
+    function enable(operationId) {
+      if (arm || request || stopped || !enabled()) return;
+      if (window.downloadsStore?.BIsViewingLocalClient === false) {
+        update("remote");
+        return;
+      }
+      if (typeof window.SteamClient?.System?.ShutdownPC !== "function" ||
+          typeof window.SteamClient?.URL?.ExecuteSteamURL !== "function" ||
+          typeof window.SteamUIStore?.IsGamepadUIWindowActive !== "function" ||
+          typeof window.downloadsStore?.RegisterForDownloadItemsUpdate !== "function") {
+        throw new TypeError("Steam 原生下载关机能力不可用");
+      }
+      const shot = snapshot(api);
+      const armedAt = Math.floor(Date.now() / 1000);
+      const session = {
+        id: operationId,
+        armedAt,
+        seen: new Map(shot.transfers.filter(item => item.completed_time > 0 && item.completed_time <= armedAt)
+          .map(item => [item.appid, item.completed_time])),
+        futureCompletions: new Map(),
+        finished: new Set(), required: new Set(shot.pending), countdown: null, preparing: null, subscription: null,
+      };
+      arm = session;
+      // Steam 可原地更新已有项目的排队状态。每次列表更新记录待办，速度与 ETA 单独低频刷新。
+      session.subscription = window.downloadsStore.RegisterForDownloadItemsUpdate(() => {
+        if (session.subscription) check(session);
+      });
+      if (typeof session.subscription?.Unregister !== "function") {
+        session.subscription = null;
+        throw new TypeError("Steam 下载变更订阅注销句柄无效");
+      }
+      window.STScheduler.register(ID, () => check(session, true), () => arm === session, { intervalMs: CHECK_MS });
+      check(session, true);
+      if (arm === session) log.info("download-auto-shutdown-armed", "已监听本次本机下载", { operationId });
+    }
+
+    function receive({ data }) {
+      if (data?.script !== ID || stopped) return;
+      if (data.type === "frontend-hello") {
+        publish(data.rid);
+        return;
+      }
+      if (data.type !== "set-enabled" || typeof data.on !== "boolean" ||
+          typeof data.rid !== "string" || !data.rid) return;
+      try {
+        if (data.on) enable(data.rid);
+        else if (arm && arm.id === data.sessionId) {
+          const operationId = arm.id;
+          disarm();
+          update("off");
+          log.info("download-auto-shutdown-cancelled", "已取消本次下载关机", { operationId });
+        }
+      } catch (error) {
+        log.error("download-auto-shutdown-toggle-failed", "下载关机开关处理失败", { operationId: data.rid, error });
+        markFailed();
+      }
+      publish(data.rid);
+    }
+
+    function stop() {
+      if (stopped) return;
+      stopped = true;
+      window.clearTimeout(request?.timer);
+      request = null;
+      try {
+        disarm();
+      } finally {
+        channel.close();
+      }
+    }
+
+    scope.resource({ key: "shutdown-monitor", type: "resource", dispose: stop });
+    scope.listener("shutdown-channel", channel, "message", receive);
+    publish();
+    log.info("download-auto-shutdown-backend-ready", "Steam 下载完成关机后端已就绪");
+    return { started: true, stop };
   }
 
   window.SteamBuff.reg.addEntry(ID, "backend.js", start);

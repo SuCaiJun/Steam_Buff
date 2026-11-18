@@ -42,10 +42,11 @@
   let pageCount = 0;
   let loading = false;
 
-  function showHandoffError(message) {
-    note.textContent = message;
-    note.classList.remove("is-pending");
-    note.classList.add("error");
+  function reportFailure(error) {
+    globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "bridge", event: "handoff-failed", message: "打开扩展本地引导页失败" });
+    void globalThis.STFeedback.show(document.body, { message: error.message });
+    note.replaceChildren(...noteContent.map(node => node.cloneNode(true)));
+    note.classList.remove("is-pending", "error");
     handoff.disabled = false;
   }
 
@@ -59,11 +60,11 @@
       }, (response) => {
         const error = chrome.runtime.lastError;
         if (error || !response?.success) {
-          showHandoffError(error?.message || response?.error || "扩展本地引导页打开失败，请重试。");
+          reportFailure(new Error(error?.message || response?.error || "扩展本地引导页打开失败，请重试。"));
         }
       });
     } catch (error) {
-      showHandoffError(error.message || "扩展连接已失效，请刷新页面重试。");
+      reportFailure(error);
     }
   }
 

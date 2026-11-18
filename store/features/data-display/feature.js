@@ -112,7 +112,6 @@
   function removeCurrent() {
     const current = document.getElementById(ROOT_ID);
     current?.__stDataDisplayController?.dispose();
-    api.features?.dataDisplayAiForecast?.dispose?.(current);
     if (current) api.dom.loading.clear(current);
     current?.remove?.();
     activeRoot = null;
@@ -214,7 +213,6 @@
     controller.selectedPageInfo = controller.info.type === "app" ? selectedProductInfo(controller.info, option) : controller.info;
     if (!keepExisting) {
       controller.priceData = null;
-      api.features?.dataDisplayAiForecast?.dispose?.(controller.root);
       renderControllerState(controller, "loading", {});
     }
     let product = controller.products.get(controller.selectedSubId);
@@ -315,7 +313,6 @@
       dispose() {
         if (controller.disposed) return;
         controller.disposed = true;
-        api.features.dataDisplayAiForecast?.dispose(root);
         panel?.unbind(root);
         window.STScheduler.unregister(calendarTask);
         document.removeEventListener("visibilitychange", resumeCalendar);
@@ -353,7 +350,6 @@
           const currentPanel = panel.current();
           if (currentPanel) delete currentPanel.root.dataset.detailsLoading;
           if (product?.compact) controller.priceData = product.compact;
-          api.features.dataDisplayAiForecast?.dispose(root);
           if (controller.priceData) renderControllerState(controller, stateFromResult(controller.priceData), controller.priceData);
           // 收起只取消完整范围；主区尚在加载时复用原任务，并由当前选择接收结果
           if (option && (product?.pending.has("compact") || !controller.priceData)) {
@@ -369,12 +365,11 @@
           void requestSelectedPrice(controller, option, "full", true);
         } else renderControllerState(controller, controller.priceData ? stateFromResult(controller.priceData) : "unsupported", controller.priceData || {});
       },
-      onAi: options.forecastEnabled ? trigger => api.features.dataDisplayAiForecast.open(root, renderResult(), controller.selectedPageInfo, trigger) : null,
       onDispose: () => controller.dispose(),
     });
     panel?.loading("initial", true);
     const priceNeeded = options.chartEnabled || options.forecastEnabled;
-    const festivalsNeeded = options.forecastEnabled || options.upcomingEnabled;
+    const festivalsNeeded = options.upcomingEnabled || (options.forecastEnabled && (options.discountForecastEnabled || options.seasonalForecastEnabled));
     const loadFestivals = async () => {
       if (!festivalsNeeded) { controller.festivalStatus = "disabled"; return; }
       const startedAt = Date.now();

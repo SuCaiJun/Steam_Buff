@@ -537,15 +537,13 @@
       .st-detail-header { margin-bottom: var(--st-spacing-md); }
       .st-detail-brand .st-brand-mark { font-size: var(--st-font-size-section-title); }
       .st-detail-slogan { margin-top: var(--st-spacing-xs); font-size: var(--st-font-size-tiny); color: var(--st-color-text-muted); letter-spacing: 1px; }
-      .st-detail-toggle, .st-detail-ai-entry {
+      .st-detail-toggle {
         font: inherit; color: var(--st-color-primary); background: transparent;
         border: 0; padding: var(--st-spacing-xs) 0; cursor: pointer;
       }
       .st-detail-toggle { white-space: nowrap; }
       .st-detail-toggle[aria-busy="true"] { opacity: .7; }
-      .st-detail-toggle:focus-visible, .st-detail-ai-entry:focus-visible { outline: 1px solid var(--st-color-primary); outline-offset: var(--st-spacing-xs); }
-      .st-detail-ai-entry { margin-inline-start: auto; flex: 0 0 auto; white-space: nowrap; }
-      .st-detail-ai-entry:disabled { opacity: .5; cursor: default; }
+      .st-detail-toggle:focus-visible { outline: 1px solid var(--st-color-primary); outline-offset: var(--st-spacing-xs); }
       .st-detail-product { display: flex; align-items: center; max-width: 320px; min-width: 0; }
       .st-detail-product .st-data-display-range__product-select { max-width: 100%; transform: none; }
       .st-detail-summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--st-spacing-xl); }
@@ -602,7 +600,6 @@
       .st-store-detail-panel .st-data-display { margin: var(--st-spacing-md) 0 0; padding: 0; background: transparent; }
       .st-store-detail-panel .st-data-display-range { position: static; }
       .st-store-detail-panel .st-data-display-range__brand-lockup { display: none; }
-      .st-store-detail-panel .st-data-display-ai-card { margin-bottom: 0; }
       .st-store-detail-panel .st-data-display__upcoming { margin: var(--st-spacing-md) 0; }
       .st-store-detail-panel .st-detail-loader {
         position: relative; box-sizing: border-box; display: grid; place-content: center;
@@ -805,335 +802,6 @@
       .st-data-display-forecast-model.is-error .st-data-display-forecast-model__title,
       .st-data-display-forecast-model.is-error .st-data-display-forecast-model__body {
         color: var(--st-color-danger-text);
-      }
-      .st-data-display-ai-card {
-        box-sizing: border-box;
-        width: 100%;
-        margin: 10px 0 var(--st-spacing-xl);
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: var(--st-radius-sm);
-        padding: var(--st-spacing-md) var(--st-spacing-lg);
-        color: var(--st-color-text-primary);
-        background: var(--st-color-surface-inset);
-        box-shadow: none;
-        font-family: var(--st-font-family-base);
-      }
-      .st-data-display-ai-card__header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: var(--st-spacing-lg);
-      }
-      .st-data-display-ai-card__title {
-        display: block;
-        min-height: 22px;
-        min-width: 0;
-        color: var(--st-color-steam-blue);
-        font-size: var(--st-font-size-body);
-        line-height: var(--st-line-height-body);
-        font-weight: var(--st-font-weight-semibold);
-      }
-      .st-data-display-ai-card__title::before {
-        display: none;
-      }
-      .st-data-display-ai-card__detail-button,
-      .st-ai-forecast-dialog__retry,
-      .st-ai-forecast-dialog__send {
-        flex: 0 0 auto;
-        border: 1px solid var(--st-color-steam-toolbar-button-border);
-        border-radius: var(--st-radius-sm);
-        padding: var(--st-spacing-xs) var(--st-spacing-md);
-        color: var(--st-color-steam-toolbar-button-text);
-        background: var(--st-color-steam-toolbar-button-bg);
-        box-shadow: var(--st-shadow-steam-toolbar-button);
-        font: inherit;
-        font-size: var(--st-font-size-caption);
-        line-height: var(--st-line-height-body);
-        cursor: pointer;
-      }
-      .st-data-display-ai-card__detail-button {
-        border-color: var(--st-color-border-hover);
-        color: var(--st-color-text-secondary);
-        background: var(--st-color-surface-control-strong);
-        box-shadow: none;
-      }
-      .st-data-display-ai-card__detail-button:hover:not(:disabled),
-      .st-ai-forecast-dialog__retry:hover:not(:disabled),
-      .st-ai-forecast-dialog__send:hover:not(:disabled) {
-        border-color: var(--st-color-steam-toolbar-button-border-hover);
-        background: var(--st-color-steam-toolbar-button-bg-hover);
-      }
-      .st-data-display-ai-card__detail-button:hover:not(:disabled) {
-        border-color: var(--st-color-border-primary);
-        color: var(--st-color-text-primary);
-        background: var(--st-color-primary-surface);
-      }
-      .st-data-display-ai-card__detail-button:focus-visible,
-      .st-ai-forecast-dialog__close:focus-visible,
-      .st-ai-forecast-dialog__retry:focus-visible,
-      .st-ai-forecast-dialog__send:focus-visible,
-      .st-ai-forecast-dialog__input:focus-visible {
-        outline: 0;
-        box-shadow: var(--st-control-focus-shadow);
-      }
-      .st-data-display-ai-card__detail-button:disabled,
-      .st-ai-forecast-dialog__retry:disabled,
-      .st-ai-forecast-dialog__send:disabled {
-        opacity: .55;
-        cursor: default;
-      }
-      .st-data-display-ai-card__summary {
-        margin-top: var(--st-spacing-sm);
-        max-width: none;
-        color: var(--st-color-text-secondary);
-        font-size: var(--st-font-size-body-small);
-        line-height: var(--st-line-height-body);
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
-      html.st-ai-forecast-dialog-open {
-        overflow: hidden;
-      }
-      .st-ai-forecast-dialog[hidden] {
-        display: none;
-      }
-      .st-ai-forecast-dialog {
-        position: fixed;
-        inset: 0;
-        z-index: var(--st-z-index-dialog);
-        display: grid;
-        place-items: center;
-        box-sizing: border-box;
-        padding: var(--st-spacing-md);
-        background: var(--st-color-overlay);
-        font-family: var(--st-font-family-base);
-      }
-      .st-ai-forecast-dialog *,
-      .st-ai-forecast-dialog *::before,
-      .st-ai-forecast-dialog *::after {
-        box-sizing: border-box;
-      }
-      .st-ai-forecast-dialog__panel {
-        display: flex;
-        flex-direction: column;
-        width: min(760px, 100%);
-        height: clamp(520px, 68vh, 720px);
-        max-height: calc(100vh - (var(--st-spacing-lg) * 2));
-        border: 1px solid var(--st-color-surface-control-hover);
-        border-radius: var(--st-radius-sm);
-        color: var(--st-color-text-primary);
-        background: var(--st-dialog-surface-raised);
-        box-shadow: var(--st-dialog-shadow);
-        overflow: hidden;
-      }
-      .st-ai-forecast-dialog__header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        min-height: 52px;
-        gap: var(--st-spacing-md);
-        border-bottom: 1px solid var(--st-color-surface-inset-hover);
-        padding: var(--st-spacing-sm) var(--st-spacing-md);
-      }
-      .st-ai-forecast-dialog__title {
-        display: flex;
-        align-items: center;
-        margin: 0;
-        color: var(--st-color-text-primary);
-        font-size: var(--st-font-size-dialog-title);
-        line-height: var(--st-line-height-section-title);
-        font-weight: var(--st-font-weight-semibold);
-      }
-      .st-ai-forecast-dialog__title .st-brand-mark {
-        max-width: 100%;
-      }
-      .st-ai-forecast-dialog__close {
-        display: grid;
-        place-items: center;
-        width: 36px;
-        height: 36px;
-        border: 0;
-        border-radius: var(--st-radius-sm);
-        padding: 0;
-        color: var(--st-color-text-muted);
-        background: transparent;
-        font: inherit;
-        font-size: var(--st-font-size-dialog-title);
-        line-height: 1;
-        cursor: pointer;
-      }
-      .st-ai-forecast-dialog__close:hover {
-        color: var(--st-color-text-primary);
-        background: var(--st-color-surface-subtle-hover);
-      }
-      .st-ai-forecast-dialog__messages {
-        flex: 1 1 auto;
-        min-height: 0;
-        padding: var(--st-spacing-md);
-        overflow: auto;
-        scrollbar-gutter: stable;
-      }
-      .st-ai-forecast-message {
-        width: fit-content;
-        max-width: 88%;
-        margin-bottom: var(--st-spacing-md);
-      }
-      .st-ai-forecast-message.is-user {
-        margin-left: auto;
-      }
-      .st-ai-forecast-message__label {
-        margin-bottom: var(--st-spacing-xs);
-        color: var(--st-color-text-muted);
-        font-size: var(--st-font-size-caption);
-        line-height: var(--st-line-height-caption);
-      }
-      .st-ai-forecast-message.is-user .st-ai-forecast-message__label {
-        text-align: right;
-      }
-      .st-ai-forecast-message__content {
-        border-radius: var(--st-radius-sm);
-        padding: var(--st-spacing-sm) var(--st-spacing-md);
-        color: var(--st-color-text-primary);
-        background: var(--st-dialog-surface-inset);
-        font-size: var(--st-font-size-body-small);
-        line-height: var(--st-line-height-body);
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content {
-        white-space: normal;
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content > :first-child {
-        margin-top: 0;
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content > :last-child {
-        margin-bottom: 0;
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content p,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content ul,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content ol,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content blockquote,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content pre,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content table {
-        margin: 0 0 var(--st-spacing-sm);
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content h1,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content h2,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content h3,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content h4,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content h5,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content h6 {
-        margin: var(--st-spacing-md) 0 var(--st-spacing-xs);
-        color: var(--st-color-text-primary);
-        font-size: var(--st-font-size-body);
-        line-height: var(--st-line-height-body);
-        font-weight: var(--st-font-weight-semibold);
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content ul,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content ol {
-        padding-left: var(--st-spacing-xl);
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content li + li {
-        margin-top: var(--st-spacing-xs);
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content blockquote {
-        border-left: 3px solid var(--st-color-border-primary);
-        padding-left: var(--st-spacing-sm);
-        color: var(--st-color-text-secondary);
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content code {
-        border-radius: var(--st-radius-xs);
-        padding: 1px var(--st-spacing-xs);
-        background: var(--st-color-surface-control-strong);
-        font-family: Consolas, "Courier New", monospace;
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content pre {
-        max-width: 100%;
-        padding: var(--st-spacing-sm);
-        background: var(--st-color-surface-control-strong);
-        overflow: auto;
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content pre code {
-        padding: 0;
-        background: transparent;
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content table {
-        display: block;
-        max-width: 100%;
-        border-collapse: collapse;
-        overflow-x: auto;
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content th,
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content td {
-        border: 1px solid var(--st-color-border-normal);
-        padding: var(--st-spacing-xs) var(--st-spacing-sm);
-        text-align: left;
-        vertical-align: top;
-        white-space: nowrap;
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content th {
-        background: var(--st-color-surface-control-strong);
-        font-weight: var(--st-font-weight-semibold);
-      }
-      .st-ai-forecast-message.is-assistant .st-ai-forecast-message__content a {
-        color: var(--st-color-steam-blue);
-        text-decoration: underline;
-        text-underline-offset: 2px;
-      }
-      .st-ai-forecast-message.is-user .st-ai-forecast-message__content {
-        background: var(--st-color-primary-surface);
-      }
-      .st-ai-forecast-dialog__status-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        min-height: 36px;
-        gap: var(--st-spacing-sm);
-        padding: 0 var(--st-spacing-md) var(--st-spacing-sm);
-      }
-      .st-ai-forecast-dialog__status-row[hidden] {
-        display: none;
-      }
-      .st-ai-forecast-dialog__status {
-        min-width: 0;
-        color: var(--st-color-text-muted);
-        font-size: var(--st-font-size-caption);
-        line-height: var(--st-line-height-caption);
-        overflow-wrap: anywhere;
-      }
-      .st-ai-forecast-dialog__retry[hidden] {
-        display: none;
-      }
-      .st-ai-forecast-dialog__composer {
-        display: flex;
-        align-items: flex-end;
-        gap: var(--st-spacing-sm);
-        border-top: 1px solid var(--st-color-surface-inset-hover);
-        padding: var(--st-spacing-md);
-      }
-      .st-ai-forecast-dialog__input {
-        flex: 1 1 auto;
-        min-width: 0;
-        min-height: 52px;
-        max-height: 144px;
-        resize: vertical;
-        border: 1px solid var(--st-color-surface-control-hover);
-        border-radius: var(--st-radius-sm);
-        padding: var(--st-spacing-sm);
-        color: var(--st-color-text-primary);
-        background: var(--st-dialog-surface-inset);
-        font: inherit;
-        font-size: var(--st-font-size-body-small);
-        line-height: var(--st-line-height-body);
-      }
-      .st-ai-forecast-dialog__input:disabled {
-        color: var(--st-color-text-disabled);
-        background: var(--st-color-surface-disabled);
-        cursor: default;
-      }
-      .st-ai-forecast-dialog__input.is-busy::placeholder {
-        color: var(--st-color-steam-blue-light);
-        opacity: 1;
       }
       .st-data-display-chart {
         box-sizing: border-box;
@@ -1404,30 +1072,6 @@
         }
         .st-data-display__chart-range {
           justify-content: center;
-        }
-        .st-data-display-ai-card__header {
-          align-items: flex-start;
-          gap: var(--st-spacing-sm);
-        }
-        .st-data-display-ai-card {
-          padding: var(--st-spacing-md);
-        }
-        .st-ai-forecast-dialog {
-          padding: var(--st-spacing-sm);
-        }
-        .st-ai-forecast-dialog__panel {
-          height: min(80vh, 680px);
-          max-height: calc(100vh - (var(--st-spacing-sm) * 2));
-        }
-        .st-ai-forecast-dialog__messages {
-          min-height: 0;
-          padding: var(--st-spacing-sm);
-        }
-        .st-ai-forecast-message {
-          max-width: 94%;
-        }
-        .st-ai-forecast-dialog__composer {
-          padding: var(--st-spacing-sm);
         }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -2413,19 +2057,6 @@
           padding: 16px;
         }
       }
-      #st-title-custom-name-toast {
-        position: fixed;
-        right: 24px;
-        top: 84px;
-        z-index: var(--st-z-index-max);
-        max-width: 360px;
-        padding: 10px 12px;
-        border: 1px solid var(--st-color-border-primary-strong);
-        background: var(--st-color-surface-control-strong);
-        color: var(--st-color-text-primary);
-        box-shadow: var(--st-shadow-tooltip);
-        font-size: 13px;
-      }
     `,
     },
     "dlc-checkboxes": {
@@ -2990,32 +2621,8 @@
         pointer-events: none;
       }
 
-      #st_cart_select_toast {
-        position: fixed;
-        left: 50%;
-        top: 35%;
-        z-index: var(--st-z-index-dialog);
-        max-width: 460px;
-        transform: translateX(-50%) translateY(-50%) translateY(-10px);
-        opacity: 0;
-        pointer-events: none;
-        padding: 12px 18px;
-        color: var(--st-color-text-primary);
-        background: var(--st-color-surface-control-strong);
-        border: 1px solid var(--st-color-border-primary);
-        box-shadow: var(--st-shadow-dialog);
-        transition: opacity .16s ease, transform .16s ease;
-      }
 
-      #st_cart_select_toast.st_cart_select_show {
-        opacity: 1;
-        transform: translateX(-50%) translateY(-50%);
-      }
 
-      #st_cart_select_toast.st_cart_select_bad {
-        border-color: var(--st-color-danger-border);
-        color: var(--st-color-danger-text);
-      }
     `,
     },
     "steampy-deals": {

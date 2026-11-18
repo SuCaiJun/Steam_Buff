@@ -1221,6 +1221,7 @@
       monitorCache.set(context.key, monitor);
       refreshMonitorHost(context);
       closeMonitorModal();
+      void window.STFeedback.show(document.body, { title: t("common.success", "操作成功"), message: t("store_priceHistory_monitorSaved", "打折监控已保存。") });
       log.info("price-monitor-save-success", "打折监控保存完成", {
         operationId,
         itemType: context.target.type,
@@ -1276,6 +1277,7 @@
       monitorCache.set(context.key, null);
       refreshMonitorHost(context);
       closeMonitorModal();
+      void window.STFeedback.show(document.body, { title: t("common.success", "操作成功"), message: t("store_priceHistory_monitorDeleted", "打折监控已删除。") });
       log.info("price-monitor-delete-success", "打折监控删除完成", {
         operationId,
         itemType: context.target.type,

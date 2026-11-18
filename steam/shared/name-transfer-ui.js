@@ -66,7 +66,7 @@
     }
     function reportError(error,io=active) {
       if(io && active!==io)return;
-      if(io){io.working=false;io.error=error.message;refresh();}
+      if(io){io.working=false;io.error=error.message;refresh();void window.STFeedback.show(doc.body,{message:error.message});}
       else options.onError(error);
       log.error("name-transfer-failed","名称文件操作失败",{error,operationId:io?.id,operation:io?.kind,phase:io?.phase,mode});
     }
@@ -97,7 +97,7 @@
     function refresh() {
       const io=active;if(!io)return;
       const locked=!io.ready||io.working;
-      root.querySelector("[data-lin-io-status]").textContent=io.error||(io.working?t("working"):io.phase==="preview"?t("summary",{total:io.rows.length,changed:io.changed,same:io.rows.length-io.changed-io.invalid,invalid:io.invalid}):io.message);
+      root.querySelector("[data-lin-io-status]").textContent=(io.working?t("working"):io.phase==="preview"?t("summary",{total:io.rows.length,changed:io.changed,same:io.rows.length-io.changed-io.invalid,invalid:io.invalid}):io.message);
       root.querySelector("#st-lin-transfer-title").textContent="Steam Buff · "+t(io.phase==="preview"?"preview":io.kind);
       root.querySelector("[data-lin-io-hint]").textContent=io.phase==="preview"?"":io.kind==="import"?t(io.format==="json"?"jsonHint":free?"freeHint":"donorHint"):options.hasDrafts()?t("saved"):"";
       root.querySelector("[data-lin-io-name-hint]").textContent=t(free?"freeNameHint":"donorNameHint");
@@ -171,7 +171,8 @@
       }}
       const format=template?"xlsx":io.format,result=await worker(io).request({type:"export",format,items,includeSort:template||io.includeSort});if(!valid(io))return;
       const url=URL.createObjectURL(result.blob);try{const link=doc.createElement("a");link.href=url;link.download=template?"steam-buff-name-template.xlsx":`steam-buff-${mode}-names.${format}`;link.click();}finally{URL.revokeObjectURL(url);}
-      io.working=false;io.message=template?"":t("exported",{n:items.length});refresh();
+      io.working=false;io.message="";refresh();
+      void window.STFeedback.show(doc.body,{message:t("exported",{n:items.length})});
       log.info("name-transfer-exported","名称文件已导出",{operationId:io.id,mode,format,scope:template?"template":io.scope,count:items.length});
     }
     async function apply() {
@@ -194,7 +195,7 @@
         }if((index+1)%16===0)await yieldUI(io);
       }
       if(!valid(io))return;io.manual=edits;await rebuild(io);
-      if(valid(io)){io.message=t("generated",{n:count});refresh();log.info("name-transfer-generated","导入预览读音已重新生成",{operationId:io.id,mode,count});}
+      if(valid(io)){io.message="";refresh();void window.STFeedback.show(doc.body,{message:t("generated",{n:count})});log.info("name-transfer-generated","导入预览读音已重新生成",{operationId:io.id,mode,count});}
     }
     function input(event) {
       const io=active,field=event.target;if(!io||io.working||!field.matches("[data-lin-io-field]"))return;

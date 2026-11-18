@@ -757,7 +757,7 @@
         batch.paused = false;
         batch.waitCmd = "";
         batch.summary = true;
-        setMessage(i18n("steam.libraryCustomName.saveStatusTimeout", "Steam 保存队列状态没有响应，请重新打开批量窗口确认结果"));
+        setMessage(i18n("steam.libraryCustomName.saveStatusTimeout", "Steam 保存队列状态没有响应，请重新打开批量窗口确认结果"), "result");
         log.warn("library-custom-name-save-status-timeout", "库自定义名称保存队列状态查询超时", {
           operationId: batch.operationId || "",
           rid: batch.saveRid || "",
@@ -1456,7 +1456,7 @@
       if (seq !== batch.previewSeq) {
         return;
       }
-      setMessage(error?.message || String(error));
+      setMessage(error?.message || String(error), "result");
       log.error("library-custom-name-preview-failed", "库自定义名称本地列表加载失败", {
         durationMs: now() - startedAt,
         error,
@@ -1669,12 +1669,21 @@
   }
 
   function setMessage(value, kind = "status") {
+    if (kind === "result") {
+      if (batch.summary && batch.progressElement && !batch.progressElement.hidden) {
+        batch.message = value; batch.messageKind = "status";
+        return;
+      }
+      batch.message = "";
+      void window.STFeedback.show(dialogDocument().body, { message: value });
+      return;
+    }
     batch.message = value; batch.messageKind = kind;
   }
 
   function messageHtml() {
     const summary = previewMessageHtml();
-    return batch.messageKind === "preview" || !batch.message ? summary : summary + `<div class="st-lcn-status-note">${esc(batch.message)}</div>`;
+    return batch.summary || batch.messageKind === "preview" || !batch.message ? summary : summary + `<div class="st-lcn-status-note">${esc(batch.message)}</div>`;
   }
 
   function refreshStorageCapacitySoon(delay = 180) {
@@ -1902,7 +1911,7 @@
       globalThis.STLoggerFactory.reportError(error, { domain: "steam", feature: "library-custom-name", event: "schedule-search-failed", message: "客户端功能处理失败", level: "error", phase: "scheduleSearch" });
       if (seq === batch.searchSeq) {
         batch.searching = false;
-        setMessage(error?.message || String(error));
+        setMessage(error?.message || String(error), "result");
         renderVisibleRows();
       }
     });
@@ -1961,8 +1970,8 @@
           capture(){const scope=s.scope,seq=batch.previewSeq;return()=>s.started&&s.scope===scope&&batch.previewSeq===seq;},
           getBase:transferBase,same:sameTransfer,emptyBase:()=>({native_sort_name:"",mnemonic:"",native_sort_initial:"",native_sort_ready:false}),
           getSaved(row){return {native_sort_name:row.custom,mnemonic:window.SteamBuff.libraryCustomNameMnemonic.mnemonicCodes(row.custom).join(",")};},
-          hasDrafts:hasDirtyRows,onState(io){batch.transfer=io;refreshSaveState();},onError(error){setMessage(error.message);renderModal();},
-          onApplied(message){batch.viewRows=null;refreshCounts();setMessage(message);renderModal();},
+          hasDrafts:hasDirtyRows,onState(io){batch.transfer=io;refreshSaveState();},onError(error){setMessage(error.message, "result");renderModal();},
+          onApplied(message){batch.viewRows=null;refreshCounts();setMessage(message, "result");renderModal();},
           async commit(rows,valid,yieldUI){
             const prepared=[];
             for(let index=0;index<rows.length;index++){
@@ -1978,7 +1987,7 @@
         transferUI={...editor,root:modal};
       }
       await transferUI.open(kind);
-    } catch(error){log.error("name-transfer-open-failed","排序名称文件窗口打开失败",{error});setMessage(error.message);renderModal();}
+    } catch(error){log.error("name-transfer-open-failed","排序名称文件窗口打开失败",{error});setMessage(error.message, "result");renderModal();}
   }
 
   function updateRowWrite(row, apply) {
@@ -2520,14 +2529,14 @@
           <h3 id="st-lcn-progress-title">${esc(title)}</h3>
         </div>
         <div class="st-lcn-progress-body">
-          <div class="st-lcn-progress-msg">${esc(summary ? doneMessage : batch.message)}</div>
+          <div class="st-lcn-progress-msg">${esc(summary ? (batch.messageKind !== "preview" && batch.message ? batch.message : doneMessage) : batch.message)}</div>
           <div class="st-lcn-progress-bar" role="progressbar" aria-label="${attr(progressLabel)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${attr(pct)}">
             <div class="st-lcn-progress-fill" data-lcn-progress-value="${attr(pct)}"></div>
           </div>
           <div class="st-lcn-progress-line">${esc(progressLine())}</div>
           <div class="st-lcn-progress-actions">
             ${summary
-              ? `<button class="st-lcn-btn" type="button" data-lcn-progress="hide">${esc(i18n("common.close", "关闭"))}</button>`
+              ? `<button class="st-lcn-btn" type="button" data-lcn-progress="hide">${esc(i18n("common.confirm", "确定"))}</button>`
               : `
                 <button class="st-lcn-btn" type="button" data-lcn-progress="cancel">${esc(i18n("common.close", "关闭"))}</button>
                 <button class="st-lcn-btn ${cls}" type="button" data-lcn-progress="${attr(action)}" aria-label="${attr(label)}" title="${attr(label)}"${disabled}>${text}</button>
@@ -2840,7 +2849,7 @@
     const changed = bulk.preview.filter(item => item.changed);
     if (!changed.length || bulk.preview.some(item => item.error)) return;
     if (bulk.rows.some(item => batch.rowMap.get(item.appid) !== item.row || item.row.want !== item.before)) {
-      bulk.dialog.querySelector("[data-lcn-bulk-status]").textContent = bulkText("updated", "目标内容已更新，请关闭后重新打开操作窗。"); return;
+      void window.STFeedback.show(bulk.dialog, { message: bulkText("updated", "目标内容已更新，请关闭后重新打开操作窗。") }); return;
     }
     bulk.applying = true;
     for (const control of bulk.dialog.querySelectorAll("button,input,select")) control.disabled = true;
@@ -2869,7 +2878,7 @@
       if (batch.bulk) {
         batch.bulk.applying = false;
         for (const control of batch.bulk.dialog.querySelectorAll("button,input,select")) control.disabled = false;
-        batch.bulk.dialog.querySelector("[data-lcn-bulk-status]").textContent = error.message;
+        void window.STFeedback.show(batch.bulk.dialog, { message: error.message });
       }
       log.error("steam-sort-bulk-apply-failed", "应用排序名称批量修改失败", { error });
     });
@@ -3134,7 +3143,7 @@
       setMessage(previewMessage(), "preview");
     } catch (error) {
       refreshCounts();
-      setMessage(error?.message || String(error));
+      setMessage(error?.message || String(error), "result");
       log.error("library-custom-name-selection-failed", "库自定义名称批量选择失败", { error, mode });
     } finally {
       batch.selecting = false;
@@ -3533,7 +3542,7 @@
     }
     const targets = selectedRows().filter(row => Number(row.appid) > 0);
     if (!targets.length) {
-      setMessage(i18n("steam.libraryCustomName.selectCloudTargets", "请先勾选需要获取社区名称的游戏"));
+      setMessage(i18n("steam.libraryCustomName.selectCloudTargets", "请先勾选需要获取社区名称的游戏"), "result");
       renderModal();
       return;
     }
@@ -3615,7 +3624,7 @@
         setMessage(previewMessage(), "preview");
         oneFail(error);
       } else {
-        setMessage(error?.message || String(error));
+        setMessage(error?.message || String(error), "result");
       }
       log.error("library-custom-name-preview-failed", "库自定义名称社区名称获取失败", {
         durationMs: now() - startedAt,
@@ -3635,7 +3644,7 @@
     if (!s.started || seq !== batch.previewSeq) return;
     const rows = mnemonicRows().filter(row => on ? core.rebuildMnemonic(row.want) !== row.want : core.mnemonicCodes(row.want).length > 0);
     if (!rows.length) {
-      setMessage(i18n("steam.libraryCustomName.noMnemonicItems", "没有可处理的助记符条目"));
+      setMessage(i18n("steam.libraryCustomName.noMnemonicItems", "没有可处理的助记符条目"), "result");
       renderModal();
       return;
     }
@@ -3709,7 +3718,7 @@
     applyMnemonicToRows(on, operationId).catch(error=>{
       if (!s.started || seq !== batch.previewSeq) return;
       log.error('steam-sort-mnemonic-draft-failed','批量修改 Steam 排序名称助记符失败',{error,operationId,action:on?'generate':'clear'});
-      batch.busy=false;setMessage(error.message);renderModal();
+      batch.busy=false;setMessage(error.message, "result");renderModal();
     });
   }
 
@@ -3724,7 +3733,7 @@
     });
     const progressMessage = opt.progressMessage || i18n("steam.libraryCustomName.writingSteamItems", "正在逐条写入 Steam");
     if (!items.length) {
-      setMessage(emptyMessage);
+      setMessage(emptyMessage, "result");
       renderModal();
       log.warn("library-custom-name-save-failed", "库自定义名称保存缺少可写入条目", {
         operationId,
@@ -3738,7 +3747,7 @@
     try {
       ensureOn();
     } catch (error) {
-      setMessage(error?.message || String(error));
+      setMessage(error?.message || String(error), "result");
       renderModal();
       log.error("library-custom-name-save-failed", "库自定义名称保存未启用", {
         operationId,
@@ -3794,7 +3803,7 @@
       clearSaveWatch();
       batch.saving = false;
       batch.summary = true;
-      setMessage(error?.message || String(error));
+      setMessage(error?.message || String(error), "result");
       log.error("library-custom-name-save-failed", "库自定义名称保存队列启动失败", {
         operationId,
         count: items.length,
@@ -3849,11 +3858,11 @@
         if ((index + 1) % 100 === 0) await yieldUI();
       }
       batch.viewRows = null;
-      setMessage(i18n("steam.libraryCustomName.clearDraftApplied", "已更新 $count$ 项草稿，点击“保存修改”后写入 Steam。", { count: changed }));
+      setMessage(i18n("steam.libraryCustomName.clearDraftApplied", "已更新 $count$ 项草稿，点击“保存修改”后写入 Steam。", { count: changed }), "result");
       log.info("steam-sort-clear-draft-applied", "选中排序名称已清空至草稿", { operationId, action: part, count: changed });
     } catch (error) {
       log.error("steam-sort-clear-draft-failed", "清空排序名称草稿失败", { error, operationId, action: part });
-      setMessage(error.message);
+      setMessage(error.message, "result");
     } finally {
       if (seq === batch.previewSeq) { batch.busy = false; refreshCounts(); renderModal(); }
     }
@@ -3898,7 +3907,7 @@
       if (action === "pause" || action === "resume") {
         batch.waitCmd = "";
       }
-      setMessage(error?.message || String(error));
+      setMessage(error?.message || String(error), "result");
       log.error("library-custom-name-command-failed", "库自定义名称保存队列命令失败", {
         operationId: batch.operationId || "",
         action,

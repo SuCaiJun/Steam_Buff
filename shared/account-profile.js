@@ -49,7 +49,7 @@
       : null;
   }
 
-  const PERMISSION_KEYS = ["customNames", "gameNotes", "priceMonitor", "searchSuggestions", "settingsCloud", "cloudNameFetch"];
+  const PERMISSION_KEYS = ["customNames", "gameNotes", "priceMonitor", "searchSuggestions", "settingsCloud", "cloudNameFetch", "workflowAdvanced"];
 
   function explicitPermissions(source) {
     const result = {};
@@ -221,8 +221,9 @@
     const activeSource = src.entitlement?.active || null;
     const entitled = src.logged === true && activeSource && activeSource.type !== "normal";
     const permissions = explicitPermissions(src.permissions || src.features);
+    if (typeof src.permissions?.workflowAdvanced !== "boolean") delete permissions.workflowAdvanced;
     const normalizedPermissions = Object.fromEntries(PERMISSION_KEYS.filter((key) =>
-      key !== "cloudNameFetch" || typeof permissions[key] === "boolean",
+      !["cloudNameFetch", "workflowAdvanced"].includes(key) || typeof permissions[key] === "boolean",
     ).map((key) => [
       key,
       permissions[key] === true,

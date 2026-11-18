@@ -479,10 +479,6 @@
     }
   }
 
-  function forecastBuilder() {
-    return api.features?.dataDisplayForecastPack || null;
-  }
-
   async function getProviderStatus(options = {}) {
     const { config, provider, state } = await statusFor(options.capability || "prices", options);
     if (state) return state;
@@ -1169,67 +1165,6 @@
     }
   }
 
-  async function buildDiscountForecastPack(pageInfo = {}, options = {}) {
-    const builder = forecastBuilder();
-    const startedAt = now();
-    const appid = numericPageId(pageInfo);
-    if (!builder?.build) {
-      log?.warn?.("forecast-pack-build-failed", "价格预测数据包构建器缺失", {
-        appid,
-        durationMs: now() - startedAt,
-        errorCode: "FORECAST_PACK_BUILDER_MISSING",
-      });
-      return failure("FORECAST_PACK_BUILDER_MISSING", "价格预测模块未就绪。", { capability: "discountForecast" });
-    }
-    log?.info?.("forecast-pack-build-start", "开始构建价格预测数据包", { appid });
-    try {
-      const pricePack = options.pricePack || await getPricePack(pageInfo, options);
-      const pack = builder.build(pricePack, pageInfo, {
-        country: options.country || options.pageCountry,
-        steamPagePrice: options.steamPagePrice,
-        document: options.document,
-        now: options.now,
-        festivalData: options.festivalData,
-      });
-      if (pricePack?.ok !== true) {
-        log?.warn?.("forecast-pack-build-failed", "价格预测数据源不可用", {
-          appid,
-          durationMs: now() - startedAt,
-          errorCode: pricePack?.code || "FORECAST_SOURCE_UNAVAILABLE",
-        });
-        return failure("FORECAST_SOURCE_UNAVAILABLE", "价格预测数据暂不可用。", {
-          capability: "discountForecast",
-          provider: pricePack?.provider || DEFAULT_PROVIDER,
-          source: pricePack?.source || SOURCE,
-          data: {
-            pack,
-            errorCode: text(pricePack?.code),
-          },
-        });
-      }
-      log?.info?.("forecast-pack-build-success", "价格预测数据包构建完成", {
-        appid,
-        pricePointCount: pack.priceEvents.length,
-        sourceCount: pack.providerSources.length,
-        durationMs: now() - startedAt,
-      });
-      return success("discountForecast", {
-        id: pricePack.provider || DEFAULT_PROVIDER,
-        source: pricePack.source || SOURCE,
-      }, pack, pricePack.cache || { hit: false, ttlMs: 0 });
-    } catch (error) {
-      log?.error?.("forecast-pack-build-failed", "价格预测数据包构建异常", {
-        appid,
-        durationMs: now() - startedAt,
-        errorCode: error?.code || error?.name || "FORECAST_PACK_BUILD_FAILED",
-      });
-      return failure("FORECAST_PACK_BUILD_FAILED", "价格预测数据构建失败。", {
-        capability: "discountForecast",
-        data: { errorCode: text(error?.code || error?.name) },
-      });
-    }
-  }
-
   api.thirdPartyData = Object.freeze({
     getProviderStatus,
     testProvider,
@@ -1240,6 +1175,5 @@
     getPriceHistory,
     summarizePricePack,
     getSteamFestivals,
-    buildDiscountForecastPack,
   });
 })();

@@ -66,9 +66,9 @@
     }
     function message(host,text,error=false){
       const node=host.querySelector('[data-game-links-message]');
-      node.textContent=text;
-      node.hidden=!error;
-      node.setAttribute('role',error?'alert':'status');
+      node.textContent='';
+      node.hidden=true;
+      if(error) void root.STSettingsDialogs.notice(host.getRootNode(), { title: tr('saveFailedTitle','保存失败'), message:text });
     }
     function renderRows(host){
       clearDrag();
@@ -156,7 +156,7 @@
         text.textContent=errorText(error);
       }
     }
-    function openEditor(shadow,id){
+    async function openEditor(shadow,id){
       const original=id?conf.items.find(item=>item.id===id):null;
       if(id&&!original)return;
       const entry=original?model.definition(original):null;
@@ -164,7 +164,7 @@
       const defaultEntry=builtin?model.definition({id:original.id}):null;
       const defaultName=builtin?tr(`preset.${original.id}`,defaultEntry.name):'';
       const actions = [{id:'cancel',label:root.STI18n.text('common.cancel','取消')},{id:'save',label:original?tr('saveEdit','保存修改'):tr('add','添加链接'),primary:true}];
-      return root.STSettingsDialogs.dialog(shadow,{
+      const result = await root.STSettingsDialogs.dialog(shadow,{
         title:original?tr('editTitle','编辑链接'):tr('add','添加链接'),
         className:'game-links-dialog',
         actions,
@@ -185,8 +185,7 @@
           if(action!=='save')return true;
           const next=model.normalize(conf),name=value(editor,'name'),url=value(editor,'url');
           if(!name.value.trim()){
-            name.setCustomValidity(tr('nameRequired','请填写链接名称'));
-            name.reportValidity();
+            void root.STSettingsDialogs.notice(shadow,{message:tr('nameRequired','请填写链接名称'),focus:name});
             return false;
           }
           if(!builtin||url.value.trim()){
@@ -194,8 +193,7 @@
               model.validateTemplate(url.value);
             }catch(error){
               if(!model.isValidationError(error))throw error;
-              url.setCustomValidity(errorText(error));
-              url.reportValidity();
+              void root.STSettingsDialogs.notice(shadow,{message:errorText(error),focus:url});
               return false;
             }
           }
@@ -212,6 +210,7 @@
           return save(panel(shadow),next,editor);
         }
       });
+      if(result==='save') void root.STSettingsDialogs.notice(shadow,{title:tr('saved','保存成功'),message:tr('savedMessage','相关链接已保存。')});
     }
     async function act(action,id,shadow){
       if(busy)return;
@@ -243,7 +242,9 @@
         if(action==='delete')next=model.remove(next,id);
         else if(action==='toggle')next.items[index].enabled=!next.items[index].enabled;else return;
       }
-      await save(host,next);
+      if(await save(host,next)) {
+        if(action==='delete'||action==='reset') void root.STSettingsDialogs.notice(shadow,{message:action==='delete'?tr('deleted','链接已删除。'):tr('resetDone','相关链接已恢复默认。')});
+      }
     }
     function handleClick(event,shadow){
       const node=event.target.closest('[data-game-links-action]');

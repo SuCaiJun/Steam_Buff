@@ -1,0 +1,429 @@
+/*
+ * @Author        : 顾青离
+ * @Url           : sucaijun.com
+ * @Email         : Ricky@LiHai.La
+ * @Project       : Steam Buff
+ * @Description   : Steam 客户端增强小工具
+ * @File          : 自动化配置、条件与有限分支流程契约
+ * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+ * @Remind        : 二次开发请保留原版权信息，谢谢。
+ */
+((root) => {
+  "use strict";
+  const KEY = "st.settings.workflow.v1",
+    ROUTE = "AUTOMATION",
+    CHANNEL = "steam-buff-automation-v1",
+    PREVIEW_CHANNEL = "steam-buff-workflow-preview",
+    VERSION = 8,
+    CHECK_INTERVAL_MS = 60000;
+  const triggerTypes = new Set(["manual", "added", "installed", "schedule"]);
+  const isTriggerType = type => triggerTypes.has(type);
+  const DEFAULT_LANGUAGE = "chinese_simplified";
+  const STEP_STATES = Object.freeze({ success: "成功", failed: "失败", skipped: "跳过" });
+  const NOTICE_TYPES = Object.freeze({ info: "普通", success: "成功", warning: "警告", error: "错误" });
+  const TYPES = Object.freeze({
+    name: "游戏名称",
+    collection: "收藏分组",
+    achievement: "成就翻译",
+    family: "家庭库维护",
+  });
+  const RANGES = Object.freeze([
+    ["30m", "最近 30 分钟", 1800],
+    ["1h", "最近 1 小时", 3600],
+    ["6h", "最近 6 小时", 21600],
+    ["12h", "最近 12 小时", 43200],
+    ["24h", "最近 24 小时", 86400],
+    ["3d", "最近 3 天", 259200],
+    ["7d", "最近 7 天", 604800],
+    ["14d", "最近 14 天", 1209600],
+    ["30d", "最近 30 天", 2592000],
+    ["next1d", "未来 1 天", 86400],
+    ["next3d", "未来 3 天", 259200],
+    ["next7d", "未来 7 天", 604800],
+    ["next30d", "未来 30 天", 2592000],
+  ]);
+  const OPS = Object.freeze({
+    equals: "等于",
+    notEquals: "不等于",
+    contains: "包含",
+    notContains: "不包含",
+    startsWith: "以…开头",
+    endsWith: "以…结尾",
+    regex: "正则匹配",
+    empty: "为空",
+    notEmpty: "不为空",
+    gt: "大于",
+    gte: "大于等于",
+    lt: "小于",
+    lte: "小于等于",
+    between: "范围内",
+    unknown: "未提供",
+  });
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  const group = () => ({ op: "all", children: [] });
+  function id(value, label = "ID") {
+    if (typeof value !== "string" || !value.trim() || value.length > 200)
+      throw new TypeError(`${label}无效`);
+    return value;
+  }
+  function* conditionFields(item) {
+    if (item.children) { for (const child of item.children) yield* conditionFields(child); }
+    else yield item.field;
+  }
+  function operators(field) {
+    const kind = root.STWorkflowFields.kind(field);
+    return kind === "number"
+      ? ["equals", "notEquals", "gt", "gte", "lt", "lte", "between", "unknown"]
+      : kind === "date"
+        ? ["between", "unknown"]
+        : kind === "boolean"
+          ? ["equals", "notEquals"]
+          : [
+              "equals",
+              "notEquals",
+              "contains",
+              "notContains",
+              "startsWith",
+              "endsWith",
+              "regex",
+              "empty",
+              "notEmpty",
+              "unknown",
+            ];
+  }
+  function setTerms(value) {
+    return String(value ?? "").split(/[,，]/).map((item) => item.trim()).filter(Boolean);
+  }
+  /** 允许停用的旧配置保留待补的值，结构错误始终拒绝 */
+  function validateCondition(condition, { allowBlank = false, available } = {}) {
+    if (!condition || typeof condition !== "object") throw new TypeError("筛选条件无效");
+    if (["all", "any"].includes(condition.op)) {
+      if (!Array.isArray(condition.children)) throw new TypeError("条件组需要条件列表");
+      let complete = true;
+      for (const child of condition.children)
+        if (!validateCondition(child, { allowBlank, available })) complete = false;
+      return complete;
+    }
+    if (
+      !root.STWorkflowFields.valid(condition.field) ||
+      !operators(condition.field).includes(condition.op)
+    )
+      throw new TypeError("条件字段或关系无效");
+    if (condition.op === "regex" && (typeof condition.value !== "string" || !condition.value.trim()))
+      throw new TypeError("请输入正则表达式");
+    const kind = root.STWorkflowFields.kind(condition.field);
+    if (
+      condition.op === "between" &&
+      kind === "date" &&
+      !RANGES.some(
+        ([key]) =>
+          key === condition.preset && (condition.field === "date_release" || !key.startsWith("next")),
+      )
+    )
+      throw new TypeError("日期范围无效");
+    if (kind === "number" && condition.op !== "unknown") {
+      const values = condition.op === "between" ? [condition.min, condition.max] : [condition.value];
+      if (
+        values.some((value) => typeof value !== "number" || !Number.isFinite(value)) ||
+        (condition.op === "between" && condition.min > condition.max)
+      )
+        throw new TypeError("数值范围无效");
+    }
+    if (["unknown", "empty", "notEmpty", "between"].includes(condition.op)) return true;
+    const value = condition.value ?? condition.values?.[0];
+    const choices = kind === "set" && ["equals", "notEquals"].includes(condition.op)
+      ? (condition.values?.length ? condition.values : setTerms(condition.value))
+      : [value];
+    if (choices.length && choices.every((item) => item != null && String(item).trim())) return true;
+    if (!allowBlank) throw new TypeError("请填写匹配条件的值");
+    return false;
+  }
+  function missing(field) {
+    return Object.assign(
+      new Error(`${root.STWorkflowFields.labels[field] || root.STWorkflowFields.task[field]}数据不可用`),
+      { code: "AUTOMATION_DATA_UNAVAILABLE", field },
+    );
+  }
+  /** 相对日期预设的毫秒闭区间，扫描与规则匹配使用同一边界 */
+  function dateWindow(preset, time) {
+    const range = RANGES.find(([key]) => key === preset);
+    if (!range) throw missing("date_added");
+    const offset = range[2] * 1000;
+    return preset.startsWith("next") ? [time, time + offset] : [time - offset, time];
+  }
+  function inRange(value, preset, time) {
+    if (!Number.isFinite(value)) throw missing("date_added");
+    const [start, end] = dateWindow(preset, time);
+    return value >= start && value <= end;
+  }
+  /** 上层传入已确认的字段/标签快照；缺失是未知状态，不作为否定关系的命中依据 */
+  function match(condition, context, now = Date.now()) {
+    if (condition.op === "all") {
+      let failure = null;
+      for (const child of condition.children) {
+        try {
+          if (!match(child, context, now)) return false;
+        } catch (error) {
+          if (error.code !== "AUTOMATION_DATA_UNAVAILABLE") throw error;
+          failure = error;
+        }
+      }
+      if (failure) throw failure;
+      return true;
+    }
+    if (condition.op === "any") {
+      let failure = null;
+      for (const child of condition.children) {
+        try {
+          if (match(child, context, now)) return true;
+        } catch (error) {
+          if (error.code !== "AUTOMATION_DATA_UNAVAILABLE") throw error;
+          failure = error;
+        }
+      }
+      if (failure) throw failure;
+      return false;
+    }
+    const available =
+      Object.hasOwn(context.fields, condition.field) && context.fields[condition.field] !== undefined;
+    if (condition.op === "unknown") return !available;
+    if (!available) throw missing(condition.field);
+    const raw = context.fields[condition.field],
+      kind = root.STWorkflowFields.kind(condition.field),
+      values = Array.isArray(raw) ? raw : [raw];
+    if (condition.op === "empty") return !values.some((value) => value !== null && String(value).trim());
+    if (condition.op === "notEmpty")
+      return values.some((value) => value !== null && String(value).trim());
+    if (kind === "date") return inRange(raw, condition.preset, now);
+    if (kind === "number") {
+      if (raw === null || !Number.isFinite(Number(raw))) throw missing(condition.field);
+      const number = Number(raw),
+        wanted = Number(condition.value);
+      if (condition.op === "between")
+        return number >= Number(condition.min) && number <= Number(condition.max);
+      return {
+        equals: () => number === wanted,
+        notEquals: () => number !== wanted,
+        gt: () => number > wanted,
+        gte: () => number >= wanted,
+        lt: () => number < wanted,
+        lte: () => number <= wanted,
+      }[condition.op]();
+    }
+    const wanted =
+      Array.isArray(condition.values) && condition.values.length ? condition.values : [condition.value];
+    if (kind === "boolean") return condition.op === "equals" ? raw === wanted[0] : raw !== wanted[0];
+    if (kind === "set" && ["equals", "notEquals"].includes(condition.op)) {
+      const terms = setTerms(condition.value);
+      const wantedValues = condition.values?.length ? condition.values : terms;
+      const candidates = [...values, ...(context.labels?.[condition.field] || [])].map((value) =>
+        String(value).toLocaleLowerCase(),
+      );
+      const found = wantedValues.some((value) => candidates.includes(String(value).toLocaleLowerCase()));
+      return condition.op === "notEquals" ? !found : found;
+    }
+    const candidates = (context.labels?.[condition.field] || values)
+      .filter((value) => value !== null)
+      .map(String);
+    const query = String(condition.value ?? wanted[0] ?? "").toLocaleLowerCase();
+    if (condition.op === "regex") throw new Error("正则条件必须在隔离工作线程中执行");
+    const selectedId = ["contains", "notContains"].includes(condition.op) &&
+      root.STWorkflowFields.filterChoices[condition.field]?.some(([id]) => id === query) &&
+      values.some(value => value === query);
+    const found = selectedId || candidates.some((value) =>
+      condition.op === "startsWith"
+        ? value.toLocaleLowerCase().startsWith(query)
+        : condition.op === "endsWith"
+          ? value.toLocaleLowerCase().endsWith(query)
+          : ["contains", "notContains"].includes(condition.op)
+            ? value.toLocaleLowerCase().includes(query)
+            : value.toLocaleLowerCase() === query,
+    );
+    return ["notEquals", "notContains"].includes(condition.op) ? !found : found;
+  }
+  async function matchAsync(condition, context, regex, now = Date.now()) {
+    if (condition.children) {
+      let unavailable = null;
+      for (const child of condition.children) {
+        try {
+          const found = await matchAsync(child, context, regex, now);
+          if (condition.op === "all" && !found) return false;
+          if (condition.op === "any" && found) return true;
+        } catch (error) {
+          if (error.code !== "AUTOMATION_DATA_UNAVAILABLE") throw error;
+          unavailable = error;
+        }
+      }
+      if (unavailable) throw unavailable;
+      return condition.op === "all";
+    }
+    if (context.ensure) await context.ensure(condition.field);
+    if (condition.op !== "regex") return match(condition, context, now);
+    if (!Object.hasOwn(context.fields, condition.field)) throw missing(condition.field);
+    const value = context.labels?.[condition.field] || context.fields[condition.field];
+    return regex(condition.value, (Array.isArray(value) ? value : [value]).map(String));
+  }
+  const engine = root.STWorkflow;
+  const walkSteps = engine.walk;
+  function newWorkflow(id = "wf-1", name = "未命名工作流") { return { id, name, revision: 1, variables: [], steps: [] }; }
+  function newTrigger(id = "trigger-1", workflowId = "") {
+    return { id, name: "未命名触发器", revision: 1, enabled: false, workflowId, event: { type: "manual" },
+      conditions: group(), inputs: {}, busy: "queue" };
+  }
+  function initialBindings() { return Object.fromEntries(Object.keys(root.STAI.MANUAL_TASKS).map(scene => [scene, root.STAI.initialBinding(scene)])); }
+  function template(type, id) {
+    const workflow = newWorkflow(id, TYPES[type]);
+    const add = (key, steps = workflow.steps) => { const node = engine.createNode(key, workflow); steps.push(node); return node; };
+    const ref = (id, path = []) => engine.reference("variable", id, path);
+    if (type === "family") {
+      const refresh = add("family-refresh"); refresh.errorOutput = engine.variable(workflow, "刷新执行结果", "result"); refresh.onError = "continue";
+      const branch = add("if"); branch.branches[0].condition = { op: "equals", left: ref(refresh.errorOutput, ["status"]), right: engine.constant("success", "成功") };
+      const success = add("notify", branch.branches[0].steps); success.body = engine.literal("家庭库刷新完成"); success.level = "success";
+      branch.otherwise = []; const failed = add("notify", branch.otherwise); failed.body = { template: ["家庭库刷新未完成：", ref(refresh.errorOutput, ["reason"])] }; failed.level = "error";
+      return workflow;
+    }
+    const input = add("receive"); input.value.path = ["game"];
+    const game = add("steam-original-name"); game.game = ref(input.output);
+    if (type === "name") {
+      const existing = add("steam-sort-name"); existing.game = ref(input.output);
+      const branch = add("if"); branch.branches[0].condition = { op: "empty", left: ref(existing.output) };
+      const ai = add("ai-call", branch.branches[0].steps); Object.assign(ai, root.STAI.initialBinding("auto-name")); ai.inputs = { "Steam 原名": ref(game.output) };
+      const trim = add("text-trim", branch.branches[0].steps); trim.value = ref(ai.output);
+      const valid = add("if", branch.branches[0].steps); valid.branches[0].condition = { op: "notEmpty", left: ref(trim.output) };
+      const write = add("steam-set-sort-name", valid.branches[0].steps); write.game = ref(input.output); write.value = ref(trim.output);
+    } else if (type === "collection") {
+      const info = add("record");
+      const setField = (key, value, steps) => {
+        const set = add("dict-set", steps);
+        set.value = ref(info.output); set.key = engine.literal(key);
+        set.item = ref(value); set.output = info.output;
+        workflow.variables.pop(); // 保留同一个游戏资料变量
+      };
+      setField("official", game.output);
+      for (const field of ["app-type", "genres", "features", "tags"]) {
+        const read = add("steam-game-" + field); read.game = ref(input.output); read.onError = "continue";
+        const available = add("if");
+        available.branches[0].condition = { op: "exists", left: ref(read.output) };
+        setField(field.replace("-", "_"), read.output, available.branches[0].steps);
+      }
+      const groups = add("steam-collections");
+      const allowed = add("list");
+      const loop = add("foreach"); loop.value = ref(groups.output);
+      const writable = add("if", loop.body); writable.branches[0].condition = { op: "isTrue", left: ref(loop.item, ["writable"]) };
+      const append = add("append", writable.branches[0].steps); append.value = ref(allowed.output); append.item = ref(loop.item); append.output = allowed.output;
+      const ai = add("ai-call"); Object.assign(ai, root.STAI.initialBinding("collection")); ai.inputs = { "游戏资料": ref(info.output), "可选收藏分组": ref(allowed.output) };
+      const parsed = add("json"); parsed.value = ref(ai.output);
+      const write = add("steam-add-collections"); write.game = ref(input.output); write.value = ref(parsed.output, ["collection_ids"]);
+    } else if (type === "achievement") {
+      const items = add("steam-achievements"); items.game = ref(input.output);
+      const saved = add("steam-translations"); saved.game = ref(input.output);
+      const pending = add("list");
+      const scan = add("foreach"); scan.value = ref(items.output);
+      const missing = add("if", scan.body); missing.branches[0].condition = { op: "isFalse", left: { expression: [ref(saved.output), ".some(item => item.id === ", ref(scan.item, ["id"]), ")"] } };
+      const append = add("append", missing.branches[0].steps); append.value = ref(pending.output); append.item = ref(scan.item); append.output = pending.output;
+      const batches = add("list-chunk"); batches.value = ref(pending.output);
+      const loop = add("foreach"); loop.value = ref(batches.output);
+      const ai = add("ai-call", loop.body); ai.promptId = "P-12";
+      ai.inputs = { "成就条目": ref(loop.item), "任务游戏名称": ref(game.output), "目标语言": engine.literal("chinese_simplified") };
+      const parsed = add("json", loop.body); parsed.value = ref(ai.output);
+      const write = add("steam-save-translations", loop.body); write.game = ref(input.output); write.value = ref(parsed.output); write.origin = engine.literal("ai");
+    } else throw new TypeError("工作流模板类型无效");
+    return workflow;
+  }
+  function defaults() {
+    const starter = [
+      ["name", "游戏入库时处理游戏名称", { type: "added" }],
+      ["collection", "游戏入库时处理收藏分组", { type: "added" }],
+      ["achievement", "安装完成后翻译成就", { type: "installed", phase: "completed" }],
+      ["family", "每天维护家庭库", { type: "schedule", timing: { mode: "day", time: "09:00" } }],
+    ];
+    const workflows = [], triggers = [];
+    for (const [type, name, event] of starter) {
+      const workflow = template(type, "wf-" + (workflows.length + 1));
+      const trigger = { ...newTrigger("trigger-" + (triggers.length + 1), workflow.id), name, event };
+      if (event.type === "added" || event.type === "installed")
+        trigger.inputs = { game: engine.reference("input", "", ["game"]) };
+      workflows.push(workflow); triggers.push(trigger);
+    }
+    return { version: VERSION, epoch: "initial", revision: 1, prompts: root.STPromptPlans.defaults(),
+      bindings: initialBindings(), triggers, workflows };
+  }
+  /** 正式版没有工作流，只转换全局家庭库配置。现有新版流程用独立的保留 ID 承接旧配置 */
+  function restoreFamilySchedule(bundle, settings, enabled, initial = false) {
+    const next = clone(bundle);
+    let trigger = next.triggers.find(item => item.id === "trigger-0");
+    if (!trigger) {
+      let workflow = next.workflows.find(item => item.id === "wf-0");
+      if (!workflow) {
+        workflow = template("family", "wf-0");
+        next.workflows.push(workflow);
+      }
+      trigger = { ...newTrigger("trigger-0", workflow.id), name: "维护家庭库" };
+      if (initial) {
+        next.workflows = next.workflows.filter(item => item.id !== "wf-4");
+        next.triggers = next.triggers.filter(item => item.id !== "trigger-4");
+      }
+      next.triggers.push(trigger);
+    }
+    const interval = root.STFamilyLibrary.INTERVALS[settings.refreshInterval];
+    trigger.event = interval ? { type: "schedule", timing: { mode: "minute", every: interval / 60 } } : { type: "manual" };
+    trigger.enabled = Boolean(interval && enabled);
+    return next;
+  }
+  function normalize(value) {
+    if (!value || value.version !== VERSION || !Array.isArray(value.prompts) || !Array.isArray(value.triggers) || !Array.isArray(value.workflows) || !value.bindings || Object.hasOwn(value, "rules"))
+      throw new TypeError("提示词与工作流配置包无效");
+    id(value.epoch, "配置代次");
+    if (!Number.isSafeInteger(value.revision) || value.revision < 1) throw new TypeError("配置修订号无效");
+    const result = clone(value), ids = new Set();
+    result.prompts = result.prompts.map(plan => {
+      if (ids.has(plan.id)) throw new TypeError("提示词 ID 重复");
+      ids.add(plan.id); return root.STPromptPlans.validate(plan);
+    });
+    if (Object.keys(result.bindings).length !== Object.keys(root.STAI.MANUAL_TASKS).length) throw new TypeError("手动功能的 AI 绑定无效");
+    for (const scene of Object.keys(root.STAI.MANUAL_TASKS)) {
+      const binding = result.bindings[scene];
+      if (!root.STAI.isServiceId(binding?.serviceId) || !root.STAI.isPromptId(binding.promptId)) throw new TypeError("手动功能的 AI 绑定格式无效");
+    }
+    ids.clear();
+    for (const workflow of result.workflows) {
+      if (!/^wf-\d+$/.test(workflow.id) || ids.has(workflow.id)) throw new TypeError("工作流 ID 无效或重复");
+      ids.add(workflow.id); engine.validate(workflow);
+    }
+    ids.clear();
+    for (const trigger of result.triggers) {
+      if (!/^trigger-\d+$/.test(trigger.id) || ids.has(trigger.id) || typeof trigger.name !== "string" || !trigger.name.trim() ||
+        typeof trigger.enabled !== "boolean" || !Number.isSafeInteger(trigger.revision) || trigger.revision < 1 || !/^wf-\d+$/.test(trigger.workflowId) ||
+        !["queue", "ignore"].includes(trigger.busy) || !trigger.inputs || typeof trigger.inputs !== "object" || Array.isArray(trigger.inputs)) throw new TypeError("触发器配置无效");
+      ids.add(trigger.id);
+      const event = trigger.event;
+      if (!isTriggerType(event?.type)) throw new TypeError("触发类型无效");
+      if (event.type === "installed" && !["started", "completed"].includes(event.phase)) throw new TypeError("请选择安装阶段");
+      if (event.type === "schedule") root.STAutomationCalendar.validate(event);
+      if (trigger.maxRunMinutes !== undefined && (!Number.isSafeInteger(trigger.maxRunMinutes) || trigger.maxRunMinutes < 0 ||
+          !Number.isSafeInteger(trigger.maxRunMinutes * 60_000 + Date.now()))) throw new TypeError("请输入有效的运行时限分钟数");
+      validateCondition(trigger.conditions, { allowBlank: !trigger.enabled });
+      for (const [key, value] of Object.entries(trigger.inputs)) {
+        if (!key.trim() || ["__proto__", "constructor", "prototype"].includes(key)) throw new TypeError("输入字段名称无效");
+        engine.validateValue(value, new Set(), false);
+        if (value.source === "meta") throw new TypeError("触发器输入只能选择事件字段或固定值");
+      }
+    }
+    return result;
+  }
+  function nativeConfig(bundle, resetRegex = false) {
+    return { epoch: bundle.epoch, revision: bundle.revision, resetRegex,
+      triggers: bundle.triggers.map(trigger => {
+        const workflow = bundle.workflows.find(item => item.id === trigger.workflowId);
+        return { id: trigger.id, name: trigger.name, revision: trigger.revision, event: trigger.event, workflowId: trigger.workflowId, workflowRevision: workflow?.revision ?? null,
+          enabled: trigger.enabled && !!workflow };
+      }) };
+  }
+  function triggered(trigger, event) {
+    return trigger.event.type === event.type && (event.type !== "installed" || trigger.event.phase === event.phase);
+  }
+  root.STAutomation = Object.freeze({ KEY, ROUTE, CHANNEL, PREVIEW_CHANNEL, VERSION, DEFAULT_LANGUAGE, CHECK_INTERVAL_MS, isTriggerType,
+    STEP_STATES, NOTICE_TYPES, TYPES, RANGES, OPS, group, conditionFields,
+    newWorkflow, newTrigger, template, defaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
+
+})(globalThis);

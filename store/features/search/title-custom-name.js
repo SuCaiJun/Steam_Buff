@@ -31,7 +31,6 @@
   const ALIAS_MAX = 10;
   const HOST_ID = "st-title-custom-name";
   const MODAL_ID = "st-title-custom-name-modal";
-  const TOAST_ID = "st-title-custom-name-toast";
   const TITLE_SEL = ".apphub_AppName, .apphub_AppName_responsive, h1";
   const RETRY_MS = 300;
   const RETRY_MAX = 30;
@@ -300,15 +299,8 @@
   }
 
   function toast(message) {
-    let el = document.getElementById(TOAST_ID);
-    if (!el) {
-      el = document.createElement("div");
-      el.id = TOAST_ID;
-      document.body.appendChild(el);
-    }
-    el.textContent = message;
-    clearTimeout(el._stTimer);
-    el._stTimer = setTimeout(() => el.remove(), 3200);
+    setMsg("");
+    return root.STFeedback.show(document.body, { message });
   }
 
   async function modalNote(appid) {
@@ -527,6 +519,7 @@
     if (!source?.appid) return;
     const activeTab = initialTab === "note" ? "note" : "base";
     const openSeq = ++modalSeq;
+    const errors = new Set();
     addStyle();
     let item = source.item || nameCache.get(Number(source.appid)) || null;
     if (!item) {
@@ -538,6 +531,7 @@
         globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "warn", phase: "openModal" });
         if (openSeq !== modalSeq) return;
         item = null;
+        errors.add(error?.message || String(error));
       }
     }
     let modal = document.getElementById(MODAL_ID);
@@ -573,7 +567,8 @@
       hasCachedName: !!item?.name,
       path: location.pathname,
     });
-    modalAlias(source.appid).then(item => {
+    // 同次打开的名称、别名和备注读取完成后，只展示一份错误汇总
+    await Promise.all([modalAlias(source.appid).then(item => {
       if (!modalLoadCurrent(modal, source.appid, loadSeq)) return;
       const input = modal.querySelector("[data-title-custom-name-alias]");
       if (!input || input.hasAttribute("data-title-custom-name-user-touched")) return;
@@ -581,9 +576,8 @@
       setAliasList(modal, aliases);
     }).catch(error => {
       globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "error", phase: "openModal" });
-      if (modalLoadCurrent(modal, source.appid, loadSeq)) setMsg(error?.message || String(error));
-    });
-    modalNote(source.appid).then(note => {
+      errors.add(error?.message || String(error));
+    }), modalNote(source.appid).then(note => {
       if (!modalLoadCurrent(modal, source.appid, loadSeq)) return;
       const textarea = modal.querySelector("[data-title-custom-name-note]");
       if (!textarea || textarea.hasAttribute("data-title-custom-name-user-touched")) return;
@@ -591,8 +585,9 @@
       updateCount(modal);
     }).catch(error => {
       globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "error", phase: "openModal" });
-      if (modalLoadCurrent(modal, source.appid, loadSeq)) setMsg(error?.message || String(error));
-    });
+      errors.add(error?.message || String(error));
+    })]);
+    if (errors.size && modalLoadCurrent(modal, source.appid, loadSeq)) void toast(Array.from(errors).join("\n"));
   }
 
   function closeModal() {
@@ -646,9 +641,9 @@
     }
     if (event.target.closest("[data-title-custom-name-save]")) {
       if (modal.dataset.activeTab === "note") {
-        saveNoteFromModal(false).catch(error => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" }); return setMsg(error?.message || String(error)); });
+        saveNoteFromModal(false).catch(error => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" }); return toast(error?.message || String(error)); });
       } else {
-        submitName().catch(error => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" }); return setMsg(error?.message || String(error)); });
+        submitName().catch(error => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" }); return toast(error?.message || String(error)); });
       }
     }
   }
@@ -696,7 +691,7 @@
     const textarea = modal.querySelector("[data-title-custom-name-note]");
     const note = clear ? "" : String(textarea?.value || "").trim();
     if (note.length > NOTE_MAX) {
-      setMsg(i18n("store.titleCustomName.noteTooLong", "备注不能超过 $limit$ 个字符", { limit: NOTE_MAX }));
+      toast(i18n("store.titleCustomName.noteTooLong", "备注不能超过 $limit$ 个字符", { limit: NOTE_MAX }));
       return;
     }
     setMsg(clear
@@ -722,7 +717,6 @@
       const successMessage = clear
         ? i18n("store.titleCustomName.noteDeleted", "备注已删除")
         : i18n("store.titleCustomName.noteSaved", "备注已保存");
-      setMsg(successMessage);
       toast(successMessage);
     } catch (error) {
       log.error("title-custom-name-note-save-failed", "游戏备注保存失败", {
@@ -784,7 +778,6 @@
       }
       renderWishlistName(ctx.appid);
       const successMessage = i18n("store.titleCustomName.baseSaved", "基础信息已保存");
-      setMsg(successMessage);
       toast(successMessage);
       log.info("title-custom-name-submit-success", "商店标题中文名提交完成", {
         operationId,
@@ -1195,7 +1188,6 @@
     document.querySelectorAll(".st-title-custom-name-wishlist-title").forEach(node => {
       node.classList.remove("st-title-custom-name-wishlist-title");
     });
-    document.getElementById(TOAST_ID)?.remove();
     closeModal();
     lastDetailTargetMissing = false;
     lastWishlistTargetMissing = false;

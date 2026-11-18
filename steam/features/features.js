@@ -16,6 +16,18 @@
 
   const features = [
     {
+      id: "automation",
+      name: "自动化原生数据入口",
+      settingsKey: "automation",
+      loadStrategy: "on-demand-entry",
+      dependencies: ["shared/automation.js", "steam/shared/name-filter-metadata.js", "steam/shared/app-overview-events.js", "shared/scheduler.js"],
+      modes: ["backend"],
+      pageScope: ["SharedJSContext"],
+      cost: "event-driven",
+      entries: { backend: "backend.js" },
+      shouldRun(api, context) { return context === "backend" && api.ctx.isShared(); },
+    },
+    {
       id: "message-center",
       name: "Steam Buff 消息中心",
       loadStrategy: "on-demand-entry",
@@ -29,26 +41,16 @@
     },
     {
       id: "download-auto-shutdown",
-      name: "下载完成后自动关机",
+      name: "下载完成后关机",
       settingsKey: "download-auto-shutdown",
       loadStrategy: "on-demand-entry",
-      modes: ["backend", "downloads"],
-      pageScope: ["SharedJSContext", "main-ui", "/library/downloads"],
-      dependencies: ["shared/scheduler.js", "BroadcastChannel"],
-      cost: "polling",
-      entries: {
-        backend: "backend.js",
-        downloads: "downloads.js",
-      },
-      shouldRun(api, context, ctx = {}) {
-        const on = ctx.settingOn?.("download-auto-shutdown") ?? api.ctx?.settingOn?.("download-auto-shutdown");
-        if (on === false) {
-          return false;
-        }
-        if (context === "backend") {
-          return true;
-        }
-        return context === "downloads" && api.ctx?.isMainUi?.() === true;
+      modes: ["backend"],
+      pageScope: ["SharedJSContext"],
+      dependencies: ["steam/shared/download-state.js", "shared/scheduler.js", "BroadcastChannel"],
+      cost: "event-driven",
+      entries: { backend: "backend.js" },
+      shouldRun(api, context, ctx) {
+        return context === "backend" && api.ctx.isShared() && ctx.settingOn("download-manager-enhancement");
       },
     },
     {
@@ -76,7 +78,7 @@
       settingsKey: "library-sort-title-display-model",
       loadStrategy: "on-demand-entry",
       modes: ["backend", "ui"],
-      dependencies: ["shared/scheduler.js", "BroadcastChannel"],
+      dependencies: ["shared/scheduler.js", "steam/shared/app-overview-events.js", "BroadcastChannel"],
       cost: "lazy-visible-list",
       entries: {
         backend: "backend.js",
@@ -151,23 +153,15 @@
       name: "下载队列批量操作",
       settingsKey: "download-batch-actions",
       loadStrategy: "on-demand-entry",
-      modes: ["backend", "downloads"],
-      pageScope: ["SharedJSContext", "main-ui", "/library/downloads", "downloads"],
+      modes: ["backend"],
+      pageScope: ["SharedJSContext"],
       dependencies: ["shared/scheduler.js", "BroadcastChannel"],
       cost: "user-action",
-      entries: {
-        backend: "backend.js",
-        downloads: "downloads.js",
-      },
+      entries: { backend: "backend.js" },
       shouldRun(api, context, ctx = {}) {
         const on = ctx.settingOn?.("download-batch-actions") ?? api.ctx?.settingOn?.("download-batch-actions");
-        if (on === false) {
-          return false;
-        }
-        if (context === "backend") {
-          return true;
-        }
-        return context === "downloads" && api.ctx?.isMainUi?.() === true;
+        const toolbar = ctx.settingOn?.("download-manager-enhancement") ?? api.ctx?.settingOn?.("download-manager-enhancement");
+        return on !== false && toolbar === true && context === "backend" && api.ctx.isShared();
       },
     },
     {

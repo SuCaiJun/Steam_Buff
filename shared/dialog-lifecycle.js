@@ -107,7 +107,8 @@
       }
     };
     const onFocusIn = (event) => {
-      if (closed || options.isActive?.() === false || inside(root, event)) {
+      if (closed || options.isActive?.() === false || inside(root, event) ||
+          event.composedPath().some(node => node.localName === "dialog" && node.open)) {
         return;
       }
       focus(typeof options.initial === "function" ? options.initial() : options.initial);

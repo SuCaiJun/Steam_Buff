@@ -257,6 +257,7 @@
         state.reject(new Error(`Steam 原生窗口打开超时${missing}，请重试`)); close("timeout");
       }, 12000);
       state.keydown = event => {
+        if (event.composedPath().some(node => node.classList?.contains("st-feedback-dialog"))) return;
         if (event.key !== "Escape") return;
         event.preventDefault(); event.stopPropagation();
         if (state.resizer?.cancel()) return;

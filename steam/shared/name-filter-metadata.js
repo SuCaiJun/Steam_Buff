@@ -161,7 +161,7 @@
 
   function stringSet(value) {
     const set = toSet(value);
-    return set ? new Set(Array.from(set, item => text(item)).filter(Boolean)) : new Set();
+    return set ? new Set(Array.from(set, item => text(item)).filter(Boolean)) : null;
   }
 
   function hasValue(set, value) {
@@ -276,17 +276,15 @@
         .filter(([, mask]) => (raw & mask) !== 0n)
         .map(([key]) => key);
     }
-    return [];
+    return undefined;
   }
 
-  function collectionSnapshot(store) {
+  function collectionSnapshot(store, appids = null, field = null) {
     const collections = [];
     const byApp = new Map();
     const source = Array.isArray(store?.userCollections) ? store.userCollections : [];
     for (const item of source) {
       const id = text(item?.m_strId);
-      const label = text(item?.m_strName);
-      const apps = toSet(item?.m_setApps);
       // Live Steam 集合对象中，favorite 是用户收藏夹；其余可筛选集合都带有
       // 动态、可删除或可编辑标记。type-music、uncategorized 等固定系统视图
       // 没有这些标记，不能混入“收藏分组”条件。
@@ -294,9 +292,21 @@
         || item?.bIsDynamic === true
         || item?.bIsDeletable === true
         || item?.bIsEditable === true;
-      if (!id || !label || !apps || !filterable) continue;
+      if (!filterable) continue;
+      const rawApps = item?.m_setApps;
+      const apps = appids ? lookupSet(rawApps) : toSet(rawApps);
+      if (field) {
+        if (!apps) return null;
+        if (!apps.has(appids[0])) continue;
+      }
+      const label = field === "collections" ? "" : text(item?.m_strName);
+      if (!id || !apps || !label && field !== "collections") {
+        if (field) return null;
+        continue;
+      }
       collections.push({ id, label });
-      for (const appid of apps) {
+      for (const appid of appids||apps) {
+        if(appids&&!apps.has(appid))continue;
         const key = String(Number(appid) || appid);
         if (!byApp.has(key)) byApp.set(key, new Set());
         byApp.get(key).add(id);
@@ -305,12 +315,12 @@
     return { collections, byApp };
   }
 
-  function metadataContext() {
+  function metadataContext({appids=null}={}) {
     const appStore = window.appStore || {};
     const collectionStore = window.collectionStore || {};
     const hidden = toSet(collectionStore.collectionsFromStorage?.get?.("hidden")?.apps);
     const privateApps = toSet(appStore.m_setPrivateApps);
-    const collections = collectionSnapshot(collectionStore);
+    const collections = collectionSnapshot(collectionStore,appids);
     const tagLabels = new Map();
     const localizations = appStore.m_mapStoreTagLocalization;
     if (localizations && typeof localizations === "object" && !Array.isArray(localizations)) {
@@ -347,36 +357,37 @@
     return { values, ready: typeof app?.BIsOwned === "function" && typeof app?.BIsBorrowed === "function" && (owner === 0 || typeof window.App?.BIsFamilyGroupMember === "function") };
   }
 
-  function metadata(app, context) {
-    const categories = categoriesOf(app);
-    const tags = tagsOf(app);
-    const categoriesReady = Object.prototype.hasOwnProperty.call(app || {}, "m_setStoreCategories");
-    const tagsReady = Object.prototype.hasOwnProperty.call(app || {}, "m_setStoreTags");
-    const languagesReady = Object.prototype.hasOwnProperty.call(app || {}, "bitfield_supported_languages");
-    const source = sourceValues(app);
-    const appid = Number(app?.appid) || 0;
+  const hasCategories = app => Object.hasOwn(app || {}, "m_setStoreCategories");
+  const hasTags = app => Object.hasOwn(app || {}, "m_setStoreTags");
+  const hasLanguages = app => Object.hasOwn(app || {}, "bitfield_supported_languages");
+  const hasLastPlayed = app => Object.hasOwn(app || {}, "rt_last_time_played");
+
+  function privacyValues(appid, privateApps, hidden) {
     const privacy = [];
-    if (hasValue(context.privateApps, appid)) privacy.push("private");
-    if (hasValue(context.hidden, appid)) privacy.push("hidden");
+    if (hasValue(privateApps, appid)) privacy.push("private");
+    if (hasValue(hidden, appid)) privacy.push("hidden");
+    return privacy;
+  }
+  const lastPlayedValue = app => typeof app?.GetLastTimePlayed === "function" ? app.GetLastTimePlayed() : app?.rt_last_time_played;
+  const lastPlayedAt = app => numberOrNull(lastPlayedValue(app));
+  function statusValues(app, lastPlayed) {
     const status = [];
     const localInstalled = app?.local_per_client_data?.installed === true;
     const installed = app?.installed === true || localInstalled;
     if (localInstalled) status.push("installed");
     if (installed) status.push("ready");
-    const lastPlayedRaw = typeof app?.GetLastTimePlayed === "function" ? app.GetLastTimePlayed() : app?.rt_last_time_played;
-    const lastPlayed = numberOrNull(lastPlayedRaw);
     if (lastPlayed) status.push("played");
-    else if (app && Object.prototype.hasOwnProperty.call(app, "rt_last_time_played")) status.push("unplayed");
-    const tagValues = Array.from(tags, value => String(value));
-    const tagOptions = tagValues.map(value => ({ value, label: context.tagLabels.get(value) || "" })).filter(item => item.label);
-    const collectionValues = Array.from(context.collections.byApp.get(String(appid)) || []);
-    const dates = {
-      added: numberOrNull(app?.rt_purchased_time),
-      release: numberOrNull(app?.GetCanonicalReleaseDate?.()),
-      last_played: lastPlayed,
-    };
+    else if (hasLastPlayed(app)) status.push("unplayed");
+    return status;
+  }
+  function hasHardware(app, deck) {
+    return Object.hasOwn(app || {}, "xbox_controller_support")
+      || typeof app?.BSupportsVR === "function"
+      || typeof app?.BIsNonVRGame === "function"
+      || Number.isInteger(deck);
+  }
+  function hardwareValues(app, deck, controllerSupport = Number(app?.xbox_controller_support)) {
     const hardware = [];
-    const controllerSupport = Number(app?.xbox_controller_support);
     if (controllerSupport === 2) hardware.push("controller_full");
     if (controllerSupport === 1 || controllerSupport === 2) hardware.push("controller_partial");
     if (app?.gamepad_preferred === true) hardware.push("controller_recommended");
@@ -384,13 +395,36 @@
     const nonVr = callBoolean(app, "BIsNonVRGame");
     if (supportsVr === true) hardware.push("vr");
     if (nonVr === true) hardware.push("non_vr");
-    const deck = Number(app?.steam_deck_compat_category);
     if (Number.isInteger(deck) && deck >= 0 && deck <= 3) hardware.push(`deck_${deck}`);
-    const localMultiplayer = callBoolean(app, "BIsLocalMultiplayer");
+    return hardware;
+  }
+  function modeValues(app, categories) {
     const modes = valuesForCategories(categories, MODE_CATEGORIES);
-    if (localMultiplayer === true && !modes.includes("local_multiplayer")) modes.push("local_multiplayer");
-    const accessibility = Object.entries(ACCESSIBILITY_CATEGORIES)
-      .filter(([, id]) => hasCategory(categories, id)).map(([key]) => key);
+    if (callBoolean(app, "BIsLocalMultiplayer") === true && !modes.includes("local_multiplayer")) modes.push("local_multiplayer");
+    return modes;
+  }
+  const genreValues = tags => Object.entries(GENRE_TAGS).filter(([, id]) => tags.has(String(id)) || tags.has(id)).map(([key]) => key);
+  const accessibilityValues = categories => Object.entries(ACCESSIBILITY_CATEGORIES).filter(([, id]) => hasCategory(categories, id)).map(([key]) => key);
+  const addedAt = app => numberOrNull(app?.rt_purchased_time);
+  const releasedAt = app => numberOrNull(app?.GetCanonicalReleaseDate?.());
+
+  function metadata(app, context) {
+    const categories = categoriesOf(app) || new Set();
+    const tags = tagsOf(app) || new Set();
+    const categoriesReady = hasCategories(app);
+    const tagsReady = hasTags(app);
+    const languagesReady = hasLanguages(app);
+    const source = sourceValues(app);
+    const appid = Number(app?.appid) || 0;
+    const privacy = privacyValues(appid, context.privateApps, context.hidden);
+    const lastPlayed = lastPlayedAt(app);
+    const status = statusValues(app, lastPlayed);
+    const tagValues = Array.from(tags, String);
+    const tagOptions = tagValues.map(value => ({ value, label: context.tagLabels.get(value) || "" })).filter(item => item.label);
+    const collectionValues = Array.from(context.collections.byApp.get(String(appid)) || []);
+    const dates = { added: addedAt(app), release: releasedAt(app), last_played: lastPlayed };
+    const deck = Number(app?.steam_deck_compat_category);
+    const hardware = hardwareValues(app, deck);
     return {
       sources: source.values,
       source_ready: source.ready,
@@ -398,14 +432,14 @@
       collections: collectionValues,
       privacy,
       privacy_ready: context.ready.privacy && context.ready.hidden,
-      modes,
+      modes: modeValues(app, categories),
       status,
-      languages: languageValues(app),
-      genres: Object.entries(GENRE_TAGS).filter(([, id]) => tags.has(String(id)) || tags.has(id)).map(([key]) => key),
+      languages: languageValues(app) || [],
+      genres: genreValues(tags),
       features: valuesForCategories(categories, FEATURE_CATEGORIES),
       tags: tagValues,
       hardware,
-      accessibility,
+      accessibility: accessibilityValues(categories),
       review_score: Number.isFinite(Number(app?.review_score)) ? Number(app.review_score) : null,
       metacritic_score: Number.isFinite(Number(app?.metacritic_score)) && Number(app?.metacritic_score) > 0 ? Number(app.metacritic_score) : null,
       dates,
@@ -416,19 +450,90 @@
         collections: context.ready.collections,
         privacy: context.ready.privacy && context.ready.hidden,
         modes: categoriesReady,
-        status: Object.prototype.hasOwnProperty.call(app || {}, "rt_last_time_played"),
+        status: hasLastPlayed(app),
         languages: languagesReady,
         genres: tagsReady,
         features: categoriesReady,
         tags: tagsReady && context.ready.tags,
-        hardware: Object.prototype.hasOwnProperty.call(app || {}, "xbox_controller_support")
-          || typeof app?.BSupportsVR === "function"
-          || typeof app?.BIsNonVRGame === "function"
-          || Number.isInteger(deck),
+        hardware: hasHardware(app, deck),
         accessibility: categoriesReady,
       },
       _tag_options: tagOptions,
     };
+  }
+
+  function knownNumber(value) {
+    if (typeof value !== "number" && (typeof value !== "string" || !value.trim())) return undefined;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : undefined;
+  }
+  function gameCollections(appid, field) {
+    const store = window.collectionStore;
+    if (!Array.isArray(store?.userCollections)) return undefined;
+    const snapshot = collectionSnapshot(store, [appid], field);
+    if (!snapshot) return undefined;
+    const ids = snapshot.byApp.get(String(appid));
+    if (field === "collections") return Array.from(ids || []);
+    return snapshot.collections.filter(item => ids?.has(item.id)).map(item => item.label);
+  }
+  const lookupSet = value => value instanceof Set ? value : toSet(value);
+  const validOption = (value, maximum) => Number.isInteger(value) && value >= 0 && value <= maximum ? value : undefined;
+  const timestamp = seconds => seconds === null ? undefined : seconds * 1000;
+  /** 单游戏字段按需读取源值，资料缺失返回 undefined，实际空集合和数字 0 保留 */
+  function readField(app, field) {
+    switch (field) {
+      case "original_language": {
+        const name = originalName(app);
+        return name ? originalLanguages(name) : undefined;
+      }
+      case "sources": {
+        const source = sourceValues(app);
+        return source.ready ? source.values : undefined;
+      }
+      case "collections":
+      case "collection_names": return gameCollections(app.appid, field);
+      case "privacy": {
+        const hidden = lookupSet(window.collectionStore?.collectionsFromStorage?.get?.("hidden")?.apps);
+        const privateApps = lookupSet(window.appStore.m_setPrivateApps);
+        if (!hidden || !privateApps) return undefined;
+        const values = privacyValues(app.appid, privateApps, hidden);
+        return values.length ? values : ["normal"];
+      }
+      case "modes":
+      case "features":
+      case "accessibility": {
+        const categories = hasCategories(app) && categoriesOf(app);
+        if (!categories) return undefined;
+        if (field === "modes") return modeValues(app, categories);
+        if (field === "features") return valuesForCategories(categories, FEATURE_CATEGORIES);
+        return accessibilityValues(categories);
+      }
+      case "status": {
+        const lastPlayed = hasLastPlayed(app) ? knownNumber(lastPlayedValue(app)) : undefined;
+        return lastPlayed >= 0 ? statusValues(app, lastPlayed) : undefined;
+      }
+      case "languages": return hasLanguages(app) ? languageValues(app) : undefined;
+      case "genres":
+      case "tags": {
+        const tags = hasTags(app) && tagsOf(app);
+        if (!tags) return undefined;
+        return field === "genres" ? genreValues(tags) : Array.from(tags, String);
+      }
+      case "hardware": {
+        const deck = validOption(knownNumber(app.steam_deck_compat_category), 3);
+        const controller = validOption(knownNumber(app.xbox_controller_support), 2);
+        const available = controller !== undefined || deck !== undefined ||
+          typeof app.BSupportsVR === "function" || typeof app.BIsNonVRGame === "function";
+        return available ? hardwareValues(app, deck, controller ?? NaN) : undefined;
+      }
+      case "review_score": return knownNumber(app.review_score);
+      case "metacritic_score": return numberOrNull(app.metacritic_score) ?? undefined;
+      case "playtime_minutes": return knownNumber(app.minutes_playtime_forever);
+      case "date_added": return timestamp(addedAt(app));
+      case "date_release": return timestamp(releasedAt(app));
+      case "date_last_played": return timestamp(lastPlayedAt(app));
+      default: throw new TypeError("未注册的游戏元数据字段");
+    }
   }
 
   const METADATA_FIELDS = ['sources','original_language','collections','privacy','modes','status','languages','genres','features','tags','hardware','accessibility','review_score','metacritic_score','date_added','date_release','date_last_played','playtime_minutes'];
@@ -458,5 +563,5 @@
     log.warn('name-filter-metadata-partial','部分游戏的筛选元数据读取失败，已标记为不可用',{error:context.error,failed:context.failures,requestId});
     context.error=null;context.failures=0;
   }
-  window.SteamBuff.nameFilterMetadata = Object.freeze({ context: metadataContext, row: project, options: metadataOptions, reportFailure });
+  window.SteamBuff.nameFilterMetadata = Object.freeze({ context: metadataContext, row: project, readField, options: metadataOptions, reportFailure });
 })();

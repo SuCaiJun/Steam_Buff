@@ -2206,11 +2206,20 @@
         : EDGE_SERVICE;
     }
 
-    function translateText(text, options = {}) {
+    async function translateText(text, options = {}) {
       const from = String(options.from || "auto");
       const to = String(options.to || defaultTo || "chinese_simplified");
       const service = serviceFor(options.service);
-      const key = `${service}\n${from}\n${to}\n${selCacheContext(options)}\n${text}`;
+      let bindingKey = "";
+      if (service === AI_SERVICE) {
+        const surface = options.surface || (
+          options.mode === globalThis.STTranslateAIPrompts.STEAM_NEWS_MODE ? "news" : "selection"
+        );
+        const binding = await globalThis.STTranslateAI.resolveBinding(surface, options);
+        bindingKey = JSON.stringify([binding.serviceId, binding.serviceRevision, binding.promptId, binding.promptRevision]);
+        options = { ...options, surface, binding };
+      }
+      const key = `${service}\n${from}\n${to}\n${selCacheContext(options)}\n${bindingKey}\n${text}`;
       if (selCache.has(key)) {
         return Promise.resolve(selCache.get(key));
       }

@@ -52,6 +52,7 @@
             source: action,
             error,
           });
+          void root.STSettingsDialogs.notice(shadow, { message: error.message });
         });
         return true;
       }

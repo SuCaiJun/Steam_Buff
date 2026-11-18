@@ -375,17 +375,23 @@
   "settings_feature_library_group_labels_hide_collection_tags_desc": {
     "message": "Steam ライブラリ一覧に表示されるコレクション名で、末尾に連続する [] タグを非表示にします。Steam の元のコレクションデータは変更しません。"
   },
+  "settings_feature_download_auto_shutdown_name": {
+    "message": "ダウンロード完了後にシャットダウン"
+  },
+  "settings_feature_download_auto_shutdown_desc": {
+    "message": "ダウンロードメニューで選択します。この PC のダウンロードが完了すると、60 秒間はキャンセルできます。"
+  },
   "settings_feature_download_batch_actions_name": {
     "message": "ダウンロードキューの一括操作"
   },
   "settings_feature_download_batch_actions_desc": {
     "message": "ダウンロードページに「すべて開始」「すべて一時停止」「すべて削除」の操作を追加します。"
   },
-  "settings_feature_download_auto_shutdown_name": {
-    "message": "ダウンロード完了後にシャットダウン"
+  "settings_feature_download_manager_enhancement_name": {
+    "message": "ダウンロード管理の拡張"
   },
-  "settings_feature_download_auto_shutdown_desc": {
-    "message": "ダウンロードキューの完了後、1分でコンピューターをシャットダウンします。"
+  "settings_feature_download_manager_enhancement_desc": {
+    "message": "Steam のダウンロード画面にダウンロードツールバーを表示"
   },
   "settings_feature_steam_news_translate_name": {
     "message": "Steamニュースポップアップ翻訳"
@@ -2630,93 +2636,6 @@
   "store_dataDisplay_thirdPartyUnavailable": {
     "message": "第三者の価格データは一時的に利用できません。"
   },
-  "store_aiForecast_responseInstruction": {
-    "message": "今すぐ購入する、主な予測期間まで待つ、または提示された割引を待つ、のいずれかを明確に推奨してください。英語で回答し、事実、推定、不確実性を区別してください。裏付けとなるデータなしに正確な日付や確率を示さないでください。"
-  },
-  "store_aiForecast_summaryLanguageInstruction": {
-    "message": "4. Markdown、見出し、リスト、コードブロックを使わず、概要を平易な英語の文章で書いてください。"
-  },
-  "store_aiForecast_storageUnavailable": {
-    "message": "chrome.storage.local は利用できません"
-  },
-  "store_aiForecast_sessionReadFailed": {
-    "message": "AI予測セッションの読み込みに失敗しました"
-  },
-  "store_aiForecast_sessionSaveFailed": {
-    "message": "AI予測セッションの保存に失敗しました"
-  },
-  "store_aiForecast_sessionClearFailed": {
-    "message": "AI予測セッションの消去に失敗しました"
-  },
-  "store_aiForecast_readingSession": {
-    "message": "AI予測の履歴を読み込んでいます..."
-  },
-  "store_aiForecast_preparing": {
-    "message": "予測データを準備しています..."
-  },
-  "store_aiForecast_analyzing": {
-    "message": "AIが価格履歴とイベントデータを分析しています..."
-  },
-  "store_aiForecast_failed": {
-    "message": "AI予測に失敗しました。後でもう一度お試しください。"
-  },
-  "store_aiForecast_festivalUnavailable": {
-    "message": "イベントデータを利用できないため、AI予測を生成できません。"
-  },
-  "store_aiForecast_preparingHistory": {
-    "message": "価格履歴とイベントデータを準備しています..."
-  },
-  "store_aiForecast_openDetailsHint": {
-    "message": "会話の詳細を開くと、AI予測を生成できます。"
-  },
-  "store_aiForecast_you": {
-    "message": "あなた"
-  },
-  "store_aiForecast_initialQuestion": {
-    "message": "このページの価格データとイベントデータを使って、今後の割引を予測してください。"
-  },
-  "store_aiForecast_thinking": {
-    "message": "考えています..."
-  },
-  "store_aiForecast_replying": {
-    "message": "AIが回答しています。お待ちください..."
-  },
-  "store_aiForecast_questionPlaceholder": {
-    "message": "今後の割引について質問する"
-  },
-  "store_aiForecast_title": {
-    "message": "AI Forecast"
-  },
-  "store_aiForecast_closeDialog": {
-    "message": "会話を閉じる"
-  },
-  "store_aiForecast_streamUnavailable": {
-    "message": "AIストリーミングチャネルを利用できません。"
-  },
-  "store_aiForecast_replySaveFailed": {
-    "message": "応答は完了しましたが、この会話を保存できませんでした。"
-  },
-  "store_aiForecast_dataStillLoading": {
-    "message": "予測データを読み込んでいます。しばらくしてからもう一度お試しください。"
-  },
-  "store_aiForecast_configurationRequired": {
-    "message": "予測を生成する前に、AIサービスを設定してください。"
-  },
-  "store_aiForecast_dataUnavailable": {
-    "message": "AI予測データを一時的に利用できません。"
-  },
-  "store_aiForecast_prepareFailed": {
-    "message": "AI予測データの準備に失敗しました。"
-  },
-  "store_aiForecast_followupFailed": {
-    "message": "AIの追加質問に失敗しました。後でもう一度お試しください。"
-  },
-  "store_aiForecast_sessionUnavailable": {
-    "message": "AI予測履歴を一時的に利用できません。"
-  },
-  "store_aiForecast_dialogDetails": {
-    "message": "会話の詳細"
-  },
   "common_clearSelection": {
     "message": "選択を解除"
   },
@@ -3049,6 +2968,75 @@
   "store_wishlistPrice_steampyProxy": {
     "message": "SteamPY代理購入"
   },
+  "steam_downloadShutdown_notEnabled": {
+    "message": "自動シャットダウンは有効になっていません"
+  },
+  "steam_downloadShutdown_waitingStart": {
+    "message": "ダウンロードタスクの開始を待機中"
+  },
+  "steam_downloadShutdown_waitingCompletion": {
+    "message": "ダウンロードの完了を待機中"
+  },
+  "steam_downloadShutdown_paused": {
+    "message": "ダウンロードは一時停止中です。再開して完了した後にシャットダウンします。"
+  },
+  "steam_downloadShutdown_details": {
+    "message": "残りのダウンロード：$remaining$、現在の速度：$speed$",
+    "placeholders": {
+      "remaining": {
+        "content": "$1"
+      },
+      "speed": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_downloadShutdown_shortLabel": {
+    "message": "ダウンロード完了後にシャットダウン"
+  },
+  "steam_downloadShutdown_backendStarting": {
+    "message": "シャットダウン機能に接続中"
+  },
+  "steam_downloadShutdown_backendTimeout": {
+    "message": "シャットダウン状態を確認できません。ダウンロードメニューを開き直してください。"
+  },
+  "steam_downloadShutdown_failed": {
+    "message": "自動シャットダウンに失敗しました。ログを確認してください。"
+  },
+  "steam_downloadShutdown_countdown": {
+    "message": "ダウンロード完了。まもなくシャットダウンします。"
+  },
+  "steam_downloadShutdown_preparing": {
+    "message": "Steam のシャットダウンを準備中"
+  },
+  "steam_downloadShutdown_requested": {
+    "message": "Steam にシャットダウンを要求しました"
+  },
+  "steam_downloadShutdown_localOnly": {
+    "message": "この PC のダウンロードのみが対象です。この PC の一覧に切り替えてください。"
+  },
+  "steam_downloadShutdown_unconfirmed": {
+    "message": "Steam のシャットダウン要求を確認できませんでした"
+  },
+  "steam_downloadShutdown_cancel": {
+    "message": "シャットダウンをキャンセル"
+  },
+  "steam_downloadShutdown_seconds": {
+    "message": "$seconds$ 秒",
+    "placeholders": {
+      "seconds": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadShutdown_etaAt": {
+    "message": "シャットダウン予定 $time$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_downloadBatch_busy": {
     "message": "別の一括操作がすでに実行中です"
   },
@@ -3118,125 +3106,6 @@
   },
   "steam_downloadSurface_label": {
     "message": "ダウンロード管理ツール"
-  },
-  "steam_downloadShutdown_backendStarting": {
-    "message": "バックグラウンドサービスを初期化中"
-  },
-  "steam_downloadShutdown_backendTimeout": {
-    "message": "バックグラウンドサービスが8秒以内に応答しませんでした。download-shutdownバックエンドが注入されているか確認してください。"
-  },
-  "steam_downloadShutdown_checking": {
-    "message": "ダウンロードタスクを確認中..."
-  },
-  "steam_downloadShutdown_currentStatus": {
-    "message": "現在のステータス: $status$",
-    "placeholders": {
-      "status": {
-        "content": "$1"
-      }
-    }
-  },
-  "steam_downloadShutdown_disabled": {
-    "message": "自動シャットダウンはオフです"
-  },
-  "steam_downloadShutdown_notEnabled": {
-    "message": "自動シャットダウンは有効になっていません"
-  },
-  "steam_downloadShutdown_enabled": {
-    "message": "自動シャットダウン：有効"
-  },
-  "steam_downloadShutdown_eta": {
-    "message": "自動シャットダウン：$duration$後($time$)",
-    "placeholders": {
-      "duration": {
-        "content": "$1"
-      },
-      "time": {
-        "content": "$2"
-      }
-    }
-  },
-  "steam_downloadShutdown_details": {
-    "message": "残りのダウンロード：$remaining$、現在の速度：$speed$",
-    "placeholders": {
-      "remaining": {
-        "content": "$1"
-      },
-      "speed": {
-        "content": "$2"
-      }
-    }
-  },
-  "steam_downloadShutdown_unavailable": {
-    "message": "自動シャットダウン：推定できません"
-  },
-  "steam_downloadShutdown_hours": {
-    "message": "時間"
-  },
-  "steam_downloadShutdown_minutes": {
-    "message": "分"
-  },
-  "steam_downloadShutdown_timeToday": {
-    "message": "$time$",
-    "placeholders": {
-      "time": {
-        "content": "$1"
-      }
-    }
-  },
-  "steam_downloadShutdown_timeDay": {
-    "message": "$day$日 $time$",
-    "placeholders": {
-      "day": {
-        "content": "$1"
-      },
-      "time": {
-        "content": "$2"
-      }
-    }
-  },
-  "steam_downloadShutdown_timeMonth": {
-    "message": "$month$月$day$日 $time$",
-    "placeholders": {
-      "month": {
-        "content": "$1"
-      },
-      "day": {
-        "content": "$2"
-      },
-      "time": {
-        "content": "$3"
-      }
-    }
-  },
-  "steam_downloadShutdown_errorLog": {
-    "message": "エラーログ: $message$",
-    "placeholders": {
-      "message": {
-        "content": "$1"
-      }
-    }
-  },
-  "steam_downloadShutdown_failed": {
-    "message": "シャットダウンに失敗しました。ログを確認してください。"
-  },
-  "steam_downloadShutdown_label": {
-    "message": "ダウンロード完了後に自動的にシャットダウン"
-  },
-  "steam_downloadShutdown_paused": {
-    "message": "ダウンロードは一時停止中です。再開して完了した後にシャットダウンします。"
-  },
-  "steam_downloadShutdown_shortLabel": {
-    "message": "ダウンロード完了後にシャットダウン"
-  },
-  "steam_downloadShutdown_shuttingDown": {
-    "message": "ダウンロードが完了しました。シャットダウンしています。"
-  },
-  "steam_downloadShutdown_waitingCompletion": {
-    "message": "ダウンロードの完了を待機中"
-  },
-  "steam_downloadShutdown_waitingStart": {
-    "message": "ダウンロードタスクの開始を待機中"
   },
   "steam_newsTranslate_aiBodyEmpty": {
     "message": "AIが有効な本文翻訳を生成しませんでした"
@@ -6808,9 +6677,6 @@
   "store_detail_loading": {
     "message": "ゲーム情報を準備中…"
   },
-  "store_detail_ai": {
-    "message": "AIチャット"
-  },
   "store_detail_low": {
     "message": "過去最安値の参考"
   },
@@ -7313,5 +7179,44 @@
   },
   "messageCenter_navigationLabel": {
     "message": "メッセージセンター"
+  },
+  "common_success": {
+    "message": "操作完了"
+  },
+  "common_saved": {
+    "message": "設定を保存しました。"
+  },
+  "common_failed": {
+    "message": "操作に失敗しました"
+  },
+  "settings_account_localLogoutOnly": {
+    "message": "この端末ではログアウトしましたが、サーバー側のログアウトに失敗しました。"
+  },
+  "settings_account_refreshed": {
+    "message": "アカウント情報を更新しました。"
+  },
+  "gameLinks_saveFailedTitle": {
+    "message": "保存に失敗しました"
+  },
+  "gameLinks_saved": {
+    "message": "保存しました"
+  },
+  "gameLinks_savedMessage": {
+    "message": "関連リンクを保存しました。"
+  },
+  "gameLinks_deleted": {
+    "message": "リンクを削除しました。"
+  },
+  "gameLinks_resetDone": {
+    "message": "関連リンクを初期設定に戻しました。"
+  },
+  "store_customWalletAmount_submitFailed": {
+    "message": "Steam のチャージフォームの項目が利用できないため、送信できませんでした。"
+  },
+  "store_priceHistory_monitorSaved": {
+    "message": "セール通知を保存しました。"
+  },
+  "store_priceHistory_monitorDeleted": {
+    "message": "セール通知を削除しました。"
   }
 }

@@ -23,6 +23,7 @@
     "game-links": "images/features/game-links.svg",
     "search-suggestions": "images/features/search-suggestions.svg",
     "library-sort-title": "images/features/store-title-custom-name.svg",
+    "steam-achievement-translate": "images/ui/settings-translate.svg",
     "library-group-labels": "images/features/library-group-labels.svg",
     "store-title-custom-name": "images/features/store-title-custom-name.svg",
     "cart-select": "images/features/cart-select.svg",
@@ -67,6 +68,9 @@
     },
     drawerIcon() {
       return runtimeUrl("images/ui/chevron-right.svg");
+    },
+    retryIcon() {
+      return runtimeUrl("images/ui/message-retry.svg");
     },
     gameLinkIcon(type) {
       const file = GAME_LINK_ICONS[type];

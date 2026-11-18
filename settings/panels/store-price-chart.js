@@ -201,27 +201,16 @@
     }
 
     function combo(kind, items, options = {}) {
-      const value = String(options.value || "");
-      const label = String(options.label || "");
-      const ariaLabel = String(options.ariaLabel || uiText("settings.storePriceChart.combo.options", "选项"));
-      const expandLabel = uiText("settings.storePriceChart.combo.expand", "展开$name$列表", { name: ariaLabel });
-      return `
-        <div class="store-price-chart-combo" data-store-price-chart-combo="${escAttr(kind)}">
-          <div class="store-price-chart-combo__control">
-            <input type="text" role="combobox" aria-autocomplete="list" aria-expanded="false"
-              value="${escAttr(label)}" data-store-price-chart-combo-input="${escAttr(kind)}"
-              data-store-price-chart-combo-value="${escAttr(value)}" placeholder="${escAttr(options.placeholder || "")}" autocomplete="off">
-            <button class="store-price-chart-combo__toggle" type="button" data-store-price-chart-combo-toggle="${escAttr(kind)}"
-              aria-label="${escAttr(expandLabel)}" title="${escAttr(expandLabel)}"></button>
-          </div>
-          <div class="store-price-chart-combo__options" role="listbox" data-store-price-chart-combo-options hidden>
-            ${items.map(item => `<button type="button" role="option" class="store-price-chart-combo__option"
-              data-store-price-chart-combo-option="${escAttr(item.value)}"
-              data-store-price-chart-combo-search="${escAttr(item.search)}"
-              aria-selected="${String(item.value) === value ? "true" : "false"}">${esc(item.label)}</button>`).join("")}
-            <div class="store-price-chart-combo__empty" data-store-price-chart-combo-empty hidden>${esc(uiText("settings.storePriceChart.combo.empty", "没有匹配项"))}</div>
-          </div>
-        </div>`;
+      const label = options.ariaLabel;
+      return root.STSettingsFields.searchComboHtml(items, {
+        id: "st-price-chart-" + kind,
+        label,
+        value: options.value,
+        text: options.label,
+        placeholder: options.placeholder,
+        expandLabel: uiText("settings.storePriceChart.combo.expand", "展开$name$列表", { name: label }),
+        emptyLabel: uiText("settings.storePriceChart.combo.empty", "没有匹配项"),
+      });
     }
 
     function segment(name, value, items, options = {}) {
@@ -348,9 +337,9 @@
     }
 
     function resolveRegionInput(shadow) {
-      const input = shadow.querySelector('[data-store-price-chart-combo-input="region"]');
+      const input = shadow.querySelector("#st-price-chart-region");
       const value = String(input?.value || "").trim();
-      const selected = String(input?.dataset?.storePriceChartComboValue || "").toUpperCase();
+      const selected = input?.dataset.stComboValue;
       const code = value.toUpperCase();
       if (selected) return catalog.getSteamPriceRegion(selected);
       return catalog.getSteamPriceRegion(code)
@@ -360,40 +349,11 @@
     }
 
     function resolveShopInput(shadow) {
-      const input = shadow.querySelector('[data-store-price-chart-combo-input="shop"]');
+      const input = shadow.querySelector("#st-price-chart-shop");
       const value = String(input?.value || "").trim();
-      const selected = String(input?.dataset?.storePriceChartComboValue || "");
+      const selected = input?.dataset.stComboValue;
       if (selected) return catalog.getItadPriceShop(selected);
       return catalog.ITAD_PRICE_SHOPS.find(item => item.label.toLowerCase() === value.toLowerCase()) || null;
-    }
-
-    function setComboOpen(comboNode, open) {
-      const input = comboNode?.querySelector?.("[data-store-price-chart-combo-input]");
-      const options = comboNode?.querySelector?.("[data-store-price-chart-combo-options]");
-      if (!input || !options) return;
-      comboNode.classList.toggle("is-open", open);
-      input.setAttribute("aria-expanded", open ? "true" : "false");
-      options.hidden = !open;
-    }
-
-    function closeCombos(shadow, except = null) {
-      for (const comboNode of shadow.querySelectorAll("[data-store-price-chart-combo]")) {
-        if (comboNode !== except) setComboOpen(comboNode, false);
-      }
-    }
-
-    function filterCombo(input, queryValue = input.value) {
-      const comboNode = input.closest("[data-store-price-chart-combo]");
-      const query = String(queryValue || "").trim().toLowerCase();
-      let matchCount = 0;
-      for (const option of comboNode?.querySelectorAll?.("[data-store-price-chart-combo-option]") || []) {
-        const matches = !query || String(option.dataset.storePriceChartComboSearch || "").toLowerCase().includes(query);
-        option.hidden = !matches;
-        if (matches) matchCount += 1;
-      }
-      const empty = comboNode?.querySelector?.("[data-store-price-chart-combo-empty]");
-      if (empty) empty.hidden = matchCount > 0;
-      return comboNode;
     }
 
     function selectMainCountry(shadow, next) {
@@ -402,7 +362,7 @@
       chart.additionalSteamRegions = chart.additionalSteamRegions.filter(cc => cc !== activeMainCountry());
       if (next !== "auto" && previous !== next && catalog.getSteamPriceRegion(previous)) chart.additionalSteamRegions.unshift(previous);
       chart = normalizeChart(chart);
-      render(shadow, '[data-store-price-chart-combo-input="main-country"]');
+      render(shadow, "#st-price-chart-main-country");
     }
 
     async function save(shadow, button) {
@@ -446,35 +406,16 @@
       }
     }
 
+    function handleComboEvent(event, shadow) {
+      if (event.type !== "click" && !event.target.closest("[data-st-combo]")) return false;
+      const panel = shadow.querySelector("[data-store-price-chart-panel]");
+      return !!panel && root.STSettingsFields.handleSearchCombo(event, panel, (input, value) => {
+        if (input.id === "st-price-chart-main-country") selectMainCountry(shadow, value);
+      });
+    }
+
     function handleClick(event, shadow) {
-      const comboOption = event.target.closest("[data-store-price-chart-combo-option]");
-      if (comboOption) {
-        const comboNode = comboOption.closest("[data-store-price-chart-combo]");
-        const input = comboNode?.querySelector("[data-store-price-chart-combo-input]");
-        const kind = String(comboNode?.dataset?.storePriceChartCombo || "");
-        const value = String(comboOption.dataset.storePriceChartComboOption || "");
-        if (kind === "main-country") {
-          selectMainCountry(shadow, value);
-        } else if (input) {
-          input.value = String(comboOption.textContent || "").trim();
-          input.dataset.storePriceChartComboValue = value;
-          setComboOpen(comboNode, false);
-          input.focus();
-        }
-        return true;
-      }
-      const comboToggle = event.target.closest("[data-store-price-chart-combo-toggle]");
-      const comboInput = event.target.closest("[data-store-price-chart-combo-input]");
-      if (comboToggle || comboInput) {
-        const comboNode = (comboToggle || comboInput).closest("[data-store-price-chart-combo]");
-        const input = comboNode?.querySelector("[data-store-price-chart-combo-input]");
-        closeCombos(shadow, comboNode);
-        if (input) filterCombo(input, comboToggle ? "" : input.value);
-        setComboOpen(comboNode, !comboNode.classList.contains("is-open") || !!comboInput);
-        input?.focus?.();
-        return true;
-      }
-      closeCombos(shadow);
+      if (handleComboEvent(event, shadow)) return true;
       const addRegion = event.target.closest("[data-store-price-chart-add-region]");
       if (addRegion) {
         const region = resolveRegionInput(shadow);
@@ -492,7 +433,7 @@
           }
           chart.additionalSteamRegions.push(region.cc);
         }
-        render(shadow, '[data-store-price-chart-combo-input="region"]');
+        render(shadow, "#st-price-chart-region");
         return true;
       }
       const addShop = event.target.closest("[data-store-price-chart-add-shop]");
@@ -512,20 +453,20 @@
           }
           thirdPartyServices.isthereanydeal = { ...(thirdPartyServices.isthereanydeal || {}), shops: [...shops(), shop.id] };
         }
-        render(shadow, '[data-store-price-chart-combo-input="shop"]');
+        render(shadow, "#st-price-chart-shop");
         return true;
       }
       const removeRegion = event.target.closest("[data-store-price-chart-remove-region]");
       if (removeRegion) {
         chart.additionalSteamRegions = chart.additionalSteamRegions.filter(cc => cc !== removeRegion.dataset.storePriceChartRemoveRegion);
-        render(shadow, '[data-store-price-chart-combo-input="region"]');
+        render(shadow, "#st-price-chart-region");
         return true;
       }
       const removeShop = event.target.closest("[data-store-price-chart-remove-shop]");
       if (removeShop) {
         const id = Number(removeShop.dataset.storePriceChartRemoveShop);
         thirdPartyServices.isthereanydeal = { ...(thirdPartyServices.isthereanydeal || {}), shops: shops().filter(shopId => shopId !== id) };
-        render(shadow, '[data-store-price-chart-combo-input="shop"]');
+        render(shadow, "#st-price-chart-shop");
         return true;
       }
       if (event.target.closest("[data-store-price-chart-reset-colors]")) {
@@ -561,42 +502,7 @@
       return false;
     }
 
-    function handleInput(event, shadow) {
-      const input = event.target.closest("[data-store-price-chart-combo-input]");
-      if (!input) return false;
-      input.dataset.storePriceChartComboValue = "";
-      const comboNode = filterCombo(input);
-      closeCombos(shadow, comboNode);
-      setComboOpen(comboNode, true);
-      return true;
-    }
-
-    function handleKeydown(event, shadow) {
-      const input = event.target.closest("[data-store-price-chart-combo-input]");
-      if (!input) return false;
-      const comboNode = input.closest("[data-store-price-chart-combo]");
-      if (event.key === "Escape") {
-        setComboOpen(comboNode, false);
-        event.preventDefault();
-        return true;
-      }
-      if (event.key === "ArrowDown") {
-        const option = Array.from(comboNode.querySelectorAll("[data-store-price-chart-combo-option]")).find(item => !item.hidden);
-        setComboOpen(comboNode, true);
-        option?.focus?.();
-        event.preventDefault();
-        return true;
-      }
-      if (event.key === "Enter") {
-        const option = Array.from(comboNode.querySelectorAll("[data-store-price-chart-combo-option]")).find(item => !item.hidden);
-        if (option && comboNode.classList.contains("is-open")) option.click();
-        event.preventDefault();
-        return true;
-      }
-      return false;
-    }
-
-    return Object.freeze({ handleChange, handleClick, handleInput, handleKeydown, html, setConfigs });
+    return Object.freeze({ handleChange, handleClick, handleInput: handleComboEvent, handleKeydown: handleComboEvent, html, setConfigs });
   }
 
   root.STSettingsStorePriceChartPanel = Object.freeze({ create });

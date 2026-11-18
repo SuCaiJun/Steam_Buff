@@ -176,11 +176,9 @@
     }
 
     function itemPanelHtml(cat, item) {
+      if (item?.aiTasks) return root.STWorkflowView.taskBindingsHtml(item.aiTasks);
       if (item?.panel === "game-links") {
         return panels.gameLinks().html();
-      }
-      if (item?.panel === "family-library") {
-        return panels.familyLibrary().html(cat);
       }
       if (item?.panel === "search-suggestion") {
         return panels.searchSuggestion().html(cat);
@@ -239,11 +237,15 @@
       if (cat.kind === "review-filter") {
         return panels.review().html(cat);
       }
-      if (cat.kind === "ai") {
-        return `${items.map((item) => deps.masterItemHtml?.(item) || "").join("")}${panels.ai().html(cat)}`;
-      }
       if (cat.kind === "third-party-services") {
-        return panels.thirdPartyServices().html(cat);
+        const classifier = items.find((item) => item.id === "purchase-history-classifier");
+        return panels.ai().html() + panels.thirdPartyServices().html(cat) + `
+          <details class="settings-card section-card classifier-settings-card">
+            <summary class="section-header settings-fold-title">
+              <span class="dot"></span><span class="title">${esc(tr("settings.thirdParty.title", "第三方服务"))}</span>
+            </summary>
+            ${deps.itemHtml(cat, classifier)}
+          </details>`;
       }
       return itemListHtml(cat, items);
     }
@@ -336,6 +338,9 @@
     }
 
     function afterRender(shadow) {
+      void root.STWorkflowView.mount(shadow,pageCtx(shadow));
+      void root.STWorkflowView.mountTaskBindings(shadow, pageCtx(shadow));
+      if (shadow.querySelector(".translate-form")) void panels.translate().loadBindings(shadow);
       void refreshUpdateCheck(shadow);
       panels.review?.().renderDynamicLists?.(shadow);
       const cloudUi = root.STSettingsCloudUi;

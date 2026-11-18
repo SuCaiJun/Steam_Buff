@@ -100,14 +100,15 @@
     button.textContent = text("aiPermissionPageChecking", "正在确认...");
     origin.textContent = "-";
 
-    function showInvalid(message) {
+    function showInvalid(message, manual = false) {
       context.valid = false;
       context.origin = "";
       context.expiresAt = 0;
       button.disabled = true;
       button.textContent = text("aiPermissionPageAction", "申请授权");
       status.className = "authorization-status is-error";
-      status.textContent = message || text("aiPermissionPageInvalid", "授权请求无效，请返回设置页重新操作。");
+      status.textContent = manual ? "" : message || text("aiPermissionPageInvalid", "授权请求无效，请返回设置页重新操作。");
+      if (manual) void root.STFeedback.show(document.body, { message });
     }
 
     if (!request.valid || !root.chrome?.permissions?.request || !root.chrome?.runtime?.sendMessage) {
@@ -126,6 +127,12 @@
       context.origin = nextOrigin;
       context.expiresAt = Number(response.expiresAt) || 0;
       origin.textContent = nextOrigin;
+      if (response.purpose === "workflow-http") {
+        doc.title = "Steam Buff - HTTP 请求授权";
+        labels.product.textContent = "HTTP 请求授权";
+        labels.title.textContent = "允许工作流访问站点";
+        labels.copy.textContent = "Steam Buff 需要访问以下站点，才能运行 HTTP 请求指令。";
+      }
       return context;
     });
 
@@ -141,7 +148,7 @@
 
     button.addEventListener("click", () => {
       if (!context.valid || !Number.isFinite(context.expiresAt) || context.expiresAt <= Date.now()) {
-        showInvalid(text("aiPermissionPageExpired", "授权请求已失效，请返回设置中心重新发起。"));
+        showInvalid(text("aiPermissionPageExpired", "授权请求已失效，请返回设置中心重新发起。"), true);
         return;
       }
       // 权限申请必须直接承接本次点击；后台绑定已在页面启用按钮前完成。
@@ -153,7 +160,7 @@
         .then((granted) => sendCompletion(context.requestId).then((response) => ({ granted, response })))
         .then(({ granted, response }) => {
           if (response?.notified !== true) {
-            showInvalid(response?.error || text("aiPermissionPageFailed", "授权失败，请稍后重试。"));
+            showInvalid(response?.error || text("aiPermissionPageFailed", "授权失败，请稍后重试。"), true);
             return;
           }
           if (granted) {
@@ -161,17 +168,18 @@
             status.textContent = text("aiPermissionPageSuccess", "授权成功，正在返回设置页。");
             return;
           }
-          status.className = "authorization-status is-error";
-          status.textContent = response?.error || text("aiPermissionPageDenied", "未获得访问权限，请返回设置页重试。");
+          // 结果已回传，后台会关闭此页；拒绝原因由发起设置页统一提示
+          status.textContent = "";
         })
         .catch((error) => {
           root.STLoggerFactory.reportError(error, { domain: "settings", feature: "ai-permission", event: "permission-request-failed", message: "AI 网关授权操作失败", requestId: context.requestId });
           if (error?.code === "AI_HOST_PERMISSION_SESSION_EXPIRED") {
-            showInvalid(error.message);
+            showInvalid(error.message, true);
             return;
           }
           status.className = "authorization-status is-error";
-          status.textContent = error?.message || text("aiPermissionPageFailed", "授权失败，请稍后重试。");
+          status.textContent = "";
+          void root.STFeedback.show(document.body, { message: error?.message || text("aiPermissionPageFailed", "授权失败，请稍后重试。") });
           button.disabled = false;
           button.textContent = text("aiPermissionPageAction", "申请授权");
         });

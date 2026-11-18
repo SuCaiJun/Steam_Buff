@@ -16,7 +16,6 @@
 
   const charts = api.features?.dataDisplayCharts;
   const forecastPack = api.features?.dataDisplayForecastPack;
-  const aiForecast = api.features?.dataDisplayAiForecast;
   const DEFAULT_RANGE_MONTHS = 12;
   const RANGE_OPTIONS = Object.freeze([
     { key: "store.dataDisplay.range6Months", fallback: "6个月", months: 6 },
@@ -520,10 +519,7 @@
       wrap.textContent = i18n("common.loading", "正在加载");
       return;
     }
-    if (result?.ok !== true) {
-      aiForecast?.render?.(root, wrap, result, pageInfo);
-      return;
-    }
+    if (result?.ok !== true) return;
     const sections = forecastSections(priceSummary(result, pageInfo), result, pageInfo);
     sections.forEach((section) => {
       const card = el("div", "st-data-display-forecast-model");
@@ -539,7 +535,6 @@
       wrap.appendChild(card);
       api.dom.loading.activate(card);
     });
-    aiForecast?.render?.(root, wrap, result, pageInfo);
   }
 
   function productOptionsState(root) {
@@ -844,7 +839,6 @@
       } else caption.textContent = result.userMessage || i18n("common.loading", "正在加载");
       panel.right.append(label, value, caption);
     }
-    panel.ai.disabled = result.ok !== true;
     renderUpcoming(root, result);
   }
 

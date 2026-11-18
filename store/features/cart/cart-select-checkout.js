@@ -155,7 +155,11 @@
       btn.appendChild(label);
       btn.addEventListener("click", event => {
         event.preventDefault();
-        manualRestore().catch(() => setBtn(t("store_cartCheckout_restoreFailed", "恢复失败，重试"), "bad"));
+        manualRestore().catch(error => {
+          log.error("checkout-cart-restore-failed", "手动恢复购物车失败", { error });
+          setBtn(t("store_cartCheckout_restoreButton", "恢复暂存购物车数据"));
+          void window.STFeedback.show(document.body, { message: error.message });
+        });
       });
     }
 
@@ -302,12 +306,14 @@
       if (ok) {
         restored = true;
         setBtn(t("store_cartCheckout_restoreComplete", "已恢复暂存购物车数据"), "done");
+        void window.STFeedback.show(document.body, { message: t("store_cartCheckout_restoreComplete", "已恢复暂存购物车数据") });
         log.info("checkout-cart-restore-success", "结算页暂存购物车数据恢复完成", batchMeta(batches, {
           durationMs: Date.now() - startedAt,
         }));
       } else {
         await put({ [RESTORE_KEY]: batches });
-        setBtn(t("store_cartCheckout_restoreFailed", "恢复失败，重试"), "bad");
+        setBtn(t("store_cartCheckout_restoreButton", "恢复暂存购物车数据"));
+        void window.STFeedback.show(document.body, { message: t("store_cartCheckout_restoreFailed", "恢复失败，请重试") });
         log.warn("checkout-cart-restore-failed", "结算页暂存购物车数据恢复失败", batchMeta(batches, {
           durationMs: Date.now() - startedAt,
           reason: "restore-returned-false",
@@ -317,10 +323,6 @@
     } catch (error) {
       await put({ [RESTORE_KEY]: batches });
       setBtn(t("store_cartCheckout_restoreFailed", "恢复失败，重试"), "bad");
-      log.error("checkout-cart-restore-failed", "结算页购物车恢复失败", batchMeta(batches, {
-        durationMs: Date.now() - startedAt,
-        error,
-      }));
       throw error;
     } finally {
       restoring = false;
@@ -330,7 +332,7 @@
   async function manualRestore() {
     const todo = await batches();
     if (todo.length === 0) {
-      setBtn(t("store_cartCheckout_empty", "暂无暂存购物车"), "done");
+      void window.STFeedback.show(document.body, { message: t("store_cartCheckout_empty", "暂无暂存购物车") });
       logOnce("manual-empty", "info", "checkout-cart-restore-skipped", "结算页没有可恢复的暂存购物车数据", {
         reason: "empty",
         path: location.pathname,

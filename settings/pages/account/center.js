@@ -215,9 +215,11 @@
             error,
           });
         }
+        if (opts.force) void root.STSettingsDialogs.notice(shadow, { title: t("common.success", "操作成功"), message: t("settings.account.refreshed", "用户中心已刷新。") });
         return rt.center;
       } catch (error) {
-        rt.centerError = error?.message || String(error);
+        rt.centerError = opts.force ? "" : error?.message || String(error);
+        if (opts.force) void root.STSettingsDialogs.notice(shadow, { message: error?.message || String(error) });
         if (error?.code === "owner-changed") {
           rt.center = null;
           clearCenterCache();

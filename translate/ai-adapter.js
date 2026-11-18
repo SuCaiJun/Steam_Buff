@@ -129,55 +129,21 @@
     throw new Error("AI 翻译结果数量不一致");
   }
 
-  function messages(data, texts) {
-    const from = langName(data?.from);
-    const to = langName(data?.to);
-    const prompt = globalThis.STTranslateAIPrompts;
-    if (!prompt || typeof prompt.system !== "function" || typeof prompt.user !== "function") {
-      throw new Error("AI 翻译提示词模块未加载");
-    }
-    const ctx = {
-      from,
-      to,
-      texts,
-      host: location.hostname,
-      title: metaValue(data, "title") || document.title,
-      gameName: metaValue(data, "gameName"),
-      appid: metaValue(data, "appid"),
-      contentType: metaValue(data, "contentType"),
-      mode: promptMode(data),
-    };
-    return [
-      {
-        role: "system",
-        content: prompt.system(ctx),
-      },
-      {
-        role: "user",
-        content: prompt.user(ctx),
-      },
-    ];
-  }
-
-  function modelName(conf) {
-    return ai?.normalize?.(conf?.ai)?.model || "";
-  }
-
-  function hostName(conf) {
-    return ai?.endpoint?.(conf?.ai) || ai?.normalize?.(conf?.ai)?.host || "";
-  }
 
   function cacheText(text) {
     return String(text ?? "").replace(/\s+/g, " ").trim();
   }
 
-  function cacheBase(conf, data, text) {
+  function cacheBase(binding, data, text) {
     const mode = promptMode(data);
     const meta = promptMeta(data);
     const base = {
       v: PROMPT_VERSION,
       provider: SERVICE,
-      model: modelName(conf),
+      serviceId: binding.serviceId,
+      serviceRevision: binding.serviceRevision,
+      promptId: binding.promptId,
+      promptRevision: binding.promptRevision,
       from: data?.from || "",
       to: data?.to || "",
       text,
@@ -204,14 +170,22 @@
     return {
       ...base,
       scope: "context",
-      host: hostName(conf),
       pageHost: location.hostname,
       pageTitle: document.title || "",
     };
   }
 
-  async function cacheKey(conf, data, text) {
-    return cache?.cacheKey?.(cacheBase(conf, data, text));
+  async function cacheKey(binding, data, text) {
+    return cache?.cacheKey?.(cacheBase(binding, data, text));
+  }
+
+  /** 只读取本入口当前绑定的公开标识，缓存命中也必须先确认可用配置 */
+  async function resolveBinding(surface, options = {}) {
+    const response = await globalThis.STMessageBus.request({
+      type: "AI_CHAT_COMPLETIONS", action: "resolve-translation", translationSurface: surface,
+    }, { signal: options.signal, logFailures: false });
+    if (response?.success !== true) throw new Error(response?.error || "无法读取 AI 翻译配置");
+    return response.value;
   }
 
   function chunks(items) {
@@ -281,11 +255,15 @@
     options.signal?.throwIfAborted();
   }
 
-  async function send(conf, msgs, meta = {}, options = {}) {
+  async function send(meta, options) {
     checkCancelled(options);
     const startedAt = Date.now();
     const timeoutMs = timeoutOption(options);
-    const payload = { type: "AI_CHAT_COMPLETIONS", ai: conf.ai || {}, messages: msgs };
+    const { serviceId, serviceRevision, promptId, promptRevision } = options.binding;
+    const payload = {
+      type: "AI_CHAT_COMPLETIONS", translationSurface: options.surface,
+      serviceId, serviceRevision, promptId, promptRevision, promptContext: options.promptContext,
+    };
     if (timeoutMs) payload.timeoutMs = timeoutMs;
     const response = await globalThis.STMessageBus.send(payload, {
       signal: options.signal,
@@ -393,14 +371,16 @@
     return ok;
   }
 
-  async function translateChunk(conf, data, items, out, options = {}) {
+  async function translateChunk(data, items, out, options = {}) {
     const timeoutMs = timeoutOption(options);
-    const content = await send(conf, messages(data, items.map((item) => item.text)), dataMeta(data, {
+    const texts = items.map(item => item.text);
+    const promptContext = { ...options.promptContext, task: { ...options.promptContext.task, texts } };
+    const content = await send(dataMeta(data, {
       itemCount: items.length,
       totalChars: items.reduce((sum, item) => sum + item.text.length, 0),
-      model: modelName(conf),
+      model: options.binding.model,
       timeoutMs: timeoutMs || undefined,
-    }), options);
+    }), { ...options, promptContext });
     checkCancelled(options);
     const list = parseResult(content, items.length);
     list.forEach((item, idx) => {
@@ -412,27 +392,44 @@
     })), options);
   }
 
-  async function translateChunks(conf, data, items, out, options = {}) {
+  async function translateChunks(data, items, out, options = {}) {
     if (!items.length) {
       return;
     }
 
     const list = chunks(items);
     let next = 0;
-    const size = Math.min(concurrency(conf), list.length);
+    const size = Math.min(options.binding.aiConcurrency, list.length);
     async function worker() {
       while (next < list.length) {
         checkCancelled(options);
         const idx = next;
         next += 1;
-        await translateChunk(conf, data, list[idx], out, options);
+        await translateChunk(data, list[idx], out, options);
       }
     }
     await Promise.all(Array.from({ length: size }, () => worker()));
   }
 
-  async function translateTask(conf, data, options) {
+  async function translateTask(data, options) {
     checkCancelled(options);
+    const surface = options.surface || (
+      promptMode(data) === globalThis.STTranslateAIPrompts.STEAM_NEWS_MODE ? "news" : "page"
+    );
+    const binding = options.binding || await resolveBinding(surface, options);
+    checkCancelled(options);
+    const meta = promptMeta(data);
+    options = {
+      ...options, surface, binding,
+      promptContext: {
+        game: { appid: Number(meta.appid) || 0, official: meta.gameName || "" },
+        task: {
+          target_language: langName(data.to), source_language: langName(data.from === "auto" ? "" : data.from),
+          game_name: metaValue(data, "gameName"), title: metaValue(data, "title") || document.title,
+          content_type: metaValue(data, "contentType"),
+        },
+      },
+    };
     const startedAt = Date.now();
     const texts = parseTexts(data);
     if (!texts.length) {
@@ -443,7 +440,7 @@
       textCount: texts.length,
       uniqueCount: uniq.length,
       totalChars: texts.reduce((sum, text) => sum + String(text || "").length, 0),
-      concurrency: concurrency(conf),
+      concurrency: binding.aiConcurrency,
     }));
     const out = Array(uniq.length);
     const pending = await Promise.all(uniq.map(async (text, idx) => {
@@ -454,7 +451,7 @@
       return {
         idx,
         text,
-        cacheKey: await cacheKey(conf, data, text),
+        cacheKey: await cacheKey(binding, data, text),
       };
     }));
     checkCancelled(options);
@@ -471,7 +468,7 @@
       }
     }
 
-    await translateChunks(conf, data, next, out, options);
+    await translateChunks(data, next, out, options);
     checkCancelled(options);
     report("info", "ai-translate-success", "AI 翻译完成", dataMeta(data, {
       textCount: texts.length,
@@ -496,7 +493,7 @@
     if (options.signal?.aborted) abort();
     else options.signal?.addEventListener("abort", abort, { once: true });
     try {
-      return await translateTask(conf, data, { ...options, signal: controller.signal });
+      return await translateTask(data, { ...options, signal: controller.signal });
     } catch (error) {
       if (!controller.signal.aborted) {
         report("error", "ai-translate-failed", "AI 翻译失败", dataMeta(data, { error, phase: "translate" }));
@@ -566,13 +563,10 @@
       return false;
     }
 
-    const next = ai?.normalize?.(conf.ai);
-    if (!AI_PROXY_URL || !next?.enabled || !next.host || !next.model) {
-      report("error", "ai-config-incomplete", "AI 翻译配置不完整", {
+    if (!AI_PROXY_URL || conf.ai?.enabled !== true) {
+      report("error", "ai-config-incomplete", "AI 翻译尚未启用", {
         hasProxy: !!AI_PROXY_URL,
-        enabled: next?.enabled === true,
-        hasHost: !!next?.host,
-        hasModel: !!next?.model,
+        enabled: conf.ai?.enabled === true,
       });
       if (trans.request?.api) {
         trans.request.api.translate = "";
@@ -599,7 +593,6 @@
     }
     report("info", "ai-config-apply-success", "AI 翻译配置已应用", {
       autoPage: options.autoPage === true,
-      model: next.model,
       concurrency: concurrency(conf),
     });
     return true;
@@ -611,5 +604,6 @@
     SERVICE,
     apply,
     translate,
+    resolveBinding,
   });
 })();

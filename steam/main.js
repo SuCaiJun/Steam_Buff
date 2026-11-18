@@ -19,7 +19,7 @@
     operationId: runtimeCorrelation.steamBuffRuntimeOperationId || "",
   });
   const runtime = window.STRuntime?.get?.({ id: "steam-buff-page-runtime" });
-  const RUNTIME_VERSION = "steam-buff-runtime-v59";
+  const RUNTIME_VERSION = "steam-buff-runtime-v77";
   const RUNTIME_OPERATION_ATTR = "steamBuffRuntimeOperationId";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
@@ -28,6 +28,7 @@
   const BOOT_WAIT_MS = 30000;
   const LOOP_MS = 10000;
   const STEAM_FEATURES_DISABLED_MESSAGE = "__steam_buff_features_disabled";
+  const DOWNLOAD_SETTINGS = new Set(["download-manager-enhancement", "download-batch-actions", "download-auto-shutdown"]);
 
   if (!api || !reg) {
     return;
@@ -228,7 +229,6 @@
       stopState("library-custom-name");
       stopState("library-independent-name");
       stopState("download-batch-actions");
-      stopState("download-auto-shutdown");
       try {
         window.__SteamBuffNewsTranslate?.stop?.();
       } catch (error) {
@@ -322,10 +322,14 @@
       if (data.type !== STEAM_FEATURES_DISABLED_MESSAGE) {
         return;
       }
-      for (const featureId of disabledFeatureIds(data)) {
+      const stopIds = disabledFeatureIds(data);
+      for (const featureId of stopIds) {
         stopDisabledFeature(featureId);
       }
       const startIds = enabledFeatureIds(data);
+      if (stopIds.some(id => DOWNLOAD_SETTINGS.has(id)) || startIds.some(id => DOWNLOAD_SETTINGS.has(id))) {
+        api.downloadToolbar?.syncSettings();
+      }
       if (startIds.length) {
         (async () => {
           for (const featureId of startIds) {
@@ -381,6 +385,7 @@
     };
     markRuntimeReady();
     installFeatureDisabledListener();
+    api.downloadToolbar?.syncSettings();
     log.debug?.("runtime-start", "Steam 客户端运行时开始启动", {
       route: api.ctx?.route?.() || "",
     });

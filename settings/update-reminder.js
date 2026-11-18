@@ -273,8 +273,7 @@ ${api.esc(text("updateReminder.latestVersion", "最新版本：$version$", { ver
         close(host);
       } catch (error) {
         log.error("update-reminder-action-failed", "更新提醒操作失败", { error, action });
-        const status = shadow.querySelector(".update-error");
-        status.hidden = false; status.textContent = text("updateReminder.actionFailed", "操作失败，请重试。");
+        void globalThis.STFeedback.show(shadow, { message: error.message || text("updateReminder.actionFailed", "操作失败，请重试。") });
         controls.forEach(button => { button.disabled = false; });
       }
     });

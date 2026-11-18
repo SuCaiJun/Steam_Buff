@@ -20,6 +20,11 @@
     const getCenter = typeof options.getCenter === "function" ? options.getCenter : () => null;
     const t = root.STI18n.text;
 
+    function result(shadow, message) {
+      rt.msg = "";
+      void root.STSettingsDialogs.notice(shadow, { message });
+    }
+
     function refresh(ctx) {
       ctx.refresh("account");
     }
@@ -53,7 +58,9 @@
             durationMs: Date.now() - startedAt,
           });
           rt.busy = false;
-          setStatus(shadow, error?.message || String(error));
+          rt.device = null;
+          result(shadow, error?.message || String(error));
+          refresh(ctx);
         });
       }, delay);
     }
@@ -100,7 +107,7 @@
         schedule(shadow, ctx);
       } catch (error) {
         rt.busy = false;
-        rt.msg = error?.message || String(error);
+        result(shadow, error?.message || String(error));
         rt.loadError = t("settings.account.dataLoadRetry", "数据加载失败，点击重试");
         log.error("device-login-failed", "设备码登录启动失败", {
           operationId,
@@ -119,7 +126,7 @@
       if (Date.now() >= Number(rt.device.expires_at)) {
         const startedAt = Number(rt.device.started_at) || Date.now();
         rt.busy = false;
-        rt.msg = t("settings.account.codeExpired", "验证码已过期");
+        result(shadow, t("settings.account.codeExpired", "验证码已过期"));
         rt.copyMsg = "";
         clearCopyTimer();
         rt.device = null;
@@ -141,7 +148,7 @@
       }
       if (!api.okCode(res) || !res.body?.access_token) {
         rt.busy = false;
-        rt.msg = res.body?.message || t("settings.account.loginFailed", "登录失败");
+        result(shadow, res.body?.message || t("settings.account.loginFailed", "登录失败"));
         rt.copyMsg = "";
         clearCopyTimer();
         rt.device = null;
@@ -161,7 +168,7 @@
         { operationId }
       );
       rt.busy = false;
-      rt.msg = t("settings.account.loginSucceeded", "登录成功");
+      result(shadow, t("settings.account.loginSucceeded", "登录成功"));
       rt.loadError = "";
       rt.copyMsg = "";
       clearCopyTimer();
@@ -261,22 +268,14 @@
 
     function setCopyMsg(shadow, message) {
       clearCopyTimer();
-      rt.copyMsg = message;
+      rt.copyMsg = "";
+      if (message) void root.STSettingsDialogs.notice(shadow, { message });
       const note = shadow.querySelector("[data-auth-note]");
       if (note) {
-        note.textContent = message || "";
-        note.hidden = !message;
+        note.textContent = "";
+        note.hidden = true;
       }
-      if (message) {
-        rt.copyTimer = window.setTimeout(() => {
-          rt.copyMsg = "";
-          const current = shadow.querySelector("[data-auth-note]");
-          if (current && current.textContent === message) {
-            current.textContent = "";
-            current.hidden = true;
-          }
-        }, 2600);
-      }
+
     }
 
     function selectText(el) {

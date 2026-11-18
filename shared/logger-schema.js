@@ -83,7 +83,6 @@
     "diag-log-export-start",
     "diag-log-export-success",
     "diag-log-clear-success",
-    "download-auto-shutdown-start",
     "steam-loopback-runtime-recovery-attempt",
   ]));
   const NEVER_PERSIST_EVENTS = Object.freeze(new Set([

@@ -42,6 +42,7 @@
     let conf = { ...(options.config || {}) };
     let persistedConf = { ...conf };
     let publishingConfig = false;
+    const bindings = root.STAI.TRANSLATION;
 
     function uiText(key, fallback) {
       return root.STI18n.text(key, fallback);
@@ -69,8 +70,8 @@
 
     function input(field) {
       if (field.type === "select") {
-        const ai = getAiConfig() || {};
-        const aiOff = (field.key === "service" || field.key === "selectionService" || field.key === "newsPopupService") && ai.enabled !== true;
+        const aiOff = (field.key === "service" || field.key === "selectionService" || field.key === "newsPopupService") &&
+          getAiConfig()?.enabled !== true;
         const value = String(conf[field.key] ?? "");
         return fieldInput({
           field,
@@ -124,6 +125,7 @@
           row.hidden = !fieldVisible(field);
         }
       }
+      syncBindings(shadow);
       const select = shadow.querySelector('[data-translate="select"]');
       if (select && select.type === "checkbox") {
         select.checked = conf.select !== false;
@@ -139,6 +141,7 @@
           return;
         }
         node.value = String(conf[id] ?? "");
+        if (node.dataset.translateAiChoice) root.STWorkflowView.syncBindingNote(node);
       });
       syncFields(shadow);
     }
@@ -166,7 +169,7 @@
       const next = {};
       shadow.querySelectorAll("[data-translate]").forEach((node) => {
         const id = node.dataset.translate;
-        if (!id) return;
+        if (!id || (node.dataset.translateAiChoice && node.disabled)) return;
         const field = map.get(id) || {};
         if (node.type === "checkbox") {
           next[id] = node.checked;
@@ -200,7 +203,53 @@
       return next;
     }
 
-    function section(title, fields) {
+    function bindingRows(surface) {
+      const keys = bindings[surface];
+      const control = (label, key, scene) => `<label class="translate-row form-row" data-ai-binding="${surface}" ${scene === "web-translate" && conf.scope !== "global" ? "hidden" : ""}>
+        <span class="translate-label label" id="translate-${key}-label">${label}</span>
+        <span class="translate-value control ai-binding-control">
+          <select class="translate-control" data-translate="${key}" data-translate-ai-choice="${scene || "service"}"
+            aria-labelledby="translate-${key}-label" aria-describedby="translate-${key}-state" disabled></select>
+          <small class="ai-binding-note" id="translate-${key}-state" hidden></small>
+        </span>
+      </label>`;
+      const scene = surface === "news" ? "steam-news" : "steam-content";
+      return control("AI 服务", keys.service) +
+        control(keys.webPrompt ? "Steam 提示词方案" : "提示词方案", keys.prompt, scene) +
+        (keys.webPrompt ? control("网页提示词方案", keys.webPrompt, "web-translate") : "");
+    }
+
+    function syncBindings(shadow) {
+      for (const input of shadow.querySelectorAll('[data-translate-ai-choice="web-translate"]'))
+        input.closest("[data-ai-binding]").hidden = conf.scope !== "global";
+    }
+
+    async function loadBindings(shadow) {
+      const form = shadow.querySelector(".translate-form");
+      if (!form) return;
+      try {
+        const [registry, workflow, saved] = await Promise.all([
+          storage.getAi(), storage.getWorkflow(), storage.getTranslate(),
+        ]);
+        if (!form.isConnected) return;
+        const view = root.STWorkflowView;
+        for (const select of form.querySelectorAll("[data-translate-ai-choice]")) {
+          const key = select.dataset.translate;
+          const scene = select.dataset.translateAiChoice;
+          const selected = saved[key];
+          conf[key] = selected;
+          persistedConf[key] = selected;
+          const rows = scene === "service" ? view.serviceChoices(registry, selected) : view.promptChoices(workflow.prompts, selected);
+          view.fillBindingSelect(select, rows, selected);
+        }
+        syncBindings(shadow);
+      } catch (error) {
+        if (form.isConnected) void root.STSettingsDialogs.notice(form.getRootNode(), { message: error.message });
+        log.error("translation-bindings-load-failed", "读取 AI 翻译绑定失败", { error });
+      }
+    }
+
+    function section(title, fields, surface) {
       return `
         <section class="translate-card section-card">
           <div class="section-header">
@@ -213,6 +262,7 @@
                 <span class="translate-label label">${esc(root.STSettingsFields?.label?.(field) || field.label)}</span>
                 <span class="translate-value control">${input(field)}</span>
               </div>
+              ${field.key === bindings[surface].method ? bindingRows(surface) : ""}
             `).join("")}
           </div>
         </section>
@@ -238,9 +288,9 @@
       return `
         ${cat.items.map((item) => options.masterItemHtml?.(item) || "").join("")}
         <div class="translate-form">
-          ${section(uiText("settings.translate.scope", "翻译范围"), base)}
-          ${section(uiText("settings.translate.selection", "划词翻译"), selection)}
-          ${section(uiText("settings.translate.newsPopup", "Steam 新闻弹窗翻译"), news)}
+          ${section("整页翻译", base, "page")}
+          ${section(uiText("settings.translate.selection", "划词翻译"), selection, "selection")}
+          ${section(uiText("settings.translate.newsPopup", "Steam 新闻弹窗翻译"), news, "news")}
           <div class="translate-actions form-footer">
             <button class="translate-save btn btn-blue" type="button">${esc(uiText("common.saveSettings", "保存设置"))}</button>
           </div>
@@ -305,7 +355,7 @@
           });
           dialog(shadow, {
             title: uiText("common.saveFailed", "保存失败"),
-            message: uiText("settings.translate.saveError", "翻译设置保存异常，请稍后重试。"),
+            message: error.message || uiText("settings.translate.saveError", "翻译设置保存异常，请稍后重试。"),
           });
         })
         .finally(() => {
@@ -321,6 +371,7 @@
       if (!node) {
         return false;
       }
+      if (node.dataset.translateAiChoice) root.STWorkflowView.syncBindingNote(node);
       conf = { ...conf, ...read(shadow) };
       publishConfig();
       syncFields(shadow);
@@ -332,6 +383,7 @@
       handleChange,
       handleClick,
       html,
+      loadBindings,
       read,
       setConfig,
       syncFields,

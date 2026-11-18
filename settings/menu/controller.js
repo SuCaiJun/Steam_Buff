@@ -256,6 +256,7 @@
         return;
       }
 
+      globalThis.STFeedback.dismiss(panel);
       globalThis.STSettingsDialogs?.cancel();
       globalThis.STSettingsPages?.get("about")?.dispose();
       panel.classList.remove("open");

@@ -120,17 +120,37 @@
       return { language, records: await lookup(request.appId, language, request.items) };
     }
     if (request.action !== "load" && request.language !== language) throw new Error("翻译目标语言已改变，请重新打开成就翻译");
-    const aiReady = settings.features?.ai !== false && !!root.STAI.chatRequest(settings.ai, [{ role: "user", content: "test" }]);
     if (request.action === "load") {
+      const unavailable = (scene) => {
+        const binding = settings.workflow.bindings[scene];
+        const service = root.STAI.boundService(settings.ai, binding.serviceId);
+        const plan = settings.workflow.prompts.find((item) => item.id === binding.promptId);
+        if (!plan?.enabled) return "请在客户端增强中重新选择提示词方案";
+        if (!settings.ai.enabled) return "请在第三方服务中启用 AI 模块";
+        if (!service?.enabled) return "请在客户端增强中选择可用的 AI 服务";
+        if (!service.host || !service.model) return service.id === root.STAI.DEFAULT_SERVICE_ID
+          ? "请在第三方服务中配置默认 AI 服务" : "请在第三方服务中补全 AI 连接配置";
+        return "";
+      };
+      const aiErrors = { achievement: unavailable("achievement"), group: unavailable("achievement-group") };
+      const aiReadyByKind = { achievement: !aiErrors.achievement, group: !aiErrors.group };
       const [records, groupRecords] = await Promise.all([load(request.appId, language), load(request.appId, language, "group")]);
-      return { language, aiReady, records, groupRecords };
+      return { language, aiReady: aiReadyByKind.achievement || aiReadyByKind.group, aiReadyByKind, aiErrors, records, groupRecords };
     }
     if (request.action === "save") return save(request.appId, language, request.entries, entityKind);
     if (request.action !== "translate") throw new TypeError("成就翻译操作无效");
-    if (!aiReady) throw new Error("请先在 AI 服务中启用并配置模型；仍可手动编辑和保存译文");
     const items = model.batch(request.items);
     if (entityKind === "group") groupItems(items);
-    const response = await complete({ ai: settings.ai, messages: model.messages(language, request.gameName, items, entityKind), timeoutMs: 60000, operationId: request.operationId, requestId: request.requestId });
+    const gameName = request.gameName;
+    if (typeof gameName !== "string" || gameName.length > 1000) throw new TypeError("游戏名称格式无效");
+    const response = await complete({
+      promptTask: entityKind === "group" ? "achievement-group" : "achievement",
+      promptContext: {
+        game: { appid: Number(request.appId), official: gameName },
+        task: { items, target_language: language, game_name: gameName, kind: entityKind },
+      },
+      timeoutMs: 60000, operationId: request.operationId, requestId: request.requestId,
+    });
     if (!response?.success) throw new Error(response?.error || "AI 成就翻译失败");
     const translated = model.parseResult(response.text, items);
     if (entityKind === "group" && translated.some(row => row.translatedDescription !== "")) throw new Error("AI 分组名称结果包含了额外说明");

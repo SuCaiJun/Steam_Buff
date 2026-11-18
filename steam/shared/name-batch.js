@@ -811,15 +811,7 @@
     );
     return ["notContains", "notEquals"].includes(filter.op) ? !found : found;
   }
-  const FILTER_GROUPS = Object.freeze([
-    ["名称", ["custom_name", "aliases", "mnemonic", "pinyin", "original_language"]],
-    ["应用", ["app_type", "sources", "collections", "collection_names", "modes", "status", "privacy"]],
-    ["内容", ["languages", "genres", "features", "tags"]],
-    ["硬件", ["hardware"]],
-    ["辅助功能", ["accessibility"]],
-    ["评价", ["review_score", "metacritic_score"]],
-    ["时间", ["date_added", "date_release", "date_last_played", "playtime_minutes"]],
-  ]);
+  const FILTER_GROUPS = window.STWorkflowFields.groups.map(([title,entries])=>[title,entries.map(([key])=>key).filter(key=>!["official","current","sort","appid"].includes(key))]);
   const LANGUAGE_LABELS = Object.freeze({
     sc_schinese: "简体中文", schinese: "简体中文", tchinese: "繁体中文", english: "英文", koreana: "韩语", japanese: "日语",
     german: "德语", french: "法语", italian: "意大利语", spanish: "西班牙语", latam: "拉丁美洲西班牙语", russian: "俄语",
@@ -841,16 +833,7 @@
     ["today", "今日"], ["yesterday", "昨日"], ["3d", "近3日"], ["7d", "近7日"],
     ["14d", "近14日"], ["30d", "近30日"], ["custom", "自定义"],
   ]);
-  const FIELD_LABELS = Object.freeze({
-    collection_names: "收藏分组名称",
-    sources: "游戏来源", original_language: "原名称语言", collections: "收藏分组", modes: "游戏模式", status: "游戏状态", privacy: "私密筛选",
-    languages: "游戏语言", genres: "游戏题材", features: "游戏特色", tags: "商店标签", hardware: "硬件支持", accessibility: "辅助功能",
-    review_score: "Steam 评测", metacritic_score: "Metacritic 分数", date_added: "添加到库日期", date_release: "发行日期", date_last_played: "最后运行日期", playtime_minutes: "游戏时间",
-  });
-  const ORIGINAL_LANGUAGE_OPTIONS = Object.freeze([
-    ["zh_hans", "简体中文"], ["zh_hant", "繁体中文"], ["english", "英文"], ["japanese", "日语"],
-    ["korean", "韩语"], ["russian", "俄语"], ["other", "其他"],
-  ]);
+  const FIELD_LABELS = window.STWorkflowFields.labels;
 
 
   // 名称字段只由各版适配器读取；分类、范围和未知值规则在此共用，不读取存储或 Steam 全局对象。
@@ -917,7 +900,7 @@
     function gameType(type) {
       if (!Number.isSafeInteger(type)) throw new TypeError(i18n("steam.independentName.typeMissing", "游戏类型数据不可用，请更新扩展后重试"));
       // Steam AppOverview 的 EProtoAppType 枚举；其余实际类型归入“其他”
-      return ({ 1: "game", 2: "software", 4: "tool", 8192: "audio", 2048: "video" })[type] || "other";
+      return classifyAppType(type);
     }
 
     function filterAvailability(field) {
@@ -941,11 +924,7 @@
 
     function optionList(field) {
       const fallback = {
-        sources: [["mine", "自己的游戏"], ["family", "家庭组游戏"]],
-        original_language: ORIGINAL_LANGUAGE_OPTIONS,
-        modes: [["single", "单人"], ["multiplayer", "多人"], ["coop", "合作"], ["local_multiplayer", "本地多人"]],
-        status: [["ready", "准备就绪"], ["installed", "已本地安装"], ["played", "已玩过"], ["unplayed", "未玩过"]],
-        privacy: [["normal", "正常"], ["private", "私密"], ["hidden", "隐藏"]],
+        ...window.STWorkflowFields.filterChoices,
         languages: Object.entries(LANGUAGE_LABELS),
         genres: [["action", "动作"], ["adventure", "冒险"], ["casual", "休闲"], ["indie", "独立"], ["massively_multiplayer", "大型多人在线"], ["racing", "竞速"], ["rpg", "角色扮演"], ["simulation", "模拟"], ["sports", "体育"], ["strategy", "策略"]],
         features: [["trading_cards", "集换式卡牌"], ["workshop", "创意工坊"], ["achievements", "成就"], ["steam_cloud", "Steam 云"], ["remote_play", "远程同乐"], ["family_sharing", "家庭共享"]],
@@ -1098,7 +1077,12 @@
     return groups.map(([key,contents])=>'<div class="st-lin-actions-group" data-lin-actions-group="'+key+'"><strong>'+esc(i18n('steam.independentName.bulk.'+key,({add:'添加',generate:'生成',clear:'清空',selection:'选择',other:'其他'})[key]))+'</strong><div>'+contents+'</div></div>').join('');
   }
 
+  function classifyAppType(type) {
+    if (!Number.isSafeInteger(type)) throw new TypeError("游戏类型数据不可用");
+    return { 1: "game", 2: "software", 4: "tool", 8192: "audio", 2048: "video" }[type] || "other";
+  }
   window.SteamBuff.nameBatch = Object.freeze({
+    classifyAppType,
     createFilters,
     actionGroupsHtml,
     create,

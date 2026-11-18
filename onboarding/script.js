@@ -535,6 +535,7 @@
   function readAiForm() {
     return normalizeAiDraft({
       enabled: state.ai.enabled === true,
+      protocol: state.ai.protocol,
       host: $("#ai-host")?.value,
       model: $("#ai-model")?.value,
       keyMode: $("#ai-key-mode")?.value,
@@ -660,11 +661,8 @@
       "enabled",
       "isthereanydeal.key",
     ];
-    const aiIds = Object.keys(defs);
-    const keys = [
-      ...thirdPartyPaths.map(thirdPartyKey),
-      ...aiIds.map(aiStorageKey),
-    ];
+    const aiConfig = globalThis.STAI;
+    const keys = [...thirdPartyPaths.map(thirdPartyKey), ...aiConfig.SETTINGS_KEYS];
     const stored = await storageGetMany(keys);
     const savedKey = String(stored[thirdPartyKey("isthereanydeal.key")] ?? "").trim();
     // 引导页默认开启；仅当本地已有明确关闭记录时沿用关闭。
@@ -675,16 +673,13 @@
     state.thirdParty.verified = false;
     state.thirdParty.saved = false;
 
-    const aiValues = { ...defs, temperature: "0.2" };
-    aiIds.forEach((id) => {
-      if (Object.hasOwn(stored, aiStorageKey(id))) aiValues[id] = stored[aiStorageKey(id)];
+    state.aiRegistry = aiConfig.servicesFromStorage(stored);
+    const service = aiConfig.findService(state.aiRegistry, aiConfig.DEFAULT_SERVICE_ID);
+    const ai = normalizeAiDraft({
+      ...defs, temperature: "0.2", ...(service.host || service.model ? service : {}),
+      aiConcurrency: state.aiRegistry.aiConcurrency,
+      enabled: Object.hasOwn(stored, aiStorageKey("enabled")) ? state.aiRegistry.enabled : true,
     });
-    const ai = normalizeAiDraft(aiValues);
-    if (Object.hasOwn(stored, aiStorageKey("enabled"))) {
-      ai.enabled = stored[aiStorageKey("enabled")] === true;
-    } else {
-      ai.enabled = true;
-    }
     Object.assign(state.ai, ai, {
       verified: false,
       message: "",
@@ -743,15 +738,21 @@
     if (form.enabled && !state.ai.verified) {
       return { ok: false, reason: "unverified" };
     }
-    const data = {};
+    const previous = state.aiRegistry;
+    const next = { ...previous, enabled: form.enabled, aiConcurrency: form.aiConcurrency };
     if (form.enabled) {
-      Object.keys(aiDefaults()).forEach(id => { data[aiStorageKey(id)] = form[id]; });
-    } else { data[aiStorageKey("enabled")] = false; }
+      const defaultId = globalThis.STAI.DEFAULT_SERVICE_ID;
+      next.services = previous.services.map((service) => service.id === defaultId
+        ? { ...service, ...form, enabled: true } : service);
+    }
     log.info("onboarding-ai-save-start", "安装引导开始保存 AI 配置", {
       operationId,
       enabled: form.enabled === true,
     });
-    const ok = await storageSetMany(data, { operationId });
+    const saved = await runtimeSend({
+      type: "AUTOMATION", action: "save-ai-services", value: next, operationId,
+    }, 120000);
+    const ok = saved?.success === true;
     if (!ok) {
       log.warn("onboarding-ai-save-failed", "安装引导 AI 配置保存失败", {
         operationId,
@@ -760,6 +761,7 @@
       });
       return { ok: false, reason: "storage" };
     }
+    state.aiRegistry = saved.value;
     state.ai.saved = true;
     state.savedSummary.ai = form.enabled ? "已配置并测试" : "已关闭";
     log.info("onboarding-ai-save-success", "安装引导 AI 配置保存成功", {
@@ -793,7 +795,7 @@
     const requestId = `itad-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     if (!key) {
       state.thirdParty.verified = false;
-      state.thirdParty.message = "请先填写 ITAD API Key。";
+      resultNotice("请先填写 ITAD API Key。", "thirdParty");
       state.thirdParty.messageError = true;
       log.warn("onboarding-itad-test-failed", "安装引导 ITAD 连接测试缺少 API Key", {
         operationId,
@@ -846,7 +848,7 @@
       if (status < 200 || status >= 300) {
         const failure = itadFailureFromStatus(status);
         state.thirdParty.verified = false;
-        state.thirdParty.message = failure.message;
+        resultNotice(failure.message, "thirdParty");
         state.thirdParty.messageError = true;
         log.error("onboarding-itad-test-failed", "安装引导 ITAD 连接测试失败", {
           ...details,
@@ -866,7 +868,7 @@
       }
       state.thirdParty.verified = true;
       state.thirdParty.saved = false;
-      state.thirdParty.message = "测试通过，可进入下一步。";
+      resultNotice("测试通过，可进入下一步。", "thirdParty");
       state.thirdParty.messageError = false;
       log.info("onboarding-itad-test-success", "安装引导 ITAD 连接测试成功", {
         ...details,
@@ -876,7 +878,7 @@
       });
     } catch (error) {
       state.thirdParty.verified = false;
-      state.thirdParty.message = error?.message || String(error);
+      resultNotice(error?.message || String(error), "thirdParty");
       state.thirdParty.messageError = true;
       log.error("onboarding-itad-test-failed", "安装引导 ITAD 连接测试异常", {
         ...details,
@@ -996,14 +998,14 @@
     const operationId = createOperationId();
     if (!testConf.host || !testConf.model) {
       state.ai.verified = false;
-      state.ai.message = "请填写 AI 网关地址和模型。";
+      resultNotice("请填写 AI 网关地址和模型。", "ai");
       state.ai.messageError = true;
       render();
       return;
     }
     if (aiKeyRequired(testConf.keyMode) && !testConf.key) {
       state.ai.verified = false;
-      state.ai.message = "请填写访问密钥。";
+      resultNotice("请填写访问密钥。", "ai");
       state.ai.messageError = true;
       render();
       return;
@@ -1021,6 +1023,7 @@
       await ensureAiGatewayPermission(testConf, operationId);
       const response = await runtimeSend({
         type: "AI_CHAT_COMPLETIONS",
+        action: "test-connection",
         operationId,
         ai: testConf,
         messages: [
@@ -1035,7 +1038,7 @@
       }
       state.ai.verified = true;
       state.ai.saved = false;
-      state.ai.message = "测试通过，可进入下一步。";
+      resultNotice("测试通过，可进入下一步。", "ai");
       state.ai.messageError = false;
       log.info("onboarding-ai-test-success", "安装引导 AI 连接测试成功", {
         operationId,
@@ -1052,7 +1055,7 @@
         });
       } else {
         state.ai.verified = false;
-        state.ai.message = error?.message || String(error);
+        resultNotice(error?.message || String(error), "ai");
         state.ai.messageError = true;
         log.error("onboarding-ai-test-failed", "安装引导 AI 连接测试失败", {
           operationId,
@@ -1085,8 +1088,17 @@
     return `${badge} · ${id === "用户 ID 暂无" ? id : `ID: ${id}`}`;
   }
 
-  async function storeMembership(data, operationId = "") {
-    const saved = await storageSet(MEMBERSHIP_KEY, accountProfile().membershipSnapshot(data), { operationId });
+  async function assertLoginSession(sent) {
+    const session = window.STAuthSession.authKey(sent);
+    const current = await storageGet(AUTH_KEY);
+    if (!session || session !== window.STAuthSession.authKey(current)) throw new Error("登录账号已变化，请重新获取用户信息");
+  }
+
+  async function storeMembership(data, auth, operationId = "") {
+    const snapshot = accountProfile().membershipSnapshot(data);
+    if (typeof snapshot.permissions.workflowAdvanced === "boolean") snapshot.workflowSession = await window.STAuthSession.fingerprint(auth);
+    await assertLoginSession(auth);
+    const saved = await storageSet(MEMBERSHIP_KEY, snapshot, { operationId });
     if (!saved) {
       throw new Error("会员状态保存失败");
     }
@@ -1146,12 +1158,8 @@
     if (!text) return Promise.resolve(false);
     const done = (ok) => {
       clearLoginCopy();
-      state.loginCopy = ok ? success : "复制失败，请手动复制。";
+      resultNotice(ok ? success : "复制失败，请手动复制。");
       render();
-      loginCopyTimer = window.setTimeout(() => {
-        state.loginCopy = "";
-        render();
-      }, 2400);
       return ok;
     };
     if (navigator.clipboard?.writeText) {
@@ -1197,10 +1205,12 @@
   }
 
   async function refreshStoredAuth(auth, cfg, operationId = "") {
+    await assertLoginSession(auth);
     if (!auth?.refresh_token) throw new Error("登录已过期，请重新登录");
     const res = await storeFetch("/auth/refresh", { refresh_token: auth.refresh_token }, "", "POST", cfg.urls.loginAuthBase);
     if (!okCode(res) || !res.body?.access_token) throw new Error(res.body?.message || "登录刷新失败，请重新登录");
     const next = nextAuth(res.body, auth);
+    await assertLoginSession(auth);
     if (!await storageSet(AUTH_KEY, next, { operationId })) {
       throw new Error("登录令牌保存失败");
     }
@@ -1222,8 +1232,8 @@
     }
     if (!okCode(res)) throw new Error(res.body?.message || "获取用户信息失败");
     const profile = normalizeAccount(res.body || {}, current);
+    await storeMembership(profile, current, operationId);
     state.accountData = profile;
-    await storeMembership(profile, operationId);
     try {
       chrome.runtime.sendMessage({
         type: "SETTINGS_CLOUD_SYNC",
@@ -1244,10 +1254,11 @@
 
   function reportLoginPollFailure(error, manual) {
     const key = `${error?.name || "Error"}:${error?.message || String(error || "")}`;
-    if (key === state.loginPollErrorKey) {
+    if (key === state.loginPollErrorKey && !manual) {
       return;
     }
     state.loginPollErrorKey = key;
+    resultNotice(error?.message || String(error), "login");
     log.warn("onboarding-device-login-poll-failed", "安装引导设备登录轮询失败，将继续重试", {
       operationId: state.loginOperationId || "",
       manual: manual === true,
@@ -1323,7 +1334,7 @@
     } catch (error) {
       state.loginMode = "error";
       state.loginBusy = false;
-      state.loginMessage = error?.message || String(error);
+      resultNotice(error?.message || String(error), "login");
       log.error("onboarding-device-login-failed", "安装引导设备登录启动失败", {
         operationId: state.loginOperationId,
         durationMs: Date.now() - startedAt,
@@ -1340,7 +1351,7 @@
       state.loginMode = "error";
       state.loginBusy = false;
       state.loginDevice = null;
-      state.loginMessage = "授权码已过期，请重新获取。";
+      resultNotice("授权码已过期，请重新获取。", "login");
       log.warn("onboarding-device-login-failed", "安装引导设备授权码已过期", {
         operationId: state.loginOperationId || "",
         reason: "expired",
@@ -1375,7 +1386,7 @@
       state.loginMode = "success";
       state.loginBusy = false;
       state.loginDevice = null;
-      state.loginMessage = "登录成功";
+      state.loginMessage = "";
       let accountSyncSucceeded = true;
       try {
         await syncAccountData(auth, state.loginOperationId);
@@ -1388,6 +1399,7 @@
         });
       }
       stopLoginPoll();
+      resultNotice(accountSyncSucceeded ? "登录成功。" : "登录成功，但账号资料同步失败。", "login");
       log.info("onboarding-device-login-success", "安装引导设备登录成功", {
         operationId: state.loginOperationId || "",
         accountSyncSucceeded,
@@ -1487,16 +1499,24 @@
     return ok;
   }
 
+  function resultNotice(message, section) {
+    if (section === "login") state.loginMessage = "";
+    else if (section) state[section].message = "";
+    void window.STFeedback.show(document.body, { message });
+  }
+
   function setNote(note = "", error = false) {
-    state.note = note;
+    if (error && note) resultNotice(note);
+    state.note = error ? "" : note;
     state.noteError = error;
     render();
   }
 
   function setBusy(next, note = "", error = false) {
     state.busy = next;
-    state.note = note;
+    state.note = error ? "" : note;
     state.noteError = error;
+    if (error && note) resultNotice(note);
     render();
   }
 

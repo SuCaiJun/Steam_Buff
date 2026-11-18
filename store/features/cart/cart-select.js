@@ -828,7 +828,7 @@
       btn.addEventListener("click", () => {
         manualRestoreMissing().catch(error => {
           globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart-select", event: "cart-restore-failed", message: "恢复暂存购物车失败" });
-          setRestorePanel(t("store_cartSelect_restoreFailed", "恢复失败，请重试"), "bad");
+          toast(error.message || t("store_cartSelect_restoreFailed", "恢复失败，请重试"), true);
         });
       });
       panel.append(text, btn);
@@ -873,17 +873,7 @@
   }
 
   function toast(text, bad = false) {
-    let tip = document.getElementById("st_cart_select_toast");
-    if (!tip) {
-      tip = document.createElement("div");
-      tip.id = "st_cart_select_toast";
-      document.body.appendChild(tip);
-    }
-    tip.textContent = text;
-    tip.classList.toggle("st_cart_select_bad", !!bad);
-    tip.classList.add("st_cart_select_show");
-    clearTimeout(tip._timer);
-    tip._timer = setTimeout(() => tip.classList.remove("st_cart_select_show"), 3500);
+    return window.STFeedback.show(document.body, { title: t(bad ? "common.failed" : "common.notice", bad ? "操作失败" : "提示"), message: text });
   }
 
   async function scan() {
@@ -1059,13 +1049,13 @@
         await clearSelection(allKeys);
         await remove([RESTORE_KEY]);
         setRestorePanel("");
-        toast(t("store_cartSelect_restored", "已恢复上次未支付项目"));
+        await toast(t("store_cartSelect_restored", "已恢复上次未支付项目"));
         log.info("cart-select-restore-success", "暂存购物车数据恢复完成", {
           batchCount: batches.length,
           count: need.length,
           durationMs: Date.now() - startedAt,
         });
-        setTimeout(() => location.reload(), 700);
+        location.reload();
       } else {
         await put({ [RESTORE_KEY]: batches });
         setRestorePanel(t("store_cartSelect_restoreStillMissing", "还有$count$件暂存购物车数据未恢复", { count: stillMissing.length }), "bad");
@@ -1127,7 +1117,7 @@
         return;
       }
 
-      toast(t("store_cartSelect_holdingItems", "正在暂时保留$count$件未支付项目...", { count: skip.length }));
+      btn.setAttribute("aria-busy", "true");
       const batch = await saveRestoreBatch(skip);
       const res = await request("remove", { lineIds: skip.map(item => item.lineId) });
 
@@ -1164,6 +1154,7 @@
     } finally {
       setTimeout(() => {
         delete btn.dataset.stCartSelectPass;
+        btn.removeAttribute("aria-busy");
         busy = false;
       }, 800);
     }
@@ -1361,16 +1352,11 @@
   }
 
   function cleanupUi() {
-    document.querySelectorAll("#st_cart_select_toast").forEach(node => {
-      clearTimeout(node._timer);
-      node._timer = null;
-    });
     [
       "#st_cart_select_bulk_actions",
       "#st_cart_select_side_summary",
       "#st_cart_restore_panel",
       "#st_cart_remove_all_confirm_host",
-      "#st_cart_select_toast",
       ".st_cart_select_check",
       ".st_cart_select_sep",
       ".st_cart_select_hold",

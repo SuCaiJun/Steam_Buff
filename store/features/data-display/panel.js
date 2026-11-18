@@ -38,8 +38,7 @@
   }
   /** 底栏只收纳家庭库原节点和 AI 按钮，两者按自身可用状态显示 */
   function syncFooter(state) {
-    state.ai.hidden = !state.onAi;
-    state.footer.hidden = state.root.dataset.mode !== "compact" || (!state.onAi && state.footer.childElementCount === 1);
+    state.footer.hidden = state.root.dataset.mode !== "compact" || !state.footer.childElementCount;
   }
   function syncData(state) {
     const visible = state.root.dataset.mode === "compact" && !!state.owner;
@@ -106,7 +105,7 @@
       const card = state.root.querySelector("." + kind);
       if (!card) continue;
       const host = noticeHost(state, kind);
-      host.insertBefore(card, host === state.footer ? state.ai : null);
+      host.appendChild(card);
     }
     state.warning.hidden = !state.warning.childElementCount;
     syncFooter(state);
@@ -117,8 +116,7 @@
     if (!state || !kinds.includes(kind)) return false;
     const host = noticeHost(state, kind);
     const rank = kinds.indexOf(kind);
-    const next = host === state.footer ? state.ai
-      : Array.from(host.children).find(child => kinds.findIndex(name => child.classList.contains(name)) > rank);
+    const next = Array.from(host.children).find(child => kinds.findIndex(name => child.classList.contains(name)) > rank);
     host.insertBefore(element, next || null);
     state.warning.hidden = !state.warning.childElementCount;
     changed();
@@ -168,17 +166,13 @@
     const data = node("div", "st-detail-data");
     data.id = "st-detail-data";
     const footer = node("div", "st-detail-footer");
-    const ai = node("button", "st-detail-ai-entry", t("store.detail.ai", "AI对话"));
-    ai.type = "button";
-    ai.disabled = true;
-    footer.appendChild(ai);
     content.append(header, warning, summary, data, footer);
     root.append(loader, content);
     const cards = Array.from(anchor.parentNode.children).filter(child => kinds.some(kind => child.classList.contains(kind)));
     anchor.parentNode.insertBefore(root, anchor);
     const state = {
-      root, anchor, loader, content, notices, warning, price, right, data, footer, selector, expand, ai,
-      jobs: new Set(["startup"]), revealed: false, queued: false, owner: null, onMode: null, onAi: null,
+      root, anchor, loader, content, notices, warning, price, right, data, footer, selector, expand,
+      jobs: new Set(["startup"]), revealed: false, queued: false, owner: null, onMode: null,
       compact: api.settings.on("store-detail-compact"),
     };
     active = state;
@@ -187,7 +181,6 @@
       setMode(!state.compact);
       state.onMode?.(state.compact);
     });
-    ai.addEventListener("click", () => state.onAi?.(ai));
     setMode(state.compact);
     api.dom.loading.activate(loader);
     queueMicrotask(() => { state.jobs.delete("startup"); changed(); });
@@ -197,7 +190,6 @@
     if (!anchor?.isConnected || !anchor.parentNode) return;
     for (const host of [state.warning, state.notices, state.footer, state.data]) {
       for (const child of Array.from(host.children)) {
-        if (child === state.ai) continue;
         if (host !== state.data) {
           child.querySelector(".st-detail-short-notice")?.remove();
           child.classList.remove("st-detail-short-ready");
@@ -232,22 +224,20 @@
       else active.jobs.delete(owner);
       changed();
     },
-    bind({ owner, onMode, onAi, onDispose }) {
+    bind({ owner, onMode, onDispose }) {
       if (!active) return;
-      Object.assign(active, { owner, onMode, onAi, onDispose });
-      active.ai.disabled = !onAi;
+      Object.assign(active, { owner, onMode, onDispose });
       syncData(active);
       syncFooter(active);
     },
     /** 只释放匹配 owner 的数据插槽，保留其他功能的提醒节点 */
     unbind(owner) {
       if (!active || active.owner !== owner) return;
-      Object.assign(active, { owner: null, onMode: null, onAi: null, onDispose: null });
+      Object.assign(active, { owner: null, onMode: null, onDispose: null });
       for (const slot of [active.price, active.right, active.selector]) slot.replaceChildren();
       active.selector.hidden = true;
       delete active.root.dataset.detailsLoading;
       setMode(active.compact);
-      active.ai.disabled = true;
     },
   });
 })();

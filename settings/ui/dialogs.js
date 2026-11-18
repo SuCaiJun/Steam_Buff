@@ -91,8 +91,10 @@
     };
   }
 
-  let activeCancel = null;
+  const opened = [];
+  let nextId = 0;
 
+  /** form 使用原生模态。renderFooter 可在操作区放置表单控件。isDirty 只在请求取消时检查。 */
   function dialog(shadow, options = {}) {
     const startedAt = Date.now();
     const panel = shadow?.querySelector?.(".panel");
@@ -105,43 +107,84 @@
     }
 
     const restoreTarget = shadow.activeElement;
-    activeCancel?.();
-    panel.querySelector(".settings-dialog-layer")?.remove();
-    const layer = document.createElement("div");
+    const parent = opened.at(-1);
+    const native = options.form === true || parent?.native === true;
+    if (parent && !parent.native) {
+      parent.cancel();
+      parent.layer.remove();
+    }
+    const layer = document.createElement(native ? "dialog" : "div");
     const box = document.createElement("div");
     const title = document.createElement("div");
     const message = document.createElement("div");
     const actions = document.createElement("div");
     const optionActions = options.actions || [{ id: "ok", label: text("common.confirm", "确定"), primary: true }];
-    layer.className = "settings-dialog-layer";
+    layer.className = "settings-dialog-layer" + (native ? " settings-native-layer" : "");
     layer.tabIndex = -1;
     box.className = "settings-dialog";
-    box.setAttribute("role", "dialog");
-    box.setAttribute("aria-modal", "true");
-    box.setAttribute("aria-labelledby", "st-settings-dialog-title");
-    box.setAttribute("aria-describedby", "st-settings-dialog-message");
+    const identity = native ? `st-settings-dialog-${++nextId}` : "st-settings-dialog";
+    const surface = native ? layer : box;
+    if (!native) {
+      surface.setAttribute("role", "dialog");
+      surface.setAttribute("aria-modal", "true");
+    }
+    surface.setAttribute("aria-labelledby", `${identity}-title`);
+    if (!options.form) surface.setAttribute("aria-describedby", `${identity}-message`);
     title.className = "settings-dialog-title";
-    title.id = "st-settings-dialog-title";
+    title.id = `${identity}-title`;
     title.textContent = String(options.title || text("common.notice", "提示"));
+    if (options.titleBadge) title.append(options.titleBadge);
     message.className = "settings-dialog-message";
-    message.id = "st-settings-dialog-message";
+    message.id = `${identity}-message`;
     fillMessage(message, options);
     if (typeof options.render === "function") options.render(message);
     if (options.className) box.classList.add(options.className);
+    if (options.form) box.classList.add("settings-form-dialog");
     actions.className = "settings-dialog-actions";
     const countdownClears = [];
 
     for (const action of optionActions) {
       const btn = document.createElement("button");
-      btn.className = `dialog-btn${action.primary ? " primary" : ""}`;
+      btn.className = `dialog-btn${action.primary ? " primary" : ""}${action.danger ? " danger" : ""}`;
       btn.type = "button";
       btn.dataset.dialogAction = String(action.id || "");
       btn.textContent = String(action.label || "");
       countdownClears.push(bindCountdown(btn, action));
       actions.appendChild(btn);
     }
+    options.renderFooter?.(actions);
 
-    box.append(title, message, actions);
+    if (native) {
+      const header = document.createElement("div");
+      const closeButton = document.createElement("button");
+      header.className = "settings-dialog-header";
+      closeButton.className = "settings-dialog-close";
+      closeButton.type = "button";
+      closeButton.dataset.dialogAction = "cancel";
+      closeButton.title = text("common.close", "关闭");
+      closeButton.setAttribute("aria-label", closeButton.title);
+      if (options.subtitle) {
+        const heading = document.createElement("div"), subtitle = document.createElement("p");
+        heading.className = "settings-dialog-heading";
+        subtitle.className = "settings-dialog-subtitle";
+        subtitle.append(options.subtitle);
+        if (options.form && options.titleBadge) {
+          subtitle.id = `${identity}-subtitle`;
+          surface.setAttribute("aria-describedby", subtitle.id);
+        }
+        if (options.icon) {
+          const icon = document.createElement("span");
+          icon.className = "settings-dialog-title-icon";
+          if (options.iconClass) icon.classList.add(options.iconClass);
+          icon.setAttribute("aria-hidden", "true");
+          icon.style.setProperty("--settings-dialog-icon", `url(${JSON.stringify(options.icon)})`);
+          header.append(icon);
+        }
+        heading.append(title, subtitle);
+        header.append(heading, closeButton);
+      } else header.append(title, closeButton);
+      box.append(header, message, actions);
+    } else box.append(title, message, actions);
     layer.appendChild(box);
     panel.appendChild(layer);
     log.info("settings-dialog-open", "设置弹窗打开", {
@@ -153,33 +196,36 @@
     return new Promise((resolve) => {
       let done = false;
       let life = null;
+      const entry = { native, layer, cancel: () => close("cancel") };
       const close = (value) => {
         if (done) {
           return;
         }
         done = true;
-        if (activeCancel === cancel) activeCancel = null;
+        opened.splice(opened.indexOf(entry), 1);
         for (const clear of countdownClears) {
           clear();
         }
         layer.classList.remove("show");
-        window.setTimeout(() => {
+        const dispose = () => {
+          if (native) layer.close();
           layer.remove();
           life?.close?.();
-          if (!globalThis.STDialogLifecycle?.focus?.(restoreTarget)) {
+          if (!native && !globalThis.STDialogLifecycle?.focus?.(options.restore?.() || restoreTarget)) {
             globalThis.STDialogLifecycle?.focus?.(shadow.querySelector(".close"));
           }
-        }, 120);
+        };
+        if (native) dispose();
+        else window.setTimeout(dispose, 120);
         log.info("settings-dialog-close", "设置弹窗关闭", {
           selectedAction: String(value || ""),
           durationMs: Date.now() - startedAt,
         });
         resolve(value);
       };
-      const cancel = () => close("cancel");
-      activeCancel = cancel;
+      opened.push(entry);
 
-      life = globalThis.STDialogLifecycle?.open?.({
+      if (!native) life = globalThis.STDialogLifecycle?.open?.({
         root: layer,
         restore: restoreTarget,
         initial: () => options.initial?.(message) || layer.querySelector(".dialog-btn:not(:disabled)") || layer.querySelector(".dialog-btn"),
@@ -190,15 +236,27 @@
       async function act(action) {
         if (actionPending) return;
         actionPending = true;
-        const controls = Array.from(box.querySelectorAll("input,select,button"));
+        const controls = Array.from(box.querySelectorAll("input,select,textarea,button"));
         const disabled = controls.map(node => node.disabled);
         try {
-          const result = options.onAction(action, message);
+          if (action === "cancel" && options.isDirty?.()) {
+            const answer = await dialog(shadow, {
+              title: "放弃未保存的修改？",
+              message: "本次修改尚未保存，放弃后无法恢复。",
+              actions: [
+                { id: "keep", label: "继续编辑", primary: true },
+                { id: "discard", label: "放弃修改", danger: true },
+              ],
+            });
+            if (done || answer !== "discard") return;
+          }
+          const result = options.onAction ? options.onAction(action, message) : true;
           if (result === false) return;
           controls.forEach(node => { node.disabled = true; });
-          if (await result !== false) close(action);
+          if (await result !== false && !done) close(action);
         } catch (error) {
           globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "dialog", event: "dialog-action-failed", message: "设置弹窗操作失败", level: "error" });
+          void notice(shadow, { message: error.message });
         } finally {
           actionPending = false;
           controls.forEach((node, index) => { node.disabled = disabled[index]; });
@@ -207,11 +265,25 @@
       layer.addEventListener("click", (event) => {
         const action = event.target.closest("[data-dialog-action]");
         if (action && action.disabled !== true) {
-          if (typeof options.onAction === "function") void act(action.dataset.dialogAction || "");
+          if (native || typeof options.onAction === "function") void act(action.dataset.dialogAction || "");
           else close(action.dataset.dialogAction || "");
         }
       });
 
+      if (native) {
+        layer.addEventListener("cancel", (event) => {
+          event.preventDefault();
+          void act("cancel");
+        });
+        const initial = options.initial?.(message) || box.querySelector("input,textarea,select") || actions.querySelector("button");
+        if (initial) initial.autofocus = true;
+        try { layer.showModal(); }
+        catch (error) {
+          opened.splice(opened.indexOf(entry), 1);
+          layer.remove();
+          throw error;
+        }
+      }
       window.requestAnimationFrame(() => {
         layer.classList.add("show");
         life?.focusInitial?.();
@@ -219,7 +291,17 @@
     });
   }
 
-  const api = Object.freeze({ dialog, cancel() { activeCancel?.(); } });
+  /** 结果提示独立于编辑器栈，关闭提示不会取消或重建底下的表单 */
+  function notice(shadow, options) {
+    const overlay = shadow.querySelector(".overlay");
+    // 请求完成前用户可能已关闭设置；关闭动效期间同样不再接收迟到结果。
+    if (!overlay?.isConnected || overlay.hidden ||
+        (!overlay.classList.contains("open") && !overlay.querySelector(".settings-dialog-layer.show"))) {
+      return Promise.resolve();
+    }
+    return globalThis.STFeedback.show(overlay, { ...options, inheritTheme: true });
+  }
+  const api = Object.freeze({ dialog, notice, cancel() { for (const entry of [...opened].reverse()) entry.cancel(); } });
   globalThis.STSettingsDialogs = api;
 
   if (typeof module === "object" && module.exports) {

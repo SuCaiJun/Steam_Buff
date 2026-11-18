@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : 商店详情页价格预测数据包构建
+ * @File          : 商店详情页价格与节日预测
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
@@ -12,8 +12,6 @@
   "use strict";
 
   const api = root.STStore = root.STStore || {};
-  const SOURCE_FALLBACK = Object.freeze({ name: "IsThereAnyDeal", url: "https://isthereanydeal.com/" });
-  const SIGNALS = Object.freeze(["reviews", "players", "playtime", "mediaScore"]);
   const FESTIVAL_EVIDENCE_PRIORITY = Object.freeze({ none: 0, low: 1, medium: 2, strong: 3 });
   const SEASON_KEYWORDS = Object.freeze([
     Object.freeze({ key: "spring", keyword: "春季" }),
@@ -59,115 +57,6 @@
     const amountInt = num(price.amountInt);
     if (amountInt !== null) return amountInt / 100;
     return num(price.amount);
-  }
-
-  function money(price, fallbackCurrency = "") {
-    const value = amount(price);
-    const currency = text(price?.currency || fallbackCurrency);
-    if (value === null && !currency) return null;
-    return {
-      amount: value,
-      amountInt: value === null ? null : Math.round(value * 100),
-      currency,
-    };
-  }
-
-  function itemMeta(data = {}, pageInfo = {}) {
-    const items = Array.isArray(data.items) ? data.items : [];
-    const item = items.find(row => row.type === "app") || items[0] || {};
-    const type = text(pageInfo.type || item.type);
-    return {
-      appid: text(pageInfo.appid || pageInfo.appId || (item.type === "app" ? item.id : "") || pageInfo.id),
-      itemType: type,
-      itemId: text(item.id || pageInfo.id || pageInfo.appId || pageInfo.appid),
-    };
-  }
-
-  function normalizeDeal(deal, fallbackCurrency = "") {
-    if (!deal || typeof deal !== "object") return null;
-    return {
-      price: money(deal.price, fallbackCurrency),
-      regular: money(deal.regular, fallbackCurrency),
-      cut: Math.max(0, Number(deal.cut) || 0),
-      shop: {
-        id: Number(deal.shop?.id) || 0,
-        name: text(deal.shop?.name),
-      },
-      url: text(deal.url),
-      timestamp: time(deal.timestamp),
-    };
-  }
-
-  function normalizeLow(low, fallbackCurrency = "") {
-    if (!low || typeof low !== "object") return null;
-    return {
-      price: money(low.price, fallbackCurrency),
-      cut: Math.max(0, Number(low.cut) || 0),
-      shop: {
-        id: Number(low.shop?.id) || 0,
-        name: text(low.shop?.name),
-      },
-      timestamp: time(low.timestamp),
-    };
-  }
-
-  function normalizeEvent(event, fallbackCurrency = "") {
-    const stamp = time(event?.timestamp);
-    const price = money(event?.price, fallbackCurrency);
-    if (!stamp && !price) return null;
-    return {
-      timestamp: stamp,
-      price,
-      cut: Math.max(0, Number(event?.cut) || 0),
-      shop: {
-        id: Number(event?.shop?.id) || 0,
-        name: text(event?.shop?.name),
-      },
-    };
-  }
-
-  function pageDiscount(documentRef) {
-    const rootNode = documentRef?.querySelector?.("#game_area_purchase");
-    if (!rootNode) return null;
-    const finalNode = rootNode.querySelector?.(".discount_final_price, .game_purchase_price");
-    const originalNode = rootNode.querySelector?.(".discount_original_price");
-    const pctNode = rootNode.querySelector?.(".discount_pct");
-    const finalText = text(finalNode?.textContent);
-    const originalText = text(originalNode?.textContent);
-    const pctText = text(pctNode?.textContent);
-    if (!finalText && !originalText && !pctText) return null;
-    const cut = Number((pctText.match(/-?(\d+)/) || [])[1]) || 0;
-    return {
-      finalText,
-      originalText,
-      discountPercent: cut > 0 ? cut : 0,
-    };
-  }
-
-  function currencyOf(...items) {
-    for (const item of items) {
-      const value = text(item?.price?.currency || item?.currency);
-      if (value) return value;
-    }
-    return "";
-  }
-
-  function sourceList(result = {}) {
-    const source = result.source || SOURCE_FALLBACK;
-    const list = [{
-      provider: text(result.provider || "isthereanydeal") || "isthereanydeal",
-      name: text(source.name) || SOURCE_FALLBACK.name,
-      url: text(source.url) || SOURCE_FALLBACK.url,
-      capabilities: ["prices", "historyLow", "history", "info"],
-    }];
-    return list;
-  }
-
-  function unsupportedSignals() {
-    return SIGNALS.reduce((out, key) => {
-      out[key] = { status: "unsupported", reason: "waiting-verification" };
-      return out;
-    }, {});
   }
 
   function festivalItems(festivalData = null, side = "all") {
@@ -270,52 +159,6 @@
     if (!Number.isFinite(observedFrom) || observedFrom <= 0) return false;
     const eventEnd = event.endKnown ? event.end : Number.POSITIVE_INFINITY;
     return observedFrom <= endsAt && eventEnd > startsAt;
-  }
-
-  // AI 首轮只消费合并后的折扣区间和已校验节日窗口，避免与页面预测维护两套证据口径。
-  function aiForecastEvidence(priceEvents = [], festivalData = null, options = {}) {
-    const now = Number(options.now);
-    const historyStart = Number(options.historyStart);
-    const futureEnd = Number(options.futureEnd);
-    if (
-      !Number.isFinite(now)
-      || !Number.isFinite(historyStart)
-      || !Number.isFinite(futureEnd)
-      || historyStart >= now
-      || futureEnd <= now
-    ) {
-      throw new TypeError("AI 预测时间窗口无效");
-    }
-    const historicalDiscounts = discountEvents(priceEvents)
-      .filter(event => event.start >= historyStart && event.start <= now);
-    const historicalFestivals = festivalWindows(festivalData, "before")
-      .filter(window => {
-        const startsAt = Date.parse(window.startsAt);
-        return startsAt >= historyStart && startsAt < now;
-      })
-      .map((window) => {
-        const startsAt = Date.parse(window.startsAt);
-        const endsAt = Date.parse(window.endsAt);
-        const cuts = historicalDiscounts
-          .filter(event => eventOverlapsWindow(event, startsAt, endsAt))
-          .map(event => event.cut)
-          .filter(cut => Number.isFinite(cut) && cut > 0);
-        return {
-          ...window,
-          coincidentDiscount: cuts.length > 0,
-          maxCoincidentCut: cuts.length ? Math.max(...cuts) : null,
-        };
-      });
-    const futureFestivals = festivalWindows(festivalData, "after")
-      .filter(window => {
-        const startsAt = Date.parse(window.startsAt);
-        return startsAt >= now && startsAt <= futureEnd;
-      });
-    return {
-      historicalDiscounts,
-      historicalFestivals,
-      futureFestivals,
-    };
   }
 
   function releaseWindow(value) {
@@ -1088,61 +931,6 @@
     };
   }
 
-  // 预测包只做归一化数据重组：触发源为用户点击，成本为 O(历史价格点数)，不会反向触发第三方请求或页面扫描。
-  function build(pricePack = {}, pageInfo = {}, options = {}) {
-    const data = pricePack?.data || {};
-    const summary = api.thirdPartyData.summarizePricePack(pricePack, pageInfo);
-    const deal = normalizeDeal(summary.current);
-    const low = normalizeLow(summary.historicalLow, deal?.price?.currency || "");
-    const currency = text(options.currency) || currencyOf(deal, low) || text(options.fallbackCurrency);
-    const events = summary.historyEvents
-      .map(event => normalizeEvent(event, currency))
-      .filter(Boolean)
-      .sort((left, right) => Date.parse(left.timestamp || 0) - Date.parse(right.timestamp || 0));
-    const meta = itemMeta(data, pageInfo);
-    const pagePrice = options.steamPagePrice || pageDiscount(options.document || root.document);
-    const country = text(options.country || options.pageCountry || data.country);
-    const festivalAnalysis = options.festivalData
-      ? festivalDiscountForecast(options.festivalData, events, {
-        now: options.now,
-        releaseDate: summary.releaseDate,
-      })
-      : null;
-    const discountAnalysis = discountForecast(events, {
-      now: options.now,
-      currentCut: deal?.cut,
-      isFree: deal?.price?.amount === 0 && deal?.regular?.amount === 0,
-      festivalData: options.festivalData,
-      releaseDate: summary.releaseDate,
-      currentDeal: deal,
-      historicalLow: low,
-      regularAmount: amount(deal?.regular),
-    });
-    return {
-      appid: meta.appid,
-      itemType: meta.itemType,
-      itemId: meta.itemId,
-      currency: currency || currencyOf(...events),
-      country,
-      releaseDate: text(summary.releaseDate),
-      currentPrice: deal,
-      historicalLow: low,
-      priceEvents: events,
-      discountAnalysis,
-      steamPagePrice: pagePrice,
-      festivalAnalysis,
-      signals: unsupportedSignals(),
-      providerSources: sourceList(pricePack),
-      providerStatus: {
-        ok: pricePack?.ok === true,
-        provider: text(pricePack?.provider || "isthereanydeal") || "isthereanydeal",
-        code: text(pricePack?.code),
-        updatedAt: pricePack?.updatedAt || 0,
-        cacheHit: pricePack?.cache?.hit === true,
-      },
-    };
-  }
-
   /** 已归一化日历只选未来最近活动和最近季节性活动；不依据名称猜类型 */
   function upcomingFestivals(data, now = Date.now()) {
     let next = null;
@@ -1167,9 +955,7 @@
     discountForecast,
     historicalLowOutlook,
     festivalDiscountForecast,
-    aiForecastEvidence,
     upcomingFestivals,
-    build,
   });
 
   api.features = api.features || {};

@@ -149,7 +149,11 @@
   }
 
   function normalize(settingsValue, stats) {
-    const src = isPlainObject(settingsValue) ? settingsValue : {};
+    let src = isPlainObject(settingsValue) ? settingsValue : {};
+    if (isPlainObject(src.features) && !Object.hasOwn(src.features, "download-manager-enhancement") &&
+      ["download-auto-shutdown", "download-batch-actions"].some(key => Object.hasOwn(src.features, key)))
+      src = { ...src, features: { ...src.features, "download-manager-enhancement":
+        src.features["download-auto-shutdown"] !== false || src.features["download-batch-actions"] !== false } };
     const out = {};
     const box = stats || emptyStats();
     for (const name of sections()) {
@@ -175,10 +179,23 @@
         else box.defaulted += out[name].items.length;
         continue;
       }
+      if (name === "workflow") {
+        if (Object.hasOwn(src, name)) { out[name] = root.STAutomation.normalize(src[name]); box.imported += 1; }
+        continue;
+      }
+      if (name === "ai") {
+        out.ai = root.STAI.migrateV222Service(src.ai, { snapshot: true }) ?? root.STAI.normalizeServices(src.ai);
+        if (Object.hasOwn(src, name)) box.imported += 1;
+        continue;
+      }
       out[name] = copyKnown(src[name], sectionDefaults(name), box);
     }
+    if (!Object.hasOwn(src, "workflow") && Object.hasOwn(src, "familyLibrary")) {
+      out.familyLibrary = root.STFamilyLibrary.settings(src.familyLibrary);
+      box.imported += 1;
+    }
     for (const name of Object.keys(src)) {
-      if (!sections().includes(name)) {
+      if (!Object.hasOwn(out, name) && !sections().includes(name)) {
         const extra = src[name];
         box.skipped += isPlainObject(extra) ? (Object.keys(extra).length || 1) : 1;
       }
@@ -199,7 +216,7 @@
     if (typeof store.getPanelSettings !== "function") {
       throw new Error("设置面板读取接口不可用");
     }
-    return normalize(await store.getPanelSettings());
+    return normalize(await store.getPanelSettings({ workflow: true }));
   }
 
   async function write(settingsValue, diagnostics = {}) {

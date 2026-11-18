@@ -258,11 +258,20 @@
     let tableTask = null, prefsQueued = null, prefsSaving = null;
 
     const tableText = (key, fallback, params) => i18n(`steam.independentName.table.${key}`, fallback, params);
-    function tableNotice(message) {
+    function resultNotice(message, single = false) {
       if (!state.started) return;
-      state.tableMessage = message;
+      if (single) state.singleMessage = "";
+      else state.message = "";
+      const host = single ? document.body : batchDocument().body;
+      void window.STFeedback.show(host, { message });
+    }
+
+    function tableNotice(message, progress = false) {
+      if (!state.started) return;
+      if (message && !progress) resultNotice(message);
+      state.tableMessage = progress ? message : "";
       const notice = state.batchElement?.querySelector("[data-lin-table-status]");
-      if (notice) { notice.textContent = message; notice.hidden = !message; }
+      if (notice) { notice.textContent = state.tableMessage; notice.hidden = !state.tableMessage; }
     }
     function saveTablePrefs() {
       prefsQueued = { value: TABLE.parse(state.tablePrefs), operationId: `name-table-${Date.now()}-${Math.random().toString(36).slice(2)}` };
@@ -350,7 +359,7 @@
       state.sortBlocked = false;
       if (order?.id === "sort" && state.filtered.some(row => !state.nativeSort.get(row.appid)?.ready)) {
         state.sortBlocked = true;
-        tableNotice(tableText("sortUnavailable", "部分 Steam 排序名称尚未读取成功，请先重新读取。"));
+        tableNotice(tableText("sortUnavailable", "部分 Steam 排序名称尚未读取成功，请先重新读取。"), true);
         state.filtered.sort((a, b) => a.tableIndex - b.tableIndex);
         return;
       }
@@ -421,6 +430,7 @@
       } catch (error) {
         if (generation !== state.batchGeneration || !state.started || controller.signal.aborted) return;
         sort.ready = false; sort.error = error.message;
+        resultNotice(error.message);
         log.error("native-sort-table-reread-failed", "批量表格重新读取排序名称失败", { error, appid });
       } finally {
         if (state.nativeReads.get(appid) === controller) { state.nativeReads.delete(appid); sort.loading = false; }
@@ -484,7 +494,7 @@
           }
           updatePaused(data.paused === true);
           const phase = data.paused ? tableText("batchPaused", "已暂停") : data.batch?.waiting ? tableText("batchWaiting", "等待下一批") : "";
-          tableNotice(tableText("batchProgress", "Steam 排序名称：已处理 $done$ / $total$", { done: data.stats?.processed, total: items.length }) + (phase ? ` · ${phase}` : ""));
+          tableNotice(tableText("batchProgress", "Steam 排序名称：已处理 $done$ / $total$", { done: data.stats?.processed, total: items.length }) + (phase ? ` · ${phase}` : ""), true);
           renderTable();
           if (data.type === "sort-batch-save-done") finish(null, data);
         }
@@ -650,7 +660,7 @@
         onClosed(_kind,reason) { if(reason==='native-close'&&state.batchSaving) log.info("independent-name-window-closed","名称批量原生窗口已关闭",{saving:state.batchSaving}); },
         reportFailure(error,phase) {
           log.error("independent-name-window-failed","名称批量原生窗口操作失败",{error,phase});
-          state.message=error.message; renderTable();
+          resultNotice(error.message, false); renderTable();
         },
       });
     }
@@ -891,6 +901,7 @@
         if (state.currentGame !== game || !state.started) return;
         sort.ready = false;
         sort.error = error.message || String(error);
+        resultNotice(error.message, true);
         log.error("independent-name-sort-read-failed", "单游戏弹窗读取 Steam 排序名称失败", { error, appid: game.appid });
       } finally {
         sort.loading = false;
@@ -926,12 +937,12 @@
         const draft = ensureEdited(game.appid);
         Object.assign(draft, { custom_name: name, pinyin: generated.pinyin, mnemonic: generated.mnemonic, pinyin_locked: false, mnemonic_locked: false, readingsPrepared: true });
         state.singleReading = null;
-        state.singleMessage = i18n("steam.independentName.aiGenerated", "已生成，请核对后点击确认保存。");
+        resultNotice(i18n("steam.independentName.aiGenerated", "已生成，请核对后点击确认保存。"), true);
         log.info("independent-name-ai-generated", "AI 名称及本地拼音已填入当前游戏草稿", { appid: game.appid, operationId: run.rid, requestId: run.rid, durationMs: Math.round(performance.now() - run.started) });
       } catch (error) {
         if (run.controller.signal.aborted || state.singleAiRun !== run || state.currentGame !== game || !state.started) return;
         const detail = error.message || String(error);
-        state.singleMessage = i18n("steam.independentName.aiFailed", "Ai生成失败：$error$", { error: detail });
+        resultNotice(i18n("steam.independentName.aiFailed", "Ai生成失败：$error$", { error: detail }), true);
         log.error("independent-name-ai-failed", "当前游戏的 AI 名称生成失败", { error, appid: game.appid, operationId: run.rid, requestId: run.rid, durationMs: Math.round(performance.now() - run.started) });
       } finally {
         if (state.singleAiRun === run && state.currentGame === game && state.started) {
@@ -989,7 +1000,7 @@
       } catch (error) {
         if (state.currentGame !== currentGame) return;
         state.singleBusy = false;
-        state.singleMessage = error?.message || String(error);
+        resultNotice(error?.message || String(error), true);
         log.warn("independent-name-open-failed", "独立版单游戏名称弹窗打开失败", { error, appid });
         renderSingleModal();
       }
@@ -1239,7 +1250,7 @@
       const apply = event.target.closest("[data-lin-reading-apply]");
       if (!choice && !apply) return true;
       if (state.currentGame?.appid !== control.appid || !sameReadingBase(control.base, readingBase(control.appid))) {
-        state.singleMessage = i18n("steam.independentName.draftConflict", "名称内容已更新，请重新打开后编辑。");
+        resultNotice(i18n("steam.independentName.draftConflict", "名称内容已更新，请重新打开后编辑。"), true);
         renderSingleModal();
         return true;
       }
@@ -1495,7 +1506,7 @@
       const bulk = state.bulk;
       if (!bulk) return;
       const root = bulkRoot();
-      root.querySelector("[data-lin-bulk-status]").textContent = bulk.error || (bulk.running ? bulkText("calculating") : bulkText("summary", { total: bulk.rows.length, changed: bulk.changed, unchanged: bulk.rows.length - bulk.changed - bulk.invalid, invalid: bulk.invalid }));
+      root.querySelector("[data-lin-bulk-status]").textContent = (!bulk.errorShown && bulk.error) || (bulk.running ? bulkText("calculating") : bulkText("summary", { total: bulk.rows.length, changed: bulk.changed, unchanged: bulk.rows.length - bulk.changed - bulk.invalid, invalid: bulk.invalid }));
       root.querySelector("[data-lin-bulk-apply]").disabled = bulk.running || bulk.composing || !!bulk.error || bulk.invalid > 0 || !bulk.changed;
       for (const field of root.querySelectorAll("input, select, [data-lin-bulk-tab]")) field.disabled = bulk.committing === true;
       const clearsName = bulk.kind === "clear-name" || bulk.clearedNames > 0;
@@ -1527,7 +1538,7 @@
       if (bulk.frame) batchWindow().cancelAnimationFrame(bulk.frame);
       const revision = ++bulk.revision;
       bulk.running = true;
-      bulk.error = "";
+      bulk.error = ""; bulk.errorShown = false;
       refreshBulkStatus();
       if (!bulk.ready || bulk.composing) return;
       const params = bulk.params[bulk.tab];
@@ -1608,8 +1619,9 @@
 
     function reportFailure(error, bulk = state.bulk) {
       if (!state.started || state.bulk !== bulk) return;
-      if (bulk) { bulk.running = false; bulk.committing = false; bulk.error = error.message || bulkText("failed"); refreshBulkStatus(); }
-      else { state.message = bulkText("failed"); renderTable(); }
+      if (bulk) { bulk.running = false; bulk.committing = false; bulk.error = error.message || bulkText("failed"); bulk.errorShown = true; refreshBulkStatus(); }
+      else renderTable();
+      resultNotice(error.message || bulkText("failed"));
       log.error("independent-name-bulk-failed", "选中游戏批量操作失败", { error, operation: bulk?.kind, operationId: bulk?.operationId, count: bulk?.rows.length, durationMs: bulk ? Math.round(performance.now() - bulk.startedAt) : undefined });
     }
 
@@ -1644,7 +1656,7 @@
       for (let index = 0; index < bulk.preview.length; index += 1) if (bulk.preview[index].changed && !unchanged(bulk.preview[index], bulk.rows[index].base)) throw new Error(bulkText("updated"));
       state.drafts = nextDrafts;
       syncSelectedDrafts();
-      state.message = bulkText("applied", { n: bulk.changed });
+      resultNotice(bulkText("applied", { n: bulk.changed }), false);
       log.info("independent-name-bulk-applied", "选中游戏批量修改已应用到草稿", { operation: bulk.kind, operationId: bulk.operationId, count: bulk.rows.length, changed: bulk.changed, durationMs: Math.round(performance.now() - bulk.startedAt) });
       closeBulkEditor("applied");
       renderTable();
@@ -1671,7 +1683,7 @@
       if(state.bulk!==bulk || !state.started) return;
       if(bulk.userId!==state.snapshot.userId || bulk.preview.some(row=>row.changed&&!unchanged(row))) throw new Error(bulkText("updated"));
       for(const [appid,value] of prepared) { state.nativeSort.set(appid,value); syncNativeDirty(appid); }
-      state.message=bulkText("applied",{n:prepared.size});
+      resultNotice(bulkText("applied",{n:prepared.size}), false);
       log.info("independent-name-sort-bulk-applied","Steam 排序名称批量修改已应用到草稿",{operationId:bulk.operationId,count:prepared.size});
       closeBulkEditor("applied"); applySearch(); renderTable();
     }
@@ -1844,7 +1856,7 @@
       const alias = text(draft.input);
       if (!alias) return draft.editing < 0;
       if (hasAlias(draft.aliases, alias, draft.editing)) {
-        draft.message = i18n("steam.independentName.aliasDuplicate", "这个别名已存在");
+        resultNotice(i18n("steam.independentName.aliasDuplicate", "这个别名已存在"));
         renderAliasEditor();
         return false;
       }
@@ -1869,7 +1881,7 @@
         if (!commitAliasInput()) return true;
         const current = draftOf(draft.appid).aliases;
         if (JSON.stringify(current) !== JSON.stringify(draft.base)) {
-          draft.message = i18n("steam.independentName.aliasChanged", "别名已更新，请关闭后重新打开编辑区");
+          resultNotice(i18n("steam.independentName.aliasChanged", "别名已更新，请关闭后重新打开编辑区"));
           renderAliasEditor();
           return true;
         }
@@ -2292,7 +2304,7 @@
         renderTable();
       } catch (error) {
         state.busy = false;
-        state.message = error?.message || String(error);
+        resultNotice(error?.message || String(error), false);
         log.warn("independent-name-open-failed", "独立版名称页打开失败", { error });
         renderTable();
       } finally { state.batchOpening=false; }
@@ -2362,7 +2374,7 @@
         return;
       }
       if (sortChanged && (!sort.ready || sort.loading)) {
-        state.singleMessage = sortStatus(sort);
+        resultNotice(sortStatus(sort), true);
         renderSingleModal();
         return;
       }
@@ -2389,13 +2401,14 @@
           sort.reload = false;
         }
         closeSingleModal();
+        resultNotice(i18n("steam.independentName.saved", "名称已保存。"), true);
       } catch (error) {
         if (state.currentGame !== game || !state.started) return;
         if (sortStarted) sort.reload = true;
         const detail = error.message || String(error);
-        state.singleMessage = nameSaved
+        resultNotice(nameSaved
           ? i18n("steam.nativeSortName.partial", "自定义名称已保存，Steam 排序名称保存失败：$error$", { error: detail })
-          : detail;
+          : detail, true);
         if (nameSaved) log.warn("independent-name-save-partial", "单游戏名称已保存但 Steam 排序名称未完成", { error, appid, operationId });
         else log.error("independent-name-save-failed", "独立版单游戏名称保存失败", { error, appid, operationId });
       } finally {
@@ -2415,7 +2428,7 @@
         if (draft) items.push(savedItem(appid, draft));
         const sort = state.nativeSort.get(appid);
         if (sort?.edited) {
-          if (!sort.ready || sort.loading) { state.message = sort.error; renderTable(); return; }
+          if (!sort.ready || sort.loading) { resultNotice(sort.error, false); renderTable(); return; }
           native.push({ appid, name: sort.value, expected: sort.initial });
         }
       }
@@ -2441,18 +2454,18 @@
         if (!state.started || generation !== state.batchGeneration) return;
         if (native.length) {
           const result = await saveNativeBatch(native, operationId);
-          if (result.cancelled) { state.message = tableText("batchCancelled", "已停止保存，已成功的内容已保留。"); return; }
+          if (result.cancelled) { resultNotice(tableText("batchCancelled", "已停止保存，已成功的内容已保留。"), false); return; }
           const success = new Set((result.items || []).filter(item => item.status === "success").map(item => item.appid));
           const remaining = native.filter(item => !success.has(item.appid)).length;
           if (remaining) throw new Error(result.error || tableText("batchIncomplete", "$n$ 款 Steam 排序名称未保存，已成功的内容已保留。", { n: remaining }));
         }
         applySearch();
-        state.message = i18n("steam.independentName.savedAll", "已保存 $n$ 款游戏", { n: total });
+        resultNotice(i18n("steam.independentName.savedAll", "已保存 $n$ 款游戏", { n: total }), false);
         log.info("independent-name-save-all-success", "独立版自定义名称批量已保存", { count: total, nativeCount: native.length, operationId });
       } catch (error) {
         if (error.name === "AbortError" && generation !== state.batchGeneration) return;
         const detail = error.message;
-        if (generation === state.batchGeneration) state.message = namesSaved && native.length ? i18n("steam.nativeSortName.partial", "自定义名称已保存，Steam 排序名称保存失败：$error$", { error: detail }) : detail;
+        if (generation === state.batchGeneration) resultNotice(namesSaved && native.length ? i18n("steam.nativeSortName.partial", "自定义名称已保存，Steam 排序名称保存失败：$error$", { error: detail }) : detail, false);
         log.error("independent-name-save-all-failed", "独立版自定义名称批量保存未全部完成", { error, count: total, namesSaved, nativeCount: native.length, operationId });
       } finally {
         state.batchSaving = false;
@@ -2521,12 +2534,12 @@
           if ((index + 1) % 100 === 0) await new Promise(resolve => window.setTimeout(resolve, 0));
         }
         applySearch();
-        state.message = i18n("steam.independentName.communityFilled", "已填入 $filled$ 款，无社区名称 $missing$ 款，保留新修改 $preserved$ 款；请点击保存修改。", { filled, missing, preserved });
+        resultNotice(i18n("steam.independentName.communityFilled", "已填入 $filled$ 款，无社区名称 $missing$ 款，保留新修改 $preserved$ 款；请点击保存修改。", { filled, missing, preserved }), false);
         log.info("independent-name-community-success", "社区名称已填入待保存草稿", { count: appids.length, filled, missing, preserved, requestId: run.rid });
       } catch (error) {
         if (state.referenceRun !== run || !state.started) return;
         postReq({ type: "cancel-reference", rid: run.rid });
-        state.message = error?.message || i18n("steam.independentName.requestFailed", "名称请求失败");
+        resultNotice(error?.message || i18n("steam.independentName.requestFailed", "名称请求失败"), false);
         log.error("independent-name-community-failed", "勾选游戏的社区名称获取失败", { error, count: appids.length, requestId: run.rid });
       } finally {
         if (state.referenceRun === run) {
@@ -2568,8 +2581,8 @@
           },
           hasDrafts:()=>state.drafts.size>0||state.nativeDirty.size>0,
           onState(io){state.transfer=io;refreshBatchSave();},
-          onError(error){state.message=error.message;renderTable();},
-          onApplied(message){state.message=message;applySearch();renderTable();},
+          onError(error){resultNotice(error.message, false);renderTable();},
+          onApplied(message){resultNotice(message, false);applySearch();renderTable();},
           loadReadings:loadLibs,
           async commit(rows,valid,yieldUI){
             const names=new Map(),sorts=new Map(),selected=new Set();
@@ -2590,7 +2603,7 @@
       }
       await transferUI.open(kind);
     }
-    function reportError(error,io=state.transfer){if(transferUI)transferUI.report(error,io);else{state.message=error.message;log.error("name-transfer-open-failed","名称文件弹窗打开失败",{error});renderTable();}}
+    function reportError(error,io=state.transfer){if(transferUI)transferUI.report(error,io);else{resultNotice(error.message, false);log.error("name-transfer-open-failed","名称文件弹窗打开失败",{error});renderTable();}}
 
     function addSingleAlias(appid, value) {
       const alias = text(value);

@@ -29,7 +29,6 @@
   const CUSTOM_SORT_EVENTS = "__SteamBuffNativeCustomSortEvents";
   const CLOUD_SORT_NAMESPACE = 3;
   const S_FLAG = "__RickyStSetSortAsPatched";
-  const O_FLAG = "__RickyStOverviewChangePatched";
   const COLLECTION_FLAG = "__RickyStCollectionEventsPatched";
   const G_FLAG = "__RickyStGroupedModePatched";
   const SYNC_MS = 5 * 60 * 1000;
@@ -1334,31 +1333,29 @@
     return typeof rt.customEventsOff === "function" && events.ensure(store) === true;
   }
 
-  function hookOverviewChange(rt, store) {
-    return patch(store, "OnAppOverviewChange", O_FLAG, (original) => function overviewChangeHook(...args) {
-      const apps = Array.isArray(args[0]) ? args[0] : [];
-      const currentRt = window[RT];
-      if (currentRt?.scheduled !== true) return original.apply(this, args);
-      if (currentRt.customSortEnabled && apps.length && bulkOn(currentRt)) {
-        for (const app of apps) recordBulk(currentRt, app?.appid, app?.custom_sort_as_display);
-        return undefined;
-      }
-      if (currentRt.customSortEnabled && !currentRt.notifying) {
-        for (const app of apps) {
-          const id = Number(app?.appid) || 0;
-          if (!id) continue;
-          if (appOverviewReady(app)) {
-            stableApplyInPlace(app, currentRt);
-          }
+  function overviewChange(next, args) {
+    const apps = Array.isArray(args[0]) ? args[0] : [];
+    const currentRt = window[RT];
+    if (currentRt?.scheduled !== true) return next();
+    if (currentRt.customSortEnabled && apps.length && bulkOn(currentRt)) {
+      for (const app of apps) recordBulk(currentRt, app?.appid, app?.custom_sort_as_display);
+      return undefined;
+    }
+    if (currentRt.customSortEnabled && !currentRt.notifying) {
+      for (const app of apps) {
+        const id = Number(app?.appid) || 0;
+        if (!id) continue;
+        if (appOverviewReady(app)) {
+          stableApplyInPlace(app, currentRt);
         }
       }
-      const result = original.apply(this, args);
-      if (currentRt.notifying) return result;
-      const ids = apps.map((app) => Number(app?.appid) || 0).filter(Boolean);
-      stableSyncCurrent(currentRt, ids);
-      if (ids.length) invalidate(currentRt, ids, "overview-change");
-      return result;
-    });
+    }
+    const result = next();
+    if (currentRt.notifying) return result;
+    const ids = apps.map((app) => Number(app?.appid) || 0).filter(Boolean);
+    stableSyncCurrent(currentRt, ids);
+    if (ids.length) invalidate(currentRt, ids, "overview-change");
+    return result;
   }
 
   function releaseCloudSortSubscription(rt) {
@@ -1471,9 +1468,8 @@
       bindCustomSortEvents(rt, window.appStore);
     }
     bindCloudSortEvents(rt);
-    if (!rt.changeOk || window.collectionStore?.OnAppOverviewChange?.[O_FLAG] !== true) {
-      rt.changeOk = hookOverviewChange(rt, window.collectionStore);
-    }
+    rt.overviewOff ??= window.SteamBuff.appOverviewEvents.intercept(overviewChange);
+    rt.changeOk = window.SteamBuff.appOverviewEvents.ensure(window.collectionStore);
   }
 
   function refreshGroupIndex(rt, reason) {
@@ -1677,6 +1673,7 @@
       sortOk: false,
       sortOwner: null,
       changeOk: false,
+      overviewOff: null,
       collectionOk: false,
       settingsObserver: null,
       settingsTimer: 0,
@@ -1746,6 +1743,8 @@
       window.STScheduler?.unregister?.(SCHEDULER_TASK);
       // 先停止异步来源，避免还原期间重新应用自定义名称
       rt.scheduled = false;
+      rt.overviewOff?.();
+      rt.overviewOff = null;
       releaseCloudSortSubscription(rt);
       clearTimers(rt);
       try {

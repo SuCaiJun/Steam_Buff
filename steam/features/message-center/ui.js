@@ -26,10 +26,10 @@
    * 用 Steam 现有 Popup 构造器承载自有 DOM；只使用已验证的通知菜单参数与窗口接口。
    * open 返回原生内容挂载完成的 Promise。关闭前收回 DOM，避免关闭文档销毁消息界面。
    */
-  function nativeHost(trigger, css, onClosed, reportFailure, onEscape) {
+  function nativeHost(trigger, css, onClosed, reportFailure, onEscape, operationOpen) {
     return api.nativeWindow.create({
       id: "SteamBuffMessageCenter", trigger, onClosed, reportFailure, onEscape, log, follow: true,
-      closeOnBlur: kind => kind === "menu",
+      closeOnBlur: kind => kind === "menu" && !operationOpen(),
       prepareDocument(state) {
         state.doc.documentElement.dataset.messageCenterWindow = state.kind;
         state.doc.documentElement.style.setProperty("--st-mc-menu-list-height", `${Math.max(80, Math.min(480, innerHeight - 176))}px`);
@@ -56,7 +56,7 @@
         doc.documentElement.style.setProperty("--st-mc-menu-list-height", `${listHeight}px`);
         const bounds = state.content.getBoundingClientRect();
         const width = state.kind === "menu" ? Math.min(360, innerWidth - 16) : state.kind === "detail" ? Math.min(560, innerWidth - 48) : Math.min(760, innerWidth - 48);
-        const height = state.kind === "full" ? Math.min(640, innerHeight - 64) : state.kind === "detail" ? Math.min(420, innerHeight - 64) : Math.min(Math.ceil(bounds.height), innerHeight - 16);
+        const height = state.kind === "full" ? Math.min(640, innerHeight - 64) : state.kind === "detail" ? Math.min(420, innerHeight - 64) : Math.min(Math.max(Math.ceil(bounds.height), state.content.querySelector(".st-mc-operation[open]") ? 268 : 0), innerHeight - 16);
         const x = state.kind === "menu" ? Math.max(8, Math.min(innerWidth - width - 8, rect.right - width)) : Math.round((innerWidth - width) / 2);
         const y = state.kind === "menu" ? Math.max(0, Math.min(rect.bottom + 2, innerHeight - height - 8)) : Math.round((innerHeight - height) / 2);
         return { x, y, width, height };
@@ -75,16 +75,19 @@
     let navigation = api.ctx.settingValue(MODE_SETTING, false);
     let controls = null;
 
-    const pending = new Map(), actionHandlers = new Map(), detailActions = new Map(), popCards = new Map(), fullCards = new Map();
-    const actionBusy = new Map();
+    const pending = new Map(), popCards = new Map(), fullCards = new Map();
+    const actionBusy = new Map(), actionVersions = new Map();
+    let operationView = null, operationEpoch = 0;
     const pendingReads = new Set(), exits = new Map(), motions = new Map();
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let unreadSnapshot = null, pendingReadAll = false, previewGeneration = 0;
     const text = (key, fallback, value) => model.text(key, fallback, value);
     let stopped = false, current = null, generation = 0, detailRequest = 0, selection = null, busy = false;
+    let detailRefresh = null, detailDirty = false;
     let popLoading = false, popDirty = false, fullLoading = false, fullDirty = false;
     let filter = "all", next = null, fullOpen = false, fullInitialized = false, fullFailed = false;
-    let resultFilter = "", originFilter = "", searchQuery = "", searchTimer = 0, searchOpen = false, searchIndex = -1;
+    let kindFilter = "", deleteSelection = null, deleteAnchor = null;
+    let levelFilter = "", originFilter = "", searchQuery = "", searchTimer = 0, searchOpen = false, searchIndex = -1;
     let fullRows = [], fullRevision = null, fullFrame = 0, fullFrameWindow = null, fullWindow = "", listRequest = 0;
     const fullIds = new Map(), errorStates = new WeakMap();
     let restorePoint = null, detailAnchor = null, detailMode = null, helpActive = null, helpTimer = 0;
@@ -125,7 +128,7 @@
       node.append(sourceIcon("images/ui/message-help.svg"), tip); helpControls.push(entry);
       return node;
     }
-    function helpCount(entry) { entry.count.textContent = `消息存储上限：${current ? current.total - current.unread : "读取中"}/${model.READ_LIMIT}，消息内容最多保存30天。`; }
+    function helpCount(entry) { entry.count.textContent = `已读消息最多保留 ${model.READ_LIMIT} 条，消息内容保留30天。等待交互的消息保留至任务结束。`; }
     function closeHelp() {
       if (helpTimer) window.clearTimeout(helpTimer); helpTimer = 0;
       const entry = helpActive; helpActive = null;
@@ -152,7 +155,7 @@
     function updateActionButton(node) {
       const running = actionBusy.get(node.dataset.messageId);
       node.disabled = node.dataset.available === "false" || running !== undefined || pendingReadAll || pendingReads.has(node.dataset.messageId) || exits.has(node.dataset.messageId);
-      const retrying = node.dataset.icon === "retry" && running === node.dataset.actionId;
+      const retrying = node.dataset.icon === "retry" && running?.actionId === node.dataset.actionId;
       node.classList.toggle("st-mc-is-retrying", retrying);
       node.setAttribute("aria-busy", String(retrying));
       const description = retrying ? text("messageCenter.retrying", "重试中") : node.dataset.label;
@@ -169,7 +172,7 @@
       node.dataset.available = String(action.available !== false);
       node.dataset.label = action.label; node.dataset.icon = action.icon || ""; node.dataset.kind = action.kind || "";
       if (retry && !iconOnly) node.appendChild(element("span", "st-mc-retry-label", action.label));
-      if (action.available === false) node.title = text("messageCenter.actionUnavailable", "当前版本未接入此操作");
+      if (action.available === false) node.title = "此操作已结束或暂不可用";
       if (action.icon) {
         const image = element("span", "st-mc-action-icon"); image.setAttribute("aria-hidden", "true");
         image.style.setProperty("--st-mc-action-image", `url("${api.path.url(model.ICONS[action.icon])}")`);
@@ -196,9 +199,9 @@
     function actionsFor(message, compact) {
       const group = element("div", compact ? "st-mc-inline-actions" : "st-mc-actions");
       for (const raw of message.actions || []) {
-        const action = model.action(raw);
-        if (action.kind === "legacy") continue;
-        group.appendChild(actionButton({ ...action, available: raw.available }, message.id, compact));
+        const action = raw;
+        const control = actionButton({ ...action, available: raw.available }, message.id, compact);
+        group.appendChild(control);
       }
       return group;
     }
@@ -219,13 +222,15 @@
     }
     function updateCard(card, view) {
       card.title.textContent = view.title; card.summary.textContent = view.preview;
-      card.node.dataset.result = view.result;
+      card.node.dataset.level = view.level;
       card.meta.hidden = view.createdAt === undefined;
       if (view.createdAt !== undefined) { card.meta.textContent = date(view.createdAt); card.meta.dateTime = new Date(view.createdAt).toISOString(); }
     }
 
     const style = api.styles.ensureStyle("__RickyMessageCenterStyle", window.STComponents.css.compose(
       window.STComponents.css.button(".st-mc-button", { variant: "secondary", minHeight: "28px", padding: "4px 8px", fontSize: "12px" }),
+      window.STComponents.css.button(".st-mc-operation-primary", { variant: "primary", minHeight: "32px" }),
+      window.STComponents.css.dialog({ surfaceSelectors: ".st-mc-operation", openSurfaceSelectors: ".st-mc-operation[open]", headerSelectors: ".st-mc-operation-head", titleSelectors: ".st-mc-operation-title", closeSelectors: ".st-mc-operation-close", bodySelectors: ".st-mc-operation-body", footerSelectors: ".st-mc-operation-foot" }),
       `
       #${ROOT}, #${PANEL}, #${PANEL} *, #${DIALOG}, #${DIALOG} *, #${DETAIL}, #${DETAIL} * { box-sizing: border-box; font-family: var(--st-font-family-base); }
       #${ROOT} { flex: 0 0 48px; width: 48px; height: 24px; margin-right: 8px; -webkit-app-region: no-drag; }
@@ -260,6 +265,8 @@
       .st-mc-source-image { display: block; width: 32px; height: 32px; object-fit: contain; }
       .st-mc-icon-button .st-mc-source-icon { width: 16px; height: 16px; }
       .st-mc-is-retrying .st-mc-action-icon { animation: st-mc-retry-spin .8s linear infinite; }
+      /* 进行中的家庭库按钮可重开提示，其他忙碌按钮仍由公共样式阻断点击 */
+      .st-mc-button.st-mc-is-retrying:not(:disabled) { pointer-events: auto; cursor: pointer; }
       @keyframes st-mc-retry-spin { to { transform: rotate(360deg); } }
       @media (prefers-reduced-motion: reduce) { .st-mc-is-retrying .st-mc-action-icon { animation: none; } }
       .st-mc-error .st-mc-button { margin-left: 8px; }
@@ -280,9 +287,9 @@
       .st-mc-virtual-rows .st-mc-open { height: 100%; min-height: 0; }
       .st-mc-load-state { display: flex; justify-content: center; align-items: center; min-height: 32px; color: var(--st-color-text-muted); }
       .st-mc-card { --st-mc-card-bg: color-mix(in srgb, var(--st-color-white) 5%, var(--st-color-steam-message-surface)); position: relative; isolation: isolate; display: flex; align-items: stretch; height: 88px; min-width: 0; margin: 0 0 8px; border: 1px solid var(--st-color-border-normal); border-radius: 8px; background: var(--st-mc-card-bg); overflow: hidden; }
-      .st-mc-card[data-result="error"] { border-color: color-mix(in srgb, var(--st-color-danger-soft) 38%, var(--st-mc-card-bg)); }
-      .st-mc-card[data-result="pending"] { border-color: color-mix(in srgb, var(--st-color-steam-blue) 32%, var(--st-mc-card-bg)); }
-      .st-mc-card[data-result="success"] { border-color: color-mix(in srgb, var(--st-color-success-text) 32%, var(--st-mc-card-bg)); }
+      .st-mc-card[data-level="error"] { border-color: color-mix(in srgb, var(--st-color-danger-soft) 38%, var(--st-mc-card-bg)); }
+      .st-mc-card[data-level="warning"] { border-color: color-mix(in srgb, var(--st-color-steam-blue) 32%, var(--st-mc-card-bg)); }
+      .st-mc-card[data-level="success"] { border-color: color-mix(in srgb, var(--st-color-success-text) 32%, var(--st-mc-card-bg)); }
       #${PANEL} .st-mc-card { translate: 0px; transform: translateY(0); }
       .st-mc-card:hover, .st-mc-card:focus-within { --st-mc-card-bg: color-mix(in srgb, var(--st-color-white) 10%, var(--st-color-steam-message-surface)); }
       .st-mc-open { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 8px; flex: 1; width: 100%; min-width: 0; min-height: 80px; padding: 8px; border: 0; color: inherit; background: none; text-align: left; cursor: pointer; font: inherit; }
@@ -351,6 +358,14 @@
       .st-mc-error span { display: block; color: var(--st-color-text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
       .st-mc-delete-confirm .st-mc-error { margin: 0 0 16px; }
       .st-mc-close { padding: 4px 8px; border: 0; color: var(--st-color-text-muted); background: none; font: inherit; font-size: 20px; cursor: pointer; }
+      .st-mc-operation[open] { display: flex; flex-direction: column; width: min(400px, calc(100% - 24px)); max-height: calc(100% - 16px); margin: auto; padding: 0; overscroll-behavior: contain; }
+      .st-mc-operation::backdrop { background: var(--st-color-overlay); }
+      .st-mc-operation-head { flex: 0 0 auto; }
+      .st-mc-operation-body { display: flex; gap: 12px; align-items: flex-start; min-height: 0; overflow-y: auto; overflow-wrap: anywhere; }
+      .st-mc-operation-copy { min-width: 0; white-space: pre-wrap; line-height: 1.5; }
+      .st-mc-operation-mark { flex: 0 0 22px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 16px; font-weight: 700; }
+      .st-mc-operation[data-state="error"] .st-mc-operation-mark, .st-mc-operation[data-state="timeout"] .st-mc-operation-mark { color: var(--st-color-danger-text); }
+      .st-mc-operation-foot { flex: 0 0 auto; }
       #${ROOT} button:focus-visible, #${PANEL} button:focus-visible, #${DIALOG} button:focus-visible { outline: 2px solid var(--st-color-steam-blue); outline-offset: -2px; }
       #${PANEL} .st-mc-open:focus-visible, #${DIALOG} .st-mc-open:focus-visible { outline: 1px dashed var(--st-color-text-muted); outline-offset: -4px; }
       #${PANEL} [hidden], #${DIALOG} [hidden] { display: none; }
@@ -379,12 +394,17 @@
     fullHeading.append(fullTitle, helpButton(), fullRead, fullDeleteAll);
     const close = button("×", "close", "st-mc-close"); close.setAttribute("aria-label", "关闭消息中心"); fullHead.append(fullHeading, close);
     const tools = element("div", "st-mc-tools"), all = button("全部", "filter-all"), unread = button("未读", "filter-unread"), read = button("已读", "filter-read");
-    const readFilters = element("div", "st-mc-filter-row"), resultFilters = element("div", "st-mc-filter-row");
+    const readFilters = element("div", "st-mc-filter-row"), levelFilters = element("div", "st-mc-filter-row");
     readFilters.append(element("span", "st-mc-filter-label", "消息"), all, unread, read);
-    resultFilters.appendChild(element("span", "st-mc-filter-label", "类型"));
-    const resultButtons = new Map();
-    for (const [value, label] of [["info", "普通"], ["pending", "待处理"], ["success", "成功"], ["error", "错误"]]) {
-      const node = button(label, "result-" + value); node.setAttribute("aria-pressed", "false"); node.title = "再次点击取消此类型筛选"; resultButtons.set(value, node); resultFilters.appendChild(node);
+    levelFilters.appendChild(element("span", "st-mc-filter-label", "级别"));
+    const levelButtons = new Map();
+    for (const [value, label] of Object.entries(model.LEVELS)) {
+      const node = button(label, "level-" + value); node.setAttribute("aria-pressed", "false"); node.title = "再次点击取消此级别筛选"; levelButtons.set(value, node); levelFilters.appendChild(node);
+    }
+    const kindFilters = element("div", "st-mc-filter-row"), kindButtons = new Map();
+    kindFilters.appendChild(element("span", "st-mc-filter-label", "类型"));
+    for (const [value, label] of Object.entries(model.TYPES)) {
+      const node = button(label, "kind-" + value); node.setAttribute("aria-pressed", "false"); kindButtons.set(value, node); kindFilters.appendChild(node);
     }
     const fullCount = element("span", "st-mc-count");
     const searchField = element("div", "st-mc-search"), searchHead = element("div", "st-mc-search-head"), searchBox = element("div", "st-mc-search-box");
@@ -395,7 +415,7 @@
     const sourceChip = button("", "clear-origin", "st-mc-source-chip"); sourceChip.hidden = true; sourceChip.append(element("span"), element("span", "", "×")); sourceChip.title = "取消来源筛选";
     const searchClear = button("×", "search-clear", "st-mc-icon-button"); searchClear.setAttribute("aria-label", "清空搜索"); searchClear.title = "清空搜索";
     searchHead.append(element("span", "", "来源与正文"), fullCount); searchBox.append(sourceChip, searchInput, searchClear); searchField.append(searchHead, searchBox, sourceMenu);
-    tools.append(readFilters, resultFilters, searchField);
+    tools.append(readFilters, kindFilters, levelFilters, searchField);
     function closeSources() {
       searchOpen = false; sourceMenu.hidden = true; searchIndex = -1;
       searchInput.setAttribute("aria-expanded", "false"); searchInput.removeAttribute("aria-activedescendant");
@@ -403,7 +423,7 @@
     function showSources() {
       const query = model.searchText(searchInput.value);
       sourceMenu.replaceChildren();
-      const options = [{ id: "", title: "全部来源" }, ...model.origins().filter(item => !query || model.searchText(item.title).includes(query))];
+      const options = [{ id: "", title: "全部来源" }, ...model.origins(current?.modules || []).filter(item => !query || model.searchText(item.title).includes(query))];
       for (const [index, item] of options.entries()) {
         const node = button(item.title, "origin", "st-mc-source-option"); node.dataset.origin = item.id; node.id = sourceMenu.id + index;
         node.setAttribute("role", "option"); node.setAttribute("aria-selected", String(item.id === originFilter)); node.tabIndex = -1; sourceMenu.appendChild(node);
@@ -413,9 +433,10 @@
     }
     function syncFilters() {
       for (const [value, node] of [["all", all], ["unread", unread], ["read", read]]) node.setAttribute("aria-pressed", String(filter === value));
-      for (const [value, node] of resultButtons) node.setAttribute("aria-pressed", String(resultFilter === value));
+      for (const [value, node] of levelButtons) node.setAttribute("aria-pressed", String(levelFilter === value));
+      for (const [value, node] of kindButtons) node.setAttribute("aria-pressed", String(kindFilter === value));
       sourceChip.hidden = !originFilter;
-      if (originFilter) sourceChip.firstElementChild.textContent = model.origins().find(item => item.id === originFilter).title;
+      if (originFilter) sourceChip.firstElementChild.textContent = model.origins(current?.modules || []).find(item => item.id === originFilter)?.title || originFilter;
     }
     function clearSearchTimer() { if (searchTimer) window.clearTimeout(searchTimer); searchTimer = 0; }
     function filterChanged(delay = false) {
@@ -471,31 +492,81 @@
     fullTop.setAttribute("aria-hidden", "true"); fullBottom.setAttribute("aria-hidden", "true"); fullRowsHost.setAttribute("role", "list"); fullHint.setAttribute("role", "status");
     const fullError = element("div", "st-mc-error"); fullError.setAttribute("role", "status");
     dialog.append(fullHead, tools, fullList, detailModal, deleteConfirm, fullError);
+    const operationParking = document.createDocumentFragment();
+    const operationModal = element("dialog", "st-mc-operation");
+    operationModal.setAttribute("role", "dialog"); operationModal.setAttribute("aria-modal", "true");
+    const operationHead = element("header", "st-mc-operation-head"), operationTitle = element("h2", "st-mc-operation-title"), operationClose = element("button", "st-mc-operation-close");
+    operationTitle.id = DIALOG + "OperationTitle"; operationClose.type = "button"; operationClose.setAttribute("aria-label", "关闭提示");
+    operationModal.setAttribute("aria-labelledby", operationTitle.id);
+    operationHead.append(operationTitle, operationClose);
+    const operationBody = element("div", "st-mc-operation-body"), operationMark = element("span", "st-mc-operation-mark"), operationCopy = element("div", "st-mc-operation-copy");
+    const operationDescription = element("div", "st-mc-operation-description");
+    operationMark.setAttribute("aria-hidden", "true"); operationDescription.id = DIALOG + "OperationDescription";
+    operationModal.setAttribute("aria-describedby", operationDescription.id);
+    operationCopy.append(operationDescription); operationBody.append(operationMark, operationCopy);
+    const operationFoot = element("footer", "st-mc-operation-foot"), operationPrimary = element("button", "st-mc-operation-primary");
+    operationPrimary.type = "button"; operationFoot.appendChild(operationPrimary);
+    operationModal.append(operationHead, operationBody, operationFoot); operationParking.appendChild(operationModal);
     // 点击入口会让原生菜单失焦；保留悬停时的打开状态，让同次点击维持关闭语义。
     let pointerHadMenu = false, windowRequest = 0;
     const host = nativeHost(trigger, style, (kind, reason) => {
+      dismissOperation(false);
       closeHelp();
       trigger.setAttribute("aria-expanded", "false");
       if (reason !== "blur") pointerHadMenu = false;
       if (kind === "menu") cancelMotions();
       if (kind === "full") onClose();
       if (kind === "detail") {
-        detailRequest++; selection = null; detailMode = null; detailAnchor = null; detailActions.clear();
+        detailRequest++; selection = null; detailMode = null; detailAnchor = null;
       }
     }, (error, phase) => {
       reportFailure(error, phase, isDetailOpen() ? detailError : fullOpen ? fullError : popError);
       trigger.dataset.error = "true"; trigger.title = "消息窗口打开失败，请重试";
     }, () => {
+      if (operationModal.open) { dismissOperation(); return true; }
       if (helpActive) { closeHelp(); return true; }
       if (detailMode === "embedded" && detailModal.open) { if (!busy) closeDetail(); return true; }
       if (searchOpen) { closeSources(); searchInput.focus({ preventScroll: true }); return true; }
       if (busy && (deleteConfirm.open || isDetailOpen())) return true;
       if (deleteConfirm.open) { deleteConfirm.close(); fullDeleteAll.focus({ preventScroll: true }); return true; }
       return false;
-    });
+    }, () => operationModal.open);
     function isPopOpen() { return host.kind() === "menu"; }
     function isDetailOpen() { return detailMode === "embedded" ? detailModal.open : host.kind() === "detail"; }
     function layout() { host.layout(); }
+    function renderOperation() {
+      if (!operationView) return;
+      const { status, title, description } = operationView;
+      operationModal.dataset.state = status;
+      operationTitle.textContent = title; operationDescription.textContent = description;
+      operationMark.textContent = "!";
+      operationPrimary.textContent = "确定";
+      operationClose.setAttribute("aria-label", "关闭提示");
+    }
+    function dismissOperation(restoreFocus = true) {
+      const view = operationView;
+      operationView = null;
+      if (operationModal.open) operationModal.close();
+      operationParking.appendChild(operationModal);
+      if (restoreFocus && view?.owner.isConnected) {
+        const anchor = view.anchor.isConnected ? view.anchor : [...view.owner.querySelectorAll("button[data-message-id][data-action-id]")].find(node => node.dataset.messageId === view.anchor.dataset.messageId && node.dataset.actionId === view.anchor.dataset.actionId);
+        (anchor && !anchor.disabled ? anchor : view.owner).focus({ preventScroll: true });
+      }
+      layout();
+    }
+    function showOperation(target, view) {
+      if (stopped || !view.owner.isConnected) return;
+      if (operationModal.open) dismissOperation(false);
+      closeHelp(); closeSources();
+      operationView = { ...view, anchor: target };
+      renderOperation();
+      view.owner.appendChild(operationModal);
+      operationModal.showModal();
+      operationPrimary.focus({ preventScroll: true });
+      layout();
+    }
+    function onOperationClosed() { if (!operationModal.open && operationView) dismissOperation(false); }
+    function onOperationDismiss(event) { event.stopPropagation(); dismissOperation(); }
     // 连接或当前操作失败只作重试提示；业务异常统一进入持久消息列表。
     function setError(target, message = "", title = "消息操作失败") {
       const previous = errorStates.get(target);
@@ -529,7 +600,7 @@
     }
     function updateCount() {
       if (!current) return;
-      if (resultFilter || originFilter || searchQuery) fullCount.textContent = `${next || fullLoading ? "已找到" : "共"} ${fullRows.length} 条`;
+      if (kindFilter || levelFilter || originFilter || searchQuery) fullCount.textContent = `${next || fullLoading ? "已找到" : "共"} ${fullRows.length} 条`;
       else fullCount.textContent = `共 ${filter === "unread" ? current.unread : filter === "read" ? current.total - current.unread : current.total} 条`;
     }
     function applyState(value, rows) {
@@ -539,6 +610,7 @@
       const changedAccount = current && current.steamAccountId !== value.steamAccountId;
       const closeAccountDetail = changedAccount && isDetailOpen();
       if (changedAccount) {
+        operationEpoch++;  actionBusy.clear(); actionVersions.clear(); dismissOperation(false);
         if (closeAccountDetail) { if (detailMode === "embedded") closeDetail(false); else host.close("identity-change"); }
         if (deleteConfirm.open) deleteConfirm.close();
         generation++; listRequest++; fullLoading = false; detailRequest++; selection = null; fullRows = []; fullIds.clear(); fullRevision = null; detailAnchor = null; restorePoint = null;
@@ -557,27 +629,29 @@
       return true;
     }
 
-    function finish(rid, data) {
+    function finish(rid, data, timedOut = false) {
       const task = pending.get(rid); if (!task) return;
       pending.delete(rid); window.clearTimeout(task.timer);
       if (data.success === true) task.resolve(data.value);
-      else { const error = new Error(data.error || "消息操作失败，请重试"); error.reported = data.reported === true; task.reject(error); }
+      else { const error = new Error(data.error || "消息操作失败，请重试"); error.reported = data.reported === true; if (timedOut) error.name = "TimeoutError"; task.reject(error); }
     }
     function request(action, payload = {}) {
       if (stopped) return Promise.reject(new DOMException("消息中心已关闭", "AbortError"));
       return new Promise((resolve, reject) => {
         const rid = crypto.randomUUID();
-        const timer = window.setTimeout(() => finish(rid, { success: false, error: "读取消息超时，请重试" }), action === "act" ? 120000 : 12000);
+        const timer = window.setTimeout(() => finish(rid, { success: false, error: "读取消息超时，请重试" }, true), action === "act" ? 120000 : 12000);
         pending.set(rid, { resolve, reject, timer });
         const expected = current && Object.hasOwn(current, "steamAccountId") && ["read", "read-all", "delete", "delete-all", "act"].includes(action) ? { expectedSteamAccountId: current.steamAccountId } : {};
-        window.postMessage({ source: model.BRIDGE, side: "page", action, rid, ...payload, ...expected }, window.location.origin);
+        window.postMessage({ source: model.BRIDGE, side: "page", protocol: model.PROTOCOL, action, rid, ...payload, ...expected }, window.location.origin);
       });
     }
-    function reportFailure(error, phase, target) {
+    function reportFailure(error, phase, target, manual = true) {
       if (stopped || error.name === "AbortError") return;
       if (!error.reported) log.error("message-operation-failed", "消息中心操作失败", { error, phase });
       const title = phase === "list" || phase === "get" ? "消息加载失败" : "消息操作失败";
-      setError(target, error.message, title);
+      setError(target);
+      if (!manual || phase === "state") setError(target, error.message, title);
+      else void window.STFeedback.show(target.ownerDocument.body, { title, message: error.message });
       layout();
     }
     async function openWindow(kind, content) {
@@ -607,7 +681,7 @@
         pointerHadMenu = false; host.close("button"); trigger.focus({ preventScroll: true }); return;
       }
       pointerHadMenu = trigger.matches(":hover");
-      if (await openWindow("menu", panel)) { renderPreview(); void loadPopover(); }
+      if (await openWindow("menu", panel)) { renderPreview(); void loadPopover(false, true); }
     }
 
     function renderRows(container, cache, rows, emptyText, relayout = true) {
@@ -618,7 +692,7 @@
       let previousNode = null;
       for (const message of rows) {
         let card = cache.get(message.id);
-        const view = { ...model.presentation(message), preview: model.preview(message), createdAt: message.createdAt, result: model.tone(message) };
+        const view = { ...model.presentation(message), preview: model.preview(message), createdAt: message.createdAt, level: message.level };
         if (!card) {
           card = makeCard(view, "detail"); card.open.dataset.id = message.id; cache.set(message.id, card);
         }
@@ -698,6 +772,11 @@
         exits.delete(id); stopMotion(popCards.get(id).node, "visibility");
       }
       if (current) displayCounts(current);
+      for (const container of [panel, dialog, detailWindow]) {
+        for (const control of container.querySelectorAll("button[data-message-id]")) {
+          if (token.all || control.dataset.messageId === token.id) updateActionButton(control);
+        }
+      }
     }
     function acceptPreview(value) {
       if (!Array.isArray(value.unreadRows) || value.unreadRows.length > model.PAGE_SIZE || value.unreadRows.some(row => row.readAt !== null || typeof row.id !== "string") || value.unreadRows.length > value.state?.unread) throw new TypeError("未读消息快照格式无效");
@@ -721,10 +800,11 @@
         else if (delta) animate(node, [{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }]);
       }
     }
-    async function loadPopover(prefetch = false) {
+    async function loadPopover(prefetch = false, manual = false) {
       if (stopped || (!prefetch && !isPopOpen()) || popLoading) return;
       popLoading = true; popDirty = false; setError(popError);
       const token = previewGeneration;
+      const ownerWindow = windowRequest;
       try {
         const page = await request("summary", { withUnread: true });
         if (stopped) return;
@@ -732,7 +812,8 @@
         if (!acceptPreview(page)) popDirty = !unreadSnapshot || unreadSnapshot.state.revision !== current.revision;
       } catch (error) {
         if (token !== previewGeneration) return;
-        reportFailure(error, "list", popError);
+        // 关闭或重开后的结果仍可保留为状态，不能迁到其他窗口弹出
+        reportFailure(error, "list", popError, manual && ownerWindow === windowRequest && isPopOpen());
         if (!stopped && !popCards.size) status(popList, "消息加载失败", "请重试", true);
         else if (!stopped) popError.appendChild(button("重试", "retry"));
       } finally {
@@ -824,7 +905,7 @@
       }
     }
 
-    async function loadFull(append = false) {
+    async function loadFull(append = false, manual = false) {
       if (stopped || !fullOpen || isDetailOpen()) return;
       if (fullLoading) { if (!append) fullDirty = true; return; }
       if (append && (!fullInitialized || !next)) return;
@@ -834,7 +915,7 @@
       fullLoading = true; fullDirty = false; fullFailed = false; setError(fullError); updateFullHint();
       syncFilters();
       try {
-        const page = await request("list", { filter, before: cursor, result: resultFilter, origin: originFilter, query: searchQuery });
+        const page = await request("list", { filter, before: cursor, level: levelFilter, kind: kindFilter, origin: originFilter, query: searchQuery });
         if (stopped || !fullOpen || token !== generation) return;
         if (!applyState(page.state)) { fullDirty = true; return; }
         if (append && fullRevision !== page.state.revision) { refreshFull(); return; }
@@ -844,27 +925,27 @@
         if (fullRows.length) renderVirtualRows();
         else {
           fullCards.clear();
-          status(fullList, next ? "正在搜索" : (resultFilter || originFilter || searchQuery) ? "没有匹配的消息" : filter === "unread" ? "暂无未读消息" : filter === "read" ? "暂无已读消息" : "暂无消息", next ? "正在读取更多候选消息…" : "可调整筛选条件或稍后再来查看");
+          status(fullList, next ? "正在搜索" : (kindFilter || levelFilter || originFilter || searchQuery) ? "没有匹配的消息" : filter === "unread" ? "暂无未读消息" : filter === "read" ? "暂无已读消息" : "暂无消息", next ? "正在读取更多候选消息…" : "可调整筛选条件或稍后再来查看");
         }
         completeRestore();
       } catch (error) {
         if (stopped || token !== generation || !fullOpen) return;
         fullFailed = true;
-        reportFailure(error, "list", fullError);
+        reportFailure(error, "list", fullError, manual);
         if (!fullRows.length) status(fullList, "消息加载失败", "请重试", true);
       } finally {
         if (ticket !== listRequest) return;
         fullLoading = false; updateFullHint();
         if (fullDirty && !stopped && fullOpen) void loadFull();
         else if (token === generation && !fullFailed && fullOpen) {
-          if (next && (restorePoint || !fullRows.length)) void loadFull(true);
+          if (next && (restorePoint || !fullRows.length)) void loadFull(true, manual);
           else loadMore();
         }
       }
     }
 
     // 列表代次与详情请求分开，底层摘要更新不能丢弃正在打开的详情。
-    function refreshFull(reset = false) {
+    function refreshFull(reset = false, manual = false) {
       if (isDetailOpen()) { fullDirty = true; return; }
       if (!reset && !restorePoint && fullRows.length) {
         const index = Math.min(fullRows.length - 1, Math.floor(fullList.scrollTop / ROW_HEIGHT));
@@ -872,16 +953,16 @@
         restorePoint = { id: row.id, createdAt: row.createdAt, offset: index * ROW_HEIGHT - fullList.scrollTop, focus: false };
       }
       generation++; cancelFullFrame();
-      if (reset) { filter = "all"; resultFilter = ""; originFilter = ""; searchQuery = ""; searchInput.value = ""; clearSearchTimer(); closeSources(); syncFilters(); fullRows = []; fullIds.clear(); fullCards.clear(); restorePoint = null; }
+      if (reset) { filter = "all"; kindFilter = ""; levelFilter = ""; originFilter = ""; searchQuery = ""; searchInput.value = ""; clearSearchTimer(); closeSources(); syncFilters(); fullRows = []; fullIds.clear(); fullCards.clear(); restorePoint = null; }
       fullInitialized = false;
       if (!fullRows.length) status(fullList, "正在加载", "正在读取消息…");
       fullResize.observe(fullList);
-      void loadFull();
+      void loadFull(false, manual);
     }
     function showList(reset = false) {
       if (deleteConfirm.open) deleteConfirm.close();
-      detailRequest++; selection = null; detailActions.clear(); setError(detailError);
-      refreshFull(reset);
+      detailRequest++; selection = null;  setError(detailError);
+      refreshFull(reset, true);
     }
     // 返回锚点来自当前消息或已加载行；只沿现有游标分批读到锚点，关闭/切号即取消
     function completeRestore() {
@@ -903,7 +984,7 @@
     }
     function closeDetail(restore = true) {
       const mode = detailMode, anchor = detailAnchor;
-      detailMode = null; detailAnchor = null; detailRequest++; selection = null; detailActions.clear();
+      detailMode = null; detailAnchor = null; detailRequest++; selection = null;
       if (mode === "embedded") {
         if (detailModal.open) detailModal.close();
         detailParking.appendChild(detailWindow);
@@ -932,22 +1013,19 @@
       if (await openWindow("full", dialog)) { fullOpen = true; showList(true); }
     }
     function renderDetail(message) {
-      detailActions.clear();
+
       detail.replaceChildren();
       detail.append(element("h3", "", model.presentation(message).title), element("span", "st-mc-count", date(message.createdAt)));
       detail.appendChild(element("p", "", message.content === undefined ? model.content(message) : message.content));
-      if (message.businessState) detail.appendChild(element("p", "st-mc-business", businessLabel(message.businessState)));
-      const actions = actionsFor(message, false);
-      for (const action of message.actions) {
-        if (model.action(action).kind !== "legacy") continue;
-        const item = button(action.label, "custom"); item.dataset.id = action.id;
-        const key = JSON.stringify([message.source, message.type, action.id]);
-        detailActions.set(key, item);
-        item.disabled = !actionHandlers.has(key);
-        if (item.disabled) item.title = "当前版本未接入此操作";
-        actions.appendChild(item);
+      if (message.details?.length) {
+        const source = element("details", "st-mc-workflow-source");
+        source.appendChild(element("summary", "", "消息详情"));
+        source.appendChild(element("p", "", message.details.map(item => item.label + "：" + item.value).join("\n")));
+        detail.appendChild(source);
       }
-      const remove = iconButton("删除", "delete", "delete"); remove.dataset.id = message.id; actions.appendChild(remove);
+      if (message.interaction) detail.appendChild(element("p", "st-mc-business", model.STATES[message.interaction.state]));
+      const actions = actionsFor(message, false);
+      const remove = iconButton("删除", "delete", "delete"); remove.dataset.id = message.id; remove.dataset.waiting = String(message.interaction?.waiting === true); actions.appendChild(remove);
       detailFooter.replaceChildren(actions);
       detail.scrollTop = 0;
       layout();
@@ -987,6 +1065,34 @@
         if (!loaded) { status(detail, "消息加载失败", "请重试"); detailFooter.replaceChildren(button("重试", "detail-retry")); }
         reportFailure(error, phase, detailError);
       } finally { endReadFeedback(feedback, !committed); if (!committed) renderPreview(); }
+      return loaded && token === detailRequest && isDetailOpen();
+    }
+
+    // 只刷新正在查看的一条消息；合并同轮投影变化，不重开窗口或重复标已读。
+    function refreshDetail() {
+      detailDirty = true;
+      if (detailRefresh) return;
+      let refreshId, refreshToken;
+      detailRefresh = (async () => {
+        while (detailDirty && selection && isDetailOpen() && !stopped) {
+          detailDirty = false;
+          const id = refreshId = selection, token = refreshToken = detailRequest, value = await request("get", { id });
+          if (stopped || token !== detailRequest || selection !== id || !isDetailOpen()) continue;
+          if (!value.message) { closeDetail(); return; }
+          const scroll = detail.scrollTop, active = detailWindow.ownerDocument.activeElement;
+          const actionId = active?.dataset.actionId;
+          renderDetail(value.message); detail.scrollTop = scroll;
+          if (actionId) {
+            const target = [...detailFooter.querySelectorAll("button[data-action-id]")].find(node => node.dataset.actionId === actionId && !node.disabled);
+            (target || detailHeading).focus({ preventScroll: true });
+          }
+        }
+      })().catch(error => {
+        if (!stopped && refreshToken === detailRequest && refreshId === selection && isDetailOpen()) reportFailure(error, "get", detailError);
+      }).finally(() => {
+        detailRefresh = null;
+        if (detailDirty && !stopped && selection && isDetailOpen()) refreshDetail();
+      });
     }
 
     function onMessage(event) {
@@ -998,15 +1104,10 @@
       const changed = !current || data.state?.revision > current.revision || data.state?.steamAccountId !== current.steamAccountId;
       if (!changed && !Object.hasOwn(data, "unreadRows")) return;
       try {
-        if (Object.hasOwn(data, "unreadRows")) {
-          if (!acceptPreview({ state: data.state, unreadRows: data.unreadRows })) return;
-        } else {
-          // 已发布的 state-only 变更协议继续有效，只补取这一种明确契约的快照。
-          if (!applyState(data.state)) return;
-          void loadPopover(true);
-        }
+        if (!acceptPreview({ state: data.state, unreadRows: data.unreadRows })) return;
         if (changed) {
           if (isDetailOpen() && selection && (data.state.change?.action === "delete-all" || (data.state.change?.action === "delete" && data.state.change.id === selection))) closeDetail();
+          else if (isDetailOpen() && selection) refreshDetail();
           else if (fullOpen && !isDetailOpen()) refreshFull();
           else fullDirty = true;
         }
@@ -1023,21 +1124,30 @@
       if (action === "origin") { originFilter = target.dataset.origin; searchQuery = ""; searchInput.value = ""; closeSources(); filterChanged(); searchInput.focus({ preventScroll: true }); return; }
       if (action === "clear-origin") { originFilter = ""; closeSources(); filterChanged(); searchInput.focus({ preventScroll: true }); return; }
       if (action === "search-clear") { originFilter = ""; searchQuery = ""; searchInput.value = ""; closeSources(); filterChanged(); searchInput.focus({ preventScroll: true }); return; }
-      if (action.startsWith("result-")) { const value = action.slice(7); resultFilter = resultFilter === value ? "" : value; closeSources(); filterChanged(); return; }
+      if (action.startsWith("kind-")) { const value = action.slice(5); kindFilter = kindFilter === value ? "" : value; closeSources(); filterChanged(); return; }
+      if (action.startsWith("level-")) { const value = action.slice(6); levelFilter = levelFilter === value ? "" : value; closeSources(); filterChanged(); return; }
       if (action === "all") { await openAll(); return; }
       if (action === "close") { host.close("button", true); return; }
       if (action === "detail-close") { closeDetail(); return; }
       if (action === "detail") { await openDetail(target.dataset.id); return; }
       if (action === "detail-retry" && selection) { await openDetail(selection); return; }
-      if (action === "delete-all") {
+      if (action === "delete-all" || action === "delete") {
+        deleteSelection = action === "delete" ? target.dataset.id : null;
+        deleteAnchor = target;
+        confirmHeading.textContent = deleteSelection ? "删除这条消息？" : "删除全部消息？";
+        const waiting = !deleteSelection || target.dataset.waiting === "true";
+        confirmDescription.textContent = (deleteSelection ? "将删除此消息。" : "将删除当前账号及本机可见的全部消息。") +
+          (waiting ? "等待交互的任务将一起结束，按钮、超时及后续分支均不再执行。" : "") + "此操作无法撤销。";
+        confirmActions.lastElementChild.textContent = waiting ? "删除并结束本次任务" : "确认删除";
+        (isDetailOpen() ? detailWindow : dialog).appendChild(deleteConfirm);
         setError(confirmError); deleteConfirm.showModal();
         confirmActions.firstElementChild.focus({ preventScroll: true });
         return;
       }
-      if (action === "cancel-delete-all") { deleteConfirm.close(); fullDeleteAll.focus({ preventScroll: true }); return; }
+      if (action === "cancel-delete-all") { deleteConfirm.close(); deleteAnchor?.focus({ preventScroll: true }); return; }
       if (action === "confirm-delete-all" && !deleteConfirm.open) return;
-      if (action === "retry") { if (fullOpen) showList(); else void loadPopover(); return; }
-      if (action === "more") { await loadFull(true); return; }
+      if (action === "retry") { if (fullOpen) showList(); else void loadPopover(false, true); return; }
+      if (action === "more") { await loadFull(true, true); return; }
       if (action.startsWith("filter-")) { filter = action.slice(7); closeSources(); filterChanged(); return; }
       busy = true; target.disabled = true;
       if (current) displayCounts(current);
@@ -1045,60 +1155,71 @@
       const viewAtStart = previewGeneration;
       const feedback = action === "read-all" ? beginReadFeedback(null, true) : null;
       try {
-        if (action === "read-all" || action === "delete" || action === "confirm-delete-all") {
-          const operation = action === "confirm-delete-all" ? "delete-all" : action;
-          const changed = await request(operation, { id: target.dataset.id, withUnread: true });
+        if (action === "read-all" || action === "confirm-delete-all") {
+          const operation = action === "confirm-delete-all" ? (deleteSelection ? "delete" : "delete-all") : action;
+          const changed = await request(operation, { id: deleteSelection, withUnread: true });
           if (stopped) return;
           if (viewAtStart !== previewGeneration && changed.state.steamAccountId !== current.steamAccountId) return;
           endReadFeedback(feedback);
           acceptPreview(changed);
+          if (changed.failed?.length) {
+            setError(confirmError, changed.failed.map(item => item.reason).join("\n"), "部分消息未删除");
+            if (fullOpen) refreshFull(); return;
+          }
+          if (action === "confirm-delete-all" && deleteConfirm.open) deleteConfirm.close();
           if (isDetailOpen()) closeDetail();
           else if (fullOpen) showList();
-        } else if (action === "custom" && selection) {
-          const value = await request("get", { id: selection });
-          if (stopped) return;
-          if (!value.message) throw new Error("这条消息已删除，请返回消息列表");
-          const handler = actionHandlers.get(JSON.stringify([value.message.source, value.message.type, target.dataset.id]));
-          if (!handler) throw new Error("当前版本尚未接入此消息操作");
-          await handler(value.message);
+          if (action === "confirm-delete-all" && !deleteSelection) void window.STFeedback.show(dialog.ownerDocument.body, { message: "消息已全部删除。" });
+
         }
       } catch (error) { endReadFeedback(feedback, true); renderPreview(); reportFailure(error, action, errorTarget); }
       finally { busy = false; if (!stopped) { target.disabled = false; if (current) applyState(current); } }
     }
 
-    function businessLabel(value) {
-      const labels = { pending: "待处理", approved: "已同意", rejected: "已拒绝", expired: "已失效", cancelled: "已取消", completed: "已完成" };
-      return value ? text(`messageCenter.business.${value}`, labels[value]) : "";
-    }
-
     // 图标动作与正文按钮是同级元素；点击动作不触发详情/自动已读。业务执行只传存储 ID，导航由后台核验后交回主窗口。
     async function performAction(target) {
-      const id = target.dataset.messageId;
-      if (actionBusy.has(id) || pendingReadAll || exits.has(id)) return;
-      actionBusy.set(id, target.dataset.actionId);
-      const reading = target.dataset.kind === "read";
-      const feedback = reading ? beginReadFeedback(id) : null;
+      const id = target.dataset.messageId, actionId = target.dataset.actionId;
+      const owner = target.closest(".st-mc-detail-modal") ? detailWindow : target.closest("#" + PANEL) || target.closest("#" + DIALOG) || target.closest("#" + DETAIL);
+      if (actionBusy.has(id)) return;
+      if (pendingReadAll || exits.has(id)) return;
+      const epoch = operationEpoch, running = { actionId, epoch };
+      actionBusy.set(id, running); actionVersions.set(id, running);
+
       const viewAtStart = previewGeneration;
       const controls = () => [...panel.querySelectorAll("button[data-message-id]"), ...dialog.querySelectorAll("button[data-message-id]"), ...detailWindow.querySelectorAll("button[data-message-id]")].filter(node => node.dataset.messageId === id);
+      const finishBusy = () => {
+        if (actionBusy.get(id) !== running) return;
+        actionBusy.delete(id);
+        if (!stopped) controls().forEach(updateActionButton);
+      };
       controls().forEach(updateActionButton);
       const errorTarget = isDetailOpen() ? detailError : fullOpen ? fullError : popError; setError(errorTarget);
       try {
-        const value = await request("act", { id, actionId: target.dataset.actionId, withUnread: reading });
-        if (stopped) return;
+        const value = await request("act", { id, actionId });
+        if (stopped || epoch !== operationEpoch) return;
         if (viewAtStart !== previewGeneration && value.state.steamAccountId !== current.steamAccountId) return;
         if (value.navigation && !window.STConfig.externalNavigation.open(model.link(value.navigation.url))) throw new Error(text("messageCenter.openFailed", "未能打开外部浏览器，请重试。"));
-        endReadFeedback(feedback);
-        if (reading) acceptPreview(value);
-        else { applyState(value.state); if (isPopOpen()) void loadPopover(); }
+        applyState(value.state); if (isPopOpen()) void loadPopover();
+        finishBusy();
         if (fullOpen && !selection) showList();
         else if (isDetailOpen() && selection === id) {
-          const latest = await request("get", { id });
-          if (!stopped && selection === id && latest.message) renderDetail(latest.message);
+          try {
+            const latest = await request("get", { id });
+            if (!stopped && epoch === operationEpoch && actionVersions.get(id) === running && selection === id && latest.message) renderDetail(latest.message);
+          } catch (error) { if (!stopped && epoch === operationEpoch && actionVersions.get(id) === running && selection === id) reportFailure(error, "get", detailError); }
         }
-      } catch (error) { endReadFeedback(feedback, true); renderPreview(); reportFailure(error, "act", errorTarget); }
+      } catch (error) {
+        if (stopped || epoch !== operationEpoch) return;
+        renderPreview();
+        if (error.name === "AbortError") return;
+        if (!error.reported) log.error("message-operation-failed", "消息中心操作失败", { error, phase: "act" });
+        const timedOut = error.name === "TimeoutError";
+        const description = timedOut ? "等待操作结果超时，请稍后检查任务状态。" : error.message;
+        showOperation(target, { owner, status: timedOut ? "timeout" : "error", title: timedOut ? "等待结果超时" : "操作失败", description });
+      }
       finally {
-        actionBusy.delete(id);
-        if (!stopped) controls().forEach(updateActionButton);
+        finishBusy();
+        if (actionVersions.get(id) === running) actionVersions.delete(id);
       }
     }
 
@@ -1177,12 +1298,20 @@
     const fullResize = new ResizeObserver(queueFullRender);
     fullList.addEventListener("scroll", queueFullRender, { passive: true });
     fullList.addEventListener("scrollend", loadMore); fullList.addEventListener("keydown", onFullKey);
+    const messageWindows=new BroadcastChannel(model.OPEN_CHANNEL);
+    messageWindows.addEventListener("message",async event=>{
+      if(event.data?.type!=="open"||typeof event.data.id!=="string")return;
+      const opened = await openDetail(event.data.id);
+      if (!stopped) messageWindows.postMessage({ type: "opened", id: event.data.id, success: opened === true });
+    });
     window.addEventListener("message", onMessage);
     window.addEventListener("resize", onResize);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", stop);
     trigger.addEventListener("click", toggleMenu); trigger.addEventListener("pointerenter", onTriggerEnter); trigger.addEventListener("pointerleave", onTriggerLeave);
     panel.addEventListener("click", onClick); dialog.addEventListener("click", onClick); detailWindow.addEventListener("click", onClick);
+    operationPrimary.addEventListener("click", onOperationDismiss); operationClose.addEventListener("click", onOperationDismiss);
+    operationModal.addEventListener("close", onOperationClosed);
     detailModal.addEventListener("close", onDetailClosed); detailHeading.tabIndex = -1;
     searchInput.addEventListener("focus", showSources); searchInput.addEventListener("input", onSearchInput); searchInput.addEventListener("compositionend", onSearchInput); searchInput.addEventListener("keydown", onSearchKey);
     searchField.addEventListener("focusout", onSearchBlur); sourceMenu.addEventListener("pointerdown", onSourcePointer);
@@ -1190,29 +1319,10 @@
     const route = api.contextRouter.subscribe(reattach);
     void loadPopover(true);
 
-    /**
-     * 注册 source/type/id 精确匹配的消息动作，handler 接收已存储的完整消息。
-     * 返回 dispose 句柄；注册和释放同步更新当前详情按钮。重复注册或参数无效时抛错。
-     * 消息中只有标识，不能指定任意函数或脚本。
-     */
-    function registerAction(source, type, id, handler) {
-      model.id(source); model.id(type); model.id(id);
-      if (typeof handler !== "function") throw new TypeError("消息处理器无效");
-      const key = JSON.stringify([source, type, id]);
-      if (actionHandlers.has(key)) throw new Error("消息操作已经注册");
-      actionHandlers.set(key, handler);
-      const activeButton = detailActions.get(key);
-      if (activeButton) { activeButton.disabled = false; activeButton.removeAttribute("title"); }
-      return Object.freeze({ dispose() {
-        if (actionHandlers.get(key) !== handler) return;
-        actionHandlers.delete(key);
-        const item = detailActions.get(key);
-        if (item) { item.disabled = true; item.title = "当前版本未接入此操作"; }
-      } });
-    }
     function stop() {
       if (stopped) return;
-      stopped = true; generation++; previewGeneration++; observer.disconnect(); route.dispose();
+      stopped = true; generation++; previewGeneration++; operationEpoch++;  actionBusy.clear(); actionVersions.clear(); dismissOperation(false); observer.disconnect(); route.dispose();
+      messageWindows.close();
       cancelMotions(); pendingReads.clear(); pendingReadAll = false; unreadSnapshot = null;
       cancelFullFrame(); fullResize.disconnect();
       clearSearchTimer(); closeSources();
@@ -1225,6 +1335,8 @@
       document.removeEventListener("visibilitychange", onVisibility);
       trigger.removeEventListener("click", toggleMenu); trigger.removeEventListener("pointerenter", onTriggerEnter); trigger.removeEventListener("pointerleave", onTriggerLeave);
       panel.removeEventListener("click", onClick); dialog.removeEventListener("click", onClick); detailWindow.removeEventListener("click", onClick);
+      operationPrimary.removeEventListener("click", onOperationDismiss); operationClose.removeEventListener("click", onOperationDismiss);
+      operationModal.removeEventListener("close", onOperationClosed);
       detailModal.removeEventListener("close", onDetailClosed);
       for (const entry of helpControls) {
         entry.node.removeEventListener("pointerenter", entry.show); entry.node.removeEventListener("focus", entry.show);
@@ -1233,11 +1345,11 @@
       searchInput.removeEventListener("focus", showSources); searchInput.removeEventListener("input", onSearchInput); searchInput.removeEventListener("compositionend", onSearchInput); searchInput.removeEventListener("keydown", onSearchKey);
       searchField.removeEventListener("focusout", onSearchBlur); sourceMenu.removeEventListener("pointerdown", onSourcePointer);
       for (const task of pending.values()) { clearTimeout(task.timer); task.reject(new DOMException("消息中心已关闭", "AbortError")); }
-      pending.clear(); actionHandlers.clear(); detailActions.clear(); root.remove(); panel.remove(); dialog.remove(); detailWindow.remove(); style.remove();
+      pending.clear();   root.remove(); panel.remove(); dialog.remove(); detailWindow.remove(); style.remove();
       if (api.messageCenter?.stop === stop) delete api.messageCenter;
     }
     // open() 打开完整列表；stop() 幂等释放当前 UI、订阅和请求，不删除已存储消息。
-    api.messageCenter = Object.freeze({ open: openAll, registerAction, stop });
+    api.messageCenter = Object.freeze({ open: openAll, stop });
     return { started: true, stop };
   }
 

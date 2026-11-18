@@ -26,19 +26,6 @@
     return globalThis.STConfig?.matchers?.isSteamTranslateHost?.(clean(host)) === true;
   }
 
-  function field(label, value) {
-    const text = clean(value);
-    return text ? `${label}：${text}` : "";
-  }
-
-  function background(ctx) {
-    const lines = [
-      field("游戏名称", ctx?.gameName),
-      field("文档标题", ctx?.title),
-      field("内容类型", ctx?.contentType),
-    ].filter(Boolean);
-    return lines.length ? ["## 背景信息", ...lines].join("\n") : "";
-  }
 
   function steamNewsMode(ctx) {
     const mode = clean(ctx?.mode || ctx?.context);
@@ -145,31 +132,11 @@
     return steamHost(ctx?.host) ? steamSystem(ctx) : normalSystem(ctx);
   }
 
-  function user(ctx) {
-    const from = clean(ctx?.from) || "自动识别";
-    const to = clean(ctx?.to) || "目标语言";
-    const parts = [];
-    const info = background(ctx);
-    if (info) {
-      parts.push(info, "");
-    }
-    parts.push(
-      `请将下面 JSON 数组从「${from}」翻译为「${to}」。`,
-      "## 待翻译文本",
-      "仅输出 JSON 字符串数组：",
-      "",
-      JSON.stringify(Array.isArray(ctx?.texts) ? ctx.texts : [])
-    );
-    return parts.join("\n");
-  }
 
   Object.assign(api, {
     ready: true,
     version: API_VERSION,
     STEAM_NEWS_MODE,
-    steamHost,
-    steamNewsMode,
     system,
-    user,
   });
 })();

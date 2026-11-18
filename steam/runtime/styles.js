@@ -794,10 +794,9 @@
   const LIBRARY_INDEPENDENT_NAME_MODAL = "__RickyLibraryIndependentNameModal";
   const DOWNLOAD_SURFACE_ROOT = "__RickyDownloadSurfaceHost";
   const DOWNLOAD_SURFACE_TOAST = "__RickyDownloadSurfaceToast";
+  const DOWNLOAD_SHUTDOWN_STATUS = "__RickyDownloadAutoShutdownStatus";
   const DOWNLOAD_TOOLBAR_ROOT = "__RickyDownloadToolbar";
   const DOWNLOAD_TOOLBAR_MENU = "__RickyDownloadToolbarMenu";
-  const DOWNLOAD_AUTO_SHUTDOWN_ROOT = "__Rickydownload-auto-shutdown-root";
-  const DOWNLOAD_AUTO_SHUTDOWN_STATUS = "__RickyDownloadAutoShutdownStatus";
   const NEWS_TRANSLATE_BUTTON_CLASS = "steam-buff-news-translate-button";
   const NEWS_TRANSLATE_ICON_CLASS = "steam-buff-news-translate-icon";
   const NEWS_TRANSLATE_DONE_CLASS = "steam-buff-news-translated";
@@ -1324,11 +1323,6 @@
       #${DOWNLOAD_SURFACE_ROOT}[hidden] {
         display: none !important;
       }
-      #${DOWNLOAD_SURFACE_ROOT} .st-download-surface-slot {
-        display: inline-flex;
-        align-items: center;
-        height: 28px;
-      }
       #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_ROOT} {
         position: relative;
         display: inline-flex;
@@ -1390,101 +1384,62 @@
       #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU}[hidden] {
         display: none !important;
       }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .st-download-surface-slot {
-        display: inline-flex;
-        align-items: center;
-        width: 100%;
-        min-height: 28px;
-        height: auto;
+      #${DOWNLOAD_TOOLBAR_MENU} > [hidden],
+      #${DOWNLOAD_SHUTDOWN_STATUS}[hidden],
+      #${DOWNLOAD_SHUTDOWN_STATUS} > [hidden],
+      #${DOWNLOAD_TOOLBAR_MENU} .st-download-shutdown-feedback:empty {
+        display: none !important;
       }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} {
-        width: 100%;
+      #${DOWNLOAD_TOOLBAR_MENU} .st-download-shutdown-feedback {
+        display: block;
+        padding: 5px 7px;
+        font-size: var(--st-sdas-font-size);
       }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle {
-        position: relative;
-        box-sizing: border-box;
-        display: inline-flex;
+      #${DOWNLOAD_SHUTDOWN_STATUS} {
+        position: fixed;
+        top: 96px;
+        left: 24px;
+        z-index: 999998;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        gap: var(--st-sdas-gap);
-        width: 100%;
-        height: 28px;
-        padding: 0 var(--st-sdas-toggle-pad-x);
+        gap: 4px 10px;
+        max-width: min(360px, calc(100vw - 150px));
+        padding: 7px 9px;
         border: 1px solid var(--st-sdas-border);
-        background: var(--st-sdas-bg);
-        box-shadow: var(--st-sdas-shadow);
-        cursor: pointer;
-        user-select: none;
-        white-space: nowrap;
+        border-radius: 4px;
+        background: var(--st-sdas-toast-bg);
+        color: var(--st-sdas-text);
+        font: inherit;
+        font-family: var(--st-sdas-font);
+        font-size: var(--st-sdas-font-size);
+        box-shadow: var(--st-sdas-toast-shadow);
       }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle:hover {
-        border-color: var(--st-sdas-border-hover);
+      #${DOWNLOAD_SHUTDOWN_STATUS} small {
+        grid-column: 1 / -1;
+        font: inherit;
+      }
+      #${DOWNLOAD_SHUTDOWN_STATUS} .st-download-shutdown-cancel {
+        grid-column: 1 / -1;
+        justify-self: start;
+        padding: 3px 8px;
+        border: 1px solid var(--st-sdas-border-hover);
+        border-radius: 3px;
+        background: var(--st-sdas-bg);
+        color: var(--st-sdas-text);
+        font: inherit;
+        cursor: pointer;
+      }
+      #${DOWNLOAD_SHUTDOWN_STATUS} .st-download-shutdown-cancel:hover:not(:disabled) {
         background: var(--st-sdas-bg-hover);
       }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-toggle input {
-        width: 14px;
-        height: 14px;
-        margin: 0;
-        accent-color: var(--st-sdas-primary);
+      #${DOWNLOAD_SHUTDOWN_STATUS} .st-download-shutdown-cancel:focus-visible {
+        outline: 1px solid var(--st-sdas-border-hover);
+        outline-offset: 2px;
       }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_ROOT} .sdas-label {
-        font-size: var(--st-sdas-font-size);
-        line-height: 1;
-        letter-spacing: 0;
-      }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .sdas-tooltip {
-        position: absolute;
-        top: calc(100% + 6px);
-        right: 0;
-        z-index: 2;
-        box-sizing: border-box;
-        min-width: 230px;
-        max-width: min(360px, calc(100vw - 16px));
-        padding: 5px 8px;
-        border: 1px solid var(--st-sdas-border);
-        border-radius: 2px;
-        background: var(--st-sdas-bg);
-        color: var(--st-sdas-text);
-        box-shadow: var(--st-sdas-shadow);
-        font-family: var(--st-sdas-font);
-        font-size: var(--st-sdas-font-size);
-        line-height: var(--st-sdas-line-height);
-        pointer-events: none;
-        white-space: pre-line;
-      }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .sdas-tooltip[hidden] {
-        display: none !important;
-      }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS} {
-        position: fixed;
-        top: 83px;
-        left: 8px;
-        z-index: 1000000;
-        box-sizing: border-box;
-        display: block;
-        max-width: min(560px, calc(100vw - 16px));
-        padding: 5px 8px;
-        border: 1px solid var(--st-sdas-border);
-        border-radius: 2px;
-        background: var(--st-sdas-bg);
-        color: var(--st-sdas-text);
-        box-shadow: var(--st-sdas-shadow);
-        font-family: var(--st-sdas-font);
-        font-size: var(--st-sdas-font-size);
-        line-height: var(--st-sdas-line-height);
-        font-variant-numeric: tabular-nums;
-        pointer-events: none;
-        white-space: normal;
-      }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS}[hidden],
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS} .sdas-status-details[hidden] {
-        display: none !important;
-      }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS} .sdas-status-primary,
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS} .sdas-status-details {
-        overflow-wrap: anywhere;
-      }
-      #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_AUTO_SHUTDOWN_STATUS} .sdas-status-details {
-        margin-top: 2px;
+      #${DOWNLOAD_SHUTDOWN_STATUS} .st-download-shutdown-cancel:disabled {
+        cursor: default;
+        opacity: .65;
       }
       #${DOWNLOAD_SURFACE_ROOT} #${DOWNLOAD_TOOLBAR_MENU} .st-download-batch-actions {
         display: inline-flex;

@@ -591,11 +591,7 @@
         const error = await checkRule(shadow, type, value);
         if (error === null || !layer.isConnected) return;
         if (error) {
-          const hint = layer.querySelector(".review-rule-dialog-error");
-          if (hint) {
-            hint.textContent = error;
-            hint.hidden = false;
-          }
+          void root.STSettingsDialogs.notice(shadow, { message: error, focus: textarea });
           return;
         }
         if (await updateRule(shadow, id, { type, value })) close();

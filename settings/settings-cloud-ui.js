@@ -307,10 +307,7 @@
   }
 
   function setStatus(shadow, text) {
-    const node = shadow?.querySelector?.("[data-cloud-status]");
-    if (node) {
-      node.textContent = text;
-    }
+    void root.STSettingsDialogs.notice(shadow, { message: text });
   }
 
   async function dialog(shadow, options) {
@@ -398,14 +395,15 @@
     log.info(enabled ? "settings-cloud-enabled" : "settings-cloud-disabled", enabled ? "已开启设置云同步" : "已关闭设置云同步", {
       operationId: root.STLoggerFactory?.createOperationId?.() || "",
     });
-    if (enabled) {
-      const extra = await candidateSecret(shadow);
-      await request({ reason: "manual", action: "sync", ...extra });
+    try {
+      if (enabled) await syncNow(shadow, false);
+    } finally {
+      // 开关已独立保存，首轮同步失败也要回读实际状态
+      await refresh(shadow);
     }
-    await refresh(shadow);
   }
 
-  async function syncNow(shadow) {
+  async function syncNow(shadow, announce = true) {
     const extra = await candidateSecret(shadow);
     const result = await request({ reason: "manual", action: "sync", ...extra });
     if (result?.needSecret) {
@@ -420,6 +418,7 @@
       await showPrompt(shadow, { kind: result.action === "conflict" ? "conflict" : result.action, reason: result.reason });
     }
     await refresh(shadow);
+    if (announce && !["conflict", "decrypt", "upgrade"].includes(result?.action)) void root.STSettingsDialogs.notice(shadow, { title: "同步完成", message: "设置云同步已完成。" });
   }
 
   async function resetCloud(shadow) {
@@ -448,6 +447,7 @@
       return;
     }
     await refresh(shadow);
+    void root.STSettingsDialogs.notice(shadow, { title: "重置完成", message: "云端设置已清除。" });
   }
 
   function watchAuth() {
@@ -559,6 +559,7 @@
       const next = toggle.getAttribute("aria-checked") !== "true";
       toggleEnabled(shadow, next).catch((error) => {
         log.error("settings-cloud-toggle-failed", "切换设置云同步失败", { error });
+        setStatus(shadow, error.message);
       });
       return true;
     }

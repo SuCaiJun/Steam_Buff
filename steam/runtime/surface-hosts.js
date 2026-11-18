@@ -12,11 +12,7 @@
   "use strict";
 
   const api = window.SteamBuff = window.SteamBuff || {};
-  const VERSION = "steam-buff-surface-hosts-v5";
-  const DOWNLOAD_HOST_ID = "download-toolbar";
-  const DOWNLOAD_ROUTE = "/library/downloads";
-  const DOWNLOAD_ROOT = "__RickyDownloadSurfaceHost";
-  const DOWNLOAD_TOAST = "__RickyDownloadSurfaceToast";
+  const VERSION = "steam-buff-surface-hosts-v6";
   const PROPERTY_HOST_ID = "property-customization";
   const PROPERTY_TASK = "surface-host-property-customization";
   const PROPERTY_SCAN_MS = 1000;
@@ -28,7 +24,6 @@
   const MAIN_POPUP_SLOT_SELECTOR = "div._2Nq6ov7A1hGcHXVOXNt_OE > div._37MAYpIjl0IDA1xVhhsuX8";
   const MAIN_POPUP_SCAN_MS = 1000;
   const MAIN_POPUP_SCROLL_DEBOUNCE_MS = 120;
-  const TOAST_MS = 4200;
   const manager = globalThis.STSurfaceManager;
 
   if (api.surfaces?.version === VERSION) {
@@ -39,12 +34,6 @@
     throw new Error("SurfaceManager 当前不可用");
   }
 
-  const downloadState = {
-    route: "",
-    routeHandle: null,
-    started: false,
-    toastTimer: 0,
-  };
   const propertyState = {
     schedulerStarted: false,
     signature: "",
@@ -65,120 +54,6 @@
 
   function mainUi() {
     return api.ctx?.isMainUi?.() === true;
-  }
-
-  function ensureDownloadRoot() {
-    if (!mainUi() || !document.body) {
-      return null;
-    }
-    api.styles?.ensureFeatureStyle?.("download-surface");
-    let root = document.getElementById(DOWNLOAD_ROOT);
-    if (!root) {
-      root = document.createElement("div");
-      root.id = DOWNLOAD_ROOT;
-      root.setAttribute("role", "toolbar");
-      root.setAttribute("aria-label", window.STI18n.text("steam.downloadSurface.label", "下载管理工具"));
-      document.body.appendChild(root);
-    }
-    return root;
-  }
-
-  function renderDownload(entries = downloadHost.entries()) {
-    if (!entries.length) {
-      document.getElementById(DOWNLOAD_ROOT)?.remove();
-      return;
-    }
-    const root = ensureDownloadRoot();
-    if (!root) {
-      return;
-    }
-    for (const entry of entries) {
-      root.appendChild(entry.value.element);
-    }
-    root.hidden = downloadHost.diagnostics().active !== true;
-  }
-
-  const downloadHost = manager.createHost({
-    id: DOWNLOAD_HOST_ID,
-    onContextChange() {
-      renderDownload();
-    },
-    onEntriesChange(entries) {
-      renderDownload(entries);
-    },
-    onStop() {
-      document.getElementById(DOWNLOAD_ROOT)?.remove();
-      document.getElementById(DOWNLOAD_TOAST)?.remove();
-    },
-  });
-
-  function setDownloadRoute(route) {
-    const nextRoute = String(route || "");
-    if (downloadState.route === nextRoute) {
-      return;
-    }
-    downloadState.route = nextRoute;
-    downloadHost.setContext(Object.freeze({ route: nextRoute }), nextRoute === DOWNLOAD_ROUTE);
-  }
-
-  function startDownloadHost() {
-    if (downloadState.started) {
-      return true;
-    }
-    if (!mainUi() || !api.contextRouter?.subscribe) {
-      return false;
-    }
-    downloadState.routeHandle = api.contextRouter.subscribe(setDownloadRoute);
-    setDownloadRoute(api.ctx?.route?.() || "");
-    downloadState.started = true;
-    return true;
-  }
-
-  function registerDownload(input = {}) {
-    const id = String(input.id || "").trim();
-    const element = input.element;
-    if (!id || !element || element.nodeType !== 1) {
-      throw new TypeError("下载 Surface 注册参数无效");
-    }
-    if (!startDownloadHost()) {
-      throw new Error("DownloadToolbarHost 当前不可用");
-    }
-    return downloadHost.register({
-      id,
-      order: input.order,
-      value: Object.freeze({ element }),
-      onActiveChange(active, context) {
-        input.onActiveChange?.(active, context?.route || "");
-      },
-      onDispose() {
-        element.remove();
-      },
-    });
-  }
-
-  function notifyDownload(message, kind = "info") {
-    if (!mainUi() || !document.body) {
-      return false;
-    }
-    api.styles?.ensureFeatureStyle?.("download-surface");
-    let toast = document.getElementById(DOWNLOAD_TOAST);
-    if (!toast) {
-      toast = document.createElement("div");
-      toast.id = DOWNLOAD_TOAST;
-      toast.setAttribute("role", "status");
-      document.body.appendChild(toast);
-    }
-    toast.textContent = String(message || "");
-    toast.dataset.kind = kind;
-    toast.classList.add("st-download-toast-show");
-    if (downloadState.toastTimer) {
-      window.clearTimeout(downloadState.toastTimer);
-    }
-    downloadState.toastTimer = window.setTimeout(() => {
-      downloadState.toastTimer = 0;
-      toast.classList.remove("st-download-toast-show");
-    }, TOAST_MS);
-    return true;
   }
 
   function visibleTextInput(input) {
@@ -520,31 +395,12 @@
   }
 
   function stop() {
-    downloadState.routeHandle?.dispose?.();
-    downloadState.routeHandle = null;
-    downloadState.started = false;
-    if (downloadState.toastTimer) {
-      window.clearTimeout(downloadState.toastTimer);
-      downloadState.toastTimer = 0;
-    }
     stopPropertyScheduler();
     stopMainPopupHost();
-    downloadHost.stop();
     propertyHost.stop();
     mainPopupHost.stop();
   }
 
-  const download = Object.freeze({
-    active() {
-      return downloadHost.diagnostics().active;
-    },
-    hostId: DOWNLOAD_HOST_ID,
-    notify: notifyDownload,
-    register: registerDownload,
-    route() {
-      return downloadState.route;
-    },
-  });
   const propertyCustomization = Object.freeze({
     active() {
       return propertyHost.diagnostics().active;
@@ -563,7 +419,6 @@
   api.surfaces = Object.freeze({
     version: VERSION,
     diagnostics: manager.diagnostics,
-    download,
     mainPopup,
     propertyCustomization,
     stop,

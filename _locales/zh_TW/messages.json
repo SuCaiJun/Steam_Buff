@@ -375,17 +375,23 @@
   "settings_feature_library_group_labels_hide_collection_tags_desc": {
     "message": "在 Steam 收藏庫清單可見的收藏群組名稱中隱藏末尾連續的 [] 標籤；不修改 Steam 原始群組資料"
   },
+  "settings_feature_download_auto_shutdown_name": {
+    "message": "下載完成後關機"
+  },
+  "settings_feature_download_auto_shutdown_desc": {
+    "message": "在下載選單中手動勾選。本機下載完成後等待 60 秒，可在倒數期間取消。"
+  },
   "settings_feature_download_batch_actions_name": {
     "message": "下載佇列批次操作"
   },
   "settings_feature_download_batch_actions_desc": {
     "message": "在下載管理頁提供全部開始、全部暫停和全部移除操作"
   },
-  "settings_feature_download_auto_shutdown_name": {
-    "message": "下載完成後自動關機"
+  "settings_feature_download_manager_enhancement_name": {
+    "message": "下載管理增強"
   },
-  "settings_feature_download_auto_shutdown_desc": {
-    "message": "下載佇列完成後延遲 1 分鐘執行關機動作"
+  "settings_feature_download_manager_enhancement_desc": {
+    "message": "在 Steam 下載頁顯示下載管理工具列"
   },
   "settings_feature_steam_news_translate_name": {
     "message": "Steam 新聞彈出視窗翻譯"
@@ -2630,93 +2636,6 @@
   "store_dataDisplay_thirdPartyUnavailable": {
     "message": "第三方價格資料暫時無法使用。"
   },
-  "store_aiForecast_responseInstruction": {
-    "message": "必須明確建議現在購買、等待主要預測時段，或達到何種折扣再購買。請使用繁體中文回答，並明確區分事實、推測與不確定性。不得提供沒有資料支持的精確日期或精確機率。"
-  },
-  "store_aiForecast_summaryLanguageInstruction": {
-    "message": "4. 摘要使用繁體中文純文字，不使用 Markdown、標題、清單或程式碼區塊。"
-  },
-  "store_aiForecast_storageUnavailable": {
-    "message": "chrome.storage.local 無法使用"
-  },
-  "store_aiForecast_sessionReadFailed": {
-    "message": "讀取 AI 預測工作階段失敗"
-  },
-  "store_aiForecast_sessionSaveFailed": {
-    "message": "儲存 AI 預測工作階段失敗"
-  },
-  "store_aiForecast_sessionClearFailed": {
-    "message": "清除 AI 預測工作階段失敗"
-  },
-  "store_aiForecast_readingSession": {
-    "message": "正在讀取 AI 預測記錄..."
-  },
-  "store_aiForecast_preparing": {
-    "message": "正在準備預測資料..."
-  },
-  "store_aiForecast_analyzing": {
-    "message": "AI 正在分析歷史折扣與節慶資料..."
-  },
-  "store_aiForecast_failed": {
-    "message": "AI 預測失敗，請稍後重試。"
-  },
-  "store_aiForecast_festivalUnavailable": {
-    "message": "節慶資料暫時無法使用，無法產生 AI 預測。"
-  },
-  "store_aiForecast_preparingHistory": {
-    "message": "正在準備歷史折扣與節慶資料..."
-  },
-  "store_aiForecast_openDetailsHint": {
-    "message": "點選「對話詳細資料」產生 AI 預測。"
-  },
-  "store_aiForecast_you": {
-    "message": "你"
-  },
-  "store_aiForecast_initialQuestion": {
-    "message": "請根據目前頁面的價格與節慶資料預測未來折扣。"
-  },
-  "store_aiForecast_thinking": {
-    "message": "正在思考..."
-  },
-  "store_aiForecast_replying": {
-    "message": "AI 正在回覆，請稍候..."
-  },
-  "store_aiForecast_questionPlaceholder": {
-    "message": "詢問未來折扣相關問題"
-  },
-  "store_aiForecast_title": {
-    "message": "AI 預測"
-  },
-  "store_aiForecast_closeDialog": {
-    "message": "關閉對話"
-  },
-  "store_aiForecast_streamUnavailable": {
-    "message": "AI 串流通道尚未就緒。"
-  },
-  "store_aiForecast_replySaveFailed": {
-    "message": "回覆已完成，但無法儲存此次對話。"
-  },
-  "store_aiForecast_dataStillLoading": {
-    "message": "預測資料仍在載入，請稍後重試。"
-  },
-  "store_aiForecast_configurationRequired": {
-    "message": "產生預測前需要先設定 AI 服務。"
-  },
-  "store_aiForecast_dataUnavailable": {
-    "message": "AI 預測資料暫時無法使用。"
-  },
-  "store_aiForecast_prepareFailed": {
-    "message": "準備 AI 預測資料失敗。"
-  },
-  "store_aiForecast_followupFailed": {
-    "message": "AI 追問失敗，請稍後重試。"
-  },
-  "store_aiForecast_sessionUnavailable": {
-    "message": "暫時無法讀取 AI 預測記錄。"
-  },
-  "store_aiForecast_dialogDetails": {
-    "message": "對話詳細資料"
-  },
   "common_clearSelection": {
     "message": "取消全選"
   },
@@ -3049,6 +2968,75 @@
   "store_wishlistPrice_steampyProxy": {
     "message": "SteamPY 代購"
   },
+  "steam_downloadShutdown_notEnabled": {
+    "message": "自動關機未啟用"
+  },
+  "steam_downloadShutdown_waitingStart": {
+    "message": "等待下載工作開始"
+  },
+  "steam_downloadShutdown_waitingCompletion": {
+    "message": "正在等待下載完成"
+  },
+  "steam_downloadShutdown_paused": {
+    "message": "下載已暫停，恢復並完成後關機"
+  },
+  "steam_downloadShutdown_details": {
+    "message": "剩餘下載：$remaining$，目前速度：$speed$",
+    "placeholders": {
+      "remaining": {
+        "content": "$1"
+      },
+      "speed": {
+        "content": "$2"
+      }
+    }
+  },
+  "steam_downloadShutdown_shortLabel": {
+    "message": "下載完成後關機"
+  },
+  "steam_downloadShutdown_backendStarting": {
+    "message": "正在連線下載關機後端"
+  },
+  "steam_downloadShutdown_backendTimeout": {
+    "message": "關機狀態未確認，請重新開啟下載選單查看"
+  },
+  "steam_downloadShutdown_failed": {
+    "message": "自動關機失敗，請查看記錄"
+  },
+  "steam_downloadShutdown_countdown": {
+    "message": "下載已完成，即將關機"
+  },
+  "steam_downloadShutdown_preparing": {
+    "message": "正在準備 Steam 關機"
+  },
+  "steam_downloadShutdown_requested": {
+    "message": "已向 Steam 傳送關機請求"
+  },
+  "steam_downloadShutdown_localOnly": {
+    "message": "僅支援本機下載，請切換回本機下載清單"
+  },
+  "steam_downloadShutdown_unconfirmed": {
+    "message": "Steam 關機請求未確認"
+  },
+  "steam_downloadShutdown_cancel": {
+    "message": "取消關機"
+  },
+  "steam_downloadShutdown_seconds": {
+    "message": "$seconds$ 秒",
+    "placeholders": {
+      "seconds": {
+        "content": "$1"
+      }
+    }
+  },
+  "steam_downloadShutdown_etaAt": {
+    "message": "預計關機 $time$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
   "steam_downloadBatch_busy": {
     "message": "已有批次操作正在進行"
   },
@@ -3118,125 +3106,6 @@
   },
   "steam_downloadSurface_label": {
     "message": "下載管理工具"
-  },
-  "steam_downloadShutdown_backendStarting": {
-    "message": "正在初始化背景服務"
-  },
-  "steam_downloadShutdown_backendTimeout": {
-    "message": "背景服務在 8 秒內沒有回應，請檢查下載關機後端是否已注入。"
-  },
-  "steam_downloadShutdown_checking": {
-    "message": "正在檢查下載工作..."
-  },
-  "steam_downloadShutdown_currentStatus": {
-    "message": "目前狀態：$status$",
-    "placeholders": {
-      "status": {
-        "content": "$1"
-      }
-    }
-  },
-  "steam_downloadShutdown_disabled": {
-    "message": "自動關機已關閉"
-  },
-  "steam_downloadShutdown_notEnabled": {
-    "message": "自動關機未啟用"
-  },
-  "steam_downloadShutdown_enabled": {
-    "message": "自動關機：已開啟"
-  },
-  "steam_downloadShutdown_eta": {
-    "message": "自動關機：$duration$後($time$)",
-    "placeholders": {
-      "duration": {
-        "content": "$1"
-      },
-      "time": {
-        "content": "$2"
-      }
-    }
-  },
-  "steam_downloadShutdown_details": {
-    "message": "剩餘下載：$remaining$，目前速度：$speed$",
-    "placeholders": {
-      "remaining": {
-        "content": "$1"
-      },
-      "speed": {
-        "content": "$2"
-      }
-    }
-  },
-  "steam_downloadShutdown_unavailable": {
-    "message": "自動關機：暫時無法估算"
-  },
-  "steam_downloadShutdown_hours": {
-    "message": "小時"
-  },
-  "steam_downloadShutdown_minutes": {
-    "message": "分鐘"
-  },
-  "steam_downloadShutdown_timeToday": {
-    "message": "$time$",
-    "placeholders": {
-      "time": {
-        "content": "$1"
-      }
-    }
-  },
-  "steam_downloadShutdown_timeDay": {
-    "message": "$day$日 $time$",
-    "placeholders": {
-      "day": {
-        "content": "$1"
-      },
-      "time": {
-        "content": "$2"
-      }
-    }
-  },
-  "steam_downloadShutdown_timeMonth": {
-    "message": "$month$月$day$日 $time$",
-    "placeholders": {
-      "month": {
-        "content": "$1"
-      },
-      "day": {
-        "content": "$2"
-      },
-      "time": {
-        "content": "$3"
-      }
-    }
-  },
-  "steam_downloadShutdown_errorLog": {
-    "message": "錯誤記錄：$message$",
-    "placeholders": {
-      "message": {
-        "content": "$1"
-      }
-    }
-  },
-  "steam_downloadShutdown_failed": {
-    "message": "關機呼叫失敗，請查看記錄"
-  },
-  "steam_downloadShutdown_label": {
-    "message": "下載完成後自動關機"
-  },
-  "steam_downloadShutdown_paused": {
-    "message": "下載已暫停，恢復並完成後關機"
-  },
-  "steam_downloadShutdown_shortLabel": {
-    "message": "下載完成後關機"
-  },
-  "steam_downloadShutdown_shuttingDown": {
-    "message": "下載已完成，正在關機"
-  },
-  "steam_downloadShutdown_waitingCompletion": {
-    "message": "正在等待下載完成"
-  },
-  "steam_downloadShutdown_waitingStart": {
-    "message": "等待下載工作開始"
   },
   "steam_newsTranslate_aiBodyEmpty": {
     "message": "AI 未產生有效的正文翻譯"
@@ -6808,9 +6677,6 @@
   "store_detail_loading": {
     "message": "正在整理遊戲資訊…"
   },
-  "store_detail_ai": {
-    "message": "AI 對話"
-  },
   "store_detail_low": {
     "message": "歷史低價參考"
   },
@@ -7313,5 +7179,44 @@
   },
   "messageCenter_navigationLabel": {
     "message": "訊息中心"
+  },
+  "common_success": {
+    "message": "操作成功"
+  },
+  "common_saved": {
+    "message": "設定已儲存。"
+  },
+  "common_failed": {
+    "message": "操作失敗"
+  },
+  "settings_account_localLogoutOnly": {
+    "message": "已登出此裝置，但遠端登出失敗。"
+  },
+  "settings_account_refreshed": {
+    "message": "使用者中心已重新整理。"
+  },
+  "gameLinks_saveFailedTitle": {
+    "message": "儲存失敗"
+  },
+  "gameLinks_saved": {
+    "message": "儲存成功"
+  },
+  "gameLinks_savedMessage": {
+    "message": "相關連結已儲存。"
+  },
+  "gameLinks_deleted": {
+    "message": "連結已刪除。"
+  },
+  "gameLinks_resetDone": {
+    "message": "相關連結已還原為預設值。"
+  },
+  "store_customWalletAmount_submitFailed": {
+    "message": "儲值提交失敗，Steam 儲值表單欄位無法使用。"
+  },
+  "store_priceHistory_monitorSaved": {
+    "message": "折扣監控已儲存。"
+  },
+  "store_priceHistory_monitorDeleted": {
+    "message": "折扣監控已刪除。"
   }
 }

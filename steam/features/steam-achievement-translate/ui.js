@@ -170,7 +170,7 @@
         if (dialog?.current === current) renderList();
       }
       if (!error.reported) log.error("achievement-operation-failed", "成就翻译操作失败", { error, phase, appid: current?.appId });
-      if (dialog?.current === current) status(error.message, true);
+      if (phase !== "ai-batch" && dialog?.current === current) status(error.message, true);
     }
     function assertCurrent(current) {
       if (stopped || mounted !== current || !current.panel.isConnected || !current.list.isConnected ||
@@ -309,6 +309,8 @@
         current.items = grouped.items.map(item => ({ ...item, kind: "achievement", key: `a:${item.id}` })); current.groups = grouped.groups; current.gameName = native.gameName;
         current.itemById = new Map(current.items.map(item => [item.id, item]));
         current.language = nextLanguage; current.aiReady = response.data.aiReady;
+        current.aiReadyByKind = response.data.aiReadyByKind;
+        current.aiErrors = response.data.aiErrors;
         current.records = new Map(response.data.records.map(record => [`a:${record.id}`, record]));
         for (const record of response.data.groupRecords) current.records.set(`g:${record.id}`, record);
         current.entities = new Map(current.items.map(item => [item.key, item])); current.keysByGroup = new Map();
@@ -408,9 +410,11 @@
       mounted = current; host?.setTarget(current.panel);
       load(current);
     }
-    function status(message, error = false) {
+    function status(message, error = false, result = false) {
       if (!dialog) return;
-      dialog.status.textContent = message; dialog.status.dataset.error = String(error);
+      dialog.status.textContent = error || result ? "" : message;
+      dialog.status.dataset.error = "false";
+      if (error || result) void window.STFeedback.show(dialog.status.ownerDocument.body, { message });
     }
     function indexSearch(current, item) {
       const record = current.records.get(item.key), valid = model.current(record, item);
@@ -684,7 +688,12 @@
       d.subtitle.textContent = `${d.current.gameName || `AppID ${d.current.appId}`} · ${d.current.items.length} 项成就 · ${d.current.language === "chinese_simplified" ? "简体中文" : d.current.language || ""}`;
       renderList();
       if (!d.current.ready) status("正在读取完整成就列表…");
-      else if (!d.job && !d.saving) status(d.current.aiReady ? "手动编辑后自动勾选，AI翻译只生成草稿；点击保存选中才生效。未解锁的隐藏成就可点击查看。" : "AI 服务尚未配置；手动编辑后自动勾选，点击保存选中才生效。");
+      else if (!d.job && !d.saving) {
+        const errors = [...new Set(Object.values(d.current.aiErrors))].join("。 ");
+        status(d.current.aiReady
+          ? "手动编辑后自动勾选。AI 翻译只生成草稿，点击保存选中才生效。未解锁的隐藏成就可点击查看。"
+          : `${errors}。手动编辑后自动勾选，点击保存选中才生效。`);
+      }
     }
     async function saveTranslations(keys) {
       const d = dialog; if (!d || !d.current.ready || d.saving || d.job) return;
@@ -693,7 +702,7 @@
         if (!item) throw new Error("待保存成就已变化，请刷新核对");
         return { ...item, translatedTitle: draft.title, translatedDescription: draft.description, expectedRevision: draft.revision, origin: draft.origin, clear: draft.clear };
       });
-      if (!entries.length) { status("选中项没有待保存修改。"); return; }
+      if (!entries.length) { status("选中项没有待保存修改。", false, true); return; }
       const operationId = crypto.randomUUID(); d.saving = true; updateControls(); let saved = 0, cleared = 0, conflicts = 0, displaySaved = false;
       try {
         for (const kind of ["achievement", "group"]) for (const batch of model.batches(entries.filter(item => item.kind === kind))) {
@@ -711,7 +720,7 @@
           conflicts += response.data.conflicts.length; if (mounted === d.current) applyVisible(d.current);
         }
         log[conflicts ? "warn" : "info"]("achievement-translations-saved", "用户保存成就与分组译文", { operationId, appid: d.current.appId, savedCount: saved, clearedCount: cleared, conflictCount: conflicts });
-        if (dialog === d) { renderManager(true); status(`已保存 ${saved} 项${conflicts ? `；${conflicts} 项有更新冲突，草稿保留，请刷新核对后保存` : ""}`, conflicts > 0); }
+        if (dialog === d) { renderManager(true); status(`已保存 ${saved} 项${conflicts ? `；${conflicts} 项有更新冲突，草稿保留，请刷新核对后保存` : ""}`, conflicts > 0, true); }
       } catch (error) {
         log.warn("achievement-save-partial", "译文保存失败或部分完成", { operationId, appid: d.current.appId, savedCount: saved, clearedCount: cleared, error });
         if (dialog === d) status(`已保存 ${saved} 项；剩余未保存：${error.message}`, true);
@@ -723,8 +732,13 @@
     async function translate(keys) {
       const d = dialog; if (!d || !d.current.ready || d.saving || d.job || !d.current.aiReady) return;
       const items = keys.map(key => d.current.entities.get(key));
-      if (!items.length) { status("请先勾选需要翻译的成就或分组。"); return; }
+      if (!items.length) { status("请先勾选需要翻译的成就或分组。", false, true); return; }
       if (items.some(item => !item)) { status("勾选内容已变化，请刷新后重新勾选。", true); return; }
+      const unavailable = items.find(item => !d.current.aiReadyByKind[item.kind]);
+      if (unavailable) {
+        status(d.current.aiErrors[unavailable.kind] + "。", true);
+        return;
+      }
       const revisions = new Map(items.map(item => [item.key, d.current.records.get(item.key)?.revision || 0]));
       const conceal = [];
       for (const item of items) if (item.hidden && d.revealed.delete(item.key)) conceal.push(item.key);
@@ -754,7 +768,7 @@
       try {
         await job.queue.run(); const cancelled = job.queue.snapshot().cancelled;
         if (!cancelled) log[failed ? "warn" : "info"]("achievement-drafts-generated", "AI 译文草稿生成完成，等待用户保存", { operationId: job.operationId, appid: d.current.appId, generatedCount: generated, failedCount: failed, selectedCount: keys.length });
-        if (dialog === d) status(`${job.contextError ? job.contextError.message : cancelled ? "已停止" : "翻译完成"}：已生成 ${generated} 项草稿，失败 ${failed} 项，未处理 ${items.length - processed} 项；点击保存后才生效。`, failed > 0);
+        if (dialog === d) status(`${job.contextError ? job.contextError.message : cancelled ? "已停止" : "翻译完成"}：已生成 ${generated} 项草稿，失败 ${failed} 项，未处理 ${items.length - processed} 项；点击保存后才生效。`, failed > 0, true);
       } finally { d.job = null; if (dialog === d) { renderList(); updateControls(); } }
     }
     function clickManager(event) {
@@ -768,7 +782,7 @@
       } else if (action === "select" || action === "invert") { for (const key of d.filtered) setSelected(key, action === "select" || !d.selected.has(key)); updateControls(); }
       else if (action === "clear-selection") { d.selected.clear(); d.autoSelected.clear(); d.selectionCounts.clear(); d.selectedDirty = 0; updateControls(); }
       else if (action === "save") saveTranslations([...d.selected]).catch(error => reportFailure(error, "save", d.current));
-      else if (action === "ai") translate([...d.selected]).catch(error => reportFailure(error, "ai-batch", d.current));
+      else if (action === "ai") translate([...d.selected]).catch(error => reportFailure(error, "translate", d.current));
       else if (action === "stop") { d.job.queue.cancel(); status("正在停止；已经生成的草稿保留，不会自动保存。"); updateControls(); }
       else if (action === "refresh") { load(d.current, true); }
     }

@@ -282,7 +282,10 @@
         }
         await clearAuthState(ctx, { ...bound, operationId });
         rt.device = null;
-        rt.msg = t("settings.account.loggedOut", "已退出登录");
+        rt.msg = "";
+        void root.STSettingsDialogs.notice(shadow, { message: remoteLogoutSucceeded
+          ? t("settings.account.loggedOut", "已退出登录")
+          : t("settings.account.localLogoutOnly", "已退出本机登录，但远端退出失败。") });
         log.info("account-logout-success", "退出登录成功", {
           operationId,
           remoteLogoutAttempted: !!token,
@@ -290,7 +293,8 @@
           durationMs: Date.now() - startedAt,
         });
       } catch (error) {
-        rt.msg = error?.message || String(error);
+        rt.msg = "";
+        void root.STSettingsDialogs.notice(shadow, { message: error?.message || String(error) });
         log.error("account-logout-failed", "退出登录失败", {
           operationId,
           error,

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.2.17",
+  "version": "2.2.43",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -26,7 +26,8 @@
     "scripting",
     "storage",
     "alarms",
-    "activeTab"
+    "activeTab",
+    "offscreen"
   ],
   "host_permissions": [
     "https://steamloopback.host/*",
@@ -50,6 +51,13 @@
     "http://*/*",
     "https://*/*"
   ],
+  "sandbox": {
+    "pages": ["extension/workflow-script/sandbox.html"]
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';",
+    "sandbox": "sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-eval'; worker-src blob:; connect-src 'none';"
+  },
   "background": {
     "service_worker": "extension/background.js"
   },
@@ -60,6 +68,13 @@
       ],
       "js": [
         "shared/config.js",
+        "shared/logger-schema.js",
+        "extension/runtime/logger.js",
+        "shared/logger-factory.js",
+        "shared/styles/theme.js",
+        "shared/utils/dom.js",
+        "shared/styles/components.js",
+        "shared/ui-feedback.js",
         "onboarding/contract.js",
         "onboarding/bridge.js"
       ],
@@ -204,6 +219,7 @@
         "shared/styles/theme.js",
         "shared/utils/dom.js",
         "shared/styles/components.js",
+        "shared/ui-feedback.js",
         "shared/scheduler.js",
         "shared/logger-schema.js",
         "extension/runtime/logger.js",
@@ -220,6 +236,10 @@
     }
   ],
   "web_accessible_resources": [
+    {
+      "resources": ["settings/pages/workflow-code.js", "vendor/codemirror/editor.js"],
+      "matches": ["https://*.steampowered.com/*", "https://steampowered.com/*", "https://steamcommunity.com/*", "https://*.steamcommunity.com/*", "https://steamloopback.host/*"]
+    },
     {
       "resources": [
         "shared/review-regex-host.html"
@@ -260,6 +280,7 @@
         "shared/error-boundary.js",
         "shared/styles/theme.js",
         "shared/styles/components.js",
+        "shared/ui-feedback.js",
         "steam/runtime/paths.js",
         "steam/runtime/steam-context.js",
         "steam/runtime/context-router.js",
@@ -268,6 +289,7 @@
         "steam/runtime/cleanup-stale.js",
         "steam/runtime/styles.js",
         "steam/runtime/download-toolbar.js",
+        "steam/shared/download-state.js",
         "shared/utils/player-stats.js",
         "shared/utils/player-stats-ui.js",
         "shared/game-links.js",
@@ -305,7 +327,12 @@
         "steam/shared/name-table.js",
         "steam/shared/native-window.js",
         "steam/shared/name-batch.js",
+        "shared/workflow-fields.js",
+        "shared/workflow-data.js",
+        "shared/workflow.js",
+    "shared/automation.js",
         "steam/shared/name-filter-metadata.js",
+        "steam/shared/app-overview-events.js",
         "steam/shared/name-transfer-ui.js",
         "shared/name-edit.js"
       ],
@@ -337,6 +364,7 @@
         "shared/styles/theme.js",
         "shared/utils/dom.js",
         "shared/styles/components.js",
+        "shared/ui-feedback.js",
         "shared/observer-utils.js",
         "shared/page-context.js",
         "_locales/*/messages.json",
@@ -376,6 +404,7 @@
         "images/ui/chevron-right.svg",
         "images/ui/game-link-web.svg",
         "images/ui/game-link-qrcode.svg",
+        "images/tabler/*.svg",
         "images/features/store-detail-reminders.svg",
         "images/features/subscription-info.svg",
         "images/features/family-library-owned-marker.svg",
